@@ -10,8 +10,8 @@
     "./prettier": "./prettier/prettier.cjs",
     "./tsconfig/base.json": "./tsconfig/base.json"
   },
-  "deveslint/js": "^9.17.0",
-    "@Dependencies": {
+  "dependencies": {
+    "@eslint/js": "^9.17.0",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "eslint": "^9.17.0",
