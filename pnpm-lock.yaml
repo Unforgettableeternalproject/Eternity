@@ -10,6 +10,9 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.3
+      '@uep/config':
+        specifier: workspace:*
+        version: link:packages/config
       eslint:
         specifier: ^9.17.0
         version: 9.39.2
