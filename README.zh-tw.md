@@ -1,6 +1,7 @@
 # Eternity - 個人網站
 
 ### 本專案提供多語言 README
+
 [![Static Badge](https://img.shields.io/badge/lang-zh--tw-yellow)](./README.zh-tw.md) [![Static Badge](https://img.shields.io/badge/lang-en-red)](./README.md)
 
 ## U.E.P 和 Exera 的對話
@@ -22,16 +23,19 @@ Eternity 是 Bernie 的個人網站專案，整合了個人介紹、創作展示
 ## 主要功能
 
 🌟 **個人網頁**
+
 - 個人簡介與聯絡方式
 - 專案作品集展示
 - 技術棧與技能展示
 
 📚 **Gitbook 知識庫**
+
 - 個人創作文章
 - 技術筆記與教學
 - 專案文件整理
 
 🎨 **其他功能**
+
 - 待規劃與開發
 
 ## 專案結構
@@ -54,6 +58,7 @@ Eternity/
 ## 開發狀態
 
 ### 📅 當前階段：初始化（v0.1.0）
+
 - ✅ 專案結構規劃
 - ✅ README 文件建立
 - ⏳ 基礎頁面開發
@@ -71,6 +76,7 @@ Eternity/
 ## 貢獻者
 
 ❦ **Bernie** - 專案建立者與主要開發者
+
 - GitHub: [@unforgettableeternalproject](https://github.com/unforgettableeternalproject)
 
 ## 授權
@@ -81,4 +87,4 @@ Copyright © 2025 Bernie. All rights reserved.
 
 ---
 
-*Last Updated: December 2025*
+_Last Updated: December 2025_

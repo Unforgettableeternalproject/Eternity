@@ -1,6 +1,7 @@
 # Eternity - Bernie's Personal Website Monorepo
 
 ### This project provides multilanguage README
+
 [![Static Badge](https://img.shields.io/badge/lang-zh--tw-yellow)](./README.zh-tw.md) [![Static Badge](https://img.shields.io/badge/lang-en-red)](./README.md)
 
 ## Conversation between U.E.P and Exera
@@ -22,12 +23,14 @@ Eternity is Bernie's personal website monorepo project, using pnpm workspaces + 
 ## Main Features
 
 🌟 **Main Site (apps/root)**
+
 - Domain: unforgettableeternalproject.com
 - Personal introduction and contact information
 - Project portfolio showcase
 - Technology stack and skills display
 
 📚 **Documentation Site (apps/uep)**
+
 - Domain: uep.unforgettableeternalproject.com
 - Personal creative articles and knowledge base
 - Technical notes and tutorials
@@ -151,7 +154,7 @@ Create Cloudflare Pages Project A:
 - **Production branch**: main
 - **Framework preset**: Astro
 - **Root directory**: `apps/root`
-- **Build command**: 
+- **Build command**:
   ```bash
   pnpm install --frozen-lockfile && pnpm --filter @uep/root build
   ```
@@ -171,7 +174,7 @@ Create Cloudflare Pages Project B:
 - **Production branch**: main
 - **Framework preset**: Astro
 - **Root directory**: `apps/uep`
-- **Build command**: 
+- **Build command**:
   ```bash
   pnpm install --frozen-lockfile && pnpm --filter @uep/uep build
   ```
@@ -191,6 +194,7 @@ Create Cloudflare Pages Project B:
 ## Development Status
 
 ### ✅ Phase 1: Monorepo Architecture Setup (Completed)
+
 - ✅ pnpm workspace + TurboRepo configuration
 - ✅ Shared config package (@uep/config)
 - ✅ Shared UI components package (@uep/ui)
@@ -200,12 +204,14 @@ Create Cloudflare Pages Project B:
 - ✅ ESLint + Prettier + TypeScript configuration
 
 ### 📅 Phase 2: Content Development (In Progress)
+
 - ⏳ Enhance main site content
 - ⏳ Write documentation site content
 - ⏳ Design responsive layout
 - ⏳ SEO optimization
 
 ### 📅 Phase 3: Deployment & Optimization (Planned)
+
 - ⏳ Cloudflare Pages deployment
 - ⏳ Domain configuration
 - ⏳ Performance optimization
@@ -214,24 +220,31 @@ Create Cloudflare Pages Project B:
 ## Workspace Packages
 
 ### @uep/root
+
 Main website, located in `apps/root`.
 
 ### @uep/uep
+
 Documentation site, located in `apps/uep`.
 
 ### @uep/config
+
 Shared configuration package, includes:
+
 - ESLint configuration (base + astro)
 - Prettier configuration
 - TypeScript configuration
 
 ### @uep/ui
+
 Shared UI components package (currently skeleton with example Button component).
+
 - **Knowledge Base**: Gitbook
 
 ## Development Status
 
 ### 📅 Current Phase: Initialization (v0.1.0)
+
 - ✅ Project structure planning
 - ✅ README documentation created
 - ⏳ Basic page development
@@ -241,6 +254,7 @@ Shared UI components package (currently skeleton with example Button component).
 ## Contributors
 
 ❦ **Bernie** - Project Creator & Main Developer
+
 - GitHub: [@unforgettableeternalproject](https://github.com/unforgettableeternalproject)
 
 ## License
@@ -251,4 +265,4 @@ This project is licensed under MIT License. See [LICENSE](./LICENSE) for details
 
 ---
 
-*Last Updated: December 2025*
+_Last Updated: December 2025_

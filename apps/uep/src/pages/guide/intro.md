@@ -22,11 +22,13 @@ The Unforgettable Eternal Project is a personal website and knowledge base creat
 The UEP ecosystem consists of two main sites:
 
 ### Main Site
+
 - **URL**: [unforgettableeternalproject.com](https://unforgettableeternalproject.com)
 - **Purpose**: Personal introduction and project portfolio
 - **Content**: Home page, links, and quick navigation
 
 ### Documentation Site (This Site)
+
 - **URL**: [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com)
 - **Purpose**: Detailed documentation and knowledge base
 - **Content**: Guides, tutorials, articles, and technical documentation
@@ -55,4 +57,4 @@ Currently, this is a personal project. However, if you find any issues or have s
 
 ---
 
-*Last updated: December 2025*
+_Last updated: December 2025_

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial monorepo setup with pnpm workspaces and TurboRepo
 - Main website (apps/root) with Astro
 - Documentation site (apps/uep) with Astro
@@ -18,12 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch strategy documentation
 
 ### Changed
+
 - Updated site branding to "Eternity" and "U.E.P的幻想空間"
 - Replaced SVG favicons with Logo.ico
 
 ## [0.1.0] - 2025-12-23
 
 ### Added
+
 - Initial release of Eternity monorepo
 - Basic project structure and build system
 - Development environment setup
