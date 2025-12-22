@@ -53,6 +53,7 @@ logs/
 *.tmp
 temp/
 *.cookie
+.turbo/
 
 # Personal notes (keep private)
 NOTES.md
