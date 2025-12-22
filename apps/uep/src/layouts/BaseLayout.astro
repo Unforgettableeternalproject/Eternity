@@ -4,7 +4,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'UEP Documentation - Creative works and technical notes' } = Astro.props;
+const { title, description = 'U.E.P的幻想空間 - 創作與技術筆記' } = Astro.props;
 ---
 
 <!doctype html>
@@ -13,7 +13,7 @@ const { title, description = 'UEP Documentation - Creative works and technical n
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
   </head>
@@ -21,7 +21,7 @@ const { title, description = 'UEP Documentation - Creative works and technical n
     <div class="layout">
       <header>
         <div class="header-content">
-          <a href="/" class="logo">UEP Docs</a>
+          <a href="/" class="logo">U.E.P的幻想空間</a>
           <nav>
             <a href="/">Home</a>
             <a href="/guide/intro">Guide</a>
