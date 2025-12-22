@@ -1,0 +1,116 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'UEP Documentation - Creative works and technical notes' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <div class="layout">
+      <header>
+        <div class="header-content">
+          <a href="/" class="logo">UEP Docs</a>
+          <nav>
+            <a href="/">Home</a>
+            <a href="/guide/intro">Guide</a>
+            <a href="https://unforgettableeternalproject.com" target="_blank">Main Site →</a>
+          </nav>
+        </div>
+      </header>
+      <main>
+        <slot />
+      </main>
+      <footer>
+        <p>&copy; 2025 Bernie. Documentation for Unforgettable Eternal Project.</p>
+      </footer>
+    </div>
+  </body>
+  <style>
+    :root {
+      --accent: #8b5cf6;
+      --accent-dark: #7c3aed;
+      --black: #1e293b;
+      --gray: #64748b;
+      --gray-light: #f1f5f9;
+      --gray-dark: #334155;
+      --border: #e2e8f0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #fff;
+      color: var(--black);
+      line-height: 1.6;
+    }
+    .layout {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    nav {
+      display: flex;
+      gap: 2rem;
+    }
+    nav a {
+      color: var(--gray-dark);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover {
+      color: var(--accent);
+    }
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    footer {
+      background: var(--gray-light);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      color: var(--gray);
+      border-top: 1px solid var(--border);
+      margin-top: 4rem;
+    }
+  </style>
+</html>

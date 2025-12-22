@@ -53,6 +53,7 @@ logs/
 # Temporary files
 *.tmp
 temp/
+*.cookie
 
 # Personal notes (keep private)
 NOTES.md

@@ -1,0 +1,24 @@
+{
+  "name": "@uep/uep",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentation site for uep.unforgettableeternalproject.com",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4321",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "lint": "eslint . --ext .js,.ts,.astro",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/mdx": "^3.1.9",
+    "astro": "^4.16.18"
+  },
+  "devDependencies": {
+    "@uep/config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

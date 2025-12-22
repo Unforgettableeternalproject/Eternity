@@ -1,0 +1,130 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="UEP Documentation">
+  <div class="docs-home">
+    <div class="hero">
+      <h1>UEP <span class="text-gradient">Documentation</span></h1>
+      <p class="subtitle">
+        Welcome to the Unforgettable Eternal Project documentation site
+      </p>
+    </div>
+
+    <section class="content">
+      <div class="intro-card">
+        <h2>📚 About This Site</h2>
+        <p>
+          This is the documentation and knowledge base for the UEP project.
+          Here you'll find:
+        </p>
+        <ul>
+          <li>Technical documentation and guides</li>
+          <li>Creative writings and articles</li>
+          <li>Project notes and tutorials</li>
+          <li>Personal knowledge base</li>
+        </ul>
+      </div>
+
+      <div class="quick-links">
+        <h2>Quick Start</h2>
+        <div class="link-grid">
+          <a href="/guide/intro" class="link-card">
+            <h3>📖 Introduction</h3>
+            <p>Start here to learn about the UEP project</p>
+          </a>
+          <a href="https://unforgettableeternalproject.com" class="link-card" target="_blank">
+            <h3>🏠 Main Website</h3>
+            <p>Visit the main UEP website</p>
+          </a>
+        </div>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .docs-home {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .hero {
+    text-align: center;
+    padding: 3rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 3rem;
+  }
+  h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+  }
+  .text-gradient {
+    background-image: linear-gradient(45deg, #8b5cf6, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    font-size: 1.25rem;
+    color: var(--gray-dark);
+  }
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  .intro-card {
+    padding: 2rem;
+    background: var(--gray-light);
+    border-radius: 0.75rem;
+  }
+  .intro-card h2 {
+    margin-bottom: 1rem;
+    color: var(--black);
+  }
+  .intro-card p {
+    margin-bottom: 1rem;
+    color: var(--gray-dark);
+  }
+  .intro-card ul {
+    list-style-position: inside;
+    color: var(--gray-dark);
+  }
+  .intro-card li {
+    margin-bottom: 0.5rem;
+  }
+  .quick-links h2 {
+    margin-bottom: 1.5rem;
+    color: var(--black);
+  }
+  .link-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  .link-card {
+    display: block;
+    padding: 1.5rem;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    text-decoration: none;
+    color: var(--black);
+    transition: all 0.2s;
+  }
+  .link-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+    transform: translateY(-2px);
+  }
+  .link-card h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent);
+  }
+  .link-card p {
+    color: var(--gray-dark);
+    font-size: 0.95rem;
+  }
+</style>
