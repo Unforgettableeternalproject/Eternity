@@ -141,52 +141,9 @@ pnpm format
 pnpm format:check
 ```
 
-## Cloudflare Pages Deployment
+## Deployment
 
-### Main Site (unforgettableeternalproject.com)
-
-Create Cloudflare Pages Project A:
-
-- **Repository**: Unforgettableeternalproject/Eternity
-- **Production branch**: main
-- **Framework preset**: Astro
-- **Root directory**: `apps/root`
-- **Build command**: 
-  ```bash
-  pnpm install --frozen-lockfile && pnpm --filter @uep/root build
-  ```
-  Or using TurboRepo filter:
-  ```bash
-  pnpm install --frozen-lockfile && pnpm turbo build --filter=@uep/root
-  ```
-- **Build output directory**: `apps/root/dist`
-- **Environment variables**:
-  - `NODE_VERSION`: `20`
-
-### Documentation Site (uep.unforgettableeternalproject.com)
-
-Create Cloudflare Pages Project B:
-
-- **Repository**: Unforgettableeternalproject/Eternity
-- **Production branch**: main
-- **Framework preset**: Astro
-- **Root directory**: `apps/uep`
-- **Build command**: 
-  ```bash
-  pnpm install --frozen-lockfile && pnpm --filter @uep/uep build
-  ```
-  Or using TurboRepo filter:
-  ```bash
-  pnpm install --frozen-lockfile && pnpm turbo build --filter=@uep/uep
-  ```
-- **Build output directory**: `apps/uep/dist`
-- **Environment variables**:
-  - `NODE_VERSION`: `20`
-
-### Domain Configuration
-
-- Project A: Set custom domain to `unforgettableeternalproject.com`
-- Project B: Set custom domain to `uep.unforgettableeternalproject.com`
+For deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Development Status
 
@@ -227,16 +184,6 @@ Shared configuration package, includes:
 
 ### @uep/ui
 Shared UI components package (currently skeleton with example Button component).
-- **Knowledge Base**: Gitbook
-
-## Development Status
-
-### 📅 Current Phase: Initialization (v0.1.0)
-- ✅ Project structure planning
-- ✅ README documentation created
-- ⏳ Basic page development
-- ⏳ Content organization and planning
-- ⏳ Style design
 
 ## Contributors
 
