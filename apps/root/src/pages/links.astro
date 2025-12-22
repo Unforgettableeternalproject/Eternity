@@ -15,7 +15,10 @@ const links = [
 ];
 ---
 
-<BaseLayout title="Links - Eternity" description="Find all my important links here">
+<BaseLayout
+  title="Links - Eternity"
+  description="Find all my important links here"
+>
   <div class="links-page">
     <h1>Important Links</h1>
     <p class="intro-text">
@@ -25,7 +28,12 @@ const links = [
     <div class="link-grid">
       {
         links.map((link) => (
-          <a href={link.url} class="link-card" target="_blank" rel="noopener noreferrer">
+          <a
+            href={link.url}
+            class="link-card"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <h2>{link.title} →</h2>
             <p>{link.description}</p>
           </a>

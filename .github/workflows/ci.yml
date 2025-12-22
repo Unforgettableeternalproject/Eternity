@@ -10,7 +10,7 @@ jobs:
   ci:
     name: Lint, Type Check & Build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -101,14 +101,14 @@ jobs:
           release_name: Release ${{ steps.get_version.outputs.version }}
           body: |
             ## 🚀 Release ${{ steps.get_version.outputs.version }}
-            
+
             ### Changes
             Automatically generated release from main branch.
-            
+
             ### Deployments
             - 🌟 Main Site: https://unforgettableeternalproject.com
             - 📚 Docs Site: https://uep.unforgettableeternalproject.com
-            
+
             See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
           draft: false
           prerelease: false
