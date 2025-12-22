@@ -1,0 +1,23 @@
+{
+  "name": "@uep/root",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Main website for unforgettableeternalproject.com",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4320",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "lint": "eslint . --ext .js,.ts,.astro",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "astro": "^4.16.18"
+  },
+  "devDependencies": {
+    "@uep/config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@uep/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared UI components for UEP monorepo",
+  "type": "module",
+  "exports": {
+    "./Button": "./src/Button.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "react": "^18.3.1",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  }
+}

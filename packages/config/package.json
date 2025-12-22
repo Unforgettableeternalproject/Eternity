@@ -1,0 +1,24 @@
+{
+  "name": "@uep/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared configuration for UEP monorepo",
+  "exports": {
+    "./eslint/base.js": "./eslint/base.js",
+    "./eslint/astro.js": "./eslint/astro.js",
+    "./prettier": "./prettier/prettier.cjs",
+    "./tsconfig/base.json": "./tsconfig/base.json"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "eslint": "^9.17.0",
+    "eslint-plugin-astro": "^1.3.2",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.4.2",
+    "prettier-plugin-astro": "^0.14.1",
+    "typescript": "^5.7.2"
+  }
+}

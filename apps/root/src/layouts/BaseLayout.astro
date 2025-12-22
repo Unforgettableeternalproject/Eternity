@@ -1,0 +1,94 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Eternity - Bernie's Personal Website" } =
+  Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/links">Links</a>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      <p>&copy; 2025 Bernie. All rights reserved.</p>
+    </footer>
+  </body>
+  <style>
+    :root {
+      --accent: #3b82f6;
+      --accent-dark: #2563eb;
+      --black: #1e293b;
+      --gray: #64748b;
+      --gray-light: #f1f5f9;
+      --gray-dark: #334155;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html {
+      font-family: system-ui, sans-serif;
+      background: #fff;
+      color: var(--black);
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: var(--gray-light);
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--gray);
+    }
+    nav {
+      display: flex;
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    nav a {
+      color: var(--black);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover {
+      color: var(--accent);
+    }
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    footer {
+      background: var(--gray-light);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      color: var(--gray);
+      border-top: 1px solid var(--gray);
+    }
+  </style>
+</html>

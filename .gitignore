@@ -26,7 +26,6 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
-pnpm-lock.yaml
 
 # Build outputs
 dist/
@@ -53,11 +52,15 @@ logs/
 # Temporary files
 *.tmp
 temp/
+*.cookie
+.turbo/
 
 # Personal notes (keep private)
+copilot-instructions.md
 NOTES.md
 TODO.md
 .notes/
+docs/hidden/**
 
 # Example files (keep as reference)
 README_Example.md
