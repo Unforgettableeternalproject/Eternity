@@ -144,10 +144,6 @@ pnpm format
 pnpm format:check
 ```
 
-## 部署
-
-部署相關說明請參閱 [DEPLOYMENT.md](./DEPLOYMENT.md)。
-
 ## 開發狀態
 
 ### ✅ 第一階段：Monorepo 架構建置（已完成）
