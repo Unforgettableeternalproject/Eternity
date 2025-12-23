@@ -1,94 +1,107 @@
 ---
+import '../styles/global.css';
+import Navigation from '@uep/ui/Navigation';
+import Footer from '@uep/ui/Footer';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+
 interface Props {
   title: string;
   description?: string;
+  ogImage?: string;
+  ogType?: string;
 }
 
-const { title, description = "Eternity - Bernie's Personal Website" } =
-  Astro.props;
+const { 
+  title, 
+  description = "Eternity - Bernie's Personal Website",
+  ogImage = '/og-image.png',
+  ogType = 'website'
+} = Astro.props;
+
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+
+// Get canonical URL
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+// Get alternate language URL
+const alternateLocale = locale === 'zh-tw' ? 'en' : 'zh-tw';
+const alternatePath = Astro.url.pathname.startsWith('/en') 
+  ? Astro.url.pathname.replace('/en', '')
+  : `/en${Astro.url.pathname}`;
+const alternateURL = new URL(alternatePath, Astro.site);
 ---
 
 <!doctype html>
-<html lang="zh-TW">
+<html lang={locale} class="h-full">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <meta name="generator" content={Astro.generator} />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalURL} />
+    
+    <!-- Alternate Language -->
+    <link rel="alternate" hreflang={alternateLocale} href={alternateURL} />
+    <link rel="alternate" hreflang={locale} href={canonicalURL} />
+    <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site)} />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site)} />
+    <meta property="og:site_name" content="Bernie's Eternity" />
+    <meta property="og:locale" content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'} />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content={canonicalURL} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    
+    <!-- Page Title -->
     <title>{title}</title>
+    
+    <!-- 防止深色模式閃爍 (FOUC) -->
+    <script is:inline>
+      // 在頁面載入前立即執行
+      const getThemePreference = () => {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+          return localStorage.getItem('theme');
+        }
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      };
+      const isDark = getThemePreference() === 'dark';
+      document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
+    </script>
   </head>
-  <body>
-    <header>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/links">Links</a>
-      </nav>
+  <body class="min-h-screen bg-white dark:bg-slate-900">
+    <!-- Sticky Navigation -->
+    <header class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      <Navigation 
+        currentPath={Astro.url.pathname}
+        currentLocale={locale}
+        translations={t.nav}
+      />
     </header>
+    
+    <!-- Main Content Area -->
     <main>
       <slot />
     </main>
-    <footer>
-      <p>&copy; 2025 Bernie. All rights reserved.</p>
-    </footer>
+    
+    <!-- Footer -->
+    <Footer 
+      currentLocale={locale}
+      translations={t.footer}
+    />
   </body>
-  <style>
-    :root {
-      --accent: #3b82f6;
-      --accent-dark: #2563eb;
-      --black: #1e293b;
-      --gray: #64748b;
-      --gray-light: #f1f5f9;
-      --gray-dark: #334155;
-    }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    html {
-      font-family: system-ui, sans-serif;
-      background: #fff;
-      color: var(--black);
-    }
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      background: var(--gray-light);
-      padding: 1rem 2rem;
-      border-bottom: 1px solid var(--gray);
-    }
-    nav {
-      display: flex;
-      gap: 2rem;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    nav a {
-      color: var(--black);
-      text-decoration: none;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    nav a:hover {
-      color: var(--accent);
-    }
-    main {
-      flex: 1;
-      padding: 2rem;
-      max-width: 1200px;
-      width: 100%;
-      margin: 0 auto;
-    }
-    footer {
-      background: var(--gray-light);
-      padding: 1.5rem 2rem;
-      text-align: center;
-      color: var(--gray);
-      border-top: 1px solid var(--gray);
-    }
-  </style>
 </html>

@@ -1,0 +1,167 @@
+{
+  "nav": {
+    "home": "Home",
+    "about": "About",
+    "projects": "Projects",
+    "links": "Links"
+  },
+  "home": {
+    "title": "Bernie - Developer & Creator",
+    "description": "Bernie's personal website showcasing projects, creative works, and technical writings",
+    "greeting": "Hi, I'm",
+    "tagline": "Developer & Creator building digital experiences and crafting stories in the Unforgettable Eternal Project universe",
+    "cta": {
+      "about": "About Me",
+      "projects": "View Projects"
+    },
+    "intro": {
+      "heading": "Welcome to My Digital Space",
+      "p1": "This is the central hub for the <strong>Unforgettable Eternal Project (UEP)</strong>. Here you'll discover my technical projects, creative works, and the expansive fictional universe I've been building.",
+      "p2": "As both a developer and creator, I blend technology with storytelling to create unique digital experiences. Explore my portfolio, dive into the UEP lore, or check out my latest technical writings."
+    },
+    "quickLinks": {
+      "uepDocs": {
+        "title": "UEP Documentation",
+        "description": "Explore the universe"
+      },
+      "importantLinks": {
+        "title": "Important Links",
+        "description": "Connect with me"
+      }
+    }
+  },
+  "about": {
+    "title": "About - Bernie",
+    "description": "Learn more about Bernie - developer, creator, and storyteller",
+    "heading": "About Me",
+    "subtitle": "Developer, Creator & Storyteller",
+    "bio": {
+      "p1": "I'm Bernie, a passionate developer and creative storyteller behind the Unforgettable Eternal Project (UEP).",
+      "p2": "I combine technical expertise with creative writing to build unique digital experiences and expansive fictional worlds. Whether it's coding elegant solutions or crafting intricate narratives, I strive to create work that resonates and endures.",
+      "p3": "This website serves as the central hub for all my projects, from technical portfolios to creative writings and world-building documentation."
+    },
+    "skills": {
+      "heading": "Skills & Expertise",
+      "categories": {
+        "development": "Development",
+        "creative": "Creative",
+        "tools": "Tools"
+      },
+      "items": {
+        "web": "Web Development",
+        "frontend": "Frontend Design",
+        "backend": "Backend Architecture",
+        "worldbuilding": "World Building",
+        "storytelling": "Storytelling",
+        "writing": "Creative Writing",
+        "git": "Git",
+        "astro": "Astro",
+        "tailwind": "Tailwind CSS",
+        "uiux": "UI/UX Design",
+        "content": "Content Creation"
+      }
+    },
+    "connect": {
+      "heading": "Let's Connect",
+      "description": "Interested in collaborating or just want to say hi? Feel free to reach out!",
+      "github": "GitHub",
+      "email": "Email"
+    }
+  },
+  "projects": {
+    "title": "Projects - Bernie",
+    "description": "Bernie's projects and creative portfolio",
+    "heading": "My Projects",
+    "subtitle": "A collection of technical projects and creative works that showcase my passion for development and storytelling",
+    "viewProject": "View Project",
+    "cta": {
+      "heading": "Want to see more?",
+      "description": "Check out my GitHub for more projects and contributions, or visit the UEP documentation to explore the creative universe.",
+      "github": "View on GitHub",
+      "explore": "Explore UEP"
+    },
+    "tags": {
+      "creativeWriting": "Creative Writing",
+      "worldBuilding": "World Building",
+      "fiction": "Fiction",
+      "astro": "Astro",
+      "typescript": "TypeScript",
+      "tailwindcss": "Tailwind CSS",
+      "art": "Art",
+      "design": "Design",
+      "illustration": "Illustration"
+    },
+    "items": {
+      "uep": {
+        "title": "Unforgettable Eternal Project",
+        "description": "An expansive fictional universe featuring intricate world-building, character development, and interconnected storylines."
+      },
+      "eternity": {
+        "copyright": "Bernie. All rights reserved.",
+        "title": "Eternity Website",
+        "description": "A modern, responsive personal website built with Astro, featuring dark mode, i18n support, and beautiful animations."
+      },
+      "portfolio": {
+        "title": "Creative Portfolio",
+        "description": "Showcase of visual art, character designs, and illustrations created for the UEP universe."
+      }
+    }
+  },
+  "links": {
+    "title": "Links - Eternity",
+    "description": "Find all my important links here",
+    "badge": "Links & Resources",
+    "heading": "Important Links",
+    "subtitle": "Quick access to my core destinations. Explore the docs, follow progress, or reach out to collaborate.",
+    "badges": {
+      "sync": "Stays in sync with updates",
+      "mobile": "Built for mobile and desktop",
+      "future": "Future-ready for more tools"
+    },
+    "featured": {
+      "github": {
+        "description": "Open source work, experiments, and the latest commits.",
+        "tag": "Code"
+      },
+      "uep": {
+        "title": "UEP Documentation",
+        "description": "Dive into the Unforgettable Eternal Project universe, lore, and technical docs.",
+        "tag": "Universe"
+      },
+      "twitter": {
+        "description": "Updates, quick thoughts, and behind-the-scenes progress.",
+        "tag": "Updates"
+      }
+    },
+    "quick": {
+      "email": {
+        "title": "Email",
+        "description": "Reach out directly for collaboration or questions."
+      },
+      "home": {
+        "title": "Eternity Website",
+        "description": "Return to the home page and explore more sections."
+      }
+    },
+    "more": {
+      "heading": "More coming soon",
+      "description": "I'll keep adding tools, references, and creative drops here. Check back or ping me if there's something you'd like to see.",
+      "suggest": "Suggest a link"
+    },
+    "visit": "Visit"
+  },
+  "footer": {
+    "copyright": "Bernie. All rights reserved.",
+    "builtWith": "Built with Astro",
+    "social": {
+      "github": "GitHub",
+      "twitter": "Twitter",
+      "email": "Email"
+    }
+  },
+  "common": {
+    "readMore": "Read More",
+    "learnMore": "Learn More",
+    "backToHome": "Back to Home"
+  }
+}

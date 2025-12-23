@@ -13,11 +13,15 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.4",
-    "astro": "^4.16.18"
+    "@astrojs/check": "^0.9.6",
+    "astro": "^5.16.6"
   },
   "devDependencies": {
+    "@astrojs/tailwind": "^6.0.2",
+    "@tailwindcss/typography": "^0.5.19",
     "@uep/config": "workspace:*",
+    "@uep/ui": "workspace:*",
+    "tailwindcss": "^3.4.18",
     "typescript": "^5.7.2"
   }
 }

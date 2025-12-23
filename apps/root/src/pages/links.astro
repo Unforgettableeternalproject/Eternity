@@ -1,16 +1,41 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
 
-const links = [
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+
+const featuredLinks = [
   {
     title: 'GitHub',
     url: 'https://github.com/unforgettableeternalproject',
-    description: 'My open source projects and contributions',
+    description: t.links.featured.github.description,
+    tag: t.links.featured.github.tag,
   },
   {
-    title: 'UEP Documentation',
+    title: t.links.featured.uep.title,
     url: 'https://uep.unforgettableeternalproject.com',
-    description: 'Technical documentation and creative writings',
+    description: t.links.featured.uep.description,
+    tag: t.links.featured.uep.tag,
+  },
+  {
+    title: 'X / Twitter',
+    url: 'https://x.com/Lightingbird11',
+    description: t.links.featured.twitter.description,
+    tag: t.links.featured.twitter.tag,
+  },
+];
+
+const quickLinks = [
+  {
+    title: t.links.quick.email.title,
+    url: 'mailto:ptyc4076@gmail.com',
+    description: t.links.quick.email.description,
+  },
+  {
+    title: t.links.quick.home.title,
+    url: locale === 'zh-tw' ? '/' : '/en',
+    description: t.links.quick.home.description,
   },
 ];
 ---
@@ -19,72 +44,102 @@ const links = [
   title="Links - Eternity"
   description="Find all my important links here"
 >
-  <div class="links-page">
-    <h1>Important Links</h1>
-    <p class="intro-text">
-      Here are some useful links to my projects and profiles across the web.
-    </p>
+  <section class="relative overflow-hidden py-24">
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute -left-20 -top-32 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"></div>
+      <div class="absolute right-6 top-10 h-72 w-72 rounded-full bg-secondary-500/15 blur-3xl"></div>
+      <div class="absolute inset-x-0 bottom-0 h-80 bg-gradient-to-t from-slate-900/40 via-slate-900/10 to-transparent dark:from-slate-900/70"></div>
+    </div>
 
-    <div class="link-grid">
-      {
-        links.map((link) => (
+    <div class="container-custom max-w-6xl relative z-10 space-y-14">
+      <div class="space-y-6 text-center md:text-left animate-fade-in-up">
+        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide">
+          {t.links.badge}
+        </span>
+        <div class="space-y-4">
+          <h1 class="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white">
+            {t.links.heading}
+          </h1>
+          <p class="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto md:mx-0">
+            {t.links.subtitle}
+          </p>
+        </div>
+        <div class="flex flex-wrap justify-center md:justify-start gap-3 text-sm text-slate-500 dark:text-slate-400">
+          <span class="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{t.links.badges.sync}</span>
+          <span class="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{t.links.badges.mobile}</span>
+          <span class="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{t.links.badges.future}</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {featuredLinks.map((link, index) => (
           <a
             href={link.url}
-            class="link-card"
+            class="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up"
+            style={`animation-delay: ${index * 80}ms`}
             target="_blank"
             rel="noopener noreferrer"
           >
-            <h2>{link.title} →</h2>
-            <p>{link.description}</p>
+            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/15"></div>
+            <div class="relative p-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">{link.title}</h2>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-primary-50 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-100 dark:border-primary-800">
+                  {link.tag}
+                </span>
+              </div>
+              <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+                {link.description}
+              </p>
+              <div class="inline-flex items-center gap-2 text-sm font-medium text-primary-600 dark:text-primary-400">
+                {t.links.visit}
+                <svg class="w-4 h-4 transition-transform group-hover:translate-x-1 group-hover:-translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                </svg>
+              </div>
+            </div>
           </a>
-        ))
-      }
-    </div>
-  </div>
-</BaseLayout>
+        ))}
+      </div>
 
-<style>
-  .links-page {
-    max-width: 900px;
-    margin: 0 auto;
-  }
-  h1 {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
-    color: var(--black);
-  }
-  .intro-text {
-    font-size: 1.125rem;
-    color: var(--gray-dark);
-    margin-bottom: 2rem;
-  }
-  .link-grid {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  }
-  .link-card {
-    display: block;
-    padding: 1.5rem;
-    background: var(--gray-light);
-    border: 1px solid var(--gray);
-    border-radius: 0.5rem;
-    text-decoration: none;
-    color: var(--black);
-    transition: all 0.2s;
-  }
-  .link-card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-    transform: translateY(-2px);
-  }
-  .link-card h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-    color: var(--accent);
-  }
-  .link-card p {
-    color: var(--gray-dark);
-    line-height: 1.5;
-  }
-</style>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+        <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {quickLinks.map((link, index) => (
+            <a
+              href={link.url}
+              class="group flex items-center justify-between rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 px-5 py-4 shadow-sm hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 animate-fade-in-up"
+              style={`animation-delay: ${index * 60}ms`}
+              target={link.url.startsWith('http') ? '_blank' : undefined}
+              rel={link.url.startsWith('http') ? 'noopener noreferrer' : undefined}
+            >
+              <div class="space-y-1">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{link.title}</h3>
+                <p class="text-sm text-slate-600 dark:text-slate-400">{link.description}</p>
+              </div>
+              <span class="text-primary-600 dark:text-primary-400 group-hover:translate-x-1 transition-transform">
+                -&gt;
+              </span>
+            </a>
+          ))}
+        </div>
+        <div class="rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-br from-primary-500/15 via-primary-500/5 to-secondary-500/20 dark:from-primary-500/25 dark:via-slate-900 dark:to-secondary-500/30 p-6 shadow-lg animate-fade-in-up animation-delay-200">
+          <div class="space-y-3">
+            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.links.more.heading}</h3>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+              {t.links.more.description}
+            </p>
+            <a
+              href="mailto:ptyc4076@gmail.com"
+              class="inline-flex items-center gap-2 text-sm font-semibold text-primary-700 dark:text-primary-300 hover:text-primary-600 dark:hover:text-primary-200 transition-colors"
+            >
+              {t.links.more.suggest}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

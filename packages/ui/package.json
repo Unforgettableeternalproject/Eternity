@@ -5,7 +5,11 @@
   "description": "Shared UI components for UEP monorepo",
   "type": "module",
   "exports": {
-    "./Button": "./src/Button.tsx"
+    "./Button": "./src/Button.tsx",
+    "./ThemeToggle": "./src/ThemeToggle.astro",
+    "./LanguageSwitch": "./src/LanguageSwitch.astro",
+    "./Navigation": "./src/Navigation.astro",
+    "./Footer": "./src/Footer.astro"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
