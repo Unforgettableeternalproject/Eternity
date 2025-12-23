@@ -26,6 +26,27 @@
         "description": "與我聯繫"
       }
     },
+    "featured": {
+      "heading": "精選專案",
+      "cta": "查看所有專案"
+    },
+    "latest": {
+      "heading": "最新動態",
+      "items": [
+        {
+          "title": "主題改版進行中",
+          "description": "以更好的微互動與內容區塊，更新首頁的呈現。"
+        },
+        {
+          "title": "連結頁面已優化",
+          "description": "改良精選連結與滑過效果，讓導覽更清晰。"
+        }
+      ],
+      "cta": {
+        "title": "查看更新",
+        "to": "links"
+      }
+    },
     "cta": {
       "about": "關於我",
       "projects": "查看專案"
@@ -166,5 +187,18 @@
     "readMore": "閱讀更多",
     "learnMore": "了解更多",
     "backToHome": "返回首頁"
+  }
+  ,
+  "console": {
+    "title": "終端機 - Eternity",
+    "description": "用於後續互動功能的實驗性終端頁面",
+    "initial": [
+      "歡迎使用 Eternity 終端機。",
+      "此頁面將逐步演變為 UEP 的互動式控制台。",
+      "即將提供探索、工具與小型功能的指令。",
+      "",
+      "當功能開啟後，使用提示將在此顯示。"
+    ],
+    "hint": "功能即將推出：後續更新將支援在此輸入指令。"
   }
 }

@@ -57,7 +57,7 @@ const t = getTranslations(locale);
             >
               {t.home.cta.about}
               <svg class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
               </svg>
             </a>
             <a 
@@ -66,7 +66,7 @@ const t = getTranslations(locale);
             >
               {t.home.cta.projects}
               <svg class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
               </svg>
             </a>
           </div>
@@ -85,7 +85,7 @@ const t = getTranslations(locale);
                   <div class="relative">
                     <div class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"></div>
                     <svg class="relative w-40 h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                     </svg>
                   </div>
                   <p class="text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide">Creative Developer Space</p>
@@ -109,7 +109,7 @@ const t = getTranslations(locale);
     <!-- Scroll Indicator -->
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
       <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
       </svg>
     </div>
   </div>
@@ -144,7 +144,7 @@ const t = getTranslations(locale);
                 <div class="text-sm text-slate-500 dark:text-slate-400">{t.home.quickLinks.uepDocs.description}</div>
               </div>
               <svg class="w-6 h-6 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:translate-y-[-2px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
               </svg>
             </div>
           </a>
@@ -160,7 +160,7 @@ const t = getTranslations(locale);
                 <div class="text-sm text-slate-500 dark:text-slate-400">{t.home.quickLinks.importantLinks.description}</div>
               </div>
               <svg class="w-6 h-6 text-secondary-600 dark:text-secondary-400 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
               </svg>
             </div>
           </a>
@@ -168,6 +168,97 @@ const t = getTranslations(locale);
       </div>
     </div>
   </section>
+
+  <!-- Featured Projects -->
+  <section class="relative py-24 reveal">
+    <div class="container-custom">
+      <div class="max-w-5xl mx-auto text-center mb-12">
+        <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+          {t.home.featured.heading}
+        </h2>
+        <div class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- UEP -->
+        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="card card-hover p-6 reveal-item">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.projects.items.uep.title}</h3>
+            <span class="px-2.5 py-1 text-xs rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">{t.projects.tags.worldBuilding}</span>
+          </div>
+          <p class="text-slate-600 dark:text-slate-300 mb-4">{t.projects.items.uep.description}</p>
+          <div class="flex gap-2">
+            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.fiction}</span>
+            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.design}</span>
+          </div>
+        </a>
+
+        <!-- Eternity Website -->
+        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="card card-hover p-6 reveal-item">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.projects.items.eternity.title}</h3>
+            <span class="px-2.5 py-1 text-xs rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300">{t.projects.tags.astro}</span>
+          </div>
+          <p class="text-slate-600 dark:text-slate-300 mb-4">{t.projects.items.eternity.description}</p>
+          <div class="flex gap-2">
+            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.typescript}</span>
+            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.tailwindcss}</span>
+          </div>
+        </a>
+
+        <!-- Creative Portfolio -->
+        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="card card-hover p-6 reveal-item">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.projects.items.portfolio.title}</h3>
+            <span class="px-2.5 py-1 text-xs rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">{t.projects.tags.art}</span>
+          </div>
+          <p class="text-slate-600 dark:text-slate-300 mb-4">{t.projects.items.portfolio.description}</p>
+          <div class="flex gap-2">
+            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.illustration}</span>
+            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.design}</span>
+          </div>
+        </a>
+      </div>
+
+      <div class="text-center mt-10">
+        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="btn btn-secondary">
+          {t.home.featured.cta}
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Latest Updates -->
+  <section class="relative py-24 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-800/50 reveal">
+    <div class="container-custom">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+            {t.home.latest.heading}
+          </h2>
+          <div class="h-1 w-24 bg-gradient-to-r from-secondary-500 to-primary-500 mx-auto rounded-full"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {t.home.latest.items.map((item) => (
+            <div class="card p-6 reveal-item">
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{item.title}</h3>
+              <p class="text-slate-600 dark:text-slate-300">{item.description}</p>
+            </div>
+          ))}
+        </div>
+
+        <div class="text-center mt-10">
+          <a href={locale === 'zh-tw' ? `/${t.home.latest.cta.to}` : `/en/${t.home.latest.cta.to}`} class="btn btn-primary">
+            {t.home.latest.cta.title}
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hidden Console Entry (Random Easter Egg) -->
+  <div id="console-easter-egg" class="hidden" data-console-url={locale === 'zh-tw' ? '/console' : '/en/console'} data-console-label={locale === 'zh-tw' ? '終端機' : 'Console'}></div>
 </BaseLayout>
 
 <style>
@@ -195,5 +286,213 @@ const t = getTranslations(locale);
   .animate-gradient {
     background-size: 200% auto;
     animation: gradient 3s ease infinite;
+  }
+</style>
+
+<script>
+  // Lightweight intersection reveal for sections/cards; respects reduced motion via CSS
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!prefersReduced) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const el = entry.target;
+          if (entry.isIntersecting) {
+            el.classList.add('reveal-visible');
+          }
+        }
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.1 }
+    );
+
+    document.querySelectorAll('.reveal-item').forEach((el) => {
+      observer.observe(el);
+    });
+  }
+
+  // Random Console Easter Egg - appears after idle time
+  (function() {
+    const container = document.getElementById('console-easter-egg');
+    if (!container) return;
+
+    const consoleUrl = container.dataset.consoleUrl || '/console';
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let canAppear = true;
+    let currentButton: HTMLAnchorElement | null = null;
+
+    const IDLE_TIME = 4000; // 4 seconds of idle
+    const APPEAR_CHANCE = 0.5; // 50% chance
+    const VISIBLE_TIME = 8000; // visible for 8 seconds
+    const COOLDOWN_TIME = 10000; // 10 seconds before can appear again
+
+    function resetIdleTimer() {
+      if (!canAppear || currentButton) return; // Don't trigger if can't appear or already showing
+      
+      if (idleTimer) clearTimeout(idleTimer);
+      
+      idleTimer = setTimeout(() => {
+        // Random chance to appear
+        const roll = Math.random();
+        console.log(`[Console Easter Egg] Idle detected. Roll: ${roll.toFixed(2)}, Threshold: ${APPEAR_CHANCE}`);
+        
+        if (roll > APPEAR_CHANCE) {
+          console.log('[Console Easter Egg] Did not pass chance roll. Not appearing.');
+          return;
+        }
+        
+        showConsoleButton();
+      }, IDLE_TIME);
+    }
+
+    function showConsoleButton() {
+      // Find all available sections dynamically
+      const allSections = Array.from(document.querySelectorAll('section'));
+      
+      if (allSections.length === 0) {
+        console.log('[Console Easter Egg] No sections found on page.');
+        return;
+      }
+
+      console.log(`[Console Easter Egg] Found ${allSections.length} sections on page.`);
+
+      // Possible positions
+      const positions = ['bottom-right', 'top-right', 'bottom-left', 'top-left'] as const;
+      
+      // Randomly pick a section and position
+      const randomSection = allSections[Math.floor(Math.random() * allSections.length)];
+      const randomPosition = positions[Math.floor(Math.random() * positions.length)];
+      
+      console.log(`[Console Easter Egg] Appearing at ${randomPosition} in section ${allSections.indexOf(randomSection) + 1}/${allSections.length}`);
+      canAppear = false;
+
+      // Create button with initial opacity 0 for fade in
+      const button = document.createElement('a');
+      button.href = consoleUrl;
+      button.className = 'console-easter-egg-btn console-glow';
+      button.setAttribute('aria-label', 'Access console');
+      button.style.opacity = '0';
+      
+      // Position map with explicit pixel values
+      const positionMap = {
+        'bottom-right': { bottom: '2rem', right: '2rem', top: 'auto', left: 'auto' },
+        'top-right': { top: '2rem', right: '2rem', bottom: 'auto', left: 'auto' },
+        'bottom-left': { bottom: '2rem', left: '2rem', top: 'auto', right: 'auto' },
+        'top-left': { top: '2rem', left: '2rem', bottom: 'auto', right: 'auto' },
+      };
+
+      const pos = positionMap[randomPosition];
+      Object.assign(button.style, pos);
+
+      button.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+        </svg>
+      `;
+
+      // Make target section relative positioned
+      const currentPosition = window.getComputedStyle(randomSection).position;
+      if (currentPosition === 'static') {
+        randomSection.style.position = 'relative';
+      }
+      
+      randomSection.appendChild(button);
+      currentButton = button;
+
+      // Trigger fade in after a tiny delay to ensure the element is rendered
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (button) {
+            button.style.opacity = '1';
+          }
+        });
+      });
+
+      // Auto-hide after visible time
+      setTimeout(() => {
+        console.log('[Console Easter Egg] Starting fade out.');
+        if (currentButton) {
+          currentButton.style.opacity = '0';
+          setTimeout(() => {
+            currentButton?.remove();
+            currentButton = null;
+            console.log('[Console Easter Egg] Removed. Starting cooldown...');
+            
+            // Start cooldown before allowing next appearance
+            setTimeout(() => {
+              canAppear = true;
+              console.log('[Console Easter Egg] Cooldown complete. Can appear again.');
+            }, COOLDOWN_TIME);
+          }, 500);
+        }
+      }, VISIBLE_TIME);
+    }
+
+    // Track user activity
+    ['mousemove', 'scroll', 'keydown', 'click', 'touchstart'].forEach(event => {
+      window.addEventListener(event, resetIdleTimer, { passive: true });
+    });
+
+    // Start initial timer
+    console.log('[Console Easter Egg] Initialized. Waiting for idle...');
+    resetIdleTimer();
+  })();
+</script>
+
+<style>
+  .console-easter-egg-btn {
+    position: absolute;
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background-color: rgba(241, 245, 249, 0.6);
+    backdrop-filter: blur(4px);
+    color: rgb(100, 116, 139);
+    transition: all 0.5s ease;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  :global(.dark) .console-easter-egg-btn {
+    border-color: rgba(51, 65, 85, 0.4);
+    background-color: rgba(30, 41, 59, 0.6);
+    color: rgb(148, 163, 184);
+  }
+
+  .console-glow {
+    box-shadow: 
+      0 0 20px rgba(59, 130, 246, 0.6),
+      0 0 40px rgba(59, 130, 246, 0.4),
+      0 0 60px rgba(59, 130, 246, 0.3),
+      0 1px 2px 0 rgb(0 0 0 / 0.05);
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      box-shadow: 
+        0 0 20px rgba(59, 130, 246, 0.6),
+        0 0 40px rgba(59, 130, 246, 0.4),
+        0 0 60px rgba(59, 130, 246, 0.3);
+    }
+    50% {
+      box-shadow: 
+        0 0 30px rgba(59, 130, 246, 0.8),
+        0 0 50px rgba(59, 130, 246, 0.6),
+        0 0 70px rgba(59, 130, 246, 0.4);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .console-easter-egg-btn {
+      transition: opacity 0.3s ease;
+    }
+    .console-glow {
+      animation: none;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    }
   }
 </style>

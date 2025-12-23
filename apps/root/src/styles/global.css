@@ -104,6 +104,19 @@
   .animation-delay-600 {
     animation-delay: 600ms;
   }
+
+  /* Reveal helpers for tasteful scroll-in micro-interactions */
+  .reveal {
+    /* acts as a marker container; no styles required */
+  }
+
+  .reveal-item {
+    @apply opacity-0 translate-y-3 transition-all duration-500 ease-out;
+  }
+
+  .reveal-visible {
+    @apply opacity-100 translate-y-0;
+  }
 }
 
 /* Background patterns */
@@ -138,4 +151,13 @@ html {
 /* Selection styling */
 ::selection {
   @apply bg-primary-500/30 text-slate-900 dark:text-slate-100;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-item {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }

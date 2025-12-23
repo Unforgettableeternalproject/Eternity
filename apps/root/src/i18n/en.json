@@ -28,6 +28,27 @@
         "title": "Important Links",
         "description": "Connect with me"
       }
+    },
+    "featured": {
+      "heading": "Featured Projects",
+      "cta": "View all projects"
+    },
+    "latest": {
+      "heading": "Latest Updates",
+      "items": [
+        {
+          "title": "Theme revamp in progress",
+          "description": "Refreshing the homepage presentation with better micro-interactions and content sections."
+        },
+        {
+          "title": "Links page polished",
+          "description": "Improved featured links and hover states to make navigation clearer."
+        }
+      ],
+      "cta": {
+        "title": "Explore updates",
+        "to": "links"
+      }
     }
   },
   "about": {
@@ -163,5 +184,18 @@
     "readMore": "Read More",
     "learnMore": "Learn More",
     "backToHome": "Back to Home"
+  }
+  ,
+  "console": {
+    "title": "Console - Eternity",
+    "description": "Experimental console page for upcoming interactive features",
+    "initial": [
+      "Welcome to Eternity Console.",
+      "This space will evolve into an interactive console for UEP.",
+      "Expect commands for exploration, utilities, and small tools soon.",
+      "",
+      "Type hints will appear here once features are enabled."
+    ],
+    "hint": "Feature coming soon: this console will accept commands in later updates."
   }
 }
