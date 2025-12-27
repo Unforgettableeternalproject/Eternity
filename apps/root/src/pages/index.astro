@@ -1,9 +1,24 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCollection } from 'astro:content';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
+const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
+
+// 載入內容
+const allProjects = await getCollection('projects');
+const featuredProjects = allProjects
+  .filter(p => p.data.featured)
+  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
+  .slice(0, 3);
+
+const allUpdates = await getCollection('updates');
+const latestUpdates = allUpdates
+  .filter(u => u.data.featured)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 4);
 ---
 
 <BaseLayout 
@@ -52,7 +67,7 @@ const t = getTranslations(locale);
           
           <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6">
             <a 
-              href={locale === 'zh-tw' ? '/about' : '/en/about'}
+              href={`${basePath}/about`}
               class="btn btn-primary group shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40"
             >
               {t.home.cta.about}
@@ -61,7 +76,7 @@ const t = getTranslations(locale);
               </svg>
             </a>
             <a 
-              href={locale === 'zh-tw' ? '/projects' : '/en/projects'}
+              href={`${basePath}/projects`}
               class="btn btn-secondary group shadow-lg shadow-slate-200 dark:shadow-slate-800/50 hover:shadow-xl"
             >
               {t.home.cta.projects}
@@ -150,7 +165,7 @@ const t = getTranslations(locale);
           </a>
           
           <a 
-            href={locale === 'zh-tw' ? '/links' : '/en/links'}
+            href={`${basePath}/links`}
             class="group relative overflow-hidden px-8 py-6 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-secondary-500 dark:hover:border-secondary-500 transition-all duration-300 hover:shadow-xl hover:shadow-secondary-500/20 hover:-translate-y-1"
           >
             <div class="absolute inset-0 bg-gradient-to-br from-secondary-500/0 to-secondary-500/0 group-hover:from-secondary-500/5 group-hover:to-primary-500/5 transition-all duration-300"></div>
@@ -180,48 +195,28 @@ const t = getTranslations(locale);
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- UEP -->
-        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="card card-hover p-6 reveal-item">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.projects.items.uep.title}</h3>
-            <span class="px-2.5 py-1 text-xs rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">{t.projects.tags.worldBuilding}</span>
-          </div>
-          <p class="text-slate-600 dark:text-slate-300 mb-4">{t.projects.items.uep.description}</p>
-          <div class="flex gap-2">
-            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.fiction}</span>
-            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.design}</span>
-          </div>
-        </a>
-
-        <!-- Eternity Website -->
-        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="card card-hover p-6 reveal-item">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.projects.items.eternity.title}</h3>
-            <span class="px-2.5 py-1 text-xs rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300">{t.projects.tags.astro}</span>
-          </div>
-          <p class="text-slate-600 dark:text-slate-300 mb-4">{t.projects.items.eternity.description}</p>
-          <div class="flex gap-2">
-            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.typescript}</span>
-            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.tailwindcss}</span>
-          </div>
-        </a>
-
-        <!-- Creative Portfolio -->
-        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="card card-hover p-6 reveal-item">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{t.projects.items.portfolio.title}</h3>
-            <span class="px-2.5 py-1 text-xs rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">{t.projects.tags.art}</span>
-          </div>
-          <p class="text-slate-600 dark:text-slate-300 mb-4">{t.projects.items.portfolio.description}</p>
-          <div class="flex gap-2">
-            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.illustration}</span>
-            <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{t.projects.tags.design}</span>
-          </div>
-        </a>
+        {featuredProjects.map((project) => (
+          <a href={`${basePath}/projects/${project.slug}`} class="card card-hover p-6 reveal-item">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{project.data.title}</h3>
+              {project.data.tags[0] && (
+                <span class="px-2.5 py-1 text-xs rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
+                  {project.data.tags[0]}
+                </span>
+              )}
+            </div>
+            <p class="text-slate-600 dark:text-slate-300 mb-4">{project.data.description}</p>
+            <div class="flex gap-2 flex-wrap">
+              {project.data.tags.slice(0, 3).map(tag => (
+                <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{tag}</span>
+              ))}
+            </div>
+          </a>
+        ))}
       </div>
 
       <div class="text-center mt-10">
-        <a href={locale === 'zh-tw' ? '/projects' : '/en/projects'} class="btn btn-secondary">
+        <a href={`${basePath}/projects`} class="btn btn-secondary">
           {t.home.featured.cta}
         </a>
       </div>
@@ -240,17 +235,22 @@ const t = getTranslations(locale);
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {t.home.latest.items.map((item) => (
+          {latestUpdates.map((update) => (
             <div class="card p-6 reveal-item">
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{item.title}</h3>
-              <p class="text-slate-600 dark:text-slate-300">{item.description}</p>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{update.data.title}</h3>
+                <span class="text-sm text-slate-500 dark:text-slate-400">
+                  {update.data.date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US')}
+                </span>
+              </div>
+              <p class="text-slate-600 dark:text-slate-300">{update.data.description}</p>
             </div>
           ))}
         </div>
 
         <div class="text-center mt-10">
-          <a href={locale === 'zh-tw' ? `/${t.home.latest.cta.to}` : `/en/${t.home.latest.cta.to}`} class="btn btn-primary">
-            {t.home.latest.cta.title}
+          <a href={`${basePath}/updates`} class="btn btn-primary">
+            {locale === 'zh-tw' ? '查看所有更新' : 'View All Updates'}
           </a>
         </div>
       </div>
@@ -258,7 +258,7 @@ const t = getTranslations(locale);
   </section>
 
   <!-- Hidden Console Entry (Random Easter Egg) -->
-  <div id="console-easter-egg" class="hidden" data-console-url={locale === 'zh-tw' ? '/console' : '/en/console'} data-console-label={locale === 'zh-tw' ? '終端機' : 'Console'}></div>
+  <div id="console-easter-egg" class="hidden" data-console-url={`${basePath}/console`} data-console-label={locale === 'zh-tw' ? '終端機' : 'Console'}></div>
 </BaseLayout>
 
 <style>
@@ -315,15 +315,24 @@ const t = getTranslations(locale);
     const container = document.getElementById('console-easter-egg');
     if (!container) return;
 
+    // Debug mode via URL param: ?debugEasterEgg=1
+    const params = new URLSearchParams(window.location.search);
+    const debugEgg = params.get('debugEasterEgg') === '1';
+
     const consoleUrl = container.dataset.consoleUrl || '/console';
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let canAppear = true;
     let currentButton: HTMLAnchorElement | null = null;
 
-    const IDLE_TIME = 4000; // 4 seconds of idle
-    const APPEAR_CHANCE = 0.5; // 50% chance
-    const VISIBLE_TIME = 8000; // visible for 8 seconds
-    const COOLDOWN_TIME = 10000; // 10 seconds before can appear again
+    let IDLE_TIME = 4000; // 4 seconds of idle
+    let APPEAR_CHANCE = 0.2; // 20% chance
+    let VISIBLE_TIME = 8000; // visible for 8 seconds
+    let COOLDOWN_TIME = 10000; // 10 seconds before can appear again
+
+    // Debug logging helper
+    const log = (...args: any[]) => {
+      if (debugEgg) console.log(...args);
+    };
 
     function resetIdleTimer() {
       if (!canAppear || currentButton) return; // Don't trigger if can't appear or already showing
@@ -333,10 +342,10 @@ const t = getTranslations(locale);
       idleTimer = setTimeout(() => {
         // Random chance to appear
         const roll = Math.random();
-        console.log(`[Console Easter Egg] Idle detected. Roll: ${roll.toFixed(2)}, Threshold: ${APPEAR_CHANCE}`);
+        log(`[Console Easter Egg] Idle detected. Roll: ${roll.toFixed(2)}, Threshold: ${APPEAR_CHANCE}`);
         
         if (roll > APPEAR_CHANCE) {
-          console.log('[Console Easter Egg] Did not pass chance roll. Not appearing.');
+          log('[Console Easter Egg] Did not pass chance roll. Not appearing.');
           return;
         }
         
@@ -345,24 +354,39 @@ const t = getTranslations(locale);
     }
 
     function showConsoleButton() {
-      // Find all available sections dynamically
-      const allSections = Array.from(document.querySelectorAll('section'));
-      
-      if (allSections.length === 0) {
-        console.log('[Console Easter Egg] No sections found on page.');
-        return;
+      // Viewport-based coordinate positions (roll from candidates or random safe area)
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const BTN = 32; // button size
+      const MARGIN = 24;
+      const TOP_SAFE = 80; // avoid sticky header
+
+      // Helper to clamp values
+      const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+      // Predefined interesting spots
+      const candidates = [
+        { top: TOP_SAFE, left: MARGIN }, // top-left
+        { top: TOP_SAFE, left: vw - MARGIN - BTN }, // top-right
+        { top: vh - MARGIN - BTN, left: MARGIN }, // bottom-left
+        { top: vh - MARGIN - BTN, left: vw - MARGIN - BTN }, // bottom-right
+        { top: TOP_SAFE + 20, left: Math.round(vw / 2 - BTN / 2) }, // top-center
+        { top: Math.round(vh / 2 - BTN / 2), left: MARGIN }, // mid-left
+        { top: Math.round(vh / 2 - BTN / 2), left: vw - MARGIN - BTN }, // mid-right
+        { top: vh - MARGIN - BTN - 20, left: Math.round(vw / 2 - BTN / 2) }, // bottom-center
+      ];
+
+      // 70% pick from candidates, 30% pick a random safe coordinate
+      let chosen: { top: number; left: number };
+      if (Math.random() < 0.7) {
+        chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      } else {
+        const randLeft = clamp(Math.floor(Math.random() * vw) - BTN / 2, MARGIN, vw - MARGIN - BTN);
+        const randTop = clamp(Math.floor(Math.random() * vh) - BTN / 2, TOP_SAFE, vh - MARGIN - BTN);
+        chosen = { top: randTop, left: randLeft };
       }
 
-      console.log(`[Console Easter Egg] Found ${allSections.length} sections on page.`);
-
-      // Possible positions
-      const positions = ['bottom-right', 'top-right', 'bottom-left', 'top-left'] as const;
-      
-      // Randomly pick a section and position
-      const randomSection = allSections[Math.floor(Math.random() * allSections.length)];
-      const randomPosition = positions[Math.floor(Math.random() * positions.length)];
-      
-      console.log(`[Console Easter Egg] Appearing at ${randomPosition} in section ${allSections.indexOf(randomSection) + 1}/${allSections.length}`);
+      log(`[Console Easter Egg] Appearing at viewport coords top=${chosen.top}, left=${chosen.left}, vw=${vw}, vh=${vh}`);
       canAppear = false;
 
       // Create button with initial opacity 0 for fade in
@@ -371,17 +395,19 @@ const t = getTranslations(locale);
       button.className = 'console-easter-egg-btn console-glow';
       button.setAttribute('aria-label', 'Access console');
       button.style.opacity = '0';
-      
-      // Position map with explicit pixel values
-      const positionMap = {
-        'bottom-right': { bottom: '2rem', right: '2rem', top: 'auto', left: 'auto' },
-        'top-right': { top: '2rem', right: '2rem', bottom: 'auto', left: 'auto' },
-        'bottom-left': { bottom: '2rem', left: '2rem', top: 'auto', right: 'auto' },
-        'top-left': { top: '2rem', left: '2rem', bottom: 'auto', right: 'auto' },
-      };
-
-      const pos = positionMap[randomPosition];
-      Object.assign(button.style, pos);
+      // Prep for smooth scale-in; keep transform minimal for reduced motion users
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!reduceMotion) {
+        button.style.transform = 'scale(0.9)';
+      }
+      // Hint the compositor for smoother animation
+      button.style.willChange = 'opacity, transform, top, left';
+      // Ensure fixed positioning inline and clear opposing edges
+      button.style.position = 'fixed';
+      button.style.top = `${chosen.top}px`;
+      button.style.left = `${chosen.left}px`;
+      button.style.right = 'auto';
+      button.style.bottom = 'auto';
 
       button.innerHTML = `
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,40 +415,96 @@ const t = getTranslations(locale);
         </svg>
       `;
 
-      // Make target section relative positioned
-      const currentPosition = window.getComputedStyle(randomSection).position;
-      if (currentPosition === 'static') {
-        randomSection.style.position = 'relative';
-      }
-      
-      randomSection.appendChild(button);
+      // Append to body so position is relative to viewport
+      document.body.appendChild(button);
       currentButton = button;
+
+      // Subtle dynamic movement: hop to a new safe coordinate every few seconds
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let hopTimer: ReturnType<typeof setInterval> | null = null;
+      const hop = () => {
+        const vw2 = window.innerWidth;
+        const vh2 = window.innerHeight;
+        const BTN2 = 32;
+        const MARGIN2 = 24;
+        const TOP_SAFE2 = 80;
+        const clamp2 = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+        const nextLeft = clamp2(Math.floor(Math.random() * vw2) - BTN2 / 2, MARGIN2, vw2 - MARGIN2 - BTN2);
+        const nextTop = clamp2(Math.floor(Math.random() * vh2) - BTN2 / 2, TOP_SAFE2, vh2 - MARGIN2 - BTN2);
+        if (currentButton) {
+          // Clear opposing edges to avoid conflicting constraints
+          currentButton.style.right = 'auto';
+          currentButton.style.bottom = 'auto';
+          currentButton.style.left = `${nextLeft}px`;
+          currentButton.style.top = `${nextTop}px`;
+          log(`[Console Easter Egg] Hop to top=${nextTop}, left=${nextLeft}`);
+          // Extra diagnostics in debug mode
+          if (debugEgg) {
+            const cs = getComputedStyle(currentButton);
+            log(`[Console Easter Egg] Computed style -> top: ${cs.top}, left: ${cs.left}, bottom: ${cs.bottom}, right: ${cs.right}`);
+          }
+        }
+      };
+      if (!prefersReduced) {
+        hopTimer = setInterval(hop, 2500);
+      }
 
       // Trigger fade in after a tiny delay to ensure the element is rendered
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (button) {
             button.style.opacity = '1';
+            if (!prefersReduced) {
+              button.style.transform = 'scale(1)';
+            }
           }
         });
       });
 
       // Auto-hide after visible time
       setTimeout(() => {
-        console.log('[Console Easter Egg] Starting fade out.');
+        log('[Console Easter Egg] Starting fade out.');
         if (currentButton) {
+          // Stop hopping before fade-out for a calmer exit
+          if (hopTimer) clearInterval(hopTimer);
+          hopTimer = null;
+
+          // Smooth fade + slight scale down
           currentButton.style.opacity = '0';
-          setTimeout(() => {
-            currentButton?.remove();
-            currentButton = null;
-            console.log('[Console Easter Egg] Removed. Starting cooldown...');
-            
-            // Start cooldown before allowing next appearance
+          if (!prefersReduced) {
+            currentButton.style.transform = 'scale(0.9)';
+          }
+
+          const btnToRemove = currentButton;
+          const onEnd = (ev: TransitionEvent) => {
+            if (ev.propertyName !== 'opacity') return;
+            btnToRemove.removeEventListener('transitionend', onEnd);
+            btnToRemove.remove();
+            if (currentButton === btnToRemove) {
+              currentButton = null;
+            }
+            log('[Console Easter Egg] Removed. Starting cooldown...');
             setTimeout(() => {
               canAppear = true;
-              console.log('[Console Easter Egg] Cooldown complete. Can appear again.');
+              log('[Console Easter Egg] Cooldown complete. Can appear again.');
             }, COOLDOWN_TIME);
-          }, 500);
+          };
+          // Remove on transition end (with fallback timeout)
+          btnToRemove.addEventListener('transitionend', onEnd);
+          setTimeout(() => {
+            if (document.body.contains(btnToRemove)) {
+              btnToRemove.removeEventListener('transitionend', onEnd);
+              btnToRemove.remove();
+              if (currentButton === btnToRemove) {
+                currentButton = null;
+              }
+              log('[Console Easter Egg] Removed via fallback. Starting cooldown...');
+              setTimeout(() => {
+                canAppear = true;
+                log('[Console Easter Egg] Cooldown complete. Can appear again.');
+              }, COOLDOWN_TIME);
+            }
+          }, 1200);
         }
       }, VISIBLE_TIME);
     }
@@ -432,15 +514,27 @@ const t = getTranslations(locale);
       window.addEventListener(event, resetIdleTimer, { passive: true });
     });
 
-    // Start initial timer
-    console.log('[Console Easter Egg] Initialized. Waiting for idle...');
-    resetIdleTimer();
+    // Apply debug mode adjustments
+    if (debugEgg) {
+      APPEAR_CHANCE = 1;
+      IDLE_TIME = 0;
+      COOLDOWN_TIME = 2000;
+      log('[Console Easter Egg] Debug mode enabled. Forcing appearance.');
+    }
+
+    // Start initial timer or immediate show in debug
+    log('[Console Easter Egg] Initialized. Waiting for idle...');
+    if (debugEgg) {
+      resetIdleTimer();
+    } else {
+      resetIdleTimer();
+    }
   })();
 </script>
 
 <style>
   .console-easter-egg-btn {
-    position: absolute;
+    position: fixed;
     z-index: 40;
     display: inline-flex;
     align-items: center;
@@ -452,7 +546,14 @@ const t = getTranslations(locale);
     background-color: rgba(241, 245, 249, 0.6);
     backdrop-filter: blur(4px);
     color: rgb(100, 116, 139);
-    transition: all 0.5s ease;
+    transition: 
+      opacity 280ms cubic-bezier(.22,.61,.36,1),
+      transform 280ms cubic-bezier(.22,.61,.36,1),
+      box-shadow 320ms ease,
+      top 650ms cubic-bezier(.22,.61,.36,1),
+      left 650ms cubic-bezier(.22,.61,.36,1);
+    transform: translateZ(0);
+    will-change: opacity, transform, top, left;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   }
 
@@ -463,9 +564,9 @@ const t = getTranslations(locale);
   }
 
   .console-glow {
-    box-shadow: 
-      0 0 20px rgba(59, 130, 246, 0.6),
-      0 0 40px rgba(59, 130, 246, 0.4),
+    box-shadow:
+      0 0 20px rgba(59, 130, 246, 0.7),
+      0 0 40px rgba(59, 130, 246, 0.5),
       0 0 60px rgba(59, 130, 246, 0.3),
       0 1px 2px 0 rgb(0 0 0 / 0.05);
     animation: pulseGlow 2s ease-in-out infinite;
@@ -489,6 +590,8 @@ const t = getTranslations(locale);
   @media (prefers-reduced-motion: reduce) {
     .console-easter-egg-btn {
       transition: opacity 0.3s ease;
+      transform: none !important;
+      will-change: opacity;
     }
     .console-glow {
       animation: none;

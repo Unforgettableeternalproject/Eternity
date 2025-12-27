@@ -1,5 +1,8 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
+import keystatic from '@keystatic/astro';
+import react from '@astrojs/react';
+import markdoc from '@astrojs/markdoc';
 
 // https://astro.build/config
 export default defineConfig({
@@ -20,5 +23,8 @@ export default defineConfig({
     tailwind({
       applyBaseStyles: false, // 我們會自訂基礎樣式
     }),
+    markdoc(),
+    react(),
+    keystatic(),
   ],
 });

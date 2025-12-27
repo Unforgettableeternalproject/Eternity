@@ -24,7 +24,12 @@ export function getCurrentLocale(url: URL): Locale {
     return 'en';
   }
   
-  // Default to zh-tw
+  // Check if path starts with /zh-tw/
+  if (pathname.startsWith('/zh-tw/') || pathname === '/zh-tw') {
+    return 'zh-tw';
+  }
+  
+  // Default to zh-tw for root paths (for backward compatibility)
   return 'zh-tw';
 }
 

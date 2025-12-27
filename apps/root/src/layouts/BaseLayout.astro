@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import Navigation from '@uep/ui/Navigation';
 import Footer from '@uep/ui/Footer';
+import AdminEntry from '../components/AdminEntry.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 
 interface Props {
@@ -103,5 +104,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
       currentLocale={locale}
       translations={t.footer}
     />
+    
+    <!-- 隱藏的管理員入口 -->
+    <AdminEntry />
   </body>
 </html>

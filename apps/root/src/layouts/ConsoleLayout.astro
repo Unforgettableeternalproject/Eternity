@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 
 interface Props {
   title: string;
@@ -17,7 +17,6 @@ const {
 } = Astro.props as Props;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 
 // Canonical and alternate URLs
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);

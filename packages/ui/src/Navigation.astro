@@ -29,7 +29,7 @@ const {
 } = Astro.props;
 
 // Get the base path for current locale
-const basePath = currentLocale === 'zh-tw' ? '' : '/en';
+const basePath = currentLocale === 'zh-tw' ? '/zh-tw' : '/en';
 
 const navLinks = [
   { href: `${basePath}/`, label: translations.home },
@@ -39,8 +39,8 @@ const navLinks = [
 ];
 
 function isActive(href: string, current: string): boolean {
-  if (href === '/' || href === '/en' || href === '/en/') {
-    return current === '/' || current === '/en' || current === '/en/';
+  if (href === '/' || href === '/en' || href === '/en/' || href === '/zh-tw' || href === '/zh-tw/') {
+    return current === '/' || current === '/en' || current === '/en/' || current === '/zh-tw' || current === '/zh-tw/';
   }
   return current.startsWith(href);
 }
@@ -50,7 +50,7 @@ function isActive(href: string, current: string): boolean {
   <div class="flex items-center justify-between">
     <!-- Logo/Brand -->
     <a
-      href="/"
+      href={basePath === '/zh-tw' ? '/zh-tw/' : basePath === '/en' ? '/en/' : '/'}
       class="text-2xl font-bold text-slate-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200"
     >
       Bernie
@@ -71,7 +71,7 @@ function isActive(href: string, current: string): boolean {
           {link.label}
         </a>
       ))}
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <LanguageSwitch currentLocale={currentLocale} currentPath={currentPath} />
         <ThemeToggle />
       </div>
@@ -79,7 +79,7 @@ function isActive(href: string, current: string): boolean {
 
     <!-- Mobile Menu Button -->
     <div class="md:hidden">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <LanguageSwitch currentLocale={currentLocale} currentPath={currentPath} />
         <ThemeToggle />
         <button

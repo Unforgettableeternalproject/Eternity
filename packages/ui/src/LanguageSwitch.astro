@@ -18,20 +18,24 @@ const {
 function getAlternatePath(path: string, locale: 'zh-tw' | 'en'): string {
   const targetLocale = locale === 'zh-tw' ? 'en' : 'zh-tw';
   
-  // Remove /en prefix if present
+  // Remove /en or /zh-tw prefix if present
   let cleanPath = path;
   if (path.startsWith('/en/')) {
     cleanPath = path.replace('/en/', '/');
   } else if (path.startsWith('/en')) {
     cleanPath = path.replace('/en', '/');
+  } else if (path.startsWith('/zh-tw/')) {
+    cleanPath = path.replace('/zh-tw/', '/');
+  } else if (path.startsWith('/zh-tw')) {
+    cleanPath = path.replace('/zh-tw', '/');
   }
   
-  // Add /en prefix for English
+  // Add appropriate prefix for target locale
   if (targetLocale === 'en') {
     return cleanPath === '/' ? '/en' : `/en${cleanPath}`;
+  } else {
+    return cleanPath === '/' ? '/zh-tw' : `/zh-tw${cleanPath}`;
   }
-  
-  return cleanPath;
 }
 
 const alternatePath = getAlternatePath(currentPath, currentLocale);
