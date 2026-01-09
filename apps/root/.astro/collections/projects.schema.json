@@ -4,10 +4,19 @@
     "projects": {
       "type": "object",
       "properties": {
-        "title": {
+        "slug": {
           "type": "string"
         },
-        "description": {
+        "title_zh": {
+          "type": "string"
+        },
+        "description_zh": {
+          "type": "string"
+        },
+        "title_en": {
+          "type": "string"
+        },
+        "description_en": {
           "type": "string"
         },
         "tags": {
@@ -87,8 +96,11 @@
         }
       },
       "required": [
-        "title",
-        "description",
+        "slug",
+        "title_zh",
+        "description_zh",
+        "title_en",
+        "description_en",
         "tags"
       ],
       "additionalProperties": false

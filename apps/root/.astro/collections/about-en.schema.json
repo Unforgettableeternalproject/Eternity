@@ -1,12 +1,9 @@
 {
-  "$ref": "#/definitions/about",
+  "$ref": "#/definitions/about-en",
   "definitions": {
-    "about": {
+    "about-en": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "title": {
           "type": "string"
         },
@@ -42,7 +39,6 @@
         }
       },
       "required": [
-        "name",
         "title",
         "bio",
         "skills"

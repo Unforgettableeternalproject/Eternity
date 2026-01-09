@@ -1,13 +1,17 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection } from 'astro:content';
+import { getCollection, getEntry } from 'astro:content';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-// 載入內容
+// 根據語言載入對應的主頁內容
+const homepageKey = locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en';
+const homepageData = await getEntry(homepageKey, 'index');
+
+// 載入其他內容
 const allProjects = await getCollection('projects');
 const featuredProjects = allProjects
   .filter(p => p.data.featured)
@@ -58,11 +62,11 @@ const latestUpdates = allUpdates
           </div>
           
           <h1 class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
-            {t.home.greeting} <span class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient">Bernie</span>
+            {homepageData?.data.title || t.home.greeting} <span class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient">{homepageData?.data.name || 'Bernie'}</span>
           </h1>
           
           <p class="text-xl sm:text-2xl lg:text-3xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light">
-            {t.home.tagline}
+            {homepageData?.data.subtitle || t.home.tagline}
           </p>
           
           <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6">
@@ -135,15 +139,16 @@ const latestUpdates = allUpdates
       <div class="max-w-4xl mx-auto text-center space-y-8">
         <div class="inline-block">
           <h2 class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
-            {t.home.intro.heading}
+            {homepageData?.data.introHeading || t.home.intro.heading}
           </h2>
           <div class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"></div>
         </div>
         
-        <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed" set:html={t.home.intro.p1}></p>
-        <p class="text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-          {t.home.intro.p2}
-        </p>
+        <div class="prose prose-lg dark:prose-invert mx-auto">
+          <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">{homepageData?.data.introContent || t.home.intro.p1}</p>
+        </div>
+          </>
+        )}
         
         <div class="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
           <a 

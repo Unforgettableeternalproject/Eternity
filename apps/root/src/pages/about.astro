@@ -1,15 +1,14 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection } from 'astro:content';
+import { getEntry } from 'astro:content';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 
-// Load about data from content collections
-const aboutEntries = await getCollection('about');
-const aboutData = aboutEntries[0]; // 取第一個（通常只有一個 about 條目）
-const aboutContent = aboutData ? await aboutData.render() : null;
+// 根據語言載入對應的關於內容
+const aboutKey = locale === 'zh-tw' ? 'about-zh' : 'about-en';
+const aboutData = await getEntry(aboutKey, 'index');
 ---
 
 <BaseLayout 
@@ -29,10 +28,10 @@ const aboutContent = aboutData ? await aboutData.render() : null;
         <!-- Header -->
         <div class="text-center space-y-4 mb-16 animate-fade-in-up">
           <h1 class="text-5xl font-bold text-slate-900 dark:text-white">
-            {aboutData ? aboutData.data.title : t.about.heading}
+            {aboutData?.data.title || t.about.heading}
           </h1>
           <p class="text-xl text-slate-600 dark:text-slate-300">
-            {aboutData ? aboutData.data.bio : t.about.subtitle}
+            {aboutData?.data.bio || t.about.subtitle}
           </p>
         </div>
 
@@ -45,7 +44,7 @@ const aboutContent = aboutData ? await aboutData.render() : null;
                 <div class="w-full md:w-1/3">
                   <img 
                     src={aboutData.data.avatar}
-                    alt={aboutData.data.name}
+                    alt={aboutData.data.title}
                     class="aspect-square rounded-2xl object-cover border border-slate-200/50 dark:border-slate-700/50"
                   />
                 </div>

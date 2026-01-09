@@ -61,7 +61,10 @@ const homepageCollection = defineCollection({
   type: 'data',
   schema: z.object({
     title: z.string(),
+    name: z.string().optional(),
     subtitle: z.string(),
+    introHeading: z.string().optional(),
+    introContent: z.string().optional(),
     heroImage: z.string().optional(),
   }),
 });

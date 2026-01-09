@@ -19,6 +19,14 @@ export default defineConfig({
       strategy: 'pathname',
     },
   },
+  vite: {
+    optimizeDeps: {
+      include: ['@keystatic/astro/ui'],
+    },
+    ssr: {
+      noExternal: ['@keystatic/core', '@keystatic/astro'],
+    },
+  },
   integrations: [
     tailwind({
       applyBaseStyles: false, // 我們會自訂基礎樣式

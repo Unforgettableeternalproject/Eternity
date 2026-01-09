@@ -171,53 +171,67 @@ declare module 'astro:content' {
 	};
 
 	type DataEntryMap = {
-		"about": Record<string, {
+		"about-en": Record<string, {
   id: string;
-  render(): Render[".md"];
-  slug: string;
-  body: string;
-  collection: "about";
-  data: InferEntrySchema<"about">;
+  body?: string;
+  collection: "about-en";
+  data: any;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"about-zh": Record<string, {
+  id: string;
+  body?: string;
+  collection: "about-zh";
+  data: any;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
 "articles": Record<string, {
   id: string;
-  render(): Render[".md"];
-  slug: string;
-  body: string;
+  body?: string;
   collection: "articles";
-  data: InferEntrySchema<"articles">;
+  data: any;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"homepage-en": Record<string, {
+  id: string;
+  body?: string;
+  collection: "homepage-en";
+  data: any;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"homepage-zh": Record<string, {
+  id: string;
+  body?: string;
+  collection: "homepage-zh";
+  data: any;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
 "links": Record<string, {
   id: string;
-  render(): Render[".md"];
-  slug: string;
-  body: string;
+  body?: string;
   collection: "links";
-  data: InferEntrySchema<"links">;
+  data: any;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
 "projects": Record<string, {
   id: string;
-  render(): Render[".md"];
-  slug: string;
-  body: string;
+  body?: string;
   collection: "projects";
-  data: InferEntrySchema<"projects">;
+  data: any;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
 "updates": Record<string, {
   id: string;
-  render(): Render[".md"];
-  slug: string;
-  body: string;
+  body?: string;
   collection: "updates";
-  data: InferEntrySchema<"updates">;
+  data: any;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -253,6 +267,6 @@ declare module 'astro:content' {
 		LiveContentConfig['collections'][C]['loader']
 	>;
 
-	export type ContentConfig = typeof import("./../src/content/config.js");
+	export type ContentConfig = never;
 	export type LiveContentConfig = never;
 }
