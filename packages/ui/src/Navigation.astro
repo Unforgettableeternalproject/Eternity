@@ -14,6 +14,7 @@ interface Props {
     about: string;
     projects: string;
     links: string;
+    updates: string;
   };
 }
 
@@ -24,7 +25,8 @@ const {
     home: 'Home',
     about: 'About',
     projects: 'Projects',
-    links: 'Links'
+    links: 'Links',
+    updates: 'Updates'
   }
 } = Astro.props;
 
@@ -36,6 +38,7 @@ const navLinks = [
   { href: `${basePath}/about`, label: translations.about },
   { href: `${basePath}/projects`, label: translations.projects },
   { href: `${basePath}/links`, label: translations.links },
+  { href: `${basePath}/updates`, label: translations.updates },
 ];
 
 function isActive(href: string, current: string): boolean {

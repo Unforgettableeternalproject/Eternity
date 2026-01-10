@@ -42,7 +42,7 @@ const linksCollection = defineCollection({
 
 // 更新動態集合
 const updatesCollection = defineCollection({
-  loader: glob({ pattern: '*.{md,mdoc,yaml}', base: './src/content/updates' }),
+  loader: glob({ pattern: '*.yaml', base: './src/content/updates' }),
   schema: z.object({
     title_zh: z.string().optional(),
     description_zh: z.string(),

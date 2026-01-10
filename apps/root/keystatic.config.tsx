@@ -242,9 +242,6 @@ export default config({
           multiline: true,
           validation: { isRequired: true },
         }),
-        content_zh: fields.markdoc({
-          label: '詳細說明 (繁體中文)',
-        }),
         
         // 英文內容
         title_en: fields.text({ 
@@ -255,9 +252,6 @@ export default config({
           label: 'Description (English)',
           multiline: true,
           validation: { isRequired: true },
-        }),
-        content_en: fields.markdoc({
-          label: 'Details (English)',
         }),
         
         url: fields.url({
@@ -275,15 +269,17 @@ export default config({
           defaultValue: 'other',
         }),
         icon: fields.text({
-          label: 'Icon 名稱',
-          description: '例如: github, twitter, link',
+          label: 'Icon 名稱 (可選)',
+          description: '例如: github, twitter, linkedin, youtube, link 等',
         }),
         featured: fields.checkbox({
           label: '重要連結 / Featured',
+          description: '在首頁顯示此連結',
           defaultValue: false,
         }),
         order: fields.number({
           label: '排序順序 / Sort Order',
+          description: '數字越小越靠前',
         }),
       },
     }),

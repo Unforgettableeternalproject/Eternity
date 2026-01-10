@@ -198,9 +198,9 @@ const latestUpdates = allUpdates
         <div class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"></div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="flex flex-wrap justify-center gap-6 max-w-5xl mx-auto">
         {featuredProjects.map((project) => (
-          <a href={`${basePath}/projects/${project.id}`} class="card card-hover p-6 reveal-item">
+          <a href={`${basePath}/projects/${project.id}`} class="card card-hover p-6 reveal-item w-full md:w-[calc(33.333%-1rem)] max-w-sm">
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}</h3>
               {project.data.tags[0] && (
@@ -239,11 +239,11 @@ const latestUpdates = allUpdates
           <div class="h-1 w-24 bg-gradient-to-r from-secondary-500 to-primary-500 mx-auto rounded-full"></div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="flex flex-wrap justify-center gap-6">
           {latestUpdates.map((update) => (
-            <div class="card p-6 reveal-item">
+            <div class="card p-6 reveal-item w-full md:w-[calc(50%-0.75rem)] max-w-md">
               <div class="flex items-center justify-between mb-2">
-                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{locale === 'zh-tw' ? update.data.title_zh : update.data.title_en}</h3>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{locale === 'zh-tw' ? update.id : update.data.title_en}</h3>
                 <span class="text-sm text-slate-500 dark:text-slate-400">
                   {update.data.date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US')}
                 </span>

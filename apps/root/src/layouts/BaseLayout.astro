@@ -4,6 +4,7 @@ import Navigation from '@uep/ui/Navigation';
 import Footer from '@uep/ui/Footer';
 import AdminEntry from '../components/AdminEntry.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCollection } from 'astro:content';
 
 interface Props {
   title: string;
@@ -21,6 +22,17 @@ const {
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
+
+// 載入精選連結給 Footer
+const allLinks = await getCollection('links');
+const featuredLinks = allLinks
+  .filter(l => l.data.featured)
+  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
+  .map(link => ({
+    title: locale === 'zh-tw' ? link.id : link.data.title_en,
+    url: link.data.url,
+    icon: link.data.icon,
+  }));
 
 // Get canonical URL
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -113,6 +125,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <Footer 
       currentLocale={locale}
       translations={t.footer}
+      featuredLinks={featuredLinks}
     />
     
     <!-- 隱藏的管理員入口 -->

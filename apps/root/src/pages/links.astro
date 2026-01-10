@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
+import LinkIcon from '../components/LinkIcon.astro';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
@@ -35,7 +36,7 @@ const categoryNames = {
   title={locale === 'zh-tw' ? '連結收藏 - Eternity' : 'Links - Eternity'}
   description={locale === 'zh-tw' ? '在網路上找到我的各種足跡' : 'Find me across the web'}
 >
-  <section class="relative overflow-hidden py-24">
+  <section class="relative overflow-hidden py-24 min-h-[calc(100vh-12rem)]">
     <div class="absolute inset-0 pointer-events-none">
       <div class="absolute -left-20 -top-32 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"></div>
       <div class="absolute right-6 top-10 h-72 w-72 rounded-full bg-secondary-500/15 blur-3xl"></div>
@@ -77,13 +78,11 @@ const categoryNames = {
                 <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/15"></div>
                 <div class="relative p-6 space-y-4">
                   <div class="flex items-start gap-4">
-                    {link.data.icon && (
-                      <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center text-2xl">
-                        {link.data.icon}
-                      </div>
-                    )}
+                    <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
+                      <LinkIcon icon={link.data.icon} class="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                    </div>
                     <div class="flex-1 min-w-0">
-                      <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">{locale === 'zh-tw' ? link.data.title_zh : link.data.title_en}</h3>
+                      <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">{locale === 'zh-tw' ? link.id : link.data.title_en}</h3>
                       <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
                         {locale === 'zh-tw' ? link.data.description_zh : link.data.description_en}
                       </p>
@@ -91,7 +90,7 @@ const categoryNames = {
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-primary-600 dark:text-primary-400 font-medium truncate">
-                      {new URL(link.data.url).hostname}
+                      {link.data.url}
                     </span>
                     <svg class="w-5 h-5 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:-translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -121,23 +120,17 @@ const categoryNames = {
                 style={`animation-delay: ${(categoryIndex * 100) + (index * 50)}ms`}
               >
                 <div class="w-16 h-16 flex-shrink-0 rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
-                  {link.data.icon ? (
-                    <span class="text-3xl">{link.data.icon}</span>
-                  ) : (
-                    <svg class="w-8 h-8 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-                    </svg>
-                  )}
+                  <LinkIcon icon={link.data.icon} class="w-8 h-8 text-primary-600 dark:text-primary-400" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                    {locale === 'zh-tw' ? link.data.title_zh : link.data.title_en}
+                    {locale === 'zh-tw' ? link.id : link.data.title_en}
                   </h3>
                   <p class="text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">
                     {locale === 'zh-tw' ? link.data.description_zh : link.data.description_en}
                   </p>
                   <div class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 font-medium">
-                    <span class="truncate">{new URL(link.data.url).hostname}</span>
+                    <span class="truncate">{link.data.url}</span>
                     <svg class="w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                     </svg>
