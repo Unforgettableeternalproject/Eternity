@@ -84,7 +84,17 @@ const alternateURL = new URL(alternatePath, Astro.site);
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
     </script>
   </head>
-  <body class="min-h-screen bg-white dark:bg-slate-900">
+  <body class="min-h-screen bg-white dark:bg-slate-900 relative">
+    <!-- Interactive gradient background -->
+    <div class="gradient-bg">
+      <div class="gradient-orb gradient-orb-1"></div>
+      <div class="gradient-orb gradient-orb-2"></div>
+      <div class="gradient-orb gradient-orb-3"></div>
+    </div>
+    
+    <!-- Mouse cursor glow effect -->
+    <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
+    
     <!-- Sticky Navigation -->
     <header class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
       <Navigation 
@@ -107,5 +117,50 @@ const alternateURL = new URL(alternatePath, Astro.site);
     
     <!-- 隱藏的管理員入口 -->
     <AdminEntry />
+    
+    <!-- Mouse tracking script -->
+    <script is:inline>
+      (function() {
+        const cursorGlow = document.getElementById('cursor-glow');
+        let mouseX = 0;
+        let mouseY = 0;
+        let currentX = 0;
+        let currentY = 0;
+        
+        // Smooth mouse tracking
+        document.addEventListener('mousemove', (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+        });
+        
+        // Animate cursor glow with smooth easing
+        function animate() {
+          const dx = mouseX - currentX;
+          const dy = mouseY - currentY;
+          
+          currentX += dx * 0.1;
+          currentY += dy * 0.1;
+          
+          if (cursorGlow) {
+            cursorGlow.style.left = currentX + 'px';
+            cursorGlow.style.top = currentY + 'px';
+          }
+          
+          requestAnimationFrame(animate);
+        }
+        
+        // Show cursor glow on mouse enter
+        document.addEventListener('mouseenter', () => {
+          if (cursorGlow) cursorGlow.style.opacity = '1';
+        });
+        
+        // Hide cursor glow on mouse leave
+        document.addEventListener('mouseleave', () => {
+          if (cursorGlow) cursorGlow.style.opacity = '0';
+        });
+        
+        animate();
+      })();
+    </script>
   </body>
 </html>

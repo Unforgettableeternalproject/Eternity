@@ -1,31 +1,22 @@
 ---
 import { getCollection } from 'astro:content';
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCurrentLocale } from '../../i18n/utils';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
 
 export async function getStaticPaths() {
   const projects = await getCollection('projects');
   
-  return projects.flatMap((project) => {
-    return [
-      {
-        params: { slug: project.slug },
-        props: { project, locale: 'zh-tw' },
-      },
-      {
-        params: { slug: project.slug },
-        props: { project, locale: 'en' },
-      },
-    ];
-  });
+  return projects.map((project) => ({
+    params: { slug: project.id },
+    props: { project },
+  }));
 }
 
-const { project, locale } = Astro.props;
-const { Content } = await project.render();
+const { project } = Astro.props;
+const locale = 'en';
 
 const formatDate = (date?: Date) => {
   if (!date) return '';
-  return date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', {
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
   });
@@ -33,29 +24,29 @@ const formatDate = (date?: Date) => {
 ---
 
 <BaseLayout 
-  title={locale === 'zh-tw' ? project.data.title_zh : project.data.title_en}
-  description={locale === 'zh-tw' ? project.data.description_zh : project.data.description_en}
+  title={project.data.title_en}
+  description={project.data.description_en}
 >
-  <div class="container-custom py-20">
+  <div class="container-custom py-20 relative z-10 min-h-[calc(100vh-12rem)]">
     <article class="max-w-4xl mx-auto">
       <!-- Back Button -->
       <a 
-        href={locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects'}
-        class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 mb-8"
+        href="/en/projects"
+        class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 mb-8 animate-fade-in-up"
       >
         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
         </svg>
-        {locale === 'zh-tw' ? '返回專案列表' : 'Back to Projects'}
+        Back to Projects
       </a>
 
       <!-- Header -->
-      <header class="mb-12">
+      <header class="mb-12 animate-fade-in-up" style="animation-delay: 100ms">
         <div class="flex items-center gap-3 mb-4">
           <span class="px-3 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
-            {project.data.status === 'active' ? (locale === 'zh-tw' ? '進行中' : 'Active') : 
-             project.data.status === 'completed' ? (locale === 'zh-tw' ? '已完成' : 'Completed') :
-             (locale === 'zh-tw' ? '已封存' : 'Archived')}
+            {project.data.status === 'active' ? 'Active' : 
+             project.data.status === 'completed' ? 'Completed' :
+             'Archived'}
           </span>
           {project.data.startDate && (
             <span class="text-slate-500 dark:text-slate-400">
@@ -66,11 +57,11 @@ const formatDate = (date?: Date) => {
         </div>
 
         <h1 class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-6">
-          {locale === 'zh-tw' ? project.data.title_zh : project.data.title_en}
+          {project.data.title_en}
         </h1>
 
         <p class="text-xl text-slate-600 dark:text-slate-300 mb-8">
-          {locale === 'zh-tw' ? project.data.description_zh : project.data.description_en}
+          {project.data.description_en}
         </p>
 
         <!-- Tags -->
@@ -92,7 +83,7 @@ const formatDate = (date?: Date) => {
                 rel="noopener noreferrer"
                 class="btn btn-primary"
               >
-                {locale === 'zh-tw' ? '訪問網站' : 'Visit Website'}
+                Visit Website
               </a>
             )}
             {project.data.links.demo && (
@@ -102,7 +93,7 @@ const formatDate = (date?: Date) => {
                 rel="noopener noreferrer"
                 class="btn btn-secondary"
               >
-                {locale === 'zh-tw' ? '查看 Demo' : 'View Demo'}
+                View Demo
               </a>
             )}
             {project.data.links.github && (
@@ -121,11 +112,6 @@ const formatDate = (date?: Date) => {
           </div>
         )}
       </header>
-
-      <!-- Content -->
-      <div class="prose prose-lg dark:prose-invert max-w-none">
-        <Content />
-      </div>
     </article>
   </div>
 </BaseLayout>

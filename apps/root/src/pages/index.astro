@@ -134,8 +134,9 @@ const latestUpdates = allUpdates
   </div>
 
   <!-- Intro Section -->
-  <section class="relative py-32 bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/50 dark:to-slate-900">
-    <div class="container-custom">
+  <section class="relative py-32">
+    <div class="absolute inset-0 bg-gradient-to-b from-slate-50/80 to-white/80 dark:from-slate-800/30 dark:to-slate-900/30 backdrop-blur-sm"></div>
+    <div class="container-custom relative z-10">
       <div class="max-w-4xl mx-auto text-center space-y-8">
         <div class="inline-block">
           <h2 class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
@@ -147,15 +148,13 @@ const latestUpdates = allUpdates
         <div class="prose prose-lg dark:prose-invert mx-auto">
           <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">{homepageData?.data.introContent || t.home.intro.p1}</p>
         </div>
-          </>
-        )}
         
         <div class="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
           <a 
             href="https://uep.unforgettableeternalproject.com" 
             target="_blank"
             rel="noopener noreferrer"
-            class="group relative overflow-hidden px-8 py-6 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20 hover:-translate-y-1"
+            class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20 hover:-translate-y-1"
           >
             <div class="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-500/0 group-hover:from-primary-500/5 group-hover:to-secondary-500/5 transition-all duration-300"></div>
             <div class="relative flex items-center justify-between">
@@ -171,7 +170,7 @@ const latestUpdates = allUpdates
           
           <a 
             href={`${basePath}/links`}
-            class="group relative overflow-hidden px-8 py-6 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-secondary-500 dark:hover:border-secondary-500 transition-all duration-300 hover:shadow-xl hover:shadow-secondary-500/20 hover:-translate-y-1"
+            class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-secondary-500 dark:hover:border-secondary-500 transition-all duration-300 hover:shadow-xl hover:shadow-secondary-500/20 hover:-translate-y-1"
           >
             <div class="absolute inset-0 bg-gradient-to-br from-secondary-500/0 to-secondary-500/0 group-hover:from-secondary-500/5 group-hover:to-primary-500/5 transition-all duration-300"></div>
             <div class="relative flex items-center justify-between">
@@ -201,16 +200,16 @@ const latestUpdates = allUpdates
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         {featuredProjects.map((project) => (
-          <a href={`${basePath}/projects/${project.slug}`} class="card card-hover p-6 reveal-item">
+          <a href={`${basePath}/projects/${project.id}`} class="card card-hover p-6 reveal-item">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{project.data.title}</h3>
+              <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}</h3>
               {project.data.tags[0] && (
                 <span class="px-2.5 py-1 text-xs rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
                   {project.data.tags[0]}
                 </span>
               )}
             </div>
-            <p class="text-slate-600 dark:text-slate-300 mb-4">{project.data.description}</p>
+            <p class="text-slate-600 dark:text-slate-300 mb-4">{locale === 'zh-tw' ? project.data.description_zh : project.data.description_en}</p>
             <div class="flex gap-2 flex-wrap">
               {project.data.tags.slice(0, 3).map(tag => (
                 <span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 dark:bg-slate-800">{tag}</span>
@@ -229,8 +228,9 @@ const latestUpdates = allUpdates
   </section>
 
   <!-- Latest Updates -->
-  <section class="relative py-24 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-800/50 reveal">
-    <div class="container-custom">
+  <section class="relative py-24 reveal">
+    <div class="absolute inset-0 bg-gradient-to-b from-white/80 to-slate-50/80 dark:from-slate-900/30 dark:to-slate-800/20 backdrop-blur-sm"></div>
+    <div class="container-custom relative z-10">
       <div class="max-w-5xl mx-auto">
         <div class="text-center mb-12">
           <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
@@ -243,12 +243,12 @@ const latestUpdates = allUpdates
           {latestUpdates.map((update) => (
             <div class="card p-6 reveal-item">
               <div class="flex items-center justify-between mb-2">
-                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{update.data.title}</h3>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{locale === 'zh-tw' ? update.data.title_zh : update.data.title_en}</h3>
                 <span class="text-sm text-slate-500 dark:text-slate-400">
                   {update.data.date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US')}
                 </span>
               </div>
-              <p class="text-slate-600 dark:text-slate-300">{update.data.description}</p>
+              <p class="text-slate-600 dark:text-slate-300">{locale === 'zh-tw' ? update.data.description_zh : update.data.description_en}</p>
             </div>
           ))}
         </div>

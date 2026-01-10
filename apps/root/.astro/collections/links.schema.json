@@ -4,9 +4,6 @@
     "links": {
       "type": "object",
       "properties": {
-        "slug": {
-          "type": "string"
-        },
         "title_zh": {
           "type": "string"
         },
@@ -47,8 +44,6 @@
         }
       },
       "required": [
-        "slug",
-        "title_zh",
         "description_zh",
         "title_en",
         "description_en",

@@ -1,11 +1,11 @@
 import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
 
 // 專案集合
 const projectsCollection = defineCollection({
-  type: 'content',
+  loader: glob({ pattern: '*.{md,mdoc,yaml}', base: './src/content/projects' }),
   schema: z.object({
-    slug: z.string(),
-    title_zh: z.string(),
+    title_zh: z.string().optional(),
     description_zh: z.string(),
     title_en: z.string(),
     description_en: z.string(),
@@ -26,10 +26,9 @@ const projectsCollection = defineCollection({
 
 // 連結集合
 const linksCollection = defineCollection({
-  type: 'content',
+  loader: glob({ pattern: '*.{md,mdoc,yaml}', base: './src/content/links' }),
   schema: z.object({
-    slug: z.string(),
-    title_zh: z.string(),
+    title_zh: z.string().optional(),
     description_zh: z.string(),
     title_en: z.string(),
     description_en: z.string(),
@@ -43,10 +42,9 @@ const linksCollection = defineCollection({
 
 // 更新動態集合
 const updatesCollection = defineCollection({
-  type: 'content',
+  loader: glob({ pattern: '*.{md,mdoc,yaml}', base: './src/content/updates' }),
   schema: z.object({
-    slug: z.string(),
-    title_zh: z.string(),
+    title_zh: z.string().optional(),
     description_zh: z.string(),
     title_en: z.string(),
     description_en: z.string(),

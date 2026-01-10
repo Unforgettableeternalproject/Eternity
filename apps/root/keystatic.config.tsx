@@ -93,11 +93,6 @@ export default config({
           multiline: true,
           validation: { isRequired: true },
         }),
-        content: fields.document({ 
-          label: '完整自我介紹內容',
-          formatting: true,
-          links: true,
-        }),
         avatar: fields.image({ 
           label: '頭像',
           directory: 'public/images/avatars',
@@ -132,11 +127,6 @@ export default config({
           multiline: true,
           validation: { isRequired: true },
         }),
-        content: fields.document({ 
-          label: 'Full Bio Content',
-          formatting: true,
-          links: true,
-        }),
         avatar: fields.image({ 
           label: 'Avatar',
           directory: 'apps/root/public/images/avatars',
@@ -161,17 +151,9 @@ export default config({
   collections: {
     projects: collection({
       label: '專案 / Projects',
-      slugField: 'slug',
+      slugField: 'title_zh',
       path: 'src/content/projects/*',
-      format: { contentField: 'content_zh' },
       schema: {
-        slug: fields.slug({ 
-          name: { 
-            label: 'Slug (URL 識別碼)',
-            validation: { isRequired: true },
-          } 
-        }),
-        
         // 繁體中文內容
         title_zh: fields.text({ 
           label: '標題 (繁體中文)',
@@ -247,17 +229,9 @@ export default config({
 
     links: collection({
       label: '連結 / Links',
-      slugField: 'slug',
+      slugField: 'title_zh',
       path: 'src/content/links/*',
-      format: { contentField: 'content_zh' },
       schema: {
-        slug: fields.slug({ 
-          name: { 
-            label: 'Slug (URL 識別碼)',
-            validation: { isRequired: true },
-          } 
-        }),
-        
         // 繁體中文內容
         title_zh: fields.text({ 
           label: '標題 (繁體中文)',
@@ -316,17 +290,9 @@ export default config({
 
     updates: collection({
       label: '最新動態 / Updates',
-      slugField: 'slug',
+      slugField: 'title_zh',
       path: 'src/content/updates/*',
-      format: { contentField: 'content_zh' },
       schema: {
-        slug: fields.slug({ 
-          name: { 
-            label: 'Slug (URL 識別碼)',
-            validation: { isRequired: true },
-          } 
-        }),
-        
         // 繁體中文內容
         title_zh: fields.text({ 
           label: '標題 (繁體中文)',

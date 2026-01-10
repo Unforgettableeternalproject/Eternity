@@ -77,7 +77,7 @@
   }
   
   .card {
-    @apply bg-white dark:bg-slate-800 rounded-xl shadow-lg;
+    @apply bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-lg;
     @apply border border-slate-200 dark:border-slate-700;
     @apply transition-all duration-300;
   }
@@ -160,4 +160,120 @@ html {
     transform: none !important;
     opacity: 1 !important;
   }
+}
+/* Interactive gradient background with mouse tracking */
+.gradient-bg {
+  @apply fixed inset-0 -z-10 overflow-hidden pointer-events-none;
+}
+
+.gradient-orb {
+  @apply absolute rounded-full blur-3xl opacity-20 dark:opacity-10;
+  @apply transition-all duration-[2000ms] ease-out;
+  animation: float 20s ease-in-out infinite;
+}
+
+.gradient-orb-1 {
+  @apply w-96 h-96 bg-gradient-to-br from-primary-400 to-primary-600;
+  top: -10%;
+  left: -5%;
+  animation-delay: 0s;
+}
+
+.gradient-orb-2 {
+  @apply w-[30rem] h-[30rem] bg-gradient-to-br from-secondary-400 to-secondary-600;
+  top: 40%;
+  right: -10%;
+  animation-delay: 5s;
+}
+
+.gradient-orb-3 {
+  @apply w-80 h-80 bg-gradient-to-br from-primary-500 to-secondary-500;
+  bottom: -10%;
+  left: 30%;
+  animation-delay: 10s;
+}
+
+/* Mouse cursor glow effect */
+.cursor-glow {
+  @apply pointer-events-none fixed -z-10;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(
+    circle,
+    rgba(14, 165, 233, 0.15) 0%,
+    rgba(14, 165, 233, 0.05) 25%,
+    transparent 70%
+  );
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s ease;
+}
+
+.dark .cursor-glow {
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.1) 0%,
+    rgba(56, 189, 248, 0.03) 25%,
+    transparent 70%
+  );
+}
+
+/* Floating animation for gradient orbs */
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(30px, -30px) scale(1.05);
+  }
+  50% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+  75% {
+    transform: translate(20px, 30px) scale(1.02);
+  }
+}
+
+/* Gradient text animation */
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+/* Floating animation */
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.animate-float {
+  animation: float-gentle 6s ease-in-out infinite;
+}
+
+/* Fade in up animation */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
 }

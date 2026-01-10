@@ -1,5 +1,14 @@
 {
   "title": "About Me",
   "bio": "This is my bio",
-  "skills": ["Development", "Design", "Writing"]
+  "avatar": "/images/avatars/avatar.png",
+  "skills": [
+    "Development",
+    "Design",
+    "Writing"
+  ],
+  "social": {
+    "github": "https://github.com/Unforgettableeternalproject",
+    "email": "ptyc4076@gmail.com"
+  }
 }

@@ -52,7 +52,7 @@ const aboutData = await getEntry(aboutKey, 'index');
 
               <!-- Bio Content -->
               <div class="w-full md:w-2/3 prose prose-lg dark:prose-invert max-w-none">
-                {aboutContent && <aboutContent.Content />}
+                <p class="text-lg leading-relaxed">{aboutData.data.bio}</p>
               </div>
             </div>
 
