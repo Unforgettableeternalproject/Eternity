@@ -3,6 +3,7 @@ import '../styles/global.css';
 import Navigation from '@uep/ui/Navigation';
 import Footer from '@uep/ui/Footer';
 import AdminEntry from '../components/AdminEntry.astro';
+import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
@@ -130,6 +131,14 @@ const alternateURL = new URL(alternatePath, Astro.site);
     
     <!-- 隱藏的管理員入口 -->
     <AdminEntry />
+    
+    <!-- Console Easter Egg (React Island) -->
+    <ConsoleEasterEgg 
+      client:idle
+      consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
+      label={locale === 'zh-tw' ? '終端機' : 'Console'}
+      debugMode={false}
+    />
     
     <!-- Mouse tracking script -->
     <script is:inline>

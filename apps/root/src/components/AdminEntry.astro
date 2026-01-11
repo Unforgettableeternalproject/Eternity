@@ -1,9 +1,11 @@
 ---
-// 只在開發環境顯示管理員入口
-const isDev = import.meta.env.DEV;
+import { envConfig } from '../config/env';
+
+// 只在開發和測試環境顯示管理員入口，正式環境不顯示
+const showAdmin = envConfig.showDevTools;
 ---
 
-{isDev && (
+{showAdmin && (
   <div id="admin-entry" class="fixed bottom-8 right-8 z-50">
     <button
       id="admin-btn"

@@ -25,6 +25,8 @@
   "devDependencies": {
     "@astrojs/tailwind": "^6.0.2",
     "@tailwindcss/typography": "^0.5.19",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^19.2.3",
     "@uep/config": "workspace:*",
     "@uep/ui": "workspace:*",
     "tailwindcss": "^3.4.18",
