@@ -1,9 +1,11 @@
 ---
 import '../styles/global.css';
-import Navigation from '@uep/ui/Navigation';
+import NavigationWithSearch from '../components/NavigationWithSearch.astro';
 import Footer from '@uep/ui/Footer';
 import AdminEntry from '../components/AdminEntry.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
+import ScrollToTop from '../components/ScrollToTop';
+import ToastContainer from '../components/Toast';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
@@ -110,11 +112,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     
     <!-- Sticky Navigation -->
     <header class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-      <Navigation 
-        currentPath={Astro.url.pathname}
-        currentLocale={locale}
-        translations={t.nav}
-      />
+      <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
     
     <!-- Main Content Area -->
@@ -139,6 +137,12 @@ const alternateURL = new URL(alternatePath, Astro.site);
       label={locale === 'zh-tw' ? '終端機' : 'Console'}
       debugMode={false}
     />
+    
+    <!-- 返回頂部按鈕 (React Island) -->
+    <ScrollToTop client:load position="right" showAfter={300} />
+    
+    <!-- Toast 通知系統 (React Island) -->
+    <ToastContainer client:only="react" position="top-right" />
     
     <!-- Mouse tracking script -->
     <script is:inline>

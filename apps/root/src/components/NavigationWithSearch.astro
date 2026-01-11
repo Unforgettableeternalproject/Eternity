@@ -1,0 +1,205 @@
+---
+/**
+ * Navigation Component with Global Search
+ * Wraps the UI Navigation with search functionality
+ */
+import ThemeToggle from '@uep/ui/ThemeToggle';
+import GlobalSearch from './GlobalSearch';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+
+interface Props {
+  currentPath?: string;
+}
+
+const { currentPath = Astro.url.pathname } = Astro.props;
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+---
+
+<nav class="container-custom py-6">
+  <div class="flex items-center justify-between gap-4">
+    <!-- Logo/Brand -->
+    <a
+      href={locale === 'zh-tw' ? '/zh-tw/' : '/en/'}
+      class="text-2xl font-bold text-slate-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200"
+    >
+      Bernie
+    </a>
+
+    <!-- Desktop Navigation -->
+    <div class="hidden md:flex items-center gap-6 flex-1">
+      <!-- Center: Global Search (占據中央位置) -->
+      <div class="flex-1 flex justify-center px-8">
+        <div class="w-full max-w-2xl">
+          <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+        </div>
+      </div>
+      
+      <!-- Right: Nav Links -->
+      <div class="flex items-center gap-6">
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/' : '/en/'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            (currentPath === '/' || currentPath === '/zh-tw/' || currentPath === '/en/')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400'
+          ]}
+        >
+          {t.nav.home}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/about' : '/en/about'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/about')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400'
+          ]}
+        >
+          {t.nav.about}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/projects')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400'
+          ]}
+        >
+          {t.nav.projects}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/links' : '/en/links'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/links')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400'
+          ]}
+        >
+          {t.nav.links}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/updates')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400'
+          ]}
+        >
+          {t.nav.updates}
+        </a>
+        
+        <div class="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
+        
+        <!-- Language Switch -->
+        <a
+          href={locale === 'zh-tw' ? '/en' : '/zh-tw/'}
+          class="text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200 whitespace-nowrap"
+        >
+          {locale === 'zh-tw' ? 'EN' : '繁中'}
+        </a>
+        
+        <!-- Theme Toggle -->
+        <ThemeToggle />
+      </div>
+    </div>
+
+    <!-- Mobile Menu Button -->
+    <div class="md:hidden flex items-center gap-3">
+      <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+      
+      <button
+        id="mobile-menu-button"
+        class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+        aria-label="Toggle mobile menu"
+        type="button"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path class="menu-open" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          <path class="menu-close hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Navigation Menu -->
+  <div id="mobile-menu" class="md:hidden hidden overflow-hidden transition-all duration-300 ease-in-out">
+    <div class="flex flex-col space-y-1 border-t border-slate-200 dark:border-slate-700 pt-4 pb-2 mt-4">
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/' : '/en/'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          (currentPath === '/' || currentPath === '/zh-tw/' || currentPath === '/en/')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        ]}
+      >
+        {t.nav.home}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/about' : '/en/about'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/about')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        ]}
+      >
+        {t.nav.about}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/projects')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        ]}
+      >
+        {t.nav.projects}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/links' : '/en/links'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/links')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        ]}
+      >
+        {t.nav.links}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/updates')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        ]}
+      >
+        {t.nav.updates}
+      </a>
+    </div>
+  </div>
+</nav>
+
+<script>
+  // Mobile menu toggle
+  const mobileMenuButton = document.getElementById('mobile-menu-button');
+  const mobileMenu = document.getElementById('mobile-menu');
+  const menuOpen = document.querySelector('.menu-open');
+  const menuClose = document.querySelector('.menu-close');
+
+  if (mobileMenuButton && mobileMenu) {
+    mobileMenuButton.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+      menuOpen?.classList.toggle('hidden');
+      menuClose?.classList.toggle('hidden');
+    });
+  }
+</script>
