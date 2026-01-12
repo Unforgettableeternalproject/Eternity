@@ -23,6 +23,7 @@ interface GlobalSearchProps {
 
 export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [allData, setAllData] = useState<SearchResult[]>([]);
@@ -91,7 +92,8 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
       }
 
       if (e.key === 'Escape') {
-        setIsOpen(false);
+        e.preventDefault();
+        handleClose();
       }
     };
 
@@ -99,20 +101,30 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+      setQuery('');
+      setSelectedIndex(0);
+    }, 200);
+  };
+
   // 點擊外部關閉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
+        handleClose();
       }
     };
 
-    if (isOpen) {
+    if (isOpen && !isClosing) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, isClosing]);
 
   // 鍵盤導航
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -136,6 +148,7 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
   };
 
   const handleOpen = () => {
+    setIsClosing(false);
     setIsOpen(true);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -197,8 +210,9 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
       {/* 搜索模態框 */}
       {isOpen && (
         <>
-          <div className="global-search__backdrop" onClick={() => setIsOpen(false)} />
-          <div className="global-search__modal">
+          <div className={`global-search__backdrop ${isClosing ? 'closing' : ''}`} onClick={handleClose} />
+          <div className={`global-search__modal ${isClosing ? 'closing' : ''}`}>
+            <div className="global-search__container">
             <div className="global-search__header">
               <svg className="global-search__search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -216,7 +230,7 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
                 onKeyDown={handleKeyDown}
               />
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 className="global-search__close"
                 aria-label={locale === 'zh-tw' ? '關閉' : 'Close'}
                 type="button"
@@ -324,6 +338,7 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
                 <span><kbd>Enter</kbd> {locale === 'zh-tw' ? '選擇' : 'Select'}</span>
                 <span><kbd>Esc</kbd> {locale === 'zh-tw' ? '關閉' : 'Close'}</span>
               </div>
+            </div>
             </div>
           </div>
         </>

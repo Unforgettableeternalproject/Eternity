@@ -81,12 +81,21 @@
   z-index: 9998;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.2s ease-out both;
+}
+
+.global-search__backdrop.closing {
+  animation: fadeOut 0.2s ease-out forwards;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 /* 搜索模態框 */
@@ -98,6 +107,36 @@
   z-index: 9999;
   width: 90vw;
   max-width: 42rem;
+  animation: slideDown 0.2s ease-out both;
+}
+
+.global-search__modal.closing {
+  animation: slideUp 0.2s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+}
+
+.global-search__container {
   max-height: 70vh;
   display: flex;
   flex-direction: column;
@@ -108,21 +147,9 @@
     0 20px 25px -5px rgb(0 0 0 / 0.1),
     0 8px 10px -6px rgb(0 0 0 / 0.1);
   border: 1px solid rgba(148, 163, 184, 0.2);
-  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-2rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-:global(.dark) .global-search__modal {
+:global(.dark) .global-search__container {
   background: rgba(15, 23, 42, 0.98);
   border-color: rgba(148, 163, 184, 0.1);
 }

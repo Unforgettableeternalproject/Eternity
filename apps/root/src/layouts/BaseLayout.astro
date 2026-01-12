@@ -6,6 +6,7 @@ import AdminEntry from '../components/AdminEntry.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
+import GlobalRipple from '../components/GlobalRipple';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
@@ -98,6 +99,19 @@ const alternateURL = new URL(alternatePath, Astro.site);
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
     </script>
+    
+    <!-- 清除打字機快取（每次重載都重新播放動畫） -->
+    <script is:inline>
+      // 清除所有打字機相關的 sessionStorage
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('typewriter-shown')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    </script>
   </head>
   <body class="min-h-screen bg-white dark:bg-slate-900 relative">
     <!-- Interactive gradient background -->
@@ -109,6 +123,15 @@ const alternateURL = new URL(alternatePath, Astro.site);
     
     <!-- Mouse cursor glow effect -->
     <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
+    
+    <!-- Global click ripple effect -->
+    <GlobalRipple 
+      client:load 
+      color="rgba(99, 102, 241, 0.15)" 
+      navColor="rgba(236, 72, 153, 0.2)"
+      duration={800} 
+      size={80} 
+    />
     
     <!-- Sticky Navigation -->
     <header class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
@@ -148,15 +171,28 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <script is:inline>
       (function() {
         const cursorGlow = document.getElementById('cursor-glow');
-        let mouseX = 0;
-        let mouseY = 0;
-        let currentX = 0;
-        let currentY = 0;
+        
+        // 嘗試從 sessionStorage 讀取上次的滑鼠位置
+        let mouseX = parseFloat(sessionStorage.getItem('mouseX')) || window.innerWidth / 2;
+        let mouseY = parseFloat(sessionStorage.getItem('mouseY')) || window.innerHeight / 2;
+        let currentX = mouseX;
+        let currentY = mouseY;
+        
+        // 初始化滑鼠位置
+        if (cursorGlow) {
+          cursorGlow.style.left = currentX + 'px';
+          cursorGlow.style.top = currentY + 'px';
+          cursorGlow.style.opacity = '0';
+        }
         
         // Smooth mouse tracking
         document.addEventListener('mousemove', (e) => {
           mouseX = e.clientX;
           mouseY = e.clientY;
+          
+          // 儲存當前位置
+          sessionStorage.setItem('mouseX', mouseX.toString());
+          sessionStorage.setItem('mouseY', mouseY.toString());
         });
         
         // Animate cursor glow with smooth easing

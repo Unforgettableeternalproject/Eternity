@@ -14,6 +14,33 @@ interface Props {
 const { currentPath = Astro.url.pathname } = Astro.props;
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
+
+// Calculate alternate language path
+function getAlternatePath(path: string, currentLocale: 'zh-tw' | 'en'): string {
+  const targetLocale = currentLocale === 'zh-tw' ? 'en' : 'zh-tw';
+  
+  // Remove current locale prefix
+  let cleanPath = path;
+  if (path.startsWith('/en/')) {
+    cleanPath = path.substring(3);
+  } else if (path.startsWith('/en')) {
+    cleanPath = path.substring(3) || '/';
+  } else if (path.startsWith('/zh-tw/')) {
+    cleanPath = path.substring(6);
+  } else if (path.startsWith('/zh-tw')) {
+    cleanPath = path.substring(6) || '/';
+  }
+  
+  // Ensure cleanPath starts with '/'
+  if (!cleanPath.startsWith('/')) {
+    cleanPath = '/' + cleanPath;
+  }
+  
+  // Add target locale prefix
+  return `/${targetLocale}${cleanPath}`;
+}
+
+const alternatePath = getAlternatePath(currentPath, locale);
 ---
 
 <nav class="container-custom py-6">
@@ -97,7 +124,7 @@ const t = getTranslations(locale);
         
         <!-- Language Switch -->
         <a
-          href={locale === 'zh-tw' ? '/en' : '/zh-tw/'}
+          href={alternatePath}
           class="text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200 whitespace-nowrap"
         >
           {locale === 'zh-tw' ? 'EN' : '繁中'}

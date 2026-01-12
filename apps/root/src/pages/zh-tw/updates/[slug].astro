@@ -1,8 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 export async function getStaticPaths() {
   const updates = await getCollection('updates');
@@ -16,15 +14,20 @@ export async function getStaticPaths() {
 const { update } = Astro.props;
 const locale = 'zh-tw';
 
-// Load markdoc content from subdirectory
-let Content = null;
-let markdocContent = '';
+// Load Markdoc content
+let UpdateContent;
+let hasContent = false;
+
 try {
-  const contentPath = join(process.cwd(), 'src', 'content', 'updates', update.id, 'content_zh.mdoc');
-  markdocContent = await readFile(contentPath, 'utf-8');
-} catch (e) {
-  // No content file, that's okay
-  console.log(`No content_zh.mdoc found for ${update.id}`);
+  const contentModules = await Astro.glob('../../../content/updates/**/content_zh.mdoc');
+  const contentEntry = contentModules[0];
+  
+  if (contentEntry?.Content) {
+    UpdateContent = contentEntry.Content;
+    hasContent = true;
+  }
+} catch (error) {
+  console.error('Error loading update content:', error);
 }
 
 const formatDate = (date: Date) => {
@@ -97,12 +100,12 @@ const getCategoryColor = (category: string) => {
       <div class="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent mb-12"></div>
 
       <!-- Content -->
-      <div class="prose prose-lg dark:prose-invert max-w-none min-h-[calc(100vh-12rem)]">
-        {markdocContent ? (
-          <div set:html={markdocContent} />
+      <div class="prose prose-lg dark:prose-invert max-w-none animate-fade-in" style="animation-delay: 200ms; animation-duration: 800ms">
+        {hasContent ? (
+          <UpdateContent />
         ) : (
           <div class="text-center py-12 text-slate-500 dark:text-slate-400">
-            <p>此更新目前沒有詳細內容</p>
+            <p>此更新暫無詳細內容</p>
           </div>
         )}
       </div>

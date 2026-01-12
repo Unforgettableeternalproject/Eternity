@@ -21,7 +21,13 @@ export async function getStaticPaths() {
 }
 
 const { update, locale } = Astro.props;
-const { Content } = await update.render();
+
+const contentModules = await Astro.glob('../../content/updates/**/content_*.mdoc');
+const contentFileSuffix = `/content/updates/${update.id}/${locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc'}`;
+const contentEntry = contentModules.find((mod) =>
+  mod.file.replace(/\\/g, '/').endsWith(contentFileSuffix)
+);
+const UpdateContent = contentEntry?.Content;
 
 const formatDate = (date: Date) => {
   return date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', {
@@ -94,7 +100,13 @@ const getCategoryColor = (category: string) => {
 
       <!-- Content -->
       <div class="prose prose-lg dark:prose-invert max-w-none min-h-[calc(100vh-12rem)]">
-        <Content />
+        {UpdateContent ? (
+          <UpdateContent />
+        ) : (
+          <div class="text-center py-12 text-slate-500 dark:text-slate-400">
+            <p>No detailed content available for this update.</p>
+          </div>
+        )}
       </div>
     </article>
   </div>

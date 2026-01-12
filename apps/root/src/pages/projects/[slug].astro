@@ -21,7 +21,13 @@ export async function getStaticPaths() {
 }
 
 const { project, locale } = Astro.props;
-const { Content } = await project.render();
+
+const contentModules = await Astro.glob('../../content/projects/**/content_*.mdoc');
+const contentFileSuffix = `/content/projects/${project.id}/${locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc'}`;
+const contentEntry = contentModules.find((mod) =>
+  mod.file.replace(/\\/g, '/').endsWith(contentFileSuffix)
+);
+const ProjectContent = contentEntry?.Content;
 
 const formatDate = (date?: Date) => {
   if (!date) return '';
@@ -72,6 +78,18 @@ const formatDate = (date?: Date) => {
         <p class="text-xl text-slate-600 dark:text-slate-300 mb-8">
           {locale === 'zh-tw' ? project.data.description_zh : project.data.description_en}
         </p>
+
+        {project.data.image && (
+          <div class="mb-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+            <img
+              src={project.data.image}
+              alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : (project.data.title_en || project.id)}
+              class="w-full h-auto"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        )}
 
         <!-- Tags -->
         <div class="flex flex-wrap gap-2 mb-8">
@@ -124,7 +142,13 @@ const formatDate = (date?: Date) => {
 
       <!-- Content -->
       <div class="prose prose-lg dark:prose-invert max-w-none">
-        <Content />
+        {ProjectContent ? (
+          <ProjectContent />
+        ) : (
+          <div class="text-center py-12 text-slate-500 dark:text-slate-400">
+            <p>No detailed content available for this project.</p>
+          </div>
+        )}
       </div>
     </article>
   </div>

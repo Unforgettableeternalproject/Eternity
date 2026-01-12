@@ -13,6 +13,7 @@ export default function ScrollToTop({
   position = 'right'
 }: ScrollToTopProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [isHiding, setIsHiding] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
@@ -22,14 +23,27 @@ export default function ScrollToTop({
       const progress = (scrollTop / docHeight) * 100;
 
       setScrollProgress(progress);
-      setIsVisible(scrollTop > showAfter);
+      
+      const shouldShow = scrollTop > showAfter;
+      
+      if (!shouldShow && isVisible && !isHiding) {
+        // 開始隱藏動畫
+        setIsHiding(true);
+        setTimeout(() => {
+          setIsVisible(false);
+          setIsHiding(false);
+        }, 300); // 與 CSS 動畫時間一致
+      } else if (shouldShow && !isVisible) {
+        // 顯示按鈕
+        setIsVisible(true);
+      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll(); // 初始檢查
 
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [showAfter]);
+  }, [showAfter, isVisible, isHiding]);
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -43,7 +57,7 @@ export default function ScrollToTop({
   return (
     <button
       onClick={scrollToTop}
-      className={`scroll-to-top scroll-to-top--${position}`}
+      className={`scroll-to-top scroll-to-top--${position} ${isHiding ? 'hiding' : ''}`}
       aria-label="回到頂部"
       type="button"
     >

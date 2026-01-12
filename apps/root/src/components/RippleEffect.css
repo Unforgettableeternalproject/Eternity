@@ -1,0 +1,35 @@
+/* 點擊漣漪效果 */
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background-color: var(--ripple-color, rgba(255, 255, 255, 0.6));
+  transform: scale(0);
+  animation: ripple-animation var(--ripple-duration, 600ms) ease-out;
+  pointer-events: none;
+}
+
+/* 全局漣漪效果 */
+.global-ripple {
+  animation: ripple-animation 800ms ease-out !important;
+}
+
+@keyframes ripple-animation {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple,
+  .global-ripple {
+    animation: none !important;
+  }
+}

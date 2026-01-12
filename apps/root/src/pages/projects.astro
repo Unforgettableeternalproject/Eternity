@@ -40,10 +40,11 @@ const projects = allProjects.sort((a, b) => (a.data.order || 999) - (b.data.orde
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {projects.map((project, index) => (
           <div 
-            class="card card-hover p-6 space-y-4 animate-fade-in-up"
+            class="card card-hover p-6 animate-fade-in-up"
             style={`animation-delay: ${index * 100}ms`}
           >
-            <div class="space-y-3">
+            <div class="flex flex-col md:flex-row gap-6">
+              <div class="flex-1 space-y-3">
               <div class="flex items-center gap-2 mb-2">
                 <span class={`px-3 py-1 text-xs font-medium rounded-full ${
                   project.data.status === 'active' 
@@ -100,6 +101,19 @@ const projects = allProjects.sort((a, b) => (a.data.order || 999) - (b.data.orde
                   </a>
                 )}
               </div>
+            </div>
+
+            {project.data.image && (
+              <div class="md:w-40 md:shrink-0">
+                <img
+                  src={project.data.image}
+                  alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
+                  class="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+            )}
             </div>
           </div>
         ))}
