@@ -8,153 +8,235 @@ const locale = getCurrentLocale(Astro.url);
 
 // Load links from content collections
 const allLinks = await getCollection('links');
-const links = allLinks.sort((a, b) => (a.data.order || 999) - (b.data.order || 999));
+const links = allLinks.sort(
+  (a, b) => (a.data.order || 999) - (b.data.order || 999)
+);
 
 // Separate featured and regular links
-const featuredLinks = links.filter(link => link.data.featured);
-const regularLinks = links.filter(link => !link.data.featured);
+const featuredLinks = links.filter((link) => link.data.featured);
+const regularLinks = links.filter((link) => !link.data.featured);
 
 // Group links by category
-const linksByCategory = regularLinks.reduce((acc, link) => {
-  const category = link.data.category || 'other';
-  if (!acc[category]) acc[category] = [];
-  acc[category].push(link);
-  return acc;
-}, {} as Record<string, typeof links>);
+const linksByCategory = regularLinks.reduce(
+  (acc, link) => {
+    const category = link.data.category || 'other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(link);
+    return acc;
+  },
+  {} as Record<string, typeof links>
+);
 
 const categoryNames = {
-  'social': locale === 'zh-tw' ? '社群媒體' : 'Social Media',
-  'work': locale === 'zh-tw' ? '工作平台' : 'Work Platforms',
-  'creative': locale === 'zh-tw' ? '創作平台' : 'Creative Platforms',
-  'other': locale === 'zh-tw' ? '其他' : 'Other'
+  social: locale === 'zh-tw' ? '社群媒體' : 'Social Media',
+  work: locale === 'zh-tw' ? '工作平台' : 'Work Platforms',
+  creative: locale === 'zh-tw' ? '創作平台' : 'Creative Platforms',
+  other: locale === 'zh-tw' ? '其他' : 'Other',
 };
 ---
 
 <BaseLayout
   title={locale === 'zh-tw' ? '連結收藏 - Eternity' : 'Links - Eternity'}
-  description={locale === 'zh-tw' ? '在網路上找到我的各種足跡' : 'Find me across the web'}
+  description={locale === 'zh-tw'
+    ? '在網路上找到我的各種足跡'
+    : 'Find me across the web'}
 >
-  <section class="relative overflow-hidden py-24 min-h-[calc(100vh-12rem)] pb-32">
+  <section
+    class="relative overflow-hidden py-24 min-h-[calc(100vh-12rem)] pb-32"
+  >
     <div class="absolute inset-0 pointer-events-none">
-      <div class="absolute -left-20 -top-32 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"></div>
-      <div class="absolute right-6 top-10 h-72 w-72 rounded-full bg-secondary-500/15 blur-3xl"></div>
+      <div
+        class="absolute -left-20 -top-32 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"
+      >
+      </div>
+      <div
+        class="absolute right-6 top-10 h-72 w-72 rounded-full bg-secondary-500/15 blur-3xl"
+      >
+      </div>
     </div>
 
     <div class="container-custom max-w-6xl relative z-10 space-y-14">
       <!-- Header -->
       <div class="space-y-6 text-center md:text-left animate-fade-in-up">
-        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide">
+        <span
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide"
+        >
           🔗 {locale === 'zh-tw' ? '連結收藏' : 'Link Collection'}
         </span>
         <div class="space-y-4">
-          <h1 class="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white">
+          <h1
+            class="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white"
+          >
             {locale === 'zh-tw' ? '我的連結' : 'My Links'}
           </h1>
-          <p class="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto md:mx-0">
-            {locale === 'zh-tw' ? '在網路上找到我的各種足跡與推薦連結' : 'Find me across the web and discover my favorite links'}
+          <p
+            class="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto md:mx-0"
+          >
+            {
+              locale === 'zh-tw'
+                ? '在網路上找到我的各種足跡與推薦連結'
+                : 'Find me across the web and discover my favorite links'
+            }
           </p>
         </div>
       </div>
 
       <!-- Featured Links -->
-      {featuredLinks.length > 0 && (
-        <div class="space-y-6 animate-fade-in-up" style="animation-delay: 100ms">
-          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-            <span class="w-8 h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500"></span>
-            ⭐ {locale === 'zh-tw' ? '精選連結' : 'Featured Links'}
-          </h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredLinks.map((link, index) => (
-              <a
-                href={link.data.url}
-                class="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up"
-                style={`animation-delay: ${index * 80}ms`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/15"></div>
-                <div class="relative p-6 space-y-4">
-                  <div class="flex items-start gap-4">
-                    <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
-                      <LinkIcon icon={link.data.icon} class="w-6 h-6 text-primary-600 dark:text-primary-400" />
+      {
+        featuredLinks.length > 0 && (
+          <div
+            class="space-y-6 animate-fade-in-up"
+            style="animation-delay: 100ms"
+          >
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+              <span class="w-8 h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500" />
+              ⭐ {locale === 'zh-tw' ? '精選連結' : 'Featured Links'}
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredLinks.map((link, index) => (
+                <a
+                  href={link.data.url}
+                  class="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up"
+                  style={`animation-delay: ${index * 80}ms`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/15" />
+                  <div class="relative p-6 space-y-4">
+                    <div class="flex items-start gap-4">
+                      <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
+                        <LinkIcon
+                          icon={link.data.icon}
+                          class="w-6 h-6 text-primary-600 dark:text-primary-400"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                          {locale === 'zh-tw' ? link.id : link.data.title_en}
+                        </h3>
+                        <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                          {locale === 'zh-tw'
+                            ? link.data.description_zh
+                            : link.data.description_en}
+                        </p>
+                      </div>
                     </div>
-                    <div class="flex-1 min-w-0">
-                      <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">{locale === 'zh-tw' ? link.id : link.data.title_en}</h3>
-                      <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
-                        {locale === 'zh-tw' ? link.data.description_zh : link.data.description_en}
-                      </p>
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs text-primary-600 dark:text-primary-400 font-medium truncate">
+                        {link.data.url}
+                      </span>
+                      <svg
+                        class="w-5 h-5 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:-translate-y-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
                     </div>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-primary-600 dark:text-primary-400 font-medium truncate">
-                      {link.data.url}
-                    </span>
-                    <svg class="w-5 h-5 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:-translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                    </svg>
-                  </div>
-                </div>
-              </a>
-            ))}
+                </a>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       <!-- Links by Category -->
-      {Object.entries(linksByCategory).map(([category, categoryLinks], categoryIndex) => (
-        <div class="space-y-6 animate-fade-in-up" style={`animation-delay: ${categoryIndex * 100}ms`}>
-          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-            <span class="w-8 h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500"></span>
-            {categoryNames[category as keyof typeof categoryNames] || category}
-          </h2>
-          <div class="grid grid-cols-1 gap-4">
-            {categoryLinks.map((link, index) => (
-              <a
-                href={link.data.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="card card-hover p-6 flex items-center gap-6 group animate-fade-in-up"
-                style={`animation-delay: ${(categoryIndex * 100) + (index * 50)}ms`}
-              >
-                <div class="w-16 h-16 flex-shrink-0 rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
-                  <LinkIcon icon={link.data.icon} class="w-8 h-8 text-primary-600 dark:text-primary-400" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                    {locale === 'zh-tw' ? link.id : link.data.title_en}
-                  </h3>
-                  <p class="text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">
-                    {locale === 'zh-tw' ? link.data.description_zh : link.data.description_en}
-                  </p>
-                  <div class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 font-medium">
-                    <span class="truncate">{link.data.url}</span>
-                    <svg class="w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                    </svg>
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      ))}
+      {
+        Object.entries(linksByCategory).map(
+          ([category, categoryLinks], categoryIndex) => (
+            <div
+              class="space-y-6 animate-fade-in-up"
+              style={`animation-delay: ${categoryIndex * 100}ms`}
+            >
+              <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                <span class="w-8 h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500" />
+                {categoryNames[category as keyof typeof categoryNames] ||
+                  category}
+              </h2>
+              <div class="grid grid-cols-1 gap-4">
+                {categoryLinks.map((link, index) => (
+                  <a
+                    href={link.data.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="card card-hover p-6 flex items-center gap-6 group animate-fade-in-up"
+                    style={`animation-delay: ${categoryIndex * 100 + index * 50}ms`}
+                  >
+                    <div class="w-16 h-16 flex-shrink-0 rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
+                      <LinkIcon
+                        icon={link.data.icon}
+                        class="w-8 h-8 text-primary-600 dark:text-primary-400"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                        {locale === 'zh-tw' ? link.id : link.data.title_en}
+                      </h3>
+                      <p class="text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">
+                        {locale === 'zh-tw'
+                          ? link.data.description_zh
+                          : link.data.description_en}
+                      </p>
+                      <div class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 font-medium">
+                        <span class="truncate">{link.data.url}</span>
+                        <svg
+                          class="w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-x-1"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        )
+      }
 
       <!-- Empty State -->
-      {links.length === 0 && (
-        <div class="text-center py-20 animate-fade-in-up">
-          <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <svg class="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-            </svg>
+      {
+        links.length === 0 && (
+          <div class="text-center py-20 animate-fade-in-up">
+            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <svg
+                class="w-12 h-12 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                />
+              </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              {locale === 'zh-tw' ? '尚無連結' : 'No links yet'}
+            </h3>
+            <p class="text-slate-600 dark:text-slate-300">
+              {locale === 'zh-tw' ? '連結收藏即將推出' : 'Links coming soon'}
+            </p>
           </div>
-          <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-            {locale === 'zh-tw' ? '尚無連結' : 'No links yet'}
-          </h3>
-          <p class="text-slate-600 dark:text-slate-300">
-            {locale === 'zh-tw' ? '連結收藏即將推出' : 'Links coming soon'}
-          </p>
-        </div>
-      )}
+        )
+      }
     </div>
   </section>
 </BaseLayout>

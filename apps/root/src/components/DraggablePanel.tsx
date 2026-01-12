@@ -7,11 +7,11 @@ interface DraggablePanelProps {
   className?: string;
 }
 
-export default function DraggablePanel({ 
-  children, 
-  initialPosition, 
+export default function DraggablePanel({
+  children,
+  initialPosition,
   storageKey,
-  className = '' 
+  className = '',
 }: DraggablePanelProps) {
   const [position, setPosition] = useState(initialPosition);
   const [isDragging, setIsDragging] = useState(false);
@@ -40,7 +40,7 @@ export default function DraggablePanel({
   const handleMouseDown = (e: React.MouseEvent) => {
     // 只有點擊拖動手柄才能拖動
     if (!(e.target as HTMLElement).closest('.drag-handle')) return;
-    
+
     setIsDragging(true);
     dragStartPos.current = {
       x: e.clientX - position.x,
@@ -93,14 +93,26 @@ export default function DraggablePanel({
       }}
       onMouseDown={handleMouseDown}
     >
-      <div className={`bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden ${
-        isCollapsed ? 'w-12' : ''
-      }`}>
+      <div
+        className={`bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden ${
+          isCollapsed ? 'w-12' : ''
+        }`}
+      >
         {/* 拖動手柄 */}
         <div className="drag-handle flex items-center justify-between px-3 py-2 bg-gradient-to-r from-primary-500 to-secondary-500 cursor-grab active:cursor-grabbing">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+            <svg
+              className="w-4 h-4 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 8h16M4 16h16"
+              />
             </svg>
             {!isCollapsed && (
               <span className="text-xs font-semibold text-white">拖動面板</span>
@@ -113,11 +125,26 @@ export default function DraggablePanel({
             }}
             className="text-white hover:bg-white/20 rounded p-1 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               {isCollapsed ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               )}
             </svg>
           </button>

@@ -12,21 +12,21 @@ interface MusicPlayerProps {
   locale?: string;
 }
 
-export default function MusicPlayer({ 
+export default function MusicPlayer({
   tracks = [
     { title: 'Track 1', artist: 'Artist', url: '/music/track1.mp3' },
     { title: 'Track 2', artist: 'Artist', url: '/music/track2.mp3' },
   ],
-  locale = 'zh-tw'
+  locale = 'zh-tw',
 }: MusicPlayerProps) {
   // 從 localStorage 讀取上次選擇的歌曲（只在接受 Cookie 後）
   const getSavedTrack = () => {
     if (typeof window === 'undefined') return 0;
-    
+
     // 檢查 Cookie 同意狀態
     const cookieConsent = localStorage.getItem('cookie-consent');
     if (cookieConsent !== 'accepted') return 0;
-    
+
     const saved = localStorage.getItem('music-current-track');
     if (saved) {
       const index = parseInt(saved, 10);
@@ -39,42 +39,67 @@ export default function MusicPlayer({
   // 從 localStorage 讀取上次的音量設定（只在接受 Cookie 後）
   const getSavedVolume = () => {
     if (typeof window === 'undefined') return 0.5;
-    
+
     const cookieConsent = localStorage.getItem('cookie-consent');
-    console.log('[MusicPlayer] getSavedVolume - Cookie consent:', cookieConsent);
-    
+    console.log(
+      '[MusicPlayer] getSavedVolume - Cookie consent:',
+      cookieConsent
+    );
+
     if (cookieConsent !== 'accepted') {
-      console.log('[MusicPlayer] getSavedVolume - Cookie not accepted, using default 0.5');
+      console.log(
+        '[MusicPlayer] getSavedVolume - Cookie not accepted, using default 0.5'
+      );
       return 0.5;
     }
-    
+
     // 檢查舊的 globalMusicPlayerState 格式
     const globalState = localStorage.getItem('globalMusicPlayerState');
     if (globalState) {
       try {
         const parsed = JSON.parse(globalState);
         console.log('[MusicPlayer] Found globalMusicPlayerState:', parsed);
-        if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) {
-          console.log('[MusicPlayer] Using volume from globalMusicPlayerState:', parsed.volume);
+        if (
+          typeof parsed.volume === 'number' &&
+          parsed.volume >= 0 &&
+          parsed.volume <= 1
+        ) {
+          console.log(
+            '[MusicPlayer] Using volume from globalMusicPlayerState:',
+            parsed.volume
+          );
           return parsed.volume;
         }
       } catch (error) {
-        console.error('[MusicPlayer] Error parsing globalMusicPlayerState:', error);
+        console.error(
+          '[MusicPlayer] Error parsing globalMusicPlayerState:',
+          error
+        );
       }
     }
-    
+
     // 檢查新的獨立 key 格式
     const saved = localStorage.getItem('music-volume');
-    console.log('[MusicPlayer] getSavedVolume - Saved volume from localStorage:', saved);
-    
+    console.log(
+      '[MusicPlayer] getSavedVolume - Saved volume from localStorage:',
+      saved
+    );
+
     if (saved) {
       const vol = parseFloat(saved);
       const isValid = vol >= 0 && vol <= 1;
-      console.log('[MusicPlayer] getSavedVolume - Parsed volume:', vol, 'Valid:', isValid);
+      console.log(
+        '[MusicPlayer] getSavedVolume - Parsed volume:',
+        vol,
+        'Valid:',
+        isValid
+      );
       return isValid ? vol : 0.5;
     }
-    
-    console.log('[MusicPlayer] getSavedVolume - No saved volume, using default 0.5');
+
+    console.log(
+      '[MusicPlayer] getSavedVolume - No saved volume, using default 0.5'
+    );
     return 0.5;
   };
 
@@ -114,8 +139,13 @@ export default function MusicPlayer({
   // 當用戶調整音量時，保存到 localStorage（只在接受 Cookie 後）
   useEffect(() => {
     const cookieConsent = localStorage.getItem('cookie-consent');
-    console.log('[MusicPlayer] Volume changed to:', volume, 'Cookie consent:', cookieConsent);
-    
+    console.log(
+      '[MusicPlayer] Volume changed to:',
+      volume,
+      'Cookie consent:',
+      cookieConsent
+    );
+
     if (cookieConsent === 'accepted') {
       try {
         // 更新 globalMusicPlayerState（相容舊格式）
@@ -123,10 +153,16 @@ export default function MusicPlayer({
         if (globalState) {
           const parsed = JSON.parse(globalState);
           parsed.volume = volume;
-          localStorage.setItem('globalMusicPlayerState', JSON.stringify(parsed));
-          console.log('[MusicPlayer] Updated volume in globalMusicPlayerState:', volume);
+          localStorage.setItem(
+            'globalMusicPlayerState',
+            JSON.stringify(parsed)
+          );
+          console.log(
+            '[MusicPlayer] Updated volume in globalMusicPlayerState:',
+            volume
+          );
         }
-        
+
         // 同時也儲存到獨立 key（新格式）
         localStorage.setItem('music-volume', volume.toString());
         console.log('[MusicPlayer] Volume saved to localStorage:', volume);
@@ -144,12 +180,15 @@ export default function MusicPlayer({
       console.log('[MusicPlayer] cookie-consent-changed event triggered');
       const cookieConsent = localStorage.getItem('cookie-consent');
       console.log('[MusicPlayer] Cookie consent status:', cookieConsent);
-      
+
       if (cookieConsent === 'accepted') {
         // 重新載入音量設定
         const savedVolume = localStorage.getItem('music-volume');
-        console.log('[MusicPlayer] Reloading volume from localStorage:', savedVolume);
-        
+        console.log(
+          '[MusicPlayer] Reloading volume from localStorage:',
+          savedVolume
+        );
+
         if (savedVolume) {
           const vol = parseFloat(savedVolume);
           if (vol >= 0 && vol <= 1) {
@@ -157,11 +196,14 @@ export default function MusicPlayer({
             setVolume(vol);
           }
         }
-        
+
         // 重新載入歌曲選擇
         const savedTrack = localStorage.getItem('music-current-track');
-        console.log('[MusicPlayer] Reloading track from localStorage:', savedTrack);
-        
+        console.log(
+          '[MusicPlayer] Reloading track from localStorage:',
+          savedTrack
+        );
+
         if (savedTrack) {
           const index = parseInt(savedTrack, 10);
           if (index >= 0 && index < tracks.length) {
@@ -173,11 +215,17 @@ export default function MusicPlayer({
     };
 
     console.log('[MusicPlayer] Setting up cookie-consent-changed listener');
-    window.addEventListener('cookie-consent-changed', handleCookieConsentChanged);
+    window.addEventListener(
+      'cookie-consent-changed',
+      handleCookieConsentChanged
+    );
 
     return () => {
       console.log('[MusicPlayer] Removing cookie-consent-changed listener');
-      window.removeEventListener('cookie-consent-changed', handleCookieConsentChanged);
+      window.removeEventListener(
+        'cookie-consent-changed',
+        handleCookieConsentChanged
+      );
     };
   }, [tracks.length]);
 
@@ -205,18 +253,18 @@ export default function MusicPlayer({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    
+
     // 記住播放狀態
     const wasPlaying = !audio.paused;
-    
+
     // 暫停當前播放
     if (wasPlaying) {
       audio.pause();
     }
-    
+
     // 載入新歌曲
     audio.load();
-    
+
     // 如果之前在播放，繼續播放新歌曲
     if (wasPlaying) {
       audio.play().catch(() => {});
@@ -235,7 +283,7 @@ export default function MusicPlayer({
 
       audio.volume = volume;
       sessionStorage.setItem('music-has-played', 'true');
-      
+
       // 用戶互動後播放，不會被阻止
       const playPromise = audio.play();
       if (playPromise !== undefined) {
@@ -246,7 +294,10 @@ export default function MusicPlayer({
     window.addEventListener('cookie-accepted-play-music', handleCookieAccepted);
 
     return () => {
-      window.removeEventListener('cookie-accepted-play-music', handleCookieAccepted);
+      window.removeEventListener(
+        'cookie-accepted-play-music',
+        handleCookieAccepted
+      );
     };
   }, [volume]); // 空依賴陣列，只在掛載時執行一次
 
@@ -284,14 +335,18 @@ export default function MusicPlayer({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <svg className="w-4 h-4 text-primary-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            <svg
+              className="w-4 h-4 text-primary-500"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
             </svg>
             {locale === 'zh-tw' ? '音樂播放器' : 'Music Player'}
           </h3>
           {tracks[currentTrack].cover && (
-            <img 
-              src={tracks[currentTrack].cover} 
+            <img
+              src={tracks[currentTrack].cover}
               alt={tracks[currentTrack].title}
               className="w-8 h-8 rounded object-contain bg-slate-100 dark:bg-slate-800 ml-auto"
             />
@@ -301,8 +356,18 @@ export default function MusicPlayer({
           onClick={() => setShowTracks(!showTracks)}
           className="text-slate-600 dark:text-slate-400 hover:text-primary-500 dark:hover:text-primary-400 ml-2"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
           </svg>
         </button>
       </div>
@@ -318,11 +383,15 @@ export default function MusicPlayer({
         >
           {isPlaying ? (
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
             </svg>
           ) : (
-            <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z"/>
+            <svg
+              className="w-5 h-5 ml-0.5"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M8 5v14l11-7z" />
             </svg>
           )}
         </button>
@@ -331,14 +400,22 @@ export default function MusicPlayer({
           onClick={nextTrack}
           className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors"
         >
-          <svg className="w-4 h-4 text-slate-700 dark:text-slate-300" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+          <svg
+            className="w-4 h-4 text-slate-700 dark:text-slate-300"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
           </svg>
         </button>
 
         <div className="flex-1 flex items-center gap-2">
-          <svg className="w-4 h-4 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+          <svg
+            className="w-4 h-4 text-slate-500"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
           </svg>
           <input
             type="range"
@@ -359,11 +436,15 @@ export default function MusicPlayer({
               key={index}
               onClick={() => changeTrack(index)}
               className={`w-full text-left text-xs p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
-                currentTrack === index ? 'bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300' : 'text-slate-600 dark:text-slate-400'
+                currentTrack === index
+                  ? 'bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300'
+                  : 'text-slate-600 dark:text-slate-400'
               }`}
             >
               <div className="truncate font-medium">{track.title}</div>
-              <div className="truncate text-[10px] opacity-75">{track.artist}</div>
+              <div className="truncate text-[10px] opacity-75">
+                {track.artist}
+              </div>
             </button>
           ))}
         </div>

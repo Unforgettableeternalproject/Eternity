@@ -206,4 +206,4 @@ Copyright © 2025 Bernie. All rights reserved.
 
 ---
 
-*最後更新: 2025 年 12 月*
+_最後更新: 2025 年 12 月_

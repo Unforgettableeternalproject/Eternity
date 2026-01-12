@@ -9,13 +9,13 @@ interface SortableCardProps {
   isDragging: boolean;
 }
 
-export function SortableCard({ 
-  id, 
-  children, 
-  onDragStart, 
-  onDragOver, 
+export function SortableCard({
+  id,
+  children,
+  onDragStart,
+  onDragOver,
   onDragEnd,
-  isDragging 
+  isDragging,
 }: SortableCardProps) {
   const [canDrag, setCanDrag] = useState(false);
 
@@ -55,24 +55,26 @@ export function SortableCard({
         onDragOver(id);
       }}
       onDragEnd={handleDragEnd}
-      style={{ 
+      style={{
         marginBottom: '32px',
         border: '5px solid lime',
         padding: '10px',
-        backgroundColor: 'orange'
+        backgroundColor: 'orange',
       }}
       data-card-id={id}
     >
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        border: '2px solid #cbd5e1',
-        overflow: 'hidden',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-      }}>
+      <div
+        style={{
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          border: '2px solid #cbd5e1',
+          overflow: 'hidden',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        }}
+      >
         {/* 拖動把手 */}
         <div
-          style={{ 
+          style={{
             backgroundColor: '#f1f5f9',
             padding: '12px 16px',
             cursor: 'grab',
@@ -81,7 +83,7 @@ export function SortableCard({
             alignItems: 'center',
             gap: '8px',
             userSelect: 'none',
-            minHeight: '44px'
+            minHeight: '44px',
           }}
           onMouseDown={handleMouseDown}
           onMouseUp={() => {
@@ -97,12 +99,14 @@ export function SortableCard({
           onTouchCancel={() => setCanDrag(false)}
         >
           <span style={{ fontSize: '18px', color: '#94a3b8' }}>⋮⋮</span>
-          <span style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>拖動調整順序</span>
+          <span
+            style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}
+          >
+            拖動調整順序
+          </span>
         </div>
         {/* 卡片內容 */}
-        <div style={{ padding: '20px' }}>
-          {children}
-        </div>
+        <div style={{ padding: '20px' }}>{children}</div>
       </div>
     </div>
   );
@@ -115,7 +119,12 @@ interface SortablePanelProps {
   children: ReactNode;
 }
 
-export default function SortablePanel({ side, storageKey, cardIds, children }: SortablePanelProps) {
+export default function SortablePanel({
+  side,
+  storageKey,
+  cardIds,
+  children,
+}: SortablePanelProps) {
   const [orderedIds, setOrderedIds] = useState<string[]>(cardIds);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [cookieConsent, setCookieConsent] = useState<boolean | null>(null);
@@ -127,12 +136,12 @@ export default function SortablePanel({ side, storageKey, cardIds, children }: S
       const consent = localStorage.getItem('cookie-consent');
       setCookieConsent(consent === 'accepted');
     };
-    
+
     updateConsent();
-    
+
     // 監聽 Cookie 同意狀態變化
     window.addEventListener('cookie-consent-changed', updateConsent);
-    
+
     return () => {
       window.removeEventListener('cookie-consent-changed', updateConsent);
     };
@@ -141,15 +150,15 @@ export default function SortablePanel({ side, storageKey, cardIds, children }: S
   // 從 localStorage 載入順序（僅在同意 Cookie 時）
   useEffect(() => {
     if (cookieConsent !== true) return;
-    
+
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const savedOrder: string[] = JSON.parse(saved);
         // 驗證保存的順序是否有效
-        const validOrder = savedOrder.filter(id => cardIds.includes(id));
+        const validOrder = savedOrder.filter((id) => cardIds.includes(id));
         // 添加任何新卡片
-        const newCards = cardIds.filter(id => !savedOrder.includes(id));
+        const newCards = cardIds.filter((id) => !savedOrder.includes(id));
         setOrderedIds([...validOrder, ...newCards]);
       } catch (e) {
         console.error('Failed to parse saved order:', e);
@@ -175,16 +184,16 @@ export default function SortablePanel({ side, storageKey, cardIds, children }: S
 
   const handleDragOver = (id: string) => {
     if (draggedId === null || draggedId === id) return;
-    
+
     const draggedIndex = orderedIds.indexOf(draggedId);
     const targetIndex = orderedIds.indexOf(id);
-    
+
     if (draggedIndex === -1 || targetIndex === -1) return;
-    
+
     const newOrder = [...orderedIds];
     const [removed] = newOrder.splice(draggedIndex, 1);
     newOrder.splice(targetIndex, 0, removed);
-    
+
     setOrderedIds(newOrder);
   };
 
@@ -223,19 +232,21 @@ export default function SortablePanel({ side, storageKey, cardIds, children }: S
   console.log('CardMap keys:', Array.from(cardMap.keys()));
 
   return (
-    <aside 
+    <aside
       className={`fixed ${
         side === 'left' ? 'left-4' : 'right-4'
       } top-32 w-64 z-30`}
       style={{ backgroundColor: 'pink' }}
     >
       <div ref={containerRef} className="flex flex-col">
-        <div style={{ 
-          padding: '20px', 
-          backgroundColor: 'lightblue', 
-          marginBottom: '10px',
-          border: '3px solid blue'
-        }}>
+        <div
+          style={{
+            padding: '20px',
+            backgroundColor: 'lightblue',
+            marginBottom: '10px',
+            border: '3px solid blue',
+          }}
+        >
           測試：SortablePanel 已渲染
           <br />
           Side: {side}
@@ -268,7 +279,7 @@ export default function SortablePanel({ side, storageKey, cardIds, children }: S
         })}
         {nonSortable}
       </div>
-      
+
       {/* 提示文字 */}
       {cookieConsent === false && (
         <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">

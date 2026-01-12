@@ -9,7 +9,7 @@ interface Props {
 const { type = 'project', className = '' } = Astro.props;
 ---
 
-<div 
+<div
   class={`flip-card ${className} ${type === 'update' ? 'flip-card--update' : 'flip-card--project'}`}
   data-flip-card
 >
@@ -27,25 +27,25 @@ const { type = 'project', className = '' } = Astro.props;
   // 為所有 FlipCard 添加點擊事件
   function initFlipCards() {
     const cards = document.querySelectorAll('[data-flip-card]');
-    
-    cards.forEach(card => {
+
+    cards.forEach((card) => {
       // 避免重複綁定事件
       if ((card as HTMLElement).dataset.initialized === 'true') {
         return;
       }
       (card as HTMLElement).dataset.initialized = 'true';
-      
+
       card.addEventListener('click', (e) => {
         // 如果點擊的是連結，不要翻轉
         if ((e.target as HTMLElement).closest('a')) {
           return;
         }
-        
+
         const inner = card.querySelector('.flip-card__inner');
         if (inner) {
           const wasFlipped = inner.classList.contains('flipped');
           inner.classList.toggle('flipped');
-          
+
           // 觸發自訂事件，讓背面內容知道卡片已翻轉
           if (!wasFlipped) {
             const event = new CustomEvent('cardFlipped', { bubbles: true });
@@ -53,16 +53,19 @@ const { type = 'project', className = '' } = Astro.props;
           }
         }
       });
-      
+
       // 鍵盤支持
       card.addEventListener('keydown', (e) => {
-        if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        if (
+          (e as KeyboardEvent).key === 'Enter' ||
+          (e as KeyboardEvent).key === ' '
+        ) {
           e.preventDefault();
           const inner = card.querySelector('.flip-card__inner');
           if (inner) {
             const wasFlipped = inner.classList.contains('flipped');
             inner.classList.toggle('flipped');
-            
+
             if (!wasFlipped) {
               const event = new CustomEvent('cardFlipped', { bubbles: true });
               card.dispatchEvent(event);
@@ -70,14 +73,17 @@ const { type = 'project', className = '' } = Astro.props;
           }
         }
       });
-      
+
       // 添加 tabindex 使其可聚焦
       (card as HTMLElement).setAttribute('tabindex', '0');
       (card as HTMLElement).setAttribute('role', 'button');
-      (card as HTMLElement).setAttribute('aria-label', 'Click to flip and see details');
+      (card as HTMLElement).setAttribute(
+        'aria-label',
+        'Click to flip and see details'
+      );
     });
   }
-  
+
   // 初始載入和 View Transitions 頁面切換時都要執行
   document.addEventListener('DOMContentLoaded', initFlipCards);
   document.addEventListener('astro:page-load', initFlipCards);

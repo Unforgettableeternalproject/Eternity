@@ -52,7 +52,7 @@
   border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
-  box-shadow: 
+  box-shadow:
     0 10px 15px -3px rgb(0 0 0 / 0.1),
     0 4px 6px -4px rgb(0 0 0 / 0.1);
   pointer-events: auto;
@@ -149,7 +149,7 @@
   color: rgb(100, 116, 139);
   cursor: pointer;
   border-radius: 0.25rem;
-  transition: 
+  transition:
     background-color 0.2s ease,
     color 0.2s ease;
   padding: 0;
@@ -297,7 +297,7 @@
   .toast {
     animation: none !important;
   }
-  
+
   .toast--closing {
     animation: none !important;
     opacity: 0;

@@ -18,73 +18,102 @@ const stats = [
     label: locale === 'zh-tw' ? '專案' : 'Projects',
     value: allProjects.length,
     icon: 'M4 6h16M4 12h16M4 18h16',
-    color: 'from-blue-500 to-cyan-500'
+    color: 'from-blue-500 to-cyan-500',
   },
   {
     label: locale === 'zh-tw' ? '更新' : 'Updates',
     value: allUpdates.length,
     icon: 'M13 10V3L4 14h7v7l9-11h-7z',
-    color: 'from-purple-500 to-pink-500'
+    color: 'from-purple-500 to-pink-500',
   },
   {
     label: locale === 'zh-tw' ? '活躍專案' : 'Active',
-    value: allProjects.filter(p => p.data.status === 'active').length,
+    value: allProjects.filter((p) => p.data.status === 'active').length,
     icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-    color: 'from-green-500 to-emerald-500'
+    color: 'from-green-500 to-emerald-500',
   },
   {
     label: locale === 'zh-tw' ? '已完成' : 'Completed',
-    value: allProjects.filter(p => p.data.status === 'completed').length,
+    value: allProjects.filter((p) => p.data.status === 'completed').length,
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-    color: 'from-indigo-500 to-purple-500'
+    color: 'from-indigo-500 to-purple-500',
   },
 ];
 ---
 
 <aside class="fixed right-4 top-32 w-64 z-30" id="right-sidebar">
   <div class="flex flex-col" id="right-sidebar-container">
-    
-    {quickStatsCard?.data.enabled && (
-      <SidebarCard client:load id="quick-stats">
-        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-          <svg class="w-4 h-4 text-primary-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
-          </svg>
-          {locale === 'zh-tw' ? '快速統計' : 'Quick Stats'}
-        </h3>
-        <div class="grid grid-cols-2 gap-3">
-          {stats.map((stat) => (
-            <div class:list={['group relative overflow-hidden rounded-lg bg-gradient-to-br p-3 hover:scale-105 transition-transform duration-200', stat.color]}>
-              <div class="absolute inset-0 bg-black/10"></div>
-              <div class="relative">
-                <svg class="w-5 h-5 text-white/90 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={stat.icon} />
-                </svg>
-                <div class="text-2xl font-bold text-white">{stat.value}</div>
-                <div class="text-xs text-white/90 font-medium">{stat.label}</div>
+    {
+      quickStatsCard?.data.enabled && (
+        <SidebarCard client:load id="quick-stats">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-primary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+            </svg>
+            {locale === 'zh-tw' ? '快速統計' : 'Quick Stats'}
+          </h3>
+          <div class="grid grid-cols-2 gap-3">
+            {stats.map((stat) => (
+              <div
+                class:list={[
+                  'group relative overflow-hidden rounded-lg bg-gradient-to-br p-3 hover:scale-105 transition-transform duration-200',
+                  stat.color,
+                ]}
+              >
+                <div class="absolute inset-0 bg-black/10" />
+                <div class="relative">
+                  <svg
+                    class="w-5 h-5 text-white/90 mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d={stat.icon}
+                    />
+                  </svg>
+                  <div class="text-2xl font-bold text-white">{stat.value}</div>
+                  <div class="text-xs text-white/90 font-medium">
+                    {stat.label}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </SidebarCard>
-    )}
+            ))}
+          </div>
+        </SidebarCard>
+      )
+    }
 
-    {tocCard?.data.enabled && (
-      <SidebarCard client:load id="table-of-contents">
-        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
-          <svg class="w-4 h-4 text-primary-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16 0h2v-2h-2v2zm0-10v2h2V7h-2zm0 6h2v-2h-2v2z"/>
-          </svg>
-          {locale === 'zh-tw' ? '頁面大綱' : 'Table of Contents'}
-        </h3>
-        <nav id="toc-nav" class="space-y-1 text-sm">
-          <p class="text-xs text-slate-600 dark:text-slate-400 italic">
-            {locale === 'zh-tw' ? '滾動頁面查看大綱' : 'Scroll to see outline'}
-          </p>
-        </nav>
-      </SidebarCard>
-    )}
-
+    {
+      tocCard?.data.enabled && (
+        <SidebarCard client:load id="table-of-contents">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-primary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16 0h2v-2h-2v2zm0-10v2h2V7h-2zm0 6h2v-2h-2v2z" />
+            </svg>
+            {locale === 'zh-tw' ? '頁面大綱' : 'Table of Contents'}
+          </h3>
+          <nav id="toc-nav" class="space-y-1 text-sm">
+            <p class="text-xs text-slate-600 dark:text-slate-400 italic">
+              {locale === 'zh-tw'
+                ? '滾動頁面查看大綱'
+                : 'Scroll to see outline'}
+            </p>
+          </nav>
+        </SidebarCard>
+      )
+    }
   </div>
 </aside>
 
@@ -98,7 +127,7 @@ const stats = [
     if (headings.length === 0) return;
 
     tocNav.innerHTML = '';
-    
+
     headings.forEach((heading, index) => {
       const id = heading.id || `heading-${index}`;
       if (!heading.id) heading.id = id;
@@ -128,11 +157,23 @@ const stats = [
           if (link) {
             if (entry.isIntersecting) {
               // 移除其他高亮
-              tocNav.querySelectorAll('a').forEach(a => {
-                a.classList.remove('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300', 'font-semibold');
+              tocNav.querySelectorAll('a').forEach((a) => {
+                a.classList.remove(
+                  'bg-primary-100',
+                  'dark:bg-primary-900',
+                  'text-primary-700',
+                  'dark:text-primary-300',
+                  'font-semibold'
+                );
               });
               // 添加當前高亮
-              link.classList.add('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300', 'font-semibold');
+              link.classList.add(
+                'bg-primary-100',
+                'dark:bg-primary-900',
+                'text-primary-700',
+                'dark:text-primary-300',
+                'font-semibold'
+              );
             }
           }
         });
@@ -156,11 +197,11 @@ const stats = [
     if (!container) return;
 
     const cards = container.querySelectorAll('[data-card-id]');
-    
+
     cards.forEach((card) => {
       const cardEl = card as HTMLElement;
       const handle = cardEl.querySelector('.drag-handle') as HTMLElement;
-      
+
       if (!handle) return;
 
       handle.addEventListener('mousedown', () => {
@@ -171,7 +212,7 @@ const stats = [
         draggedElement = cardEl;
         cardEl.style.opacity = '0.5';
         cardEl.style.transform = 'scale(0.95)';
-        
+
         // 為其他卡片添加輕微縮小效果
         cards.forEach((otherCard) => {
           if (otherCard !== cardEl) {
@@ -185,13 +226,13 @@ const stats = [
         cardEl.style.opacity = '1';
         cardEl.style.transform = 'scale(1)';
         cardEl.setAttribute('draggable', 'false');
-        
+
         // 恢復其他卡片
         cards.forEach((otherCard) => {
           (otherCard as HTMLElement).style.transform = 'scale(1)';
           (otherCard as HTMLElement).style.opacity = '1';
         });
-        
+
         draggedElement = null;
       });
 

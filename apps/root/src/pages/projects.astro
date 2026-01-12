@@ -10,21 +10,29 @@ const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 // Load projects from content collections
 const allProjects = await getCollection('projects');
-const projects = allProjects.sort((a, b) => (a.data.order || 999) - (b.data.order || 999));
+const projects = allProjects.sort(
+  (a, b) => (a.data.order || 999) - (b.data.order || 999)
+);
 ---
 
-<BaseLayout 
-  title={t.projects.title}
-  description={t.projects.description}
->
+<BaseLayout title={t.projects.title} description={t.projects.description}>
   <div class="relative py-24">
     <!-- Background gradients -->
     <div class="absolute inset-0 pointer-events-none overflow-hidden">
-      <div class="absolute right-0 top-10 h-96 w-96 rounded-full bg-secondary-500/10 blur-3xl"></div>
-      <div class="absolute -left-20 top-60 h-80 w-80 rounded-full bg-primary-500/10 blur-3xl"></div>
-      <div class="absolute right-1/3 bottom-40 h-72 w-72 rounded-full bg-secondary-500/5 blur-3xl"></div>
+      <div
+        class="absolute right-0 top-10 h-96 w-96 rounded-full bg-secondary-500/10 blur-3xl"
+      >
+      </div>
+      <div
+        class="absolute -left-20 top-60 h-80 w-80 rounded-full bg-primary-500/10 blur-3xl"
+      >
+      </div>
+      <div
+        class="absolute right-1/3 bottom-40 h-72 w-72 rounded-full bg-secondary-500/5 blur-3xl"
+      >
+      </div>
     </div>
-    
+
     <div class="container-custom relative z-10">
       <!-- Header -->
       <div class="text-center space-y-4 mb-16 animate-fade-in-up">
@@ -37,135 +45,189 @@ const projects = allProjects.sort((a, b) => (a.data.order || 999) - (b.data.orde
       </div>
 
       <!-- Projects Grid -->
-      {projects.length > 0 ? (
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-          {projects.map((project, index) => (
-          <div 
-            class="card card-hover p-6 animate-fade-in-up"
-            style={`animation-delay: ${index * 100}ms`}
-          >
-            <div class="flex flex-col md:flex-row gap-6">
-              <div class="flex-1 space-y-3">
-              <div class="flex items-center gap-2 mb-2">
-                <span class={`px-3 py-1 text-xs font-medium rounded-full ${
-                  project.data.status === 'active' 
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                    : project.data.status === 'completed'
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}>
-                  {project.data.status === 'active' ? (locale === 'zh-tw' ? '進行中' : 'Active') : 
-                   project.data.status === 'completed' ? (locale === 'zh-tw' ? '已完成' : 'Completed') :
-                   (locale === 'zh-tw' ? '已封存' : 'Archived')}
-                </span>
-              </div>
-              
-              <h3 class="text-2xl font-bold text-slate-900 dark:text-white">
-                {locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
-              </h3>
-              <p class="text-slate-600 dark:text-slate-300">
-                {locale === 'zh-tw' ? project.data.description_zh : project.data.description_en}
-              </p>
+      {
+        projects.length > 0 ? (
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {projects.map((project, index) => (
+              <div
+                class="card card-hover p-6 animate-fade-in-up"
+                style={`animation-delay: ${index * 100}ms`}
+              >
+                <div class="flex flex-col md:flex-row gap-6">
+                  <div class="flex-1 space-y-3">
+                    <div class="flex items-center gap-2 mb-2">
+                      <span
+                        class={`px-3 py-1 text-xs font-medium rounded-full ${
+                          project.data.status === 'active'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                            : project.data.status === 'completed'
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {project.data.status === 'active'
+                          ? locale === 'zh-tw'
+                            ? '進行中'
+                            : 'Active'
+                          : project.data.status === 'completed'
+                            ? locale === 'zh-tw'
+                              ? '已完成'
+                              : 'Completed'
+                            : locale === 'zh-tw'
+                              ? '已封存'
+                              : 'Archived'}
+                      </span>
+                    </div>
 
-              <!-- Tags -->
-              <div class="flex flex-wrap gap-2">
-                {project.data.tags.map((tag) => (
-                  <span class="px-3 py-1 text-xs font-medium bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-400 rounded-full">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+                    <h3 class="text-2xl font-bold text-slate-900 dark:text-white">
+                      {locale === 'zh-tw'
+                        ? project.data.title_zh || project.id
+                        : project.data.title_en}
+                    </h3>
+                    <p class="text-slate-600 dark:text-slate-300">
+                      {locale === 'zh-tw'
+                        ? project.data.description_zh
+                        : project.data.description_en}
+                    </p>
 
-              <!-- Links -->
-              <div class="flex flex-wrap gap-3">
-                <a 
-                  href={`${basePath}/projects/${project.id}`}
-                  class="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium group/link"
-                >
-                  {locale === 'zh-tw' ? '查看詳情' : 'View Details'}
-                  <svg class="w-4 h-4 transition-transform group-hover/link:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                  </svg>
-                </a>
-                
-                {project.data.links?.website && (
-                  <a 
-                    href={project.data.links.website} 
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 text-secondary-600 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300 font-medium"
-                  >
-                    {locale === 'zh-tw' ? '網站' : 'Website'}
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                    </svg>
-                  </a>
-                )}
-              </div>
-            </div>
+                    {/* Tags */}
+                    <div class="flex flex-wrap gap-2">
+                      {project.data.tags.map((tag) => (
+                        <span class="px-3 py-1 text-xs font-medium bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-400 rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
 
-            {project.data.image && (
-              <div class="md:w-40 md:shrink-0">
-                <Image
-                  src={project.data.image}
-                  alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
-                  width={160}
-                  height={128}
-                  class="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
-                  loading="lazy"
-                  decoding="async"
+                    {/* Links */}
+                    <div class="flex flex-wrap gap-3">
+                      <a
+                        href={`${basePath}/projects/${project.id}`}
+                        class="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium group/link"
+                      >
+                        {locale === 'zh-tw' ? '查看詳情' : 'View Details'}
+                        <svg
+                          class="w-4 h-4 transition-transform group-hover/link:translate-x-1"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M13 7l5 5m0 0l-5 5m5-5H6"
+                          />
+                        </svg>
+                      </a>
+
+                      {project.data.links?.website && (
+                        <a
+                          href={project.data.links.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="inline-flex items-center gap-2 text-secondary-600 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300 font-medium"
+                        >
+                          {locale === 'zh-tw' ? '網站' : 'Website'}
+                          <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {project.data.image && (
+                    <div class="md:w-40 md:shrink-0">
+                      <Image
+                        src={project.data.image}
+                        alt={
+                          locale === 'zh-tw'
+                            ? project.data.title_zh || project.id
+                            : project.data.title_en
+                        }
+                        width={160}
+                        height={128}
+                        class="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="text-center py-20 animate-fade-in-up">
+            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <svg
+                class="w-12 h-12 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
-              </div>
-            )}
+              </svg>
             </div>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              {locale === 'zh-tw' ? '目前沒有專案' : 'No projects yet'}
+            </h3>
+            <p class="text-slate-600 dark:text-slate-300 mb-6">
+              {locale === 'zh-tw'
+                ? '專案內容即將推出，敬請期待'
+                : 'Projects coming soon, stay tuned'}
+            </p>
           </div>
-        ))}
-        </div>
-      ) : (
-        <div class="text-center py-20 animate-fade-in-up">
-          <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <svg class="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-            </svg>
-          </div>
-          <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-            {locale === 'zh-tw' ? '目前沒有專案' : 'No projects yet'}
-          </h3>
-          <p class="text-slate-600 dark:text-slate-300 mb-6">
-            {locale === 'zh-tw' ? '專案內容即將推出，敬請期待' : 'Projects coming soon, stay tuned'}
-          </p>
-        </div>
-      )}
+        )
+      }
 
       <!-- CTA Section -->
-      {projects.length > 0 && (
-        <div class="text-center mt-16 space-y-6 animate-fade-in-up animation-delay-400">
-        <h2 class="text-3xl font-bold text-slate-900 dark:text-white">
-          {t.projects.cta.heading}
-        </h2>
-        <p class="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-          {t.projects.cta.description}
-        </p>
-        <div class="flex flex-wrap gap-4 justify-center pt-4">
-          <a 
-            href="https://github.com/Unforgettableeternalproject" 
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-primary"
-          >
-            {t.projects.cta.github}
-          </a>
-          <a 
-            href="https://uep.unforgettableeternalproject.com" 
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-secondary"
-          >
-            {t.projects.cta.explore}
-          </a>
-        </div>
-      </div>
-      )}
+      {
+        projects.length > 0 && (
+          <div class="text-center mt-16 space-y-6 animate-fade-in-up animation-delay-400">
+            <h2 class="text-3xl font-bold text-slate-900 dark:text-white">
+              {t.projects.cta.heading}
+            </h2>
+            <p class="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+              {t.projects.cta.description}
+            </p>
+            <div class="flex flex-wrap gap-4 justify-center pt-4">
+              <a
+                href="https://github.com/Unforgettableeternalproject"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary"
+              >
+                {t.projects.cta.github}
+              </a>
+              <a
+                href="https://uep.unforgettableeternalproject.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-secondary"
+              >
+                {t.projects.cta.explore}
+              </a>
+            </div>
+          </div>
+        )
+      }
     </div>
   </div>
 </BaseLayout>

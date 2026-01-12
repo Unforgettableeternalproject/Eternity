@@ -62,6 +62,7 @@ apps/uep/
 ### Phase 1: Content Collections 設定 (第 1 週)
 
 **任務**:
+
 1. 建立 `src/content/config.ts`
 2. 定義 4 個主要集合的 Zod schema
 3. 配置 MDX 支援
@@ -131,6 +132,7 @@ export const collections = {
 ### Phase 2: Git Submodule 整合 (第 1-2 週)
 
 **任務**:
+
 1. 將 U.E.P-s-Imaginary-Space 加為 submodule
 2. 配置自動更新腳本
 3. 測試內容讀取
@@ -143,6 +145,7 @@ git submodule add https://github.com/Unforgettableeternalproject/U.E.P-s-Imagina
 ```
 
 **注意事項**:
+
 - Submodule 指向特定 commit，需定期更新
 - CI/CD 需配置 `submodules: recursive`
 - 本地開發需 `git submodule update --remote`
@@ -150,6 +153,7 @@ git submodule add https://github.com/Unforgettableeternalproject/U.E.P-s-Imagina
 ### Phase 3: Keystatic CMS 整合 (第 2 週)
 
 **任務**:
+
 1. 安裝 Keystatic 依賴
 2. 配置 `keystatic.config.tsx`
 3. 設定 GitHub OAuth
@@ -172,7 +176,7 @@ export default config({
     kind: 'github',
     repo: 'Unforgettableeternalproject/U.E.P-s-Imaginary-Space',
   },
-  
+
   ui: {
     brand: {
       name: 'U.E.P 文件管理',
@@ -188,9 +192,9 @@ export default config({
       format: { contentField: 'content' },
       schema: {
         title: fields.slug({ name: { label: '標題' } }),
-        description: fields.text({ 
-          label: '描述', 
-          multiline: true 
+        description: fields.text({
+          label: '描述',
+          multiline: true,
         }),
         icon: fields.text({ label: 'Icon' }),
         content: fields.document({
@@ -201,7 +205,7 @@ export default config({
         }),
       },
     }),
-    
+
     // ... 其他 collections
   },
 });
@@ -217,10 +221,7 @@ import keystatic from '@keystatic/astro';
 
 export default defineConfig({
   site: 'https://uep.unforgettableeternalproject.com',
-  integrations: [
-    mdx(),
-    keystatic(),
-  ],
+  integrations: [mdx(), keystatic()],
   build: { format: 'directory' },
 });
 ```
@@ -228,6 +229,7 @@ export default defineConfig({
 ### Phase 4: 文件頁面 Layout 與路由 (第 3 週)
 
 **任務**:
+
 1. 建立 DocLayout.astro
 2. 實作 Sidebar 階層導航
 3. 建立動態路由
@@ -256,12 +258,14 @@ const { collection, slug } = Astro.params;
     <!-- 主要內容區 -->
     <main class="docs-content">
       <Breadcrumb collection={collection} slug={slug} />
-      
+
       <article class="prose dark:prose-invert max-w-none">
         <h1>{frontmatter.title}</h1>
-        {frontmatter.description && (
-          <p class="lead">{frontmatter.description}</p>
-        )}
+        {
+          frontmatter.description && (
+            <p class="lead">{frontmatter.description}</p>
+          )
+        }
         <slot />
       </article>
 
@@ -293,9 +297,9 @@ export async function getStaticPaths() {
     getCollection('echos'),
     getCollection('concepts'),
     getCollection('visuals'),
-  ]).then(results => results.flat());
+  ]).then((results) => results.flat());
 
-  return allDocs.map(doc => ({
+  return allDocs.map((doc) => ({
     params: { slug: `${doc.collection}/${doc.slug}` },
     props: { doc },
   }));
@@ -313,6 +317,7 @@ const { Content, headings } = await doc.render();
 ### Phase 5: 搜尋功能整合 (第 3-4 週)
 
 **任務**:
+
 1. 安裝 Pagefind
 2. 配置 build 流程
 3. 建立搜尋 UI
@@ -342,21 +347,21 @@ pnpm add -D pagefind
 
 <div id="search" class="search-container"></div>
 
-<link href="/_pagefind/pagefind-ui.css" rel="stylesheet">
+<link href="/_pagefind/pagefind-ui.css" rel="stylesheet" />
 <script>
   import { PagefindUI } from '/_pagefind/pagefind-ui.js';
-  
+
   new PagefindUI({
-    element: "#search",
+    element: '#search',
     showSubResults: true,
     translations: {
-      placeholder: "搜尋文件...",
-      clear_search: "清除",
-      load_more: "載入更多結果",
-      search_label: "搜尋此網站",
-      filters_label: "篩選",
-      zero_results: "找不到 [SEARCH_TERM] 的結果",
-    }
+      placeholder: '搜尋文件...',
+      clear_search: '清除',
+      load_more: '載入更多結果',
+      search_label: '搜尋此網站',
+      filters_label: '篩選',
+      zero_results: '找不到 [SEARCH_TERM] 的結果',
+    },
   });
 </script>
 ```
@@ -364,6 +369,7 @@ pnpm add -D pagefind
 ### Phase 6: CI/CD 自動部署 (第 4 週)
 
 **任務**:
+
 1. 配置 GitHub Actions 監聽 submodule 更新
 2. 設定 U.E.P-s-Imaginary-Space 的觸發器
 3. 測試自動部署流程
@@ -384,7 +390,7 @@ on:
     types: [content-updated]
   # 定時檢查 (備用方案)
   schedule:
-    - cron: '0 */6 * * *'  # 每 6 小時
+    - cron: '0 */6 * * *' # 每 6 小時
 
 jobs:
   deploy:
@@ -392,22 +398,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive  # 關鍵！
-          
+          submodules: recursive # 關鍵！
+
       - name: Update submodules
         run: |
           git submodule update --remote --merge
-          
+
       - uses: pnpm/action-setup@v2
         with:
           version: 9
-      
+
       - name: Install dependencies
         run: pnpm install
-      
+
       - name: Build UEP site
         run: pnpm --filter @uep/uep build
-      
+
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
@@ -487,12 +493,14 @@ jobs:
 ### 為什麼選擇 Git Submodule？
 
 ✅ **優點**:
+
 - 保持單一內容來源
 - Git 原生功能，無額外依賴
 - 內容與程式碼版本獨立
 - CI/CD 支援良好
 
 ⚠️ **缺點**:
+
 - 初次設定較複雜
 - 需要記得更新 submodule
 
@@ -501,12 +509,14 @@ jobs:
 ### 為什麼選擇 Keystatic？
 
 ✅ **優點**:
+
 - Astro 原生整合
 - Git-based，無需資料庫
 - 免費（單使用者）
 - TypeScript 優先
 
 ❌ **不選擇的替代方案**:
+
 - **Tina CMS**: 需要雲端後端（付費）
 - **Decap CMS**: 較舊，社群活躍度下降
 - **Strapi/Contentful**: 過於重量級，需要後端
@@ -514,12 +524,14 @@ jobs:
 ### 為什麼選擇 Pagefind？
 
 ✅ **優點**:
+
 - 完全靜態，無需伺服器
 - 快速建立索引
 - 支援中文分詞
 - 體積小，效能好
 
 ❌ **不選擇的替代方案**:
+
 - **Algolia**: 付費，且需要 API key
 - **Fuse.js**: 需載入全部內容，大型文件庫效能差
 
@@ -527,7 +539,8 @@ jobs:
 
 ### 風險 1: Submodule 更新失敗
 
-**緩解**: 
+**緩解**:
+
 - 設定定時檢查（cron job）
 - 手動觸發 workflow 選項
 - 錯誤通知機制
@@ -535,6 +548,7 @@ jobs:
 ### 風險 2: 內容 Schema 變更
 
 **緩解**:
+
 - 使用 `.optional()` 讓欄位可選
 - 逐步遷移舊內容
 - 版本化 schema
@@ -542,6 +556,7 @@ jobs:
 ### 風險 3: 搜尋索引過大
 
 **緩解**:
+
 - 配置 Pagefind 排除不需索引的檔案
 - 考慮分割索引
 - 監控 bundle 大小

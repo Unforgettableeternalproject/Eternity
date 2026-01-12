@@ -29,7 +29,7 @@ npm run dev
 為了安全性，主頁有一個隱藏的管理員入口：
 
 1. **啟用入口**：在 URL 後加上 `/a` 或查詢參數
-   
+
    **支援的 URL 格式**：
    - `http://127.0.0.1:4321/a` （根路徑）
    - `http://127.0.0.1:4321/zh-tw/a` （中文路徑）
@@ -46,6 +46,7 @@ npm run dev
    - 如果從 `/en/a` 進入 → 跳轉到 `/en/keystatic`
 
 **測試步驟**：
+
 ```bash
 # 開啟瀏覽器訪問任一以下 URL
 http://127.0.0.1:4321/zh-tw/a
@@ -59,6 +60,7 @@ http://127.0.0.1:4321/?a=1
 ```
 
 **注意**：
+
 - 在正常 URL（如 `/zh-tw`、`/en`、`/`）下**不會**顯示 Admin 按鈕
 - 只有知道密碼的人才能進入後台
 - 這個功能主要用於生產環境的安全訪問
@@ -114,18 +116,19 @@ http://127.0.0.1:4321/?a=1
 路徑: `apps/root/src/content/projects/`
 
 範例檔案結構:
+
 ```markdown
 ---
-title: "專案名稱"
-description: "專案描述"
-tags: ["標籤1", "標籤2"]
+title: '專案名稱'
+description: '專案描述'
+tags: ['標籤1', '標籤2']
 featured: true
 order: 1
-status: "active"
-image: "/images/projects/example.jpg"
+status: 'active'
+image: '/images/projects/example.jpg'
 links:
-  website: "https://example.com"
-  github: "https://github.com/..."
+  website: 'https://example.com'
+  github: 'https://github.com/...'
 startDate: 2024-01-01
 endDate: 2024-12-31
 ---
@@ -141,11 +144,11 @@ endDate: 2024-12-31
 
 ```markdown
 ---
-title: "GitHub"
-description: "查看我的開源專案"
-url: "https://github.com/username"
-category: "social"
-icon: "github"
+title: 'GitHub'
+description: '查看我的開源專案'
+url: 'https://github.com/username'
+category: 'social'
+icon: 'github'
 featured: true
 order: 1
 ---
@@ -159,10 +162,10 @@ order: 1
 
 ```markdown
 ---
-title: "更新標題"
-description: "更新描述"
+title: '更新標題'
+description: '更新描述'
 date: 2025-12-27
-category: "website"
+category: 'website'
 featured: true
 ---
 
@@ -198,7 +201,8 @@ featured: true
 
 ### Q: 為什麼我的修改沒有顯示？
 
-A: 
+A:
+
 - 確保已儲存檔案
 - 檢查開發伺服器是否正在運行
 - 重新整理瀏覽器（Ctrl + F5）
@@ -206,20 +210,23 @@ A:
 ### Q: 如何更改首頁顯示的專案數量？
 
 A: 編輯 `apps/root/src/pages/index.astro`，修改:
+
 ```javascript
-.slice(0, 3)  // 改為你想要的數量
+.slice(0, 3); // 改為你想要的數量
 ```
 
 ### Q: 如何添加新的內容類型？
 
-A: 
+A:
+
 1. 在 `apps/root/src/content/config.ts` 添加新的 collection
 2. 在 `keystatic.config.tsx` 添加對應的配置
 3. 建立對應的頁面檔案
 
 ### Q: Keystatic 後台顯示空白？
 
-A: 
+A:
+
 - 確保 React 已正確安裝
 - 檢查瀏覽器控制台是否有錯誤
 - 嘗試清除瀏覽器快取

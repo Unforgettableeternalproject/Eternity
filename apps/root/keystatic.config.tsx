@@ -11,10 +11,17 @@ export default config({
       mark: () => '✨',
     },
     navigation: {
-      '繁體中文內容': ['homepage-zh', 'about-zh'],
+      繁體中文內容: ['homepage-zh', 'about-zh'],
       'English Content': ['homepage-en', 'about-en'],
       內容集合: ['projects', 'links', 'updates'],
-      卡片: ['card-quote', 'card-music', 'card-visitor-counter', 'card-latest-update', 'card-quick-stats', 'card-table-of-contents'],
+      卡片: [
+        'card-quote',
+        'card-music',
+        'card-visitor-counter',
+        'card-latest-update',
+        'card-quick-stats',
+        'card-table-of-contents',
+      ],
       // 未來可擴充: ['articles'],
     },
   },
@@ -25,24 +32,24 @@ export default config({
       path: 'src/content/homepage-zh/',
       format: { data: 'json' },
       schema: {
-        title: fields.text({ 
+        title: fields.text({
           label: '網站標題',
           validation: { isRequired: true },
         }),
-        name: fields.text({ 
+        name: fields.text({
           label: '名字',
           validation: { isRequired: false },
         }),
-        subtitle: fields.text({ 
+        subtitle: fields.text({
           label: '副標題',
           multiline: true,
           validation: { isRequired: true },
         }),
-        introHeading: fields.text({ 
+        introHeading: fields.text({
           label: '介紹區塊標題',
           validation: { isRequired: false },
         }),
-        introContent: fields.text({ 
+        introContent: fields.text({
           label: '介紹區塊內容',
           multiline: true,
           validation: { isRequired: false },
@@ -55,24 +62,24 @@ export default config({
       path: 'src/content/homepage-en/',
       format: { data: 'json' },
       schema: {
-        title: fields.text({ 
+        title: fields.text({
           label: 'Website Title',
           validation: { isRequired: true },
         }),
-        name: fields.text({ 
+        name: fields.text({
           label: 'Name',
           validation: { isRequired: false },
         }),
-        subtitle: fields.text({ 
+        subtitle: fields.text({
           label: 'Subtitle',
           multiline: true,
           validation: { isRequired: true },
         }),
-        introHeading: fields.text({ 
+        introHeading: fields.text({
           label: 'Intro Section Heading',
           validation: { isRequired: false },
         }),
-        introContent: fields.text({ 
+        introContent: fields.text({
           label: 'Intro Section Content',
           multiline: true,
           validation: { isRequired: false },
@@ -85,49 +92,61 @@ export default config({
       path: 'src/content/about-zh/',
       format: { data: 'json' },
       schema: {
-        title: fields.text({ 
+        title: fields.text({
           label: '標題/標語',
           validation: { isRequired: true },
         }),
-        bio: fields.text({ 
+        bio: fields.text({
           label: '簡短自我介紹',
           multiline: true,
           validation: { isRequired: true },
         }),
-        avatar: fields.image({ 
+        avatar: fields.image({
           label: '頭像',
           directory: 'public/images/avatars',
           publicPath: '/images/avatars/',
         }),
-        skills: fields.array(
-          fields.text({ label: '技能' }),
-          {
-            label: '技能列表',
-            itemLabel: props => props.value,
-          }
-        ),
+        skills: fields.array(fields.text({ label: '技能' }), {
+          label: '技能列表',
+          itemLabel: (props) => props.value,
+        }),
         experience: fields.array(
           fields.object({
-            title: fields.text({ label: '職稱', validation: { isRequired: true } }),
-            company: fields.text({ label: '公司/組織', validation: { isRequired: true } }),
-            period: fields.text({ label: '期間', validation: { isRequired: true } }),
+            title: fields.text({
+              label: '職稱',
+              validation: { isRequired: true },
+            }),
+            company: fields.text({
+              label: '公司/組織',
+              validation: { isRequired: true },
+            }),
+            period: fields.text({
+              label: '期間',
+              validation: { isRequired: true },
+            }),
             description: fields.text({ label: '描述', multiline: true }),
           }),
           {
             label: '工作經歷',
-            itemLabel: props => props.fields.title.value,
+            itemLabel: (props) => props.fields.title.value,
           }
         ),
         certifications: fields.array(
           fields.object({
-            name: fields.text({ label: '證照名稱', validation: { isRequired: true } }),
-            issuer: fields.text({ label: '發證單位', validation: { isRequired: true } }),
+            name: fields.text({
+              label: '證照名稱',
+              validation: { isRequired: true },
+            }),
+            issuer: fields.text({
+              label: '發證單位',
+              validation: { isRequired: true },
+            }),
             date: fields.text({ label: '取得日期' }),
             link: fields.text({ label: '證明連結' }),
           }),
           {
             label: '證照列表',
-            itemLabel: props => props.fields.name.value,
+            itemLabel: (props) => props.fields.name.value,
           }
         ),
         social: fields.object({
@@ -143,49 +162,61 @@ export default config({
       path: 'src/content/about-en/',
       format: { data: 'json' },
       schema: {
-        title: fields.text({ 
+        title: fields.text({
           label: 'Title/Tagline',
           validation: { isRequired: true },
         }),
-        bio: fields.text({ 
+        bio: fields.text({
           label: 'Short Bio',
           multiline: true,
           validation: { isRequired: true },
         }),
-        avatar: fields.image({ 
+        avatar: fields.image({
           label: 'Avatar',
           directory: 'apps/root/public/images/avatars',
           publicPath: '/images/avatars/',
         }),
-        skills: fields.array(
-          fields.text({ label: 'Skill' }),
-          {
-            label: 'Skills',
-            itemLabel: props => props.value,
-          }
-        ),
+        skills: fields.array(fields.text({ label: 'Skill' }), {
+          label: 'Skills',
+          itemLabel: (props) => props.value,
+        }),
         experience: fields.array(
           fields.object({
-            title: fields.text({ label: 'Job Title', validation: { isRequired: true } }),
-            company: fields.text({ label: 'Company/Organization', validation: { isRequired: true } }),
-            period: fields.text({ label: 'Period', validation: { isRequired: true } }),
+            title: fields.text({
+              label: 'Job Title',
+              validation: { isRequired: true },
+            }),
+            company: fields.text({
+              label: 'Company/Organization',
+              validation: { isRequired: true },
+            }),
+            period: fields.text({
+              label: 'Period',
+              validation: { isRequired: true },
+            }),
             description: fields.text({ label: 'Description', multiline: true }),
           }),
           {
             label: 'Work Experience',
-            itemLabel: props => props.fields.title.value,
+            itemLabel: (props) => props.fields.title.value,
           }
         ),
         certifications: fields.array(
           fields.object({
-            name: fields.text({ label: 'Certification Name', validation: { isRequired: true } }),
-            issuer: fields.text({ label: 'Issuer', validation: { isRequired: true } }),
+            name: fields.text({
+              label: 'Certification Name',
+              validation: { isRequired: true },
+            }),
+            issuer: fields.text({
+              label: 'Issuer',
+              validation: { isRequired: true },
+            }),
             date: fields.text({ label: 'Date Obtained' }),
             link: fields.text({ label: 'Credential Link' }),
           }),
           {
             label: 'Certifications',
-            itemLabel: props => props.fields.name.value,
+            itemLabel: (props) => props.fields.name.value,
           }
         ),
         social: fields.object({
@@ -232,7 +263,7 @@ export default config({
           }),
           {
             label: '繁體中文名言列表',
-            itemLabel: props => props.fields.text.value || '新名言',
+            itemLabel: (props) => props.fields.text.value || '新名言',
           }
         ),
         quotes_en: fields.array(
@@ -248,7 +279,7 @@ export default config({
           }),
           {
             label: 'English Quotes',
-            itemLabel: props => props.fields.text.value || 'New Quote',
+            itemLabel: (props) => props.fields.text.value || 'New Quote',
           }
         ),
       },
@@ -279,11 +310,11 @@ export default config({
         }),
         tracks: fields.array(
           fields.object({
-            title: fields.text({ 
+            title: fields.text({
               label: '歌曲名稱',
               validation: { isRequired: true },
             }),
-            artist: fields.text({ 
+            artist: fields.text({
               label: '演唱者/創作者',
               validation: { isRequired: true },
             }),
@@ -299,7 +330,7 @@ export default config({
           }),
           {
             label: '歌曲清單',
-            itemLabel: props => props.fields.title.value || 'New Track',
+            itemLabel: (props) => props.fields.title.value || 'New Track',
           }
         ),
       },
@@ -417,11 +448,11 @@ export default config({
       path: 'src/content/projects/*',
       schema: {
         // 繁體中文內容
-        title_zh: fields.text({ 
+        title_zh: fields.text({
           label: '標題 (繁體中文)',
           validation: { isRequired: true },
         }),
-        description_zh: fields.text({ 
+        description_zh: fields.text({
           label: '描述 (繁體中文)',
           multiline: true,
           validation: { isRequired: true },
@@ -429,13 +460,13 @@ export default config({
         content_zh: fields.markdoc({
           label: '詳細內容 (繁體中文)',
         }),
-        
+
         // 英文內容
-        title_en: fields.text({ 
+        title_en: fields.text({
           label: 'Title (English)',
           validation: { isRequired: true },
         }),
-        description_en: fields.text({ 
+        description_en: fields.text({
           label: 'Description (English)',
           multiline: true,
           validation: { isRequired: true },
@@ -443,14 +474,11 @@ export default config({
         content_en: fields.markdoc({
           label: 'Detailed Content (English)',
         }),
-        
-        tags: fields.array(
-          fields.text({ label: '標籤 / Tag' }),
-          {
-            label: '標籤列表',
-            itemLabel: props => props.value,
-          }
-        ),
+
+        tags: fields.array(fields.text({ label: '標籤 / Tag' }), {
+          label: '標籤列表',
+          itemLabel: (props) => props.value,
+        }),
         featured: fields.checkbox({
           label: '在首頁顯示 / Featured',
           defaultValue: false,
@@ -473,13 +501,16 @@ export default config({
           directory: 'public/images/projects',
           publicPath: '/images/projects/',
         }),
-        links: fields.object({
-          demo: fields.url({ label: 'Demo 連結 / Demo Link' }),
-          github: fields.url({ label: 'GitHub 連結 / GitHub Link' }),
-          website: fields.url({ label: '網站連結 / Website Link' }),
-        }, {
-          label: '相關連結 / Links',
-        }),
+        links: fields.object(
+          {
+            demo: fields.url({ label: 'Demo 連結 / Demo Link' }),
+            github: fields.url({ label: 'GitHub 連結 / GitHub Link' }),
+            website: fields.url({ label: '網站連結 / Website Link' }),
+          },
+          {
+            label: '相關連結 / Links',
+          }
+        ),
         startDate: fields.date({
           label: '開始日期 / Start Date',
         }),
@@ -495,27 +526,27 @@ export default config({
       path: 'src/content/links/*',
       schema: {
         // 繁體中文內容
-        title_zh: fields.text({ 
+        title_zh: fields.text({
           label: '標題 (繁體中文)',
           validation: { isRequired: true },
         }),
-        description_zh: fields.text({ 
+        description_zh: fields.text({
           label: '描述 (繁體中文)',
           multiline: true,
           validation: { isRequired: true },
         }),
-        
+
         // 英文內容
-        title_en: fields.text({ 
+        title_en: fields.text({
           label: 'Title (English)',
           validation: { isRequired: true },
         }),
-        description_en: fields.text({ 
+        description_en: fields.text({
           label: 'Description (English)',
           multiline: true,
           validation: { isRequired: true },
         }),
-        
+
         url: fields.url({
           label: '連結網址 / URL',
           validation: { isRequired: true },
@@ -552,11 +583,11 @@ export default config({
       path: 'src/content/updates/*',
       schema: {
         // 繁體中文內容
-        title_zh: fields.text({ 
+        title_zh: fields.text({
           label: '標題 (繁體中文)',
           validation: { isRequired: true },
         }),
-        description_zh: fields.text({ 
+        description_zh: fields.text({
           label: '描述 (繁體中文)',
           multiline: true,
           validation: { isRequired: true },
@@ -564,13 +595,13 @@ export default config({
         content_zh: fields.markdoc({
           label: '完整內容 (繁體中文)',
         }),
-        
+
         // 英文內容
-        title_en: fields.text({ 
+        title_en: fields.text({
           label: 'Title (English)',
           validation: { isRequired: true },
         }),
-        description_en: fields.text({ 
+        description_en: fields.text({
           label: 'Description (English)',
           multiline: true,
           validation: { isRequired: true },
@@ -578,7 +609,7 @@ export default config({
         content_en: fields.markdoc({
           label: 'Full Content (English)',
         }),
-        
+
         date: fields.date({
           label: '日期 / Date',
           validation: { isRequired: true },

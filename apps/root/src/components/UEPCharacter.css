@@ -38,7 +38,9 @@
 .uep-character--corner:hover .uep-character__image {
   transform: scale(1.1) translateY(-4px);
   filter: drop-shadow(0 8px 16px rgba(139, 92, 246, 0.3));
-  transition: transform 0.3s ease 0.1s, filter 0.3s ease 0.1s;
+  transition:
+    transform 0.3s ease 0.1s,
+    filter 0.3s ease 0.1s;
 }
 
 /* Peek Mode - 特定元素偷看 */
@@ -81,8 +83,9 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%) translateY(-8px);
-  background: linear-gradient(135deg, 
-    rgba(139, 92, 246, 0.95) 0%, 
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.95) 0%,
     rgba(168, 85, 247, 0.95) 100%
   );
   color: white;
@@ -132,7 +135,8 @@
 }
 
 @keyframes uep-peek-wiggle {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0) rotate(0deg);
   }
   25% {
@@ -144,7 +148,8 @@
 }
 
 @keyframes uep-float-bob {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -168,16 +173,16 @@
   .uep-character__image {
     width: 70px !important;
   }
-  
+
   .uep-character--corner {
     bottom: 16px !important;
     right: 16px !important;
   }
-  
+
   .uep-character--corner .uep-character__image {
     width: 100px !important;
   }
-  
+
   .uep-character__tooltip {
     font-size: 12px;
     padding: 6px 12px;
@@ -195,7 +200,7 @@
     animation: none !important;
     transition: opacity 0.2s ease !important;
   }
-  
+
   .uep-character:hover .uep-character__image {
     transform: none !important;
   }
@@ -206,7 +211,7 @@
   .uep-character__image {
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
   }
-  
+
   .uep-character:hover .uep-character__image {
     filter: drop-shadow(0 8px 16px rgba(168, 85, 247, 0.5));
   }

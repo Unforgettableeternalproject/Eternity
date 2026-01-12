@@ -2,11 +2,7 @@
   "title": "About Me",
   "bio": "This is my bio",
   "avatar": "/images/avatars/avatar.png",
-  "skills": [
-    "Development",
-    "Design",
-    "Writing"
-  ],
+  "skills": ["Development", "Design", "Writing"],
   "experience": [],
   "certifications": [],
   "social": {

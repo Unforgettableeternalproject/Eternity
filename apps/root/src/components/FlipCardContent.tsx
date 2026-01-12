@@ -6,10 +6,10 @@ interface FlipCardContentProps {
   delay?: number;
 }
 
-export default function FlipCardContent({ 
-  content, 
+export default function FlipCardContent({
+  content,
   speed = 10,
-  delay = 200
+  delay = 200,
 }: FlipCardContentProps) {
   const [displayedLength, setDisplayedLength] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
@@ -17,7 +17,7 @@ export default function FlipCardContent({
 
   useEffect(() => {
     console.log('FlipCardContent mounted, content length:', content.length);
-    
+
     const container = containerRef.current;
     if (!container) {
       console.log('FlipCardContent: No container ref');
@@ -27,7 +27,7 @@ export default function FlipCardContent({
     // 向上查找 flip-card 元素
     const flipCard = container.closest('[data-flip-card]');
     console.log('FlipCardContent: Found flip-card?', !!flipCard);
-    
+
     if (!flipCard) {
       console.error('FlipCardContent: Could not find flip-card parent!');
       return;
@@ -36,13 +36,13 @@ export default function FlipCardContent({
     // 監聽卡片的點擊事件
     const handleClick = () => {
       console.log('FlipCardContent: Card clicked!');
-      
+
       // 短暫延遲後檢查是否在背面
       setTimeout(() => {
         const flipCardInner = flipCard.querySelector('.flip-card__inner');
         const isFlipped = flipCardInner?.classList.contains('flipped');
         console.log('FlipCardContent: Is flipped after click?', isFlipped);
-        
+
         if (isFlipped && !isTyping) {
           console.log('FlipCardContent: Starting typewriter effect');
           setTimeout(() => {
@@ -54,7 +54,7 @@ export default function FlipCardContent({
 
     flipCard.addEventListener('click', handleClick);
     console.log('FlipCardContent: Click listener attached');
-    
+
     return () => {
       flipCard.removeEventListener('click', handleClick);
     };
@@ -82,13 +82,12 @@ export default function FlipCardContent({
   }, [isTyping, content.length, speed]);
 
   // 逐步顯示的內容
-  const displayedContent = displayedLength > 0 
-    ? content.slice(0, displayedLength) 
-    : '';
+  const displayedContent =
+    displayedLength > 0 ? content.slice(0, displayedLength) : '';
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="text-sm leading-relaxed text-white/90"
       style={{ minHeight: '3rem' }}
     >
@@ -100,4 +99,3 @@ export default function FlipCardContent({
     </div>
   );
 }
-

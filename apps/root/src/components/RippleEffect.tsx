@@ -8,11 +8,11 @@ interface RippleEffectProps {
   duration?: number;
 }
 
-export default function RippleEffect({ 
-  children, 
+export default function RippleEffect({
+  children,
   className = '',
   color = 'rgba(255, 255, 255, 0.6)',
-  duration = 600 
+  duration = 600,
 }: RippleEffectProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -22,7 +22,7 @@ export default function RippleEffect({
 
     const ripple = document.createElement('span');
     const rect = container.getBoundingClientRect();
-    
+
     const size = Math.max(rect.width, rect.height);
     const x = event.clientX - rect.left - size / 2;
     const y = event.clientY - rect.top - size / 2;

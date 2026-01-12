@@ -8,22 +8,22 @@ interface GlobalRippleProps {
   size?: number;
 }
 
-export default function GlobalRipple({ 
+export default function GlobalRipple({
   color = 'rgba(99, 102, 241, 0.15)',
   navColor = 'rgba(236, 72, 153, 0.2)',
   duration = 800,
-  size = 80
+  size = 80,
 }: GlobalRippleProps) {
   useEffect(() => {
     const createRipple = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      
+
       // 檢查是否點擊在導航欄內
       const isNavClick = target.closest('nav') !== null;
       const rippleColor = isNavClick ? navColor : color;
-      
+
       const ripple = document.createElement('div');
-      
+
       const x = event.clientX - size / 2;
       const y = event.clientY - size / 2;
 

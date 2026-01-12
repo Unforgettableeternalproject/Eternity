@@ -15,11 +15,13 @@ const projectsCollection = defineCollection({
     order: z.number().optional(),
     status: z.enum(['active', 'completed', 'archived']).default('active'),
     image: z.string().optional(),
-    links: z.object({
-      demo: z.string().optional(),
-      github: z.string().optional(),
-      website: z.string().optional(),
-    }).optional(),
+    links: z
+      .object({
+        demo: z.string().optional(),
+        github: z.string().optional(),
+        website: z.string().optional(),
+      })
+      .optional(),
     startDate: z.date().optional(),
     endDate: z.date().optional(),
   }),
@@ -50,7 +52,9 @@ const updatesCollection = defineCollection({
     title_en: z.string(),
     description_en: z.string(),
     date: z.date(),
-    category: z.enum(['website', 'project', 'announcement', 'other']).default('other'),
+    category: z
+      .enum(['website', 'project', 'announcement', 'other'])
+      .default('other'),
     featured: z.boolean().default(false),
   }),
 });
@@ -73,23 +77,33 @@ const aboutCollection = defineCollection({
     bio: z.string(),
     avatar: z.string().optional(),
     skills: z.array(z.string()),
-    experience: z.array(z.object({
-      title: z.string(),
-      company: z.string(),
-      period: z.string(),
-      description: z.string().optional(),
-    })).optional(),
-    certifications: z.array(z.object({
-      name: z.string(),
-      issuer: z.string(),
-      date: z.string().optional(),
-      link: z.string().optional(),
-    })).optional(),
-    social: z.object({
-      github: z.string().optional(),
-      email: z.string().optional(),
-      twitter: z.string().optional(),
-    }).optional(),
+    experience: z
+      .array(
+        z.object({
+          title: z.string(),
+          company: z.string(),
+          period: z.string(),
+          description: z.string().optional(),
+        })
+      )
+      .optional(),
+    certifications: z
+      .array(
+        z.object({
+          name: z.string(),
+          issuer: z.string(),
+          date: z.string().optional(),
+          link: z.string().optional(),
+        })
+      )
+      .optional(),
+    social: z
+      .object({
+        github: z.string().optional(),
+        email: z.string().optional(),
+        twitter: z.string().optional(),
+      })
+      .optional(),
   }),
 });
 
@@ -115,21 +129,33 @@ const cardsCollection = defineCollection({
     order: z.number().default(1),
     position: z.enum(['left', 'right']).default('left'),
     // Quote 卡片欄位
-    quotes_zh: z.array(z.object({
-      text: z.string(),
-      author: z.string().optional(),
-    })).optional(),
-    quotes_en: z.array(z.object({
-      text: z.string(),
-      author: z.string().optional(),
-    })).optional(),
+    quotes_zh: z
+      .array(
+        z.object({
+          text: z.string(),
+          author: z.string().optional(),
+        })
+      )
+      .optional(),
+    quotes_en: z
+      .array(
+        z.object({
+          text: z.string(),
+          author: z.string().optional(),
+        })
+      )
+      .optional(),
     // Music 卡片欄位
-    tracks: z.array(z.object({
-      title: z.string(),
-      artist: z.string(),
-      url: z.string().optional(),
-      cover: z.string().optional(),
-    })).optional(),
+    tracks: z
+      .array(
+        z.object({
+          title: z.string(),
+          artist: z.string(),
+          url: z.string().optional(),
+          cover: z.string().optional(),
+        })
+      )
+      .optional(),
   }),
 });
 
@@ -138,7 +164,7 @@ export const collections = {
   'homepage-en': homepageCollection,
   'about-zh': aboutCollection,
   'about-en': aboutCollection,
-  'cards': cardsCollection,
+  cards: cardsCollection,
   'card-quote': cardsCollection,
   'card-music': cardsCollection,
   'card-visitor-counter': cardsCollection,

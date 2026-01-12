@@ -38,39 +38,77 @@ function Toast({ toast, onClose }: ToastProps) {
     switch (toast.type) {
       case 'success':
         return (
-          <svg className="toast__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          <svg
+            className="toast__icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 13l4 4L19 7"
+            />
           </svg>
         );
       case 'error':
         return (
-          <svg className="toast__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg
+            className="toast__icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         );
       case 'warning':
         return (
-          <svg className="toast__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <svg
+            className="toast__icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
           </svg>
         );
       case 'info':
         return (
-          <svg className="toast__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="toast__icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         );
     }
   };
 
   return (
-    <div 
+    <div
       className={`toast toast--${toast.type} ${isClosing ? 'toast--closing' : ''}`}
       role="alert"
     >
-      <div className="toast__icon-wrapper">
-        {getIcon()}
-      </div>
+      <div className="toast__icon-wrapper">{getIcon()}</div>
       <p className="toast__message">{toast.message}</p>
       <button
         onClick={handleClose}
@@ -79,7 +117,12 @@ function Toast({ toast, onClose }: ToastProps) {
         type="button"
       >
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
     </div>
@@ -87,7 +130,13 @@ function Toast({ toast, onClose }: ToastProps) {
 }
 
 interface ToastContainerProps {
-  position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center';
+  position?:
+    | 'top-right'
+    | 'top-left'
+    | 'bottom-right'
+    | 'bottom-left'
+    | 'top-center'
+    | 'bottom-center';
 }
 
 let toastIdCounter = 0;
@@ -104,8 +153,8 @@ export const toastManager = {
     };
 
     toastsState = [...toastsState, toast];
-    toastListeners.forEach(listener => listener(toastsState));
-    
+    toastListeners.forEach((listener) => listener(toastsState));
+
     return toast.id;
   },
 
@@ -126,13 +175,13 @@ export const toastManager = {
   },
 
   dismiss: (id: string) => {
-    toastsState = toastsState.filter(t => t.id !== id);
-    toastListeners.forEach(listener => listener(toastsState));
+    toastsState = toastsState.filter((t) => t.id !== id);
+    toastListeners.forEach((listener) => listener(toastsState));
   },
 
   dismissAll: () => {
     toastsState = [];
-    toastListeners.forEach(listener => listener(toastsState));
+    toastListeners.forEach((listener) => listener(toastsState));
   },
 
   subscribe: (listener: (toasts: ToastMessage[]) => void) => {
@@ -146,7 +195,9 @@ export const toastManager = {
   },
 };
 
-export default function ToastContainer({ position = 'top-right' }: ToastContainerProps) {
+export default function ToastContainer({
+  position = 'top-right',
+}: ToastContainerProps) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   useEffect(() => {
@@ -162,7 +213,7 @@ export default function ToastContainer({ position = 'top-right' }: ToastContaine
 
   return (
     <div className={`toast-container toast-container--${position}`}>
-      {toasts.map(toast => (
+      {toasts.map((toast) => (
         <Toast key={toast.id} toast={toast} onClose={handleClose} />
       ))}
     </div>

@@ -17,19 +17,24 @@ const homepageData = await getEntry(homepageKey, 'index');
 // 載入專案內容
 const allProjects = await getCollection('projects');
 const featuredProjects = allProjects
-  .filter(p => p.data.featured)
+  .filter((p) => p.data.featured)
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
   .slice(0, 3);
 
 // 載入對應語系的專案 mdoc 內容
-const projectContentZh = await Astro.glob('../content/projects/**/content_zh.mdoc');
-const projectContentEn = await Astro.glob('../content/projects/**/content_en.mdoc');
-const projectContentGlob = locale === 'zh-tw' ? projectContentZh : projectContentEn;
+const projectContentZh = await Astro.glob(
+  '../content/projects/**/content_zh.mdoc'
+);
+const projectContentEn = await Astro.glob(
+  '../content/projects/**/content_en.mdoc'
+);
+const projectContentGlob =
+  locale === 'zh-tw' ? projectContentZh : projectContentEn;
 
 console.log('===== PROJECT DEBUG =====');
 console.log('Locale:', locale);
 console.log('Loaded modules:', projectContentGlob.length);
-projectContentGlob.forEach(m => {
+projectContentGlob.forEach((m) => {
   console.log('File:', m.file);
   console.log('Has Content:', !!m.Content);
 });
@@ -46,22 +51,30 @@ for (const module of projectContentGlob) {
 }
 
 console.log('Map keys:', Array.from(projectContentMap.keys()));
-console.log('Project IDs:', featuredProjects.map(p => p.id));
+console.log(
+  'Project IDs:',
+  featuredProjects.map((p) => p.id)
+);
 
 const allUpdates = await getCollection('updates');
 const latestUpdates = allUpdates
-  .filter(u => u.data.featured)
+  .filter((u) => u.data.featured)
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
   .slice(0, 4);
 
 // 載入對應語系的更新 mdoc 內容
-const updateContentZh = await Astro.glob('../content/updates/**/content_zh.mdoc');
-const updateContentEn = await Astro.glob('../content/updates/**/content_en.mdoc');
-const updateContentGlob = locale === 'zh-tw' ? updateContentZh : updateContentEn;
+const updateContentZh = await Astro.glob(
+  '../content/updates/**/content_zh.mdoc'
+);
+const updateContentEn = await Astro.glob(
+  '../content/updates/**/content_en.mdoc'
+);
+const updateContentGlob =
+  locale === 'zh-tw' ? updateContentZh : updateContentEn;
 
 console.log('===== UPDATE DEBUG =====');
 console.log('Loaded update modules:', updateContentGlob.length);
-updateContentGlob.forEach(m => console.log('Update file:', m.file));
+updateContentGlob.forEach((m) => console.log('Update file:', m.file));
 
 const updateContentMap = new Map();
 for (const module of updateContentGlob) {
@@ -75,55 +88,70 @@ for (const module of updateContentGlob) {
 }
 
 console.log('Update map keys:', Array.from(updateContentMap.keys()));
-console.log('Update IDs:', latestUpdates.map(u => u.id));
+console.log(
+  'Update IDs:',
+  latestUpdates.map((u) => u.id)
+);
 ---
 
-<BaseLayout 
-  title={t.home.title}
-  description={t.home.description}
->
+<BaseLayout title={t.home.title} description={t.home.description}>
   <!-- Hero Section -->
-  <div class="relative min-h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden">
+  <div
+    class="relative min-h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden"
+  >
     <!-- Background Patterns and Effects -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none">
       <!-- Hexagonal Dot Pattern -->
       <div class="absolute inset-0 dot-pattern opacity-40"></div>
-      
+
       <!-- Radial Gradient Overlay -->
-      <div 
+      <div
         class="absolute inset-0 bg-gradient-radial from-transparent via-white/60 to-white dark:from-transparent dark:via-slate-900/60 dark:to-slate-900"
-      ></div>
-      
+      >
+      </div>
+
       <!-- Large Blur Effect for Depth -->
-      <div 
+      <div
         class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full bg-primary-500/30 dark:bg-primary-500/20 blur-[120px]"
-      ></div>
-      
+      >
+      </div>
+
       <!-- Secondary blur for accent -->
-      <div 
+      <div
         class="absolute right-0 top-0 h-[400px] w-[400px] rounded-full bg-secondary-500/20 dark:bg-secondary-500/10 blur-[100px]"
-      ></div>
+      >
+      </div>
     </div>
 
     <!-- Content -->
     <div class="relative z-10 container-custom py-20 md:py-28">
-      <div class="flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-20">
+      <div
+        class="flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-20"
+      >
         <!-- Left: Text Content -->
-        <div class="w-full lg:w-1/2 text-center lg:text-left space-y-8 animate-fade-in-up">
-          <div class="inline-block px-4 py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-4">
+        <div
+          class="w-full lg:w-1/2 text-center lg:text-left space-y-8 animate-fade-in-up"
+        >
+          <div
+            class="inline-block px-4 py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-4"
+          >
             {t.home.badge}
           </div>
 
-          <h1 class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2">
-            <TypewriterText 
+          <h1
+            class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2"
+          >
+            <TypewriterText
               client:load
               text={homepageData?.data.title || t.home.greeting}
               speed={80}
               delay={300}
             />
             {' '}
-            <span class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2">
-              <TypewriterText 
+            <span
+              class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2"
+            >
+              <TypewriterText
                 client:load
                 text={homepageData?.data.name || 'Bernie'}
                 speed={100}
@@ -132,8 +160,10 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
             </span>
           </h1>
 
-          <p class="text-xl sm:text-2xl lg:text-3xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light">
-            <TypewriterText 
+          <p
+            class="text-xl sm:text-2xl lg:text-3xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light"
+          >
+            <TypewriterText
               client:load
               text={homepageData?.data.subtitle || t.home.tagline}
               speed={40}
@@ -142,14 +172,25 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
             />
           </p>
 
-          <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6">
+          <div
+            class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6"
+          >
             <a
               href={`${basePath}/about`}
               class="btn btn-primary group shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40"
             >
               {t.home.cta.about}
-              <svg class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+              <svg
+                class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
               </svg>
             </a>
             <a
@@ -157,8 +198,17 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
               class="btn btn-secondary group shadow-lg shadow-slate-200 dark:shadow-slate-800/50 hover:shadow-xl"
             >
               {t.home.cta.projects}
-              <svg class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+              <svg
+                class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
               </svg>
             </a>
           </div>
@@ -168,31 +218,70 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
         <div class="w-full lg:w-1/2 flex items-center justify-center">
           <div class="relative w-full max-w-lg aspect-square">
             <!-- Main visual card -->
-            <div class="relative w-full h-full rounded-3xl bg-gradient-to-br from-primary-500/30 via-primary-400/20 to-secondary-500/30 dark:from-primary-500/20 dark:via-primary-500/10 dark:to-secondary-500/20 backdrop-blur-sm border-2 border-white/50 dark:border-slate-700/50 shadow-2xl animate-float overflow-hidden">
+            <div
+              class="relative w-full h-full rounded-3xl bg-gradient-to-br from-primary-500/30 via-primary-400/20 to-secondary-500/30 dark:from-primary-500/20 dark:via-primary-500/10 dark:to-secondary-500/20 backdrop-blur-sm border-2 border-white/50 dark:border-slate-700/50 shadow-2xl animate-float overflow-hidden"
+            >
               <!-- Inner glow effect -->
-              <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"></div>
-              
-              <div class="absolute inset-0 flex items-center justify-center p-12">
+              <div
+                class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"
+              >
+              </div>
+
+              <div
+                class="absolute inset-0 flex items-center justify-center p-12"
+              >
                 <div class="text-center space-y-6">
                   <div class="relative">
-                    <div class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"></div>
-                    <svg class="relative w-40 h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    <div
+                      class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"
+                    >
+                    </div>
+                    <svg
+                      class="relative w-40 h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
                     </svg>
                   </div>
-                  <p class="text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide">Creative Developer Space</p>
+                  <p
+                    class="text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide"
+                  >
+                    Creative Developer Space
+                  </p>
                   <div class="flex gap-2 justify-center flex-wrap">
-                    <span class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm">Code</span>
-                    <span class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm">Design</span>
-                    <span class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm">Story</span>
+                    <span
+                      class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm"
+                      >Code</span
+                    >
+                    <span
+                      class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm"
+                      >Design</span
+                    >
+                    <span
+                      class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm"
+                      >Story</span
+                    >
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <!-- Decorative floating elements -->
-            <div class="absolute -top-6 -right-6 w-28 h-28 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"></div>
-            <div class="absolute -bottom-6 -left-6 w-36 h-36 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl blur-2xl opacity-60 animate-pulse" style="animation-delay: 1s;"></div>
+            <div
+              class="absolute -top-6 -right-6 w-28 h-28 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
+            >
+            </div>
+            <div
+              class="absolute -bottom-6 -left-6 w-36 h-36 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
+              style="animation-delay: 1s;"
+            >
+            </div>
           </div>
         </div>
       </div>
@@ -200,59 +289,118 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
 
     <!-- Scroll Indicator -->
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-      <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+      <svg
+        class="w-6 h-6 text-slate-400 dark:text-slate-500"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
       </svg>
     </div>
   </div>
 
   <!-- Intro Section -->
   <section class="relative py-32">
-    <div class="absolute inset-0 bg-gradient-to-b from-slate-50/80 to-white/80 dark:from-slate-800/30 dark:to-slate-900/30 backdrop-blur-sm"></div>
+    <div
+      class="absolute inset-0 bg-gradient-to-b from-slate-50/80 to-white/80 dark:from-slate-800/30 dark:to-slate-900/30 backdrop-blur-sm"
+    >
+    </div>
     <div class="container-custom relative z-10">
       <div class="max-w-4xl mx-auto text-center space-y-8">
         <div class="inline-block">
-          <h2 class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+          <h2
+            class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4"
+          >
             {homepageData?.data.introHeading || t.home.intro.heading}
           </h2>
-          <div class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"></div>
+          <div
+            class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"
+          >
+          </div>
         </div>
-        
+
         <div class="prose prose-lg dark:prose-invert mx-auto">
-          <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">{homepageData?.data.introContent || t.home.intro.p1}</p>
+          <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">
+            {homepageData?.data.introContent || t.home.intro.p1}
+          </p>
         </div>
-        
-        <div class="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          <a 
-            href="https://uep.unforgettableeternalproject.com" 
+
+        <div
+          class="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto"
+        >
+          <a
+            href="https://uep.unforgettableeternalproject.com"
             target="_blank"
             rel="noopener noreferrer"
             class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20 hover:-translate-y-1"
           >
-            <div class="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-500/0 group-hover:from-primary-500/5 group-hover:to-secondary-500/5 transition-all duration-300"></div>
+            <div
+              class="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-500/0 group-hover:from-primary-500/5 group-hover:to-secondary-500/5 transition-all duration-300"
+            >
+            </div>
             <div class="relative flex items-center justify-between">
               <div class="text-left">
-                <div class="text-lg font-semibold text-slate-900 dark:text-white mb-1">{t.home.quickLinks.uepDocs.title}</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">{t.home.quickLinks.uepDocs.description}</div>
+                <div
+                  class="text-lg font-semibold text-slate-900 dark:text-white mb-1"
+                >
+                  {t.home.quickLinks.uepDocs.title}
+                </div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">
+                  {t.home.quickLinks.uepDocs.description}
+                </div>
               </div>
-              <svg class="w-6 h-6 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:translate-y-[-2px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+              <svg
+                class="w-6 h-6 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:translate-y-[-2px]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                ></path>
               </svg>
             </div>
           </a>
-          
-          <a 
+
+          <a
             href={`${basePath}/links`}
             class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-secondary-500 dark:hover:border-secondary-500 transition-all duration-300 hover:shadow-xl hover:shadow-secondary-500/20 hover:-translate-y-1"
           >
-            <div class="absolute inset-0 bg-gradient-to-br from-secondary-500/0 to-secondary-500/0 group-hover:from-secondary-500/5 group-hover:to-primary-500/5 transition-all duration-300"></div>
+            <div
+              class="absolute inset-0 bg-gradient-to-br from-secondary-500/0 to-secondary-500/0 group-hover:from-secondary-500/5 group-hover:to-primary-500/5 transition-all duration-300"
+            >
+            </div>
             <div class="relative flex items-center justify-between">
               <div class="text-left">
-                <div class="text-lg font-semibold text-slate-900 dark:text-white mb-1">{t.home.quickLinks.importantLinks.title}</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">{t.home.quickLinks.importantLinks.description}</div>
+                <div
+                  class="text-lg font-semibold text-slate-900 dark:text-white mb-1"
+                >
+                  {t.home.quickLinks.importantLinks.title}
+                </div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">
+                  {t.home.quickLinks.importantLinks.description}
+                </div>
               </div>
-              <svg class="w-6 h-6 text-secondary-600 dark:text-secondary-400 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+              <svg
+                class="w-6 h-6 text-secondary-600 dark:text-secondary-400 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                ></path>
               </svg>
             </div>
           </a>
@@ -265,98 +413,165 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
   <section class="relative py-24 reveal">
     <div class="container-custom">
       <div class="max-w-5xl mx-auto text-center mb-12">
-        <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+        <h2
+          class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4"
+        >
           {t.home.featured.heading}
         </h2>
-        <div class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"></div>
+        <div
+          class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"
+        >
+        </div>
       </div>
 
       <div class="flex flex-wrap justify-center gap-6 max-w-5xl mx-auto">
-        {featuredProjects.map((project) => (
-          <div class="w-full md:w-[calc(33.333%-1rem)] max-w-sm reveal-item" style="min-height: 300px;">
-            <FlipCard type="project">
-              <div slot="front" class="p-6 h-full flex flex-col">
-                <div class="flex-1">
-                  <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">
-                    {locale === 'zh-tw' ? project.id : project.data.title_en}
-                  </h3>
-                  <p class="text-sm text-slate-600 dark:text-slate-300 mb-4 line-clamp-2 leading-relaxed">
-                    {locale === 'zh-tw' ? project.data.description_zh : project.data.description_en}
-                  </p>
-                  <div class="flex items-center gap-2 mb-4">
-                    <span class={`px-3 py-1.5 text-xs font-semibold rounded-full ${
-                      project.data.status === 'active' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
-                      project.data.status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' :
-                      'bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {project.data.status === 'active' && (locale === 'zh-tw' ? '\u9032\u884c\u4e2d' : 'Active')}
-                      {project.data.status === 'completed' && (locale === 'zh-tw' ? '\u5df2\u5b8c\u6210' : 'Completed')}
-                      {project.data.status === 'archived' && (locale === 'zh-tw' ? '\u5df2\u5c01\u5b58' : 'Archived')}
+        {
+          featuredProjects.map((project) => (
+            <div
+              class="w-full md:w-[calc(33.333%-1rem)] max-w-sm reveal-item"
+              style="min-height: 300px;"
+            >
+              <FlipCard type="project">
+                <div slot="front" class="p-6 h-full flex flex-col">
+                  <div class="flex-1">
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">
+                      {locale === 'zh-tw' ? project.id : project.data.title_en}
+                    </h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-300 mb-4 line-clamp-2 leading-relaxed">
+                      {locale === 'zh-tw'
+                        ? project.data.description_zh
+                        : project.data.description_en}
+                    </p>
+                    <div class="flex items-center gap-2 mb-4">
+                      <span
+                        class={`px-3 py-1.5 text-xs font-semibold rounded-full ${
+                          project.data.status === 'active'
+                            ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                            : project.data.status === 'completed'
+                              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                              : 'bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {project.data.status === 'active' &&
+                          (locale === 'zh-tw'
+                            ? '\u9032\u884c\u4e2d'
+                            : 'Active')}
+                        {project.data.status === 'completed' &&
+                          (locale === 'zh-tw'
+                            ? '\u5df2\u5b8c\u6210'
+                            : 'Completed')}
+                        {project.data.status === 'archived' &&
+                          (locale === 'zh-tw'
+                            ? '\u5df2\u5c01\u5b58'
+                            : 'Archived')}
+                      </span>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                      {project.data.tags.slice(0, 4).map((tag) => (
+                        <span class="px-3 py-1 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    <span>
+                      {locale === 'zh-tw'
+                        ? '\u9ede\u64ca\u7ffb\u8f49'
+                        : 'Click to flip'}
                     </span>
                   </div>
-                  <div class="flex gap-2 flex-wrap">
-                    {project.data.tags.slice(0, 4).map(tag => (
-                      <span class="px-3 py-1 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">{tag}</span>
-                    ))}
-                  </div>
                 </div>
-                <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>{locale === 'zh-tw' ? '\u9ede\u64ca\u7ffb\u8f49' : 'Click to flip'}</span>
-                </div>
-              </div>
-              
-              <div slot="back" class="h-full flex flex-col p-5">
-                <div class="flex gap-4 items-start flex-1 min-h-0">
-                  <div class="flex-1 min-w-0">
-                    <div class="text-sm leading-relaxed text-white/90 line-clamp-6">
-                      {(() => {
-                        try {
-                          const allModules = locale === 'zh-tw' ? projectContentZh : projectContentEn;
-                          if (allModules.length > 0 && allModules[0].Content) {
-                            const { Content } = allModules[0];
-                            return <Content />;
+
+                <div slot="back" class="h-full flex flex-col p-5">
+                  <div class="flex gap-4 items-start flex-1 min-h-0">
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm leading-relaxed text-white/90 line-clamp-6">
+                        {(() => {
+                          try {
+                            const allModules =
+                              locale === 'zh-tw'
+                                ? projectContentZh
+                                : projectContentEn;
+                            if (
+                              allModules.length > 0 &&
+                              allModules[0].Content
+                            ) {
+                              const { Content } = allModules[0];
+                              return <Content />;
+                            }
+                            return <p class="text-white/80">無內容</p>;
+                          } catch (error: unknown) {
+                            const err = error as Error;
+                            return (
+                              <p class="text-white/80">
+                                載入錯誤: {err.message}
+                              </p>
+                            );
                           }
-                          return <p class="text-white/80">無內容</p>;
-                        } catch (error: unknown) {
-                          const err = error as Error;
-                          return <p class="text-white/80">載入錯誤: {err.message}</p>;
-                        }
-                      })()}
+                        })()}
+                      </div>
                     </div>
+                    {project.data.image && (
+                      <div class="flex-shrink-0">
+                        <Image
+                          src={project.data.image}
+                          alt={
+                            locale === 'zh-tw'
+                              ? project.id
+                              : project.data.title_en
+                          }
+                          width={96}
+                          height={96}
+                          class="h-24 w-24 object-cover rounded-lg shadow-lg"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                    )}
                   </div>
-                  {project.data.image && (
-                    <div class="flex-shrink-0">
-                      <Image
-                        src={project.data.image}
-                        alt={locale === 'zh-tw' ? project.id : project.data.title_en}
-                        width={96}
-                        height={96}
-                        class="h-24 w-24 object-cover rounded-lg shadow-lg"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-                  )}
+                  <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
+                    <a
+                      href={`${basePath}/projects/${project.id}`}
+                      class="inline-flex items-center gap-1 hover:gap-2 transition-all font-medium"
+                      onclick="event.stopPropagation()"
+                    >
+                      {locale === 'zh-tw'
+                        ? '\u67e5\u770b\u8a73\u60c5'
+                        : 'View Details'}
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </a>
+                  </div>
                 </div>
-                <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
-                  <a 
-                    href={`${basePath}/projects/${project.id}`}
-                    class="inline-flex items-center gap-1 hover:gap-2 transition-all font-medium"
-                    onclick="event.stopPropagation()"
-                  >
-                    {locale === 'zh-tw' ? '\u67e5\u770b\u8a73\u60c5' : 'View Details'}
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </a>
-                </div>
-              </div>
-            </FlipCard>
-          </div>
-        ))}
+              </FlipCard>
+            </div>
+          ))
+        }
       </div>
 
       <div class="text-center mt-10">
@@ -369,87 +584,144 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
 
   <!-- Latest Updates -->
   <section class="relative py-24 reveal">
-    <div class="absolute inset-0 bg-gradient-to-b from-white/80 to-slate-50/80 dark:from-slate-900/30 dark:to-slate-800/20 backdrop-blur-sm"></div>
+    <div
+      class="absolute inset-0 bg-gradient-to-b from-white/80 to-slate-50/80 dark:from-slate-900/30 dark:to-slate-800/20 backdrop-blur-sm"
+    >
+    </div>
     <div class="container-custom relative z-10">
       <div class="max-w-5xl mx-auto">
         <div class="text-center mb-12">
-          <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+          <h2
+            class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4"
+          >
             {t.home.latest.heading}
           </h2>
-          <div class="h-1 w-24 bg-gradient-to-r from-secondary-500 to-primary-500 mx-auto rounded-full"></div>
+          <div
+            class="h-1 w-24 bg-gradient-to-r from-secondary-500 to-primary-500 mx-auto rounded-full"
+          >
+          </div>
         </div>
 
         <div class="flex flex-wrap justify-center gap-6">
-          {latestUpdates.map((update) => (
-            <div class="w-full md:w-[calc(50%-0.75rem)] max-w-md reveal-item" style="min-height: 200px;">
-              <FlipCard type="update">
-                <div slot="front" class="p-6 h-full flex flex-col">
-                  <div class="flex-1">
-                    <div class="flex items-center justify-between mb-3">
-                      <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 border border-secondary-200 dark:border-secondary-800">
-                        {update.data.category === 'website' && (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
-                        {update.data.category === 'project' && (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
-                        {update.data.category === 'announcement' && (locale === 'zh-tw' ? '\u516c\u544a' : 'Announcement')}
-                        {update.data.category === 'other' && (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
-                      </span>
-                      <span class="text-xs text-slate-500 dark:text-slate-400">
-                        {update.data.date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', { month: 'short', day: 'numeric' })}
+          {
+            latestUpdates.map((update) => (
+              <div
+                class="w-full md:w-[calc(50%-0.75rem)] max-w-md reveal-item"
+                style="min-height: 200px;"
+              >
+                <FlipCard type="update">
+                  <div slot="front" class="p-6 h-full flex flex-col">
+                    <div class="flex-1">
+                      <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 border border-secondary-200 dark:border-secondary-800">
+                          {update.data.category === 'website' &&
+                            (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
+                          {update.data.category === 'project' &&
+                            (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
+                          {update.data.category === 'announcement' &&
+                            (locale === 'zh-tw'
+                              ? '\u516c\u544a'
+                              : 'Announcement')}
+                          {update.data.category === 'other' &&
+                            (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
+                        </span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400">
+                          {update.data.date.toLocaleDateString(
+                            locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                            { month: 'short', day: 'numeric' }
+                          )}
+                        </span>
+                      </div>
+                      <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        {locale === 'zh-tw' ? update.id : update.data.title_en}
+                      </h3>
+                      <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
+                        {locale === 'zh-tw'
+                          ? update.data.description_zh
+                          : update.data.description_en}
+                      </p>
+                    </div>
+                    <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      <span>
+                        {locale === 'zh-tw'
+                          ? '\u9ede\u64ca\u7ffb\u8f49'
+                          : 'Click to flip'}
                       </span>
                     </div>
-                    <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                      {locale === 'zh-tw' ? update.id : update.data.title_en}
-                    </h3>
-                    <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
-                      {locale === 'zh-tw' ? update.data.description_zh : update.data.description_en}
-                    </p>
                   </div>
-                  <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>{locale === 'zh-tw' ? '\u9ede\u64ca\u7ffb\u8f49' : 'Click to flip'}</span>
-                  </div>
-                </div>
 
-                <div slot="back" class="h-full flex flex-col p-5">
-                  <div class="flex-1 min-h-0">
-                    <div class="text-sm leading-relaxed text-white/90 line-clamp-6">
-                      {(() => {
-                        try {
-                          const allModules = locale === 'zh-tw' ? updateContentZh : updateContentEn;
-                          if (allModules.length > 0 && allModules[0].Content) {
-                            const { Content } = allModules[0];
-                            return <Content />;
+                  <div slot="back" class="h-full flex flex-col p-5">
+                    <div class="flex-1 min-h-0">
+                      <div class="text-sm leading-relaxed text-white/90 line-clamp-6">
+                        {(() => {
+                          try {
+                            const allModules =
+                              locale === 'zh-tw'
+                                ? updateContentZh
+                                : updateContentEn;
+                            if (
+                              allModules.length > 0 &&
+                              allModules[0].Content
+                            ) {
+                              const { Content } = allModules[0];
+                              return <Content />;
+                            }
+                            return <p class="text-white/80">無內容</p>;
+                          } catch (error: unknown) {
+                            const err = error as Error;
+                            return (
+                              <p class="text-white/80">
+                                載入錯誤: {err.message}
+                              </p>
+                            );
                           }
-                          return <p class="text-white/80">無內容</p>;
-                        } catch (error: unknown) {
-                          const err = error as Error;
-                          return <p class="text-white/80">載入錯誤: {err.message}</p>;
-                        }
-                      })()}
+                        })()}
+                      </div>
+                    </div>
+                    <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
+                      <div class="flex items-center justify-between text-xs opacity-90">
+                        <span>
+                          {update.data.category === 'website' &&
+                            (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
+                          {update.data.category === 'project' &&
+                            (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
+                          {update.data.category === 'announcement' &&
+                            (locale === 'zh-tw'
+                              ? '\u516c\u544a'
+                              : 'Announcement')}
+                          {update.data.category === 'other' &&
+                            (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
+                        </span>
+                        <span>
+                          {update.data.date.toLocaleDateString(
+                            locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                            {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            }
+                          )}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
-                    <div class="flex items-center justify-between text-xs opacity-90">
-                      <span>
-                        {update.data.category === 'website' && (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
-                        {update.data.category === 'project' && (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
-                        {update.data.category === 'announcement' && (locale === 'zh-tw' ? '\u516c\u544a' : 'Announcement')}
-                        {update.data.category === 'other' && (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
-                      </span>
-                      <span>
-                        {update.data.date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </FlipCard>
-            </div>
-          ))}
+                </FlipCard>
+              </div>
+            ))
+          }
         </div>
 
         <div class="text-center mt-10">
@@ -464,26 +736,31 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
 
 <style>
   .dot-pattern {
-    background-image: radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px),
+    background-image:
+      radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px),
       radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px);
     background-size: 24px 41.57px;
-    background-position: 0 0, 12px 20.78px;
+    background-position:
+      0 0,
+      12px 20.78px;
   }
-  
+
   :global(.dark) .dot-pattern {
-    background-image: radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px),
+    background-image:
+      radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px),
       radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px);
   }
-  
+
   @keyframes gradient {
-    0%, 100% {
+    0%,
+    100% {
       background-position: 0% 50%;
     }
     50% {
       background-position: 100% 50%;
     }
   }
-  
+
   .animate-gradient {
     background-size: 200% auto;
     animation: gradient 3s ease infinite;
@@ -493,9 +770,11 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
 <script>
   // Lightweight intersection reveal for sections/cards; respects reduced motion via CSS
   function initRevealAnimation() {
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
     if (prefersReduced) return;
-    
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -512,12 +791,8 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
       observer.observe(el);
     });
   }
-  
+
   // 初始載入和頁面切換時都要執行
   document.addEventListener('DOMContentLoaded', initRevealAnimation);
   document.addEventListener('astro:page-load', initRevealAnimation);
 </script>
-
-
-
-

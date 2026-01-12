@@ -13,7 +13,5 @@ export default {
       // The base config will be merged automatically
     },
   },
-  plugins: [
-    require('@tailwindcss/typography'),
-  ],
+  plugins: [require('@tailwindcss/typography')],
 };

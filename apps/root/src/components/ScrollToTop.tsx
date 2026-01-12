@@ -8,9 +8,9 @@ interface ScrollToTopProps {
   position?: 'left' | 'right';
 }
 
-export default function ScrollToTop({ 
+export default function ScrollToTop({
   showAfter = 300,
-  position = 'right'
+  position = 'right',
 }: ScrollToTopProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isHiding, setIsHiding] = useState(false);
@@ -19,13 +19,14 @@ export default function ScrollToTop({
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const docHeight =
+        document.documentElement.scrollHeight - window.innerHeight;
       const progress = (scrollTop / docHeight) * 100;
 
       setScrollProgress(progress);
-      
+
       const shouldShow = scrollTop > showAfter;
-      
+
       if (!shouldShow && isVisible && !isHiding) {
         // 開始隱藏動畫
         setIsHiding(true);
@@ -48,7 +49,7 @@ export default function ScrollToTop({
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
   };
 
@@ -75,22 +76,22 @@ export default function ScrollToTop({
           cy="30"
           r="26"
           style={{
-            strokeDashoffset: 163.36 - (163.36 * scrollProgress) / 100
+            strokeDashoffset: 163.36 - (163.36 * scrollProgress) / 100,
           }}
         />
       </svg>
 
       {/* 箭頭圖標 */}
-      <svg 
-        className="scroll-to-top__icon" 
-        fill="none" 
-        stroke="currentColor" 
+      <svg
+        className="scroll-to-top__icon"
+        fill="none"
+        stroke="currentColor"
         viewBox="0 0 24 24"
       >
-        <path 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          strokeWidth={2.5} 
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2.5}
           d="M5 10l7-7m0 0l7 7m-7-7v18"
         />
       </svg>

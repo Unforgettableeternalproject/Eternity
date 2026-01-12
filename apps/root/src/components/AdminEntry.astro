@@ -5,27 +5,29 @@ import { envConfig } from '../config/env';
 const showAdmin = envConfig.showDevTools;
 ---
 
-{showAdmin && (
-  <div id="admin-entry" class="fixed bottom-8 left-8 z-50">
-    <button
-      id="admin-btn"
-      class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-110 flex items-center gap-2"
-      aria-label="Admin Access"
-      type="button"
-    >
-      <span class="text-xl">🔐</span>
-      <span>Admin</span>
-    </button>
-  </div>
-)}
+{
+  showAdmin && (
+    <div id="admin-entry" class="fixed bottom-8 left-8 z-50">
+      <button
+        id="admin-btn"
+        class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-110 flex items-center gap-2"
+        aria-label="Admin Access"
+        type="button"
+      >
+        <span class="text-xl">🔐</span>
+        <span>Admin</span>
+      </button>
+    </div>
+  )
+}
 
 <script>
   const adminBtn = document.getElementById('admin-btn');
-  
+
   if (adminBtn) {
     adminBtn.addEventListener('click', () => {
       const password = prompt('輸入管理員密碼 / Enter admin password:');
-      
+
       if (password === '426067') {
         window.location.href = '/keystatic';
       } else if (password !== null) {
@@ -39,7 +41,7 @@ const showAdmin = envConfig.showDevTools;
   #admin-entry {
     animation: fadeIn 0.3s ease-in;
   }
-  
+
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -50,11 +52,11 @@ const showAdmin = envConfig.showDevTools;
       transform: translateY(0);
     }
   }
-  
+
   #admin-btn {
     backdrop-filter: blur(10px);
   }
-  
+
   #admin-btn:hover {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }

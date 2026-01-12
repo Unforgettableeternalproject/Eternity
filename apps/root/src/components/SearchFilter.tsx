@@ -27,7 +27,7 @@ export interface SearchFilterProps {
   /** 預設排序 */
   defaultSort?: 'asc' | 'desc' | 'none';
   /** 排序選項 */
-  sortOptions?: { label: string; value: string; }[];
+  sortOptions?: { label: string; value: string }[];
 }
 
 export default function SearchFilter({
@@ -41,7 +41,9 @@ export default function SearchFilter({
   sortOptions = [],
 }: SearchFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>(
+    {}
+  );
   const [sortBy, setSortBy] = useState<string>(defaultSort);
 
   // 篩選和搜尋邏輯
@@ -51,8 +53,8 @@ export default function SearchFilter({
     // 應用搜尋
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      results = results.filter(item => {
-        return searchFields.some(field => {
+      results = results.filter((item) => {
+        return searchFields.some((field) => {
           const value = getNestedValue(item, field);
           return value && String(value).toLowerCase().includes(query);
         });
@@ -62,7 +64,7 @@ export default function SearchFilter({
     // 應用篩選
     Object.entries(activeFilters).forEach(([key, value]) => {
       if (value && value !== 'all') {
-        results = results.filter(item => {
+        results = results.filter((item) => {
           const itemValue = getNestedValue(item, key);
           return itemValue === value;
         });
@@ -71,7 +73,7 @@ export default function SearchFilter({
 
     // 應用排序
     if (sortBy !== 'none' && sortOptions.length > 0) {
-      const sortOption = sortOptions.find(opt => opt.value === sortBy);
+      const sortOption = sortOptions.find((opt) => opt.value === sortBy);
       if (sortOption) {
         results.sort((a, b) => {
           const aValue = getNestedValue(a, sortOption.value);
@@ -85,7 +87,7 @@ export default function SearchFilter({
   }, [items, searchQuery, activeFilters, sortBy, searchFields, sortOptions]);
 
   const handleFilterChange = (category: string, value: string) => {
-    setActiveFilters(prev => ({
+    setActiveFilters((prev) => ({
       ...prev,
       [category]: value,
     }));
@@ -97,7 +99,8 @@ export default function SearchFilter({
     setSortBy(defaultSort);
   };
 
-  const hasActiveFilters = searchQuery || Object.values(activeFilters).some(v => v && v !== 'all');
+  const hasActiveFilters =
+    searchQuery || Object.values(activeFilters).some((v) => v && v !== 'all');
 
   return (
     <div className="search-filter">
@@ -105,8 +108,18 @@ export default function SearchFilter({
       <div className="search-filter__controls">
         {/* 搜尋框 */}
         <div className="search-filter__search-box">
-          <svg className="search-filter__search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg
+            className="search-filter__search-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
           <input
             type="text"
@@ -123,7 +136,12 @@ export default function SearchFilter({
               type="button"
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           )}
@@ -137,7 +155,7 @@ export default function SearchFilter({
             onChange={(e) => setSortBy(e.target.value)}
           >
             <option value="none">預設排序</option>
-            {sortOptions.map(option => (
+            {sortOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -153,7 +171,12 @@ export default function SearchFilter({
             type="button"
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
             清除篩選
           </button>
@@ -163,7 +186,7 @@ export default function SearchFilter({
       {/* 篩選分類 */}
       {filterCategories.length > 0 && (
         <div className="search-filter__categories">
-          {filterCategories.map(category => (
+          {filterCategories.map((category) => (
             <div key={category.key} className="search-filter__category">
               <label className="search-filter__category-label">
                 {category.label}
@@ -176,16 +199,20 @@ export default function SearchFilter({
                 >
                   全部
                 </button>
-                {category.options.map(option => (
+                {category.options.map((option) => (
                   <button
                     key={option.value}
                     className={`search-filter__option ${activeFilters[category.key] === option.value ? 'active' : ''}`}
-                    onClick={() => handleFilterChange(category.key, option.value)}
+                    onClick={() =>
+                      handleFilterChange(category.key, option.value)
+                    }
                     type="button"
                   >
                     {option.label}
                     {option.count !== undefined && (
-                      <span className="search-filter__count">({option.count})</span>
+                      <span className="search-filter__count">
+                        ({option.count})
+                      </span>
                     )}
                   </button>
                 ))}
@@ -207,7 +234,12 @@ export default function SearchFilter({
         ) : (
           <div className="search-filter__no-results">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             <p>{noResultsText}</p>
           </div>

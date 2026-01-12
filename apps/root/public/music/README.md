@@ -5,14 +5,17 @@
 ## 📁 檔案位置
 
 **音樂檔案應放在：**
+
 ```
 Eternity/apps/root/public/music/
 ```
 
 **實際路徑範例：**
+
 - `C:\Users\Bernie\source\repos\Unforgettableeternalproject\Eternity\apps\root\public\music\your-song.mp3`
 
 **網頁存取路徑：**
+
 - `/music/your-song.mp3`
 
 ## 🎵 使用方式
@@ -23,15 +26,15 @@ Eternity/apps/root/public/music/
 
 ```typescript
 const tracks = [
-  { 
-    title: '我的第一首歌', 
-    artist: '藝術家名稱', 
-    url: '/music/song1.mp3'  // 對應 public/music/song1.mp3
+  {
+    title: '我的第一首歌',
+    artist: '藝術家名稱',
+    url: '/music/song1.mp3', // 對應 public/music/song1.mp3
   },
-  { 
-    title: '我的第二首歌', 
-    artist: '另一位藝術家', 
-    url: '/music/song2.mp3'  // 對應 public/music/song2.mp3
+  {
+    title: '我的第二首歌',
+    artist: '另一位藝術家',
+    url: '/music/song2.mp3', // 對應 public/music/song2.mp3
   },
   // 可以添加更多曲目...
 ];

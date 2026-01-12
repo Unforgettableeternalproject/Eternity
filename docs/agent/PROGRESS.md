@@ -103,15 +103,16 @@
   - Astro 版本實現（使用 slots）
   - 正面：標題、副標題、狀態標籤、tags
   - 背面：封面圖（小圖）、內容摘要、查看詳情連結
-  
 - **視覺優化**
   - 封面圖調整為 128x128px 縮圖，放置於標題右側
   - 內容摘要系統（`getExcerpt()` 函數）
 
 ### ⏳ 進行中
+
 - 無（準備部署至 staging 測試）
 
 ### 📋 待處理
+
 - 將 RippleEffect 應用到更多可點擊元素
 - UEP 文件站內容遷移（從 U.E.P-s-Imaginary-Space）
 
@@ -120,24 +121,29 @@
 ## 🎭 U.E.P 角色互動系統實作計畫
 
 ### 目標
+
 讓 U.E.P 角色隨機出現在主站，宣傳文件站，符合世界觀設定（觀察者、故事分享者）
 
 ### 素材資源
+
 - `apps/root/public/uep/Fence.PNG` - 圍欄姿勢
 - `apps/root/public/uep/Poke.PNG` - 戳戳姿勢
 - `apps/root/public/uep/Peek.png` - 偷看姿勢
 - `apps/root/public/uep/Lil.PNG` - 小型浮動姿勢
 
 ### 出現方式（三選一）
+
 1. **Corner Mode (25%)**: 右下角固定，Fence.png ↔ Poke.png 切換
 2. **Peek Mode (45%)**: 在特定元素上探頭（主頁浮動框/關於頭像/側邊欄卡片）
 3. **Float Mode (30%)**: 隨機浮動，每 5-10 秒移動
 
 ### 觸發條件
+
 - **使用者操作**: mousemove/keydown/scroll/touchstart，5% 概率，30秒冷卻
 - **首頁載入**: astro:page-load，25% 概率，sessionStorage 記憶
 
 ### 實作步驟
+
 - [ ] 建立 UEPCharacter.tsx 基礎框架
 - [ ] 實作觸發系統（操作 + 首頁載入）
 - [ ] 實作 Corner Mode
@@ -147,12 +153,14 @@
 - [ ] 響應式優化與無障礙支援
 
 ### 🐛 已知問題
+
 - Astro.glob 已棄用警告（建議改用 import.meta.glob）
 - TypeScript 類型錯誤（既有問題，不影響運行）
 
 ### 🔧 技術細節備註
 
 #### localStorage 儲存格式
+
 - **Cookie Consent**: `cookie-consent` = 'accepted' | 'declined'
 - **音樂播放器狀態**（相容兩種格式）：
   - `globalMusicPlayerState` = `{"isPlaying":boolean,"currentTrack":number,"volume":number,"currentTime":number}`
@@ -161,10 +169,12 @@
 - **sessionStorage**: `music-has-played`, `uep-shown`, `typewriter-shown-[text]`, `visitor-tracked`
 
 #### 自訂事件系統
+
 - `cookie-consent-changed`: Cookie 同意狀態改變時觸發
 - `cookie-accepted-play-music`: 使用者接受 Cookie 時觸發音樂播放
 
 #### U.E.P 角色配置
+
 - 生產環境：USER_ACTION_CHANCE=5%, PAGE_LOAD_CHANCE=25%, IDLE_TIME=10s
 - Debug 模式：所有機率=100%, IDLE_TIME=2s
 - 顯示時間：8s，冷卻時間：30s

@@ -14,11 +14,13 @@ const projectsCollection = defineCollection({
     order: z.number().optional(),
     status: z.enum(['active', 'completed', 'archived']).default('active'),
     image: z.string().optional(),
-    links: z.object({
-      demo: z.string().optional(),
-      github: z.string().optional(),
-      website: z.string().optional(),
-    }).optional(),
+    links: z
+      .object({
+        demo: z.string().optional(),
+        github: z.string().optional(),
+        website: z.string().optional(),
+      })
+      .optional(),
     startDate: z.date().optional(),
     endDate: z.date().optional(),
   }),
@@ -49,7 +51,9 @@ const updatesCollection = defineCollection({
     title_en: z.string(),
     description_en: z.string(),
     date: z.date(),
-    category: z.enum(['website', 'project', 'announcement', 'other']).default('other'),
+    category: z
+      .enum(['website', 'project', 'announcement', 'other'])
+      .default('other'),
     featured: z.boolean().default(false),
   }),
 });
@@ -75,11 +79,13 @@ const aboutCollection = defineCollection({
     bio: z.string(),
     avatar: z.string().optional(),
     skills: z.array(z.string()),
-    social: z.object({
-      github: z.string().optional(),
-      email: z.string().optional(),
-      twitter: z.string().optional(),
-    }).optional(),
+    social: z
+      .object({
+        github: z.string().optional(),
+        email: z.string().optional(),
+        twitter: z.string().optional(),
+      })
+      .optional(),
   }),
 });
 
@@ -106,26 +112,38 @@ const baseCardSchema = z.object({
 const cardQuoteCollection = defineCollection({
   type: 'data',
   schema: baseCardSchema.extend({
-    quotes_zh: z.array(z.object({
-      text: z.string(),
-      author: z.string().optional(),
-    })).optional(),
-    quotes_en: z.array(z.object({
-      text: z.string(),
-      author: z.string().optional(),
-    })).optional(),
+    quotes_zh: z
+      .array(
+        z.object({
+          text: z.string(),
+          author: z.string().optional(),
+        })
+      )
+      .optional(),
+    quotes_en: z
+      .array(
+        z.object({
+          text: z.string(),
+          author: z.string().optional(),
+        })
+      )
+      .optional(),
   }),
 });
 
 const cardMusicCollection = defineCollection({
   type: 'data',
   schema: baseCardSchema.extend({
-    tracks: z.array(z.object({
-      title: z.string(),
-      artist: z.string(),
-      url: z.string().optional(),
-      cover: z.string().optional(),
-    })).optional(),
+    tracks: z
+      .array(
+        z.object({
+          title: z.string(),
+          artist: z.string(),
+          url: z.string().optional(),
+          cover: z.string().optional(),
+        })
+      )
+      .optional(),
   }),
 });
 

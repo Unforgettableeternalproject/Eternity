@@ -10,13 +10,13 @@ interface TypewriterTextProps {
   cursor?: boolean;
 }
 
-export default function TypewriterText({ 
-  text, 
-  speed = 30, 
+export default function TypewriterText({
+  text,
+  speed = 30,
   delay = 0,
   className = '',
   onComplete,
-  cursor = true
+  cursor = true,
 }: TypewriterTextProps) {
   // 初始化時檢查快取，避免閃爍
   const [displayedText, setDisplayedText] = useState(() => {
@@ -33,7 +33,8 @@ export default function TypewriterText({
   const [hasStarted, setHasStarted] = useState(false);
 
   // 打字音效
-  const typeSound = typeof window !== 'undefined' ? new Audio('/se/type.wav') : null;
+  const typeSound =
+    typeof window !== 'undefined' ? new Audio('/se/type.wav') : null;
   if (typeSound) {
     typeSound.volume = 0.3; // 設定音量較小，避免過於吵雜
   }
@@ -41,7 +42,7 @@ export default function TypewriterText({
   useEffect(() => {
     // 如果已經完成（從快取載入），跳過
     if (isComplete) return;
-    
+
     // 首次顯示，開始打字效果
     const startTimer = setTimeout(() => {
       setHasStarted(true);
@@ -60,7 +61,7 @@ export default function TypewriterText({
           typeSound.currentTime = 0; // 重置音效到開始位置
           typeSound.play().catch(() => {}); // 忽略自動播放錯誤
         }
-        
+
         setDisplayedText(text.slice(0, currentIndex + 1));
         setCurrentIndex(currentIndex + 1);
       }, speed);
@@ -75,7 +76,9 @@ export default function TypewriterText({
   }, [currentIndex, text, speed, hasStarted, isComplete, onComplete]);
 
   return (
-    <span className={`typewriter ${className} ${cursor && !isComplete ? 'typewriter--cursor' : ''}`}>
+    <span
+      className={`typewriter ${className} ${cursor && !isComplete ? 'typewriter--cursor' : ''}`}
+    >
       {displayedText}
     </span>
   );

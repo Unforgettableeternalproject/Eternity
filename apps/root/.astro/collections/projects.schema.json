@@ -31,11 +31,7 @@
         },
         "status": {
           "type": "string",
-          "enum": [
-            "active",
-            "completed",
-            "archived"
-          ],
+          "enum": ["active", "completed", "archived"],
           "default": "active"
         },
         "image": {
@@ -92,12 +88,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "description_zh",
-        "title_en",
-        "description_en",
-        "tags"
-      ],
+      "required": ["description_zh", "title_en", "description_en", "tags"],
       "additionalProperties": false
     }
   },

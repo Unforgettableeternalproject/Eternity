@@ -189,8 +189,7 @@
     "readMore": "閱讀更多",
     "learnMore": "了解更多",
     "backToHome": "返回首頁"
-  }
-  ,
+  },
   "console": {
     "title": "終端機 - Eternity",
     "description": "用於後續互動功能的實驗性終端頁面",

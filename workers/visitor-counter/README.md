@@ -28,6 +28,7 @@ pnpm wrangler kv:namespace create VISITOR_STATS
 ```
 
 這會輸出類似：
+
 ```
 🌀 Creating namespace with title "visitor-counter-worker-VISITOR_STATS"
 ✨ Success!
@@ -59,6 +60,7 @@ pnpm deploy
 ```
 
 成功後會顯示 Worker URL，例如：
+
 ```
 https://visitor-counter.你的子域名.workers.dev
 ```
@@ -91,22 +93,26 @@ PUBLIC_VISITOR_API_URL=https://visitor-counter.你的子域名.workers.dev
 ### 8. 測試
 
 開發環境測試：
+
 ```bash
 cd workers/visitor-counter
 pnpm dev
 ```
 
 訪問 http://localhost:8787/api/visitor/count 應該返回：
+
 ```json
-{"totalVisitors": 0}
+{ "totalVisitors": 0 }
 ```
 
 ## API 端點
 
 ### GET /api/visitor/count
+
 獲取總訪客數
 
 **回應**:
+
 ```json
 {
   "totalVisitors": 123
@@ -114,9 +120,11 @@ pnpm dev
 ```
 
 ### POST /api/visitor/track
+
 追蹤新訪客（基於 IP + User Agent 指紋識別）
 
 **回應**:
+
 ```json
 {
   "totalVisitors": 124,
@@ -142,13 +150,17 @@ pnpm dev
 ## 故障排除
 
 ### CORS 錯誤
+
 確保 `wrangler.toml` 中的 `ALLOWED_ORIGINS` 包含你的域名。
 
 ### KV 數據不同步
+
 KV 有最終一致性，寫入後可能需要幾秒才能在所有邊緣節點生效。
 
 ### 計數不準確
+
 這是一個簡單的實現，基於 IP + UA 的指紋識別不是 100% 準確。如果需要更精確的追蹤，考慮使用：
+
 - Cloudflare Web Analytics（官方服務）
 - Google Analytics
 - Plausible Analytics

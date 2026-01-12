@@ -13,7 +13,9 @@
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: opacity, transform, top, left;
-  animation: console-pulse 2s ease-in-out infinite, console-fade-in 0.8s ease-out;
+  animation:
+    console-pulse 2s ease-in-out infinite,
+    console-fade-in 0.8s ease-out;
   opacity: 0;
   animation-fill-mode: forwards;
 }
@@ -46,7 +48,8 @@
 
 /* Animations */
 @keyframes console-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {
@@ -55,7 +58,8 @@
 }
 
 @keyframes console-glow-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.5;
   }
   50% {
@@ -80,11 +84,11 @@
     animation: none;
     transition: opacity 0.3s ease;
   }
-  
+
   .console-glow::before {
     animation: none;
   }
-  
+
   .console-easter-egg-btn:hover {
     transform: none;
   }

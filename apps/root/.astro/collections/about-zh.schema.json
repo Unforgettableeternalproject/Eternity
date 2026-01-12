@@ -38,11 +38,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "title",
-        "bio",
-        "skills"
-      ],
+      "required": ["title", "bio", "skills"],
       "additionalProperties": false
     }
   },

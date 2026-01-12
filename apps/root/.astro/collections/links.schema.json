@@ -21,12 +21,7 @@
         },
         "category": {
           "type": "string",
-          "enum": [
-            "social",
-            "work",
-            "creative",
-            "other"
-          ],
+          "enum": ["social", "work", "creative", "other"],
           "default": "other"
         },
         "icon": {
@@ -43,12 +38,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "description_zh",
-        "title_en",
-        "description_en",
-        "url"
-      ],
+      "required": ["description_zh", "title_en", "description_en", "url"],
       "additionalProperties": false
     }
   },

@@ -15,9 +15,9 @@ interface Position {
   left: number;
 }
 
-export default function UEPCharacter({ 
+export default function UEPCharacter({
   uepDocsUrl,
-  debugMode = false 
+  debugMode = false,
 }: UEPCharacterProps) {
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -25,7 +25,7 @@ export default function UEPCharacter({
   const [canAppear, setCanAppear] = useState(true);
   const [position, setPosition] = useState<Position>({ top: 0, left: 0 });
   const [isHovered, setIsHovered] = useState(false);
-  
+
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visibleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const movementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,18 +37,21 @@ export default function UEPCharacter({
   const VISIBLE_TIME = 8000; // 顯示 8 秒
   const COOLDOWN_TIME = 30000; // 30 秒冷卻
 
-  const log = useCallback((...args: any[]) => {
-    if (debugMode || envConfig.enableConsoleLog) {
-      console.log('[UEP Character]', ...args);
-    }
-  }, [debugMode]);
+  const log = useCallback(
+    (...args: any[]) => {
+      if (debugMode || envConfig.enableConsoleLog) {
+        console.log('[UEP Character]', ...args);
+      }
+    },
+    [debugMode]
+  );
 
   // 抽選出現方式
   const rollAppearanceMode = useCallback((): AppearanceMode => {
     const roll = Math.random() * 100;
-    if (roll < 25) return 'corner';  // 0-24: 25%
-    if (roll < 70) return 'peek';    // 25-69: 45%
-    return 'float';                  // 70-99: 30%
+    if (roll < 25) return 'corner'; // 0-24: 25%
+    if (roll < 70) return 'peek'; // 25-69: 45%
+    return 'float'; // 70-99: 30%
   }, []);
 
   // 獲取隨機位置（Float Mode）
@@ -60,7 +63,7 @@ export default function UEPCharacter({
     const TOP_SAFE = 100; // 避開頂部導航
     const BOTTOM_SAFE = 100; // 避開底部
 
-    const clamp = (n: number, min: number, max: number) => 
+    const clamp = (n: number, min: number, max: number) =>
       Math.max(min, Math.min(max, n));
 
     const left = clamp(
@@ -92,7 +95,7 @@ export default function UEPCharacter({
         // 在元素右上角探頭
         return {
           top: rect.top - 40,
-          left: rect.right - 60
+          left: rect.right - 60,
         };
       }
     }
@@ -126,60 +129,71 @@ export default function UEPCharacter({
   }, [log, COOLDOWN_TIME]);
 
   // 顯示 UEP
-  const showUEP = useCallback((mode?: AppearanceMode) => {
-    const selectedMode = mode || rollAppearanceMode();
-    log('UEP appearing in mode:', selectedMode);
+  const showUEP = useCallback(
+    (mode?: AppearanceMode) => {
+      const selectedMode = mode || rollAppearanceMode();
+      log('UEP appearing in mode:', selectedMode);
 
-    setAppearanceMode(selectedMode);
-    setCanAppear(false);
+      setAppearanceMode(selectedMode);
+      setCanAppear(false);
 
-    // 根據模式設置位置
-    let pos: Position | null = null;
-    
-    if (selectedMode === 'corner') {
-      // 右下角固定位置
-      pos = { 
-        top: window.innerHeight - 120, 
-        left: window.innerWidth - 120 
-      };
-    } else if (selectedMode === 'peek') {
-      pos = getPeekPosition();
-      // 如果找不到目標元素，改用 float
-      if (!pos) {
-        log('No peek target found, switching to float');
-        setAppearanceMode('float');
+      // 根據模式設置位置
+      let pos: Position | null = null;
+
+      if (selectedMode === 'corner') {
+        // 右下角固定位置
+        pos = {
+          top: window.innerHeight - 120,
+          left: window.innerWidth - 120,
+        };
+      } else if (selectedMode === 'peek') {
+        pos = getPeekPosition();
+        // 如果找不到目標元素，改用 float
+        if (!pos) {
+          log('No peek target found, switching to float');
+          setAppearanceMode('float');
+          pos = getRandomPosition();
+        }
+      } else if (selectedMode === 'float') {
         pos = getRandomPosition();
       }
-    } else if (selectedMode === 'float') {
-      pos = getRandomPosition();
-    }
 
-    if (pos) {
-      setPosition(pos);
-      setIsVisible(true);
+      if (pos) {
+        setPosition(pos);
+        setIsVisible(true);
 
-      // Float Mode 需要定期移動
-      if (selectedMode === 'float') {
-        const scheduleMovement = () => {
-          const delay = 5000 + Math.random() * 5000; // 5-10 秒
-          movementTimerRef.current = setTimeout(() => {
-            if (!isHovered) {
-              const newPos = getRandomPosition();
-              log('Moving to new position:', newPos);
-              setPosition(newPos);
-            }
-            scheduleMovement();
-          }, delay);
-        };
-        scheduleMovement();
+        // Float Mode 需要定期移動
+        if (selectedMode === 'float') {
+          const scheduleMovement = () => {
+            const delay = 5000 + Math.random() * 5000; // 5-10 秒
+            movementTimerRef.current = setTimeout(() => {
+              if (!isHovered) {
+                const newPos = getRandomPosition();
+                log('Moving to new position:', newPos);
+                setPosition(newPos);
+              }
+              scheduleMovement();
+            }, delay);
+          };
+          scheduleMovement();
+        }
+
+        // 自動隱藏
+        visibleTimerRef.current = setTimeout(() => {
+          hideUEP();
+        }, VISIBLE_TIME);
       }
-
-      // 自動隱藏
-      visibleTimerRef.current = setTimeout(() => {
-        hideUEP();
-      }, VISIBLE_TIME);
-    }
-  }, [rollAppearanceMode, getPeekPosition, getRandomPosition, hideUEP, log, VISIBLE_TIME, isHovered]);
+    },
+    [
+      rollAppearanceMode,
+      getPeekPosition,
+      getRandomPosition,
+      hideUEP,
+      log,
+      VISIBLE_TIME,
+      isHovered,
+    ]
+  );
 
   // 觸發出現
   const triggerAppearance = useCallback(() => {
@@ -195,7 +209,9 @@ export default function UEPCharacter({
 
     idleTimerRef.current = setTimeout(() => {
       const roll = Math.random() * 100;
-      log(`Idle detected. Roll: ${roll.toFixed(2)}, Threshold: ${USER_ACTION_CHANCE}`);
+      log(
+        `Idle detected. Roll: ${roll.toFixed(2)}, Threshold: ${USER_ACTION_CHANCE}`
+      );
 
       if (roll < USER_ACTION_CHANCE) {
         triggerAppearance();
@@ -207,10 +223,11 @@ export default function UEPCharacter({
   useEffect(() => {
     const handlePageLoad = () => {
       // 檢查是否為主頁
-      const isHomePage = window.location.pathname === '/' || 
-                        window.location.pathname === '/zh-tw' || 
-                        window.location.pathname === '/en';
-      
+      const isHomePage =
+        window.location.pathname === '/' ||
+        window.location.pathname === '/zh-tw' ||
+        window.location.pathname === '/en';
+
       if (!isHomePage) return;
 
       // 檢查本次會話是否已顯示過
@@ -221,7 +238,9 @@ export default function UEPCharacter({
       }
 
       const roll = Math.random() * 100;
-      log(`Page load. Roll: ${roll.toFixed(2)}, Threshold: ${PAGE_LOAD_CHANCE}`);
+      log(
+        `Page load. Roll: ${roll.toFixed(2)}, Threshold: ${PAGE_LOAD_CHANCE}`
+      );
 
       if (roll < PAGE_LOAD_CHANCE) {
         sessionStorage.setItem('uep-shown', 'true');
@@ -241,7 +260,9 @@ export default function UEPCharacter({
   // 使用者活動監聽
   useEffect(() => {
     // 檢查減少動畫偏好
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
     if (prefersReduced) {
       log('Reduced motion detected, UEP disabled');
       return;
@@ -252,22 +273,22 @@ export default function UEPCharacter({
     }
 
     const events = ['mousemove', 'keydown', 'scroll', 'touchstart'];
-    
+
     const handleActivity = () => {
       resetIdleTimer();
     };
-    
-    events.forEach(event => {
+
+    events.forEach((event) => {
       window.addEventListener(event, handleActivity, { passive: true });
     });
 
     resetIdleTimer();
 
     return () => {
-      events.forEach(event => {
+      events.forEach((event) => {
         window.removeEventListener(event, handleActivity);
       });
-      
+
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
@@ -320,7 +341,7 @@ export default function UEPCharacter({
           className="uep-character__image uep-character__image--float"
         />
       )}
-      
+
       {/* 提示氣泡（懸浮時顯示） */}
       {isHovered && (
         <div className="uep-character__tooltip">

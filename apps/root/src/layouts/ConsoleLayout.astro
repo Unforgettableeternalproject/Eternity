@@ -9,11 +9,11 @@ interface Props {
   ogType?: string;
 }
 
-const { 
-  title, 
-  description = "Eternity - Console",
+const {
+  title,
+  description = 'Eternity - Console',
   ogImage = '/og-image.png',
-  ogType = 'website'
+  ogType = 'website',
 } = Astro.props as Props;
 
 const locale = getCurrentLocale(Astro.url);
@@ -21,7 +21,7 @@ const locale = getCurrentLocale(Astro.url);
 // Canonical and alternate URLs
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const alternateLocale = locale === 'zh-tw' ? 'en' : 'zh-tw';
-const alternatePath = Astro.url.pathname.startsWith('/en') 
+const alternatePath = Astro.url.pathname.startsWith('/en')
   ? Astro.url.pathname.replace('/en', '')
   : `/en${Astro.url.pathname}`;
 const alternateURL = new URL(alternatePath, Astro.site);
@@ -38,7 +38,11 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <link rel="canonical" href={canonicalURL} />
     <link rel="alternate" hreflang={alternateLocale} href={alternateURL} />
     <link rel="alternate" hreflang={locale} href={canonicalURL} />
-    <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site)} />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL('/', Astro.site)}
+    />
 
     <meta property="og:type" content={ogType} />
     <meta property="og:url" content={canonicalURL} />
@@ -46,7 +50,10 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta property="og:description" content={description} />
     <meta property="og:image" content={new URL(ogImage, Astro.site)} />
     <meta property="og:site_name" content="Bernie's Eternity" />
-    <meta property="og:locale" content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'} />
+    <meta
+      property="og:locale"
+      content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'}
+    />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content={canonicalURL} />
@@ -62,10 +69,15 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Prevent dark-mode FOUC -->
     <script is:inline>
       const getThemePreference = () => {
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+        if (
+          typeof localStorage !== 'undefined' &&
+          localStorage.getItem('theme')
+        ) {
           return localStorage.getItem('theme');
         }
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
       };
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');

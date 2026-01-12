@@ -22,11 +22,11 @@ interface Props {
   ogType?: string;
 }
 
-const { 
-  title, 
+const {
+  title,
   description = "Eternity - Bernie's Personal Website",
   ogImage = '/og-image.png',
-  ogType = 'website'
+  ogType = 'website',
 } = Astro.props;
 
 const locale = getCurrentLocale(Astro.url);
@@ -35,9 +35,9 @@ const t = getTranslations(locale);
 // 載入精選連結給 Footer
 const allLinks = await getCollection('links');
 const featuredLinks = allLinks
-  .filter(l => l.data.featured)
+  .filter((l) => l.data.featured)
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
-  .map(link => ({
+  .map((link) => ({
     title: locale === 'zh-tw' ? link.id : link.data.title_en,
     url: link.data.url,
     icon: link.data.icon,
@@ -47,7 +47,7 @@ const featuredLinks = allLinks
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 // Get alternate language URL
 const alternateLocale = locale === 'zh-tw' ? 'en' : 'zh-tw';
-const alternatePath = Astro.url.pathname.startsWith('/en') 
+const alternatePath = Astro.url.pathname.startsWith('/en')
   ? Astro.url.pathname.replace('/en', '')
   : `/en${Astro.url.pathname}`;
 const alternateURL = new URL(alternatePath, Astro.site);
@@ -60,17 +60,21 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
-    
+
     <ViewTransitions />
-    
+
     <!-- Canonical URL -->
     <link rel="canonical" href={canonicalURL} />
-    
+
     <!-- Alternate Language -->
     <link rel="alternate" hreflang={alternateLocale} href={alternateURL} />
     <link rel="alternate" hreflang={locale} href={canonicalURL} />
-    <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site)} />
-    
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL('/', Astro.site)}
+    />
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content={ogType} />
     <meta property="og:url" content={canonicalURL} />
@@ -78,26 +82,32 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta property="og:description" content={description} />
     <meta property="og:image" content={new URL(ogImage, Astro.site)} />
     <meta property="og:site_name" content="Bernie's Eternity" />
-    <meta property="og:locale" content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'} />
-    
+    <meta
+      property="og:locale"
+      content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'}
+    />
+
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content={canonicalURL} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
-    
+
     <!-- Page Title -->
     <title>{title}</title>
-    
+
     <!-- 防止深色模式閃爍 (FOUC) -->
     <script is:inline>
       // 在頁面載入前立即執行
       const getThemePreference = () => {
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+        if (
+          typeof localStorage !== 'undefined' &&
+          localStorage.getItem('theme')
+        ) {
           return localStorage.getItem('theme');
         }
         // 預設使用深色模式
@@ -105,14 +115,14 @@ const alternateURL = new URL(alternatePath, Astro.site);
       };
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
-      
+
       // View Transitions 時也要應用主題
       document.addEventListener('astro:after-swap', () => {
         const isDark = getThemePreference() === 'dark';
         document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
       });
     </script>
-    
+
     <!-- 清除舊的音樂 localStorage -->
     <script is:inline>
       // 清除可能存在的舊音樂狀態（保留 track 選擇）
@@ -121,11 +131,11 @@ const alternateURL = new URL(alternatePath, Astro.site);
         localStorage.removeItem('music-volume');
         localStorage.removeItem('music-state');
       }
-      
+
       // 清理重複的音頻元素（View Transitions 可能造成）
       document.addEventListener('astro:after-swap', () => {
         const allAudioElements = document.querySelectorAll('audio');
-        
+
         // 只保留有正確 ID 的音頻元素
         allAudioElements.forEach((audio) => {
           if (audio.id !== 'global-music-player') {
@@ -135,7 +145,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
         });
       });
     </script>
-    
+
     <!-- 清除打字機快取（每次重載都重新播放動畫） -->
     <script is:inline>
       // 清除所有打字機相關的 sessionStorage
@@ -146,7 +156,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
           keysToRemove.push(key);
         }
       }
-      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
     </script>
   </head>
   <body class="min-h-screen bg-white dark:bg-slate-900 relative">
@@ -156,123 +166,128 @@ const alternateURL = new URL(alternatePath, Astro.site);
       <div class="gradient-orb gradient-orb-2"></div>
       <div class="gradient-orb gradient-orb-3"></div>
     </div>
-    
+
     <!-- Mouse cursor glow effect -->
     <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
-    
+
     <!-- Global click ripple effect -->
-    <GlobalRipple 
-      client:load 
-      color="rgba(99, 102, 241, 0.15)" 
+    <GlobalRipple
+      client:load
+      color="rgba(99, 102, 241, 0.15)"
       navColor="rgba(236, 72, 153, 0.2)"
-      duration={800} 
-      size={80} 
+      duration={800}
+      size={80}
     />
-    
+
     <!-- Sticky Navigation -->
-    <header class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <header
+      class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
+    >
       <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
-    
+
     <!-- Left Sidebar -->
     <LeftSidebar />
-    
+
     <!-- Right Sidebar -->
     <RightSidebar />
-    
+
     <!-- Main Content Area -->
     <main>
       <slot />
     </main>
-    
+
     <!-- Footer -->
-    <Footer 
+    <Footer
       currentLocale={locale}
       translations={t.footer}
       featuredLinks={featuredLinks}
     />
-    
+
     <!-- 隱藏的管理員入口 -->
     <AdminEntry />
-    
+
     <!-- Console Easter Egg (React Island) -->
-    <ConsoleEasterEgg 
+    <ConsoleEasterEgg
       client:idle
       consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
       label={locale === 'zh-tw' ? '終端機' : 'Console'}
       debugMode={false}
     />
-    
+
     <!-- U.E.P 角色互動系統 (React Island) -->
-    <UEPCharacter 
+    <UEPCharacter
       client:idle
       uepDocsUrl="https://uep.unforgettableeternalproject.com"
       debugMode={false}
     />
-    
+
     <!-- 返回頂部按鈕 (React Island) -->
     <ScrollToTop client:load position="right" showAfter={300} />
-    
+
     <!-- Toast 通知系統 (React Island) -->
     <ToastContainer client:only="react" position="top-right" />
-    
+
     <!-- Cookie 同意彈窗 -->
     <CookieConsent client:load />
-    
+
     <!-- Mouse tracking script -->
     <script is:inline>
-      (function() {
+      (function () {
         const cursorGlow = document.getElementById('cursor-glow');
-        
+
         // 嘗試從 sessionStorage 讀取上次的滑鼠位置
-        let mouseX = parseFloat(sessionStorage.getItem('mouseX')) || window.innerWidth / 2;
-        let mouseY = parseFloat(sessionStorage.getItem('mouseY')) || window.innerHeight / 2;
+        let mouseX =
+          parseFloat(sessionStorage.getItem('mouseX')) || window.innerWidth / 2;
+        let mouseY =
+          parseFloat(sessionStorage.getItem('mouseY')) ||
+          window.innerHeight / 2;
         let currentX = mouseX;
         let currentY = mouseY;
-        
+
         // 初始化滑鼠位置
         if (cursorGlow) {
           cursorGlow.style.left = currentX + 'px';
           cursorGlow.style.top = currentY + 'px';
           cursorGlow.style.opacity = '0';
         }
-        
+
         // Smooth mouse tracking
         document.addEventListener('mousemove', (e) => {
           mouseX = e.clientX;
           mouseY = e.clientY;
-          
+
           // 儲存當前位置
           sessionStorage.setItem('mouseX', mouseX.toString());
           sessionStorage.setItem('mouseY', mouseY.toString());
         });
-        
+
         // Animate cursor glow with smooth easing
         function animate() {
           const dx = mouseX - currentX;
           const dy = mouseY - currentY;
-          
+
           currentX += dx * 0.1;
           currentY += dy * 0.1;
-          
+
           if (cursorGlow) {
             cursorGlow.style.left = currentX + 'px';
             cursorGlow.style.top = currentY + 'px';
           }
-          
+
           requestAnimationFrame(animate);
         }
-        
+
         // Show cursor glow on mouse enter
         document.addEventListener('mouseenter', () => {
           if (cursorGlow) cursorGlow.style.opacity = '1';
         });
-        
+
         // Hide cursor glow on mouse leave
         document.addEventListener('mouseleave', () => {
           if (cursorGlow) cursorGlow.style.opacity = '0';
         });
-        
+
         animate();
       })();
     </script>

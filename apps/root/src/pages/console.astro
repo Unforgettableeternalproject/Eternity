@@ -4,36 +4,51 @@ import { getCurrentLocale, getTranslations } from '../i18n/utils';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
-const tConsole = (t as any).console as { title: string; description: string; initial: string[]; hint: string };
+const tConsole = (t as any).console as {
+  title: string;
+  description: string;
+  initial: string[];
+  hint: string;
+};
 ---
 
-<ConsoleLayout 
-  title={tConsole.title}
-  description={tConsole.description}
->
+<ConsoleLayout title={tConsole.title} description={tConsole.description}>
   <section class="min-h-screen bg-slate-950 text-slate-100">
     <div class="mx-auto max-w-5xl px-4 py-8">
-      <div class="rounded-lg border border-slate-800 bg-slate-900/60 shadow-lg overflow-hidden">
+      <div
+        class="rounded-lg border border-slate-800 bg-slate-900/60 shadow-lg overflow-hidden"
+      >
         <!-- Terminal header bar -->
-        <div class="flex items-center gap-2 px-4 py-2 bg-slate-900 border-b border-slate-800">
+        <div
+          class="flex items-center gap-2 px-4 py-2 bg-slate-900 border-b border-slate-800"
+        >
           <span class="inline-block w-3 h-3 rounded-full bg-red-500/80"></span>
-          <span class="inline-block w-3 h-3 rounded-full bg-yellow-400/80"></span>
-          <span class="inline-block w-3 h-3 rounded-full bg-green-500/80"></span>
+          <span class="inline-block w-3 h-3 rounded-full bg-yellow-400/80"
+          ></span>
+          <span class="inline-block w-3 h-3 rounded-full bg-green-500/80"
+          ></span>
           <div class="ml-4 text-xs text-slate-400">Eternity Console</div>
         </div>
 
         <!-- Terminal body -->
         <div id="terminal" class="font-mono leading-relaxed px-4 py-6 text-sm">
-          {tConsole.initial.map((line: string) => (
-            <div class="text-slate-300">{line}</div>
-          ))}
+          {
+            tConsole.initial.map((line: string) => (
+              <div class="text-slate-300">{line}</div>
+            ))
+          }
 
           <!-- Prompt line -->
           <div class="mt-4 flex items-center">
             <span class="text-emerald-400">uep@eternity</span>
             <span class="mx-2 text-slate-500">$</span>
-            <span id="prompt-input" class="inline-block min-w-[2ch] text-slate-200" aria-live="polite"></span>
-            <span class="ml-1 inline-block w-2 h-5 bg-slate-200 animate-caret" aria-hidden="true"></span>
+            <span
+              id="prompt-input"
+              class="inline-block min-w-[2ch] text-slate-200"
+              aria-live="polite"></span>
+            <span
+              class="ml-1 inline-block w-2 h-5 bg-slate-200 animate-caret"
+              aria-hidden="true"></span>
           </div>
 
           <!-- Hint -->
@@ -46,17 +61,27 @@ const tConsole = (t as any).console as { title: string; description: string; ini
 
 <style>
   .font-mono {
-    font-family: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family:
+      ui-monospace, 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas,
+      'Liberation Mono', 'Courier New', monospace;
   }
   @keyframes caret {
-    0%, 49% { opacity: 1; }
-    50%, 100% { opacity: 0; }
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
   }
   .animate-caret {
     animation: caret 1s steps(2, end) infinite;
   }
   @media (prefers-reduced-motion: reduce) {
-    .animate-caret { animation: none; }
+    .animate-caret {
+      animation: none;
+    }
   }
 </style>
 
