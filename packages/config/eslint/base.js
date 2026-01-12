@@ -15,6 +15,7 @@ export default [
         sourceType: 'module',
       },
       globals: {
+        // Node.js globals
         console: 'readonly',
         process: 'readonly',
         __dirname: 'readonly',
@@ -24,9 +25,37 @@ export default [
         require: 'readonly',
         exports: 'writable',
         global: 'readonly',
+        // Browser globals
         window: 'readonly',
         document: 'readonly',
         navigator: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        // Timers
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        // Web APIs
+        Audio: 'readonly',
+        Image: 'readonly',
+        HTMLElement: 'readonly',
+        Element: 'readonly',
+        Event: 'readonly',
+        CustomEvent: 'readonly',
+        MouseEvent: 'readonly',
+        KeyboardEvent: 'readonly',
+        TouchEvent: 'readonly',
+        // Fetch API
+        fetch: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        Headers: 'readonly',
+        // Other browser APIs
+        IntersectionObserver: 'readonly',
+        MutationObserver: 'readonly',
+        requestAnimationFrame: 'readonly',
+        cancelAnimationFrame: 'readonly',
       },
     },
     plugins: {
