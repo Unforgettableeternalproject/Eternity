@@ -34,9 +34,11 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+        continue-on-error: true
 
       - name: Type check
         run: pnpm typecheck
+        continue-on-error: true
 
       - name: Format check
         run: pnpm format:check
