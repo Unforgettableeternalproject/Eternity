@@ -57,9 +57,16 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
 
   // 搜索邏輯 - 支持雙語搜索
   const filteredResults = useMemo(() => {
-    if (!query.trim()) return [];
-
     const searchLower = query.toLowerCase();
+    
+    // 如果沒有查詢，返回所有資料（限制數量）
+    if (!query.trim()) {
+      let filtered = allData;
+      if (filter !== 'all') {
+        filtered = filtered.filter(item => item.type === filter);
+      }
+      return filtered.slice(0, 8);
+    }
     let filtered = allData.filter(item => {
       // 安全地檢查每個字段
       const titleMatch = item.title?.toLowerCase().includes(searchLower) || false;
@@ -257,9 +264,8 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
 
             {/* 搜索結果 */}
             <div className="global-search__results">
-              {query.trim() ? (
-                filteredResults.length > 0 ? (
-                  filteredResults.map((result, index) => (
+              {filteredResults.length > 0 ? (
+                filteredResults.map((result, index) => (
                     <a
                       key={result.id}
                       href={result.url}
@@ -323,12 +329,7 @@ export default function GlobalSearch({ locale, currentPath }: GlobalSearchProps)
                     </svg>
                     <p>{locale === 'zh-tw' ? '找不到相關結果' : 'No results found'}</p>
                   </div>
-                )
-              ) : (
-                <div className="global-search__placeholder">
-                  <p>{locale === 'zh-tw' ? '輸入關鍵字開始搜尋' : 'Start typing to search'}</p>
-                </div>
-              )}
+                )}
             </div>
 
             {/* 快捷鍵提示 */}

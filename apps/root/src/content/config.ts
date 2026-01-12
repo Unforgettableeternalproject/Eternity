@@ -71,6 +71,18 @@ const aboutCollection = defineCollection({
     bio: z.string(),
     avatar: z.string().optional(),
     skills: z.array(z.string()),
+    experience: z.array(z.object({
+      title: z.string(),
+      company: z.string(),
+      period: z.string(),
+      description: z.string().optional(),
+    })).optional(),
+    certifications: z.array(z.object({
+      name: z.string(),
+      issuer: z.string(),
+      date: z.string().optional(),
+      link: z.string().optional(),
+    })).optional(),
     social: z.object({
       github: z.string().optional(),
       email: z.string().optional(),

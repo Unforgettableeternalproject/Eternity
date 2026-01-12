@@ -7,6 +7,9 @@ import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
+import LeftSidebar from '../components/LeftSidebar.astro';
+import RightSidebar from '../components/RightSidebar.astro';
+import CookieConsent from '../components/CookieConsent';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
@@ -138,6 +141,12 @@ const alternateURL = new URL(alternatePath, Astro.site);
       <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
     
+    <!-- Left Sidebar -->
+    <LeftSidebar />
+    
+    <!-- Right Sidebar -->
+    <RightSidebar />
+    
     <!-- Main Content Area -->
     <main>
       <slot />
@@ -166,6 +175,9 @@ const alternateURL = new URL(alternatePath, Astro.site);
     
     <!-- Toast 通知系統 (React Island) -->
     <ToastContainer client:only="react" position="top-right" />
+    
+    <!-- Cookie 同意彈窗 -->
+    <CookieConsent client:load />
     
     <!-- Mouse tracking script -->
     <script is:inline>

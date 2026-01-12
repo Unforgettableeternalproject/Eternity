@@ -105,6 +105,30 @@ export default config({
             itemLabel: props => props.value,
           }
         ),
+        experience: fields.array(
+          fields.object({
+            title: fields.text({ label: '職稱', validation: { isRequired: true } }),
+            company: fields.text({ label: '公司/組織', validation: { isRequired: true } }),
+            period: fields.text({ label: '期間', validation: { isRequired: true } }),
+            description: fields.text({ label: '描述', multiline: true }),
+          }),
+          {
+            label: '工作經歷',
+            itemLabel: props => props.fields.title.value,
+          }
+        ),
+        certifications: fields.array(
+          fields.object({
+            name: fields.text({ label: '證照名稱', validation: { isRequired: true } }),
+            issuer: fields.text({ label: '發證單位', validation: { isRequired: true } }),
+            date: fields.text({ label: '取得日期' }),
+            link: fields.text({ label: '證明連結' }),
+          }),
+          {
+            label: '證照列表',
+            itemLabel: props => props.fields.name.value,
+          }
+        ),
         social: fields.object({
           github: fields.text({ label: 'GitHub URL' }),
           email: fields.text({ label: 'Email' }),
@@ -137,6 +161,30 @@ export default config({
           {
             label: 'Skills',
             itemLabel: props => props.value,
+          }
+        ),
+        experience: fields.array(
+          fields.object({
+            title: fields.text({ label: 'Job Title', validation: { isRequired: true } }),
+            company: fields.text({ label: 'Company/Organization', validation: { isRequired: true } }),
+            period: fields.text({ label: 'Period', validation: { isRequired: true } }),
+            description: fields.text({ label: 'Description', multiline: true }),
+          }),
+          {
+            label: 'Work Experience',
+            itemLabel: props => props.fields.title.value,
+          }
+        ),
+        certifications: fields.array(
+          fields.object({
+            name: fields.text({ label: 'Certification Name', validation: { isRequired: true } }),
+            issuer: fields.text({ label: 'Issuer', validation: { isRequired: true } }),
+            date: fields.text({ label: 'Date Obtained' }),
+            link: fields.text({ label: 'Credential Link' }),
+          }),
+          {
+            label: 'Certifications',
+            itemLabel: props => props.fields.name.value,
           }
         ),
         social: fields.object({
