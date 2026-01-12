@@ -1,4 +1,5 @@
 ---
+import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
@@ -105,9 +106,11 @@ const projects = allProjects.sort((a, b) => (a.data.order || 999) - (b.data.orde
 
             {project.data.image && (
               <div class="md:w-40 md:shrink-0">
-                <img
+                <Image
                   src={project.data.image}
                   alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
+                  width={160}
+                  height={128}
                   class="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
                   loading="lazy"
                   decoding="async"

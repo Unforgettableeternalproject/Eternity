@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { ViewTransitions } from 'astro:transitions';
 import NavigationWithSearch from '../components/NavigationWithSearch.astro';
 import Footer from '@uep/ui/Footer';
 import AdminEntry from '../components/AdminEntry.astro';
@@ -59,6 +60,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
     
+    <ViewTransitions />
+    
     <!-- Canonical URL -->
     <link rel="canonical" href={canonicalURL} />
     
@@ -85,7 +88,6 @@ const alternateURL = new URL(alternatePath, Astro.site);
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     
     <!-- Page Title -->
     <title>{title}</title>
@@ -97,10 +99,40 @@ const alternateURL = new URL(alternatePath, Astro.site);
         if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
           return localStorage.getItem('theme');
         }
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        // 預設使用深色模式
+        return 'dark';
       };
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
+      
+      // View Transitions 時也要應用主題
+      document.addEventListener('astro:after-swap', () => {
+        const isDark = getThemePreference() === 'dark';
+        document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
+      });
+    </script>
+    
+    <!-- 清除舊的音樂 localStorage -->
+    <script is:inline>
+      // 清除可能存在的舊音樂狀態（保留 track 選擇）
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('music-is-playing');
+        localStorage.removeItem('music-volume');
+        localStorage.removeItem('music-state');
+      }
+      
+      // 清理重複的音頻元素（View Transitions 可能造成）
+      document.addEventListener('astro:after-swap', () => {
+        const allAudioElements = document.querySelectorAll('audio');
+        
+        // 只保留有正確 ID 的音頻元素
+        allAudioElements.forEach((audio) => {
+          if (audio.id !== 'global-music-player') {
+            audio.pause();
+            audio.remove();
+          }
+        });
+      });
     </script>
     
     <!-- 清除打字機快取（每次重載都重新播放動畫） -->

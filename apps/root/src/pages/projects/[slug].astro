@@ -1,4 +1,5 @@
 ---
+import { Image } from 'astro:assets';
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../../i18n/utils';
@@ -81,9 +82,11 @@ const formatDate = (date?: Date) => {
 
         {project.data.image && (
           <div class="mb-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-            <img
+            <Image
               src={project.data.image}
               alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : (project.data.title_en || project.id)}
+              width={800}
+              height={450}
               class="w-full h-auto"
               loading="lazy"
               decoding="async"

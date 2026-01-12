@@ -1,4 +1,5 @@
 ---
+import { Image } from 'astro:assets';
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 
@@ -84,9 +85,11 @@ const formatDate = (date?: Date) => {
           </div>
           
           {project.data.image && (
-            <img
+            <Image
               src={project.data.image}
               alt={project.id}
+              width={128}
+              height={128}
               class="w-32 h-32 rounded-xl object-cover shadow-lg flex-shrink-0"
               loading="lazy"
               decoding="async"

@@ -25,10 +25,16 @@ const { type = 'project', className = '' } = Astro.props;
 
 <script>
   // 為所有 FlipCard 添加點擊事件
-  document.addEventListener('DOMContentLoaded', () => {
+  function initFlipCards() {
     const cards = document.querySelectorAll('[data-flip-card]');
     
     cards.forEach(card => {
+      // 避免重複綁定事件
+      if ((card as HTMLElement).dataset.initialized === 'true') {
+        return;
+      }
+      (card as HTMLElement).dataset.initialized = 'true';
+      
       card.addEventListener('click', (e) => {
         // 如果點擊的是連結，不要翻轉
         if ((e.target as HTMLElement).closest('a')) {
@@ -70,5 +76,9 @@ const { type = 'project', className = '' } = Astro.props;
       (card as HTMLElement).setAttribute('role', 'button');
       (card as HTMLElement).setAttribute('aria-label', 'Click to flip and see details');
     });
-  });
+  }
+  
+  // 初始載入和 View Transitions 頁面切換時都要執行
+  document.addEventListener('DOMContentLoaded', initFlipCards);
+  document.addEventListener('astro:page-load', initFlipCards);
 </script>

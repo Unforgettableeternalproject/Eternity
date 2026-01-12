@@ -4,22 +4,10 @@
   "position": "left",
   "tracks": [
     {
-      "title": "Lofi Study Beats",
-      "artist": "Chill Vibes",
-      "url": "/music/lofi-study.mp3",
-      "cover": "/images/music/lofi-cover.jpg"
-    },
-    {
-      "title": "Coding Flow",
-      "artist": "Dev Sounds",
-      "url": "/music/coding-flow.mp3",
-      "cover": "/images/music/coding-cover.jpg"
-    },
-    {
-      "title": "Night Sky",
-      "artist": "Ambient Dreams",
-      "url": "/music/night-sky.mp3",
-      "cover": "/images/music/night-cover.jpg"
+      "title": "Utopia",
+      "artist": "Bernie",
+      "url": "/music/Utopian.wav",
+      "cover": "/images/music/tracks/0/cover.png"
     }
   ]
 }

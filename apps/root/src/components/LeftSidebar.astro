@@ -7,6 +7,9 @@ import { envConfig } from '../config/env';
 
 const locale = getCurrentLocale(Astro.url);
 
+// 獲取訪客計數器 API URL
+const VISITOR_API_URL = import.meta.env.PUBLIC_VISITOR_API_URL || 'https://eternity-visitor-counter.ptyc4076.workers.dev';
+
 // 獲取最近的更新
 const allUpdates = await getCollection('updates');
 const latestUpdate = allUpdates
@@ -44,12 +47,12 @@ cardIds.push('quote');
     
     {musicCard?.data.enabled && (
       <SidebarCard client:load id="music-player">
-        <MusicPlayer client:load tracks={tracks} locale={locale} />
+        <MusicPlayer client:load tracks={tracks} locale={locale} transition:persist="music-player" />
       </SidebarCard>
     )}
 
     {visitorCounterCard?.data.enabled && (
-      <SidebarCard client:load id="visitor-counter">
+      <SidebarCard client:load id="visitor-counter" transition:persist="visitor-counter">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <svg class="w-5 h-5 text-secondary-400" fill="currentColor" viewBox="0 0 24 24">
@@ -196,12 +199,18 @@ cardIds.push('quote');
   initDragAndDrop();
 </script>
 
-<script>
-  // 簡易訪客計數器（使用 localStorage）
-  // 只在主頁計數不重複訪客
-  function updateVisitorCount() {
+<script define:vars={{ VISITOR_API_URL }}>
+  // Cloudflare Workers 訪客計數器
+  let hasInitialized = false; // 追蹤是否已初始化
+  
+  async function updateVisitorCount() {
+    // 如果已經初始化且元素有內容，跳過
     const countElement = document.getElementById('visitor-count');
     if (!countElement) return;
+    
+    if (hasInitialized && countElement.textContent !== '---') {
+      return; // 已有數據，不重複查詢
+    }
 
     // 檢查是否為主頁 (根路徑或語言根路徑)
     const currentPath = window.location.pathname;
@@ -211,49 +220,53 @@ cardIds.push('quote');
                        currentPath === '/en' || 
                        currentPath === '/en/';
 
-    // 顯示當前計數
-    const count = parseInt(localStorage.getItem('visitor-count') || '0');
-    
-    // 動畫顯示計數
-    let current = 0;
-    const target = count;
-    const duration = 1000;
-    const increment = target / (duration / 16);
-    
-    const animate = () => {
-      current += increment;
-      if (current < target) {
-        countElement.textContent = Math.floor(current).toString();
-        requestAnimationFrame(animate);
-      } else {
-        countElement.textContent = target.toString();
-      }
-    };
-    
-    animate();
-
-    // 只在主頁且未訪問過時計數
-    if (isHomePage) {
-      const hasVisited = sessionStorage.getItem('has-visited-homepage');
+    try {
+      // 獲取當前訪客數
+      const countResponse = await fetch(`${VISITOR_API_URL}/api/visitor/count`);
+      const countData = await countResponse.json();
+      let totalVisitors = countData.totalVisitors || 0;
       
-      if (!hasVisited) {
-        const newCount = count + 1;
-        localStorage.setItem('visitor-count', newCount.toString());
-        sessionStorage.setItem('has-visited-homepage', 'true');
+      // 只在主頁且本次會話未追蹤時追蹤訪客
+      if (isHomePage) {
+        const hasTracked = sessionStorage.getItem('visitor-tracked');
         
-        // 更新顯示
-        countElement.textContent = newCount.toString();
+        if (!hasTracked) {
+          const trackResponse = await fetch(`${VISITOR_API_URL}/api/visitor/track`, {
+            method: 'POST',
+          });
+          const trackData = await trackResponse.json();
+          totalVisitors = trackData.totalVisitors;
+          sessionStorage.setItem('visitor-tracked', 'true');
+        }
       }
+      
+      // 動畫顯示計數
+      let current = 0;
+      const target = totalVisitors;
+      const duration = 1000;
+      const increment = target / (duration / 16);
+      
+      const animate = () => {
+        current += increment;
+        if (current < target) {
+          countElement.textContent = Math.floor(current).toString();
+          requestAnimationFrame(animate);
+        } else {
+          countElement.textContent = target.toString();
+        }
+      };
+      
+      animate();
+      hasInitialized = true; // 標記已初始化
+    } catch (error) {
+      console.error('訪客計數器錯誤:', error);
+      countElement.textContent = '---';
     }
 
-    // 開發/測試環境顯示重置按鈕
+    // 開發/測試環境顯示重置按鈕（已移除功能，因為數據在 Workers 端）
     const resetButton = document.getElementById('reset-visitor-count');
     if (resetButton) {
-      resetButton.addEventListener('click', () => {
-        localStorage.setItem('visitor-count', '0');
-        sessionStorage.removeItem('has-visited-homepage');
-        countElement.textContent = '0';
-      });
+      resetButton.style.display = 'none'; // 隱藏重置按鈕
     }
   }
 

@@ -17,6 +17,10 @@ export default function CookieConsent() {
     localStorage.setItem('cookie-consent', 'accepted');
     // 觸發自定義事件通知其他元件
     window.dispatchEvent(new Event('cookie-consent-changed'));
+    
+    // 觸發音樂播放事件（利用用戶互動）
+    window.dispatchEvent(new Event('cookie-accepted-play-music'));
+    
     closeModal();
   };
 

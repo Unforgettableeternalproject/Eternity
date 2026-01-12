@@ -32,6 +32,12 @@ export default function TypewriterText({
   });
   const [hasStarted, setHasStarted] = useState(false);
 
+  // 打字音效
+  const typeSound = typeof window !== 'undefined' ? new Audio('/se/type.wav') : null;
+  if (typeSound) {
+    typeSound.volume = 0.3; // 設定音量較小，避免過於吵雜
+  }
+
   useEffect(() => {
     // 如果已經完成（從快取載入），跳過
     if (isComplete) return;
@@ -49,6 +55,12 @@ export default function TypewriterText({
 
     if (currentIndex < text.length) {
       const timer = setTimeout(() => {
+        // 播放打字音效
+        if (typeSound) {
+          typeSound.currentTime = 0; // 重置音效到開始位置
+          typeSound.play().catch(() => {}); // 忽略自動播放錯誤
+        }
+        
         setDisplayedText(text.slice(0, currentIndex + 1));
         setCurrentIndex(currentIndex + 1);
       }, speed);

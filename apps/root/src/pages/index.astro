@@ -1,4 +1,5 @@
 ---
+import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection, getEntry } from 'astro:content';
@@ -124,7 +125,7 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
         <!-- Left: Text Content -->
         <div class="w-full lg:w-1/2 text-center lg:text-left space-y-8 animate-fade-in-up">
           <div class="inline-block px-4 py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-4">
-            {locale === 'zh-tw' ? '歡迎來到我的數位空間' : 'Welcome to my digital space'}
+            {t.home.badge}
           </div>
 
           <h1 class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
@@ -342,9 +343,11 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
                   </div>
                   {project.data.image && (
                     <div class="flex-shrink-0">
-                      <img
+                      <Image
                         src={project.data.image}
                         alt={locale === 'zh-tw' ? project.id : project.data.title_en}
+                        width={96}
+                        height={96}
                         class="h-24 w-24 object-cover rounded-lg shadow-lg"
                         loading="lazy"
                         decoding="async"
@@ -503,8 +506,10 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
 
 <script>
   // Lightweight intersection reveal for sections/cards; respects reduced motion via CSS
-  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!prefersReduced) {
+  function initRevealAnimation() {
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return;
+    
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -521,6 +526,10 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
       observer.observe(el);
     });
   }
+  
+  // 初始載入和頁面切換時都要執行
+  document.addEventListener('DOMContentLoaded', initRevealAnimation);
+  document.addEventListener('astro:page-load', initRevealAnimation);
 </script>
 
 
