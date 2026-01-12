@@ -8,7 +8,8 @@
     "./eslint/base.js": "./eslint/base.js",
     "./eslint/astro.js": "./eslint/astro.js",
     "./prettier": "./prettier/prettier.cjs",
-    "./tsconfig/base.json": "./tsconfig/base.json"
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tailwind/base.js": "./tailwind/base.js"
   },
   "dependencies": {
     "@eslint/js": "^9.17.0",

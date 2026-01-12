@@ -1,0 +1,228 @@
+---
+/**
+ * Navigation Component
+ * Responsive navigation bar with theme toggle and language switch
+ */
+import ThemeToggle from './ThemeToggle.astro';
+import LanguageSwitch from './LanguageSwitch.astro';
+
+interface Props {
+  currentPath?: string;
+  currentLocale?: 'zh-tw' | 'en';
+  translations?: {
+    home: string;
+    about: string;
+    projects: string;
+    links: string;
+    updates: string;
+  };
+}
+
+const {
+  currentPath = Astro.url.pathname,
+  currentLocale = 'zh-tw',
+  translations = {
+    home: 'Home',
+    about: 'About',
+    projects: 'Projects',
+    links: 'Links',
+    updates: 'Updates',
+  },
+} = Astro.props;
+
+// Get the base path for current locale
+const basePath = currentLocale === 'zh-tw' ? '/zh-tw' : '/en';
+
+const navLinks = [
+  { href: `${basePath}/`, label: translations.home },
+  { href: `${basePath}/about`, label: translations.about },
+  { href: `${basePath}/projects`, label: translations.projects },
+  { href: `${basePath}/links`, label: translations.links },
+  { href: `${basePath}/updates`, label: translations.updates },
+];
+
+function isActive(href: string, current: string): boolean {
+  if (
+    href === '/' ||
+    href === '/en' ||
+    href === '/en/' ||
+    href === '/zh-tw' ||
+    href === '/zh-tw/'
+  ) {
+    return (
+      current === '/' ||
+      current === '/en' ||
+      current === '/en/' ||
+      current === '/zh-tw' ||
+      current === '/zh-tw/'
+    );
+  }
+  return current.startsWith(href);
+}
+---
+
+<nav class="container-custom py-6">
+  <div class="flex items-center justify-between">
+    <!-- Logo/Brand -->
+    <a
+      href={basePath === '/zh-tw'
+        ? '/zh-tw/'
+        : basePath === '/en'
+          ? '/en/'
+          : '/'}
+      class="text-2xl font-bold text-slate-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200"
+    >
+      Bernie
+    </a>
+
+    <!-- Desktop Navigation -->
+    <div class="hidden md:flex items-center gap-6">
+      {
+        navLinks.map((link) => (
+          <a
+            href={link.href}
+            class:list={[
+              'text-sm font-medium transition-colors duration-200',
+              isActive(link.href, currentPath)
+                ? 'text-primary-600 dark:text-primary-400'
+                : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400',
+            ]}
+          >
+            {link.label}
+          </a>
+        ))
+      }
+      <div class="flex items-center gap-3">
+        <LanguageSwitch
+          currentLocale={currentLocale}
+          currentPath={currentPath}
+        />
+        <ThemeToggle />
+      </div>
+    </div>
+
+    <!-- Mobile Menu Button -->
+    <div class="md:hidden">
+      <div class="flex items-center gap-3">
+        <LanguageSwitch
+          currentLocale={currentLocale}
+          currentPath={currentPath}
+        />
+        <ThemeToggle />
+        <button
+          id="mobile-menu-button"
+          class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+          aria-label="Toggle mobile menu"
+          type="button"
+        >
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              class="menu-open"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 6h16M4 12h16M4 18h16"></path>
+            <path
+              class="menu-close hidden"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Navigation Menu -->
+  <div
+    id="mobile-menu"
+    class="md:hidden hidden overflow-hidden transition-all duration-300 ease-in-out"
+  >
+    <div
+      class="flex flex-col space-y-1 border-t border-slate-200 dark:border-slate-700 pt-4 pb-2 mt-4"
+    >
+      {
+        navLinks.map((link) => (
+          <a
+            href={link.href}
+            class:list={[
+              'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg mobile-menu-link',
+              isActive(link.href, currentPath)
+                ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+                : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+            ]}
+          >
+            {link.label}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</nav>
+
+<script>
+  function initMobileMenu() {
+    const button = document.getElementById('mobile-menu-button');
+    const menu = document.getElementById('mobile-menu');
+    const menuOpen = button?.querySelector('.menu-open');
+    const menuClose = button?.querySelector('.menu-close');
+
+    if (!button || !menu || !menuOpen || !menuClose) return;
+
+    // Toggle menu function
+    const toggleMenu = (shouldOpen: boolean) => {
+      if (shouldOpen) {
+        menu.classList.remove('hidden');
+        menuOpen.classList.add('hidden');
+        menuClose.classList.remove('hidden');
+      } else {
+        menu.classList.add('hidden');
+        menuOpen.classList.remove('hidden');
+        menuClose.classList.add('hidden');
+      }
+    };
+
+    // Click button to toggle
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !menu.classList.contains('hidden');
+      toggleMenu(!isOpen);
+    });
+
+    // Close menu when clicking on a link
+    const menuLinks = menu.querySelectorAll('.mobile-menu-link');
+    menuLinks.forEach((link) => {
+      link.addEventListener('click', () => {
+        toggleMenu(false);
+      });
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      const isOpen = !menu.classList.contains('hidden');
+      if (
+        isOpen &&
+        !button.contains(e.target as Node) &&
+        !menu.contains(e.target as Node)
+      ) {
+        toggleMenu(false);
+      }
+    });
+
+    // Close menu on resize to desktop
+    window.addEventListener('resize', () => {
+      if (window.innerWidth >= 768) {
+        toggleMenu(false);
+      }
+    });
+  }
+
+  initMobileMenu();
+  document.addEventListener('astro:after-swap', initMobileMenu);
+</script>

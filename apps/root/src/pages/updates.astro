@@ -1,0 +1,211 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCurrentLocale } from '../i18n/utils';
+import { getCollection } from 'astro:content';
+
+const locale = getCurrentLocale(Astro.url);
+
+// Load updates from content collections
+const allUpdates = await getCollection('updates');
+const updates = allUpdates.sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime()
+);
+
+// Group updates by year
+const updatesByYear = updates.reduce(
+  (acc, update) => {
+    const year = update.data.date.getFullYear();
+    if (!acc[year]) acc[year] = [];
+    acc[year].push(update);
+    return acc;
+  },
+  {} as Record<number, typeof updates>
+);
+
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+const getCategoryLabel = (category: string) => {
+  const labels = {
+    website: locale === 'zh-tw' ? '網站更新' : 'Website',
+    project: locale === 'zh-tw' ? '專案進展' : 'Project',
+    announcement: locale === 'zh-tw' ? '重要公告' : 'Announcement',
+    other: locale === 'zh-tw' ? '其他' : 'Other',
+  };
+  return labels[category as keyof typeof labels] || category;
+};
+
+const getCategoryColor = (category: string) => {
+  const colors = {
+    website: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    project:
+      'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+    announcement:
+      'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+    other: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+  };
+  return colors[category as keyof typeof colors] || colors.other;
+};
+---
+
+<BaseLayout
+  title={locale === 'zh-tw' ? '最新動態 - Eternity' : 'Updates - Eternity'}
+  description={locale === 'zh-tw'
+    ? '查看最新的更新動態與公告'
+    : 'Check out the latest updates and announcements'}
+>
+  <div class="relative py-24 min-h-[calc(100vh-12rem)]">
+    <!-- Background gradients -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden">
+      <div
+        class="absolute left-0 top-10 h-96 w-96 rounded-full bg-primary-500/10 blur-3xl"
+      >
+      </div>
+      <div
+        class="absolute right-10 top-60 h-80 w-80 rounded-full bg-secondary-500/10 blur-3xl"
+      >
+      </div>
+    </div>
+
+    <div class="container-custom max-w-4xl relative z-10">
+      <!-- Header -->
+      <div class="text-center space-y-4 mb-16 animate-fade-in-up">
+        <span
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide"
+        >
+          📢 {locale === 'zh-tw' ? '最新動態' : 'Latest Updates'}
+        </span>
+        <h1 class="text-5xl font-bold text-slate-900 dark:text-white">
+          {locale === 'zh-tw' ? '更新歷史' : 'Updates'}
+        </h1>
+        <p class="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+          {
+            locale === 'zh-tw'
+              ? '追蹤專案進度、網站更新與重要公告'
+              : 'Track project progress, website updates and important announcements'
+          }
+        </p>
+      </div>
+
+      <!-- Timeline -->
+      {
+        updates.length > 0 ? (
+          <div class="space-y-16">
+            {Object.entries(updatesByYear)
+              .sort(([a], [b]) => Number(b) - Number(a))
+              .map(([year, yearUpdates]) => (
+                <div class="space-y-8 animate-fade-in-up">
+                  {/* Year Header */}
+                  <div class="flex items-center gap-4">
+                    <h2 class="text-3xl font-bold text-slate-900 dark:text-white">
+                      {year}
+                    </h2>
+                    <div class="flex-1 h-px bg-gradient-to-r from-slate-300 dark:from-slate-700 to-transparent" />
+                  </div>
+
+                  {/* Year Updates */}
+                  <div class="relative space-y-8">
+                    {/* Timeline Line */}
+                    <div class="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary-500/50 via-primary-500/30 to-transparent" />
+
+                    {yearUpdates.map((update, index) => (
+                      <div
+                        class="relative pl-20 animate-fade-in-up"
+                        style={`animation-delay: ${index * 100}ms`}
+                      >
+                        {/* Timeline Dot */}
+                        <div class="absolute left-6 top-6 w-4 h-4 rounded-full bg-primary-500 ring-4 ring-white dark:ring-slate-900 shadow-lg" />
+
+                        {/* Update Card */}
+                        <a
+                          href={
+                            locale === 'zh-tw'
+                              ? `/zh-tw/updates/${update.id}`
+                              : `/en/updates/${update.id}`
+                          }
+                          class="card p-6 space-y-4 group hover:shadow-xl transition-all duration-300 block"
+                        >
+                          {/* Header */}
+                          <div class="flex items-start justify-between gap-4">
+                            <div class="space-y-2 flex-1">
+                              <div class="flex items-center gap-3 flex-wrap">
+                                <span
+                                  class={`px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(update.data.category)}`}
+                                >
+                                  {getCategoryLabel(update.data.category)}
+                                </span>
+                                <time class="text-sm text-slate-500 dark:text-slate-400">
+                                  {formatDate(update.data.date)}
+                                </time>
+                              </div>
+                              <h3 class="text-2xl font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                {locale === 'zh-tw'
+                                  ? update.id
+                                  : update.data.title_en}
+                              </h3>
+                            </div>
+                            {/* Arrow Icon */}
+                            <svg
+                              class="w-5 h-5 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-all"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                          </div>
+
+                          {/* Description */}
+                          <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+                            {locale === 'zh-tw'
+                              ? update.data.description_zh
+                              : update.data.description_en}
+                          </p>
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div class="text-center py-20 animate-fade-in-up">
+            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <svg
+                class="w-12 h-12 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              {locale === 'zh-tw' ? '目前沒有動態' : 'No updates yet'}
+            </h3>
+            <p class="text-slate-600 dark:text-slate-300 mb-6">
+              {locale === 'zh-tw'
+                ? '最新動態即將推出，敬請期待'
+                : 'Updates coming soon, stay tuned'}
+            </p>
+          </div>
+        )
+      }
+    </div>
+  </div>
+</BaseLayout>
