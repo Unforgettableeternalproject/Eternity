@@ -5,6 +5,7 @@ import NavigationWithSearch from '../components/NavigationWithSearch.astro';
 import Footer from '@uep/ui/Footer';
 import AdminEntry from '../components/AdminEntry.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
+import UEPCharacter from '../components/UEPCharacter';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
@@ -199,6 +200,13 @@ const alternateURL = new URL(alternatePath, Astro.site);
       client:idle
       consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
       label={locale === 'zh-tw' ? '終端機' : 'Console'}
+      debugMode={false}
+    />
+    
+    <!-- U.E.P 角色互動系統 (React Island) -->
+    <UEPCharacter 
+      client:idle
+      uepDocsUrl="https://uep.unforgettableeternalproject.com"
       debugMode={false}
     />
     

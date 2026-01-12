@@ -36,9 +36,51 @@ export default function MusicPlayer({
     return 0;
   };
 
+  // 從 localStorage 讀取上次的音量設定（只在接受 Cookie 後）
+  const getSavedVolume = () => {
+    if (typeof window === 'undefined') return 0.5;
+    
+    const cookieConsent = localStorage.getItem('cookie-consent');
+    console.log('[MusicPlayer] getSavedVolume - Cookie consent:', cookieConsent);
+    
+    if (cookieConsent !== 'accepted') {
+      console.log('[MusicPlayer] getSavedVolume - Cookie not accepted, using default 0.5');
+      return 0.5;
+    }
+    
+    // 檢查舊的 globalMusicPlayerState 格式
+    const globalState = localStorage.getItem('globalMusicPlayerState');
+    if (globalState) {
+      try {
+        const parsed = JSON.parse(globalState);
+        console.log('[MusicPlayer] Found globalMusicPlayerState:', parsed);
+        if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) {
+          console.log('[MusicPlayer] Using volume from globalMusicPlayerState:', parsed.volume);
+          return parsed.volume;
+        }
+      } catch (error) {
+        console.error('[MusicPlayer] Error parsing globalMusicPlayerState:', error);
+      }
+    }
+    
+    // 檢查新的獨立 key 格式
+    const saved = localStorage.getItem('music-volume');
+    console.log('[MusicPlayer] getSavedVolume - Saved volume from localStorage:', saved);
+    
+    if (saved) {
+      const vol = parseFloat(saved);
+      const isValid = vol >= 0 && vol <= 1;
+      console.log('[MusicPlayer] getSavedVolume - Parsed volume:', vol, 'Valid:', isValid);
+      return isValid ? vol : 0.5;
+    }
+    
+    console.log('[MusicPlayer] getSavedVolume - No saved volume, using default 0.5');
+    return 0.5;
+  };
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState(getSavedTrack());
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState(getSavedVolume());
   const [showTracks, setShowTracks] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const isTransitioning = useRef(false); // 追蹤是否正在頁面轉換
@@ -68,6 +110,76 @@ export default function MusicPlayer({
       localStorage.setItem('music-current-track', currentTrack.toString());
     }
   }, [currentTrack]);
+
+  // 當用戶調整音量時，保存到 localStorage（只在接受 Cookie 後）
+  useEffect(() => {
+    const cookieConsent = localStorage.getItem('cookie-consent');
+    console.log('[MusicPlayer] Volume changed to:', volume, 'Cookie consent:', cookieConsent);
+    
+    if (cookieConsent === 'accepted') {
+      try {
+        // 更新 globalMusicPlayerState（相容舊格式）
+        const globalState = localStorage.getItem('globalMusicPlayerState');
+        if (globalState) {
+          const parsed = JSON.parse(globalState);
+          parsed.volume = volume;
+          localStorage.setItem('globalMusicPlayerState', JSON.stringify(parsed));
+          console.log('[MusicPlayer] Updated volume in globalMusicPlayerState:', volume);
+        }
+        
+        // 同時也儲存到獨立 key（新格式）
+        localStorage.setItem('music-volume', volume.toString());
+        console.log('[MusicPlayer] Volume saved to localStorage:', volume);
+      } catch (error) {
+        console.error('[MusicPlayer] Error saving to localStorage:', error);
+      }
+    } else {
+      console.log('[MusicPlayer] Volume NOT saved (cookie not accepted)');
+    }
+  }, [volume]);
+
+  // 監聽 Cookie 同意狀態變化，重新載入儲存的設定
+  useEffect(() => {
+    const handleCookieConsentChanged = () => {
+      console.log('[MusicPlayer] cookie-consent-changed event triggered');
+      const cookieConsent = localStorage.getItem('cookie-consent');
+      console.log('[MusicPlayer] Cookie consent status:', cookieConsent);
+      
+      if (cookieConsent === 'accepted') {
+        // 重新載入音量設定
+        const savedVolume = localStorage.getItem('music-volume');
+        console.log('[MusicPlayer] Reloading volume from localStorage:', savedVolume);
+        
+        if (savedVolume) {
+          const vol = parseFloat(savedVolume);
+          if (vol >= 0 && vol <= 1) {
+            console.log('[MusicPlayer] Setting volume to:', vol);
+            setVolume(vol);
+          }
+        }
+        
+        // 重新載入歌曲選擇
+        const savedTrack = localStorage.getItem('music-current-track');
+        console.log('[MusicPlayer] Reloading track from localStorage:', savedTrack);
+        
+        if (savedTrack) {
+          const index = parseInt(savedTrack, 10);
+          if (index >= 0 && index < tracks.length) {
+            console.log('[MusicPlayer] Setting track to:', index);
+            setCurrentTrack(index);
+          }
+        }
+      }
+    };
+
+    console.log('[MusicPlayer] Setting up cookie-consent-changed listener');
+    window.addEventListener('cookie-consent-changed', handleCookieConsentChanged);
+
+    return () => {
+      console.log('[MusicPlayer] Removing cookie-consent-changed listener');
+      window.removeEventListener('cookie-consent-changed', handleCookieConsentChanged);
+    };
+  }, [tracks.length]);
 
   // 監聽音頻元素的實際播放狀態
   useEffect(() => {

@@ -128,7 +128,7 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
             {t.home.badge}
           </div>
 
-          <h1 class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+          <h1 class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2">
             <TypewriterText 
               client:load
               text={homepageData?.data.title || t.home.greeting}
@@ -136,7 +136,7 @@ console.log('Update IDs:', latestUpdates.map(u => u.id));
               delay={300}
             />
             {' '}
-            <span class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient">
+            <span class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2">
               <TypewriterText 
                 client:load
                 text={homepageData?.data.name || 'Bernie'}

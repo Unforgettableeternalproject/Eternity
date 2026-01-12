@@ -3,7 +3,56 @@
 ## 最近更新 (2026-01-12)
 
 ### ✅ 已完成
-- **Keystatic 側邊欄卡片管理系統**（NEW）
+
+- **音樂播放器 Cookie 整合與音量持久化**（NEW）
+  - Cookie consent 觸發音樂自動播放（繞過瀏覽器限制）
+  - 音量和曲目選擇僅在接受 Cookie 後儲存
+  - 修復音量持久化問題：
+    - 相容 `globalMusicPlayerState` JSON 格式（包含 volume、isPlaying、currentTrack、currentTime）
+    - 同時支援獨立 `music-volume` key
+    - 讀取優先順序：globalMusicPlayerState.volume → music-volume → 預設 0.5
+    - 儲存時同步更新兩種格式
+  - 添加 `cookie-consent-changed` 事件監聽，當使用者接受 Cookie 時重新載入設定
+  - 使用 sessionStorage 避免重複自動播放
+
+- **U.E.P 角色互動系統**（NEW - 完整實作）
+  - **三種出現模式**（加權隨機）：
+    - Corner Mode (25%): 右下角固定，Fence.PNG ↔ Poke.PNG hover 切換
+    - Peek Mode (45%): 在特定元素探頭，Peek.png + wiggle 動畫
+    - Float Mode (30%): 隨機浮動，Lil.PNG，每 5-10 秒自動移動
+  - **雙重觸發系統**：
+    - 使用者活動：mousemove/keydown/scroll/touchstart，5% 概率
+    - 首頁載入：astro:page-load，25% 概率
+  - **狀態管理**：
+    - 顯示時間 8 秒，冷卻時間 30 秒
+    - sessionStorage 記憶（同一會話不重複觸發）
+  - **動畫效果**：
+    - 淡入/淡出動畫（600ms，scale + translateY）
+    - Corner hover：0.1s 延遲後放大（先切換圖片再動畫）
+    - Peek wiggle：旋轉搖擺
+    - Float bob：上下浮動 + 自動位置移動（hover 時暫停）
+  - **響應式設計**：
+    - Desktop: Corner 140px, Float 90px, Peek 85px
+    - Mobile: 適當縮小尺寸
+    - 支援 prefers-reduced-motion
+  - **Hover 提示框**：漸變背景 + 引導文字
+  - Debug 模式：開發時可設定 100% 觸發機率
+
+- **TypewriterText 打字音效**（NEW）
+  - 每個字元播放 `/se/type.wav` 音效（音量 0.3）
+  - 自動重置 currentTime 確保快速連續播放
+
+- **View Transitions 相容性修復**
+  - FlipCard：添加 `astro:page-load` 事件監聽
+  - Reveal 動畫：添加 `astro:page-load` 支援
+  - 使用 `data-initialized` flag 避免重複綁定事件
+  - 移除巢狀 `transition:persist`（僅保留必要元素）
+
+- **視覺細節優化**
+  - 首頁標題文字裁切修復：添加 pb-2 和 pb-1 padding，避免 y 等字元下緣被截斷
+  - i18n badge 文字更新：「歡迎來到我的數位空間」→「一個尚未完成的故事」（繁中/英文）
+
+- **Keystatic 側邊欄卡片管理系統**
   - 每個卡片都是獨立的 singleton：
     - 💬 名言卡片 (card-quote) - 支援繁中/英文名言陣列，隨機選擇顯示
     - 🎵 音樂播放器 (card-music) - 歌曲清單管理
@@ -60,16 +109,67 @@
   - 內容摘要系統（`getExcerpt()` 函數）
 
 ### ⏳ 進行中
-- 準備開發下一個大功能
+- 無（準備部署至 staging 測試）
 
 ### 📋 待處理
 - 將 RippleEffect 應用到更多可點擊元素
 - UEP 文件站內容遷移（從 U.E.P-s-Imaginary-Space）
 
+---
+
+## 🎭 U.E.P 角色互動系統實作計畫
+
+### 目標
+讓 U.E.P 角色隨機出現在主站，宣傳文件站，符合世界觀設定（觀察者、故事分享者）
+
+### 素材資源
+- `apps/root/public/uep/Fence.PNG` - 圍欄姿勢
+- `apps/root/public/uep/Poke.PNG` - 戳戳姿勢
+- `apps/root/public/uep/Peek.png` - 偷看姿勢
+- `apps/root/public/uep/Lil.PNG` - 小型浮動姿勢
+
+### 出現方式（三選一）
+1. **Corner Mode (25%)**: 右下角固定，Fence.png ↔ Poke.png 切換
+2. **Peek Mode (45%)**: 在特定元素上探頭（主頁浮動框/關於頭像/側邊欄卡片）
+3. **Float Mode (30%)**: 隨機浮動，每 5-10 秒移動
+
+### 觸發條件
+- **使用者操作**: mousemove/keydown/scroll/touchstart，5% 概率，30秒冷卻
+- **首頁載入**: astro:page-load，25% 概率，sessionStorage 記憶
+
+### 實作步驟
+- [ ] 建立 UEPCharacter.tsx 基礎框架
+- [ ] 實作觸發系統（操作 + 首頁載入）
+- [ ] 實作 Corner Mode
+- [ ] 實作 Float Mode
+- [ ] 實作 Peek Mode
+- [ ] 整合到 BaseLayout
+- [ ] 響應式優化與無障礙支援
+
 ### 🐛 已知問題
 - Astro.glob 已棄用警告（建議改用 import.meta.glob）
 - TypeScript 類型錯誤（既有問題，不影響運行）
 
+### 🔧 技術細節備註
+
+#### localStorage 儲存格式
+- **Cookie Consent**: `cookie-consent` = 'accepted' | 'declined'
+- **音樂播放器狀態**（相容兩種格式）：
+  - `globalMusicPlayerState` = `{"isPlaying":boolean,"currentTrack":number,"volume":number,"currentTime":number}`
+  - `music-volume` = 數字字串（0-1）
+  - `music-current-track` = 數字字串（track index）
+- **sessionStorage**: `music-has-played`, `uep-shown`, `typewriter-shown-[text]`, `visitor-tracked`
+
+#### 自訂事件系統
+- `cookie-consent-changed`: Cookie 同意狀態改變時觸發
+- `cookie-accepted-play-music`: 使用者接受 Cookie 時觸發音樂播放
+
+#### U.E.P 角色配置
+- 生產環境：USER_ACTION_CHANCE=5%, PAGE_LOAD_CHANCE=25%, IDLE_TIME=10s
+- Debug 模式：所有機率=100%, IDLE_TIME=2s
+- 顯示時間：8s，冷卻時間：30s
+
 ---
 
-**上次更新**: 2026-01-12 10:15
+**上次更新**: 2026-01-12 15:30
+**狀態**: 準備合併至 staging 分支進行測試
