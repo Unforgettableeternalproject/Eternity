@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+
 import './UEPCharacter.css';
 import { envConfig } from '../config/env';
 

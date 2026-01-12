@@ -1,10 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 
 // Load updates from content collections
 const allUpdates = await getCollection('updates');

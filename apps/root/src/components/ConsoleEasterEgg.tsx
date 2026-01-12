@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+
 import './ConsoleEasterEgg.css';
 import { envConfig } from '../config/env';
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type MouseEvent } from 'react';
+import { useRef, type ReactNode, type MouseEvent } from 'react';
 import './RippleEffect.css';
 
 interface RippleEffectProps {

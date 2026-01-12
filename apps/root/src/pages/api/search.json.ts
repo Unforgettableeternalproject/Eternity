@@ -5,7 +5,7 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 
-export const GET: APIRoute = async ({ url, request }) => {
+export const GET: APIRoute = async ({ url, _request }) => {
   console.log('Full request URL:', url.href); // 完整 URL
   console.log('Search params:', url.searchParams.toString()); // 查詢參數
   console.log('Locale param:', url.searchParams.get('locale')); // locale 參數

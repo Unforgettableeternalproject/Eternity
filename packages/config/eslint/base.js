@@ -6,8 +6,17 @@ import importPlugin from 'eslint-plugin-import';
 export default [
   js.configs.recommended,
   {
+    ignores: [
+      '**/*.d.ts',
+      '**/dist/**',
+      '**/.astro/**',
+      '**/node_modules/**',
+      '**/.turbo/**',
+      '**/build/**',
+    ],
+  },
+  {
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],
-    ignores: ['**/*.d.ts', '**/dist/**', '**/.astro/**', '**/node_modules/**'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -40,7 +49,11 @@ export default [
         Audio: 'readonly',
         Image: 'readonly',
         HTMLElement: 'readonly',
+        HTMLDivElement: 'readonly',
+        HTMLInputElement: 'readonly',
+        HTMLAudioElement: 'readonly',
         Element: 'readonly',
+        Node: 'readonly',
         Event: 'readonly',
         CustomEvent: 'readonly',
         MouseEvent: 'readonly',
@@ -51,11 +64,15 @@ export default [
         Request: 'readonly',
         Response: 'readonly',
         Headers: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
         // Other browser APIs
         IntersectionObserver: 'readonly',
         MutationObserver: 'readonly',
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
+        // React (for TSX files)
+        React: 'readonly',
       },
     },
     plugins: {

@@ -3,8 +3,8 @@
  * Helper functions for internationalization
  */
 
-import zhTW from './zh-tw.json';
 import en from './en.json';
+import zhTW from './zh-tw.json';
 
 export type Locale = 'zh-tw' | 'en';
 

@@ -5,24 +5,10 @@ import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection, getEntry } from 'astro:content';
 import FlipCard from '../components/FlipCard.astro';
 import TypewriterText from '../components/TypewriterText';
-import FlipCardContent from '../components/FlipCardContent';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
-
-// Helper function to extract plain text excerpt from markdown
-const getExcerpt = (body: string | undefined, length: number) => {
-  if (!body) return '';
-  // 移除 Markdoc 標記和 Markdown 語法
-  const cleaned = body
-    .replace(/{%[^%]*%}/g, '') // 移除 Markdoc 標籤
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 移除連結，保留文字
-    .replace(/[#*`_~]/g, '') // 移除 Markdown 符號
-    .replace(/\s+/g, ' ') // 壓縮空白
-    .trim();
-  return cleaned.slice(0, length) + (cleaned.length > length ? '...' : '');
-};
 
 // 根據語言載入對應的主頁內容
 const homepageKey = locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en';
@@ -52,7 +38,7 @@ const projectContentMap = new Map();
 for (const module of projectContentGlob) {
   // 支援 Windows 和 Unix 路徑
   const normalizedPath = module.file?.replace(/\\/g, '/');
-  const match = normalizedPath?.match(/projects\/([^\/]+)\//);
+  const match = normalizedPath?.match(/projects\/([^/]+)\//);
   if (match) {
     projectContentMap.set(match[1], module);
     console.log('Mapped:', match[1], 'from', normalizedPath);
@@ -81,7 +67,7 @@ const updateContentMap = new Map();
 for (const module of updateContentGlob) {
   // 支援 Windows 和 Unix 路徑
   const normalizedPath = module.file?.replace(/\\/g, '/');
-  const match = normalizedPath?.match(/updates\/([^\/]+)\//);
+  const match = normalizedPath?.match(/updates\/([^/]+)\//);
   if (match) {
     updateContentMap.set(match[1], module);
     console.log('Mapped update:', match[1]);

@@ -1,8 +1,8 @@
-import { defineConfig } from 'astro/config';
+import markdoc from '@astrojs/markdoc';
+import react from '@astrojs/react';
 import tailwind from '@astrojs/tailwind';
 import keystatic from '@keystatic/astro';
-import react from '@astrojs/react';
-import markdoc from '@astrojs/markdoc';
+import { defineConfig } from 'astro/config';
 
 // https://astro.build/config
 export default defineConfig({

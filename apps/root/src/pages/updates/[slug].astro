@@ -1,7 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCurrentLocale } from '../../i18n/utils';
 
 export async function getStaticPaths() {
   const updates = await getCollection('updates');

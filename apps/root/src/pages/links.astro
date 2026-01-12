@@ -1,12 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 import LinkIcon from '../components/LinkIcon.astro';
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
-const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 // Load links from content collections
 const allLinks = await getCollection('links');
