@@ -1,0 +1,54 @@
+---
+/**
+ * LanguageSwitch Component
+ * Toggle between Chinese and English
+ */
+
+interface Props {
+  currentLocale?: 'zh-tw' | 'en';
+  currentPath?: string;
+}
+
+const { currentLocale = 'zh-tw', currentPath = '/' } = Astro.props;
+
+// Calculate the alternate path
+function getAlternatePath(path: string, locale: 'zh-tw' | 'en'): string {
+  const targetLocale = locale === 'zh-tw' ? 'en' : 'zh-tw';
+
+  // Remove current locale prefix
+  let cleanPath = path;
+  if (path.startsWith('/en/')) {
+    cleanPath = path.substring(3); // Remove '/en'
+  } else if (path.startsWith('/en')) {
+    cleanPath = path.substring(3) || '/'; // Remove '/en', ensure at least '/'
+  } else if (path.startsWith('/zh-tw/')) {
+    cleanPath = path.substring(6); // Remove '/zh-tw'
+  } else if (path.startsWith('/zh-tw')) {
+    cleanPath = path.substring(6) || '/'; // Remove '/zh-tw', ensure at least '/'
+  }
+
+  // Ensure cleanPath starts with '/'
+  if (!cleanPath.startsWith('/')) {
+    cleanPath = '/' + cleanPath;
+  }
+
+  // Add target locale prefix
+  const newPath = `/${targetLocale}${cleanPath}`;
+
+  return newPath;
+}
+
+const alternatePath = getAlternatePath(currentPath, currentLocale);
+const alternateLabel = currentLocale === 'zh-tw' ? 'EN' : '中';
+---
+
+<a
+  href={alternatePath}
+  class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 text-sm font-medium"
+  aria-label={currentLocale === 'zh-tw'
+    ? 'Switch to English'
+    : '切換至繁體中文'}
+  title={currentLocale === 'zh-tw' ? 'Switch to English' : '切換至繁體中文'}
+>
+  {alternateLabel}
+</a>

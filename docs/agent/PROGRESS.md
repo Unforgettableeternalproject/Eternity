@@ -1,0 +1,203 @@
+# 專案進度追蹤
+
+## 最近更新 (2026-01-12)
+
+### ✅ 已完成
+
+- **CI/CD Pipeline 修復** (NEW - 2026-01-12晚)
+  - **ESLint 配置增強**: 添加完整的全域變數宣告（Audio, localStorage, setTimeout, React, HTMLDivElement, fetch, URL 等）
+  - **TypeScript 錯誤修復**: 
+    - MusicPlayer tracks 加入類型守衛過濾
+    - about.astro 使用類型斷言處理動態 schema
+    - 修正 slug 引用改為 id
+    - 動態路由的 mod.file 可選鏈保護
+  - **Prettier 格式化**:
+    - HTML 註解改為 JSX 註解（`{/* */}`）
+    - 創建 .prettierignore 排除自動產生檔案
+  - **Build 配置修復**:
+    - 安裝 @astrojs/cloudflare adapter
+    - 移除未使用的 API 路由 (search.json.ts)
+    - 配置 output: 'static' + adapter: cloudflare()
+  - **結果**: lint (0 errors, 39 warnings) ✅ / typecheck (0 errors) ✅ / format ✅ / build ✅
+
+### ✅ 已完成
+
+- **音樂播放器 Cookie 整合與音量持久化**（NEW）
+  - Cookie consent 觸發音樂自動播放（繞過瀏覽器限制）
+  - 音量和曲目選擇僅在接受 Cookie 後儲存
+  - 修復音量持久化問題：
+    - 相容 `globalMusicPlayerState` JSON 格式（包含 volume、isPlaying、currentTrack、currentTime）
+    - 同時支援獨立 `music-volume` key
+    - 讀取優先順序：globalMusicPlayerState.volume → music-volume → 預設 0.5
+    - 儲存時同步更新兩種格式
+  - 添加 `cookie-consent-changed` 事件監聽，當使用者接受 Cookie 時重新載入設定
+  - 使用 sessionStorage 避免重複自動播放
+
+- **U.E.P 角色互動系統**（NEW - 完整實作）
+  - **三種出現模式**（加權隨機）：
+    - Corner Mode (25%): 右下角固定，Fence.PNG ↔ Poke.PNG hover 切換
+    - Peek Mode (45%): 在特定元素探頭，Peek.png + wiggle 動畫
+    - Float Mode (30%): 隨機浮動，Lil.PNG，每 5-10 秒自動移動
+  - **雙重觸發系統**：
+    - 使用者活動：mousemove/keydown/scroll/touchstart，5% 概率
+    - 首頁載入：astro:page-load，25% 概率
+  - **狀態管理**：
+    - 顯示時間 8 秒，冷卻時間 30 秒
+    - sessionStorage 記憶（同一會話不重複觸發）
+  - **動畫效果**：
+    - 淡入/淡出動畫（600ms，scale + translateY）
+    - Corner hover：0.1s 延遲後放大（先切換圖片再動畫）
+    - Peek wiggle：旋轉搖擺
+    - Float bob：上下浮動 + 自動位置移動（hover 時暫停）
+  - **響應式設計**：
+    - Desktop: Corner 140px, Float 90px, Peek 85px
+    - Mobile: 適當縮小尺寸
+    - 支援 prefers-reduced-motion
+  - **Hover 提示框**：漸變背景 + 引導文字
+  - Debug 模式：開發時可設定 100% 觸發機率
+
+- **TypewriterText 打字音效**（NEW）
+  - 每個字元播放 `/se/type.wav` 音效（音量 0.3）
+  - 自動重置 currentTime 確保快速連續播放
+
+- **View Transitions 相容性修復**
+  - FlipCard：添加 `astro:page-load` 事件監聽
+  - Reveal 動畫：添加 `astro:page-load` 支援
+  - 使用 `data-initialized` flag 避免重複綁定事件
+  - 移除巢狀 `transition:persist`（僅保留必要元素）
+
+- **視覺細節優化**
+  - 首頁標題文字裁切修復：添加 pb-2 和 pb-1 padding，避免 y 等字元下緣被截斷
+  - i18n badge 文字更新：「歡迎來到我的數位空間」→「一個尚未完成的故事」（繁中/英文）
+
+- **Keystatic 側邊欄卡片管理系統**
+  - 每個卡片都是獨立的 singleton：
+    - 💬 名言卡片 (card-quote) - 支援繁中/英文名言陣列，隨機選擇顯示
+    - 🎵 音樂播放器 (card-music) - 歌曲清單管理
+    - 👥 訪客計數器 (card-visitor-counter) - 啟用/排序/位置控制
+    - 📢 最新動態 (card-latest-update) - 啟用/排序/位置控制
+  - 所有卡片都有：啟用狀態、排序順序、位置（左/右側邊欄）
+  - Quote 卡片：中英文名言陣列，每條名言可選填作者
+  - Music 卡片：歌曲清單（標題、演唱者、音檔路徑、封面圖）
+  - LeftSidebar.astro 整合 Keystatic 資料，隨機選擇名言
+
+- **連結頁面細節優化**
+  - 精選連結淡入動畫（100ms delay）
+  - 查詢欄預設顯示全部內容（限制8個結果）
+  - 彩蛋按鈕淡入淡出效果（0.8s fade-in）
+  - 移除底部漸變陰影，增加底部內距避免與 footer 交界問題
+
+- **側邊欄拖曳排序系統**
+  - 透明卡片設計（融入背景）
+  - 拖曳把手（⋮⋮ Unicode 符號）
+  - 平滑動畫（所有卡片響應拖曳）
+  - 訪客計數器（僅主頁不重複訪客）
+  - 開發環境重置按鈕（使用 envConfig.showDevTools）
+  - 音樂播放器、最新更新、本日名言卡片
+
+- **互動效果整合**
+  - TypewriterText 打字機效果整合到主頁
+    - 標題：80ms 延遲 300ms
+    - 名字：100ms 延遲 1200ms（漸變色）
+    - 副標題：40ms 延遲 2000ms（無游標）
+    - 使用 sessionStorage 避免重複播放
+  - RippleEffect 點擊漣漪效果
+    - 主頁 CTA 按鈕添加漣漪效果
+    - 自定義顏色配置
+
+- **Markdoc 內容渲染系統**
+  - 修復 MDOC 內容載入邏輯（簡化為直接使用 `contentModules[0]`）
+  - 為內容區域添加淡入動畫（800ms duration）
+  - 修復淡入動畫初始狀態（添加 `opacity: 0`）
+  - 移除調試代碼
+
+- **語言切換功能修復**（2 處修復）
+  - 修復 LanguageSwitch.astro 路徑轉換邏輯
+  - 修復 NavigationWithSearch.astro 硬編碼路徑問題
+  - 現在切換語言時會保持當前頁面，只改變語言前綴
+  - 例如：`/zh-tw/projects/測試` ↔ `/en/projects/測試`
+
+- **FlipCard 3D 卡片系統**
+  - Astro 版本實現（使用 slots）
+  - 正面：標題、副標題、狀態標籤、tags
+  - 背面：封面圖（小圖）、內容摘要、查看詳情連結
+- **視覺優化**
+  - 封面圖調整為 128x128px 縮圖，放置於標題右側
+  - 內容摘要系統（`getExcerpt()` 函數）
+
+### ⏳ 進行中
+
+- 無（準備部署至 staging 測試）
+
+### 📋 待處理
+
+- 將 RippleEffect 應用到更多可點擊元素
+- UEP 文件站內容遷移（從 U.E.P-s-Imaginary-Space）
+
+---
+
+## 🎭 U.E.P 角色互動系統實作計畫
+
+### 目標
+
+讓 U.E.P 角色隨機出現在主站，宣傳文件站，符合世界觀設定（觀察者、故事分享者）
+
+### 素材資源
+
+- `apps/root/public/uep/Fence.PNG` - 圍欄姿勢
+- `apps/root/public/uep/Poke.PNG` - 戳戳姿勢
+- `apps/root/public/uep/Peek.png` - 偷看姿勢
+- `apps/root/public/uep/Lil.PNG` - 小型浮動姿勢
+
+### 出現方式（三選一）
+
+1. **Corner Mode (25%)**: 右下角固定，Fence.png ↔ Poke.png 切換
+2. **Peek Mode (45%)**: 在特定元素上探頭（主頁浮動框/關於頭像/側邊欄卡片）
+3. **Float Mode (30%)**: 隨機浮動，每 5-10 秒移動
+
+### 觸發條件
+
+- **使用者操作**: mousemove/keydown/scroll/touchstart，5% 概率，30秒冷卻
+- **首頁載入**: astro:page-load，25% 概率，sessionStorage 記憶
+
+### 實作步驟
+
+- [ ] 建立 UEPCharacter.tsx 基礎框架
+- [ ] 實作觸發系統（操作 + 首頁載入）
+- [ ] 實作 Corner Mode
+- [ ] 實作 Float Mode
+- [ ] 實作 Peek Mode
+- [ ] 整合到 BaseLayout
+- [ ] 響應式優化與無障礙支援
+
+### 🐛 已知問題
+
+- Astro.glob 已棄用警告（建議改用 import.meta.glob）
+- TypeScript 類型錯誤（既有問題，不影響運行）
+
+### 🔧 技術細節備註
+
+#### localStorage 儲存格式
+
+- **Cookie Consent**: `cookie-consent` = 'accepted' | 'declined'
+- **音樂播放器狀態**（相容兩種格式）：
+  - `globalMusicPlayerState` = `{"isPlaying":boolean,"currentTrack":number,"volume":number,"currentTime":number}`
+  - `music-volume` = 數字字串（0-1）
+  - `music-current-track` = 數字字串（track index）
+- **sessionStorage**: `music-has-played`, `uep-shown`, `typewriter-shown-[text]`, `visitor-tracked`
+
+#### 自訂事件系統
+
+- `cookie-consent-changed`: Cookie 同意狀態改變時觸發
+- `cookie-accepted-play-music`: 使用者接受 Cookie 時觸發音樂播放
+
+#### U.E.P 角色配置
+
+- 生產環境：USER_ACTION_CHANCE=5%, PAGE_LOAD_CHANCE=25%, IDLE_TIME=10s
+- Debug 模式：所有機率=100%, IDLE_TIME=2s
+- 顯示時間：8s，冷卻時間：30s
+
+---
+
+**上次更新**: 2026-01-12 15:30
+**狀態**: 準備合併至 staging 分支進行測試
