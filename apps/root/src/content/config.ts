@@ -1,5 +1,7 @@
 import { defineCollection, z } from 'astro:content';
 
+// Content Collections Configuration - Updated 2026-01-12
+
 // 專案集合
 const projectsCollection = defineCollection({
   type: 'content',
@@ -105,11 +107,44 @@ const articlesCollection = defineCollection({
   }),
 });
 
+// 側邊欄卡片 - 統一的卡片集合
+const cardsCollection = defineCollection({
+  type: 'data',
+  schema: z.object({
+    enabled: z.boolean().default(true),
+    order: z.number().default(1),
+    position: z.enum(['left', 'right']).default('left'),
+    // Quote 卡片欄位
+    quotes_zh: z.array(z.object({
+      text: z.string(),
+      author: z.string().optional(),
+    })).optional(),
+    quotes_en: z.array(z.object({
+      text: z.string(),
+      author: z.string().optional(),
+    })).optional(),
+    // Music 卡片欄位
+    tracks: z.array(z.object({
+      title: z.string(),
+      artist: z.string(),
+      url: z.string().optional(),
+      cover: z.string().optional(),
+    })).optional(),
+  }),
+});
+
 export const collections = {
   'homepage-zh': homepageCollection,
   'homepage-en': homepageCollection,
   'about-zh': aboutCollection,
   'about-en': aboutCollection,
+  'cards': cardsCollection,
+  'card-quote': cardsCollection,
+  'card-music': cardsCollection,
+  'card-visitor-counter': cardsCollection,
+  'card-latest-update': cardsCollection,
+  'card-quick-stats': cardsCollection,
+  'card-table-of-contents': cardsCollection,
   projects: projectsCollection,
   links: linksCollection,
   updates: updatesCollection,

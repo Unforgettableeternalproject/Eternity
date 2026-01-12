@@ -1,0 +1,49 @@
+{
+  "enabled": true,
+  "order": 3,
+  "position": "left",
+  "quotes_zh": [
+    {
+      "text": "代碼如詩，細節成就完美",
+      "author": ""
+    },
+    {
+      "text": "持續學習，永不止步",
+      "author": ""
+    },
+    {
+      "text": "創造價值，分享知識",
+      "author": ""
+    },
+    {
+      "text": "簡約而不簡單",
+      "author": ""
+    },
+    {
+      "text": "用心打磨每一行代碼",
+      "author": ""
+    }
+  ],
+  "quotes_en": [
+    {
+      "text": "Code is poetry, details make perfection",
+      "author": ""
+    },
+    {
+      "text": "Keep learning, never stop",
+      "author": ""
+    },
+    {
+      "text": "Create value, share knowledge",
+      "author": ""
+    },
+    {
+      "text": "Simple but not simplistic",
+      "author": ""
+    },
+    {
+      "text": "Polish every line of code with care",
+      "author": ""
+    }
+  ]
+}

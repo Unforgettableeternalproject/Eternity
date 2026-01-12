@@ -97,11 +97,69 @@ const articlesCollection = defineCollection({
   }),
 });
 
+const baseCardSchema = z.object({
+  enabled: z.boolean().default(true),
+  order: z.number().default(1),
+  position: z.enum(['left', 'right']).default('left'),
+});
+
+const cardQuoteCollection = defineCollection({
+  type: 'data',
+  schema: baseCardSchema.extend({
+    quotes_zh: z.array(z.object({
+      text: z.string(),
+      author: z.string().optional(),
+    })).optional(),
+    quotes_en: z.array(z.object({
+      text: z.string(),
+      author: z.string().optional(),
+    })).optional(),
+  }),
+});
+
+const cardMusicCollection = defineCollection({
+  type: 'data',
+  schema: baseCardSchema.extend({
+    tracks: z.array(z.object({
+      title: z.string(),
+      artist: z.string(),
+      url: z.string().optional(),
+      cover: z.string().optional(),
+    })).optional(),
+  }),
+});
+
+const cardVisitorCounterCollection = defineCollection({
+  type: 'data',
+  schema: baseCardSchema,
+});
+
+const cardLatestUpdateCollection = defineCollection({
+  type: 'data',
+  schema: baseCardSchema,
+});
+
+const cardQuickStatsCollection = defineCollection({
+  type: 'data',
+  schema: baseCardSchema,
+});
+
+const cardTableOfContentsCollection = defineCollection({
+  type: 'data',
+  schema: baseCardSchema,
+});
+
 export const collections = {
   'homepage-zh': homepageCollection,
   'homepage-en': homepageCollection,
   'about-zh': aboutCollection,
   'about-en': aboutCollection,
+  'card-quote': cardQuoteCollection,
+  'card-music': cardMusicCollection,
+  'card-visitor-counter': cardVisitorCounterCollection,
+  'card-latest-update': cardLatestUpdateCollection,
+  'card-quick-stats': cardQuickStatsCollection,
+  'card-table-of-contents': cardTableOfContentsCollection,
   projects: projectsCollection,
   links: linksCollection,
   updates: updatesCollection,

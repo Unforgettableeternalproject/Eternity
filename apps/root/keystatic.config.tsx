@@ -14,6 +14,7 @@ export default config({
       '繁體中文內容': ['homepage-zh', 'about-zh'],
       'English Content': ['homepage-en', 'about-en'],
       內容集合: ['projects', 'links', 'updates'],
+      卡片: ['card-quote', 'card-music', 'card-visitor-counter', 'card-latest-update', 'card-quick-stats', 'card-table-of-contents'],
       // 未來可擴充: ['articles'],
     },
   },
@@ -191,6 +192,219 @@ export default config({
           github: fields.text({ label: 'GitHub URL' }),
           email: fields.text({ label: 'Email' }),
           twitter: fields.text({ label: 'Twitter/X URL' }),
+        }),
+      },
+    }),
+
+    'card-quote': singleton({
+      label: '名言卡片',
+      path: 'src/content/card-quote/',
+      format: { data: 'json' },
+      schema: {
+        enabled: fields.checkbox({
+          label: '啟用 / Enabled',
+          description: '是否顯示此卡片',
+          defaultValue: true,
+        }),
+        order: fields.number({
+          label: '排序順序',
+          description: '數字越小越靠前',
+          defaultValue: 3,
+        }),
+        position: fields.select({
+          label: '位置',
+          options: [
+            { label: '左側邊欄 / Left Sidebar', value: 'left' },
+            { label: '右側邊欄 / Right Sidebar', value: 'right' },
+          ],
+          defaultValue: 'left',
+        }),
+        quotes_zh: fields.array(
+          fields.object({
+            text: fields.text({
+              label: '名言內容',
+              multiline: true,
+              validation: { isRequired: true },
+            }),
+            author: fields.text({
+              label: '作者',
+            }),
+          }),
+          {
+            label: '繁體中文名言列表',
+            itemLabel: props => props.fields.text.value || '新名言',
+          }
+        ),
+        quotes_en: fields.array(
+          fields.object({
+            text: fields.text({
+              label: 'Quote Text',
+              multiline: true,
+              validation: { isRequired: true },
+            }),
+            author: fields.text({
+              label: 'Author',
+            }),
+          }),
+          {
+            label: 'English Quotes',
+            itemLabel: props => props.fields.text.value || 'New Quote',
+          }
+        ),
+      },
+    }),
+
+    'card-music': singleton({
+      label: '音樂播放器',
+      path: 'src/content/card-music/',
+      format: { data: 'json' },
+      schema: {
+        enabled: fields.checkbox({
+          label: '啟用 / Enabled',
+          description: '是否顯示此卡片',
+          defaultValue: true,
+        }),
+        order: fields.number({
+          label: '排序順序',
+          description: '數字越小越靠前',
+          defaultValue: 1,
+        }),
+        position: fields.select({
+          label: '位置',
+          options: [
+            { label: '左側邊欄 / Left Sidebar', value: 'left' },
+            { label: '右側邊欄 / Right Sidebar', value: 'right' },
+          ],
+          defaultValue: 'left',
+        }),
+        tracks: fields.array(
+          fields.object({
+            title: fields.text({ 
+              label: '歌曲名稱',
+              validation: { isRequired: true },
+            }),
+            artist: fields.text({ 
+              label: '演唱者/創作者',
+              validation: { isRequired: true },
+            }),
+            url: fields.text({
+              label: '音樂檔案路徑',
+              description: '例如: /music/song.mp3',
+            }),
+            cover: fields.image({
+              label: '封面圖片',
+              directory: 'public/images/music',
+              publicPath: '/images/music/',
+            }),
+          }),
+          {
+            label: '歌曲清單',
+            itemLabel: props => props.fields.title.value || 'New Track',
+          }
+        ),
+      },
+    }),
+
+    'card-visitor-counter': singleton({
+      label: '訪客計數器',
+      path: 'src/content/card-visitor-counter/',
+      format: { data: 'json' },
+      schema: {
+        enabled: fields.checkbox({
+          label: '啟用 / Enabled',
+          description: '是否顯示此卡片',
+          defaultValue: true,
+        }),
+        order: fields.number({
+          label: '排序順序',
+          description: '數字越小越靠前',
+          defaultValue: 2,
+        }),
+        position: fields.select({
+          label: '位置',
+          options: [
+            { label: '左側邊欄 / Left Sidebar', value: 'left' },
+            { label: '右側邊欄 / Right Sidebar', value: 'right' },
+          ],
+          defaultValue: 'left',
+        }),
+      },
+    }),
+
+    'card-latest-update': singleton({
+      label: '最新動態',
+      path: 'src/content/card-latest-update/',
+      format: { data: 'json' },
+      schema: {
+        enabled: fields.checkbox({
+          label: '啟用 / Enabled',
+          description: '是否顯示此卡片',
+          defaultValue: true,
+        }),
+        order: fields.number({
+          label: '排序順序',
+          description: '數字越小越靠前',
+          defaultValue: 4,
+        }),
+        position: fields.select({
+          label: '位置',
+          options: [
+            { label: '左側邊欄 / Left Sidebar', value: 'left' },
+            { label: '右側邊欄 / Right Sidebar', value: 'right' },
+          ],
+          defaultValue: 'left',
+        }),
+      },
+    }),
+
+    'card-quick-stats': singleton({
+      label: '快速統計',
+      path: 'src/content/card-quick-stats/',
+      format: { data: 'json' },
+      schema: {
+        enabled: fields.checkbox({
+          label: '啟用 / Enabled',
+          description: '是否顯示此卡片',
+          defaultValue: true,
+        }),
+        order: fields.number({
+          label: '排序順序',
+          description: '數字越小越靠前',
+          defaultValue: 1,
+        }),
+        position: fields.select({
+          label: '位置',
+          options: [
+            { label: '左側邊欄 / Left Sidebar', value: 'left' },
+            { label: '右側邊欄 / Right Sidebar', value: 'right' },
+          ],
+          defaultValue: 'right',
+        }),
+      },
+    }),
+
+    'card-table-of-contents': singleton({
+      label: '頁面大綱',
+      path: 'src/content/card-table-of-contents/',
+      format: { data: 'json' },
+      schema: {
+        enabled: fields.checkbox({
+          label: '啟用 / Enabled',
+          description: '是否顯示此卡片',
+          defaultValue: true,
+        }),
+        order: fields.number({
+          label: '排序順序',
+          description: '數字越小越靠前',
+          defaultValue: 2,
+        }),
+        position: fields.select({
+          label: '位置',
+          options: [
+            { label: '左側邊欄 / Left Sidebar', value: 'left' },
+            { label: '右側邊欄 / Right Sidebar', value: 'right' },
+          ],
+          defaultValue: 'right',
         }),
       },
     }),

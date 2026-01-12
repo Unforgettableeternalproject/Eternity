@@ -197,6 +197,54 @@ declare module 'astro:content' {
   rendered?: RenderedContent;
   filePath?: string;
 }>;
+"card-latest-update": Record<string, {
+  id: string;
+  body?: string;
+  collection: "card-latest-update";
+  data: InferEntrySchema<"card-latest-update">;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"card-music": Record<string, {
+  id: string;
+  body?: string;
+  collection: "card-music";
+  data: InferEntrySchema<"card-music">;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"card-quick-stats": Record<string, {
+  id: string;
+  body?: string;
+  collection: "card-quick-stats";
+  data: InferEntrySchema<"card-quick-stats">;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"card-quote": Record<string, {
+  id: string;
+  body?: string;
+  collection: "card-quote";
+  data: InferEntrySchema<"card-quote">;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"card-table-of-contents": Record<string, {
+  id: string;
+  body?: string;
+  collection: "card-table-of-contents";
+  data: InferEntrySchema<"card-table-of-contents">;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
+"card-visitor-counter": Record<string, {
+  id: string;
+  body?: string;
+  collection: "card-visitor-counter";
+  data: InferEntrySchema<"card-visitor-counter">;
+  rendered?: RenderedContent;
+  filePath?: string;
+}>;
 "homepage-en": Record<string, {
   id: string;
   body?: string;
