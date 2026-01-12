@@ -14,7 +14,10 @@
         },
         "position": {
           "type": "string",
-          "enum": ["left", "right"],
+          "enum": [
+            "left",
+            "right"
+          ],
           "default": "left"
         },
         "quotes_zh": {
@@ -29,7 +32,9 @@
                 "type": "string"
               }
             },
-            "required": ["text"],
+            "required": [
+              "text"
+            ],
             "additionalProperties": false
           }
         },
@@ -45,7 +50,9 @@
                 "type": "string"
               }
             },
-            "required": ["text"],
+            "required": [
+              "text"
+            ],
             "additionalProperties": false
           }
         },

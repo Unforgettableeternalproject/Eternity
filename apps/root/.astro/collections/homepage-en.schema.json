@@ -26,7 +26,10 @@
           "type": "string"
         }
       },
-      "required": ["title", "subtitle"],
+      "required": [
+        "title",
+        "subtitle"
+      ],
       "additionalProperties": false
     }
   },

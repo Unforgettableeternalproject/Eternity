@@ -26,7 +26,7 @@ const contentModules = await Astro.glob(
 );
 const contentFileSuffix = `/content/updates/${update.id}/${locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc'}`;
 const contentEntry = contentModules.find((mod) =>
-  mod.file.replace(/\\/g, '/').endsWith(contentFileSuffix)
+  mod.file?.replace(/\\/g, '/').endsWith(contentFileSuffix)
 );
 const UpdateContent = contentEntry?.Content;
 

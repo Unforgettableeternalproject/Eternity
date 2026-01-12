@@ -23,6 +23,7 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@astrojs/cloudflare": "^12.6.12",
     "@astrojs/tailwind": "^6.0.2",
     "@tailwindcss/typography": "^0.5.19",
     "@types/react": "^18.3.18",

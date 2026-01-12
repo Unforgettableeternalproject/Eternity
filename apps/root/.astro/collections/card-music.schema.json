@@ -14,7 +14,10 @@
         },
         "position": {
           "type": "string",
-          "enum": ["left", "right"],
+          "enum": [
+            "left",
+            "right"
+          ],
           "default": "left"
         },
         "tracks": {
@@ -35,7 +38,10 @@
                 "type": "string"
               }
             },
-            "required": ["title", "artist"],
+            "required": [
+              "title",
+              "artist"
+            ],
             "additionalProperties": false
           }
         },

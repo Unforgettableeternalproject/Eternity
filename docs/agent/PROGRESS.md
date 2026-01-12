@@ -4,6 +4,24 @@
 
 ### ✅ 已完成
 
+- **CI/CD Pipeline 修復** (NEW - 2026-01-12晚)
+  - **ESLint 配置增強**: 添加完整的全域變數宣告（Audio, localStorage, setTimeout, React, HTMLDivElement, fetch, URL 等）
+  - **TypeScript 錯誤修復**: 
+    - MusicPlayer tracks 加入類型守衛過濾
+    - about.astro 使用類型斷言處理動態 schema
+    - 修正 slug 引用改為 id
+    - 動態路由的 mod.file 可選鏈保護
+  - **Prettier 格式化**:
+    - HTML 註解改為 JSX 註解（`{/* */}`）
+    - 創建 .prettierignore 排除自動產生檔案
+  - **Build 配置修復**:
+    - 安裝 @astrojs/cloudflare adapter
+    - 移除未使用的 API 路由 (search.json.ts)
+    - 配置 output: 'static' + adapter: cloudflare()
+  - **結果**: lint (0 errors, 39 warnings) ✅ / typecheck (0 errors) ✅ / format ✅ / build ✅
+
+### ✅ 已完成
+
 - **音樂播放器 Cookie 整合與音量持久化**（NEW）
   - Cookie consent 觸發音樂自動播放（繞過瀏覽器限制）
   - 音量和曲目選擇僅在接受 Cookie 後儲存
