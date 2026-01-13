@@ -2,9 +2,27 @@
   "title": "關於我",
   "bio": "這是我的個人簡介",
   "avatar": "/images/avatars/avatar.png",
-  "skills": ["開發", "設計", "寫作"],
-  "experience": [],
-  "certifications": [],
+  "skills": [
+    "開發",
+    "設計",
+    "寫作"
+  ],
+  "experience": [
+    {
+      "title": "測試工作",
+      "company": "測試工作",
+      "period": "測試時間",
+      "description": "攝氏五十度"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "測試證照",
+      "issuer": "測試單位",
+      "date": "測試日期",
+      "link": "測試連結"
+    }
+  ],
   "social": {
     "github": "https://github.com/Unforgettableeternalproject",
     "email": "ptyc4076@gmail.com"

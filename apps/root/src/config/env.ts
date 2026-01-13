@@ -60,9 +60,9 @@ export const envConfig = {
   isStaging,
   isProduction,
   environment: getEnvironment(),
-  // 是否應該顯示開發者工具（開發環境或測試環境）
-  showDevTools: isDev || isStaging,
-  // 是否啟用 console 日誌（開發環境或測試環境）
+  // Admin 按鈕只在本地開發環境顯示
+  showDevTools: isDev,
+  // Console 日誌在開發環境和測試環境都啟用
   enableConsoleLog: isDev || isStaging,
 } as const;
 

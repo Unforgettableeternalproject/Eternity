@@ -19,6 +19,57 @@
             "type": "string"
           }
         },
+        "experience": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "period": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "company",
+              "period"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "certifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "issuer": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "issuer"
+            ],
+            "additionalProperties": false
+          }
+        },
         "social": {
           "type": "object",
           "properties": {
@@ -41,7 +92,9 @@
       "required": [
         "title",
         "bio",
-        "skills"
+        "skills",
+        "experience",
+        "certifications"
       ],
       "additionalProperties": false
     }

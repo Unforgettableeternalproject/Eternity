@@ -59,7 +59,9 @@ export default function TypewriterText({
         // 播放打字音效
         if (typeSound) {
           typeSound.currentTime = 0; // 重置音效到開始位置
-          typeSound.play().catch(() => {}); // 忽略自動播放錯誤
+          typeSound.play().catch(() => {
+            // 靜默忽略自動播放錯誤
+          });
         }
 
         setDisplayedText(text.slice(0, currentIndex + 1));

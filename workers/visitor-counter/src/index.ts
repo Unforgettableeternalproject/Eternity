@@ -23,12 +23,32 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
-    // CORS 處理
+    // CORS 處理 - 支援通配符匹配
     const allowedOrigins = env.ALLOWED_ORIGINS?.split(',') || [];
     const origin = request.headers.get('Origin') || '';
 
     const corsHeaders: Record<string, string> = {};
-    if (allowedOrigins.includes(origin)) {
+    
+    // 檢查來源是否允許（支援 *.pages.dev 通配符）
+    const isAllowed = allowedOrigins.some(allowed => {
+      // 去除空白
+      allowed = allowed.trim();
+      
+      // 完全匹配
+      if (allowed === origin) return true;
+      
+      // 通配符匹配：https://*.eternity-8v7.pages.dev
+      if (allowed.includes('*.')) {
+        // 提取 *.之後的部分，例如：eternity-8v7.pages.dev
+        const domain = allowed.split('*.')[1];
+        // 檢查 origin 是否以這個域名結尾
+        return origin.endsWith(domain);
+      }
+      
+      return false;
+    });
+
+    if (isAllowed) {
       corsHeaders['Access-Control-Allow-Origin'] = origin;
       corsHeaders['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
       corsHeaders['Access-Control-Allow-Headers'] = 'Content-Type';

@@ -84,6 +84,18 @@
       const currentIsDark = document.documentElement.classList.contains('dark');
       const newTheme = currentIsDark ? 'light' : 'dark';
 
+      // 在主題切換前保存所有卡片的可見性狀態
+      const cards = document.querySelectorAll('[data-card-id]');
+      const cardStates = new Map();
+      cards.forEach((card) => {
+        const htmlCard = card as HTMLElement;
+        cardStates.set(htmlCard.dataset.cardId, {
+          display: htmlCard.style.display,
+          visibility: htmlCard.style.visibility,
+          opacity: htmlCard.style.opacity,
+        });
+      });
+
       // Toggle dark class
       document.documentElement.classList.toggle('dark');
 
@@ -92,6 +104,26 @@
 
       // Save preference
       localStorage.setItem('theme', newTheme);
+
+      // 確保所有卡片在主題切換後仍然可見
+      requestAnimationFrame(() => {
+        cards.forEach((card) => {
+          const htmlCard = card as HTMLElement;
+          const cardId = htmlCard.dataset.cardId;
+          const savedState = cardStates.get(cardId);
+          
+          // 只恢復那些原本可見的卡片
+          if (!savedState || savedState.display !== 'none') {
+            if (htmlCard.style.display === 'none' || 
+                htmlCard.style.visibility === 'hidden' ||
+                htmlCard.style.opacity === '0') {
+              htmlCard.style.display = '';
+              htmlCard.style.visibility = '';
+              htmlCard.style.opacity = '';
+            }
+          }
+        });
+      });
 
       // Dispatch custom event for other components to listen to
       window.dispatchEvent(

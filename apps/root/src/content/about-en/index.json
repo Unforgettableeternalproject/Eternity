@@ -1,10 +1,27 @@
 {
   "title": "About Me",
   "bio": "This is my bio",
-  "avatar": "/images/avatars/avatar.png",
-  "skills": ["Development", "Design", "Writing"],
-  "experience": [],
-  "certifications": [],
+  "skills": [
+    "Development",
+    "Design",
+    "Writing"
+  ],
+  "experience": [
+    {
+      "title": "AAA",
+      "company": "AAA",
+      "period": "AAA",
+      "description": "AAA"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AAA",
+      "issuer": "AAA",
+      "date": "AAA",
+      "link": "AAA"
+    }
+  ],
   "social": {
     "github": "https://github.com/Unforgettableeternalproject",
     "email": "ptyc4076@gmail.com"
