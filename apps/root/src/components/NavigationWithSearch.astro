@@ -137,36 +137,60 @@ const alternatePath = getAlternatePath(currentPath, locale);
       </div>
     </div>
 
-    <!-- Mobile Menu Button -->
-    <div class="md:hidden flex items-center gap-3">
-      <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+    <!-- Mobile Navigation -->
+    <div class="md:hidden flex items-center gap-3 flex-1">
+      <!-- Center: Global Search (置中) -->
+      <div class="flex-1 flex justify-center mx-4">
+        <div class="w-full max-w-md">
+          <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+        </div>
+      </div>
 
-      <button
-        id="mobile-menu-button"
-        class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
-        aria-label="Toggle mobile menu"
-        type="button"
-      >
-        <svg
-          class="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <!-- Right: Buttons -->
+      <div class="flex items-center gap-3">
+        <!-- Language Switch (Mobile) -->
+        <a
+          href={alternatePath}
+          class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 text-sm font-medium"
+          aria-label={locale === 'zh-tw'
+            ? 'Switch to English'
+            : '切換至繁體中文'}
+          title={locale === 'zh-tw' ? 'Switch to English' : '切換至繁體中文'}
         >
-          <path
-            class="menu-open"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 6h16M4 12h16M4 18h16"></path>
-          <path
-            class="menu-close hidden"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
+          {locale === 'zh-tw' ? 'EN' : '繁中'}
+        </a>
+
+        <!-- Theme Toggle (Mobile) - 按鈕樣式 -->
+        <ThemeToggle data-mobile="true" />
+
+        <button
+          id="mobile-menu-button"
+          class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+          aria-label="Toggle mobile menu"
+          aria-expanded="false"
+          type="button"
+        >
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              class="menu-open"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"></path>
+            <path
+              class="menu-close hidden"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -241,16 +265,39 @@ const alternatePath = getAlternatePath(currentPath, locale);
 
 <script>
   // Mobile menu toggle
-  const mobileMenuButton = document.getElementById('mobile-menu-button');
-  const mobileMenu = document.getElementById('mobile-menu');
-  const menuOpen = document.querySelector('.menu-open');
-  const menuClose = document.querySelector('.menu-close');
+  function initMobileMenu() {
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const menuOpen = document.querySelector('.menu-open');
+    const menuClose = document.querySelector('.menu-close');
 
-  if (mobileMenuButton && mobileMenu) {
-    mobileMenuButton.addEventListener('click', () => {
-      mobileMenu.classList.toggle('hidden');
-      menuOpen?.classList.toggle('hidden');
-      menuClose?.classList.toggle('hidden');
+    if (!mobileMenuButton || !mobileMenu) {
+      console.warn('Mobile menu elements not found:', { mobileMenuButton, mobileMenu });
+      return;
+    }
+
+    // 移除舊的事件監聽器（如果有）
+    const newButton = mobileMenuButton.cloneNode(true);
+    mobileMenuButton.parentNode?.replaceChild(newButton, mobileMenuButton);
+
+    // 在新按鈕上添加事件監聽器
+    newButton.addEventListener('click', (e) => {
+      console.log('Mobile menu button clicked');
+      const isHidden = mobileMenu.classList.toggle('hidden');
+      
+      const newMenuOpen = document.querySelector('.menu-open');
+      const newMenuClose = document.querySelector('.menu-close');
+      
+      newMenuOpen?.classList.toggle('hidden');
+      newMenuClose?.classList.toggle('hidden');
+      
+      // 更新 aria-expanded（!isHidden 因為 toggle 返回的是切換後的狀態）
+      newButton.setAttribute('aria-expanded', (!isHidden).toString());
     });
+
+    console.log('Mobile menu initialized');
   }
+
+  document.addEventListener('DOMContentLoaded', initMobileMenu);
+  document.addEventListener('astro:page-load', initMobileMenu);
 </script>

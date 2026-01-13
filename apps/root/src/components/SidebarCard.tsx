@@ -18,8 +18,9 @@ export default function SidebarCard({ children, id }: SidebarCardProps) {
         style={{
           backgroundColor: 'transparent',
           borderRadius: '12px',
-          border: '1px solid rgba(148, 163, 184, 0.2)',
+          border: '1px solid rgba(148, 163, 184, 0.15)',
           overflow: 'hidden',
+          boxShadow: 'none',
         }}
       >
         {/* 拖動把手 - 完全透明 */}
@@ -29,7 +30,7 @@ export default function SidebarCard({ children, id }: SidebarCardProps) {
             backgroundColor: 'transparent',
             padding: '6px 12px',
             cursor: 'grab',
-            borderBottom: '1px solid rgba(148, 163, 184, 0.15)',
+            borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -37,7 +38,7 @@ export default function SidebarCard({ children, id }: SidebarCardProps) {
             minHeight: '28px',
           }}
         >
-          <span style={{ fontSize: '14px', color: '#cbd5e1' }}>⋮⋮</span>
+          <span style={{ fontSize: '14px', color: '#94a3b8', opacity: 0.4 }}>⋮⋮</span>
         </div>
         {/* 卡片內容 */}
         <div style={{ padding: '16px' }}>{children}</div>

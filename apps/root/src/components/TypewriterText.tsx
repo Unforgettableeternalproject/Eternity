@@ -31,13 +31,21 @@ export default function TypewriterText({
     return sessionStorage.getItem(storageKey) === 'true';
   });
   const [hasStarted, setHasStarted] = useState(false);
+  const [showCursor, setShowCursor] = useState(false); // 客戶端才顯示游標
 
   // 打字音效
   const typeSound =
     typeof window !== 'undefined' ? new Audio('/se/type.wav') : null;
   if (typeSound) {
     typeSound.volume = 0.3; // 設定音量較小，避免過於吵雜
+    typeSound.preload = 'metadata'; // 只預載元數據，減少緩存壓力
+    typeSound.crossOrigin = 'anonymous'; // 允許跨域，避免緩存限制
   }
+
+  // 客戶端才顯示游標，避免 hydration 不匹配
+  useEffect(() => {
+    setShowCursor(cursor && !isComplete);
+  }, [cursor, isComplete]);
 
   useEffect(() => {
     // 如果已經完成（從快取載入），跳過
@@ -79,7 +87,7 @@ export default function TypewriterText({
 
   return (
     <span
-      className={`typewriter ${className} ${cursor && !isComplete ? 'typewriter--cursor' : ''}`}
+      className={`typewriter ${className} ${showCursor ? 'typewriter--cursor' : ''}`}
     >
       {displayedText}
     </span>

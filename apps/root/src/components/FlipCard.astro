@@ -23,21 +23,23 @@ const { type = 'project', className = '' } = Astro.props;
   </div>
 </div>
 
-<script lang="ts">
+<script>
   // 為所有 FlipCard 添加點擊事件
   function initFlipCards() {
     const cards = document.querySelectorAll('[data-flip-card]');
 
     cards.forEach((card) => {
+      if (!(card instanceof HTMLElement)) return;
+      
       // 避免重複綁定事件
-      if ((card as HTMLElement).dataset.initialized === 'true') {
+      if (card.dataset.initialized === 'true') {
         return;
       }
-      (card as HTMLElement).dataset.initialized = 'true';
+      card.dataset.initialized = 'true';
 
       card.addEventListener('click', (e) => {
-        // 如果點擊的是連結，不要翻轉
-        if ((e.target as HTMLElement).closest('a')) {
+        // 如果點擊的是連結,不要翻轉
+        if (e.target instanceof HTMLElement && e.target.closest('a')) {
           return;
         }
 
@@ -56,10 +58,7 @@ const { type = 'project', className = '' } = Astro.props;
 
       // 鍵盤支持
       card.addEventListener('keydown', (e) => {
-        if (
-          (e as KeyboardEvent).key === 'Enter' ||
-          (e as KeyboardEvent).key === ' '
-        ) {
+        if (e instanceof KeyboardEvent && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           const inner = card.querySelector('.flip-card__inner');
           if (inner) {
@@ -75,12 +74,9 @@ const { type = 'project', className = '' } = Astro.props;
       });
 
       // 添加 tabindex 使其可聚焦
-      (card as HTMLElement).setAttribute('tabindex', '0');
-      (card as HTMLElement).setAttribute('role', 'button');
-      (card as HTMLElement).setAttribute(
-        'aria-label',
-        'Click to flip and see details'
-      );
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', 'Click to flip and see details');
     });
   }
 
