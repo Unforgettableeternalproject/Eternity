@@ -42,7 +42,6 @@ export function SortableCard({
   };
 
   const handleMouseDown = () => {
-    console.log('Mouse down on drag handle, setting canDrag to true');
     setCanDrag(true);
   };
 

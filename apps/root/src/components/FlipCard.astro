@@ -30,7 +30,7 @@ const { type = 'project', className = '' } = Astro.props;
 
     cards.forEach((card) => {
       if (!(card instanceof HTMLElement)) return;
-      
+
       // 避免重複綁定事件
       if (card.dataset.initialized === 'true') {
         return;
@@ -58,7 +58,10 @@ const { type = 'project', className = '' } = Astro.props;
 
       // 鍵盤支持
       card.addEventListener('keydown', (e) => {
-        if (e instanceof KeyboardEvent && (e.key === 'Enter' || e.key === ' ')) {
+        if (
+          e instanceof KeyboardEvent &&
+          (e.key === 'Enter' || e.key === ' ')
+        ) {
           e.preventDefault();
           const inner = card.querySelector('.flip-card__inner');
           if (inner) {

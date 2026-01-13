@@ -38,7 +38,9 @@ export default function SidebarCard({ children, id }: SidebarCardProps) {
             minHeight: '28px',
           }}
         >
-          <span style={{ fontSize: '14px', color: '#94a3b8', opacity: 0.4 }}>⋮⋮</span>
+          <span style={{ fontSize: '14px', color: '#94a3b8', opacity: 0.4 }}>
+            ⋮⋮
+          </span>
         </div>
         {/* 卡片內容 */}
         <div style={{ padding: '16px' }}>{children}</div>

@@ -2,11 +2,7 @@
   "title": "關於我",
   "bio": "這是我的個人簡介",
   "avatar": "/images/avatars/avatar.png",
-  "skills": [
-    "開發",
-    "設計",
-    "寫作"
-  ],
+  "skills": ["開發", "設計", "寫作"],
   "experience": [
     {
       "title": "測試工作",

@@ -113,12 +113,14 @@ cardIds.push('quote');
         stroke-linecap="round"
         stroke-linejoin="round"
         stroke-width="2"
-        d="M6 18L18 6M6 6l12 12"
-      ></path>
+        d="M6 18L18 6M6 6l12 12"></path>
     </svg>
   </button>
 
-  <div class="flex flex-col pt-16 2xl:pt-0 px-4 2xl:px-0 h-full 2xl:h-auto" id="left-sidebar-container">
+  <div
+    class="flex flex-col pt-16 2xl:pt-0 px-4 2xl:px-0 h-full 2xl:h-auto"
+    id="left-sidebar-container"
+  >
     {
       musicCard?.data.enabled && (
         <SidebarCard client:load id="music-player">
@@ -134,10 +136,7 @@ cardIds.push('quote');
 
     {
       visitorCounterCard?.data.enabled && (
-        <SidebarCard
-          client:load
-          id="visitor-counter"
-        >
+        <SidebarCard client:load id="visitor-counter">
           <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
             <svg
               class="w-4 h-4 text-secondary-400"
@@ -236,7 +235,7 @@ cardIds.push('quote');
 
 <script>
   // 簡易拖曳排序功能
-  // @ts-ignore - TypeScript cannot infer type in plain script tags
+  // @ts-expect-error - TypeScript cannot infer type in plain script tags
   let draggedElement = null;
 
   function initDragAndDrop() {
@@ -286,7 +285,7 @@ cardIds.push('quote');
 
       card.addEventListener('dragover', (e) => {
         e.preventDefault();
-        // @ts-ignore - TypeScript cannot infer type in plain script tags
+        // @ts-expect-error - TypeScript cannot infer type in plain script tags
         if (!draggedElement || draggedElement === card) return;
 
         const bounding = card.getBoundingClientRect();
@@ -405,7 +404,8 @@ cardIds.push('quote');
       // 添加背景遮罩
       const backdrop = document.createElement('div');
       backdrop.id = 'left-sidebar-backdrop';
-      backdrop.className = 'fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-300';
+      backdrop.className =
+        'fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-300';
       backdrop.addEventListener('click', closeSidebar);
       document.body.appendChild(backdrop);
       // 動畫效果
@@ -431,7 +431,11 @@ cardIds.push('quote');
 
     // ESC 鍵關閉
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && sidebar && !sidebar.classList.contains('-translate-x-full')) {
+      if (
+        e.key === 'Escape' &&
+        sidebar &&
+        !sidebar.classList.contains('-translate-x-full')
+      ) {
         closeSidebar();
       }
     });

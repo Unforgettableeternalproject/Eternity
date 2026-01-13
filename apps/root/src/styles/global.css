@@ -183,15 +183,17 @@ html {
 .gradient-bg {
   @apply fixed inset-0 overflow-hidden pointer-events-none;
   z-index: -1;
-  background: linear-gradient(to bottom, 
-    rgb(255, 255, 255) 0%, 
+  background: linear-gradient(
+    to bottom,
+    rgb(255, 255, 255) 0%,
     rgb(248, 250, 252) 100%
   );
 }
 
 .dark .gradient-bg {
-  background: linear-gradient(to bottom, 
-    rgb(15, 23, 42) 0%, 
+  background: linear-gradient(
+    to bottom,
+    rgb(15, 23, 42) 0%,
     rgb(30, 41, 59) 100%
   );
 }

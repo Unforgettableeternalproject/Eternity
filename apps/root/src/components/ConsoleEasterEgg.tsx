@@ -26,14 +26,10 @@ export default function ConsoleEasterEgg({
   const VISIBLE_TIME = 5000; // visible for 5 seconds
   const COOLDOWN_TIME = 30000; // 30 seconds before can appear again
 
-  const log = useCallback(
-    (...args: any[]) => {
-      if (debugMode || envConfig.enableConsoleLog) {
-        console.log('[Console Easter Egg]', ...args);
-      }
-    },
-    [debugMode]
-  );
+  const log = useCallback((...args: any[]) => {
+    // Console logs disabled for production
+    void args;
+  }, []);
 
   const getRandomPosition = useCallback(() => {
     const vw = window.innerWidth;

@@ -272,7 +272,10 @@ const alternatePath = getAlternatePath(currentPath, locale);
     const menuClose = document.querySelector('.menu-close');
 
     if (!mobileMenuButton || !mobileMenu) {
-      console.warn('Mobile menu elements not found:', { mobileMenuButton, mobileMenu });
+      console.warn('Mobile menu elements not found:', {
+        mobileMenuButton,
+        mobileMenu,
+      });
       return;
     }
 
@@ -284,15 +287,17 @@ const alternatePath = getAlternatePath(currentPath, locale);
     newButton.addEventListener('click', (e) => {
       console.log('Mobile menu button clicked');
       const isHidden = mobileMenu.classList.toggle('hidden');
-      
+
       const newMenuOpen = document.querySelector('.menu-open');
       const newMenuClose = document.querySelector('.menu-close');
-      
+
       newMenuOpen?.classList.toggle('hidden');
       newMenuClose?.classList.toggle('hidden');
-      
+
       // 更新 aria-expanded（!isHidden 因為 toggle 返回的是切換後的狀態）
-      newButton.setAttribute('aria-expanded', (!isHidden).toString());
+      if (newButton instanceof HTMLElement) {
+        newButton.setAttribute('aria-expanded', (!isHidden).toString());
+      }
     });
 
     console.log('Mobile menu initialized');
