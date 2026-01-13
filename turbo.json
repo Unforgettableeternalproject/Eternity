@@ -1,6 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["**/.env.*local"],
+  "globalDependencies": ["**/.env.*local", "**/.env"],
+  "globalEnv": [
+    "KEYSTATIC_GITHUB_CLIENT_ID",
+    "KEYSTATIC_GITHUB_CLIENT_SECRET",
+    "KEYSTATIC_SECRET",
+    "PUBLIC_VISITOR_API_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

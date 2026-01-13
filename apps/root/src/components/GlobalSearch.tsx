@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import './GlobalSearch.css';
 
 export interface SearchResult {
@@ -34,8 +35,60 @@ export default function GlobalSearch({
   const [filter, setFilter] = useState<'all' | 'project' | 'link' | 'update'>(
     'all'
   );
+  const [isDark, setIsDark] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 檢測深色模式
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    
+    checkDarkMode();
+    
+    // 監聽主題變化
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    
+    return () => observer.disconnect();
+  }, []);
+
+  // 當模態框打開時禁用 body 滾動
+  useEffect(() => {
+    if (isOpen && !isClosing) {
+      // 保存當前滾動位置
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+    } else if (!isOpen) {
+      // 恢復滾動 - 先獲取保存的位置
+      const scrollY = document.body.style.top;
+      const scrollPosition = scrollY ? parseInt(scrollY || '0') * -1 : 0;
+      
+      // 使用 requestAnimationFrame 確保在同一幀內完成
+      requestAnimationFrame(() => {
+        // 清除樣式
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        
+        // 立即恢復滾動位置（無動畫）
+        if (scrollPosition) {
+          window.scrollTo({
+            top: scrollPosition,
+            behavior: 'instant' as ScrollBehavior,
+          });
+        }
+      });
+    }
+  }, [isOpen, isClosing]);
 
   // 載入所有可搜索的內容 - 當 locale 改變時重新加載
   useEffect(() => {
@@ -257,16 +310,41 @@ export default function GlobalSearch({
         <kbd className="global-search__kbd">⌘K</kbd>
       </button>
 
-      {/* 搜索模態框 */}
-      {isOpen && (
+      {/* 搜索模態框 - 使用 Portal 渲染到 body */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <>
           <div
             className={`global-search__backdrop ${isClosing ? 'closing' : ''}`}
             onClick={handleClose}
+            style={{
+              zIndex: 99999,
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(4px)',
+              pointerEvents: 'auto',
+            }}
           />
-          <div className={`global-search__modal ${isClosing ? 'closing' : ''}`}>
-            <div className="global-search__container">
-              <div className="global-search__header">
+          <div 
+            className={`global-search__modal ${isClosing ? 'closing' : ''}`}
+            style={{
+              zIndex: 100000,
+            }}
+          >
+            <div 
+              className="global-search__container"
+              style={{
+                background: isDark 
+                  ? 'rgba(30, 41, 59, 0.98)' 
+                  : 'rgba(255, 255, 255, 0.98)',
+              }}
+            >
+              <div 
+                className="global-search__header"
+                style={{
+                  background: isDark ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+                }}
+              >
                 <svg
                   className="global-search__search-icon"
                   fill="none"
@@ -295,6 +373,9 @@ export default function GlobalSearch({
                     setSelectedIndex(0);
                   }}
                   onKeyDown={handleKeyDown}
+                  style={{
+                    color: isDark ? 'rgb(226, 232, 240)' : 'rgb(15, 23, 42)',
+                  }}
                 />
                 <button
                   onClick={handleClose}
@@ -410,25 +491,46 @@ export default function GlobalSearch({
                         )}
                       </div>
                       <div className="global-search__result-content">
-                        <div className="global-search__result-title">
+                        <div 
+                          className="global-search__result-title"
+                          style={{
+                            color: isDark ? 'rgb(226, 232, 240)' : 'rgb(15, 23, 42)',
+                          }}
+                        >
                           {result.title}
                         </div>
                         {result.description && (
-                          <div className="global-search__result-desc">
+                          <div 
+                            className="global-search__result-desc"
+                            style={{
+                              color: isDark ? 'rgb(148, 163, 184)' : 'rgb(100, 116, 139)',
+                            }}
+                          >
                             {result.description}
                           </div>
                         )}
                         {result.tags && result.tags.length > 0 && (
                           <div className="global-search__result-tags">
                             {result.tags.slice(0, 3).map((tag) => (
-                              <span key={tag} className="global-search__tag">
+                              <span 
+                                key={tag} 
+                                className="global-search__tag"
+                                style={{
+                                  color: isDark ? 'rgb(203, 213, 225)' : 'rgb(71, 85, 105)',
+                                }}
+                              >
                                 {tag}
                               </span>
                             ))}
                           </div>
                         )}
                       </div>
-                      <div className="global-search__result-type">
+                      <div 
+                        className="global-search__result-type"
+                        style={{
+                          color: isDark ? 'rgb(148, 163, 184)' : 'rgb(100, 116, 139)',
+                        }}
+                      >
                         {getTypeLabel(result.type)}
                       </div>
                     </a>
@@ -469,7 +571,8 @@ export default function GlobalSearch({
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

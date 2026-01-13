@@ -12,12 +12,12 @@ const integrations = [
   }),
   markdoc(),
   react(),
+  // Keystatic 在所有環境都啟用 (使用 GitHub storage)
+  // 需要明確指定配置檔案路徑
+  keystatic({
+    config: './keystatic.config.tsx',
+  }),
 ];
-
-// Keystatic 只在開發環境使用（避免 Workers runtime 不兼容）
-if (process.env.NODE_ENV === 'development') {
-  integrations.push(keystatic());
-}
 
 // https://astro.build/config
 export default defineConfig({

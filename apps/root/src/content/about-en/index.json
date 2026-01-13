@@ -1,6 +1,7 @@
 {
   "title": "About Me",
   "bio": "This is my bio",
+  "avatar": "/images/avatars/avatar.png",
   "skills": [
     "Development",
     "Design",
