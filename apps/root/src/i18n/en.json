@@ -4,7 +4,52 @@
     "about": "About",
     "projects": "Projects",
     "links": "Links",
-    "updates": "Updates"
+    "updates": "Updates",
+    "contact": "Contact"
+  },
+  "contact": {
+    "title": "Contact Me",
+    "description": "Get in touch or follow me on social media",
+    "subtitle": "Have any questions or ideas? Feel free to reach out through any of the following channels",
+    "social": {
+      "heading": "Social Platforms",
+      "github": {
+        "name": "GitHub",
+        "description": "Check out my open source projects"
+      },
+      "twitter": {
+        "name": "Twitter / X",
+        "description": "Follow my latest updates"
+      },
+      "email": {
+        "name": "Email",
+        "description": "ptyc4076@gmail.com"
+      }
+    },
+    "form": {
+      "heading": "Send a Message",
+      "name": {
+        "label": "Your Name",
+        "placeholder": "Your name"
+      },
+      "email": {
+        "label": "Email Address",
+        "placeholder": "your@email.com"
+      },
+      "subject": {
+        "label": "Subject",
+        "placeholder": "What would you like to talk about?"
+      },
+      "message": {
+        "label": "Message",
+        "placeholder": "Your message..."
+      },
+      "required": "*",
+      "submit": "Send Message",
+      "success": "Message sent successfully! I'll get back to you soon.",
+      "error": "Failed to send. Please try again later.",
+      "errorGeneric": "An error occurred. Please try again later."
+    }
   },
   "home": {
     "title": "Bernie - Developer & Creator",

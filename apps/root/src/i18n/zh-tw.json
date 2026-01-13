@@ -4,7 +4,52 @@
     "about": "關於我",
     "projects": "專案",
     "links": "連結",
-    "updates": "最新動態"
+    "updates": "最新動態",
+    "contact": "聯絡我"
+  },
+  "contact": {
+    "title": "聯絡我",
+    "description": "與我取得聯繫，或關注我的社群平台",
+    "subtitle": "有任何問題或想法嗎？歡迎透過以下方式與我聯繫",
+    "social": {
+      "heading": "社群平台",
+      "github": {
+        "name": "GitHub",
+        "description": "查看我的開源專案"
+      },
+      "twitter": {
+        "name": "Twitter / X",
+        "description": "關注我的最新動態"
+      },
+      "email": {
+        "name": "Email",
+        "description": "ptyc4076@gmail.com"
+      }
+    },
+    "form": {
+      "heading": "發送訊息",
+      "name": {
+        "label": "您的姓名",
+        "placeholder": "您的名字"
+      },
+      "email": {
+        "label": "電子郵件",
+        "placeholder": "your@email.com"
+      },
+      "subject": {
+        "label": "主旨",
+        "placeholder": "想聊些什麼？"
+      },
+      "message": {
+        "label": "訊息內容",
+        "placeholder": "您的訊息..."
+      },
+      "required": "*",
+      "submit": "發送訊息",
+      "success": "訊息已成功發送！我會盡快回覆您。",
+      "error": "發送失敗，請稍後再試。",
+      "errorGeneric": "發生錯誤，請稍後再試。"
+    }
   },
   "home": {
     "title": "Bernie - 開發者與創作者",

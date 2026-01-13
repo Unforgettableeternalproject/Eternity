@@ -122,6 +122,26 @@
   .reveal-visible {
     @apply opacity-100 translate-y-0;
   }
+
+  .geo-outline {
+    --geo-border: 2px;
+    box-sizing: border-box;
+    background-image: linear-gradient(135deg, var(--tw-gradient-stops));
+    padding: var(--geo-border);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .geo-hue {
+    background-size: 200% 200%;
+    animation: geo-shift 10s ease-in-out infinite;
+  }
 }
 
 /* Background patterns */
@@ -305,4 +325,22 @@ html {
 .animate-fade-in {
   opacity: 0;
   animation: fade-in 0.8s ease-out forwards;
+}
+
+@keyframes geo-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geo-hue {
+    animation: none !important;
+  }
 }
