@@ -1,10 +1,28 @@
 # 專案進度追蹤
 
-## 最近更新 (2026-01-12)
+## 最近更新 (2026-01-13)
 
 ### ✅ 已完成
 
-- **CI/CD Pipeline 修復** (NEW - 2026-01-12晚)
+- **聯絡頁面與視覺優化** (NEW - 2026-01-13)
+  - **聯絡頁面實作**:
+    - 左右分佈設計（社群連結 + 聯絡表單）
+    - 社群平台簡潔條列式設計（hover 顯示背景色）
+    - 整合 Cloudflare MailChannels 免費郵件服務
+    - Toast 通知系統整合（移除內建訊息框）
+  - **全站幾何裝飾**:
+    - 主頁、關於、專案、聯絡頁面添加幾何圖形輪廓
+    - 6px 粗邊框，50-60% 透明度，固定定位
+    - 圓形、方形、旋轉圖形混搭，增加視覺豐富度
+  - **Footer 更新**: Bernie 連結改為聯絡頁面連結
+  - **程式碼清理**: 
+    - 移除 ConsoleEasterEgg 和 UEPCharacter 的 console.log
+    - 修正 ThemeToggle.astro 的 JSX 註解格式錯誤
+  - **i18n 支援**: 完整繁中/英文翻譯（社群平台、表單欄位、提示訊息）
+  - **CI/CD 驗證**: ✅ Lint (0 errors) / ✅ TypeCheck (0 errors) / ✅ Format / ✅ Build
+  - **狀態**: 準備部署至 staging 環境
+
+- **CI/CD Pipeline 修復** (2026-01-12晚)
   - **ESLint 配置增強**: 添加完整的全域變數宣告（Audio, localStorage, setTimeout, React, HTMLDivElement, fetch, URL 等）
   - **TypeScript 錯誤修復**: 
     - MusicPlayer tracks 加入類型守衛過濾

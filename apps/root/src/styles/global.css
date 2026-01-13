@@ -27,7 +27,7 @@
 /* Base layer customizations */
 @layer base {
   body {
-    @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100;
+    @apply text-slate-900 dark:text-slate-100;
     @apply font-sans antialiased;
     @apply transition-colors duration-300;
   }
@@ -122,6 +122,26 @@
   .reveal-visible {
     @apply opacity-100 translate-y-0;
   }
+
+  .geo-outline {
+    --geo-border: 2px;
+    box-sizing: border-box;
+    background-image: linear-gradient(135deg, var(--tw-gradient-stops));
+    padding: var(--geo-border);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .geo-hue {
+    background-size: 200% 200%;
+    animation: geo-shift 10s ease-in-out infinite;
+  }
 }
 
 /* Background patterns */
@@ -161,7 +181,21 @@ html {
 }
 /* Interactive gradient background with mouse tracking */
 .gradient-bg {
-  @apply fixed inset-0 -z-10 overflow-hidden pointer-events-none;
+  @apply fixed inset-0 overflow-hidden pointer-events-none;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    rgb(255, 255, 255) 0%,
+    rgb(248, 250, 252) 100%
+  );
+}
+
+.dark .gradient-bg {
+  background: linear-gradient(
+    to bottom,
+    rgb(15, 23, 42) 0%,
+    rgb(30, 41, 59) 100%
+  );
 }
 
 .gradient-orb {
@@ -204,7 +238,7 @@ html {
   );
   transform: translate(-50%, -50%);
   transition: opacity 0.3s ease;
-  z-index: 40; /* 在 navbar (z-50) 下方，但在內容 (z-10) 上方 */
+  z-index: 0;
 }
 
 .dark .cursor-glow {
@@ -293,4 +327,22 @@ html {
 .animate-fade-in {
   opacity: 0;
   animation: fade-in 0.8s ease-out forwards;
+}
+
+@keyframes geo-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geo-hue {
+    animation: none !important;
+  }
 }

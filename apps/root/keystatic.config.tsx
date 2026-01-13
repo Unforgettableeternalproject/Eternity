@@ -173,7 +173,7 @@ export default config({
         }),
         avatar: fields.image({
           label: 'Avatar',
-          directory: 'apps/root/public/images/avatars',
+          directory: 'public/images/avatars',
           publicPath: '/images/avatars/',
         }),
         skills: fields.array(fields.text({ label: 'Skill' }), {

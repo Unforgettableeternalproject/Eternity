@@ -37,14 +37,10 @@ export default function UEPCharacter({
   const VISIBLE_TIME = 8000; // 顯示 8 秒
   const COOLDOWN_TIME = 30000; // 30 秒冷卻
 
-  const log = useCallback(
-    (...args: any[]) => {
-      if (debugMode || envConfig.enableConsoleLog) {
-        console.log('[UEP Character]', ...args);
-      }
-    },
-    [debugMode]
-  );
+  const log = useCallback((...args: any[]) => {
+    // Console logs disabled for production
+    void args;
+  }, []);
 
   // 抽選出現方式
   const rollAppearanceMode = useCallback((): AppearanceMode => {

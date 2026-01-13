@@ -78,7 +78,7 @@
 .global-search__backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: 10000 !important;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   animation: fadeIn 0.2s ease-out both;
@@ -109,10 +109,10 @@
 /* 搜索模態框 */
 .global-search__modal {
   position: fixed;
-  top: 20%;
-  left: 50%;
+  top: 60px;
+  left: 40.8%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: 10001 !important;
   width: 90vw;
   max-width: 42rem;
   animation: slideDown 0.2s ease-out both;
@@ -158,8 +158,11 @@
 }
 
 :global(.dark) .global-search__container {
-  background: rgba(15, 23, 42, 0.98);
+  background: rgba(30, 41, 59, 0.98);
   border-color: rgba(148, 163, 184, 0.1);
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.5),
+    0 8px 10px -6px rgb(0 0 0 / 0.5);
 }
 
 /* 搜索頭部 */
@@ -172,7 +175,8 @@
 }
 
 :global(.dark) .global-search__header {
-  border-bottom-color: rgba(148, 163, 184, 0.1);
+  border-bottom-color: rgba(148, 163, 184, 0.05);
+  background: rgba(15, 23, 42, 0.3);
 }
 
 .global-search__search-icon {
@@ -197,6 +201,7 @@
 
 :global(.dark) .global-search__input {
   color: rgb(226, 232, 240);
+  background: transparent;
 }
 
 .global-search__close {
@@ -284,6 +289,10 @@
   padding: 0.5rem;
   min-height: 12rem;
   max-height: 24rem;
+}
+
+:global(.dark) .global-search__results {
+  background: transparent;
 }
 
 .global-search__result {
@@ -409,6 +418,11 @@
   color: rgb(148, 163, 184);
 }
 
+:global(.dark) .global-search__empty,
+:global(.dark) .global-search__placeholder {
+  color: rgb(100, 116, 139);
+}
+
 .global-search__empty svg,
 .global-search__placeholder svg {
   width: 3rem;
@@ -430,6 +444,7 @@
 
 :global(.dark) .global-search__footer {
   border-top-color: rgba(148, 163, 184, 0.05);
+  background: rgba(15, 23, 42, 0.3);
 }
 
 .global-search__shortcuts {
@@ -454,8 +469,8 @@
 }
 
 :global(.dark) .global-search__shortcuts kbd {
-  background: rgba(30, 41, 59, 0.5);
-  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(148, 163, 184, 0.15);
 }
 
 /* 響應式 */

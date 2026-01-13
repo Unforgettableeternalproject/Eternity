@@ -454,8 +454,10 @@ export default function MusicPlayer({
         ref={audioRef}
         src={tracks[currentTrack].url}
         loop
+        preload="metadata"
         id="global-music-player"
         data-astro-transition-persist="music-audio"
+        crossOrigin="anonymous"
       />
     </div>
   );

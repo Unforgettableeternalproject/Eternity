@@ -11,6 +11,7 @@ import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
 import LeftSidebar from '../components/LeftSidebar.astro';
 import RightSidebar from '../components/RightSidebar.astro';
+import MobileControlPanel from '../components/MobileControlPanel.astro';
 import CookieConsent from '../components/CookieConsent';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
@@ -159,9 +160,31 @@ const alternateURL = new URL(alternatePath, Astro.site);
       keysToRemove.forEach((key) => sessionStorage.removeItem(key));
     </script>
   </head>
-  <body class="min-h-screen bg-white dark:bg-slate-900 relative">
+  <body class="min-h-screen relative">
     <!-- Interactive gradient background -->
     <div class="gradient-bg">
+      <!-- Hexagonal Dot Pattern -->
+      <div class="absolute inset-0 dot-pattern opacity-40"></div>
+
+      <!-- Radial Gradient Overlay -->
+      <div
+        class="absolute inset-0 bg-gradient-radial from-transparent via-white/60 to-white dark:from-transparent dark:via-slate-900/60 dark:to-slate-900"
+      >
+      </div>
+
+      <!-- Large Blur Effect for Depth -->
+      <div
+        class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full bg-primary-500/30 dark:bg-primary-500/20 blur-[120px]"
+      >
+      </div>
+
+      <!-- Secondary blur for accent -->
+      <div
+        class="absolute right-0 top-0 h-[400px] w-[400px] rounded-full bg-secondary-500/20 dark:bg-secondary-500/10 blur-[100px]"
+      >
+      </div>
+
+      <!-- Animated gradient orbs -->
       <div class="gradient-orb gradient-orb-1"></div>
       <div class="gradient-orb gradient-orb-2"></div>
       <div class="gradient-orb gradient-orb-3"></div>
@@ -179,12 +202,15 @@ const alternateURL = new URL(alternatePath, Astro.site);
       size={80}
     />
 
-    <!-- Sticky Navigation -->
+    <!-- Fixed Navigation -->
     <header
-      class="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
+      class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
     >
       <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
+
+    <!-- Spacer for fixed header -->
+    <div class="h-[88px]"></div>
 
     <!-- Left Sidebar -->
     <LeftSidebar />
@@ -192,8 +218,11 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Right Sidebar -->
     <RightSidebar />
 
+    <!-- Mobile Control Panel (iPhone-style bottom sheet) -->
+    <MobileControlPanel />
+
     <!-- Main Content Area -->
-    <main>
+    <main class="transition-all duration-300 2xl:mx-72">
       <slot />
     </main>
 
