@@ -3,6 +3,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import './UEPCharacter.css';
 import { envConfig } from '../config/env';
 
+// 使用全域 toastManager
+const getToastManager = () => {
+  if (typeof window !== 'undefined' && (window as any).__toastManager) {
+    return (window as any).__toastManager;
+  }
+  return null;
+};
+
 interface UEPCharacterProps {
   uepDocsUrl: string;
   debugMode?: boolean;
@@ -301,20 +309,26 @@ export default function UEPCharacter({
 
   if (!isVisible || !appearanceMode) return null;
 
+  const handleClick = () => {
+    const manager = getToastManager();
+    if (manager) {
+      manager.show('你找到了小U.E.P! 🎉', 'uep', 3000);
+    }
+  };
+
   return (
-    <a
-      href={uepDocsUrl}
+    <div
       className={`uep-character uep-character--${appearanceMode} ${isHovered ? 'uep-character--hovered' : ''} ${isHiding ? 'uep-character--hiding' : ''}`}
       style={{
         position: 'fixed',
         top: `${position.top}px`,
         left: `${position.left}px`,
+        cursor: 'pointer',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => log('UEP clicked, navigating to docs')}
-      aria-label="前往 U.E.P 的幻想空間"
-      title="點擊探索 U.E.P 的世界"
+      onClick={handleClick}
+      aria-label="小U.E.P"
     >
       {appearanceMode === 'corner' && (
         <img
@@ -337,13 +351,6 @@ export default function UEPCharacter({
           className="uep-character__image uep-character__image--float"
         />
       )}
-
-      {/* 提示氣泡（懸浮時顯示） */}
-      {isHovered && (
-        <div className="uep-character__tooltip">
-          點擊探索 U.E.P 的幻想空間 ✨
-        </div>
-      )}
-    </a>
+    </div>
   );
 }

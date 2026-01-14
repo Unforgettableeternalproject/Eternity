@@ -1,10 +1,27 @@
 # 專案進度追蹤
 
-## 最近更新 (2026-01-13)
+## 最近更新 (2026-01-14)
 
 ### ✅ 已完成
 
-- **聯絡頁面與視覺優化** (NEW - 2026-01-13)
+- **音樂播放器 Toast 整合** (NEW - 2026-01-14)
+  - 播放/暫停操作顯示 Toast 提示（⏸️ 音樂已暫停 / ▶️ 正在播放）
+  - 切換曲目顯示歌曲名稱和演唱者（🎵 歌名 - 歌手）
+  - 完整中英文支援
+  - 使用 `info` 類型（播放控制）和 `success` 類型（切換曲目）
+
+- **Resend 郵件服務整合** (2026-01-14)
+  - 從 MailChannels 切換到 Resend（免費 3000 emails/月）
+  - Resend API 測試成功（Email ID: ff757d17-0d57-4594-b8e6-1a5143a0a372）
+  - DNS 記錄設置並驗證（DKIM, SPF, DMARC）
+  - Cloudflare Pages 環境變數雙重訪問機制（runtime.env + import.meta.env）
+  - TypeScript 類型定義（App.Locals.runtime）
+  - 創建 debug-env.json.ts 除錯 API
+  - 本地環境測試通過
+  - CI 測試全部通過（Lint, Typecheck, Format, Build）
+  - **待辦**: Cloudflare Pages 設置 RESEND_API_KEY 環境變數後測試
+
+- **聯絡頁面與視覺優化** (2026-01-13)
   - **聯絡頁面實作**:
     - 左右分佈設計（社群連結 + 聯絡表單）
     - 社群平台簡潔條列式設計（hover 顯示背景色）
@@ -145,21 +162,28 @@
 
 ### ⏳ 進行中
 
-- **測試環境回饋修復** (NEW - 2026-01-14)
+- **測試環境回饋修復** (2026-01-14)
   - **響應式問題**:
     - [x] 聯絡頁面缺少響應式處理（已優化 padding、grid、標題大小）
-    - [ ] 搜尋欄在窄螢幕（≤320px）定位問題（margin 導致）
-    - [ ] 導航欄按鈕在窄螢幕溢出（out of bounds）
-    - [ ] 搜尋窗格 Tag 內容過多時被擠壓，文字超出容器
+    - [x] 搜尋欄在窄螢幕（≤320px）定位問題（margin 導致）
+    - [x] 導航欄按鈕在窄螢幕溢出（out of bounds）
+    - [x] 搜尋窗格 Tag 內容過多時被擠壓，文字超出容器
   - **搜尋功能優化**:
-    - [ ] 移除頁面類型搜尋結果（主頁、專案頁等）
-    - [ ] 只保留物件搜尋（專案、更新、連結等實際內容）
-  - **郵件發送修復**:
-    - [x] 修復 MailChannels 401 Authorization Required 錯誤
-    - [x] 添加開發環境模擬（開發時記錄但不實際發送）
+    - [x] 移除頁面類型搜尋結果（主頁、專案頁等）
+    - [x] 只保留物件搜尋（專案、更新、連結等實際內容）
+  - **郵件服務升級**:
+    - [x] 從 MailChannels 切換到 Resend（免費 3000 emails/月）
+    - [x] Resend API 測試成功（Email ID: ff757d17-0d57-4594-b8e6-1a5143a0a372）
+    - [x] DNS 記錄設置並驗證（DKIM, SPF, DMARC）
+    - [x] Cloudflare Pages 環境變數雙重訪問機制（runtime.env + import.meta.env）
+    - [x] TypeScript 類型定義（App.Locals.runtime）
+    - [x] 創建 debug-env.json.ts 除錯 API
+    - [x] 本地環境測試通過
+    - [x] Cloudflare Pages 設置 RESEND_API_KEY 環境變數（Production + Preview）
+    - [x] 測試機郵件功能驗證
   - **Toast 整合擴展**:
-    - [ ] 音樂播放器操作添加 Toast 提示（播放、暫停、切換曲目）
-    - [ ] 其他用戶互動添加 Toast 反饋
+    - [x] 音樂播放器操作添加 Toast 提示（播放、暫停、切換曲目）
+    - [ ] 其他用戶互動添加 Toast 反饋（如需要）
   - **小螢幕適配**:
     - [ ] 針對極窄螢幕（320px，如 Samsung Galaxy S9+）優化排版
     - [ ] 檢查所有主要頁面在小螢幕的表現
@@ -236,5 +260,8 @@
 
 ---
 
-**上次更新**: 2026-01-12 15:30
-**狀態**: 準備合併至 staging 分支進行測試
+**上次更新**: 2026-01-14
+**狀態**: 
+- ✅ Resend 郵件服務整合完成（本地測試通過，DNS 已驗證）
+- ⏳ 等待 Cloudflare Pages 環境變數設置後進行測試機驗證
+- 📋 準備開始下一階段開發（響應式優化 + 搜尋功能改進）

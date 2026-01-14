@@ -87,6 +87,10 @@
   border-left: 4px solid rgb(59, 130, 246);
 }
 
+.toast--uep {
+  border-left: 4px solid #d5b618;
+}
+
 /* 圖標容器 */
 .toast__icon-wrapper {
   flex-shrink: 0;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import './Toast.css';
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+export type ToastType = 'success' | 'error' | 'warning' | 'info'| 'uep';
 
 export interface ToastMessage {
   id: string;
@@ -100,6 +100,24 @@ function Toast({ toast, onClose }: ToastProps) {
             />
           </svg>
         );
+      case 'uep':
+        return (
+          <svg
+            className="toast__icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4.354a4 4 0 110 7.292M12 14.354a4 4 0 110 7.292M12 9.354v1m0 4v1"
+            />
+          </svg>
+        );
+      default:
+        return null;
     }
   };
 
@@ -142,6 +160,14 @@ interface ToastContainerProps {
 let toastIdCounter = 0;
 const toastListeners: Array<(toasts: ToastMessage[]) => void> = [];
 let toastsState: ToastMessage[] = [];
+let pendingToasts: ToastMessage[] = []; // 緩存尚未處理的 toast
+
+// 宣告全域類型
+declare global {
+  interface Window {
+    __toastManager?: typeof toastManager;
+  }
+}
 
 export const toastManager = {
   show: (message: string, type: ToastType = 'info', duration = 3000) => {
@@ -153,7 +179,20 @@ export const toastManager = {
     };
 
     toastsState = [...toastsState, toast];
-    toastListeners.forEach((listener) => listener(toastsState));
+    
+    // 如果有監聽器，立即通知；否則緩存
+    if (toastListeners.length > 0) {
+      toastListeners.forEach((listener) => listener(toastsState));
+    } else {
+      pendingToasts.push(toast);
+      // 延遲執行，給 React 元件時間初始化
+      setTimeout(() => {
+        if (toastListeners.length > 0 && pendingToasts.length > 0) {
+          toastListeners.forEach((listener) => listener(toastsState));
+          pendingToasts = [];
+        }
+      }, 100);
+    }
 
     return toast.id;
   },
@@ -174,6 +213,10 @@ export const toastManager = {
     return toastManager.show(message, 'info', duration);
   },
 
+  uep: (message: string, duration?: number) => {
+    return toastManager.show(message, 'uep', duration);
+  },
+
   dismiss: (id: string) => {
     toastsState = toastsState.filter((t) => t.id !== id);
     toastListeners.forEach((listener) => listener(toastsState));
@@ -186,6 +229,13 @@ export const toastManager = {
 
   subscribe: (listener: (toasts: ToastMessage[]) => void) => {
     toastListeners.push(listener);
+    
+    // 如果有緩存的 toast，立即發送
+    if (pendingToasts.length > 0) {
+      listener(toastsState);
+      pendingToasts = [];
+    }
+    
     return () => {
       const index = toastListeners.indexOf(listener);
       if (index > -1) {
@@ -195,18 +245,43 @@ export const toastManager = {
   },
 };
 
+// 確保使用全域單例
+if (typeof window !== 'undefined') {
+  if (!window.__toastManager) {
+    window.__toastManager = toastManager;
+  }
+}
+
+// 便捷函數導出（與 toastManager 等價）
+export const showToast = (typeof window !== 'undefined' && window.__toastManager) 
+  ? window.__toastManager.show 
+  : toastManager.show;
+
 export default function ToastContainer({
   position = 'top-right',
 }: ToastContainerProps) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   useEffect(() => {
-    const unsubscribe = toastManager.subscribe(setToasts);
-    return unsubscribe;
+    // 使用全域 toastManager
+    const manager = typeof window !== 'undefined' && window.__toastManager 
+      ? window.__toastManager 
+      : toastManager;
+    
+    const unsubscribe = manager.subscribe((newToasts) => {
+      setToasts(newToasts);
+    });
+    
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleClose = useCallback((id: string) => {
-    toastManager.dismiss(id);
+    const manager = typeof window !== 'undefined' && window.__toastManager 
+      ? window.__toastManager 
+      : toastManager;
+    manager.dismiss(id);
   }, []);
 
   if (toasts.length === 0) return null;

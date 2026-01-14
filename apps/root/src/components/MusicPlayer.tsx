@@ -1,4 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
+import { showToast } from './Toast';
+
+// 使用全域 toastManager（如果可用）
+const getToastManager = () => {
+  if (typeof window !== 'undefined' && (window as any).__toastManager) {
+    return (window as any).__toastManager;
+  }
+  return null;
+};
 
 interface Track {
   title: string;
@@ -41,15 +50,7 @@ export default function MusicPlayer({
     if (typeof window === 'undefined') return 0.5;
 
     const cookieConsent = localStorage.getItem('cookie-consent');
-    console.log(
-      '[MusicPlayer] getSavedVolume - Cookie consent:',
-      cookieConsent
-    );
-
     if (cookieConsent !== 'accepted') {
-      console.log(
-        '[MusicPlayer] getSavedVolume - Cookie not accepted, using default 0.5'
-      );
       return 0.5;
     }
 
@@ -58,48 +59,26 @@ export default function MusicPlayer({
     if (globalState) {
       try {
         const parsed = JSON.parse(globalState);
-        console.log('[MusicPlayer] Found globalMusicPlayerState:', parsed);
         if (
           typeof parsed.volume === 'number' &&
           parsed.volume >= 0 &&
           parsed.volume <= 1
         ) {
-          console.log(
-            '[MusicPlayer] Using volume from globalMusicPlayerState:',
-            parsed.volume
-          );
           return parsed.volume;
         }
       } catch (error) {
-        console.error(
-          '[MusicPlayer] Error parsing globalMusicPlayerState:',
-          error
-        );
+        // Ignore parsing errors
       }
     }
 
     // 檢查新的獨立 key 格式
     const saved = localStorage.getItem('music-volume');
-    console.log(
-      '[MusicPlayer] getSavedVolume - Saved volume from localStorage:',
-      saved
-    );
-
     if (saved) {
       const vol = parseFloat(saved);
       const isValid = vol >= 0 && vol <= 1;
-      console.log(
-        '[MusicPlayer] getSavedVolume - Parsed volume:',
-        vol,
-        'Valid:',
-        isValid
-      );
       return isValid ? vol : 0.5;
     }
 
-    console.log(
-      '[MusicPlayer] getSavedVolume - No saved volume, using default 0.5'
-    );
     return 0.5;
   };
 
@@ -142,12 +121,6 @@ export default function MusicPlayer({
   // 當用戶調整音量時，保存到 localStorage（只在接受 Cookie 後）
   useEffect(() => {
     const cookieConsent = localStorage.getItem('cookie-consent');
-    console.log(
-      '[MusicPlayer] Volume changed to:',
-      volume,
-      'Cookie consent:',
-      cookieConsent
-    );
 
     if (cookieConsent === 'accepted') {
       try {
@@ -160,71 +133,48 @@ export default function MusicPlayer({
             'globalMusicPlayerState',
             JSON.stringify(parsed)
           );
-          console.log(
-            '[MusicPlayer] Updated volume in globalMusicPlayerState:',
-            volume
-          );
         }
 
         // 同時也儲存到獨立 key（新格式）
         localStorage.setItem('music-volume', volume.toString());
-        console.log('[MusicPlayer] Volume saved to localStorage:', volume);
       } catch (error) {
-        console.error('[MusicPlayer] Error saving to localStorage:', error);
+        // Ignore errors
       }
-    } else {
-      console.log('[MusicPlayer] Volume NOT saved (cookie not accepted)');
     }
   }, [volume]);
 
   // 監聽 Cookie 同意狀態變化，重新載入儲存的設定
   useEffect(() => {
     const handleCookieConsentChanged = () => {
-      console.log('[MusicPlayer] cookie-consent-changed event triggered');
       const cookieConsent = localStorage.getItem('cookie-consent');
-      console.log('[MusicPlayer] Cookie consent status:', cookieConsent);
 
       if (cookieConsent === 'accepted') {
         // 重新載入音量設定
         const savedVolume = localStorage.getItem('music-volume');
-        console.log(
-          '[MusicPlayer] Reloading volume from localStorage:',
-          savedVolume
-        );
-
         if (savedVolume) {
           const vol = parseFloat(savedVolume);
           if (vol >= 0 && vol <= 1) {
-            console.log('[MusicPlayer] Setting volume to:', vol);
             setVolume(vol);
           }
         }
 
         // 重新載入歌曲選擇
         const savedTrack = localStorage.getItem('music-current-track');
-        console.log(
-          '[MusicPlayer] Reloading track from localStorage:',
-          savedTrack
-        );
-
         if (savedTrack) {
           const index = parseInt(savedTrack, 10);
           if (index >= 0 && index < tracks.length) {
-            console.log('[MusicPlayer] Setting track to:', index);
             setCurrentTrack(index);
           }
         }
       }
     };
 
-    console.log('[MusicPlayer] Setting up cookie-consent-changed listener');
     window.addEventListener(
       'cookie-consent-changed',
       handleCookieConsentChanged
     );
 
     return () => {
-      console.log('[MusicPlayer] Removing cookie-consent-changed listener');
       window.removeEventListener(
         'cookie-consent-changed',
         handleCookieConsentChanged
@@ -317,10 +267,23 @@ export default function MusicPlayer({
 
   const togglePlay = () => {
     if (audioRef.current) {
+      const manager = getToastManager();
       if (isPlaying) {
         audioRef.current.pause();
+        if (manager) {
+          manager.show(
+            locale === 'zh-tw' ? '⏸️ 音樂已暫停' : '⏸️ Music Paused',
+            'info'
+          );
+        }
       } else {
         audioRef.current.play();
+        if (manager) {
+          manager.show(
+            locale === 'zh-tw' ? '▶️ 繼續播放' : '▶️ Now Playing',
+            'info'
+          );
+        }
       }
       setIsPlaying(!isPlaying);
     }
@@ -330,6 +293,18 @@ export default function MusicPlayer({
     shouldAutoPlay.current = true; // 標記需要自動播放
     setCurrentTrack(index);
     setShowTracks(false);
+
+    // 顯示切換曲目的 Toast
+    const track = tracks[index];
+    const manager = getToastManager();
+    if (manager) {
+      manager.show(
+        locale === 'zh-tw'
+          ? `🎵 現正撥放: ${track.title} - ${track.artist}`
+          : `🎵 Now Playing: ${track.title} - ${track.artist}`,
+        'success'
+      );
+    }
   };
 
   const nextTrack = () => {
@@ -345,9 +320,7 @@ export default function MusicPlayer({
 
       // 監聽 canplay 事件，確保新曲目可以播放時才開始
       const handleCanPlay = () => {
-        audio.play().catch((error) => {
-          console.error('Auto-play failed:', error);
-        });
+        audio.play().catch(() => {});
         audio.removeEventListener('canplay', handleCanPlay);
       };
 
