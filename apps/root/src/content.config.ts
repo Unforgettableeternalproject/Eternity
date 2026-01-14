@@ -76,8 +76,9 @@ const aboutCollection = defineCollection({
   type: 'data',
   schema: z.object({
     title: z.string(),
-    bio: z.string(),
-    avatar: z.string().optional(),
+    bio: z.string(), // 簡短自我介紹（用於標題下方）
+    fullBio: z.string().optional(), // 完整自我介紹（支援 HTML 格式化）
+    avatar: z.string().optional(), // 頭像路徑（public 資料夾中）
     skills: z.array(z.string()),
     experience: z.array(
       z.object({

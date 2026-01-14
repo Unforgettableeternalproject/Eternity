@@ -1,8 +1,13 @@
 {
-  "title": "關於我",
-  "bio": "這是我的個人簡介",
+  "title": "我的個人簡介",
+  "bio": "對我而言，有一個尚未完成的故事存在著",
+  "fullBio": "<p>\n  我的本名是\n  <span style=\"\n    font-weight:600;\n    background:linear-gradient(90deg,#6ee7ff,#c77dff);\n    -webkit-background-clip:text;\n    -webkit-text-fill-color:transparent;\n  \">\n    顏榕嶙\n  </span>，台灣人。\n</p>\n\n<p>\n  我並不想要被任何事物給拘束，而希望追求一個\n  <span style=\"color:#7dd3fc; text-shadow:0 0 6px rgba(125,211,252,0.4);\">\n    自由自在的環境\n  </span>。\n</p>\n\n<p>\n  當然，聽起來還是天方夜譚，不過這也是我之所以繼續努力著的原因。\n</p>\n\n<p>\n  有一個故事存活在我的心中，而對我而言，想辦法把這個故事給實現\n  <span style=\"font-style:italic; opacity:0.8;\">\n    (無論使用甚麼辦法)\n  </span>\n  就是我一直在追求的\n  <span style=\"\n    font-weight:700;\n    background:linear-gradient(\n      90deg,\n      #d5b618,\n      #f5e27a,\n      #d5b618\n    );\n    -webkit-background-clip:text;\n    -webkit-text-fill-color:transparent;\n    text-shadow:0 0 12px rgba(213,182,24,0.35);\n  \">\n    最終目標\n  </span>。\n</p>\n\n<p>\n  因此，祝我好運吧。\n</p>\n",
   "avatar": "/images/avatars/avatar.png",
-  "skills": ["開發", "設計", "寫作"],
+  "skills": [
+    "開發",
+    "設計",
+    "寫作"
+  ],
   "experience": [
     {
       "title": "測試工作",

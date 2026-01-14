@@ -10,6 +10,9 @@
         "bio": {
           "type": "string"
         },
+        "fullBio": {
+          "type": "string"
+        },
         "avatar": {
           "type": "string"
         },

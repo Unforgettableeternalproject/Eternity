@@ -101,6 +101,13 @@ export default config({
           multiline: true,
           validation: { isRequired: true },
         }),
+        fullBio: fields.text({
+          label: '完整自我介紹（可選，支援 HTML 標籤）',
+          description:
+            '範例：這是<strong>粗體</strong>，這是<em>斜體</em>，這是<span style="color:#d946ef">紫色文字</span>',
+          multiline: true,
+          validation: { isRequired: false },
+        }),
         avatar: fields.image({
           label: '頭像',
           directory: 'public/images/avatars',
@@ -170,6 +177,13 @@ export default config({
           label: 'Short Bio',
           multiline: true,
           validation: { isRequired: true },
+        }),
+        fullBio: fields.text({
+          label: 'Full Bio (Optional, supports HTML tags)',
+          description:
+            'Example: This is <strong>bold</strong>, <em>italic</em>, <span style="color:#d946ef">purple text</span>',
+          multiline: true,
+          validation: { isRequired: false },
         }),
         avatar: fields.image({
           label: 'Avatar',
