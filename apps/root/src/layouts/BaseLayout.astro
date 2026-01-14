@@ -134,16 +134,32 @@ const alternateURL = new URL(alternatePath, Astro.site);
       }
 
       // 清理重複的音頻元素（View Transitions 可能造成）
-      document.addEventListener('astro:after-swap', () => {
+      // 注意：只在 before-swap 時清理，避免影響 persist 的元素
+      document.addEventListener('astro:before-swap', () => {
         const allAudioElements = document.querySelectorAll('audio');
-
-        // 只保留有正確 ID 的音頻元素
+        
+        // 計數有多少個 global-music-player
+        let globalPlayerCount = 0;
         allAudioElements.forEach((audio) => {
-          if (audio.id !== 'global-music-player') {
-            audio.pause();
-            audio.remove();
+          if (audio.id === 'global-music-player') {
+            globalPlayerCount++;
           }
         });
+
+        // 如果有多個，只保留第一個（最新的會由 persist 處理）
+        if (globalPlayerCount > 1) {
+          let kept = false;
+          allAudioElements.forEach((audio) => {
+            if (audio.id === 'global-music-player') {
+              if (kept) {
+                audio.pause();
+                audio.remove();
+              } else {
+                kept = true;
+              }
+            }
+          });
+        }
       });
     </script>
 
@@ -236,13 +252,15 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- 隱藏的管理員入口 -->
     <AdminEntry />
 
-    <!-- Console Easter Egg (React Island) -->
-    <ConsoleEasterEgg
-      client:idle
-      consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
-      label={locale === 'zh-tw' ? '終端機' : 'Console'}
-      debugMode={false}
-    />
+    <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
+    <div class="hidden md:block">
+      <ConsoleEasterEgg
+        client:idle
+        consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
+        label={locale === 'zh-tw' ? '終端機' : 'Console'}
+        debugMode={false}
+      />
+    </div>
 
     <!-- U.E.P 角色互動系統 (React Island) -->
     <UEPCharacter

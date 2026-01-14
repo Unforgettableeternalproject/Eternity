@@ -6,8 +6,13 @@
     {
       "title": "Utopia",
       "artist": "Bernie",
-      "url": "/music/Utopian.wav",
+      "url": "/music/Utopia.mp3",
       "cover": "/images/music/tracks/0/cover.png"
+    },
+    {
+      "title": "Stroll",
+      "artist": "Bernie",
+      "url": "/music/Stroll.mp3"
     }
   ]
 }

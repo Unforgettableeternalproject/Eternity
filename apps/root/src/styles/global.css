@@ -90,6 +90,54 @@
   .card-hover {
     @apply hover:shadow-xl hover:-translate-y-1;
   }
+
+  /* 側邊欄關閉按鈕：預設隱藏於 2xl，但在高度不足時顯示 */
+  .sidebar-close-btn {
+    display: none;
+  }
+
+  /* 小於 2xl 時顯示關閉按鈕 */
+  @media (max-width: 1535px) {
+    .sidebar-close-btn {
+      display: flex;
+    }
+  }
+
+  /* 2xl 以上但高度不足時，也要顯示關閉按鈕（展開式） */
+  @media (min-width: 1536px) and (max-height: 800px) {
+    .sidebar-close-btn {
+      display: flex;
+    }
+  }
+
+  /* 側邊欄響應式：考慮螢幕高度 */
+  /* 只有在寬度和高度都足夠時，才自動顯示側邊欄 */
+  @media (min-width: 1536px) and (min-height: 801px) {
+    .sidebar-responsive {
+      transform: translateX(0) !important;
+    }
+    
+    /* 高度足夠時，側邊欄內容區域可以自動調整高度 */
+    .sidebar-responsive #left-sidebar-container {
+      max-height: calc(100vh - 8rem);
+      overflow-y: auto;
+    }
+  }
+
+  /* 寬度夠但高度不夠時，保持展開式（需手動開啟） */
+  @media (min-width: 1536px) and (max-height: 800px) {
+    .sidebar-responsive {
+      /* 保持隱藏，需要手動展開 */
+      transform: translateX(-100%);
+    }
+    
+    /* 高度不足時，側邊欄展開後要能滾動 */
+    .sidebar-responsive #left-sidebar-container {
+      max-height: 100vh;
+      overflow-y: auto;
+      padding-bottom: 2rem;
+    }
+  }
 }
 
 /* Utility layer */

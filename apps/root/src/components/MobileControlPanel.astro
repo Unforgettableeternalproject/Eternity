@@ -5,7 +5,7 @@
  */
 import { getCurrentLocale } from '../i18n/utils';
 import { getCollection, getEntry } from 'astro:content';
-import MusicPlayer from './MusicPlayer';
+import GlobalMusicPlayer from './GlobalMusicPlayer.astro';
 
 const locale = getCurrentLocale(Astro.url);
 
@@ -146,20 +146,6 @@ const tracks = (
       style="max-height: calc(85vh - 60px);"
     >
       <div class="grid grid-cols-1 gap-4">
-        <!-- 音樂播放器 -->
-        {
-          musicCard?.data.enabled && (
-            <div class="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
-              <MusicPlayer
-                client:load
-                tracks={tracks}
-                locale={locale}
-                transition:persist="music-player"
-              />
-            </div>
-          )
-        }
-
         <!-- 訪客計數器 -->
         {
           visitorCounterCard?.data.enabled && (

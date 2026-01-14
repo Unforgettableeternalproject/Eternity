@@ -3,9 +3,13 @@ import React, { type ReactNode } from 'react';
 interface SidebarCardProps {
   children: ReactNode;
   id: string;
+  class?: string;
+  className?: string;
 }
 
-export default function SidebarCard({ children, id }: SidebarCardProps) {
+export default function SidebarCard({ children, id, class: classNameProp, className }: SidebarCardProps) {
+  const finalClassName = classNameProp || className || '';
+  
   return (
     <div
       style={{
@@ -13,6 +17,7 @@ export default function SidebarCard({ children, id }: SidebarCardProps) {
         transition: 'all 0.3s ease',
       }}
       data-card-id={id}
+      className={finalClassName}
     >
       <div
         style={{

@@ -109,11 +109,14 @@ export default function MusicPlayer({
   const [showTracks, setShowTracks] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const isTransitioning = useRef(false); // 追蹤是否正在頁面轉換
+  const shouldAutoPlay = useRef(false); // 追蹤是否應該自動播放（切換曲目時）
 
   // 監聽 View Transitions 事件
   useEffect(() => {
     const handleBeforeSwap = () => {
       isTransitioning.current = true;
+      // 在頁面切換前關閉曲目列表，避免 DOM 不一致錯誤
+      setShowTracks(false);
     };
     const handleAfterSwap = () => {
       isTransitioning.current = false;
@@ -277,6 +280,10 @@ export default function MusicPlayer({
     if (!audio) return;
 
     const handleCookieAccepted = () => {
+      // 只在非行動版（md 以上，768px+）才自動播放
+      // 對應 MobileControlPanel 的 md:hidden 條件
+      if (window.innerWidth < 768) return;
+      
       // 檢查是否已經播放過
       const hasPlayed = sessionStorage.getItem('music-has-played');
       if (hasPlayed === 'true') return;
@@ -320,15 +327,39 @@ export default function MusicPlayer({
   };
 
   const changeTrack = (index: number) => {
+    shouldAutoPlay.current = true; // 標記需要自動播放
     setCurrentTrack(index);
     setShowTracks(false);
-    // 不需要手動設置 isPlaying，因為音頻元素的事件會自動處理
   };
 
   const nextTrack = () => {
     const next = (currentTrack + 1) % tracks.length;
     changeTrack(next);
   };
+
+  // 當曲目變化時，等待 audio src 更新後自動播放
+  useEffect(() => {
+    if (shouldAutoPlay.current && audioRef.current) {
+      // 等待 audio 元素的 src 更新（React 重新渲染後）
+      const audio = audioRef.current;
+      
+      // 監聽 canplay 事件，確保新曲目可以播放時才開始
+      const handleCanPlay = () => {
+        audio.play().catch((error) => {
+          console.error('Auto-play failed:', error);
+        });
+        audio.removeEventListener('canplay', handleCanPlay);
+      };
+      
+      audio.addEventListener('canplay', handleCanPlay);
+      shouldAutoPlay.current = false; // 重置標記
+      
+      // 清理函數
+      return () => {
+        audio.removeEventListener('canplay', handleCanPlay);
+      };
+    }
+  }, [currentTrack]);
 
   return (
     <div>
