@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const data = await request.json();
     const { name, email, subject, message } = data;
@@ -42,10 +42,15 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // 使用 Resend API 發送郵件（生產環境）
-    const RESEND_API_KEY = import.meta.env.RESEND_API_KEY;
+    // Cloudflare Pages: 私密環境變數通過 locals.runtime.env 訪問
+    // 本地開發: 通過 import.meta.env 訪問
+    const RESEND_API_KEY = 
+      (locals.runtime?.env?.RESEND_API_KEY as string | undefined) || 
+      import.meta.env.RESEND_API_KEY as string | undefined;
 
     if (!RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY environment variable not set');
+      console.error('Runtime env:', locals.runtime?.env ? 'available' : 'not available');
       return new Response(
         JSON.stringify({
           error: 'Email service not configured. Please contact administrator.',
