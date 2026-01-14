@@ -116,7 +116,7 @@
     .sidebar-responsive {
       transform: translateX(0) !important;
     }
-    
+
     /* 高度足夠時，側邊欄內容區域可以自動調整高度 */
     .sidebar-responsive #left-sidebar-container {
       max-height: calc(100vh - 8rem);
@@ -130,7 +130,7 @@
       /* 保持隱藏，需要手動展開 */
       transform: translateX(-100%);
     }
-    
+
     /* 高度不足時，側邊欄展開後要能滾動 */
     .sidebar-responsive #left-sidebar-container {
       max-height: 100vh;

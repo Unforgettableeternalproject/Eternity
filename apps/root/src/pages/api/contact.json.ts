@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
       console.log(`Subject: ${subject}`);
       console.log(`Message: ${message}`);
       console.log('(MailChannels only works in production on Cloudflare)');
-      
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -101,21 +101,27 @@ export const POST: APIRoute = async ({ request }) => {
       const errorText = await mailResponse.text();
       console.error('MailChannels error status:', mailResponse.status);
       console.error('MailChannels error details:', errorText);
-      
+
       // 提供更詳細的錯誤訊息
       let errorMessage = 'Failed to send email';
       if (mailResponse.status === 401) {
-        errorMessage = 'Email service authorization failed. Please contact administrator.';
-        console.error('⚠️ MailChannels 401: Domain may need SPF/DKIM records configured');
+        errorMessage =
+          'Email service authorization failed. Please contact administrator.';
+        console.error(
+          '⚠️ MailChannels 401: Domain may need SPF/DKIM records configured'
+        );
       }
-      
-      return new Response(JSON.stringify({ 
-        error: errorMessage,
-        details: import.meta.env.DEV ? errorText : undefined 
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+
+      return new Response(
+        JSON.stringify({
+          error: errorMessage,
+          details: import.meta.env.DEV ? errorText : undefined,
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     console.log('✅ Email sent successfully');

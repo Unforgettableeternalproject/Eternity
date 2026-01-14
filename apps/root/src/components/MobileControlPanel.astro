@@ -5,7 +5,6 @@
  */
 import { getCurrentLocale } from '../i18n/utils';
 import { getCollection, getEntry } from 'astro:content';
-import GlobalMusicPlayer from './GlobalMusicPlayer.astro';
 
 const locale = getCurrentLocale(Astro.url);
 
@@ -52,7 +51,7 @@ const stats = [
 
 // 從 Keystatic 獲取卡片資料
 const quoteCard = await getEntry('card-quote', 'index');
-const musicCard = await getEntry('card-music', 'index');
+// const musicCard = await getEntry('card-music', 'index'); // 未使用，音樂播放器在側邊欄
 const visitorCounterCard = await getEntry('card-visitor-counter', 'index');
 const latestUpdateCard = await getEntry('card-latest-update', 'index');
 const quickStatsCard = await getEntry('card-quick-stats', 'index');
@@ -75,26 +74,26 @@ const randomQuote =
         author: '',
       };
 
-// Music 資料
-const tracks = (
-  musicCard?.data?.tracks || [
-    {
-      title: locale === 'zh-tw' ? '示例曲目 1' : 'Sample Track 1',
-      artist: 'Artist',
-      url: '/music/track1.mp3',
-    },
-    {
-      title: locale === 'zh-tw' ? '示例曲目 2' : 'Sample Track 2',
-      artist: 'Artist',
-      url: '/music/track2.mp3',
-    },
-  ]
-).filter(
-  (
-    track
-  ): track is { title: string; artist: string; url: string; cover?: string } =>
-    !!track.url
-);
+// Music 資料 (未使用，音樂播放器在側邊欄)
+// const tracks = (
+//   musicCard?.data?.tracks || [
+//     {
+//       title: locale === 'zh-tw' ? '示例曲目 1' : 'Sample Track 1',
+//       artist: 'Artist',
+//       url: '/music/track1.mp3',
+//     },
+//     {
+//       title: locale === 'zh-tw' ? '示例曲目 2' : 'Sample Track 2',
+//       artist: 'Artist',
+//       url: '/music/track2.mp3',
+//     },
+//   ]
+// ).filter(
+//   (
+//     track
+//   ): track is { title: string; artist: string; url: string; cover?: string } =>
+//     !!track.url
+// );
 ---
 
 <!-- 手機版底部控制面板（僅在 < md 顯示） -->
@@ -382,8 +381,10 @@ const tracks = (
     function openPanel() {
       if (!panelContent) return;
       panelContent.style.transform = 'translateY(0)';
-      handle && (handle.style.opacity = '0');
-      handle && (handle.style.pointerEvents = 'none');
+      if (handle) {
+        handle.style.opacity = '0';
+        handle.style.pointerEvents = 'none';
+      }
       isOpen = true;
     }
 
@@ -391,8 +392,10 @@ const tracks = (
     function closePanel() {
       if (!panelContent) return;
       panelContent.style.transform = 'translateY(100%)';
-      handle && (handle.style.opacity = '1');
-      handle && (handle.style.pointerEvents = 'auto');
+      if (handle) {
+        handle.style.opacity = '1';
+        handle.style.pointerEvents = 'auto';
+      }
       isOpen = false;
     }
 

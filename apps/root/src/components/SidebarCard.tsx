@@ -7,9 +7,14 @@ interface SidebarCardProps {
   className?: string;
 }
 
-export default function SidebarCard({ children, id, class: classNameProp, className }: SidebarCardProps) {
+export default function SidebarCard({
+  children,
+  id,
+  class: classNameProp,
+  className,
+}: SidebarCardProps) {
   const finalClassName = classNameProp || className || '';
-  
+
   return (
     <div
       style={{

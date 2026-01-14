@@ -283,7 +283,7 @@ export default function MusicPlayer({
       // 只在非行動版（md 以上，768px+）才自動播放
       // 對應 MobileControlPanel 的 md:hidden 條件
       if (window.innerWidth < 768) return;
-      
+
       // 檢查是否已經播放過
       const hasPlayed = sessionStorage.getItem('music-has-played');
       if (hasPlayed === 'true') return;
@@ -342,7 +342,7 @@ export default function MusicPlayer({
     if (shouldAutoPlay.current && audioRef.current) {
       // 等待 audio 元素的 src 更新（React 重新渲染後）
       const audio = audioRef.current;
-      
+
       // 監聽 canplay 事件，確保新曲目可以播放時才開始
       const handleCanPlay = () => {
         audio.play().catch((error) => {
@@ -350,10 +350,10 @@ export default function MusicPlayer({
         });
         audio.removeEventListener('canplay', handleCanPlay);
       };
-      
+
       audio.addEventListener('canplay', handleCanPlay);
       shouldAutoPlay.current = false; // 重置標記
-      
+
       // 清理函數
       return () => {
         audio.removeEventListener('canplay', handleCanPlay);

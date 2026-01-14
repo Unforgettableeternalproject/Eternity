@@ -137,7 +137,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
       // 注意：只在 before-swap 時清理，避免影響 persist 的元素
       document.addEventListener('astro:before-swap', () => {
         const allAudioElements = document.querySelectorAll('audio');
-        
+
         // 計數有多少個 global-music-player
         let globalPlayerCount = 0;
         allAudioElements.forEach((audio) => {
