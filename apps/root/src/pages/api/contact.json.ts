@@ -29,6 +29,9 @@ export const POST: APIRoute = async ({ request }) => {
       personalizations: [
         {
           to: [{ email: 'ptyc4076@gmail.com', name: 'Bernie' }],
+          // 添加 DKIM 域名簽名（MailChannels 要求）
+          dkim_domain: 'unforgettableeternalproject.com',
+          dkim_selector: 'mailchannels',
         },
       ],
       from: {
@@ -100,6 +103,8 @@ export const POST: APIRoute = async ({ request }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // MailChannels 域名鎖定標頭（安全機制）
+          'X-Sender-Domain': 'unforgettableeternalproject.com',
         },
         body: JSON.stringify(emailContent),
       }
