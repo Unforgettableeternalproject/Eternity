@@ -24,52 +24,6 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // 組合郵件內容
-    const emailContent = {
-      personalizations: [
-        {
-          to: [{ email: 'ptyc4076@gmail.com', name: 'Bernie' }],
-          // 添加 DKIM 域名簽名（MailChannels 要求）
-          dkim_domain: 'unforgettableeternalproject.com',
-          dkim_selector: 'mailchannels',
-        },
-      ],
-      from: {
-        email: 'noreply@unforgettableeternalproject.com',
-        name: 'Eternity Contact Form',
-      },
-      reply_to: {
-        email: email,
-        name: name,
-      },
-      subject: `[Contact Form] ${subject}`,
-      content: [
-        {
-          type: 'text/plain',
-          value: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}\n\n---\nSent from Eternity Contact Form`,
-        },
-        {
-          type: 'text/html',
-          value: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #334155;">New Contact Form Submission</h2>
-              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>Name:</strong> ${name}</p>
-                <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
-                <p><strong>Subject:</strong> ${subject}</p>
-              </div>
-              <div style="background: #ffffff; padding: 20px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #475569;">Message:</h3>
-                <p style="white-space: pre-wrap;">${message}</p>
-              </div>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
-              <p style="color: #94a3b8; font-size: 14px;">Sent from Eternity Contact Form</p>
-            </div>
-          `,
-        },
-      ],
-    };
-
     // 開發環境：只記錄，不實際發送
     const isDev = import.meta.env.DEV;
     if (isDev) {
@@ -77,7 +31,6 @@ export const POST: APIRoute = async ({ request }) => {
       console.log(`From: ${name} <${email}>`);
       console.log(`Subject: ${subject}`);
       console.log(`Message: ${message}`);
-      console.log('(MailChannels only works in production on Cloudflare)');
 
       return new Response(
         JSON.stringify({
@@ -88,54 +41,63 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // 使用 Cloudflare MailChannels 發送郵件（僅在生產環境）
-    console.log('🚀 Attempting to send email via MailChannels...');
-    console.log('From domain: unforgettableeternalproject.com');
+    // 使用 Resend API 發送郵件（生產環境）
+    const RESEND_API_KEY = import.meta.env.RESEND_API_KEY;
+
+    if (!RESEND_API_KEY) {
+      console.error('❌ RESEND_API_KEY environment variable not set');
+      return new Response(
+        JSON.stringify({
+          error: 'Email service not configured. Please contact administrator.',
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('🚀 Attempting to send email via Resend...');
     console.log('Reply-to:', email);
-    
-    // 調試：檢查請求環境
-    console.log('🔍 Request URL:', request.url);
-    console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
 
-    const mailResponse = await fetch(
-      'https://api.mailchannels.net/tx/v1/send',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // MailChannels 域名鎖定標頭（安全機制）
-          'X-Sender-Domain': 'unforgettableeternalproject.com',
-        },
-        body: JSON.stringify(emailContent),
-      }
-    );
+    const mailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Eternity Contact <noreply@unforgettableeternalproject.com>',
+        to: ['ptyc4076@gmail.com'],
+        reply_to: email,
+        subject: `[Contact Form] ${subject}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #334155;">New Contact Form Submission</h2>
+            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>Name:</strong> ${name}</p>
+              <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+              <p><strong>Subject:</strong> ${subject}</p>
+            </div>
+            <div style="background: #ffffff; padding: 20px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #475569;">Message:</h3>
+              <p style="white-space: pre-wrap;">${message}</p>
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+            <p style="color: #94a3b8; font-size: 14px;">Sent from Eternity Contact Form</p>
+          </div>
+        `,
+      }),
+    });
 
-    console.log('MailChannels response status:', mailResponse.status);
+    console.log('Resend response status:', mailResponse.status);
 
     if (!mailResponse.ok) {
-      const errorText = await mailResponse.text();
-      console.error('❌ MailChannels error status:', mailResponse.status);
-      console.error('❌ MailChannels error details:', errorText);
-      console.error('📧 Email content that was sent:', JSON.stringify(emailContent, null, 2));
-
-      // 提供更詳細的錯誤訊息
-      let errorMessage = 'Failed to send email';
-      if (mailResponse.status === 401) {
-        errorMessage =
-          'Email service authorization failed. DNS TXT record may not be propagated yet.';
-        console.error(
-          '⚠️ MailChannels 401: Check DNS TXT record at _mailchannels.unforgettableeternalproject.com'
-        );
-        console.error('⚠️ Expected: v=mc1 cfid=eternity-8v7.pages.dev');
-      } else if (mailResponse.status === 403) {
-        errorMessage = 'Email service access denied. Domain not authorized.';
-      }
+      const errorData = await mailResponse.json();
+      console.error('❌ Resend error:', errorData);
 
       return new Response(
         JSON.stringify({
-          error: errorMessage,
+          error: 'Failed to send email',
           statusCode: mailResponse.status,
-          details: errorText,
+          details: errorData,
         }),
         {
           status: 500,
@@ -144,9 +106,9 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    console.log('✅ Email sent successfully via MailChannels');
-    console.log(`📧 From: ${name} <${email}>`);
-    console.log(`📧 Subject: ${subject}`);
+    const responseData = await mailResponse.json();
+    console.log('✅ Email sent successfully via Resend');
+    console.log(`📧 Email ID: ${responseData.id}`);
 
     return new Response(
       JSON.stringify({
