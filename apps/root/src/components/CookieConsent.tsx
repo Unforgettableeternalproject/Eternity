@@ -18,8 +18,11 @@ export default function CookieConsent() {
     // 觸發自定義事件通知其他元件
     window.dispatchEvent(new Event('cookie-consent-changed'));
 
-    // 觸發音樂播放事件（利用用戶互動）
-    window.dispatchEvent(new Event('cookie-accepted-play-music'));
+    // 觸發音樂播放事件（利用用戶互動）- 只在非行動版（md 以上，768px+）
+    // 對應 MobileControlPanel 的 md:hidden 條件
+    if (window.innerWidth >= 768) {
+      window.dispatchEvent(new Event('cookie-accepted-play-music'));
+    }
 
     closeModal();
   };

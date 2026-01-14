@@ -107,7 +107,7 @@ console.log(
       >
         <!-- Left: Text Content -->
         <div
-          class="w-full lg:w-1/2 text-center lg:text-left space-y-8 animate-fade-in-up"
+          class="w-full lg:w-[58%] xl:w-[55%] text-center lg:text-left space-y-8 animate-fade-in-up"
         >
           <div
             class="inline-block px-4 py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-4"
@@ -116,7 +116,7 @@ console.log(
           </div>
 
           <h1
-            class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2"
+            class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2 break-words hyphens-auto"
           >
             <TypewriterText
               client:load
@@ -126,7 +126,7 @@ console.log(
             />
             {' '}
             <span
-              class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2"
+              class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2 break-words"
             >
               <TypewriterText
                 client:load
@@ -205,16 +205,18 @@ console.log(
               </div>
 
               <div
-                class="absolute inset-0 flex items-center justify-center p-12"
+                class="absolute inset-0 flex items-center justify-center p-6 sm:p-8 md:p-10 lg:p-12"
               >
-                <div class="text-center space-y-6">
+                <div
+                  class="text-center space-y-4 sm:space-y-5 md:space-y-6 max-w-full"
+                >
                   <div class="relative">
                     <div
                       class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"
                     >
                     </div>
                     <svg
-                      class="relative w-40 h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg"
+                      class="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -227,21 +229,23 @@ console.log(
                     </svg>
                   </div>
                   <p
-                    class="text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide"
+                    class="text-sm sm:text-base md:text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide px-2"
                   >
                     Creative Developer Space
                   </p>
-                  <div class="flex gap-2 justify-center flex-wrap">
+                  <div
+                    class="flex gap-1.5 sm:gap-2 justify-center flex-wrap px-2"
+                  >
                     <span
-                      class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm"
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
                       >Code</span
                     >
                     <span
-                      class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm"
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
                       >Design</span
                     >
                     <span
-                      class="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm"
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
                       >Story</span
                     >
                   </div>
