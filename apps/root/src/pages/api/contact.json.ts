@@ -86,6 +86,14 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // 使用 Cloudflare MailChannels 發送郵件（僅在生產環境）
+    console.log('🚀 Attempting to send email via MailChannels...');
+    console.log('From domain: unforgettableeternalproject.com');
+    console.log('Reply-to:', email);
+    
+    // 調試：檢查請求環境
+    console.log('🔍 Request URL:', request.url);
+    console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
+
     const mailResponse = await fetch(
       'https://api.mailchannels.net/tx/v1/send',
       {
@@ -97,25 +105,32 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
 
+    console.log('MailChannels response status:', mailResponse.status);
+
     if (!mailResponse.ok) {
       const errorText = await mailResponse.text();
-      console.error('MailChannels error status:', mailResponse.status);
-      console.error('MailChannels error details:', errorText);
+      console.error('❌ MailChannels error status:', mailResponse.status);
+      console.error('❌ MailChannels error details:', errorText);
+      console.error('📧 Email content that was sent:', JSON.stringify(emailContent, null, 2));
 
       // 提供更詳細的錯誤訊息
       let errorMessage = 'Failed to send email';
       if (mailResponse.status === 401) {
         errorMessage =
-          'Email service authorization failed. Please contact administrator.';
+          'Email service authorization failed. DNS TXT record may not be propagated yet.';
         console.error(
-          '⚠️ MailChannels 401: Domain may need SPF/DKIM records configured'
+          '⚠️ MailChannels 401: Check DNS TXT record at _mailchannels.unforgettableeternalproject.com'
         );
+        console.error('⚠️ Expected: v=mc1 cfid=eternity-8v7.pages.dev');
+      } else if (mailResponse.status === 403) {
+        errorMessage = 'Email service access denied. Domain not authorized.';
       }
 
       return new Response(
         JSON.stringify({
           error: errorMessage,
-          details: import.meta.env.DEV ? errorText : undefined,
+          statusCode: mailResponse.status,
+          details: errorText,
         }),
         {
           status: 500,
@@ -124,9 +139,9 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    console.log('✅ Email sent successfully');
-    console.log(`From: ${name} <${email}>`);
-    console.log(`Subject: ${subject}`);
+    console.log('✅ Email sent successfully via MailChannels');
+    console.log(`📧 From: ${name} <${email}>`);
+    console.log(`📧 Subject: ${subject}`);
 
     return new Response(
       JSON.stringify({

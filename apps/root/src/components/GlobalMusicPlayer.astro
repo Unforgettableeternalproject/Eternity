@@ -31,7 +31,7 @@ const tracks = (
 ---
 
 {
-  musicCard?.data.enabled && (
+  musicCard?.data?.enabled && (
     <div id="global-music-player-container" transition:persist="music-player">
       <MusicPlayer client:only="react" tracks={tracks} locale={locale} />
     </div>
