@@ -44,13 +44,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // 使用 Resend API 發送郵件（生產環境）
     // Cloudflare Pages: 私密環境變數通過 locals.runtime.env 訪問
     // 本地開發: 通過 import.meta.env 訪問
-    const RESEND_API_KEY = 
-      (locals.runtime?.env?.RESEND_API_KEY as string | undefined) || 
-      import.meta.env.RESEND_API_KEY as string | undefined;
+    const RESEND_API_KEY =
+      (locals.runtime?.env?.RESEND_API_KEY as string | undefined) ||
+      (import.meta.env.RESEND_API_KEY as string | undefined);
 
     if (!RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY environment variable not set');
-      console.error('Runtime env:', locals.runtime?.env ? 'available' : 'not available');
+      console.error(
+        'Runtime env:',
+        locals.runtime?.env ? 'available' : 'not available'
+      );
       return new Response(
         JSON.stringify({
           error: 'Email service not configured. Please contact administrator.',

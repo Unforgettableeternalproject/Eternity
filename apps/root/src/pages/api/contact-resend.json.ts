@@ -43,7 +43,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // 使用 Resend API 發送郵件
     const RESEND_API_KEY = import.meta.env.RESEND_API_KEY;
-    
+
     if (!RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY environment variable not set');
       return new Response(
@@ -58,7 +58,7 @@ export const POST: APIRoute = async ({ request }) => {
     const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        Authorization: `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -90,7 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (!emailResponse.ok) {
       const errorData = await emailResponse.json();
       console.error('❌ Resend error:', errorData);
-      
+
       return new Response(
         JSON.stringify({
           error: 'Failed to send email',
