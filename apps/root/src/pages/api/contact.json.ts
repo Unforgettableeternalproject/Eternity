@@ -29,12 +29,15 @@ export const POST: APIRoute = async ({ request }) => {
       personalizations: [
         {
           to: [{ email: 'ptyc4076@gmail.com', name: 'Bernie' }],
-          reply_to: { email: email, name: name },
         },
       ],
       from: {
         email: 'noreply@unforgettableeternalproject.com',
         name: 'Eternity Contact Form',
+      },
+      reply_to: {
+        email: email,
+        name: name,
       },
       subject: `[Contact Form] ${subject}`,
       content: [
@@ -64,7 +67,25 @@ export const POST: APIRoute = async ({ request }) => {
       ],
     };
 
-    // 使用 Cloudflare MailChannels 發送郵件
+    // 開發環境：只記錄，不實際發送
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      console.log('📧 [DEV] Email would be sent:');
+      console.log(`From: ${name} <${email}>`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Message: ${message}`);
+      console.log('(MailChannels only works in production on Cloudflare)');
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Message sent successfully (dev mode)',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 使用 Cloudflare MailChannels 發送郵件（僅在生產環境）
     const mailResponse = await fetch(
       'https://api.mailchannels.net/tx/v1/send',
       {
@@ -77,8 +98,21 @@ export const POST: APIRoute = async ({ request }) => {
     );
 
     if (!mailResponse.ok) {
-      console.error('MailChannels error:', await mailResponse.text());
-      return new Response(JSON.stringify({ error: 'Failed to send email' }), {
+      const errorText = await mailResponse.text();
+      console.error('MailChannels error status:', mailResponse.status);
+      console.error('MailChannels error details:', errorText);
+      
+      // 提供更詳細的錯誤訊息
+      let errorMessage = 'Failed to send email';
+      if (mailResponse.status === 401) {
+        errorMessage = 'Email service authorization failed. Please contact administrator.';
+        console.error('⚠️ MailChannels 401: Domain may need SPF/DKIM records configured');
+      }
+      
+      return new Response(JSON.stringify({ 
+        error: errorMessage,
+        details: import.meta.env.DEV ? errorText : undefined 
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });

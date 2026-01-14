@@ -40,6 +40,7 @@ export default function GlobalSearch({
   );
   const [isDark, setIsDark] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 檢測深色模式
@@ -131,7 +132,7 @@ export default function GlobalSearch({
 
     // 如果沒有查詢，返回所有資料（限制數量）
     if (!query.trim()) {
-      let filtered = allData;
+      let filtered = allData.filter((item) => item.type !== 'page');
       if (filter !== 'all') {
         filtered = filtered.filter((item) => item.type === filter);
       }
@@ -166,6 +167,9 @@ export default function GlobalSearch({
         tagsMatch
       );
     });
+
+    // 過濾掉頁面類型，只保留實際內容物件
+    filtered = filtered.filter((item) => item.type !== 'page');
 
     if (filter !== 'all') {
       filtered = filtered.filter((item) => item.type === filter);
@@ -206,7 +210,7 @@ export default function GlobalSearch({
   // 點擊外部關閉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
         handleClose();
       }
     };
@@ -331,6 +335,7 @@ export default function GlobalSearch({
               }}
             />
             <div
+              ref={modalRef}
               className={`global-search__modal ${isClosing ? 'closing' : ''}`}
               style={{
                 zIndex: 100000,

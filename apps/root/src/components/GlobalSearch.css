@@ -110,7 +110,7 @@
 .global-search__modal {
   position: fixed;
   top: 60px;
-  left: 40.8%;
+  left: 50%;
   transform: translateX(-50%);
   z-index: 10001 !important;
   width: 90vw;
@@ -383,6 +383,10 @@
   background: rgba(148, 163, 184, 0.1);
   color: rgb(71, 85, 105);
   font-size: 0.6875rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :global(.dark) .global-search__tag {

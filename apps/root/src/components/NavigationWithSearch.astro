@@ -138,20 +138,20 @@ const alternatePath = getAlternatePath(currentPath, locale);
     </div>
 
     <!-- Mobile Navigation -->
-    <div class="md:hidden flex items-center gap-3 flex-1">
+    <div class="md:hidden flex items-center gap-2 flex-1">
       <!-- Center: Global Search (置中) -->
-      <div class="flex-1 flex justify-center mx-4">
+      <div class="flex-1 flex justify-center mx-2">
         <div class="w-full max-w-md">
           <GlobalSearch client:load locale={locale} currentPath={currentPath} />
         </div>
       </div>
 
       <!-- Right: Buttons -->
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-1.5">
         <!-- Language Switch (Mobile) -->
         <a
           href={alternatePath}
-          class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 text-sm font-medium"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 text-xs font-medium"
           aria-label={locale === 'zh-tw'
             ? 'Switch to English'
             : '切換至繁體中文'}
@@ -165,13 +165,13 @@ const alternatePath = getAlternatePath(currentPath, locale);
 
         <button
           id="mobile-menu-button"
-          class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+          class="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
           aria-label="Toggle mobile menu"
           aria-expanded="false"
           type="button"
         >
           <svg
-            class="w-6 h-6"
+            class="w-5 h-5"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
