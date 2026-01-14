@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
     const { name, email, subject, message } = data;
@@ -41,23 +41,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // 使用 Resend API 發送郵件（生產環境）
-    // Cloudflare Pages: 私密環境變數通過 locals.runtime.env 訪問
-    // 本地開發: 通過 import.meta.env 訪問
-    const RESEND_API_KEY =
-      (locals.runtime?.env?.RESEND_API_KEY as string | undefined) ||
-      (import.meta.env.RESEND_API_KEY as string | undefined);
+    // 使用 Resend API 發送郵件
+    const RESEND_API_KEY = import.meta.env.RESEND_API_KEY;
 
     if (!RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY environment variable not set');
-      console.error(
-        'Runtime env:',
-        locals.runtime?.env ? 'available' : 'not available'
-      );
       return new Response(
-        JSON.stringify({
-          error: 'Email service not configured. Please contact administrator.',
-        }),
+        JSON.stringify({ error: 'Email service not configured' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -65,7 +55,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     console.log('🚀 Attempting to send email via Resend...');
     console.log('Reply-to:', email);
 
-    const mailResponse = await fetch('https://api.resend.com/emails', {
+    const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${RESEND_API_KEY}`,
@@ -95,16 +85,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }),
     });
 
-    console.log('Resend response status:', mailResponse.status);
+    console.log('Resend response status:', emailResponse.status);
 
-    if (!mailResponse.ok) {
-      const errorData = await mailResponse.json();
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
       console.error('❌ Resend error:', errorData);
 
       return new Response(
         JSON.stringify({
           error: 'Failed to send email',
-          statusCode: mailResponse.status,
           details: errorData,
         }),
         {
@@ -114,7 +103,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const responseData = await mailResponse.json();
+    const responseData = await emailResponse.json();
     console.log('✅ Email sent successfully via Resend');
     console.log(`📧 Email ID: ${responseData.id}`);
 
