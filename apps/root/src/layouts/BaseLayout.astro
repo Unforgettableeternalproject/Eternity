@@ -3,7 +3,6 @@ import '../styles/global.css';
 import { ViewTransitions } from 'astro:transitions';
 import NavigationWithSearch from '../components/NavigationWithSearch.astro';
 import Footer from '@uep/ui/Footer';
-import AdminEntry from '../components/AdminEntry.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
 import UEPCharacter from '../components/UEPCharacter';
 import ScrollToTop from '../components/ScrollToTop';
@@ -248,9 +247,6 @@ const alternateURL = new URL(alternatePath, Astro.site);
       translations={t.footer}
       featuredLinks={featuredLinks}
     />
-
-    <!-- 隱藏的管理員入口 -->
-    <AdminEntry />
 
     <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
     <div class="hidden md:block">

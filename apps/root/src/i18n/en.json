@@ -1,4 +1,4 @@
-{
+﻿{
   "nav": {
     "home": "Home",
     "about": "About",
@@ -96,44 +96,6 @@
         "title": "Explore updates",
         "to": "links"
       }
-    }
-  },
-  "about": {
-    "title": "About - Bernie",
-    "description": "Learn more about Bernie - developer, creator, and storyteller",
-    "heading": "About Me",
-    "subtitle": "Developer, Creator & Storyteller",
-    "bio": {
-      "p1": "I'm Bernie, a passionate developer and creative storyteller behind the Unforgettable Eternal Project (UEP).",
-      "p2": "I combine technical expertise with creative writing to build unique digital experiences and expansive fictional worlds. Whether it's coding elegant solutions or crafting intricate narratives, I strive to create work that resonates and endures.",
-      "p3": "This website serves as the central hub for all my projects, from technical portfolios to creative writings and world-building documentation."
-    },
-    "skills": {
-      "heading": "Skills & Expertise",
-      "categories": {
-        "development": "Development",
-        "creative": "Creative",
-        "tools": "Tools"
-      },
-      "items": {
-        "web": "Web Development",
-        "frontend": "Frontend Design",
-        "backend": "Backend Architecture",
-        "worldbuilding": "World Building",
-        "storytelling": "Storytelling",
-        "writing": "Creative Writing",
-        "git": "Git",
-        "astro": "Astro",
-        "tailwind": "Tailwind CSS",
-        "uiux": "UI/UX Design",
-        "content": "Content Creation"
-      }
-    },
-    "connect": {
-      "heading": "Let's Connect",
-      "description": "Interested in collaborating or just want to say hi? Feel free to reach out!",
-      "github": "GitHub",
-      "email": "Email"
     }
   },
   "projects": {
@@ -243,5 +205,45 @@
       "Type hints will appear here once features are enabled."
     ],
     "hint": "Feature coming soon: this console will accept commands in later updates."
+  },
+  "musicPlayer": {
+    "title": "Music Player",
+    "paused": "⏸️ Music Paused",
+    "playing": "▶️ Now Playing"
+  },
+  "sidebar": {
+    "left": {
+      "visitorCounter": {
+        "title": "Visitor Count",
+        "thanks": "Thanks for visiting"
+      },
+      "latestUpdate": {
+        "title": "Latest Update"
+      },
+      "quote": {
+        "title": "Quote of the Day"
+      }
+    },
+    "right": {
+      "quickStats": {
+        "title": "Quick Stats"
+      },
+      "tableOfContents": {
+        "title": "Table of Contents",
+        "scrollHint": "Scroll to see outline"
+      }
+    }
+  },
+  "about": {
+    "title": "About Me - Bernie",
+    "description": "Learn more about Bernie - Developer, Creator, and Storyteller",
+    "heading": "About Me",
+    "subtitle": "Developer, Creator, and Storyteller",
+    "skills": "Skills",
+    "experience": "Experience",
+    "certifications": "Certifications",
+    "connect": "Connect with Me",
+    "notSet": "Profile Not Set",
+    "goToAdmin": "Go to Admin"
   }
 }

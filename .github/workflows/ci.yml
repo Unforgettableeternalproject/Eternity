@@ -34,15 +34,18 @@ jobs:
 
       - name: Lint
         run: pnpm lint
-        continue-on-error: true
+        # PR 時必須通過，普通 commit 可以暫時跳過
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
 
       - name: Type check
         run: pnpm typecheck
-        continue-on-error: true
+        # PR 時必須通過，普通 commit 可以暫時跳過
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
 
       - name: Format check
         run: pnpm format:check
-        continue-on-error: true
+        # PR 時必須通過，普通 commit 可以暫時跳過
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
 
       - name: Build
         run: pnpm build

@@ -59,6 +59,8 @@ const showAdmin = envConfig.showDevTools;
     document.addEventListener('mouseup', dragEnd);
 
     function dragStart(e: MouseEvent) {
+      if (!adminEntry) return;
+      
       initialX = e.clientX - xOffset;
       initialY = e.clientY - yOffset;
 
@@ -69,7 +71,7 @@ const showAdmin = envConfig.showDevTools;
     }
 
     function drag(e: MouseEvent) {
-      if (isDragging) {
+      if (isDragging && adminEntry) {
         e.preventDefault();
 
         currentX = e.clientX - initialX;

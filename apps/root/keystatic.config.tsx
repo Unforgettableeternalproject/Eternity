@@ -113,10 +113,28 @@ export default config({
           directory: 'public/images/avatars',
           publicPath: '/images/avatars/',
         }),
-        skills: fields.array(fields.text({ label: '技能' }), {
-          label: '技能列表',
-          itemLabel: (props) => props.value,
-        }),
+        skills: fields.array(
+          fields.object({
+            name: fields.text({
+              label: '技能名稱',
+              validation: { isRequired: true },
+            }),
+            description: fields.text({
+              label: '學習嘗試與心得（可選）',
+              description: '描述你在學習或使用這項技能時的經驗、嘗試過的專案等',
+              multiline: true,
+            }),
+            selfAssessment: fields.text({
+              label: '自我評估（可選）',
+              description: '對這項技能的掌握程度、熟練度等自我評價',
+              multiline: true,
+            }),
+          }),
+          {
+            label: '技能列表',
+            itemLabel: (props) => props.fields.name.value,
+          }
+        ),
         experience: fields.array(
           fields.object({
             title: fields.text({
@@ -190,10 +208,28 @@ export default config({
           directory: 'public/images/avatars',
           publicPath: '/images/avatars/',
         }),
-        skills: fields.array(fields.text({ label: 'Skill' }), {
-          label: 'Skills',
-          itemLabel: (props) => props.value,
-        }),
+        skills: fields.array(
+          fields.object({
+            name: fields.text({
+              label: 'Skill Name',
+              validation: { isRequired: true },
+            }),
+            description: fields.text({
+              label: 'Learning Experience (Optional)',
+              description: 'Describe your experience learning or using this skill, projects you\'ve tried, etc.',
+              multiline: true,
+            }),
+            selfAssessment: fields.text({
+              label: 'Self Assessment (Optional)',
+              description: 'Your self-evaluation of proficiency level, mastery, etc.',
+              multiline: true,
+            }),
+          }),
+          {
+            label: 'Skills',
+            itemLabel: (props) => props.fields.name.value,
+          }
+        ),
         experience: fields.array(
           fields.object({
             title: fields.text({

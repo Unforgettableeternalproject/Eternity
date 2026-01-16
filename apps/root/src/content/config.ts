@@ -77,7 +77,13 @@ const aboutCollection = defineCollection({
     bio: z.string(), // 簡短自我介紹（用於標題下方）
     fullBio: z.string().optional(), // 完整自我介紹（支援 HTML 格式化）
     avatar: z.string().optional(), // 頭像路徑（public 資料夾中）
-    skills: z.array(z.string()),
+    skills: z.array(
+      z.object({
+        name: z.string(), // 技能名稱
+        description: z.string().optional(), // 學習嘗試與心得
+        selfAssessment: z.string().optional(), // 自我評估
+      })
+    ),
     experience: z.array(
       z.object({
         title: z.string(),

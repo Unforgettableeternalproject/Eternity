@@ -4,26 +4,41 @@
   "fullBio": "<p>\n  我的本名是\n  <span style=\"\n    font-weight:600;\n    background:linear-gradient(90deg,#6ee7ff,#c77dff);\n    -webkit-background-clip:text;\n    -webkit-text-fill-color:transparent;\n  \">\n    顏榕嶙\n  </span>，台灣人。\n</p>\n\n<p>\n  我並不想要被任何事物給拘束，而希望追求一個\n  <span style=\"color:#7dd3fc; text-shadow:0 0 6px rgba(125,211,252,0.4);\">\n    自由自在的環境\n  </span>。\n</p>\n\n<p>\n  當然，聽起來還是天方夜譚，不過這也是我之所以繼續努力著的原因。\n</p>\n\n<p>\n  有一個故事存活在我的心中，而對我而言，想辦法把這個故事給實現\n  <span style=\"font-style:italic; opacity:0.8;\">\n    (無論使用甚麼辦法)\n  </span>\n  就是我一直在追求的\n  <span style=\"\n    font-weight:700;\n    background:linear-gradient(\n      90deg,\n      #d5b618,\n      #f5e27a,\n      #d5b618\n    );\n    -webkit-background-clip:text;\n    -webkit-text-fill-color:transparent;\n    text-shadow:0 0 12px rgba(213,182,24,0.35);\n  \">\n    最終目標\n  </span>。\n</p>\n\n<p>\n  因此，祝我好運吧。\n</p>\n",
   "avatar": "/images/avatars/avatar.png",
   "skills": [
-    "開發",
-    "設計",
-    "寫作"
+    {
+      "name": "軟體設計/開發",
+      "description": "這算是我的本業，從國中開始就在往程式設計的方向前進了，如今我已經做了很多個挺好看的專案，而我也不吝於將它們給展示於此。寫程式對我來說也是一種創作過程，主要是把想法給實現出來變成真正的作品、產品，以達到某個特定的目標。",
+      "selfAssessment": "我無法說我已經對於這一塊爐火純青，但我也是對自己的能力挺有自信的，以這個網頁為例，我的確有辦法將自己所想的給實作出來。我熟悉的語言主要是Python, Javascript以及一點C#，如有建議請不吝指教!"
+    },
+    {
+      "name": "音樂創作",
+      "description": "音樂對我來說就是一種傳遞故事的手段，從我國中起就對於作曲挺有興趣的，主要是有辦法把我心中的旋律給展現出來就有中成功解釋我的故事的感覺。實際上，我沒有學過樂器，對音樂理論的理解以只限於高中音樂課，但誰知道呢? 我認為這樣子自己摸索也相當不錯啊。",
+      "selfAssessment": "俗話說練習是成功的根本，從最早以前到現在我堆積出的作品也已經有幾十首，因此我可以說即使不到專業等級，作為區域、角色和劇情的主題曲我個人認為是相當足夠的，當然可以的話我也希望能夠繼續精進自己。"
+    },
+    {
+      "name": "寫作",
+      "description": "我時常在閒暇時期寫作，主要是我有一個完整的大綱在敘述整個故事，對我而言這些故事已經在我腦中存在很久了，因此我想要試著把這些故事用文字的方式給表達出來，基本上是寫小說。我一直在努力磨練我的文筆，為了呈現一個最完整、最詳細的敘述模式。",
+      "selfAssessment": "該怎麼說，每次前進了一些道路之後驀然回首，總會感覺自己的過往並沒有太多的光采，並想要從新點繪，反而就一直在起點附近徘徊。我認為我對創作文章的熟練度一直在0~100之間徘徊，一個所謂的平衡總是飄忽不定，也許距離我真正能夠創作不錯的文章還有一段路吧，"
+    },
+    {
+      "name": "像素繪圖",
+      "description": "我畫畫一直以來都不好，當然我也希望自己能夠學會繪圖，這樣很多腦中的人物和場景都可以被實際創作出來。慶幸的是，雖然我畫不了直線，而且構圖與上色都不太好，像素畫還算是在我可以掌握的範圍，雖然作品還不多，但至少這樣我也算是有所進展。",
+      "selfAssessment": "美術是我的弱項，因此我不會說我畫得很好，但我並不會為我過去的作品感到羞愧，正是有那些零散的創作，我的故事才得以進展到如今這個地步，所以說，我會想辦法讓我的技藝更加精湛。"
+    },
+    {
+      "name": "基礎剪輯 & 混音",
+      "description": "由於我有經營Youtube頻道，因此有自學過一些基本的剪輯，主要以Premiere和After Effect為主，也經常用Audition去對我的雛型曲作一些快速混響和修整，雖然都是簡單的操作，但也足夠用了。",
+      "selfAssessment": "當然比起剪輯專業或者大眾傳播等等要簡陋很多，我主要都是以作歌曲影片為主，但經過一段時間的學習我認為現在至少可以做出一些不錯的動畫跟解說影片。"
+    }
   ],
   "experience": [
     {
-      "title": "測試工作",
-      "company": "測試工作",
-      "period": "測試時間",
-      "description": "攝氏五十度"
+      "title": "全端工程師",
+      "company": "佶昕智能",
+      "period": "2026/01/12 ~ 2026/07/14",
+      "description": "我作為工程師在這間公司工作了一段期間，主要負責官方平台的前/後端技術設計以及開發。"
     }
   ],
-  "certifications": [
-    {
-      "name": "測試證照",
-      "issuer": "測試單位",
-      "date": "測試日期",
-      "link": "測試連結"
-    }
-  ],
+  "certifications": [],
   "social": {
     "github": "https://github.com/Unforgettableeternalproject",
     "email": "ptyc4076@gmail.com"

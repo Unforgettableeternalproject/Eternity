@@ -1,9 +1,10 @@
 ---
-import { getCurrentLocale } from '../i18n/utils';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection, getEntry } from 'astro:content';
 import SidebarCard from './SidebarCard';
 
 const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
 
 // 從 Keystatic 獲取卡片資料
 const quickStatsCard = await getEntry('card-quick-stats', 'index');
@@ -104,7 +105,7 @@ const stats = [
             >
               <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
             </svg>
-            {locale === 'zh-tw' ? '快速統計' : 'Quick Stats'}
+            {t.sidebar.right.quickStats.title}
           </h3>
           <div class="grid grid-cols-2 gap-3">
             {stats.map((stat) => (
@@ -168,13 +169,11 @@ const stats = [
             >
               <path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16 0h2v-2h-2v2zm0-10v2h2V7h-2zm0 6h2v-2h-2v2z" />
             </svg>
-            {locale === 'zh-tw' ? '頁面大綱' : 'Table of Contents'}
+            {t.sidebar.right.tableOfContents.title}
           </h3>
           <nav id="toc-nav" class="space-y-1 text-sm">
             <p class="text-xs text-slate-600 dark:text-slate-400 italic">
-              {locale === 'zh-tw'
-                ? '滾動頁面查看大綱'
-                : 'Scroll to see outline'}
+              {t.sidebar.right.tableOfContents.scrollHint}
             </p>
           </nav>
         </SidebarCard>

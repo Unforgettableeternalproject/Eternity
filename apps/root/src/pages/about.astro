@@ -4,6 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getEntry } from 'astro:content';
 import AboutBioTypewriter from '../components/AboutBioTypewriter';
+import SkillsGrid from '../components/SkillsGrid';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
@@ -15,6 +16,12 @@ const aboutData = await getEntry(aboutKey, 'index');
 // 準備 fullBio 內容（支援 HTML）
 const bioContent = aboutData?.data.fullBio || aboutData?.data.bio || '';
 const hasBioContent = Boolean(bioContent && bioContent.trim());
+
+// 處理技能資料：將舊格式（字串陣列）轉換為新格式（物件陣列）
+const skills =
+  aboutData?.data.skills?.map((skill) =>
+    typeof skill === 'string' ? { name: skill } : skill
+  ) || [];
 ---
 
 <BaseLayout title={t.about.title} description={t.about.description}>
@@ -70,25 +77,19 @@ const hasBioContent = Boolean(bioContent && bioContent.trim());
               </div>
 
               {/* Skills Section */}
-              {aboutData.data.skills && aboutData.data.skills.length > 0 && (
+              {skills && skills.length > 0 && (
                 <div class="mb-16 animation-delay-400 animate-fade-in-up">
                   <h2 class="text-3xl font-bold text-slate-900 dark:text-white mb-8">
-                    {locale === 'zh-tw' ? '技能' : 'Skills'}
+                    {t.about.skills}
                   </h2>
-                  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {aboutData.data.skills.map((skill) => (
-                      <div class="px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-center font-medium text-slate-700 dark:text-slate-300 hover:bg-primary-50 dark:hover:bg-primary-950 hover:text-primary-700 dark:hover:text-primary-400 transition-all duration-200 cursor-default">
-                        {skill}
-                      </div>
-                    ))}
-                  </div>
+                  <SkillsGrid client:load skills={skills} locale={locale} />
                 </div>
               )}
 
               {/* Experience Section */}
               <div class="mb-16 animation-delay-500 animate-fade-in-up">
                 <h2 class="text-3xl font-bold text-slate-900 dark:text-white mb-8">
-                  {locale === 'zh-tw' ? '工作經歷' : 'Experience'}
+                  {t.about.experience}
                 </h2>
                 {(aboutData.data as any).experience &&
                 (aboutData.data as any).experience.length > 0 ? (
@@ -126,7 +127,7 @@ const hasBioContent = Boolean(bioContent && bioContent.trim());
               {/* Certifications Section */}
               <div class="mb-16 animation-delay-600 animate-fade-in-up">
                 <h2 class="text-3xl font-bold text-slate-900 dark:text-white mb-8">
-                  {locale === 'zh-tw' ? '證照與認證' : 'Certifications'}
+                  {t.about.certifications}
                 </h2>
                 {(aboutData.data as any).certifications &&
                 (aboutData.data as any).certifications.length > 0 ? (
@@ -189,7 +190,7 @@ const hasBioContent = Boolean(bioContent && bioContent.trim());
               {aboutData.data.social && (
                 <div class="text-center space-y-6 animation-delay-700 animate-fade-in-up">
                   <h2 class="text-3xl font-bold text-slate-900 dark:text-white">
-                    {locale === 'zh-tw' ? '聯繫我' : 'Connect with Me'}
+                    {t.about.connect}
                   </h2>
                   <div class="flex flex-wrap gap-4 justify-center pt-4">
                     {aboutData.data.social.github && (
@@ -274,7 +275,7 @@ const hasBioContent = Boolean(bioContent && bioContent.trim());
                 </svg>
               </div>
               <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                {locale === 'zh-tw' ? '尚未設定個人資料' : 'Profile Not Set'}
+                {t.about.notSet}
               </h3>
               <p class="text-slate-600 dark:text-slate-300 mb-6">
                 {locale === 'zh-tw'
@@ -282,7 +283,7 @@ const hasBioContent = Boolean(bioContent && bioContent.trim());
                   : 'Please add your profile in the admin panel'}
               </p>
               <a href="/keystatic" class="btn btn-primary">
-                {locale === 'zh-tw' ? '前往後台' : 'Go to Admin'}
+                {t.about.goToAdmin}
               </a>
             </div>
           )
