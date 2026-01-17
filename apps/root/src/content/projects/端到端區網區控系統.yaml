@@ -1,0 +1,19 @@
+description_zh: 這個專案意在開發一個小型、快速的遠距離直播串流窗口，讓使用者可以從一台裝置快速存取另一台裝置的收音、視訊。
+title_en: End-to-End LAN Monitor Application
+description_en: >-
+  This project aims to develop a small, fast, long-distance live streaming
+  window that allows users to quickly access audio and video from one device to
+  another.
+tags:
+  - LAN
+  - Media Stream
+  - Python
+  - OpenCV
+  - Socket
+featured: false
+status: paused
+links:
+  github: >-
+    https://github.com/Unforgettableeternalproject/End-to-End-LAN-Monitor-Application
+startDate: 2024-03-25
+endDate: 2024-04-01

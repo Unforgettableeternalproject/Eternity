@@ -1,7 +1,7 @@
 /* 返回頂部按鈕 */
 .scroll-to-top {
   position: fixed;
-  bottom: 2rem;
+  bottom: 8rem;
   z-index: 40;
   width: 3.5rem;
   height: 3.5rem;

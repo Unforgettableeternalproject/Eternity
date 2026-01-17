@@ -1,0 +1,22 @@
+description_zh: >-
+  事件驅動的智能助理系統，整合長期記憶、動態情感與個性化互動，採用模組化架構結合語音辨識、自然語言處理、LLM、語音合成與類似桌寵的行為模式與動畫，提供完整的多模態互動體驗。
+title_en: Unified Experience Partner
+title_zh: U.E.P 個人虛擬桌面助理
+description_en: >-
+  An event-driven AI assistant system integrating long-term memory, dynamic
+  emotions, and personalized interactions, featuring modular architecture with
+  speech recognition, NLP, LLM, voice synthesis, custom movement and animation
+  for complete multimodal experiences.
+tags:
+  - AI
+  - U.E.P
+  - Python
+  - Agent
+  - Multi-Module
+featured: true
+order: 0
+status: active
+image: /images/projects/U.E.P 個人虛擬桌面助理/image.png
+links:
+  github: https://github.com/Unforgettableeternalproject/U.E.P-s-Core
+startDate: 2024-03-17

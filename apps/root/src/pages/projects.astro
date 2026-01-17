@@ -13,6 +13,11 @@ const allProjects = await getCollection('projects');
 const projects = allProjects.sort(
   (a, b) => (a.data.order || 999) - (b.data.order || 999)
 );
+
+// 收集所有獨特的標籤
+const allTags = Array.from(
+  new Set(projects.flatMap((project) => project.data.tags))
+).sort();
 ---
 
 <BaseLayout title={t.projects.title} description={t.projects.description}>
@@ -29,14 +34,209 @@ const projects = allProjects.sort(
         </p>
       </div>
 
+      <!-- 篩選器 -->
+      {
+        projects.length > 0 && (
+          <div
+            class="mb-12 animate-fade-in-up"
+            style="animation-delay: 100ms"
+          >
+            <div class="rounded-3xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/80 dark:to-slate-900/80 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              {/* 篩選器標題列 */}
+              <button
+                id="filter-toggle"
+                class="w-full p-4 flex items-center justify-between hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors"
+                aria-expanded="false"
+              >
+                <div class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-primary-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                    />
+                  </svg>
+                  <span class="text-base font-semibold text-slate-700 dark:text-slate-300">
+                    {locale === 'zh-tw' ? '篩選專案' : 'Filter Projects'}
+                  </span>
+                </div>
+                <svg
+                  id="filter-icon"
+                  class="w-5 h-5 text-slate-500 transition-transform collapsed"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {/* 篩選器內容 */}
+              <div id="filter-content" class="px-8 pb-8 collapsed">
+                <div class="flex flex-col gap-6">
+                  {/* 狀態篩選 */}
+                  <div class="flex flex-col gap-3">
+                    <div class="flex items-center gap-2">
+                      <svg
+                        class="w-5 h-5 text-primary-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {locale === 'zh-tw' ? '專案狀態' : 'Project Status'}
+                      </label>
+                    </div>
+                    <div class="flex flex-wrap gap-2" id="status-filters">
+                      <button
+                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all active shadow-sm"
+                        data-status="all"
+                      >
+                        <span class="flex items-center gap-2">
+                          <span class="w-2 h-2 rounded-full bg-current opacity-70" />
+                          {locale === 'zh-tw' ? '全部' : 'All'}
+                        </span>
+                      </button>
+                      <button
+                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
+                        data-status="active"
+                      >
+                        <span class="flex items-center gap-2">
+                          <span class="w-2 h-2 rounded-full bg-green-500" />
+                          {locale === 'zh-tw' ? '進行中' : 'Active'}
+                        </span>
+                      </button>
+                      <button
+                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
+                        data-status="completed"
+                      >
+                        <span class="flex items-center gap-2">
+                          <span class="w-2 h-2 rounded-full bg-blue-500" />
+                          {locale === 'zh-tw' ? '已完成' : 'Completed'}
+                        </span>
+                      </button>
+                      <button
+                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
+                        data-status="archived"
+                      >
+                        <span class="flex items-center gap-2">
+                          <span class="w-2 h-2 rounded-full bg-slate-400" />
+                          {locale === 'zh-tw' ? '已封存' : 'Archived'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 分隔線 */}
+                  <div class="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent" />
+
+                  {/* 標籤篩選 */}
+                  <div class="flex flex-col gap-3">
+                    <div class="flex items-center gap-2">
+                      <svg
+                        class="w-5 h-5 text-secondary-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                        />
+                      </svg>
+                      <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {locale === 'zh-tw' ? '技術標籤' : 'Tech Tags'}
+                      </label>
+                    </div>
+                    <div class="flex flex-wrap gap-2" id="tag-filters">
+                      <button
+                        class="tag-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all active"
+                        data-tag="all"
+                      >
+                        {locale === 'zh-tw' ? '全部' : 'All'}
+                      </button>
+                      {allTags.map((tag) => (
+                        <button
+                          class="tag-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+                          data-tag={tag}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      <!-- 空狀態提示 -->
+      <div
+        id="empty-state"
+        class="hidden text-center py-20 animate-fade-in-up"
+      >
+        <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/30 dark:to-secondary-900/30 flex items-center justify-center">
+          <svg
+            class="w-12 h-12 text-primary-600 dark:text-primary-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        </div>
+        <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          {locale === 'zh-tw' ? '沒有符合的專案' : 'No matching projects'}
+        </h3>
+        <p class="text-slate-600 dark:text-slate-300 mb-6">
+          {
+            locale === 'zh-tw'
+              ? '嘗試調整篩選條件以查看更多專案'
+              : 'Try adjusting your filters to see more projects'
+          }
+        </p>
+      </div>
+
       <!-- Projects Grid -->
       {
         projects.length > 0 ? (
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+          <div
+            id="projects-grid"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto"
+          >
             {projects.map((project, index) => (
               <div
-                class="card card-hover p-6 animate-fade-in-up"
+                class="project-card card card-hover p-6 animate-fade-in-up"
                 style={`animation-delay: ${index * 100}ms`}
+                data-status={project.data.status}
+                data-tags={JSON.stringify(project.data.tags)}
               >
                 <div class="flex flex-col md:flex-row gap-6">
                   <div class="flex-1 space-y-3">
@@ -45,26 +245,32 @@ const projects = allProjects.sort(
                         class={`px-3 py-1 text-xs font-medium rounded-full ${
                           project.data.status === 'active'
                             ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                            : project.data.status === 'completed'
-                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            : project.data.status === 'paused'
+                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                              : project.data.status === 'completed'
+                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         {project.data.status === 'active'
                           ? locale === 'zh-tw'
                             ? '進行中'
                             : 'Active'
-                          : project.data.status === 'completed'
+                          : project.data.status === 'paused'
                             ? locale === 'zh-tw'
-                              ? '已完成'
-                              : 'Completed'
-                            : locale === 'zh-tw'
-                              ? '已封存'
-                              : 'Archived'}
+                              ? '暫時停滯'
+                              : 'Paused'
+                            : project.data.status === 'completed'
+                              ? locale === 'zh-tw'
+                                ? '已完成'
+                                : 'Completed'
+                              : locale === 'zh-tw'
+                                ? '已封存'
+                                : 'Archived'}
                       </span>
                     </div>
 
-                    <h3 class="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h3 class="text-2xl font-bold text-slate-900 dark:text-white" style="text-transform: none;">
                       {locale === 'zh-tw'
                         ? project.data.title_zh || project.id
                         : project.data.title_en}
@@ -181,38 +387,195 @@ const projects = allProjects.sort(
           </div>
         )
       }
-
-      <!-- CTA Section -->
-      {
-        projects.length > 0 && (
-          <div class="text-center mt-16 space-y-6 animate-fade-in-up animation-delay-400">
-            <h2 class="text-3xl font-bold text-slate-900 dark:text-white">
-              {t.projects.cta.heading}
-            </h2>
-            <p class="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-              {t.projects.cta.description}
-            </p>
-            <div class="flex flex-wrap gap-4 justify-center pt-4">
-              <a
-                href="https://github.com/Unforgettableeternalproject"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-primary"
-              >
-                {t.projects.cta.github}
-              </a>
-              <a
-                href="https://uep.unforgettableeternalproject.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-secondary"
-              >
-                {t.projects.cta.explore}
-              </a>
-            </div>
-          </div>
-        )
-      }
     </div>
   </div>
 </BaseLayout>
+
+<style>
+  .status-filter-btn,
+  .tag-filter-btn {
+    background: rgba(71, 85, 105, 0.1);
+    color: #475569;
+    border: 2px solid rgba(148, 163, 184, 0.2);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+  }
+
+  .dark .status-filter-btn,
+  .dark .tag-filter-btn {
+    background: rgba(203, 213, 225, 0.1);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+
+  .status-filter-btn:hover,
+  .tag-filter-btn:hover {
+    background: rgba(71, 85, 105, 0.15);
+    color: #334155;
+    border-color: rgba(148, 163, 184, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .dark .status-filter-btn:hover,
+  .dark .tag-filter-btn:hover {
+    background: rgba(203, 213, 225, 0.15);
+    color: #f1f5f9;
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+
+  .status-filter-btn.active {
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    color: white !important;
+    border-color: transparent;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  }
+
+  .dark .status-filter-btn.active {
+    background: linear-gradient(135deg, #818cf8, #c084fc);
+  }
+
+  .status-filter-btn.active span {
+    color: white !important;
+  }
+
+  .tag-filter-btn.active {
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    color: white !important;
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
+  }
+
+  .dark .tag-filter-btn.active {
+    background: linear-gradient(135deg, #c084fc, #818cf8);
+  }
+
+  .project-card {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .project-card.hidden {
+    display: none;
+  }
+
+  #empty-state {
+    transition: opacity 0.3s ease;
+  }
+
+  #empty-state.hidden {
+    display: none;
+  }
+
+  #filter-content {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    opacity: 1;
+  }
+
+  #filter-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+  }
+
+  #filter-icon {
+    transition: transform 0.3s ease;
+  }
+
+  #filter-icon.collapsed {
+    transform: rotate(-90deg);
+  }
+</style>
+
+<script>
+  function initProjectFilters() {
+    let currentStatus = 'all';
+    let currentTag = 'all';
+    let isFilterExpanded = false;
+
+    const projectCards = document.querySelectorAll('.project-card');
+    const statusButtons = document.querySelectorAll('.status-filter-btn');
+    const tagButtons = document.querySelectorAll('.tag-filter-btn');
+    const emptyState = document.getElementById('empty-state');
+    const projectsGrid = document.getElementById('projects-grid');
+    const filterToggle = document.getElementById('filter-toggle');
+    const filterContent = document.getElementById('filter-content');
+    const filterIcon = document.getElementById('filter-icon');
+
+    // 切換篩選器展開/收縮
+    filterToggle?.addEventListener('click', () => {
+      isFilterExpanded = !isFilterExpanded;
+      
+      if (isFilterExpanded) {
+        filterContent?.classList.remove('collapsed');
+        filterIcon?.classList.remove('collapsed');
+        filterToggle.setAttribute('aria-expanded', 'true');
+      } else {
+        filterContent?.classList.add('collapsed');
+        filterIcon?.classList.add('collapsed');
+        filterToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    function filterProjects() {
+      let visibleCount = 0;
+
+      projectCards.forEach((card) => {
+        const cardElement = card as HTMLElement;
+        const cardStatus = cardElement.dataset.status;
+        const cardTags = JSON.parse(cardElement.dataset.tags || '[]');
+
+        const statusMatch = currentStatus === 'all' || cardStatus === currentStatus;
+        const tagMatch = currentTag === 'all' || cardTags.includes(currentTag);
+
+        if (statusMatch && tagMatch) {
+          cardElement.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          cardElement.classList.add('hidden');
+        }
+      });
+
+      // 控制空狀態顯示
+      if (emptyState && projectsGrid) {
+        if (visibleCount === 0) {
+          emptyState.classList.remove('hidden');
+          projectsGrid.classList.add('hidden');
+        } else {
+          emptyState.classList.add('hidden');
+          projectsGrid.classList.remove('hidden');
+        }
+      }
+    }
+
+    // 狀態篩選
+    statusButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const status = (btn as HTMLElement).dataset.status || 'all';
+        currentStatus = status;
+
+        statusButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        filterProjects();
+      });
+    });
+
+    // 標籤篩選
+    tagButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tag = (btn as HTMLElement).dataset.tag || 'all';
+        currentTag = tag;
+
+        tagButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        filterProjects();
+      });
+    });
+  }
+
+  // 初始化
+  document.addEventListener('DOMContentLoaded', initProjectFilters);
+  document.addEventListener('astro:page-load', initProjectFilters);
+</script>

@@ -38,7 +38,7 @@ const featuredLinks = allLinks
   .filter((l) => l.data.featured)
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
   .map((link) => ({
-    title: locale === 'zh-tw' ? link.id : link.data.title_en,
+    title: locale === 'zh-tw' ? (link.data.title_zh || link.id) : link.data.title_en,
     url: link.data.url,
     icon: link.data.icon,
   }));

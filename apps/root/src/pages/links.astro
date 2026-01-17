@@ -8,13 +8,26 @@ const locale = getCurrentLocale(Astro.url);
 
 // Load links from content collections
 const allLinks = await getCollection('links');
-const links = allLinks.sort(
-  (a, b) => (a.data.order || 999) - (b.data.order || 999)
-);
 
-// Separate featured and regular links
-const featuredLinks = links.filter((link) => link.data.featured);
-const regularLinks = links.filter((link) => !link.data.featured);
+// 先完成所有排序
+const sortedLinks = allLinks.sort((a, b) => {
+  // 首先按狀態排序：normal(0) > deprecated(1) > unmaintained(2)
+  const statusOrder = { normal: 0, deprecated: 1, unmaintained: 2 };
+  const statusA = statusOrder[a.data.status || 'normal'];
+  const statusB = statusOrder[b.data.status || 'normal'];
+  
+  if (statusA !== statusB) {
+    return statusA - statusB;
+  }
+  
+  // 狀態相同時，按 order 排序
+  return (a.data.order || 999) - (b.data.order || 999);
+});
+
+// 然後再分類（保持排序順序）
+const links = sortedLinks;
+const featuredLinks = sortedLinks.filter((link) => link.data.featured);
+const regularLinks = sortedLinks.filter((link) => !link.data.featured);
 
 // Group links by category
 const linksByCategory = regularLinks.reduce(
@@ -85,11 +98,28 @@ const categoryNames = {
               {featuredLinks.map((link, index) => (
                 <a
                   href={link.data.url}
-                  class="group relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up"
+                  class={`group relative overflow-hidden rounded-2xl link-card
+                    ${link.data.status === 'deprecated'
+                      ? 'border-yellow-300 bg-yellow-100 dark:bg-yellow-200/20 dark:border-yellow-400'
+                      : link.data.status === 'unmaintained'
+                        ? 'border-gray-400 bg-gray-300 dark:bg-gray-700 dark:border-gray-500'
+                        : 'border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70'}
+                    backdrop-blur-md shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up`}
                   style={`animation-delay: ${index * 80}ms`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
+                  {link.data.status !== 'normal' && (
+                    <div class="status-tooltip">
+                      {link.data.status === 'deprecated'
+                        ? (locale === 'zh-tw'
+                            ? '⚠️ 此連結已棄用，內容可能不再維護'
+                            : '⚠️ This link is deprecated and may not be maintained')
+                        : (locale === 'zh-tw'
+                            ? 'ℹ️ 此連結尚未維護，內容可能不完整'
+                            : 'ℹ️ This link is unmaintained and may be incomplete')}
+                    </div>
+                  )}
                   <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/15" />
                   <div class="relative p-6 space-y-4">
                     <div class="flex items-start gap-4">
@@ -100,8 +130,8 @@ const categoryNames = {
                         />
                       </div>
                       <div class="flex-1 min-w-0">
-                        <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                          {locale === 'zh-tw' ? link.id : link.data.title_en}
+                        <h3 class="text-xl font-semibold text-slate-900 dark:text-white mb-2" style="text-transform: none;">
+                          {locale === 'zh-tw' ? (link.data.title_zh || link.id) : link.data.title_en}
                         </h3>
                         <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
                           {locale === 'zh-tw'
@@ -152,12 +182,28 @@ const categoryNames = {
               <div class="grid grid-cols-1 gap-4">
                 {categoryLinks.map((link, index) => (
                   <a
-                    href={link.data.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="card card-hover p-6 flex items-center gap-6 group animate-fade-in-up"
-                    style={`animation-delay: ${categoryIndex * 100 + index * 50}ms`}
-                  >
+                      href={link.data.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class={`card card-hover p-6 flex items-center gap-6 group animate-fade-in-up relative link-card
+                        ${link.data.status === 'deprecated'
+                          ? 'border-yellow-300 bg-yellow-100 dark:bg-yellow-200/20 dark:border-yellow-400'
+                          : link.data.status === 'unmaintained'
+                            ? 'border-gray-400 bg-gray-300 dark:bg-gray-700 dark:border-gray-500'
+                            : ''}`}
+                      style={`animation-delay: ${categoryIndex * 100 + index * 50}ms`}
+                    >
+                    {link.data.status !== 'normal' && (
+                      <div class="status-tooltip">
+                        {link.data.status === 'deprecated'
+                          ? (locale === 'zh-tw'
+                              ? '⚠️ 此連結已棄用，內容可能不再維護'
+                              : '⚠️ This link is deprecated and may not be maintained')
+                          : (locale === 'zh-tw'
+                              ? 'ℹ️ 此連結尚未維護，內容可能不完整'
+                              : 'ℹ️ This link is unmaintained and may be incomplete')}
+                      </div>
+                    )}
                     <div class="w-16 h-16 flex-shrink-0 rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
                       <LinkIcon
                         icon={link.data.icon}
@@ -165,8 +211,8 @@ const categoryNames = {
                       />
                     </div>
                     <div class="flex-1 min-w-0">
-                      <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                        {locale === 'zh-tw' ? link.id : link.data.title_en}
+                      <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" style="text-transform: none;">
+                        {locale === 'zh-tw' ? (link.data.title_zh || link.id) : link.data.title_en}
                       </h3>
                       <p class="text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">
                         {locale === 'zh-tw'
@@ -229,6 +275,60 @@ const categoryNames = {
     </div>
   </section>
 </BaseLayout>
+
+<style>
+  .link-card {
+    position: relative;
+  }
+
+  .status-tooltip {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 0.875rem 1.25rem;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.97) 100%);
+    backdrop-filter: blur(12px);
+    color: white;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 50;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .status-tooltip::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: rgba(15, 23, 42, 0.97);
+  }
+
+  .link-card:hover .status-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  :global(.dark) .status-tooltip {
+    background: linear-gradient(135deg, rgba(241, 245, 249, 0.97) 0%, rgba(226, 232, 240, 0.97) 100%);
+    color: rgb(15, 23, 42);
+    border: 1px solid rgba(15, 23, 42, 0.1);
+  }
+
+  :global(.dark) .status-tooltip::before {
+    border-top-color: rgba(241, 245, 249, 0.97);
+  }
+</style>
 
 <style>
   .line-clamp-2 {

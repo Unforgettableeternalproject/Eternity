@@ -74,20 +74,32 @@ const formatDate = (date?: Date) => {
       <header class="mb-12">
         <div class="flex items-center gap-3 mb-4">
           <span
-            class="px-3 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
+            class={`px-3 py-1 text-sm rounded-full ${
+              project.data.status === 'active'
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                : project.data.status === 'paused'
+                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                  : project.data.status === 'completed'
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
+            }`}
           >
             {
               project.data.status === 'active'
                 ? locale === 'zh-tw'
                   ? '進行中'
                   : 'Active'
-                : project.data.status === 'completed'
+                : project.data.status === 'paused'
                   ? locale === 'zh-tw'
-                    ? '已完成'
-                    : 'Completed'
-                  : locale === 'zh-tw'
-                    ? '已封存'
-                    : 'Archived'
+                    ? '暫時停滯'
+                    : 'Paused'
+                  : project.data.status === 'completed'
+                    ? locale === 'zh-tw'
+                      ? '已完成'
+                      : 'Completed'
+                    : locale === 'zh-tw'
+                      ? '已封存'
+                      : 'Archived'
             }
           </span>
           {
@@ -103,6 +115,7 @@ const formatDate = (date?: Date) => {
 
         <h1
           class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-6"
+          style="text-transform: none;"
         >
           {locale === 'zh-tw' ? project.data.title_zh : project.data.title_en}
         </h1>

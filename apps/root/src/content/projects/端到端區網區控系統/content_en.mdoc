@@ -1,0 +1,239 @@
+## Project Introduction
+
+End-to-End LAN Monitor Application is a **LAN-based audio-video monitoring system** designed to enable remote monitoring capabilities within local area networks. The project adopts a Client-Server dual-role architecture, allowing users to remotely access cameras and microphones via LAN connections, suitable for scenarios such as dormitory monitoring and home security. The system is built on Socket communication and OpenCV video processing technologies, providing real-time video streaming and audio capture capabilities.
+
+### Core Philosophy
+
+- **Dual-Role System Design**: Separation of responsibilities between Agent (monitored side) and Monitor (monitoring side)
+- **Real-Time Stream Transmission**: Reliable image and audio data transmission based on TCP/IP
+- **Lightweight Implementation**: Using Python standard libraries and mature open-source tools to reduce development and deployment costs
+
+---
+
+## My Responsibilities
+
+As the sole developer of the project, I am responsible for:
+
+### System Architecture Design
+
+- Designed Agent-Monitor dual-role architecture to achieve role separation and modularity
+- Established TCP communication protocol based on Socket to ensure data transmission reliability
+- Implemented custom packet format: 9-byte header (sequence number + data type + length) + data payload
+
+### Core Feature Implementation
+
+- **Video Capture & Encoding**: Used OpenCV to capture camera frames, compressed with JPEG and transmitted via Socket
+- **Network Communication Protocol**: Implemented ACK confirmation mechanism, sequence number management (0-65535 circular), packet chunking (8192 bytes/chunk)
+- **Input Validation System**: Regular expression validation for IPv4 addresses, port range checking (1024-49151), port occupation detection
+- **Error Handling & Logging**: Used Python logging module to record connection status, ACK loss, decoding errors, and other exceptions
+
+### Testing & Debugging
+
+- Resolving Socket connection stability issues (in progress)
+- Testing connection reliability across different network segments within LAN
+- Optimizing video quality and transmission latency
+
+---
+
+## Core Features
+
+### 1. Agent (Monitored Side)
+
+- **Video Capture**: Access local camera via OpenCV VideoCapture
+- **Data Encoding**: JPEG compression of image frames to reduce network bandwidth requirements
+- **Socket Server**: Listen on specified port, accept Monitor connection requests
+- **ACK Mechanism**: Wait for receiver confirmation packets to ensure data integrity
+- **Sequence Number Management**: 16-bit sequence number cycling (0-65535) to track packet order
+
+### 2. Monitor (Monitoring Side)
+
+- **Socket Client**: Connect to Agent at specified IP and port
+- **Data Reception**: Parse 9-byte header, reassemble chunked data
+- **Image Decoding**: Decode JPEG byte stream into NumPy arrays
+- **Real-Time Display**: Display image stream using OpenCV imshow (planned)
+
+### 3. Input Validation & Error Handling
+
+- **IPv4 Regex Validation**: `^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}...$`
+- **Port Range Checking**: Limited to 1024-49151 (registered port range)
+- **Port Occupation Detection**: Attempt to bind localhost to check if port is in use
+- **Exception Handling**: ValueError (invalid input), OSError (port in use), ConnectionError (connection interrupted)
+
+### 4. Packet Format Design
+
+```
+[2 bytes] Sequence Number
+[5 bytes] Data Type ('VIDEO', 'AUDIO', etc.)
+[2 bytes] Payload Length
+[N bytes] Payload Data
+```
+
+---
+
+## Technologies Used
+
+### Core Libraries
+
+- **OpenCV (4.9.0.80)**: Video capture and image encoding/decoding
+- **NumPy (1.21.4)**: Array operations and numerical computation
+- **PyAudio (0.2.14)**: Audio capture (integration in progress)
+- **Socket (standard library)**: TCP/IP network communication
+
+### System Architecture
+
+- **Python 3.x**: Core development language
+- **Client-Server Pattern**: Bidirectional communication architecture
+- **Multi-threading Design**: Separation of video/audio capture and network transmission (planned)
+
+### Development Tools
+
+- **Visual Studio**: Project management (.pyproj, .sln)
+- **logging**: Debug logging (agent.log, monitor.log)
+- **Git**: Version control
+
+---
+
+## Project Status
+
+### Current Version: In Development (pipeline branch)
+
+- **Core Feature Status**: Video capture and Socket transmission implemented
+- **Known Issues**: Socket connection stability needs fixing, video quality requires optimization
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Agent/Monitor role separation architecture
+  - Socket TCP communication protocol
+  - OpenCV video capture
+  - Custom packet format and ACK mechanism
+  - Input validation system
+- 🔄 **In Progress**:
+  - Audio capture integration (PyAudio)
+  - Socket connection stability fixes
+  - Video quality optimization
+- 📋 **Planned**:
+  - Upgrade from terminal to graphical user interface (GUI)
+  - Additional automation features
+  - Connection request approval mechanism
+
+---
+
+## Development Challenges & Learnings
+
+### 1. Socket Communication Protocol Design
+
+**Challenge**: How to ensure reliable transmission of image data within LAN?
+
+**Solution**:
+
+- Designed custom packet format (header + payload)
+- Implemented ACK confirmation mechanism with automatic retransmission on packet loss
+- Used sequence numbers to track packet order and avoid out-of-order issues
+
+**Learnings**:
+
+- Deep understanding of TCP/IP protocol principles
+- Learned trade-offs in packet design (header size vs. extensibility)
+- Mastered multi-threading synchronization and exception handling
+
+### 2. OpenCV Image Encoding Optimization
+
+**Challenge**: Raw image frames too large (640x480 RGB ~900KB), causing network latency.
+
+**Solution**:
+
+- Used JPEG compression (cv2.imencode) to reduce frame size to 20-50KB
+- Adjusted frame rate (0.1 second interval) to balance smoothness and bandwidth
+
+**To be Optimized**:
+
+- Dynamically adjust JPEG quality parameters
+- Implement H.264 hardware encoding support
+
+**Learnings**:
+
+- Understanding trade-offs in image compression algorithms
+- Learning network bandwidth management techniques
+
+### 3. Port & IP Validation System
+
+**Challenge**: Users might input invalid IPs or occupied ports, leading to connection failures.
+
+**Solution**:
+
+- Strict IPv4 format validation using regular expressions
+- Attempt to bind localhost to check port availability
+- Loop prompts until valid input received
+
+**Learnings**:
+
+- Mastered complex regex patterns
+- Understanding Socket binding and port conflict mechanisms
+- Enhanced user experience design awareness
+
+### 4. ACK Mechanism Implementation
+
+**Challenge**: How to ensure receiver correctly receives every packet?
+
+**Solution**:
+
+- Sender waits for 2-byte ACK (containing sequence number)
+- If ACK doesn't match or times out, resend packet
+- Maximum 3 retries to avoid infinite waiting
+
+**Learnings**:
+
+- Understanding reliable transport protocol design (similar to TCP's ACK)
+- Learning timeout handling and retry strategies
+
+---
+
+## Future Plans
+
+### Short-Term Goals
+
+- Fix Socket connection stability issues
+- Integrate PyAudio audio capture functionality
+- Optimize video quality (dynamic JPEG parameters)
+
+### Mid-Term Goals
+
+- Develop graphical user interface (possibly using Tkinter or PyQt)
+- Implement connection request approval mechanism (security)
+- Support multiple Monitors connecting to single Agent simultaneously
+
+### Long-Term Goals
+
+- Add motion detection for automatic recording
+- Support cloud storage integration (e.g., Google Drive)
+- Mobile app development (cross-platform monitoring)
+
+---
+
+## Project Highlights
+
+### Technical Innovation
+
+- ✅ Custom packet format and ACK mechanism ensuring data reliability
+- ✅ Agent/Monitor role separation for easy expansion and maintenance
+- ✅ Lightweight design relying only on few mature libraries
+
+### Practical Value
+
+- ✅ Solves dormitory/home remote monitoring needs
+- ✅ Entirely LAN-based, no cloud services required, protecting privacy
+- ✅ Low-cost implementation (pure software solution, no hardware investment)
+
+### Learning Outcomes
+
+- ✅ Deep implementation of network programming (Socket, TCP/IP)
+- ✅ Mastered image processing and encoding technologies (OpenCV, JPEG)
+- ✅ Understanding distributed system design (Client-Server architecture)
+
+---
+
+**Programming Language**: Python 3.x\
+**Code Scale**: Approximately 300-400 lines (excluding comments)\
+**Main Modules**: `Roles/Agent.py` (103 lines), `Roles/Monitor.py`, `End_to_end_LAN_Monitor_Application.py` (78 lines)\
+**Development Status**: In Progress (pipeline branch)

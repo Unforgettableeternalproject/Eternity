@@ -12,7 +12,7 @@ const projectsCollection = defineCollection({
     tags: z.array(z.string()),
     featured: z.boolean().default(false),
     order: z.number().optional(),
-    status: z.enum(['active', 'completed', 'archived']).default('active'),
+    status: z.enum(['active', 'paused', 'completed', 'archived']).default('active'),
     image: z.string().optional(),
     links: z
       .object({
@@ -36,6 +36,7 @@ const linksCollection = defineCollection({
     description_en: z.string(),
     url: z.string(),
     category: z.enum(['social', 'work', 'creative', 'other']).default('other'),
+    status: z.enum(['normal', 'deprecated', 'unmaintained']).default('normal'),
     icon: z.string().optional(),
     featured: z.boolean().default(false),
     order: z.number().optional(),

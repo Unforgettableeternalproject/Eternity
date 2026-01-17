@@ -1,0 +1,82 @@
+---
+import { Image } from 'astro:assets';
+
+interface Props {
+  src: string;
+  alt?: string;
+  title?: string;
+  width?: number;
+  height?: number;
+}
+
+const { src, alt = '', title, width, height } = Astro.props;
+
+// 判斷是否為本地圖片（從 public/images/projects/ 開始）
+const isLocalImage = src.startsWith('/images/projects/');
+
+// 如果是本地圖片，嘗試載入優化
+let optimizedImage;
+if (isLocalImage) {
+  try {
+    // 移除開頭的 /，因為 import 路徑是相對於專案根目錄
+    const imagePath = `../../../public${src}`;
+    const images = import.meta.glob<{ default: ImageMetadata }>(
+      '/public/images/projects/**/*.{jpeg,jpg,png,gif,webp,svg}',
+      { eager: true }
+    );
+    
+    // 尋找匹配的圖片
+    const imageKey = Object.keys(images).find(key => key.endsWith(src));
+    if (imageKey) {
+      optimizedImage = images[imageKey].default;
+    }
+  } catch (e) {
+    console.warn(`無法優化圖片: ${src}`, e);
+  }
+}
+---
+
+<figure class="my-8 rounded-lg overflow-hidden">
+  {
+    optimizedImage ? (
+      <Image
+        src={optimizedImage}
+        alt={alt}
+        title={title}
+        width={width}
+        height={height}
+        class="w-full h-auto"
+        loading="lazy"
+      />
+    ) : (
+      <img
+        src={src}
+        alt={alt}
+        title={title}
+        width={width}
+        height={height}
+        class="w-full h-auto"
+        loading="lazy"
+      />
+    )
+  }
+  {alt && (
+    <figcaption class="text-sm text-slate-600 dark:text-slate-400 text-center mt-2 px-4 py-2">
+      {alt}
+    </figcaption>
+  )}
+</figure>
+
+<style>
+  figure {
+    @apply bg-slate-50 dark:bg-slate-800/50;
+  }
+
+  figure img {
+    @apply transition-transform duration-300;
+  }
+
+  figure:hover img {
+    @apply scale-105;
+  }
+</style>

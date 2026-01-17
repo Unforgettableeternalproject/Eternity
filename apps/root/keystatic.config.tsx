@@ -509,6 +509,12 @@ export default config({
         }),
         content_zh: fields.markdoc({
           label: '詳細內容 (繁體中文)',
+          options: {
+            image: {
+              directory: 'public/images/projects',
+              publicPath: '/images/projects/',
+            },
+          },
         }),
 
         // 英文內容
@@ -523,6 +529,12 @@ export default config({
         }),
         content_en: fields.markdoc({
           label: 'Detailed Content (English)',
+          options: {
+            image: {
+              directory: 'public/images/projects',
+              publicPath: '/images/projects/',
+            },
+          },
         }),
 
         tags: fields.array(fields.text({ label: '標籤 / Tag' }), {
@@ -541,6 +553,7 @@ export default config({
           label: '狀態 / Status',
           options: [
             { label: '進行中 / Active', value: 'active' },
+            { label: '暫時停滯 / Paused', value: 'paused' },
             { label: '已完成 / Completed', value: 'completed' },
             { label: '已封存 / Archived', value: 'archived' },
           ],
@@ -610,6 +623,16 @@ export default config({
             { label: '其他 / Other', value: 'other' },
           ],
           defaultValue: 'other',
+        }),
+        status: fields.select({
+          label: '狀態 / Status',
+          options: [
+            { label: '正常 / Normal', value: 'normal' },
+            { label: '已棄用或較少維護 / Deprecated', value: 'deprecated' },
+            { label: '尚未維護 / Unmaintained', value: 'unmaintained' },
+          ],
+          defaultValue: 'normal',
+          description: '用於標註連結目前維護狀態，會影響卡片顏色',
         }),
         icon: fields.text({
           label: 'Icon 名稱 (可選)',
