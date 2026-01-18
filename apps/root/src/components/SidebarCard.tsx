@@ -29,7 +29,7 @@ export default function SidebarCard({
           backgroundColor: 'transparent',
           borderRadius: '12px',
           border: '1px solid rgba(148, 163, 184, 0.15)',
-          overflow: 'hidden',
+          overflow: 'visible',
           boxShadow: 'none',
         }}
       >

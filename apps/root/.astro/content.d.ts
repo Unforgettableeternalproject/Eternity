@@ -175,7 +175,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "about-en";
-  data: any;
+  data: InferEntrySchema<"about-en">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -183,15 +183,17 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "about-zh";
-  data: any;
+  data: InferEntrySchema<"about-zh">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
 "articles": Record<string, {
   id: string;
-  body?: string;
+  render(): Render[".md"];
+  slug: string;
+  body: string;
   collection: "articles";
-  data: any;
+  data: InferEntrySchema<"articles">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -199,7 +201,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "card-latest-update";
-  data: any;
+  data: InferEntrySchema<"card-latest-update">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -207,7 +209,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "card-music";
-  data: any;
+  data: InferEntrySchema<"card-music">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -215,7 +217,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "card-quick-stats";
-  data: any;
+  data: InferEntrySchema<"card-quick-stats">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -223,7 +225,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "card-quote";
-  data: any;
+  data: InferEntrySchema<"card-quote">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -231,7 +233,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "card-table-of-contents";
-  data: any;
+  data: InferEntrySchema<"card-table-of-contents">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -239,7 +241,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "card-visitor-counter";
-  data: any;
+  data: InferEntrySchema<"card-visitor-counter">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -247,7 +249,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "homepage-en";
-  data: any;
+  data: InferEntrySchema<"homepage-en">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -255,7 +257,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "homepage-zh";
-  data: any;
+  data: InferEntrySchema<"homepage-zh">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -263,7 +265,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "links";
-  data: any;
+  data: InferEntrySchema<"links">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -271,7 +273,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "projects";
-  data: any;
+  data: InferEntrySchema<"projects">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -279,7 +281,7 @@ declare module 'astro:content' {
   id: string;
   body?: string;
   collection: "updates";
-  data: any;
+  data: InferEntrySchema<"updates">;
   rendered?: RenderedContent;
   filePath?: string;
 }>;
@@ -315,6 +317,6 @@ declare module 'astro:content' {
 		LiveContentConfig['collections'][C]['loader']
 	>;
 
-	export type ContentConfig = never;
+	export type ContentConfig = typeof import("./../src/content.config.js");
 	export type LiveContentConfig = never;
 }
