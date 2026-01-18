@@ -1,0 +1,630 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="U.E.P的幻想空間 - 邁向邊際世界">
+  <div class="canvas">
+    <!-- 粒子背景 -->
+    <div class="particles" id="particles"></div>
+    <div class="noise"></div>
+
+    <!-- Big UEP - 中央 -->
+    <img src="/uep/Big UEP.png" alt="U.E.P" class="big-uep" />
+    <div class="glow-ring"></div>
+
+    <!-- 建設中徽章 - 上方 -->
+    <div class="badge">
+      <span class="icon rotating">✦</span>
+      <span>邊際世界構建中</span>
+      <span class="icon rotating-reverse">✦</span>
+    </div>
+
+    <!-- 簡短文字 - 下方 -->
+    <p class="hint">"萬物由最原初的質所成"</p>
+
+    <!-- UEP 貼紙散落 -->
+    <div class="sticker-wrapper sticker-1">
+      <img src="/uep/Working.png" alt="Working" class="sticker" />
+      <div class="speech-bubble">我在指揮!</div>
+    </div>
+    <div class="sticker-wrapper sticker-2">
+      <img src="/uep/Forklift.png" alt="Forklift" class="sticker" />
+      <div class="speech-bubble">我有一台大車車!</div>
+    </div>
+    <div class="sticker-wrapper sticker-3">
+      <img src="/uep/Lead.png" alt="Lead" class="sticker" />
+      <div class="speech-bubble">我在工作!</div>
+    </div>
+
+    <!-- 回主頁連結 - 右下角 -->
+    <a
+      href="https://unforgettableeternalproject.com"
+      class="home-link"
+      target="_blank"
+    >
+      <span class="link-icon">🌟</span>
+      <span>返回主維度</span>
+    </a>
+
+    <!-- 簡單的進度指示 - 左下角 -->
+    <div class="progress-indicator">
+      <div class="progress-dot"></div>
+      <div class="progress-dot"></div>
+      <div class="progress-dot active"></div>
+      <span class="progress-text">構建中</span>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .canvas {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* 粒子背景 */
+  .particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  .noise {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: noise 8s steps(10) infinite;
+    pointer-events: none;
+  }
+
+  @keyframes noise {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    50% {
+      transform: translate(-5%, 5%);
+    }
+  }
+
+  /* Big UEP - 中央 */
+  .big-uep {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(35vw, 400px);
+    height: auto;
+    filter: drop-shadow(0 0 40px rgba(213, 182, 24, 0.6));
+    animation: floatBig 6s ease-in-out infinite;
+    z-index: 10;
+  }
+
+  @keyframes floatBig {
+    0%,
+    100% {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      transform: translate(-50%, -55%) scale(1.03);
+    }
+  }
+
+  .glow-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(40vw, 450px);
+    height: min(40vw, 450px);
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    opacity: 0.2;
+    animation: ringPulse 4s ease-in-out infinite;
+    z-index: 9;
+  }
+
+  @keyframes ringPulse {
+    0%,
+    100% {
+      transform: translate(-50%, -50%) scale(0.9) rotate(0deg);
+      opacity: 0.2;
+    }
+    50% {
+      transform: translate(-50%, -50%) scale(1.1) rotate(180deg);
+      opacity: 0.4;
+    }
+  }
+
+  /* 建設中徽章 - 上方 */
+  .badge {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, var(--purple-dark), var(--purple));
+    border: 2px solid var(--purple-light);
+    border-radius: 2rem;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+    font-weight: 700;
+    font-size: clamp(0.9rem, 2vw, 1.1rem);
+    color: var(--text-primary);
+    letter-spacing: 0.1em;
+    z-index: 20;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      transform: translateX(-50%) scale(1);
+    }
+    50% {
+      transform: translateX(-50%) scale(1.05);
+    }
+  }
+
+  .icon {
+    font-size: 1.3rem;
+    filter: drop-shadow(0 0 8px var(--purple-light));
+  }
+
+  .rotating {
+    animation: rotate 4s linear infinite;
+  }
+
+  .rotating-reverse {
+    animation: rotate 4s linear infinite reverse;
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* 簡短文字 - 下方 */
+  .hint {
+    position: absolute;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: clamp(0.9rem, 2vw, 1.2rem);
+    color: var(--gold-light);
+    font-style: italic;
+    opacity: 0.8;
+    z-index: 20;
+    animation: fadeInOut 4s ease-in-out infinite;
+  }
+
+  @keyframes fadeInOut {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* UEP 貼紙散落 */
+  .sticker-wrapper {
+    position: absolute;
+    z-index: 15;
+  }
+
+  .sticker {
+    width: clamp(80px, 12vw, 140px);
+    height: auto;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+    cursor: grab;
+    transition: filter 0.3s ease;
+    user-select: none;
+    display: block;
+  }
+
+  .sticker:hover {
+    filter: drop-shadow(0 6px 16px rgba(213, 182, 24, 0.5));
+  }
+
+  .sticker:active {
+    cursor: grabbing;
+  }
+
+  .sticker-wrapper:active {
+    z-index: 50;
+  }
+
+  /* 對話框 */
+  .speech-bubble {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, var(--purple-dark), var(--purple));
+    border: 2px solid var(--purple-light);
+    border-radius: 1rem;
+    color: var(--text-primary);
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
+    box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+    z-index: 100;
+  }
+
+  .speech-bubble::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: var(--purple);
+  }
+
+  .sticker-wrapper:hover .speech-bubble {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-15px);
+  }
+
+  .sticker-1 {
+    top: 15%;
+    right: 15%;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .sticker-2 {
+    bottom: 15%;
+    left: 10%;
+  }
+
+  .sticker-2 .sticker {
+    width: clamp(150px, 20vw, 250px); /* Forklift 更大 */
+  }
+
+  .sticker-3 {
+    top: 60%;
+    right: 8%;
+    animation: float 4s ease-in-out 1s infinite;
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+
+  /* 回主頁連結 - 右下角 */
+  .home-link {
+    position: absolute;
+    bottom: 5%;
+    right: 5%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 2rem;
+    color: var(--gold-light);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: clamp(0.85rem, 1.5vw, 1rem);
+    transition: all 0.3s ease;
+    z-index: 30;
+  }
+
+  .home-link:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(213, 182, 24, 0.4);
+    transform: translateY(-3px);
+  }
+
+  .link-icon {
+    font-size: 1.3rem;
+    animation: rotate 4s linear infinite;
+  }
+
+  /* 進度指示 - 左下角 */
+  .progress-indicator {
+    position: absolute;
+    bottom: 5%;
+    left: 5%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 30;
+  }
+
+  .progress-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--glass-border);
+    animation: dotPulse 1.5s ease-in-out infinite;
+  }
+
+  .progress-dot:nth-child(2) {
+    animation-delay: 0.3s;
+  }
+
+  .progress-dot:nth-child(3) {
+    animation-delay: 0.6s;
+  }
+
+  .progress-dot.active {
+    background: var(--gold);
+  }
+
+  @keyframes dotPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.5;
+    }
+    50% {
+      transform: scale(1.5);
+      opacity: 1;
+    }
+  }
+
+  .progress-text {
+    margin-left: 0.5rem;
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* 響應式 */
+  @media (max-width: 768px) {
+    .badge {
+      top: 8%;
+      padding: 0.6rem 1.2rem;
+    }
+
+    .hint {
+      bottom: 15%;
+    }
+
+    .sticker {
+      width: 80px;
+    }
+
+    .sticker-1 {
+      top: 10%;
+      right: 5%;
+    }
+    .sticker-2 {
+      bottom: 10%;
+      left: 5%;
+    }
+    .sticker-3 {
+      top: 55%;
+      right: 5%;
+    }
+
+    .home-link {
+      bottom: 3%;
+      right: 50%;
+      transform: translateX(50%);
+    }
+
+    .home-link:hover {
+      transform: translateX(50%) translateY(-3px);
+    }
+
+    .progress-indicator {
+      bottom: 3%;
+      left: 3%;
+    }
+  }
+</style>
+
+<script>
+  // 創建粒子
+  function createParticles() {
+    const container = document.getElementById('particles');
+    if (!container) return;
+
+    const particleCount = 30;
+    const colors = ['#d5b618', '#a855f7', '#06b6d4'];
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = document.createElement('div');
+      const size = Math.random() * 3 + 1;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const duration = Math.random() * 15 + 10;
+      const delay = Math.random() * 3;
+
+      particle.style.position = 'absolute';
+      particle.style.width = `${size}px`;
+      particle.style.height = `${size}px`;
+      particle.style.background = color;
+      particle.style.borderRadius = '50%';
+      particle.style.boxShadow = `0 0 ${size * 2}px ${color}`;
+      particle.style.left = `${Math.random() * 100}%`;
+      particle.style.top = `${Math.random() * 100}%`;
+      particle.style.opacity = String(Math.random() * 0.4 + 0.2);
+      particle.style.animation = `particleFloat ${duration}s linear ${delay}s infinite`;
+
+      container.appendChild(particle);
+    }
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes particleFloat {
+        0% { transform: translateY(0) translateX(0); }
+        100% { transform: translateY(-100vh) translateX(${Math.random() * 20 - 10}vw); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // 貼紙拖動功能（優化版）
+  function makeDraggable() {
+    const wrappers = document.querySelectorAll('.sticker-wrapper');
+
+    // 預載所有音效
+    const pinchSounds = Array.from({ length: 6 }, (_, i) => {
+      const audio = new Audio(`/se/pinch/pinch${i + 1}.wav`);
+      audio.volume = 0.5;
+      return audio;
+    });
+
+    const playRandomPinch = () => {
+      const randomIndex = Math.floor(Math.random() * 6);
+      const sound = pinchSounds[randomIndex];
+      sound.currentTime = 0;
+      sound.play().catch(() => {
+        // 忽略自動播放錯誤
+      });
+    };
+
+    wrappers.forEach((wrapper) => {
+      const el = wrapper as HTMLElement;
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let translateX = 0;
+      let translateY = 0;
+      let animationFrameId: number | null = null;
+
+      const updatePosition = (x: number, y: number) => {
+        if (animationFrameId !== null) {
+          cancelAnimationFrame(animationFrameId);
+        }
+
+        animationFrameId = requestAnimationFrame(() => {
+          el.style.transform = `translate(${x}px, ${y}px)`;
+          animationFrameId = null;
+        });
+      };
+
+      const handleDragStart = (e: MouseEvent | TouchEvent) => {
+        isDragging = true;
+        el.style.animation = 'none';
+        el.style.cursor = 'grabbing';
+        el.style.zIndex = '50';
+
+        // 播放隨機音效
+        playRandomPinch();
+
+        const clientX =
+          e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
+        const clientY =
+          e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
+
+        startX = clientX - translateX;
+        startY = clientY - translateY;
+
+        e.preventDefault();
+      };
+
+      const handleDragMove = (e: MouseEvent | TouchEvent) => {
+        if (!isDragging) return;
+
+        e.preventDefault();
+
+        const clientX =
+          e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
+        const clientY =
+          e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
+
+        translateX = clientX - startX;
+        translateY = clientY - startY;
+
+        updatePosition(translateX, translateY);
+      };
+
+      const handleDragEnd = () => {
+        if (!isDragging) return;
+
+        isDragging = false;
+        el.style.cursor = 'grab';
+        el.style.zIndex = '15';
+
+        if (animationFrameId !== null) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+        }
+      };
+
+      // 滑鼠事件
+      el.addEventListener('mousedown', handleDragStart);
+
+      // 觸控事件
+      el.addEventListener('touchstart', handleDragStart, { passive: false });
+
+      // 拖曳移動事件（只在拖曳時附加）
+      document.addEventListener('mousemove', handleDragMove);
+      document.addEventListener('touchmove', handleDragMove, {
+        passive: false,
+      });
+
+      // 拖曳結束事件
+      document.addEventListener('mouseup', handleDragEnd);
+      document.addEventListener('touchend', handleDragEnd);
+
+      // 當滑鼠離開視窗時也結束拖曳
+      document.addEventListener('mouseleave', handleDragEnd);
+    });
+  }
+
+  // 隨機初始位置
+  function randomizePositions() {
+    const wrappers = document.querySelectorAll('.sticker-wrapper');
+    wrappers.forEach((wrapper) => {
+      const el = wrapper as HTMLElement;
+
+      // 計算隨機位置範圍
+      const margin = 100; // 離邊界的最小距離
+      const maxX = window.innerWidth - el.offsetWidth - margin;
+      const maxY = window.innerHeight - el.offsetHeight - margin;
+
+      // 生成隨機位置（從左上角開始計算）
+      const randomX = margin + Math.random() * (maxX - margin);
+      const randomY = margin + Math.random() * (maxY - margin);
+
+      // 直接設置絕對位置
+      el.style.left = `${randomX}px`;
+      el.style.top = `${randomY}px`;
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+      el.style.transform = 'translate(0, 0)';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    createParticles();
+    randomizePositions();
+    makeDraggable();
+  });
+</script>

@@ -7,9 +7,17 @@ export default function CookieConsent() {
   useEffect(() => {
     // 檢查是否已經回答過
     const consent = localStorage.getItem('cookie-consent');
+    console.log('[CookieConsent] Checking consent:', consent);
+
     if (!consent) {
+      console.log('[CookieConsent] No consent found, will show banner in 1s');
       // 延遲顯示，讓頁面先載入
-      setTimeout(() => setIsVisible(true), 1000);
+      setTimeout(() => {
+        console.log('[CookieConsent] Showing banner now');
+        setIsVisible(true);
+      }, 1000);
+    } else {
+      console.log('[CookieConsent] Consent already exists:', consent);
     }
   }, []);
 

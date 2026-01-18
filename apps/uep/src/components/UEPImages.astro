@@ -1,0 +1,190 @@
+---
+// UEP 圖片組件 - 展示 3 個工作狀態的插圖
+---
+
+<div class="uep-images-section">
+  <div class="big-uep-container">
+    <img src="/uep/Big UEP.png" alt="U.E.P" class="big-uep" />
+    <div class="glow-ring"></div>
+  </div>
+
+  <div class="working-images">
+    <div class="image-card floating" style="animation-delay: 0s">
+      <div class="image-frame">
+        <img src="/uep/Working.png" alt="努力構建中" />
+      </div>
+      <p class="caption">努力構建中</p>
+    </div>
+
+    <div class="image-card floating" style="animation-delay: 0.5s">
+      <div class="image-frame">
+        <img src="/uep/Forklift.png" alt="搬運概念原質" />
+      </div>
+      <p class="caption">搬運概念原質</p>
+    </div>
+
+    <div class="image-card floating" style="animation-delay: 1s">
+      <div class="image-frame">
+        <img src="/uep/Lead.png" alt="即將為您引路" />
+      </div>
+      <p class="caption">即將為您引路</p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .uep-images-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3rem;
+    padding: 2rem 0;
+  }
+
+  .big-uep-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .big-uep {
+    max-width: 300px;
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(0 0 30px rgba(213, 182, 24, 0.5));
+    animation: floatBig 6s ease-in-out infinite;
+    position: relative;
+    z-index: 2;
+  }
+
+  @keyframes floatBig {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-20px) scale(1.02);
+    }
+  }
+
+  .glow-ring {
+    position: absolute;
+    width: 350px;
+    height: 350px;
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: ringPulse 4s ease-in-out infinite;
+    z-index: 1;
+  }
+
+  @keyframes ringPulse {
+    0%,
+    100% {
+      transform: scale(0.9) rotate(0deg);
+      opacity: 0.3;
+    }
+    50% {
+      transform: scale(1.1) rotate(180deg);
+      opacity: 0.6;
+    }
+  }
+
+  .working-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 2rem;
+    max-width: 800px;
+    width: 100%;
+  }
+
+  .image-card {
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+  }
+
+  .image-card:hover {
+    transform: translateY(-10px) scale(1.05);
+  }
+
+  .floating {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+
+  .image-frame {
+    position: relative;
+    display: inline-block;
+    padding: 0.5rem;
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 2px solid var(--glass-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .image-card:hover .image-frame {
+    border-color: var(--purple-light);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
+  }
+
+  .image-frame img {
+    max-width: 160px;
+    width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    display: block;
+  }
+
+  .caption {
+    margin-top: 1rem;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--gold-light);
+    text-shadow: 0 0 10px rgba(213, 182, 24, 0.5);
+  }
+
+  @media (max-width: 768px) {
+    .big-uep {
+      max-width: 200px;
+    }
+
+    .glow-ring {
+      width: 250px;
+      height: 250px;
+    }
+
+    .working-images {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .image-frame img {
+      max-width: 140px;
+    }
+  }
+</style>
+
+<script>
+  document.querySelectorAll('.image-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const htmlCard = card as HTMLElement;
+      htmlCard.style.animation = 'none';
+      setTimeout(() => {
+        htmlCard.style.animation = '';
+      }, 10);
+    });
+  });
+</script>
