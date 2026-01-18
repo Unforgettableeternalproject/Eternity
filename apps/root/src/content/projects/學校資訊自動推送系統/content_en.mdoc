@@ -1,0 +1,273 @@
+# School Information To Webhook - Project Overview
+
+## Project Introduction
+
+School Information To Webhook is an **automated campus announcement crawler and notification system** designed specifically for National Kaohsiung Normal University's news announcement website. The project uses web scraping technology to automatically fetch daily campus announcements and pushes them to designated channels via Discord Webhook, solving the inconvenience of students having to manually check the school website. The system uses BeautifulSoup for HTML parsing, Requests for web requests, and integrates Discord Webhook API for automated notifications.
+
+### Core Philosophy
+
+- **Automated Information Retrieval**: Scheduled crawling of campus announcements without manual website browsing
+- **Real-Time Notification Push**: Push important announcements to community channels via Discord Webhook
+- **Lightweight Design**: Single Python script with only 56 lines of code, easy to deploy and maintain
+- **Precise Date Filtering**: Only push announcements from the current day to avoid duplicate notifications
+
+---
+
+## My Responsibilities
+
+As the sole developer of the project, I am responsible for:
+
+### System Architecture Design
+
+- Designed three-phase crawler workflow: Information Extraction → Data Integration → Notification Push
+- Built custom text optimization function to remove HTML tags and special characters
+- Implemented URL parsing logic to handle special link formats from school website
+
+### Core Feature Implementation
+
+- **Web Crawler System**: Used BeautifulSoup to parse National Kaohsiung Normal University news announcement page
+- **Text Processing Functions**: optimize() function removes HTML tags, preserving plain text content
+- **URL Optimization**: get_website() function handles `amp;` escape characters to produce correct links
+- **Discord Integration**: DiscordWebhook automatically sends formatted announcement messages
+
+---
+
+## Core Features
+
+### 1. Web Crawling & Data Extraction
+
+- **HTML Parsing**
+  - Use BeautifulSoup to parse `https://news.nknu.edu.tw/nknu_News/`
+  - Extract table data (`<td>` tags, 6 fields per row)
+  - Identify announcement unit, title, date, link, and other information
+- **Date Filtering**
+  - Get current system date (`datetime.now()`)
+  - Format as `YYYY.MM.DD` format
+  - Only process announcements whose date field contains current date
+
+### 2. Text Optimization Function
+
+**optimize(s)** - HTML Tag Removal
+
+```python
+def optimize(s):
+    flag = 0
+    ret = ""
+    for i in range(len(s)):
+        if(s[i] == '<'): flag = 0
+        if(flag): ret += s[i]
+        if(s[i] == '>'): flag = 1
+    return ret
+```
+
+- **Algorithm**: Uses flag tracking to determine if inside HTML tag
+- **Function**: Extract plain text content from `<td>` tags
+- **Application**: Process announcement unit and title
+
+### 3. URL Parsing Function
+
+**get\_website(s)** - Link Optimization Processing
+
+```python
+def get_website(s):
+    cot = 0
+    ret = ""
+    for i in range(len(s)):
+        if(cot == 4): break
+        if(cot == 3): ret += s[i]
+        if(s[i] == '"'): cot += 1
+    temp = ret.split("amp;")
+    ret = ''.join(x for x in temp)
+    return ret[:-1]
+```
+
+- **Algorithm**: Count quote positions, extract URL between 3rd-4th quote pair
+- **Optimization**: Remove HTML escape character `amp;`
+- **Result**: Produce complete campus announcement link
+
+### 4. Discord Webhook Notification
+
+- **Message Formatting**
+
+  ```
+  YYYY.MM.DD | Latest Announcement! Posted by: [Unit Name]
+  
+  ➤  [Announcement Title]
+  
+  ➤  Website Link: [URL]
+  ----------------------------------------
+  ```
+
+- **Batch Push**
+
+  - Iterate through all announcements for the day
+  - Send each to Discord Webhook individually
+  - rate_limit_retry=True prevents API throttling
+
+- **No Update Detection**
+
+  - If no announcements for the day, display "No updates..."
+  - Avoid sending empty messages to Discord
+
+---
+
+## Technologies Used
+
+### Web Crawling
+
+- **BeautifulSoup (4.9.0)**: HTML/XML parser
+  - Extract table data (`find_all("td")`)
+  - Flexible CSS selectors and tag search
+- **Requests (2.28.1)**: HTTP request library
+  - GET requests to retrieve web content
+  - Automatically handles redirects and cookies
+
+### Notification System
+
+- **Discord-Webhook (0.17.0)**: Discord API integration
+  - DiscordWebhook class encapsulates API calls
+  - Supports rate_limit_retry automatic retry
+  - Message content formatting and sending
+
+### Date Processing
+
+- **datetime (standard library)**: Date and time operations
+  - `datetime.now()` get current time
+  - `strftime('%Y.%m.%d')` format output
+
+### Development Tools
+
+- **Visual Studio**: Project management (.pyproj, .sln)
+- **Python 3.x**: Core development language
+
+---
+
+## Project Status
+
+### Current Version: Completed
+
+- **Core Feature Status**: Web crawler and Discord notification both operating stably
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - BeautifulSoup HTML parsing
+  - Precise date filtering (current day announcements)
+  - HTML tag removal (optimize function)
+  - URL escape character handling (get_website function)
+  - Discord Webhook push
+  - No update detection mechanism
+  - Batch announcement push
+
+---
+
+## Development Challenges & Learnings
+
+### 1. HTML Tag Removal Algorithm
+
+**Challenge**: How to elegantly remove HTML tags from BeautifulSoup extracted strings?
+
+**Solution**:
+
+- Designed optimize() function using flag tracking to monitor if inside tags
+- Algorithm complexity O(n), single traversal completion
+- Avoided using regular expressions to improve readability
+
+**Learnings**:
+
+- Understanding State Machine concepts
+- Learning efficient string processing algorithms
+- Mastering Python string manipulation techniques
+
+### 2. URL Escape Character Processing
+
+**Challenge**: School website URLs contain `amp;` escape characters, causing invalid links.
+
+**Solution**:
+
+- get_website() function extracts URL between quotes
+- Use `split("amp;")` to remove escape characters
+- `''.join(x for x in temp)` reassemble correct URL
+
+**Learnings**:
+
+- Understanding HTML Entity Encoding
+- Learning string splitting and joining techniques
+- Mastering web link parsing methods
+
+### 3. Date Matching Logic
+
+**Challenge**: How to ensure only current day announcements are pushed, avoiding duplicate notifications?
+
+**Solution**:
+
+- datetime.now() gets current system date
+- strftime('%Y.%m.%d') formats to school website format
+- Use list comprehension for filtering: `if date in str(date_[y])`
+
+**Learnings**:
+
+- Mastering Python datetime module
+- Understanding string formatting and matching
+- Learning practical list comprehension techniques
+
+### 4. Discord Webhook Integration
+
+**Challenge**: How to automatically push crawled announcements to Discord channel?
+
+**Solution**:
+
+- Use discord-webhook library to encapsulate API calls
+- Set rate_limit_retry=True to avoid API throttling
+- Format message content using `\n` separators and `➤` symbols for beautification
+
+**Learnings**:
+
+- Understanding Webhook mechanism and RESTful API
+- Learning to handle API rate limits
+- Mastering message formatting techniques
+
+### 5. Lightweight Design Philosophy
+
+**Challenge**: How to complete full functionality with minimal code?
+
+**Solution**:
+
+- Single Python script with only 56 lines of code
+- No database or complex frameworks needed
+- Direct integration of three core libraries
+
+**Learnings**:
+
+- Understanding "simplicity is beauty" design philosophy
+- Learning to balance feature completeness and code complexity
+- Mastering rapid prototyping techniques
+
+---
+
+## Project Highlights
+
+### Technical Innovation
+
+- ✅ Custom HTML tag removal algorithm (optimize function)
+- ✅ Precise URL parsing logic handling escape characters
+- ✅ Precise date filtering avoiding duplicate pushes
+
+### Practical Value
+
+- ✅ Solves student inconvenience of manually checking campus announcements
+- ✅ Real-time notification mechanism ensures no important messages are missed
+- ✅ Lightweight design with simple deployment and easy maintenance
+
+### Programming Design
+
+- ✅ Concise and elegant code (56 lines achieving full functionality)
+- ✅ Modular function design (optimize, get_website)
+- ✅ Clear program flow comments (Chapter 1-4)
+
+### Learning Outcomes
+
+- ✅ Mastered web scraping technology (BeautifulSoup, Requests)
+- ✅ Understanding Webhook mechanism and API integration
+- ✅ Learning string processing and date operations
+- ✅ Practicing automated script development

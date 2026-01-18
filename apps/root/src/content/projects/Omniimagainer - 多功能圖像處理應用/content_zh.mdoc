@@ -1,0 +1,309 @@
+## 專案簡介
+
+Omniimagainer 是一個**多功能圖像處理桌面應用程式**,整合圖片格式轉換、特效處理、雲端儲存與郵件發送功能。專案採用模組化設計，透過 Tkinter 提供直覺的圖形介面，支援本地儲存、Google Drive 雲端上傳與電子郵件附件寄送，適用於快速圖像編輯與分享場景。系統使用 OpenCV 與 Pillow 處理影像，並整合 Google Drive API 實現雲端同步功能。
+
+### 核心理念
+
+- **一站式圖像處理**：編輯、儲存、分享整合於單一應用程式
+- **雲端整合**：支援 Google Drive OAuth 2.0 認證與檔案上傳
+- **模組化架構**：功能分離為獨立處理器類別，易於維護與擴展
+- **使用者友善**：Tkinter GUI 提供即時預覽與 Hover 提示
+
+---
+
+## 我的職責
+
+作為專案的核心開發者（與 timli6307、samtto22-MewCat、wakaba0972 協作），我負責：
+
+### 系統架構設計
+
+- 設計五大模組架構：UserInterface、FileManager、EffectProcessor、PositionProcessor、StepRecord
+- 建立 Main.py 入口點與自動相依套件檢查機制
+- 實作圖像處理流程：匯入 → 編輯 → 預覽 → 匯出
+
+### 核心功能實作
+
+- **圖形使用者介面 (UserInterface.py)**：744 行 Tkinter 程式碼，實作主視窗、預覽面板、Hover 提示、網路連線檢查
+- **檔案管理系統 (FileManager.py)**：337 行程式碼，整合 Google Drive API、OAuth 2.0、SMTP 郵件發送、本地檔案對話框
+- **特效處理器 (EffectProcessor.py)**：83 行程式碼，實作 HSV 色彩調整、侵蝕濾鏡、6 種濾鏡效果
+- **位置處理器 (PositionProcessor.py)**：23 行程式碼，處理圖像縮放與調整
+- **步驟記錄系統 (StepRecord.py)**：53 行程式碼，實作 Undo/Redo 功能與操作歷史管理
+
+### 雲端整合與認證
+
+- Google Drive API OAuth 2.0 流程實作（credentials.json + token.json）
+- SMTP 郵件發送整合（Gmail SMTP SSL）
+- 網路連線狀態即時檢查
+
+---
+
+## 核心功能
+
+### 1. 圖像編輯功能
+
+- **特效處理器 (EffectProcessor)**
+  - HSV 色彩空間調整（色調、飽和度、明度）
+  - 侵蝕濾鏡 (Erode)：使用 5x5 kernel 進行形態學操作
+  - 6 種可疊加濾鏡效果
+  - 即時預覽與顏色選擇器
+- **位置處理器 (PositionProcessor)**
+  - 圖片縮放與裁切
+  - 長寬比例調整
+  - 尺寸優化（待改進項目）
+
+### 2. 檔案管理系統
+
+- **本地儲存 (FileManager.saveFileLocal)**
+  - 使用 filedialog 選擇儲存位置
+  - 支援多種格式：PNG、JPEG、BMP
+  - 自動路徑解析與格式轉換
+- **雲端儲存 (FileManager.saveFileCloud)**
+  - Google Drive API v3 整合
+  - OAuth 2.0 認證流程
+  - InstalledAppFlow 處理授權視窗
+  - MediaFileUpload 上傳預覽圖片
+- **郵件發送 (FileManager.sendFileViaMail)**
+  - SMTP SSL 連接 (Gmail 465 端口)
+  - MIMEMultipart 郵件組裝：主旨 + 內容 + 圖片附件
+  - 正則表達式驗證 Email 格式
+  - 自訂寄送視窗（500x500 Toplevel）
+
+### 3. 步驟記錄與還原
+
+- **Undo/Redo 系統 (StepRecord)**
+  - 記錄每次編輯操作（參數、濾鏡、翻轉）
+  - 支援多步驟退回與重做
+  - 重置所有動作功能
+
+### 4. 使用者介面
+
+- **主視窗 (UserInterface.ui)**
+  - Tkinter 主視窗與預覽面板
+  - Microsoft YaHei 字型顯示
+  - Hover 提示系統 (idlelib.tooltip)
+  - 網路狀態指示器
+  - 多國語言支援計畫 (lang_zh.txt)
+- **預覽系統**
+  - 即時顯示編輯結果 (Preview.png)
+  - PIL ImageTk 整合
+  - 動態更新畫布
+
+---
+
+## 使用技術
+
+### 圖像處理函式庫
+
+- **OpenCV (4.5.4.60)**：主要圖像處理引擎
+  - cv2.imread/imwrite：影像讀寫
+  - cv2.cvtColor：色彩空間轉換 (BGR ↔ HSV)
+  - cv2.erode：形態學侵蝕操作
+- **Pillow (8.4.0)**：格式轉換與 Tkinter 整合
+  - Image.open/save：多格式支援
+  - ImageTk.PhotoImage：Tkinter 顯示
+- **NumPy (1.21.5)**：陣列操作與數值計算
+
+### 雲端與網路整合
+
+- **Google API Client (2.64.0)**：Google Drive 整合
+  - google-auth-oauthlib (0.5.3)：OAuth 2.0 認證
+  - googleapiclient.http：MediaFileUpload 上傳
+- **SMTP (標準庫)**：Gmail 郵件發送
+  - smtplib.SMTP_SSL：SSL 加密連接
+  - email.mime：多部分郵件組裝
+- **Requests (2.28.1)**：網路連線檢查
+
+### 使用者介面
+
+- **Tkinter (標準庫)**：GUI 框架
+  - ttk：現代化元件
+  - filedialog：檔案選擇對話框
+  - messagebox：彈出視窗（showinfo, showerror, askyesno）
+- **idlelib.tooltip**：Hover 提示功能
+
+### 開發工具
+
+- **Visual Studio**：專案管理 (.pyproj, .sln)
+- **Git**：版本控制（3 位協作者）
+- **pip**：自動相依套件檢查與安裝
+
+---
+
+## 專案狀態
+
+### 當前版本：功能完整（持續優化中）
+
+- **核心功能狀態**：圖像編輯、雲端上傳、郵件發送均已實作
+
+### 功能完成度
+
+- ✅ **已完成**：
+  - OpenCV/Pillow 圖像處理
+  - Google Drive OAuth 2.0 認證
+  - SMTP 郵件發送系統
+  - Tkinter 圖形介面
+  - 網路連線狀態檢查
+  - Undo/Redo 步驟記錄
+- 🔄 **進行中**：
+  - OAuth 視窗意外關閉的處理
+  - 圖片 resize 優化
+- 📋 **計畫中**：
+  - 多語言支援 (Language selection)
+  - 關閉頂層視窗時的重置處理
+  - 更完善的步驟記錄系統
+
+---
+
+## 開發挑戰與收穫
+
+### 1. Google Drive OAuth 2.0 整合
+
+**挑戰**：如何安全地處理 Google API 認證流程？
+
+**解決方案**：
+
+- 使用 InstalledAppFlow 啟動本地 OAuth 伺服器
+- credentials.json 儲存 Client ID/Secret
+- token.json 快取存取權杖，避免重複認證
+- SCOPES 限制權限：僅請求檔案讀寫權限
+
+**待改進**：
+
+- 處理 OAuth 視窗意外關閉的情況
+- 實作 token 過期自動刷新機制
+
+**收穫**：
+
+- 深入理解 OAuth 2.0 授權流程
+- 學習 Google API 最佳實務
+- 掌握敏感資料管理技巧
+
+### 2. SMTP 郵件發送系統
+
+**挑戰**：如何組裝包含圖片附件的多部分郵件？
+
+**解決方案**：
+
+- 使用 MIMEMultipart 容器整合多種內容類型
+- MIMEText 處理文字內容（主旨、正文）
+- MIMEImage 處理圖片附件 (Preview.png)
+- 正則表達式嚴格驗證 Email 格式
+
+**收穫**：
+
+- 理解 MIME 多部分郵件結構
+- 學習 SMTP 認證與 SSL 加密
+- 掌握郵件協議標準
+
+### 3. Tkinter 複雜 UI 設計
+
+**挑戰**：UserInterface.py 達 744 行，如何維持程式碼可讀性？
+
+**解決方案**：
+
+- 將功能拆分為獨立方法（quit, sendM, saveL, saveC 等）
+- 使用 Toplevel 視窗隔離複雜流程（郵件發送）
+- StringVar/textvariable 實現資料綁定
+- Hovertip 提供互動式說明
+
+**收穫**：
+
+- 掌握 Tkinter 佈局管理（pack, place）
+- 學習 GUI 事件驅動程式設計
+- 理解使用者體驗設計原則
+
+### 4. 模組化架構設計
+
+**挑戰**：如何將功能清晰分離為獨立模組？
+
+**解決方案**：
+
+- Classes/ 資料夾包含 5 個專門處理器
+- 每個類別職責單一：
+  - FileManager：檔案 I/O 與雲端整合
+  - EffectProcessor：影像特效
+  - PositionProcessor：圖像變換
+  - StepRecord：歷史記錄
+  - UserInterface：UI 邏輯
+
+**收穫**：
+
+- 理解模組化設計原則
+- 學習職責分離（Separation of Concerns）
+- 提升程式碼可維護性
+
+### 5. 網路連線狀態檢查
+
+**挑戰**：如何優雅地處理離線狀態？
+
+**解決方案**：
+
+- chknet() 方法嘗試連接 google.com (10 秒逾時)
+- 捕獲 ConnectionError 與 Timeout 例外
+- 在雲端功能執行前檢查網路狀態
+- 顯示友善錯誤訊息
+
+**收穫**：
+
+- 學習異常處理最佳實務
+- 理解網路請求逾時機制
+- 提升應用程式健壯性
+
+---
+
+## 未來規劃
+
+### 短期目標
+
+- 修復 OAuth 視窗意外關閉的處理
+- 優化圖片 resize 演算法
+- 處理頂層視窗關閉時的重置邏輯
+
+### 中期目標
+
+- 實作多語言支援系統（中文/英文切換）
+- 增強步驟記錄功能（顯示操作歷史）
+- 新增更多圖像濾鏡（模糊、銳化、邊緣檢測）
+
+### 長期目標
+
+- 支援批次處理多張圖片
+- 整合更多雲端服務（Dropbox, OneDrive）
+- 開發插件系統，支援自訂濾鏡
+- 加入 AI 圖像增強功能
+
+---
+
+## 專案亮點
+
+### 技術創新
+
+- ✅ 整合 Google Drive API 與 OAuth 2.0，實現安全雲端上傳
+- ✅ 模組化架構，5 個獨立處理器類別，職責分離清晰
+- ✅ 完整的 SMTP 郵件發送系統，支援多部分 MIME 郵件
+- ✅ 即時預覽與網路狀態檢查，提升使用者體驗
+
+### 協作開發
+
+- ✅ 3 位貢獻者協作（timli6307, samtto22-MewCat, wakaba0972）
+- ✅ Git 版本控制管理
+- ✅ 清晰的程式碼結構，易於多人協作
+
+### 實用價值
+
+- ✅ 一站式圖像處理解決方案（編輯 + 儲存 + 分享）
+- ✅ 支援多種匯出方式（本地、雲端、郵件）
+- ✅ 輕量化桌面應用，無需安裝專業圖像軟體
+
+### 學習成果
+
+- ✅ 深入實作雲端 API 整合（Google Drive）
+- ✅ 掌握圖像處理技術（OpenCV, Pillow）
+- ✅ 理解 GUI 程式設計（Tkinter）
+- ✅ 學習郵件協議與網路程式設計
+
+---
+
+## 應用程式運行截圖
+
+![](/images/projects/Omniimagainer%20-%20%E5%A4%9A%E5%8A%9F%E8%83%BD%E5%9C%96%E5%83%8F%E8%99%95%E7%90%86%E6%87%89%E7%94%A8/Snapshot.png)

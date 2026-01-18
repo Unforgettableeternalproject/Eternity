@@ -12,6 +12,7 @@ import LeftSidebar from '../components/LeftSidebar.astro';
 import RightSidebar from '../components/RightSidebar.astro';
 import MobileControlPanel from '../components/MobileControlPanel.astro';
 import CookieConsent from '../components/CookieConsent';
+import ImageViewerModal from '../components/ImageViewerModal';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
@@ -38,7 +39,8 @@ const featuredLinks = allLinks
   .filter((l) => l.data.featured)
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
   .map((link) => ({
-    title: locale === 'zh-tw' ? (link.data.title_zh || link.id) : link.data.title_en,
+    title:
+      locale === 'zh-tw' ? link.data.title_zh || link.id : link.data.title_en,
     url: link.data.url,
     icon: link.data.icon,
   }));
@@ -270,6 +272,9 @@ const alternateURL = new URL(alternatePath, Astro.site);
 
     <!-- Toast 通知系統 (React Island) -->
     <ToastContainer client:only="react" position="top-right" />
+
+    <!-- 圖片查看器模態窗 (React Portal) -->
+    <ImageViewerModal client:only="react" />
 
     <!-- Cookie 同意彈窗 -->
     <CookieConsent client:load />

@@ -14,22 +14,36 @@ export async function getStaticPaths() {
 
 const { project } = Astro.props;
 
-// Load MDOC content as Markdoc Content component
+// Load MDOC content using dynamic import
 let ProjectContent;
 let hasContent = false;
 
 try {
-  const contentModules = await Astro.glob(
-    '../../../content/projects/**/content_zh.mdoc'
+  // 使用 title_zh 來尋找對應的資料夾，因為 title_zh 保持原始格式
+  const projectFolder = project.data.title_zh || project.id;
+  const contentModule = await import(
+    `../../../content/projects/${projectFolder}/content_zh.mdoc`
   );
-  const contentEntry = contentModules[0];
 
-  if (contentEntry?.Content) {
-    ProjectContent = contentEntry.Content;
+  if (contentModule?.Content) {
+    ProjectContent = contentModule.Content;
     hasContent = true;
   }
 } catch (error) {
   console.error('Error loading project content:', error);
+  // 如果使用 title_zh 失敗，嘗試使用 title_en
+  try {
+    const projectFolder = project.data.title_en;
+    const contentModule = await import(
+      `../../../content/projects/${projectFolder}/content_zh.mdoc`
+    );
+    if (contentModule?.Content) {
+      ProjectContent = contentModule.Content;
+      hasContent = true;
+    }
+  } catch (e) {
+    console.error('Failed to load content with both title_zh and title_en:', e);
+  }
 }
 
 const formatDate = (date?: Date) => {

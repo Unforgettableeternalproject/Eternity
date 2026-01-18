@@ -216,12 +216,14 @@ export default config({
             }),
             description: fields.text({
               label: 'Learning Experience (Optional)',
-              description: 'Describe your experience learning or using this skill, projects you\'ve tried, etc.',
+              description:
+                "Describe your experience learning or using this skill, projects you've tried, etc.",
               multiline: true,
             }),
             selfAssessment: fields.text({
               label: 'Self Assessment (Optional)',
-              description: 'Your self-evaluation of proficiency level, mastery, etc.',
+              description:
+                'Your self-evaluation of proficiency level, mastery, etc.',
               multiline: true,
             }),
           }),

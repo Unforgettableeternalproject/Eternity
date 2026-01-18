@@ -1,0 +1,277 @@
+## 專案簡介
+
+GDG Portal 是一個為 **GDG on Campus NKNU (國立高雄師範大學 Google 開發者社群)** 設計的完整社群管理平台，旨在提供會員管理、活動公告、資源分享與社群互動的一站式解決方案。本專案採用現代化全端開發架構，結合 React 前端框架與 Node.js 後端服務，並透過 Docker 容器化技術實現快速部署，為校園開發者社群提供專業、高效的數位化管理工具。
+
+### 核心理念
+
+- **社群優先設計**：以 GDG on Campus 運營需求為核心，提供會員、活動、公告的完整管理功能
+- **現代化技術棧**：採用 React 18、Node.js、Express、Sequelize ORM 等業界主流技術
+- **容器化部署**：Docker Compose 一鍵部署，支援開發/生產環境自動切換
+- **安全認證機制**：整合 Google OAuth 2.0，確保會員身份驗證與資料安全
+
+---
+
+## 我的職責
+
+作為本專案的核心開發者與架構設計者，我負責整個系統的規劃、開發與部署：
+
+### 系統架構設計
+
+- 設計前後端分離架構，React SPA 前端 + RESTful API 後端
+- 建立 Docker 多階段建置流程，優化映像檔大小與部署效率
+- 設計資料庫架構（Users、Profiles、Events、Announcements 等 8 張核心資料表）
+- 實作環境變數分離機制（.env.development、.env.production、.env.docker）
+
+### 核心功能實作
+
+- **Google OAuth 認證系統**：整合 Passport.js 實作 Google 登入與 JWT Token 管理
+- **會員管理系統**：使用者註冊、個人資料編輯、角色權限管理（Admin/Member/Guest）
+- **活動管理模組**：活動發布、編輯、分類、報名連結整合
+- **公告系統**：重要公告發布、置頂功能、Markdown 內容支援
+- **前端路由與狀態管理**：React Router v6 + Context API 實作 SPA 導航
+- **UI/UX 設計**：Tailwind CSS 響應式設計 + Framer Motion 動畫效果
+
+### 部署與維護
+
+- 編寫一鍵部署腳本（deploy-docker.bat/sh），自動化環境配置與容器啟動
+- 建立完整的技術文檔體系（8 篇詳細文檔涵蓋架構、開發、部署、Git 工作流）
+- 實作資料庫初始化腳本（init-database.js），支援自動建表與範例資料填充
+- 設定 CI/CD 流程，使用 Git 分支策略（master/develop/feature）管理版本
+
+---
+
+## 核心功能
+
+### 1. 使用者認證與授權
+
+- **Google OAuth 2.0 登入**：使用 Passport.js 整合 Google 帳號登入
+- **JWT Token 管理**：無狀態認證，Token 自動刷新機制
+- **角色權限控制**：
+  - **Admin**：完整系統管理權限（會員管理、活動編輯、公告發布）
+  - **Member**：一般會員權限（檢視活動、編輯個人資料）
+  - **Guest**：訪客權限（僅檢視公開內容）
+- **Session 持久化**：使用 express-session + MySQL 儲存 Session
+
+### 2. 會員管理系統
+
+- **個人資料管理**：
+  - 基本資訊（姓名、Email、學號、系所、年級）
+  - 聯絡方式（電話、社交媒體連結）
+  - 個人簡介與大頭照上傳
+- **會員列表檢視**：管理員可檢視所有會員資訊與狀態
+- **權限管理**：管理員可調整會員角色與帳號狀態
+
+### 3. 活動管理模組
+
+- **活動發布與編輯**：
+  - 活動資訊（標題、描述、時間、地點）
+  - 活動分類（Workshop、Meetup、Competition 等）
+  - 報名連結與相關資源附加
+- **活動狀態管理**：草稿、已發布、已結束狀態切換
+- **活動列表與篩選**：依分類、時間、狀態篩選活動
+- **活動詳情頁**：完整活動資訊展示與報名引導
+
+### 4. 公告系統
+
+- **公告發布**：支援 Markdown 格式，豐富的內容編輯能力
+- **重要性標記**：置頂公告、重要公告標籤
+- **公告分類**：系統公告、活動通知、技術分享等
+- **時間排序**：自動依發布時間排序顯示
+
+### 5. 資源管理
+
+- **檔案上傳**：會員可上傳個人照片、活動海報
+- **靜態資源服務**：Express.static 提供圖片、文件存取
+- **資源分類**：依類型（圖片、文件、連結）管理資源
+
+---
+
+## 使用技術
+
+### 前端技術棧
+
+- **React 18**：UI 框架，使用 Hooks 進行狀態管理
+- **Vite**：現代化建置工具，提供快速的 HMR（Hot Module Replacement）
+- **React Router v6**：SPA 路由管理
+- **Tailwind CSS**：Utility-first CSS 框架，響應式設計
+- **Framer Motion**：動畫庫，提供流暢的 UI 動畫效果
+- **Axios**：HTTP 客戶端，處理 API 請求
+
+### 後端技術棧
+
+- **Node.js 18+**：JavaScript 執行環境
+- **Express.js**：Web 應用框架
+- **Sequelize ORM**：資料庫 ORM，支援 MySQL
+- **Passport.js**：認證中間件，整合 Google OAuth
+- **JWT (jsonwebtoken)**：無狀態 Token 認證
+- **express-session**：Session 管理
+- **bcrypt**：密碼雜湊加密
+- **dotenv**：環境變數管理
+
+### 資料庫
+
+- **MySQL 8.0**：主資料庫
+- **utf8mb4 編碼**：完整支援中文與 Emoji
+- **Sequelize Migrations**：資料庫版本控制
+
+### 部署與工具
+
+- **Docker & Docker Compose**：容器化部署
+- **Multi-stage Build**：優化 Docker 映像檔大小
+- **Adminer**：資料庫管理介面（開發環境）
+- **Concurrently**：並行執行前後端開發伺服器
+
+### 開發工具
+
+- **ESLint**：程式碼風格檢查
+- **Git**：版本控制
+- **npm Workspaces**：Monorepo 依賴管理
+
+---
+
+## 專案狀態
+
+### 當前版本：開發中（develop 分支）
+
+- **核心功能狀態**：主要功能已完成，持續優化與新增功能
+- **部署狀態**：支援 Docker 一鍵部署，開發/生產環境皆可運行
+
+### 功能完成度
+
+- ✅ **已完成**：
+  - Google OAuth 認證系統
+  - 使用者註冊與個人資料管理
+  - 角色權限控制（Admin/Member/Guest）
+  - 活動管理模組（CRUD 操作）
+  - 公告系統
+  - Docker 容器化部署
+  - 完整技術文檔（8 篇）
+  - 資料庫初始化腳本
+  - 前端響應式設計
+- 🔄 **進行中**：
+  - 前端 UI/UX 優化
+  - 活動報名系統整合
+  - 會員互動功能（留言、按讚）
+  - 資源分享模組
+- 📋 **計畫中**：
+  - Email 通知系統
+  - 活動簽到功能（QR Code）
+  - 社群統計儀表板
+  - 多語言支援（繁中/英文）
+  - PWA 支援（離線瀏覽）
+
+---
+
+## 開發挑戰與收穫
+
+### 1. Docker 多環境部署配置
+
+**挑戰**：如何在單一專案中支援本地開發、Docker 開發、Docker 生產三種環境，並確保環境變數正確載入？
+
+**解決方案**：
+
+- 建立分層環境變數系統：
+  - `.env.development`（本地開發）
+  - `.env.docker`（Docker 開發）
+  - `.env.production`（生產環境）
+- 使用 Docker Compose 的 `env_file` 指令載入對應環境變數
+- 實作環境檢測邏輯，自動切換 API Base URL（localhost vs container name）
+- 編寫一鍵部署腳本，自動檢查環境變數檔案是否存在
+
+**收穫**：
+
+- 深入理解 Docker 網路模式（bridge、host）
+- 掌握環境變數管理最佳實踐
+- 學習容器間通訊機制（service name resolution）
+- 理解開發/生產環境的差異與配置策略
+
+### 2. Sequelize ORM 與 MySQL 整合
+
+**挑戰**：如何設計彈性的資料庫架構，支援自動建表、關聯查詢、資料驗證與遷移？
+
+**解決方案**：
+
+- 使用 Sequelize Model 定義資料表結構與關聯：
+  - `User` ↔ `Profile`（一對一）
+  - `User` → `Event`（一對多，創建者）
+  - `User` ↔ `Event`（多對多，參與者）
+- 實作 `sync({ force: false })` 自動建表，避免覆蓋現有資料
+- 使用 Sequelize Validators 進行資料驗證（Email、必填欄位）
+- 編寫資料庫初始化腳本，支援 `--clear` 參數重置資料庫
+
+**收穫**：
+
+- 掌握 ORM 設計模式與 Active Record 概念
+- 學習複雜關聯查詢（include、eager loading）
+- 理解資料庫索引與效能優化
+- 熟悉 Sequelize Migrations 版本控制
+
+### 3. Google OAuth 2.0 認證流程
+
+**挑戰**：如何整合 Google OAuth，並在前後端分離架構下實作安全的認證流程？
+
+**解決方案**：
+
+- 使用 Passport.js 的 `passport-google-oauth20` 策略
+- 實作認證流程：
+  1. 前端導向後端 `/auth/google` 端點
+  1. 後端重導至 Google 授權頁
+  1. Google 回呼至 `/auth/google/callback`
+  1. 後端驗證 Token，建立 Session 與 JWT
+  1. 前端接收 JWT，儲存至 localStorage
+- 實作 JWT 中間件驗證 API 請求
+- 處理 Token 過期與自動刷新
+
+**收穫**：
+
+- 深入理解 OAuth 2.0 協議流程
+- 學習 JWT 與 Session 的差異與應用場景
+- 掌握安全認證最佳實踐（HTTPS、CORS、Cookie 安全設定）
+- 理解前後端分離下的認證挑戰
+
+### 4. React SPA 路由與狀態管理
+
+**挑戰**：如何在單頁應用中實作複雜的路由邏輯與全域狀態管理？
+
+**解決方案**：
+
+- 使用 React Router v6 的巢狀路由與保護路由：
+  - 公開路由（/, /about）
+  - 會員路由（/profile, /events）
+  - 管理員路由（/admin/*）
+- 實作 `PrivateRoute` 組件，檢查認證狀態
+- 使用 Context API 管理全域狀態（使用者資訊、認證狀態）
+- 實作 Custom Hooks（useAuth、useEvents）封裝業務邏輯
+
+**收穫**：
+
+- 掌握 React Router v6 新特性（useNavigate、Outlet）
+- 學習 Context API 與 useReducer 進行狀態管理
+- 理解 React Hooks 設計模式
+- 熟悉 SPA 效能優化技巧（Code Splitting、Lazy Loading）
+
+### 5. 完整技術文檔撰寫
+
+**挑戰**：如何為複雜專案建立清晰、完整的技術文檔，讓新成員快速上手？
+
+**解決方案**：
+
+- 建立文檔體系，涵蓋 8 個主題：
+  1. 專案架構（01-專案架構.md）
+  1. Message Passing 流程（02-Message-Passing流程.md）
+  1. 前後端開發說明（03-前後端開發說明.md）
+  1. 資料表架構範例（04-資料表架構範例.md）
+  1. 環境說明（05-環境說明.md）
+  1. Docker 容器說明（06-Docker容器說明.md）
+  1. Git 工作流（07-Git工作流.md）
+  1. 功能規劃與開發路線圖（08-功能規劃與開發路線圖.md）
+- 使用 Mermaid 圖表視覺化架構與流程
+- 提供詳細的程式碼範例與註解
+- 編寫 DEPLOYMENT.md 提供部署指南
+
+**收穫**：
+
+- 提升技術文件撰寫能力
+- 學習文檔組織與資訊架構設計
+- 理解開發者體驗（DX）的重要性
+- 掌握 Markdown 與 Mermaid 進階語法

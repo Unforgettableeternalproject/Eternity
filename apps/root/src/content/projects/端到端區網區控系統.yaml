@@ -1,9 +1,11 @@
-description_zh: 這個專案意在開發一個小型、快速的遠距離直播串流窗口，讓使用者可以從一台裝置快速存取另一台裝置的收音、視訊。
+description_zh: >-
+  基於 Client-Server 架構的局域網監控系統，透過 Socket 通訊與 OpenCV
+  技術實現即時影像串流與音訊擷取，適用於宿舍監控與家庭安防場景。
 title_en: End-to-End LAN Monitor Application
 description_en: >-
-  This project aims to develop a small, fast, long-distance live streaming
-  window that allows users to quickly access audio and video from one device to
-  another.
+  A Client-Server architecture LAN monitoring system implementing real-time
+  video streaming and audio capture using Socket communication and OpenCV,
+  suitable for dormitory monitoring and home security scenarios.
 tags:
   - LAN
   - Media Stream

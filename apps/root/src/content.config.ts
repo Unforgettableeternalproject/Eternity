@@ -12,7 +12,9 @@ const projectsCollection = defineCollection({
     tags: z.array(z.string()),
     featured: z.boolean().default(false),
     order: z.number().optional(),
-    status: z.enum(['active', 'paused', 'completed', 'archived']).default('active'),
+    status: z
+      .enum(['active', 'paused', 'completed', 'archived'])
+      .default('active'),
     image: z.string().optional(),
     links: z
       .object({

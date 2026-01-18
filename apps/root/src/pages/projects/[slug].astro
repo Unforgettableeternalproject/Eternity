@@ -22,14 +22,19 @@ export async function getStaticPaths() {
 
 const { project, locale } = Astro.props;
 
-const contentModules = await Astro.glob(
-  '../../content/projects/**/content_*.mdoc'
-);
-const contentFileSuffix = `/content/projects/${project.id}/${locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc'}`;
-const contentEntry = contentModules.find((mod) =>
-  mod.file?.replace(/\\/g, '/').endsWith(contentFileSuffix)
-);
-const ProjectContent = contentEntry?.Content;
+let ProjectContent;
+try {
+  const projectFolder =
+    project.data.title_zh || project.data.title_en || project.id;
+  const contentFileName =
+    locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
+  const contentModule = await import(
+    `../../content/projects/${projectFolder}/${contentFileName}`
+  );
+  ProjectContent = contentModule?.Content;
+} catch (error) {
+  console.error('Error loading project content:', error);
+}
 
 const formatDate = (date?: Date) => {
   if (!date) return '';

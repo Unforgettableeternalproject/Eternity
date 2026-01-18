@@ -1,0 +1,289 @@
+## Project Introduction
+
+LBN Competitive System Simulation is a comprehensive competitive platform simulation system inspired by the **"Golf with Your Friends" game competitive system**, aiming to provide a multi-role, multi-functional competitive league management solution. This project is developed using C# Windows Forms, implementing complete functional modules including audience browsing, advertiser placement, player management, league operations, and system administration, simulating a real esports league operational ecosystem and providing users with an immersive competitive system experience.
+
+### Core Philosophy
+
+- **Multi-Role System Design**: Five major roles (Audience, Advertiser, Player, League Owner, Admin) each with distinct responsibilities
+- **Complete Ecosystem Simulation**: Covers event browsing, advertisement placement, player registration, league management, and system monitoring
+- **Data-Driven Management**: Uses JSON for system data storage, supporting export and import
+- **Visual Interactive Design**: Rich UI animations and user experience optimization
+
+---
+
+## My Responsibilities
+
+As the main developer of this project, I collaborated with [yutao33003](https://github.com/yutao33003) and [qqwnua](https://github.com/qqwnua) to complete the following work:
+
+### System Architecture Design
+
+- Designed multi-role architecture achieving role separation and permission management
+- Established ID verification system supporting user registration, login, and role assignment
+- Designed League data structure including member management, event information, and advertisement configuration
+- Implemented JSON serialization mechanism for persistent data storage
+
+### Core Feature Implementation
+
+- **Main Page & Login System**: Countdown auto-redirect, role identification, customized welcome messages
+- **Audience Browse Interface**: League list view, search filtering, league details display
+- **Advertiser Dashboard**: Advertisement placement management, budget tracking, league selection
+- **Player Management System**: Profile editing, league join/leave, performance queries
+- **League Owner Backend**: Member management, event scheduling, advertiser negotiation, league settings
+- **Admin Control Panel**: System monitoring, user management, data backup and restoration
+
+### UI/UX Design
+
+- Designed theme color system (Audience Green, Admin Red, Player/League Blue)
+- Implemented button animation effects and scene transitions
+- Designed custom controls and visual data presentation
+
+---
+
+## Core Features
+
+### 1. Multi-Role System
+
+- **Audience (Normal)**:
+  - Browse all public league information
+  - Search and filter leagues
+  - View event schedules and results
+- **Advertiser**:
+  - Manage advertisement placement budget
+  - Select target leagues for advertisement
+  - Track advertisement effectiveness and exposure data
+- **Player**:
+  - Personal profile management (nickname, record, league affiliation)
+  - Apply to join leagues
+  - View personal event records and rankings
+- **League Owner**:
+  - Create and manage leagues
+  - Review player join applications
+  - Set league rules and event schedules
+  - Manage league advertisement partnerships
+  - Edit league information and logo
+- **Admin**:
+  - Global system monitoring
+  - User account management
+  - Database backup and restoration
+  - Review league applications
+
+### 2. League Management System
+
+- **League Information Management**:
+  - League name, type (Casual/Competitive), description
+  - Custom league logo (image upload support)
+  - Member list and role assignment
+- **Event Management**:
+  - Event schedule creation and editing
+  - Event result recording
+  - Score and ranking calculation
+- **Member Management**:
+  - Member application review
+  - Member role adjustment (Regular Member/Vice Owner)
+  - Member removal and blacklist management
+
+### 3. Data Management & Serialization
+
+- **JSON Data Storage**:
+  - Uses Newtonsoft.Json for serialization/deserialization
+  - Supports independent storage of user data, league data, event data
+- **Data Import/Export**:
+  - Excel format export (using EPPlus)
+  - JSON format backup and restoration
+- **Data Validation**:
+  - Uniqueness checks (User ID, League ID)
+  - Required field validation
+  - Data format verification
+
+### 4. Search & Filter Functions
+
+- **League Search**:
+  - Fuzzy search by name
+  - Filter by type (Casual/Competitive)
+  - Sort by member count
+- **Player Search**:
+  - Search by nickname
+  - Filter by league affiliation
+  - Sort by record
+
+### 5. Visualization & Interactive Design
+
+- **Animation Effects**:
+  - Login page countdown animation
+  - Button hover/click effects
+  - Scene fade-in/fade-out transitions
+- **Theme Color System**:
+  - Role-specific color schemes (Audience Green, Admin Red, Player Blue)
+  - Unified visual language and component styling
+- **Custom Controls**:
+  - Custom button styles
+  - Custom list item display
+  - Custom dialog design
+
+---
+
+## Technologies Used
+
+### Core Frameworks
+
+- **Windows Forms**: .NET Framework 4.7.2 desktop application framework
+- **C#**: Primary development language
+- **Visual Studio**: Integrated development environment
+
+### Data Processing & Serialization
+
+- **Newtonsoft.Json (13.0.3)**: JSON serialization/deserialization
+- **EPPlus (7.0.5)**: Excel file reading/writing and export
+- **System.ComponentModel.DataAnnotations**: Data validation
+
+### UI Components & Multimedia
+
+- **PresentationCore**: WPF component integration
+- **System.Drawing**: Graphics processing and rendering
+- **System.Media.SoundPlayer**: Sound playback
+
+### Testing Framework
+
+- **MSTest (3.1.1)**: Unit testing framework
+- **Microsoft.VisualStudio.TestPlatform**: Testing platform
+
+### Other Dependencies
+
+- **System.DirectoryServices**: Directory service access
+- **System.Configuration**: Application configuration management
+
+---
+
+## Project Status
+
+### Current Version: Completed (Everything is Done)
+
+- **Core Functionality Status**: All main features implemented and tested
+- **Known Issues**: Code cleanup work in progress
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Five role system (Audience, Advertiser, Player, League Owner, Admin)
+  - Complete league management functionality (creation, editing, member management, event management)
+  - User authentication and authorization system
+  - Data serialization and persistent storage
+  - Excel data export functionality
+  - Complete UI/UX design and animation effects
+  - Unit testing framework establishment
+- 🔄 **In Progress**:
+  - Code refactoring and cleanup (Make the codes much more cleaner)
+- 📋 **Abandoned**:
+  - Sound effects system (Perhaps adding some SFXs? - Nah I give up)
+
+---
+
+## Development Challenges & Learnings
+
+### 1. Multi-Role System Architecture Design
+
+**Challenge**: How to implement five different roles in a single application, each with independent interfaces and permissions?
+
+**Solution**:
+
+- Designed `ID` class as the user base data structure including role field
+- Created independent Forms for each role (MainForm, AdminMainForm, PlayerMainForm, LeagueMainForm, etc.)
+- Used `DialogResult` mechanism to redirect to corresponding interface based on role after login
+- Implemented role checking logic to restrict access to specific functionalities
+
+**Learnings**:
+
+- Deep understanding of object-oriented design inheritance and polymorphism concepts
+- Mastered Windows Forms multi-window management techniques
+- Learned Role-Based Access Control (RBAC) implementation methods
+- Understood the importance of user experience in multi-role systems
+
+### 2. JSON Data Persistence & Serialization
+
+**Challenge**: How to store complex object structures (users, leagues, events) in JSON format while ensuring data integrity?
+
+**Solution**:
+
+- Used Newtonsoft.Json for serialization/deserialization
+- Designed clear data models (User, League, Event classes)
+- Implemented custom JsonConverter to handle special data types (e.g., Guid)
+- Established data validation mechanism to ensure loaded data validity
+- Implemented data backup mechanism to prevent data loss
+
+**Learnings**:
+
+- Mastered advanced JSON serialization techniques
+- Learned data model design best practices
+- Understood the importance of data integrity and consistency
+- Familiar with file I/O operations and error handling
+
+### 3. Complex League Management Logic Implementation
+
+**Challenge**: How to implement complete league lifecycle management including member applications, reviews, event scheduling, advertisement partnerships, and other complex business logic?
+
+**Solution**:
+
+- Designed `League` class encapsulating all league-related data and methods
+- Implemented state machine pattern to manage league states (Draft, Active, Archived)
+- Used collections (List, Dictionary) to manage member and event data
+- Established event system to notify member changes and event updates
+- Implemented review process (Pending → Approved/Rejected)
+
+**Learnings**:
+
+- Deep understanding of business logic layer design patterns
+- Mastered practical application of state machine pattern
+- Learned complex data relationship management techniques
+- Enhanced system design and abstract thinking abilities
+
+### 4. Excel Data Export Functionality
+
+**Challenge**: How to export system data as structured Excel files for user data analysis?
+
+**Solution**:
+
+- Integrated EPPlus library for Excel operations
+- Designed export templates (headers, field mapping, format settings)
+- Implemented data transformation logic mapping object properties to Excel fields
+- Used SaveFileDialog to provide file save interface
+- Handled performance optimization for large data exports
+
+**Learnings**:
+
+- Mastered third-party library integration techniques
+- Learned Excel file format and operation methods
+- Understood data transformation and mapping design patterns
+- Enhanced file handling and UI interaction design capabilities
+
+### 5. Team Collaboration & Version Control
+
+**Challenge**: How to ensure code quality and smooth feature integration in three-person collaborative development?
+
+**Solution**:
+
+- Used Git for version control with clear branching strategy
+- Conducted regular Code Reviews and integration testing
+- Used unit testing framework (MSTest) to ensure functionality correctness
+- Established development documentation and comment standards
+- Tracked tasks and bugs through GitHub Issues
+
+**Learnings**:
+
+- Enhanced team collaboration and communication skills
+- Mastered Git branch management and conflict resolution techniques
+- Learned unit test writing and test-driven development
+- Understood software engineering processes and project management
+- Cultivated code review and refactoring awareness
+
+---
+
+## Collaborators
+
+- **yutao33003**
+- **qqwnua**
+
+---
+
+## Application Snapshots
+
+![](/images/projects/LBN%20%E5%A4%A7%E5%B7%A8%E5%B7%A2%E7%B3%BB%E7%B5%B1%E6%A8%A1%E6%93%AC/BrowseScreen.png)![](/images/projects/LBN%20%E5%A4%A7%E5%B7%A8%E5%B7%A2%E7%B3%BB%E7%B5%B1%E6%A8%A1%E6%93%AC/AdvertiserScreen.png)![](/images/projects/LBN%20%E5%A4%A7%E5%B7%A8%E5%B7%A2%E7%B3%BB%E7%B5%B1%E6%A8%A1%E6%93%AC/AdminScreen.png)![](/images/projects/LBN%20%E5%A4%A7%E5%B7%A8%E5%B7%A2%E7%B3%BB%E7%B5%B1%E6%A8%A1%E6%93%AC/LeagueScreen.png)![](/images/projects/LBN%20%E5%A4%A7%E5%B7%A8%E5%B7%A2%E7%B3%BB%E7%B5%B1%E6%A8%A1%E6%93%AC/PlayerScreen.png)

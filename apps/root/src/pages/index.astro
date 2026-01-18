@@ -411,8 +411,13 @@ console.log(
               <FlipCard type="project">
                 <div slot="front" class="p-6 h-full flex flex-col">
                   <div class="flex-1">
-                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-4" style="text-transform: none;">
-                      {locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
+                    <h3
+                      class="text-xl font-bold text-slate-900 dark:text-white mb-4"
+                      style="text-transform: none;"
+                    >
+                      {locale === 'zh-tw'
+                        ? project.data.title_zh || project.id
+                        : project.data.title_en}
                     </h3>
                     <div class="flex items-center gap-2 mb-4">
                       <span
@@ -477,7 +482,7 @@ console.log(
                 <div slot="back" class="h-full flex flex-col p-5">
                   <div class="flex gap-4 items-start flex-1 min-h-0">
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm leading-relaxed text-white/90">
+                      <p class="text-sm leading-relaxed text-white/90 line-clamp-6">
                         {locale === 'zh-tw'
                           ? project.data.description_zh
                           : project.data.description_en}

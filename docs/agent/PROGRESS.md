@@ -1,5 +1,61 @@
 # 專案進度追蹤
 
+## 最近更新 (2026-01-18)
+
+### ✅ 已完成
+
+- **專案詳情頁圖片查看器模態視窗** (NEW - 2026-01-18)
+  - 創建 React Portal 組件 `ImageViewerModal`
+  - 使用 `createPortal` 渲染到 document.body，覆蓋整個頁面（包括導航欄、側邊欄、Footer）
+  - 全局單一實例設計，避免多個模態視窗同時開啟
+  - **功能特性**：
+    * 縮放控制：0.5x - 3x（按鈕控制 ±0.25，滾輪控制 ±0.1）
+    * 拖曳移動：縮放>1時可拖曳圖片
+    * 鍵盤快捷鍵：ESC（關閉）、+/-（縮放）、R（重置）
+    * 點擊 backdrop 關閉
+  - **視覺設計**：
+    * Glassmorphism（玻璃擬態）美學
+    * 85% 不透明度黑色背景 + 12px 模糊
+    * 頂部控制條：半透明圓角，含縮放按鈕、縮放百分比、重置、關閉
+    * 圖片容器：玻璃效果，漸層背景，白色半透明邊框
+    * 底部標題：圓角半透明背景
+  - **動畫效果**：
+    * 開啟：fadeIn (0.2s) + scaleIn (0.3s, cubic-bezier bounce)
+    * 關閉：fadeOut (0.2s) + scaleOut (0.2s)
+  - **響應式設計**：手機版調整控制條排版和圖片尺寸
+  - **技術整合**：
+    * 全局監聽 `openImageModal` 自定義事件
+    * MarkdocImage 點擊觸發事件傳遞圖片資訊
+    * 整合至 BaseLayout（唯一實例）
+
+- **專案內容 Markdoc 圖片支援** (2026-01-18)
+  - 配置 Keystatic markdoc 欄位支援圖片上傳
+  - 圖片目錄：`public/images/projects/`
+  - 創建 `markdoc.config.mjs` 自定義圖片渲染
+  - 創建 `MarkdocImage.astro` 組件處理圖片優化
+  - 使用 `import.meta.glob` 載入圖片資源
+  - 圖片優化（Astro Image 組件）+ 點擊放大功能
+  - 懸停效果：縮放 1.05 + 放大鏡圖標
+
+- **專案「暫時停滯」狀態** (2026-01-18)
+  - Schema 新增 `paused` 狀態（active/paused/completed/archived）
+  - 所有專案詳情頁顯示暫停狀態（黃色徽章）
+  - 專案列表頁新增暫停狀態篩選按鈕
+  - 排序邏輯調整：狀態優先級（active > completed > paused > archived）→ 日期（新→舊）→ Order
+  - 卡片樣式：暫停狀態使用黃色配色（bg-yellow-100/900, text-yellow-700/300）
+
+- **首頁專案卡片優化** (2026-01-18)
+  - 移除卡片正面的敘述（避免重複，翻面才顯示）
+  - 卡片背面敘述限制為 6 行（line-clamp-6）
+  - 專案圖片改為正方形（aspect-square, 160x160）使用 object-cover
+  - View Details 連結固定在卡片左下角（使用 mt-auto）
+
+- **專案內容動態載入修復** (2026-01-18)
+  - 從 Astro.glob 改用 dynamic import
+  - 使用 title_zh/title_en 匹配專案資料夾名稱（而非格式化的 project.id）
+  - 支援中文和特殊字元的資料夾名稱
+  - 完整錯誤處理和 fallback 機制
+
 ## 最近更新 (2026-01-14)
 
 ### ✅ 已完成

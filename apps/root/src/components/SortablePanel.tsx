@@ -105,7 +105,9 @@ export function SortableCard({
           </span>
         </div>
         {/* 卡片內容 */}
-        <div data-card-content style={{ padding: '20px' }}>{children}</div>
+        <div data-card-content style={{ padding: '20px' }}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -185,7 +187,9 @@ export default function SortablePanel({
     if (draggedId === null || draggedId === id) return;
 
     // 取得目標元素的邊界資訊
-    const targetElement = (e.currentTarget as HTMLElement).querySelector('[data-card-content]');
+    const targetElement = (e.currentTarget as HTMLElement).querySelector(
+      '[data-card-content]'
+    );
     if (!targetElement) return;
 
     const rect = targetElement.getBoundingClientRect();
@@ -202,7 +206,9 @@ export default function SortablePanel({
 
     // 判斷是向上拖還是向下拖
     const isDraggingDown = draggedIndex < targetIndex;
-    const shouldSwap = isDraggingDown ? mouseY > elementMiddle : mouseY < elementMiddle;
+    const shouldSwap = isDraggingDown
+      ? mouseY > elementMiddle
+      : mouseY < elementMiddle;
 
     if (!shouldSwap) return;
 

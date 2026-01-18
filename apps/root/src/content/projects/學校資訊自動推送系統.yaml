@@ -1,0 +1,19 @@
+description_zh: >-
+  針對高雄師範大學公告網站的自動化爬蟲系統，使用 BeautifulSoup 解析 HTML 抓取當日校園公告，透過 Discord Webhook API
+  即時推送至指定頻道，僅 56 行輕量化實作。
+title_en: School Information Automated Discord Webhook
+description_en: >-
+  An automated crawler system for NKNU announcement website, using BeautifulSoup
+  to parse HTML and fetch daily campus announcements, with real-time push to
+  designated channels via Discord Webhook API in just 56 lines of code.
+tags:
+  - Python
+  - Web Scraping
+  - Discord Webhook
+  - Beautiful Soup
+featured: false
+status: archived
+links:
+  github: https://github.com/Unforgettableeternalproject/School-Infomation-To-Webhook
+startDate: 2022-09-13
+endDate: 2022-09-15

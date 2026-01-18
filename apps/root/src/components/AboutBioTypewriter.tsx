@@ -120,7 +120,7 @@ export default function AboutBioTypewriter({
         <button
           onClick={() => {
             if (
-              confirm(
+              window.confirm(
                 '確定要重置打字機動畫嗎？重置後刷新頁面將重新播放動畫。'
               )
             ) {

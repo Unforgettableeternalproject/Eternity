@@ -18,65 +18,99 @@ const isLocalImage = src.startsWith('/images/projects/');
 let optimizedImage;
 if (isLocalImage) {
   try {
-    // 移除開頭的 /，因為 import 路徑是相對於專案根目錄
-    const imagePath = `../../../public${src}`;
-    const images = import.meta.glob<{ default: ImageMetadata }>(
+    const images = import.meta.glob(
       '/public/images/projects/**/*.{jpeg,jpg,png,gif,webp,svg}',
       { eager: true }
     );
-    
+
     // 尋找匹配的圖片
-    const imageKey = Object.keys(images).find(key => key.endsWith(src));
+    const imageKey = Object.keys(images).find((key) => key.endsWith(src));
     if (imageKey) {
-      optimizedImage = images[imageKey].default;
+      optimizedImage = (images[imageKey] as any).default;
     }
   } catch (e) {
     console.warn(`無法優化圖片: ${src}`, e);
   }
 }
+
+// 生成唯一 ID
+const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
 ---
 
-<figure class="my-8 rounded-lg overflow-hidden">
+<figure class="my-8 rounded-lg overflow-hidden group">
+  <div class="relative cursor-zoom-in" data-image-viewer={imageId}>
+    {
+      optimizedImage ? (
+        <Image
+          src={optimizedImage}
+          alt={alt}
+          title={title}
+          width={width}
+          height={height}
+          class="w-full h-auto transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          title={title}
+          width={width}
+          height={height}
+          class="w-full h-auto transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+      )
+    }
+    <div
+      class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center"
+    >
+      <div
+        class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/90 dark:bg-slate-800/90 rounded-full p-3 backdrop-blur-sm"
+      >
+        <svg
+          class="w-6 h-6 text-slate-700 dark:text-slate-200"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+          ></path>
+        </svg>
+      </div>
+    </div>
+  </div>
   {
-    optimizedImage ? (
-      <Image
-        src={optimizedImage}
-        alt={alt}
-        title={title}
-        width={width}
-        height={height}
-        class="w-full h-auto"
-        loading="lazy"
-      />
-    ) : (
-      <img
-        src={src}
-        alt={alt}
-        title={title}
-        width={width}
-        height={height}
-        class="w-full h-auto"
-        loading="lazy"
-      />
+    alt && (
+      <figcaption class="text-sm text-slate-600 dark:text-slate-400 text-center mt-2 px-4 py-2">
+        {alt}
+      </figcaption>
     )
   }
-  {alt && (
-    <figcaption class="text-sm text-slate-600 dark:text-slate-400 text-center mt-2 px-4 py-2">
-      {alt}
-    </figcaption>
-  )}
 </figure>
 
 <style>
   figure {
     @apply bg-slate-50 dark:bg-slate-800/50;
   }
-
-  figure img {
-    @apply transition-transform duration-300;
-  }
-
-  figure:hover img {
-    @apply scale-105;
-  }
 </style>
+
+<script define:vars={{ imageId, src, alt }}>
+  (() => {
+    const viewer = document.querySelector(`[data-image-viewer="${imageId}"]`);
+
+    if (!viewer) return;
+
+    // 使用自定義事件來觸發 React 組件的模態視窗
+    viewer.addEventListener('click', () => {
+      const event = new CustomEvent('openImageModal', {
+        detail: { src, alt },
+      });
+      window.dispatchEvent(event);
+    });
+  })();
+</script>

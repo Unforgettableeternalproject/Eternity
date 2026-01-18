@@ -1,0 +1,23 @@
+description_zh: >-
+  完整的 AWS Serverless 全端應用展示專案，採用 AWS CDK TypeScript 實現 IaC，整合 API
+  Gateway、Lambda、DynamoDB 單表設計、Cognito、S3、SQS/SNS 郵件通知與 GitHub Actions CI/CD。
+title_en: SparkBoard - AWS Serverless Task & Announcement Platform
+title_zh: SparkBoard - AWS 無伺服器任務協作平台
+description_en: >-
+  A complete AWS Serverless full-stack application showcase project,
+  implementing IaC with AWS CDK TypeScript, integrating API Gateway, Lambda,
+  DynamoDB single-table design, Cognito, S3, SQS/SNS email notifications, and
+  GitHub Actions CI/CD.
+tags:
+  - AWS
+  - React
+  - TypeScript
+  - Database
+  - Web Application
+  - School Project
+featured: false
+status: archived
+links:
+  github: https://github.com/Unforgettableeternalproject/SparkBoard
+startDate: 2025-10-28
+endDate: 2025-12-23

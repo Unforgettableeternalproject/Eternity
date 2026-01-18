@@ -1,0 +1,627 @@
+## 專案簡介
+
+茶飲電子商務平台是一個**現代化全端電商系統**，專注於茶飲產業的線上購物體驗。專案採用 React 18 + Node.js + TypeScript 技術棧，整合完整的購物車系統、會員管理、訂單追蹤與茶飲客製化功能（甜度/冰量/配料選擇）。使用 Prisma ORM + MySQL 資料庫，並提供響應式設計與 SEO 優化，適用於飲料店、茶館與連鎖品牌的數位轉型需求。
+
+### 核心理念
+
+- **茶飲專業化**：完整的甜度、冰量、配料客製化系統
+- **現代化技術棧**：React 18 + TypeScript + Vite + Tailwind CSS + Node.js + Express
+- **會員生態系統**：會員等級、積點累積、優惠券管理
+- **全端 TypeScript**：前後端型別安全，提升開發效率與程式碼品質
+- **響應式設計**：完美適配桌面、平板、手機裝置
+
+---
+
+## 我的職責
+
+作為專案的唯一開發者，我負責：
+
+### 系統架構設計
+
+- 設計前後端分離架構：React SPA + RESTful API
+- 規劃 12 個資料表的關聯式資料庫設計
+- 實作 JWT 身份驗證與授權機制
+- 設計 Prisma ORM 單一資料表設計（Single Table Design）
+
+### 後端開發 (Node.js + Express + TypeScript)
+
+- **RESTful API 設計 (40+ 端點)**：
+
+  - 商品管理：`/api/products` - 商品列表、分類、搜尋、詳情
+  - 購物車：`/api/cart` - 新增、更新、刪除商品
+  - 訂單系統：`/api/orders` - 建立訂單、訂單歷史、狀態追蹤
+  - 會員系統：`/api/auth` - 註冊、登入、JWT Token 刷新
+  - 收藏功能：`/api/favorites` - 收藏商品、取消收藏
+  - 客服系統：`/api/contact` - 提交客服表單
+
+- **核心 Controller 實作 (約 2,200 行)**：
+
+  - `cartController.ts` (430 行)：購物車邏輯、客製化選項處理
+  - `productController.ts` (364 行)：商品 CRUD、分類篩選、搜尋
+  - `orderController.ts` (361 行)：訂單建立、狀態更新、訂單查詢
+  - `favoriteController.ts` (273 行)：收藏管理、用戶收藏列表
+  - `authController.ts` (236 行)：JWT 認證、密碼雜湊、Token 刷新
+  - `contactController.ts` (146 行)：客服表單處理
+
+- **Middleware 開發**：
+
+  - `authMiddleware.ts` (110 行)：JWT Token 驗證、用戶授權
+  - `errorMiddleware.ts` (91 行)：全域錯誤處理
+  - `rateLimitMiddleware.ts` (62 行)：API 速率限制
+
+- **資料庫設計 (Prisma ORM)**：
+
+  ```prisma
+  model User {
+    id          Int       @id @default(autoincrement())
+    email       String    @unique
+    password    String
+    name        String
+    phone       String?
+    birthday    DateTime?
+    memberLevel MemberLevel @default(BRONZE)
+    points      Int       @default(0)
+    cart        CartItem[]
+    orders      Order[]
+    favorites   Favorite[]
+  }
+  
+  model Product {
+    id          Int       @id @default(autoincrement())
+    name        String
+    category    Category
+    price       Decimal
+    description String?
+    image       String?
+    cartItems   CartItem[]
+    orderItems  OrderItem[]
+  }
+  
+  model CartItem {
+    id          Int       @id @default(autoincrement())
+    userId      Int
+    productId   Int
+    quantity    Int
+    customization Json?  // 甜度/冰量/配料
+    user        User      @relation(...)
+    product     Product   @relation(...)
+  }
+  ```
+
+- **資料庫種子資料 (seed.ts - 334 行)**：
+
+  - 預設商品資料（珍珠奶茶、烏龍綠茶、水果茶等）
+  - 會員等級設定
+  - 優惠券資料
+
+### 前端開發 (React 18 + TypeScript + Vite)
+
+- **React Router v6 路由設計 (15+ 頁面)**：
+  - `/` - 首頁
+  - `/products` - 商品目錄
+  - `/product/:id` - 商品詳情
+  - `/cart` - 購物車
+  - `/checkout` - 結帳流程
+  - `/member` - 會員中心
+  - `/member/orders` - 訂單管理
+  - `/member/favorites` - 我的收藏
+  - `/member/coupons` - 優惠券
+  - `/login` - 登入
+  - `/register` - 註冊
+  - `/admin` - 管理後台（UI 完成，後端待開發）
+- **核心元件開發**：
+  - `ProductCard.tsx` - 商品卡片元件
+  - `CustomizationModal.tsx` - 客製化選項彈窗（甜度/冰量/配料）
+  - `ShoppingCart.tsx` - 購物車側邊欄
+  - `OrderHistory.tsx` - 訂單歷史列表
+  - `MemberLevel.tsx` - 會員等級展示
+  - `CouponCard.tsx` - 優惠券卡片
+- **狀態管理**：
+  - Context API：AuthContext（用戶認證狀態）
+  - React Hooks：useState, useEffect, useContext, useNavigate
+- **Axios API 整合**：
+  - Interceptor 自動加入 JWT Token
+  - 錯誤處理與 Toast 通知
+  - Request/Response 型別定義
+
+### 茶飲客製化系統實作
+
+- **客製化選項介面**：
+
+  ```typescript
+  interface CustomizationOptions {
+    sweetness: 'NO_SUGAR' | 'HALF_SUGAR' | 'NORMAL' | 'EXTRA_SUGAR';
+    ice: 'NO_ICE' | 'LESS_ICE' | 'NORMAL' | 'EXTRA_ICE';
+    toppings: string[];  // ['珍珠', '椰果', '布丁', '寒天', '蘆薈']
+    size: 'S' | 'M' | 'L';
+    notes?: string;
+  }
+  ```
+
+- **價格計算邏輯**：
+
+  - 基礎價格 + 配料加價
+  - 尺寸加價（M: +10, L: +20）
+  - 優惠券折扣計算
+
+### UI/UX 設計
+
+- **Tailwind CSS 樣式系統**：
+  - 統一的設計語言（色彩、間距、字體）
+  - RWD 響應式斷點設計
+  - Dark Mode 支援（未啟用）
+- **用戶體驗優化**：
+  - 載入狀態指示器
+  - 表單驗證與即時回饋
+  - 錯誤訊息友善提示
+  - 購物車即時更新
+
+### DevOps 與部署
+
+- **自動化腳本**：
+  - `start-dev.bat` - 開發環境一鍵啟動
+  - `start-prod.bat` - 生產環境啟動
+  - `build.bat` - 專案建置腳本
+- **環境管理**：
+  - `.env.dev` - 開發環境配置
+  - `.env.prod` - 生產環境配置
+  - 自動環境變數切換
+- **資料庫遷移**：
+  - Prisma Migrate：`npm run db:generate` → `npm run db:push`
+  - 資料庫重置：`npm run db:reset`
+
+---
+
+## 核心功能
+
+### 1. 商品瀏覽與搜尋
+
+- **分類瀏覽**：
+  - 經典茶飲（珍珠奶茶、烏龍綠茶）
+  - 水果茶系列（芒果綠茶、百香果紅茶）
+  - 鮮奶茶系列（紅茶拿鐵、抹茶拿鐵）
+  - 季節限定（冬瓜檸檬、冬瓜仙草）
+- **搜尋功能**：
+  - 關鍵字搜尋商品名稱
+  - 價格區間篩選
+  - 分類篩選
+- **商品詳情頁**：
+  - 高解析度商品圖片
+  - 詳細描述與成分
+  - 客製化選項選擇
+  - 加入購物車按鈕
+
+### 2. 茶飲客製化系統 🧋
+
+- **甜度選擇**：
+  - 無糖（NO_SUGAR）
+  - 半糖（HALF_SUGAR）
+  - 正常糖（NORMAL）
+  - 加糖（EXTRA_SUGAR）
+- **冰量選擇**：
+  - 去冰（NO_ICE）
+  - 微冰（LESS_ICE）
+  - 正常冰（NORMAL）
+  - 多冰（EXTRA_ICE）
+- **配料選擇（多選）**：
+  - 珍珠 (+10 元)
+  - 椰果 (+10 元)
+  - 布丁 (+15 元)
+  - 寒天 (+10 元)
+  - 蘆薈 (+10 元)
+- **尺寸選擇**：
+  - 小杯（S） - 基礎價
+  - 中杯（M） - +10 元
+  - 大杯（L） - +20 元
+- **備註功能**：
+  - 自訂備註文字（例：「少冰去糖，珍珠另外包」）
+
+### 3. 購物車系統
+
+- **購物車管理**：
+  - 新增商品至購物車
+  - 調整商品數量（+/-）
+  - 刪除商品
+  - 清空購物車
+- **即時價格計算**：
+  - 單項價格 = 基礎價 + 配料價 + 尺寸價
+  - 小計 = 單項價格 × 數量
+  - 總計 = Σ 小計
+- **購物車側邊欄**：
+  - 滑入式側邊欄設計
+  - 商品縮圖與客製化資訊展示
+  - 快速結帳按鈕
+
+### 4. 會員系統
+
+- **註冊與登入**：
+  - Email + 密碼註冊
+  - bcrypt 密碼雜湊儲存
+  - JWT Token 身份驗證
+  - Token 自動刷新機制
+- **會員等級制度**：
+  - 青銅會員（BRONZE）：0-999 點
+  - 白銀會員（SILVER）：1000-2999 點
+  - 黃金會員（GOLD）：3000-4999 點
+  - 鑽石會員（DIAMOND）：5000+ 點
+- **會員中心**：
+  - 個人資料管理
+  - 訂單歷史查詢
+  - 收藏商品列表
+  - 優惠券管理
+  - 積點查詢
+- **積點系統（前端展示）**：
+  - 消費累積積點（每 100 元 = 10 點）
+  - 生日當月雙倍積點
+  - 積點兌換優惠券
+
+### 5. 訂單管理
+
+- **結帳流程**：
+  1. 購物車確認
+  1. 填寫收件資訊（姓名、電話、地址）
+  1. 選擇付款方式（貨到付款、線上付款）
+  1. 確認訂單
+  1. 建立訂單
+- **訂單狀態追蹤**：
+  - 待確認（PENDING）
+  - 處理中（PROCESSING）
+  - 配送中（SHIPPING）
+  - 已完成（COMPLETED）
+  - 已取消（CANCELLED）
+- **訂單詳情**：
+  - 訂單編號
+  - 訂單日期
+  - 商品列表（含客製化資訊）
+  - 配送地址
+  - 訂單總額
+  - 訂單狀態
+- **重新訂購**：
+  - 一鍵重新訂購功能
+  - 保留原訂單的客製化選項
+
+### 6. 收藏功能
+
+- **商品收藏**：
+  - 收藏喜愛的商品
+  - 我的收藏列表
+  - 取消收藏
+  - 從收藏直接加入購物車
+
+### 7. 優惠券系統（前端完整，後端部分實作）
+
+- **優惠券類型**：
+  - 折扣碼（固定金額折扣）
+  - 百分比折扣
+  - 免運費券
+  - 生日優惠券
+- **優惠券管理**：
+  - 我的優惠券列表
+  - 可用/已使用/已過期狀態
+  - 使用期限顯示
+
+### 8. SEO 優化
+
+- **Sitemap 生成**：
+  - XML Sitemap 自動生成
+  - 提交至 Google Search Console
+- **Meta Tags 優化**：
+  - Open Graph（社群分享）
+  - Twitter Card
+  - 描述與關鍵字
+- **友善 URL**：
+  - `/product/:id` 而非 `/product?id=123`
+  - 語意化路由設計
+
+---
+
+## 使用技術
+
+### 前端技術
+
+- **React 18.3.1**：UI 框架
+- **TypeScript 5.6.2**：型別安全
+- **Vite 6.0.11**：建置工具（比 Create React App 快 10-100 倍）
+- **React Router DOM 7.5.3**：路由管理
+- **Axios 1.9.0**：HTTP 客戶端
+- **Tailwind CSS 3.4.17**：原子化 CSS 框架
+
+### 後端技術
+
+- **Node.js 18+**：執行環境
+- **Express 4.21.2**：Web 框架
+- **TypeScript**：型別安全
+- **Prisma 6.2.1**：ORM 工具
+- **MySQL**：關聯式資料庫
+- **bcryptjs 2.4.3**：密碼雜湊
+- **jsonwebtoken 9.0.2**：JWT Token 生成與驗證
+
+### 開發工具
+
+- **Concurrently 8.0.0**：同時執行前後端
+- **ts-node-dev**：TypeScript 熱重載
+- **ESLint**：程式碼風格檢查
+- **Prettier**：程式碼格式化
+
+### 資料庫設計
+
+- **12 個資料表**：
+  1. User（用戶）
+  1. Product（商品）
+  1. Category（分類 - Enum）
+  1. CartItem（購物車項目）
+  1. Order（訂單）
+  1. OrderItem（訂單項目）
+  1. Favorite（收藏）
+  1. Coupon（優惠券）
+  1. UserCoupon（用戶優惠券）
+  1. MemberLevel（會員等級 - Enum）
+  1. Review（評論 - 未實作）
+  1. ContactMessage（客服訊息）
+
+---
+
+## 專案狀態
+
+### 當前版本：1.0.0 (核心功能完整)
+
+- **專案啟動日期**：2024 年（課堂專案擴展）
+
+### 功能完成度
+
+- ✅ **已完成**：
+  - 完整的商品瀏覽與搜尋
+  - 茶飲客製化系統（甜度/冰量/配料）
+  - 購物車 CRUD 操作
+  - 會員註冊與登入（JWT）
+  - 訂單建立與查詢
+  - 收藏功能
+  - 會員中心 UI
+  - 響應式設計（RWD）
+  - SEO 優化
+  - 客服表單
+  - 資料庫設計與 Seeding
+  - 自動化部署腳本
+- 🟡 **部分完成**：
+  - 優惠券系統（前端完整，後端折扣計算待完善）
+  - 積點系統（前端展示完整，後端計算邏輯需完善）
+  - 管理後台（UI 完整，後端 API 待開發）
+- 📋 **待開發**：
+  - 金流整合（信用卡、第三方支付）
+  - 物流整合（宅配、超商取貨）
+  - Email 通知系統（訂單確認、出貨通知）
+  - 商品評論系統
+  - 推薦系統（基於購買歷史）
+  - 庫存管理
+
+---
+
+## 開發挑戰與收穫
+
+### 1. 茶飲客製化系統設計
+
+**挑戰**：如何儲存與傳遞複雜的客製化選項？
+
+**解決方案**：
+
+- 使用 JSON 欄位儲存客製化資料：
+
+  ```json
+  {
+    "sweetness": "HALF_SUGAR",
+    "ice": "LESS_ICE",
+    "toppings": ["珍珠", "椰果"],
+    "size": "M",
+    "notes": "少冰去糖"
+  }
+  ```
+
+- Prisma Schema 定義：`customization Json?`
+
+- 前端使用 TypeScript 介面定義型別
+
+- 價格計算邏輯封裝於 `helpers.ts`
+
+**收穫**：
+
+- 理解 NoSQL 欄位在關聯式資料庫的應用
+- 掌握 JSON 序列化與反序列化
+- 學習前後端資料同步策略
+
+### 2. JWT 身份驗證實作
+
+**挑戰**：如何實現安全的用戶認證與授權？
+
+**解決方案**：
+
+- 密碼雜湊：bcrypt.hash(password, 10)
+
+- JWT Token 生成：
+
+  ```typescript
+  const token = jwt.sign(
+    { userId: user.id, email: user.email },
+    process.env.JWT_SECRET!,
+    { expiresIn: '7d' }
+  );
+  ```
+
+- Middleware 驗證：
+
+  ```typescript
+  const authMiddleware = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    req.user = decoded;
+    next();
+  };
+  ```
+
+**收穫**：
+
+- 掌握 JWT 工作原理
+- 理解 Token-based Authentication
+- 學習 Middleware 設計模式
+
+### 3. Prisma ORM 資料庫設計
+
+**挑戰**：如何設計清晰的資料庫關聯？
+
+**解決方案**：
+
+- 使用 Prisma Schema 定義關聯：
+
+  ```prisma
+  model User {
+    cart   CartItem[]
+    orders Order[]
+  }
+  
+  model CartItem {
+    user      User    @relation(fields: [userId], references: [id])
+    userId    Int
+    product   Product @relation(fields: [productId], references: [id])
+    productId Int
+  }
+  ```
+
+- 自動生成 Migration
+
+- Type-safe 查詢：`prisma.user.findUnique({ include: { cart: true } })`
+
+**收穫**：
+
+- 理解 ORM 與 SQL 的對應關係
+- 掌握關聯式資料庫設計原則
+- 學習 Type-safe 資料庫查詢
+
+### 4. React Router v6 路由管理
+
+**挑戰**：如何設計清晰的路由結構？
+
+**解決方案**：
+
+- 使用 `createBrowserRouter` 定義路由：
+
+  ```typescript
+  const router = createBrowserRouter([
+    { path: '/', element: <Home /> },
+    { path: '/products', element: <Products /> },
+    {
+      path: '/member',
+      element: <MemberLayout />,
+      children: [
+        { path: 'orders', element: <Orders /> },
+        { path: 'favorites', element: <Favorites /> }
+      ]
+    }
+  ]);
+  ```
+
+- Protected Routes：用 authMiddleware 包裝
+
+- 巢狀路由：Outlet 元件渲染子路由
+
+**收穫**：
+
+- 理解 React Router v6 API 變化
+- 掌握巢狀路由設計
+- 學習路由保護機制
+
+### 5. Tailwind CSS 響應式設計
+
+**挑戰**：如何實現完美的 RWD 設計？
+
+**解決方案**：
+
+- 使用 Tailwind 斷點：
+
+  ```jsx
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  ```
+
+- Mobile-first 設計原則
+
+- Flexbox 與 Grid 佈局結合
+
+**收穫**：
+
+- 掌握 Utility-first CSS 思維
+- 理解 Mobile-first 設計
+- 學習 Flexbox 與 Grid 佈局
+
+### 6. 全端 TypeScript 開發
+
+**挑戰**：如何確保前後端型別一致？
+
+**解決方案**：
+
+- 定義共用型別檔案：
+
+  ```typescript
+  // types/index.ts
+  export interface Product {
+    id: number;
+    name: string;
+    price: number;
+    category: Category;
+  }
+  ```
+
+- 前後端共用 TypeScript 介面
+
+- Prisma 自動生成型別
+
+**收穫**：
+
+- 理解 TypeScript 型別系統
+- 掌握前後端型別同步策略
+- 提升開發效率與程式碼品質
+
+---
+
+## 專案亮點
+
+### 技術創新
+
+- ✅ 完整的茶飲客製化系統（甜度/冰量/配料/尺寸）
+- ✅ 全端 TypeScript 開發（型別安全）
+- ✅ Prisma ORM + MySQL 資料庫設計
+- ✅ JWT 身份驗證與授權
+- ✅ React Router v6 巢狀路由設計
+- ✅ Tailwind CSS 響應式設計
+
+### 商業價值
+
+- ✅ 具備核心電商功能的實用平台
+- ✅ 完整購物流程（瀏覽 → 加入購物車 → 結帳 → 訂單追蹤）
+- ✅ 會員生態系統（等級/積點/優惠券）
+- ✅ SEO 優化（提升搜尋排名）
+- ✅ 響應式設計（全裝置支援）
+
+### 教育價值
+
+- ✅ 從課堂專案到實用系統的完整進化
+- ✅ 現代化全端開發完整實踐
+- ✅ RESTful API 設計規範
+- ✅ 資料庫正規化設計
+
+### 工程實務
+
+- ✅ 前後端分離架構
+- ✅ 環境配置管理（.env.dev / .env.prod）
+- ✅ 自動化部署腳本
+- ✅ 錯誤處理與用戶回饋
+
+### 學習成果
+
+- ✅ 深入理解全端開發流程
+- ✅ 掌握 TypeScript 型別系統
+- ✅ 學習 Prisma ORM 與資料庫設計
+- ✅ 實作完整的電商系統
+
+---
+
+## 應用程式執行截圖
+
+![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/001.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/002.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/003.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/004.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/005.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/006.png)

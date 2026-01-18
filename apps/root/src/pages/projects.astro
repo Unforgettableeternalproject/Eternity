@@ -10,9 +10,43 @@ const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 // Load projects from content collections
 const allProjects = await getCollection('projects');
-const projects = allProjects.sort(
-  (a, b) => (a.data.order || 999) - (b.data.order || 999)
-);
+
+// 狀態優先級映射
+const statusPriority: Record<string, number> = {
+  active: 1,
+  completed: 2,
+  paused: 3,
+  archived: 4,
+};
+
+const projects = allProjects.sort((a, b) => {
+  // 1. 首先按照狀態優先級排序
+  const priorityA = statusPriority[a.data.status] || 999;
+  const priorityB = statusPriority[b.data.status] || 999;
+  if (priorityA !== priorityB) {
+    return priorityA - priorityB;
+  }
+
+  // 2. 然後按照日期排序（最新的在前面）
+  const dateA = a.data.startDate || a.data.endDate;
+  const dateB = b.data.startDate || b.data.endDate;
+  if (dateA && dateB) {
+    const timeA = dateA.getTime();
+    const timeB = dateB.getTime();
+    if (timeA !== timeB) {
+      return timeB - timeA; // 降序：新的在前
+    }
+  } else if (dateA) {
+    return -1; // 有日期的排在沒日期的前面
+  } else if (dateB) {
+    return 1;
+  }
+
+  // 3. 最後按照 order 排序（數字越小越前面）
+  const orderA = a.data.order ?? 999;
+  const orderB = b.data.order ?? 999;
+  return orderA - orderB;
+});
 
 // 收集所有獨特的標籤
 const allTags = Array.from(
@@ -37,10 +71,7 @@ const allTags = Array.from(
       <!-- 篩選器 -->
       {
         projects.length > 0 && (
-          <div
-            class="mb-12 animate-fade-in-up"
-            style="animation-delay: 100ms"
-          >
+          <div class="mb-12 animate-fade-in-up" style="animation-delay: 100ms">
             <div class="rounded-3xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/80 dark:to-slate-900/80 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
               {/* 篩選器標題列 */}
               <button
@@ -126,6 +157,15 @@ const allTags = Array.from(
                       </button>
                       <button
                         class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
+                        data-status="paused"
+                      >
+                        <span class="flex items-center gap-2">
+                          <span class="w-2 h-2 rounded-full bg-yellow-500" />
+                          {locale === 'zh-tw' ? '暫時停滯' : 'Paused'}
+                        </span>
+                      </button>
+                      <button
+                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
                         data-status="completed"
                       >
                         <span class="flex items-center gap-2">
@@ -193,11 +233,10 @@ const allTags = Array.from(
       }
 
       <!-- 空狀態提示 -->
-      <div
-        id="empty-state"
-        class="hidden text-center py-20 animate-fade-in-up"
-      >
-        <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/30 dark:to-secondary-900/30 flex items-center justify-center">
+      <div id="empty-state" class="hidden text-center py-20 animate-fade-in-up">
+        <div
+          class="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/30 dark:to-secondary-900/30 flex items-center justify-center"
+        >
           <svg
             class="w-12 h-12 text-primary-600 dark:text-primary-400"
             fill="none"
@@ -208,8 +247,7 @@ const allTags = Array.from(
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="1.5"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
         </div>
         <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -233,13 +271,13 @@ const allTags = Array.from(
           >
             {projects.map((project, index) => (
               <div
-                class="project-card card card-hover p-6 animate-fade-in-up"
+                class="project-card card card-hover p-6 animate-fade-in-up flex flex-col"
                 style={`animation-delay: ${index * 100}ms`}
                 data-status={project.data.status}
                 data-tags={JSON.stringify(project.data.tags)}
               >
-                <div class="flex flex-col md:flex-row gap-6">
-                  <div class="flex-1 space-y-3">
+                <div class="flex flex-col md:flex-row gap-6 flex-1">
+                  <div class="flex-1 space-y-3 flex flex-col">
                     <div class="flex items-center gap-2 mb-2">
                       <span
                         class={`px-3 py-1 text-xs font-medium rounded-full ${
@@ -270,7 +308,10 @@ const allTags = Array.from(
                       </span>
                     </div>
 
-                    <h3 class="text-2xl font-bold text-slate-900 dark:text-white" style="text-transform: none;">
+                    <h3
+                      class="text-2xl font-bold text-slate-900 dark:text-white"
+                      style="text-transform: none;"
+                    >
                       {locale === 'zh-tw'
                         ? project.data.title_zh || project.id
                         : project.data.title_en}
@@ -280,6 +321,8 @@ const allTags = Array.from(
                         ? project.data.description_zh
                         : project.data.description_en}
                     </p>
+
+                    <div class="flex-1" />
 
                     {/* Tags */}
                     <div class="flex flex-wrap gap-2">
@@ -291,7 +334,7 @@ const allTags = Array.from(
                     </div>
 
                     {/* Links */}
-                    <div class="flex flex-wrap gap-3">
+                    <div class="flex flex-wrap gap-3 mt-auto pt-3">
                       <a
                         href={`${basePath}/projects/${project.id}`}
                         class="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium group/link"
@@ -348,8 +391,8 @@ const allTags = Array.from(
                             : project.data.title_en
                         }
                         width={160}
-                        height={128}
-                        class="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                        height={160}
+                        class="w-full aspect-square object-cover rounded-lg border border-slate-200 dark:border-slate-700"
                         loading="lazy"
                         decoding="async"
                       />
@@ -451,7 +494,9 @@ const allTags = Array.from(
   }
 
   .project-card {
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
   }
 
   .project-card.hidden {
@@ -469,7 +514,9 @@ const allTags = Array.from(
   #filter-content {
     max-height: 1000px;
     overflow: hidden;
-    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    transition:
+      max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.3s ease;
     opacity: 1;
   }
 
@@ -505,7 +552,7 @@ const allTags = Array.from(
     // 切換篩選器展開/收縮
     filterToggle?.addEventListener('click', () => {
       isFilterExpanded = !isFilterExpanded;
-      
+
       if (isFilterExpanded) {
         filterContent?.classList.remove('collapsed');
         filterIcon?.classList.remove('collapsed');
@@ -525,7 +572,8 @@ const allTags = Array.from(
         const cardStatus = cardElement.dataset.status;
         const cardTags = JSON.parse(cardElement.dataset.tags || '[]');
 
-        const statusMatch = currentStatus === 'all' || cardStatus === currentStatus;
+        const statusMatch =
+          currentStatus === 'all' || cardStatus === currentStatus;
         const tagMatch = currentTag === 'all' || cardTags.includes(currentTag);
 
         if (statusMatch && tagMatch) {
