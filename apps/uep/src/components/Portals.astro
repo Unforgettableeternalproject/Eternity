@@ -1,0 +1,176 @@
+---
+// 傳送門連結組件
+const portals = [
+  {
+    url: 'https://unforgettableeternalproject.com',
+    icon: '🌟',
+    title: '主要維度',
+    description: '返回 UEP 的主要網站',
+  },
+  {
+    url: 'https://github.com/Unforgettableeternalproject',
+    icon: '💫',
+    title: '概念倉庫',
+    description: '查看所有創作的原始碼',
+  },
+];
+---
+
+<div class="portals-section">
+  <h2 class="section-title">
+    <span class="title-icon">✧</span>
+    外部基軸大廳
+    <span class="title-icon">✧</span>
+  </h2>
+
+  <div class="portal-grid">
+    {
+      portals.map((portal) => (
+        <a
+          href={portal.url}
+          class="portal-card"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <div class="portal-light" />
+          <div class="portal-icon">{portal.icon}</div>
+          <h3>{portal.title}</h3>
+          <p>{portal.description}</p>
+        </a>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .portals-section {
+    padding: 3rem 0;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .section-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--gold), var(--purple-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 2.5rem;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .title-icon {
+    animation: twinkle 2s ease-in-out infinite;
+  }
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+  }
+
+  .portal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+  }
+
+  .portal-card {
+    position: relative;
+    display: block;
+    padding: 2.5rem;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 2px solid var(--glass-border);
+    border-radius: 1.5rem;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .portal-light {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 0;
+    height: 0;
+    background: radial-gradient(
+      circle,
+      rgba(213, 182, 24, 0.4) 0%,
+      transparent 70%
+    );
+    transition: all 0.5s ease;
+  }
+
+  .portal-card:hover .portal-light {
+    width: 300%;
+    height: 300%;
+  }
+
+  .portal-card:hover {
+    border-color: var(--gold);
+    transform: translateY(-10px) scale(1.02);
+    box-shadow:
+      0 20px 60px rgba(213, 182, 24, 0.3),
+      0 0 40px rgba(168, 85, 247, 0.2);
+  }
+
+  .portal-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    display: block;
+    filter: drop-shadow(0 0 20px rgba(213, 182, 24, 0.6));
+    animation: rotate 4s linear infinite;
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .portal-card h3 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gold-light);
+    margin-bottom: 0.75rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .portal-card p {
+    color: var(--text-secondary);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 768px) {
+    .section-title {
+      font-size: 1.5rem;
+    }
+
+    .portal-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
