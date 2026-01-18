@@ -1,0 +1,21 @@
+description_zh: >-
+  使用 Python 與 PyQt5 從零構建的文字冒險遊戲引擎,整合章節系統、劇情處理、指令解析、GameState 狀態管理與 Pygame
+  背景音樂，實現完整的互動式敘事體驗。
+title_en: PureTown - Text-Based RPG Game
+title_zh: 普爾小鎮 - 文字冒險 RPG 遊戲
+description_en: >-
+  A text-based adventure game engine built from scratch with Python and PyQt5,
+  featuring chapter systems, story processing, command parsing, GameState
+  management, and Pygame background music for complete interactive narrative
+  experiences.
+tags:
+  - Python
+  - GUI
+  - Pygame
+  - Engine
+featured: false
+status: paused
+links:
+  github: https://github.com/Unforgettableeternalproject/PureTownDemo
+startDate: 2024-07-30
+endDate: 2024-12-03

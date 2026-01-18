@@ -374,7 +374,7 @@ html {
 
 .animate-fade-in {
   opacity: 0;
-  animation: fade-in 0.8s ease-out forwards;
+  animation: fade-in 0.15s ease-out forwards;
 }
 
 @keyframes geo-shift {
@@ -387,6 +387,50 @@ html {
   100% {
     background-position: 0% 50%;
   }
+}
+
+/* Modal animations */
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.animate-fade-out {
+  animation: fade-out 0.15s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out forwards;
+}
+
+.animate-scale-out {
+  animation: scale-out 0.15s ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

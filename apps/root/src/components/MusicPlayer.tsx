@@ -19,6 +19,11 @@ interface Track {
 interface MusicPlayerProps {
   tracks?: Track[];
   locale?: string;
+  translations?: {
+    title: string;
+    paused: string;
+    playing: string;
+  };
 }
 
 export default function MusicPlayer({
@@ -27,6 +32,11 @@ export default function MusicPlayer({
     { title: 'Track 2', artist: 'Artist', url: '/music/track2.mp3' },
   ],
   locale = 'zh-tw',
+  translations = {
+    title: '音樂播放器',
+    paused: '⏸️ 音樂已暫停',
+    playing: '▶️ 繼續播放',
+  },
 }: MusicPlayerProps) {
   // 從 localStorage 讀取上次選擇的歌曲（只在接受 Cookie 後）
   const getSavedTrack = () => {
@@ -271,18 +281,12 @@ export default function MusicPlayer({
       if (isPlaying) {
         audioRef.current.pause();
         if (manager) {
-          manager.show(
-            locale === 'zh-tw' ? '⏸️ 音樂已暫停' : '⏸️ Music Paused',
-            'info'
-          );
+          manager.show(translations.paused, 'info');
         }
       } else {
         audioRef.current.play();
         if (manager) {
-          manager.show(
-            locale === 'zh-tw' ? '▶️ 繼續播放' : '▶️ Now Playing',
-            'info'
-          );
+          manager.show(translations.playing, 'info');
         }
       }
       setIsPlaying(!isPlaying);
@@ -346,7 +350,7 @@ export default function MusicPlayer({
             >
               <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
             </svg>
-            {locale === 'zh-tw' ? '音樂播放器' : 'Music Player'}
+            {translations.title}
           </h3>
           {tracks[currentTrack].cover && (
             <img

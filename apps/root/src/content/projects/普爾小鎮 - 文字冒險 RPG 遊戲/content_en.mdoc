@@ -1,0 +1,330 @@
+## Project Introduction
+
+PureTown is a **text-based adventure RPG game developed with Python and PyQt5**, aiming to explore interactive narrative design and modern UI/UX implementation techniques through building a complete game engine. This project designs the game architecture from scratch, implementing core features such as chapter systems, story processing, command parsing, state management, and background music, creating an immersive pure text adventure experience for players. The core challenge of the project lies in designing a lightweight yet fully functional game engine and implementing an elegant user interface through PyQt5.
+
+### Core Philosophy
+
+- **Game Engine Design**: Build a modular text adventure game engine from scratch
+- **UI/UX Optimization Learning**: Explore PyQt5 advanced features to enhance user experience
+- **Story-Driven System**: Chapter-based narrative architecture supporting branching storylines and multiple endings
+- **State Machine Management**: Complete game state tracking and saving mechanism
+
+---
+
+## My Responsibilities
+
+As the sole developer of this project, I am responsible for all system design and implementation:
+
+### Game Engine Architecture Design
+
+- Designed modular game engine architecture (game/ folder):
+  - `GameState`: Game state management (chapter progress, items, flags, location)
+  - `StoryHandler`: Story processor (chapter loading, scene transitions)
+  - `CommandHandler`: Command parsing system (player input processing)
+  - `GameProcesser`: Game flow controller (game loop, event triggering)
+- Established resource management system (resources/ folder):
+  - Story text (story.py)
+  - Flavor text (flavortext.py)
+  - Scene data (scene.py)
+
+### Core System Implementation
+
+- **Chapter System**: Multi-chapter architecture supporting Chapter:Section:Part three-tier structure
+- **Inventory System**: Backpack management (inventory), item acquisition/usage logic
+- **Flag System**: Event flags tracking player choices and story branches
+- **Location System**: Map navigation (location, depth_map), scene transitions
+- **Goal System**: Quest tracking (goals), progress hints
+- **Text Rendering**: Character-by-character display effect (typewriter effect), HTML formatting
+
+### UI/UX Design & Implementation
+
+- **Main Window Design** (RPGMainWindow):
+  - Description window (QTextEdit): Main story display area
+  - Status panel: Player location, status information
+  - Command input box: Player interaction interface
+  - Control buttons: Skip, Continue, Inventory, Journal, etc.
+- **Sub-window System**:
+  - Inventory window (InventoryWindow): Item list and usage
+  - Journal window (JournalWindow): Chapter outline and progress tracking
+- **Custom Widgets**:
+  - Background switch button (create_background_switch_button_edit)
+  - Pressed effect button (create_pressed_button_edit)
+  - Custom text editor (create_text_edit)
+
+### Audio & Multimedia
+
+- Integrated Pygame background music system (AudioControl)
+- Implemented music play/pause/switch functionality
+- Background music loop playback mechanism
+
+---
+
+## Core Features
+
+### 1. Game Engine Core System
+
+- **State Management**:
+  - Chapter progress tracking (chapter:section:part)
+  - Player location and depth map (location, depth_map)
+  - Inventory system (inventory)
+  - Event flags (flags)
+  - Goal list (goals)
+- **Story Processing**:
+  - Chapter-based narrative structure
+  - Scene loading and transitions
+  - Cutscene and Gameplay mode switching
+  - Branching storyline support
+- **Text Rendering Engine**:
+  - Character-by-character display effect (typewriter)
+  - HTML format support (line breaks, bold, colors)
+  - Separation of static and dynamic text
+  - Text index and line index management
+
+### 2. Command Processing System
+
+- **Command Parsing**:
+  - Natural language command recognition
+  - Command validation and error prompts
+  - Dynamic generation of available commands (usable_commands)
+- **Common Commands**:
+  - Movement commands (go, move, walk)
+  - Interaction commands (use, take, examine)
+  - System commands (save, load, help)
+  - Shortcut commands (skip, continue)
+
+### 3. UI/UX Interactive Design
+
+- **Main Window Layout**:
+  - 800x600 fixed window size
+  - Multi-section information display (description, status, movement, interaction, goals)
+  - Command input and execution feedback
+- **Visual Elements**:
+  - Custom background images (border-image)
+  - Rounded border design (border-radius)
+  - Button hover effects
+  - Icon buttons (Home, Journal, Save, Music)
+- **User Experience Optimization**:
+  - Keyboard shortcut support
+  - Text non-selectable setting (prevent accidental operations)
+  - Button tooltip text
+  - Music toggle switch
+
+### 4. Resource Management System
+
+- **Story Resources**:
+  - Chapter titles (chapter_titles)
+  - Chapter names (chapter_names)
+  - Chapter sections (chapter_sections)
+  - Scene data (story_scene)
+- **Flavor Text**:
+  - Item descriptions (items)
+  - Random game texts (game_texts)
+- **Multimedia Resources**:
+  - Background music (dark-piano-Sociopath.mp3)
+  - UI images (home, journal, save icons)
+
+### 5. Save & Progress Management
+
+- **State Saving**:
+  - Chapter progress saving
+  - Items and flags saving
+  - Location information saving
+- **Progress Tracking**:
+  - Current progress display (get_current_progress)
+  - Progress setting (set_current_progress)
+  - Chapter outline view (Journal window)
+
+---
+
+## Technologies Used
+
+### Core Frameworks
+
+- **Python 3.10+**: Primary development language
+- **PyQt5 (5.15.11)**: GUI framework
+- **Pygame (2.6.1)**: Audio and multimedia processing
+
+### UI Development
+
+- **QtCore**: Core functionality (events, timers, signals/slots)
+- **QtGui**: Graphics components (fonts, images, icons)
+- **QtWidgets**: UI components (windows, buttons, text boxes)
+- **QTimer**: Text character-by-character display timer
+
+### Project Management
+
+- **Visual Studio**: IDE (.pyproj, .sln)
+- **pip**: Package management (requirements.txt)
+- **Virtual Environment**: Isolate project dependencies (env/)
+
+---
+
+## Project Status
+
+### Current Version: In Development (logic-v.4 branch)
+
+- **Core Engine Status**: Basic architecture completed, continuously optimizing game logic
+- **Story Content**: Chapter architecture established, content continuously expanding
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Game engine core architecture (GameState, StoryHandler, CommandHandler)
+  - Chapter system and progress management
+  - Inventory, flags, location systems
+  - Text character-by-character display engine
+  - Background music system
+  - Main window UI design
+  - Inventory and journal sub-windows
+  - Custom widgets and buttons
+- 🔄 **In Progress**:
+  - Story content writing and expansion
+  - Game logic optimization (logic-v.4)
+  - Scene transition smoothness improvement
+  - More interactive command implementation
+- 📋 **Planned**:
+  - Combat system
+  - Character attribute system
+  - Multiple ending branches
+  - Save/load functionality refinement
+  - Sound effects (SFX)
+
+---
+
+## Development Challenges & Learnings
+
+### 1. Game Engine Architecture Design
+
+**Challenge**: How to design a modular, extensible text adventure game engine from scratch?
+
+**Solution**:
+
+- Adopted MVC architecture to separate game logic from UI:
+  - Model: GameState (game state), Resources (resources)
+  - View: RPGMainWindow (main window), sub-windows
+  - Controller: CommandHandler (command processing), GameProcesser (flow control)
+- Designed state machine to manage chapter progress and scene transitions
+- Implemented event-driven system triggering story branches through flags
+- Established resource management module to centrally manage story, text, and scene data
+
+**Learnings**:
+
+- Deep understanding of game engine design patterns
+- Mastered state machine applications in game development
+- Learned modular design and code organization
+- Enhanced system architecture planning skills
+
+### 2. PyQt5 Advanced UI/UX Implementation
+
+**Challenge**: How to implement an elegant text adventure game interface using PyQt5 and optimize user experience?
+
+**Solution**:
+
+- Used QSS (Qt Style Sheets) to customize visual styles:
+  - border-image for background images
+  - border-radius for rounded design
+  - Custom font and color configurations
+- Implemented custom widget functions to encapsulate common components
+- Used QTextEdit's HTML support to achieve rich text formatting
+- Designed responsive buttons (hover, pressed states)
+- Implemented keyboard event handling (KeyDown, KeyUp)
+
+**Learnings**:
+
+- Mastered PyQt5 advanced features and QSS syntax
+- Learned Qt signal/slot mechanism
+- Understood event-driven GUI design patterns
+- Enhanced UI/UX design and implementation skills
+- Learned user experience optimization techniques
+
+### 3. Text Character-by-Character Display Engine
+
+**Challenge**: How to implement smooth text character-by-character display effects while supporting HTML formatting and line breaks?
+
+**Solution**:
+
+- Used QTimer to control text display speed
+- Implemented dual tracking of character and line indices:
+  - `word_index`: Current character position
+  - `line_index`: Current line number
+- Designed `get_next_character()` method to return characters one by one
+- Used HTML `<br><br>` tags to handle line breaks
+- Implemented Skip and Continue buttons to control display flow
+
+**Learnings**:
+
+- Mastered timer applications in animation effects
+- Learned text processing and index management techniques
+- Understood HTML applications in GUI text rendering
+- Enhanced algorithm design and logical thinking skills
+
+### 4. Audio System Integration
+
+**Challenge**: How to integrate Pygame audio system into PyQt5 application and implement background music loop playback?
+
+**Solution**:
+
+- Used Pygame's mixer module to handle audio:
+  - `pygame.mixer.init()`: Initialize audio system
+  - `pygame.mixer.music.load()`: Load music file
+  - `pygame.mixer.music.play(-1)`: Loop playback (-1 parameter)
+- Implemented AudioControl class to encapsulate audio operations
+- Designed music toggle button (background switch button)
+- Handled music state tracking (music_playing)
+
+**Learnings**:
+
+- Learned techniques for mixing Pygame and PyQt5
+- Mastered basic audio system operations
+- Understood multimedia resource management
+- Enhanced cross-library integration skills
+
+### 5. Story Branching & State Management
+
+**Challenge**: How to design a flexible story branching system supporting player choices affecting subsequent storylines?
+
+**Solution**:
+
+- Used flag system to record player behavior:
+  - `add_flag(flag_name)`: Add flag
+  - `check_flag(flag_name)`: Check flag existence
+- Designed conditional logic to load different scenes based on flags
+- Implemented inventory system affecting storyline (specific items trigger specific events)
+- Established chapter:section:part three-tier structure supporting detailed story control
+
+**Learnings**:
+
+- Mastered game state management techniques
+- Learned branching storyline design patterns
+- Understood event-driven and conditional logic
+- Enhanced interactive narrative design skills
+- Cultivated game design thinking
+
+---
+
+## Project Architecture
+
+```
+PureTownDemo/
+├── Main.py              # Game entry point
+├── ui/                  # UI layer
+│   ├── main_window.py   # Main window
+│   ├── inventory_window.py  # Inventory window
+│   ├── journal_window.py    # Journal window
+│   └── widgets.py       # Custom widgets
+├── game/                # Game engine layer
+│   ├── game_state.py    # State management
+│   ├── story_handling.py    # Story processing
+│   ├── command_handling.py  # Command parsing
+│   ├── game_processer.py    # Flow control
+│   ├── outline_handling.py  # Outline processing
+│   └── audio_control.py     # Audio control
+├── resources/           # Resource layer
+│   ├── story.py         # Story text
+│   ├── flavortext.py    # Flavor text
+│   ├── scene.py         # Scene data
+│   ├── images/          # Image resources
+│   └── audio/           # Audio resources
+└── utils/               # Utility layer
+    └── data.py          # Data definitions
+```

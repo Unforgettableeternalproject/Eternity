@@ -1,0 +1,627 @@
+## Project Introduction
+
+The Tea E-commerce Platform is a **modern full-stack e-commerce system** focused on the online shopping experience for the tea beverage industry. The project uses the React 18 + Node.js + TypeScript tech stack, integrating complete shopping cart system, member management, order tracking, and tea customization features (sweetness/ice level/topping selection). Using Prisma ORM + MySQL database with responsive design and SEO optimization, suitable for beverage shops, tea houses, and chain brands' digital transformation needs.
+
+### Core Concepts
+
+- **Tea Specialization**: Complete sweetness, ice level, topping, and size customization system
+- **Modern Tech Stack**: React 18 + TypeScript + Vite + Tailwind CSS + Node.js + Express
+- **Member Ecosystem**: Member levels, points accumulation, coupon management
+- **Full-stack TypeScript**: Type safety across frontend and backend, improving development efficiency and code quality
+- **Responsive Design**: Perfect adaptation for desktop, tablet, and mobile devices
+
+---
+
+## My Responsibilities
+
+As the sole developer of the project, I am responsible for:
+
+### System Architecture Design
+
+- Designed frontend-backend separation architecture: React SPA + RESTful API
+- Planned relational database design with 12 tables
+- Implemented JWT authentication and authorization mechanism
+- Designed Prisma ORM single table design
+
+### Backend Development (Node.js + Express + TypeScript)
+
+- **RESTful API Design (40+ endpoints)**:
+
+  - Product management: `/api/products` - product list, categories, search, details
+  - Shopping cart: `/api/cart` - add, update, delete items
+  - Order system: `/api/orders` - create order, order history, status tracking
+  - Member system: `/api/auth` - registration, login, JWT Token refresh
+  - Favorites: `/api/favorites` - favorite products, unfavorite
+  - Customer service: `/api/contact` - submit support forms
+
+- **Core Controller Implementation (\~2,200 lines)**:
+
+  - `cartController.ts` (430 lines): Shopping cart logic, customization options processing
+  - `productController.ts` (364 lines): Product CRUD, category filtering, search
+  - `orderController.ts` (361 lines): Order creation, status update, order queries
+  - `favoriteController.ts` (273 lines): Favorite management, user favorite list
+  - `authController.ts` (236 lines): JWT authentication, password hashing, Token refresh
+  - `contactController.ts` (146 lines): Customer service form processing
+
+- **Middleware Development**:
+
+  - `authMiddleware.ts` (110 lines): JWT Token verification, user authorization
+  - `errorMiddleware.ts` (91 lines): Global error handling
+  - `rateLimitMiddleware.ts` (62 lines): API rate limiting
+
+- **Database Design (Prisma ORM)**:
+
+  ```prisma
+  model User {
+    id          Int       @id @default(autoincrement())
+    email       String    @unique
+    password    String
+    name        String
+    phone       String?
+    birthday    DateTime?
+    memberLevel MemberLevel @default(BRONZE)
+    points      Int       @default(0)
+    cart        CartItem[]
+    orders      Order[]
+    favorites   Favorite[]
+  }
+  
+  model Product {
+    id          Int       @id @default(autoincrement())
+    name        String
+    category    Category
+    price       Decimal
+    description String?
+    image       String?
+    cartItems   CartItem[]
+    orderItems  OrderItem[]
+  }
+  
+  model CartItem {
+    id          Int       @id @default(autoincrement())
+    userId      Int
+    productId   Int
+    quantity    Int
+    customization Json?  // Sweetness/Ice/Toppings
+    user        User      @relation(...)
+    product     Product   @relation(...)
+  }
+  ```
+
+- **Database Seed Data (seed.ts - 334 lines)**:
+
+  - Default product data (Bubble Milk Tea, Oolong Green Tea, Fruit Tea, etc.)
+  - Member level settings
+  - Coupon data
+
+### Frontend Development (React 18 + TypeScript + Vite)
+
+- **React Router v6 Routing Design (15+ pages)**:
+  - `/` - Homepage
+  - `/products` - Product catalog
+  - `/product/:id` - Product details
+  - `/cart` - Shopping cart
+  - `/checkout` - Checkout process
+  - `/member` - Member center
+  - `/member/orders` - Order management
+  - `/member/favorites` - My favorites
+  - `/member/coupons` - Coupons
+  - `/login` - Login
+  - `/register` - Register
+  - `/admin` - Admin dashboard (UI complete, backend pending)
+- **Core Component Development**:
+  - `ProductCard.tsx` - Product card component
+  - `CustomizationModal.tsx` - Customization options modal (sweetness/ice/toppings)
+  - `ShoppingCart.tsx` - Shopping cart sidebar
+  - `OrderHistory.tsx` - Order history list
+  - `MemberLevel.tsx` - Member level display
+  - `CouponCard.tsx` - Coupon card
+- **State Management**:
+  - Context API: AuthContext (user authentication state)
+  - React Hooks: useState, useEffect, useContext, useNavigate
+- **Axios API Integration**:
+  - Interceptor auto-adds JWT Token
+  - Error handling with Toast notifications
+  - Request/Response type definitions
+
+### Tea Customization System Implementation
+
+- **Customization Options Interface**:
+
+  ```typescript
+  interface CustomizationOptions {
+    sweetness: 'NO_SUGAR' | 'HALF_SUGAR' | 'NORMAL' | 'EXTRA_SUGAR';
+    ice: 'NO_ICE' | 'LESS_ICE' | 'NORMAL' | 'EXTRA_ICE';
+    toppings: string[];  // ['Pearl', 'Coconut Jelly', 'Pudding', 'Aiyu', 'Aloe']
+    size: 'S' | 'M' | 'L';
+    notes?: string;
+  }
+  ```
+
+- **Price Calculation Logic**:
+
+  - Base price + topping surcharge
+  - Size surcharge (M: +10, L: +20)
+  - Coupon discount calculation
+
+### UI/UX Design
+
+- **Tailwind CSS Style System**:
+  - Unified design language (colors, spacing, fonts)
+  - RWD responsive breakpoint design
+  - Dark Mode support (not enabled)
+- **User Experience Optimization**:
+  - Loading state indicators
+  - Form validation with real-time feedback
+  - User-friendly error messages
+  - Real-time shopping cart updates
+
+### DevOps and Deployment
+
+- **Automation Scripts**:
+  - `start-dev.bat` - One-click development environment startup
+  - `start-prod.bat` - Production environment startup
+  - `build.bat` - Project build script
+- **Environment Management**:
+  - `.env.dev` - Development environment configuration
+  - `.env.prod` - Production environment configuration
+  - Automatic environment variable switching
+- **Database Migration**:
+  - Prisma Migrate: `npm run db:generate` → `npm run db:push`
+  - Database reset: `npm run db:reset`
+
+---
+
+## Core Features
+
+### 1. Product Browsing and Search
+
+- **Category Browsing**:
+  - Classic Tea (Bubble Milk Tea, Oolong Green Tea)
+  - Fruit Tea Series (Mango Green Tea, Passion Fruit Black Tea)
+  - Fresh Milk Tea Series (Black Tea Latte, Matcha Latte)
+  - Seasonal Specials (Winter Melon Lemon, Winter Melon Grass Jelly)
+- **Search Functionality**:
+  - Keyword search for product names
+  - Price range filtering
+  - Category filtering
+- **Product Detail Page**:
+  - High-resolution product images
+  - Detailed description and ingredients
+  - Customization option selection
+  - Add to cart button
+
+### 2. Tea Customization System 🧋
+
+- **Sweetness Selection**:
+  - No Sugar (NO_SUGAR)
+  - Half Sugar (HALF_SUGAR)
+  - Normal Sugar (NORMAL)
+  - Extra Sugar (EXTRA_SUGAR)
+- **Ice Level Selection**:
+  - No Ice (NO_ICE)
+  - Less Ice (LESS_ICE)
+  - Normal Ice (NORMAL)
+  - Extra Ice (EXTRA_ICE)
+- **Topping Selection (Multiple)**:
+  - Pearl (+$10)
+  - Coconut Jelly (+$10)
+  - Pudding (+$15)
+  - Aiyu (+$10)
+  - Aloe (+$10)
+- **Size Selection**:
+  - Small (S) - Base price
+  - Medium (M) - +$10
+  - Large (L) - +$20
+- **Notes Function**:
+  - Custom notes text (e.g., "Less ice, no sugar, separate pearl packaging")
+
+### 3. Shopping Cart System
+
+- **Cart Management**:
+  - Add items to cart
+  - Adjust item quantity (+/-)
+  - Remove items
+  - Clear cart
+- **Real-time Price Calculation**:
+  - Item price = Base price + Topping price + Size price
+  - Subtotal = Item price × Quantity
+  - Total = Σ Subtotal
+- **Shopping Cart Sidebar**:
+  - Slide-in sidebar design
+  - Product thumbnails with customization info display
+  - Quick checkout button
+
+### 4. Member System
+
+- **Registration and Login**:
+  - Email + password registration
+  - bcrypt password hashing storage
+  - JWT Token authentication
+  - Automatic Token refresh mechanism
+- **Member Level System**:
+  - Bronze Member (BRONZE): 0-999 points
+  - Silver Member (SILVER): 1000-2999 points
+  - Gold Member (GOLD): 3000-4999 points
+  - Diamond Member (DIAMOND): 5000+ points
+- **Member Center**:
+  - Personal profile management
+  - Order history query
+  - Favorite products list
+  - Coupon management
+  - Points inquiry
+- **Points System (Frontend Display)**:
+  - Purchase accumulates points (every $100 = 10 points)
+  - Double points during birthday month
+  - Points redemption for coupons
+
+### 5. Order Management
+
+- **Checkout Process**:
+  1. Cart confirmation
+  1. Fill in delivery information (name, phone, address)
+  1. Select payment method (Cash on Delivery, Online Payment)
+  1. Confirm order
+  1. Create order
+- **Order Status Tracking**:
+  - Pending (PENDING)
+  - Processing (PROCESSING)
+  - Shipping (SHIPPING)
+  - Completed (COMPLETED)
+  - Cancelled (CANCELLED)
+- **Order Details**:
+  - Order number
+  - Order date
+  - Product list (with customization info)
+  - Delivery address
+  - Order total
+  - Order status
+- **Reorder**:
+  - One-click reorder functionality
+  - Preserves original order customization options
+
+### 6. Favorites Feature
+
+- **Product Favorites**:
+  - Favorite preferred products
+  - My favorites list
+  - Unfavorite
+  - Add to cart directly from favorites
+
+### 7. Coupon System (Frontend Complete, Backend Partially Implemented)
+
+- **Coupon Types**:
+  - Discount code (fixed amount discount)
+  - Percentage discount
+  - Free shipping coupon
+  - Birthday coupon
+- **Coupon Management**:
+  - My coupons list
+  - Available/Used/Expired status
+  - Expiration date display
+
+### 8. SEO Optimization
+
+- **Sitemap Generation**:
+  - XML Sitemap auto-generation
+  - Submit to Google Search Console
+- **Meta Tags Optimization**:
+  - Open Graph (social sharing)
+  - Twitter Card
+  - Description and keywords
+- **Friendly URLs**:
+  - `/product/:id` instead of `/product?id=123`
+  - Semantic routing design
+
+---
+
+## Technologies Used
+
+### Frontend Technologies
+
+- **React 18.3.1**: UI framework
+- **TypeScript 5.6.2**: Type safety
+- **Vite 6.0.11**: Build tool (10-100x faster than Create React App)
+- **React Router DOM 7.5.3**: Routing management
+- **Axios 1.9.0**: HTTP client
+- **Tailwind CSS 3.4.17**: Atomic CSS framework
+
+### Backend Technologies
+
+- **Node.js 18+**: Runtime environment
+- **Express 4.21.2**: Web framework
+- **TypeScript**: Type safety
+- **Prisma 6.2.1**: ORM tool
+- **MySQL**: Relational database
+- **bcryptjs 2.4.3**: Password hashing
+- **jsonwebtoken 9.0.2**: JWT Token generation and verification
+
+### Development Tools
+
+- **Concurrently 8.0.0**: Run frontend and backend simultaneously
+- **ts-node-dev**: TypeScript hot reload
+- **ESLint**: Code style checking
+- **Prettier**: Code formatting
+
+### Database Design
+
+- **12 Tables**:
+  1. User
+  1. Product
+  1. Category (Enum)
+  1. CartItem
+  1. Order
+  1. OrderItem
+  1. Favorite
+  1. Coupon
+  1. UserCoupon
+  1. MemberLevel (Enum)
+  1. Review (Not implemented)
+  1. ContactMessage
+
+---
+
+## Project Status
+
+### Current Version: 1.0.0 (Core Features Complete)
+
+- **Project Start Date**: 2024 (expanded from class project)
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Complete product browsing and search
+  - Tea customization system (sweetness/ice/toppings)
+  - Shopping cart CRUD operations
+  - Member registration and login (JWT)
+  - Order creation and queries
+  - Favorites functionality
+  - Member center UI
+  - Responsive design (RWD)
+  - SEO optimization
+  - Customer service form
+  - Database design and seeding
+  - Automated deployment scripts
+- 🟡 **Partially Complete**:
+  - Coupon system (frontend complete, backend discount calculation pending)
+  - Points system (frontend display complete, backend calculation logic needs refinement)
+  - Admin dashboard (UI complete, backend API pending)
+- 📋 **Pending Development**:
+  - Payment gateway integration (credit card, third-party payment)
+  - Logistics integration (home delivery, convenience store pickup)
+  - Email notification system (order confirmation, shipment notification)
+  - Product review system
+  - Recommendation system (based on purchase history)
+  - Inventory management
+
+---
+
+## Development Challenges and Lessons
+
+### 1. Tea Customization System Design
+
+**Challenge**: How to store and transfer complex customization options?
+
+**Solution**:
+
+- Use JSON field to store customization data:
+
+  ```json
+  {
+    "sweetness": "HALF_SUGAR",
+    "ice": "LESS_ICE",
+    "toppings": ["Pearl", "Coconut Jelly"],
+    "size": "M",
+    "notes": "Less ice, no sugar"
+  }
+  ```
+
+- Prisma Schema definition: `customization Json?`
+
+- Frontend uses TypeScript interface for type definition
+
+- Price calculation logic encapsulated in `helpers.ts`
+
+**Lessons Learned**:
+
+- Understood NoSQL field applications in relational databases
+- Mastered JSON serialization and deserialization
+- Learned frontend-backend data synchronization strategies
+
+### 2. JWT Authentication Implementation
+
+**Challenge**: How to implement secure user authentication and authorization?
+
+**Solution**:
+
+- Password hashing: bcrypt.hash(password, 10)
+
+- JWT Token generation:
+
+  ```typescript
+  const token = jwt.sign(
+    { userId: user.id, email: user.email },
+    process.env.JWT_SECRET!,
+    { expiresIn: '7d' }
+  );
+  ```
+
+- Middleware verification:
+
+  ```typescript
+  const authMiddleware = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    req.user = decoded;
+    next();
+  };
+  ```
+
+**Lessons Learned**:
+
+- Mastered JWT working principles
+- Understood Token-based Authentication
+- Learned Middleware design pattern
+
+### 3. Prisma ORM Database Design
+
+**Challenge**: How to design clear database relationships?
+
+**Solution**:
+
+- Use Prisma Schema to define relationships:
+
+  ```prisma
+  model User {
+    cart   CartItem[]
+    orders Order[]
+  }
+  
+  model CartItem {
+    user      User    @relation(fields: [userId], references: [id])
+    userId    Int
+    product   Product @relation(fields: [productId], references: [id])
+    productId Int
+  }
+  ```
+
+- Auto-generate migrations
+
+- Type-safe queries: `prisma.user.findUnique({ include: { cart: true } })`
+
+**Lessons Learned**:
+
+- Understood ORM and SQL correspondence
+- Mastered relational database design principles
+- Learned type-safe database queries
+
+### 4. React Router v6 Routing Management
+
+**Challenge**: How to design a clear routing structure?
+
+**Solution**:
+
+- Use `createBrowserRouter` to define routes:
+
+  ```typescript
+  const router = createBrowserRouter([
+    { path: '/', element: <Home /> },
+    { path: '/products', element: <Products /> },
+    {
+      path: '/member',
+      element: <MemberLayout />,
+      children: [
+        { path: 'orders', element: <Orders /> },
+        { path: 'favorites', element: <Favorites /> }
+      ]
+    }
+  ]);
+  ```
+
+- Protected Routes: wrap with authMiddleware
+
+- Nested routes: Outlet component renders child routes
+
+**Lessons Learned**:
+
+- Understood React Router v6 API changes
+- Mastered nested route design
+- Learned route protection mechanisms
+
+### 5. Tailwind CSS Responsive Design
+
+**Challenge**: How to achieve perfect RWD design?
+
+**Solution**:
+
+- Use Tailwind breakpoints:
+
+  ```jsx
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  ```
+
+- Mobile-first design principles
+
+- Combined Flexbox and Grid layouts
+
+**Lessons Learned**:
+
+- Mastered Utility-first CSS thinking
+- Understood Mobile-first design
+- Learned Flexbox and Grid layouts
+
+### 6. Full-stack TypeScript Development
+
+**Challenge**: How to ensure type consistency between frontend and backend?
+
+**Solution**:
+
+- Define shared type files:
+
+  ```typescript
+  // types/index.ts
+  export interface Product {
+    id: number;
+    name: string;
+    price: number;
+    category: Category;
+  }
+  ```
+
+- Share TypeScript interfaces between frontend and backend
+
+- Prisma auto-generates types
+
+**Lessons Learned**:
+
+- Understood TypeScript type system
+- Mastered frontend-backend type synchronization strategies
+- Improved development efficiency and code quality
+
+---
+
+## Project Highlights
+
+### Technical Innovation
+
+- ✅ Complete tea customization system (sweetness/ice/toppings/size)
+- ✅ Full-stack TypeScript development (type safety)
+- ✅ Prisma ORM + MySQL database design
+- ✅ JWT authentication and authorization
+- ✅ React Router v6 nested routing design
+- ✅ Tailwind CSS responsive design
+
+### Business Value
+
+- ✅ Practical platform with core e-commerce features
+- ✅ Complete shopping workflow (browse → add to cart → checkout → order tracking)
+- ✅ Member ecosystem (levels/points/coupons)
+- ✅ SEO optimization (improve search rankings)
+- ✅ Responsive design (all device support)
+
+### Educational Value
+
+- ✅ Complete evolution from class project to practical system
+- ✅ Complete practice of modern full-stack development
+- ✅ RESTful API design standards
+- ✅ Database normalization design
+
+### Engineering Practices
+
+- ✅ Frontend-backend separation architecture
+- ✅ Environment configuration management (.env.dev / .env.prod)
+- ✅ Automated deployment scripts
+- ✅ Error handling and user feedback
+
+### Learning Outcomes
+
+- ✅ Deep understanding of full-stack development workflow
+- ✅ Mastered TypeScript type system
+- ✅ Learned Prisma ORM and database design
+- ✅ Implemented complete e-commerce system
+
+---
+
+## Application Snapshots
+
+![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/001.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/002.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/003.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/004.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/005.png)![](/images/projects/%E4%B8%80%E6%B7%BB%E7%B6%A0%E6%84%8F%20-%20%E8%8C%B6%E9%A3%B2%E9%9B%BB%E5%AD%90%E5%95%86%E5%8B%99%E5%B9%B3%E5%8F%B0/006.png)

@@ -1,0 +1,22 @@
+description_zh: >-
+  以 C# Windows Forms 開發的 MariaDB 資料庫管理工具，提供直覺的圖形化介面來執行 SQL 查詢、匯出 CSV 資料與管理 JSON
+  配置的資料庫連線。
+title_en: Wyrm-DB
+title_zh: Wyrm 資料庫檢索工具
+description_en: >-
+  A MariaDB database management tool built with C# Windows Forms, providing an
+  intuitive GUI for executing SQL queries, exporting CSV data, and managing
+  database connections with JSON configuration.
+tags:
+  - C#
+  - Database
+  - GUI
+  - SQL-Client
+  - School Project
+featured: false
+status: completed
+image: /images/projects/Wyrm 資料庫檢索工具/image.png
+links:
+  github: https://github.com/Unforgettableeternalproject/Wyrm-DB_GUI-
+startDate: 2024-06-11
+endDate: 2024-06-20

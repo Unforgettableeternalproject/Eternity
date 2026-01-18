@@ -1,9 +1,10 @@
 ---
-import { getCurrentLocale } from '../i18n/utils';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getEntry } from 'astro:content';
 import MusicPlayer from './MusicPlayer';
 
 const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
 
 // 從 Keystatic 獲取音樂卡片資料
 const musicCard = await getEntry('card-music', 'index');
@@ -33,7 +34,12 @@ const tracks = (
 {
   musicCard?.data?.enabled && (
     <div id="global-music-player-container" transition:persist="music-player">
-      <MusicPlayer client:only="react" tracks={tracks} locale={locale} />
+      <MusicPlayer
+        client:only="react"
+        tracks={tracks}
+        locale={locale}
+        translations={t.musicPlayer}
+      />
     </div>
   )
 }

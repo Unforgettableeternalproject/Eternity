@@ -14,22 +14,37 @@ export async function getStaticPaths() {
 
 const { project } = Astro.props;
 
-// Load MDOC content as Markdoc Content component
+// Load MDOC content using dynamic import
 let ProjectContent;
 let hasContent = false;
 
 try {
-  const contentModules = await Astro.glob(
-    '../../../content/projects/**/content_en.mdoc'
+  // 使用 title_en 來尋找對應的資料夾
+  const projectFolder =
+    project.data.title_en || project.data.title_zh || project.id;
+  const contentModule = await import(
+    `../../../content/projects/${projectFolder}/content_en.mdoc`
   );
-  const contentEntry = contentModules[0];
 
-  if (contentEntry?.Content) {
-    ProjectContent = contentEntry.Content;
+  if (contentModule?.Content) {
+    ProjectContent = contentModule.Content;
     hasContent = true;
   }
 } catch (error) {
   console.error('Error loading project content:', error);
+  // 如果使用 title_en 失敗，嘗試使用 title_zh
+  try {
+    const projectFolder = project.data.title_zh;
+    const contentModule = await import(
+      `../../../content/projects/${projectFolder}/content_en.mdoc`
+    );
+    if (contentModule?.Content) {
+      ProjectContent = contentModule.Content;
+      hasContent = true;
+    }
+  } catch (e) {
+    console.error('Failed to load content with both title_en and title_zh:', e);
+  }
 }
 
 const formatDate = (date?: Date) => {
@@ -73,14 +88,24 @@ const formatDate = (date?: Date) => {
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-4">
               <span
-                class="px-3 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
+                class={`px-3 py-1 text-sm rounded-full ${
+                  project.data.status === 'active'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                    : project.data.status === 'paused'
+                      ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                      : project.data.status === 'completed'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
+                }`}
               >
                 {
                   project.data.status === 'active'
                     ? 'Active'
-                    : project.data.status === 'completed'
-                      ? 'Completed'
-                      : 'Archived'
+                    : project.data.status === 'paused'
+                      ? 'Paused'
+                      : project.data.status === 'completed'
+                        ? 'Completed'
+                        : 'Archived'
                 }
               </span>
               {
@@ -96,6 +121,7 @@ const formatDate = (date?: Date) => {
 
             <h1
               class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4"
+              style="text-transform: none;"
             >
               {project.data.title_en}
             </h1>

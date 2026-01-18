@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import './Toast.css';
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info'| 'uep';
+export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'uep';
 
 export interface ToastMessage {
   id: string;
@@ -179,7 +179,7 @@ export const toastManager = {
     };
 
     toastsState = [...toastsState, toast];
-    
+
     // 如果有監聽器，立即通知；否則緩存
     if (toastListeners.length > 0) {
       toastListeners.forEach((listener) => listener(toastsState));
@@ -229,13 +229,13 @@ export const toastManager = {
 
   subscribe: (listener: (toasts: ToastMessage[]) => void) => {
     toastListeners.push(listener);
-    
+
     // 如果有緩存的 toast，立即發送
     if (pendingToasts.length > 0) {
       listener(toastsState);
       pendingToasts = [];
     }
-    
+
     return () => {
       const index = toastListeners.indexOf(listener);
       if (index > -1) {
@@ -253,9 +253,10 @@ if (typeof window !== 'undefined') {
 }
 
 // 便捷函數導出（與 toastManager 等價）
-export const showToast = (typeof window !== 'undefined' && window.__toastManager) 
-  ? window.__toastManager.show 
-  : toastManager.show;
+export const showToast =
+  typeof window !== 'undefined' && window.__toastManager
+    ? window.__toastManager.show
+    : toastManager.show;
 
 export default function ToastContainer({
   position = 'top-right',
@@ -264,23 +265,25 @@ export default function ToastContainer({
 
   useEffect(() => {
     // 使用全域 toastManager
-    const manager = typeof window !== 'undefined' && window.__toastManager 
-      ? window.__toastManager 
-      : toastManager;
-    
+    const manager =
+      typeof window !== 'undefined' && window.__toastManager
+        ? window.__toastManager
+        : toastManager;
+
     const unsubscribe = manager.subscribe((newToasts) => {
       setToasts(newToasts);
     });
-    
+
     return () => {
       unsubscribe();
     };
   }, []);
 
   const handleClose = useCallback((id: string) => {
-    const manager = typeof window !== 'undefined' && window.__toastManager 
-      ? window.__toastManager 
-      : toastManager;
+    const manager =
+      typeof window !== 'undefined' && window.__toastManager
+        ? window.__toastManager
+        : toastManager;
     manager.dismiss(id);
   }, []);
 

@@ -1,0 +1,382 @@
+## Project Introduction
+
+U.E.P's Mind Reflourished is a **Discord community management bot developed with Python and discord.py**, designed to provide comprehensive server management features, content moderation, and member interaction experiences. Through a modular Cog architecture design, this bot integrates core functionalities including spam detection, profanity filtering, message management, and dynamic extension loading, while using SQLite database for persistent storage of user violation records.
+
+This project adopts an asynchronous event-driven architecture, supporting both Slash Commands and traditional commands, and provides a flexible extension management system that allows administrators to load, reload, and unload functional modules in real-time, achieving high-performance and easily maintainable bot services.
+
+**Project Status**: This project is currently in maintenance mode. While core functionalities are complete, some dependency packages may need updates. Future development will continue to optimize for compliance with the latest Discord API specifications.
+
+### Core Philosophy
+
+- **Community Safety**: Automatically detect and handle spam messages and inappropriate content
+- **Modular Design**: Use Cog system to achieve feature separation and dynamic loading
+- **Data Persistence**: SQLite database stores user behavior records
+- **Management Flexibility**: Real-time extension management and command reload mechanisms
+
+---
+
+## My Responsibilities
+
+As the sole developer of this project, I am responsible for all system design and implementation:
+
+### Bot Core Architecture
+
+- Designed modular Cog system architecture (cogs/):
+  - `extensions.py`: Extension management system (load/reload/unload)
+  - `message.py`: Message management functions (bulk delete)
+  - `info.py`: Information query functions
+  - `tokens.py`: Token management
+  - `test.py`: Testing functions
+- Established main program entry point (Entry.py):
+  - Asynchronous Cog loading mechanism
+  - Slash Commands synchronization
+  - Environment variable management (.env)
+
+### Security & Moderation System
+
+- **Spam Detection** (spam_detection.py):
+  - Implemented message frequency tracking algorithm
+  - Configured detection parameters (LIMIT=4, DIFF=2500ms, TIME=3000ms)
+  - Automatically delete spam messages and warn users
+  - Automatic timeout (60 seconds) after 3 accumulated violations
+- **Profanity Filtering System** (foul_prevention.py):
+  - Established banned word list
+  - Automatically delete messages containing banned words
+  - Violation counting and warning system
+
+### Database System Design
+
+- Designed SQLite database class (database.py):
+  - Key-Value storage structure
+  - Automatic table creation mechanism
+  - Violation count persistence (`foulCount_{user_id}`)
+  - Default value handling and fault tolerance design
+
+### Commands & Interaction Features
+
+- **Extension Management Commands**:
+  - `>load-again`: Reload all unloaded Cogs
+  - `>reload`: Reload all Cogs
+  - `>list`: List all loaded extensions
+  - `>unload <number>`: Unload specified extension by number (supports lock protection)
+- **Message Management Commands**:
+  - `>clear <amount>`: Bulk delete messages (max 100)
+  - Auto-delete confirmation message (after 2 seconds)
+
+---
+
+## Core Features
+
+### 1. Spam Detection System
+
+- **Real-time Monitoring**:
+  - Track each user's message timestamps
+  - Calculate message interval differences
+  - Maintain user message mapping (users_map)
+- **Detection Logic**:
+  - Reset counter if message interval > 2500ms
+  - Detect spam if 4 messages sent within short time
+  - Automatically delete all messages in that batch
+- **Punishment Mechanism**:
+  - Violations 1-3: Send warning message
+  - Violation 4+: Automatic 60-second timeout
+  - Violation records permanently stored in database
+
+### 2. Profanity Filtering System
+
+- **Content Moderation**:
+  - Real-time message content checking
+  - Compare against banned word list (banned_words)
+  - Automatically delete violating messages
+- **Violation Tracking**:
+  - Record user profanity violation counts
+  - Share violation counter with spam detection
+  - Trigger further punishment upon reaching threshold
+
+### 3. Message Management System
+
+- **Bulk Delete Function**:
+  - Support deleting 1-99 messages
+  - Permission check (requires `manage_messages`)
+  - Auto-cleanup confirmation message
+- **Safety Limits**:
+  - Single deletion cap of 100 messages (including command itself)
+  - Prompt user to adjust quantity when exceeding limit
+
+### 4. Dynamic Extension Management
+
+- **Hot Reload Mechanism**:
+  - Update features without restarting bot
+  - Support loading new Cogs
+  - Support reloading existing Cogs
+  - Support unloading specified Cogs
+- **Extension Protection**:
+  - Lock critical extensions (e.g., extensions.py)
+  - Prevent accidental unloading of core functions
+- **Management Interface**:
+  - Console output for loading status
+  - Discord channel feedback for operation results
+  - Cute emoji responses (e.g., (/≧▽≦)/, ƪ(˘⌣˘)ʃ)
+
+### 5. Database Persistence
+
+- **SQLite Database**:
+  - Automatically create `bot_database.db`
+  - Key-Value structure storage
+  - Automatic table creation mechanism
+- **Data Management**:
+  - `get(key, default_value)`: Get or create data
+  - `set(key, value)`: Set or update data
+  - Violation counter auto-increment
+  - Data consistency guarantee
+
+### 6. Event-Driven Architecture
+
+- **Bot Events**:
+  - `on_ready`: Bot startup event
+  - Auto-load all Cogs
+  - Sync Slash Commands
+  - Output system status information
+- **Message Events** (through main/ modules):
+  - Auto-check spam for every message
+  - Auto-check profanity for every message
+  - Asynchronous processing to avoid blocking
+
+---
+
+## Technologies Used
+
+### Core Frameworks
+
+- **Python 3.10+**: Primary development language
+- **discord.py 2.4.0**: Discord API wrapper framework
+- **asyncio**: Asynchronous I/O processing
+- **SQLite**: Embedded database
+
+### Discord-Related Packages
+
+- **discord.ext.commands**: Command processing framework
+- **discord.Intents**: Event subscription system
+- **discord.app\_commands**: Slash Commands support
+
+### Data Processing & Tools
+
+- **python-dotenv**: Environment variable management
+- **sqlite3**: Database operations
+- **datetime / timedelta**: Time handling
+
+### Network & Cryptography
+
+- **aiohttp 3.10.10**: Asynchronous HTTP client
+- **aiohttp-retry 2.9.0**: HTTP retry mechanism
+- **cryptography 43.0.3**: Cryptographic functions
+- **pycryptodomex 3.21.0**: Advanced encryption
+
+### Web Framework (possibly for future expansion)
+
+- **Flask 3.0.3**: Lightweight web framework
+- **Jinja2 3.1.4**: Template engine
+
+### Other Dependencies
+
+- **protobuf 4.25.5**: Data serialization
+- **iso8601 2.1.0**: Date-time parsing
+- **argon2-cffi 23.1.0**: Password hashing
+- **pyseto 1.7.9**: Secure token processing
+
+### Development Tools
+
+- **Visual Studio / VS Code**: Primary IDE
+- **pip**: Package management
+- **Virtual Environment** (env/): Dependency isolation
+
+---
+
+## Project Status
+
+### Current Version: Maintenance Phase (v1.0-legacy)
+
+- **Development Status**: Core features complete, in maintenance mode
+- **Main Characteristics**: Stable running community management bot
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Complete spam detection system
+  - Profanity filtering mechanism
+  - Message bulk delete function
+  - Cog dynamic load/reload/unload system
+  - SQLite database persistence
+  - Violation counting and auto-timeout
+  - Slash Commands support
+  - Environment variable configuration
+- 🔄 **Needs Update**:
+  - Some dependency packages are outdated
+  - discord.py may need upgrade to latest version
+  - Security package updates (cryptography, argon2-cffi)
+- 📋 **Future Plans**:
+  - Update to latest discord.py version
+  - Expand more management features
+  - Add more interactive commands
+  - Improve profanity detection algorithm (support variant words)
+  - Dashboard web interface (Flask foundation already exists)
+
+---
+
+## Development Challenges & Learnings
+
+### 1. Asynchronous Programming
+
+**Challenge**: How to design a high-performance asynchronous event processing system?
+
+**Solution**:
+
+- Used `asyncio` and `async/await` syntax for all I/O operations
+- Designed asynchronous Cog loading mechanism (`await bot.load_extension()`)
+- Implemented asynchronous timers (`asyncio.create_task(self.remove_user())`)
+- Used `discord.utils.sleep_until()` for delayed operations
+
+**Learnings**:
+
+- Deep understanding of Python asynchronous programming
+- Mastered asyncio event loop mechanism
+- Learned concurrent processing and task management
+- Enhanced high-performance application development skills
+
+### 2. Spam Detection Algorithm
+
+**Challenge**: How to accurately detect spam messages while avoiding false positives in normal conversations?
+
+**Solution**:
+
+- Designed sliding time window algorithm:
+  - LIMIT=4: 4 messages trigger detection
+  - DIFF=2500ms: Message interval threshold
+  - TIME=3000ms: User data expiration time
+- Maintained user message mapping table (users_map) to track message history
+- Implemented auto-cleanup mechanism (timer deletes expired data)
+- Accumulated violation mechanism avoids excessive punishment for single false positives
+
+**Learnings**:
+
+- Learned algorithm design and parameter tuning
+- Mastered time series data processing
+- Understood sliding window technique applications
+- Enhanced data structure design skills
+
+### 3. Modular Cog Architecture
+
+**Challenge**: How to design a flexible and easily maintainable bot extension system?
+
+**Solution**:
+
+- Adopted discord.py's Cog system to separate functional modules
+- Implemented dynamic loading mechanism scanning cogs/ folder
+- Designed extension management Cog providing hot reload functionality
+- Implemented extension locking mechanism to protect core modules
+- Used `setup()` function for unified Cog registration interface
+
+**Learnings**:
+
+- Mastered plugin architecture design patterns
+- Learned dynamic module loading techniques (`__import__`, `importlib`)
+- Understood separation of concerns principle
+- Enhanced large project architecture capabilities
+
+### 4. SQLite Database Design
+
+**Challenge**: How to design a simple but effective data persistence solution?
+
+**Solution**:
+
+- Adopted Key-Value structure to simplify data model
+- Implemented automatic table creation mechanism (`CREATE TABLE IF NOT EXISTS`)
+- Designed fault-tolerant `get()` method that auto-creates default values when not exists
+- Used `INSERT OR REPLACE` to simplify update logic
+- Database connection managed uniformly by Database class
+
+**Learnings**:
+
+- Mastered SQLite basic operations
+- Learned database design patterns
+- Understood ORM concepts (although using native SQL)
+- Enhanced data persistence design skills
+
+### 5. Discord Bot Development Practice
+
+**Challenge**: How to integrate Discord API to implement complete bot functionality?
+
+**Solution**:
+
+- Used discord.py framework to simplify API calls
+- Enabled all Intents to get full event access
+- Implemented both Slash Commands and traditional command support
+- Designed permission check decorators (`@commands.has_permissions`)
+- Used emojis and personalized messages to enhance user experience
+
+**Learnings**:
+
+- Mastered complete Discord Bot development process
+- Learned OAuth2 and Token management
+- Understood Discord Gateway and WebSocket communication
+- Enhanced API integration and third-party service interfacing skills
+- Cultivated user experience design thinking
+
+---
+
+## Project Architecture
+
+```
+U.E.P's Mind Reflourished/
+├── Entry.py                # Bot entry point
+├── requirements.txt        # Dependency package list
+├── .env                    # Environment variables (Token, Creator ID)
+├── bot_database.db         # SQLite database
+├── cogs/                   # Cog modules
+│   ├── extensions.py       # Extension management system
+│   ├── message.py          # Message management functions
+│   ├── info.py             # Information queries
+│   ├── tokens.py           # Token management
+│   └── test.py             # Testing functions
+├── main/                   # Core logic modules
+│   ├── database.py         # Database operation class
+│   ├── spam_detection.py  # Spam detection
+│   └── foul_prevention.py # Profanity filtering system
+├── resources/              # Resource files (may include images, sounds, etc.)
+└── env/                    # Virtual environment
+```
+
+---
+
+## Planned Maintenance
+
+### Package Updates
+
+Recommended to regularly update the following key packages:
+
+- `discord.py`: Ensure compatibility with latest Discord API version
+- `cryptography`: Patch known security vulnerabilities
+- `aiohttp`: Improve network performance and stability
+- `argon2-cffi`: Enhance password hashing security
+
+### Feature Expansion Directions
+
+- **Advanced Moderation**:
+  - Support regex-based profanity detection
+  - Image content moderation (OCR + AI)
+  - URL blacklist filtering
+- **Community Interaction**:
+  - Welcome new member system
+  - Self-service role selection
+  - Level and experience system
+- **Management Tools**:
+  - Member data statistics
+  - Server activity analysis
+  - Automated management rules
+
+### Code Optimization
+
+- Move hard-coded parameters to configuration files (LIMIT, DIFF, TIME)
+- Implement logging system to replace print statements
+- Strengthen error handling and exception catching
+- Write unit tests to ensure feature stability

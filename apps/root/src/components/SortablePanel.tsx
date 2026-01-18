@@ -4,7 +4,7 @@ interface SortableCardProps {
   id: string;
   children: ReactNode;
   onDragStart: (id: string) => void;
-  onDragOver: (id: string) => void;
+  onDragOver: (e: React.DragEvent, id: string) => void;
   onDragEnd: () => void;
   isDragging: boolean;
 }
@@ -51,7 +51,7 @@ export function SortableCard({
       onDragStart={handleDragStart}
       onDragOver={(e) => {
         e.preventDefault();
-        onDragOver(id);
+        onDragOver(e, id);
       }}
       onDragEnd={handleDragEnd}
       style={{
@@ -105,7 +105,9 @@ export function SortableCard({
           </span>
         </div>
         {/* 卡片內容 */}
-        <div style={{ padding: '20px' }}>{children}</div>
+        <div data-card-content style={{ padding: '20px' }}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -181,13 +183,34 @@ export default function SortablePanel({
     setDraggedId(id);
   };
 
-  const handleDragOver = (id: string) => {
+  const handleDragOver = (e: React.DragEvent, id: string) => {
     if (draggedId === null || draggedId === id) return;
 
+    // 取得目標元素的邊界資訊
+    const targetElement = (e.currentTarget as HTMLElement).querySelector(
+      '[data-card-content]'
+    );
+    if (!targetElement) return;
+
+    const rect = targetElement.getBoundingClientRect();
+    const mouseY = e.clientY;
+    const elementTop = rect.top;
+    const elementHeight = rect.height;
+    const elementMiddle = elementTop + elementHeight / 2;
+
+    // 只有滑鼠超過元素中央時才觸發置換
     const draggedIndex = orderedIds.indexOf(draggedId);
     const targetIndex = orderedIds.indexOf(id);
 
     if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // 判斷是向上拖還是向下拖
+    const isDraggingDown = draggedIndex < targetIndex;
+    const shouldSwap = isDraggingDown
+      ? mouseY > elementMiddle
+      : mouseY < elementMiddle;
+
+    if (!shouldSwap) return;
 
     const newOrder = [...orderedIds];
     const [removed] = newOrder.splice(draggedIndex, 1);

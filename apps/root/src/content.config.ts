@@ -12,7 +12,9 @@ const projectsCollection = defineCollection({
     tags: z.array(z.string()),
     featured: z.boolean().default(false),
     order: z.number().optional(),
-    status: z.enum(['active', 'completed', 'archived']).default('active'),
+    status: z
+      .enum(['active', 'paused', 'completed', 'archived'])
+      .default('active'),
     image: z.string().optional(),
     links: z
       .object({
@@ -36,6 +38,7 @@ const linksCollection = defineCollection({
     description_en: z.string(),
     url: z.string(),
     category: z.enum(['social', 'work', 'creative', 'other']).default('other'),
+    status: z.enum(['normal', 'deprecated', 'unmaintained']).default('normal'),
     icon: z.string().optional(),
     featured: z.boolean().default(false),
     order: z.number().optional(),
@@ -76,9 +79,16 @@ const aboutCollection = defineCollection({
   type: 'data',
   schema: z.object({
     title: z.string(),
-    bio: z.string(),
-    avatar: z.string().optional(),
-    skills: z.array(z.string()),
+    bio: z.string(), // 簡短自我介紹（用於標題下方）
+    fullBio: z.string().optional(), // 完整自我介紹（支援 HTML 格式化）
+    avatar: z.string().optional(), // 頭像路徑（public 資料夾中）
+    skills: z.array(
+      z.object({
+        name: z.string(), // 技能名稱
+        description: z.string().optional(), // 學習嘗試與心得
+        selfAssessment: z.string().optional(), // 自我評估
+      })
+    ),
     experience: z.array(
       z.object({
         title: z.string(),

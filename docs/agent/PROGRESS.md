@@ -1,10 +1,94 @@
 # 專案進度追蹤
 
+## 最近更新 (2026-01-18)
+
+### ✅ 已完成
+
+- **專案詳情頁圖片查看器模態視窗** (NEW - 2026-01-18)
+  - 創建 React Portal 組件 `ImageViewerModal`
+  - 使用 `createPortal` 渲染到 document.body，覆蓋整個頁面（包括導航欄、側邊欄、Footer）
+  - 全局單一實例設計，避免多個模態視窗同時開啟
+  - **功能特性**：
+    * 縮放控制：0.5x - 3x（按鈕控制 ±0.25，滾輪控制 ±0.1）
+    * 拖曳移動：縮放>1時可拖曳圖片
+    * 鍵盤快捷鍵：ESC（關閉）、+/-（縮放）、R（重置）
+    * 點擊 backdrop 關閉
+  - **視覺設計**：
+    * Glassmorphism（玻璃擬態）美學
+    * 85% 不透明度黑色背景 + 12px 模糊
+    * 頂部控制條：半透明圓角，含縮放按鈕、縮放百分比、重置、關閉
+    * 圖片容器：玻璃效果，漸層背景，白色半透明邊框
+    * 底部標題：圓角半透明背景
+  - **動畫效果**：
+    * 開啟：fadeIn (0.2s) + scaleIn (0.3s, cubic-bezier bounce)
+    * 關閉：fadeOut (0.2s) + scaleOut (0.2s)
+  - **響應式設計**：手機版調整控制條排版和圖片尺寸
+  - **技術整合**：
+    * 全局監聽 `openImageModal` 自定義事件
+    * MarkdocImage 點擊觸發事件傳遞圖片資訊
+    * 整合至 BaseLayout（唯一實例）
+
+- **專案內容 Markdoc 圖片支援** (2026-01-18)
+  - 配置 Keystatic markdoc 欄位支援圖片上傳
+  - 圖片目錄：`public/images/projects/`
+  - 創建 `markdoc.config.mjs` 自定義圖片渲染
+  - 創建 `MarkdocImage.astro` 組件處理圖片優化
+  - 使用 `import.meta.glob` 載入圖片資源
+  - 圖片優化（Astro Image 組件）+ 點擊放大功能
+  - 懸停效果：縮放 1.05 + 放大鏡圖標
+
+- **專案「暫時停滯」狀態** (2026-01-18)
+  - Schema 新增 `paused` 狀態（active/paused/completed/archived）
+  - 所有專案詳情頁顯示暫停狀態（黃色徽章）
+  - 專案列表頁新增暫停狀態篩選按鈕
+  - 排序邏輯調整：狀態優先級（active > completed > paused > archived）→ 日期（新→舊）→ Order
+  - 卡片樣式：暫停狀態使用黃色配色（bg-yellow-100/900, text-yellow-700/300）
+
+- **首頁專案卡片優化** (2026-01-18)
+  - 移除卡片正面的敘述（避免重複，翻面才顯示）
+  - 卡片背面敘述限制為 6 行（line-clamp-6）
+  - 專案圖片改為正方形（aspect-square, 160x160）使用 object-cover
+  - View Details 連結固定在卡片左下角（使用 mt-auto）
+
+- **專案內容動態載入修復** (2026-01-18)
+  - 從 Astro.glob 改用 dynamic import
+  - 使用 title_zh/title_en 匹配專案資料夾名稱（而非格式化的 project.id）
+  - 支援中文和特殊字元的資料夾名稱
+  - 完整錯誤處理和 fallback 機制
+
 ## 最近更新 (2026-01-14)
 
 ### ✅ 已完成
 
-- **音樂播放器 Toast 整合** (NEW - 2026-01-14)
+- **關於我頁面 - 打字機特效與 HTML 支援** (NEW - 2026-01-14)
+  - 創建 `AboutBioTypewriter` 元件，支援打字機特效
+  - **首次載入特效**：使用 localStorage 永久記錄，只在第一次訪問時播放
+  - **HTML 格式支援**：fullBio 支援 HTML 標籤（`<strong>`, `<em>`, `<span style="color:#xxx">`）
+  - 打字音效：每 5 個字元播放一次，音量 0.2（避免太吵）
+  - 打字速度：20ms/字元，延遲 300ms 開始
+  - 使用 `dangerouslySetInnerHTML` 渲染 HTML 內容
+  - 整合 prose 樣式（`prose prose-lg dark:prose-invert`）
+
+- **關於我頁面改進** (2026-01-14)
+  - 添加 `fullBio` 欄位用於完整自我介紹
+  - `bio` 保留作為簡短介紹（顯示在頁面標題下方）
+  - `fullBio` 用於主要內容區（支援多行文字，`whitespace-pre-line`）
+  - 向下相容：如果 `fullBio` 為空，自動使用 `bio`
+  - 更新 Schema（content.config.ts 和 config.ts）
+  - 更新 Keystatic 配置（繁中和英文）
+
+- **搜尋欄手機版優化** (2026-01-14)
+  - 移除手機版搜尋按鈕上的 `⌘K` 快捷鍵提示
+  - 移除手機版模態框底部的鍵盤操作說明（`↑↓` `Enter` `Esc`）
+  - 使用 CSS media query（≤640px）隱藏，避免觸控裝置看到無用的電腦操作提示
+
+- **本日名言每日更新** (NEW - 2026-01-14)
+  - 改用基於日期種子的隨機算法
+  - 同一天所有用戶看到相同名言
+  - 每天午夜自動更換（無需手動觸發）
+  - 確定性隨機（相同日期永遠得到相同結果）
+
+- **音樂播放器 Toast 整合** (2026-01-14)
   - 播放/暫停操作顯示 Toast 提示（⏸️ 音樂已暫停 / ▶️ 正在播放）
   - 切換曲目顯示歌曲名稱和演唱者（🎵 歌名 - 歌手）
   - 完整中英文支援

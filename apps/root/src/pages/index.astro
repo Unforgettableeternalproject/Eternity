@@ -411,28 +411,34 @@ console.log(
               <FlipCard type="project">
                 <div slot="front" class="p-6 h-full flex flex-col">
                   <div class="flex-1">
-                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">
-                      {locale === 'zh-tw' ? project.id : project.data.title_en}
-                    </h3>
-                    <p class="text-sm text-slate-600 dark:text-slate-300 mb-4 line-clamp-2 leading-relaxed">
+                    <h3
+                      class="text-xl font-bold text-slate-900 dark:text-white mb-4"
+                      style="text-transform: none;"
+                    >
                       {locale === 'zh-tw'
-                        ? project.data.description_zh
-                        : project.data.description_en}
-                    </p>
+                        ? project.data.title_zh || project.id
+                        : project.data.title_en}
+                    </h3>
                     <div class="flex items-center gap-2 mb-4">
                       <span
                         class={`px-3 py-1.5 text-xs font-semibold rounded-full ${
                           project.data.status === 'active'
                             ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
-                            : project.data.status === 'completed'
-                              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                              : 'bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300'
+                            : project.data.status === 'paused'
+                              ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300'
+                              : project.data.status === 'completed'
+                                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                                : 'bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300'
                         }`}
                       >
                         {project.data.status === 'active' &&
                           (locale === 'zh-tw'
                             ? '\u9032\u884c\u4e2d'
                             : 'Active')}
+                        {project.data.status === 'paused' &&
+                          (locale === 'zh-tw'
+                            ? '\u66ab\u6642\u505c\u6eef'
+                            : 'Paused')}
                         {project.data.status === 'completed' &&
                           (locale === 'zh-tw'
                             ? '\u5df2\u5b8c\u6210'
@@ -476,31 +482,11 @@ console.log(
                 <div slot="back" class="h-full flex flex-col p-5">
                   <div class="flex gap-4 items-start flex-1 min-h-0">
                     <div class="flex-1 min-w-0">
-                      <div class="text-sm leading-relaxed text-white/90 line-clamp-6">
-                        {(() => {
-                          try {
-                            const allModules =
-                              locale === 'zh-tw'
-                                ? projectContentZh
-                                : projectContentEn;
-                            if (
-                              allModules.length > 0 &&
-                              allModules[0].Content
-                            ) {
-                              const { Content } = allModules[0];
-                              return <Content />;
-                            }
-                            return <p class="text-white/80">無內容</p>;
-                          } catch (error: unknown) {
-                            const err = error as Error;
-                            return (
-                              <p class="text-white/80">
-                                載入錯誤: {err.message}
-                              </p>
-                            );
-                          }
-                        })()}
-                      </div>
+                      <p class="text-sm leading-relaxed text-white/90 line-clamp-6">
+                        {locale === 'zh-tw'
+                          ? project.data.description_zh
+                          : project.data.description_en}
+                      </p>
                     </div>
                     {project.data.image && (
                       <div class="flex-shrink-0">

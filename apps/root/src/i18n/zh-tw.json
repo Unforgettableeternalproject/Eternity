@@ -1,4 +1,4 @@
-{
+﻿{
   "nav": {
     "home": "首頁",
     "about": "關於我",
@@ -97,44 +97,6 @@
     "cta": {
       "about": "關於我",
       "projects": "查看專案"
-    }
-  },
-  "about": {
-    "title": "關於我 - Bernie",
-    "description": "了解更多關於 Bernie - 開發者、創作者與說書人",
-    "heading": "關於我",
-    "subtitle": "開發者、創作者與說書人",
-    "bio": {
-      "p1": "我是 Bernie，一位熱衷於開發與創意敘事的開發者，同時也是《不朽永恆計畫（UEP）》的創作者。",
-      "p2": "我結合技術專長與創意寫作，打造獨特的數位體驗與宏大的虛構世界。無論是編寫優雅的程式碼還是創作複雜的故事，我都致力於創造能夠引起共鳴並長久流傳的作品。",
-      "p3": "這個網站作為我所有專案的中心樞紐，從技術作品集到創意寫作與世界觀設定文檔。"
-    },
-    "skills": {
-      "heading": "技能與專長",
-      "categories": {
-        "development": "開發",
-        "creative": "創意",
-        "tools": "工具"
-      },
-      "items": {
-        "web": "Web 開發",
-        "frontend": "前端設計",
-        "backend": "後端架構",
-        "worldbuilding": "世界觀建構",
-        "storytelling": "故事創作",
-        "writing": "創意寫作",
-        "git": "Git",
-        "astro": "Astro",
-        "tailwind": "Tailwind CSS",
-        "uiux": "UI/UX 設計",
-        "content": "內容創作"
-      }
-    },
-    "connect": {
-      "heading": "聯繫方式",
-      "description": "有興趣合作或只是想打個招呼？歡迎聯繫我！",
-      "github": "GitHub",
-      "email": "Email"
     }
   },
   "projects": {
@@ -246,5 +208,45 @@
       "當功能開啟後，使用提示將在此顯示。"
     ],
     "hint": "功能即將推出：後續更新將支援在此輸入指令。"
+  },
+  "musicPlayer": {
+    "title": "音樂播放器",
+    "paused": "⏸️ 音樂已暫停",
+    "playing": "▶️ 繼續播放"
+  },
+  "sidebar": {
+    "left": {
+      "visitorCounter": {
+        "title": "訪客人數",
+        "thanks": "感謝您的來訪"
+      },
+      "latestUpdate": {
+        "title": "最新動態"
+      },
+      "quote": {
+        "title": "本日名言"
+      }
+    },
+    "right": {
+      "quickStats": {
+        "title": "快速統計"
+      },
+      "tableOfContents": {
+        "title": "頁面大綱",
+        "scrollHint": "滾動頁面查看大綱"
+      }
+    }
+  },
+  "about": {
+    "title": "關於我 - Bernie",
+    "description": "了解更多關於 Bernie - 開發者、創作者與說書人",
+    "heading": "關於我",
+    "subtitle": "開發者、創作者與說書人",
+    "skills": "技能",
+    "experience": "工作經歷",
+    "certifications": "證照與認證",
+    "connect": "聯繫我",
+    "notSet": "尚未設定個人資料",
+    "goToAdmin": "前往後台"
   }
 }

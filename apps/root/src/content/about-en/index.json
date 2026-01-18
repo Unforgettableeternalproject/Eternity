@@ -1,8 +1,21 @@
 {
-  "title": "About Me",
-  "bio": "This is my bio",
+  "title": "My Autobio",
+  "bio": "To me, there's an unfinished story waiting for me to complete.",
+  "fullBio": "<p>\n  My name is\n  <span style=\"\n    font-weight:600;\n    background:linear-gradient(90deg,#6ee7ff,#c77dff);\n    -webkit-background-clip:text;\n    -webkit-text-fill-color:transparent;\n  \">\n    Bernie Yen\n  </span>, from Taiwan.\n</p>\n\n<p>\n  I do not wish to be bound by anything, but instead seek\n  <span style=\"color:#7dd3fc; text-shadow:0 0 6px rgba(125,211,252,0.4);\">\n    a truly free environment\n  </span>.\n</p>\n\n<p>\n  Of course, it may sound like a fantasy,<br>\n  but that is exactly why I continue to move forward.\n</p>\n\n<p>\n  There is a story living within my heart, and to me,\n  finding a way to bring this story into reality\n  <span style=\"font-style:italic; opacity:0.8;\">\n    (no matter the means)\n  </span>\n  is the\n  <span style=\"\n    font-weight:700;\n    background:linear-gradient(\n      90deg,\n      #d5b618,\n      #f5e27a,\n      #d5b618\n    );\n    -webkit-background-clip:text;\n    -webkit-text-fill-color:transparent;\n    text-shadow:0 0 12px rgba(213,182,24,0.35);\n  \">\n    final goal\n  </span>\n  I have always been pursuing.\n</p>\n\n<p>\n  So, wish me good luck.\n</p>\n",
   "avatar": "/images/avatars/avatar.png",
-  "skills": ["Development", "Design", "Writing"],
+  "skills": [
+    {
+      "name": "Development",
+      "description": "I have explored various tech stacks in development, from frontend to backend. Recently focusing on building modern websites using Astro, React, and TypeScript.\n\nI've participated in multiple projects, including personal portfolios and content management systems.",
+      "selfAssessment": "Proficiency: Intermediate to Advanced\n\nContinuously learning new technologies, especially in performance optimization and user experience."
+    },
+    {
+      "name": "Design"
+    },
+    {
+      "name": "Writing"
+    }
+  ],
   "experience": [
     {
       "title": "AAA",

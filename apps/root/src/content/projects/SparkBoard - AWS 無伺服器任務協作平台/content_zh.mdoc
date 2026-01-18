@@ -1,0 +1,422 @@
+## 專案簡介
+
+SparkBoard 是一個**完整的 AWS Serverless 全端應用展示專案**，提供任務管理、公告發布、檔案分享與即時通知的無伺服器協作平台。專案採用基礎設施即程式碼 (IaC) 設計，透過 AWS CDK 建構完整的雲端架構，整合 API Gateway、Lambda、DynamoDB、Cognito、S3、SQS、SNS、EventBridge 等 12 項 AWS 服務，展示企業級 Serverless 應用的最佳實務。
+
+### 核心理念
+
+- **完全無伺服器架構**：零維運成本、自動擴展、按需計費
+- **DynamoDB 單表設計**：最佳化資料存取模式、減少 API 呼叫、降低成本
+- **事件驅動微服務**：9 個獨立 Lambda 函數、職責單一、獨立擴展
+- **完整可觀測性**：CloudWatch Dashboard、X-Ray 追蹤、告警系統
+- **生產級 CI/CD**：GitHub Actions + AWS OIDC 自動化部署
+
+---
+
+## 我的職責
+
+作為專案的唯一開發者，我負責：
+
+### 系統架構設計
+
+- 設計五層 Stack 架構：Storage → Auth → API → Messaging → Monitoring
+- 實作 DynamoDB 單表設計：2 個 GSI 索引支援多種查詢模式
+- 建立 9 個 Lambda 微服務：Items、AuthMe、Uploads、Users、Health、Monitoring、NotificationHandler、AutoArchive、PostConfirm
+- 設計 SQS + SNS 非同步通知架構，實現解耦與可靠性
+
+### 基礎設施即程式碼 (AWS CDK)
+
+- **Storage Stack (storage-stack.ts)**：DynamoDB 單表 + S3 檔案儲存
+- **Auth Stack (auth-stack.ts)**：Cognito User Pool + PostConfirmation Trigger
+- **API Stack (api-stack.ts)**：API Gateway REST API + 6 個同步 Lambda
+- **Messaging Stack (messaging-stack.ts)**：SQS Queue + SNS Topic + Notification Lambda
+- **Monitoring Stack (monitoring-stack.ts)**：CloudWatch Dashboard + Alarms + X-Ray
+
+### Lambda 函數開發 (Node.js 18)
+
+- **同步服務 (6 個)**：
+  - Items (733 行)：任務/公告 CRUD、狀態管理、封存功能
+  - Users (470 行)：用戶管理、RBAC 權限控制
+  - Monitoring (417 行)：監控儀表板、指標查詢
+  - Uploads (218 行)：S3 預簽名 URL 生成
+  - AuthMe (312 行)：用戶資料查詢與更新
+  - Health (27 行)：健康檢查端點
+- **非同步服務 (3 個)**：
+  - NotificationHandler (378 行)：SQS 觸發郵件發送
+  - AutoArchive (50 行)：EventBridge 定時封存
+  - PostConfirm (50 行)：Cognito 觸發自動加入群組
+
+### 前端開發 (React 19 + TypeScript)
+
+- Vite 建構工具配置與優化
+- TanStack Query 資料擷取與快取策略
+- Amazon Cognito Identity JS 認證整合
+- TailwindCSS 4 + Radix UI 元件設計
+- Recharts 2 監控儀表板視覺化
+
+### CI/CD 與部署
+
+- GitHub Actions 工作流程：ci.yml (測試) + cdk-deploy.yml (部署)
+- AWS OIDC 無金鑰認證整合
+- PowerShell 部署腳本 (deploy-all-stacks.ps1)
+- 多 Stack 依賴管理與順序部署
+
+---
+
+## 核心功能
+
+### 1. 使用者認證系統 (Cognito)
+
+- **註冊與登入**：Email 驗證、密碼強度檢查
+- **JWT Token 授權**：API Gateway Cognito Authorizer
+- **用戶群組管理**：Users (一般用戶)、Admins (管理員)
+- **PostConfirmation Trigger**：新用戶自動加入 Users 群組
+- **個人資料管理**：GET/PATCH /auth/me 端點
+
+### 2. 任務與公告管理 (Items CRUD)
+
+- **建立項目**：POST /items - 支援類型（task/announcement）、標題、描述、截止日期、S3 附件
+- **查詢列表**：GET /items - 支援分頁、類型過濾、用戶過濾
+- **更新狀態**：PATCH /items/{id} - 完成狀態、封存狀態
+- **刪除項目**：DELETE /items/{id} - 軟刪除機制
+- **DynamoDB 設計**：
+  - PK: `ITEM#{ulid}`, SK: `METADATA`
+  - GSI1: `userId` + `createdAt` (查詢用戶項目)
+  - GSI2: `ITEM#ALL` + `createdAt` (全域列表)
+
+### 3. 檔案上傳系統 (S3 Presigned URL)
+
+- **安全上傳**：POST /uploads - 生成 15 分鐘有效期的預簽名 URL
+- **限制檔案類型**：支援 image/*, application/pdf, .docx, .xlsx
+- **大小限制**：最大 10MB
+- **S3 Bucket 設定**：
+  - 自動刪除物件（開發環境）
+  - CORS 配置支援前端直接上傳
+  - 生命週期政策（未來擴展）
+
+### 4. 非同步郵件通知 (SQS + SNS)
+
+- **觸發條件**：任務標記為完成時
+
+- **訊息佇列**：SQS Queue 解耦 Items Lambda 與通知系統
+
+- **訊息格式**：
+
+  ```json
+  {
+    "eventType": "TASK_COMPLETED",
+    "itemId": "01HXY...",
+    "title": "完成報告",
+    "userId": "user-123"
+  }
+  ```
+
+- **SNS Email 發送**：Notification Lambda 查詢用戶 Email 後透過 SNS 發送
+
+- **錯誤處理**：
+
+  - Visibility Timeout: 30 秒
+  - Max Receive Count: 3 次
+  - Dead Letter Queue (DLQ)
+
+### 5. 定時自動封存 (EventBridge)
+
+- **排程規則**：rate(1 minute) - 每分鐘執行
+- **封存邏輯**：
+  - 查詢已完成且超過截止日期的任務
+  - 批次更新 `archived: true`
+  - 記錄 `autoArchiveAt` 時間戳
+- **DynamoDB Query**：
+  - 使用 GSI2 查詢 `ITEM#ALL` 分區
+  - FilterExpression: `status = COMPLETED AND dueDate < NOW`
+
+### 6. 監控與可觀測性
+
+- **CloudWatch Dashboard**：
+  - Lambda Invocations、Duration、Errors
+  - DynamoDB Read/Write Capacity Units
+  - SQS Messages Available/In Flight
+  - API Gateway 4XX/5XX Errors
+- **X-Ray 追蹤**：端到端請求追蹤、服務地圖
+- **CloudWatch Alarms**：
+  - Lambda 錯誤率 > 5%
+  - DynamoDB 讀寫容量超過 80%
+  - SQS DLQ 訊息數 > 0
+
+---
+
+## 使用技術
+
+### 基礎設施 (AWS CDK TypeScript)
+
+- **AWS CDK (2.x)**：基礎設施即程式碼
+- **TypeScript (5.x)**：型別安全的 IaC
+- **核心 AWS 服務**：
+  - API Gateway (REST API)
+  - Lambda (Node.js 18)
+  - DynamoDB (按需計費)
+  - Cognito (User Pool)
+  - S3 (檔案儲存 + 靜態網站)
+  - CloudFront (CDN)
+  - SQS (訊息佇列)
+  - SNS (郵件通知)
+  - EventBridge (定時任務)
+  - CloudWatch (日誌與監控)
+  - X-Ray (分散式追蹤)
+  - IAM (權限管理)
+
+### 後端 Lambda 函數 (Node.js)
+
+- **AWS SDK v3**：@aws-sdk/client-dynamodb, @aws-sdk/client-s3, @aws-sdk/client-sns
+- **UUID 生成**：ulid (時間排序 ID)
+- **測試框架**：Jest + @aws-sdk/client-dynamodb (單元測試)
+
+### 前端 (React + TypeScript)
+
+{% table %}
+- 技術
+- 版本
+- 用途
+---
+- React
+- 19.0
+- UI 框架
+---
+- TypeScript
+- 5.x
+- 型別安全
+---
+- Vite
+- 6.x
+- 建構工具
+---
+- TailwindCSS
+- 4.x
+- 樣式框架
+---
+- Radix UI
+- 2.x
+- 無障礙元件庫
+---
+- TanStack Query
+- 5.90.5
+- 資料擷取與快取
+---
+- React Hook Form
+- 7.x
+- 表單管理
+---
+- Zod
+- 3.x
+- Schema 驗證
+---
+- Amazon Cognito Identity JS
+- 6.x
+- 認證客戶端
+---
+- Recharts
+- 2.15.1
+- 圖表視覺化
+---
+- React Markdown
+- 9.x
+- Markdown 渲染
+{% /table %}
+
+### 開發工具
+
+- **GitHub Actions**：CI/CD 自動化
+- **ESLint**：程式碼品質檢查
+- **Jest**：單元測試
+- **PowerShell**：部署腳本
+
+---
+
+## 專案狀態
+
+### 當前版本：生產級完整專案
+
+- **分支狀態**：feature/SQS_SNS (開發分支)
+- **CDK Stacks**：5 個 Stack 全部部署成功
+
+### 功能完成度
+
+- ✅ **已完成**：
+  - 完整的 AWS CDK 基礎設施（5 個 Stack）
+  - 9 個 Lambda 微服務（2,605 行程式碼）
+  - DynamoDB 單表設計 + 2 個 GSI
+  - Cognito 認證整合
+  - S3 預簽名 URL 檔案上傳
+  - SQS + SNS 非同步郵件通知
+  - EventBridge 定時自動封存
+  - CloudWatch Dashboard + Alarms
+  - X-Ray 分散式追蹤
+  - React 19 前端應用
+  - GitHub Actions CI/CD
+  - 完整文檔（692 行期末報告）
+- 📋 **可擴展功能**：
+  - WebSocket 即時通知
+  - Lambda Layers 共享程式碼
+  - DynamoDB Streams 資料同步
+  - Step Functions 複雜工作流程
+  - CloudFront 前端部署
+
+---
+
+## 開發挑戰與收穫
+
+### 1. DynamoDB 單表設計
+
+**挑戰**：如何在單一表格支援多種查詢模式？
+
+**解決方案**：
+
+- **主鍵設計**：PK = `ITEM#{id}` | `USER#{id}`, SK = `METADATA` | `PROFILE`
+- **GSI1 設計**：查詢特定用戶的所有項目
+  - PK: `userId`
+  - SK: `createdAt` (時間排序)
+- **GSI2 設計**：查詢全域項目列表
+  - PK: `ITEM#ALL` (固定值，所有項目共享)
+  - SK: `createdAt`
+
+**收穫**：
+
+- 理解 NoSQL 資料建模最佳實務
+- 掌握 GSI 索引設計技巧
+- 學習如何平衡查詢效能與成本
+
+### 2. SQS + SNS 非同步架構
+
+**挑戰**：如何實現可靠的郵件通知系統？
+
+**解決方案**：
+
+- **解耦設計**：Items Lambda 不直接呼叫 SNS，而是發送訊息至 SQS
+- **可靠性保證**：
+  - SQS 保證至少傳遞一次
+  - Visibility Timeout 30 秒防止重複處理
+  - Max Receive Count 3 次後進入 DLQ
+- **錯誤追蹤**：DLQ 搭配 CloudWatch Alarm 監控失敗訊息
+
+**收穫**：
+
+- 深入理解事件驅動架構
+- 掌握訊息佇列最佳實務
+- 學習分散式系統容錯設計
+
+### 3. Lambda 冷啟動優化
+
+**挑戰**：Lambda 冷啟動時間影響 API 回應速度。
+
+**解決方案**：
+
+- **微服務拆分**：小型 Lambda 函數啟動更快（Items: 733 行仍在合理範圍）
+
+- **SDK v3 模組化**：僅匯入需要的 AWS SDK 模組
+
+  ```javascript
+  // ✅ 正確：僅匯入 DynamoDB Client
+  import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+  
+  // ❌ 錯誤：匯入整個 SDK
+  import AWS from 'aws-sdk';
+  ```
+
+- **Provisioned Concurrency**：未來可為高流量端點預留實例
+
+**收穫**：
+
+- 理解 Lambda 執行環境生命週期
+- 學習 JavaScript Bundle 優化技巧
+- 掌握無伺服器效能調校
+
+### 4. API Gateway Cognito 授權
+
+**挑戰**：如何整合 Cognito JWT Token 驗證？
+
+**解決方案**：
+
+- **API Gateway Authorizer**：配置 Cognito User Pool 作為授權來源
+
+- **Token 傳遞**：前端在 Authorization Header 傳遞 JWT
+
+- **Lambda Context**：從 `event.requestContext.authorizer.claims` 取得用戶資訊
+
+  ```javascript
+  const userId = event.requestContext.authorizer.claims.sub;
+  const email = event.requestContext.authorizer.claims.email;
+  ```
+
+**收穫**：
+
+- 深入理解 OAuth 2.0 / OpenID Connect 流程
+- 掌握 JWT Token 驗證機制
+- 學習 API Gateway 授權設計模式
+
+### 5. GitHub Actions OIDC 部署
+
+**挑戰**：如何安全地在 GitHub Actions 部署 AWS 資源，避免儲存 Access Key？
+
+**解決方案**：
+
+- **OIDC 信任關係**：AWS IAM Role 信任 GitHub 的 OIDC Provider
+- **短期憑證**：GitHub Actions 取得臨時 STS Token（15 分鐘有效）
+- **最小權限原則**：IAM Role 僅授予 CDK 部署所需權限
+
+**收穫**：
+
+- 理解 OIDC 聯合身份驗證
+- 掌握 AWS STS AssumeRoleWithWebIdentity
+- 學習零金鑰 CI/CD 最佳實務
+
+### 6. CloudWatch 可觀測性設計
+
+**挑戰**：如何有效監控 9 個 Lambda 函數的執行狀態？
+
+**解決方案**：
+
+- **統一 Dashboard**：單一面板顯示所有關鍵指標
+- **分層告警**：
+  - P0: DLQ 有訊息（立即處理）
+  - P1: Lambda 錯誤率 > 5%（1 小時內處理）
+  - P2: DynamoDB 容量 > 80%（評估擴展）
+- **X-Ray Service Map**：視覺化服務依賴關係
+
+**收穫**：
+
+- 理解可觀測性三支柱（Metrics, Logs, Traces）
+- 掌握 CloudWatch 告警策略設計
+- 學習分散式追蹤最佳實務
+
+---
+
+## 專案亮點
+
+### 技術創新
+
+- ✅ 完整的 Serverless 架構展示（12 項 AWS 服務整合）
+- ✅ DynamoDB 單表設計最佳實務（2 個 GSI 優化查詢）
+- ✅ SQS + SNS 非同步處理架構（解耦與可靠性）
+- ✅ EventBridge 定時任務（Cron 排程）
+- ✅ X-Ray 端到端追蹤（分散式系統可觀測性）
+
+### 工程實務
+
+- ✅ 基礎設施即程式碼（AWS CDK TypeScript）
+- ✅ CI/CD 自動化部署（GitHub Actions + OIDC）
+- ✅ 完整的監控與告警體系（CloudWatch Dashboard + Alarms）
+- ✅ 微服務職責分離（9 個獨立 Lambda）
+- ✅ 詳盡的文檔（692 行期末報告、465 行 README）
+
+### 成本優化
+
+- ✅ 按需計費 DynamoDB（無閒置成本）
+- ✅ Lambda 僅在請求時計費（無伺服器維運）
+- ✅ S3 生命週期政策（自動刪除過期檔案）
+- ✅ CloudWatch Logs 保留期限（30 天自動刪除）
+
+### 學習成果
+
+- ✅ 深入實作 AWS 無伺服器架構
+- ✅ 掌握 DynamoDB NoSQL 設計模式
+- ✅ 理解事件驅動微服務架構
+- ✅ 學習雲端應用可觀測性設計

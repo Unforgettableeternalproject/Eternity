@@ -33,6 +33,7 @@
           "type": "string",
           "enum": [
             "active",
+            "paused",
             "completed",
             "archived"
           ],

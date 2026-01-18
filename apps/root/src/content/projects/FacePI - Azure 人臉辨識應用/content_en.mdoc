@@ -1,0 +1,409 @@
+## Project Introduction
+
+FacePI is a desktop face recognition application based on **Microsoft Azure Face API**, providing a graphical interface through Python Tkinter and integrating OpenCV camera capture, face detection, face identification, and training functionalities. The project adopts a PersonGroup grouping management mechanism, supporting both local image and URL image recognition modes, suitable for access control systems, attendance management, and identity verification scenarios.
+
+### Core Concepts
+
+- **Azure Face API Integration**: Leveraging Microsoft cloud AI services for high-precision face recognition
+- **Graphical User Interface**: Tkinter console providing command input and real-time feedback
+- **PersonGroup Management**: Supporting multi-face training and group management
+- **Dual Recognition Modes**: Both local image files and web URL images can be recognized
+
+---
+
+## My Responsibilities
+
+As the sole developer of the project, I am responsible for:
+
+### System Architecture Design
+
+- Designed modular class architecture: 6 core classes (ClassWindow, ClassFacePI, ClassOpenCV, ClassPerson, ClassPersonGroup, ClassConfig)
+- Implemented Tkinter GUI console: command-line interface + real-time output window
+- Integrated OpenCV camera capture workflow
+- Designed JSON configuration management system
+
+### Azure Face API Integration (ClassFacePI.py - 123 lines)
+
+- **Face Detection (Detect)**:
+  - Local image detection: `detectLocalImage(imagepath)`
+  - URL image detection: `detectImageUrl(imageurl)`
+  - Returns face coordinates, age, gender attributes
+- **Face Identification (Identify)**:
+  - `identify(faceidkeys, personGroupId)` - Match faces in PersonGroup
+  - Returns identification results with confidence scores
+- **API Request Handling**:
+  - HTTP/HTTPS connection management
+  - JSON data serialization and deserialization
+  - Error handling and retry mechanisms
+
+### OpenCV Camera Integration (ClassOpenCV.py - 106 lines)
+
+- **Real-time Camera Capture**:
+  - `show_opencv(hint)` - Open camera window
+  - Press spacebar to take photo
+  - Auto-save to `takenpictures/` folder
+- **Face Bounding Box**:
+  - Haar Cascade classifier detects faces
+  - Green rectangle marking in real-time
+  - Overlay hint messages
+
+### PersonGroup Management (ClassPersonGroup.py - 59 lines + ClassPerson.py - 113 lines)
+
+- **PersonGroup Operations**:
+  - `create(personGroupId, name, userData)` - Create face group
+  - `train(personGroupId)` - Train face model
+  - `getTrainingStatus(personGroupId)` - Query training status
+  - `list()` - List all groups
+- **Person Operations**:
+  - `create(personGroupId, name, userData)` - Add person
+  - `addFace(personGroupId, personId, imagepath)` - Add face image
+  - `list(personGroupId)` - List all persons in group
+  - `delete(personGroupId, personId)` - Delete person
+
+### GUI Console Development (ClassWindow.py - 290 lines)
+
+- **Tkinter Window Architecture**:
+  - Console output window (Console Output - Read-only Text widget)
+  - Command input window (Command Panel - Entry widget)
+  - Animated text display effect
+- **Command System**:
+  - `sign_in` - Register new face (capture 3 photos)
+  - `train` - Train PersonGroup model
+  - `f_dt` - Face detection (local image)
+  - `f_id_local` - Face identification (local image)
+  - `f_id_url` - Face identification (URL image)
+  - `p_json` - Print PersonGroup JSON data
+  - `lol` - Easter egg command
+- **User Interaction**:
+  - Real-time feedback messages
+  - Error alert dialogs
+  - Training data input popup
+
+### Configuration Management (ClassConfig.py - 28 lines)
+
+- **JSON Configuration Read/Write**:
+  - Store Azure API Key and Endpoint
+  - Read config: `readConfig()`
+  - Write config: `writeConfig(api_key, host)`
+
+### Main Program Logic (MainProgram.py - 101 lines)
+
+- **Training Workflow (Train)**:
+  1. Call OpenCV to capture 3 photos
+  1. Input name and description
+  1. Save to `traindatas/<userData>/<personname>/` folder
+  1. Create PersonGroup and Person
+  1. Upload face images to Azure
+  1. Execute training
+- **Identification Workflow (Identify)**:
+  1. Detect faces in image (get faceId)
+  1. Call Azure Identify API
+  1. Match against persons in PersonGroup
+  1. Return best match result with confidence
+
+---
+
+## Core Features
+
+### 1. Face Detection
+
+- **Local Image Detection**:
+
+  - Upload image to Azure Face API
+  - Returns face coordinates, age, gender
+  - Supports multi-face detection (multiple people per image)
+
+- **URL Image Detection**:
+
+  - Provide image URL for detection
+  - Same attribute return format
+
+- **Output Example**:
+
+  ```
+  Detected 2 people(person).
+  Person No.1:
+  Gender: male, age: 25.
+  Person No.2:
+  Gender: female, age: 22.
+  ```
+
+### 2. Face Identification
+
+- **Identification Workflow**:
+  1. Detect face to get faceId
+  1. Match against training data in PersonGroup
+  1. Return candidate list with confidence scores
+- **Confidence Assessment**:
+  - 0.7+: High confidence
+  - 0.5 - 0.7: Medium confidence
+  - Below 0.5: Low confidence
+- **Unknown Face Handling**:
+  - Returns empty array if no match
+  - Prompts user that face is untrained
+
+### 3. Face Training
+
+- **Training Steps**:
+
+  1. Camera captures 3 face photos
+  1. Input name and description
+  1. Create PersonGroup (if not exists)
+  1. Create Person entity
+  1. Upload 3 face images to Azure
+  1. Execute training (Train PersonGroup)
+  1. Wait for training completion (Training Status: succeeded)
+
+- **Data Storage Structure**:
+
+  ```
+  traindatas/
+  ├── I am Bernie/
+  │   └── Bernie/
+  │       ├── pgid_20220108_194909.jpg
+  │       ├── pgid_20220108_194915.jpg
+  │       └── pgid_20220108_194921.jpg
+  └── Actually Brian/
+      └── Eason/
+          ├── pgid_20220105_162515.jpg
+          ├── pgid_20220105_162518.jpg
+          └── pgid_20220105_162521.jpg
+  ```
+
+### 4. PersonGroup Management
+
+- **Group Operations**:
+  - Create new group
+  - List all groups
+  - Train group model
+  - Query training status
+- **Person Operations**:
+  - Add person to group
+  - Add face images for person
+  - Delete person
+  - List all persons in group
+
+### 5. OpenCV Camera Capture
+
+- **Real-time Preview**:
+  - Open camera live feed
+  - Haar Cascade face detection
+  - Green rectangle marking faces
+- **Photo Capture**:
+  - Press spacebar to take photo
+  - Auto-save to `takenpictures/`
+  - Filename format: `pgid_YYYYMMDD_HHMMSS.jpg`
+- **Hint Messages**:
+  - Custom hint text displayed on screen
+  - Example: "Smile :)" or "(Picture No. 1)"
+
+### 6. Tkinter GUI Console
+
+- **Command-line Interface**:
+  - Input commands to execute functions
+  - Real-time output to console
+  - Animated text display effect
+- **Error Handling**:
+  - Invalid command prompts
+  - API error feedback
+  - Network connection failure warnings
+
+---
+
+## Technologies Used
+
+### Development Framework
+
+- **Python 3.10**: Programming language
+- **Tkinter**: GUI framework (built-in library)
+- **OpenCV (cv2)**: Camera capture and image processing
+- **Microsoft Azure Face API**: Cloud face recognition service
+
+### Azure Face API
+
+- **Face - Detect**: Face detection API
+- **Face - Identify**: Face identification API
+- **PersonGroup**: Face group management
+- **Person**: Person management
+- **PersonGroup Person - Add Face**: Face image upload
+- **PersonGroup - Train**: Train face model
+
+### Key Technologies
+
+- **HTTP/HTTPS Requests**: `http.client` module
+- **JSON Serialization**: Config files and API data processing
+- **Haar Cascade Classifier**: OpenCV face detection
+- **File System Operations**: Image storage and folder management
+
+### Development Tools
+
+- **Visual Studio Code**: IDE
+- **Git**: Version control
+
+---
+
+## Project Status
+
+### Current Version: 2.0 (Feature Complete)
+
+- **2022/1/4**: Completed FacePI ver 1.0
+- **2022/1/6**: Completed FacePI ver 2.0 (Custom window interface)
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Face detection (local and URL)
+  - Face identification (PersonGroup)
+  - Face training (3 photo upload)
+  - OpenCV camera capture
+  - Tkinter GUI console
+  - PersonGroup management
+  - Person management
+  - JSON configuration system
+  - Command system (7 commands)
+  - Error handling mechanism
+- 📋 **To Be Improved**:
+  - Batch training for multiple people
+  - Training progress visualization
+  - Identification result history
+  - More API attribute support (emotion, accessories)
+
+---
+
+## Development Challenges and Lessons
+
+### 1. Azure Face API Integration
+
+**Challenge**: How to correctly call Azure Face API and handle JSON responses?
+
+**Solution**:
+
+- Use `http.client.HTTPSConnection` to establish HTTPS connection
+- Set correct Headers (Content-Type, Ocp-Apim-Subscription-Key)
+- Use `urllib.parse.urlencode` for URL parameter encoding
+- JSON response parsing: `json.loads(str(data, 'UTF-8'))`
+
+**Lessons Learned**:
+
+- Learned RESTful API calling conventions
+- Mastered HTTP/HTTPS request handling
+- Understood JSON data serialization
+
+### 2. Tkinter Animated Text Effect
+
+**Challenge**: How to implement typewriter animation effect (character-by-character display)?
+
+**Solution**:
+
+- Recursive function design: `c_print(text[1:], mode)`
+- Use `after(50, callback)` for delayed execution
+- Control Text widget state (NORMAL/DISABLED)
+
+**Code Snippet**:
+
+```python
+def c_print(self, text, mode='animated'):
+    if mode == 'animated':
+        self.CO['state'] = NORMAL
+        if len(text) > 0:
+            self.CO.insert(tk.END, text[0])
+            if len(text) > 1:
+                self.CO.after(50, self.c_print, text[1:], mode)
+        self.CO['state'] = DISABLED
+```
+
+**Lessons Learned**:
+
+- Understood recursive function applications
+- Mastered Tkinter `after` asynchronous calls
+- Learned GUI animation implementation techniques
+
+### 3. OpenCV Camera Capture
+
+**Challenge**: How to integrate OpenCV with Tkinter?
+
+**Solution**:
+
+- Use `cv2.VideoCapture(0)` to open camera
+- Loop to read frames: `cap.read()`
+- Detect spacebar: `cv2.waitKey(1) == 32`
+- Save photo and close window after capture
+
+**Lessons Learned**:
+
+- Mastered OpenCV basic operations
+- Understood image processing workflow
+- Learned Haar Cascade face detection
+
+### 4. PersonGroup Training Workflow
+
+**Challenge**: How to design a complete training workflow?
+
+**Solution**:
+
+1. Capture 3 photos (OpenCV)
+1. Create PersonGroup (if not exists)
+1. Create Person (get personId)
+1. Upload 3 face images (Add Face)
+1. Execute training (Train)
+1. Query training status (Training Status)
+1. Wait for training completion (succeeded)
+
+**Lessons Learned**:
+
+- Understood Azure Face API training architecture
+- Mastered asynchronous training workflow
+- Learned status query and wait mechanisms
+
+### 5. Modular Class Design
+
+**Challenge**: How to organize code to avoid oversized single files?
+
+**Solution**:
+
+- 6 core classes in separate files
+- Main program `ControlPanel.py` only 8 lines (calls ClassWindow)
+- Class responsibility separation:
+  - ClassWindow: GUI logic
+  - ClassFacePI: API calls
+  - ClassOpenCV: Camera capture
+  - ClassPerson/ClassPersonGroup: Data management
+  - ClassConfig: Configuration management
+
+**Lessons Learned**:
+
+- Mastered object-oriented design principles
+- Understood Single Responsibility Principle (SRP)
+- Learned modular architecture design
+
+---
+
+## Project Highlights
+
+### Technical Innovation
+
+- ✅ Complete Azure Face API integration (Detect + Identify + Train)
+- ✅ Tkinter animated text effects
+- ✅ OpenCV real-time camera capture
+- ✅ Modular class architecture design
+
+### Educational Value
+
+- ✅ Practical application of cloud AI services
+- ✅ Complete desktop GUI development workflow
+- ✅ RESTful API calling practices
+- ✅ Image processing fundamentals
+
+### Engineering Practices
+
+- ✅ 6 core classes modular design
+- ✅ JSON configuration file management
+- ✅ Error handling and user feedback
+- ✅ Command system architecture
+
+### Learning Outcomes
+
+- ✅ Deep understanding of face recognition technology principles
+- ✅ Mastered Azure AI service usage
+- ✅ Learned Tkinter GUI development
+- ✅ Implemented complete desktop application

@@ -1,0 +1,528 @@
+## Project Introduction
+
+Digital Subcurrent is a **Sokoban-style puzzle game** developed with Unity engine, a 2D box-pushing puzzle game. The game combines classic box-pushing mechanics with information system concepts (Instruction Fetch IF, Instruction Decode ID, Execution EX, Memory MEM, Write Back WB). Players must collect keycodes, push boxes, avoid traps, and interact with terminals to unlock exits. The project is developed in C#, integrating dynamic transition effects, progress bar system, map generator, and object control logic.
+
+### Core Concepts
+
+- **Grid-based Movement System**: Players and objects aligned to grid centers with precise position calculation
+- **Logic Reasoning Challenges**: Combining box-pushing and collection elements, requiring strategic path planning
+- **Information Systems Education**: Level design incorporating CPU five-stage concepts (IF/ID/EX/MEM/WB)
+- **Smooth Transition Experience**: Black screen fade in/out, progress bar animation, scene transition management
+
+---
+
+## Team Collaboration
+
+This project is a collaborative course assignment developed by a team of three members:
+
+- **Me (Project Lead)**: Responsible for core game logic, system architecture design, object control, UI and scene management
+- [**@lin0813you**](https://github.com/lin0813you): Assisted with engine development and game mechanics design
+- [**@calculusfkyou**](https://github.com/calculusfkyou): Assisted with engine development and game mechanics design
+
+---
+
+## My Responsibilities
+
+As the primary developer of the project, I am responsible for:
+
+### System Architecture Design
+
+- Designed Singleton pattern game manager (GameManager Singleton)
+- Implemented matrix-based map system (objectMatrix + floorMatrix)
+- Designed level loader (LevelLoader) and scene transition management
+- Built state stack system (Stack<GameState>) supporting undo functionality
+
+### Core Game Logic Development (~2,062 lines C#)
+
+- **GameManager.cs (262 lines)**:
+  - Matrix management: objectMatrix (object layer), floorMatrix (floor layer)
+  - Collision detection: PlayerTryMove(), BoxTryMove()
+  - State management: SaveState(), RestoreState()
+  - Object queries: HasBox(), GetBox(), FindPlayerPosition()
+- **PlayerController.cs (223 lines)**:
+  - Grid movement system: TryMove(), MoveTowardsTarget()
+  - Input handling: HandleMovement() (WASD control)
+  - Animation control: Animator direction and movement state
+  - Key management: hasKey boolean tracking
+  - Box pushing logic: calls BoxController.TryMove()
+- **LoadMapInfo.cs (177 lines)**:
+  - Map data loading: ReadMapInfo()
+  - Object instantiation: InstantiateObjects()
+  - Matrix conversion: text map to int[,] array
+  - Position calculation: MatrixToWorld(), WorldToMatrix()
+- **DialogueManager.cs (155 lines)**:
+  - Dialogue system: DisplayNextSentence()
+  - Typewriter effect: TypeSentence() coroutine
+  - Dialogue queue management: Queue<string>
+- **TransitionManager.cs (126 lines)**:
+  - Scene transitions: FadeToBlack(), FadeFromBlack()
+  - Progress bar control: UpdateProgress()
+  - Coroutine management: LoadSceneAsync()
+
+### Object Control System
+
+- **BoxController.cs (66 lines)**:
+  - Box pushing: TryMove()
+  - Smooth movement animation: MoveTowardsTarget()
+  - Interact with GameManager to verify move legality
+- **TerminalController.cs (51 lines)**:
+  - Terminal interaction: OnTriggerEnter2D()
+  - Door unlock logic: check if player collected all keys
+- **KeyController.cs**:
+  - Key collection: collision detection
+  - Object destruction: Destroy(gameObject)
+- **HoleController.cs (44 lines)**:
+  - Trap mechanism: detect box falling into hole
+  - Trigger game failure
+
+### UI and Scene Management
+
+- **LevelLoader.cs (94 lines)**:
+  - Level loading coroutine: LoadLevel()
+  - Map generator integration
+  - Transition animation trigger
+- **StoryManager.cs (83 lines)**:
+  - Story trigger management
+  - Dialogue system integration
+- **SceneManager.cs (51 lines)**:
+  - Scene switching: LoadScene()
+  - Game restart: RestartLevel()
+- **PauseMenu.cs (64 lines)**:
+  - Pause menu: Time.timeScale control
+  - Sound toggle
+  - Return to main menu
+
+### Art and Animation Integration
+
+- TextMesh Pro font rendering
+- Sprite animation control (player four-direction animation)
+- Tile Palette map drawing
+- UI Materials effects
+
+---
+
+## Core Features
+
+### 1. Grid Movement System
+
+- **Precise Alignment**:
+  - Players and objects always aligned to grid center (gridSize = 1x1)
+  - Use Vector2.Lerp() for smooth movement animation
+  - moveSpeed controls movement speed
+- **Collision Detection**:
+  - Matrix-based detection: objectMatrix[y, x]
+  - Boundary detection: IsOutOfBounds()
+  - Object hierarchy: Wall (-1), Empty (0), Player (1), Box (2-9), Door (-2)
+
+### 2. Box Pushing Mechanics
+
+- **Box Movement Rules**:
+  - Player pushes box to adjacent empty cell
+  - Box's front must be empty or hole
+  - Box cannot push other boxes
+  - Box disappears when falling into hole (triggers HoleController)
+- **Strategic Challenge**:
+  - Need to plan box movement path to avoid blocking self
+  - Avoid pushing key boxes into holes causing failure
+
+### 3. Keycode and Terminal System
+
+- **Keycode Collection**:
+  - Player automatically collects when touching KeyController
+  - hasKey boolean records possession status
+  - May need to collect multiple keys (depends on level design)
+- **Terminal Interaction**:
+  - Check if player has all keys
+  - Unlock door (objectMatrix value -2)
+  - Trigger doorUnlocked = true
+
+### 4. Map Generation System
+
+- **Matrix Architecture**:
+
+  ```csharp
+  int[,] objectMatrix; // Object layer (player, boxes, doors)
+  int[,] floorMatrix;  // Floor layer (normal floor, holes)
+  ```
+
+- **Map Loading Process**:
+
+  1. Read text format map file (ReadMapInfo)
+  1. Parse into integer matrix
+  1. Instantiate corresponding Prefabs (InstantiateObjects)
+  1. Set object positions (MatrixToWorld conversion)
+
+- **Dynamic Generation**:
+
+  - Support arbitrary size maps
+  - Auto-calculate offset for centered display
+
+### 5. State Management and Undo System
+
+- **GameState Snapshot**:
+
+  ```csharp
+  class GameState {
+      int[,] objectMatrix;
+      int[,] floorMatrix;
+      Vector2Int playerPosition;
+      bool doorUnlocked;
+  }
+  ```
+
+- **State Stack**:
+
+  - SaveState(): save before each move
+  - RestoreState(): undo functionality
+  - Stack<GameState> data structure
+
+### 6. Transition and Loading System
+
+- **TransitionManager**:
+  - Fade to black: FadeToBlack() (1-second coroutine)
+  - Fade from black: FadeFromBlack()
+  - CanvasGroup.alpha controls transparency
+- **Progress Bar System**:
+  - Circular progress bar (ProgressBarCircle)
+  - Image.fillAmount dynamic update
+  - Display level loading progress
+- **Async Loading**:
+  - SceneManager.LoadSceneAsync()
+  - allowSceneActivation controls activation timing
+
+### 7. Dialogue System
+
+- **DialogueManager**:
+  - Dialogue queue: Queue<string> sentences
+
+  - Typewriter effect:
+
+    ```csharp
+    IEnumerator TypeSentence(string sentence) {
+        foreach (char letter in sentence.ToCharArray()) {
+            dialogueText.text += letter;
+            yield return new WaitForSeconds(0.05f);
+        }
+    }
+    ```
+
+  - Continue dialogue: spacebar or mouse click
+
+### 8. Audio System
+
+- **AudioManager**:
+  - Sound playback: PlaySound()
+  - Background music management
+  - Volume control
+- **Sound Triggers**:
+  - Player movement sound
+  - Box pushing sound
+  - Key collection sound
+  - UI click sound
+
+---
+
+## Technologies Used
+
+### Game Engine
+
+- **Unity 6000.0.26f1**: Game engine
+- **C# 9.0**: Programming language
+- **Universal Render Pipeline (URP)**: Rendering pipeline
+
+### Unity Core Systems
+
+- **Physics2D**: 2D collision detection (Collider2D, Rigidbody2D)
+- **Animator**: Character animation control
+- **Coroutines**: Asynchronous operations (movement, loading, dialogue)
+- **SceneManagement**: Scene loading and switching
+- **Input System**: Player input handling (InputSystem_Actions.inputactions)
+
+### UI Framework
+
+- **Unity UI (uGUI)**: Buttons, text, images, canvas
+- **TextMesh Pro**: High-quality text rendering
+- **CanvasGroup**: UI fade in/out effects
+
+### Data Structures and Design Patterns
+
+- **Singleton Pattern**: GameManager, TransitionManager
+- **Stack<T>**: State stack (undo functionality)
+- **Queue<T>**: Dialogue queue
+- **2D Array (int[,])**: Map matrix
+
+### Art Assets
+
+- **Tile Palette**: 2D map drawing tool
+- **Sprite Animation**: 2D character animation
+- **Audio Mixer**: Sound mixer
+
+### Development Tools
+
+- **Visual Studio 2022**: IDE
+- **Git**: Version control
+- **GitHub**: Code hosting
+
+---
+
+## Project Status
+
+### Current Version: 1.0 (Course Assignment Complete)
+
+- **Development Time**: 2024 (Game Design Course)
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Complete grid movement system
+  - Box pushing core mechanics
+  - Keycode collection and terminal interaction
+  - Map matrix generation system
+  - State stack and undo functionality
+  - Transition animation and progress bar
+  - Dialogue system (typewriter effect)
+  - Audio system
+  - Pause menu
+  - Main menu and level selection
+  - Story triggers
+  - Multiple level designs
+- 📋 **May not be maintained after course ends**:
+  - New level designs
+  - More puzzle mechanics
+  - Achievement system
+  - Level editor
+
+---
+
+## Development Challenges and Lessons
+
+### 1. Grid Alignment System
+
+**Challenge**: How to ensure players and objects always align to grid center?
+
+**Solution**:
+
+- Use Vector2.Lerp() for smooth movement:
+
+  ```csharp
+  void MoveTowardsTarget() {
+      transform.position = Vector2.Lerp(
+          transform.position, 
+          targetPosition, 
+          moveSpeed * Time.deltaTime
+      );
+      if (Vector2.Distance(transform.position, targetPosition) < 0.01f) {
+          transform.position = targetPosition; // Precise alignment
+          isMoving = false;
+      }
+  }
+  ```
+
+- Target position calculation: targetPosition = currentPosition + direction * gridSize
+
+- Reset isMoving flag after movement complete
+
+**Lessons Learned**:
+
+- Understood Lerp smooth interpolation principle
+- Mastered grid coordinate to world coordinate conversion
+- Learned coroutine-controlled movement flow
+
+### 2. Matrix-based Collision Detection
+
+**Challenge**: How to implement efficient collision detection using matrix?
+
+**Solution**:
+
+- Design dual-layer matrix architecture:
+
+  ```csharp
+  objectMatrix[y, x]:
+    -1: Wall
+     0: Empty
+     1: Player
+     2-9: Box
+    -2: Door
+  
+  floorMatrix[y, x]:
+     0: Normal floor
+     1: Hole
+  ```
+
+- Pre-movement detection:
+
+  ```csharp
+  Vector2Int targetPos = playerPos + direction;
+  if (IsOutOfBounds(targetPos) || 
+      objectMatrix[targetPos.y, targetPos.x] < 0 || 
+      floorMatrix[targetPos.y, targetPos.x] == 1) {
+      return false; // Cannot move
+  }
+  ```
+
+**Lessons Learned**:
+
+- Understood matrix applications in game development
+- Mastered 2D array indexing techniques
+- Learned layered design (object layer + floor layer)
+
+### 3. State Stack and Undo Functionality
+
+**Challenge**: How to implement Undo functionality to save game state?
+
+**Solution**:
+
+- Use Stack<GameState> stack:
+
+  ```csharp
+  void SaveState() {
+      GameState state = new GameState {
+          objectMatrix = (int[,])objectMatrix.Clone(),
+          floorMatrix = (int[,])floorMatrix.Clone(),
+          playerPosition = playerMatrixPosition,
+          doorUnlocked = doorUnlocked
+      };
+      stateStack.Push(state);
+  }
+  
+  void RestoreState() {
+      if (stateStack.Count > 0) {
+          GameState state = stateStack.Pop();
+          objectMatrix = state.objectMatrix;
+          // ... restore other states
+      }
+  }
+  ```
+
+**Lessons Learned**:
+
+- Understood Stack LIFO (Last In First Out) data structure
+- Mastered deep copy (Clone) vs shallow copy differences
+- Learned Memento Pattern
+
+### 4. Coroutine Async Loading
+
+**Challenge**: How to implement smooth scene loading experience?
+
+**Solution**:
+
+- Coroutine + async loading:
+
+  ```csharp
+  IEnumerator LoadSceneAsync(string sceneName) {
+      yield return StartCoroutine(FadeToBlack());
+      
+      AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
+      asyncLoad.allowSceneActivation = false;
+      
+      while (!asyncLoad.isDone) {
+          float progress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+          UpdateProgress(progress);
+          
+          if (asyncLoad.progress >= 0.9f) {
+              asyncLoad.allowSceneActivation = true;
+          }
+          yield return null;
+      }
+      
+      yield return StartCoroutine(FadeFromBlack());
+  }
+  ```
+
+**Lessons Learned**:
+
+- Understood Coroutine operating principle
+- Mastered AsyncOperation async loading
+- Learned yield return flow control
+
+### 5. Typewriter Dialogue Effect
+
+**Challenge**: How to implement character-by-character dialogue display?
+
+**Solution**:
+
+```csharp
+IEnumerator TypeSentence(string sentence) {
+    dialogueText.text = "";
+    foreach (char letter in sentence.ToCharArray()) {
+        dialogueText.text += letter;
+        yield return new WaitForSeconds(0.05f); // 0.05s delay per character
+    }
+}
+```
+
+**Lessons Learned**:
+
+- Mastered foreach character array traversal
+- Understood WaitForSeconds() coroutine delay
+- Learned UI text dynamic updates
+
+### 6. Singleton Pattern Application
+
+**Challenge**: How to ensure only one instance of GameManager?
+
+**Solution**:
+
+```csharp
+public class GameManager : MonoBehaviour {
+    public static GameManager Instance;
+    
+    void Awake() {
+        if (Instance == null) {
+            Instance = this;
+        } else {
+            Destroy(gameObject);
+            return;
+        }
+        // DontDestroyOnLoad(gameObject); // Persist across scenes
+    }
+}
+```
+
+**Lessons Learned**:
+
+- Understood Singleton Pattern
+- Mastered Awake() lifecycle
+- Learned DontDestroyOnLoad() usage
+
+---
+
+## Project Highlights
+
+### Technical Innovation
+
+- ✅ Matrix-based collision detection system (high performance)
+- ✅ State stack undo mechanism (Stack<GameState>)
+- ✅ Coroutine-driven smooth transition animations
+- ✅ Dual-layer matrix design (object layer + floor layer)
+
+### Game Design
+
+- ✅ Combining box-pushing and collection elements
+- ✅ Information system concepts integrated into level design (IF/ID/EX/MEM/WB)
+- ✅ Story dialogue system (typewriter effect)
+- ✅ Intuitive WASD controls
+
+### Engineering Practices
+
+- ✅ Singleton Pattern managing global state
+- ✅ Coroutine handling asynchronous operations
+- ✅ Modular script design (29 C# scripts)
+- ✅ Clear code architecture
+
+### Learning Outcomes
+
+- ✅ Deep understanding of Unity 2D game development
+- ✅ Mastered grid movement system implementation
+- ✅ Learned state management and data structure applications
+- ✅ Implemented complete puzzle game
+
+---
+
+## Application Screenshots
+
+![Main Menu](https://i.ibb.co/4t3ZsgP/2024-12-25-172521.png)
+
+![Cutscene](https://i.ibb.co/FH7bVzy/2024-12-25-172627.png)
+
+![Gameplay](https://i.ibb.co/JC7c25w/image.png)

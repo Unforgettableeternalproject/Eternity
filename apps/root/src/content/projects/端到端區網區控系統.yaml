@@ -1,0 +1,21 @@
+description_zh: >-
+  基於 Client-Server 架構的局域網監控系統，透過 Socket 通訊與 OpenCV
+  技術實現即時影像串流與音訊擷取，適用於宿舍監控與家庭安防場景。
+title_en: End-to-End LAN Monitor Application
+description_en: >-
+  A Client-Server architecture LAN monitoring system implementing real-time
+  video streaming and audio capture using Socket communication and OpenCV,
+  suitable for dormitory monitoring and home security scenarios.
+tags:
+  - LAN
+  - Media Stream
+  - Python
+  - OpenCV
+  - Socket
+featured: false
+status: paused
+links:
+  github: >-
+    https://github.com/Unforgettableeternalproject/End-to-End-LAN-Monitor-Application
+startDate: 2024-03-25
+endDate: 2024-04-01

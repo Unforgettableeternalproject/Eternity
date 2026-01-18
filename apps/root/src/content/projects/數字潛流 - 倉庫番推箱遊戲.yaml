@@ -1,0 +1,23 @@
+description_zh: >-
+  使用 Unity 引擎開發的 2D 倉庫番推箱遊戲，結合經典推箱機制與資訊系統概念（CPU
+  五階段流程）。玩家需收集鑰匙、推動箱子、避開陷阱並與終端互動以解鎖出口。專案採用矩陣碰撞檢測系統、狀態堆疊（undo 機制）、協程場景轉場與打字機對話效果。
+title_en: Digital Subcurrent - Sokoban-Style Puzzle Game
+title_zh: 數字潛流 - 倉庫番推箱遊戲
+description_en: >-
+  A 2D Sokoban-style puzzle game developed with Unity engine, combining classic
+  box-pushing mechanics with information system concepts (CPU five-stage
+  pipeline). Players must collect keycodes, push boxes, avoid traps, and
+  interact with terminals to unlock exits. The project features matrix-based
+  collision detection system, state stack (undo mechanism), coroutine scene
+  transitions, and typewriter dialogue effects,.
+tags:
+  - Unity
+  - C#
+  - Game Design
+  - School Project
+featured: false
+status: archived
+links:
+  github: https://github.com/Unforgettableeternalproject/Digital-Subcurrent
+startDate: 2024-11-13
+endDate: 2024-12-25

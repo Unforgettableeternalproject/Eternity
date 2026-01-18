@@ -498,8 +498,7 @@
   }
 
   .global-search__shortcuts {
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    display: none; /* 手機版隱藏快捷鍵提示 */
   }
 }
 

@@ -29,6 +29,15 @@
           ],
           "default": "other"
         },
+        "status": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "deprecated",
+            "unmaintained"
+          ],
+          "default": "normal"
+        },
         "icon": {
           "type": "string"
         },

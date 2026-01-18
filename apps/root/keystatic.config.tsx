@@ -101,15 +101,40 @@ export default config({
           multiline: true,
           validation: { isRequired: true },
         }),
+        fullBio: fields.text({
+          label: '完整自我介紹（可選，支援 HTML 標籤）',
+          description:
+            '範例：這是<strong>粗體</strong>，這是<em>斜體</em>，這是<span style="color:#d946ef">紫色文字</span>',
+          multiline: true,
+          validation: { isRequired: false },
+        }),
         avatar: fields.image({
           label: '頭像',
           directory: 'public/images/avatars',
           publicPath: '/images/avatars/',
         }),
-        skills: fields.array(fields.text({ label: '技能' }), {
-          label: '技能列表',
-          itemLabel: (props) => props.value,
-        }),
+        skills: fields.array(
+          fields.object({
+            name: fields.text({
+              label: '技能名稱',
+              validation: { isRequired: true },
+            }),
+            description: fields.text({
+              label: '學習嘗試與心得（可選）',
+              description: '描述你在學習或使用這項技能時的經驗、嘗試過的專案等',
+              multiline: true,
+            }),
+            selfAssessment: fields.text({
+              label: '自我評估（可選）',
+              description: '對這項技能的掌握程度、熟練度等自我評價',
+              multiline: true,
+            }),
+          }),
+          {
+            label: '技能列表',
+            itemLabel: (props) => props.fields.name.value,
+          }
+        ),
         experience: fields.array(
           fields.object({
             title: fields.text({
@@ -171,15 +196,42 @@ export default config({
           multiline: true,
           validation: { isRequired: true },
         }),
+        fullBio: fields.text({
+          label: 'Full Bio (Optional, supports HTML tags)',
+          description:
+            'Example: This is <strong>bold</strong>, <em>italic</em>, <span style="color:#d946ef">purple text</span>',
+          multiline: true,
+          validation: { isRequired: false },
+        }),
         avatar: fields.image({
           label: 'Avatar',
           directory: 'public/images/avatars',
           publicPath: '/images/avatars/',
         }),
-        skills: fields.array(fields.text({ label: 'Skill' }), {
-          label: 'Skills',
-          itemLabel: (props) => props.value,
-        }),
+        skills: fields.array(
+          fields.object({
+            name: fields.text({
+              label: 'Skill Name',
+              validation: { isRequired: true },
+            }),
+            description: fields.text({
+              label: 'Learning Experience (Optional)',
+              description:
+                "Describe your experience learning or using this skill, projects you've tried, etc.",
+              multiline: true,
+            }),
+            selfAssessment: fields.text({
+              label: 'Self Assessment (Optional)',
+              description:
+                'Your self-evaluation of proficiency level, mastery, etc.',
+              multiline: true,
+            }),
+          }),
+          {
+            label: 'Skills',
+            itemLabel: (props) => props.fields.name.value,
+          }
+        ),
         experience: fields.array(
           fields.object({
             title: fields.text({
@@ -459,6 +511,12 @@ export default config({
         }),
         content_zh: fields.markdoc({
           label: '詳細內容 (繁體中文)',
+          options: {
+            image: {
+              directory: 'public/images/projects',
+              publicPath: '/images/projects/',
+            },
+          },
         }),
 
         // 英文內容
@@ -473,6 +531,12 @@ export default config({
         }),
         content_en: fields.markdoc({
           label: 'Detailed Content (English)',
+          options: {
+            image: {
+              directory: 'public/images/projects',
+              publicPath: '/images/projects/',
+            },
+          },
         }),
 
         tags: fields.array(fields.text({ label: '標籤 / Tag' }), {
@@ -491,6 +555,7 @@ export default config({
           label: '狀態 / Status',
           options: [
             { label: '進行中 / Active', value: 'active' },
+            { label: '暫時停滯 / Paused', value: 'paused' },
             { label: '已完成 / Completed', value: 'completed' },
             { label: '已封存 / Archived', value: 'archived' },
           ],
@@ -560,6 +625,16 @@ export default config({
             { label: '其他 / Other', value: 'other' },
           ],
           defaultValue: 'other',
+        }),
+        status: fields.select({
+          label: '狀態 / Status',
+          options: [
+            { label: '正常 / Normal', value: 'normal' },
+            { label: '已棄用或較少維護 / Deprecated', value: 'deprecated' },
+            { label: '尚未維護 / Unmaintained', value: 'unmaintained' },
+          ],
+          defaultValue: 'normal',
+          description: '用於標註連結目前維護狀態，會影響卡片顏色',
         }),
         icon: fields.text({
           label: 'Icon 名稱 (可選)',

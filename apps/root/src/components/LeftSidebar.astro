@@ -1,11 +1,12 @@
 ---
-import { getCurrentLocale } from '../i18n/utils';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection, getEntry } from 'astro:content';
 import GlobalMusicPlayer from './GlobalMusicPlayer.astro';
 import SidebarCard from './SidebarCard';
 import { envConfig } from '../config/env';
 
 const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
 
 // 獲取訪客計數器 API URL
 const VISITOR_API_URL =
@@ -24,16 +25,32 @@ const musicCard = await getEntry('card-music', 'index');
 const visitorCounterCard = await getEntry('card-visitor-counter', 'index');
 const latestUpdateCard = await getEntry('card-latest-update', 'index');
 
-// Quote 資料（從陣列中隨機選擇）
+// Quote 資料（基於日期的每日名言）
 const quotes = quoteCard?.data
   ? locale === 'zh-tw'
     ? quoteCard.data.quotes_zh
     : quoteCard.data.quotes_en
   : null;
 
+// 取得今日日期作為種子（YYYY-MM-DD 格式）
+const getDailyIndex = (arrayLength: number): number => {
+  const today = new Date();
+  const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // 簡單的字串雜湊函數（基於日期種子）
+  let hash = 0;
+  for (let i = 0; i < dateString.length; i++) {
+    const char = dateString.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // 轉換為 32 位元整數
+  }
+
+  return Math.abs(hash) % arrayLength;
+};
+
 const randomQuote =
   quotes && quotes.length > 0
-    ? quotes[Math.floor(Math.random() * quotes.length)]
+    ? quotes[getDailyIndex(quotes.length)]
     : {
         text:
           locale === 'zh-tw'
@@ -119,7 +136,7 @@ cardIds.push('quote');
             >
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
             </svg>
-            {locale === 'zh-tw' ? '訪客人數' : 'Visitor Count'}
+            {t.sidebar.left.visitorCounter.title}
           </h3>
           <div class="flex items-center justify-between">
             <div class="text-2xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">
@@ -128,7 +145,7 @@ cardIds.push('quote');
           </div>
           <div class="mt-2 flex items-center justify-between">
             <span class="text-xs text-slate-600 dark:text-slate-400">
-              {locale === 'zh-tw' ? '感謝您的來訪' : 'Thanks for visiting'}
+              {t.sidebar.left.visitorCounter.thanks}
             </span>
             {envConfig.showDevTools && (
               <button
@@ -155,7 +172,7 @@ cardIds.push('quote');
             >
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
             </svg>
-            {locale === 'zh-tw' ? '最新動態' : 'Latest Update'}
+            {t.sidebar.left.latestUpdate.title}
           </h3>
           <a
             href={`/${locale}/updates/${latestUpdate.id}`}
@@ -192,7 +209,7 @@ cardIds.push('quote');
             >
               <path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z" />
             </svg>
-            {locale === 'zh-tw' ? '本日名言' : 'Quote of the Day'}
+            {t.sidebar.left.quote.title}
           </h3>
           <div class="flex flex-col gap-2">
             <p class="text-sm italic text-slate-700 dark:text-slate-200 leading-relaxed">

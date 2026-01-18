@@ -10,13 +10,31 @@
         "bio": {
           "type": "string"
         },
+        "fullBio": {
+          "type": "string"
+        },
         "avatar": {
           "type": "string"
         },
         "skills": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "selfAssessment": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
           }
         },
         "experience": {
