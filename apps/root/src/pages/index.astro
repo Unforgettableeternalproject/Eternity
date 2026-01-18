@@ -63,12 +63,18 @@ const latestUpdates = allUpdates
   .slice(0, 4);
 
 // 載入對應語系的更新 mdoc 內容
-const updateContentSuffix = locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
-const updateModules = import.meta.glob('../content/updates/*/content_*.mdoc', { eager: true });
+const updateContentSuffix =
+  locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
+const updateModules = import.meta.glob('../content/updates/*/content_*.mdoc', {
+  eager: true,
+});
 
 console.log('===== UPDATE DEBUG =====');
 console.log('All module paths:', Object.keys(updateModules));
-console.log('Update IDs:', latestUpdates.map((u) => u.id));
+console.log(
+  'Update IDs:',
+  latestUpdates.map((u) => u.id)
+);
 
 const updateContentMap = new Map();
 for (const [path, module] of Object.entries(updateModules)) {
@@ -77,28 +83,31 @@ for (const [path, module] of Object.entries(updateModules)) {
     console.log('Skipping (wrong locale):', path);
     continue;
   }
-  
+
   console.log('Processing path:', path);
-  
+
   // 從路徑提取資料夾名稱
   // 路徑格式: ../content/updates/第一次更新 (網站正式部署)/content_zh.mdoc
   const normalizedPath = path.replace(/\\/g, '/');
   const match = normalizedPath.match(/updates\/([^/]+)\//);
-  
+
   if (match) {
     const folderName = match[1];
     console.log('Folder name:', folderName);
-    
+
     // 嘗試多種可能的 ID 格式
     const possibleIds = [
       folderName, // 原始資料夾名稱
-      folderName.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, '-').trim(), // 移除括號，空格轉-
+      folderName
+        .replace(/\s*\([^)]*\)/g, '')
+        .replace(/\s+/g, '-')
+        .trim(), // 移除括號，空格轉-
       folderName.replace(/\s+/g, '-'), // 只轉空格
       folderName.replace(/\s*\(([^)]*)\)/g, '-$1'), // 括號轉-
     ];
-    
+
     console.log('Possible IDs:', possibleIds);
-    
+
     // 為所有可能的 ID 都建立映射
     for (const id of possibleIds) {
       updateContentMap.set(id, module);
@@ -643,7 +652,7 @@ console.log(
                   </div>
 
                   <div slot="back" class="h-full flex flex-col p-5">
-                    <div 
+                    <div
                       class="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
                       data-auto-scroll-content
                     >
@@ -652,16 +661,25 @@ console.log(
                           console.log('=== Rendering update:', update.id);
                           const contentModule = updateContentMap.get(update.id);
                           console.log('Content module found:', !!contentModule);
-                          console.log('Has Content component:', !!contentModule?.Content);
-                          
+                          console.log(
+                            'Has Content component:',
+                            !!contentModule?.Content
+                          );
+
                           if (contentModule && contentModule.Content) {
                             const { Content } = contentModule;
-                            console.log('Rendering Content component for:', update.id);
+                            console.log(
+                              'Rendering Content component for:',
+                              update.id
+                            );
                             return <Content />;
                           }
-                          
+
                           // Fallback 到 description
-                          console.log('Fallback to description for:', update.id);
+                          console.log(
+                            'Fallback to description for:',
+                            update.id
+                          );
                           return (
                             <p class="text-white/80">
                               {locale === 'zh-tw'
@@ -718,12 +736,12 @@ console.log(
 <style>
   /* 隱藏滾動條但保持可滾動功能 */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
+    display: none; /* Chrome, Safari and Opera */
   }
 
   .dot-pattern {
@@ -790,7 +808,7 @@ console.log(
   // 自動滾動功能
   function initAutoScroll() {
     const cards = document.querySelectorAll('[data-flip-card]');
-    
+
     cards.forEach((card) => {
       const scrollContainer = card.querySelector('[data-auto-scroll-content]');
       if (!scrollContainer) return;
@@ -802,7 +820,7 @@ console.log(
       card.addEventListener('cardFlipped', () => {
         // 重置到頂部
         scrollContainer.scrollTop = 0;
-        
+
         // 清除之前的滾動
         if (scrollInterval) {
           clearInterval(scrollInterval);
@@ -811,8 +829,9 @@ console.log(
 
         // 等待卡片翻轉動畫完成後開始滾動
         setTimeout(() => {
-          const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-          
+          const maxScroll =
+            scrollContainer.scrollHeight - scrollContainer.clientHeight;
+
           // 如果內容不需要滾動，就不要開始
           if (maxScroll <= 0) return;
 
@@ -847,21 +866,29 @@ console.log(
       });
 
       // 手動滾動時也暫停自動滾動
-      scrollContainer.addEventListener('wheel', () => {
-        if (scrollInterval) {
-          clearInterval(scrollInterval);
-          scrollInterval = null;
-          isScrolling = false;
-        }
-      }, { passive: true });
+      scrollContainer.addEventListener(
+        'wheel',
+        () => {
+          if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            isScrolling = false;
+          }
+        },
+        { passive: true }
+      );
 
-      scrollContainer.addEventListener('touchstart', () => {
-        if (scrollInterval) {
-          clearInterval(scrollInterval);
-          scrollInterval = null;
-          isScrolling = false;
-        }
-      }, { passive: true });
+      scrollContainer.addEventListener(
+        'touchstart',
+        () => {
+          if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            isScrolling = false;
+          }
+        },
+        { passive: true }
+      );
     });
   }
 

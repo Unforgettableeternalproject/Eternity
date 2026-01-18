@@ -108,16 +108,23 @@ export default function MusicPlayer({
 
   // 監聽全域語言變化事件（用於 persist 的情況）
   useEffect(() => {
-    const handleLanguageChange = (event: CustomEvent) => {
-      if (event.detail?.translations) {
-        setCurrentTranslations(event.detail.translations);
+    const handleLanguageChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.translations) {
+        setCurrentTranslations(customEvent.detail.translations);
       }
     };
 
-    window.addEventListener('music-player-language-change', handleLanguageChange as EventListener);
+    window.addEventListener(
+      'music-player-language-change',
+      handleLanguageChange
+    );
 
     return () => {
-      window.removeEventListener('music-player-language-change', handleLanguageChange as EventListener);
+      window.removeEventListener(
+        'music-player-language-change',
+        handleLanguageChange
+      );
     };
   }, []);
 

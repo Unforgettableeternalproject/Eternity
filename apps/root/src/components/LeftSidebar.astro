@@ -36,15 +36,15 @@ const quotes = quoteCard?.data
 const getDailyIndex = (arrayLength: number): number => {
   const today = new Date();
   const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  
+
   // 簡單的字串雜湊函數（基於日期種子）
   let hash = 0;
   for (let i = 0; i < dateString.length; i++) {
     const char = dateString.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // 轉換為 32 位元整數
   }
-  
+
   return Math.abs(hash) % arrayLength;
 };
 
@@ -230,12 +230,12 @@ cardIds.push('quote');
 <style>
   /* 隱藏滾動條但保持可滾動功能 */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
+    display: none; /* Chrome, Safari and Opera */
   }
 </style>
 
