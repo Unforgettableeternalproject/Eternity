@@ -36,15 +36,15 @@ const quotes = quoteCard?.data
 const getDailyIndex = (arrayLength: number): number => {
   const today = new Date();
   const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
+  
   // 簡單的字串雜湊函數（基於日期種子）
   let hash = 0;
   for (let i = 0; i < dateString.length; i++) {
     const char = dateString.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
+    hash = ((hash << 5) - hash) + char;
     hash = hash & hash; // 轉換為 32 位元整數
   }
-
+  
   return Math.abs(hash) % arrayLength;
 };
 
@@ -89,7 +89,7 @@ cardIds.push('quote');
 
 <!-- 左側邊欄面板 -->
 <aside
-  class="fixed left-0 top-0 h-full w-80 bg-white dark:bg-slate-900 2xl:bg-transparent 2xl:dark:bg-transparent shadow-2xl 2xl:shadow-none transform -translate-x-full 2xl:translate-x-0 2xl:left-4 2xl:top-32 2xl:h-auto 2xl:w-64 transition-transform duration-300 ease-in-out z-50 overflow-y-auto sidebar-responsive"
+  class="fixed left-0 top-0 h-full w-80 bg-white dark:bg-slate-900 2xl:bg-transparent 2xl:dark:bg-transparent shadow-2xl 2xl:shadow-none transform -translate-x-full 2xl:translate-x-0 2xl:left-4 2xl:top-32 2xl:h-[calc(100vh-18rem)] 2xl:w-64 transition-transform duration-300 ease-in-out z-50 overflow-y-auto sidebar-responsive"
   id="left-sidebar"
 >
   <!-- 關閉按鈕（只在展開面板模式顯示，2xl 以上隱藏） -->
@@ -114,7 +114,7 @@ cardIds.push('quote');
   </button>
 
   <div
-    class="flex flex-col pt-16 2xl:pt-0 px-4 2xl:px-0 h-full 2xl:h-auto"
+    class="flex flex-col pt-16 2xl:pt-0 px-4 2xl:px-0 h-full 2xl:h-full scrollbar-hide"
     id="left-sidebar-container"
   >
     {
@@ -226,6 +226,18 @@ cardIds.push('quote');
     }
   </div>
 </aside>
+
+<style>
+  /* 隱藏滾動條但保持可滾動功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+</style>
 
 <script>
   // 簡易拖曳排序功能

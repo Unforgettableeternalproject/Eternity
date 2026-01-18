@@ -43,3 +43,47 @@ const tracks = (
     </div>
   )
 }
+
+<script>
+  // 從 URL 獲取當前語言和翻譯
+  function getCurrentLanguageData() {
+    const pathname = window.location.pathname;
+    const isZhTw = pathname.startsWith('/zh-tw');
+    const locale = isZhTw ? 'zh-tw' : 'en';
+    
+    // 根據語言返回對應的翻譯
+    const translations = isZhTw 
+      ? {
+          title: '音樂播放器',
+          paused: '⏸️ 音樂已暫停',
+          playing: '▶️ 繼續播放'
+        }
+      : {
+          title: 'Music Player',
+          paused: '⏸️ Music Paused',
+          playing: '▶️ Now Playing'
+        };
+    
+    return { locale, translations };
+  }
+
+  // 通知語言變化
+  function notifyLanguageChange() {
+    const { locale, translations } = getCurrentLanguageData();
+    
+    const event = new CustomEvent('music-player-language-change', {
+      detail: { locale, translations }
+    });
+    window.dispatchEvent(event);
+  }
+
+  // 監聽頁面切換完成事件
+  document.addEventListener('astro:after-swap', notifyLanguageChange);
+  
+  // 初次載入時也執行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', notifyLanguageChange);
+  } else {
+    notifyLanguageChange();
+  }
+</script>

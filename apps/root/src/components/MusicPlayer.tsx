@@ -99,6 +99,27 @@ export default function MusicPlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const isTransitioning = useRef(false); // 追蹤是否正在頁面轉換
   const shouldAutoPlay = useRef(false); // 追蹤是否應該自動播放（切換曲目時）
+  const [currentTranslations, setCurrentTranslations] = useState(translations);
+
+  // 監聽 translations prop 變化（語言切換時）
+  useEffect(() => {
+    setCurrentTranslations(translations);
+  }, [translations]);
+
+  // 監聽全域語言變化事件（用於 persist 的情況）
+  useEffect(() => {
+    const handleLanguageChange = (event: CustomEvent) => {
+      if (event.detail?.translations) {
+        setCurrentTranslations(event.detail.translations);
+      }
+    };
+
+    window.addEventListener('music-player-language-change', handleLanguageChange as EventListener);
+
+    return () => {
+      window.removeEventListener('music-player-language-change', handleLanguageChange as EventListener);
+    };
+  }, []);
 
   // 監聽 View Transitions 事件
   useEffect(() => {
@@ -281,12 +302,12 @@ export default function MusicPlayer({
       if (isPlaying) {
         audioRef.current.pause();
         if (manager) {
-          manager.show(translations.paused, 'info');
+          manager.show(currentTranslations.paused, 'info');
         }
       } else {
         audioRef.current.play();
         if (manager) {
-          manager.show(translations.playing, 'info');
+          manager.show(currentTranslations.playing, 'info');
         }
       }
       setIsPlaying(!isPlaying);
@@ -350,7 +371,7 @@ export default function MusicPlayer({
             >
               <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
             </svg>
-            {translations.title}
+            {currentTranslations.title}
           </h3>
           {tracks[currentTrack].cover && (
             <img

@@ -63,27 +63,47 @@ const latestUpdates = allUpdates
   .slice(0, 4);
 
 // 載入對應語系的更新 mdoc 內容
-const updateContentZh = await Astro.glob(
-  '../content/updates/**/content_zh.mdoc'
-);
-const updateContentEn = await Astro.glob(
-  '../content/updates/**/content_en.mdoc'
-);
-const updateContentGlob =
-  locale === 'zh-tw' ? updateContentZh : updateContentEn;
+const updateContentSuffix = locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
+const updateModules = import.meta.glob('../content/updates/*/content_*.mdoc', { eager: true });
 
 console.log('===== UPDATE DEBUG =====');
-console.log('Loaded update modules:', updateContentGlob.length);
-updateContentGlob.forEach((m) => console.log('Update file:', m.file));
+console.log('All module paths:', Object.keys(updateModules));
+console.log('Update IDs:', latestUpdates.map((u) => u.id));
 
 const updateContentMap = new Map();
-for (const module of updateContentGlob) {
-  // 支援 Windows 和 Unix 路徑
-  const normalizedPath = module.file?.replace(/\\/g, '/');
-  const match = normalizedPath?.match(/updates\/([^/]+)\//);
+for (const [path, module] of Object.entries(updateModules)) {
+  // 只處理當前語言的檔案
+  if (!path.endsWith(updateContentSuffix)) {
+    console.log('Skipping (wrong locale):', path);
+    continue;
+  }
+  
+  console.log('Processing path:', path);
+  
+  // 從路徑提取資料夾名稱
+  // 路徑格式: ../content/updates/第一次更新 (網站正式部署)/content_zh.mdoc
+  const normalizedPath = path.replace(/\\/g, '/');
+  const match = normalizedPath.match(/updates\/([^/]+)\//);
+  
   if (match) {
-    updateContentMap.set(match[1], module);
-    console.log('Mapped update:', match[1]);
+    const folderName = match[1];
+    console.log('Folder name:', folderName);
+    
+    // 嘗試多種可能的 ID 格式
+    const possibleIds = [
+      folderName, // 原始資料夾名稱
+      folderName.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, '-').trim(), // 移除括號，空格轉-
+      folderName.replace(/\s+/g, '-'), // 只轉空格
+      folderName.replace(/\s*\(([^)]*)\)/g, '-$1'), // 括號轉-
+    ];
+    
+    console.log('Possible IDs:', possibleIds);
+    
+    // 為所有可能的 ID 都建立映射
+    for (const id of possibleIds) {
+      updateContentMap.set(id, module);
+      console.log('Mapped:', id);
+    }
   }
 }
 
@@ -623,30 +643,32 @@ console.log(
                   </div>
 
                   <div slot="back" class="h-full flex flex-col p-5">
-                    <div class="flex-1 min-h-0">
-                      <div class="text-sm leading-relaxed text-white/90 line-clamp-6">
+                    <div 
+                      class="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+                      data-auto-scroll-content
+                    >
+                      <div class="text-sm leading-relaxed text-white/90 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_h4]:text-sm [&_h5]:text-xs [&_h6]:text-xs [&_p]:text-sm [&_li]:text-sm">
                         {(() => {
-                          try {
-                            const allModules =
-                              locale === 'zh-tw'
-                                ? updateContentZh
-                                : updateContentEn;
-                            if (
-                              allModules.length > 0 &&
-                              allModules[0].Content
-                            ) {
-                              const { Content } = allModules[0];
-                              return <Content />;
-                            }
-                            return <p class="text-white/80">無內容</p>;
-                          } catch (error: unknown) {
-                            const err = error as Error;
-                            return (
-                              <p class="text-white/80">
-                                載入錯誤: {err.message}
-                              </p>
-                            );
+                          console.log('=== Rendering update:', update.id);
+                          const contentModule = updateContentMap.get(update.id);
+                          console.log('Content module found:', !!contentModule);
+                          console.log('Has Content component:', !!contentModule?.Content);
+                          
+                          if (contentModule && contentModule.Content) {
+                            const { Content } = contentModule;
+                            console.log('Rendering Content component for:', update.id);
+                            return <Content />;
                           }
+                          
+                          // Fallback 到 description
+                          console.log('Fallback to description for:', update.id);
+                          return (
+                            <p class="text-white/80">
+                              {locale === 'zh-tw'
+                                ? update.data.description_zh
+                                : update.data.description_en}
+                            </p>
+                          );
                         })()}
                       </div>
                     </div>
@@ -694,6 +716,16 @@ console.log(
 </BaseLayout>
 
 <style>
+  /* 隱藏滾動條但保持可滾動功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+
   .dot-pattern {
     background-image:
       radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px),
@@ -754,4 +786,85 @@ console.log(
   // 初始載入和頁面切換時都要執行
   document.addEventListener('DOMContentLoaded', initRevealAnimation);
   document.addEventListener('astro:page-load', initRevealAnimation);
+
+  // 自動滾動功能
+  function initAutoScroll() {
+    const cards = document.querySelectorAll('[data-flip-card]');
+    
+    cards.forEach((card) => {
+      const scrollContainer = card.querySelector('[data-auto-scroll-content]');
+      if (!scrollContainer) return;
+
+      let scrollInterval: number | null = null;
+      let isScrolling = false;
+
+      // 監聽卡片翻轉事件
+      card.addEventListener('cardFlipped', () => {
+        // 重置到頂部
+        scrollContainer.scrollTop = 0;
+        
+        // 清除之前的滾動
+        if (scrollInterval) {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+        }
+
+        // 等待卡片翻轉動畫完成後開始滾動
+        setTimeout(() => {
+          const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+          
+          // 如果內容不需要滾動，就不要開始
+          if (maxScroll <= 0) return;
+
+          isScrolling = true;
+          const scrollSpeed = 30; // 每秒滾動像素數
+          const scrollStep = scrollSpeed / 60; // 每幀滾動的距離（60fps）
+
+          scrollInterval = window.setInterval(() => {
+            if (!isScrolling) return;
+
+            scrollContainer.scrollTop += scrollStep;
+
+            // 滾動到底部時停止
+            if (scrollContainer.scrollTop >= maxScroll) {
+              if (scrollInterval) {
+                clearInterval(scrollInterval);
+                scrollInterval = null;
+              }
+              isScrolling = false;
+            }
+          }, 1000 / 60) as unknown as number; // 60fps
+        }, 600); // 等待翻轉動畫（0.6s）
+      });
+
+      // 滑鼠懸停或觸摸時暫停滾動
+      scrollContainer.addEventListener('mouseenter', () => {
+        if (scrollInterval) {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          isScrolling = false;
+        }
+      });
+
+      // 手動滾動時也暫停自動滾動
+      scrollContainer.addEventListener('wheel', () => {
+        if (scrollInterval) {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          isScrolling = false;
+        }
+      }, { passive: true });
+
+      scrollContainer.addEventListener('touchstart', () => {
+        if (scrollInterval) {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          isScrolling = false;
+        }
+      }, { passive: true });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', initAutoScroll);
+  document.addEventListener('astro:page-load', initAutoScroll);
 </script>
