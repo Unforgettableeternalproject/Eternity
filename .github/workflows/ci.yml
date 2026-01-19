@@ -156,8 +156,8 @@ jobs:
             BRANCH_TYPE="hotfix"
             VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
             BATCH_NUM=$(echo "$COMMIT_MSG" | grep -oE "batch #[0-9]+" | grep -oE "[0-9]+")
-            echo "hotfix_batch=$BATCH_NUM" >> $GITHUB_OUTPUT
             echo "Detected Hotfix: v$VERSION batch #$BATCH_NUM"
+            echo "hotfix_batch=$BATCH_NUM" >> $GITHUB_OUTPUT
 
           else
             echo "Not a release or hotfix merge, skipping tagging"
