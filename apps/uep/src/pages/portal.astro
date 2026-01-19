@@ -1,0 +1,401 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="外部基軸大廳 - 邊際世界">
+  <div class="portal-page">
+    <a href="/" class="back-link">
+      <span class="back-arrow">←</span>
+      <span>返回世界的軸心</span>
+    </a>
+
+    <div class="portal-header">
+      <div class="portal-icon-wrapper">
+        <div class="icon-glow"></div>
+        <div class="portal-icon">✦</div>
+      </div>
+      <h1 class="portal-title">外部基軸大廳</h1>
+      <p class="portal-desc">
+        這是一座華麗程度不亞於一開始的廳堂，不過是以金色的主題居多。<br>
+        你見到五道光柱正佇立在遠方，指示著類似於傳送門的大型結構。
+      </p>
+    </div>
+
+    <div class="portals-grid">
+      <a href="https://www.youtube.com/channel/UCkXbkOgGRKhn5umbeYv-78A" target="_blank" rel="noopener noreferrer" class="portal-card active">
+        <div class="portal-light"></div>
+        <div class="portal-content">
+          <div class="portal-icon-small">📹</div>
+          <h3 class="portal-card-title">世界的紀錄永不停歇</h3>
+          <p class="portal-card-desc">通往影像記錄的世界</p>
+          <div class="portal-button">
+            <span>前往 YouTube</span>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="https://github.com/Unforgettableeternalproject" target="_blank" rel="noopener noreferrer" class="portal-card active">
+        <div class="portal-light"></div>
+        <div class="portal-content">
+          <div class="portal-icon-small">⚙️</div>
+          <h3 class="portal-card-title">不斷更新進步的齒輪</h3>
+          <p class="portal-card-desc">通往程式碼與專案的世界</p>
+          <div class="portal-button">
+            <span>前往 GitHub</span>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="https://www.bandlab.com/u_e_p" target="_blank" rel="noopener noreferrer" class="portal-card active">
+        <div class="portal-light"></div>
+        <div class="portal-content">
+          <div class="portal-icon-small">🎸</div>
+          <h3 class="portal-card-title">音樂本質存在於靈魂</h3>
+          <p class="portal-card-desc">通往音樂創作的世界</p>
+          <div class="portal-button">
+            <span>前往 BandLab</span>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="https://discord.com/invite/ARyrkB9F7Z" target="_blank" rel="noopener noreferrer" class="portal-card active">
+        <div class="portal-light"></div>
+        <div class="portal-content">
+          <div class="portal-icon-small">💬</div>
+          <h3 class="portal-card-title">一個人無法組成社會</h3>
+          <p class="portal-card-desc">通往社群交流的世界</p>
+          <div class="portal-button">
+            <span>前往 Discord</span>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+      </a>
+
+      <div class="portal-card damaged">
+        <div class="portal-light damaged-light"></div>
+        <div class="portal-content">
+          <div class="portal-icon-small">❓</div>
+          <h3 class="portal-card-title">？？？</h3>
+          <p class="portal-card-desc">
+            最後一道光柱感覺有些奇怪，散發著微微的橘色光線，<br>
+            而且紀錄的部分似乎也損壞了...
+          </p>
+          <div class="portal-button disabled">
+            <span>尚未修復</span>
+            <span class="glitch">⚠</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .portal-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 3rem;
+    }
+
+    @keyframes pageEnter {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--gold);
+      text-decoration: none;
+      margin-bottom: 3rem;
+      padding: 0.75rem 1.5rem;
+      background: rgba(213, 182, 24, 0.1);
+      border: 1px solid rgba(213, 182, 24, 0.3);
+      border-radius: 12px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 500;
+    }
+
+    .back-link:hover {
+      background: rgba(213, 182, 24, 0.2);
+      transform: translateX(-8px);
+      box-shadow: 0 4px 12px rgba(213, 182, 24, 0.2);
+    }
+
+    .back-arrow {
+      transition: transform 0.3s ease;
+      font-size: 1.2rem;
+    }
+
+    .back-link:hover .back-arrow {
+      transform: translateX(-4px);
+    }
+
+    .portal-header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .portal-icon-wrapper {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0) rotate(0deg);
+      }
+      50% {
+        transform: translateY(-15px) rotate(180deg);
+      }
+    }
+
+    .icon-glow {
+      position: absolute;
+      inset: -30px;
+      background: radial-gradient(circle, var(--gold) 0%, transparent 70%);
+      opacity: 0.4;
+      animation: pulse 2s ease-in-out infinite;
+      border-radius: 50%;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.6;
+        transform: scale(1.2);
+      }
+    }
+
+    .portal-icon {
+      font-size: 6rem;
+      filter: drop-shadow(0 0 20px var(--gold));
+      position: relative;
+      z-index: 1;
+    }
+
+    .portal-title {
+      font-size: 3.5rem;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 1.5rem;
+      text-shadow: 0 0 30px var(--gold);
+    }
+
+    .portal-desc {
+      font-size: 1.2rem;
+      color: rgba(255, 255, 255, 0.8);
+      max-width: 700px;
+      margin: 0 auto;
+      line-height: 1.8;
+    }
+
+    .portals-grid {
+      display: grid;
+      gap: 2rem;
+    }
+
+    .portal-card {
+      position: relative;
+      background: rgba(26, 26, 46, 0.6);
+      backdrop-filter: blur(20px);
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 2.5rem;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .portal-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(213, 182, 24, 0.1), transparent);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .portal-card.active:hover::before {
+      opacity: 1;
+    }
+
+    .portal-card.active:hover {
+      transform: translateY(-10px);
+      border-color: var(--cyan);
+      box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(213, 182, 24, 0.3);
+    }
+
+    .portal-card.damaged {
+      opacity: 0.6;
+      border-color: #f97316;
+      cursor: not-allowed;
+    }
+
+    .portal-light {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, var(--gold), transparent);
+      opacity: 0.6;
+      animation: lightBeam 3s ease-in-out infinite;
+    }
+
+    @keyframes lightBeam {
+      0%, 100% {
+        opacity: 0.4;
+        transform: translateX(-50%) scaleY(1);
+      }
+      50% {
+        opacity: 0.8;
+        transform: translateX(-50%) scaleY(1.2);
+      }
+    }
+
+    .portal-light.damaged-light {
+      background: linear-gradient(180deg, #f97316, transparent);
+      animation: glitchBeam 0.5s ease-in-out infinite;
+    }
+
+    @keyframes glitchBeam {
+      0%, 100% {
+        opacity: 0.3;
+      }
+      50% {
+        opacity: 0.6;
+        transform: translateX(-50%) scaleX(3);
+      }
+    }
+
+    .portal-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .portal-icon-small {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: inline-block;
+      filter: drop-shadow(0 0 10px rgba(213, 182, 24, 0.5));
+      animation: iconBob 2s ease-in-out infinite;
+    }
+
+    @keyframes iconBob {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-5px);
+      }
+    }
+
+    .portal-card-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 0.75rem;
+    }
+
+    .portal-card-desc {
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    .portal-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+    }
+
+    .portal-card.active:hover .portal-button {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+    }
+
+    .portal-button .arrow {
+      transition: transform 0.3s ease;
+      font-size: 1.2rem;
+    }
+
+    .portal-card.active:hover .arrow {
+      transform: translateX(5px);
+    }
+
+    .portal-button.disabled {
+      background: rgba(249, 115, 22, 0.3);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .glitch {
+      animation: glitchAnim 0.3s ease-in-out infinite;
+    }
+
+    @keyframes glitchAnim {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .portal-page {
+        padding: 2rem 1rem;
+      }
+
+      .portal-icon {
+        font-size: 4rem;
+      }
+
+      .portal-title {
+        font-size: 2.5rem;
+      }
+
+      .portal-desc {
+        font-size: 1rem;
+      }
+
+      .portal-card {
+        padding: 2rem 1.5rem;
+      }
+
+      .portal-card-title {
+        font-size: 1.4rem;
+      }
+
+      .portal-icon-small {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</BaseLayout>

@@ -1,85 +1,204 @@
 # 專案進度追蹤
 
-## 最近更新 (2026-01-18)
+## 最近更新 (2026-01-20)
 
 ### ✅ 已完成
 
-- **UEP 文件站建設頁面完成** (NEW - 2026-01-18)
-  - **極簡自由畫布設計**：
-    * 移除所有組件依賴，整合至單一檔案
-    * 採用 `position: absolute` 自由排版
-    * 整頁限制 100vh，無需滾動
-  - **互動元素**：
-    * Big UEP.png 中央主角（發光效果、浮動動畫）
-    * 3 個可拖動貼紙（Working, Forklift, Lead）
-    * 隨機初始位置（每次載入不同）
-    * 拖動時播放隨機 pinch 音效（pinch1-6.wav）
-    * Hover 對話框：「我在指揮!」「我有一台大車車!」「我在工作!」
-  - **視覺特效**：
-    * 30 個動態粒子（金/紫/青三色）
-    * SVG 噪點紋理疊加
-    * 紫色建設徽章（脈衝動畫）
-    * 金色光環（旋轉動畫）
-    * 引言文字淡入淡出
-  - **拖動優化**：
-    * 使用 requestAnimationFrame 確保流暢
-    * 觸控與滑鼠雙支援
-    * 拖動時播放音效、改變游標
-  - **頁面架構**：
-    * `index.astro`：重導向至 `/construction`（保留給未來主頁）
-    * `construction.astro`：建設頁面（488 行單檔完整實現）
-  - **元素配置**：
-    * 中央：Big UEP + 光環
-    * 上方：建設中徽章
-    * 下方：引言文字
-    * 散落：3 個可拖動貼紙（Forklift 尺寸 150-250px）
-    * 右下：返回主維度連結
-    * 左下：構建進度指示器
+- **UEP 文件站 Markdown 完整渲染系統** (NEW - 2026-01-20 深夜)
+  - **Markdown 處理工具** (`src/utils/markdown.ts`):
+    * `parseFrontmatter()` - 解析並移除 frontmatter
+    * `markdownToHtml()` - 將 Markdown 轉換為 HTML
+    * 使用 unified + remark + rehype 處理鏈
+    * 支援 GitHub Flavored Markdown (GFM)
+    * 自動生成標題 ID (rehype-slug)
+    * 自動連結標題 (rehype-autolink-headings)
+  - **套件安裝**:
+    * unified ^11.0.5 - 統一的文本處理框架
+    * remark-parse ^11.0.0 - Markdown 解析器
+    * remark-rehype ^11.1.2 - Markdown → HTML 轉換
+    * rehype-stringify ^10.0.1 - HTML 字串化
+  - **[...slug].astro 完整實現**:
+    * 讀取原始 Markdown 檔案
+    * 解析並移除 frontmatter
+    * 渲染 Markdown 為 HTML
+    * 使用 frontmatter.description 作為頁面標題
+    * 使用 `set:html` 插入渲染後的 HTML
+  - **Prose 樣式系統**:
+    * 完整的 Markdown 元素樣式
+    * 標題層級顏色（h1 金色, h2 紫色, h3 青色, h4 粉色）
+    * 連結樣式（金色 + hover 效果）
+    * 程式碼塊樣式（深色背景 + 金色邊框）
+    * 表格樣式（玻璃擬態 + hover 效果）
+    * 引用塊樣式（金色左邊框 + 半透明背景）
+    * 列表、圖片、分隔線等完整樣式
+  - **建構測試**:
+    * 所有 100+ 頁面成功生成
+    * Markdown 正確渲染為 HTML
+    * Frontmatter 正確解析
+    * 無錯誤或警告
 
-- **UEP 文件站架構重構** (2026-01-18)
-  - **組件化架構**：
-    * 創建 `components` 目錄
-    * 分離組件：Hero, UEPImages, ProgressBar, ParticleBackground, Portals
-    * 創建 `styles` 目錄存放全局樣式
-    * 主頁僅負責組合組件，提升可維護性
-  - **簡化與優化**：
-    * 移除過度 tease 的內容（邊際世界區塊預覽、引導區）
-    * 保持簡潔，聚焦於「建設中」狀態
-    * 頁面高度縮減，避免過長
-  - **創意文字排版**：
-    * 標題文字拆解為單字元，每個字元浮動動畫（延遲漸進）
-    * 引言使用大引號框架，金色斜體
-    * 進度條標籤兩側加入閃電符號
-    * 區塊標題加入閃爍星號
-  - **Big UEP.png 整合**：
-    * 中央展示大型 U.E.P 圖片
-    * 發光環動畫（ringPulse）
-    * 圖片本身浮動效果（floatBig）
-    * 三個小插圖分布在下方
-  - **組件細節**：
-    * **Hero**：標題漸層動畫、建設徽章、引言區
-    * **UEPImages**：Big UEP 居中 + 3 個工作插圖（浮動、點擊重置）
-    * **ProgressBar**：閃電圖標、流動漸層、隨機進度
-    * **ParticleBackground**：50 粒子 + 雜訊層
-    * **Portals**：主站 + GitHub 傳送門卡片
-  - **文件結構**：
-    ```
-    apps/uep/src/
-    ├── components/
-    │   ├── Hero.astro
-    │   ├── UEPImages.astro
-    │   ├── ProgressBar.astro
-    │   ├── ParticleBackground.astro
-    │   └── Portals.astro
-    ├── styles/
-    │   └── globals.css
-    ├── pages/
-    │   └── index.astro (重構版)
-    └── layouts/
-        └── BaseLayout.astro
-    ```
+- **UEP 文件站區域頁面列表展示** (2026-01-20 深夜)
+  - **AreaPage 元件增強**:
+    * 新增 `pages` 參數接受頁面列表
+    * 條件渲染：有頁面時顯示列表，無頁面時顯示建設中
+    * 頁面卡片設計（Grid 佈局）
+  - **頁面卡片樣式**:
+    * 圖標 + 標題 + 路徑顯示
+    * Hover 效果：上移 + 邊框發光 + 圖標旋轉 + 箭頭滑動
+    * 漸變背景 overlay
+    * 路徑文字使用 monospace 字體
+    * 響應式 Grid（auto-fill, minmax(350px, 1fr)）
+  - **所有區域頁面更新**:
+    * history.astro - 顯示歷史區域所有頁面
+    * echos.astro - 顯示回音區域所有頁面
+    * visuals.astro - 顯示幻影區域所有頁面
+    * concepts.astro - 顯示概念區域所有頁面
+    * storage.astro - 顯示置物空間所有頁面
+    * 每個區域自動從 SUMMARY.md 篩選對應頁面
+  - **建構測試**:
+    * 所有區域頁面成功生成
+    * 無 TypeScript 錯誤
+    * 頁面路徑正確顯示
 
-- **UEP 文件站全新主題設計** (2026-01-18)
+- **UEP 文件站 Markdown 渲染系統基礎** (NEW - 2026-01-20 深夜)
+  - **SUMMARY.md 解析工具** (`src/utils/summary.ts`):
+    * `parseSummary()` - 解析 SUMMARY.md 生成導航樹
+    * `extractRoutes()` - 從導航樹提取所有路由路徑
+    * `loadSummary()` - 讀取並解析 SUMMARY.md
+    * `findNavigationItem()` - 根據路徑尋找對應導航項
+    * 支援 Gitbook 格式（列表項 + 標題 + anchor）
+    * 支援深層巢狀結構（最多 5 層）
+  - **動態路由實現** (`src/pages/[...slug].astro`):
+    * `getStaticPaths()` 使用 SUMMARY.md 自動生成所有路由
+    * 成功生成 100+ 個頁面路徑
+    * 側邊欄 + 主內容區域佈局（grid 280px + 1fr）
+    * Sticky 側邊欄設計（max-height, overflow-y）
+    * 錯誤處理（檔案不存在時顯示錯誤訊息）
+    * 暫時使用 `<pre>` 顯示原始 Markdown（等待渲染器）
+  - **Markdown 套件安裝**:
+    * @astrojs/markdown-remark ^6.3.10
+    * remark-gfm ^4.0.1 - GitHub Flavored Markdown
+    * rehype-slug ^6.0.0 - 自動生成標題 ID
+    * rehype-autolink-headings ^7.1.0 - 自動連結標題
+  - **建構測試**:
+    * `pnpm build` 成功通過
+    * 無 TypeScript 錯誤
+    * 生成路徑範例：
+      - /README/index.html
+      - /history/passage/unforgettable_story/chpt.01/arc.01/sect.01/index.html
+      - /echos/plaza/areas/ad_main/index.html
+      - 等 100+ 個頁面
+- **UEP 文件站 UI/UX 全面升級** (NEW - 2026-01-20 晚上)
+  - **Navbar 元件化與美化**：
+    * 創建獨立 Navbar.astro 元件
+    * 金色漸層 Logo + 閃爍動畫
+    * 導航選單 hover 效果與活躍狀態
+    * 裝飾性浮動粒子
+    * 滑入動畫 (slideDown)
+  - **BaseLayout 現代化升級**：
+    * 背景漸層層 (3 色徑向漸層)
+    * 動態網格背景 (gridMove 動畫)
+    * 鼠標跟隨光效 (smooth tracking)
+    * 優化 Footer 設計（Logo + 連結 + Shimmer 效果）
+    * 頁面淡入動畫 (fadeIn)
+  - **區域頁面動畫系統**：
+    * 創建 AreaPage.astro 通用元件
+    * 浮動圖標 + 脈動光暈
+    * 標題文字光暈動畫 (titleGlow)
+    * 建設中粒子上升效果
+    * U.E.P 工作圖片搖擺動畫 (bobbing)
+    * 進度條加載動畫
+  - **Portal 頁面特效**：
+    * 光柱效果 (lightBeam 動畫)
+    * 損壞傳送門故障效果 (glitch)
+    * 卡片 hover 彈起動畫
+    * 箭頭滑動提示
+  - **全站動畫統一**：
+    * 頁面進入動畫 (pageEnter)
+    * 返回按鈕滑動效果
+    * 所有可交互元素 hover 反饋
+    * 響應式設計優化
+
+- **UEP 文件站主頁重構** (2026-01-20 中午)
+  - **主頁內容整合**：完全呈現 README.md 的故事內容
+    * 世界的軸心完整敘事
+    * U.E.P 的自我介紹與對話
+    * 邊際世界遊歷導覽
+    * 永恆的意義詩篇
+  - **粒子效果恢復**：
+    * 50 個浮動粒子系統
+    * 雜訊覆蓋層（SVG noise filter）
+    * 動態上升動畫
+  - **互動式區域導航**：
+    * 六大區域卡片（紫/青/粉/綠/橙/金）
+    * Hover 效果與視覺反饋
+    * 直接連結至各區域入口
+  - **視覺優化**：
+    * U.E.P 頭像浮動動畫
+    * 金色光暈脈動效果
+    * 玻璃擬態對話框
+    * 響應式設計
+  - **頁面滾動修復**：內容可正常滾動
+
+- **UEP 文件站基礎架構** (2026-01-20 早上)
+  - **Git Submodule 整合**：成功整合 U.E.P-s-Imaginary-Space
+    * 位置：apps/uep/content
+    * 提交：dd55e78 on main
+  - **頁面架構創建**：
+    * 主頁 (index.astro) - 世界的軸心（已重構）
+    * 六大區域入口頁面：
+      - history.astro - 歷史典藏庫
+      - echos.astro - 回音蒐藏間
+      - visuals.astro - 幻影重現室
+      - concepts.astro - 概念調整房
+      - storage.astro - 某人的置物空間
+      - portal.astro - 外部基軸大廳（含外部連結）
+    * 動態路由骨架 ([...slug].astro)
+  - **UEP 素材整合**：
+    * Big UEP.png - 主頁 U.E.P 頭像
+    * Working.png, Lead.png, Peek.png, Forklift.png, Cat.png - 各區域建設中
+  - **重點澄清**：
+    * 世界的軸心 = content/README.md（主頁）
+    * 基軸大廳 = content/portal/（外部連結）
+    * 優先內容整合，視覺設計後續優化
+
+### 🔄 進行中
+
+- **Markdown 渲染系統** (IN PROGRESS)
+  - 需要安裝 markdown 處理套件
+  - frontmatter 解析
+  - Gitbook 特殊語法支援
+
+### 📋 待辦事項（按優先順序）
+
+1. **內容渲染實現**
+   - [ ] 安裝 remark/rehype 或類似套件
+   - [ ] 實現 Markdown → HTML 轉換
+   - [ ] 處理 frontmatter metadata
+   - [ ] 支援 Gitbook 語法（embed, hint 等）
+
+2. **動態路由完善**
+   - [ ] 掃描 content/ 生成所有路徑
+   - [ ] [...slug].astro getStaticPaths() 實現
+   - [ ] 處理巢狀路由
+
+3. **導航系統**
+   - [ ] 從 SUMMARY.md 解析生成導航結構
+   - [ ] 側邊欄導航組件
+   - [ ] 麵包屑導航
+   - [ ] 上一頁/下一頁
+
+4. **特殊功能（未來）**
+   - [ ] 音樂播放器（回音蒐藏間）
+   - [ ] 圖片畫廊（幻影重現室）
+   - [ ] 閱讀進度（歷史典藏庫）
+   - [ ] U.E.P 對話系統（U.E.P 的房間）
+
+---
+
+## 之前完成項目 (2026-01-18)
+
+- **UEP 文件站全新主題設計** (已暫緩，優先內容)
   - **世界觀整合**：基於「邊際世界」概念重新設計
   - **視覺風格**：
     * 深色主題（虛空黑 #0a0a0f + 虛空灰 #1a1a2e）
