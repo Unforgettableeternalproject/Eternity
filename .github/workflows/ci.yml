@@ -150,7 +150,7 @@ jobs:
             BRANCH_TYPE="release"
             VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
             echo "Detected Release: v$VERSION"
-          
+
           # 檢測 Hotfix: "Hotfix version v0.8.2 batch #1 sent back to main"
           elif echo "$COMMIT_MSG" | grep -qE "Hotfix version v[0-9]+\.[0-9]+\.[0-9]+ batch #[0-9]+"; then
             BRANCH_TYPE="hotfix"
@@ -158,7 +158,7 @@ jobs:
             BATCH_NUM=$(echo "$COMMIT_MSG" | grep -oE "batch #[0-9]+" | grep -oE "[0-9]+")
             echo "hotfix_batch=$BATCH_NUM" >> $GITHUB_OUTPUT
             echo "Detected Hotfix: v$VERSION batch #$BATCH_NUM"
-          
+
           else
             echo "Not a release or hotfix merge, skipping tagging"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -167,7 +167,7 @@ jobs:
 
           echo "branch_type=$BRANCH_TYPE" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          
+
           # 驗證版本號與 package.json 一致
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$VERSION" != "$PKG_VERSION" ]; then
