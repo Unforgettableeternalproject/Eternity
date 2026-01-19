@@ -1,0 +1,121 @@
+{
+  "$ref": "#/definitions/about-en",
+  "definitions": {
+    "about-en": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "fullBio": {
+          "type": "string"
+        },
+        "avatar": {
+          "type": "string"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "selfAssessment": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "experience": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "period": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "company",
+              "period"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "certifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "issuer": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "issuer"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "social": {
+          "type": "object",
+          "properties": {
+            "github": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "twitter": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "$schema": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "bio",
+        "skills",
+        "experience",
+        "certifications"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -1,94 +1,343 @@
 ---
+import '../styles/global.css';
+import { ViewTransitions } from 'astro:transitions';
+import NavigationWithSearch from '../components/NavigationWithSearch.astro';
+import Footer from '@uep/ui/Footer';
+import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
+import UEPCharacter from '../components/UEPCharacter';
+import ScrollToTop from '../components/ScrollToTop';
+import ToastContainer from '../components/Toast';
+import GlobalRipple from '../components/GlobalRipple';
+import LeftSidebar from '../components/LeftSidebar.astro';
+import RightSidebar from '../components/RightSidebar.astro';
+import MobileControlPanel from '../components/MobileControlPanel.astro';
+import CookieConsent from '../components/CookieConsent';
+import ImageViewerModal from '../components/ImageViewerModal';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCollection } from 'astro:content';
+
 interface Props {
   title: string;
   description?: string;
+  ogImage?: string;
+  ogType?: string;
 }
 
-const { title, description = "Eternity - Bernie's Personal Website" } =
-  Astro.props;
+const {
+  title,
+  description = "Eternity - Bernie's Personal Website",
+  ogImage = '/og-image.png',
+  ogType = 'website',
+} = Astro.props;
+
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+
+// 載入精選連結給 Footer
+const allLinks = await getCollection('links');
+const featuredLinks = allLinks
+  .filter((l) => l.data.featured)
+  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
+  .map((link) => ({
+    title:
+      locale === 'zh-tw' ? link.data.title_zh || link.id : link.data.title_en,
+    url: link.data.url,
+    icon: link.data.icon,
+  }));
+
+// Get canonical URL
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+// Get alternate language URL
+const alternateLocale = locale === 'zh-tw' ? 'en' : 'zh-tw';
+const alternatePath = Astro.url.pathname.startsWith('/en')
+  ? Astro.url.pathname.replace('/en', '')
+  : `/en${Astro.url.pathname}`;
+const alternateURL = new URL(alternatePath, Astro.site);
 ---
 
 <!doctype html>
-<html lang="zh-TW">
+<html lang={locale} class="h-full">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <meta name="generator" content={Astro.generator} />
+
+    <ViewTransitions />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Alternate Language -->
+    <link rel="alternate" hreflang={alternateLocale} href={alternateURL} />
+    <link rel="alternate" hreflang={locale} href={canonicalURL} />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL('/', Astro.site)}
+    />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site)} />
+    <meta property="og:site_name" content="Bernie's Eternity" />
+    <meta
+      property="og:locale"
+      content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'}
+    />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content={canonicalURL} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
+
+    <!-- Page Title -->
     <title>{title}</title>
+
+    <!-- 防止深色模式閃爍 (FOUC) -->
+    <script is:inline>
+      // 在頁面載入前立即執行
+      const getThemePreference = () => {
+        if (
+          typeof localStorage !== 'undefined' &&
+          localStorage.getItem('theme')
+        ) {
+          return localStorage.getItem('theme');
+        }
+        // 預設使用深色模式
+        return 'dark';
+      };
+      const isDark = getThemePreference() === 'dark';
+      document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
+
+      // View Transitions 時也要應用主題
+      document.addEventListener('astro:after-swap', () => {
+        const isDark = getThemePreference() === 'dark';
+        document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
+      });
+    </script>
+
+    <!-- 清除舊的音樂 localStorage -->
+    <script is:inline>
+      // 清除可能存在的舊音樂狀態（保留 track 選擇）
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('music-is-playing');
+        localStorage.removeItem('music-volume');
+        localStorage.removeItem('music-state');
+      }
+
+      // 清理重複的音頻元素（View Transitions 可能造成）
+      // 注意：只在 before-swap 時清理，避免影響 persist 的元素
+      document.addEventListener('astro:before-swap', () => {
+        const allAudioElements = document.querySelectorAll('audio');
+
+        // 計數有多少個 global-music-player
+        let globalPlayerCount = 0;
+        allAudioElements.forEach((audio) => {
+          if (audio.id === 'global-music-player') {
+            globalPlayerCount++;
+          }
+        });
+
+        // 如果有多個，只保留第一個（最新的會由 persist 處理）
+        if (globalPlayerCount > 1) {
+          let kept = false;
+          allAudioElements.forEach((audio) => {
+            if (audio.id === 'global-music-player') {
+              if (kept) {
+                audio.pause();
+                audio.remove();
+              } else {
+                kept = true;
+              }
+            }
+          });
+        }
+      });
+    </script>
+
+    <!-- 清除打字機快取（每次重載都重新播放動畫） -->
+    <script is:inline>
+      // 清除所有打字機相關的 sessionStorage
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('typewriter-shown')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+    </script>
   </head>
-  <body>
-    <header>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/links">Links</a>
-      </nav>
+  <body class="min-h-screen relative">
+    <!-- Interactive gradient background -->
+    <div class="gradient-bg">
+      <!-- Hexagonal Dot Pattern -->
+      <div class="absolute inset-0 dot-pattern opacity-40"></div>
+
+      <!-- Radial Gradient Overlay -->
+      <div
+        class="absolute inset-0 bg-gradient-radial from-transparent via-white/60 to-white dark:from-transparent dark:via-slate-900/60 dark:to-slate-900"
+      >
+      </div>
+
+      <!-- Large Blur Effect for Depth -->
+      <div
+        class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full bg-primary-500/30 dark:bg-primary-500/20 blur-[120px]"
+      >
+      </div>
+
+      <!-- Secondary blur for accent -->
+      <div
+        class="absolute right-0 top-0 h-[400px] w-[400px] rounded-full bg-secondary-500/20 dark:bg-secondary-500/10 blur-[100px]"
+      >
+      </div>
+
+      <!-- Animated gradient orbs -->
+      <div class="gradient-orb gradient-orb-1"></div>
+      <div class="gradient-orb gradient-orb-2"></div>
+      <div class="gradient-orb gradient-orb-3"></div>
+    </div>
+
+    <!-- Mouse cursor glow effect -->
+    <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
+
+    <!-- Global click ripple effect -->
+    <GlobalRipple
+      client:load
+      color="rgba(99, 102, 241, 0.15)"
+      navColor="rgba(236, 72, 153, 0.2)"
+      duration={800}
+      size={80}
+    />
+
+    <!-- Fixed Navigation -->
+    <header
+      class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
+    >
+      <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
-    <main>
+
+    <!-- Spacer for fixed header -->
+    <div class="h-[88px]"></div>
+
+    <!-- Left Sidebar -->
+    <LeftSidebar />
+
+    <!-- Right Sidebar -->
+    <RightSidebar />
+
+    <!-- Mobile Control Panel (iPhone-style bottom sheet) -->
+    <MobileControlPanel />
+
+    <!-- Main Content Area -->
+    <main class="transition-all duration-300 2xl:mx-72">
       <slot />
     </main>
-    <footer>
-      <p>&copy; 2025 Bernie. All rights reserved.</p>
-    </footer>
+
+    <!-- Footer -->
+    <Footer
+      currentLocale={locale}
+      translations={t.footer}
+      featuredLinks={featuredLinks}
+    />
+
+    <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
+    <div class="hidden md:block">
+      <ConsoleEasterEgg
+        client:idle
+        consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
+        label={locale === 'zh-tw' ? '終端機' : 'Console'}
+        debugMode={false}
+      />
+    </div>
+
+    <!-- U.E.P 角色互動系統 (React Island) -->
+    <UEPCharacter
+      client:idle
+      uepDocsUrl="https://uep.unforgettableeternalproject.com"
+      debugMode={false}
+    />
+
+    <!-- 返回頂部按鈕 (React Island) -->
+    <ScrollToTop client:load position="right" showAfter={300} />
+
+    <!-- Toast 通知系統 (React Island) -->
+    <ToastContainer client:only="react" position="top-right" />
+
+    <!-- 圖片查看器模態窗 (React Portal) -->
+    <ImageViewerModal client:only="react" />
+
+    <!-- Cookie 同意彈窗 -->
+    <CookieConsent client:load />
+
+    <!-- Mouse tracking script -->
+    <script is:inline>
+      (function () {
+        const cursorGlow = document.getElementById('cursor-glow');
+
+        // 嘗試從 sessionStorage 讀取上次的滑鼠位置
+        let mouseX =
+          parseFloat(sessionStorage.getItem('mouseX')) || window.innerWidth / 2;
+        let mouseY =
+          parseFloat(sessionStorage.getItem('mouseY')) ||
+          window.innerHeight / 2;
+        let currentX = mouseX;
+        let currentY = mouseY;
+
+        // 初始化滑鼠位置
+        if (cursorGlow) {
+          cursorGlow.style.left = currentX + 'px';
+          cursorGlow.style.top = currentY + 'px';
+          cursorGlow.style.opacity = '0';
+        }
+
+        // Smooth mouse tracking
+        document.addEventListener('mousemove', (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+
+          // 儲存當前位置
+          sessionStorage.setItem('mouseX', mouseX.toString());
+          sessionStorage.setItem('mouseY', mouseY.toString());
+        });
+
+        // Animate cursor glow with smooth easing
+        function animate() {
+          const dx = mouseX - currentX;
+          const dy = mouseY - currentY;
+
+          currentX += dx * 0.1;
+          currentY += dy * 0.1;
+
+          if (cursorGlow) {
+            cursorGlow.style.left = currentX + 'px';
+            cursorGlow.style.top = currentY + 'px';
+          }
+
+          requestAnimationFrame(animate);
+        }
+
+        // Show cursor glow on mouse enter
+        document.addEventListener('mouseenter', () => {
+          if (cursorGlow) cursorGlow.style.opacity = '1';
+        });
+
+        // Hide cursor glow on mouse leave
+        document.addEventListener('mouseleave', () => {
+          if (cursorGlow) cursorGlow.style.opacity = '0';
+        });
+
+        animate();
+      })();
+    </script>
   </body>
-  <style>
-    :root {
-      --accent: #3b82f6;
-      --accent-dark: #2563eb;
-      --black: #1e293b;
-      --gray: #64748b;
-      --gray-light: #f1f5f9;
-      --gray-dark: #334155;
-    }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    html {
-      font-family: system-ui, sans-serif;
-      background: #fff;
-      color: var(--black);
-    }
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      background: var(--gray-light);
-      padding: 1rem 2rem;
-      border-bottom: 1px solid var(--gray);
-    }
-    nav {
-      display: flex;
-      gap: 2rem;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    nav a {
-      color: var(--black);
-      text-decoration: none;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    nav a:hover {
-      color: var(--accent);
-    }
-    main {
-      flex: 1;
-      padding: 2rem;
-      max-width: 1200px;
-      width: 100%;
-      margin: 0 auto;
-    }
-    footer {
-      background: var(--gray-light);
-      padding: 1.5rem 2rem;
-      text-align: center;
-      color: var(--gray);
-      border-top: 1px solid var(--gray);
-    }
-  </style>
 </html>

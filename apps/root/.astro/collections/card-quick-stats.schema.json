@@ -1,0 +1,31 @@
+{
+  "$ref": "#/definitions/card-quick-stats",
+  "definitions": {
+    "card-quick-stats": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "order": {
+          "type": "number",
+          "default": 1
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right"
+          ],
+          "default": "left"
+        },
+        "$schema": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

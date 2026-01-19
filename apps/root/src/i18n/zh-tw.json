@@ -1,0 +1,307 @@
+﻿{
+  "nav": {
+    "home": "首頁",
+    "about": "關於我",
+    "projects": "專案",
+    "links": "連結",
+    "updates": "最新動態",
+    "contact": "聯絡我"
+  },
+  "contact": {
+    "title": "聯絡我",
+    "description": "與我取得聯繫，或關注我的社群平台",
+    "subtitle": "有任何問題或想法嗎？歡迎透過以下方式與我聯繫",
+    "social": {
+      "heading": "社群平台",
+      "github": {
+        "name": "GitHub",
+        "description": "查看我的開源專案"
+      },
+      "twitter": {
+        "name": "Twitter / X",
+        "description": "關注我的最新動態"
+      },
+      "email": {
+        "name": "Email",
+        "description": "ptyc4076@gmail.com"
+      }
+    },
+    "form": {
+      "heading": "發送訊息",
+      "name": {
+        "label": "您的姓名",
+        "placeholder": "您的名字"
+      },
+      "email": {
+        "label": "電子郵件",
+        "placeholder": "your@email.com"
+      },
+      "subject": {
+        "label": "主旨",
+        "placeholder": "想聊些什麼？"
+      },
+      "message": {
+        "label": "訊息內容",
+        "placeholder": "您的訊息..."
+      },
+      "required": "*",
+      "submit": "發送訊息",
+      "success": "訊息已成功發送！我會盡快回覆您。",
+      "error": "發送失敗，請稍後再試。",
+      "errorGeneric": "發生錯誤，請稍後再試。"
+    }
+  },
+  "home": {
+    "title": "Bernie - 開發者與創作者",
+    "description": "Bernie 的個人網站，展示專案、創意作品與技術文章",
+    "greeting": "嗨，我是",
+    "tagline": "開發者與創作者，建構數位體驗並在「不朽永恆計畫」宇宙中編織故事",
+    "badge": "一個尚未完成的故事",
+    "welcome": "歡迎來到我的數位空間",
+    "intro": {
+      "heading": "歡迎來到我的數位空間",
+      "p1": "這是<strong>不朽永恆計畫（UEP）</strong>的中心樞紐。在這裡，你將發現我的技術專案、創意作品，以及我一直在建構的广闊虚構宇宙。",
+      "p2": "作為開發者和創作者，我將技術與故事說服融合，創造獨特的數位體驗。探索我的作品集、深入了解 UEP 設定，或查看我最新的技術文章。"
+    },
+    "quickLinks": {
+      "uepDocs": {
+        "title": "UEP 文檔",
+        "description": "探索宇宙"
+      },
+      "importantLinks": {
+        "title": "重要連結",
+        "description": "與我聯繫"
+      }
+    },
+    "featured": {
+      "heading": "精選專案",
+      "cta": "查看所有專案"
+    },
+    "latest": {
+      "heading": "最新動態",
+      "items": [
+        {
+          "title": "主題改版進行中",
+          "description": "以更好的微互動與內容區塊，更新首頁的呈現。"
+        },
+        {
+          "title": "連結頁面已優化",
+          "description": "改良精選連結與滑過效果，讓導覽更清晰。"
+        }
+      ],
+      "cta": {
+        "title": "查看更新",
+        "to": "links"
+      }
+    },
+    "cta": {
+      "about": "關於我",
+      "projects": "查看專案"
+    }
+  },
+  "projects": {
+    "title": "專案 - Bernie",
+    "description": "Bernie 的專案與創意作品集",
+    "heading": "我的專案",
+    "subtitle": "展示我對開發與敘事的熱情的技術專案與創意作品集",
+    "viewProject": "查看專案",
+    "cta": {
+      "heading": "想看更多？",
+      "description": "查看我的 GitHub 以獲取更多專案和貢獻，或訪問 UEP 文檔探索創意宇宙。",
+      "github": "前往 GitHub",
+      "explore": "探索 UEP"
+    },
+    "tags": {
+      "creativeWriting": "創意寫作",
+      "worldBuilding": "世界建構",
+      "fiction": "小說",
+      "astro": "Astro",
+      "typescript": "TypeScript",
+      "tailwindcss": "Tailwind CSS",
+      "art": "藝術",
+      "design": "設計",
+      "illustration": "插畫"
+    },
+    "items": {
+      "uep": {
+        "title": "不朽永恆計畫",
+        "description": "一個廣闊的虛構宇宙，擁有錯綜複雜的世界建構、角色發展和相互連結的故事線。"
+      },
+      "eternity": {
+        "copyright": "Bernie. 版權所有。",
+        "title": "Eternity 網站",
+        "description": "使用 Astro 建構的現代化響應式個人網站，支援深色模式、i18n 與精美動畫。"
+      },
+      "portfolio": {
+        "title": "創意作品集",
+        "description": "為 UEP 宇宙創作的視覺藝術、角色設計與插畫作品展示。"
+      }
+    }
+  },
+  "links": {
+    "title": "連結 - Eternity",
+    "description": "在這裡找到我所有重要的連結",
+    "badge": "連結與資源",
+    "heading": "重要連結",
+    "subtitle": "快速存取我的核心目的地。探索文檔、關注進度，或聯繫我合作。",
+    "badges": {
+      "sync": "與更新保持同步",
+      "mobile": "為行動裝置和桌面打造",
+      "future": "為更多工具做好準備"
+    },
+    "featured": {
+      "github": {
+        "title": "GitHub",
+        "description": "開源工作、實驗和最新提交。",
+        "tag": "程式碼"
+      },
+      "uep": {
+        "title": "UEP 文檔",
+        "description": "深入了解不朽永恆計畫宇宙、設定和技術文檔。",
+        "tag": "宇宙"
+      },
+      "twitter": {
+        "title": "X / Twitter",
+        "description": "更新、快速想法和幕後進度。",
+        "tag": "更新"
+      }
+    },
+    "quick": {
+      "email": {
+        "title": "電子郵件",
+        "description": "直接聯繫我進行合作或提問。"
+      },
+      "home": {
+        "title": "Eternity 網站",
+        "description": "返回首頁並探索更多區塊。"
+      }
+    },
+    "more": {
+      "heading": "即將推出",
+      "description": "我會持續在這裡新增工具、參考資料和創意內容。請再次查看，或如果您想看到某些內容，請聯繫我。",
+      "suggest": "建議連結"
+    },
+    "visit": "訪問"
+  },
+  "footer": {
+    "copyright": "Bernie. 版權所有。",
+    "builtWith": "使用 Astro 建構",
+    "social": {
+      "github": "GitHub",
+      "twitter": "Twitter",
+      "email": "Email"
+    }
+  },
+  "common": {
+    "readMore": "閱讀更多",
+    "learnMore": "了解更多",
+    "backToHome": "返回首頁"
+  },
+  "console": {
+    "title": "終端機 - Eternity",
+    "description": "用於後續互動功能的實驗性終端頁面",
+    "initial": [
+      "歡迎使用 Eternity 終端機。",
+      "此頁面將逐步演變為 UEP 的互動式控制台。",
+      "即將提供探索、工具與小型功能的指令。",
+      "",
+      "當功能開啟後，使用提示將在此顯示。"
+    ],
+    "hint": "功能即將推出：後續更新將支援在此輸入指令。"
+  },
+  "musicPlayer": {
+    "title": "音樂播放器",
+    "paused": "⏸️ 音樂已暫停",
+    "playing": "▶️ 繼續播放"
+  },
+  "sidebar": {
+    "left": {
+      "visitorCounter": {
+        "title": "訪客人數",
+        "thanks": "感謝您的來訪"
+      },
+      "latestUpdate": {
+        "title": "最新動態"
+      },
+      "quote": {
+        "title": "本日名言"
+      }
+    },
+    "right": {
+      "quickStats": {
+        "title": "快速統計"
+      },
+      "tableOfContents": {
+        "title": "頁面大綱",
+        "scrollHint": "滾動頁面查看大綱"
+      }
+    }
+  },
+  "about": {
+    "title": "關於我 - Bernie",
+    "description": "了解更多關於 Bernie - 開發者、創作者與說書人",
+    "heading": "關於我",
+    "subtitle": "開發者、創作者與說書人",
+    "skills": "技能",
+    "experience": "工作經歷",
+    "certifications": "證照與認證",
+    "connect": "聯繫我",
+    "notSet": "尚未設定個人資料",
+    "goToAdmin": "前往後台"
+  },
+  "updates": {
+    "title": "最新動態 - Eternity",
+    "description": "查看最新的更新動態與公告",
+    "heading": "最新動態",
+    "subtitle": "更新歷史",
+    "backToList": "返回動態列表",
+    "noUpdates": "目前沒有動態",
+    "categories": {
+      "website": "網站更新",
+      "project": "專案進展",
+      "announcement": "重要公告",
+      "other": "其他"
+    }
+  },
+  "projectsPage": {
+    "filterProjects": "篩選專案",
+    "projectStatus": "專案狀態",
+    "techTags": "技術標籤",
+    "allProjects": "全部",
+    "noProjects": "沒有符合的專案",
+    "noProjectsYet": "目前沒有專案",
+    "viewDetails": "查看詳情",
+    "website": "網站",
+    "status": {
+      "all": "全部",
+      "active": "進行中",
+      "paused": "暫時停滞",
+      "completed": "已完成",
+      "archived": "已封存"
+    }
+  },
+  "search": {
+    "pages": {
+      "home": {
+        "title": "首頁",
+        "description": "回到首頁"
+      },
+      "about": {
+        "title": "關於",
+        "description": "關於我的介紹"
+      },
+      "projects": {
+        "title": "專案",
+        "description": "查看我的專案作品"
+      },
+      "links": {
+        "title": "連結",
+        "description": "有用的連結與資源"
+      },
+      "updates": {
+        "title": "動態",
+        "description": "最新動態與更新"
+      }
+    }
+  }
+}

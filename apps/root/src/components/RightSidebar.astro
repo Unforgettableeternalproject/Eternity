@@ -1,0 +1,500 @@
+---
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCollection, getEntry } from 'astro:content';
+import SidebarCard from './SidebarCard';
+
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+
+// 從 Keystatic 獲取卡片資料
+const quickStatsCard = await getEntry('card-quick-stats', 'index');
+const tocCard = await getEntry('card-table-of-contents', 'index');
+
+// 獲取統計數據
+const allProjects = await getCollection('projects');
+const allUpdates = await getCollection('updates');
+
+const stats = [
+  {
+    label: locale === 'zh-tw' ? '專案' : 'Projects',
+    value: allProjects.length,
+    icon: 'M4 6h16M4 12h16M4 18h16',
+    color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    label: locale === 'zh-tw' ? '更新' : 'Updates',
+    value: allUpdates.length,
+    icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+    color: 'from-purple-500 to-pink-500',
+  },
+  {
+    label: locale === 'zh-tw' ? '活躍專案' : 'Active',
+    value: allProjects.filter((p) => p.data.status === 'active').length,
+    icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+    color: 'from-green-500 to-emerald-500',
+  },
+  {
+    label: locale === 'zh-tw' ? '已完成' : 'Completed',
+    value: allProjects.filter((p) => p.data.status === 'completed').length,
+    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    color: 'from-indigo-500 to-purple-500',
+  },
+];
+---
+
+<!-- 右側邊欄切換按鈕（在較窄螢幕顯示，手機版隱藏） -->
+<button
+  id="right-sidebar-toggle"
+  class="hidden md:flex 2xl:hidden fixed right-4 top-32 w-12 h-12 rounded-full bg-white dark:bg-slate-800 shadow-lg hover:shadow-xl transition-all duration-300 z-40 items-center justify-center group"
+  aria-label="Toggle right sidebar"
+  type="button"
+>
+  <svg
+    class="w-6 h-6 text-slate-600 dark:text-slate-300 group-hover:text-primary-500 transition-colors"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+    ></path>
+  </svg>
+</button>
+
+<!-- 右側邊欄面板 -->
+<aside
+  class="fixed right-0 top-0 h-full w-80 bg-white dark:bg-slate-900 2xl:bg-transparent 2xl:dark:bg-transparent shadow-2xl 2xl:shadow-none transform translate-x-full 2xl:translate-x-0 2xl:right-4 2xl:top-32 2xl:h-auto 2xl:w-64 transition-transform duration-300 ease-in-out z-50 overflow-y-auto"
+  id="right-sidebar"
+>
+  <!-- 關閉按鈕（僅在展開面板模式顯示） -->
+  <button
+    id="right-sidebar-close"
+    class="2xl:hidden absolute top-4 left-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
+    aria-label="Close right sidebar"
+    type="button"
+  >
+    <svg
+      class="w-5 h-5 text-slate-600 dark:text-slate-300"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M6 18L18 6M6 6l12 12"></path>
+    </svg>
+  </button>
+
+  <div
+    class="flex flex-col pt-16 2xl:pt-0 px-4 2xl:px-0 h-full 2xl:h-auto"
+    id="right-sidebar-container"
+  >
+    {
+      quickStatsCard?.data.enabled && (
+        <SidebarCard client:load id="quick-stats">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-primary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+            </svg>
+            {t.sidebar.right.quickStats.title}
+          </h3>
+          <div class="grid grid-cols-2 gap-3">
+            {stats.map((stat) => (
+              <div
+                class:list={[
+                  'group relative overflow-hidden rounded-lg p-3 hover:scale-105 transition-transform duration-200 border',
+                  stat.color === 'from-blue-500 to-cyan-500'
+                    ? 'border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-cyan-500/5 dark:from-blue-500/15 dark:to-cyan-500/10'
+                    : stat.color === 'from-purple-500 to-pink-500'
+                      ? 'border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/5 dark:from-purple-500/15 dark:to-pink-500/10'
+                      : stat.color === 'from-green-500 to-emerald-500'
+                        ? 'border-green-500/20 bg-gradient-to-br from-green-500/10 to-emerald-500/5 dark:from-green-500/15 dark:to-emerald-500/10'
+                        : 'border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-blue-500/5 dark:from-indigo-500/15 dark:to-blue-500/10',
+                ]}
+              >
+                <div class="relative">
+                  <svg
+                    class:list={[
+                      'w-5 h-5 mb-2',
+                      stat.color === 'from-blue-500 to-cyan-500'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : stat.color === 'from-purple-500 to-pink-500'
+                          ? 'text-purple-600 dark:text-purple-400'
+                          : stat.color === 'from-green-500 to-emerald-500'
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-indigo-600 dark:text-indigo-400',
+                    ]}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d={stat.icon}
+                    />
+                  </svg>
+                  <div class="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stat.value}
+                  </div>
+                  <div class="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                    {stat.label}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SidebarCard>
+      )
+    }
+
+    {
+      tocCard?.data.enabled && (
+        <SidebarCard client:load id="table-of-contents">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-primary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16 0h2v-2h-2v2zm0-10v2h2V7h-2zm0 6h2v-2h-2v2z" />
+            </svg>
+            {t.sidebar.right.tableOfContents.title}
+          </h3>
+          <nav
+            id="toc-nav"
+            class="space-y-1 text-sm max-h-[14rem] overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          >
+            <p class="text-xs text-slate-600 dark:text-slate-400 italic">
+              {t.sidebar.right.tableOfContents.scrollHint}
+            </p>
+          </nav>
+        </SidebarCard>
+      )
+    }
+  </div>
+</aside>
+
+<script>
+  // 自動生成目錄大綱
+  function generateTOC() {
+    const tocNav = document.getElementById('toc-nav');
+    const tocCard = document.getElementById('table-of-contents');
+    if (!tocNav) return;
+
+    // 只選擇 main 下直接的標題，排除卡片等元件內的標題
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    const headings = Array.from(main.querySelectorAll('h2, h3')).filter(
+      (heading) => {
+        // 排除在 .card, .flip-card, [data-card-id] 等容器內的標題
+        if (
+          heading.closest('.card, .flip-card, [data-card-id], .project-card')
+        ) {
+          return false;
+        }
+
+        // 排除隱藏的元素（包括 #empty-state 等動態顯示/隱藏的區塊）
+        const headingElement = heading as HTMLElement;
+        if (
+          headingElement.offsetParent === null ||
+          headingElement.classList.contains('hidden') ||
+          headingElement.closest('.hidden') ||
+          window.getComputedStyle(headingElement).display === 'none'
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
+
+    // 如果沒有標題，顯示提示訊息
+    if (headings.length === 0) {
+      tocNav.innerHTML =
+        '<p class="text-xs text-slate-500 dark:text-slate-400 italic">此頁面沒有大綱可顯示</p>';
+      return;
+    }
+
+    // 如果有標題，確保卡片顯示
+    if (tocCard) {
+      tocCard.style.display = '';
+    }
+
+    tocNav.innerHTML = '';
+
+    headings.forEach((heading, index) => {
+      const id = heading.id || `heading-${index}`;
+      if (!heading.id) heading.id = id;
+
+      const link = document.createElement('a');
+      link.href = `#${id}`;
+      link.textContent = heading.textContent || '';
+      link.className = `block py-1.5 px-2 rounded transition-colors hover:text-primary-700 dark:hover:text-primary-300 text-slate-600 dark:text-slate-400 ${
+        heading.tagName === 'H3' ? 'pl-4 text-xs' : 'font-medium'
+      }`;
+
+      // 添加點擊滾動
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      tocNav.appendChild(link);
+    });
+
+    // 滾動時高亮當前標題
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = entry.target.id;
+          const link = tocNav.querySelector(`a[href="#${id}"]`);
+          if (link) {
+            if (entry.isIntersecting) {
+              // 移除其他高亮
+              tocNav.querySelectorAll('a').forEach((a) => {
+                a.classList.remove(
+                  'bg-primary-100',
+                  'dark:bg-primary-900',
+                  'text-primary-700',
+                  'dark:text-primary-300',
+                  'font-semibold'
+                );
+              });
+              // 添加當前高亮
+              link.classList.add(
+                'text-primary-700',
+                'dark:text-primary-300',
+                'font-semibold',
+                'border-l-2',
+                'border-primary-500',
+                'pl-2'
+              );
+
+              // 自動滾動 TOC 讓當前項目可見
+              link.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+                inline: 'nearest',
+              });
+            }
+          }
+        });
+      },
+      { rootMargin: '-100px 0px -80% 0px' }
+    );
+
+    headings.forEach((heading) => observer.observe(heading));
+
+    // 檢測頁面滾動位置
+    let lastScrollY = window.scrollY;
+
+    function handleScroll() {
+      if (!tocNav) return;
+
+      const currentScrollY = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrolledToBottom =
+        windowHeight + currentScrollY >= documentHeight - 50;
+      const scrolledToTop = currentScrollY <= 100;
+
+      // 滾到底部：標記所有項目
+      if (scrolledToBottom) {
+        tocNav.querySelectorAll('a').forEach((a) => {
+          a.classList.add(
+            'text-primary-700',
+            'dark:text-primary-300',
+            'font-semibold',
+            'border-l-2',
+            'border-primary-500',
+            'pl-2'
+          );
+        });
+      }
+      // 滾到頂部：取消所有標記
+      else if (scrolledToTop) {
+        tocNav.querySelectorAll('a').forEach((a) => {
+          a.classList.remove(
+            'bg-primary-100',
+            'dark:bg-primary-900',
+            'text-primary-700',
+            'dark:text-primary-300',
+            'font-semibold',
+            'border-l-2',
+            'border-primary-500',
+            'pl-2'
+          );
+        });
+      }
+      // 向上滾：取消標記（除非在頂部或底部）
+      else if (
+        currentScrollY < lastScrollY &&
+        !scrolledToTop &&
+        !scrolledToBottom
+      ) {
+        // 由 IntersectionObserver 處理
+      }
+
+      lastScrollY = currentScrollY;
+    }
+
+    window.addEventListener('scroll', handleScroll);
+  }
+
+  document.addEventListener('DOMContentLoaded', generateTOC);
+  document.addEventListener('astro:page-load', generateTOC);
+</script>
+
+<script>
+  // 簡易拖曳排序功能
+  // @ts-expect-error - TypeScript cannot infer type in plain script tags
+  let draggedElement = null;
+
+  function initDragAndDrop() {
+    const container = document.getElementById('right-sidebar-container');
+    if (!container) return;
+
+    const cards = container.querySelectorAll('[data-card-id]');
+
+    cards.forEach((card) => {
+      if (!(card instanceof HTMLElement)) return;
+      const handle = card.querySelector('.drag-handle');
+      if (!(handle instanceof HTMLElement)) return;
+
+      handle.addEventListener('mousedown', () => {
+        card.setAttribute('draggable', 'true');
+      });
+
+      card.addEventListener('dragstart', () => {
+        draggedElement = card;
+        card.style.opacity = '0.5';
+        card.style.transform = 'scale(0.95)';
+
+        // 為其他卡片添加輕微縮小效果
+        cards.forEach((otherCard) => {
+          if (otherCard instanceof HTMLElement && otherCard !== card) {
+            otherCard.style.transform = 'scale(0.98)';
+            otherCard.style.opacity = '0.7';
+          }
+        });
+      });
+
+      card.addEventListener('dragend', () => {
+        card.style.opacity = '1';
+        card.style.transform = 'scale(1)';
+        card.setAttribute('draggable', 'false');
+
+        // 恢復其他卡片
+        cards.forEach((otherCard) => {
+          if (otherCard instanceof HTMLElement) {
+            otherCard.style.transform = 'scale(1)';
+            otherCard.style.opacity = '1';
+          }
+        });
+
+        draggedElement = null;
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        // @ts-expect-error - TypeScript cannot infer type in plain script tags
+        if (!draggedElement || draggedElement === card) return;
+
+        const bounding = card.getBoundingClientRect();
+        const offset = e.clientY - bounding.top;
+
+        if (offset > bounding.height / 2) {
+          card.after(draggedElement);
+        } else {
+          card.before(draggedElement);
+        }
+      });
+    });
+  }
+
+  // 初始化
+  document.addEventListener('astro:page-load', initDragAndDrop);
+  initDragAndDrop();
+</script>
+
+<script>
+  // 側邊欄展開/關閉控制
+  function initRightSidebar() {
+    const sidebar = document.getElementById('right-sidebar');
+    const toggleBtn = document.getElementById('right-sidebar-toggle');
+    const closeBtn = document.getElementById('right-sidebar-close');
+
+    if (!sidebar || !toggleBtn || !closeBtn) return;
+
+    function openSidebar() {
+      if (!sidebar) return;
+      // 先清理舊的 backdrop（如果有）
+      const oldBackdrop = document.getElementById('right-sidebar-backdrop');
+      if (oldBackdrop) oldBackdrop.remove();
+
+      sidebar.classList.remove('translate-x-full');
+      sidebar.classList.add('translate-x-0');
+      // 添加背景遮罩
+      const backdrop = document.createElement('div');
+      backdrop.id = 'right-sidebar-backdrop';
+      backdrop.className =
+        'fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-300';
+      backdrop.addEventListener('click', closeSidebar);
+      document.body.appendChild(backdrop);
+      // 動畫效果
+      setTimeout(() => {
+        backdrop.style.opacity = '1';
+      }, 10);
+    }
+
+    function closeSidebar() {
+      if (!sidebar) return;
+      sidebar.classList.add('translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+      // 移除背景遮罩
+      const backdrop = document.getElementById('right-sidebar-backdrop');
+      if (backdrop) {
+        backdrop.style.opacity = '0';
+        setTimeout(() => backdrop.remove(), 300);
+      }
+    }
+
+    toggleBtn.addEventListener('click', openSidebar);
+    closeBtn.addEventListener('click', closeSidebar);
+
+    // ESC 鍵關閉
+    document.addEventListener('keydown', (e) => {
+      if (
+        e.key === 'Escape' &&
+        sidebar &&
+        !sidebar.classList.contains('translate-x-full')
+      ) {
+        closeSidebar();
+      }
+    });
+
+    // 清理函數：頁面切換時移除殘留的 backdrop
+    const cleanup = () => {
+      const backdrop = document.getElementById('right-sidebar-backdrop');
+      if (backdrop) backdrop.remove();
+    };
+
+    document.addEventListener('astro:before-preparation', cleanup);
+    document.addEventListener('astro:page-load', cleanup);
+  }
+
+  document.addEventListener('DOMContentLoaded', initRightSidebar);
+  document.addEventListener('astro:page-load', initRightSidebar);
+</script>

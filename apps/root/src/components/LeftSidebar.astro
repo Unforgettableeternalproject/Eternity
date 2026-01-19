@@ -1,0 +1,461 @@
+---
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCollection, getEntry } from 'astro:content';
+import GlobalMusicPlayer from './GlobalMusicPlayer.astro';
+import SidebarCard from './SidebarCard';
+import { envConfig } from '../config/env';
+
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+
+// 獲取訪客計數器 API URL
+const VISITOR_API_URL =
+  import.meta.env.PUBLIC_VISITOR_API_URL ||
+  'https://eternity-visitor-counter.ptyc4076.workers.dev';
+
+// 獲取最近的更新
+const allUpdates = await getCollection('updates');
+const latestUpdate = allUpdates.sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime()
+)[0];
+
+// 從 Keystatic 獲取卡片資料（singleton）
+const quoteCard = await getEntry('card-quote', 'index');
+const musicCard = await getEntry('card-music', 'index');
+const visitorCounterCard = await getEntry('card-visitor-counter', 'index');
+const latestUpdateCard = await getEntry('card-latest-update', 'index');
+
+// Quote 資料（基於日期的每日名言）
+const quotes = quoteCard?.data
+  ? locale === 'zh-tw'
+    ? quoteCard.data.quotes_zh
+    : quoteCard.data.quotes_en
+  : null;
+
+// 取得今日日期作為種子（YYYY-MM-DD 格式）
+const getDailyIndex = (arrayLength: number): number => {
+  const today = new Date();
+  const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // 簡單的字串雜湊函數（基於日期種子）
+  let hash = 0;
+  for (let i = 0; i < dateString.length; i++) {
+    const char = dateString.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // 轉換為 32 位元整數
+  }
+
+  return Math.abs(hash) % arrayLength;
+};
+
+const randomQuote =
+  quotes && quotes.length > 0
+    ? quotes[getDailyIndex(quotes.length)]
+    : {
+        text:
+          locale === 'zh-tw'
+            ? '代碼如詩，細節成就完美'
+            : 'Code is poetry, details make perfection',
+        author: '',
+      };
+
+// 定義卡片 ID 列表
+const cardIds = ['music-player', 'visitor-counter'];
+if (latestUpdate) cardIds.push('latest-update');
+cardIds.push('quote');
+---
+
+<!-- 左側邊欄切換按鈕（在較窄螢幕顯示，手機版隱藏） -->
+<button
+  id="left-sidebar-toggle"
+  class="hidden md:flex 2xl:hidden fixed left-4 top-32 w-12 h-12 rounded-full bg-white dark:bg-slate-800 shadow-lg hover:shadow-xl transition-all duration-300 z-40 items-center justify-center group"
+  aria-label="Toggle left sidebar"
+  type="button"
+>
+  <svg
+    class="w-6 h-6 text-slate-600 dark:text-slate-300 group-hover:text-primary-500 transition-colors"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+    ></path>
+  </svg>
+</button>
+
+<!-- 左側邊欄面板 -->
+<aside
+  class="fixed left-0 top-0 h-full w-80 bg-white dark:bg-slate-900 2xl:bg-transparent 2xl:dark:bg-transparent shadow-2xl 2xl:shadow-none transform -translate-x-full 2xl:translate-x-0 2xl:left-4 2xl:top-32 2xl:h-[calc(100vh-18rem)] 2xl:w-64 transition-transform duration-300 ease-in-out z-50 overflow-y-auto sidebar-responsive"
+  id="left-sidebar"
+>
+  <!-- 關閉按鈕（只在展開面板模式顯示，2xl 以上隱藏） -->
+  <button
+    id="left-sidebar-close"
+    class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center 2xl:hidden"
+    aria-label="Close left sidebar"
+    type="button"
+  >
+    <svg
+      class="w-5 h-5 text-slate-600 dark:text-slate-300"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M6 18L18 6M6 6l12 12"></path>
+    </svg>
+  </button>
+
+  <div
+    class="flex flex-col pt-16 2xl:pt-0 px-4 2xl:px-0 h-full 2xl:h-full scrollbar-hide"
+    id="left-sidebar-container"
+  >
+    {
+      musicCard?.data.enabled && (
+        <SidebarCard client:load id="music-player">
+          <GlobalMusicPlayer />
+        </SidebarCard>
+      )
+    }
+
+    {
+      visitorCounterCard?.data.enabled && (
+        <SidebarCard client:load id="visitor-counter">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-secondary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+            </svg>
+            {t.sidebar.left.visitorCounter.title}
+          </h3>
+          <div class="flex items-center justify-between">
+            <div class="text-2xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">
+              <span id="visitor-count">---</span>
+            </div>
+          </div>
+          <div class="mt-2 flex items-center justify-between">
+            <span class="text-xs text-slate-600 dark:text-slate-400">
+              {t.sidebar.left.visitorCounter.thanks}
+            </span>
+            {envConfig.showDevTools && (
+              <button
+                id="reset-visitor-count"
+                class="text-[10px] px-2 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+                title="Reset counter (dev only)"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </SidebarCard>
+      )
+    }
+
+    {
+      latestUpdate && latestUpdateCard?.data.enabled && (
+        <SidebarCard client:load id="latest-update">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-primary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+            {t.sidebar.left.latestUpdate.title}
+          </h3>
+          <a
+            href={`/${locale}/updates/${latestUpdate.id}`}
+            class="block rounded-lg p-3 border border-primary-400/10 hover:border-primary-400/30 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 transition-colors group"
+          >
+            <div class="text-sm text-slate-700 dark:text-slate-200 mb-1 font-medium truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+              {locale === 'zh-tw'
+                ? latestUpdate.id
+                : latestUpdate.data.title_en}
+            </div>
+            <div class="text-xs text-slate-600 dark:text-slate-400">
+              {latestUpdate.data.date.toLocaleDateString(
+                locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                }
+              )}
+            </div>
+          </a>
+        </SidebarCard>
+      )
+    }
+
+    {
+      quoteCard?.data.enabled && (
+        <SidebarCard client:load id="quote">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+            <svg
+              class="w-4 h-4 text-primary-400"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z" />
+            </svg>
+            {t.sidebar.left.quote.title}
+          </h3>
+          <div class="flex flex-col gap-2">
+            <p class="text-sm italic text-slate-700 dark:text-slate-200 leading-relaxed">
+              "{randomQuote.text}"
+            </p>
+            {randomQuote.author && (
+              <p class="text-xs text-slate-600 dark:text-slate-500 text-right">
+                — {randomQuote.author}
+              </p>
+            )}
+          </div>
+        </SidebarCard>
+      )
+    }
+  </div>
+</aside>
+
+<style>
+  /* 隱藏滾動條但保持可滾動功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+</style>
+
+<script>
+  // 簡易拖曳排序功能
+  // @ts-expect-error - TypeScript cannot infer type in plain script tags
+  let draggedElement = null;
+
+  function initDragAndDrop() {
+    const container = document.getElementById('left-sidebar-container');
+    if (!container) return;
+
+    const cards = container.querySelectorAll('[data-card-id]');
+
+    cards.forEach((card) => {
+      if (!(card instanceof HTMLElement)) return;
+      const handle = card.querySelector('.drag-handle');
+      if (!(handle instanceof HTMLElement)) return;
+
+      handle.addEventListener('mousedown', () => {
+        card.setAttribute('draggable', 'true');
+      });
+
+      card.addEventListener('dragstart', () => {
+        draggedElement = card;
+        card.style.opacity = '0.5';
+        card.style.transform = 'scale(0.95)';
+
+        // 為其他卡片添加輕微縮小效果
+        cards.forEach((otherCard) => {
+          if (otherCard instanceof HTMLElement && otherCard !== card) {
+            otherCard.style.transform = 'scale(0.98)';
+            otherCard.style.opacity = '0.7';
+          }
+        });
+      });
+
+      card.addEventListener('dragend', () => {
+        card.style.opacity = '1';
+        card.style.transform = 'scale(1)';
+        card.setAttribute('draggable', 'false');
+
+        // 恢復其他卡片
+        cards.forEach((otherCard) => {
+          if (otherCard instanceof HTMLElement) {
+            otherCard.style.transform = 'scale(1)';
+            otherCard.style.opacity = '1';
+          }
+        });
+
+        draggedElement = null;
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        // @ts-expect-error - TypeScript cannot infer type in plain script tags
+        if (!draggedElement || draggedElement === card) return;
+
+        const bounding = card.getBoundingClientRect();
+        const offset = e.clientY - bounding.top;
+
+        if (offset > bounding.height / 2) {
+          card.after(draggedElement);
+        } else {
+          card.before(draggedElement);
+        }
+      });
+    });
+  }
+
+  // 初始化
+  document.addEventListener('astro:page-load', initDragAndDrop);
+  initDragAndDrop();
+</script>
+
+<script define:vars={{ VISITOR_API_URL }}>
+  // Cloudflare Workers 訪客計數器
+  let hasInitialized = false; // 追蹤是否已初始化
+
+  async function updateVisitorCount() {
+    // 如果已經初始化且元素有內容，跳過
+    const countElement = document.getElementById('visitor-count');
+    if (!countElement) return;
+
+    if (hasInitialized && countElement.textContent !== '---') {
+      return; // 已有數據，不重複查詢
+    }
+
+    // 檢查是否為主頁 (根路徑或語言根路徑)
+    const currentPath = window.location.pathname;
+    const isHomePage =
+      currentPath === '/' ||
+      currentPath === '/zh-tw' ||
+      currentPath === '/zh-tw/' ||
+      currentPath === '/en' ||
+      currentPath === '/en/';
+
+    try {
+      // 獲取當前訪客數
+      const countResponse = await fetch(`${VISITOR_API_URL}/api/visitor/count`);
+      const countData = await countResponse.json();
+      let totalVisitors = countData.totalVisitors || 0;
+
+      // 只在主頁且本次會話未追蹤時追蹤訪客
+      if (isHomePage) {
+        const hasTracked = sessionStorage.getItem('visitor-tracked');
+
+        if (!hasTracked) {
+          const trackResponse = await fetch(
+            `${VISITOR_API_URL}/api/visitor/track`,
+            {
+              method: 'POST',
+            }
+          );
+          const trackData = await trackResponse.json();
+          totalVisitors = trackData.totalVisitors;
+          sessionStorage.setItem('visitor-tracked', 'true');
+        }
+      }
+
+      // 動畫顯示計數
+      let current = 0;
+      const target = totalVisitors;
+      const duration = 1000;
+      const increment = target / (duration / 16);
+
+      const animate = () => {
+        current += increment;
+        if (current < target) {
+          countElement.textContent = Math.floor(current).toString();
+          requestAnimationFrame(animate);
+        } else {
+          countElement.textContent = target.toString();
+        }
+      };
+
+      animate();
+      hasInitialized = true; // 標記已初始化
+    } catch (error) {
+      console.error('訪客計數器錯誤:', error);
+      countElement.textContent = '---';
+    }
+
+    // 開發/測試環境顯示重置按鈕（已移除功能，因為數據在 Workers 端）
+    const resetButton = document.getElementById('reset-visitor-count');
+    if (resetButton) {
+      resetButton.style.display = 'none'; // 隱藏重置按鈕
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', updateVisitorCount);
+  document.addEventListener('astro:page-load', updateVisitorCount);
+</script>
+
+<script>
+  // 側邊欄展開/關閉控制
+  function initLeftSidebar() {
+    const sidebar = document.getElementById('left-sidebar');
+    const toggleBtn = document.getElementById('left-sidebar-toggle');
+    const closeBtn = document.getElementById('left-sidebar-close');
+
+    if (!sidebar || !toggleBtn || !closeBtn) return;
+
+    function openSidebar() {
+      if (!sidebar) return;
+      // 先清理舊的 backdrop（如果有）
+      const oldBackdrop = document.getElementById('left-sidebar-backdrop');
+      if (oldBackdrop) oldBackdrop.remove();
+
+      sidebar.classList.remove('-translate-x-full');
+      sidebar.classList.add('translate-x-0');
+      // 添加背景遮罩
+      const backdrop = document.createElement('div');
+      backdrop.id = 'left-sidebar-backdrop';
+      backdrop.className =
+        'fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-300';
+      backdrop.addEventListener('click', closeSidebar);
+      document.body.appendChild(backdrop);
+      // 動畫效果
+      setTimeout(() => {
+        backdrop.style.opacity = '1';
+      }, 10);
+    }
+
+    function closeSidebar() {
+      if (!sidebar) return;
+      sidebar.classList.add('-translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+      // 移除背景遮罩
+      const backdrop = document.getElementById('left-sidebar-backdrop');
+      if (backdrop) {
+        backdrop.style.opacity = '0';
+        setTimeout(() => backdrop.remove(), 300);
+      }
+    }
+
+    toggleBtn.addEventListener('click', openSidebar);
+    closeBtn.addEventListener('click', closeSidebar);
+
+    // ESC 鍵關閉
+    document.addEventListener('keydown', (e) => {
+      if (
+        e.key === 'Escape' &&
+        sidebar &&
+        !sidebar.classList.contains('-translate-x-full')
+      ) {
+        closeSidebar();
+      }
+    });
+
+    // 清理函數：頁面切換時移除殘留的 backdrop
+    const cleanup = () => {
+      const backdrop = document.getElementById('left-sidebar-backdrop');
+      if (backdrop) backdrop.remove();
+    };
+
+    document.addEventListener('astro:before-preparation', cleanup);
+    document.addEventListener('astro:page-load', cleanup);
+  }
+
+  document.addEventListener('DOMContentLoaded', initLeftSidebar);
+  document.addEventListener('astro:page-load', initLeftSidebar);
+</script>

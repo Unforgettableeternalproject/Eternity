@@ -1,0 +1,350 @@
+## 專案簡介
+
+Ranza 是一個 **統一的隨機產生器工具平台**，目標是將各種隨機產生功能整合到單一應用程式中，提供直覺且強大的隨機內容生成體驗。透過 C# Windows Forms 與 IronPython 的結合，本專案旨在打造一個模組化、可擴展的隨機產生器框架，支援數字、顏色、日期、名稱、名言、詞彙、創意點子等多種產生模式，並提供彈性的輸出選項與本地化支援。
+
+儘管目前專案處於**早期開發階段**，但已建立基礎架構，包含 MainForm 主介面、模式切換系統、以及使用 IronPython 整合 Python 腳本的技術基礎。
+
+### 核心理念
+
+- **多功能整合**：將分散的隨機產生器功能統一到單一平台
+- **模組化設計**：支援多種產生模式與輸出格式
+- **腳本擴展性**：透過 IronPython 支援 Python 腳本擴展功能
+- **使用者友善**：簡潔直覺的 Windows Forms 介面
+
+---
+
+## 我的職責
+
+作為本專案的唯一開發者，我負責所有系統設計與實作：
+
+### 系統架構規劃
+
+- 設計模組化隨機產生器架構：
+  - 多種產生模式切換系統（Generation Modes）
+  - 彈性輸出格式系統（Output Modes）
+  - 可擴展的產生器框架（Generators/）
+- 規劃功能藍圖（Ideas.txt）：
+  - **產生模式**：Numbers、Colors、Dates、Names、Famous Quotes、Premade Words、Ideas、Blabberings、Customs、Anything
+  - **輸出模式**：Export to file、Presentation、Complementary Text（模板填充系統）
+  - **額外功能**：Localizations、Customizable Themes、Log Window、More Output Modes、Explanation Window
+
+### 核心系統實作
+
+- **主介面開發**（MainForm）：
+  - 模式選擇系統（Choices ComboBox）
+  - 模式切換邏輯（ChangeGenerateMode）
+  - 動態面板顯示（G_ModeNumeric、G_ModeName）
+  - 匯出功能規劃（Export Button）
+- **技術整合**：
+  - 整合 IronPython 3.4.1 支援 Python 腳本
+  - 建立基礎框架支援未來擴展
+  - 設計可插拔的產生器模組系統
+
+### UI/UX 設計
+
+- 設計 Windows Forms 主視窗介面
+- 規劃模式切換的視覺回饋
+- 設計未來功能的 UI 佈局
+
+---
+
+## 核心功能（規劃中）
+
+### 1. 多樣化產生模式
+
+- **數字產生器**（Numeric）：
+  - 隨機數字產生
+  - 範圍設定（最小值、最大值）
+  - 數量控制
+- **名稱產生器**（Name）：
+  - 隨機人名產生
+  - 支援不同文化/地區名稱
+  - 名/姓分離選項
+- **其他產生模式**（計畫中）：
+  - **Colors**：隨機顏色產生（RGB、HEX、HSL）
+  - **Dates**：隨機日期產生
+  - **Famous Quotes**：名言佳句隨機選擇
+  - **Premade Words**：預設詞彙隨機組合
+  - **Ideas**：創意點子產生器
+  - **Blabberings**：隨機文字/胡言亂語產生
+  - **Customs**：自訂規則產生器
+  - **Anything**：萬用隨機產生模式
+
+### 2. 彈性輸出系統
+
+- **檔案匯出**（Export to file）：
+  - 支援多種檔案格式（TXT、CSV、JSON）
+  - 批次匯出功能
+- **簡報模式**（Presentation）：
+  - 視覺化顯示產生結果
+  - 適合展示與分享
+- **補充文字/模板填充**（Complementary Text）：
+  - 使用者可撰寫包含 `{rand}` 標籤的模板文字
+  - 產生時自動將隨機內容填入標籤位置
+  - 適合需要產生文件、訊息模板的場景
+
+### 3. 介面與互動設計
+
+- **模式切換系統**：
+  - ComboBox 選單切換產生模式
+  - 動態面板顯示對應設定
+  - 平滑的 UI 轉場效果
+- **設定面板**：
+  - 各模式專屬設定介面
+  - 參數調整與預覽
+  - 即時驗證與回饋
+
+### 4. 額外功能（規劃中）
+
+- **多語言支援**（Localizations）：
+  - 介面本地化
+  - 多語言產生內容
+- **自訂主題**（Customizable Themes）：
+  - 可切換視覺風格
+  - 使用者偏好設定
+- **日誌視窗**（Log Window）：
+  - 操作歷史記錄
+  - 產生結果追蹤
+- **說明視窗**（Explanation Window）：
+  - 功能說明與教學
+  - 使用指南
+
+### 5. Python 腳本整合
+
+- **IronPython 支援**：
+  - 使用 Python 撰寫自訂產生器
+  - 動態載入 Python 腳本
+  - C# 與 Python 互操作性
+- **腳本擴展**：
+  - 社群貢獻的產生器腳本
+  - 插件系統架構
+
+---
+
+## 使用技術
+
+### 核心框架
+
+- **C# (.NET Framework 4.8)**：主要開發語言
+- **Windows Forms**：GUI 框架
+- **IronPython 3.4.1**：Python 腳本整合
+
+### 關鍵套件
+
+- **IronPython 相關**：
+  - `IronPython` (3.4.1)：Python 執行引擎
+  - `IronPython.Modules`：Python 標準模組
+  - `IronPython.SQLite`：SQLite 支援
+  - `IronPython.Wpf`：WPF 整合
+- **動態語言運行時**：
+  - `DynamicLanguageRuntime` (1.3.4)：動態語言支援
+  - `Microsoft.Dynamic`：動態程式執行
+  - `Microsoft.Scripting`：腳本引擎
+  - `Microsoft.Scripting.Metadata`：中繼資料處理
+
+### 系統函式庫
+
+- **System.Buffers** (4.5.1)：緩衝區管理
+- **System.Memory** (4.5.5)：記憶體管理
+- **System.Numerics.Vectors** (4.5.0)：向量運算
+- **System.Runtime.CompilerServices.Unsafe** (6.0.0)：底層操作
+
+### 開發工具
+
+- **Visual Studio**：主要 IDE
+- **NuGet**：套件管理
+
+---
+
+## 專案狀態
+
+### 當前版本：早期開發階段（v0.1-alpha）
+
+- **開發進度**：基礎架構建立中
+- **主要成果**：完成主視窗框架與模式切換基礎
+
+### 功能完成度
+
+- ✅ **已完成**：
+  - 專案架構建立
+  - MainForm 主視窗基本框架
+  - IronPython 整合完成
+  - 模式選擇系統（ComboBox）
+  - 模式切換邏輯（Numeric、Name 模式）
+  - 動態面板切換機制
+  - 基礎 Helper Functions
+- 🔄 **進行中**：
+  - 數字產生器實作
+  - 名稱產生器實作
+  - 匯出功能開發
+- 📋 **計畫中**（Ideas.txt）：
+  - 10 種產生模式完整實作
+  - 3 種輸出模式實作
+  - 日誌視窗
+  - 本地化支援
+  - 自訂主題系統
+  - 說明視窗
+  - Generators/ 資料夾模組實作
+
+### 專案挑戰
+
+- **架構設計**：如何設計可擴展的產生器插件系統
+- **IronPython 整合**：如何有效利用 Python 腳本擴展功能
+- **UI/UX 優化**：如何為多種模式設計統一且直覺的介面
+- **效能最佳化**：大量產生時的效能考量
+
+---
+
+## 開發挑戰與收穫
+
+### 1. 模組化產生器架構設計
+
+**挑戰**：如何設計一個統一框架，支援多種不同類型的隨機產生器？
+
+**解決方案**：
+
+- 設計模式切換系統，透過 `SelectedIndex` 動態載入不同產生模式
+- 使用 GroupBox 面板切換（G_ModeNumeric、G_ModeName）顯示對應設定
+- 規劃可擴展的 switch-case 結構，便於新增更多模式
+- 建立 Helper Functions 區域，封裝常用功能（ChangeGenerateMode、ChangeOutputMode）
+
+**收穫**：
+
+- 學習模組化設計模式在實務應用中的重要性
+- 理解如何設計可擴展的系統架構
+- 掌握 Windows Forms 動態 UI 控制技巧
+- 提升軟體架構規劃能力
+
+### 2. IronPython 技術整合
+
+**挑戰**：如何在 C# 應用程式中整合 Python 腳本引擎，實現雙語言協作？
+
+**解決方案**：
+
+- 引入 IronPython 3.4.1 及相關依賴套件
+- 整合 DynamicLanguageRuntime 支援動態語言執行
+- 規劃 Python 腳本載入與執行機制
+- 設計 C# 與 Python 之間的資料交換介面
+
+**收穫**：
+
+- 掌握 IronPython 在 .NET 環境中的應用
+- 學習動態語言運行時（DLR）原理
+- 理解跨語言整合的技術挑戰
+- 提升混合語言開發能力
+- 培養技術選型與整合能力
+
+### 3. 功能規劃與需求分析
+
+**挑戰**：如何規劃一個功能豐富但不過度複雜的隨機產生器工具？
+
+**解決方案**：
+
+- 撰寫 Ideas.txt 文件整理功能藍圖
+- 將功能分為三大類別：
+  - Generation Modes：10 種產生模式
+  - Output Modes：3 種輸出方式
+  - Extra Features：5 種額外功能
+- 採用漸進式開發策略，先實作核心模式再擴展
+- 設計模組化架構，便於逐步新增功能
+
+**收穫**：
+
+- 學習需求分析與功能規劃技巧
+- 理解專案範疇管理的重要性
+- 掌握漸進式開發方法論
+- 提升產品設計思維
+- 培養專案管理能力
+
+### 4. Windows Forms UI 設計
+
+**挑戦**：如何在 Windows Forms 中設計簡潔且功能豐富的使用者介面？
+
+**解決方案**：
+
+- 使用 ComboBox 提供清晰的模式選擇介面
+- 透過 GroupBox 組織不同模式的設定選項
+- 設計動態顯示/隱藏機制（Visible 屬性控制）
+- 禁用最大化按鈕（MaximizeBox = false）維持固定視窗大小
+- 規劃未來的選單系統（Menu Events 區域）
+
+**收穫**：
+
+- 掌握 Windows Forms 控制項應用
+- 學習動態 UI 管理技巧
+- 理解使用者體驗設計原則
+- 提升 UI/UX 實作能力
+
+### 5. 早期開發階段的挑戰
+
+**挑戰**：如何在專案初期建立穩固的基礎，避免未來大幅重構？
+
+**解決方案**：
+
+- 在實作前先進行完整的功能規劃（Ideas.txt）
+- 建立清晰的程式碼結構：
+  - `#region Components`：UI 事件處理
+  - `#region Helper Functions`：輔助函式
+  - `#region Menu Events`：選單事件
+- 使用 `DoNothing()` 等預留函式，標記待實作功能
+- 採用註解標記（`// To be implemented`）追蹤開發進度
+
+**收穫**：
+
+- 學習專案早期規劃的重要性
+- 掌握程式碼組織與結構化技巧
+- 理解技術債務管理
+- 提升專案啟動與架構設計能力
+- 培養長期維護思維
+
+---
+
+## 專案架構（規劃）
+
+```
+Ranza-A_Randomizer_For_Everything-/
+├── Program.cs              # 應用程式入口點
+├── Forms/                  # UI 層
+│   ├── MainForm.cs         # 主視窗
+│   ├── MainForm.Designer.cs
+│   └── MainForm.resx
+├── Generators/             # 產生器模組（待開發）
+│   ├── NumericGenerator.cs
+│   ├── NameGenerator.cs
+│   ├── ColorGenerator.cs
+│   └── ... (更多產生器)
+├── Resources/              # 資源檔案
+│   └── ... (圖片、字型等)
+├── Properties/             # 專案屬性
+│   ├── AssemblyInfo.cs
+│   └── Resources.Designer.cs
+├── Concept Arts/           # 概念設計
+│   └── Ideas.txt           # 功能規劃文件
+└── packages/               # NuGet 套件
+    └── IronPython.3.4.1/
+```
+
+---
+
+## 未來發展方向
+
+### 短期目標（v0.2）
+
+- 完成數字產生器與名稱產生器
+- 實作基礎匯出功能（TXT 檔案）
+- 建立 Generators/ 資料夾模組架構
+
+### 中期目標（v0.5）
+
+- 實作 5+ 種產生模式
+- 完成 3 種輸出模式
+- 加入日誌視窗
+- 實作基礎本地化支援
+
+### 長期目標（v1.0）
+
+- 完成所有 10 種產生模式
+- 實作自訂主題系統
+- 完善 Python 腳本插件系統
+- 社群分享與擴展機制
+- 完整的說明文件與教學

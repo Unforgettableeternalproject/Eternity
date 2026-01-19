@@ -1,90 +1,364 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCurrentLocale } from '../i18n/utils';
+import { getCollection } from 'astro:content';
+import LinkIcon from '../components/LinkIcon.astro';
 
-const links = [
-  {
-    title: 'GitHub',
-    url: 'https://github.com/unforgettableeternalproject',
-    description: 'My open source projects and contributions',
+const locale = getCurrentLocale(Astro.url);
+
+// Load links from content collections
+const allLinks = await getCollection('links');
+
+// 先完成所有排序
+const sortedLinks = allLinks.sort((a, b) => {
+  // 首先按狀態排序：normal(0) > deprecated(1) > unmaintained(2)
+  const statusOrder = { normal: 0, deprecated: 1, unmaintained: 2 };
+  const statusA = statusOrder[a.data.status || 'normal'];
+  const statusB = statusOrder[b.data.status || 'normal'];
+
+  if (statusA !== statusB) {
+    return statusA - statusB;
+  }
+
+  // 狀態相同時，按 order 排序
+  return (a.data.order || 999) - (b.data.order || 999);
+});
+
+// 然後再分類（保持排序順序）
+const links = sortedLinks;
+const featuredLinks = sortedLinks.filter((link) => link.data.featured);
+const regularLinks = sortedLinks.filter((link) => !link.data.featured);
+
+// Group links by category
+const linksByCategory = regularLinks.reduce(
+  (acc, link) => {
+    const category = link.data.category || 'other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(link);
+    return acc;
   },
-  {
-    title: 'UEP Documentation',
-    url: 'https://uep.unforgettableeternalproject.com',
-    description: 'Technical documentation and creative writings',
-  },
-];
+  {} as Record<string, typeof links>
+);
+
+const categoryNames = {
+  social: locale === 'zh-tw' ? '社群媒體' : 'Social Media',
+  work: locale === 'zh-tw' ? '工作平台' : 'Work Platforms',
+  creative: locale === 'zh-tw' ? '創作平台' : 'Creative Platforms',
+  other: locale === 'zh-tw' ? '其他' : 'Other',
+};
 ---
 
 <BaseLayout
-  title="Links - Eternity"
-  description="Find all my important links here"
+  title={locale === 'zh-tw' ? '連結收藏 - Eternity' : 'Links - Eternity'}
+  description={locale === 'zh-tw'
+    ? '在網路上找到我的各種足跡'
+    : 'Find me across the web'}
 >
-  <div class="links-page">
-    <h1>Important Links</h1>
-    <p class="intro-text">
-      Here are some useful links to my projects and profiles across the web.
-    </p>
-
-    <div class="link-grid">
-      {
-        links.map((link) => (
-          <a
-            href={link.url}
-            class="link-card"
-            target="_blank"
-            rel="noopener noreferrer"
+  <section
+    class="relative overflow-hidden py-24 min-h-[calc(100vh-12rem)] pb-32"
+  >
+    <div class="container-custom max-w-6xl relative z-10 space-y-14">
+      <!-- Header -->
+      <div class="space-y-6 text-center md:text-left animate-fade-in-up">
+        <span
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide"
+        >
+          🔗 {locale === 'zh-tw' ? '連結收藏' : 'Link Collection'}
+        </span>
+        <div class="space-y-4">
+          <h1
+            class="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white"
           >
-            <h2>{link.title} →</h2>
-            <p>{link.description}</p>
-          </a>
-        ))
+            {locale === 'zh-tw' ? '我的連結' : 'My Links'}
+          </h1>
+          <p
+            class="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto md:mx-0"
+          >
+            {
+              locale === 'zh-tw'
+                ? '在網路上找到我的各種足跡與推薦連結'
+                : 'Find me across the web and discover my favorite links'
+            }
+          </p>
+        </div>
+      </div>
+
+      <!-- Featured Links -->
+      {
+        featuredLinks.length > 0 && (
+          <div
+            class="space-y-6 animate-fade-in-up"
+            style="animation-delay: 100ms"
+          >
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+              <span class="w-8 h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500" />
+              ⭐ {locale === 'zh-tw' ? '精選連結' : 'Featured Links'}
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredLinks.map((link, index) => (
+                <a
+                  href={link.data.url}
+                  class={`group relative overflow-hidden rounded-2xl link-card
+                    ${
+                      link.data.status === 'deprecated'
+                        ? 'border-yellow-300 bg-yellow-100 dark:bg-yellow-200/20 dark:border-yellow-400'
+                        : link.data.status === 'unmaintained'
+                          ? 'border-gray-400 bg-gray-300 dark:bg-gray-700 dark:border-gray-500'
+                          : 'border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70'
+                    }
+                    backdrop-blur-md shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up`}
+                  style={`animation-delay: ${index * 80}ms`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {link.data.status !== 'normal' && (
+                    <div class="status-tooltip">
+                      {link.data.status === 'deprecated'
+                        ? locale === 'zh-tw'
+                          ? '⚠️ 此連結已棄用，內容可能不再維護'
+                          : '⚠️ This link is deprecated and may not be maintained'
+                        : locale === 'zh-tw'
+                          ? 'ℹ️ 此連結尚未維護，內容可能不完整'
+                          : 'ℹ️ This link is unmaintained and may be incomplete'}
+                    </div>
+                  )}
+                  <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/15" />
+                  <div class="relative p-6 space-y-4">
+                    <div class="flex items-start gap-4">
+                      <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
+                        <LinkIcon
+                          icon={link.data.icon}
+                          class="w-6 h-6 text-primary-600 dark:text-primary-400"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <h3
+                          class="text-xl font-semibold text-slate-900 dark:text-white mb-2"
+                          style="text-transform: none;"
+                        >
+                          {locale === 'zh-tw'
+                            ? link.data.title_zh || link.id
+                            : link.data.title_en}
+                        </h3>
+                        <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                          {locale === 'zh-tw'
+                            ? link.data.description_zh
+                            : link.data.description_en}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs text-primary-600 dark:text-primary-400 font-medium truncate">
+                        {link.data.url}
+                      </span>
+                      <svg
+                        class="w-5 h-5 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:-translate-y-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      <!-- Links by Category -->
+      {
+        Object.entries(linksByCategory).map(
+          ([category, categoryLinks], categoryIndex) => (
+            <div
+              class="space-y-6 animate-fade-in-up"
+              style={`animation-delay: ${categoryIndex * 100}ms`}
+            >
+              <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                <span class="w-8 h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500" />
+                {categoryNames[category as keyof typeof categoryNames] ||
+                  category}
+              </h2>
+              <div class="grid grid-cols-1 gap-4">
+                {categoryLinks.map((link, index) => (
+                  <a
+                    href={link.data.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class={`card card-hover p-6 flex items-center gap-6 group animate-fade-in-up relative link-card
+                        ${
+                          link.data.status === 'deprecated'
+                            ? 'border-yellow-300 bg-yellow-100 dark:bg-yellow-200/20 dark:border-yellow-400'
+                            : link.data.status === 'unmaintained'
+                              ? 'border-gray-400 bg-gray-300 dark:bg-gray-700 dark:border-gray-500'
+                              : ''
+                        }`}
+                    style={`animation-delay: ${categoryIndex * 100 + index * 50}ms`}
+                  >
+                    {link.data.status !== 'normal' && (
+                      <div class="status-tooltip">
+                        {link.data.status === 'deprecated'
+                          ? locale === 'zh-tw'
+                            ? '⚠️ 此連結已棄用，內容可能不再維護'
+                            : '⚠️ This link is deprecated and may not be maintained'
+                          : locale === 'zh-tw'
+                            ? 'ℹ️ 此連結尚未維護，內容可能不完整'
+                            : 'ℹ️ This link is unmaintained and may be incomplete'}
+                      </div>
+                    )}
+                    <div class="w-16 h-16 flex-shrink-0 rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20 dark:from-primary-500/10 dark:to-secondary-500/10 flex items-center justify-center">
+                      <LinkIcon
+                        icon={link.data.icon}
+                        class="w-8 h-8 text-primary-600 dark:text-primary-400"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <h3
+                        class="text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors"
+                        style="text-transform: none;"
+                      >
+                        {locale === 'zh-tw'
+                          ? link.data.title_zh || link.id
+                          : link.data.title_en}
+                      </h3>
+                      <p class="text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">
+                        {locale === 'zh-tw'
+                          ? link.data.description_zh
+                          : link.data.description_en}
+                      </p>
+                      <div class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 font-medium">
+                        <span class="truncate">{link.data.url}</span>
+                        <svg
+                          class="w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-x-1"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        )
+      }
+
+      <!-- Empty State -->
+      {
+        links.length === 0 && (
+          <div class="text-center py-20 animate-fade-in-up">
+            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <svg
+                class="w-12 h-12 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                />
+              </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              {locale === 'zh-tw' ? '尚無連結' : 'No links yet'}
+            </h3>
+            <p class="text-slate-600 dark:text-slate-300">
+              {locale === 'zh-tw' ? '連結收藏即將推出' : 'Links coming soon'}
+            </p>
+          </div>
+        )
       }
     </div>
-  </div>
+  </section>
 </BaseLayout>
 
 <style>
-  .links-page {
-    max-width: 900px;
-    margin: 0 auto;
-  }
-  h1 {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
-    color: var(--black);
-  }
-  .intro-text {
-    font-size: 1.125rem;
-    color: var(--gray-dark);
-    margin-bottom: 2rem;
-  }
-  .link-grid {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  }
   .link-card {
-    display: block;
-    padding: 1.5rem;
-    background: var(--gray-light);
-    border: 1px solid var(--gray);
-    border-radius: 0.5rem;
-    text-decoration: none;
-    color: var(--black);
-    transition: all 0.2s;
+    position: relative;
   }
-  .link-card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-    transform: translateY(-2px);
-  }
-  .link-card h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-    color: var(--accent);
-  }
-  .link-card p {
-    color: var(--gray-dark);
+
+  .status-tooltip {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 0.875rem 1.25rem;
+    background: linear-gradient(
+      135deg,
+      rgba(15, 23, 42, 0.97) 0%,
+      rgba(30, 41, 59, 0.97) 100%
+    );
+    backdrop-filter: blur(12px);
+    color: white;
+    font-size: 0.875rem;
     line-height: 1.5;
+    border-radius: 0.75rem;
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.3),
+      0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 50;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .status-tooltip::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: rgba(15, 23, 42, 0.97);
+  }
+
+  .link-card:hover .status-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  :global(.dark) .status-tooltip {
+    background: linear-gradient(
+      135deg,
+      rgba(241, 245, 249, 0.97) 0%,
+      rgba(226, 232, 240, 0.97) 100%
+    );
+    color: rgb(15, 23, 42);
+    border: 1px solid rgba(15, 23, 42, 0.1);
+  }
+
+  :global(.dark) .status-tooltip::before {
+    border-top-color: rgba(241, 245, 249, 0.97);
+  }
+</style>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>

@@ -1,110 +1,862 @@
 ---
+import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCollection, getEntry } from 'astro:content';
+import FlipCard from '../components/FlipCard.astro';
+import TypewriterText from '../components/TypewriterText';
+
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
+
+// 根據語言載入對應的主頁內容
+const homepageKey = locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en';
+const homepageData = await getEntry(homepageKey, 'index');
+
+// 載入專案內容
+const allProjects = await getCollection('projects');
+const featuredProjects = allProjects
+  .filter((p) => p.data.featured)
+  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
+  .slice(0, 3);
+
+// 載入對應語系的專案 mdoc 內容
+const projectContentZh = await Astro.glob(
+  '../content/projects/**/content_zh.mdoc'
+);
+const projectContentEn = await Astro.glob(
+  '../content/projects/**/content_en.mdoc'
+);
+const projectContentGlob =
+  locale === 'zh-tw' ? projectContentZh : projectContentEn;
+
+const projectContentMap = new Map();
+for (const module of projectContentGlob) {
+  // 支援 Windows 和 Unix 路徑
+  const normalizedPath = module.file?.replace(/\\/g, '/');
+  const match = normalizedPath?.match(/projects\/([^/]+)\//);
+  if (match) {
+    projectContentMap.set(match[1], module);
+  }
+}
+
+const allUpdates = await getCollection('updates');
+const latestUpdates = allUpdates
+  .filter((u) => u.data.featured)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 4);
+
+// 載入對應語系的更新 mdoc 內容
+const updateContentSuffix =
+  locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
+const updateModules = import.meta.glob('../content/updates/*/content_*.mdoc', {
+  eager: true,
+});
+
+const updateContentMap = new Map();
+for (const [path, module] of Object.entries(updateModules)) {
+  // 只處理當前語言的檔案
+  if (!path.endsWith(updateContentSuffix)) {
+    continue;
+  }
+
+  // 從路徑提取資料夾名稱
+  // 路徑格式: ../content/updates/第一次更新 (網站正式部署)/content_zh.mdoc
+  const normalizedPath = path.replace(/\\/g, '/');
+  const match = normalizedPath.match(/updates\/([^/]+)\//);
+
+  if (match) {
+    const folderName = match[1];
+
+    // 嘗試多種可能的 ID 格式
+    const possibleIds = [
+      folderName, // 原始資料夾名稱
+      folderName
+        .replace(/\s*\([^)]*\)/g, '')
+        .replace(/\s+/g, '-')
+        .trim(), // 移除括號，空格轉-
+      folderName.replace(/\s+/g, '-'), // 只轉空格
+      folderName.replace(/\s*\(([^)]*)\)/g, '-$1'), // 括號轉-
+    ];
+
+    // 為所有可能的 ID 都建立映射
+    for (const id of possibleIds) {
+      updateContentMap.set(id, module);
+    }
+  }
+}
 ---
 
-<BaseLayout title="Eternity - Home">
-  <div class="hero">
-    <h1>Welcome to <span class="text-gradient">UEP Online</span></h1>
-    <p class="subtitle">
-      Bernie's personal website - projects, writings, and creative works
-    </p>
-    <div class="links">
-      <a href="/links" class="button">Explore Links</a>
-      <a
-        href="https://uep.unforgettableeternalproject.com"
-        class="button secondary"
-        target="_blank"
+<BaseLayout title={t.home.title} description={t.home.description}>
+  <!-- Hero Section -->
+  <div
+    class="relative min-h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden"
+  >
+    <!-- 幾何裝飾 -->
+    <!-- Content -->
+    <div class="relative z-10 container-custom py-20 md:py-28">
+      <div
+        class="flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-20"
       >
-        UEP Docs →
-      </a>
+        <!-- Left: Text Content -->
+        <div
+          class="w-full lg:w-[58%] xl:w-[55%] text-center lg:text-left space-y-8 animate-fade-in-up"
+        >
+          <div
+            class="inline-block px-4 py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-4"
+          >
+            {t.home.badge}
+          </div>
+
+          <h1
+            class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2 break-words hyphens-auto"
+          >
+            <TypewriterText
+              client:load
+              text={homepageData?.data.title || t.home.greeting}
+              speed={80}
+              delay={300}
+            />
+            {' '}
+            <span
+              class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2 break-words"
+            >
+              <TypewriterText
+                client:load
+                text={homepageData?.data.name || 'Bernie'}
+                speed={100}
+                delay={1200}
+              />
+            </span>
+          </h1>
+
+          <p
+            class="text-xl sm:text-2xl lg:text-3xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light"
+          >
+            <TypewriterText
+              client:load
+              text={homepageData?.data.subtitle || t.home.tagline}
+              speed={40}
+              delay={2000}
+              cursor={false}
+            />
+          </p>
+
+          <div
+            class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6"
+          >
+            <a
+              href={`${basePath}/about`}
+              class="btn btn-primary group shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40"
+            >
+              {t.home.cta.about}
+              <svg
+                class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+              </svg>
+            </a>
+            <a
+              href={`${basePath}/projects`}
+              class="btn btn-secondary group shadow-lg shadow-slate-200 dark:shadow-slate-800/50 hover:shadow-xl"
+            >
+              {t.home.cta.projects}
+              <svg
+                class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+              </svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- Right: Visual Element with Animation -->
+        <div class="w-full lg:w-1/2 flex items-center justify-center">
+          <div class="relative w-full max-w-lg aspect-square">
+            <!-- Main visual card -->
+            <div
+              class="relative w-full h-full rounded-3xl bg-gradient-to-br from-primary-500/30 via-primary-400/20 to-secondary-500/30 dark:from-primary-500/20 dark:via-primary-500/10 dark:to-secondary-500/20 backdrop-blur-sm border-2 border-white/50 dark:border-slate-700/50 shadow-2xl animate-float overflow-hidden"
+            >
+              <!-- Inner glow effect -->
+              <div
+                class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"
+              >
+              </div>
+
+              <div
+                class="absolute inset-0 flex items-center justify-center p-6 sm:p-8 md:p-10 lg:p-12"
+              >
+                <div
+                  class="text-center space-y-4 sm:space-y-5 md:space-y-6 max-w-full"
+                >
+                  <div class="relative">
+                    <div
+                      class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"
+                    >
+                    </div>
+                    <svg
+                      class="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                  </div>
+                  <p
+                    class="text-sm sm:text-base md:text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide px-2"
+                  >
+                    Creative Developer Space
+                  </p>
+                  <div
+                    class="flex gap-1.5 sm:gap-2 justify-center flex-wrap px-2"
+                  >
+                    <span
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
+                      >Code</span
+                    >
+                    <span
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
+                      >Design</span
+                    >
+                    <span
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
+                      >Story</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Decorative floating elements -->
+            <div
+              class="absolute -top-6 -right-6 w-28 h-28 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
+            >
+            </div>
+            <div
+              class="absolute -bottom-6 -left-6 w-36 h-36 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
+              style="animation-delay: 1s;"
+            >
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scroll Indicator -->
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+      <svg
+        class="w-6 h-6 text-slate-400 dark:text-slate-500"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+      </svg>
     </div>
   </div>
 
-  <section class="intro">
-    <h2>About This Site</h2>
-    <p>
-      This is the main website for the Unforgettable Eternal Project (UEP). Here
-      you'll find information about my projects, creative works, and technical
-      writings.
-    </p>
-    <p>
-      The documentation and detailed guides are hosted at
-      <a href="https://uep.unforgettableeternalproject.com" target="_blank"
-        >uep.unforgettableeternalproject.com</a
-      >.
-    </p>
+  <!-- Intro Section -->
+  <section class="relative py-32">
+    <div class="container-custom relative z-10">
+      <div class="max-w-4xl mx-auto text-center space-y-8">
+        <div class="inline-block">
+          <h2
+            class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4"
+          >
+            {homepageData?.data.introHeading || t.home.intro.heading}
+          </h2>
+          <div
+            class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"
+          >
+          </div>
+        </div>
+
+        <div class="prose prose-lg dark:prose-invert mx-auto">
+          <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">
+            {homepageData?.data.introContent || t.home.intro.p1}
+          </p>
+        </div>
+
+        <div
+          class="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto"
+        >
+          <a
+            href="https://uep.unforgettableeternalproject.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20 hover:-translate-y-1"
+          >
+            <div
+              class="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-500/0 group-hover:from-primary-500/5 group-hover:to-secondary-500/5 transition-all duration-300"
+            >
+            </div>
+            <div class="relative flex items-center justify-between">
+              <div class="text-left">
+                <div
+                  class="text-lg font-semibold text-slate-900 dark:text-white mb-1"
+                >
+                  {t.home.quickLinks.uepDocs.title}
+                </div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">
+                  {t.home.quickLinks.uepDocs.description}
+                </div>
+              </div>
+              <svg
+                class="w-6 h-6 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:translate-y-[-2px]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                ></path>
+              </svg>
+            </div>
+          </a>
+
+          <a
+            href={`${basePath}/links`}
+            class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-secondary-500 dark:hover:border-secondary-500 transition-all duration-300 hover:shadow-xl hover:shadow-secondary-500/20 hover:-translate-y-1"
+          >
+            <div
+              class="absolute inset-0 bg-gradient-to-br from-secondary-500/0 to-secondary-500/0 group-hover:from-secondary-500/5 group-hover:to-primary-500/5 transition-all duration-300"
+            >
+            </div>
+            <div class="relative flex items-center justify-between">
+              <div class="text-left">
+                <div
+                  class="text-lg font-semibold text-slate-900 dark:text-white mb-1"
+                >
+                  {t.home.quickLinks.importantLinks.title}
+                </div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">
+                  {t.home.quickLinks.importantLinks.description}
+                </div>
+              </div>
+              <svg
+                class="w-6 h-6 text-secondary-600 dark:text-secondary-400 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                ></path>
+              </svg>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Projects -->
+  <section class="relative py-24 reveal">
+    <div class="container-custom">
+      <div class="max-w-5xl mx-auto text-center mb-12">
+        <h2
+          class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4"
+        >
+          {t.home.featured.heading}
+        </h2>
+        <div
+          class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"
+        >
+        </div>
+      </div>
+
+      <div class="flex flex-wrap justify-center gap-6 max-w-5xl mx-auto">
+        {
+          featuredProjects.map((project) => (
+            <div
+              class="w-full md:w-[calc(33.333%-1rem)] max-w-sm reveal-item"
+              style="min-height: 300px;"
+            >
+              <FlipCard type="project">
+                <div slot="front" class="p-6 h-full flex flex-col">
+                  <div class="flex-1">
+                    <h3
+                      class="text-xl font-bold text-slate-900 dark:text-white mb-4"
+                      style="text-transform: none;"
+                    >
+                      {locale === 'zh-tw'
+                        ? project.data.title_zh || project.id
+                        : project.data.title_en}
+                    </h3>
+                    <div class="flex items-center gap-2 mb-4">
+                      <span
+                        class={`px-3 py-1.5 text-xs font-semibold rounded-full ${
+                          project.data.status === 'active'
+                            ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                            : project.data.status === 'paused'
+                              ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300'
+                              : project.data.status === 'completed'
+                                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                                : 'bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {project.data.status === 'active' &&
+                          (locale === 'zh-tw'
+                            ? '\u9032\u884c\u4e2d'
+                            : 'Active')}
+                        {project.data.status === 'paused' &&
+                          (locale === 'zh-tw'
+                            ? '\u66ab\u6642\u505c\u6eef'
+                            : 'Paused')}
+                        {project.data.status === 'completed' &&
+                          (locale === 'zh-tw'
+                            ? '\u5df2\u5b8c\u6210'
+                            : 'Completed')}
+                        {project.data.status === 'archived' &&
+                          (locale === 'zh-tw'
+                            ? '\u5df2\u5c01\u5b58'
+                            : 'Archived')}
+                      </span>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                      {project.data.tags.slice(0, 4).map((tag) => (
+                        <span class="px-3 py-1 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    <span>
+                      {locale === 'zh-tw'
+                        ? '\u9ede\u64ca\u7ffb\u8f49'
+                        : 'Click to flip'}
+                    </span>
+                  </div>
+                </div>
+
+                <div slot="back" class="h-full flex flex-col p-5">
+                  <div class="flex gap-4 items-start flex-1 min-h-0">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm leading-relaxed text-white/90 line-clamp-6">
+                        {locale === 'zh-tw'
+                          ? project.data.description_zh
+                          : project.data.description_en}
+                      </p>
+                    </div>
+                    {project.data.image && (
+                      <div class="flex-shrink-0">
+                        <Image
+                          src={project.data.image}
+                          alt={
+                            locale === 'zh-tw'
+                              ? project.id
+                              : project.data.title_en
+                          }
+                          width={96}
+                          height={96}
+                          class="h-24 w-24 object-cover rounded-lg shadow-lg"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
+                    <a
+                      href={`${basePath}/projects/${project.id}`}
+                      class="inline-flex items-center gap-1 hover:gap-2 transition-all font-medium"
+                      onclick="event.stopPropagation()"
+                    >
+                      {locale === 'zh-tw'
+                        ? '\u67e5\u770b\u8a73\u60c5'
+                        : 'View Details'}
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+              </FlipCard>
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="text-center mt-10">
+        <a href={`${basePath}/projects`} class="btn btn-secondary">
+          {t.home.featured.cta}
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Latest Updates -->
+  <section class="relative py-24 reveal">
+    <div class="container-custom relative z-10">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12">
+          <h2
+            class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4"
+          >
+            {t.home.latest.heading}
+          </h2>
+          <div
+            class="h-1 w-24 bg-gradient-to-r from-secondary-500 to-primary-500 mx-auto rounded-full"
+          >
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-6">
+          {
+            latestUpdates.map((update) => (
+              <div
+                class="w-full md:w-[calc(50%-0.75rem)] max-w-md reveal-item"
+                style="min-height: 200px;"
+              >
+                <FlipCard type="update">
+                  <div slot="front" class="p-6 h-full flex flex-col">
+                    <div class="flex-1">
+                      <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 border border-secondary-200 dark:border-secondary-800">
+                          {update.data.category === 'website' &&
+                            (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
+                          {update.data.category === 'project' &&
+                            (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
+                          {update.data.category === 'announcement' &&
+                            (locale === 'zh-tw'
+                              ? '\u516c\u544a'
+                              : 'Announcement')}
+                          {update.data.category === 'other' &&
+                            (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
+                        </span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400">
+                          {update.data.date.toLocaleDateString(
+                            locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                            { month: 'short', day: 'numeric' }
+                          )}
+                        </span>
+                      </div>
+                      <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        {locale === 'zh-tw' ? update.id : update.data.title_en}
+                      </h3>
+                      <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
+                        {locale === 'zh-tw'
+                          ? update.data.description_zh
+                          : update.data.description_en}
+                      </p>
+                    </div>
+                    <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      <span>
+                        {locale === 'zh-tw'
+                          ? '\u9ede\u64ca\u7ffb\u8f49'
+                          : 'Click to flip'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div slot="back" class="h-full flex flex-col p-5">
+                    <div
+                      class="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+                      data-auto-scroll-content
+                    >
+                      <div class="text-sm leading-relaxed text-white/90 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_h4]:text-sm [&_h5]:text-xs [&_h6]:text-xs [&_p]:text-sm [&_li]:text-sm">
+                        {(() => {
+                          console.log('=== Rendering update:', update.id);
+                          const contentModule = updateContentMap.get(update.id);
+                          console.log('Content module found:', !!contentModule);
+                          console.log(
+                            'Has Content component:',
+                            !!contentModule?.Content
+                          );
+
+                          if (contentModule && contentModule.Content) {
+                            const { Content } = contentModule;
+                            console.log(
+                              'Rendering Content component for:',
+                              update.id
+                            );
+                            return <Content />;
+                          }
+
+                          // Fallback 到 description
+                          console.log(
+                            'Fallback to description for:',
+                            update.id
+                          );
+                          return (
+                            <p class="text-white/80">
+                              {locale === 'zh-tw'
+                                ? update.data.description_zh
+                                : update.data.description_en}
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
+                      <div class="flex items-center justify-between text-xs opacity-90">
+                        <span>
+                          {update.data.category === 'website' &&
+                            (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
+                          {update.data.category === 'project' &&
+                            (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
+                          {update.data.category === 'announcement' &&
+                            (locale === 'zh-tw'
+                              ? '\u516c\u544a'
+                              : 'Announcement')}
+                          {update.data.category === 'other' &&
+                            (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
+                        </span>
+                        <span>
+                          {update.data.date.toLocaleDateString(
+                            locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                            {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            }
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </FlipCard>
+              </div>
+            ))
+          }
+        </div>
+
+        <div class="text-center mt-10">
+          <a href={`${basePath}/updates`} class="btn btn-primary">
+            {locale === 'zh-tw' ? '查看所有更新' : 'View All Updates'}
+          </a>
+        </div>
+      </div>
+    </div>
   </section>
 </BaseLayout>
 
 <style>
-  .hero {
-    text-align: center;
-    padding: 4rem 0;
+  /* 隱藏滾動條但保持可滾動功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
   }
-  h1 {
-    font-size: 3rem;
-    font-weight: 800;
-    margin-bottom: 1rem;
-    line-height: 1.2;
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
   }
-  .text-gradient {
-    background-image: linear-gradient(45deg, #3b82f6, #8b5cf6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+
+  .dot-pattern {
+    background-image:
+      radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px),
+      radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px);
+    background-size: 24px 41.57px;
+    background-position:
+      0 0,
+      12px 20.78px;
   }
-  .subtitle {
-    font-size: 1.25rem;
-    color: var(--gray-dark);
-    margin-bottom: 2rem;
+
+  :global(.dark) .dot-pattern {
+    background-image:
+      radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px),
+      radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px);
   }
-  .links {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
+
+  @keyframes gradient {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
   }
-  .button {
-    display: inline-block;
-    padding: 0.75rem 1.5rem;
-    background: var(--accent);
-    color: white;
-    text-decoration: none;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    transition: background 0.2s;
-  }
-  .button:hover {
-    background: var(--accent-dark);
-  }
-  .button.secondary {
-    background: var(--gray-dark);
-  }
-  .button.secondary:hover {
-    background: var(--black);
-  }
-  .intro {
-    max-width: 800px;
-    margin: 3rem auto;
-    padding: 2rem;
-    background: var(--gray-light);
-    border-radius: 0.5rem;
-  }
-  .intro h2 {
-    margin-bottom: 1rem;
-    color: var(--black);
-  }
-  .intro p {
-    margin-bottom: 1rem;
-    line-height: 1.6;
-    color: var(--gray-dark);
-  }
-  .intro a {
-    color: var(--accent);
-    text-decoration: none;
-    font-weight: 500;
-  }
-  .intro a:hover {
-    text-decoration: underline;
+
+  .animate-gradient {
+    background-size: 200% auto;
+    animation: gradient 3s ease infinite;
   }
 </style>
+
+<script>
+  // Lightweight intersection reveal for sections/cards; respects reduced motion via CSS
+  function initRevealAnimation() {
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (prefersReduced) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const el = entry.target;
+          if (entry.isIntersecting) {
+            el.classList.add('reveal-visible');
+          }
+        }
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.1 }
+    );
+
+    document.querySelectorAll('.reveal-item').forEach((el) => {
+      observer.observe(el);
+    });
+  }
+
+  // 初始載入和頁面切換時都要執行
+  document.addEventListener('DOMContentLoaded', initRevealAnimation);
+  document.addEventListener('astro:page-load', initRevealAnimation);
+
+  // 自動滾動功能
+  function initAutoScroll() {
+    const cards = document.querySelectorAll('[data-flip-card]');
+
+    cards.forEach((card) => {
+      const scrollContainer = card.querySelector('[data-auto-scroll-content]');
+      if (!scrollContainer) return;
+
+      let scrollInterval: number | null = null;
+      let isScrolling = false;
+
+      // 監聽卡片翻轉事件
+      card.addEventListener('cardFlipped', () => {
+        // 重置到頂部
+        scrollContainer.scrollTop = 0;
+
+        // 清除之前的滾動
+        if (scrollInterval) {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+        }
+
+        // 等待卡片翻轉動畫完成後開始滾動
+        setTimeout(() => {
+          const maxScroll =
+            scrollContainer.scrollHeight - scrollContainer.clientHeight;
+
+          // 如果內容不需要滾動，就不要開始
+          if (maxScroll <= 0) return;
+
+          isScrolling = true;
+          const scrollSpeed = 30; // 每秒滾動像素數
+          const scrollStep = scrollSpeed / 60; // 每幀滾動的距離（60fps）
+
+          scrollInterval = window.setInterval(() => {
+            if (!isScrolling) return;
+
+            scrollContainer.scrollTop += scrollStep;
+
+            // 滾動到底部時停止
+            if (scrollContainer.scrollTop >= maxScroll) {
+              if (scrollInterval) {
+                clearInterval(scrollInterval);
+                scrollInterval = null;
+              }
+              isScrolling = false;
+            }
+          }, 1000 / 60) as unknown as number; // 60fps
+        }, 600); // 等待翻轉動畫（0.6s）
+      });
+
+      // 滑鼠懸停或觸摸時暫停滾動
+      scrollContainer.addEventListener('mouseenter', () => {
+        if (scrollInterval) {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          isScrolling = false;
+        }
+      });
+
+      // 手動滾動時也暫停自動滾動
+      scrollContainer.addEventListener(
+        'wheel',
+        () => {
+          if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            isScrolling = false;
+          }
+        },
+        { passive: true }
+      );
+
+      scrollContainer.addEventListener(
+        'touchstart',
+        () => {
+          if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            isScrolling = false;
+          }
+        },
+        { passive: true }
+      );
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', initAutoScroll);
+  document.addEventListener('astro:page-load', initAutoScroll);
+</script>

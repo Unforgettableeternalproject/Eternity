@@ -1,0 +1,73 @@
+{
+  "enabled": true,
+  "order": 3,
+  "position": "left",
+  "quotes_zh": [
+    {
+      "text": "在這個世界上，我們於苦難中纏結",
+      "author": "伊馮那·塞赫"
+    },
+    {
+      "text": "你和我是一樣的，艾斯維爾，我們是一張白紙的兩面。",
+      "author": "莫夫·奇萊"
+    },
+    {
+      "text": "你必須要理解你所追求的真實。",
+      "author": "???"
+    },
+    {
+      "text": "我會在永恆的另一側等待著你。",
+      "author": "艾爾菲羅斯·赫利烏斯"
+    },
+    {
+      "text": "你也許選擇了一條不曾有他人走訪的道路，但千萬得謹記那屬於你的責任不可輕易拋於身後。\n",
+      "author": "佩斯特·尼傑"
+    },
+    {
+      "text": "一個分裂的世界，四分五裂得沒人有機會拼湊得起，仍去嘗試的話有甚麼意義呢?",
+      "author": "賽蒙·羅傑斯"
+    },
+    {
+      "text": "你好啊，我是U.E.P，你叫我小U就可以了!",
+      "author": "U.E.P"
+    },
+    {
+      "text": "夢幻；虛幻；玄幻；奇幻；眩亂；虛實交界的世界，你又如何定義是與非呢?",
+      "author": "萊斯特·杜恩"
+    }
+  ],
+  "quotes_en": [
+    {
+      "text": "Together, in this world. We are entangled in misery.",
+      "author": "Yvonne Sehor"
+    },
+    {
+      "text": "You are the same as me, Xavier. We are but the two sides of a paper.",
+      "author": "Molf Carrie"
+    },
+    {
+      "text": "You must realize the reality you're pursuing. ",
+      "author": "???"
+    },
+    {
+      "text": "I will be waiting for you at the other end of eternity.",
+      "author": "Alphrous Harius"
+    },
+    {
+      "text": "You might have chosen a path where no before man had, but you must not leave your responsibility in oblivion.",
+      "author": "Paster Nigel"
+    },
+    {
+      "text": "A shattered world, so fracture that nobody is capable to repair. Why matter doing so?",
+      "author": "Simon Rogers"
+    },
+    {
+      "text": "Hello! My name is U.E.P, and you can call me U.",
+      "author": "U.E.P"
+    },
+    {
+      "text": "A dreamlike world, riddled with illusion—where fantasy dazzles and truth loses its shape. In such a place…by whose will is right separated from wrong?",
+      "author": "Lester Dunn"
+    }
+  ]
+}

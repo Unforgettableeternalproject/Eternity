@@ -1,0 +1,216 @@
+---
+/**
+ * ThemeToggle Component
+ * A button to toggle between light and dark mode with smooth transitions
+ * On mobile (data-mobile="true"), shows as a simple icon button instead of a toggle switch
+ */
+interface Props {
+  'data-mobile'?: string;
+}
+
+const { 'data-mobile': isMobile } = Astro.props;
+---
+
+{/* Mobile: Simple Icon Button */}
+{
+  isMobile && (
+    <button
+      id="theme-toggle-mobile"
+      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200"
+      title="Toggle theme"
+      aria-label="Toggle dark mode"
+      type="button"
+    >
+      {/* Sun icon (shown in light mode) */}
+      <svg
+        class="w-5 h-5 theme-icon-light text-yellow-500"
+        fill="currentColor"
+        viewBox="0 0 20 20"
+      >
+        <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+      </svg>
+      {/* Moon icon (shown in dark mode) */}
+      <svg
+        class="w-5 h-5 theme-icon-dark hidden text-slate-200"
+        fill="currentColor"
+        viewBox="0 0 20 20"
+      >
+        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+      </svg>
+    </button>
+  )
+}
+
+{/* Desktop: Toggle Switch */}
+{
+  !isMobile && (
+    <button
+      id="theme-toggle-desktop"
+      class="relative inline-flex items-center h-6 w-12 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 bg-slate-300 dark:bg-slate-600"
+      title="Toggle theme"
+      aria-label="Toggle dark mode"
+      role="switch"
+    >
+      <span class="sr-only">Toggle theme</span>
+      <span class="theme-toggle-circle inline-flex items-center justify-center h-5 w-5 transform transition-transform duration-200 bg-white dark:bg-slate-800 rounded-full shadow-md translate-x-0.5 dark:translate-x-[26px]">
+        <svg
+          class="w-3 h-3 theme-icon-light text-yellow-500"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+        </svg>
+        <svg
+          class="w-3 h-3 theme-icon-dark hidden text-slate-200"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+        </svg>
+      </span>
+    </button>
+  )
+}
+
+<script>
+  function initThemeToggle() {
+    // 查找手機版和桌面版的按鈕
+    const themeToggleMobile = document.getElementById('theme-toggle-mobile');
+    const themeToggleDesktop = document.getElementById('theme-toggle-desktop');
+
+    // 至少需要一個按鈕存在
+    if (!themeToggleMobile && !themeToggleDesktop) return;
+
+    // 將兩個按鈕都放入陣列（過濾掉 null）
+    const toggleButtons = [themeToggleMobile, themeToggleDesktop].filter(
+      Boolean
+    );
+
+    // 為每個按鈕設置獨立的更新函數
+    toggleButtons.forEach((themeToggle) => {
+      const lightIcon = themeToggle.querySelector('.theme-icon-light');
+      const darkIcon = themeToggle.querySelector('.theme-icon-dark');
+      const toggleCircle = themeToggle.querySelector('.theme-toggle-circle'); // 只有桌面版有
+
+      if (!lightIcon || !darkIcon) return;
+
+      // Update icon visibility and switch position based on current theme
+      function updateThemeIcon(isDark) {
+        if (isDark) {
+          // Dark mode: show moon, hide sun
+          lightIcon.classList.add('hidden');
+          darkIcon.classList.remove('hidden');
+          // 只在桌面版（有 toggleCircle）時移動滑桿
+          if (toggleCircle) {
+            toggleCircle.classList.remove('translate-x-0.5');
+            toggleCircle.classList.add('translate-x-[26px]');
+            themeToggle.setAttribute('aria-checked', 'true');
+          }
+        } else {
+          // Light mode: show sun, hide moon
+          lightIcon.classList.remove('hidden');
+          darkIcon.classList.add('hidden');
+          // 只在桌面版（有 toggleCircle）時移動滑桿
+          if (toggleCircle) {
+            toggleCircle.classList.remove('translate-x-[26px]');
+            toggleCircle.classList.add('translate-x-0.5');
+            themeToggle.setAttribute('aria-checked', 'false');
+          }
+        }
+      }
+
+      // Initialize icon based on current theme
+      const isDark = document.documentElement.classList.contains('dark');
+      updateThemeIcon(isDark);
+
+      // Handle toggle click
+      themeToggle.addEventListener('click', () => {
+        const currentIsDark =
+          document.documentElement.classList.contains('dark');
+        const newTheme = currentIsDark ? 'light' : 'dark';
+
+        // 在主題切換前保存所有卡片的可見性狀態
+        const cards = document.querySelectorAll('[data-card-id]');
+        const cardStates = new Map();
+        cards.forEach((card) => {
+          const htmlCard = /** @type {HTMLElement} */ (card);
+          cardStates.set(htmlCard.dataset.cardId, {
+            display: htmlCard.style.display,
+            visibility: htmlCard.style.visibility,
+            opacity: htmlCard.style.opacity,
+          });
+        });
+
+        // Toggle dark class
+        document.documentElement.classList.toggle('dark');
+
+        // Update ALL toggle buttons
+        toggleButtons.forEach((btn) => {
+          const btnLightIcon = btn.querySelector('.theme-icon-light');
+          const btnDarkIcon = btn.querySelector('.theme-icon-dark');
+          const btnToggleCircle = btn.querySelector('.theme-toggle-circle');
+
+          if (btnLightIcon && btnDarkIcon) {
+            if (!currentIsDark) {
+              // 切換到深色模式
+              btnLightIcon.classList.add('hidden');
+              btnDarkIcon.classList.remove('hidden');
+              if (btnToggleCircle) {
+                btnToggleCircle.classList.remove('translate-x-0.5');
+                btnToggleCircle.classList.add('translate-x-[26px]');
+                btn.setAttribute('aria-checked', 'true');
+              }
+            } else {
+              // 切換到淺色模式
+              btnLightIcon.classList.remove('hidden');
+              btnDarkIcon.classList.add('hidden');
+              if (btnToggleCircle) {
+                btnToggleCircle.classList.remove('translate-x-[26px]');
+                btnToggleCircle.classList.add('translate-x-0.5');
+                btn.setAttribute('aria-checked', 'false');
+              }
+            }
+          }
+        });
+
+        // Save preference
+        localStorage.setItem('theme', newTheme);
+
+        // 確保所有卡片在主題切換後仍然可見
+        requestAnimationFrame(() => {
+          cards.forEach((card) => {
+            const htmlCard = /** @type {HTMLElement} */ (card);
+            const cardId = htmlCard.dataset.cardId;
+            const savedState = cardStates.get(cardId);
+
+            // 只恢復那些原本可見的卡片
+            if (!savedState || savedState.display !== 'none') {
+              if (
+                htmlCard.style.display === 'none' ||
+                htmlCard.style.visibility === 'hidden' ||
+                htmlCard.style.opacity === '0'
+              ) {
+                htmlCard.style.display = '';
+                htmlCard.style.visibility = '';
+                htmlCard.style.opacity = '';
+              }
+            }
+          });
+        });
+
+        // Dispatch custom event for other components to listen to
+        window.dispatchEvent(
+          new CustomEvent('theme-change', {
+            detail: { theme: newTheme },
+          })
+        );
+      });
+    });
+  }
+
+  // Run on initial load
+  initThemeToggle();
+
+  // Re-run after view transitions (if using)
+  document.addEventListener('astro:after-swap', initThemeToggle);
+</script>

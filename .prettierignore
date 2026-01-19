@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+.astro/
+**/.astro/
+
+# Turborepo
+.turbo/
+
+# Logs
+*.log
+
+# Lock files
+pnpm-lock.yaml
+
+# Generated files
+*.d.ts
+**/*.d.ts
+
+# Documents
+docs/**/*.html
+docs/**/*.md

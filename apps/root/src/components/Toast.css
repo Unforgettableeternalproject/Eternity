@@ -1,0 +1,329 @@
+/* Toast 容器 */
+.toast-container {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+  max-width: 90vw;
+}
+
+.toast-container--top-right {
+  top: 1.5rem;
+  right: 1.5rem;
+}
+
+.toast-container--top-left {
+  top: 1.5rem;
+  left: 1.5rem;
+}
+
+.toast-container--bottom-right {
+  bottom: 1.5rem;
+  right: 1.5rem;
+}
+
+.toast-container--bottom-left {
+  bottom: 1.5rem;
+  left: 1.5rem;
+}
+
+.toast-container--top-center {
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.toast-container--bottom-center {
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Toast 訊息 */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 18rem;
+  max-width: 28rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  pointer-events: auto;
+  animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.toast--closing {
+  animation: toastSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 深色模式 */
+:global(.dark) .toast {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(148, 163, 184, 0.1);
+}
+
+/* Toast 類型樣式 */
+.toast--success {
+  border-left: 4px solid rgb(34, 197, 94);
+}
+
+.toast--error {
+  border-left: 4px solid rgb(239, 68, 68);
+}
+
+.toast--warning {
+  border-left: 4px solid rgb(245, 158, 11);
+}
+
+.toast--info {
+  border-left: 4px solid rgb(59, 130, 246);
+}
+
+.toast--uep {
+  border-left: 4px solid #d5b618;
+}
+
+/* 圖標容器 */
+.toast__icon-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+}
+
+.toast--success .toast__icon-wrapper {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: rgb(34, 197, 94);
+}
+
+.toast--error .toast__icon-wrapper {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: rgb(239, 68, 68);
+}
+
+.toast--warning .toast__icon-wrapper {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: rgb(245, 158, 11);
+}
+
+.toast--info .toast__icon-wrapper {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: rgb(59, 130, 246);
+}
+
+.toast__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* 訊息文字 */
+.toast__message {
+  flex: 1;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgb(15, 23, 42);
+  margin: 0;
+}
+
+:global(.dark) .toast__message {
+  color: rgb(226, 232, 240);
+}
+
+/* 關閉按鈕 */
+.toast__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  background: transparent;
+  color: rgb(100, 116, 139);
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+  padding: 0;
+}
+
+.toast__close:hover {
+  background-color: rgba(148, 163, 184, 0.1);
+  color: rgb(51, 65, 85);
+}
+
+:global(.dark) .toast__close {
+  color: rgb(148, 163, 184);
+}
+
+:global(.dark) .toast__close:hover {
+  background-color: rgba(148, 163, 184, 0.1);
+  color: rgb(226, 232, 240);
+}
+
+.toast__close svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* 動畫 */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* 從左側進入的動畫 */
+.toast-container--top-left .toast,
+.toast-container--bottom-left .toast {
+  animation: toastSlideInLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-container--top-left .toast--closing,
+.toast-container--bottom-left .toast--closing {
+  animation: toastSlideOutLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes toastSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOutLeft {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+
+/* 從上方進入的動畫 */
+.toast-container--top-center .toast {
+  animation: toastSlideInTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-container--top-center .toast--closing {
+  animation: toastSlideOutTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes toastSlideInTop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes toastSlideOutTop {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-100%);
+  }
+}
+
+/* 從下方進入的動畫 */
+.toast-container--bottom-center .toast {
+  animation: toastSlideInBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-container--bottom-center .toast--closing {
+  animation: toastSlideOutBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes toastSlideInBottom {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes toastSlideOutBottom {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(100%);
+  }
+}
+
+/* 減少動畫偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none !important;
+  }
+
+  .toast--closing {
+    animation: none !important;
+    opacity: 0;
+  }
+}
+
+/* 小螢幕調整 */
+@media (max-width: 640px) {
+  .toast-container {
+    left: 1rem !important;
+    right: 1rem !important;
+    top: 1rem;
+    max-width: calc(100vw - 2rem);
+  }
+
+  .toast-container--top-center,
+  .toast-container--bottom-center {
+    transform: none;
+  }
+
+  .toast {
+    min-width: auto;
+    width: 100%;
+  }
+}

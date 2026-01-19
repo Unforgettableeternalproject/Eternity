@@ -1,0 +1,277 @@
+## Project Introduction
+
+GDG Portal is a comprehensive community management platform designed for **GDG on Campus NKNU (National Kaohsiung Normal University Google Developer Group)**, aiming to provide a one-stop solution for member management, event announcements, resource sharing, and community interaction. This project adopts a modern full-stack development architecture, combining React frontend framework with Node.js backend services, and achieves rapid deployment through Docker containerization technology, providing professional and efficient digital management tools for campus developer communities.
+
+### Core Philosophy
+
+- **Community-First Design**: Core features centered around GDG on Campus operational needs, providing complete management for members, events, and announcements
+- **Modern Tech Stack**: Industry-standard technologies including React 18, Node.js, Express, Sequelize ORM
+- **Containerized Deployment**: One-click deployment with Docker Compose, supporting automatic switching between development/production environments
+- **Secure Authentication**: Integrated Google OAuth 2.0 ensuring member identity verification and data security
+
+---
+
+## My Responsibilities
+
+As the core developer and architect of this project, I am responsible for the entire system's planning, development, and deployment:
+
+### System Architecture Design
+
+- Designed frontend-backend separation architecture: React SPA frontend + RESTful API backend
+- Established Docker multi-stage build process, optimizing image size and deployment efficiency
+- Designed database schema (8 core tables including Users, Profiles, Events, Announcements)
+- Implemented environment variable separation mechanism (.env.development, .env.production, .env.docker)
+
+### Core Feature Implementation
+
+- **Google OAuth Authentication System**: Integrated Passport.js for Google login and JWT Token management
+- **Member Management System**: User registration, profile editing, role permission management (Admin/Member/Guest)
+- **Event Management Module**: Event publishing, editing, categorization, registration link integration
+- **Announcement System**: Important announcement publishing, pinning feature, Markdown content support
+- **Frontend Routing & State Management**: React Router v6 + Context API for SPA navigation
+- **UI/UX Design**: Tailwind CSS responsive design + Framer Motion animation effects
+
+### Deployment & Maintenance
+
+- Wrote one-click deployment scripts (deploy-docker.bat/sh), automating environment configuration and container startup
+- Established comprehensive technical documentation system (8 detailed documents covering architecture, development, deployment, Git workflow)
+- Implemented database initialization scripts (init-database.js), supporting automatic table creation and sample data population
+- Set up CI/CD process using Git branching strategy (master/develop/feature) for version management
+
+---
+
+## Core Features
+
+### 1. User Authentication & Authorization
+
+- **Google OAuth 2.0 Login**: Integrated Google account login using Passport.js
+- **JWT Token Management**: Stateless authentication with automatic token refresh mechanism
+- **Role-Based Access Control**:
+  - **Admin**: Full system management permissions (member management, event editing, announcement publishing)
+  - **Member**: General member permissions (view events, edit personal profile)
+  - **Guest**: Visitor permissions (view public content only)
+- **Session Persistence**: Using express-session + MySQL for session storage
+
+### 2. Member Management System
+
+- **Personal Profile Management**:
+  - Basic information (name, email, student ID, department, grade)
+  - Contact information (phone, social media links)
+  - Personal bio and profile photo upload
+- **Member List View**: Admins can view all member information and status
+- **Permission Management**: Admins can adjust member roles and account status
+
+### 3. Event Management Module
+
+- **Event Publishing & Editing**:
+  - Event information (title, description, time, location)
+  - Event categorization (Workshop, Meetup, Competition, etc.)
+  - Registration links and related resources attachment
+- **Event Status Management**: Draft, published, completed status switching
+- **Event List & Filtering**: Filter events by category, time, status
+- **Event Detail Page**: Complete event information display and registration guidance
+
+### 4. Announcement System
+
+- **Announcement Publishing**: Support for Markdown format with rich content editing capabilities
+- **Importance Marking**: Pinned announcements, important announcement tags
+- **Announcement Categorization**: System announcements, event notifications, technical sharing, etc.
+- **Time Sorting**: Automatically sort and display by publication time
+
+### 5. Resource Management
+
+- **File Upload**: Members can upload personal photos, event posters
+- **Static Resource Service**: Express.static provides image and document access
+- **Resource Categorization**: Manage resources by type (images, documents, links)
+
+---
+
+## Technologies Used
+
+### Frontend Tech Stack
+
+- **React 18**: UI framework using Hooks for state management
+- **Vite**: Modern build tool providing fast HMR (Hot Module Replacement)
+- **React Router v6**: SPA routing management
+- **Tailwind CSS**: Utility-first CSS framework for responsive design
+- **Framer Motion**: Animation library providing smooth UI animations
+- **Axios**: HTTP client for API requests
+
+### Backend Tech Stack
+
+- **Node.js 18+**: JavaScript runtime environment
+- **Express.js**: Web application framework
+- **Sequelize ORM**: Database ORM supporting MySQL
+- **Passport.js**: Authentication middleware integrating Google OAuth
+- **JWT (jsonwebtoken)**: Stateless token authentication
+- **express-session**: Session management
+- **bcrypt**: Password hashing encryption
+- **dotenv**: Environment variable management
+
+### Database
+
+- **MySQL 8.0**: Primary database
+- **utf8mb4 Encoding**: Full support for Chinese and Emoji
+- **Sequelize Migrations**: Database version control
+
+### Deployment & Tools
+
+- **Docker & Docker Compose**: Containerized deployment
+- **Multi-stage Build**: Optimized Docker image size
+- **Adminer**: Database management interface (development environment)
+- **Concurrently**: Parallel execution of frontend and backend development servers
+
+### Development Tools
+
+- **ESLint**: Code style checking
+- **Git**: Version control
+- **npm Workspaces**: Monorepo dependency management
+
+---
+
+## Project Status
+
+### Current Version: In Development (develop branch)
+
+- **Core Functionality Status**: Main features completed, continuous optimization and new features being added
+- **Deployment Status**: Supports one-click Docker deployment, operational in both development/production environments
+
+### Feature Completion
+
+- ✅ **Completed**:
+  - Google OAuth authentication system
+  - User registration and profile management
+  - Role-based access control (Admin/Member/Guest)
+  - Event management module (CRUD operations)
+  - Announcement system
+  - Docker containerized deployment
+  - Complete technical documentation (8 documents)
+  - Database initialization scripts
+  - Frontend responsive design
+- 🔄 **In Progress**:
+  - Frontend UI/UX optimization
+  - Event registration system integration
+  - Member interaction features (comments, likes)
+  - Resource sharing module
+- 📋 **Planned**:
+  - Email notification system
+  - Event check-in feature (QR Code)
+  - Community statistics dashboard
+  - Multi-language support (Traditional Chinese/English)
+  - PWA support (offline browsing)
+
+---
+
+## Development Challenges & Learnings
+
+### 1. Docker Multi-Environment Deployment Configuration
+
+**Challenge**: How to support local development, Docker development, and Docker production environments in a single project while ensuring correct environment variable loading?
+
+**Solution**:
+
+- Established layered environment variable system:
+  - `.env.development` (local development)
+  - `.env.docker` (Docker development)
+  - `.env.production` (production environment)
+- Used Docker Compose's `env_file` directive to load corresponding environment variables
+- Implemented environment detection logic to automatically switch API Base URL (localhost vs container name)
+- Wrote one-click deployment scripts that automatically check for environment variable file existence
+
+**Learnings**:
+
+- Deep understanding of Docker network modes (bridge, host)
+- Mastered environment variable management best practices
+- Learned inter-container communication mechanisms (service name resolution)
+- Understood differences and configuration strategies between development/production environments
+
+### 2. Sequelize ORM & MySQL Integration
+
+**Challenge**: How to design a flexible database schema supporting automatic table creation, relational queries, data validation, and migrations?
+
+**Solution**:
+
+- Used Sequelize Models to define table structures and relationships:
+  - `User` ↔ `Profile` (one-to-one)
+  - `User` → `Event` (one-to-many, creator)
+  - `User` ↔ `Event` (many-to-many, participants)
+- Implemented `sync({ force: false })` for automatic table creation, avoiding overwriting existing data
+- Used Sequelize Validators for data validation (Email, required fields)
+- Wrote database initialization scripts supporting `--clear` parameter for database reset
+
+**Learnings**:
+
+- Mastered ORM design patterns and Active Record concepts
+- Learned complex relational queries (include, eager loading)
+- Understood database indexing and performance optimization
+- Familiar with Sequelize Migrations version control
+
+### 3. Google OAuth 2.0 Authentication Flow
+
+**Challenge**: How to integrate Google OAuth and implement secure authentication flow in a frontend-backend separated architecture?
+
+**Solution**:
+
+- Used Passport.js's `passport-google-oauth20` strategy
+- Implemented authentication flow:
+  1. Frontend redirects to backend `/auth/google` endpoint
+  1. Backend redirects to Google authorization page
+  1. Google callbacks to `/auth/google/callback`
+  1. Backend validates Token, creates Session and JWT
+  1. Frontend receives JWT, stores in localStorage
+- Implemented JWT middleware to validate API requests
+- Handled token expiration and automatic refresh
+
+**Learnings**:
+
+- Deep understanding of OAuth 2.0 protocol flow
+- Learned differences and application scenarios between JWT and Session
+- Mastered secure authentication best practices (HTTPS, CORS, Cookie security settings)
+- Understood authentication challenges in frontend-backend separation
+
+### 4. React SPA Routing & State Management
+
+**Challenge**: How to implement complex routing logic and global state management in a single-page application?
+
+**Solution**:
+
+- Used React Router v6's nested routing and protected routes:
+  - Public routes (/, /about)
+  - Member routes (/profile, /events)
+  - Admin routes (/admin/*)
+- Implemented `PrivateRoute` component to check authentication status
+- Used Context API for global state management (user info, authentication status)
+- Implemented Custom Hooks (useAuth, useEvents) to encapsulate business logic
+
+**Learnings**:
+
+- Mastered React Router v6 new features (useNavigate, Outlet)
+- Learned Context API and useReducer for state management
+- Understood React Hooks design patterns
+- Familiar with SPA performance optimization techniques (Code Splitting, Lazy Loading)
+
+### 5. Comprehensive Technical Documentation Writing
+
+**Challenge**: How to create clear and complete technical documentation for complex projects, enabling new members to quickly onboard?
+
+**Solution**:
+
+- Established documentation system covering 8 topics:
+  1. Project Architecture (01-專案架構.md)
+  1. Message Passing Flow (02-Message-Passing流程.md)
+  1. Frontend & Backend Development Guide (03-前後端開發說明.md)
+  1. Database Schema Examples (04-資料表架構範例.md)
+  1. Environment Configuration (05-環境說明.md)
+  1. Docker Container Guide (06-Docker容器說明.md)
+  1. Git Workflow (07-Git工作流.md)
+  1. Feature Planning & Development Roadmap (08-功能規劃與開發路線圖.md)
+- Used Mermaid diagrams to visualize architecture and processes
+- Provided detailed code examples with annotations
+- Wrote DEPLOYMENT.md providing deployment guide
+
+**Learnings**:
+
+- Enhanced technical documentation writing skills
+- Learned documentation organization and information architecture design
+- Understood the importance of Developer Experience (DX)
+- Mastered advanced Markdown and Mermaid syntax

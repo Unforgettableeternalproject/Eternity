@@ -1,0 +1,308 @@
+---
+/**
+ * Navigation Component with Global Search
+ * Wraps the UI Navigation with search functionality
+ */
+import ThemeToggle from '@uep/ui/ThemeToggle';
+import GlobalSearch from './GlobalSearch';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+
+interface Props {
+  currentPath?: string;
+}
+
+const { currentPath = Astro.url.pathname } = Astro.props;
+const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+
+// Calculate alternate language path
+function getAlternatePath(path: string, currentLocale: 'zh-tw' | 'en'): string {
+  const targetLocale = currentLocale === 'zh-tw' ? 'en' : 'zh-tw';
+
+  // Remove current locale prefix
+  let cleanPath = path;
+  if (path.startsWith('/en/')) {
+    cleanPath = path.substring(3);
+  } else if (path.startsWith('/en')) {
+    cleanPath = path.substring(3) || '/';
+  } else if (path.startsWith('/zh-tw/')) {
+    cleanPath = path.substring(6);
+  } else if (path.startsWith('/zh-tw')) {
+    cleanPath = path.substring(6) || '/';
+  }
+
+  // Ensure cleanPath starts with '/'
+  if (!cleanPath.startsWith('/')) {
+    cleanPath = '/' + cleanPath;
+  }
+
+  // Add target locale prefix
+  return `/${targetLocale}${cleanPath}`;
+}
+
+const alternatePath = getAlternatePath(currentPath, locale);
+---
+
+<nav class="container-custom py-6">
+  <div class="flex items-center justify-between gap-4">
+    <!-- Logo/Brand -->
+    <a
+      href={locale === 'zh-tw' ? '/zh-tw/' : '/en/'}
+      class="text-2xl font-bold text-slate-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200"
+    >
+      Bernie
+    </a>
+
+    <!-- Desktop Navigation -->
+    <div class="hidden md:flex items-center gap-6 flex-1">
+      <!-- Center: Global Search (占據中央位置) -->
+      <div class="flex-1 flex justify-center px-8">
+        <div class="w-full max-w-2xl">
+          <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+        </div>
+      </div>
+
+      <!-- Right: Nav Links -->
+      <div class="flex items-center gap-6">
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/' : '/en/'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath === '/' ||
+            currentPath === '/zh-tw/' ||
+            currentPath === '/en/'
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400',
+          ]}
+        >
+          {t.nav.home}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/about' : '/en/about'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/about')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400',
+          ]}
+        >
+          {t.nav.about}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/projects')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400',
+          ]}
+        >
+          {t.nav.projects}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/links' : '/en/links'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/links')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400',
+          ]}
+        >
+          {t.nav.links}
+        </a>
+        <a
+          href={locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates'}
+          class:list={[
+            'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+            currentPath.includes('/updates')
+              ? 'text-primary-600 dark:text-primary-400'
+              : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400',
+          ]}
+        >
+          {t.nav.updates}
+        </a>
+
+        <div class="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
+
+        <!-- Language Switch -->
+        <a
+          href={alternatePath}
+          class="text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200 whitespace-nowrap"
+        >
+          {locale === 'zh-tw' ? 'EN' : '繁中'}
+        </a>
+
+        <!-- Theme Toggle -->
+        <ThemeToggle />
+      </div>
+    </div>
+
+    <!-- Mobile Navigation -->
+    <div class="md:hidden flex items-center gap-2 flex-1">
+      <!-- Center: Global Search (置中) -->
+      <div class="flex-1 flex justify-center mx-2">
+        <div class="w-full max-w-md">
+          <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+        </div>
+      </div>
+
+      <!-- Right: Buttons -->
+      <div class="flex items-center gap-1.5">
+        <!-- Language Switch (Mobile) -->
+        <a
+          href={alternatePath}
+          class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 text-xs font-medium"
+          aria-label={locale === 'zh-tw'
+            ? 'Switch to English'
+            : '切換至繁體中文'}
+          title={locale === 'zh-tw' ? 'Switch to English' : '切換至繁體中文'}
+        >
+          {locale === 'zh-tw' ? 'EN' : '繁中'}
+        </a>
+
+        <!-- Theme Toggle (Mobile) - 按鈕樣式 -->
+        <ThemeToggle data-mobile="true" />
+
+        <button
+          id="mobile-menu-button"
+          class="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+          aria-label="Toggle mobile menu"
+          aria-expanded="false"
+          type="button"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              class="menu-open"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"></path>
+            <path
+              class="menu-close hidden"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Navigation Menu -->
+  <div
+    id="mobile-menu"
+    class="md:hidden hidden overflow-hidden transition-all duration-300 ease-in-out"
+  >
+    <div
+      class="flex flex-col space-y-1 border-t border-slate-200 dark:border-slate-700 pt-4 pb-2 mt-4"
+    >
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/' : '/en/'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath === '/' ||
+          currentPath === '/zh-tw/' ||
+          currentPath === '/en/'
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+        ]}
+      >
+        {t.nav.home}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/about' : '/en/about'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/about')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+        ]}
+      >
+        {t.nav.about}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/projects')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+        ]}
+      >
+        {t.nav.projects}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/links' : '/en/links'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/links')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+        ]}
+      >
+        {t.nav.links}
+      </a>
+      <a
+        href={locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates'}
+        class:list={[
+          'text-sm font-medium transition-colors duration-200 px-3 py-2 rounded-lg',
+          currentPath.includes('/updates')
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950'
+            : 'text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+        ]}
+      >
+        {t.nav.updates}
+      </a>
+    </div>
+  </div>
+</nav>
+
+<script>
+  // Mobile menu toggle
+  function initMobileMenu() {
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const menuOpen = document.querySelector('.menu-open');
+    const menuClose = document.querySelector('.menu-close');
+
+    if (!mobileMenuButton || !mobileMenu) {
+      console.warn('Mobile menu elements not found:', {
+        mobileMenuButton,
+        mobileMenu,
+      });
+      return;
+    }
+
+    // 移除舊的事件監聽器（如果有）
+    const newButton = mobileMenuButton.cloneNode(true);
+    mobileMenuButton.parentNode?.replaceChild(newButton, mobileMenuButton);
+
+    // 在新按鈕上添加事件監聽器
+    newButton.addEventListener('click', (e) => {
+      console.log('Mobile menu button clicked');
+      const isHidden = mobileMenu.classList.toggle('hidden');
+
+      const newMenuOpen = document.querySelector('.menu-open');
+      const newMenuClose = document.querySelector('.menu-close');
+
+      newMenuOpen?.classList.toggle('hidden');
+      newMenuClose?.classList.toggle('hidden');
+
+      // 更新 aria-expanded（!isHidden 因為 toggle 返回的是切換後的狀態）
+      if (newButton instanceof HTMLElement) {
+        newButton.setAttribute('aria-expanded', (!isHidden).toString());
+      }
+    });
+
+    console.log('Mobile menu initialized');
+  }
+
+  document.addEventListener('DOMContentLoaded', initMobileMenu);
+  document.addEventListener('astro:page-load', initMobileMenu);
+</script>

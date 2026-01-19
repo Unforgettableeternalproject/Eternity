@@ -1,0 +1,12 @@
+name = "eternity-visitor-counter"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# KV 命名空間綁定
+[[kv_namespaces]]
+binding = "VISITOR_STATS"
+id = "4b8b9e1288e24d9eaf912d2a61ef74fc"
+
+# CORS 設定（支援通配符 *.eternity-8v7.pages.dev）
+[vars]
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
