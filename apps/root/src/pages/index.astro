@@ -31,14 +31,6 @@ const projectContentEn = await Astro.glob(
 const projectContentGlob =
   locale === 'zh-tw' ? projectContentZh : projectContentEn;
 
-console.log('===== PROJECT DEBUG =====');
-console.log('Locale:', locale);
-console.log('Loaded modules:', projectContentGlob.length);
-projectContentGlob.forEach((m) => {
-  console.log('File:', m.file);
-  console.log('Has Content:', !!m.Content);
-});
-
 const projectContentMap = new Map();
 for (const module of projectContentGlob) {
   // 支援 Windows 和 Unix 路徑
@@ -46,15 +38,8 @@ for (const module of projectContentGlob) {
   const match = normalizedPath?.match(/projects\/([^/]+)\//);
   if (match) {
     projectContentMap.set(match[1], module);
-    console.log('Mapped:', match[1], 'from', normalizedPath);
   }
 }
-
-console.log('Map keys:', Array.from(projectContentMap.keys()));
-console.log(
-  'Project IDs:',
-  featuredProjects.map((p) => p.id)
-);
 
 const allUpdates = await getCollection('updates');
 const latestUpdates = allUpdates
@@ -69,22 +54,12 @@ const updateModules = import.meta.glob('../content/updates/*/content_*.mdoc', {
   eager: true,
 });
 
-console.log('===== UPDATE DEBUG =====');
-console.log('All module paths:', Object.keys(updateModules));
-console.log(
-  'Update IDs:',
-  latestUpdates.map((u) => u.id)
-);
-
 const updateContentMap = new Map();
 for (const [path, module] of Object.entries(updateModules)) {
   // 只處理當前語言的檔案
   if (!path.endsWith(updateContentSuffix)) {
-    console.log('Skipping (wrong locale):', path);
     continue;
   }
-
-  console.log('Processing path:', path);
 
   // 從路徑提取資料夾名稱
   // 路徑格式: ../content/updates/第一次更新 (網站正式部署)/content_zh.mdoc
@@ -93,7 +68,6 @@ for (const [path, module] of Object.entries(updateModules)) {
 
   if (match) {
     const folderName = match[1];
-    console.log('Folder name:', folderName);
 
     // 嘗試多種可能的 ID 格式
     const possibleIds = [
@@ -106,21 +80,12 @@ for (const [path, module] of Object.entries(updateModules)) {
       folderName.replace(/\s*\(([^)]*)\)/g, '-$1'), // 括號轉-
     ];
 
-    console.log('Possible IDs:', possibleIds);
-
     // 為所有可能的 ID 都建立映射
     for (const id of possibleIds) {
       updateContentMap.set(id, module);
-      console.log('Mapped:', id);
     }
   }
 }
-
-console.log('Update map keys:', Array.from(updateContentMap.keys()));
-console.log(
-  'Update IDs:',
-  latestUpdates.map((u) => u.id)
-);
 ---
 
 <BaseLayout title={t.home.title} description={t.home.description}>

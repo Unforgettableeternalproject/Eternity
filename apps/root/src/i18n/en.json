@@ -245,5 +245,60 @@
     "connect": "Connect with Me",
     "notSet": "Profile Not Set",
     "goToAdmin": "Go to Admin"
+  },
+  "updates": {
+    "title": "Updates - Eternity",
+    "description": "Check out the latest updates and announcements",
+    "heading": "Latest Updates",
+    "subtitle": "Updates",
+    "backToList": "Back to Updates",
+    "noUpdates": "No updates yet",
+    "categories": {
+      "website": "Website",
+      "project": "Project",
+      "announcement": "Announcement",
+      "other": "Other"
+    }
+  },
+  "projectsPage": {
+    "filterProjects": "Filter Projects",
+    "projectStatus": "Project Status",
+    "techTags": "Tech Tags",
+    "allProjects": "All",
+    "noProjects": "No matching projects",
+    "noProjectsYet": "No projects yet",
+    "viewDetails": "View Details",
+    "website": "Website",
+    "status": {
+      "all": "All",
+      "active": "Active",
+      "paused": "Paused",
+      "completed": "Completed",
+      "archived": "Archived"
+    }
+  },
+  "search": {
+    "pages": {
+      "home": {
+        "title": "Home",
+        "description": "Go to homepage"
+      },
+      "about": {
+        "title": "About",
+        "description": "About me"
+      },
+      "projects": {
+        "title": "Projects",
+        "description": "View my project portfolio"
+      },
+      "links": {
+        "title": "Links",
+        "description": "Useful links and resources"
+      },
+      "updates": {
+        "title": "Updates",
+        "description": "Latest updates and news"
+      }
+    }
   }
 }

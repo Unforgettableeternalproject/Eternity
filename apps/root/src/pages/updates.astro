@@ -1,9 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale } from '../i18n/utils';
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getCollection } from 'astro:content';
 
 const locale = getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
 
 // Load updates from content collections
 const allUpdates = await getCollection('updates');
@@ -32,10 +33,10 @@ const formatDate = (date: Date) => {
 
 const getCategoryLabel = (category: string) => {
   const labels = {
-    website: locale === 'zh-tw' ? '網站更新' : 'Website',
-    project: locale === 'zh-tw' ? '專案進展' : 'Project',
-    announcement: locale === 'zh-tw' ? '重要公告' : 'Announcement',
-    other: locale === 'zh-tw' ? '其他' : 'Other',
+    website: t.updates.categories.website,
+    project: t.updates.categories.project,
+    announcement: t.updates.categories.announcement,
+    other: t.updates.categories.other,
   };
   return labels[category as keyof typeof labels] || category;
 };
@@ -53,12 +54,7 @@ const getCategoryColor = (category: string) => {
 };
 ---
 
-<BaseLayout
-  title={locale === 'zh-tw' ? '最新動態 - Eternity' : 'Updates - Eternity'}
-  description={locale === 'zh-tw'
-    ? '查看最新的更新動態與公告'
-    : 'Check out the latest updates and announcements'}
->
+<BaseLayout title={t.updates.title} description={t.updates.description}>
   <div class="relative py-24 min-h-[calc(100vh-12rem)]">
     <div class="absolute inset-0 z-0 pointer-events-none">
       <div
@@ -80,10 +76,10 @@ const getCategoryColor = (category: string) => {
         <span
           class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide"
         >
-          📢 {locale === 'zh-tw' ? '最新動態' : 'Latest Updates'}
+          📢 {t.updates.heading}
         </span>
         <h1 class="text-5xl font-bold text-slate-900 dark:text-white">
-          {locale === 'zh-tw' ? '更新歷史' : 'Updates'}
+          {t.updates.subtitle}
         </h1>
         <p class="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
           {
@@ -198,7 +194,7 @@ const getCategoryColor = (category: string) => {
               </svg>
             </div>
             <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              {locale === 'zh-tw' ? '目前沒有動態' : 'No updates yet'}
+              {t.updates.noUpdates}
             </h3>
             <p class="text-slate-600 dark:text-slate-300 mb-6">
               {locale === 'zh-tw'

@@ -100,20 +100,9 @@ export default function GlobalSearch({
       try {
         // 使用路徑參數而不是查詢參數
         const apiUrl = `/api/search-${locale}.json`;
-        console.log(
-          'Fetching search data with locale:',
-          locale,
-          'URL:',
-          apiUrl
-        ); // 調試
         const response = await fetch(apiUrl);
         if (response.ok) {
           const data = await response.json();
-          console.log('Search API Response:', {
-            locale,
-            dataCount: data.length,
-            firstItem: data[0],
-          }); // 調試
           setAllData(data);
         } else {
           console.error('API response not OK:', response.status);
@@ -137,15 +126,19 @@ export default function GlobalSearch({
         filtered = filtered.filter((item) => item.type === filter);
         return filtered.slice(0, 12); // 單一類別顯示最多 12 個
       }
-      
+
       // 「全部」分類：每個類別至少顯示 4 個，確保類別多樣性
-      const projects = filtered.filter((item) => item.type === 'project').slice(0, 4);
+      const projects = filtered
+        .filter((item) => item.type === 'project')
+        .slice(0, 4);
       const links = filtered.filter((item) => item.type === 'link').slice(0, 4);
-      const updates = filtered.filter((item) => item.type === 'update').slice(0, 4);
-      
+      const updates = filtered
+        .filter((item) => item.type === 'update')
+        .slice(0, 4);
+
       return [...projects, ...links, ...updates];
     }
-    
+
     // 有搜尋查詢時：不限制數量，顯示所有匹配結果
     let filtered = allData.filter((item) => {
       // 安全地檢查每個字段

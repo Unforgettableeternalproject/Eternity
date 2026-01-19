@@ -4,6 +4,7 @@
  */
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
+import { getTranslations } from '../../i18n/utils';
 
 export function getStaticPaths() {
   return [{ params: { locale: 'zh-tw' } }, { params: { locale: 'en' } }];
@@ -11,8 +12,6 @@ export function getStaticPaths() {
 
 export const GET: APIRoute = async ({ params }) => {
   const locale = params.locale || 'zh-tw';
-
-  console.log('Search API called with locale from path:', locale); // 調試
 
   try {
     // 載入所有內容集合
@@ -102,49 +101,45 @@ export const GET: APIRoute = async ({ params }) => {
     }
 
     // 添加主要頁面
+    const t = getTranslations(locale as 'zh-tw' | 'en');
     searchData.push(
       {
         id: 'page-home',
         type: 'page',
-        title: locale === 'zh-tw' ? '首頁' : 'Home',
-        description: locale === 'zh-tw' ? '回到首頁' : 'Go to homepage',
+        title: t.search.pages.home.title,
+        description: t.search.pages.home.description,
         url: `/${locale}/`,
         category: 'main',
       },
       {
         id: 'page-about',
         type: 'page',
-        title: locale === 'zh-tw' ? '關於' : 'About',
-        description: locale === 'zh-tw' ? '關於我的介紹' : 'About me',
+        title: t.search.pages.about.title,
+        description: t.search.pages.about.description,
         url: `/${locale}/about`,
         category: 'main',
       },
       {
         id: 'page-projects',
         type: 'page',
-        title: locale === 'zh-tw' ? '專案' : 'Projects',
-        description:
-          locale === 'zh-tw' ? '查看我的專案作品' : 'View my project portfolio',
+        title: t.search.pages.projects.title,
+        description: t.search.pages.projects.description,
         url: `/${locale}/projects`,
         category: 'main',
       },
       {
         id: 'page-links',
         type: 'page',
-        title: locale === 'zh-tw' ? '連結' : 'Links',
-        description:
-          locale === 'zh-tw'
-            ? '有用的連結與資源'
-            : 'Useful links and resources',
+        title: t.search.pages.links.title,
+        description: t.search.pages.links.description,
         url: `/${locale}/links`,
         category: 'main',
       },
       {
         id: 'page-updates',
         type: 'page',
-        title: locale === 'zh-tw' ? '動態' : 'Updates',
-        description:
-          locale === 'zh-tw' ? '最新動態與更新' : 'Latest updates and news',
+        title: t.search.pages.updates.title,
+        description: t.search.pages.updates.description,
         url: `/${locale}/updates`,
         category: 'main',
       }
