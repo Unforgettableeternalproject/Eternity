@@ -537,7 +537,7 @@ const allTags = Array.from(
 <script>
   function initProjectFilters() {
     let currentStatus = 'all';
-    let currentTag = 'all';
+    let selectedTags: string[] = []; // 改為陣列支援多選
     let isFilterExpanded = false;
 
     const projectCards = document.querySelectorAll('.project-card');
@@ -574,7 +574,12 @@ const allTags = Array.from(
 
         const statusMatch =
           currentStatus === 'all' || cardStatus === currentStatus;
-        const tagMatch = currentTag === 'all' || cardTags.includes(currentTag);
+        
+        // 標籤匹配邏輯：如果沒有選擇任何標籤（selectedTags 為空），則顯示所有專案
+        // 如果有選擇標籤，則專案的 tags 中有任一個在 selectedTags 中即符合
+        const tagMatch = 
+          selectedTags.length === 0 || 
+          cardTags.some((tag: string) => selectedTags.includes(tag));
 
         if (statusMatch && tagMatch) {
           cardElement.classList.remove('hidden');
@@ -609,14 +614,39 @@ const allTags = Array.from(
       });
     });
 
-    // 標籤篩選
+    // 標籤篩選 - 支援多選
     tagButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const tag = (btn as HTMLElement).dataset.tag || 'all';
-        currentTag = tag;
-
-        tagButtons.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
+        
+        // 點擊「全部」時清空所有選擇
+        if (tag === 'all') {
+          selectedTags = [];
+          tagButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+        } else {
+          // 移除「全部」的 active 狀態
+          const allButton = Array.from(tagButtons).find(
+            (b) => (b as HTMLElement).dataset.tag === 'all'
+          );
+          allButton?.classList.remove('active');
+          
+          // 切換當前標籤的選中狀態
+          if (selectedTags.includes(tag)) {
+            // 如果已選中，則取消選中
+            selectedTags = selectedTags.filter((t) => t !== tag);
+            btn.classList.remove('active');
+            
+            // 如果沒有任何標籤被選中，自動啟用「全部」
+            if (selectedTags.length === 0) {
+              allButton?.classList.add('active');
+            }
+          } else {
+            // 如果未選中，則選中
+            selectedTags.push(tag);
+            btn.classList.add('active');
+          }
+        }
 
         filterProjects();
       });

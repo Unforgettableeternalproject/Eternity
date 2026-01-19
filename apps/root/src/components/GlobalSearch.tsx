@@ -130,14 +130,23 @@ export default function GlobalSearch({
   const filteredResults = useMemo(() => {
     const searchLower = query.toLowerCase();
 
-    // 如果沒有查詢，返回所有資料（限制數量）
+    // 如果沒有查詢，返回所有資料
     if (!query.trim()) {
       let filtered = allData.filter((item) => item.type !== 'page');
       if (filter !== 'all') {
         filtered = filtered.filter((item) => item.type === filter);
+        return filtered.slice(0, 12); // 單一類別顯示最多 12 個
       }
-      return filtered.slice(0, 8);
+      
+      // 「全部」分類：每個類別至少顯示 4 個，確保類別多樣性
+      const projects = filtered.filter((item) => item.type === 'project').slice(0, 4);
+      const links = filtered.filter((item) => item.type === 'link').slice(0, 4);
+      const updates = filtered.filter((item) => item.type === 'update').slice(0, 4);
+      
+      return [...projects, ...links, ...updates];
     }
+    
+    // 有搜尋查詢時：不限制數量，顯示所有匹配結果
     let filtered = allData.filter((item) => {
       // 安全地檢查每個字段
       const titleMatch =
@@ -175,7 +184,8 @@ export default function GlobalSearch({
       filtered = filtered.filter((item) => item.type === filter);
     }
 
-    return filtered.slice(0, 8); // 最多顯示 8 個結果
+    // 搜尋時不限制結果數量
+    return filtered;
   }, [query, filter, allData]);
 
   // 鍵盤快捷鍵 (Cmd/Ctrl + K)

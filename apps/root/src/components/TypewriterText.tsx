@@ -37,9 +37,8 @@ export default function TypewriterText({
   const typeSound =
     typeof window !== 'undefined' ? new Audio('/se/type.wav') : null;
   if (typeSound) {
-    typeSound.volume = 0.3; // 設定音量較小，避免過於吵雜
-    typeSound.preload = 'metadata'; // 只預載元數據，減少緩存壓力
-    typeSound.crossOrigin = 'anonymous'; // 允許跨域，避免緩存限制
+    typeSound.volume = 0.3;
+    typeSound.preload = 'auto';
   }
 
   // 客戶端才顯示游標，避免 hydration 不匹配
@@ -64,11 +63,11 @@ export default function TypewriterText({
 
     if (currentIndex < text.length) {
       const timer = setTimeout(() => {
-        // 播放打字音效
+        // 直接播放打字音效
         if (typeSound) {
-          typeSound.currentTime = 0; // 重置音效到開始位置
+          typeSound.currentTime = 0;
           typeSound.play().catch(() => {
-            // 靜默忽略自動播放錯誤
+            // 靜默忽略錯誤
           });
         }
 

@@ -26,9 +26,9 @@ export const GET: APIRoute = async ({ params }) => {
 
     // 處理專案
     for (const project of projects) {
-      // title_zh 已成為文件名 (project.id)，YAML 中只有 title_en
-      const titleZh = project.id; // 文件名就是中文標題
-      const titleEn = project.data.title_en || '';
+      // 優先使用 title_zh 欄位，若無則使用檔名（project.id）
+      const titleZh = project.data.title_zh || project.id;
+      const titleEn = project.data.title_en || project.id;
 
       searchData.push({
         id: `project-${project.id}`,
@@ -52,9 +52,9 @@ export const GET: APIRoute = async ({ params }) => {
 
     // 處理連結
     for (const link of links) {
-      // title_zh 已成為文件名 (link.id)，YAML 中只有 title_en
-      const titleZh = link.id;
-      const titleEn = link.data.title_en || '';
+      // 優先使用 title_zh 欄位，若無則使用檔名（link.id）
+      const titleZh = link.data.title_zh || link.id;
+      const titleEn = link.data.title_en || link.id;
 
       searchData.push({
         id: `link-${link.id}`,
@@ -77,9 +77,9 @@ export const GET: APIRoute = async ({ params }) => {
 
     // 處理動態
     for (const update of updates) {
-      // title_zh 已成為文件名 (update.id)，YAML 中只有 title_en
-      const titleZh = update.id;
-      const titleEn = update.data.title_en || '';
+      // 優先使用 title_zh 欄位，若無則使用檔名（update.id）
+      const titleZh = update.data.title_zh || update.id;
+      const titleEn = update.data.title_en || update.id;
 
       searchData.push({
         id: `update-${update.id}`,
