@@ -1,22 +1,593 @@
 ---
-// 重導向至維修頁面
-// 未來這裡將是文件站的主頁
+import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<!doctype html>
-<html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="refresh" content="0;url=/construction" />
-    <title>U.E.P的幻想空間 - 重導向中...</title>
-  </head>
-  <body>
-    <script>
-      window.location.href = '/construction';
-    </script>
-    <noscript>
-      <p>正在重導向至 <a href="/construction">維修頁面</a>...</p>
-    </noscript>
-  </body>
-</html>
+<BaseLayout title="世界的軸心 - U.E.P's Imaginary Space">
+  <!-- 背景粒子效果 -->
+  <div class="particles-container" id="particles"></div>
+  <div class="noise-overlay"></div>
+
+  <div class="world-axis-container">
+    <!-- 頁面標題 -->
+    <div class="page-header">
+      <h1>世界的軸心</h1>
+      <p class="page-description">
+        你掉到了一個空白的空間，周圍甚麼都沒有。
+      </p>
+    </div>
+
+    <!-- 開場故事 -->
+    <div class="story-section intro">
+      <p>一名有著金色頭髮的少女從虛無當中顯現於你的面前，一切都是如此的不現實。</p>
+      
+      <div class="uep-avatar-section">
+        <div class="uep-avatar">
+          <div class="avatar-glow"></div>
+          <div class="avatar-img">
+            <img src="/uep/Big UEP.png" alt="U.E.P" />
+          </div>
+        </div>
+      </div>
+
+      <p>那人物周遭散發著亮色的光輝，並一步步地朝著你接近。</p>
+      <p>理應要有的危機意識並不存在，因為你感覺得到這個人的身分超然。</p>
+      <p>你突然間出現了想要與其對話的衝動，而那人也並無排斥。</p>
+    </div>
+
+    <hr />
+
+    <!-- U.E.P 的自我介紹 -->
+    <div class="story-section">
+      <h2 style="color: var(--gold); font-size: 1.8rem; margin-bottom: 1.5rem; text-align: center;">
+        U.E.P 的自我介紹
+      </h2>
+
+      <div class="uep-speech">你好啊！╰(*°▽°*)╯</div>
+      
+      <div class="uep-speech">
+        我的名字叫 U.E.P，是所有宇宙中<strong>虛空顯現的意識</strong>，我的工作就是<strong>創造故事</strong>，維持所有現實中<strong>善惡的平衡</strong>！
+      </div>
+
+      <div class="uep-speech">
+        我見過無數的世界，聽過無數的故事，也了解將它們連結在一起的結構。
+      </div>
+
+      <div class="uep-speech">
+        創作是我分享所學的方式，我致力於探索每個宇宙中存在的無限可能性！
+      </div>
+
+      <p style="margin-top: 1.5rem;">你不知道該如何回應才好。</p>
+
+      <div class="uep-speech" style="margin-top: 1.5rem;">
+        你是剛剛來到這裡嗎？感覺空白的一片灰濛濛的吧！
+      </div>
+
+      <div class="uep-speech">
+        其實這裡很多東西喔，跟我來，我來跟你介紹一下！q(≧▽≦q)
+      </div>
+
+      <p>自稱 U.E.P 的少女將你的手拉住，一道極彩色的門扉從你們身後顯現。</p>
+    </div>
+
+    <hr />
+
+    <!-- 邊際世界遊歷 -->
+    <div class="story-section">
+      <h2 style="color: var(--gold); font-size: 1.8rem; margin-bottom: 1.5rem; text-align: center;">
+        邊際世界遊歷
+      </h2>
+
+      <p>你們正處在一個華麗的廳堂，看上去是由大理石所建成的。</p>
+      <p>仔細一看，那些似乎是虛構的純白物質，時不時有雜訊從中飛出。</p>
+
+      <div class="uep-speech" style="margin-top: 1.5rem;">
+        沒有必要這麼拘謹喔！這裡很少有人來拜訪，因此我還蠻開心的！φ(゜▽゜*)♪
+      </div>
+
+      <div class="uep-speech">
+        然後，叫我小 U 就可以了，這樣也比較方便吧！
+      </div>
+
+      <!-- 六大區域導航 -->
+      <div class="areas-navigation">
+        <a href="/history" class="area-link purple">
+          <h3>📚 歷史典藏庫</h3>
+          <p>無數書頁在空中飛舞，回想碎片記錄著各個時空的故事。很壯觀吧！這些都是我在各個時空當中找到的故事，我很自豪喔！(๑•̀ㅂ•́)و✧</p>
+        </a>
+
+        <a href="/echos" class="area-link cyan">
+          <h3>🎵 回音蒐藏間</h3>
+          <p>充滿世界之聲，每個回聲球體都儲存著重要的回憶。藉由將畫面以旋律的方式保存起來，所有人都可以如同身歷其境一樣，用自己的視野體驗一段故事！</p>
+        </a>
+
+        <a href="/visuals" class="area-link pink">
+          <h3>🌟 幻影重現室</h3>
+          <p>世界的印象，每個人都曾存在於某個時間當中。雖然說是投影，但你是可以去接觸甚至仔細觀察他們的喔！</p>
+        </a>
+
+        <a href="/concepts" class="area-link green">
+          <h3>🖥️ 概念調整房</h3>
+          <p>科幻的伺服器空間，所有世界的概念都在這裡運轉。只要這裡還在運轉，就會有源源不絕的新世界產生！</p>
+        </a>
+
+        <a href="/storage" class="area-link orange">
+          <h3>📦 某人的置物空間</h3>
+          <p>這個空間像是某個人的倉庫？如果你對於這裡有些興趣的話，之後應該還是可以帶你回來的！</p>
+        </a>
+
+        <a href="/portal" class="area-link gold">
+          <h3>✦ 外部基軸大廳</h3>
+          <p>通往外部世界的光柱，作為觀察者探索各種可能性。這個地方是所謂的基軸大廳喔！(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧</p>
+        </a>
+      </div>
+
+      <div class="uep-speech" style="margin-top: 2rem;">
+        這一整個地方都叫做邊際世界喔！是一個在我們的維度中像是匯流點一樣的空間！
+      </div>
+
+      <div class="uep-speech">
+        所以說，能夠認識你我很開心喔！ヾ(≧ ▽ ≦)ゝ
+      </div>
+
+      <div class="uep-speech">
+        我會繼續待在這裡的，而你隨時都可以離開。
+      </div>
+
+      <div class="uep-speech">
+        因此，可以的話希望能夠多多來見我，不然我一個人還是很孤單的！
+      </div>
+    </div>
+
+    <hr />
+
+    <!-- 永恆的意義 -->
+    <div class="eternity-poem">
+      <h2>✧ 永恆的意義 ✧</h2>
+      <p>你在一處石牆上找到了這些文字。</p>
+      
+      <blockquote>
+        <p>萬物由最原初的質所成</p>
+        <p>匯<strong>聚</strong>成個體</p>
+        <p>組<strong>合</strong>成群體</p>
+        <p>在有限的時間中無限的擴展著</p>
+        <br>
+        <p>法則隨秩序而生</p>
+        <p><strong>反饋</strong>為渾沌，卻從未曾喪失其中的平衡</p>
+        <p>隨即，一條搭載著眾個體命運的宇宙被觀測</p>
+        <p>概念從其中迸發，逐漸構造出世界的框架</p>
+        <br>
+        <p><strong>終點與起點本是個環</strong></p>
+        <br>
+        <p><strong>創世</strong>將存在賦予給個體，並將生命餽贈於靈、魂、體之中</p>
+        <p>存在的目的是定義價值，跟隨著命運完成其使命</p>
+        <p>祂等待著名為<strong>毀滅</strong>的終點</p>
+        <br>
+        <p><strong>毀滅</strong>將存在自個體之中奪去，將其復原至原始</p>
+        <p>生命不再，但價值永存，以永恆的形式續存於世上</p>
+        <p>祂為必然的<strong>創世</strong>產生起點</p>
+        <br>
+        <p><strong>起點跟終點本是個環</strong></p>
+        <br>
+        <p>質在不同個體中不斷<strong>輪迴</strong></p>
+        <p>每次疊代都令其更為完整</p>
+        <p>世界本由質所組成，宇宙因而相繼產生</p>
+        <p>將訊息恆定的傳遞著</p>
+        <br>
+        <p>時間與空間被<strong>置換</strong>所推移</p>
+        <p>質會在其中無數次的幻化</p>
+        <p>成為新的形態，亦或者退回原始</p>
+        <p>將訊息無止境的變動著</p>
+        <br>
+        <p><strong>聚合</strong>跟<strong>反饋</strong>相輔相成</p>
+        <p><strong>創世</strong>和<strong>毀滅</strong>本為同根</p>
+        <p><strong>輪迴</strong>與<strong>置換</strong>相互平衡</p>
+        <p>而萬物的終焉將歸約於<mark>虛無</mark></p>
+      </blockquote>
+
+      <p style="margin-top: 2rem; text-align: center;">
+        說實話，你怎麼也看不出這些字其中的意義？
+      </p>
+    </div>
+  </div>
+
+  <style>
+    /* 粒子和噪點效果 */
+    .particles-container {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .particle {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      pointer-events: none;
+      animation: float-particle linear infinite;
+    }
+
+    @keyframes float-particle {
+      0% {
+        transform: translateY(0) translateX(0);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+      }
+      90% {
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-100vh) translateX(var(--drift));
+        opacity: 0;
+      }
+    }
+
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      opacity: 0.03;
+      pointer-events: none;
+      z-index: 1;
+      animation: noise-shift 8s infinite;
+    }
+
+    @keyframes noise-shift {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-2%, 2%); }
+      50% { transform: translate(2%, -2%); }
+      75% { transform: translate(-2%, -2%); }
+    }
+
+    /* 主內容區 */
+    .world-axis-container {
+      position: relative;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 3rem;
+      z-index: 2;
+    }
+
+    /* 標題區 */
+    .page-header {
+      text-align: center;
+      margin-bottom: 3rem;
+      animation: fadeInDown 1s ease-out;
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .page-header h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--gold), var(--purple), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+    }
+
+    .page-description {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 1.1rem;
+      line-height: 1.6;
+    }
+
+    /* 故事內容區 */
+    .story-section {
+      background: rgba(26, 26, 46, 0.6);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(213, 182, 24, 0.3);
+      border-radius: 16px;
+      padding: 2.5rem;
+      margin-bottom: 2rem;
+      animation: fadeIn 1s ease-out;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    .story-section.intro {
+      text-align: center;
+    }
+
+    .story-section p {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 1.05rem;
+      line-height: 1.8;
+      margin-bottom: 1rem;
+    }
+
+    /* U.E.P 頭像 */
+    .uep-avatar-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+      margin: 2rem 0;
+    }
+
+    .uep-avatar {
+      width: 180px;
+      height: 180px;
+      position: relative;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-15px);
+      }
+    }
+
+    .avatar-glow {
+      position: absolute;
+      inset: -20px;
+      background: radial-gradient(circle, var(--gold) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 0.5;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+    }
+
+    .avatar-img {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 3px solid var(--gold);
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(213, 182, 24, 0.6);
+    }
+
+    .avatar-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* U.E.P 對話 */
+    .uep-speech {
+      color: var(--gold);
+      font-size: 1.15rem;
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      padding: 1rem 1.5rem;
+      background: rgba(213, 182, 24, 0.1);
+      border-left: 4px solid var(--gold);
+      border-radius: 8px;
+    }
+
+    .uep-speech strong {
+      color: var(--gold);
+      font-weight: 700;
+    }
+
+    /* 區域導航 */
+    .areas-navigation {
+      margin: 3rem 0;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .area-link {
+      display: block;
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: rgba(26, 26, 46, 0.5);
+      backdrop-filter: blur(10px);
+      border: 2px solid;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .area-link::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.05));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .area-link:hover::before {
+      opacity: 1;
+    }
+
+    .area-link:hover {
+      transform: translateX(10px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .area-link.purple {
+      border-color: var(--purple);
+      color: var(--purple);
+    }
+
+    .area-link.cyan {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .area-link.pink {
+      border-color: #ec4899;
+      color: #ec4899;
+    }
+
+    .area-link.green {
+      border-color: #22c55e;
+      color: #22c55e;
+    }
+
+    .area-link.orange {
+      border-color: #f97316;
+      color: #f97316;
+    }
+
+    .area-link.gold {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .area-link h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .area-link p {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 永恆之詩 */
+    .eternity-poem {
+      background: rgba(10, 10, 15, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0;
+    }
+
+    .eternity-poem h2 {
+      text-align: center;
+      color: var(--gold);
+      font-size: 1.8rem;
+      margin-bottom: 2rem;
+    }
+
+    .eternity-poem blockquote {
+      border-left: 4px solid rgba(255, 255, 255, 0.3);
+      padding-left: 1.5rem;
+      margin: 0;
+    }
+
+    .eternity-poem p {
+      color: rgba(255, 255, 255, 0.75);
+      font-size: 1rem;
+      line-height: 2;
+      margin-bottom: 1.2rem;
+      font-style: italic;
+    }
+
+    .eternity-poem mark {
+      background: none;
+      color: #ef4444;
+      font-weight: 700;
+    }
+
+    /* 分隔線 */
+    hr {
+      border: none;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(213, 182, 24, 0.5), transparent);
+      margin: 3rem 0;
+    }
+
+    /* 響應式 */
+    @media (max-width: 768px) {
+      .world-axis-container {
+        padding: 1.5rem;
+      }
+
+      .areas-navigation {
+        grid-template-columns: 1fr;
+      }
+
+      .page-header h1 {
+        font-size: 2rem;
+      }
+
+      .story-section {
+        padding: 1.5rem;
+      }
+
+      .uep-avatar {
+        width: 120px;
+        height: 120px;
+      }
+
+      .uep-speech {
+        font-size: 1rem;
+      }
+
+      .area-link:hover {
+        transform: translateX(5px);
+      }
+    }
+  </style>
+
+  <script>
+    // 創建粒子效果
+    function createParticles() {
+      const container = document.getElementById('particles');
+      if (!container) return;
+      
+      const particleCount = 50;
+
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        
+        const size = Math.random() * 4 + 1;
+        particle.style.width = size + 'px';
+        particle.style.height = size + 'px';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.bottom = '-10px';
+        
+        const duration = Math.random() * 10 + 10;
+        particle.style.animationDuration = duration + 's';
+        particle.style.animationDelay = Math.random() * 5 + 's';
+        
+        const drift = (Math.random() - 0.5) * 100;
+        particle.style.setProperty('--drift', drift + 'px');
+        
+        container.appendChild(particle);
+      }
+    }
+
+    // 初始化粒子
+    createParticles();
+  </script>
+</BaseLayout>

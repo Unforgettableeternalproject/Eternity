@@ -1,0 +1,501 @@
+---
+interface PageItem {
+  slug: string[];
+  title: string;
+}
+
+interface Props {
+  icon: string;
+  title: string;
+  description: string;
+  themeColor: string;
+  workingImage: string;
+  pages?: PageItem[];
+}
+
+const { icon, title, description, themeColor, workingImage, pages = [] } = Astro.props;
+---
+
+<div class="area-page">
+  <a href="/" class="back-link">
+    <span class="back-arrow">←</span>
+    <span>返回世界的軸心</span>
+  </a>
+
+  <div class="area-header">
+    <div class="area-icon-wrapper">
+      <div class="icon-glow"></div>
+      <div class="area-icon">{icon}</div>
+    </div>
+    <h1 class="area-title">{title}</h1>
+    <p class="area-desc" set:html={description} />
+  </div>
+
+  {pages.length > 0 ? (
+    <div class="pages-grid">
+      <h2 class="section-title">探索此區域</h2>
+      <div class="pages-list">
+        {pages.map((page) => (
+          <a href={`/${page.slug.join('/')}`} class="page-card">
+            <div class="page-card-icon">📄</div>
+            <div class="page-card-content">
+              <h3 class="page-card-title">{page.title}</h3>
+              <div class="page-card-path">/{page.slug.join('/')}</div>
+            </div>
+            <div class="page-card-arrow">→</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div class="construction-box">
+      <div class="construction-particles">
+        <div class="construction-particle"></div>
+        <div class="construction-particle"></div>
+        <div class="construction-particle"></div>
+      </div>
+      
+      <div class="construction-content">
+        <div class="working-image-wrapper">
+          <img src={workingImage} alt="UEP Working" class="working-image" />
+        </div>
+        
+        <div class="construction-text">
+          <h2 class="construction-title">內容建設中</h2>
+          <p class="construction-desc">U.E.P 正在整理這個區域的內容，請稍候！</p>
+          
+          <div class="loading-bar">
+            <div class="loading-progress"></div>
+          </div>
+          
+          <p class="construction-hint">敬請期待 ✨</p>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+
+<style define:vars={{ themeColor }}>
+  .area-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 3rem;
+    animation: pageEnter 0.6s ease-out;
+  }
+
+  @keyframes pageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--gold);
+    text-decoration: none;
+    margin-bottom: 3rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(213, 182, 24, 0.1);
+    border: 1px solid rgba(213, 182, 24, 0.3);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 500;
+  }
+
+  .back-link:hover {
+    background: rgba(213, 182, 24, 0.2);
+    transform: translateX(-8px);
+    box-shadow: 0 4px 12px rgba(213, 182, 24, 0.2);
+  }
+
+  .back-arrow {
+    transition: transform 0.3s ease;
+    font-size: 1.2rem;
+  }
+
+  .back-link:hover .back-arrow {
+    transform: translateX(-4px);
+  }
+
+  .area-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .area-icon-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+
+  .icon-glow {
+    position: absolute;
+    inset: -30px;
+    background: radial-gradient(circle, var(--themeColor) 0%, transparent 70%);
+    opacity: 0.4;
+    animation: pulse 2s ease-in-out infinite;
+    border-radius: 50%;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.2);
+    }
+  }
+
+  .area-icon {
+    font-size: 6rem;
+    filter: drop-shadow(0 0 20px var(--themeColor));
+    position: relative;
+    z-index: 1;
+  }
+
+  .area-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--themeColor);
+    margin-bottom: 1.5rem;
+    text-shadow: 0 0 30px var(--themeColor);
+    animation: titleGlow 3s ease-in-out infinite;
+  }
+
+  @keyframes titleGlow {
+    0%, 100% {
+      text-shadow: 0 0 30px var(--themeColor);
+    }
+    50% {
+      text-shadow: 0 0 50px var(--themeColor), 0 0 80px var(--themeColor);
+    }
+  }
+
+  .area-desc {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.8);
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  .construction-box {
+    background: rgba(26, 26, 46, 0.6);
+    backdrop-filter: blur(20px);
+    border: 2px solid var(--themeColor);
+    border-radius: 24px;
+    padding: 3rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 60px rgba(var(--themeColor), 0.2);
+  }
+
+  .construction-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .construction-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: var(--themeColor);
+    border-radius: 50%;
+    opacity: 0;
+    animation: floatUp 5s ease-in-out infinite;
+    box-shadow: 0 0 10px var(--themeColor);
+  }
+
+  .construction-particle:nth-child(1) {
+    left: 20%;
+    animation-delay: 0s;
+  }
+
+  .construction-particle:nth-child(2) {
+    left: 50%;
+    animation-delay: 1.5s;
+  }
+
+  .construction-particle:nth-child(3) {
+    left: 80%;
+    animation-delay: 3s;
+  }
+
+  @keyframes floatUp {
+    0% {
+      bottom: 0;
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.8;
+    }
+    90% {
+      opacity: 0.8;
+    }
+    100% {
+      bottom: 100%;
+      opacity: 0;
+      transform: translateX(30px);
+    }
+  }
+
+  .construction-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .working-image-wrapper {
+    position: relative;
+    animation: bobbing 3s ease-in-out infinite;
+  }
+
+  @keyframes bobbing {
+    0%, 100% {
+      transform: translateY(0) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(3deg);
+    }
+  }
+
+  .working-image {
+    width: 220px;
+    height: auto;
+    filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
+    transition: transform 0.3s ease;
+  }
+
+  .working-image-wrapper:hover .working-image {
+    transform: scale(1.1);
+  }
+
+  .construction-text {
+    text-align: center;
+  }
+
+  .construction-title {
+    font-size: 2rem;
+    color: var(--themeColor);
+    margin-bottom: 1rem;
+    font-weight: 700;
+  }
+
+  .construction-desc {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 2rem;
+  }
+
+  .loading-bar {
+    width: 300px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 auto 1.5rem;
+  }
+
+  .loading-progress {
+    height: 100%;
+    background: linear-gradient(90deg, var(--themeColor), var(--gold));
+    border-radius: 3px;
+    animation: loading 2s ease-in-out infinite;
+    box-shadow: 0 0 10px var(--themeColor);
+  }
+
+  @keyframes loading {
+    0% {
+      width: 0%;
+  /* Pages Grid Styles */
+  .pages-grid {
+    margin-top: 3rem;
+  }
+
+  .section-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--themeColor);
+    margin-bottom: 2rem;
+    text-align: center;
+    text-shadow: 0 0 20px var(--themeColor);
+  }
+
+  .pages-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .page-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: rgba(26, 26, 46, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .page-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent, var(--themeColor));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .page-card:hover {
+    border-color: var(--themeColor);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(var(--themeColor), 0.2);
+  }
+
+  .page-card:hover::before {
+    opacity: 0.1;
+  }
+
+  .page-card-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 10px var(--themeColor));
+    transition: transform 0.3s ease;
+    z-index: 1;
+  }
+
+  .page-card:hover .page-card-icon {
+    transform: scale(1.2) rotate(10deg);
+  }
+
+  .page-card-content {
+    flex: 1;
+    min-width: 0;
+    z-index: 1;
+  }
+
+  .page-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-card-path {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-card-arrow {
+    font-size: 1.5rem;
+    color: var(--themeColor);
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+    z-index: 1;
+  }
+
+  .page-card:hover .page-card-arrow {
+    transform: translateX(8px);
+  }
+
+  @media (max-width: 768px) {
+    .area-page {
+      padding: 2rem 1rem;
+    }
+
+    .pages-list {
+      grid-template-columns: 1fr;
+    }
+
+    .page-card {
+      padding: 1rem;
+    }
+
+    .page-card-title {
+      font-size:
+      width: 100%;
+      transform: translateX(0);
+    }
+    100% {
+      width: 100%;
+      transform: translateX(100%);
+    }
+  }
+
+  .construction-hint {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+  }
+
+  @media (max-width: 768px) {
+    .area-page {
+      padding: 2rem 1rem;
+    }
+
+    .area-icon {
+      font-size: 4rem;
+    }
+
+    .area-title {
+      font-size: 2.5rem;
+    }
+
+    .area-desc {
+      font-size: 1rem;
+    }
+
+    .construction-box {
+      padding: 2rem 1.5rem;
+    }
+
+    .working-image {
+      width: 160px;
+    }
+
+    .construction-title {
+      font-size: 1.5rem;
+    }
+
+    .loading-bar {
+      width: 200px;
+    }
+  }
+</style>

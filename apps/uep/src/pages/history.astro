@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AreaPage from '../components/AreaPage.astro';
+import { loadSummary, extractDirectChildren } from '../utils/summary';
+import { join } from 'node:path';
+
+const contentDir = join(process.cwd(), 'content');
+const navigation = loadSummary(contentDir);
+
+// 提取 history 區域的所有頁面
+const historyPages = extractDirectChildren(navigation, 'history').map(route => ({
+  slug: route.slug,
+  title: route.title
+}));
+---
+
+<BaseLayout title="歷史典藏庫 - 邊際世界">
+  <AreaPage
+    icon="📚"
+    title="歷史典藏庫"
+    description="眼前的景色讓你嘆為觀止。<br>這裡儼然是一座大型圖書館，無數書頁正有條理地在天空中飛舞著。<br>你不確定這是某種魔法還是甚麼超自然力量的影響。"
+    themeColor="#a855f7"
+    workingImage="/uep/Working.png"
+    pages={historyPages}
+  />
+</BaseLayout>

@@ -1,0 +1,405 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { loadSummary, extractRoutes } from '../utils/summary';
+import { parseFrontmatter, markdownToHtml } from '../utils/markdown';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+export async function getStaticPaths() {
+  const contentDir = join(process.cwd(), 'content');
+  
+  try {
+    const navigation = loadSummary(contentDir);
+    const routes = extractRoutes(navigation);
+    
+    return routes.map(route => ({
+      params: { slug: route.slug.join('/') },
+      props: {
+        filePath: route.filePath,
+        title: route.title
+      }
+    }));
+  } catch (error) {
+    console.error('無法載入 SUMMARY.md:', error);
+    return [];
+  }
+}
+
+const { filePath, title } = Astro.props;
+
+let htmlContent = '';
+let error: Error | null = null;
+let pageTitle = title;
+
+try {
+  const rawContent = readFileSync(filePath, 'utf-8');
+  const { content: markdown, frontmatter } = parseFrontmatter(rawContent);
+  
+  // 如果 frontmatter 有 description，使用它作為標題
+  if (frontmatter.description) {
+    pageTitle = frontmatter.description;
+  }
+  
+  htmlContent = await markdownToHtml(markdown);
+} catch (e) {
+  error = e instanceof Error ? e : new Error(String(e));
+  console.error('無法讀取或渲染檔案:', filePath, e);
+}
+---
+
+<BaseLayout title={title}>
+  <div class="doc-page">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>導航</h2>
+      </div>
+      <nav class="sidebar-nav">
+        <p class="construction-notice">導航功能建構中...</p>
+      </nav>
+    </aside>
+
+    <main class="content">
+      {error ? (
+        <div class="error-message">
+          <h1>❌ 無法載入內容</h1>
+          <p>檔案路徑: <code>{filePath}</code></p>
+          <p>錯誤: {error.message}</p>
+        </div>
+      ) : (
+        <article class="markdown-content">
+          <h1 class="page-title">{pageTitle}</h1>
+          <div class="prose" set:html={htmlContent} />
+        </article>
+      )}
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .doc-page {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 3rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 2rem;
+    min-height: calc(100vh - 4rem);
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 2rem;
+    height: fit-content;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.7), rgba(10, 10, 15, 0.7));
+    border: 1px solid rgba(213, 182, 24, 0.2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .sidebar-header h2 {
+    color: #d5b618;
+    font-size: 1.25rem;
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(213, 182, 24, 0.3);
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .construction-notice {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-style: italic;
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+
+  .content {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.5), rgba(10, 10, 15, 0.5));
+    border: 1px solid rgba(213, 182, 24, 0.15);
+    border-radius: 12px;
+    padding: 3rem;
+    backdrop-filter: blur(10px);
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .markdown-content h1 {
+    color: #d5b618;
+    font-size: 2.5rem;
+    margin: 0 0 2rem 0;
+    font-weight: 700;
+    background: linear-gradient(135deg, #d5b618, #ffd700);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Prose Styles - Markdown Content */
+  .prose {
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.8;
+    font-size: 1rem;
+  }
+
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    font-weight: 700;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+  }
+
+  .prose h1 {
+    font-size: 2.5rem;
+    color: #d5b618;
+    border-bottom: 2px solid rgba(213, 182, 24, 0.3);
+    padding-bottom: 0.5rem;
+  }
+
+  .prose h2 {
+    font-size: 2rem;
+    color: #a855f7;
+  }
+
+  .prose h3 {
+    font-size: 1.5rem;
+    color: #06b6d4;
+  }
+
+  .prose h4 {
+    font-size: 1.25rem;
+    color: #ec4899;
+  }
+
+  .prose p {
+    margin-bottom: 1.25rem;
+  }
+
+  .prose a {
+    color: #d5b618;
+    text-decoration: underline;
+    text-decoration-color: rgba(213, 182, 24, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .prose a:hover {
+    text-decoration-color: #d5b618;
+    color: #ffd700;
+  }
+
+  /* 確保 prose 連結樣式不影響頁面卡片 */
+  .prose p a,
+  .prose li a,
+  .prose td a,
+  .prose div:not(.page-card) a {
+    /* prose 內文本連結的樣式 */
+  }
+
+  .prose strong {
+    color: #ffd700;
+    font-weight: 700;
+  }
+
+  .prose em {
+    color: #a855f7;
+    font-style: italic;
+  }
+
+  .prose code {
+    background: rgba(168, 85, 247, 0.15);
+    color: #fbbf24;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Courier New', 'Monaco', monospace;
+    font-size: 0.9em;
+  }
+
+  .prose pre {
+    background: rgba(10, 10, 15, 0.8);
+    border: 1px solid rgba(213, 182, 24, 0.2);
+    border-radius: 8px;
+    padding: 1.5rem;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+
+  .prose pre code {
+    background: none;
+    color: #cbd5e1;
+    padding: 0;
+    font-size: 0.875rem;
+  }
+
+  .prose ul, .prose ol {
+    margin: 1.25rem 0;
+    padding-left: 2rem;
+  }
+
+  .prose li {
+    margin-bottom: 0.5rem;
+  }
+
+  .prose ul li {
+    list-style-type: disc;
+  }
+
+  .prose ol li {
+    list-style-type: decimal;
+  }
+
+  .prose blockquote {
+    border-left: 4px solid #d5b618;
+    padding-left: 1.5rem;
+    margin: 1.5rem 0;
+    color: rgba(255, 255, 255, 0.7);
+    font-style: italic;
+    background: rgba(213, 182, 24, 0.05);
+    padding: 1rem 1.5rem;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    background: rgba(26, 26, 46, 0.5);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .prose th {
+    background: rgba(213, 182, 24, 0.2);
+    color: #ffd700;
+    font-weight: 700;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 2px solid rgba(213, 182, 24, 0.3);
+  }
+
+  .prose td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .prose tr:last-child td {
+    border-bottom: none;
+  }
+
+  .prose tr:hover {
+    background: rgba(213, 182, 24, 0.05);
+  }
+
+  .prose hr {
+    border: none;
+    border-top: 1px solid rgba(213, 182, 24, 0.3);
+    margin: 2rem 0;
+  }
+
+  .prose img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .markdown-content pre {
+    background: rgba(10, 10, 15, 0.8);
+    border: 1px solid rgba(213, 182, 24, 0.2);
+    border-radius: 8px;
+    padding: 1.5rem;
+    overflow-x: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .error-message {
+    padding: 2rem;
+    background: rgba(220, 38, 38, 0.1);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    border-radius: 8px;
+  }
+
+  .error-message h1 {
+    color: #fca5a5;
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+  }
+
+  .error-message p {
+    color: #cbd5e1;
+    margin: 0.5rem 0;
+  }
+
+  .error-message code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #fbbf24;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 響應式設計 */
+  @media (max-width: 1024px) {
+    .doc-page {
+      grid-template-columns: 240px 1fr;
+      gap: 2rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .doc-page {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .sidebar {
+      position: static;
+      max-height: none;
+    }
+
+    .content {
+      padding: 2rem;
+    }
+  }
+
+  /* 自定義捲軸 */
+  .sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .sidebar::-webkit-scrollbar-track {
+    background: rgba(10, 10, 15, 0.5);
+    border-radius: 3px;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb {
+    background: rgba(213, 182, 24, 0.3);
+    border-radius: 3px;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(213, 182, 24, 0.5);
+  }
+</style>
