@@ -1,9 +1,12 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import ContentRenderer from '../components/ContentRenderer.astro';
 import { loadSummary, extractRoutes } from '../utils/summary';
-import { parseFrontmatter, markdownToHtml } from '../utils/markdown';
+import { parseFrontmatter } from '../utils/markdown';
+import { parseMarkdownToSections, applyAreaStyle } from '../utils/content-renderer';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { EnhancedContent } from '../utils/content-renderer';
 
 export async function getStaticPaths() {
   const contentDir = join(process.cwd(), 'content');
@@ -16,7 +19,8 @@ export async function getStaticPaths() {
       params: { slug: route.slug.join('/') },
       props: {
         filePath: route.filePath,
-        title: route.title
+        title: route.title,
+        areaId: route.slug[0] // 第一段路徑是區域 ID (history, echos, etc.)
       }
     }));
   } catch (error) {
@@ -25,9 +29,9 @@ export async function getStaticPaths() {
   }
 }
 
-const { filePath, title } = Astro.props;
+const { filePath, title, areaId } = Astro.props;
 
-let htmlContent = '';
+let enhancedContent: EnhancedContent | null = null;
 let error: Error | null = null;
 let pageTitle = title;
 
@@ -40,11 +44,17 @@ try {
     pageTitle = frontmatter.description;
   }
   
-  htmlContent = await markdownToHtml(markdown);
+  // 使用新的三層架構渲染系統
+  const sections = parseMarkdownToSections(markdown);
+  enhancedContent = applyAreaStyle(areaId, { rawSections: sections });
+  
 } catch (e) {
   error = e instanceof Error ? e : new Error(String(e));
   console.error('無法讀取或渲染檔案:', filePath, e);
 }
+
+// 生成區域樣式類名
+const areaStyleClass = areaId ? `area-${areaId}` : '';
 ---
 
 <BaseLayout title={title}>
@@ -65,11 +75,20 @@ try {
           <p>檔案路徑: <code>{filePath}</code></p>
           <p>錯誤: {error.message}</p>
         </div>
-      ) : (
+      ) : enhancedContent ? (
         <article class="markdown-content">
           <h1 class="page-title">{pageTitle}</h1>
-          <div class="prose" set:html={htmlContent} />
+          <ContentRenderer 
+            sections={enhancedContent.rawSections} 
+            layout={enhancedContent.layout}
+            components={enhancedContent.components}
+            areaStyle={areaStyleClass}
+          />
         </article>
+      ) : (
+        <div class="loading-message">
+          <p>載入中...</p>
+        </div>
       )}
     </main>
   </div>
@@ -141,186 +160,11 @@ try {
     -webkit-text-fill-color: transparent;
   }
 
-  /* Prose Styles - Markdown Content */
-  .prose {
-    color: rgba(255, 255, 255, 0.9);
-    line-height: 1.8;
-    font-size: 1rem;
-  }
-
-  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-    font-weight: 700;
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-    line-height: 1.3;
-  }
-
-  .prose h1 {
-    font-size: 2.5rem;
-    color: #d5b618;
-    border-bottom: 2px solid rgba(213, 182, 24, 0.3);
-    padding-bottom: 0.5rem;
-  }
-
-  .prose h2 {
-    font-size: 2rem;
-    color: #a855f7;
-  }
-
-  .prose h3 {
-    font-size: 1.5rem;
-    color: #06b6d4;
-  }
-
-  .prose h4 {
-    font-size: 1.25rem;
-    color: #ec4899;
-  }
-
-  .prose p {
-    margin-bottom: 1.25rem;
-  }
-
-  .prose a {
-    color: #d5b618;
-    text-decoration: underline;
-    text-decoration-color: rgba(213, 182, 24, 0.3);
-    transition: all 0.2s ease;
-  }
-
-  .prose a:hover {
-    text-decoration-color: #d5b618;
-    color: #ffd700;
-  }
-
-  /* 確保 prose 連結樣式不影響頁面卡片 */
-  .prose p a,
-  .prose li a,
-  .prose td a,
-  .prose div:not(.page-card) a {
-    /* prose 內文本連結的樣式 */
-  }
-
-  .prose strong {
-    color: #ffd700;
-    font-weight: 700;
-  }
-
-  .prose em {
-    color: #a855f7;
+  .loading-message {
+    text-align: center;
+    padding: 3rem;
+    color: #94a3b8;
     font-style: italic;
-  }
-
-  .prose code {
-    background: rgba(168, 85, 247, 0.15);
-    color: #fbbf24;
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
-    font-family: 'Courier New', 'Monaco', monospace;
-    font-size: 0.9em;
-  }
-
-  .prose pre {
-    background: rgba(10, 10, 15, 0.8);
-    border: 1px solid rgba(213, 182, 24, 0.2);
-    border-radius: 8px;
-    padding: 1.5rem;
-    overflow-x: auto;
-    margin: 1.5rem 0;
-  }
-
-  .prose pre code {
-    background: none;
-    color: #cbd5e1;
-    padding: 0;
-    font-size: 0.875rem;
-  }
-
-  .prose ul, .prose ol {
-    margin: 1.25rem 0;
-    padding-left: 2rem;
-  }
-
-  .prose li {
-    margin-bottom: 0.5rem;
-  }
-
-  .prose ul li {
-    list-style-type: disc;
-  }
-
-  .prose ol li {
-    list-style-type: decimal;
-  }
-
-  .prose blockquote {
-    border-left: 4px solid #d5b618;
-    padding-left: 1.5rem;
-    margin: 1.5rem 0;
-    color: rgba(255, 255, 255, 0.7);
-    font-style: italic;
-    background: rgba(213, 182, 24, 0.05);
-    padding: 1rem 1.5rem;
-    border-radius: 0 8px 8px 0;
-  }
-
-  .prose table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1.5rem 0;
-    background: rgba(26, 26, 46, 0.5);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .prose th {
-    background: rgba(213, 182, 24, 0.2);
-    color: #ffd700;
-    font-weight: 700;
-    padding: 0.75rem 1rem;
-    text-align: left;
-    border-bottom: 2px solid rgba(213, 182, 24, 0.3);
-  }
-
-  .prose td {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .prose tr:last-child td {
-    border-bottom: none;
-  }
-
-  .prose tr:hover {
-    background: rgba(213, 182, 24, 0.05);
-  }
-
-  .prose hr {
-    border: none;
-    border-top: 1px solid rgba(213, 182, 24, 0.3);
-    margin: 2rem 0;
-  }
-
-  .prose img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 8px;
-    margin: 1.5rem 0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .markdown-content pre {
-    background: rgba(10, 10, 15, 0.8);
-    border: 1px solid rgba(213, 182, 24, 0.2);
-    border-radius: 8px;
-    padding: 1.5rem;
-    overflow-x: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-    line-height: 1.6;
-    color: #cbd5e1;
-    white-space: pre-wrap;
-    word-wrap: break-word;
   }
 
   .error-message {

@@ -4,6 +4,86 @@
 
 ### ✅ 已完成
 
+- **UEP 文件站區域頁面導航改進** (NEW - 2026-01-20 深夜)
+  - **移除重複內容**:
+    * echos.astro, visuals.astro, concepts.astro, storage.astro 清理
+    * 移除重複的 HTML 結構（舊版實作殘留）
+    * 現在只保留 BaseLayout + AreaPage 元件
+  - **可收縮樹狀導航實現**:
+    * 將頁面重新組織成樹狀結構（buildTree 函數）
+    * Level 0 頂層項目有子項時顯示展開/收合按鈕（▼/▶）
+    * 點擊箭頭展開/收合子項目
+    * 子項目淡入淡出 + max-height 動畫（300ms ease）
+    * 收合時箭頭旋轉 -90deg
+  - **視覺設計優化**:
+    * 更緊湊的導航設計（縮小字體和間距）
+    * 子項目背景略深（rgba(0, 0, 0, 0.15)）
+    * 子項目左側縮排 2.5rem（與展開按鈕寬度一致）
+    * 展開按鈕金色，hover 時縮放 1.2 倍
+    * 所有項目保持原有 hover 效果（背景、邊框、箭頭）
+  - **JavaScript 互動**:
+    * astro:page-load 後綁定所有 collapse-toggle 按鈕
+    * 點擊時切換 aria-expanded 屬性
+    * 動態設定 maxHeight（展開時根據 scrollHeight）
+    * 防止事件冒泡（stopPropagation）
+  - **響應式設計**:
+    * 手機版調整按鈕和子項目邊距
+    * 較小的字體和圖標尺寸
+    * 建構測試：0 errors
+
+- **UEP 文件站三層內容渲染架構** (NEW - 2026-01-20 深夜)
+  - **設計概念**:
+    * Layer 1: 原始文檔（來自子模組，永遠不會被改動）
+    * Layer 2: 二次設計層（隔離文字區段和排版，無需修改原始文件）
+    * Layer 3: 額外元件層（音樂播放器、附件、自定義元件）
+  - **內容渲染工具** (`src/utils/content-renderer.ts`):
+    * `parseMarkdownToSections()` - 將 Markdown 按空行切割成區段
+    * `parseLineToBlock()` - 解析各種內容塊（標題、程式碼、引用、圖片、文字）
+    * `applyAreaStyle()` - 套用區域特定樣式（narrative/gallery/documentation/showcase/casual）
+  - **ContentRenderer 元件** (`src/components/ContentRenderer.astro`):
+    * 三層架構實現：前置元件 → 內容區段 → 後置元件 + 浮動元件
+    * 區段插入點（beforeInsert/afterInsert），可在不修改原文的情況下加入內容
+    * 支援 6 種內容塊：text, heading, code, quote, image, divider
+    * 間距控制：compact/normal/relaxed
+    * 多欄佈局：1/2/3 columns
+  - **區域樣式配置**:
+    * history - narrative 風格，relaxed 間距
+    * echos - gallery 風格，2 欄佈局
+    * concepts - documentation 風格，compact 間距
+    * visuals - showcase 風格，3 欄佈局
+    * storage - casual 風格，normal 間距
+  - **[...slug].astro 整合**:
+    * 使用 `parseMarkdownToSections()` 取代 `markdownToHtml()`
+    * 自動套用區域樣式（根據 areaId）
+    * 傳遞 sections, layout, components 給 ContentRenderer
+  - **技術特點**:
+    * 原始 Markdown 的空行現在成為區段分隔符，可用於靈活排版
+    * 未來可插入音樂播放器、附件下載等元件，無需修改子模組內容
+    * 每個區域可以有不同的視覺風格和佈局方式
+  - **建構測試**:
+    * 156 頁面成功生成（0 errors）
+    * TypeScript 檢查通過（0 errors）
+    * 新渲染系統正常運作
+
+- **UEP 文件站導航層級視覺化** (2026-01-20 深夜)
+  - **層級顯示系統**:
+    * 層級縮排（level * 2rem）
+    * 層級專屬圖標（📄 📃 📝 📋）
+    * 層級專屬邊框顏色（opacity: 100% → 60% → 40% → 20%）
+  - **區域頁面更新**:
+    * AreaPage.astro 新增 `level` 支援
+    * 從 grid 改為 flex-column 以顯示層級結構
+    * 修復連結顏色繼承問題（避免全部變藍）
+  - **所有區域頁面適配**:
+    * history.astro, echos.astro, visuals.astro, concepts.astro, storage.astro
+    * 傳遞 `level` 資訊至 AreaPage 元件
+  - **視覺效果**:
+    * 清楚展示父子關係
+    * Hover 時主題色高亮
+    * 白色文字，避免藍色連結問題
+
+### ✅ 已完成
+
 - **UEP 文件站 Markdown 完整渲染系統** (NEW - 2026-01-20 深夜)
   - **Markdown 處理工具** (`src/utils/markdown.ts`):
     * `parseFrontmatter()` - 解析並移除 frontmatter

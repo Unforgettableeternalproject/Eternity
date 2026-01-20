@@ -13,6 +13,7 @@ export interface PageRoute {
   slug: string[];
   filePath: string;
   title: string;
+  level?: number;
 }
 
 /**
@@ -171,7 +172,8 @@ export function extractDirectChildren(
         routes.push({
           slug: pathParts,
           filePath: join('content', item.path),
-          title: item.title
+          title: item.title,
+          level: depth
         });
       }
 
