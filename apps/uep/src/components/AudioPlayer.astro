@@ -22,7 +22,7 @@ interface Props {
 }
 
 const { src, title, description, variant = 'card' } = Astro.props;
-const playerId = `audio-player-${Math.random().toString(36).substr(2, 9)}`;
+const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
 ---
 
 <div class={`audio-player audio-player--${variant}`} data-player-id={playerId}>

@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "description": "E.0 『致永恆』覆蓋層配置示例 - 展示段落包裝、內容插入等功能",
+  "enabled": true,
+  "paragraphRules": [
+    {
+      "selector": {
+        "index": 0
+      },
+      "action": "normal"
+    },
+    {
+      "selector": {
+        "startsWith": "在一片空虛當中"
+      },
+      "action": "wrap",
+      "wrap": {
+        "component": "Hint",
+        "props": {
+          "type": "info"
+        }
+      }
+    },
+    {
+      "selector": {
+        "range": "2-4"
+      },
+      "action": "normal"
+    },
+    {
+      "selector": {
+        "index": 5
+      },
+      "action": "insertAfter",
+      "content": "<Divider style=\"gradient\" spacing=\"large\" />"
+    },
+    {
+      "selector": {
+        "contains": "◼︎◼︎◼︎◼︎◼︎"
+      },
+      "action": "wrap",
+      "wrap": {
+        "component": "Spoiler",
+        "props": {
+          "variant": "censored"
+        }
+      }
+    },
+    {
+      "selector": {
+        "startsWith": "「你的名字是◼︎◼︎◼︎◼︎◼︎"
+      },
+      "action": "wrap",
+      "wrap": {
+        "component": "Mark",
+        "props": {
+          "color": "purple"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "author": "測試配置",
+    "created": "2026-01-20",
+    "notes": "這是一個示例配置，展示如何使用覆蓋層系統增強內容呈現"
+  }
+}
