@@ -1,0 +1,141 @@
+---
+import Hint from './Hint.astro';
+import Spoiler from './Spoiler.astro';
+import Divider from './Divider.astro';
+import type { Block } from '../utils/overlay-renderer';
+
+interface Props {
+  block: Block & { overlayRules?: any[] };
+  index?: number;
+}
+
+const { block } = Astro.props;
+
+// 判斷是否有覆蓋層規則
+const hasOverlay = block.overlayRules && block.overlayRules.length > 0;
+const primaryRule = hasOverlay && block.overlayRules ? block.overlayRules[0] : null;
+---
+
+{block.type === 'divider' ? (
+  <Divider style="gradient" spacing="large" />
+) : block.type === 'boundary-wrapped' ? (
+  <div class="boundary-section">
+    <div class="boundary-line top"></div>
+    <div class="boundary-content">
+      <div set:html={block.html} />
+    </div>
+    <div class="boundary-line bottom"></div>
+  </div>
+) : hasOverlay && primaryRule ? (
+  <!-- 根據覆蓋層規則渲染 -->
+  {primaryRule.type === 'hint' ? (
+    <div class="block-wrapper">
+      <Hint type={primaryRule.hintType || 'info'}>
+        <div set:html={block.html} />
+      </Hint>
+    </div>
+  ) : primaryRule.type.startsWith('spoiler') ? (
+    <div class="block-wrapper">
+      <Spoiler 
+        variant={
+          primaryRule.type === 'spoiler-blur' ? 'blur' :
+          primaryRule.type === 'spoiler-click' ? 'click' :
+          'censored'
+        }
+      >
+        <div set:html={block.html} />
+      </Spoiler>
+    </div>
+  ) : primaryRule.type === 'mark' && primaryRule.pattern ? (
+    <div class="block-wrapper">
+      <div set:html={
+        block.html?.replace(
+          new RegExp(primaryRule.pattern, 'g'),
+          `<mark style="background: rgba(168, 85, 247, 0.3); color: #c084fc; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-weight: 600;">$&</mark>`
+        )
+      } />
+    </div>
+  ) : (
+    <div class="block-wrapper">
+      <div set:html={block.html} />
+    </div>
+  )}
+) : (
+  <!-- 無覆蓋層，正常渲染 -->
+  <div class="block-wrapper">
+    <div set:html={block.html} />
+  </div>
+)}
+
+<style>
+  /* 段落包裝器 - 區塊間距 */
+  .block-wrapper {
+    margin-bottom: 3.5rem; /* 區塊間距，模擬原始三空行 */
+  }
+
+  /* 區塊內的句子間距 */
+  .block-wrapper :global(p) {
+    margin-bottom: 0.75rem; /* 句子之間較小間距 */
+  }
+
+  .block-wrapper :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  /* 區塊內如果有多個段落，保持間距 */
+  .block-wrapper :global(p + p) {
+    margin-top: 0.75rem;
+  }
+
+  /* 邊界包裹區塊的特殊樣式 */
+  .boundary-section {
+    margin-bottom: 3.5rem; /* 與一般區塊相同的底部間距 */
+    position: relative;
+  }
+
+  .boundary-line {
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(212, 175, 55, 0.3) 10%,
+      rgba(212, 175, 55, 0.6) 50%,
+      rgba(212, 175, 55, 0.3) 90%,
+      transparent
+    );
+    position: relative;
+  }
+
+  .boundary-line::before {
+    content: '❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎ ❇︎';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    padding: 0.5rem 1.5rem;
+    color: rgba(212, 175, 55, 0.5);
+    font-size: 0.875rem;
+    letter-spacing: 0.2em;
+    border-radius: 0.5rem;
+  }
+
+  .boundary-content {
+    padding: 3rem 2rem;
+    text-align: center;
+    background: linear-gradient(
+      135deg,
+      rgba(212, 175, 55, 0.05) 0%,
+      rgba(212, 175, 55, 0.02) 100%
+    );
+    border-left: 2px solid rgba(212, 175, 55, 0.2);
+    border-right: 2px solid rgba(212, 175, 55, 0.2);
+  }
+
+  .boundary-content :global(p) {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #d4af37;
+    margin: 0;
+  }
+</style>

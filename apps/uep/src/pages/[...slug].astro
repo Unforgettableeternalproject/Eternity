@@ -1,12 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import ContentRenderer from '../components/ContentRenderer.astro';
+import OverlayBlock from '../components/OverlayBlock.astro';
 import { loadSummary, extractRoutes } from '../utils/summary';
-import { parseFrontmatter } from '../utils/markdown';
-import { parseMarkdownToSections, applyAreaStyle } from '../utils/content-renderer';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import type { EnhancedContent } from '../utils/content-renderer';
+import { renderArticleWithOverlay } from '../utils/overlay-renderer';
+import { join, relative } from 'node:path';
 
 export async function getStaticPaths() {
   const contentDir = join(process.cwd(), 'content');
@@ -31,22 +28,24 @@ export async function getStaticPaths() {
 
 const { filePath, title, areaId } = Astro.props;
 
-let enhancedContent: EnhancedContent | null = null;
+let articleData: any = null;
 let error: Error | null = null;
 let pageTitle = title;
 
 try {
-  const rawContent = readFileSync(filePath, 'utf-8');
-  const { content: markdown, frontmatter } = parseFrontmatter(rawContent);
+  // 取得相對於 content 目錄的路徑
+  const contentDir = join(process.cwd(), 'content');
+  const relativePath = relative(contentDir, filePath).replace(/\\/g, '/');
   
-  // 如果 frontmatter 有 description，使用它作為標題
-  if (frontmatter.description) {
-    pageTitle = frontmatter.description;
+  // 使用覆蓋層渲染系統
+  articleData = await renderArticleWithOverlay(relativePath);
+  
+  // 使用 metadata 中的 description 作為標題
+  if (articleData.content.description) {
+    pageTitle = articleData.content.description;
+  } else if (articleData.content.title) {
+    pageTitle = articleData.content.title;
   }
-  
-  // 使用新的三層架構渲染系統
-  const sections = parseMarkdownToSections(markdown);
-  enhancedContent = applyAreaStyle(areaId, { rawSections: sections });
   
 } catch (e) {
   error = e instanceof Error ? e : new Error(String(e));
@@ -75,15 +74,29 @@ const areaStyleClass = areaId ? `area-${areaId}` : '';
           <p>檔案路徑: <code>{filePath}</code></p>
           <p>錯誤: {error.message}</p>
         </div>
-      ) : enhancedContent ? (
+      ) : articleData ? (
         <article class="markdown-content">
-          <h1 class="page-title">{pageTitle}</h1>
-          <ContentRenderer 
-            sections={enhancedContent.rawSections} 
-            layout={enhancedContent.layout}
-            components={enhancedContent.components}
-            areaStyle={areaStyleClass}
-          />
+          <!-- 文章標頭 -->
+          <header class="article-header">
+            <h1 class="page-title">{pageTitle}</h1>
+            {articleData.content.description && pageTitle !== articleData.content.description && (
+              <p class="article-subtitle">{articleData.content.description}</p>
+            )}
+            
+            {articleData.overlayConfig && articleData.overlayConfig.rules && articleData.overlayConfig.rules.length > 0 && (
+              <div class="overlay-badge">
+                <span class="badge-icon">✨</span>
+                <span>已啟用覆蓋層增強</span>
+              </div>
+            )}
+          </header>
+
+          <!-- 文章內容 -->
+          <div class="article-body">
+            {articleData.blocksWithOverlay && articleData.blocksWithOverlay.map((block: any, index: number) => (
+              <OverlayBlock block={block} index={index} />
+            ))}
+          </div>
         </article>
       ) : (
         <div class="loading-message">
@@ -158,6 +171,76 @@ const areaStyleClass = areaId ? `area-${areaId}` : '';
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+
+  /* 文章標頭 */
+  .article-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 2px solid rgba(213, 182, 24, 0.2);
+  }
+
+  .page-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+  }
+
+  .article-subtitle {
+    font-size: 1.25rem;
+    color: #d4af37;
+    margin: 0 0 1.5rem 0;
+    font-weight: 500;
+  }
+
+  .overlay-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 2rem;
+    color: #d4af37;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .badge-icon {
+    font-size: 1.125rem;
+  }
+
+  /* 文章內容區 */
+  .article-body {
+    line-height: 1.8;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .article-body :global(h1) {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .article-body :global(h2) {
+    font-size: 1.875rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    color: #d4af37;
+  }
+
+  .article-body :global(p) {
+    margin: 0;
+    line-height: 1.8;
   }
 
   .loading-message {

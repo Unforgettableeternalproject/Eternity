@@ -26,6 +26,8 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@astrojs/cloudflare": "^11.2.0",
+    "@astrojs/node": "^8.3.4",
     "@uep/config": "workspace:*",
     "typescript": "^5.7.2"
   }
