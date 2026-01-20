@@ -10,7 +10,8 @@ const navigation = loadSummary(contentDir);
 // 提取 history 區域的所有頁面
 const historyPages = extractDirectChildren(navigation, 'history').map(route => ({
   slug: route.slug,
-  title: route.title
+  title: route.title,
+  level: route.level
 }));
 ---
 

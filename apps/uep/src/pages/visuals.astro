@@ -9,7 +9,8 @@ const navigation = loadSummary(contentDir);
 
 const visualsPages = extractDirectChildren(navigation, 'visuals').map(route => ({
   slug: route.slug,
-  title: route.title
+  title: route.title,
+  level: route.level
 }));
 ---
 
@@ -23,90 +24,4 @@ const visualsPages = extractDirectChildren(navigation, 'visuals').map(route => (
     pages={visualsPages}
   />
 </BaseLayout>
-  <style>
-    .area-page {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 3rem 2rem;
-    }
 
-    .area-header {
-      text-align: center;
-      margin-bottom: 3rem;
-    }
-
-    .area-icon {
-      font-size: 5rem;
-      margin-bottom: 1rem;
-    }
-
-    .area-title {
-      font-size: 3rem;
-      font-weight: 700;
-      color: #ec4899;
-      margin-bottom: 1rem;
-    }
-
-    .area-desc {
-      font-size: 1.2rem;
-      color: rgba(255, 255, 255, 0.7);
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--gold);
-      text-decoration: none;
-      margin-bottom: 2rem;
-      padding: 0.5rem 1rem;
-      background: rgba(213, 182, 24, 0.1);
-      border: 1px solid rgba(213, 182, 24, 0.3);
-      border-radius: 8px;
-      transition: all 0.2s ease;
-    }
-
-    .back-link:hover {
-      background: rgba(213, 182, 24, 0.2);
-      transform: translateX(-5px);
-    }
-
-    .construction {
-      text-align: center;
-      padding: 3rem;
-      background: rgba(236, 72, 153, 0.1);
-      border: 2px solid #ec4899;
-      border-radius: 16px;
-    }
-
-    .construction img {
-      width: 200px;
-      height: auto;
-      margin-bottom: 2rem;
-    }
-  </style>
-
-  <div class="area-page">
-    <a href="/" class="back-link">
-      ← 返回世界的軸心
-    </a>
-
-    <div class="area-header">
-      <div class="area-icon">🌟</div>
-      <h1 class="area-title">幻影重現室</h1>
-      <p class="area-desc">
-        有時候你會分不出來究竟哪一道才是你的影子。<br>
-        許多你從未見過的人物正活生生的在你身旁走動、談話。<br>
-        但靠近一看，他們終究只是虛幻的投影。
-      </p>
-    </div>
-
-    <div class="construction">
-      <img src="/uep/Peek.png" alt="UEP Peek" />
-      <h2>內容建設中...</h2>
-      <p>幻影們正在重現，請稍候！</p>
-    </div>
-  </div>
-</BaseLayout>

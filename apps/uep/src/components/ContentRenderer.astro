@@ -1,0 +1,291 @@
+---
+/**
+ * 內容渲染器組件 - 三層架構實現
+ * 
+ * Layer 1: 渲染原始 Markdown 內容（保持原樣）
+ * Layer 2: 應用區域特定樣式和佈局
+ * Layer 3: 插入額外元件（音樂播放器、附件等）
+ */
+
+import type { ContentSection, EnhancedContent } from '../utils/content-renderer';
+
+interface Props {
+  sections: ContentSection[];
+  layout?: EnhancedContent['layout'];
+  components?: EnhancedContent['components'];
+  areaStyle?: string; // 區域特定樣式類名
+}
+
+const { sections, layout, components = [], areaStyle = '' } = Astro.props;
+
+// 渲染前元件
+const beforeComponents = components.filter(c => c.position === 'before');
+// 渲染後元件
+const afterComponents = components.filter(c => c.position === 'after');
+// 浮動元件
+const floatComponents = components.filter(c => c.position === 'float');
+---
+
+<div class={`content-renderer ${areaStyle}`} data-spacing={layout?.spacing || 'normal'}>
+  <!-- Layer 3: 前置元件 -->
+  {beforeComponents.length > 0 && (
+    <div class="component-layer before">
+      {beforeComponents.map(component => (
+        <div class="component-slot" data-type={component.type} id={component.id}>
+          <!-- 元件插槽 - 由父組件傳入 -->
+          <p class="component-placeholder">元件位置: {component.type}</p>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <!-- Layer 2: 內容區段 -->
+  <div class="content-sections" data-columns={layout?.columns || 1}>
+    {sections.map((section) => (
+      <div class="content-section" id={section.id}>
+        <!-- 區段前插入點 -->
+        {section.beforeInsert && (
+          <div class="insert-point before">
+            <p class="insert-placeholder">插入點 (前)</p>
+          </div>
+        )}
+
+        <!-- Layer 1: 原始內容塊 -->
+        <div class="content-blocks">
+          {section.blocks.map((block) => {
+            switch (block.type) {
+              case 'heading':
+                const HeadingTag = `h${block.level || 2}` as any;
+                return (
+                  <HeadingTag class={`content-heading level-${block.level}`}>
+                    {block.content}
+                  </HeadingTag>
+                );
+              
+              case 'text':
+                return <p class="content-text" set:html={block.content} />;
+              
+              case 'code':
+                return (
+                  <pre class="content-code">
+                    <code class={`language-${block.language}`}>{block.content}</code>
+                  </pre>
+                );
+              
+              case 'quote':
+                return (
+                  <blockquote class="content-quote">
+                    {block.content}
+                  </blockquote>
+                );
+              
+              case 'image':
+                return (
+                  <img 
+                    src={block.content} 
+                    alt={block.metadata?.alt || ''} 
+                    class="content-image"
+                  />
+                );
+              
+              case 'divider':
+                return <hr class="content-divider" />;
+              
+              default:
+                return null;
+            }
+          })}
+        </div>
+
+        <!-- 區段後插入點 -->
+        {section.afterInsert && (
+          <div class="insert-point after">
+            <p class="insert-placeholder">插入點 (後)</p>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <!-- Layer 3: 後置元件 -->
+  {afterComponents.length > 0 && (
+    <div class="component-layer after">
+      {afterComponents.map(component => (
+        <div class="component-slot" data-type={component.type} id={component.id}>
+          <p class="component-placeholder">元件位置: {component.type}</p>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <!-- Layer 3: 浮動元件 -->
+  {floatComponents.length > 0 && (
+    <div class="component-layer float">
+      {floatComponents.map(component => (
+        <div class="component-slot floating" data-type={component.type} id={component.id}>
+          <p class="component-placeholder">浮動元件: {component.type}</p>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
+<style>
+  .content-renderer {
+    width: 100%;
+    position: relative;
+  }
+
+  /* 間距控制 */
+  .content-renderer[data-spacing="compact"] .content-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .content-renderer[data-spacing="normal"] .content-section {
+    margin-bottom: 3rem;
+  }
+
+  .content-renderer[data-spacing="relaxed"] .content-section {
+    margin-bottom: 4.5rem;
+  }
+
+  /* 內容區段 */
+  .content-sections {
+    display: grid;
+    gap: 2rem;
+  }
+
+  .content-sections[data-columns="2"] {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .content-sections[data-columns="3"] {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .content-section {
+    position: relative;
+  }
+
+  /* 插入點 */
+  .insert-point {
+    margin: 2rem 0;
+    padding: 1rem;
+    border: 1px dashed rgba(213, 182, 24, 0.3);
+    border-radius: 8px;
+    background: rgba(26, 26, 46, 0.3);
+  }
+
+  /* 佔位符文字（開發時可見，未來可隱藏） */
+  .insert-placeholder,
+  .component-placeholder {
+    color: rgba(213, 182, 24, 0.5);
+    font-size: 0.875rem;
+    font-style: italic;
+    text-align: center;
+    margin: 0;
+  }
+
+  /* 內容塊樣式 */
+  .content-blocks {
+    line-height: 1.8;
+  }
+
+  .content-heading {
+    color: #d5b618;
+    margin: 2rem 0 1rem;
+    font-weight: 700;
+  }
+
+  .content-heading.level-1 {
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #d5b618 0%, #ffd700 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .content-heading.level-2 {
+    font-size: 2rem;
+    color: #a855f7;
+  }
+
+  .content-heading.level-3 {
+    font-size: 1.5rem;
+    color: #06b6d4;
+  }
+
+  .content-text {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 1.25rem;
+  }
+
+  .content-code {
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+
+  .content-code code {
+    color: #fbbf24;
+    font-family: 'Courier New', monospace;
+  }
+
+  .content-quote {
+    border-left: 4px solid #d5b618;
+    padding-left: 1.5rem;
+    margin: 1.5rem 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-style: italic;
+  }
+
+  .content-image {
+    max-width: 100%;
+    border-radius: 12px;
+    margin: 2rem 0;
+  }
+
+  .content-divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #d5b618, transparent);
+    margin: 3rem 0;
+  }
+
+  /* 元件層 */
+  .component-layer {
+    margin: 2rem 0;
+  }
+
+  .component-slot {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: rgba(26, 26, 46, 0.6);
+    border-radius: 12px;
+    border: 1px solid rgba(213, 182, 24, 0.2);
+  }
+
+  .component-slot.floating {
+    position: fixed;
+    right: 2rem;
+    bottom: 2rem;
+    z-index: 1000;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  /* 響應式 */
+  @media (max-width: 768px) {
+    .content-sections[data-columns="2"],
+    .content-sections[data-columns="3"] {
+      grid-template-columns: 1fr;
+    }
+
+    .component-slot.floating {
+      position: static;
+      margin: 1rem 0;
+    }
+  }
+</style>

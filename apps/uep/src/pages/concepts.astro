@@ -9,7 +9,8 @@ const navigation = loadSummary(contentDir);
 
 const conceptsPages = extractDirectChildren(navigation, 'concepts').map(route => ({
   slug: route.slug,
-  title: route.title
+  title: route.title,
+  level: route.level
 }));
 ---
 
@@ -24,90 +25,3 @@ const conceptsPages = extractDirectChildren(navigation, 'concepts').map(route =>
   />
 </BaseLayout>
 
-  <style>
-    .area-page {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 3rem 2rem;
-    }
-
-    .area-header {
-      text-align: center;
-      margin-bottom: 3rem;
-    }
-
-    .area-icon {
-      font-size: 5rem;
-      margin-bottom: 1rem;
-    }
-
-    .area-title {
-      font-size: 3rem;
-      font-weight: 700;
-      color: #22c55e;
-      margin-bottom: 1rem;
-    }
-
-    .area-desc {
-      font-size: 1.2rem;
-      color: rgba(255, 255, 255, 0.7);
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--gold);
-      text-decoration: none;
-      margin-bottom: 2rem;
-      padding: 0.5rem 1rem;
-      background: rgba(213, 182, 24, 0.1);
-      border: 1px solid rgba(213, 182, 24, 0.3);
-      border-radius: 8px;
-      transition: all 0.2s ease;
-    }
-
-    .back-link:hover {
-      background: rgba(213, 182, 24, 0.2);
-      transform: translateX(-5px);
-    }
-
-    .construction {
-      text-align: center;
-      padding: 3rem;
-      background: rgba(34, 197, 94, 0.1);
-      border: 2px solid #22c55e;
-      border-radius: 16px;
-    }
-
-    .construction img {
-      width: 200px;
-      height: auto;
-      margin-bottom: 2rem;
-    }
-  </style>
-
-  <div class="area-page">
-    <a href="/" class="back-link">
-      ← 返回世界的軸心
-    </a>
-
-    <div class="area-header">
-      <div class="area-icon">🖥️</div>
-      <h1 class="area-title">概念調整房</h1>
-      <p class="area-desc">
-        許多螢幕懸浮在空中，你能看到很多不同場景顯現在其中。<br>
-        漂浮的文字若無其事的與大氣並存，看上去儼然就是的大型電腦伺服器。<br>
-        數台不清楚用途的裝置正在嗡嗡作響，毫無停息的工作著。
-      </p>
-    </div>
-
-    <div class="construction">
-      <img src="/uep/Forklift.png" alt="UEP Forklift" />
-      <h2>內容建設中...</h2>
-      <p>概念原質正在整理中，請稍候！</p>
-    </div>
-  </div>
-</BaseLayout>
