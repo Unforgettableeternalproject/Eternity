@@ -1,12 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hint from '../components/Hint.astro';
-import Mark from '../components/Mark.astro';
 import Spoiler from '../components/Spoiler.astro';
 import Divider from '../components/Divider.astro';
 import fs from 'node:fs';
 import path from 'node:path';
-import { splitIntoParagraphs } from '../utils/ContentProcessor';
 import { transformGitBookContent } from '../utils/markdown-transforms';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';

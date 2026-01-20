@@ -110,6 +110,21 @@ export function transformHiddenContent(content: string): string {
 }
 
 /**
+ * 轉換內部連結，移除 .md 副檔名
+ */
+export function transformInternalLinks(content: string): string {
+  // 匹配 Markdown 連結格式 [text](url.md)
+  // 只處理相對路徑的 .md 連結，不處理外部連結
+  const linkRegex = /\[([^\]]+)\]\(([^)]+\.md(?:#[^)]*)?)\)/g;
+  
+  return content.replace(linkRegex, (_match, text, url) => {
+    // 移除 .md 副檔名，但保留 hash (#anchor)
+    const cleanUrl = url.replace(/\.md(#|$)/, '$1');
+    return `[${text}](${cleanUrl})`;
+  });
+}
+
+/**
  * 綜合轉換函數
  */
 export function transformGitBookContent(content: string): string {
@@ -123,6 +138,7 @@ export function transformGitBookContent(content: string): string {
   transformed = transformLineBreaks(transformed);
   transformed = transformFiles(transformed);
   transformed = transformHiddenContent(transformed);
+  transformed = transformInternalLinks(transformed);
   
   return transformed;
 }
