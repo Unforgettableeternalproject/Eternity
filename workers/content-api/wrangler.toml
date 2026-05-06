@@ -1,0 +1,13 @@
+name = "eternity-content-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# D1 資料庫綁定
+[[d1_databases]]
+binding = "CONTENT_DB"
+database_name = "eternity-content"
+database_id = "1f31587a-6cc7-441b-bbfb-eb99cba8a51b"
+
+# 環境變數
+[vars]
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321"

@@ -20,8 +20,8 @@ export default defineConfig({
   vite: {
     server: {
       fs: {
-        // 允許存取專案檔案
-        allow: ['.'],
+        // 允許存取 monorepo 根目錄和 node_modules
+        allow: ['..', '../..'],
       },
     },
     optimizeDeps: {
