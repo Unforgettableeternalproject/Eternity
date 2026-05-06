@@ -1,26 +1,8 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import AreaPage from '../components/AreaPage.astro';
-import { loadSummary, extractDirectChildren } from '../utils/summary';
-import { join } from 'node:path';
-
-const contentDir = join(process.cwd(), 'content');
-const navigation = loadSummary(contentDir);
-
-const storagePages = extractDirectChildren(navigation, 'storage').map(route => ({
-  slug: route.slug,
-  title: route.title,
-  level: route.level
-}));
+import DesignLayout from '../layouts/DesignLayout.astro';
+import ZoneEntryPage from '../components/zone/ZoneEntryPage';
 ---
 
-<BaseLayout title="某人的置物空間 - 邊際世界">
-  <AreaPage
-    icon="📦"
-    title="某人的置物空間"
-    description="在這裡，你看見了琳瑯滿目的收藏品，彷彿是某人的房間一般。<br>你還記得 U.E.P 說過，他需要一個暫放自己收藏的地方。<br>於是在他的請求下，你允許他在邊際世界的某處開設了一個儲物間。"
-    themeColor="#f97316"
-    workingImage="/uep/Cat.png"
-    pages={storagePages}
-  />
-</BaseLayout>
+<DesignLayout title="某人的置物空間 - 邊際世界" zone="storage">
+  <ZoneEntryPage client:load zoneId="storage" />
+</DesignLayout>

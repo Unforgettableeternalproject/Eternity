@@ -1,27 +1,8 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import AreaPage from '../components/AreaPage.astro';
-import { loadSummary, extractDirectChildren } from '../utils/summary';
-import { join } from 'node:path';
-
-const contentDir = join(process.cwd(), 'content');
-const navigation = loadSummary(contentDir);
-
-const conceptsPages = extractDirectChildren(navigation, 'concepts').map(route => ({
-  slug: route.slug,
-  title: route.title,
-  level: route.level
-}));
+import DesignLayout from '../layouts/DesignLayout.astro';
+import ZoneEntryPage from '../components/zone/ZoneEntryPage';
 ---
 
-<BaseLayout title="概念調整房 - 邊際世界">
-  <AreaPage
-    icon="�"
-    title="概念調整房"
-    description="你看到的是一個錯綜複雜的立體迷宮。<br>你知道那是由靈視所見的概念交織而成的可視化結構，<br>只是它們看起來有點凌亂，恐怕還需要一些時間來整理。"
-    themeColor="#10b981"
-    workingImage="/uep/Forklift.png"
-    pages={conceptsPages}
-  />
-</BaseLayout>
-
+<DesignLayout title="概念調整房 - 邊際世界" zone="concepts">
+  <ZoneEntryPage client:load zoneId="concepts" />
+</DesignLayout>

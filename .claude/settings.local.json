@@ -20,7 +20,15 @@
       "Bash(pnpm --filter @uep/uep add react@^18.3.1 react-dom@^18.3.1 @types/react@^18 @types/react-dom@^18)",
       "Bash(pnpm --filter @uep/uep add @astrojs/react)",
       "Bash(node scripts/migrate-history.mjs)",
-      "Bash(node scripts/migrate-history.mjs --clean)"
+      "Bash(node scripts/migrate-history.mjs --clean)",
+      "Bash(find:*)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(mv design_package.zip design_package.tar.gz)",
+      "Bash(tar tzf:*)",
+      "Bash(tar xzf:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx astro:*)",
+      "Bash(pkill -f \"astro dev\")"
     ]
   }
 }
