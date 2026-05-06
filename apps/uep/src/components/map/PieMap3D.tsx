@@ -73,6 +73,7 @@ export default function PieMap3D({
             }}
             onPointerEnter={mode === 'top' ? () => onHover?.(z.id) : undefined}
             onPointerLeave={mode === 'top' ? () => onHover?.(null) : undefined}
+            onPointerDown={mode === 'top' ? (e) => e.stopPropagation() : undefined}
             onClick={mode === 'top' ? (e) => { e.stopPropagation(); onPickIntro?.(z); } : undefined}
           >
             <path d={`M0 0 L${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1} Z`}
@@ -108,7 +109,8 @@ export default function PieMap3D({
               x2={Math.cos(rad) * 46} y2={Math.sin(rad) * 46}
               stroke="var(--uep-gold)" strokeOpacity="0.28" strokeWidth="0.15" />;
           })}
-          <g onClick={(e) => { e.stopPropagation(); onCenterClick?.(); }}
+          <g onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onCenterClick?.(); }}
             style={{ cursor: 'pointer' }}>
             <circle r="6.5" fill="none" stroke="var(--uep-gold)" strokeWidth="0.4" />
             <circle r="5" fill="none" stroke="var(--uep-gold)" strokeOpacity="0.4" strokeWidth="0.25" />

@@ -1,11 +1,24 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
 import { transformGitBookContent } from './markdown-transforms';
+
+const contentModules = import.meta.glob('../../content/**/*.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+const overlayModules = import.meta.glob('../overlays/**/*.json', {
+  import: 'default',
+  eager: true,
+}) as Record<string, OverlayConfig>;
+
+function normalizeContentPath(contentPath: string) {
+  return contentPath.replace(/\\/g, '/').replace(/^content\//, '').replace(/^\.\//, '');
+}
 
 // Markdown pipeline for block-level rendering.
 const markdownProcessor = unified()
@@ -147,23 +160,8 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
  * Load overlay configuration for a content path.
  */
 export function loadOverlayConfig(contentPath: string): OverlayConfig | null {
-  const overlayPath = path.join(
-    process.cwd(),
-    'src/overlays',
-    contentPath.replace('.md', '.json')
-  );
-
-  if (!fs.existsSync(overlayPath)) {
-    return null;
-  }
-
-  try {
-    const content = fs.readFileSync(overlayPath, 'utf-8');
-    return JSON.parse(content);
-  } catch (error) {
-    console.error('Failed to load overlay config:', overlayPath, error);
-    return null;
-  }
+  const normalized = normalizeContentPath(contentPath).replace(/\.md$/, '.json');
+  return overlayModules[`../overlays/${normalized}`] || null;
 }
 
 /**
@@ -199,11 +197,15 @@ export async function renderArticleWithOverlay(
   overlayConfig: OverlayConfig | null;
   blocksWithOverlay: Block[];
 }> {
-  const fullPath = path.join(process.cwd(), 'content', contentPath);
-  const rawContent = fs.readFileSync(fullPath, 'utf-8');
+  const normalized = normalizeContentPath(contentPath);
+  const rawContent = contentModules[`../../content/${normalized}`];
+
+  if (!rawContent) {
+    throw new Error(`Content file not found: ${contentPath}`);
+  }
 
   const content = await parseMarkdownContent(rawContent);
-  const overlayConfig = loadOverlayConfig(contentPath);
+  const overlayConfig = loadOverlayConfig(normalized);
   const blocksWithOverlay = content.blocks && content.blocks.length > 0
     ? applyOverlayRules(content.blocks, overlayConfig)
     : [];

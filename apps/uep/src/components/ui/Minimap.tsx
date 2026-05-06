@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 
 interface MinimapProps {
@@ -9,17 +9,64 @@ interface MinimapProps {
   position?: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
 }
 
-export default function Minimap({ zones, currentId, onExpand, onPickZone, position = 'bottom-left' }: MinimapProps) {
-  const initPos = {
-    'bottom-left': { left: 20, top: undefined as number | undefined, right: undefined as number | undefined, bottom: 20 },
-    'bottom-right': { right: 20, top: undefined as number | undefined, left: undefined as number | undefined, bottom: 20 },
-    'top-left': { left: 20, top: 20, right: undefined as number | undefined, bottom: undefined as number | undefined },
-    'top-right': { right: 20, top: 20, left: undefined as number | undefined, bottom: undefined as number | undefined },
-  }[position];
+const MINIMAP_POSITION_KEY = 'uep-minimap-position';
 
-  const [pos, setPos] = useState(initPos);
+type MinimapPosition = {
+  left?: number;
+  top?: number;
+  right?: number;
+  bottom?: number;
+};
+
+function defaultPosition(position: MinimapProps['position'] = 'bottom-left'): MinimapPosition {
+  return {
+    'bottom-left': { left: 20, top: undefined, right: undefined, bottom: 20 },
+    'bottom-right': { right: 20, top: undefined, left: undefined, bottom: 20 },
+    'top-left': { left: 20, top: 20, right: undefined, bottom: undefined },
+    'top-right': { right: 20, top: 20, left: undefined, bottom: undefined },
+  }[position];
+}
+
+function clampPosition(left: number, top: number, width: number, height: number) {
+  return {
+    left: Math.max(8, Math.min(window.innerWidth - width - 8, left)),
+    top: Math.max(8, Math.min(window.innerHeight - height - 8, top)),
+    right: undefined,
+    bottom: undefined,
+  };
+}
+
+function readStoredPosition(): MinimapPosition | null {
+  try {
+    const raw = localStorage.getItem(MINIMAP_POSITION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { left?: unknown; top?: unknown };
+    if (typeof parsed.left !== 'number' || typeof parsed.top !== 'number') return null;
+    return { left: parsed.left, top: parsed.top, right: undefined, bottom: undefined };
+  } catch {
+    return null;
+  }
+}
+
+export default function Minimap({ zones, currentId, onExpand, onPickZone, position = 'bottom-left' }: MinimapProps) {
+  const [pos, setPos] = useState<MinimapPosition>(() => {
+    if (typeof window === 'undefined') return defaultPosition(position);
+    return readStoredPosition() || defaultPosition(position);
+  });
   const [drag, setDrag] = useState<{ offX: number; offY: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const posRef = useRef<MinimapPosition>(pos);
+
+  function updatePos(next: MinimapPosition) {
+    posRef.current = next;
+    setPos(next);
+  }
+
+  useEffect(() => {
+    const stored = readStoredPosition();
+    if (!stored || !ref.current) return;
+    updatePos(clampPosition(stored.left || 0, stored.top || 0, ref.current.offsetWidth, ref.current.offsetHeight));
+  }, []);
 
   function startDrag(e: React.PointerEvent) {
     if (!ref.current) return;
@@ -35,14 +82,15 @@ export default function Minimap({ zones, currentId, onExpand, onPickZone, positi
     const py = e.clientY - drag.offY;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
-    setPos({
-      left: Math.max(8, Math.min(window.innerWidth - w - 8, px)),
-      top: Math.max(8, Math.min(window.innerHeight - h - 8, py)),
-      right: undefined, bottom: undefined,
-    });
+    updatePos(clampPosition(px, py, w, h));
   }
 
-  function endDrag() { setDrag(null); }
+  function endDrag() {
+    setDrag(null);
+    const current = posRef.current;
+    if (current.left == null || current.top == null) return;
+    localStorage.setItem(MINIMAP_POSITION_KEY, JSON.stringify({ left: current.left, top: current.top }));
+  }
 
   const cur = zones.find(z => z.id === currentId);
 
