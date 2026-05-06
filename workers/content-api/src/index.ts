@@ -3,6 +3,7 @@ import type {
   PageRow,
   Page,
   PageListItem,
+  PageTreeNode,
   UpsertPageRequest,
   ImportPageRequest,
   ApiResponse,
@@ -23,6 +24,9 @@ function rowToPage(row: PageRow): Page {
     baseContentHash: row.base_content_hash,
     status: row.status,
     metadata: JSON.parse(row.metadata),
+    parentId: row.parent_id,
+    depth: row.depth,
+    pageType: row.page_type,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -38,8 +42,51 @@ function rowToListItem(row: PageRow): PageListItem {
     sortOrder: row.sort_order,
     status: row.status,
     sourceFile: row.source_file,
+    parentId: row.parent_id,
+    depth: row.depth,
+    pageType: row.page_type,
     updatedAt: row.updated_at,
   };
+}
+
+/** 將扁平列表轉換為樹狀結構 */
+function buildTree(items: (PageListItem & { metadata?: Record<string, unknown> })[]): PageTreeNode[] {
+  const map = new Map<string, PageTreeNode>();
+  const roots: PageTreeNode[] = [];
+
+  // 先建立所有節點
+  for (const item of items) {
+    map.set(item.id, {
+      id: item.id,
+      title: item.title,
+      slug: item.slug,
+      sortOrder: item.sortOrder,
+      pageType: item.pageType,
+      depth: item.depth,
+      status: item.status,
+      metadata: item.metadata || {},
+      children: [],
+    });
+  }
+
+  // 建立父子關係
+  for (const item of items) {
+    const node = map.get(item.id)!;
+    if (item.parentId && map.has(item.parentId)) {
+      map.get(item.parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  // 排序
+  const sortNodes = (nodes: PageTreeNode[]) => {
+    nodes.sort((a, b) => a.sortOrder - b.sortOrder);
+    nodes.forEach(n => sortNodes(n.children));
+  };
+  sortNodes(roots);
+
+  return roots;
 }
 
 function jsonResponse<T>(data: ApiResponse<T>, status = 200, corsHeaders: Record<string, string> = {}): Response {
@@ -154,6 +201,18 @@ async function upsertPage(
       updates.push('metadata = ?');
       values.push(JSON.stringify(body.metadata));
     }
+    if (body.parentId !== undefined) {
+      updates.push('parent_id = ?');
+      values.push(body.parentId);
+    }
+    if (body.depth !== undefined) {
+      updates.push('depth = ?');
+      values.push(body.depth);
+    }
+    if (body.pageType !== undefined) {
+      updates.push('page_type = ?');
+      values.push(body.pageType);
+    }
 
     // 如果有來源檔案且內容被修改，標記為 modified
     if (body.content !== undefined && existing.source_file) {
@@ -172,8 +231,8 @@ async function upsertPage(
     // 建立新頁面
     await db
       .prepare(
-        `INSERT INTO pages (id, area, title, slug, sort_order, content, status, metadata, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'local_only', ?, ?, ?)`
+        `INSERT INTO pages (id, area, title, slug, sort_order, content, status, metadata, parent_id, depth, page_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'local_only', ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -183,6 +242,9 @@ async function upsertPage(
         body.sortOrder || 0,
         JSON.stringify(body.content || []),
         JSON.stringify(body.metadata || {}),
+        body.parentId || null,
+        body.depth || 0,
+        body.pageType || 'page',
         now,
         now
       )
@@ -227,8 +289,8 @@ async function importPages(
       // 新頁面：直接匯入
       await db
         .prepare(
-          `INSERT INTO pages (id, area, title, slug, sort_order, content, source_file, base_content_hash, status, metadata, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)`
+          `INSERT INTO pages (id, area, title, slug, sort_order, content, source_file, base_content_hash, status, metadata, parent_id, depth, page_type, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           page.id,
@@ -240,6 +302,9 @@ async function importPages(
           page.sourceFile,
           page.contentHash,
           JSON.stringify(page.metadata || {}),
+          page.parentId || null,
+          page.depth || 0,
+          page.pageType || 'page',
           now,
           now
         )
@@ -373,6 +438,23 @@ export default {
 
     if (path === '/api/content/sync/status' && request.method === 'GET') {
       return getSyncStatus(env.CONTENT_DB, cors);
+    }
+
+    // ---- 樹狀結構路由 ----
+    const treeMatch = path.match(/^\/api\/content\/([a-z]+)\/tree$/);
+    if (treeMatch && request.method === 'GET') {
+      const area = treeMatch[1];
+      const result = await env.CONTENT_DB
+        .prepare('SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC')
+        .bind(area)
+        .all<PageRow>();
+      const rows = result.results || [];
+      const items = rows.map(r => ({
+        ...rowToListItem(r),
+        metadata: JSON.parse(r.metadata || '{}'),
+      }));
+      const tree = buildTree(items);
+      return jsonResponse({ ok: true, data: tree }, 200, cors);
     }
 
     // ---- 內容 CRUD 路由 ----

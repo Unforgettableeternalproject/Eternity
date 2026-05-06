@@ -3,43 +3,56 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 export const prerender = false;
 
-// 從 API 取得同步狀態和頁面列表
 const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 let syncStatus: any = null;
 let areas: Record<string, any[]> = {};
+let historyTree: any[] = [];
 let fetchError: string | null = null;
 
+const areaNames = ['history', 'echos', 'visuals', 'concepts', 'storage', 'portal'];
+
 try {
-  // 取得同步狀態
   const statusRes = await fetch(`${apiBase}/api/content/sync/status`);
   const statusJson = await statusRes.json();
   if (statusJson.ok) syncStatus = statusJson.data;
 
-  // 取得各區域的頁面列表
-  const areaNames = ['history', 'echos', 'visuals', 'concepts', 'storage', 'portal'];
+  // Fetch history tree separately
+  try {
+    const treeRes = await fetch(`${apiBase}/api/content/history/tree`);
+    const treeJson = await treeRes.json();
+    if (treeJson.ok) historyTree = treeJson.data || [];
+  } catch { historyTree = []; }
+
   for (const area of areaNames) {
-    try {
-      const res = await fetch(`${apiBase}/api/content/${area}`);
-      const json = await res.json();
-      if (json.ok && json.data?.length > 0) {
-        areas[area] = json.data;
-      }
-    } catch {
-      // 該區域尚無內容，跳過
+    if (area === 'history') {
+      // For the flat count we still try the flat endpoint, but don't fail if missing
+      try {
+        const res = await fetch(`${apiBase}/api/content/${area}`);
+        const json = await res.json();
+        if (json.ok) areas[area] = json.data || [];
+      } catch { areas[area] = []; }
+    } else {
+      try {
+        const res = await fetch(`${apiBase}/api/content/${area}`);
+        const json = await res.json();
+        if (json.ok) areas[area] = json.data || [];
+      } catch { areas[area] = []; }
     }
   }
 } catch (e: any) {
   fetchError = e.message || 'Failed to connect to Content API';
 }
 
-const areaLabels: Record<string, string> = {
-  history: '歷史典藏庫',
-  echos: '回音蒐藏間',
-  visuals: '幻影重現室',
-  concepts: '概念調整房',
-  storage: '某人的置物空間',
-  portal: '外部基軸大廳',
+const totalPages = Object.values(areas).reduce((sum, list) => sum + list.length, 0);
+
+const areaConfig: Record<string, { label: string; icon: string; color: string }> = {
+  history:  { label: '歷史典藏庫', icon: '&#9783;', color: '#a855f7' },
+  echos:    { label: '回音蒐藏間', icon: '&#9835;', color: '#06b6d4' },
+  visuals:  { label: '幻影重現室', icon: '&#10022;', color: '#ec4899' },
+  concepts: { label: '概念調整房', icon: '&#9000;', color: '#22c55e' },
+  storage:  { label: '某人的置物空間', icon: '&#9744;', color: '#f97316' },
+  portal:   { label: '外部基軸大廳', icon: '&#10038;', color: '#d5b618' },
 };
 
 const statusLabels: Record<string, string> = {
@@ -53,350 +66,911 @@ const statusColors: Record<string, string> = {
   modified: '#f59e0b',
   local_only: '#a855f7',
 };
+
+const pageTypeColors: Record<string, string> = {
+  zone:    '#d5b618',
+  chapter: '#a855f7',
+  arc:     '#06b6d4',
+  section: '#22c55e',
+  page:    '#c0c0d8',
+};
+
+// Flatten tree recursively for serialization into the DOM
+function flattenTree(nodes: any[], result: any[] = []): any[] {
+  for (const node of nodes) {
+    result.push(node);
+    if (node.children?.length) flattenTree(node.children, result);
+  }
+  return result;
+}
+
+const allHistoryNodes = flattenTree(historyTree);
+
+// Serialize tree for client-side JS
+const historyTreeJson = JSON.stringify(historyTree);
 ---
 
-<BaseLayout title="內容管理 - U.E.P Admin">
-  <div class="admin-container">
-    <div class="admin-header">
-      <h1>內容管理後台</h1>
-      <p class="admin-desc">管理邊際世界的文件內容</p>
-    </div>
-
-    {fetchError && (
-      <div class="error-banner">
-        <strong>無法連線到 Content API</strong>
-        <p>{fetchError}</p>
-        <p class="hint">請確認 content-api Worker 是否正在運行（預設 port 8788）</p>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width" />
+  <link rel="icon" type="image/x-icon" href="/Logo.ico" />
+  <title>內容管理 - U.E.P Admin</title>
+</head>
+<body>
+  <div class="admin-app">
+    <!-- 頂部列 -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <a href="/" class="brand">U.E.P Admin</a>
       </div>
-    )}
+      <div class="top-bar-center">
+        <span class="total-count">{totalPages} 個頁面</span>
+      </div>
+      <div class="top-bar-right">
+        <a href="/" class="nav-link">回到文件站</a>
+      </div>
+    </header>
 
-    {!fetchError && (
-      <>
-        <!-- 同步狀態總覽 -->
-        <section class="status-section">
-          <h2>同步狀態</h2>
-          <div class="status-grid">
-            {syncStatus?.pageCounts?.length > 0 ? (
-              syncStatus.pageCounts.map((item: any) => (
-                <div class="status-card">
-                  <span class="status-area">{areaLabels[item.area] || item.area}</span>
-                  <span class="status-badge" style={`color: ${statusColors[item.status] || '#fff'}`}>
-                    {statusLabels[item.status] || item.status}
-                  </span>
-                  <span class="status-count">{item.count} 頁</span>
-                </div>
-              ))
-            ) : (
-              <p class="empty-hint">尚無已匯入的內容。請先執行匯入操作。</p>
-            )}
+    {fetchError ? (
+      <div class="error-fullpage">
+        <div class="error-card">
+          <h2>無法連線到 Content API</h2>
+          <p>{fetchError}</p>
+          <p class="error-hint">請確認 content-api Worker 是否在運行（預設 localhost:8788）</p>
+        </div>
+      </div>
+    ) : (
+      <div class="admin-body">
+        <!-- 左側區域導航 -->
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <span class="sidebar-label">區域</span>
           </div>
+          <nav class="area-nav">
+            <button class="area-nav-item active" data-area="all">
+              <span class="nav-icon" style="color: var(--gold);">&#8862;</span>
+              <span class="nav-label">全部</span>
+              <span class="nav-count">{totalPages}</span>
+            </button>
+            {areaNames.map((area) => {
+              const conf = areaConfig[area];
+              const count = areas[area]?.length || 0;
+              return (
+                <button class="area-nav-item" data-area={area}>
+                  <span class="nav-icon" style={`color: ${conf.color}`} set:html={conf.icon} />
+                  <span class="nav-label">{conf.label}</span>
+                  <span class="nav-count">{count}</span>
+                </button>
+              );
+            })}
+          </nav>
 
           {syncStatus?.pendingUpdates?.length > 0 && (
-            <div class="pending-updates">
-              <h3>待處理的來源更新</h3>
-              {syncStatus.pendingUpdates.map((page: any) => (
-                <div class="pending-item">
-                  <span>{page.title || page.id}</span>
-                  <a href={`/admin/edit/${page.id}`} class="btn-small">檢視差異</a>
-                </div>
-              ))}
+            <div class="sidebar-section">
+              <span class="sidebar-label" style="color: #f59e0b;">待更新</span>
+              <div class="pending-list">
+                {syncStatus.pendingUpdates.map((p: any) => (
+                  <a href={`/admin/edit/${p.id}`} class="pending-item">{p.title || p.id}</a>
+                ))}
+              </div>
             </div>
           )}
-        </section>
+        </aside>
 
-        <!-- 各區域內容列表 -->
-        <section class="content-section">
-          <h2>內容管理</h2>
-          {Object.keys(areaLabels).map((area) => (
-            <div class="area-group">
-              <div class="area-header">
-                <h3>{areaLabels[area]}</h3>
-                <span class="page-count">
-                  {areas[area]?.length || 0} 頁
-                </span>
-              </div>
+        <!-- 主內容區 -->
+        <main class="content-main">
+          <!-- 搜尋和操作列 -->
+          <div class="content-toolbar">
+            <div class="search-box">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="search-icon">
+                <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <input type="text" id="searchInput" placeholder="搜尋頁面..." class="search-input" />
+            </div>
+            <!-- Tree controls, only shown when history is active -->
+            <div class="tree-controls" id="treeControls" style="display:none;">
+              <button class="tree-ctrl-btn" id="expandAllBtn">全部展開</button>
+              <button class="tree-ctrl-btn" id="collapseAllBtn">全部收合</button>
+            </div>
+          </div>
 
-              {areas[area]?.length > 0 ? (
-                <div class="page-list">
-                  {areas[area].map((page: any) => (
-                    <a href={`/admin/edit/${page.id}`} class="page-item">
-                      <div class="page-info">
-                        <span class="page-title">{page.title || page.slug}</span>
-                        <span class="page-slug">{page.id}</span>
-                      </div>
-                      <div class="page-meta">
-                        <span
-                          class="status-dot"
-                          style={`background: ${statusColors[page.status] || '#666'}`}
-                          title={statusLabels[page.status] || page.status}
-                        />
-                        <span class="page-date">
-                          {new Date(page.updatedAt).toLocaleDateString('zh-TW')}
-                        </span>
-                      </div>
-                    </a>
-                  ))}
+          <!-- History Tree View (shown when history area is selected) -->
+          <div class="panel" id="panel-history" style="display:none;">
+            <div class="tree-wrapper" id="treeWrapper">
+              {historyTree.length === 0 ? (
+                <div class="empty-state">
+                  <p>歷史典藏庫尚無樹狀資料</p>
+                  <p class="empty-hint">請確認 /api/content/history/tree 端點是否返回資料</p>
                 </div>
               ) : (
-                <p class="empty-area">此區域尚無內容</p>
+                <div class="tree-root" id="treeRoot">
+                  <!-- Rendered by client JS from historyTreeJson -->
+                </div>
               )}
             </div>
-          ))}
-        </section>
-      </>
+          </div>
+
+          <!-- Flat Table View (shown for all areas except history) -->
+          <div class="panel" id="panel-table">
+            <div class="page-table-wrapper">
+              <table class="page-table" id="pageTable">
+                <thead>
+                  <tr>
+                    <th class="col-title">標題</th>
+                    <th class="col-area">區域</th>
+                    <th class="col-status">狀態</th>
+                    <th class="col-date">更新時間</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {areaNames.flatMap((area) =>
+                    (areas[area] || []).map((page: any) => (
+                      <tr class="page-row" data-area={area} data-title={page.title?.toLowerCase() || ''} data-slug={page.slug}>
+                        <td class="col-title">
+                          <a href={`/admin/edit/${page.id}`} class="page-link">
+                            <span class="page-title-text">{page.title || page.slug}</span>
+                            <span class="page-id-text">{page.id}</span>
+                          </a>
+                        </td>
+                        <td class="col-area">
+                          <span class="area-tag" style={`color: ${areaConfig[area]?.color || '#fff'}`}>
+                            {areaConfig[area]?.label || area}
+                          </span>
+                        </td>
+                        <td class="col-status">
+                          <span class="status-dot" style={`background: ${statusColors[page.status]}`} />
+                          <span class="status-text">{statusLabels[page.status] || page.status}</span>
+                        </td>
+                        <td class="col-date">
+                          {new Date(page.updatedAt).toLocaleDateString('zh-TW')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+
+              {totalPages === 0 && (
+                <div class="empty-state">
+                  <p>尚無任何內容</p>
+                  <p class="empty-hint">匯入子倉庫的內容，或直接建立新頁面</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
     )}
   </div>
-</BaseLayout>
 
-<style>
-  .admin-container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 2rem;
-    position: relative;
-    z-index: 2;
+  <!-- Embed tree data for client rendering -->
+  <script type="application/json" id="historyTreeData" set:html={historyTreeJson} />
+</body>
+</html>
+
+<script>
+  // ─── Data ────────────────────────────────────────────────────────────────
+  const treeDataEl = document.getElementById('historyTreeData');
+  const historyTree: any[] = treeDataEl ? JSON.parse(treeDataEl.textContent || '[]') : [];
+
+  const pageTypeColors: Record<string, string> = {
+    zone:    '#d5b618',
+    chapter: '#a855f7',
+    arc:     '#06b6d4',
+    section: '#22c55e',
+    page:    '#c0c0d8',
+  };
+
+  const pageTypeLabels: Record<string, string> = {
+    zone:    '區域',
+    chapter: '章',
+    arc:     '篇',
+    section: '段',
+    page:    '頁',
+  };
+
+  // Track collapsed state: nodeId -> boolean (true = collapsed)
+  const collapsedState: Record<string, boolean> = {};
+
+  // ─── Tree rendering ───────────────────────────────────────────────────────
+  function renderTree(nodes: any[], parentEl: HTMLElement, searchQuery: string = '') {
+    for (const node of nodes) {
+      const hasChildren = node.children && node.children.length > 0;
+      const isCollapsed = !!collapsedState[node.id];
+      const depth = node.depth ?? 0;
+
+      const titleLower = (node.title || '').toLowerCase();
+      const slugLower = (node.slug || '').toLowerCase();
+      const matchesSelf = !searchQuery || titleLower.includes(searchQuery) || slugLower.includes(searchQuery);
+
+      // Check if any descendant matches
+      const anyDescendantMatches = searchQuery ? nodeOrDescendantMatches(node, searchQuery) : true;
+
+      if (!anyDescendantMatches) continue;
+
+      const row = document.createElement('div');
+      row.className = 'tree-row';
+      row.dataset.nodeId = node.id;
+      row.dataset.title = titleLower;
+      row.dataset.slug = slugLower;
+      row.style.setProperty('--depth', String(depth));
+
+      // Indent spacer
+      const indent = document.createElement('span');
+      indent.className = 'tree-indent';
+      indent.style.width = `${depth * 20}px`;
+      row.appendChild(indent);
+
+      // Toggle
+      const toggle = document.createElement('span');
+      toggle.className = 'tree-toggle';
+      if (hasChildren) {
+        toggle.classList.add(isCollapsed ? 'collapsed' : 'expanded');
+        toggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          collapsedState[node.id] = !collapsedState[node.id];
+          rebuildTree();
+        });
+      } else {
+        toggle.classList.add('leaf');
+      }
+      row.appendChild(toggle);
+
+      // Title link
+      const link = document.createElement('a');
+      link.href = `/admin/edit/${node.id}`;
+      link.className = 'tree-title' + (matchesSelf && searchQuery ? ' tree-title--match' : '');
+      link.textContent = node.title || node.slug || node.id;
+      row.appendChild(link);
+
+      // Page type badge
+      const badge = document.createElement('span');
+      badge.className = 'tree-badge';
+      badge.style.color = pageTypeColors[node.pageType] || '#c0c0d8';
+      badge.style.borderColor = (pageTypeColors[node.pageType] || '#c0c0d8') + '44';
+      badge.textContent = pageTypeLabels[node.pageType] || node.pageType || '';
+      row.appendChild(badge);
+
+      parentEl.appendChild(row);
+
+      // Recurse into children if not collapsed
+      if (hasChildren && !isCollapsed) {
+        renderTree(node.children, parentEl, searchQuery);
+      }
+    }
   }
 
-  .admin-header {
-    text-align: center;
-    margin-bottom: 3rem;
+  function nodeOrDescendantMatches(node: any, query: string): boolean {
+    const titleLower = (node.title || '').toLowerCase();
+    const slugLower = (node.slug || '').toLowerCase();
+    if (titleLower.includes(query) || slugLower.includes(query)) return true;
+    if (node.children) {
+      for (const child of node.children) {
+        if (nodeOrDescendantMatches(child, query)) return true;
+      }
+    }
+    return false;
   }
 
-  .admin-header h1 {
-    font-size: 2.5rem;
+  function rebuildTree(searchQuery: string = currentSearchQuery) {
+    const root = document.getElementById('treeRoot');
+    if (!root) return;
+    root.innerHTML = '';
+    renderTree(historyTree, root, searchQuery);
+  }
+
+  // ─── Area switching ───────────────────────────────────────────────────────
+  let currentArea = 'all';
+  let currentSearchQuery = '';
+
+  const panelHistory = document.getElementById('panel-history');
+  const panelTable = document.getElementById('panel-table');
+  const treeControls = document.getElementById('treeControls');
+
+  function showArea(area: string) {
+    currentArea = area;
+
+    if (area === 'history') {
+      panelHistory!.style.display = 'flex';
+      panelTable!.style.display = 'none';
+      treeControls!.style.display = 'flex';
+      rebuildTree(currentSearchQuery);
+    } else {
+      panelHistory!.style.display = 'none';
+      panelTable!.style.display = 'block';
+      treeControls!.style.display = 'none';
+      filterTableRows(area, currentSearchQuery);
+    }
+  }
+
+  // 初始化：預設顯示全部
+  showArea('all');
+
+  document.querySelectorAll('.area-nav-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelector('.area-nav-item.active')?.classList.remove('active');
+      btn.classList.add('active');
+      const area = btn.getAttribute('data-area') || 'all';
+      showArea(area);
+    });
+  });
+
+  // ─── Search ───────────────────────────────────────────────────────────────
+  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+
+  searchInput?.addEventListener('input', () => {
+    currentSearchQuery = (searchInput.value || '').toLowerCase();
+    if (currentArea === 'history') {
+      rebuildTree(currentSearchQuery);
+    } else {
+      filterTableRows(currentArea, currentSearchQuery);
+    }
+  });
+
+  function filterTableRows(area: string, query: string) {
+    document.querySelectorAll('.page-row').forEach((row) => {
+      const rowArea = row.getAttribute('data-area') || '';
+      const title = row.getAttribute('data-title') || '';
+      const slug = row.getAttribute('data-slug') || '';
+
+      const matchArea = area === 'all' || rowArea === area;
+      const matchSearch = !query || title.includes(query) || slug.includes(query);
+
+      (row as HTMLElement).style.display = matchArea && matchSearch ? '' : 'none';
+    });
+  }
+
+  // ─── Expand / Collapse all ────────────────────────────────────────────────
+  function collectAllIds(nodes: any[], out: string[] = []): string[] {
+    for (const n of nodes) {
+      if (n.children?.length) {
+        out.push(n.id);
+        collectAllIds(n.children, out);
+      }
+    }
+    return out;
+  }
+
+  document.getElementById('expandAllBtn')?.addEventListener('click', () => {
+    const ids = collectAllIds(historyTree);
+    for (const id of ids) collapsedState[id] = false;
+    rebuildTree();
+  });
+
+  document.getElementById('collapseAllBtn')?.addEventListener('click', () => {
+    const ids = collectAllIds(historyTree);
+    for (const id of ids) collapsedState[id] = true;
+    rebuildTree();
+  });
+
+  // ─── Initial render ───────────────────────────────────────────────────────
+  // Start with 'all' area showing the flat table
+  showArea('all');
+</script>
+
+<style is:global>
+  :root {
+    --gold: #d5b618;
+    --gold-light: #e8c547;
+    --purple: #a855f7;
+    --purple-light: #c084fc;
+    --cyan: #06b6d4;
+    --void-black: #0a0a0f;
+    --text-primary: #f8f8ff;
+    --text-secondary: #c0c0d8;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --sidebar-width: 230px;
+    --topbar-height: 48px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    background: var(--void-black);
+    color: var(--text-primary);
+    line-height: 1.6;
+  }
+
+  .admin-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* === 頂部列 === */
+  .top-bar {
+    height: var(--topbar-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.25rem;
+    background: rgba(15, 15, 25, 0.95);
+    border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
+  }
+
+  .top-bar-left, .top-bar-center, .top-bar-right {
+    display: flex;
+    align-items: center;
+  }
+
+  .top-bar-left { flex: 1; }
+  .top-bar-right { flex: 1; justify-content: flex-end; }
+
+  .brand {
     font-weight: 700;
-    background: linear-gradient(135deg, var(--gold), var(--purple));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+    color: var(--gold);
+    text-decoration: none;
+    letter-spacing: 0.02em;
   }
 
-  .admin-desc {
+  .total-count {
+    font-size: 0.8rem;
     color: var(--text-secondary);
-    font-size: 1.1rem;
   }
 
-  /* 錯誤提示 */
-  .error-banner {
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    border-radius: 12px;
-    padding: 1.5rem 2rem;
-    margin-bottom: 2rem;
+  .nav-link {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.15s;
   }
 
-  .error-banner strong {
-    color: #f87171;
-    font-size: 1.1rem;
+  .nav-link:hover { color: var(--gold); }
+
+  /* === 主體 === */
+  .admin-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
   }
 
-  .error-banner p {
-    color: rgba(255, 255, 255, 0.7);
+  /* === 側邊欄 === */
+  .sidebar {
+    width: var(--sidebar-width);
+    flex-shrink: 0;
+    background: rgba(12, 12, 20, 0.95);
+    border-right: 1px solid var(--glass-border);
+    overflow-y: auto;
+    padding: 0.75rem 0;
+  }
+
+  .sidebar-header {
+    padding: 0 1rem 0.5rem;
+  }
+
+  .sidebar-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .area-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .area-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.12s;
+  }
+
+  .area-nav-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .area-nav-item.active {
+    background: rgba(213, 182, 24, 0.08);
+    color: var(--text-primary);
+  }
+
+  .area-nav-item.active .nav-label { font-weight: 600; }
+
+  .nav-icon {
+    font-size: 0.9rem;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .nav-label { flex: 1; }
+
+  .nav-count {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.3);
+    min-width: 18px;
+    text-align: right;
+  }
+
+  .sidebar-section {
+    padding: 1rem;
+    border-top: 1px solid var(--glass-border);
     margin-top: 0.5rem;
   }
 
-  .error-banner .hint {
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.5);
-  }
-
-  /* 狀態區塊 */
-  .status-section,
-  .content-section {
-    background: rgba(26, 26, 46, 0.6);
-    backdrop-filter: blur(15px);
-    border: 1px solid var(--glass-border);
-    border-radius: 16px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-  }
-
-  .status-section h2,
-  .content-section h2 {
-    color: var(--gold);
-    font-size: 1.5rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(213, 182, 24, 0.2);
-  }
-
-  .status-grid {
+  .pending-list {
+    margin-top: 0.5rem;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-
-  .status-card {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-  }
-
-  .status-area {
-    color: var(--text-secondary);
-  }
-
-  .status-badge {
-    font-weight: 600;
-    font-size: 0.85rem;
-  }
-
-  .status-count {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 0.85rem;
-  }
-
-  .empty-hint {
-    color: rgba(255, 255, 255, 0.5);
-    font-style: italic;
-  }
-
-  /* 待處理更新 */
-  .pending-updates {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--glass-border);
-  }
-
-  .pending-updates h3 {
-    color: #f59e0b;
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .pending-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    color: var(--text-secondary);
-  }
-
-  .btn-small {
-    padding: 0.25rem 0.75rem;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    border-radius: 6px;
+    font-size: 0.8rem;
     color: #f59e0b;
-    font-size: 0.85rem;
     text-decoration: none;
-    transition: all 0.2s ease;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background 0.12s;
   }
 
-  .btn-small:hover {
-    background: rgba(245, 158, 11, 0.3);
-  }
+  .pending-item:hover { background: rgba(245, 158, 11, 0.1); }
 
-  /* 區域內容列表 */
-  .area-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .area-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-  }
-
-  .area-header h3 {
-    color: var(--purple-light);
-    font-size: 1.15rem;
-  }
-
-  .page-count {
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 0.85rem;
-  }
-
-  .page-list {
+  /* === 主內容區 === */
+  .content-main {
+    flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+  }
+
+  .content-toolbar {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
     gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    max-width: 360px;
+    flex: 1;
   }
 
-  .page-item {
+  .search-icon { color: rgba(255, 255, 255, 0.3); flex-shrink: 0; }
+
+  .search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    outline: none;
+  }
+
+  .search-input::placeholder { color: rgba(255, 255, 255, 0.25); }
+
+  /* === Tree controls === */
+  .tree-controls {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid transparent;
-    border-radius: 8px;
-    text-decoration: none;
-    transition: all 0.2s ease;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
-  .page-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--glass-border);
+  .tree-ctrl-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.65rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
   }
 
-  .page-info {
+  .tree-ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--text-primary);
+  }
+
+  /* === Panels === */
+  .panel {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* === Tree View === */
+  .tree-wrapper {
+    height: 100%;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+  }
+
+  #panel-history {
+    flex-direction: column;
+  }
+
+  .tree-root {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
   }
 
-  .page-title {
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 1rem 0.3rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.1s;
+    min-height: 32px;
+  }
+
+  .tree-row:hover {
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  /* Fixed-width indent spacer set by JS via --depth, but .tree-indent handles it */
+  .tree-indent {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  /* CSS triangle toggle */
+  .tree-toggle {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: default;
+    position: relative;
+  }
+
+  .tree-toggle.expanded {
+    cursor: pointer;
+  }
+
+  .tree-toggle.expanded::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* Down-pointing triangle */
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid rgba(255, 255, 255, 0.45);
+  }
+
+  .tree-toggle.expanded:hover::before {
+    border-top-color: var(--gold);
+  }
+
+  .tree-toggle.collapsed {
+    cursor: pointer;
+  }
+
+  .tree-toggle.collapsed::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* Right-pointing triangle */
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid rgba(255, 255, 255, 0.45);
+  }
+
+  .tree-toggle.collapsed:hover::before {
+    border-left-color: var(--gold);
+  }
+
+  .tree-toggle.leaf::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .tree-title {
+    flex: 1;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.12s;
+  }
+
+  .tree-title:hover {
+    color: var(--gold);
+  }
+
+  .tree-title--match {
+    color: var(--gold-light);
+    font-weight: 600;
+  }
+
+  .tree-badge {
+    font-size: 0.68rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid;
+    flex-shrink: 0;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    opacity: 0.85;
+  }
+
+  /* === 表格 === */
+  .page-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 0.5rem;
+    height: 100%;
+  }
+
+  .page-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .page-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .page-table th {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 500;
+    text-align: left;
+    background: rgba(10, 10, 15, 0.98);
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .page-table td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+  }
+
+  .page-row {
+    transition: background 0.12s;
+  }
+
+  .page-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .col-title { width: 40%; }
+  .col-area { width: 22%; }
+  .col-status { width: 18%; }
+  .col-date { width: 20%; }
+
+  .page-link {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    text-decoration: none;
+  }
+
+  .page-title-text {
     color: var(--text-primary);
     font-weight: 500;
+    transition: color 0.12s;
   }
 
-  .page-slug {
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 0.8rem;
+  .page-link:hover .page-title-text { color: var(--gold); }
+
+  .page-id-text {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.3);
     font-family: monospace;
   }
 
-  .page-meta {
+  .area-tag {
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .col-status {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .status-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    display: inline-block;
+    flex-shrink: 0;
   }
 
-  .page-date {
+  .status-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .col-date {
     color: rgba(255, 255, 255, 0.4);
     font-size: 0.8rem;
   }
 
-  .empty-area {
-    color: rgba(255, 255, 255, 0.3);
-    font-size: 0.9rem;
-    font-style: italic;
-    padding: 0.5rem 0;
+  /* === 空狀態 === */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: rgba(255, 255, 255, 0.4);
   }
 
+  .empty-hint {
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  /* === 錯誤 === */
+  .error-fullpage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .error-card {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(26, 26, 46, 0.6);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    max-width: 400px;
+  }
+
+  .error-card h2 { color: #f87171; font-size: 1.2rem; margin-bottom: 0.5rem; }
+  .error-card p { color: var(--text-secondary); font-size: 0.9rem; }
+  .error-hint { font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); margin-top: 0.75rem; }
+
+  /* === 響應式 === */
   @media (max-width: 768px) {
-    .admin-container {
-      padding: 1rem;
-    }
-
-    .admin-header h1 {
-      font-size: 1.8rem;
-    }
-
-    .status-grid {
-      flex-direction: column;
-    }
-
-    .page-item {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.5rem;
-    }
+    .sidebar { display: none; }
+    .col-area, .col-date { display: none; }
+    .col-title { width: 60%; }
+    .col-status { width: 40%; }
+    .tree-controls { display: none !important; }
   }
 </style>

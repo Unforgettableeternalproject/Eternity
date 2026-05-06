@@ -1,4 +1,5 @@
 import mdx from '@astrojs/mdx';
+import react from '@astrojs/react';
 import cloudflare from '@astrojs/cloudflare';
 import node from '@astrojs/node';
 import { defineConfig } from 'astro/config';
@@ -13,7 +14,7 @@ export default defineConfig({
   outDir: './dist',
   output: 'hybrid',
   adapter: isDev ? node({ mode: 'standalone' }) : cloudflare(),
-  integrations: [mdx()],
+  integrations: [mdx(), react()],
   build: {
     format: 'directory',
   },

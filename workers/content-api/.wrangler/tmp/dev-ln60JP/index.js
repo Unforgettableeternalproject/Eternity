@@ -40,6 +40,9 @@ function rowToPage(row) {
     baseContentHash: row.base_content_hash,
     status: row.status,
     metadata: JSON.parse(row.metadata),
+    parentId: row.parent_id,
+    depth: row.depth,
+    pageType: row.page_type,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -54,10 +57,45 @@ function rowToListItem(row) {
     sortOrder: row.sort_order,
     status: row.status,
     sourceFile: row.source_file,
+    parentId: row.parent_id,
+    depth: row.depth,
+    pageType: row.page_type,
     updatedAt: row.updated_at
   };
 }
 __name(rowToListItem, "rowToListItem");
+function buildTree(items) {
+  const map = /* @__PURE__ */ new Map();
+  const roots = [];
+  for (const item of items) {
+    map.set(item.id, {
+      id: item.id,
+      title: item.title,
+      slug: item.slug,
+      sortOrder: item.sortOrder,
+      pageType: item.pageType,
+      depth: item.depth,
+      status: item.status,
+      metadata: item.metadata || {},
+      children: []
+    });
+  }
+  for (const item of items) {
+    const node = map.get(item.id);
+    if (item.parentId && map.has(item.parentId)) {
+      map.get(item.parentId).children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  const sortNodes = /* @__PURE__ */ __name((nodes) => {
+    nodes.sort((a, b) => a.sortOrder - b.sortOrder);
+    nodes.forEach((n) => sortNodes(n.children));
+  }, "sortNodes");
+  sortNodes(roots);
+  return roots;
+}
+__name(buildTree, "buildTree");
 function jsonResponse(data, status = 200, corsHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -132,6 +170,18 @@ async function upsertPage(area, slug, body, db, cors) {
       updates.push("metadata = ?");
       values.push(JSON.stringify(body.metadata));
     }
+    if (body.parentId !== void 0) {
+      updates.push("parent_id = ?");
+      values.push(body.parentId);
+    }
+    if (body.depth !== void 0) {
+      updates.push("depth = ?");
+      values.push(body.depth);
+    }
+    if (body.pageType !== void 0) {
+      updates.push("page_type = ?");
+      values.push(body.pageType);
+    }
     if (body.content !== void 0 && existing.source_file) {
       updates.push("status = 'modified'");
     }
@@ -141,8 +191,8 @@ async function upsertPage(area, slug, body, db, cors) {
     await db.prepare(`UPDATE pages SET ${updates.join(", ")} WHERE id = ?`).bind(...values).run();
   } else {
     await db.prepare(
-      `INSERT INTO pages (id, area, title, slug, sort_order, content, status, metadata, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'local_only', ?, ?, ?)`
+      `INSERT INTO pages (id, area, title, slug, sort_order, content, status, metadata, parent_id, depth, page_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'local_only', ?, ?, ?, ?, ?, ?)`
     ).bind(
       id,
       area,
@@ -151,6 +201,9 @@ async function upsertPage(area, slug, body, db, cors) {
       body.sortOrder || 0,
       JSON.stringify(body.content || []),
       JSON.stringify(body.metadata || {}),
+      body.parentId || null,
+      body.depth || 0,
+      body.pageType || "page",
       now,
       now
     ).run();
@@ -177,8 +230,8 @@ async function importPages(body, db, cors) {
     const existing = await db.prepare("SELECT id, status, base_content_hash FROM pages WHERE id = ?").bind(page.id).first();
     if (!existing) {
       await db.prepare(
-        `INSERT INTO pages (id, area, title, slug, sort_order, content, source_file, base_content_hash, status, metadata, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)`
+        `INSERT INTO pages (id, area, title, slug, sort_order, content, source_file, base_content_hash, status, metadata, parent_id, depth, page_type, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?)`
       ).bind(
         page.id,
         page.area,
@@ -189,6 +242,9 @@ async function importPages(body, db, cors) {
         page.sourceFile,
         page.contentHash,
         JSON.stringify(page.metadata || {}),
+        page.parentId || null,
+        page.depth || 0,
+        page.pageType || "page",
         now,
         now
       ).run();
@@ -284,6 +340,18 @@ var src_default = {
     }
     if (path === "/api/content/sync/status" && request.method === "GET") {
       return getSyncStatus(env.CONTENT_DB, cors);
+    }
+    const treeMatch = path.match(/^\/api\/content\/([a-z]+)\/tree$/);
+    if (treeMatch && request.method === "GET") {
+      const area = treeMatch[1];
+      const result = await env.CONTENT_DB.prepare("SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC").bind(area).all();
+      const rows = result.results || [];
+      const items = rows.map((r) => ({
+        ...rowToListItem(r),
+        metadata: JSON.parse(r.metadata || "{}")
+      }));
+      const tree = buildTree(items);
+      return jsonResponse({ ok: true, data: tree }, 200, cors);
     }
     const contentMatch = path.match(/^\/api\/content\/([a-z]+)(?:\/(.+))?$/);
     if (contentMatch) {

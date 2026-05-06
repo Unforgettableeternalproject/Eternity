@@ -54,6 +54,8 @@ logs/
 temp/
 *.cookie
 .turbo/
+*.sqlite
+*.sqlite-shm
 
 # Personal notes (keep private)
 copilot-instructions.md
