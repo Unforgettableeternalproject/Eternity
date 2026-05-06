@@ -1,27 +1,1927 @@
 ---
+export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
-import AreaPage from '../components/AreaPage.astro';
-import { loadSummary, extractDirectChildren } from '../utils/summary';
-import { join } from 'node:path';
-
-const contentDir = join(process.cwd(), 'content');
-const navigation = loadSummary(contentDir);
-
-// 提取 history 區域的所有頁面
-const historyPages = extractDirectChildren(navigation, 'history').map(route => ({
-  slug: route.slug,
-  title: route.title,
-  level: route.level
-}));
 ---
 
 <BaseLayout title="歷史典藏庫 - 邊際世界">
-  <AreaPage
-    icon="📚"
-    title="歷史典藏庫"
-    description="眼前的景色讓你嘆為觀止。<br>這裡儼然是一座大型圖書館，無數書頁正有條理地在天空中飛舞著。<br>你不確定這是某種魔法還是甚麼超自然力量的影響。"
-    themeColor="#a855f7"
-    workingImage="/uep/Working.png"
-    pages={historyPages}
-  />
+  <!-- Full-viewport reader shell, sits inside BaseLayout's <main> -->
+  <div class="reader-shell" id="readerShell">
+
+    <!-- ═══════════════════════════════════════════
+         LEFT SIDEBAR
+    ═══════════════════════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+      <!-- Sidebar header -->
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <span class="sidebar-icon">📚</span>
+          <div class="sidebar-title-block">
+            <span class="sidebar-title">歷史典藏庫</span>
+            <span class="sidebar-subtitle">邊際世界</span>
+          </div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="收合側欄" title="收合側欄">
+          <span class="toggle-icon">‹</span>
+        </button>
+      </div>
+
+      <!-- Search bar -->
+      <div class="sidebar-search">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          class="search-input"
+          id="treeSearch"
+          placeholder="搜尋頁面…"
+          autocomplete="off"
+        />
+      </div>
+
+      <!-- Tree loading / error states -->
+      <div class="tree-status" id="treeStatus">
+        <div class="tree-loading" id="treeLoading">
+          <div class="loading-spinner"></div>
+          <span>載入目錄中…</span>
+        </div>
+        <div class="tree-error hidden" id="treeError">
+          <span class="error-icon">⚠️</span>
+          <span id="treeErrorMsg">無法載入目錄</span>
+          <button class="retry-btn" id="treeRetry">重試</button>
+        </div>
+      </div>
+
+      <!-- Tree navigation -->
+      <nav class="tree-nav" id="treeNav" aria-label="內容目錄"></nav>
+    </aside>
+
+    <!-- Sidebar collapsed tab (visible when closed) -->
+    <button class="sidebar-peek" id="sidebarPeek" aria-label="展開側欄" title="展開側欄">
+      <span>📚</span>
+    </button>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT AREA
+    ═══════════════════════════════════════════ -->
+    <div class="content-area" id="contentArea">
+
+      <!-- Landing view (shown when no page is selected) -->
+      <div class="landing-view" id="landingView">
+        <div class="landing-inner">
+          <!-- Ambient orbs -->
+          <div class="orb orb-1"></div>
+          <div class="orb orb-2"></div>
+          <div class="orb orb-3"></div>
+
+          <div class="landing-icon-wrap">
+            <div class="landing-icon-glow"></div>
+            <div class="landing-icon">📚</div>
+          </div>
+
+          <h1 class="landing-title">歷史典藏庫</h1>
+
+          <p class="landing-desc">
+            眼前的景色讓你嘆為觀止。<br />
+            這裡儼然是一座大型圖書館，無數書頁正有條理地在天空中飛舞著。<br />
+            你不確定這是某種魔法還是甚麼超自然力量的影響。
+          </p>
+
+          <div class="landing-divider">
+            <span class="divider-line"></span>
+            <span class="divider-gem">◆</span>
+            <span class="divider-line"></span>
+          </div>
+
+          <div class="landing-hint">
+            <span class="hint-arrow">←</span>
+            <span>從左側目錄選取篇章開始閱讀</span>
+          </div>
+
+          <!-- Zone overview cards (populated by JS) -->
+          <div class="zone-grid" id="zoneGrid">
+            <div class="zone-grid-loading">
+              <div class="loading-spinner"></div>
+              <span>載入章節總覽…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reading view (shown when a page is selected) -->
+      <div class="reading-view hidden" id="readingView">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb" id="breadcrumb" aria-label="麵包屑導覽"></div>
+
+        <!-- Page content -->
+        <article class="reading-article" id="readingArticle">
+          <div class="content-loading hidden" id="contentLoading">
+            <div class="loading-spinner large"></div>
+            <span>載入內容中…</span>
+          </div>
+          <div class="content-error hidden" id="contentError">
+            <span class="error-icon">⚠️</span>
+            <p id="contentErrorMsg">無法載入此頁面</p>
+            <button class="retry-btn" id="contentRetry">重試</button>
+          </div>
+          <div class="content-body" id="contentBody"></div>
+        </article>
+
+        <!-- Navigation footer -->
+        <div class="page-nav" id="pageNav">
+          <button class="page-nav-btn" id="prevPageBtn" disabled>
+            <span class="nav-arrow-icon">←</span>
+            <div class="page-nav-label">
+              <span class="nav-label-hint">上一頁</span>
+              <span class="nav-label-title" id="prevPageTitle">—</span>
+            </div>
+          </button>
+          <button class="page-nav-btn next" id="nextPageBtn" disabled>
+            <div class="page-nav-label">
+              <span class="nav-label-hint">下一頁</span>
+              <span class="nav-label-title" id="nextPageTitle">—</span>
+            </div>
+            <span class="nav-arrow-icon">→</span>
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+  </div><!-- /reader-shell -->
 </BaseLayout>
+
+<!-- ═══════════════════════════════════════════════════════
+     CLIENT-SIDE LOGIC
+═══════════════════════════════════════════════════════ -->
+<script>
+const API_BASE = (import.meta as any).env?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+// ─── State ───────────────────────────────────────────────
+let treeData: any[] = [];
+let flatPages: any[] = [];           // only leaf nodes (sections/pages)
+let currentPageId: string | null = null;
+let currentRetryFn: (() => void) | null = null;
+
+// ─── DOM references ───────────────────────────────────────
+const sidebar        = document.getElementById('sidebar')!;
+const sidebarToggle  = document.getElementById('sidebarToggle')!;
+const sidebarPeek    = document.getElementById('sidebarPeek')!;
+const treeNav        = document.getElementById('treeNav')!;
+const treeLoading    = document.getElementById('treeLoading')!;
+const treeError      = document.getElementById('treeError')!;
+const treeErrorMsg   = document.getElementById('treeErrorMsg')!;
+const treeRetry      = document.getElementById('treeRetry')!;
+const treeSearch     = document.getElementById('treeSearch') as HTMLInputElement;
+
+const landingView    = document.getElementById('landingView')!;
+const readingView    = document.getElementById('readingView')!;
+const zoneGrid       = document.getElementById('zoneGrid')!;
+
+const breadcrumb     = document.getElementById('breadcrumb')!;
+const readingArticle = document.getElementById('readingArticle')!;
+const contentLoading = document.getElementById('contentLoading')!;
+const contentError   = document.getElementById('contentError')!;
+const contentErrorMsg= document.getElementById('contentErrorMsg')!;
+const contentRetry   = document.getElementById('contentRetry')!;
+const contentBody    = document.getElementById('contentBody')!;
+
+const prevPageBtn    = document.getElementById('prevPageBtn') as HTMLButtonElement;
+const nextPageBtn    = document.getElementById('nextPageBtn') as HTMLButtonElement;
+const prevPageTitle  = document.getElementById('prevPageTitle')!;
+const nextPageTitle  = document.getElementById('nextPageTitle')!;
+
+// ─── Sidebar toggle ───────────────────────────────────────
+function openSidebar() {
+  sidebar.classList.remove('collapsed');
+  sidebarPeek.classList.remove('visible');
+  sidebarToggle.setAttribute('aria-label', '收合側欄');
+  sidebarToggle.querySelector('.toggle-icon')!.textContent = '‹';
+  localStorage.setItem('history-sidebar', 'open');
+}
+
+function closeSidebar() {
+  sidebar.classList.add('collapsed');
+  sidebarPeek.classList.add('visible');
+  sidebarToggle.setAttribute('aria-label', '展開側欄');
+  sidebarToggle.querySelector('.toggle-icon')!.textContent = '›';
+  localStorage.setItem('history-sidebar', 'closed');
+}
+
+sidebarToggle.addEventListener('click', () => {
+  if (sidebar.classList.contains('collapsed')) openSidebar();
+  else closeSidebar();
+});
+
+sidebarPeek.addEventListener('click', openSidebar);
+
+// Restore preference
+if (localStorage.getItem('history-sidebar') === 'closed') closeSidebar();
+
+// ─── Utility ─────────────────────────────────────────────
+function pageTypeIcon(type: string): string {
+  const map: Record<string, string> = {
+    zone: '🌐', chapter: '📖', arc: '📄', section: '📃', page: '📃',
+  };
+  return map[type] ?? '📝';
+}
+
+function show(el: HTMLElement) { el.classList.remove('hidden'); }
+function hide(el: HTMLElement) { el.classList.add('hidden'); }
+
+// ─── Flatten tree into ordered page list (all nodes, not just leaves) ───
+function flattenLeaves(nodes: any[], acc: any[] = []): any[] {
+  for (const node of nodes) {
+    if (node.metadata?.hidden) continue;
+    acc.push(node);
+    if (node.children?.length) {
+      flattenLeaves(node.children.filter((c: any) => !c.metadata?.hidden), acc);
+    }
+  }
+  return acc;
+}
+
+// ─── Resolve internal links ──────────────────────────────
+// 將相對路徑（如 "arc.01/sect.01.md" 或 "chpt.-1/"）解析成對應的頁面
+function resolveInternalLink(currentPageId: string, href: string): any | null {
+  // 清理 href: 去掉 .md 副檔名和尾部斜線
+  let clean = href.replace(/\.md$/, '').replace(/\/$/, '');
+  // README 指向目錄本身
+  clean = clean.replace(/\/README$/, '');
+
+  // 嘗試方式 1: 相對於當前頁面的路徑解析
+  // currentPageId 例如 "history/passage/unforgettable_story/chpt.01"
+  // clean 例如 "arc.01/sect.01"
+  const currentDir = currentPageId.includes('/') ? currentPageId.substring(0, currentPageId.lastIndexOf('/')) : currentPageId;
+  const candidate1 = currentDir + '/' + clean;
+  const candidate2 = currentPageId + '/' + clean;
+
+  // 在 flatPages 中尋找匹配
+  const found =
+    flatPages.find(p => p.id === candidate1) ||
+    flatPages.find(p => p.id === candidate2) ||
+    // 嘗試在整個 id 裡尾部匹配
+    flatPages.find(p => p.id.endsWith('/' + clean)) ||
+    // 嘗試 slug 匹配
+    flatPages.find(p => p.slug === clean || p.slug.endsWith('/' + clean));
+
+  return found || null;
+}
+
+// Build ancestor path map: id → array of ancestor titles
+function buildAncestorMap(nodes: any[], ancestors: string[] = []): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const node of nodes) {
+    map.set(node.id, [...ancestors]);
+    if (node.children?.length) {
+      const childMap = buildAncestorMap(node.children, [...ancestors, node.title]);
+      childMap.forEach((v, k) => map.set(k, v));
+    }
+  }
+  return map;
+}
+
+let ancestorMap = new Map<string, string[]>();
+
+// ─── Fetch tree ───────────────────────────────────────────
+async function fetchTree() {
+  hide(treeError);
+  show(treeLoading);
+  treeNav.innerHTML = '';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/content/history/tree`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json() as { ok: boolean; data: any[] };
+    if (!json.ok) throw new Error('API returned ok=false');
+
+    treeData = json.data;
+    flatPages = flattenLeaves(treeData);
+    ancestorMap = buildAncestorMap(treeData);
+
+    hide(treeLoading);
+    renderTree(treeData, treeNav, 0);
+    renderZoneGrid(treeData);
+  } catch (err: any) {
+    hide(treeLoading);
+    treeErrorMsg.textContent = `無法載入目錄：${err.message}`;
+    show(treeError);
+  }
+}
+
+treeRetry.addEventListener('click', fetchTree);
+
+// ─── Render tree ──────────────────────────────────────────
+function renderTree(nodes: any[], container: HTMLElement, depth: number) {
+  for (const node of nodes) {
+    // 跳過 hidden 頁面
+    if (node.metadata?.hidden === true) continue;
+
+    const visibleChildren = (node.children || []).filter((c: any) => !c.metadata?.hidden);
+    const hasChildren = visibleChildren.length > 0;
+    const isLeaf = !hasChildren;
+
+    const item = document.createElement('div');
+    item.className = 'tree-item';
+    item.dataset.depth = String(depth);
+    item.dataset.id = node.id;
+
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+
+    if (hasChildren) {
+      // Group node: chevron for expand/collapse + clickable title for content
+      const chevronBtn = document.createElement('button');
+      chevronBtn.className = 'tree-chevron-btn';
+      chevronBtn.setAttribute('aria-label', `展開 ${node.title}`);
+      chevronBtn.innerHTML = `<span class="tree-chevron">${depth === 0 ? '▾' : '▸'}</span>`;
+      row.appendChild(chevronBtn);
+
+      // Title is clickable to load content
+      const titleBtn = document.createElement('button');
+      titleBtn.className = 'tree-leaf tree-group-title';
+      titleBtn.dataset.pageId = node.id;
+      if (node.metadata?.description) titleBtn.title = node.metadata.description;
+      titleBtn.innerHTML = `
+        <span class="tree-item-icon">${pageTypeIcon(node.pageType)}</span>
+        <span class="tree-item-title">${node.title}</span>
+      `;
+      row.appendChild(titleBtn);
+      item.appendChild(row);
+
+      const children = document.createElement('div');
+      children.className = 'tree-children';
+      children.style.display = depth === 0 ? 'block' : 'none';
+      renderTree(visibleChildren, children, depth + 1);
+      item.appendChild(children);
+
+      chevronBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const expanded = chevronBtn.getAttribute('aria-expanded') === 'true';
+        chevronBtn.setAttribute('aria-expanded', String(!expanded));
+        chevronBtn.querySelector('.tree-chevron')!.textContent = !expanded ? '▾' : '▸';
+        children.style.display = !expanded ? 'block' : 'none';
+      });
+      chevronBtn.setAttribute('aria-expanded', depth === 0 ? 'true' : 'false');
+
+      titleBtn.addEventListener('click', () => loadPage(node.id, node));
+    } else {
+      // Leaf link
+      const link = document.createElement('button');
+      link.className = 'tree-leaf';
+      link.setAttribute('aria-label', `閱讀 ${node.title}`);
+      link.dataset.pageId = node.id;
+      if (node.metadata?.description) link.title = node.metadata.description;
+      link.innerHTML = `
+        <span class="tree-item-icon">${pageTypeIcon(node.pageType)}</span>
+        <span class="tree-item-title">${node.title}</span>
+      `;
+      row.appendChild(link);
+      item.appendChild(row);
+
+      link.addEventListener('click', () => loadPage(node.id, node));
+    }
+
+    container.appendChild(item);
+  }
+}
+
+// ─── Render zone overview cards ───────────────────────────
+function renderZoneGrid(nodes: any[]) {
+  if (!nodes.length) {
+    zoneGrid.innerHTML = '<p class="zone-empty">目前尚無可用章節</p>';
+    return;
+  }
+
+  const cards = nodes.map(node => {
+    const childCount = countDescendants(node);
+    return `
+      <div class="zone-card" data-id="${node.id}" role="button" tabindex="0"
+           aria-label="前往 ${node.title}">
+        <div class="zone-card-icon">${pageTypeIcon(node.pageType)}</div>
+        <div class="zone-card-body">
+          <div class="zone-card-title">${node.title}</div>
+          <div class="zone-card-meta">${childCount} 個頁面</div>
+        </div>
+        <div class="zone-card-arrow">›</div>
+      </div>
+    `;
+  }).join('');
+
+  zoneGrid.innerHTML = cards;
+
+  // Click: expand sidebar to zone + scroll there
+  zoneGrid.querySelectorAll('.zone-card').forEach(card => {
+    const id = (card as HTMLElement).dataset.id!;
+    card.addEventListener('click', () => expandToNode(id));
+    card.addEventListener('keydown', (e: Event) => {
+      if ((e as KeyboardEvent).key === 'Enter') expandToNode(id);
+    });
+  });
+}
+
+function countDescendants(node: any): number {
+  if (!node.children?.length) return 1;
+  return node.children.reduce((s: number, c: any) => s + countDescendants(c), 0);
+}
+
+function expandToNode(id: string) {
+  // Expand all tree-toggle ancestors, then scroll into view
+  const item = treeNav.querySelector(`[data-id="${id}"]`) as HTMLElement | null;
+  if (!item) return;
+
+  // Walk up expanding parents
+  let el: HTMLElement | null = item.parentElement;
+  while (el && el !== treeNav) {
+    if (el.classList.contains('tree-children')) {
+      el.style.display = 'block';
+      const toggle = el.previousElementSibling?.querySelector('.tree-toggle') as HTMLElement | null
+        ?? (el.parentElement?.querySelector('.tree-toggle') as HTMLElement | null);
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'true');
+        const chevron = toggle.querySelector('.tree-chevron');
+        if (chevron) chevron.textContent = '▾';
+      }
+    }
+    el = el.parentElement;
+  }
+
+  // Also expand this node's own toggle if it has one
+  const ownToggle = item.querySelector('.tree-toggle') as HTMLElement | null;
+  if (ownToggle) {
+    ownToggle.setAttribute('aria-expanded', 'true');
+    const chevron = ownToggle.querySelector('.tree-chevron');
+    if (chevron) chevron.textContent = '▾';
+    const children = item.querySelector('.tree-children') as HTMLElement | null;
+    if (children) children.style.display = 'block';
+  }
+
+  item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  openSidebar();
+}
+
+// ─── Load a page ──────────────────────────────────────────
+async function loadPage(id: string, node?: any) {
+  currentPageId = id;
+
+  // Switch to reading view
+  hide(landingView);
+  show(readingView);
+
+  // Highlight active in tree
+  treeNav.querySelectorAll('.tree-leaf').forEach(el => el.classList.remove('active'));
+  const activeLeaf = treeNav.querySelector(`[data-page-id="${id}"]`);
+  if (activeLeaf) {
+    activeLeaf.classList.add('active');
+    // Auto-expand ancestors
+    expandToNode(id);
+    activeLeaf.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Build breadcrumb
+  const ancestors = ancestorMap.get(id) ?? [];
+  const pageTitle = node?.title ?? id;
+  renderBreadcrumb([...ancestors, pageTitle]);
+
+  // Prev / next
+  updatePageNav(id);
+
+  // Show loading
+  hide(contentError);
+  hide(contentBody);
+  show(contentLoading);
+  contentBody.innerHTML = '';
+
+  currentRetryFn = () => loadPage(id, node);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/content/${id}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json() as { ok: boolean; data: any };
+    if (!json.ok) throw new Error('API returned ok=false');
+
+    const page = json.data;
+    const html = page.content?.[0]?.content ?? '';
+
+    hide(contentLoading);
+    show(contentBody);
+
+    contentBody.innerHTML = buildContentHTML(page, html);
+
+    // 綁定 tabs 互動
+    contentBody.querySelectorAll('.tabs-container').forEach(container => {
+      const btns = container.querySelectorAll('.tab-btn');
+      const panels = container.querySelectorAll('.tab-panel');
+      btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = btn.getAttribute('data-tab');
+          btns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          panels.forEach(p => {
+            (p as HTMLElement).style.display = p.getAttribute('data-tab') === idx ? 'block' : 'none';
+          });
+        });
+      });
+    });
+
+    // 綁定卡片導航
+    contentBody.querySelectorAll('.content-card[data-nav-ref]').forEach(card => {
+      (card as HTMLElement).style.cursor = 'pointer';
+      card.addEventListener('click', () => {
+        const ref = (card as HTMLElement).dataset.navRef || '';
+        // ref 是相對路徑如 "unforgettable_story/" 或 "chpt.-1/"
+        // 需要找到對應的頁面 ID
+        const match = flatPages.find(p =>
+          p.id.endsWith('/' + ref.replace(/\/$/, '')) ||
+          p.slug.endsWith('/' + ref.replace(/\/$/, '')) ||
+          p.slug === ref.replace(/\/$/, '')
+        );
+        if (match) {
+          loadPage(match.id, match);
+          // 也展開側邊欄對應的節點
+          const treeItem = treeNav.querySelector(`[data-id="${match.id}"]`) as HTMLElement | null;
+          if (treeItem) {
+            let el: HTMLElement | null = treeItem.parentElement;
+            while (el && el !== treeNav) {
+              if (el.classList.contains('tree-children')) {
+                el.style.display = 'block';
+                const toggle = el.previousElementSibling?.querySelector('.tree-chevron-btn');
+                if (toggle) {
+                  toggle.setAttribute('aria-expanded', 'true');
+                  const chevron = toggle.querySelector('.tree-chevron');
+                  if (chevron) chevron.textContent = '▾';
+                }
+              }
+              el = el.parentElement;
+            }
+          }
+        }
+      });
+    });
+
+    // 攔截內部連結 — 將相對路徑轉成 loadPage 呼叫
+    contentBody.querySelectorAll('a[href]').forEach(link => {
+      const href = link.getAttribute('href') || '';
+      // 跳過外部連結和 javascript:
+      if (href.startsWith('http') || href.startsWith('javascript:') || href.startsWith('#') || href.startsWith('mailto:')) return;
+
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const resolved = resolveInternalLink(id, href);
+        if (resolved) {
+          loadPage(resolved.id, resolved);
+        }
+      });
+      // 改成 pointer cursor
+      (link as HTMLElement).style.cursor = 'pointer';
+    });
+
+    // Scroll to top
+    document.getElementById('contentArea')?.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Push history state
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', id);
+    window.history.pushState({ pageId: id }, '', url.toString());
+
+  } catch (err: any) {
+    hide(contentLoading);
+    contentErrorMsg.textContent = `無法載入頁面：${err.message}`;
+    show(contentError);
+  }
+}
+
+function buildContentHTML(page: any, rawHtml: string): string {
+  const title = page.title ?? '';
+  const subtitle = page.metadata?.description ?? '';
+  const subtitleHtml = subtitle
+    ? `<p class="article-subtitle">${subtitle}</p>`
+    : '';
+  return `
+    <div class="article-header">
+      <h1 class="article-main-title">${title}</h1>
+      ${subtitleHtml}
+    </div>
+    <div class="article-prose">${rawHtml || '<p class="empty-notice">此頁面尚無內容。</p>'}</div>
+  `;
+}
+
+// ─── Breadcrumb ───────────────────────────────────────────
+function renderBreadcrumb(crumbs: string[]) {
+  breadcrumb.innerHTML = crumbs
+    .map((c, i) =>
+      i < crumbs.length - 1
+        ? `<span class="crumb">${c}</span><span class="crumb-sep">›</span>`
+        : `<span class="crumb active">${c}</span>`
+    )
+    .join('');
+}
+
+// ─── Prev / Next navigation ───────────────────────────────
+function updatePageNav(currentId: string) {
+  const idx = flatPages.findIndex(p => p.id === currentId);
+  const prev = idx > 0 ? flatPages[idx - 1] : null;
+  const next = idx < flatPages.length - 1 ? flatPages[idx + 1] : null;
+
+  prevPageBtn.disabled = !prev;
+  nextPageBtn.disabled = !next;
+  prevPageTitle.textContent = prev?.title ?? '—';
+  nextPageTitle.textContent = next?.title ?? '—';
+
+  prevPageBtn.onclick = prev ? () => loadPage(prev.id, prev) : null;
+  nextPageBtn.onclick = next ? () => loadPage(next.id, next) : null;
+}
+
+// ─── Tree search filter ───────────────────────────────────
+treeSearch.addEventListener('input', () => {
+  const q = treeSearch.value.trim().toLowerCase();
+  treeNav.querySelectorAll<HTMLElement>('.tree-item').forEach(item => {
+    const title = item.querySelector('.tree-item-title')?.textContent?.toLowerCase() ?? '';
+    item.style.display = (!q || title.includes(q)) ? '' : 'none';
+  });
+  // Show all children when searching
+  if (q) {
+    treeNav.querySelectorAll<HTMLElement>('.tree-children').forEach(c => c.style.display = 'block');
+  }
+});
+
+// ─── Content retry ────────────────────────────────────────
+contentRetry.addEventListener('click', () => {
+  if (currentRetryFn) currentRetryFn();
+});
+
+// ─── Browser back/forward ─────────────────────────────────
+window.addEventListener('popstate', (e) => {
+  const state = e.state as { pageId?: string } | null;
+  if (state?.pageId) {
+    const node = flatPages.find(p => p.id === state.pageId);
+    loadPage(state.pageId, node);
+  } else {
+    // Back to landing
+    currentPageId = null;
+    show(landingView);
+    hide(readingView);
+    treeNav.querySelectorAll('.tree-leaf').forEach(el => el.classList.remove('active'));
+  }
+});
+
+// ─── Restore from URL ─────────────────────────────────────
+function restoreFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const pageId = params.get('page');
+  if (pageId) {
+    // Wait until tree is loaded then navigate
+    const check = () => {
+      if (flatPages.length) {
+        const node = flatPages.find(p => p.id === pageId);
+        loadPage(pageId, node);
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────
+fetchTree().then(restoreFromURL);
+</script>
+
+<!-- Override BaseLayout's main constraints for this full-viewport reader page -->
+<style is:global>
+  /* Make main fill full width and height for the reader layout */
+  body:has(.reader-shell) main {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Remove the fadeIn animation offset so reader shell starts flush */
+    animation: none !important;
+  }
+
+  /* Hide footer on the reader page so content is truly full-height */
+  body:has(.reader-shell) footer {
+    display: none !important;
+  }
+</style>
+
+<style is:global>
+  /* ═══════════════════════════════════════════════════════
+     READER SHELL — full height, no outer scroll
+  ═══════════════════════════════════════════════════════ */
+  .reader-shell {
+    display: flex;
+    /* Fill the remaining viewport height below the sticky navbar */
+    height: calc(100vh - 73px);
+    overflow: hidden;
+    position: relative;
+  }
+
+  @media (max-width: 768px) {
+    .reader-shell {
+      height: calc(100vh - 130px);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SIDEBAR
+  ═══════════════════════════════════════════════════════ */
+  .sidebar {
+    width: 300px;
+    min-width: 300px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: rgba(10, 10, 18, 0.85);
+    backdrop-filter: blur(24px) saturate(160%);
+    border-right: 1px solid rgba(168, 85, 247, 0.2);
+    transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease;
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+  }
+
+  .sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    border-right-color: transparent;
+  }
+
+  /* Peek tab when collapsed */
+  .sidebar-peek {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(168, 85, 247, 0.25);
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    border-left: none;
+    border-radius: 0 12px 12px 0;
+    padding: 0.75rem 0.5rem;
+    cursor: pointer;
+    color: #c084fc;
+    font-size: 1.4rem;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    line-height: 1;
+  }
+
+  .sidebar-peek.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* Sidebar header */
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1rem 0.75rem;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.15);
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .sidebar-icon {
+    font-size: 1.5rem;
+    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.6));
+    flex-shrink: 0;
+  }
+
+  .sidebar-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+
+  .sidebar-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #c084fc;
+    letter-spacing: 0.03em;
+  }
+
+  .sidebar-subtitle {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.08em;
+  }
+
+  .sidebar-toggle {
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 8px;
+    color: #c084fc;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+
+  .sidebar-toggle:hover {
+    background: rgba(168, 85, 247, 0.25);
+    transform: scale(1.1);
+  }
+
+  .toggle-icon {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1;
+    display: block;
+    margin-top: -1px;
+  }
+
+  /* Search */
+  .sidebar-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    margin: 0.6rem 0.75rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 10px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .search-icon {
+    font-size: 0.9rem;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    background: none;
+    border: none;
+    outline: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.85rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .search-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Tree status */
+  .tree-status {
+    padding: 0.5rem 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .tree-loading,
+  .tree-error {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    padding: 0.5rem;
+  }
+
+  .error-icon {
+    font-size: 1rem;
+  }
+
+  .retry-btn {
+    background: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 6px;
+    color: #c084fc;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
+    margin-left: auto;
+    transition: background 0.2s ease;
+  }
+
+  .retry-btn:hover {
+    background: rgba(168, 85, 247, 0.35);
+  }
+
+  /* Tree nav */
+  .tree-nav {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.25rem 0 1rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(168, 85, 247, 0.3) transparent;
+  }
+
+  .tree-nav::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .tree-nav::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.3);
+    border-radius: 2px;
+  }
+
+  /* Tree items */
+  .tree-item {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .tree-row {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .tree-toggle,
+  .tree-leaf {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.875rem;
+    text-align: left;
+    transition: all 0.18s ease;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .tree-toggle:hover,
+  .tree-leaf:hover {
+    background: rgba(168, 85, 247, 0.1);
+    color: #c084fc;
+    border-left-color: rgba(168, 85, 247, 0.4);
+  }
+
+  .tree-leaf.active {
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+    border-left-color: #a855f7;
+    font-weight: 600;
+  }
+
+  .tree-leaf.active::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #a855f7;
+    border-radius: 3px 0 0 3px;
+  }
+
+  .tree-item-icon {
+    font-size: 0.95rem;
+    flex-shrink: 0;
+  }
+
+  .tree-item-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tree-chevron {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .tree-chevron-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0.4rem 0;
+    transition: color 0.15s;
+  }
+
+  .tree-chevron-btn:hover {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .tree-group-title {
+    border-left: none !important;
+    padding-left: 0.25rem !important;
+  }
+
+  .tree-row {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .tree-children {
+    padding-left: 0.85rem;
+    border-left: 1px solid rgba(168, 85, 247, 0.12);
+    margin-left: 1.1rem;
+  }
+
+  /* Depth-based indent colours */
+  .tree-item[data-depth="0"] > .tree-row > .tree-toggle {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: rgba(255, 255, 255, 0.95);
+    border-left-color: rgba(213, 182, 24, 0.5);
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+
+  .tree-item[data-depth="0"]:not(:first-child) {
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .tree-item[data-depth="1"] > .tree-row > .tree-toggle {
+    color: rgba(255, 255, 255, 0.88);
+    font-weight: 600;
+  }
+
+  .tree-item[data-depth="2"] > .tree-row > .tree-leaf,
+  .tree-item[data-depth="2"] > .tree-row > .tree-toggle {
+    font-size: 0.84rem;
+  }
+
+  .tree-item[data-depth="3"] > .tree-row > .tree-leaf,
+  .tree-item[data-depth="3"] > .tree-row > .tree-toggle {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     CONTENT AREA
+  ═══════════════════════════════════════════════════════ */
+  .content-area {
+    flex: 1;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(168, 85, 247, 0.25) transparent;
+    position: relative;
+  }
+
+  .content-area::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .content-area::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.25);
+    border-radius: 3px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     LANDING VIEW
+  ═══════════════════════════════════════════════════════ */
+  .landing-view {
+    min-height: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 4rem 2rem 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .landing-inner {
+    max-width: 720px;
+    width: 100%;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Ambient orbs */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+    opacity: 0.18;
+    animation: orbFloat 12s ease-in-out infinite;
+  }
+
+  .orb-1 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, #a855f7, transparent);
+    top: -100px;
+    left: -150px;
+    animation-delay: 0s;
+  }
+
+  .orb-2 {
+    width: 350px;
+    height: 350px;
+    background: radial-gradient(circle, #d5b618, transparent);
+    bottom: 50px;
+    right: -80px;
+    animation-delay: -4s;
+  }
+
+  .orb-3 {
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, #06b6d4, transparent);
+    top: 200px;
+    right: 50px;
+    animation-delay: -8s;
+  }
+
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0, 0); }
+    33%       { transform: translate(30px, -20px); }
+    66%       { transform: translate(-20px, 15px); }
+  }
+
+  /* Icon */
+  .landing-icon-wrap {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    animation: iconFloat 4s ease-in-out infinite;
+  }
+
+  @keyframes iconFloat {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-14px); }
+  }
+
+  .landing-icon-glow {
+    position: absolute;
+    inset: -40px;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: glowPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50%       { opacity: 0.7; transform: scale(1.15); }
+  }
+
+  .landing-icon {
+    font-size: 5.5rem;
+    filter: drop-shadow(0 0 24px rgba(168, 85, 247, 0.7));
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+  }
+
+  /* Title */
+  .landing-title {
+    font-size: 3.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #d5b618 0%, #a855f7 50%, #c084fc 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: titleGradient 6s ease infinite;
+    margin-bottom: 1.25rem;
+    letter-spacing: -0.02em;
+  }
+
+  @keyframes titleGradient {
+    0%, 100% { background-position: 0% 50%; }
+    50%       { background-position: 100% 50%; }
+  }
+
+  /* Description */
+  .landing-desc {
+    font-size: 1.05rem;
+    line-height: 2;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 2rem;
+  }
+
+  /* Divider */
+  .landing-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.5rem auto 1.75rem;
+    max-width: 320px;
+  }
+
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.5), transparent);
+  }
+
+  .divider-gem {
+    color: #a855f7;
+    font-size: 0.75rem;
+    filter: drop-shadow(0 0 6px #a855f7);
+    animation: gemSpin 8s linear infinite;
+  }
+
+  @keyframes gemSpin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Hint */
+  .landing-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.9rem;
+    margin-bottom: 3rem;
+    font-style: italic;
+  }
+
+  .hint-arrow {
+    animation: arrowPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes arrowPulse {
+    0%, 100% { opacity: 1; transform: translateX(0); }
+    50%       { opacity: 0.4; transform: translateX(-5px); }
+  }
+
+  /* Zone grid */
+  .zone-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    text-align: left;
+  }
+
+  .zone-grid-loading {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.9rem;
+    padding: 2rem;
+  }
+
+  .zone-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.25rem;
+    background: rgba(168, 85, 247, 0.07);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .zone-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .zone-card:hover {
+    border-color: rgba(168, 85, 247, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(168, 85, 247, 0.2);
+  }
+
+  .zone-card:hover::before { opacity: 1; }
+
+  .zone-card-icon {
+    font-size: 1.8rem;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.5));
+  }
+
+  .zone-card-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .zone-card-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0.2rem;
+  }
+
+  .zone-card-meta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .zone-card-arrow {
+    font-size: 1.4rem;
+    color: rgba(168, 85, 247, 0.5);
+    flex-shrink: 0;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+
+  .zone-card:hover .zone-card-arrow {
+    transform: translateX(4px);
+    color: #a855f7;
+  }
+
+  .zone-empty {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 2rem;
+    grid-column: 1 / -1;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     READING VIEW
+  ═══════════════════════════════════════════════════════ */
+  .reading-view {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2rem 3rem;
+    animation: fadeSlideIn 0.3s ease-out;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.12);
+  }
+
+  .crumb {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .crumb.active {
+    color: #c084fc;
+    font-weight: 600;
+  }
+
+  .crumb-sep {
+    color: rgba(255, 255, 255, 0.2);
+    padding: 0 0.2rem;
+  }
+
+  /* Article */
+  .reading-article {
+    flex: 1;
+    max-width: 750px;
+    width: 100%;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* Loading / error inside article */
+  .content-loading,
+  .content-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 4rem 2rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    text-align: center;
+  }
+
+  /* Article header */
+  .article-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid rgba(168, 85, 247, 0.2);
+  }
+
+  .article-main-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #d5b618;
+    text-shadow: 0 0 30px rgba(213, 182, 24, 0.3);
+    line-height: 1.25;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+
+  .article-subtitle {
+    margin-top: 0.5rem;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-style: italic;
+    letter-spacing: 0.02em;
+    flex-wrap: wrap;
+  }
+
+  .status-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    vertical-align: middle;
+  }
+
+  .status-draft {
+    background: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+    border: 1px solid rgba(234, 179, 8, 0.3);
+  }
+
+  .status-archived {
+    background: rgba(107, 114, 128, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+  }
+
+  /* Article prose */
+  .article-prose {
+    line-height: 1.85;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 1rem;
+  }
+
+  /* Rich HTML content styles */
+  .article-prose :global(h1),
+  .article-prose h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #d5b618;
+    margin: 2.5rem 0 1rem;
+    text-shadow: 0 0 16px rgba(213, 182, 24, 0.25);
+    line-height: 1.3;
+  }
+
+  .article-prose :global(h2),
+  .article-prose h2 {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #a855f7;
+    margin: 2rem 0 0.85rem;
+    line-height: 1.35;
+  }
+
+  .article-prose :global(h3),
+  .article-prose h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #06b6d4;
+    margin: 1.75rem 0 0.7rem;
+    line-height: 1.4;
+  }
+
+  .article-prose :global(h4),
+  .article-prose h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 1.5rem 0 0.6rem;
+  }
+
+  .article-prose :global(p),
+  .article-prose p {
+    margin: 0 0 1.3rem;
+  }
+
+  .article-prose :global(p:last-child),
+  .article-prose p:last-child {
+    margin-bottom: 0;
+  }
+
+  .article-prose :global(blockquote),
+  .article-prose blockquote {
+    border-left: 4px solid #a855f7;
+    background: rgba(168, 85, 247, 0.07);
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0 10px 10px 0;
+    color: rgba(255, 255, 255, 0.75);
+    font-style: italic;
+  }
+
+  .article-prose :global(code),
+  .article-prose code {
+    background: rgba(168, 85, 247, 0.12);
+    color: #c084fc;
+    padding: 0.15em 0.4em;
+    border-radius: 5px;
+    font-size: 0.88em;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  .article-prose :global(pre),
+  .article-prose pre {
+    background: rgba(10, 10, 18, 0.8);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 10px;
+    padding: 1.25rem;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+
+  .article-prose :global(pre code),
+  .article-prose pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .article-prose :global(ul),
+  .article-prose :global(ol),
+  .article-prose ul,
+  .article-prose ol {
+    padding-left: 1.75rem;
+    margin: 0.75rem 0 1.25rem;
+  }
+
+  .article-prose :global(li),
+  .article-prose li {
+    margin-bottom: 0.4rem;
+  }
+
+  .article-prose a,
+  .article-prose a:link,
+  .article-prose a:visited {
+    color: #c084fc !important;
+    text-decoration: underline;
+    text-decoration-color: rgba(168, 85, 247, 0.4);
+    transition: color 0.18s ease, text-decoration-color 0.18s ease;
+  }
+
+  .article-prose a:hover {
+    color: #d8b4fe !important;
+    text-decoration-color: rgba(192, 132, 252, 0.8);
+  }
+
+  .article-prose :global(hr),
+  .article-prose hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.4), transparent);
+    margin: 2.5rem 0;
+  }
+
+  .article-prose :global(img),
+  .article-prose img {
+    max-width: 100%;
+    border-radius: 10px;
+    margin: 1rem auto;
+    display: block;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .article-prose :global(table),
+  .article-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.92rem;
+  }
+
+  .article-prose :global(th),
+  .article-prose th {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    font-weight: 600;
+    padding: 0.65rem 1rem;
+    text-align: left;
+    border-bottom: 2px solid rgba(168, 85, 247, 0.3);
+  }
+
+  .article-prose :global(td),
+  .article-prose td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .article-prose :global(tr:hover td),
+  .article-prose tr:hover td {
+    background: rgba(168, 85, 247, 0.05);
+  }
+
+  /* GitBook Hints */
+  .article-prose .hint {
+    margin: 1rem 0;
+  }
+
+  .article-prose .hint p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  /* GitBook Tabs */
+  .article-prose .tabs-container {
+    margin: 1.5rem 0;
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .article-prose .tabs-header {
+    display: flex;
+    background: rgba(168, 85, 247, 0.08);
+    border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+    overflow-x: auto;
+  }
+
+  .article-prose .tab-btn {
+    padding: 0.55rem 1.25rem;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .article-prose .tab-btn:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(168, 85, 247, 0.05);
+  }
+
+  .article-prose .tab-btn.active {
+    color: #c084fc;
+    border-bottom-color: #a855f7;
+    font-weight: 600;
+  }
+
+  .article-prose .tabs-body {
+    padding: 1rem 1.25rem;
+  }
+
+  .article-prose .tab-panel {
+    display: none;
+  }
+
+  .article-prose .tab-panel:first-child {
+    display: block;
+  }
+
+  .article-prose .tab-label {
+    display: none;
+  }
+
+  /* GitBook Card Grid */
+  .article-prose .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+
+  .article-prose .content-card {
+    padding: 1rem 1.25rem;
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 10px;
+    text-align: center;
+    transition: all 0.2s;
+  }
+
+  .article-prose .content-card:hover {
+    border-color: rgba(168, 85, 247, 0.5);
+    background: rgba(168, 85, 247, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.15);
+  }
+
+  .article-prose .content-card strong {
+    color: #c084fc;
+    font-size: 0.95rem;
+  }
+
+  .article-prose .card-link {
+    text-decoration: none !important;
+  }
+
+  .empty-notice {
+    color: rgba(255, 255, 255, 0.35);
+    font-style: italic;
+    text-align: center;
+    padding: 3rem 0;
+    font-size: 0.95rem;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE NAV (prev / next)
+  ═══════════════════════════════════════════════════════ */
+  .page-nav {
+    display: flex;
+    gap: 1rem;
+    max-width: 750px;
+    margin: 2.5rem auto 0;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(168, 85, 247, 0.15);
+  }
+
+  .page-nav-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+    background: rgba(168, 85, 247, 0.07);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 12px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+  }
+
+  .page-nav-btn.next {
+    text-align: right;
+    justify-content: flex-end;
+  }
+
+  .page-nav-btn:hover:not(:disabled) {
+    background: rgba(168, 85, 247, 0.15);
+    border-color: rgba(168, 85, 247, 0.45);
+    color: #c084fc;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.18);
+  }
+
+  .page-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .nav-arrow-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .page-nav-btn:hover:not(:disabled) .nav-arrow-icon { transform: translateX(-3px); }
+  .page-nav-btn.next:hover:not(:disabled) .nav-arrow-icon { transform: translateX(3px); }
+
+  .page-nav-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .nav-label-hint {
+    font-size: 0.7rem;
+    opacity: 0.5;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .nav-label-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     LOADING SPINNER
+  ═══════════════════════════════════════════════════════ */
+  .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(168, 85, 247, 0.2);
+    border-top-color: #a855f7;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .loading-spinner.large {
+    width: 36px;
+    height: 36px;
+    border-width: 3px;
+    margin-bottom: 0.5rem;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     UTILITY
+  ═══════════════════════════════════════════════════════ */
+  .hidden {
+    display: none !important;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     RESPONSIVE
+  ═══════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    .sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 280px;
+      min-width: 280px;
+      z-index: 100;
+      box-shadow: 4px 0 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .sidebar.collapsed {
+      width: 0;
+      min-width: 0;
+    }
+
+    .landing-view {
+      padding: 2rem 1.25rem 2.5rem;
+    }
+
+    .landing-title {
+      font-size: 2.2rem;
+    }
+
+    .landing-desc {
+      font-size: 0.95rem;
+    }
+
+    .zone-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .reading-view {
+      padding: 1.25rem 1.25rem 2.5rem;
+    }
+
+    .article-main-title {
+      font-size: 1.8rem;
+    }
+
+    .page-nav {
+      flex-direction: column;
+    }
+
+    .nav-label-title {
+      max-width: 160px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .landing-title {
+      font-size: 1.8rem;
+    }
+
+    .landing-icon {
+      font-size: 4rem;
+    }
+
+    .article-main-title {
+      font-size: 1.5rem;
+    }
+
+    .article-prose {
+      font-size: 0.95rem;
+    }
+  }
+</style>

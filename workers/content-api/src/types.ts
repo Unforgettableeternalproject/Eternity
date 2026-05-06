@@ -19,7 +19,10 @@ export type BlockType =
   | 'hint'
   | 'spoiler'
   | 'list'
-  | 'audio';
+  | 'audio'
+  | 'rich_text';
+
+export type PageType = 'zone' | 'chapter' | 'arc' | 'section' | 'page';
 
 /** 單一內容區塊 */
 export interface ContentBlock {
@@ -46,6 +49,9 @@ export interface PageRow {
   base_content_hash: string | null;
   status: PageStatus;
   metadata: string;      // JSON string
+  parent_id: string | null;
+  depth: number;
+  page_type: PageType;
   created_at: string;
   updated_at: string;
 }
@@ -62,8 +68,24 @@ export interface Page {
   baseContentHash: string | null;
   status: PageStatus;
   metadata: Record<string, unknown>;
+  parentId: string | null;
+  depth: number;
+  pageType: PageType;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 樹狀結構的頁面節點 */
+export interface PageTreeNode {
+  id: string;
+  title: string;
+  slug: string;
+  sortOrder: number;
+  pageType: PageType;
+  depth: number;
+  status: PageStatus;
+  metadata: Record<string, unknown>;
+  children: PageTreeNode[];
 }
 
 /** 建立/更新頁面的請求 */
@@ -73,6 +95,9 @@ export interface UpsertPageRequest {
   sortOrder?: number;
   content?: ContentBlock[];
   metadata?: Record<string, unknown>;
+  parentId?: string | null;
+  depth?: number;
+  pageType?: PageType;
 }
 
 /** 匯入頁面的請求（從子倉庫來源） */
@@ -85,6 +110,9 @@ export interface ImportPageRequest {
   content: ContentBlock[];
   sourceFile: string;
   contentHash: string;
+  parentId?: string | null;
+  depth?: number;
+  pageType?: PageType;
   metadata?: Record<string, unknown>;
 }
 
@@ -116,5 +144,8 @@ export interface PageListItem {
   sortOrder: number;
   status: PageStatus;
   sourceFile: string | null;
+  parentId: string | null;
+  depth: number;
+  pageType: PageType;
   updatedAt: string;
 }
