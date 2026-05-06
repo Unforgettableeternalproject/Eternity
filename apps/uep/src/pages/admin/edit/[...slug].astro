@@ -1,0 +1,706 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect('/admin');
+
+const parts = slug.split('/');
+const area = parts[0];
+const pageSlug = parts.slice(1).join('/');
+
+const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+let page: any = null;
+let fetchError: string | null = null;
+
+try {
+  const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+  const json = await res.json();
+  if (json.ok) {
+    page = json.data;
+  } else {
+    fetchError = json.error || 'Page not found';
+  }
+} catch (e: any) {
+  fetchError = e.message || 'Failed to connect to Content API';
+}
+
+const statusLabels: Record<string, string> = {
+  synced: '已同步',
+  modified: '已修改',
+  local_only: '僅本地',
+};
+---
+
+<BaseLayout title={`編輯 - ${page?.title || slug}`}>
+  <div class="editor-container">
+    <div class="editor-toolbar">
+      <a href="/admin" class="back-link">&larr; 返回列表</a>
+      <div class="toolbar-info">
+        <span class="page-id">{slug}</span>
+        {page && (
+          <span class={`status-badge status-${page.status}`}>
+            {statusLabels[page.status] || page.status}
+          </span>
+        )}
+      </div>
+      <div class="toolbar-actions">
+        <button id="saveBtn" class="btn-save" disabled>儲存變更</button>
+      </div>
+    </div>
+
+    {fetchError && (
+      <div class="error-banner">
+        <strong>錯誤</strong>
+        <p>{fetchError}</p>
+      </div>
+    )}
+
+    {page && (
+      <div class="editor-layout">
+        <!-- 標題編輯 -->
+        <div class="title-section">
+          <input
+            type="text"
+            id="pageTitle"
+            value={page.title}
+            placeholder="頁面標題"
+            class="title-input"
+          />
+        </div>
+
+        <!-- 區塊編輯器區域 -->
+        <div class="blocks-editor" id="blocksEditor">
+          {page.content.map((block: any, index: number) => (
+            <div class="block-wrapper" data-block-id={block.id} data-block-index={index}>
+              <div class="block-handle" title="拖曳排序">⋮⋮</div>
+              <div class="block-type-label">{block.type}</div>
+              <div class="block-content">
+                {block.type === 'heading' ? (
+                  <div
+                    class={`block-heading h${block.attrs?.level || 2}`}
+                    contenteditable="true"
+                    data-field="content"
+                  >
+                    {block.content}
+                  </div>
+                ) : block.type === 'divider' ? (
+                  <hr class="block-divider" />
+                ) : block.type === 'image' ? (
+                  <div class="block-image-preview">
+                    <img src={block.content} alt={String(block.attrs?.alt || '')} />
+                    <input
+                      type="text"
+                      value={block.content}
+                      class="image-url-input"
+                      data-field="content"
+                      placeholder="Image URL"
+                    />
+                  </div>
+                ) : block.type === 'blockquote' ? (
+                  <blockquote
+                    class="block-quote"
+                    contenteditable="true"
+                    data-field="content"
+                  >
+                    {block.content}
+                  </blockquote>
+                ) : (
+                  <div
+                    class="block-text"
+                    contenteditable="true"
+                    data-field="content"
+                  >
+                    {block.content}
+                  </div>
+                )}
+              </div>
+              <div class="block-actions">
+                <button class="block-btn block-delete" title="刪除區塊">&times;</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <!-- 新增區塊 -->
+        <div class="add-block-bar">
+          <button class="add-block-btn" data-type="paragraph">+ 段落</button>
+          <button class="add-block-btn" data-type="heading">+ 標題</button>
+          <button class="add-block-btn" data-type="blockquote">+ 引言</button>
+          <button class="add-block-btn" data-type="divider">+ 分隔線</button>
+          <button class="add-block-btn" data-type="hint">+ 提示</button>
+          <button class="add-block-btn" data-type="spoiler">+ 隱藏內容</button>
+        </div>
+
+        <!-- 頁面後設資料 -->
+        <details class="metadata-section">
+          <summary>頁面設定</summary>
+          <div class="metadata-fields">
+            <label>
+              排序順序
+              <input type="number" id="sortOrder" value={page.sortOrder} />
+            </label>
+            {page.sourceFile && (
+              <div class="source-info">
+                <span class="label">來源檔案：</span>
+                <code>{page.sourceFile}</code>
+              </div>
+            )}
+          </div>
+        </details>
+      </div>
+    )}
+  </div>
+</BaseLayout>
+
+<script define:vars={{ page, apiBase, area, pageSlug }}>
+  // 編輯器狀態
+  let isDirty = false;
+  const saveBtn = document.getElementById('saveBtn');
+
+  function markDirty() {
+    isDirty = true;
+    if (saveBtn) saveBtn.disabled = false;
+  }
+
+  // 監聽所有 contenteditable 元素的變更
+  document.querySelectorAll('[contenteditable]').forEach((el) => {
+    el.addEventListener('input', markDirty);
+  });
+
+  // 監聽標題輸入
+  document.getElementById('pageTitle')?.addEventListener('input', markDirty);
+
+  // 收集目前的區塊資料
+  function collectBlocks() {
+    const blocks = [];
+    document.querySelectorAll('.block-wrapper').forEach((wrapper) => {
+      const blockId = wrapper.getAttribute('data-block-id');
+      const typeLabel = wrapper.querySelector('.block-type-label')?.textContent || 'paragraph';
+
+      // 取得內容
+      const contentEl = wrapper.querySelector('[data-field="content"]');
+      let content = '';
+      if (contentEl) {
+        if (contentEl.tagName === 'INPUT') {
+          content = contentEl.value;
+        } else {
+          content = contentEl.textContent || '';
+        }
+      }
+
+      // 保留原有的 attrs
+      const originalBlock = page?.content?.find((b) => b.id === blockId);
+      const attrs = originalBlock?.attrs || {};
+
+      blocks.push({
+        id: blockId,
+        type: typeLabel,
+        content,
+        attrs,
+      });
+    });
+    return blocks;
+  }
+
+  // 新增區塊
+  function generateId() {
+    return 'blk_' + Math.random().toString(36).substring(2, 10);
+  }
+
+  document.querySelectorAll('.add-block-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const type = btn.getAttribute('data-type');
+      const id = generateId();
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'block-wrapper';
+      wrapper.setAttribute('data-block-id', id);
+
+      let contentHtml = '';
+      if (type === 'divider') {
+        contentHtml = '<hr class="block-divider" />';
+      } else if (type === 'heading') {
+        contentHtml = `<div class="block-heading h2" contenteditable="true" data-field="content"></div>`;
+      } else if (type === 'blockquote') {
+        contentHtml = `<blockquote class="block-quote" contenteditable="true" data-field="content"></blockquote>`;
+      } else {
+        contentHtml = `<div class="block-text" contenteditable="true" data-field="content"></div>`;
+      }
+
+      wrapper.innerHTML = `
+        <div class="block-handle" title="拖曳排序">⋮⋮</div>
+        <div class="block-type-label">${type}</div>
+        <div class="block-content">${contentHtml}</div>
+        <div class="block-actions">
+          <button class="block-btn block-delete" title="刪除區塊">&times;</button>
+        </div>
+      `;
+
+      // 綁定事件
+      wrapper.querySelectorAll('[contenteditable]').forEach((el) => {
+        el.addEventListener('input', markDirty);
+      });
+      wrapper.querySelector('.block-delete')?.addEventListener('click', () => {
+        wrapper.remove();
+        markDirty();
+      });
+
+      document.getElementById('blocksEditor')?.appendChild(wrapper);
+      markDirty();
+
+      // 自動 focus 新區塊
+      const editable = wrapper.querySelector('[contenteditable]');
+      if (editable) editable.focus();
+    });
+  });
+
+  // 刪除區塊
+  document.querySelectorAll('.block-delete').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      btn.closest('.block-wrapper')?.remove();
+      markDirty();
+    });
+  });
+
+  // 儲存
+  saveBtn?.addEventListener('click', async () => {
+    if (!isDirty) return;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = '儲存中...';
+
+    try {
+      const title = document.getElementById('pageTitle')?.value || '';
+      const sortOrder = parseInt(document.getElementById('sortOrder')?.value || '0', 10);
+      const content = collectBlocks();
+
+      const token = ''; // 開發模式不需要 token
+      const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ title, sortOrder, content }),
+      });
+
+      const json = await res.json();
+      if (json.ok) {
+        isDirty = false;
+        saveBtn.textContent = '已儲存';
+        setTimeout(() => {
+          saveBtn.textContent = '儲存變更';
+        }, 2000);
+      } else {
+        throw new Error(json.error || 'Save failed');
+      }
+    } catch (e) {
+      saveBtn.textContent = '儲存失敗';
+      saveBtn.disabled = false;
+      console.error('Save error:', e);
+      setTimeout(() => {
+        saveBtn.textContent = '儲存變更';
+      }, 3000);
+    }
+  });
+
+  // 離開前提示
+  window.addEventListener('beforeunload', (e) => {
+    if (isDirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+</script>
+
+<style>
+  .editor-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem 2rem 4rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* 工具列 */
+  .editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: rgba(26, 26, 46, 0.8);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    position: sticky;
+    top: 1rem;
+    z-index: 100;
+  }
+
+  .back-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: color 0.2s;
+  }
+
+  .back-link:hover {
+    color: var(--gold);
+  }
+
+  .toolbar-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .page-id {
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+    font-size: 0.85rem;
+  }
+
+  .status-badge {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .status-synced {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+  }
+
+  .status-modified {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+  }
+
+  .status-local_only {
+    background: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+  }
+
+  .btn-save {
+    padding: 0.5rem 1.25rem;
+    background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-save:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(213, 182, 24, 0.4);
+  }
+
+  /* 錯誤提示 */
+  .error-banner {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+  }
+
+  .error-banner strong {
+    color: #f87171;
+  }
+
+  .error-banner p {
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 0.5rem;
+  }
+
+  /* 標題編輯 */
+  .title-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .title-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    color: var(--gold);
+    font-size: 1.5rem;
+    font-weight: 700;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .title-input:focus {
+    border-color: var(--gold);
+  }
+
+  /* 區塊編輯器 */
+  .blocks-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .block-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .block-wrapper:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--glass-border);
+  }
+
+  .block-handle {
+    color: rgba(255, 255, 255, 0.2);
+    cursor: grab;
+    padding: 0.25rem;
+    user-select: none;
+    font-size: 0.85rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 0.35rem;
+  }
+
+  .block-handle:hover {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .block-type-label {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    width: 70px;
+    margin-top: 0.4rem;
+  }
+
+  .block-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .block-text,
+  .block-quote,
+  .block-heading {
+    outline: none;
+    color: var(--text-primary);
+    line-height: 1.7;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    min-height: 1.5em;
+  }
+
+  .block-text:focus,
+  .block-quote:focus,
+  .block-heading:focus {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .block-heading.h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--gold);
+  }
+
+  .block-heading.h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--purple-light);
+  }
+
+  .block-heading.h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--cyan);
+  }
+
+  .block-quote {
+    border-left: 3px solid var(--gold);
+    padding-left: 1rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-style: italic;
+  }
+
+  .block-divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(213, 182, 24, 0.4), transparent);
+    margin: 0.5rem 0;
+  }
+
+  .block-image-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+  }
+
+  .image-url-input {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-family: monospace;
+    outline: none;
+  }
+
+  .block-actions {
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .block-wrapper:hover .block-actions {
+    opacity: 1;
+  }
+
+  .block-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 0.25rem;
+    font-size: 1.1rem;
+    transition: color 0.2s;
+  }
+
+  .block-delete:hover {
+    color: #ef4444;
+  }
+
+  /* 新增區塊列 */
+  .add-block-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed var(--glass-border);
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .add-block-btn {
+    padding: 0.35rem 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .add-block-btn:hover {
+    background: rgba(213, 182, 24, 0.15);
+    border-color: rgba(213, 182, 24, 0.3);
+    color: var(--gold);
+  }
+
+  /* 頁面設定 */
+  .metadata-section {
+    background: rgba(26, 26, 46, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+  }
+
+  .metadata-section summary {
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .metadata-section summary:hover {
+    color: var(--text-primary);
+  }
+
+  .metadata-fields {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .metadata-fields label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .metadata-fields input[type="number"] {
+    width: 80px;
+    padding: 0.35rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .source-info {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  .source-info .label {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .source-info code {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 768px) {
+    .editor-container {
+      padding: 0.5rem 1rem 3rem;
+    }
+
+    .editor-toolbar {
+      flex-direction: column;
+      gap: 0.75rem;
+      position: static;
+    }
+
+    .block-type-label {
+      display: none;
+    }
+
+    .block-handle {
+      display: none;
+    }
+
+    .add-block-bar {
+      justify-content: center;
+    }
+  }
+</style>

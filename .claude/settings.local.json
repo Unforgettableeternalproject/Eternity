@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:/Users/Bernie/source/repos/Unforgettableeternalproject/Eternity/workers/content-api/src\")",
+      "Bash(mkdir -p \"C:/Users/Bernie/source/repos/Unforgettableeternalproject/Eternity/workers/content-api/migrations\")",
+      "Bash(pnpm install:*)",
+      "Bash(npx wrangler:*)",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__accounts_list",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__set_active_account",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__d1_database_create",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__d1_database_query",
+      "Bash(nvm --version)",
+      "Bash(fnm --version)",
+      "Bash(volta --version)",
+      "Bash(curl:*)",
+      "Bash(python3 -c \"import sys,json; print\\(json.dumps\\(json.load\\(sys.stdin\\),ensure_ascii=False,indent=2\\)\\)\")",
+      "Bash(powershell:*)",
+      "Bash(node -e ':*)"
+    ]
+  }
+}

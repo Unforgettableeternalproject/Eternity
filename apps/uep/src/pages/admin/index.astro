@@ -1,0 +1,402 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export const prerender = false;
+
+// 從 API 取得同步狀態和頁面列表
+const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+let syncStatus: any = null;
+let areas: Record<string, any[]> = {};
+let fetchError: string | null = null;
+
+try {
+  // 取得同步狀態
+  const statusRes = await fetch(`${apiBase}/api/content/sync/status`);
+  const statusJson = await statusRes.json();
+  if (statusJson.ok) syncStatus = statusJson.data;
+
+  // 取得各區域的頁面列表
+  const areaNames = ['history', 'echos', 'visuals', 'concepts', 'storage', 'portal'];
+  for (const area of areaNames) {
+    try {
+      const res = await fetch(`${apiBase}/api/content/${area}`);
+      const json = await res.json();
+      if (json.ok && json.data?.length > 0) {
+        areas[area] = json.data;
+      }
+    } catch {
+      // 該區域尚無內容，跳過
+    }
+  }
+} catch (e: any) {
+  fetchError = e.message || 'Failed to connect to Content API';
+}
+
+const areaLabels: Record<string, string> = {
+  history: '歷史典藏庫',
+  echos: '回音蒐藏間',
+  visuals: '幻影重現室',
+  concepts: '概念調整房',
+  storage: '某人的置物空間',
+  portal: '外部基軸大廳',
+};
+
+const statusLabels: Record<string, string> = {
+  synced: '已同步',
+  modified: '已修改',
+  local_only: '僅本地',
+};
+
+const statusColors: Record<string, string> = {
+  synced: '#22c55e',
+  modified: '#f59e0b',
+  local_only: '#a855f7',
+};
+---
+
+<BaseLayout title="內容管理 - U.E.P Admin">
+  <div class="admin-container">
+    <div class="admin-header">
+      <h1>內容管理後台</h1>
+      <p class="admin-desc">管理邊際世界的文件內容</p>
+    </div>
+
+    {fetchError && (
+      <div class="error-banner">
+        <strong>無法連線到 Content API</strong>
+        <p>{fetchError}</p>
+        <p class="hint">請確認 content-api Worker 是否正在運行（預設 port 8788）</p>
+      </div>
+    )}
+
+    {!fetchError && (
+      <>
+        <!-- 同步狀態總覽 -->
+        <section class="status-section">
+          <h2>同步狀態</h2>
+          <div class="status-grid">
+            {syncStatus?.pageCounts?.length > 0 ? (
+              syncStatus.pageCounts.map((item: any) => (
+                <div class="status-card">
+                  <span class="status-area">{areaLabels[item.area] || item.area}</span>
+                  <span class="status-badge" style={`color: ${statusColors[item.status] || '#fff'}`}>
+                    {statusLabels[item.status] || item.status}
+                  </span>
+                  <span class="status-count">{item.count} 頁</span>
+                </div>
+              ))
+            ) : (
+              <p class="empty-hint">尚無已匯入的內容。請先執行匯入操作。</p>
+            )}
+          </div>
+
+          {syncStatus?.pendingUpdates?.length > 0 && (
+            <div class="pending-updates">
+              <h3>待處理的來源更新</h3>
+              {syncStatus.pendingUpdates.map((page: any) => (
+                <div class="pending-item">
+                  <span>{page.title || page.id}</span>
+                  <a href={`/admin/edit/${page.id}`} class="btn-small">檢視差異</a>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <!-- 各區域內容列表 -->
+        <section class="content-section">
+          <h2>內容管理</h2>
+          {Object.keys(areaLabels).map((area) => (
+            <div class="area-group">
+              <div class="area-header">
+                <h3>{areaLabels[area]}</h3>
+                <span class="page-count">
+                  {areas[area]?.length || 0} 頁
+                </span>
+              </div>
+
+              {areas[area]?.length > 0 ? (
+                <div class="page-list">
+                  {areas[area].map((page: any) => (
+                    <a href={`/admin/edit/${page.id}`} class="page-item">
+                      <div class="page-info">
+                        <span class="page-title">{page.title || page.slug}</span>
+                        <span class="page-slug">{page.id}</span>
+                      </div>
+                      <div class="page-meta">
+                        <span
+                          class="status-dot"
+                          style={`background: ${statusColors[page.status] || '#666'}`}
+                          title={statusLabels[page.status] || page.status}
+                        />
+                        <span class="page-date">
+                          {new Date(page.updatedAt).toLocaleDateString('zh-TW')}
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <p class="empty-area">此區域尚無內容</p>
+              )}
+            </div>
+          ))}
+        </section>
+      </>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  .admin-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  .admin-header {
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+
+  .admin-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--gold), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+  }
+
+  .admin-desc {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+  }
+
+  /* 錯誤提示 */
+  .error-banner {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .error-banner strong {
+    color: #f87171;
+    font-size: 1.1rem;
+  }
+
+  .error-banner p {
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 0.5rem;
+  }
+
+  .error-banner .hint {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  /* 狀態區塊 */
+  .status-section,
+  .content-section {
+    background: rgba(26, 26, 46, 0.6);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .status-section h2,
+  .content-section h2 {
+    color: var(--gold);
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(213, 182, 24, 0.2);
+  }
+
+  .status-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .status-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .status-area {
+    color: var(--text-secondary);
+  }
+
+  .status-badge {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .status-count {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+  }
+
+  .empty-hint {
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+  }
+
+  /* 待處理更新 */
+  .pending-updates {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .pending-updates h3 {
+    color: #f59e0b;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .pending-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    color: var(--text-secondary);
+  }
+
+  .btn-small {
+    padding: 0.25rem 0.75rem;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 6px;
+    color: #f59e0b;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .btn-small:hover {
+    background: rgba(245, 158, 11, 0.3);
+  }
+
+  /* 區域內容列表 */
+  .area-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .area-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .area-header h3 {
+    color: var(--purple-light);
+    font-size: 1.15rem;
+  }
+
+  .page-count {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.85rem;
+  }
+
+  .page-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .page-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .page-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--glass-border);
+  }
+
+  .page-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .page-title {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .page-slug {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    font-family: monospace;
+  }
+
+  .page-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .page-date {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+  }
+
+  .empty-area {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.9rem;
+    font-style: italic;
+    padding: 0.5rem 0;
+  }
+
+  @media (max-width: 768px) {
+    .admin-container {
+      padding: 1rem;
+    }
+
+    .admin-header h1 {
+      font-size: 1.8rem;
+    }
+
+    .status-grid {
+      flex-direction: column;
+    }
+
+    .page-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+  }
+</style>
