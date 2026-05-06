@@ -1,27 +1,8 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import AreaPage from '../components/AreaPage.astro';
-import { loadSummary, extractDirectChildren } from '../utils/summary';
-import { join } from 'node:path';
-
-const contentDir = join(process.cwd(), 'content');
-const navigation = loadSummary(contentDir);
-
-const visualsPages = extractDirectChildren(navigation, 'visuals').map(route => ({
-  slug: route.slug,
-  title: route.title,
-  level: route.level
-}));
+import DesignLayout from '../layouts/DesignLayout.astro';
+import ZoneEntryPage from '../components/zone/ZoneEntryPage';
 ---
 
-<BaseLayout title="幻影重現室 - 邊際世界">
-  <AreaPage
-    icon="�"
-    title="幻影重現室"
-    description="你似乎來到了一座美術館。<br>無數幅令人驚豔的畫作掛在牆壁上，他們似乎還有生命，會隨著你的移動而改變。<br>這裡還有許多懸浮的螢幕，播放著迷人的影像。"
-    themeColor="#ec4899"
-    workingImage="/uep/Peek.png"
-    pages={visualsPages}
-  />
-</BaseLayout>
-
+<DesignLayout title="幻影重現室 - 邊際世界" zone="visuals">
+  <ZoneEntryPage client:load zoneId="visuals" />
+</DesignLayout>

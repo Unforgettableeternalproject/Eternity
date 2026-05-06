@@ -1,9 +1,9 @@
 ---
 export const prerender = false;
-import BaseLayout from '../layouts/BaseLayout.astro';
+import DesignLayout from '../layouts/DesignLayout.astro';
 ---
 
-<BaseLayout title="歷史典藏庫 - 邊際世界">
+<DesignLayout title="歷史典藏庫 - 邊際世界" zone="history">
   <!-- Full-viewport reader shell, sits inside BaseLayout's <main> -->
   <div class="reader-shell" id="readerShell">
 
@@ -146,7 +146,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     </div><!-- /content-area -->
   </div><!-- /reader-shell -->
-</BaseLayout>
+</DesignLayout>
 
 <!-- ═══════════════════════════════════════════════════════
      CLIENT-SIDE LOGIC
@@ -684,20 +684,11 @@ function restoreFromURL() {
 fetchTree().then(restoreFromURL);
 </script>
 
-<!-- Override BaseLayout's main constraints for this full-viewport reader page -->
+<!-- Override layout constraints for full-viewport reader -->
 <style is:global>
-  /* Make main fill full width and height for the reader layout */
-  body:has(.reader-shell) main {
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    /* Remove the fadeIn animation offset so reader shell starts flush */
-    animation: none !important;
-  }
-
-  /* Hide footer on the reader page so content is truly full-height */
-  body:has(.reader-shell) footer {
-    display: none !important;
+  /* Reader shell fills full viewport */
+  body:has(.reader-shell) {
+    overflow: hidden;
   }
 </style>
 
@@ -707,30 +698,25 @@ fetchTree().then(restoreFromURL);
   ═══════════════════════════════════════════════════════ */
   .reader-shell {
     display: flex;
-    /* Fill the remaining viewport height below the sticky navbar */
-    height: calc(100vh - 73px);
+    height: 100vh;
     overflow: hidden;
     position: relative;
-  }
-
-  @media (max-width: 768px) {
-    .reader-shell {
-      height: calc(100vh - 130px);
-    }
+    background: var(--bg, #14151A);
+    color: var(--ink, #ECE9DF);
+    font-family: var(--font-sans, system-ui, sans-serif);
   }
 
   /* ═══════════════════════════════════════════════════════
      SIDEBAR
   ═══════════════════════════════════════════════════════ */
   .sidebar {
-    width: 300px;
-    min-width: 300px;
+    width: 260px;
+    min-width: 260px;
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: rgba(10, 10, 18, 0.85);
-    backdrop-filter: blur(24px) saturate(160%);
-    border-right: 1px solid rgba(168, 85, 247, 0.2);
+    background: var(--bg-soft, #1B1D24);
+    border-right: 1px solid var(--line, rgba(255,255,255,0.08));
     transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
                 min-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
                 opacity 0.25s ease;
@@ -751,13 +737,13 @@ fetchTree().then(restoreFromURL);
     left: 0;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(168, 85, 247, 0.25);
-    border: 1px solid rgba(168, 85, 247, 0.5);
+    background: var(--history-tint);
+    border: 1px solid var(--history-stroke);
     border-left: none;
     border-radius: 0 12px 12px 0;
     padding: 0.75rem 0.5rem;
     cursor: pointer;
-    color: #c084fc;
+    color: var(--history-soft);
     font-size: 1.4rem;
     z-index: 20;
     opacity: 0;
@@ -777,7 +763,7 @@ fetchTree().then(restoreFromURL);
     align-items: center;
     justify-content: space-between;
     padding: 1rem 1rem 0.75rem;
-    border-bottom: 1px solid rgba(168, 85, 247, 0.15);
+    border-bottom: 1px solid var(--line, rgba(255,255,255,0.08));
     flex-shrink: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -804,21 +790,23 @@ fetchTree().then(restoreFromURL);
   .sidebar-title {
     font-size: 0.95rem;
     font-weight: 700;
-    color: #c084fc;
+    color: var(--history-main, #6B3F2A);
     letter-spacing: 0.03em;
+    font-family: var(--font-serif-tc, serif);
   }
 
   .sidebar-subtitle {
     font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-mute, var(--ink-mute));
     letter-spacing: 0.08em;
+    font-family: var(--font-mono, monospace);
   }
 
   .sidebar-toggle {
-    background: rgba(168, 85, 247, 0.12);
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: var(--line);
+    border: 1px solid var(--line-strong);
     border-radius: 8px;
-    color: #c084fc;
+    color: var(--history-soft);
     cursor: pointer;
     width: 28px;
     height: 28px;
@@ -830,7 +818,7 @@ fetchTree().then(restoreFromURL);
   }
 
   .sidebar-toggle:hover {
-    background: rgba(168, 85, 247, 0.25);
+    background: var(--history-tint);
     transform: scale(1.1);
   }
 
@@ -850,7 +838,7 @@ fetchTree().then(restoreFromURL);
     padding: 0.6rem 0.75rem;
     margin: 0.6rem 0.75rem;
     background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    border: 1px solid var(--line);
     border-radius: 10px;
     flex-shrink: 0;
     white-space: nowrap;
@@ -866,14 +854,14 @@ fetchTree().then(restoreFromURL);
     background: none;
     border: none;
     outline: none;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--ink);
     font-size: 0.85rem;
     width: 100%;
     min-width: 0;
   }
 
   .search-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--ink-mute);
   }
 
   /* Tree status */
@@ -887,7 +875,7 @@ fetchTree().then(restoreFromURL);
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-mute);
     font-size: 0.85rem;
     padding: 0.5rem;
   }
@@ -897,10 +885,10 @@ fetchTree().then(restoreFromURL);
   }
 
   .retry-btn {
-    background: rgba(168, 85, 247, 0.2);
-    border: 1px solid rgba(168, 85, 247, 0.4);
+    background: var(--line);
+    border: 1px solid var(--history-stroke);
     border-radius: 6px;
-    color: #c084fc;
+    color: var(--history-soft);
     cursor: pointer;
     font-size: 0.75rem;
     padding: 0.25rem 0.6rem;
@@ -919,7 +907,7 @@ fetchTree().then(restoreFromURL);
     overflow-x: hidden;
     padding: 0.25rem 0 1rem;
     scrollbar-width: thin;
-    scrollbar-color: rgba(168, 85, 247, 0.3) transparent;
+    scrollbar-color: var(--line-strong) transparent;
   }
 
   .tree-nav::-webkit-scrollbar {
@@ -927,7 +915,7 @@ fetchTree().then(restoreFromURL);
   }
 
   .tree-nav::-webkit-scrollbar-thumb {
-    background: rgba(168, 85, 247, 0.3);
+    background: var(--line-strong);
     border-radius: 2px;
   }
 
@@ -953,7 +941,7 @@ fetchTree().then(restoreFromURL);
     border: none;
     border-left: 3px solid transparent;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--ink);
     font-size: 0.875rem;
     text-align: left;
     transition: all 0.18s ease;
@@ -964,15 +952,15 @@ fetchTree().then(restoreFromURL);
 
   .tree-toggle:hover,
   .tree-leaf:hover {
-    background: rgba(168, 85, 247, 0.1);
-    color: #c084fc;
-    border-left-color: rgba(168, 85, 247, 0.4);
+    background: var(--history-tint);
+    color: var(--history-soft);
+    border-left-color: var(--history-stroke);
   }
 
   .tree-leaf.active {
-    background: rgba(168, 85, 247, 0.18);
-    color: #c084fc;
-    border-left-color: #a855f7;
+    background: var(--history-tint);
+    color: var(--history-soft);
+    border-left-color: var(--history-main);
     font-weight: 600;
   }
 
@@ -983,7 +971,7 @@ fetchTree().then(restoreFromURL);
     top: 0;
     bottom: 0;
     width: 3px;
-    background: #a855f7;
+    background: var(--history-main);
     border-radius: 3px 0 0 3px;
   }
 
@@ -1014,13 +1002,13 @@ fetchTree().then(restoreFromURL);
     background: none;
     border: none;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-mute);
     padding: 0.4rem 0;
     transition: color 0.15s;
   }
 
   .tree-chevron-btn:hover {
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--ink);
   }
 
   .tree-group-title {
@@ -1035,7 +1023,7 @@ fetchTree().then(restoreFromURL);
 
   .tree-children {
     padding-left: 0.85rem;
-    border-left: 1px solid rgba(168, 85, 247, 0.12);
+    border-left: 1px solid var(--line);
     margin-left: 1.1rem;
   }
 
@@ -1043,7 +1031,7 @@ fetchTree().then(restoreFromURL);
   .tree-item[data-depth="0"] > .tree-row > .tree-toggle {
     font-weight: 700;
     font-size: 0.92rem;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--ink-title);
     border-left-color: rgba(213, 182, 24, 0.5);
     padding-top: 0.65rem;
     padding-bottom: 0.65rem;
@@ -1052,11 +1040,11 @@ fetchTree().then(restoreFromURL);
   .tree-item[data-depth="0"]:not(:first-child) {
     margin-top: 0.4rem;
     padding-top: 0.4rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--line);
   }
 
   .tree-item[data-depth="1"] > .tree-row > .tree-toggle {
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--ink);
     font-weight: 600;
   }
 
@@ -1080,7 +1068,7 @@ fetchTree().then(restoreFromURL);
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
-    scrollbar-color: rgba(168, 85, 247, 0.25) transparent;
+    scrollbar-color: var(--history-tint) transparent;
     position: relative;
   }
 
@@ -1089,7 +1077,7 @@ fetchTree().then(restoreFromURL);
   }
 
   .content-area::-webkit-scrollbar-thumb {
-    background: rgba(168, 85, 247, 0.25);
+    background: var(--history-tint);
     border-radius: 3px;
   }
 
@@ -1127,7 +1115,7 @@ fetchTree().then(restoreFromURL);
   .orb-1 {
     width: 500px;
     height: 500px;
-    background: radial-gradient(circle, #a855f7, transparent);
+    background: radial-gradient(circle, var(--history-main), transparent);
     top: -100px;
     left: -150px;
     animation-delay: 0s;
@@ -1136,7 +1124,7 @@ fetchTree().then(restoreFromURL);
   .orb-2 {
     width: 350px;
     height: 350px;
-    background: radial-gradient(circle, #d5b618, transparent);
+    background: radial-gradient(circle, var(--history-soft), transparent);
     bottom: 50px;
     right: -80px;
     animation-delay: -4s;
@@ -1145,7 +1133,7 @@ fetchTree().then(restoreFromURL);
   .orb-3 {
     width: 250px;
     height: 250px;
-    background: radial-gradient(circle, #06b6d4, transparent);
+    background: radial-gradient(circle, var(--uep-gold), transparent);
     top: 200px;
     right: 50px;
     animation-delay: -8s;
@@ -1173,7 +1161,7 @@ fetchTree().then(restoreFromURL);
   .landing-icon-glow {
     position: absolute;
     inset: -40px;
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);
+    background: radial-gradient(circle, var(--history-stroke) 0%, transparent 70%);
     border-radius: 50%;
     animation: glowPulse 3s ease-in-out infinite;
   }
@@ -1193,14 +1181,10 @@ fetchTree().then(restoreFromURL);
 
   /* Title */
   .landing-title {
+    font-family: var(--font-display);
     font-size: 3.2rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, #d5b618 0%, #a855f7 50%, #c084fc 100%);
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: titleGradient 6s ease infinite;
+    font-weight: 600;
+    color: var(--ink-title);
     margin-bottom: 1.25rem;
     letter-spacing: -0.02em;
   }
@@ -1214,7 +1198,7 @@ fetchTree().then(restoreFromURL);
   .landing-desc {
     font-size: 1.05rem;
     line-height: 2;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-soft);
     margin-bottom: 2rem;
   }
 
@@ -1230,13 +1214,13 @@ fetchTree().then(restoreFromURL);
   .divider-line {
     flex: 1;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.5), transparent);
+    background: linear-gradient(90deg, transparent, var(--history-stroke), transparent);
   }
 
   .divider-gem {
-    color: #a855f7;
+    color: var(--history-main);
     font-size: 0.75rem;
-    filter: drop-shadow(0 0 6px #a855f7);
+    filter: drop-shadow(0 0 6px var(--history-main));
     animation: gemSpin 8s linear infinite;
   }
 
@@ -1251,7 +1235,7 @@ fetchTree().then(restoreFromURL);
     align-items: center;
     justify-content: center;
     gap: 0.6rem;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--ink-mute);
     font-size: 0.9rem;
     margin-bottom: 3rem;
     font-style: italic;
@@ -1280,7 +1264,7 @@ fetchTree().then(restoreFromURL);
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-mute);
     font-size: 0.9rem;
     padding: 2rem;
   }
@@ -1290,8 +1274,8 @@ fetchTree().then(restoreFromURL);
     align-items: center;
     gap: 0.85rem;
     padding: 1rem 1.25rem;
-    background: rgba(168, 85, 247, 0.07);
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
     border-radius: 14px;
     cursor: pointer;
     transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1303,15 +1287,15 @@ fetchTree().then(restoreFromURL);
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), transparent);
+    background: linear-gradient(135deg, var(--history-tint), transparent);
     opacity: 0;
     transition: opacity 0.2s ease;
   }
 
   .zone-card:hover {
-    border-color: rgba(168, 85, 247, 0.5);
+    border-color: var(--history-stroke);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(168, 85, 247, 0.2);
+    box-shadow: 0 8px 24px var(--line);
   }
 
   .zone-card:hover::before { opacity: 1; }
@@ -1319,7 +1303,7 @@ fetchTree().then(restoreFromURL);
   .zone-card-icon {
     font-size: 1.8rem;
     flex-shrink: 0;
-    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.5));
+    filter: drop-shadow(0 0 8px var(--history-stroke));
   }
 
   .zone-card-body {
@@ -1330,29 +1314,29 @@ fetchTree().then(restoreFromURL);
   .zone-card-title {
     font-size: 0.95rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--ink-title);
     margin-bottom: 0.2rem;
   }
 
   .zone-card-meta {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-mute);
   }
 
   .zone-card-arrow {
     font-size: 1.4rem;
-    color: rgba(168, 85, 247, 0.5);
+    color: var(--history-stroke);
     flex-shrink: 0;
     transition: transform 0.2s ease, color 0.2s ease;
   }
 
   .zone-card:hover .zone-card-arrow {
     transform: translateX(4px);
-    color: #a855f7;
+    color: var(--history-main);
   }
 
   .zone-empty {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-mute);
     font-size: 0.9rem;
     text-align: center;
     padding: 2rem;
@@ -1381,24 +1365,27 @@ fetchTree().then(restoreFromURL);
     align-items: center;
     flex-wrap: wrap;
     gap: 0.25rem;
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.4);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
     margin-bottom: 1.5rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid rgba(168, 85, 247, 0.12);
+    border-bottom: 1px solid var(--line);
   }
 
   .crumb {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-mute);
   }
 
   .crumb.active {
-    color: #c084fc;
+    color: var(--history-main);
     font-weight: 600;
   }
 
   .crumb-sep {
-    color: rgba(255, 255, 255, 0.2);
+    color: var(--line-strong);
     padding: 0 0.2rem;
   }
 
@@ -1420,7 +1407,7 @@ fetchTree().then(restoreFromURL);
     justify-content: center;
     gap: 0.75rem;
     padding: 4rem 2rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-mute);
     font-size: 0.9rem;
     text-align: center;
   }
@@ -1429,24 +1416,25 @@ fetchTree().then(restoreFromURL);
   .article-header {
     margin-bottom: 2.5rem;
     padding-bottom: 1.5rem;
-    border-bottom: 2px solid rgba(168, 85, 247, 0.2);
+    border-bottom: 1px solid var(--line);
   }
 
   .article-main-title {
+    font-family: var(--font-display, Georgia, serif);
     font-size: 2.4rem;
-    font-weight: 800;
-    color: #d5b618;
-    text-shadow: 0 0 30px rgba(213, 182, 24, 0.3);
+    font-weight: 600;
+    color: var(--ink-title, #fff);
     line-height: 1.25;
     display: flex;
     align-items: baseline;
     gap: 0.75rem;
+    letter-spacing: -0.01em;
   }
 
   .article-subtitle {
     margin-top: 0.5rem;
     font-size: 1rem;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--ink-mute);
     font-style: italic;
     letter-spacing: 0.02em;
     flex-wrap: wrap;
@@ -1476,45 +1464,50 @@ fetchTree().then(restoreFromURL);
 
   /* Article prose */
   .article-prose {
-    line-height: 1.85;
-    color: rgba(255, 255, 255, 0.88);
-    font-size: 1rem;
+    line-height: 2;
+    color: var(--ink, #ECE9DF);
+    font-size: 17px;
+    font-family: var(--font-serif-tc, serif);
   }
 
   /* Rich HTML content styles */
   .article-prose :global(h1),
   .article-prose h1 {
+    font-family: var(--font-display, Georgia, serif);
     font-size: 2rem;
-    font-weight: 700;
-    color: #d5b618;
+    font-weight: 600;
+    color: var(--ink-title, #fff);
     margin: 2.5rem 0 1rem;
-    text-shadow: 0 0 16px rgba(213, 182, 24, 0.25);
     line-height: 1.3;
   }
 
   .article-prose :global(h2),
   .article-prose h2 {
+    font-family: var(--font-serif-tc, serif);
     font-size: 1.55rem;
-    font-weight: 700;
-    color: #a855f7;
+    font-weight: 600;
+    color: var(--ink-title, #fff);
     margin: 2rem 0 0.85rem;
     line-height: 1.35;
   }
 
   .article-prose :global(h3),
   .article-prose h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #06b6d4;
+    font-family: var(--font-mono, monospace);
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--history-main, #6B3F2A);
     margin: 1.75rem 0 0.7rem;
     line-height: 1.4;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .article-prose :global(h4),
   .article-prose h4 {
     font-size: 1.05rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--ink);
     margin: 1.5rem 0 0.6rem;
   }
 
@@ -1530,19 +1523,20 @@ fetchTree().then(restoreFromURL);
 
   .article-prose :global(blockquote),
   .article-prose blockquote {
-    border-left: 4px solid #a855f7;
-    background: rgba(168, 85, 247, 0.07);
-    padding: 1rem 1.5rem;
-    margin: 1.5rem 0;
-    border-radius: 0 10px 10px 0;
-    color: rgba(255, 255, 255, 0.75);
+    border-left: 3px solid var(--history-main, #6B3F2A);
+    padding: 4px 0 4px 18px;
+    margin: 24px 0;
+    font-family: var(--font-display, Georgia, serif);
     font-style: italic;
+    font-size: 19px;
+    color: var(--history-main, #6B3F2A);
+    line-height: 1.6;
   }
 
   .article-prose :global(code),
   .article-prose code {
-    background: rgba(168, 85, 247, 0.12);
-    color: #c084fc;
+    background: var(--line);
+    color: var(--history-soft);
     padding: 0.15em 0.4em;
     border-radius: 5px;
     font-size: 0.88em;
@@ -1552,7 +1546,7 @@ fetchTree().then(restoreFromURL);
   .article-prose :global(pre),
   .article-prose pre {
     background: rgba(10, 10, 18, 0.8);
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    border: 1px solid var(--line);
     border-radius: 10px;
     padding: 1.25rem;
     overflow-x: auto;
@@ -1564,7 +1558,7 @@ fetchTree().then(restoreFromURL);
     background: none;
     padding: 0;
     border-radius: 0;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--ink);
   }
 
   .article-prose :global(ul),
@@ -1583,14 +1577,14 @@ fetchTree().then(restoreFromURL);
   .article-prose a,
   .article-prose a:link,
   .article-prose a:visited {
-    color: #c084fc !important;
+    color: var(--history-soft) !important;
     text-decoration: underline;
-    text-decoration-color: rgba(168, 85, 247, 0.4);
+    text-decoration-color: var(--history-stroke);
     transition: color 0.18s ease, text-decoration-color 0.18s ease;
   }
 
   .article-prose a:hover {
-    color: #d8b4fe !important;
+    color: var(--history-soft) !important;
     text-decoration-color: rgba(192, 132, 252, 0.8);
   }
 
@@ -1598,7 +1592,7 @@ fetchTree().then(restoreFromURL);
   .article-prose hr {
     border: none;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.4), transparent);
+    background: linear-gradient(90deg, transparent, var(--history-stroke), transparent);
     margin: 2.5rem 0;
   }
 
@@ -1621,24 +1615,24 @@ fetchTree().then(restoreFromURL);
 
   .article-prose :global(th),
   .article-prose th {
-    background: rgba(168, 85, 247, 0.15);
-    color: #c084fc;
+    background: var(--history-tint);
+    color: var(--history-soft);
     font-weight: 600;
     padding: 0.65rem 1rem;
     text-align: left;
-    border-bottom: 2px solid rgba(168, 85, 247, 0.3);
+    border-bottom: 2px solid var(--line-strong);
   }
 
   .article-prose :global(td),
   .article-prose td {
     padding: 0.6rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.8);
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
   }
 
   .article-prose :global(tr:hover td),
   .article-prose tr:hover td {
-    background: rgba(168, 85, 247, 0.05);
+    background: var(--history-tint);
   }
 
   /* GitBook Hints */
@@ -1648,21 +1642,21 @@ fetchTree().then(restoreFromURL);
 
   .article-prose .hint p {
     margin: 0;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--ink);
   }
 
   /* GitBook Tabs */
   .article-prose .tabs-container {
     margin: 1.5rem 0;
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    border: 1px solid var(--line);
     border-radius: 10px;
     overflow: hidden;
   }
 
   .article-prose .tabs-header {
     display: flex;
-    background: rgba(168, 85, 247, 0.08);
-    border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--line);
     overflow-x: auto;
   }
 
@@ -1670,7 +1664,7 @@ fetchTree().then(restoreFromURL);
     padding: 0.55rem 1.25rem;
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ink-soft);
     font-size: 0.85rem;
     cursor: pointer;
     white-space: nowrap;
@@ -1679,13 +1673,13 @@ fetchTree().then(restoreFromURL);
   }
 
   .article-prose .tab-btn:hover {
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(168, 85, 247, 0.05);
+    color: var(--ink-title);
+    background: var(--history-tint);
   }
 
   .article-prose .tab-btn.active {
-    color: #c084fc;
-    border-bottom-color: #a855f7;
+    color: var(--history-soft);
+    border-bottom-color: var(--history-main);
     font-weight: 600;
   }
 
@@ -1715,22 +1709,22 @@ fetchTree().then(restoreFromURL);
 
   .article-prose .content-card {
     padding: 1rem 1.25rem;
-    background: rgba(168, 85, 247, 0.08);
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
     border-radius: 10px;
     text-align: center;
     transition: all 0.2s;
   }
 
   .article-prose .content-card:hover {
-    border-color: rgba(168, 85, 247, 0.5);
-    background: rgba(168, 85, 247, 0.12);
+    border-color: var(--history-stroke);
+    background: var(--line);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.15);
+    box-shadow: 0 6px 20px var(--history-tint);
   }
 
   .article-prose .content-card strong {
-    color: #c084fc;
+    color: var(--history-soft);
     font-size: 0.95rem;
   }
 
@@ -1755,7 +1749,7 @@ fetchTree().then(restoreFromURL);
     max-width: 750px;
     margin: 2.5rem auto 0;
     padding-top: 1.5rem;
-    border-top: 1px solid rgba(168, 85, 247, 0.15);
+    border-top: 1px solid var(--history-tint);
   }
 
   .page-nav-btn {
@@ -1763,14 +1757,16 @@ fetchTree().then(restoreFromURL);
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.85rem 1.25rem;
-    background: rgba(168, 85, 247, 0.07);
-    border: 1px solid rgba(168, 85, 247, 0.2);
-    border-radius: 12px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-soft);
+    font-family: var(--font-sans);
     transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: left;
+    text-decoration: none;
   }
 
   .page-nav-btn.next {
@@ -1779,11 +1775,8 @@ fetchTree().then(restoreFromURL);
   }
 
   .page-nav-btn:hover:not(:disabled) {
-    background: rgba(168, 85, 247, 0.15);
-    border-color: rgba(168, 85, 247, 0.45);
-    color: #c084fc;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.18);
+    border-color: var(--history-stroke);
+    background: var(--bg-soft);
   }
 
   .page-nav-btn:disabled {
@@ -1829,8 +1822,8 @@ fetchTree().then(restoreFromURL);
   .loading-spinner {
     width: 20px;
     height: 20px;
-    border: 2px solid rgba(168, 85, 247, 0.2);
-    border-top-color: #a855f7;
+    border: 2px solid var(--line-strong);
+    border-top-color: var(--history-main);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     flex-shrink: 0;
