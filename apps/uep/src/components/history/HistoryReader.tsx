@@ -1,3 +1,4 @@
+/* global HTMLAnchorElement, PopStateEvent */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
 import BigMapModal from '../ui/BigMapModal';

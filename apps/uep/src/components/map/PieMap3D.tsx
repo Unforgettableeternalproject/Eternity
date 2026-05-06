@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { ZoneData } from '../../data/zones';
 import './PieMap3D.css';
 
