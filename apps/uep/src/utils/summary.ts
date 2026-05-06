@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import rawSummary from '../../content/SUMMARY.md?raw';
 
 export interface NavigationItem {
   title: string;
@@ -14,6 +13,17 @@ export interface PageRoute {
   filePath: string;
   title: string;
   level?: number;
+}
+
+function joinPath(...parts: string[]) {
+  return parts
+    .map((part, index) => {
+      const normalized = part.replace(/\\/g, '/');
+      if (index === 0) return normalized.replace(/\/+$/, '');
+      return normalized.replace(/^\/+|\/+$/g, '');
+    })
+    .filter(Boolean)
+    .join('/');
 }
 
 /**
@@ -99,7 +109,7 @@ export function extractRoutes(navigation: NavigationItem[], baseDir = 'content')
         
         routes.push({
           slug: pathParts,
-          filePath: join(baseDir, item.path),
+          filePath: joinPath(baseDir, item.path),
           title: item.title
         });
       }
@@ -118,9 +128,8 @@ export function extractRoutes(navigation: NavigationItem[], baseDir = 'content')
  * 讀取並解析 SUMMARY.md
  */
 export function loadSummary(contentDir: string) {
-  const summaryPath = join(contentDir, 'SUMMARY.md');
-  const content = readFileSync(summaryPath, 'utf-8');
-  return parseSummary(content);
+  void contentDir;
+  return parseSummary(rawSummary);
 }
 
 /**
@@ -171,7 +180,7 @@ export function extractDirectChildren(
         
         routes.push({
           slug: pathParts,
-          filePath: join('content', item.path),
+          filePath: joinPath('content', item.path),
           title: item.title,
           level: depth
         });

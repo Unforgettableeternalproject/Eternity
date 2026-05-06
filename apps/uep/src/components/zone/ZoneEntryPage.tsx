@@ -6,6 +6,8 @@ import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import Minimap from '../ui/Minimap';
 import BigMapModal from '../ui/BigMapModal';
+import PortalTransition from '../ui/PortalTransition';
+import IntroOverlay from '../ui/IntroOverlay';
 
 // ─── Shared shell wrapper ──────────────────────────────────────────────────────
 
@@ -1309,6 +1311,8 @@ interface ZoneEntryPageProps {
 export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
   const zone = ZONES.find((z) => z.id === zoneId);
   const [showMap, setShowMap] = useState(false);
+  const [portalZone, setPortalZone] = useState<ZoneData | null>(null);
+  const [introZone, setIntroZone] = useState<ZoneData | null>(null);
 
   if (!zone) {
     return (
@@ -1322,7 +1326,14 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
     zone,
     onPickZone: (id: string) => {
       const target = ZONES.find((z) => z.id === id);
-      window.location.href = `/${target?.slug ?? id}`;
+      if (!target) return;
+      setShowMap(false);
+      if (target.id === zoneId) return;
+
+      setPortalZone(target);
+      window.setTimeout(() => {
+        window.location.href = `/${target.slug}`;
+      }, 1100);
     },
     onOpenMap: () => setShowMap(true),
   };
@@ -1370,10 +1381,25 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
           onClose={() => setShowMap(false)}
           onPick={(z) => {
             setShowMap(false);
-            sharedRest.onPickZone(z.id);
+            setIntroZone(z);
+          }}
+          onCenterClick={() => {
+            setShowMap(false);
+            window.location.href = '/';
           }}
         />
       )}
+
+      <IntroOverlay
+        zone={introZone}
+        onClose={() => setIntroZone(null)}
+        onEnter={() => {
+          if (!introZone) return;
+          sharedRest.onPickZone(introZone.id);
+          setIntroZone(null);
+        }}
+      />
+      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
     </>
   );
 }

@@ -1,12 +1,17 @@
 ---
+export const prerender = true;
+
 import BaseLayout from '../layouts/BaseLayout.astro';
 import OverlayBlock from '../components/OverlayBlock.astro';
 import { loadSummary, extractRoutes } from '../utils/summary';
 import { renderArticleWithOverlay } from '../utils/overlay-renderer';
-import { join, relative } from 'node:path';
+
+function toPosixPath(value: string) {
+  return value.replace(/\\/g, '/');
+}
 
 export async function getStaticPaths() {
-  const contentDir = join(process.cwd(), 'content');
+  const contentDir = `${process.cwd()}/content`;
   
   try {
     const navigation = loadSummary(contentDir);
@@ -34,8 +39,8 @@ let pageTitle = title;
 
 try {
   // 取得相對於 content 目錄的路徑
-  const contentDir = join(process.cwd(), 'content');
-  const relativePath = relative(contentDir, filePath).replace(/\\/g, '/');
+  const contentRoot = `${toPosixPath(process.cwd())}/content/`;
+  const relativePath = toPosixPath(filePath).replace(contentRoot, '');
   
   // 使用覆蓋層渲染系統
   articleData = await renderArticleWithOverlay(relativePath);

@@ -6,10 +6,11 @@ interface BigMapModalProps {
   zones: ZoneData[];
   onClose: () => void;
   onPick?: (zone: ZoneData) => void;
+  onCenterClick?: () => void;
   tone?: 'dark' | 'light';
 }
 
-export default function BigMapModal({ zones, onClose, onPick, tone = 'dark' }: BigMapModalProps) {
+export default function BigMapModal({ zones, onClose, onPick, onCenterClick, tone = 'dark' }: BigMapModalProps) {
   const [hover, setHover] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function BigMapModal({ zones, onClose, onPick, tone = 'dark' }: B
           onHover={setHover}
           baseTone={tone}
           onPickIntro={(z) => onPick?.(z)}
+          onCenterClick={onCenterClick}
           showHints={false}
         />
 

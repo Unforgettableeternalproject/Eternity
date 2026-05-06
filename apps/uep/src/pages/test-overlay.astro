@@ -1,10 +1,11 @@
 ---
+export const prerender = true;
+
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hint from '../components/Hint.astro';
 import Spoiler from '../components/Spoiler.astro';
 import Divider from '../components/Divider.astro';
-import fs from 'node:fs';
-import path from 'node:path';
+import rawContent from '../../content/history/passage/unforgettable_story/chpt.-1/arc.00.md?raw';
 import { transformGitBookContent } from '../utils/markdown-transforms';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -18,11 +19,6 @@ const markdownProcessor = unified()
   .use(remarkGfm)
   .use(remarkRehype)
   .use(rehypeStringify);
-
-// 讀取測試文章
-const contentPath = 'history/passage/unforgettable_story/chpt.-1/arc.00.md';
-const fullPath = path.join(process.cwd(), 'content', contentPath);
-const rawContent = fs.readFileSync(fullPath, 'utf-8');
 
 // 提取 frontmatter (修正版本)
 const frontmatterMatch = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
