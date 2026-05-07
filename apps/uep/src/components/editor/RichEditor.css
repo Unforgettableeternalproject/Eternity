@@ -101,7 +101,9 @@
   text-transform: uppercase;
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 .ned-btn-ghost:hover {
   border-color: var(--ned-accent);
@@ -390,7 +392,11 @@
 }
 
 .ned-tree-drop--child {
-  background: color-mix(in srgb, var(--ned-accent, var(--uep-gold)) 12%, transparent) !important;
+  background: color-mix(
+    in srgb,
+    var(--ned-accent, var(--uep-gold)) 12%,
+    transparent
+  ) !important;
 }
 
 .ned-tree-menu-btn {
@@ -413,7 +419,7 @@
   z-index: 200;
   background: var(--bg-card);
   border: 1px solid var(--hairline-strong);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
   min-width: 130px;
   padding: 4px;
 }
@@ -511,8 +517,14 @@
 }
 
 @keyframes ned-create-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .ned-tree-create-input {
@@ -551,8 +563,13 @@
 }
 
 @keyframes ned-spin-pulse {
-  0%, 100% { opacity: 0.3; }
-  50%      { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .ned-tree-create-error {
@@ -589,8 +606,14 @@
 }
 
 @keyframes ned-empty-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .ned-empty-icon {
@@ -933,7 +956,7 @@
   z-index: 200;
   background: var(--bg-card);
   border: 1px solid var(--hairline-strong);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   max-height: 240px;
   overflow-y: auto;
   padding: 4px;
@@ -991,7 +1014,9 @@
   color: var(--ink-soft);
   cursor: pointer;
   border-radius: 4px;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 .ned-icon-picker-recent-item:hover {
   background: var(--hairline);

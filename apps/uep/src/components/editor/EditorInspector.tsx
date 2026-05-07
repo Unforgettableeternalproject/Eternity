@@ -50,10 +50,12 @@ export default function EditorInspector({
   createdAt,
   updatedAt,
 }: EditorInspectorProps) {
-  const handleChange = <T,>(setter: (v: T) => void) => (v: T) => {
-    setter(v);
-    onDirty();
-  };
+  const handleChange =
+    <T,>(setter: (v: T) => void) =>
+    (v: T) => {
+      setter(v);
+      onDirty();
+    };
 
   return (
     <div className="ned-inspector">

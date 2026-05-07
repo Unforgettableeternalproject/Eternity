@@ -131,8 +131,7 @@ export default function EchoesEditorBody({
                       : 'var(--hairline-strong)',
                   background:
                     data.spoilerLevel === o.l ? `${accent}12` : 'transparent',
-                  color:
-                    data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
+                  color: data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
                 }}
                 onClick={() => update({ spoilerLevel: o.l })}
                 type="button"
@@ -162,7 +161,10 @@ export default function EchoesEditorBody({
       <div className="ned-audio-zone">
         {data.audioFile ? (
           <>
-            <div className="ned-audio-icon" style={{ borderColor: accent, color: accent }}>
+            <div
+              className="ned-audio-icon"
+              style={{ borderColor: accent, color: accent }}
+            >
               {data.audioMeta?.size
                 ? `${Math.round((data.audioMeta.size || 0) / 1024 / 1024)}MB`
                 : '?'}

@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -305,10 +306,10 @@ export default function RichEditor({
         editor.chain().focus().setImage({ src: imgUrl }).run();
         setIsDirty(true);
       } else {
-        alert(`Upload failed: ${json.error}`);
+        window.alert(`Upload failed: ${json.error}`);
       }
     } catch (err: any) {
-      alert(`Upload error: ${err.message}`);
+      window.alert(`Upload error: ${err.message}`);
     } finally {
       setUploading(false);
     }
@@ -333,13 +334,13 @@ export default function RichEditor({
   return (
     <div
       className="ned-app"
-      style={
-        { '--ned-accent': accentMain } as React.CSSProperties
-      }
+      style={{ '--ned-accent': accentMain } as React.CSSProperties}
     >
       {/* Header */}
       <header className="ned-header">
-        <a href="/admin" className="ned-header-area">$ admin / {area}</a>
+        <a href="/admin" className="ned-header-area">
+          $ admin / {area}
+        </a>
         {isEntryMode ? (
           <>
             <div className="ned-header-spacer" />
@@ -359,7 +360,8 @@ export default function RichEditor({
               placeholder="Page title..."
             />
             <span className="ned-header-status">
-              {statusLabel || `${pageStatus} \u00b7 ${isDirty ? 'modified' : 'saved'}`}
+              {statusLabel ||
+                `${pageStatus} \u00b7 ${isDirty ? 'modified' : 'saved'}`}
             </span>
             <div className="ned-header-spacer" />
             <div className="ned-header-right">
@@ -386,253 +388,279 @@ export default function RichEditor({
 
       {/* Toolbar */}
       {/* Toolbar — 入口模式隱藏 */}
-      {!isEntryMode && <div className="ned-toolbar" ref={dropdownRef}>
-        {!isEchoes && editor && (<>
-        {/* Heading dropdown */}
-        <div className="tb-group">
-          <div className="tb-dropdown-wrap">
-            <button
-              className="tb-btn tb-dropdown-trigger"
-              onClick={() => toggleDropdown('heading')}
-            >
-              {editor.isActive('heading', { level: 1 })
-                ? 'H1'
-                : editor.isActive('heading', { level: 2 })
-                  ? 'H2'
-                  : editor.isActive('heading', { level: 3 })
-                    ? 'H3'
-                    : '\u5167\u6587'}
-              <span className="tb-caret">&#9662;</span>
-            </button>
-            {activeDropdown === 'heading' && (
-              <div className="tb-dropdown">
-                {HEADING_LEVELS.map((h) => (
+      {!isEntryMode && (
+        <div className="ned-toolbar" ref={dropdownRef}>
+          {!isEchoes && editor && (
+            <>
+              {/* Heading dropdown */}
+              <div className="tb-group">
+                <div className="tb-dropdown-wrap">
                   <button
-                    key={h.value}
-                    className="tb-dropdown-item"
-                    onClick={() => setHeading(h.value)}
+                    className="tb-btn tb-dropdown-trigger"
+                    onClick={() => toggleDropdown('heading')}
                   >
-                    {h.label}
+                    {editor.isActive('heading', { level: 1 })
+                      ? 'H1'
+                      : editor.isActive('heading', { level: 2 })
+                        ? 'H2'
+                        : editor.isActive('heading', { level: 3 })
+                          ? 'H3'
+                          : '\u5167\u6587'}
+                    <span className="tb-caret">&#9662;</span>
                   </button>
-                ))}
+                  {activeDropdown === 'heading' && (
+                    <div className="tb-dropdown">
+                      {HEADING_LEVELS.map((h) => (
+                        <button
+                          key={h.value}
+                          className="tb-dropdown-item"
+                          onClick={() => setHeading(h.value)}
+                        >
+                          {h.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        <div className="tb-sep" />
+              <div className="tb-sep" />
 
-        {/* Basic formatting */}
-        <div className="tb-group">
-          <button
-            className={`tb-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBold().run()}
-            title="Bold (Ctrl+B)"
-          >
-            <strong>B</strong>
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-            title="Italic (Ctrl+I)"
-          >
-            <em>I</em>
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleUnderline().run()}
-            title="Underline (Ctrl+U)"
-          >
-            <span style={{ textDecoration: 'underline' }}>U</span>
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-            title="Strikethrough"
-          >
-            <s>S</s>
-          </button>
-        </div>
-
-        <div className="tb-sep" />
-
-        {/* Text color */}
-        <div className="tb-group">
-          <div className="tb-dropdown-wrap">
-            <button
-              className="tb-btn"
-              onClick={() => toggleDropdown('color')}
-              title="Text color"
-            >
-              <span
-                className="tb-color-preview"
-                style={{
-                  borderBottomColor:
-                    editor.getAttributes('textStyle').color || 'var(--ink)',
-                }}
-              >
-                A
-              </span>
-            </button>
-            {activeDropdown === 'color' && (
-              <div className="tb-dropdown tb-color-grid">
-                {TEXT_COLORS.map((c) => (
-                  <button
-                    key={c.value || 'default'}
-                    className="tb-color-swatch"
-                    style={{ background: c.value || 'var(--ink)' }}
-                    onClick={() => setColor(c.value)}
-                    title={c.label}
-                  />
-                ))}
+              {/* Basic formatting */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  title="Bold (Ctrl+B)"
+                >
+                  <strong>B</strong>
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  title="Italic (Ctrl+I)"
+                >
+                  <em>I</em>
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                  title="Underline (Ctrl+U)"
+                >
+                  <span style={{ textDecoration: 'underline' }}>U</span>
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                  title="Strikethrough"
+                >
+                  <s>S</s>
+                </button>
               </div>
-            )}
-          </div>
 
-          {/* Highlight */}
-          <div className="tb-dropdown-wrap">
-            <button
-              className="tb-btn"
-              onClick={() => toggleDropdown('highlight')}
-              title="Highlight"
-            >
-              <span
-                className="tb-highlight-preview"
-                style={{
-                  background:
-                    editor.getAttributes('highlight').color || 'transparent',
-                }}
-              >
-                H
-              </span>
-            </button>
-            {activeDropdown === 'highlight' && (
-              <div className="tb-dropdown tb-color-grid">
-                {HIGHLIGHT_COLORS.map((c) => (
+              <div className="tb-sep" />
+
+              {/* Text color */}
+              <div className="tb-group">
+                <div className="tb-dropdown-wrap">
                   <button
-                    key={c.value || 'none'}
-                    className="tb-color-swatch"
-                    style={{ background: c.value || 'var(--hairline)' }}
-                    onClick={() => setHighlight(c.value)}
-                    title={c.label}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="tb-sep" />
-
-        {/* Font family */}
-        <div className="tb-group">
-          <div className="tb-dropdown-wrap">
-            <button
-              className="tb-btn tb-dropdown-trigger"
-              onClick={() => toggleDropdown('font')}
-              title="Font"
-            >
-              Font <span className="tb-caret">&#9662;</span>
-            </button>
-            {activeDropdown === 'font' && (
-              <div className="tb-dropdown">
-                {FONT_FAMILIES.map((f) => (
-                  <button
-                    key={f.value || 'default'}
-                    className="tb-dropdown-item"
-                    style={{ fontFamily: f.value || 'inherit' }}
-                    onClick={() => setFont(f.value)}
+                    className="tb-btn"
+                    onClick={() => toggleDropdown('color')}
+                    title="Text color"
                   >
-                    {f.label}
+                    <span
+                      className="tb-color-preview"
+                      style={{
+                        borderBottomColor:
+                          editor.getAttributes('textStyle').color ||
+                          'var(--ink)',
+                      }}
+                    >
+                      A
+                    </span>
                   </button>
-                ))}
+                  {activeDropdown === 'color' && (
+                    <div className="tb-dropdown tb-color-grid">
+                      {TEXT_COLORS.map((c) => (
+                        <button
+                          key={c.value || 'default'}
+                          className="tb-color-swatch"
+                          style={{ background: c.value || 'var(--ink)' }}
+                          onClick={() => setColor(c.value)}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Highlight */}
+                <div className="tb-dropdown-wrap">
+                  <button
+                    className="tb-btn"
+                    onClick={() => toggleDropdown('highlight')}
+                    title="Highlight"
+                  >
+                    <span
+                      className="tb-highlight-preview"
+                      style={{
+                        background:
+                          editor.getAttributes('highlight').color ||
+                          'transparent',
+                      }}
+                    >
+                      H
+                    </span>
+                  </button>
+                  {activeDropdown === 'highlight' && (
+                    <div className="tb-dropdown tb-color-grid">
+                      {HIGHLIGHT_COLORS.map((c) => (
+                        <button
+                          key={c.value || 'none'}
+                          className="tb-color-swatch"
+                          style={{ background: c.value || 'var(--hairline)' }}
+                          onClick={() => setHighlight(c.value)}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+
+              <div className="tb-sep" />
+
+              {/* Font family */}
+              <div className="tb-group">
+                <div className="tb-dropdown-wrap">
+                  <button
+                    className="tb-btn tb-dropdown-trigger"
+                    onClick={() => toggleDropdown('font')}
+                    title="Font"
+                  >
+                    Font <span className="tb-caret">&#9662;</span>
+                  </button>
+                  {activeDropdown === 'font' && (
+                    <div className="tb-dropdown">
+                      {FONT_FAMILIES.map((f) => (
+                        <button
+                          key={f.value || 'default'}
+                          className="tb-dropdown-item"
+                          style={{ fontFamily: f.value || 'inherit' }}
+                          onClick={() => setFont(f.value)}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="tb-sep" />
+
+              {/* Alignment */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign('left').run()
+                  }
+                  title="Align left"
+                >
+                  &#8676;
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign('center').run()
+                  }
+                  title="Align center"
+                >
+                  &#8596;
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign('right').run()
+                  }
+                  title="Align right"
+                >
+                  &#8677;
+                </button>
+              </div>
+
+              <div className="tb-sep" />
+
+              {/* Lists, blockquote */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().toggleBulletList().run()
+                  }
+                  title="Bullet list"
+                >
+                  &#8226;
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().toggleOrderedList().run()
+                  }
+                  title="Ordered list"
+                >
+                  1.
+                </button>
+                <button
+                  className={`tb-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().toggleBlockquote().run()
+                  }
+                  title="Blockquote"
+                >
+                  &ldquo;
+                </button>
+              </div>
+
+              <div className="tb-sep" />
+
+              {/* Insert */}
+              <div className="tb-group">
+                <button
+                  className="tb-btn"
+                  onClick={() =>
+                    editor.chain().focus().setHorizontalRule().run()
+                  }
+                  title="Horizontal rule"
+                >
+                  &mdash;
+                </button>
+                <button
+                  className="tb-btn"
+                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                  title="Code block"
+                >
+                  &lt;/&gt;
+                </button>
+                <button
+                  className="tb-btn"
+                  onClick={insertImage}
+                  title="Upload image"
+                  disabled={uploading}
+                >
+                  {uploading ? '\u23F3' : '\u25A2'}
+                </button>
+              </div>
+            </>
+          )}
+
+          <span className="ned-toolbar-right">
+            {isEchoes ? 'song mode' : 'rich text'}
+            {!isEchoes && ` \u00b7 ${charCount.toLocaleString()} chars`}
+          </span>
         </div>
-
-        <div className="tb-sep" />
-
-        {/* Alignment */}
-        <div className="tb-group">
-          <button
-            className={`tb-btn ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().setTextAlign('left').run()}
-            title="Align left"
-          >
-            &#8676;
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().setTextAlign('center').run()}
-            title="Align center"
-          >
-            &#8596;
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().setTextAlign('right').run()}
-            title="Align right"
-          >
-            &#8677;
-          </button>
-        </div>
-
-        <div className="tb-sep" />
-
-        {/* Lists, blockquote */}
-        <div className="tb-group">
-          <button
-            className={`tb-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            title="Bullet list"
-          >
-            &#8226;
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            title="Ordered list"
-          >
-            1.
-          </button>
-          <button
-            className={`tb-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            title="Blockquote"
-          >
-            &ldquo;
-          </button>
-        </div>
-
-        <div className="tb-sep" />
-
-        {/* Insert */}
-        <div className="tb-group">
-          <button
-            className="tb-btn"
-            onClick={() => editor.chain().focus().setHorizontalRule().run()}
-            title="Horizontal rule"
-          >
-            &mdash;
-          </button>
-          <button
-            className="tb-btn"
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            title="Code block"
-          >
-            &lt;/&gt;
-          </button>
-          <button className="tb-btn" onClick={insertImage} title="Upload image" disabled={uploading}>
-            {uploading ? '\u23F3' : '\u25A2'}
-          </button>
-        </div>
-        </>)}
-
-        <span className="ned-toolbar-right">
-          {isEchoes ? 'song mode' : 'rich text'}{!isEchoes && ` \u00b7 ${charCount.toLocaleString()} chars`}
-        </span>
-      </div>}
+      )}
 
       {/* Body — 3 columns */}
       <div className="ned-body">
@@ -651,10 +679,13 @@ export default function RichEditor({
         <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
           {isEntryMode ? (
             <div className="ned-empty-state">
-              <div className="ned-empty-icon" style={{ color: accentMain }}>&#9998;</div>
+              <div className="ned-empty-icon" style={{ color: accentMain }}>
+                &#9998;
+              </div>
               <div className="ned-empty-title">選擇一個項目開始編輯</div>
               <div className="ned-empty-desc">
-                從左側的頁面樹點選要編輯的章節或段落，<br/>
+                從左側的頁面樹點選要編輯的章節或段落，
+                <br />
                 或在項目之間 hover 來新增頁面。
               </div>
             </div>
@@ -662,12 +693,17 @@ export default function RichEditor({
             <>
               {locked && (
                 <div className="ned-lock-banner">
-                  <span>&#128274; This page is locked. Unlock from inspector to edit.</span>
+                  <span>
+                    &#128274; This page is locked. Unlock from inspector to
+                    edit.
+                  </span>
                 </div>
               )}
               <div className="ned-paper">
                 <div className="ned-breadcrumb">
-                  {parentId ? `${area} / ${parentId.replace(/\//g, ' / ')}` : area}
+                  {parentId
+                    ? `${area} / ${parentId.replace(/\//g, ' / ')}`
+                    : area}
                 </div>
                 {isEchoes ? (
                   <EchoesEditorBody
