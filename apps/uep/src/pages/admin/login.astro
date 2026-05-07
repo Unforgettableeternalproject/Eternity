@@ -1,0 +1,386 @@
+---
+export const prerender = false;
+
+import DesignLayout from '../../layouts/DesignLayout.astro';
+
+const JWT_COOKIE = 'uep-admin-jwt';
+const ACTIVE_COOKIE = 'uep-admin-active';
+const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+// 安全的 redirect：只允許站內 /admin 路徑
+function safeRedirect(url: string | null | undefined): string {
+  if (!url || !url.startsWith('/admin')) return '/admin';
+  return url;
+}
+
+// 已有合法 JWT → 直接跳轉（middleware 已驗證，到這裡代表有效）
+const existingJwt = Astro.cookies.get(JWT_COOKIE);
+if (existingJwt?.value) {
+  return Astro.redirect('/admin');
+}
+
+let error = '';
+
+// 處理 POST 登入 — 透過 Worker API 驗證
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const username = formData.get('username')?.toString() || '';
+    const password = formData.get('password')?.toString() || '';
+    const redirectTo = safeRedirect(formData.get('redirect')?.toString());
+
+    const res = await fetch(`${apiBase}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const json = await res.json() as { ok: boolean; data?: { token: string }; error?: string };
+
+    if (json.ok && json.data?.token) {
+      // 設定 JWT cookie (httpOnly)
+      Astro.cookies.set(JWT_COOKIE, json.data.token, {
+        path: '/',
+        httpOnly: true,
+        secure: import.meta.env.PROD,
+        maxAge: 60 * 60 * 24, // 24 小時
+        sameSite: 'lax',
+      });
+      // 前端可讀的指示 cookie，讓首頁顯示後台按鈕
+      Astro.cookies.set(ACTIVE_COOKIE, '1', {
+        path: '/',
+        httpOnly: false,
+        secure: import.meta.env.PROD,
+        maxAge: 60 * 60 * 24,
+        sameSite: 'lax',
+      });
+      return Astro.redirect(redirectTo);
+    } else {
+      error = json.error || '驗證失敗 — 帳號或密碼不正確';
+    }
+  } catch {
+    error = '無法連線至認證服務';
+  }
+}
+
+const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
+---
+
+<DesignLayout title="觀測者驗證 - U.E.P">
+  <div class="login-wrap">
+    <!-- 背景裝飾粒子 -->
+    <div class="login-dust">
+      {[...Array(12)].map((_, i) => (
+        <i style={`left:${(i * 47) % 100}%;top:${(i * 31) % 100}%;animation-duration:${14 + (i % 5)}s;animation-delay:${(i * 0.5) % 6}s`} />
+      ))}
+    </div>
+
+    <div class="login-card">
+      <!-- 四角裝飾 -->
+      <span class="login-corner" style="top:0;left:0">┌</span>
+      <span class="login-corner" style="top:0;right:0">┐</span>
+      <span class="login-corner" style="bottom:0;left:0">└</span>
+      <span class="login-corner" style="bottom:0;right:0">┘</span>
+
+      <div class="login-header">
+        <div class="login-kicker">
+          <span class="login-kicker-line"></span>
+          U.E.P · ACCESS
+          <span class="login-kicker-line"></span>
+        </div>
+        <h1 class="login-title">觀測者驗證</h1>
+        <div class="login-sub">restricted area · authorization required</div>
+      </div>
+
+      <div class="login-sep"></div>
+
+      <form method="POST" class="login-form">
+        <input type="hidden" name="redirect" value={redirectTo} />
+
+        <div class="login-field">
+          <label class="login-label" for="username">identifier</label>
+          <input
+            id="username"
+            type="text"
+            name="username"
+            autocomplete="username"
+            class="login-input"
+            placeholder="觀測者代號"
+            required
+          />
+        </div>
+
+        <div class="login-field">
+          <label class="login-label" for="password">passphrase</label>
+          <div class="login-input-wrap">
+            <input
+              id="password"
+              type="password"
+              name="password"
+              autocomplete="current-password"
+              class="login-input"
+              placeholder="通行密語"
+              required
+            />
+            <button type="button" class="login-toggle-pw" id="togglePw" aria-label="切換密碼顯示">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path id="eyeIcon" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zm11-3a3 3 0 100 6 3 3 0 000-6z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div class="login-error">{error}</div>
+        )}
+
+        <button type="submit" class="login-btn">驗證身分</button>
+      </form>
+
+      <a href="/" class="login-back">← 回到文件站</a>
+    </div>
+  </div>
+</DesignLayout>
+
+<style is:global>
+  .login-wrap {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+    padding: 40px 20px;
+  }
+
+  /* 背景粒子 */
+  .login-dust {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .login-dust i {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: var(--uep-gold);
+    opacity: 0;
+    animation: login-float linear infinite;
+  }
+  @keyframes login-float {
+    0%   { opacity: 0; transform: translateY(0); }
+    20%  { opacity: 0.35; }
+    80%  { opacity: 0.35; }
+    100% { opacity: 0; transform: translateY(-40px); }
+  }
+
+  /* 卡片 */
+  .login-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 400px;
+    padding: 44px 40px 36px;
+    border: 1px solid var(--hairline-strong);
+    background: var(--bg-card);
+  }
+
+  /* 四角符號 */
+  .login-corner {
+    position: absolute;
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--uep-gold);
+    opacity: 0.3;
+    line-height: 1;
+    padding: 8px;
+    user-select: none;
+  }
+
+  /* 標題區 */
+  .login-header {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .login-kicker {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--uep-gold);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .login-kicker-line {
+    width: 24px;
+    height: 1px;
+    background: var(--uep-gold);
+    opacity: 0.5;
+  }
+
+  .login-title {
+    font-family: var(--font-display);
+    font-size: 34px;
+    font-weight: 500;
+    color: var(--ink-title);
+    margin: 14px 0 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .login-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.18em;
+  }
+
+  /* 分隔線 */
+  .login-sep {
+    width: 1px;
+    height: 32px;
+    background: var(--uep-gold);
+    opacity: 0.3;
+    margin: 20px auto;
+  }
+
+  /* 表單 */
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .login-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--ink-mute);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .login-input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-soft);
+    border: 1px solid var(--hairline-strong);
+    color: var(--ink-title);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    transition: border-color 0.2s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .login-input::placeholder {
+    color: var(--ink-mute);
+    font-family: var(--font-serif-tc);
+    font-size: 13px;
+  }
+  .login-input:focus {
+    border-color: var(--uep-gold);
+  }
+
+  /* 密碼欄位包裹 */
+  .login-input-wrap {
+    position: relative;
+  }
+  .login-input-wrap .login-input {
+    padding-right: 42px;
+  }
+  .login-toggle-pw {
+    position: absolute;
+    right: 1px;
+    top: 1px;
+    bottom: 1px;
+    width: 38px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: none;
+    color: var(--ink-mute);
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .login-toggle-pw:hover {
+    color: var(--uep-gold);
+  }
+
+  /* 錯誤訊息 */
+  .login-error {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #e05252;
+    letter-spacing: 0.06em;
+    padding: 8px 12px;
+    border: 1px solid rgba(224, 82, 82, 0.3);
+    background: rgba(224, 82, 82, 0.06);
+  }
+
+  /* 送出按鈕 */
+  .login-btn {
+    width: 100%;
+    padding: 13px 16px;
+    margin-top: 4px;
+    background: transparent;
+    border: 1px solid var(--uep-gold);
+    color: var(--uep-gold);
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .login-btn:hover {
+    background: var(--uep-gold);
+    color: var(--bg);
+  }
+
+  /* 返回連結 */
+  .login-back {
+    display: block;
+    text-align: center;
+    margin-top: 24px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .login-back:hover {
+    color: var(--uep-gold);
+  }
+
+  /* 響應式 */
+  @media (max-width: 480px) {
+    .login-card {
+      padding: 32px 24px 28px;
+    }
+    .login-title {
+      font-size: 28px;
+    }
+  }
+</style>
+
+<script>
+  const toggle = document.getElementById('togglePw');
+  const input = document.getElementById('password') as HTMLInputElement;
+  const icon = document.getElementById('eyeIcon');
+  if (toggle && input && icon) {
+    const eyeOpen = 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zm11-3a3 3 0 100 6 3 3 0 000-6z';
+    const eyeClosed = 'M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22M14.12 14.12A3 3 0 019.88 9.88';
+    toggle.addEventListener('click', () => {
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      icon.setAttribute('d', isHidden ? eyeClosed : eyeOpen);
+    });
+  }
+</script>

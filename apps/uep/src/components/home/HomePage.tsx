@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ZONES, VERSES, RECENTS } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import TopBar from '../ui/TopBar';
@@ -10,11 +10,53 @@ import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import PortalTransition from '../ui/PortalTransition';
 
-export default function HomePage() {
+export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const [hover, setHover] = useState<string | null>(null);
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
+
+  // 檢查是否已登入（透過前端可讀的指示 cookie）
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  useEffect(() => {
+    setIsLoggedIn(document.cookie.includes('uep-admin-active=1'));
+  }, []);
+
+  // 隱藏入口：四角字符點擊序列
+  // 境(1) 際(2) / 觀(3) 測(4) — 密碼 2214134
+  const GLYPH_SEQ = [2, 2, 1, 4, 1, 3, 4];
+  const [glyphInput, setGlyphInput] = useState<number[]>([]);
+  const [hoveredGlyph, setHoveredGlyph] = useState<number | null>(null);
+  const glyphTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleGlyphClick = useCallback((index: number) => {
+    const pos = index + 1; // 轉換成 1-based
+
+    setGlyphInput((prev) => {
+      const next = [...prev, pos];
+
+      // 檢查是否符合目標前綴
+      const matches = next.every((v, i) => v === GLYPH_SEQ[i]);
+      if (!matches) {
+        // 不符合 — 如果當前點擊是序列開頭，從頭開始
+        return pos === GLYPH_SEQ[0] ? [pos] : [];
+      }
+
+      // 序列完成
+      if (next.length === GLYPH_SEQ.length) {
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 0);
+        return [];
+      }
+
+      return next;
+    });
+
+    // 5 秒無動作重置
+    if (glyphTimer.current) clearTimeout(glyphTimer.current);
+    glyphTimer.current = setTimeout(() => setGlyphInput([]), 5000);
+  }, []);
 
   const handleEnterZone = useCallback(() => {
     if (!intro) return;
@@ -161,6 +203,15 @@ export default function HomePage() {
               >
                 ↓ 沿著卷軸走
               </a>
+              {(isDev || isLoggedIn) && (
+                <a
+                  href="/admin"
+                  className="btn-outline"
+                  style={{ textDecoration: 'none', opacity: 0.7 }}
+                >
+                  ⚙ 後台管理
+                </a>
+              )}
             </div>
           </div>
 
@@ -229,6 +280,9 @@ export default function HomePage() {
             {['境', '際', '觀', '測'].map((g, i) => (
               <div
                 key={i}
+                onMouseEnter={() => setHoveredGlyph(i)}
+                onMouseLeave={() => setHoveredGlyph(null)}
+                onClick={() => handleGlyphClick(i)}
                 style={{
                   position: 'absolute',
                   ...[
@@ -240,7 +294,11 @@ export default function HomePage() {
                   fontFamily: 'var(--font-display)',
                   fontSize: 22,
                   color: 'var(--uep-gold)',
-                  opacity: 0.45,
+                  opacity: hoveredGlyph === i ? 0.85 : 0.45,
+                  transition: 'opacity 0.3s ease',
+                  cursor: 'default',
+                  userSelect: 'none' as const,
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
                 {g}

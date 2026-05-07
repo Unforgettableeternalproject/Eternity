@@ -7,7 +7,17 @@ import type {
   UpsertPageRequest,
   ImportPageRequest,
   ApiResponse,
+  AdminUserRow,
+  JwtPayload,
+  LoginRequest,
+  BootstrapRequest,
 } from './types';
+import {
+  signJwt,
+  verifyJwt,
+  hashPassword,
+  verifyPassword,
+} from './auth';
 
 // ===== 工具函式 =====
 
@@ -452,6 +462,148 @@ async function getSyncStatus(
   );
 }
 
+// ===== Auth 路由 =====
+
+/** POST /api/auth/login — 驗證帳密，回傳 JWT */
+async function handleLogin(
+  body: LoginRequest,
+  db: D1Database,
+  jwtSecret: string,
+  cors: Record<string, string>,
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1')
+    .bind(body.username)
+    .first<AdminUserRow>();
+
+  if (!row) {
+    // 防止 timing 差異洩漏使用者名稱是否存在
+    await new Promise((r) => setTimeout(r, 200));
+    return jsonResponse({ ok: false, error: '憑證錯誤' }, 401, cors);
+  }
+
+  const valid = await verifyPassword(body.password, row.password_hash);
+  if (!valid) {
+    return jsonResponse({ ok: false, error: '憑證錯誤' }, 401, cors);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const jti = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  const payload: JwtPayload = {
+    sub: row.username,
+    role: row.role,
+    display_name: row.display_name,
+    iat: now,
+    exp: now + 86400, // 24 小時
+    jti,
+  };
+
+  const token = await signJwt(payload, jwtSecret);
+
+  return jsonResponse(
+    {
+      ok: true,
+      data: {
+        token,
+        username: row.username,
+        role: row.role,
+        display_name: row.display_name,
+      },
+    },
+    200,
+    cors,
+  );
+}
+
+/** GET /api/auth/me — 驗證 JWT，回傳使用者資訊 */
+async function handleMe(
+  request: Request,
+  jwtSecret: string,
+  cors: Record<string, string>,
+): Promise<Response> {
+  const auth = request.headers.get('Authorization');
+  const token = auth?.replace('Bearer ', '');
+  if (!token) {
+    return jsonResponse({ ok: false, error: 'No token provided' }, 401, cors);
+  }
+
+  const payload = await verifyJwt(token, jwtSecret);
+  if (!payload) {
+    return jsonResponse({ ok: false, error: 'Invalid or expired token' }, 401, cors);
+  }
+
+  return jsonResponse(
+    {
+      ok: true,
+      data: {
+        username: payload.sub,
+        role: payload.role,
+        display_name: payload.display_name,
+      },
+    },
+    200,
+    cors,
+  );
+}
+
+/** POST /api/auth/bootstrap — 建立首位管理員（僅限 table 為空） */
+async function handleBootstrap(
+  body: BootstrapRequest,
+  request: Request,
+  db: D1Database,
+  bootstrapToken: string | undefined,
+  cors: Record<string, string>,
+): Promise<Response> {
+  // 驗證 bootstrap token
+  if (bootstrapToken) {
+    const auth = request.headers.get('Authorization');
+    const token = auth?.replace('Bearer ', '');
+    if (token !== bootstrapToken) {
+      return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
+  }
+
+  // 確認 table 為空
+  const count = await db
+    .prepare('SELECT COUNT(*) as cnt FROM admin_users')
+    .first<{ cnt: number }>();
+
+  if (count && count.cnt > 0) {
+    return jsonResponse(
+      { ok: false, error: 'Admin users already exist. Bootstrap is disabled.' },
+      403,
+      cors,
+    );
+  }
+
+  const passwordHash = await hashPassword(body.password);
+  const now = new Date().toISOString();
+
+  await db
+    .prepare(
+      `INSERT INTO admin_users (username, password_hash, role, display_name, is_active, created_at, updated_at)
+       VALUES (?, ?, 'super_admin', ?, 1, ?, ?)`,
+    )
+    .bind(body.username, passwordHash, body.display_name || body.username, now, now)
+    .run();
+
+  return jsonResponse(
+    {
+      ok: true,
+      data: {
+        username: body.username,
+        role: 'super_admin',
+        display_name: body.display_name || body.username,
+      },
+    },
+    201,
+    cors,
+  );
+}
+
 // ===== Worker 入口 =====
 
 export default {
@@ -466,8 +618,29 @@ export default {
 
     const path = url.pathname;
 
-    // 公開路由：讀取（不需要驗證）
-    // 寫入路由：需要驗證
+    // ---- 認證路由（在 isAuthorized 檢查之前） ----
+
+    if (path === '/api/auth/login' && request.method === 'POST') {
+      if (!env.JWT_SECRET) {
+        return jsonResponse({ ok: false, error: 'JWT_SECRET not configured' }, 500, cors);
+      }
+      const body = (await request.json()) as LoginRequest;
+      return handleLogin(body, env.CONTENT_DB, env.JWT_SECRET, cors);
+    }
+
+    if (path === '/api/auth/me' && request.method === 'GET') {
+      if (!env.JWT_SECRET) {
+        return jsonResponse({ ok: false, error: 'JWT_SECRET not configured' }, 500, cors);
+      }
+      return handleMe(request, env.JWT_SECRET, cors);
+    }
+
+    if (path === '/api/auth/bootstrap' && request.method === 'POST') {
+      const body = (await request.json()) as BootstrapRequest;
+      return handleBootstrap(body, request, env.CONTENT_DB, env.BOOTSTRAP_TOKEN, cors);
+    }
+
+    // ---- 內容路由授權檢查 ----
     const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
 
     if (isWriteMethod && !isAuthorized(request, env)) {

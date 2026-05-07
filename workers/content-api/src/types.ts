@@ -5,6 +5,8 @@ export interface Env {
   ASSETS_BUCKET: R2Bucket;
   ALLOWED_ORIGINS: string;
   API_TOKEN?: string;
+  JWT_SECRET?: string;
+  BOOTSTRAP_TOKEN?: string;
 }
 
 // ===== 內容區塊系統 =====
@@ -136,6 +138,43 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
 }
+
+// ===== 認證 =====
+
+export type AdminRole = 'super_admin' | 'editor' | 'viewer';
+
+export interface AdminUserRow {
+  id: number;
+  username: string;
+  password_hash: string;
+  role: AdminRole;
+  display_name: string;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JwtPayload {
+  sub: string;
+  role: AdminRole;
+  display_name: string;
+  iat: number;
+  exp: number;
+  jti: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface BootstrapRequest {
+  username: string;
+  password: string;
+  display_name?: string;
+}
+
+// ===== 列表項目 =====
 
 export interface PageListItem {
   id: string;
