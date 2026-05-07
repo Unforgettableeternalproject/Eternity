@@ -1,22 +1,8 @@
 ---
-// 重導向至維修頁面
-// 未來這裡將是文件站的主頁
+import DesignLayout from '../layouts/DesignLayout.astro';
+import HomePage from '../components/home/HomePage';
 ---
 
-<!doctype html>
-<html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="refresh" content="0;url=/construction" />
-    <title>U.E.P的幻想空間 - 重導向中...</title>
-  </head>
-  <body>
-    <script>
-      window.location.href = '/construction';
-    </script>
-    <noscript>
-      <p>正在重導向至 <a href="/construction">維修頁面</a>...</p>
-    </noscript>
-  </body>
-</html>
+<DesignLayout title="世界的軸心 - U.E.P's Imaginary Space">
+  <HomePage client:load isDev={import.meta.env.DEV} />
+</DesignLayout>

@@ -1,0 +1,1000 @@
+---
+interface PageItem {
+  slug: string | string[];
+  title: string;
+  level?: number;
+}
+
+interface Props {
+  icon: string;
+  title: string;
+  description: string;
+  themeColor: string;
+  workingImage: string;
+  pages?: PageItem[];
+}
+
+const {
+  icon,
+  title,
+  description,
+  themeColor,
+  workingImage,
+  pages = [],
+} = Astro.props;
+
+// 將頁面組織成樹狀結構（支援任意層級）
+interface TreeNode {
+  slug: string | string[];
+  title: string;
+  level: number;
+  children: TreeNode[];
+  id: string;
+}
+
+function buildTree(pages: PageItem[]): TreeNode[] {
+  const roots: TreeNode[] = [];
+  const stack: TreeNode[] = [];
+
+  pages.forEach((page, index) => {
+    const slug = Array.isArray(page.slug) ? page.slug : [page.slug];
+    const level = page.level ?? 0; // 預設為 0
+    const node: TreeNode = {
+      ...page,
+      slug,
+      level,
+      children: [],
+      id: `node-${index}`,
+    };
+
+    // 根據層級建立樹狀結構
+    while (
+      stack.length > 0 &&
+      (stack[stack.length - 1]?.level ?? 0) >= node.level
+    ) {
+      stack.pop();
+    }
+
+    if (stack.length === 0 || node.level === 0) {
+      roots.push(node);
+    } else {
+      const parent = stack[stack.length - 1];
+      if (parent) {
+        parent.children.push(node);
+      }
+    }
+
+    stack.push(node);
+  });
+
+  return roots;
+}
+
+const tree = buildTree(pages);
+
+function getIconForLevel(level: number): string {
+  const icons = ['📚', '📖', '📝', '📋'];
+  return icons[Math.min(level, icons.length - 1)];
+}
+
+// 遞迴渲染節點（支援所有層級的展開/收合）
+function renderTreeNode(node: TreeNode): any {
+  const hasChildren = node.children && node.children.length > 0;
+  const slug = Array.isArray(node.slug) ? node.slug.join('/') : node.slug;
+  const indent = 1.5 + node.level * 1.5;
+
+  return { node, hasChildren, slug, indent };
+}
+---
+
+<div class="area-page">
+  <a href="/" class="back-link">
+    <span class="back-arrow">←</span>
+    <span>返回世界的軸心</span>
+  </a>
+
+  <div class="area-header">
+    <div class="area-icon-wrapper">
+      <div class="icon-glow"></div>
+      <div class="area-icon">{icon}</div>
+    </div>
+    <h1 class="area-title">{title}</h1>
+    <p class="area-desc" set:html={description} />
+  </div>
+
+  {
+    pages.length > 0 ? (
+      <div class="pages-section">
+        <div class="section-header">
+          <h2 class="section-title">📖 區域導航</h2>
+          <p class="section-subtitle">點擊箭頭展開/收合</p>
+        </div>
+
+        <div class="navigation-tree">
+          {tree.map((node) => {
+            const { hasChildren, slug, indent } = renderTreeNode(node);
+
+            return (
+              <div class="tree-node" data-level={node.level}>
+                <div class="node-row">
+                  <a
+                    href={`/${slug}`}
+                    class="nav-item"
+                    data-level={node.level}
+                    style={`padding-left: ${indent}rem;`}
+                  >
+                    <span class="nav-icon">{getIconForLevel(node.level)}</span>
+                    <span class="nav-title">{node.title}</span>
+                    <span class="nav-arrow">›</span>
+                  </a>
+                  {hasChildren && (
+                    <button
+                      class="expand-toggle"
+                      data-target={node.id}
+                      aria-expanded="true"
+                      aria-label={`展開/收合 ${node.title}`}
+                    >
+                      <span class="expand-chevron">▼</span>
+                    </button>
+                  )}
+                </div>
+                {hasChildren && (
+                  <div class="children-container" id={node.id}>
+                    {node.children.map((child) => {
+                      const childSlug = Array.isArray(child.slug)
+                        ? child.slug.join('/')
+                        : child.slug;
+                      const childIndent = 1.5 + child.level * 1.5;
+                      const childHasChildren =
+                        child.children && child.children.length > 0;
+
+                      return (
+                        <div class="tree-node" data-level={child.level}>
+                          <div class="node-row">
+                            <a
+                              href={`/${childSlug}`}
+                              class="nav-item"
+                              data-level={child.level}
+                              style={`padding-left: ${childIndent}rem;`}
+                            >
+                              <span class="nav-icon">
+                                {getIconForLevel(child.level)}
+                              </span>
+                              <span class="nav-title">{child.title}</span>
+                              <span class="nav-arrow">›</span>
+                            </a>
+                            {childHasChildren && (
+                              <button
+                                class="expand-toggle"
+                                data-target={child.id}
+                                aria-expanded="true"
+                                aria-label={`展開/收合 ${child.title}`}
+                              >
+                                <span class="expand-chevron">▼</span>
+                              </button>
+                            )}
+                          </div>
+                          {childHasChildren && (
+                            <div class="children-container" id={child.id}>
+                              {child.children.map((grandchild) => {
+                                const grandchildSlug = Array.isArray(
+                                  grandchild.slug
+                                )
+                                  ? grandchild.slug.join('/')
+                                  : grandchild.slug;
+                                const grandchildIndent =
+                                  1.5 + grandchild.level * 1.5;
+
+                                return (
+                                  <a
+                                    href={`/${grandchildSlug}`}
+                                    class="nav-item"
+                                    data-level={grandchild.level}
+                                    style={`padding-left: ${grandchildIndent}rem;`}
+                                  >
+                                    <span class="nav-icon">
+                                      {getIconForLevel(grandchild.level)}
+                                    </span>
+                                    <span class="nav-title">
+                                      {grandchild.title}
+                                    </span>
+                                    <span class="nav-arrow">›</span>
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ) : (
+      <div class="construction-box">
+        <div class="construction-particles">
+          <div class="construction-particle" />
+          <div class="construction-particle" />
+          <div class="construction-particle" />
+        </div>
+
+        <div class="construction-content">
+          <div class="working-image-wrapper">
+            <img src={workingImage} alt="UEP Working" class="working-image" />
+          </div>
+
+          <div class="construction-text">
+            <h2 class="construction-title">內容建設中</h2>
+            <p class="construction-desc">
+              U.E.P 正在整理這個區域的內容，請稍候！
+            </p>
+
+            <div class="loading-bar">
+              <div class="loading-progress" />
+            </div>
+
+            <p class="construction-hint">敬請期待 ✨</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggleButtons = document.querySelectorAll('.expand-toggle');
+
+    toggleButtons.forEach((button) => {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetId = button.getAttribute('data-target');
+        const container = document.getElementById(targetId!);
+        const chevron = button.querySelector('.expand-chevron');
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+        if (container && chevron) {
+          if (isExpanded) {
+            // 收合
+            container.style.maxHeight = '0';
+            container.style.opacity = '0';
+            chevron.textContent = '▶';
+            button.setAttribute('aria-expanded', 'false');
+          } else {
+            // 展開
+            container.style.maxHeight = container.scrollHeight + 'px';
+            container.style.opacity = '1';
+            chevron.textContent = '▼';
+            button.setAttribute('aria-expanded', 'true');
+          }
+        }
+      });
+    });
+  });
+</script>
+
+{/* 遞迴渲染節點的函數（Astro 片段） */}
+{tree.map(() => null)}
+<script is:inline define:vars={{ tree, getIconForLevel }}>
+  // 遞迴渲染節點函數
+  function renderNode(node, level = 0) {
+    const hasChildren = node.children && node.children.length > 0;
+    const slug = Array.isArray(node.slug) ? node.slug.join('/') : node.slug;
+    const indent = 1.5 + level * 1.5;
+    const icon = ['📚', '📖', '📝', '📋'][Math.min(level, 3)];
+
+    let html = `<div class="tree-node" data-level="${level}">`;
+
+    // 導航項目容器
+    html += `<div class="node-row">`;
+    html += `<a href="/${slug}" class="nav-item" data-level="${level}" style="padding-left: ${indent}rem;">`;
+    html += `<span class="nav-icon">${icon}</span>`;
+    html += `<div class="nav-content">`;
+    html += `<span class="nav-title">${node.title}</span>`;
+    html += `<span class="nav-path">/${slug}</span>`;
+    html += `</div>`;
+    html += `</a>`;
+
+    // 如果有子項，顯示展開/收合箭頭
+    if (hasChildren) {
+      html += `<button class="expand-toggle" data-target="${node.id}" aria-expanded="true" aria-label="展開/收合">`;
+      html += `<span class="expand-chevron">▼</span>`;
+      html += `</button>`;
+    }
+
+    html += `</div>`; // node-row
+
+    // 子項容器
+    if (hasChildren) {
+      html += `<div class="children-container" id="${node.id}">`;
+      node.children.forEach((child) => {
+        html += renderNode(child, level + 1);
+      });
+      html += `</div>`;
+    }
+
+    html += `</div>`; // tree-node
+
+    return html;
+  }
+
+  // 將渲染結果插入 DOM
+  if (typeof window !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.querySelector('.navigation-tree');
+      if (container && tree) {
+        container.innerHTML = tree.map((node) => renderNode(node, 0)).join('');
+      }
+    });
+  }
+</script>
+
+<style define:vars={{ themeColor }}>
+  .area-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 3rem;
+    animation: pageEnter 0.6s ease-out;
+  }
+
+  @keyframes pageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--gold);
+    text-decoration: none;
+    margin-bottom: 3rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(213, 182, 24, 0.1);
+    border: 1px solid rgba(213, 182, 24, 0.3);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 500;
+  }
+
+  .back-link:hover {
+    background: rgba(213, 182, 24, 0.2);
+    transform: translateX(-8px);
+    box-shadow: 0 4px 12px rgba(213, 182, 24, 0.2);
+  }
+
+  .back-arrow {
+    transition: transform 0.3s ease;
+    font-size: 1.2rem;
+  }
+
+  .back-link:hover .back-arrow {
+    transform: translateX(-4px);
+  }
+
+  .area-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .area-icon-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+
+  .icon-glow {
+    position: absolute;
+    inset: -30px;
+    background: radial-gradient(circle, var(--themeColor) 0%, transparent 70%);
+    opacity: 0.4;
+    animation: pulse 2s ease-in-out infinite;
+    border-radius: 50%;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.2);
+    }
+  }
+
+  .area-icon {
+    font-size: 6rem;
+    filter: drop-shadow(0 0 20px var(--themeColor));
+    position: relative;
+    z-index: 1;
+  }
+
+  .area-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--themeColor);
+    margin-bottom: 1.5rem;
+    text-shadow: 0 0 30px var(--themeColor);
+    animation: titleGlow 3s ease-in-out infinite;
+  }
+
+  @keyfrrow {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    position: relative;
+  }
+
+  .expand-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    color: var(--gold);
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    width: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    order: 2; /* 放在右側 */
+  }
+
+  .expand-toggle:hover {
+    transform: scale(1.2);
+    color: var(--themeColor);
+  }
+
+  .expand-chevron {
+    display: block;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.85rem;
+  }
+
+  .expand-toggle[aria-expanded='false'] .expand- .navigation-tree {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: rgba(26, 26, 46, 0.4);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 1rem 0;
+    overflow: hidden;
+  }
+
+  /* Tree Node */
+  .tree-node {
+    position: relative;
+  }
+
+  .node-container {
+    width: 100%;
+  }
+
+  .node-header {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    position: relative;
+  }
+
+  .expand-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    color: var(--gold);
+    font-size: 0.8rem;
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+    width: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    order: 2;
+    opacity: 0.7;
+  }
+
+  .expand-toggle:hover {
+    transform: scale(1.3);
+    color: var(--themeColor);
+    opacity: 1;
+  }
+
+  .expand-chevron {
+    display: block;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.9rem;
+  }
+
+  .expand-toggle[aria-expanded='false'] .expand-chevron {
+    transform: rotate(-90deg);
+  }
+
+  .children-container {
+    overflow: hidden;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 3000px;
+    opacity: 1;
+    padding-top: 0.25rem;
+  }
+
+  .children-container[style*='max-height: 0'] {
+    opacity: 0;
+  }
+
+  /* Navigation Item */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    padding-right: 0.5rem;
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    color: rgba(255, 255, 255, 0.9);
+    flex: 1;
+    order: 1;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.02));
+    border-radius: 0 8px 8px 0;
+  }
+
+  .nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: linear-gradient(90deg, var(--themeColor), transparent);
+    opacity: 0;
+    transition: all 0.25s ease;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .nav-item:hover::before {
+    width: 100%;
+    opacity: 0.08;
+  }
+
+  /* Level Colors */
+  .nav-item[data-level='0'] {
+    border-left-color: var(--gold);
+    font-weight: 600;
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+    background: linear-gradient(
+      90deg,
+      rgba(213, 182, 24, 0.05),
+      rgba(255, 255, 255, 0.02)
+    );
+  }
+
+  .nav-item[data-level='1'] {
+    border-left-color: rgba(168, 85, 247, 0.4);
+  }
+
+  .nav-item[data-level='2'] {
+    border-left-color: rgba(6, 182, 212, 0.4);
+  }
+
+  .nav-item[data-level='3'],
+  .nav-item[data-level='4'] {
+    border-left-color: rgba(236, 72, 153, 0.4);
+  }
+
+  .nav-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-left-color: var(--themeColor);
+    border-left-width: 4px;
+    color: rgba(255, 255, 255, 1);
+    transform: translateX(2px);
+  }
+
+  /* Icon */
+  .nav-icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.15));
+    transition: transform 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .nav-item:hover .nav-icon {
+    transform: scale(1.2) rotate(8deg);
+  }
+
+  .nav-item[data-level='0'] .nav-icon {
+    font-size: 1.6rem;
+  }
+
+  /* Title */
+  .nav-title {
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.25s ease;
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  .nav-item[data-level='0'] .nav-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .nav-item:hover .nav-title {
+    color: var(--themeColor);
+    letter-spacing: 0.02em;
+  }
+
+  /* Arrow */
+  .nav-arrow {
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.25);
+    flex-shrink: 0;
+    transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    opacity: 0;
+    margin-left: auto;
+    font-weight: 300;
+  }
+
+  .nav-item:hover .nav-arrow {
+    opacity: 1;
+    transform: translateX(6px);
+    color: var(--themeColor);
+  }
+
+  /* 有展開按鈕時，不顯示導航箭頭 */
+  .node-row:has(.expand-toggle) .nav-arrow {
+    display: none;
+  }
+
+  /* Level 0 Separator */
+  .tree-node[data-level='0']:not(:first-child) {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Icon */
+  .nav-icon {
+    font-size: 1.35rem;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.1));
+    transition: transform 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .nav-item:hover .nav-icon {
+    transform: scale(1.15) rotate(5deg);
+  }
+
+  .nav-item[data-level='0'] .nav-icon {
+    font-size: 1.55rem;
+  }
+
+  /* Content */
+  .nav-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .nav-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    transition: color 0.2s ease;
+    line-height: 1.4;
+  }
+
+  .nav-item[data-level='0'] .nav-title {
+    font-size: 1.05rem;
+  }
+
+  .nav-item:hover .nav-title {
+    color: var(--themeColor);
+  }
+
+  .nav-path {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+  }
+
+  .nav-item:hover .nav-path {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Arrow */
+  .nav-arrow {
+    font-size: 1.35rem;
+    color: rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+    transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    opacity: 0;
+  }
+
+  .nav-item:hover .nav-arrow {
+    opacity: 1;
+    transform: translateX(4px);
+    color: var(--themeColor);
+    margin-left: auto; /* 推到最右邊（展開按鈕之前） */
+  }
+
+  .nav-item:hover .nav-arrow {
+    opacity: 1;
+    transform: translateX(4px);
+    color: var(--themeColor);
+  }
+
+  /* 有展開按鈕時，不顯示導航箭頭 */
+  .node-row:has(.expand-toggle) .nav-arrow {
+    display: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  /* Construction Box */
+  .construction-box {
+    background: rgba(26, 26, 46, 0.6);
+    backdrop-filter: blur(20px);
+    border: 2px solid var(--themeColor);
+    border-radius: 24px;
+    padding: 3rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 60px rgba(var(--themeColor), 0.2);
+  }
+
+  .construction-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .construction-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: var(--themeColor);
+    border-radius: 50%;
+    opacity: 0;
+    animation: floatUp 5s ease-in-out infinite;
+    box-shadow: 0 0 10px var(--themeColor);
+  }
+
+  .construction-particle:nth-child(1) {
+    left: 20%;
+    animation-delay: 0s;
+  }
+
+  .construction-particle:nth-child(2) {
+    left: 50%;
+    animation-delay: 1.5s;
+  }
+
+  .construction-particle:nth-child(3) {
+    left: 80%;
+    animation-delay: 3s;
+  }
+
+  @keyframes floatUp {
+    0% {
+      bottom: 0;
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.8;
+    }
+    90% {
+      opacity: 0.8;
+    }
+    100% {
+      bottom: 100%;
+      opacity: 0;
+      transform: translateX(30px);
+    }
+  }
+
+  .construction-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .working-image-wrapper {
+    position: relative;
+    animation: bobbing 3s ease-in-out infinite;
+  }
+
+  @keyframes bobbing {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(3deg);
+    }
+  }
+
+  .working-image {
+    width: 220px;
+    height: auto;
+    filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
+    transition: transform 0.3s ease;
+  }
+
+  .working-image-wrapper:hover .working-image {
+    transform: scale(1.1);
+  }
+
+  .construction-text {
+    text-align: center;
+  }
+
+  .construction-title {
+    font-size: 2rem;
+    color: var(--themeColor);
+    margin-bottom: 1rem;
+    font-weight: 700;
+  }
+
+  .construction-desc {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 2rem;
+  }
+
+  .loading-bar {
+    width: 300px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 auto 1.5rem;
+  }
+
+  .loading-progress {
+    height: 100%;
+    background: linear-gradient(90deg, var(--themeColor), var(--gold));
+    border-radius: 3px;
+    animation: loading 2s ease-in-out infinite;
+    box-shadow: 0 0 10px var(--themeColor);
+  }
+
+  @keyframes loading {
+    0% {
+      width: 0%;
+      transform: translateX(0);
+    }
+    100% {
+      width: 100%;
+      transform: translateX(100%);
+    }
+  }
+
+  .construction-hint {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .area-page {
+      padding: 2rem 1rem;
+    }
+
+    .area-icon {
+      font-size: 4rem;
+    }
+
+    .area-title {
+      font-size: 2.5rem;
+    }
+
+    .area-desc {
+      font-size: 1rem;
+    }
+
+    .section-title {
+      font-size: 1.75rem;
+    }
+
+    .navigation-tree {
+      padding: 0.75rem 0;
+    }
+
+    .expand-toggle {
+      width: 2.25rem;
+      font-size: 0.75rem;
+    }
+
+    .expand-chevron {
+      font-size: 0.8rem;
+    }
+
+    .nav-item {
+      padding: 0.6rem 1rem;
+      padding-right: 0.25rem;
+      gap: 0.75rem;
+    }
+
+    .nav-icon {
+      font-size: 1.2rem;
+    }
+
+    .nav-item[data-level='0'] .nav-icon {
+      font-size: 1.4rem;
+    }
+
+    .nav-title {
+      font-size: 0.9rem;
+    }
+
+    .nav-item[data-level='0'] .nav-title {
+      font-size: 1rem;
+    }
+
+    .nav-arrow {
+      font-size: 1.25rem;
+    }
+
+    .construction-box {
+      padding: 2rem 1.5rem;
+    }
+
+    .working-image {
+      width: 160px;
+    }
+
+    .construction-title {
+      font-size: 1.5rem;
+    }
+
+    .loading-bar {
+      width: 200px;
+    }
+  }
+</style>

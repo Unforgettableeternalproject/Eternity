@@ -1,0 +1,20 @@
+---
+export const prerender = false;
+
+import DesignLayout from '../layouts/DesignLayout.astro';
+import HistoryReader from '../components/history/HistoryReader';
+---
+
+<DesignLayout
+  title="歷史典藏庫 - 邊際世界"
+  description="U.E.P Imaginary Space 的歷史典藏庫。"
+  zone="history"
+>
+  <HistoryReader client:load />
+</DesignLayout>
+
+<style is:global>
+  body {
+    overflow: hidden;
+  }
+</style>

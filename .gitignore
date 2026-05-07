@@ -54,6 +54,16 @@ logs/
 temp/
 *.cookie
 .turbo/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Wrangler local state
+.wrangler/
+.dev.vars
+
+# Content submodule (private repo, clone manually for local dev)
+apps/uep/content/
 
 # Personal notes (keep private)
 copilot-instructions.md
@@ -65,3 +75,7 @@ docs/hidden/**
 # Example files (keep as reference)
 README_Example.md
 README_Example.zh-tw.md
+
+# Local Agent configuration
+settings.local.json
+CLAUDE.md

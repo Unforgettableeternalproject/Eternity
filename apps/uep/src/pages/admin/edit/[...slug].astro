@@ -1,0 +1,153 @@
+---
+import DesignLayout from '../../../layouts/DesignLayout.astro';
+import RichEditor from '../../../components/editor/RichEditor';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect('/admin');
+
+const parts = slug.split('/');
+const area = parts[0];
+const pageSlug = parts.slice(1).join('/');
+
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+// pageSlug 為空 → 入口模式（不載入任何頁面）
+const isEntryMode = !pageSlug;
+
+let page: any = null;
+let fetchError: string | null = null;
+
+if (!isEntryMode) {
+  try {
+    const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error('Content API not available (received non-JSON response)');
+    }
+    const json = await res.json();
+    if (json.ok) {
+      page = json.data;
+    } else {
+      fetchError = json.error || 'Page not found';
+    }
+  } catch (e: any) {
+    fetchError = e.message || 'Failed to connect to Content API';
+  }
+}
+
+// Convert content blocks to HTML for TipTap
+function blocksToHtml(blocks: any[]): string {
+  if (!blocks || blocks.length === 0) return '<p></p>';
+
+  // New format: rich_text type returns HTML directly
+  if (blocks.length === 1 && blocks[0].type === 'rich_text') {
+    return blocks[0].content;
+  }
+
+  // Legacy format: convert block by block
+  return blocks
+    .map((block: any) => {
+      switch (block.type) {
+        case 'heading': {
+          const level = block.attrs?.level || 2;
+          return `<h${level}>${block.content}</h${level}>`;
+        }
+        case 'blockquote':
+          return `<blockquote><p>${block.content}</p></blockquote>`;
+        case 'divider':
+          return '<hr>';
+        case 'code':
+          return `<pre><code>${block.content}</code></pre>`;
+        case 'image':
+          return `<img src="${block.content}" alt="${block.attrs?.alt || ''}" />`;
+        default:
+          return `<p>${block.content}</p>`;
+      }
+    })
+    .join('');
+}
+
+const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
+---
+
+<DesignLayout title={`Edit - ${page?.title || area}`} zone={area}>
+  {
+    fetchError ? (
+      <div class="error-page">
+        <div class="error-box">
+          <h2>Cannot load page</h2>
+          <p>{fetchError}</p>
+          <a href="/admin">Back to list</a>
+        </div>
+      </div>
+    ) : (
+      <RichEditor
+        client:only="react"
+        initialContent={isEntryMode ? '' : initialHtml}
+        initialTitle={page?.title || ''}
+        apiBase={apiBase}
+        area={area}
+        pageSlug={pageSlug}
+        pageStatus={page?.status || ''}
+        zoneId={area}
+        initialParentId={page?.parentId}
+        initialPageType={page?.pageType}
+        initialDepth={page?.depth}
+        initialMetadata={page?.metadata}
+        createdAt={page?.createdAt}
+        updatedAt={page?.updatedAt}
+      />
+    )
+  }
+</DesignLayout>
+
+<style is:global>
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+</style>
+
+<style>
+  .error-page {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-sans);
+  }
+
+  .error-box {
+    text-align: center;
+    padding: 2rem;
+    background: var(--bg-card);
+    border: 1px solid var(--hairline-strong);
+  }
+
+  .error-box h2 {
+    color: #ef4444;
+    margin-bottom: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .error-box p {
+    color: var(--ink-soft);
+    margin-bottom: 1rem;
+  }
+  .error-box a {
+    color: var(--uep-gold);
+    text-decoration: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--uep-gold);
+  }
+</style>
