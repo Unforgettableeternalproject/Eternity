@@ -46,8 +46,9 @@ interface Page {
   updatedAt: string;
 }
 
-const API_BASE = ((import.meta as unknown as { env?: Record<string, string> }).env?.PUBLIC_CONTENT_API_URL)
-  || 'http://localhost:8788';
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 const HISTORY_ZONE = {
   main: '#6B3F2A',
@@ -68,7 +69,11 @@ function flattenTree(nodes: PageTreeNode[], acc: PageTreeNode[] = []) {
   return acc;
 }
 
-function buildAncestorMap(nodes: PageTreeNode[], ancestors: PageTreeNode[] = [], map = new Map<string, PageTreeNode[]>()) {
+function buildAncestorMap(
+  nodes: PageTreeNode[],
+  ancestors: PageTreeNode[] = [],
+  map = new Map<string, PageTreeNode[]>()
+) {
   for (const node of nodes) {
     map.set(node.id, ancestors);
     buildAncestorMap(node.children || [], [...ancestors, node], map);
@@ -108,30 +113,34 @@ function slugifyHeading(text: string, index: number) {
 function renderBlocks(blocks: ContentBlock[] | undefined) {
   if (!blocks?.length) return '';
 
-  return blocks.map((block) => {
-    const content = block.content || '';
-    switch (block.type) {
-      case 'rich_text':
-        return content;
-      case 'paragraph':
-        return /<\/?[a-z][\s\S]*>/i.test(content) ? content : `<p>${escapeHtml(content)}</p>`;
-      case 'heading': {
-        const rawLevel = Number(block.attrs?.level ?? 2);
-        const level = Math.min(6, Math.max(1, rawLevel));
-        return `<h${level}>${escapeHtml(content)}</h${level}>`;
+  return blocks
+    .map((block) => {
+      const content = block.content || '';
+      switch (block.type) {
+        case 'rich_text':
+          return content;
+        case 'paragraph':
+          return /<\/?[a-z][\s\S]*>/i.test(content)
+            ? content
+            : `<p>${escapeHtml(content)}</p>`;
+        case 'heading': {
+          const rawLevel = Number(block.attrs?.level ?? 2);
+          const level = Math.min(6, Math.max(1, rawLevel));
+          return `<h${level}>${escapeHtml(content)}</h${level}>`;
+        }
+        case 'blockquote':
+          return `<blockquote><p>${escapeHtml(content)}</p></blockquote>`;
+        case 'code':
+          return `<pre><code>${escapeHtml(content)}</code></pre>`;
+        case 'divider':
+          return '<hr />';
+        case 'image':
+          return `<img src="${escapeHtml(content)}" alt="${escapeHtml(String(block.attrs?.alt ?? ''))}" />`;
+        default:
+          return content;
       }
-      case 'blockquote':
-        return `<blockquote><p>${escapeHtml(content)}</p></blockquote>`;
-      case 'code':
-        return `<pre><code>${escapeHtml(content)}</code></pre>`;
-      case 'divider':
-        return '<hr />';
-      case 'image':
-        return `<img src="${escapeHtml(content)}" alt="${escapeHtml(String(block.attrs?.alt ?? ''))}" />`;
-      default:
-        return content;
-    }
-  }).join('\n');
+    })
+    .join('\n');
 }
 
 function renderLandingBlocks(blocks: ContentBlock[] | undefined) {
@@ -154,7 +163,11 @@ function splitLandingHtml(html: string) {
   };
 }
 
-function resolveInternalLink(currentPageId: string, href: string, pages: PageTreeNode[]) {
+function resolveInternalLink(
+  currentPageId: string,
+  href: string,
+  pages: PageTreeNode[]
+) {
   let clean = href.replace(/\.md$/, '').replace(/\/$/, '');
   clean = clean.replace(/\/README$/, '').replace(/^\.?\//, '');
 
@@ -168,19 +181,26 @@ function resolveInternalLink(currentPageId: string, href: string, pages: PageTre
     `history/${clean.replace(/^history\//, '')}`,
   ];
 
-  return pages.find((page) => (
-    candidates.includes(page.id)
-    || page.id.endsWith(`/${clean}`)
-    || page.slug === clean
-    || page.slug.endsWith(`/${clean}`)
-  )) || null;
+  return (
+    pages.find(
+      (page) =>
+        candidates.includes(page.id) ||
+        page.id.endsWith(`/${clean}`) ||
+        page.slug === clean ||
+        page.slug.endsWith(`/${clean}`)
+    ) || null
+  );
 }
 
 export default function HistoryReader() {
   const [theme, setTheme] = useState('dark');
   const [showMap, setShowMap] = useState(false);
-  const [portalZone, setPortalZone] = useState<typeof ZONES[number] | null>(null);
-  const [introZone, setIntroZone] = useState<typeof ZONES[number] | null>(null);
+  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
+    null
+  );
+  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
+    null
+  );
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [treeLoading, setTreeLoading] = useState(true);
@@ -201,27 +221,52 @@ export default function HistoryReader() {
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
-  const readablePages = useMemo(() => flatPages.filter(page => page.pageType !== 'page'), [flatPages]);
-  const pageLevelNodes = useMemo(() => flatPages.filter(page => page.pageType === 'page'), [flatPages]);
-  const currentIndex = currentId ? readablePages.findIndex(page => page.id === currentId) : -1;
+  const readablePages = useMemo(
+    () => flatPages.filter((page) => page.pageType !== 'page'),
+    [flatPages]
+  );
+  const pageLevelNodes = useMemo(
+    () => flatPages.filter((page) => page.pageType === 'page'),
+    [flatPages]
+  );
+  const currentIndex = currentId
+    ? readablePages.findIndex((page) => page.id === currentId)
+    : -1;
   const prevPage = currentIndex > 0 ? readablePages[currentIndex - 1] : null;
-  const nextPage = currentIndex >= 0 && currentIndex < readablePages.length - 1 ? readablePages[currentIndex + 1] : null;
-  const passageNode = pageLevelNodes.find(page => page.id === 'history/passage') || pageLevelNodes[0] || null;
-  const noteNode = pageLevelNodes.find(page => page.id === 'history/note') || null;
+  const nextPage =
+    currentIndex >= 0 && currentIndex < readablePages.length - 1
+      ? readablePages[currentIndex + 1]
+      : null;
+  const passageNode =
+    pageLevelNodes.find((page) => page.id === 'history/passage') ||
+    pageLevelNodes[0] ||
+    null;
+  const noteNode =
+    pageLevelNodes.find((page) => page.id === 'history/note') || null;
   const passagePage = passageNode ? landingPages[passageNode.id] : null;
   const notePage = noteNode ? landingPages[noteNode.id] : null;
-  const historyZone = ZONES.find(zone => zone.id === 'history') || ZONES[0];
-  const landingHtml = useMemo(() => passagePage ? renderLandingBlocks(passagePage.content) : '', [passagePage]);
-  const landingParts = useMemo(() => splitLandingHtml(landingHtml), [landingHtml]);
+  const historyZone = ZONES.find((zone) => zone.id === 'history') || ZONES[0];
+  const landingHtml = useMemo(
+    () => (passagePage ? renderLandingBlocks(passagePage.content) : ''),
+    [passagePage]
+  );
+  const landingParts = useMemo(
+    () => splitLandingHtml(landingHtml),
+    [landingHtml]
+  );
   const archNodes = useMemo(
-    () => (passageNode?.children || []).filter(node => node.pageType === 'zone').slice(0, 3),
+    () =>
+      (passageNode?.children || [])
+        .filter((node) => node.pageType === 'zone')
+        .slice(0, 3),
     [passageNode]
   );
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem('uep-theme')
-      || document.documentElement.getAttribute('data-theme')
-      || 'dark';
+    const storedTheme =
+      localStorage.getItem('uep-theme') ||
+      document.documentElement.getAttribute('data-theme') ||
+      'dark';
     setTheme(storedTheme);
     document.documentElement.setAttribute('data-theme', storedTheme);
 
@@ -235,7 +280,9 @@ export default function HistoryReader() {
     if (!tree.length || currentId) return;
     const params = new URLSearchParams(window.location.search);
     const pageId = params.get('page');
-    const target = pageId ? readablePages.find(page => page.id === pageId) : null;
+    const target = pageId
+      ? readablePages.find((page) => page.id === pageId)
+      : null;
     if (target) void loadPage(target);
   }, [tree, readablePages, currentId]);
 
@@ -249,23 +296,31 @@ export default function HistoryReader() {
     const root = contentRef.current;
 
     root.querySelectorAll<HTMLElement>('h2, h3').forEach((heading, index) => {
-      if (!heading.id) heading.id = slugifyHeading(heading.textContent || '', index);
+      if (!heading.id)
+        heading.id = slugifyHeading(heading.textContent || '', index);
     });
 
-    root.querySelectorAll<HTMLElement>('.tabs-container').forEach((container) => {
-      const buttons = Array.from(container.querySelectorAll<HTMLElement>('.tab-btn'));
-      const panels = Array.from(container.querySelectorAll<HTMLElement>('.tab-panel'));
-      buttons.forEach((button) => {
-        button.addEventListener('click', () => {
-          const tab = button.getAttribute('data-tab');
-          buttons.forEach(btn => btn.classList.remove('active'));
-          button.classList.add('active');
-          panels.forEach((panel) => {
-            panel.style.display = panel.getAttribute('data-tab') === tab ? 'block' : 'none';
+    root
+      .querySelectorAll<HTMLElement>('.tabs-container')
+      .forEach((container) => {
+        const buttons = Array.from(
+          container.querySelectorAll<HTMLElement>('.tab-btn')
+        );
+        const panels = Array.from(
+          container.querySelectorAll<HTMLElement>('.tab-panel')
+        );
+        buttons.forEach((button) => {
+          button.addEventListener('click', () => {
+            const tab = button.getAttribute('data-tab');
+            buttons.forEach((btn) => btn.classList.remove('active'));
+            button.classList.add('active');
+            panels.forEach((panel) => {
+              panel.style.display =
+                panel.getAttribute('data-tab') === tab ? 'block' : 'none';
+            });
           });
         });
       });
-    });
   }, [articleHtml]);
 
   async function fetchTree() {
@@ -275,12 +330,16 @@ export default function HistoryReader() {
     try {
       const res = await fetch(`${API_BASE}/api/content/history/tree`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json() as { ok: boolean; data: PageTreeNode[]; error?: string };
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: PageTreeNode[];
+        error?: string;
+      };
       if (!json.ok) throw new Error(json.error || 'API returned ok=false');
 
-      const visibleRoots = (json.data || []).filter(node => !isHidden(node));
+      const visibleRoots = (json.data || []).filter((node) => !isHidden(node));
       setTree(visibleRoots);
-      setExpanded(new Set(visibleRoots.map(node => node.id)));
+      setExpanded(new Set(visibleRoots.map((node) => node.id)));
     } catch (err) {
       setTreeError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -291,7 +350,11 @@ export default function HistoryReader() {
   async function fetchPageById(id: string) {
     const res = await fetch(`${API_BASE}/api/content/${id}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json() as { ok: boolean; data: Page; error?: string };
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Page;
+      error?: string;
+    };
     if (!json.ok) throw new Error(json.error || 'API returned ok=false');
     return json.data;
   }
@@ -299,7 +362,11 @@ export default function HistoryReader() {
   async function fetchLandingPages(nodes: PageTreeNode[]) {
     setLandingLoading(true);
     try {
-      const entries = await Promise.all(nodes.map(async node => [node.id, await fetchPageById(node.id)] as const));
+      const entries = await Promise.all(
+        nodes.map(
+          async (node) => [node.id, await fetchPageById(node.id)] as const
+        )
+      );
       setLandingPages(Object.fromEntries(entries));
     } catch (err) {
       console.error('Failed to load history landing pages:', err);
@@ -318,7 +385,7 @@ export default function HistoryReader() {
       window.history.pushState({}, '', url);
       scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       if (node.children.length) {
-        setExpanded(prev => new Set([...prev, node.id]));
+        setExpanded((prev) => new Set([...prev, node.id]));
       }
       return;
     }
@@ -330,7 +397,9 @@ export default function HistoryReader() {
     setArticleHtml('');
 
     const ancestors = ancestorMap.get(node.id) || [];
-    setExpanded(prev => new Set([...prev, ...ancestors.map(item => item.id), node.id]));
+    setExpanded(
+      (prev) => new Set([...prev, ...ancestors.map((item) => item.id), node.id])
+    );
 
     try {
       const page = await fetchPageById(node.id);
@@ -352,8 +421,10 @@ export default function HistoryReader() {
 
   useEffect(() => {
     function onPopState(event: PopStateEvent) {
-      const pageId = event.state?.pageId || new URLSearchParams(window.location.search).get('page');
-      const target = readablePages.find(page => page.id === pageId);
+      const pageId =
+        event.state?.pageId ||
+        new URLSearchParams(window.location.search).get('page');
+      const target = readablePages.find((page) => page.id === pageId);
       if (target) void loadPage(target, false);
       else {
         setCurrentId(null);
@@ -367,7 +438,7 @@ export default function HistoryReader() {
   }, [readablePages]);
 
   function toggleSidebar() {
-    setSidebarOpen(prev => {
+    setSidebarOpen((prev) => {
       const next = !prev;
       localStorage.setItem('history-sidebar', next ? 'open' : 'closed');
       return next;
@@ -379,11 +450,12 @@ export default function HistoryReader() {
     const navCard = target.closest<HTMLElement>('.content-card[data-nav-ref]');
     if (navCard) {
       const ref = navCard.dataset.navRef || '';
-      const match = flatPages.find(page => (
-        page.id.endsWith(`/${ref.replace(/\/$/, '')}`)
-        || page.slug.endsWith(`/${ref.replace(/\/$/, '')}`)
-        || page.slug === ref.replace(/\/$/, '')
-      ));
+      const match = flatPages.find(
+        (page) =>
+          page.id.endsWith(`/${ref.replace(/\/$/, '')}`) ||
+          page.slug.endsWith(`/${ref.replace(/\/$/, '')}`) ||
+          page.slug === ref.replace(/\/$/, '')
+      );
       if (match && match.pageType !== 'page') {
         event.preventDefault();
         void loadPage(match);
@@ -396,11 +468,12 @@ export default function HistoryReader() {
 
     const href = link.getAttribute('href') || '';
     if (
-      href.startsWith('http')
-      || href.startsWith('#')
-      || href.startsWith('mailto:')
-      || href.startsWith('javascript:')
-    ) return;
+      href.startsWith('http') ||
+      href.startsWith('#') ||
+      href.startsWith('mailto:') ||
+      href.startsWith('javascript:')
+    )
+      return;
 
     const resolved = resolveInternalLink(currentId, href, flatPages);
     if (resolved && resolved.pageType !== 'page') {
@@ -410,7 +483,7 @@ export default function HistoryReader() {
   }
 
   function toggleNode(id: string) {
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -419,7 +492,7 @@ export default function HistoryReader() {
   }
 
   function enterZoneFromMap(zoneId: string) {
-    const target = ZONES.find(zone => zone.id === zoneId);
+    const target = ZONES.find((zone) => zone.id === zoneId);
     if (!target) return;
     setShowMap(false);
     if (target.id === 'history') return;
@@ -430,7 +503,7 @@ export default function HistoryReader() {
     }, 1100);
   }
 
-  function showZoneIntro(zone: typeof ZONES[number]) {
+  function showZoneIntro(zone: (typeof ZONES)[number]) {
     setShowMap(false);
     setIntroZone(zone);
   }
@@ -448,62 +521,73 @@ export default function HistoryReader() {
   function isNodeVisible(node: PageTreeNode) {
     if (!query.trim()) return true;
     const needle = query.trim().toLowerCase();
-    return node.title.toLowerCase().includes(needle)
-      || node.slug.toLowerCase().includes(needle)
-      || node.children.some(isNodeVisible);
+    return (
+      node.title.toLowerCase().includes(needle) ||
+      node.slug.toLowerCase().includes(needle) ||
+      node.children.some(isNodeVisible)
+    );
   }
 
   function renderTree(nodes: PageTreeNode[], depth = 0): React.ReactNode {
-    return nodes.filter(node => !isHidden(node) && isNodeVisible(node)).flatMap((node) => {
-      const children = (node.children || []).filter(child => !isHidden(child));
-      if (node.pageType === 'page') {
-        return renderTree(children, depth);
-      }
+    return nodes
+      .filter((node) => !isHidden(node) && isNodeVisible(node))
+      .flatMap((node) => {
+        const children = (node.children || []).filter(
+          (child) => !isHidden(child)
+        );
+        if (node.pageType === 'page') {
+          return renderTree(children, depth);
+        }
 
-      const hasChildren = children.length > 0;
-      const isExpanded = expanded.has(node.id) || Boolean(query.trim());
-      const isCurrent = node.id === currentId;
+        const hasChildren = children.length > 0;
+        const isExpanded = expanded.has(node.id) || Boolean(query.trim());
+        const isCurrent = node.id === currentId;
 
-      return (
-        <div className="history-tree-item" data-depth={depth} key={node.id}>
-          <div className="history-tree-row">
-            {hasChildren ? (
+        return (
+          <div className="history-tree-item" data-depth={depth} key={node.id}>
+            <div className="history-tree-row">
+              {hasChildren ? (
+                <button
+                  className="history-tree-chevron"
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-label={`${isExpanded ? '收合' : '展開'} ${node.title}`}
+                  onClick={() => toggleNode(node.id)}
+                >
+                  {isExpanded ? '−' : '+'}
+                </button>
+              ) : (
+                <span className="history-tree-spacer" />
+              )}
               <button
-                className="history-tree-chevron"
                 type="button"
-                aria-expanded={isExpanded}
-                aria-label={`${isExpanded ? '收合' : '展開'} ${node.title}`}
-                onClick={() => toggleNode(node.id)}
+                className={`history-tree-link ${isCurrent ? 'is-current' : ''}`}
+                style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
+                onClick={() => void loadPage(node)}
               >
-                {isExpanded ? '−' : '+'}
+                <span className="history-tree-kind">
+                  {pageTypeLabel(node.pageType)}
+                </span>
+                <span className="history-tree-title">{node.title}</span>
               </button>
-            ) : (
-              <span className="history-tree-spacer" />
-            )}
-            <button
-              type="button"
-              className={`history-tree-link ${isCurrent ? 'is-current' : ''}`}
-              style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
-              onClick={() => void loadPage(node)}
-            >
-              <span className="history-tree-kind">{pageTypeLabel(node.pageType)}</span>
-              <span className="history-tree-title">{node.title}</span>
-            </button>
-          </div>
-          {hasChildren && isExpanded && (
-            <div className="history-tree-children">
-              {renderTree(children, depth + 1)}
             </div>
-          )}
-        </div>
-      );
-    });
+            {hasChildren && isExpanded && (
+              <div className="history-tree-children">
+                {renderTree(children, depth + 1)}
+              </div>
+            )}
+          </div>
+        );
+      });
   }
 
   const crumbs = currentId
-    ? ([...(ancestorMap.get(currentId) || []), flatPages.find(page => page.id === currentId)]
-      .filter(Boolean) as PageTreeNode[])
-      .filter(page => page.pageType !== 'page')
+    ? (
+        [
+          ...(ancestorMap.get(currentId) || []),
+          flatPages.find((page) => page.id === currentId),
+        ].filter(Boolean) as PageTreeNode[]
+      ).filter((page) => page.pageType !== 'page')
     : [];
 
   return (
@@ -534,11 +618,20 @@ export default function HistoryReader() {
           <div className="history-sidebar-head">
             <div>
               <div className="history-kicker">Volume I / Archive</div>
-              <button className="history-sidebar-title" type="button" onClick={returnToLanding}>
+              <button
+                className="history-sidebar-title"
+                type="button"
+                onClick={returnToLanding}
+              >
                 歷史典藏庫
               </button>
             </div>
-            <button className="history-icon-button" type="button" onClick={toggleSidebar} aria-label="收合目錄">
+            <button
+              className="history-icon-button"
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="收合目錄"
+            >
               ×
             </button>
           </div>
@@ -547,17 +640,21 @@ export default function HistoryReader() {
             <span>Search</span>
             <input
               value={query}
-              onChange={event => setQuery(event.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="搜尋章節、段落..."
             />
           </label>
 
           <nav className="history-tree" aria-label="歷史典藏庫目錄">
-            {treeLoading && <div className="history-state">正在讀取目錄...</div>}
+            {treeLoading && (
+              <div className="history-state">正在讀取目錄...</div>
+            )}
             {treeError && (
               <div className="history-state history-state-error">
                 <span>目錄讀取失敗：{treeError}</span>
-                <button type="button" onClick={() => void fetchTree()}>重試</button>
+                <button type="button" onClick={() => void fetchTree()}>
+                  重試
+                </button>
               </div>
             )}
             {!treeLoading && !treeError && renderTree(tree)}
@@ -565,7 +662,11 @@ export default function HistoryReader() {
         </aside>
 
         {!sidebarOpen && (
-          <button className="history-sidebar-peek" type="button" onClick={toggleSidebar}>
+          <button
+            className="history-sidebar-peek"
+            type="button"
+            onClick={toggleSidebar}
+          >
             目錄
           </button>
         )}
@@ -575,7 +676,9 @@ export default function HistoryReader() {
             <section className="history-landing">
               <div className="history-landing-inner">
                 <div className="history-kicker">History / Passage</div>
-                <h2>{passagePage?.title || passageNode?.title || '三向通道'}</h2>
+                <h2>
+                  {passagePage?.title || passageNode?.title || '三向通道'}
+                </h2>
                 {(treeLoading || landingLoading) && !passagePage && (
                   <div className="history-state">正在讀取三向通道...</div>
                 )}
@@ -594,9 +697,15 @@ export default function HistoryReader() {
                       key={node.id}
                       onClick={() => void loadPage(node)}
                     >
-                      <span className="history-arch-index">{['U', 'E', 'P'][index] || String(index + 1).padStart(2, '0')}</span>
+                      <span className="history-arch-index">
+                        {['U', 'E', 'P'][index] ||
+                          String(index + 1).padStart(2, '0')}
+                      </span>
                       <span className="history-arch-title">{node.title}</span>
-                      <span className="history-arch-meta">{node.children.length} entries / {pageTypeLabel(node.pageType)}</span>
+                      <span className="history-arch-meta">
+                        {node.children.length} entries /{' '}
+                        {pageTypeLabel(node.pageType)}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -621,7 +730,9 @@ export default function HistoryReader() {
                     <h3>{notePage.title}</h3>
                     <div
                       className="history-prose history-note-prose"
-                      dangerouslySetInnerHTML={{ __html: renderBlocks(notePage.content) }}
+                      dangerouslySetInnerHTML={{
+                        __html: renderBlocks(notePage.content),
+                      }}
                     />
                   </section>
                 )}
@@ -641,7 +752,11 @@ export default function HistoryReader() {
               </div>
 
               <article className="history-article">
-                {contentLoading && <div className="history-state history-state-large">正在讀取內容...</div>}
+                {contentLoading && (
+                  <div className="history-state history-state-large">
+                    正在讀取內容...
+                  </div>
+                )}
                 {contentError && (
                   <div className="history-state history-state-error history-state-large">
                     <span>內容讀取失敗：{contentError}</span>
@@ -649,7 +764,9 @@ export default function HistoryReader() {
                       <button
                         type="button"
                         onClick={() => {
-                          const node = flatPages.find(page => page.id === currentId);
+                          const node = flatPages.find(
+                            (page) => page.id === currentId
+                          );
                           if (node) void loadPage(node);
                         }}
                       >
@@ -662,19 +779,21 @@ export default function HistoryReader() {
                   <>
                     <header className="history-article-head">
                       <div className="history-kicker">
-                        {pageTypeLabel(currentPage.pageType)} / {currentPage.slug}
+                        {pageTypeLabel(currentPage.pageType)} /{' '}
+                        {currentPage.slug}
                       </div>
                       <h2>{currentPage.title}</h2>
-                      {typeof currentPage.metadata?.description === 'string' && (
-                        <p>{currentPage.metadata.description}</p>
-                      )}
+                      {typeof currentPage.metadata?.description ===
+                        'string' && <p>{currentPage.metadata.description}</p>}
                     </header>
                     <div
                       ref={contentRef}
                       className="history-prose"
                       onClick={onArticleClick}
                       dangerouslySetInnerHTML={{
-                        __html: articleHtml || '<p class="empty-notice">這篇內容目前是空的。</p>',
+                        __html:
+                          articleHtml ||
+                          '<p class="empty-notice">這篇內容目前是空的。</p>',
                       }}
                     />
                   </>
@@ -682,11 +801,19 @@ export default function HistoryReader() {
               </article>
 
               <div className="history-page-nav">
-                <button type="button" disabled={!prevPage} onClick={() => prevPage && void loadPage(prevPage)}>
+                <button
+                  type="button"
+                  disabled={!prevPage}
+                  onClick={() => prevPage && void loadPage(prevPage)}
+                >
                   <span>PREV</span>
                   <strong>{prevPage?.title || '沒有上一篇'}</strong>
                 </button>
-                <button type="button" disabled={!nextPage} onClick={() => nextPage && void loadPage(nextPage)}>
+                <button
+                  type="button"
+                  disabled={!nextPage}
+                  onClick={() => nextPage && void loadPage(nextPage)}
+                >
                   <span>NEXT</span>
                   <strong>{nextPage?.title || '沒有下一篇'}</strong>
                 </button>
@@ -694,7 +821,6 @@ export default function HistoryReader() {
             </section>
           )}
         </div>
-
       </div>
 
       <Minimap

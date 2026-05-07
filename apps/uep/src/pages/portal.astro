@@ -16,13 +16,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
       <h1 class="portal-title">外部基軸大廳</h1>
       <p class="portal-desc">
-        這是一座華麗程度不亞於一開始的廳堂，不過是以金色的主題居多。<br>
+        這是一座華麗程度不亞於一開始的廳堂，不過是以金色的主題居多。<br />
         你見到五道光柱正佇立在遠方，指示著類似於傳送門的大型結構。
       </p>
     </div>
 
     <div class="portals-grid">
-      <a href="https://www.youtube.com/channel/UCkXbkOgGRKhn5umbeYv-78A" target="_blank" rel="noopener noreferrer" class="portal-card active">
+      <a
+        href="https://www.youtube.com/channel/UCkXbkOgGRKhn5umbeYv-78A"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="portal-card active"
+      >
         <div class="portal-light"></div>
         <div class="portal-content">
           <div class="portal-icon-small">📹</div>
@@ -35,7 +40,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </a>
 
-      <a href="https://github.com/Unforgettableeternalproject" target="_blank" rel="noopener noreferrer" class="portal-card active">
+      <a
+        href="https://github.com/Unforgettableeternalproject"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="portal-card active"
+      >
         <div class="portal-light"></div>
         <div class="portal-content">
           <div class="portal-icon-small">⚙️</div>
@@ -48,7 +58,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </a>
 
-      <a href="https://www.bandlab.com/u_e_p" target="_blank" rel="noopener noreferrer" class="portal-card active">
+      <a
+        href="https://www.bandlab.com/u_e_p"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="portal-card active"
+      >
         <div class="portal-light"></div>
         <div class="portal-content">
           <div class="portal-icon-small">🎸</div>
@@ -61,7 +76,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </a>
 
-      <a href="https://discord.com/invite/ARyrkB9F7Z" target="_blank" rel="noopener noreferrer" class="portal-card active">
+      <a
+        href="https://discord.com/invite/ARyrkB9F7Z"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="portal-card active"
+      >
         <div class="portal-light"></div>
         <div class="portal-content">
           <div class="portal-icon-small">💬</div>
@@ -80,7 +100,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div class="portal-icon-small">❓</div>
           <h3 class="portal-card-title">？？？</h3>
           <p class="portal-card-desc">
-            最後一道光柱感覺有些奇怪，散發著微微的橘色光線，<br>
+            最後一道光柱感覺有些奇怪，散發著微微的橘色光線，<br />
             而且紀錄的部分似乎也損壞了...
           </p>
           <div class="portal-button disabled">
@@ -94,9 +114,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
   <style>
     .portal-page {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 3rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 3rem;
     }
 
     @keyframes pageEnter {
@@ -153,7 +173,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     @keyframes float {
-      0%, 100% {
+      0%,
+      100% {
         transform: translateY(0) rotate(0deg);
       }
       50% {
@@ -171,7 +192,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     @keyframes pulse {
-      0%, 100% {
+      0%,
+      100% {
         opacity: 0.3;
         transform: scale(1);
       }
@@ -240,7 +262,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     .portal-card.active:hover {
       transform: translateY(-10px);
       border-color: var(--cyan);
-      box-shadow: 
+      box-shadow:
         0 20px 40px rgba(0, 0, 0, 0.5),
         0 0 60px rgba(213, 182, 24, 0.3);
     }
@@ -263,7 +285,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     @keyframes lightBeam {
-      0%, 100% {
+      0%,
+      100% {
         opacity: 0.4;
         transform: translateX(-50%) scaleY(1);
       }
@@ -279,7 +302,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     @keyframes glitchBeam {
-      0%, 100% {
+      0%,
+      100% {
         opacity: 0.3;
       }
       50% {
@@ -302,7 +326,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     @keyframes iconBob {
-      0%, 100% {
+      0%,
+      100% {
         transform: translateY(0);
       }
       50% {
@@ -360,7 +385,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     @keyframes glitchAnim {
-      0%, 100% {
+      0%,
+      100% {
         opacity: 1;
       }
       50% {

@@ -1,3 +1,4 @@
+/* global BeforeUnloadEvent */
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -63,8 +64,16 @@ interface RichEditorProps {
 }
 
 export default function RichEditor({
-  initialContent, initialTitle, apiBase, area, pageSlug, pageStatus,
-  initialParentId, initialPageType, initialDepth, initialMetadata
+  initialContent,
+  initialTitle,
+  apiBase,
+  area,
+  pageSlug,
+  pageStatus,
+  initialParentId,
+  initialPageType,
+  initialDepth,
+  initialMetadata,
 }: RichEditorProps) {
   const [isDirty, setIsDirty] = useState(false);
   const [title, setTitle] = useState(initialTitle);
@@ -73,8 +82,12 @@ export default function RichEditor({
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [icon, setIcon] = useState(initialMetadata?.icon || '');
-  const [description, setDescription] = useState(initialMetadata?.description || '');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [description, setDescription] = useState(
+    initialMetadata?.description || ''
+  );
+  const [saveStatus, setSaveStatus] = useState<
+    'idle' | 'saving' | 'saved' | 'error'
+  >('idle');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -108,7 +121,10 @@ export default function RichEditor({
   // 關閉 dropdown
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setActiveDropdown(null);
       }
     };
@@ -164,7 +180,10 @@ export default function RichEditor({
   // beforeunload
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
@@ -173,7 +192,7 @@ export default function RichEditor({
   if (!editor) return null;
 
   const toggleDropdown = (name: string) => {
-    setActiveDropdown(prev => prev === name ? null : name);
+    setActiveDropdown((prev) => (prev === name ? null : name));
   };
 
   const setColor = (color: string) => {
@@ -196,7 +215,12 @@ export default function RichEditor({
 
   const setHeading = (level: number) => {
     if (level === 0) editor.chain().focus().setParagraph().run();
-    else editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 }).run();
+    else
+      editor
+        .chain()
+        .focus()
+        .toggleHeading({ level: level as 1 | 2 | 3 })
+        .run();
     setActiveDropdown(null);
   };
 
@@ -206,7 +230,9 @@ export default function RichEditor({
   };
 
   const statusLabels: Record<string, string> = {
-    synced: '已同步', modified: '已修改', local_only: '僅本地',
+    synced: '已同步',
+    modified: '已修改',
+    local_only: '僅本地',
   };
 
   const saveLabel = {
@@ -223,14 +249,23 @@ export default function RichEditor({
         <div className="re-topbar-left">
           <a href="/admin" className="re-back-btn">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path
+                d="M10 12L6 8L10 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </a>
           <input
             type="text"
             className="re-title-input"
             value={title}
-            onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setIsDirty(true);
+            }}
             placeholder="頁面標題..."
           />
           {pageStatus && (
@@ -256,16 +291,27 @@ export default function RichEditor({
         {/* 段落/標題 */}
         <div className="tb-group">
           <div className="tb-dropdown-wrap">
-            <button className="tb-btn tb-dropdown-trigger" onClick={() => toggleDropdown('heading')}>
-              {editor.isActive('heading', { level: 1 }) ? 'H1' :
-               editor.isActive('heading', { level: 2 }) ? 'H2' :
-               editor.isActive('heading', { level: 3 }) ? 'H3' : '內文'}
+            <button
+              className="tb-btn tb-dropdown-trigger"
+              onClick={() => toggleDropdown('heading')}
+            >
+              {editor.isActive('heading', { level: 1 })
+                ? 'H1'
+                : editor.isActive('heading', { level: 2 })
+                  ? 'H2'
+                  : editor.isActive('heading', { level: 3 })
+                    ? 'H3'
+                    : '內文'}
               <span className="tb-caret">&#9662;</span>
             </button>
             {activeDropdown === 'heading' && (
               <div className="tb-dropdown">
-                {HEADING_LEVELS.map(h => (
-                  <button key={h.value} className="tb-dropdown-item" onClick={() => setHeading(h.value)}>
+                {HEADING_LEVELS.map((h) => (
+                  <button
+                    key={h.value}
+                    className="tb-dropdown-item"
+                    onClick={() => setHeading(h.value)}
+                  >
                     {h.label}
                   </button>
                 ))}
@@ -278,20 +324,32 @@ export default function RichEditor({
 
         {/* 基本格式 */}
         <div className="tb-group">
-          <button className={`tb-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBold().run()} title="粗體 (Ctrl+B)">
+          <button
+            className={`tb-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            title="粗體 (Ctrl+B)"
+          >
             <strong>B</strong>
           </button>
-          <button className={`tb-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleItalic().run()} title="斜體 (Ctrl+I)">
+          <button
+            className={`tb-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            title="斜體 (Ctrl+I)"
+          >
             <em>I</em>
           </button>
-          <button className={`tb-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleUnderline().run()} title="底線 (Ctrl+U)">
+          <button
+            className={`tb-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            title="底線 (Ctrl+U)"
+          >
             <span style={{ textDecoration: 'underline' }}>U</span>
           </button>
-          <button className={`tb-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleStrike().run()} title="刪除線">
+          <button
+            className={`tb-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleStrike().run()}
+            title="刪除線"
+          >
             <s>S</s>
           </button>
         </div>
@@ -301,34 +359,62 @@ export default function RichEditor({
         {/* 文字顏色 */}
         <div className="tb-group">
           <div className="tb-dropdown-wrap">
-            <button className="tb-btn" onClick={() => toggleDropdown('color')} title="文字顏色">
-              <span className="tb-color-preview" style={{
-                borderBottomColor: editor.getAttributes('textStyle').color || '#f8f8ff'
-              }}>A</span>
+            <button
+              className="tb-btn"
+              onClick={() => toggleDropdown('color')}
+              title="文字顏色"
+            >
+              <span
+                className="tb-color-preview"
+                style={{
+                  borderBottomColor:
+                    editor.getAttributes('textStyle').color || '#f8f8ff',
+                }}
+              >
+                A
+              </span>
             </button>
             {activeDropdown === 'color' && (
               <div className="tb-dropdown tb-color-grid">
-                {TEXT_COLORS.map(c => (
-                  <button key={c.value || 'default'} className="tb-color-swatch"
+                {TEXT_COLORS.map((c) => (
+                  <button
+                    key={c.value || 'default'}
+                    className="tb-color-swatch"
                     style={{ background: c.value || '#f8f8ff' }}
-                    onClick={() => setColor(c.value)} title={c.label} />
+                    onClick={() => setColor(c.value)}
+                    title={c.label}
+                  />
                 ))}
               </div>
             )}
           </div>
 
           <div className="tb-dropdown-wrap">
-            <button className="tb-btn" onClick={() => toggleDropdown('highlight')} title="標記色">
-              <span className="tb-highlight-preview" style={{
-                background: editor.getAttributes('highlight').color || 'transparent'
-              }}>H</span>
+            <button
+              className="tb-btn"
+              onClick={() => toggleDropdown('highlight')}
+              title="標記色"
+            >
+              <span
+                className="tb-highlight-preview"
+                style={{
+                  background:
+                    editor.getAttributes('highlight').color || 'transparent',
+                }}
+              >
+                H
+              </span>
             </button>
             {activeDropdown === 'highlight' && (
               <div className="tb-dropdown tb-color-grid">
-                {HIGHLIGHT_COLORS.map(c => (
-                  <button key={c.value || 'none'} className="tb-color-swatch"
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c.value || 'none'}
+                    className="tb-color-swatch"
                     style={{ background: c.value || 'rgba(255,255,255,0.1)' }}
-                    onClick={() => setHighlight(c.value)} title={c.label} />
+                    onClick={() => setHighlight(c.value)}
+                    title={c.label}
+                  />
                 ))}
               </div>
             )}
@@ -340,15 +426,22 @@ export default function RichEditor({
         {/* 字體 */}
         <div className="tb-group">
           <div className="tb-dropdown-wrap">
-            <button className="tb-btn tb-dropdown-trigger" onClick={() => toggleDropdown('font')} title="字體">
+            <button
+              className="tb-btn tb-dropdown-trigger"
+              onClick={() => toggleDropdown('font')}
+              title="字體"
+            >
               字體 <span className="tb-caret">&#9662;</span>
             </button>
             {activeDropdown === 'font' && (
               <div className="tb-dropdown">
-                {FONT_FAMILIES.map(f => (
-                  <button key={f.value || 'default'} className="tb-dropdown-item"
+                {FONT_FAMILIES.map((f) => (
+                  <button
+                    key={f.value || 'default'}
+                    className="tb-dropdown-item"
                     style={{ fontFamily: f.value || 'inherit' }}
-                    onClick={() => setFont(f.value)}>
+                    onClick={() => setFont(f.value)}
+                  >
                     {f.label}
                   </button>
                 ))}
@@ -361,34 +454,76 @@ export default function RichEditor({
 
         {/* 對齊 */}
         <div className="tb-group">
-          <button className={`tb-btn ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().setTextAlign('left').run()} title="靠左">&#8676;</button>
-          <button className={`tb-btn ${editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().setTextAlign('center').run()} title="置中">&#8596;</button>
-          <button className={`tb-btn ${editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().setTextAlign('right').run()} title="靠右">&#8677;</button>
+          <button
+            className={`tb-btn ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().setTextAlign('left').run()}
+            title="靠左"
+          >
+            &#8676;
+          </button>
+          <button
+            className={`tb-btn ${editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().setTextAlign('center').run()}
+            title="置中"
+          >
+            &#8596;
+          </button>
+          <button
+            className={`tb-btn ${editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().setTextAlign('right').run()}
+            title="靠右"
+          >
+            &#8677;
+          </button>
         </div>
 
         <div className="tb-sep" />
 
         {/* 列表 & 引言 & 插入 */}
         <div className="tb-group">
-          <button className={`tb-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBulletList().run()} title="無序列表">&#8226;</button>
-          <button className={`tb-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleOrderedList().run()} title="有序列表">1.</button>
-          <button className={`tb-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBlockquote().run()} title="引言">"</button>
+          <button
+            className={`tb-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            title="無序列表"
+          >
+            &#8226;
+          </button>
+          <button
+            className={`tb-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            title="有序列表"
+          >
+            1.
+          </button>
+          <button
+            className={`tb-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
+            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            title="引言"
+          >
+            "
+          </button>
         </div>
 
         <div className="tb-sep" />
 
         <div className="tb-group">
-          <button className="tb-btn"
-            onClick={() => editor.chain().focus().setHorizontalRule().run()} title="分隔線">—</button>
-          <button className="tb-btn"
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="程式碼">&lt;/&gt;</button>
-          <button className="tb-btn" onClick={insertImage} title="圖片">&#9634;</button>
+          <button
+            className="tb-btn"
+            onClick={() => editor.chain().focus().setHorizontalRule().run()}
+            title="分隔線"
+          >
+            —
+          </button>
+          <button
+            className="tb-btn"
+            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            title="程式碼"
+          >
+            &lt;/&gt;
+          </button>
+          <button className="tb-btn" onClick={insertImage} title="圖片">
+            &#9634;
+          </button>
         </div>
       </div>
 
@@ -398,7 +533,13 @@ export default function RichEditor({
         <div className="re-settings-body">
           <label className="re-setting">
             <span>頁面類型</span>
-            <select value={pageType} onChange={e => { setPageType(e.target.value); setIsDirty(true); }}>
+            <select
+              value={pageType}
+              onChange={(e) => {
+                setPageType(e.target.value);
+                setIsDirty(true);
+              }}
+            >
               <option value="page">一般頁面</option>
               <option value="zone">區間 (Zone)</option>
               <option value="chapter">章節 (Chapter)</option>
@@ -408,29 +549,64 @@ export default function RichEditor({
           </label>
           <label className="re-setting">
             <span>上層頁面 ID</span>
-            <input type="text" value={parentId} placeholder="例: history/passage/unforgettable_story"
-              onChange={e => { setParentId(e.target.value); setIsDirty(true); }} />
+            <input
+              type="text"
+              value={parentId}
+              placeholder="例: history/passage/unforgettable_story"
+              onChange={(e) => {
+                setParentId(e.target.value);
+                setIsDirty(true);
+              }}
+            />
           </label>
           <label className="re-setting">
             <span>深度</span>
-            <input type="number" value={depth} min={0} max={5}
-              onChange={e => { setDepth(parseInt(e.target.value) || 0); setIsDirty(true); }} />
+            <input
+              type="number"
+              value={depth}
+              min={0}
+              max={5}
+              onChange={(e) => {
+                setDepth(parseInt(e.target.value) || 0);
+                setIsDirty(true);
+              }}
+            />
           </label>
           <div className="re-settings-sep" />
           <label className="re-setting">
             <span>隱藏頁面</span>
-            <input type="checkbox" checked={hidden}
-              onChange={e => { setHidden(e.target.checked); setIsDirty(true); }} />
+            <input
+              type="checkbox"
+              checked={hidden}
+              onChange={(e) => {
+                setHidden(e.target.checked);
+                setIsDirty(true);
+              }}
+            />
           </label>
           <label className="re-setting">
             <span>圖示</span>
-            <input type="text" value={icon} placeholder="例: sparkle"
-              onChange={e => { setIcon(e.target.value); setIsDirty(true); }} />
+            <input
+              type="text"
+              value={icon}
+              placeholder="例: sparkle"
+              onChange={(e) => {
+                setIcon(e.target.value);
+                setIsDirty(true);
+              }}
+            />
           </label>
           <label className="re-setting">
             <span>描述</span>
-            <input type="text" value={description} placeholder="頁面描述"
-              onChange={e => { setDescription(e.target.value); setIsDirty(true); }} />
+            <input
+              type="text"
+              value={description}
+              placeholder="頁面描述"
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setIsDirty(true);
+              }}
+            />
           </label>
         </div>
       </details>

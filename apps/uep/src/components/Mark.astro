@@ -5,18 +5,32 @@
  */
 
 interface Props {
-  color?: 'yellow' | 'red' | 'blue' | 'green' | 'purple' | 'orange' | 'pink' | 'cyan';
+  color?:
+    | 'yellow'
+    | 'red'
+    | 'blue'
+    | 'green'
+    | 'purple'
+    | 'orange'
+    | 'pink'
+    | 'cyan';
   inline?: boolean;
 }
 
 const { color = 'yellow', inline = true } = Astro.props;
 ---
 
-{inline ? (
-  <span class={`mark mark-${color}`}><slot /></span>
-) : (
-  <div class={`mark mark-${color} mark-block`}><slot /></div>
-)}
+{
+  inline ? (
+    <span class={`mark mark-${color}`}>
+      <slot />
+    </span>
+  ) : (
+    <div class={`mark mark-${color} mark-block`}>
+      <slot />
+    </div>
+  )
+}
 
 <style>
   .mark {

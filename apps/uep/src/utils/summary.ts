@@ -1,4 +1,12 @@
-import rawSummary from '../../content/SUMMARY.md?raw';
+// Use import.meta.glob so the build doesn't crash when the content
+// submodule is absent (glob returns {} instead of throwing).
+const summaryModules = import.meta.glob('../../content/SUMMARY.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+const rawSummary = Object.values(summaryModules)[0] || '';
 
 export interface NavigationItem {
   title: string;
@@ -52,12 +60,12 @@ export function parseSummary(summaryContent: string): NavigationItem[] {
     if (listMatch) {
       const [, indent, title, path] = listMatch;
       const level = indent.length / 2; // 2 spaces per level
-      
+
       const item: NavigationItem = {
         title,
         path: path.trim(),
         level,
-        children: []
+        children: [],
       };
 
       // 找到父節點
@@ -77,12 +85,12 @@ export function parseSummary(summaryContent: string): NavigationItem[] {
     } else if (headingMatch) {
       const [, title, id] = headingMatch;
       const level = -1; // heading 的 level 設為 -1，確保列表項（level 0）會成為它的子項
-      
+
       const item: NavigationItem = {
         title: title.trim(),
         id: id || title.trim().toLowerCase(),
         level,
-        children: []
+        children: [],
       };
 
       navigation.push(item);
@@ -97,7 +105,10 @@ export function parseSummary(summaryContent: string): NavigationItem[] {
 /**
  * 從導航樹中提取所有路由路徑
  */
-export function extractRoutes(navigation: NavigationItem[], baseDir = 'content'): PageRoute[] {
+export function extractRoutes(
+  navigation: NavigationItem[],
+  baseDir = 'content'
+): PageRoute[] {
   const routes: PageRoute[] = [];
 
   function traverse(items: NavigationItem[], parentPath: string[] = []) {
@@ -106,11 +117,11 @@ export function extractRoutes(navigation: NavigationItem[], baseDir = 'content')
         // 移除 .md 擴展名並分割路徑
         const cleanPath = item.path.replace(/\.md$/, '');
         const pathParts = cleanPath.split('/').filter(Boolean);
-        
+
         routes.push({
           slug: pathParts,
           filePath: joinPath(baseDir, item.path),
-          title: item.title
+          title: item.title,
         });
       }
 
@@ -165,8 +176,8 @@ export function extractDirectChildren(
   const routes: PageRoute[] = [];
 
   // 找到對應區域的導航項
-  const areaSection = navigation.find(item => item.id === areaId);
-  
+  const areaSection = navigation.find((item) => item.id === areaId);
+
   if (!areaSection || !areaSection.children) {
     return routes;
   }
@@ -177,12 +188,12 @@ export function extractDirectChildren(
       if (item.path) {
         const cleanPath = item.path.replace(/\.md$/, '');
         const pathParts = cleanPath.split('/').filter(Boolean);
-        
+
         routes.push({
           slug: pathParts,
           filePath: joinPath('content', item.path),
           title: item.title,
-          level: depth
+          level: depth,
         });
       }
 

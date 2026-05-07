@@ -18,47 +18,53 @@ const { tabs } = Astro.props;
 
 <div class="tabs-container" data-tabs>
   <div class="tabs-header">
-    {tabs.map((tab, index) => (
-      <button 
-        class={`tab-button ${index === 0 ? 'active' : ''}`}
-        data-tab-target={tab.id}
-        type="button"
-      >
-        {tab.title}
-      </button>
-    ))}
+    {
+      tabs.map((tab, index) => (
+        <button
+          class={`tab-button ${index === 0 ? 'active' : ''}`}
+          data-tab-target={tab.id}
+          type="button"
+        >
+          {tab.title}
+        </button>
+      ))
+    }
   </div>
-  
+
   <div class="tabs-content">
-    {tabs.map((tab, index) => (
-      <div 
-        class={`tab-panel ${index === 0 ? 'active' : ''}`}
-        data-tab-panel={tab.id}
-        set:html={tab.content}
-      />
-    ))}
+    {
+      tabs.map((tab, index) => (
+        <div
+          class={`tab-panel ${index === 0 ? 'active' : ''}`}
+          data-tab-panel={tab.id}
+          set:html={tab.content}
+        />
+      ))
+    }
   </div>
 </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const tabsContainers = document.querySelectorAll('[data-tabs]');
-    
-    tabsContainers.forEach(container => {
+
+    tabsContainers.forEach((container) => {
       const buttons = container.querySelectorAll('.tab-button');
       const panels = container.querySelectorAll('.tab-panel');
-      
-      buttons.forEach(button => {
+
+      buttons.forEach((button) => {
         button.addEventListener('click', () => {
           const targetId = button.getAttribute('data-tab-target');
-          
+
           // 移除所有 active 狀態
-          buttons.forEach(btn => btn.classList.remove('active'));
-          panels.forEach(panel => panel.classList.remove('active'));
-          
+          buttons.forEach((btn) => btn.classList.remove('active'));
+          panels.forEach((panel) => panel.classList.remove('active'));
+
           // 添加 active 到當前選中的
           button.classList.add('active');
-          const targetPanel = container.querySelector(`[data-tab-panel="${targetId}"]`);
+          const targetPanel = container.querySelector(
+            `[data-tab-panel="${targetId}"]`
+          );
           if (targetPanel) {
             targetPanel.classList.add('active');
           }
@@ -106,7 +112,11 @@ const { tabs } = Astro.props;
   }
 
   .tab-button.active {
-    background: linear-gradient(135deg, rgba(213, 182, 24, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(213, 182, 24, 0.2) 0%,
+      rgba(168, 85, 247, 0.2) 100%
+    );
     color: #d5b618;
     border-bottom: 2px solid #d5b618;
   }

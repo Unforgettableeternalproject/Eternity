@@ -1,6 +1,6 @@
 /**
  * 覆蓋層（Overlay Layer）類型定義
- * 
+ *
  * 用於定義非侵入式內容增強配置
  * 允許在不修改原始文件的情況下控制渲染效果
  */
@@ -18,13 +18,13 @@ export interface ComponentWrap {
 /**
  * 段落操作類型
  */
-export type ParagraphAction = 
-  | 'normal'        // 正常渲染
-  | 'wrap'          // 用組件包裝
-  | 'insertBefore'  // 在段落前插入內容
-  | 'insertAfter'   // 在段落後插入內容
-  | 'replace'       // 替換段落內容
-  | 'hide';         // 隱藏段落
+export type ParagraphAction =
+  | 'normal' // 正常渲染
+  | 'wrap' // 用組件包裝
+  | 'insertBefore' // 在段落前插入內容
+  | 'insertAfter' // 在段落後插入內容
+  | 'replace' // 替換段落內容
+  | 'hide'; // 隱藏段落
 
 /**
  * 段落識別方式

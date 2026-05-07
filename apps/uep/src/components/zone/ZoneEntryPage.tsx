@@ -18,22 +18,37 @@ interface ZoneShellProps {
 }
 
 function ZoneShell({ zone, onOpenMap, children }: ZoneShellProps) {
-  const corners: Array<{ pos: React.CSSProperties; borders: React.CSSProperties }> = [
+  const corners: Array<{
+    pos: React.CSSProperties;
+    borders: React.CSSProperties;
+  }> = [
     {
       pos: { top: 14, left: 14 },
-      borders: { borderTop: `2px solid ${zone.main}`, borderLeft: `2px solid ${zone.main}` },
+      borders: {
+        borderTop: `2px solid ${zone.main}`,
+        borderLeft: `2px solid ${zone.main}`,
+      },
     },
     {
       pos: { top: 14, right: 14 },
-      borders: { borderTop: `2px solid ${zone.main}`, borderRight: `2px solid ${zone.main}` },
+      borders: {
+        borderTop: `2px solid ${zone.main}`,
+        borderRight: `2px solid ${zone.main}`,
+      },
     },
     {
       pos: { bottom: 14, left: 14 },
-      borders: { borderBottom: `2px solid ${zone.main}`, borderLeft: `2px solid ${zone.main}` },
+      borders: {
+        borderBottom: `2px solid ${zone.main}`,
+        borderLeft: `2px solid ${zone.main}`,
+      },
     },
     {
       pos: { bottom: 14, right: 14 },
-      borders: { borderBottom: `2px solid ${zone.main}`, borderRight: `2px solid ${zone.main}` },
+      borders: {
+        borderBottom: `2px solid ${zone.main}`,
+        borderRight: `2px solid ${zone.main}`,
+      },
     },
   ];
 
@@ -84,7 +99,9 @@ function ZoneShell({ zone, onOpenMap, children }: ZoneShellProps) {
       </div>
 
       {/* main content */}
-      <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 1 }}>
+      <div
+        style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 1 }}
+      >
         {children}
       </div>
     </div>
@@ -112,7 +129,9 @@ function ZoneKicker({ zone }: ZoneKickerProps) {
         marginBottom: 20,
       }}
     >
-      <div style={{ width: 36, height: 1, background: zone.main, flexShrink: 0 }} />
+      <div
+        style={{ width: 36, height: 1, background: zone.main, flexShrink: 0 }}
+      />
       <span>
         {zone.kicker} · {zone.en.toUpperCase()}
       </span>
@@ -180,30 +199,48 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* drifting character particles */}
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
         {charParticles.map((p, i) => (
           <span
             key={i}
-            style={{
-              position: 'absolute',
-              left: `${p.left}%`,
-              top: `${p.top}%`,
-              fontFamily: 'var(--font-display)',
-              fontSize: p.size,
-              color: zone.main,
-              opacity: 0,
-              animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
-              '--drift-x': '8px',
-              '--drift-y': `${p.dy}px`,
-              '--drift-opacity': '0.22',
-            } as React.CSSProperties}
+            style={
+              {
+                position: 'absolute',
+                left: `${p.left}%`,
+                top: `${p.top}%`,
+                fontFamily: 'var(--font-display)',
+                fontSize: p.size,
+                color: zone.main,
+                opacity: 0,
+                animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
+                '--drift-x': '8px',
+                '--drift-y': `${p.dy}px`,
+                '--drift-opacity': '0.22',
+              } as React.CSSProperties
+            }
           >
             {p.char}
           </span>
         ))}
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '60px 40px 80px', position: 'relative', zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: 900,
+          margin: '0 auto',
+          padding: '60px 40px 80px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
@@ -240,7 +277,14 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
         </div>
 
         {/* Three archway cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 36 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 20,
+            marginBottom: 36,
+          }}
+        >
           {arches.map((arch) => (
             <div
               key={arch.tag}
@@ -291,23 +335,33 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
 
               {/* open arch: drifting chars inside */}
               {arch.state === 'open' && (
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    overflow: 'hidden',
+                    pointerEvents: 'none',
+                  }}
+                >
                   {Array.from({ length: 5 }, (_, i) => (
                     <span
                       key={i}
-                      style={{
-                        position: 'absolute',
-                        left: `${15 + i * 16}%`,
-                        top: `${40 + (i % 3) * 15}%`,
-                        fontFamily: 'var(--font-display)',
-                        fontSize: 11 + (i % 2) * 4,
-                        color: zone.main,
-                        opacity: 0,
-                        animation: `drift ${10 + i * 2}s ${i * 0.8}s linear infinite`,
-                        '--drift-x': '4px',
-                        '--drift-y': '-50px',
-                        '--drift-opacity': '0.3',
-                      } as React.CSSProperties}
+                      style={
+                        {
+                          position: 'absolute',
+                          left: `${15 + i * 16}%`,
+                          top: `${40 + (i % 3) * 15}%`,
+                          fontFamily: 'var(--font-display)',
+                          fontSize: 11 + (i % 2) * 4,
+                          color: zone.main,
+                          opacity: 0,
+                          animation: `drift ${10 + i * 2}s ${i * 0.8}s linear infinite`,
+                          '--drift-x': '4px',
+                          '--drift-y': '-50px',
+                          '--drift-opacity': '0.3',
+                        } as React.CSSProperties
+                      }
                     >
                       {HISTORY_CHARS[(i * 3) % HISTORY_CHARS.length]}
                     </span>
@@ -415,9 +469,20 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
       <style>{orbPulseStyle}</style>
 
       {/* pearl strings */}
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
         {pearlStrings.map((s, si) => (
-          <div key={si} style={{ position: 'absolute', left: `${s.x}%`, top: 0, bottom: 0 }}>
+          <div
+            key={si}
+            style={{ position: 'absolute', left: `${s.x}%`, top: 0, bottom: 0 }}
+          >
             {s.dots.map((dotY, di) => (
               <div
                 key={di}
@@ -441,26 +506,36 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
         {noteParticles.map((p, i) => (
           <span
             key={i}
-            style={{
-              position: 'absolute',
-              left: `${p.left}%`,
-              top: `${p.top}%`,
-              fontFamily: 'var(--font-sans)',
-              fontSize: p.size,
-              color: zone.main,
-              opacity: 0,
-              animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
-              '--drift-x': '6px',
-              '--drift-y': `${p.dy}px`,
-              '--drift-opacity': '0.2',
-            } as React.CSSProperties}
+            style={
+              {
+                position: 'absolute',
+                left: `${p.left}%`,
+                top: `${p.top}%`,
+                fontFamily: 'var(--font-sans)',
+                fontSize: p.size,
+                color: zone.main,
+                opacity: 0,
+                animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
+                '--drift-x': '6px',
+                '--drift-y': `${p.dy}px`,
+                '--drift-opacity': '0.2',
+              } as React.CSSProperties
+            }
           >
             {p.note}
           </span>
         ))}
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '60px 40px 80px', position: 'relative', zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: 960,
+          margin: '0 auto',
+          padding: '60px 40px 80px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
@@ -497,7 +572,13 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
         </div>
 
         {/* Orb cluster cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 16,
+          }}
+        >
           {clusters.map((cluster) => {
             const r = 36;
             const orbs = Array.from({ length: cluster.orbCount }, (_, i) => {
@@ -527,7 +608,14 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
                 }}
               >
                 {/* orb cluster */}
-                <div style={{ position: 'relative', width: 110, height: 110, flexShrink: 0 }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    width: 110,
+                    height: 110,
+                    flexShrink: 0,
+                  }}
+                >
                   {/* center large orb */}
                   <div
                     style={{
@@ -642,29 +730,47 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* diamond particles */}
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
         {diamondParticles.map((p, i) => (
           <div
             key={i}
-            style={{
-              position: 'absolute',
-              left: `${p.left}%`,
-              top: `${p.top}%`,
-              width: p.size,
-              height: p.size,
-              background: zone.main,
-              transform: 'rotate(45deg)',
-              opacity: 0,
-              animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
-              '--drift-x': '5px',
-              '--drift-y': `${p.dy}px`,
-              '--drift-opacity': '0.18',
-            } as React.CSSProperties}
+            style={
+              {
+                position: 'absolute',
+                left: `${p.left}%`,
+                top: `${p.top}%`,
+                width: p.size,
+                height: p.size,
+                background: zone.main,
+                transform: 'rotate(45deg)',
+                opacity: 0,
+                animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
+                '--drift-x': '5px',
+                '--drift-y': `${p.dy}px`,
+                '--drift-opacity': '0.18',
+              } as React.CSSProperties
+            }
           />
         ))}
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '60px 40px 80px', position: 'relative', zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: 900,
+          margin: '0 auto',
+          padding: '60px 40px 80px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
@@ -742,8 +848,24 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
                 strokeDasharray="3 4"
               />
               {/* crosshair lines */}
-              <line x1={55} y1={7} x2={55} y2={103} stroke={zone.main} strokeOpacity={0.4} strokeWidth={0.8} />
-              <line x1={7} y1={55} x2={103} y2={55} stroke={zone.main} strokeOpacity={0.4} strokeWidth={0.8} />
+              <line
+                x1={55}
+                y1={7}
+                x2={55}
+                y2={103}
+                stroke={zone.main}
+                strokeOpacity={0.4}
+                strokeWidth={0.8}
+              />
+              <line
+                x1={7}
+                y1={55}
+                x2={103}
+                y2={55}
+                stroke={zone.main}
+                strokeOpacity={0.4}
+                strokeWidth={0.8}
+              />
               {/* ✦ center symbol */}
               <text
                 x={55}
@@ -770,13 +892,24 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                alignItems: road.area === 'lft' ? 'flex-end' : road.area === 'rgt' ? 'flex-start' : 'center',
+                alignItems:
+                  road.area === 'lft'
+                    ? 'flex-end'
+                    : road.area === 'rgt'
+                      ? 'flex-start'
+                      : 'center',
                 padding: '18px 16px',
                 border: `1px solid ${zone.main}30`,
                 borderRadius: 4,
                 background: `${zone.main}06`,
-                textAlign: road.area === 'lft' ? 'right' : road.area === 'rgt' ? 'left' : 'center',
-                transition: 'background 0.2s var(--ease), border-color 0.2s var(--ease)',
+                textAlign:
+                  road.area === 'lft'
+                    ? 'right'
+                    : road.area === 'rgt'
+                      ? 'left'
+                      : 'center',
+                transition:
+                  'background 0.2s var(--ease), border-color 0.2s var(--ease)',
                 gap: 6,
               }}
             >
@@ -837,10 +970,34 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
   }));
 
   const modules = [
-    { id: '01', name: '永續紀錄主機', en: 'persistent_log_server', state: 'sync' as const, records: 124 },
-    { id: '02', name: '個性瀏覽器', en: 'identity_browser', state: 'sync' as const, records: 38 },
-    { id: '03', name: '原質震盪時鐘', en: 'essence_oscillator', state: 'sync' as const, records: 9 },
-    { id: '04', name: '認知對照平台', en: 'cognition_compare', state: 'idle' as const, records: 14 },
+    {
+      id: '01',
+      name: '永續紀錄主機',
+      en: 'persistent_log_server',
+      state: 'sync' as const,
+      records: 124,
+    },
+    {
+      id: '02',
+      name: '個性瀏覽器',
+      en: 'identity_browser',
+      state: 'sync' as const,
+      records: 38,
+    },
+    {
+      id: '03',
+      name: '原質震盪時鐘',
+      en: 'essence_oscillator',
+      state: 'sync' as const,
+      records: 9,
+    },
+    {
+      id: '04',
+      name: '認知對照平台',
+      en: 'cognition_compare',
+      state: 'idle' as const,
+      records: 14,
+    },
   ];
 
   return (
@@ -848,14 +1005,32 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* essence symbol particles + faint grid */}
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
         {/* faint grid background */}
         <svg
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+          }}
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <pattern id="concepts-grid" width={48} height={48} patternUnits="userSpaceOnUse">
+            <pattern
+              id="concepts-grid"
+              width={48}
+              height={48}
+              patternUnits="userSpaceOnUse"
+            >
               <path
                 d="M 48 0 L 0 0 0 48"
                 fill="none"
@@ -871,29 +1046,47 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
         {symbolParticles.map((p, i) => (
           <span
             key={i}
-            style={{
-              position: 'absolute',
-              left: `${p.left}%`,
-              top: `${p.top}%`,
-              fontFamily: 'var(--font-mono)',
-              fontSize: p.size,
-              color: zone.main,
-              opacity: 0,
-              animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
-              '--drift-x': '7px',
-              '--drift-y': `${p.dy}px`,
-              '--drift-opacity': '0.2',
-            } as React.CSSProperties}
+            style={
+              {
+                position: 'absolute',
+                left: `${p.left}%`,
+                top: `${p.top}%`,
+                fontFamily: 'var(--font-mono)',
+                fontSize: p.size,
+                color: zone.main,
+                opacity: 0,
+                animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
+                '--drift-x': '7px',
+                '--drift-y': `${p.dy}px`,
+                '--drift-opacity': '0.2',
+              } as React.CSSProperties
+            }
           >
             {p.symbol}
           </span>
         ))}
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '60px 40px 80px', position: 'relative', zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: 900,
+          margin: '0 auto',
+          padding: '60px 40px 80px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {/* Header */}
         <ZoneKicker zone={zone} />
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', marginBottom: 10 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 20,
+            flexWrap: 'wrap',
+            marginBottom: 10,
+          }}
+        >
           <h1
             style={{
               fontFamily: 'var(--font-display)',
@@ -966,10 +1159,18 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
               borderBottom: `1px solid ${zone.main}30`,
             }}
           >
-            <span style={{ fontSize: 12, color: zone.soft, letterSpacing: '0.08em' }}>
+            <span
+              style={{
+                fontSize: 12,
+                color: zone.soft,
+                letterSpacing: '0.08em',
+              }}
+            >
               // concepts.modules — listing
             </span>
-            <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>4 units</span>
+            <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
+              4 units
+            </span>
           </div>
 
           {/* module rows */}
@@ -982,12 +1183,21 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
                 alignItems: 'center',
                 gap: 12,
                 padding: '14px 20px',
-                borderBottom: i < modules.length - 1 ? `1px solid ${zone.main}18` : 'none',
+                borderBottom:
+                  i < modules.length - 1 ? `1px solid ${zone.main}18` : 'none',
                 background: i % 2 === 0 ? `${zone.main}04` : 'transparent',
               }}
             >
               {/* id */}
-              <span style={{ fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '0.1em' }}>{mod.id}</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                  letterSpacing: '0.1em',
+                }}
+              >
+                {mod.id}
+              </span>
               {/* name */}
               <span
                 style={{
@@ -1000,7 +1210,15 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
                 {mod.name}
               </span>
               {/* en */}
-              <span style={{ fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '0.04em' }}>{mod.en}</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {mod.en}
+              </span>
               {/* state dot + label */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div
@@ -1008,8 +1226,10 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    background: mod.state === 'sync' ? '#4ade80' : 'var(--ink-mute)',
-                    boxShadow: mod.state === 'sync' ? '0 0 6px 2px #4ade8060' : 'none',
+                    background:
+                      mod.state === 'sync' ? '#4ade80' : 'var(--ink-mute)',
+                    boxShadow:
+                      mod.state === 'sync' ? '0 0 6px 2px #4ade8060' : 'none',
                     flexShrink: 0,
                   }}
                 />
@@ -1025,11 +1245,19 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
                 </span>
               </div>
               {/* records */}
-              <span style={{ fontSize: 11, color: 'var(--ink-mute)', textAlign: 'right' }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                  textAlign: 'right',
+                }}
+              >
                 {mod.records} rec
               </span>
               {/* arrow */}
-              <span style={{ fontSize: 12, color: zone.main, opacity: 0.6 }}>›</span>
+              <span style={{ fontSize: 12, color: zone.main, opacity: 0.6 }}>
+                ›
+              </span>
             </div>
           ))}
         </div>
@@ -1085,35 +1313,54 @@ function StorageEntry({ zone }: ZoneEntryProps) {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(213,182,24,0.07) 0%, transparent 65%)',
+          background:
+            'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(213,182,24,0.07) 0%, transparent 65%)',
           pointerEvents: 'none',
         }}
       />
 
       {/* floating dust */}
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
         {dustParticles.map((p, i) => (
           <div
             key={i}
-            style={{
-              position: 'absolute',
-              left: `${p.left}%`,
-              top: `${p.top}%`,
-              width: 1.5,
-              height: 1.5,
-              borderRadius: '50%',
-              background: 'var(--ink-mute)',
-              opacity: 0,
-              animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
-              '--drift-x': '4px',
-              '--drift-y': `${p.dy}px`,
-              '--drift-opacity': '0.18',
-            } as React.CSSProperties}
+            style={
+              {
+                position: 'absolute',
+                left: `${p.left}%`,
+                top: `${p.top}%`,
+                width: 1.5,
+                height: 1.5,
+                borderRadius: '50%',
+                background: 'var(--ink-mute)',
+                opacity: 0,
+                animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
+                '--drift-x': '4px',
+                '--drift-y': `${p.dy}px`,
+                '--drift-opacity': '0.18',
+              } as React.CSSProperties
+            }
           />
         ))}
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '60px 40px 80px', position: 'relative', zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: 900,
+          margin: '0 auto',
+          padding: '60px 40px 80px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
@@ -1149,7 +1396,14 @@ function StorageEntry({ zone }: ZoneEntryProps) {
         </div>
 
         {/* Two-column grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 36, alignItems: 'start' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 36,
+            alignItems: 'start',
+          }}
+        >
           {/* LEFT: yellow sticky note */}
           <div style={{ position: 'relative' }}>
             <div
@@ -1238,7 +1492,8 @@ function StorageEntry({ zone }: ZoneEntryProps) {
                   border: `1px solid var(--hairline)`,
                   borderRadius: 3,
                   background: 'var(--bg-card)',
-                  transition: 'border-color 0.18s var(--ease), background 0.18s var(--ease)',
+                  transition:
+                    'border-color 0.18s var(--ease), background 0.18s var(--ease)',
                 }}
               >
                 {/* number */}
@@ -1290,7 +1545,15 @@ function StorageEntry({ zone }: ZoneEntryProps) {
                   </div>
                 </div>
                 {/* arrow */}
-                <span style={{ fontSize: 16, color: 'var(--ink-mute)', opacity: 0.5 }}>›</span>
+                <span
+                  style={{
+                    fontSize: 16,
+                    color: 'var(--ink-mute)',
+                    opacity: 0.5,
+                  }}
+                >
+                  ›
+                </span>
               </a>
             ))}
           </div>
@@ -1316,7 +1579,13 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
 
   if (!zone) {
     return (
-      <div style={{ padding: 60, fontFamily: 'var(--font-mono)', color: 'var(--ink-mute)' }}>
+      <div
+        style={{
+          padding: 60,
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--ink-mute)',
+        }}
+      >
         Zone not found: {zoneId}
       </div>
     );
@@ -1352,7 +1621,13 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
         return <StorageEntry {...sharedRest} />;
       default:
         return (
-          <div style={{ padding: 60, fontFamily: 'var(--font-serif-tc)', color: 'var(--ink-soft)' }}>
+          <div
+            style={{
+              padding: 60,
+              fontFamily: 'var(--font-serif-tc)',
+              color: 'var(--ink-soft)',
+            }}
+          >
             暫無此區域的入口頁面。
           </div>
         );

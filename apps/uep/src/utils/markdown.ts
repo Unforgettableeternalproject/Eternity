@@ -24,7 +24,7 @@ export function parseFrontmatter(content: string): {
   const mainContent = match[2];
   const frontmatter: Record<string, any> = {};
 
-  frontmatterText.split('\n').forEach(line => {
+  frontmatterText.split('\n').forEach((line) => {
     const colonIndex = line.indexOf(':');
     if (colonIndex > 0) {
       const key = line.substring(0, colonIndex).trim();
@@ -48,8 +48,8 @@ export async function markdownToHtml(markdown: string): Promise<string> {
     .use(rehypeAutolinkHeadings, {
       behavior: 'wrap',
       properties: {
-        className: ['heading-link']
-      }
+        className: ['heading-link'],
+      },
     })
     .use(rehypeStringify, { allowDangerousHtml: true });
 

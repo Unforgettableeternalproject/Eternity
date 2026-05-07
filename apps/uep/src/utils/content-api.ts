@@ -1,3 +1,4 @@
+/* global RequestInit */
 /**
  * Content API Client
  * 與 content-api Worker 通訊的客戶端
@@ -60,9 +61,13 @@ interface ApiResponse<T = unknown> {
 
 // ===== Client =====
 
-const API_BASE = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
   const token = import.meta.env.CONTENT_API_TOKEN || '';
 
   const res = await fetch(`${API_BASE}${path}`, {

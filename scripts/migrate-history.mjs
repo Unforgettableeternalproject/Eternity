@@ -35,22 +35,34 @@ function detectPageType(filePath, depth) {
   // depth 3: 篇 arc（arc.00, arc.01）
   // depth 4: 小節 section（sect.01）
 
-  const basename = filePath.split('/').pop().replace('.md', '').replace('/README', '');
+  const basename = filePath
+    .split('/')
+    .pop()
+    .replace('.md', '')
+    .replace('/README', '');
 
-  if (filePath.includes('/passage/') && !filePath.includes('unforgettable_story') &&
-      !filePath.includes('epoch_of_eternity') && !filePath.includes('project_4267') &&
-      filePath.endsWith('README.md')) {
+  if (
+    filePath.includes('/passage/') &&
+    !filePath.includes('unforgettable_story') &&
+    !filePath.includes('epoch_of_eternity') &&
+    !filePath.includes('project_4267') &&
+    filePath.endsWith('README.md')
+  ) {
     return 'page'; // 三向通道本身
   }
 
-  if (basename.startsWith('sect.') || basename.startsWith('sect')) return 'section';
+  if (basename.startsWith('sect.') || basename.startsWith('sect'))
+    return 'section';
   if (basename.startsWith('arc.') || basename.startsWith('arc')) return 'arc';
-  if (basename.startsWith('chpt.') || basename.startsWith('chpt')) return 'chapter';
+  if (basename.startsWith('chpt.') || basename.startsWith('chpt'))
+    return 'chapter';
 
   // 區間級別
-  if (filePath.includes('unforgettable_story/README') ||
-      filePath.includes('epoch_of_eternity') ||
-      filePath.includes('project_4267')) {
+  if (
+    filePath.includes('unforgettable_story/README') ||
+    filePath.includes('epoch_of_eternity') ||
+    filePath.includes('project_4267')
+  ) {
     return 'zone';
   }
 
@@ -106,10 +118,14 @@ function parseSummaryForHistory() {
     const pageType = detectPageType(filePath, depth);
 
     // 找 parent：往回找比自己淺一層的
-    while (parentStack.length > 0 && parentStack[parentStack.length - 1].depth >= depth) {
+    while (
+      parentStack.length > 0 &&
+      parentStack[parentStack.length - 1].depth >= depth
+    ) {
       parentStack.pop();
     }
-    const parentId = parentStack.length > 0 ? parentStack[parentStack.length - 1].id : null;
+    const parentId =
+      parentStack.length > 0 ? parentStack[parentStack.length - 1].id : null;
 
     // 自己入棧
     parentStack.push({ id, depth });
@@ -167,7 +183,9 @@ function convertLines(body) {
     // 程式碼區塊
     if (trimmed.startsWith('```')) {
       if (inCodeBlock) {
-        htmlParts.push(`<pre><code>${escapeHtml(codeContent.trim())}</code></pre>`);
+        htmlParts.push(
+          `<pre><code>${escapeHtml(codeContent.trim())}</code></pre>`
+        );
         codeContent = '';
         inCodeBlock = false;
       } else {
@@ -175,16 +193,27 @@ function convertLines(body) {
       }
       continue;
     }
-    if (inCodeBlock) { codeContent += line + '\n'; continue; }
+    if (inCodeBlock) {
+      codeContent += line + '\n';
+      continue;
+    }
 
     // GitBook 語法行 — 原封不動保留（之後由 convertGitBookBlocks 處理）
-    if (trimmed.match(/^\{%\s*(hint|endhint|tabs|endtabs|tab|endtab|file|endfile)/)) {
+    if (
+      trimmed.match(
+        /^\{%\s*(hint|endhint|tabs|endtabs|tab|endtab|file|endfile)/
+      )
+    ) {
       htmlParts.push(line);
       continue;
     }
 
     // HTML 區塊（<table, <div, <img 等）— 原封不動保留
-    if (trimmed.startsWith('<table') || trimmed.startsWith('<div') || trimmed.startsWith('<img')) {
+    if (
+      trimmed.startsWith('<table') ||
+      trimmed.startsWith('<div') ||
+      trimmed.startsWith('<img')
+    ) {
       // 如果是單行 HTML，直接保留
       htmlParts.push(line);
       continue;
@@ -193,8 +222,14 @@ function convertLines(body) {
     // Markdown 表格
     if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
       if (trimmed.match(/^\|[\s\-:]+\|$/)) continue;
-      if (!inTable) { inTable = true; tableRows = []; }
-      const cells = trimmed.split('|').filter(c => c !== '').map(c => c.trim());
+      if (!inTable) {
+        inTable = true;
+        tableRows = [];
+      }
+      const cells = trimmed
+        .split('|')
+        .filter((c) => c !== '')
+        .map((c) => c.trim());
       tableRows.push(cells);
       continue;
     } else if (inTable) {
@@ -215,13 +250,17 @@ function convertLines(body) {
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      htmlParts.push(`<h${level}>${processInline(headingMatch[2])}</h${level}>`);
+      htmlParts.push(
+        `<h${level}>${processInline(headingMatch[2])}</h${level}>`
+      );
       continue;
     }
 
     // 引言
     if (trimmed.startsWith('> ')) {
-      htmlParts.push(`<blockquote><p>${processInline(trimmed.slice(2))}</p></blockquote>`);
+      htmlParts.push(
+        `<blockquote><p>${processInline(trimmed.slice(2))}</p></blockquote>`
+      );
       continue;
     }
 
@@ -252,7 +291,12 @@ function convertGitBookBlocks(html) {
   html = html.replace(
     /\{%\s*hint\s+style="(\w+)"\s*%\}\s*\n?([\s\S]*?)\n?\{%\s*endhint\s*%\}/g,
     (_, style, content) => {
-      const colors = { info: '#06b6d4', warning: '#f59e0b', danger: '#ef4444', success: '#22c55e' };
+      const colors = {
+        info: '#06b6d4',
+        warning: '#f59e0b',
+        danger: '#ef4444',
+        success: '#22c55e',
+      };
       const color = colors[style] || colors.info;
       // content 已經被轉成 HTML 了（<p> 標籤等），直接用
       const cleaned = content.replace(/<\/?p>/g, '').trim();
@@ -264,7 +308,11 @@ function convertGitBookBlocks(html) {
   html = html.replace(
     /\{%\s*tabs\s*%\}\s*\n?([\s\S]*?)\n?\{%\s*endtabs\s*%\}/g,
     (_, tabsContent) => {
-      const tabMatches = [...tabsContent.matchAll(/\{%\s*tab\s+title="(.+?)"\s*%\}\s*\n?([\s\S]*?)(?=\n?\{%\s*endtab\s*%\})/g)];
+      const tabMatches = [
+        ...tabsContent.matchAll(
+          /\{%\s*tab\s+title="(.+?)"\s*%\}\s*\n?([\s\S]*?)(?=\n?\{%\s*endtab\s*%\})/g
+        ),
+      ];
       if (!tabMatches.length) return '';
       const tabs = tabMatches.map((m, i) => {
         const title = m[1];
@@ -273,9 +321,12 @@ function convertGitBookBlocks(html) {
           ${content}
         </div>`;
       });
-      const tabButtons = tabMatches.map((m, i) =>
-        `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${i}">${m[1]}</button>`
-      ).join('');
+      const tabButtons = tabMatches
+        .map(
+          (m, i) =>
+            `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${i}">${m[1]}</button>`
+        )
+        .join('');
       return `<div class="tabs-container">
         <div class="tabs-header">${tabButtons}</div>
         <div class="tabs-body">${tabs.join('\n')}</div>
@@ -288,7 +339,7 @@ function convertGitBookBlocks(html) {
     /<table data-view="cards">[\s\S]*?<tbody>([\s\S]*?)<\/tbody>\s*<\/table>/g,
     (_, tbody) => {
       const rows = [...tbody.matchAll(/<tr>([\s\S]*?)<\/tr>/g)];
-      const cards = rows.map(row => {
+      const cards = rows.map((row) => {
         const cells = [...row[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)];
         const label = cells[0]?.[1]?.replace(/<[^>]+>/g, '').trim() || '';
         const linkMatch = row[1].match(/<a\s+href="([^"]+)"/);
@@ -316,10 +367,13 @@ function buildTable(rows) {
   if (!rows.length) return '';
   const header = rows[0];
   const body = rows.slice(1);
-  const ths = header.map(h => `<th>${processInline(h)}</th>`).join('');
-  const trs = body.map(row =>
-    `<tr>${row.map(c => `<td>${processInline(c)}</td>`).join('')}</tr>`
-  ).join('\n');
+  const ths = header.map((h) => `<th>${processInline(h)}</th>`).join('');
+  const trs = body
+    .map(
+      (row) =>
+        `<tr>${row.map((c) => `<td>${processInline(c)}</td>`).join('')}</tr>`
+    )
+    .join('\n');
   return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
 }
 
@@ -328,14 +382,20 @@ function processInline(text) {
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
   text = text.replace(/`(.+?)`/g, '<code>$1</code>');
-  text = text.replace(/<mark\s+style="color:([^"]+)">/g, '<mark style="color:$1">');
+  text = text.replace(
+    /<mark\s+style="color:([^"]+)">/g,
+    '<mark style="color:$1">'
+  );
   text = text.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
   text = text.replace(/!\[(.+?)\]\((.+?)\)/g, '<img src="$2" alt="$1" />');
   return text;
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /** 簡單解析 YAML frontmatter 為物件 */
@@ -355,7 +415,10 @@ function parseFrontmatter(raw) {
 }
 
 function contentHash(content) {
-  return createHash('sha256').update(content, 'utf-8').digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(content, 'utf-8')
+    .digest('hex')
+    .slice(0, 16);
 }
 
 // === 清除現有 history 資料 ===
@@ -377,7 +440,7 @@ async function importToApi(pages) {
   console.log(`\n📤 匯入 ${pages.length} 個頁面...\n`);
 
   const payload = {
-    pages: pages.map(p => ({
+    pages: pages.map((p) => ({
       id: p.id,
       area: 'history',
       title: p.title,
@@ -402,7 +465,9 @@ async function importToApi(pages) {
 
     const json = await res.json();
     if (json.ok) {
-      console.log(`✅ 完成！新增: ${json.data.imported}, 更新: ${json.data.updated}, 跳過: ${json.data.skipped}`);
+      console.log(
+        `✅ 完成！新增: ${json.data.imported}, 更新: ${json.data.updated}, 跳過: ${json.data.skipped}`
+      );
     } else {
       console.error(`❌ API 錯誤: ${json.error}`);
     }
@@ -419,11 +484,19 @@ async function main() {
   console.log(`📖 解析出 ${entries.length} 個 History 頁面\n`);
 
   // 印出樹狀結構
-  const typeIcons = { zone: '🌐', chapter: '📖', arc: '📄', section: '📃', page: '📋' };
+  const typeIcons = {
+    zone: '🌐',
+    chapter: '📖',
+    arc: '📄',
+    section: '📃',
+    page: '📋',
+  };
   for (const e of entries) {
     const indent = '  '.repeat(e.depth);
     const icon = typeIcons[e.pageType] || '📋';
-    console.log(`${indent}${icon} ${e.title} [${e.pageType}]${e.parentId ? ` ← ${e.parentId}` : ''}`);
+    console.log(
+      `${indent}${icon} ${e.title} [${e.pageType}]${e.parentId ? ` ← ${e.parentId}` : ''}`
+    );
   }
 
   const pages = [];

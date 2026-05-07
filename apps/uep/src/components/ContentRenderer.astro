@@ -1,13 +1,16 @@
 ---
 /**
  * 內容渲染器組件 - 三層架構實現
- * 
+ *
  * Layer 1: 渲染原始 Markdown 內容（保持原樣）
  * Layer 2: 應用區域特定樣式和佈局
  * Layer 3: 插入額外元件（音樂播放器、附件等）
  */
 
-import type { ContentSection, EnhancedContent } from '../utils/content-renderer';
+import type {
+  ContentSection,
+  EnhancedContent,
+} from '../utils/content-renderer';
 
 interface Props {
   sections: ContentSection[];
@@ -19,115 +22,141 @@ interface Props {
 const { sections, layout, components = [], areaStyle = '' } = Astro.props;
 
 // 渲染前元件
-const beforeComponents = components.filter(c => c.position === 'before');
+const beforeComponents = components.filter((c) => c.position === 'before');
 // 渲染後元件
-const afterComponents = components.filter(c => c.position === 'after');
+const afterComponents = components.filter((c) => c.position === 'after');
 // 浮動元件
-const floatComponents = components.filter(c => c.position === 'float');
+const floatComponents = components.filter((c) => c.position === 'float');
 ---
 
-<div class={`content-renderer ${areaStyle}`} data-spacing={layout?.spacing || 'normal'}>
+<div
+  class={`content-renderer ${areaStyle}`}
+  data-spacing={layout?.spacing || 'normal'}
+>
   <!-- Layer 3: 前置元件 -->
-  {beforeComponents.length > 0 && (
-    <div class="component-layer before">
-      {beforeComponents.map(component => (
-        <div class="component-slot" data-type={component.type} id={component.id}>
-          <!-- 元件插槽 - 由父組件傳入 -->
-          <p class="component-placeholder">元件位置: {component.type}</p>
-        </div>
-      ))}
-    </div>
-  )}
+  {
+    beforeComponents.length > 0 && (
+      <div class="component-layer before">
+        {beforeComponents.map((component) => (
+          <div
+            class="component-slot"
+            data-type={component.type}
+            id={component.id}
+          >
+            {/* 元件插槽 - 由父組件傳入 */}
+            <p class="component-placeholder">元件位置: {component.type}</p>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   <!-- Layer 2: 內容區段 -->
   <div class="content-sections" data-columns={layout?.columns || 1}>
-    {sections.map((section) => (
-      <div class="content-section" id={section.id}>
-        <!-- 區段前插入點 -->
-        {section.beforeInsert && (
-          <div class="insert-point before">
-            <p class="insert-placeholder">插入點 (前)</p>
-          </div>
-        )}
+    {
+      sections.map((section) => (
+        <div class="content-section" id={section.id}>
+          {/* 區段前插入點 */}
+          {section.beforeInsert && (
+            <div class="insert-point before">
+              <p class="insert-placeholder">插入點 (前)</p>
+            </div>
+          )}
 
-        <!-- Layer 1: 原始內容塊 -->
-        <div class="content-blocks">
-          {section.blocks.map((block) => {
-            switch (block.type) {
-              case 'heading':
-                const HeadingTag = `h${block.level || 2}` as any;
-                return (
-                  <HeadingTag class={`content-heading level-${block.level}`}>
-                    {block.content}
-                  </HeadingTag>
-                );
-              
-              case 'text':
-                return <p class="content-text" set:html={block.content} />;
-              
-              case 'code':
-                return (
-                  <pre class="content-code">
-                    <code class={`language-${block.language}`}>{block.content}</code>
-                  </pre>
-                );
-              
-              case 'quote':
-                return (
-                  <blockquote class="content-quote">
-                    {block.content}
-                  </blockquote>
-                );
-              
-              case 'image':
-                return (
-                  <img 
-                    src={block.content} 
-                    alt={block.metadata?.alt || ''} 
-                    class="content-image"
-                  />
-                );
-              
-              case 'divider':
-                return <hr class="content-divider" />;
-              
-              default:
-                return null;
-            }
-          })}
+          {/* Layer 1: 原始內容塊 */}
+          <div class="content-blocks">
+            {section.blocks.map((block) => {
+              switch (block.type) {
+                case 'heading': {
+                  const HeadingTag = `h${block.level || 2}` as any;
+                  return (
+                    <HeadingTag class={`content-heading level-${block.level}`}>
+                      {block.content}
+                    </HeadingTag>
+                  );
+                }
+
+                case 'text':
+                  return <p class="content-text" set:html={block.content} />;
+
+                case 'code':
+                  return (
+                    <pre class="content-code">
+                      <code class={`language-${block.language}`}>
+                        {block.content}
+                      </code>
+                    </pre>
+                  );
+
+                case 'quote':
+                  return (
+                    <blockquote class="content-quote">
+                      {block.content}
+                    </blockquote>
+                  );
+
+                case 'image':
+                  return (
+                    <img
+                      src={block.content}
+                      alt={block.metadata?.alt || ''}
+                      class="content-image"
+                    />
+                  );
+
+                case 'divider':
+                  return <hr class="content-divider" />;
+
+                default:
+                  return null;
+              }
+            })}
+          </div>
+
+          {/* 區段後插入點 */}
+          {section.afterInsert && (
+            <div class="insert-point after">
+              <p class="insert-placeholder">插入點 (後)</p>
+            </div>
+          )}
         </div>
-
-        <!-- 區段後插入點 -->
-        {section.afterInsert && (
-          <div class="insert-point after">
-            <p class="insert-placeholder">插入點 (後)</p>
-          </div>
-        )}
-      </div>
-    ))}
+      ))
+    }
   </div>
 
   <!-- Layer 3: 後置元件 -->
-  {afterComponents.length > 0 && (
-    <div class="component-layer after">
-      {afterComponents.map(component => (
-        <div class="component-slot" data-type={component.type} id={component.id}>
-          <p class="component-placeholder">元件位置: {component.type}</p>
-        </div>
-      ))}
-    </div>
-  )}
+  {
+    afterComponents.length > 0 && (
+      <div class="component-layer after">
+        {afterComponents.map((component) => (
+          <div
+            class="component-slot"
+            data-type={component.type}
+            id={component.id}
+          >
+            <p class="component-placeholder">元件位置: {component.type}</p>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   <!-- Layer 3: 浮動元件 -->
-  {floatComponents.length > 0 && (
-    <div class="component-layer float">
-      {floatComponents.map(component => (
-        <div class="component-slot floating" data-type={component.type} id={component.id}>
-          <p class="component-placeholder">浮動元件: {component.type}</p>
-        </div>
-      ))}
-    </div>
-  )}
+  {
+    floatComponents.length > 0 && (
+      <div class="component-layer float">
+        {floatComponents.map((component) => (
+          <div
+            class="component-slot floating"
+            data-type={component.type}
+            id={component.id}
+          >
+            <p class="component-placeholder">浮動元件: {component.type}</p>
+          </div>
+        ))}
+      </div>
+    )
+  }
 </div>
 
 <style>
@@ -137,15 +166,15 @@ const floatComponents = components.filter(c => c.position === 'float');
   }
 
   /* 間距控制 */
-  .content-renderer[data-spacing="compact"] .content-section {
+  .content-renderer[data-spacing='compact'] .content-section {
     margin-bottom: 1.5rem;
   }
 
-  .content-renderer[data-spacing="normal"] .content-section {
+  .content-renderer[data-spacing='normal'] .content-section {
     margin-bottom: 3rem;
   }
 
-  .content-renderer[data-spacing="relaxed"] .content-section {
+  .content-renderer[data-spacing='relaxed'] .content-section {
     margin-bottom: 4.5rem;
   }
 
@@ -155,11 +184,11 @@ const floatComponents = components.filter(c => c.position === 'float');
     gap: 2rem;
   }
 
-  .content-sections[data-columns="2"] {
+  .content-sections[data-columns='2'] {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .content-sections[data-columns="3"] {
+  .content-sections[data-columns='3'] {
     grid-template-columns: repeat(3, 1fr);
   }
 
@@ -278,8 +307,8 @@ const floatComponents = components.filter(c => c.position === 'float');
 
   /* 響應式 */
   @media (max-width: 768px) {
-    .content-sections[data-columns="2"],
-    .content-sections[data-columns="3"] {
+    .content-sections[data-columns='2'],
+    .content-sections[data-columns='3'] {
       grid-template-columns: 1fr;
     }
 

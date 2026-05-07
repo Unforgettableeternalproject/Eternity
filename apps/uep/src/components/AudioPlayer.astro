@@ -1,13 +1,13 @@
 ---
 /**
  * AudioPlayer - 簡易音頻播放器組件
- * 
+ *
  * 功能：
  * - 播放/暫停控制
  * - 音量調整
  * - 進度條顯示
  * - 互斥播放（同時只能有一個播放器在播放）
- * 
+ *
  * 變體：
  * - minimal: 極簡風格，只有核心控制
  * - card: 卡片式，包含標題和描述
@@ -26,34 +26,38 @@ const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
 ---
 
 <div class={`audio-player audio-player--${variant}`} data-player-id={playerId}>
-  {variant === 'card' && (title || description) && (
-    <div class="audio-player__header">
-      {title && <h3 class="audio-player__title">{title}</h3>}
-      {description && <p class="audio-player__description">{description}</p>}
-    </div>
-  )}
-  
+  {
+    variant === 'card' && (title || description) && (
+      <div class="audio-player__header">
+        {title && <h3 class="audio-player__title">{title}</h3>}
+        {description && <p class="audio-player__description">{description}</p>}
+      </div>
+    )
+  }
+
   <div class="audio-player__controls">
-    {variant === 'inline' && title && (
-      <span class="audio-player__inline-title">🎵 {title}</span>
-    )}
-    
+    {
+      variant === 'inline' && title && (
+        <span class="audio-player__inline-title">🎵 {title}</span>
+      )
+    }
+
     <button class="audio-player__play-btn" aria-label="播放/暫停">
       <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M8 5v14l11-7z"/>
+        <path d="M8 5v14l11-7z"></path>
       </svg>
       <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"></path>
       </svg>
     </button>
 
     <div class="audio-player__progress">
       <div class="audio-player__time audio-player__time--current">0:00</div>
-      <input 
-        type="range" 
-        class="audio-player__progress-bar" 
-        min="0" 
-        max="100" 
+      <input
+        type="range"
+        class="audio-player__progress-bar"
+        min="0"
+        max="100"
         value="0"
         aria-label="播放進度"
       />
@@ -63,17 +67,21 @@ const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
     <div class="audio-player__volume">
       <button class="audio-player__volume-btn" aria-label="靜音/取消靜音">
         <svg class="icon-volume" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+          <path
+            d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+          ></path>
         </svg>
         <svg class="icon-mute" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+          <path
+            d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"
+          ></path>
         </svg>
       </button>
-      <input 
-        type="range" 
-        class="audio-player__volume-slider" 
-        min="0" 
-        max="100" 
+      <input
+        type="range"
+        class="audio-player__volume-slider"
+        min="0"
+        max="100"
         value="70"
         aria-label="音量"
       />
@@ -224,14 +232,14 @@ const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
 
   /* Icon 切換邏輯 */
   .audio-player__play-btn .icon-pause,
-  .audio-player[data-playing="true"] .icon-play,
+  .audio-player[data-playing='true'] .icon-play,
   .audio-player__volume-btn .icon-mute,
-  .audio-player[data-muted="true"] .icon-volume {
+  .audio-player[data-muted='true'] .icon-volume {
     display: none;
   }
 
-  .audio-player[data-playing="true"] .icon-pause,
-  .audio-player[data-muted="true"] .icon-mute {
+  .audio-player[data-playing='true'] .icon-pause,
+  .audio-player[data-muted='true'] .icon-mute {
     display: block;
   }
 
@@ -358,9 +366,11 @@ const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
       if (this.currentPlaying && this.currentPlaying !== audio) {
         this.currentPlaying.pause();
         // 觸發事件通知其他播放器更新狀態
-        document.dispatchEvent(new CustomEvent('audio-pause-all', { 
-          detail: { excludeId: playerId } 
-        }));
+        document.dispatchEvent(
+          new CustomEvent('audio-pause-all', {
+            detail: { excludeId: playerId },
+          })
+        );
       }
       this.currentPlaying = audio;
     }
@@ -376,13 +386,27 @@ const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
 
     players.forEach((player) => {
       const playerId = player.getAttribute('data-player-id') || '';
-      const audio = player.querySelector('.audio-player__element') as HTMLAudioElement;
-      const playBtn = player.querySelector('.audio-player__play-btn') as HTMLButtonElement;
-      const progressBar = player.querySelector('.audio-player__progress-bar') as HTMLInputElement;
-      const currentTimeEl = player.querySelector('.audio-player__time--current') as HTMLElement;
-      const durationEl = player.querySelector('.audio-player__time--duration') as HTMLElement;
-      const volumeBtn = player.querySelector('.audio-player__volume-btn') as HTMLButtonElement;
-      const volumeSlider = player.querySelector('.audio-player__volume-slider') as HTMLInputElement;
+      const audio = player.querySelector(
+        '.audio-player__element'
+      ) as HTMLAudioElement;
+      const playBtn = player.querySelector(
+        '.audio-player__play-btn'
+      ) as HTMLButtonElement;
+      const progressBar = player.querySelector(
+        '.audio-player__progress-bar'
+      ) as HTMLInputElement;
+      const currentTimeEl = player.querySelector(
+        '.audio-player__time--current'
+      ) as HTMLElement;
+      const durationEl = player.querySelector(
+        '.audio-player__time--duration'
+      ) as HTMLElement;
+      const volumeBtn = player.querySelector(
+        '.audio-player__volume-btn'
+      ) as HTMLButtonElement;
+      const volumeSlider = player.querySelector(
+        '.audio-player__volume-slider'
+      ) as HTMLInputElement;
 
       if (!audio) return;
 
@@ -460,14 +484,15 @@ const playerId = `audio-player-${Math.random().toString(36).substring(2, 11)}`;
       }
 
       // 監聽全局暫停事件
-      document.addEventListener('audio-pause-all', ((e: CustomEvent) => {
-        if (e.detail.excludeId !== playerId) {
+      document.addEventListener('audio-pause-all', (e) => {
+        const detail = (e as { detail?: { excludeId?: string } }).detail;
+        if (detail?.excludeId !== playerId) {
           if (!audio.paused) {
             audio.pause();
           }
           updatePlayingState(false);
         }
-      }) as EventListener);
+      });
 
       // 監聽音頻的暫停事件，確保 UI 同步
       audio.addEventListener('pause', () => {

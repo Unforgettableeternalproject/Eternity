@@ -44,11 +44,11 @@ export interface PageRow {
   title: string;
   slug: string;
   sort_order: number;
-  content: string;       // JSON string of ContentBlock[]
+  content: string; // JSON string of ContentBlock[]
   source_file: string | null;
   base_content_hash: string | null;
   status: PageStatus;
-  metadata: string;      // JSON string
+  metadata: string; // JSON string
   parent_id: string | null;
   depth: number;
   page_type: PageType;

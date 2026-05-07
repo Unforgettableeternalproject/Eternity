@@ -5,6 +5,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
 import { transformGitBookContent } from './markdown-transforms';
 
+// import.meta.glob gracefully returns {} when the content directory is missing.
 const contentModules = import.meta.glob('../../content/**/*.md', {
   query: '?raw',
   import: 'default',
@@ -17,7 +18,10 @@ const overlayModules = import.meta.glob('../overlays/**/*.json', {
 }) as Record<string, OverlayConfig>;
 
 function normalizeContentPath(contentPath: string) {
-  return contentPath.replace(/\\/g, '/').replace(/^content\//, '').replace(/^\.\//, '');
+  return contentPath
+    .replace(/\\/g, '/')
+    .replace(/^content\//, '')
+    .replace(/^\.\//, '');
 }
 
 // Markdown pipeline for block-level rendering.
@@ -57,14 +61,16 @@ export interface ParsedContent {
 /**
  * Parse Markdown content into blocks and metadata.
  */
-export async function parseMarkdownContent(rawContent: string): Promise<ParsedContent> {
+export async function parseMarkdownContent(
+  rawContent: string
+): Promise<ParsedContent> {
   // Extract frontmatter key/value pairs.
   const frontmatterMatch = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
   const metadata: Record<string, string> = {};
 
   if (frontmatterMatch) {
     const frontmatter = frontmatterMatch[1];
-    frontmatter.split(/\r?\n/).forEach(line => {
+    frontmatter.split(/\r?\n/).forEach((line) => {
       const colonIndex = line.indexOf(':');
       if (colonIndex > 0) {
         const key = line.substring(0, colonIndex).trim();
@@ -75,7 +81,10 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
   }
 
   // Strip frontmatter from the content body.
-  const withoutFrontmatter = rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+  const withoutFrontmatter = rawContent.replace(
+    /^---\r?\n[\s\S]*?\r?\n---\r?\n/,
+    ''
+  );
 
   // Replace long divider lines (U+2747 + U+FE0E repeated) with a marker token.
   const withBoundaryMarkers = withoutFrontmatter.replace(
@@ -86,8 +95,8 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
   // Split by 4+ newlines to keep block boundaries stable.
   const rawBlocks = withBoundaryMarkers
     .split(/(?:\r?\n){4,}/)
-    .map(b => b.trim())
-    .filter(b => b.length > 0);
+    .map((b) => b.trim())
+    .filter((b) => b.length > 0);
 
   // Expand boundary markers into block types.
   const blocks: Block[] = [];
@@ -101,29 +110,29 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
       if (i + 2 < rawBlocks.length && rawBlocks[i + 2] === '<<<BOUNDARY>>>') {
         blocks.push({
           content: rawBlocks[i + 1],
-          type: 'boundary-wrapped'
+          type: 'boundary-wrapped',
         });
         i += 3;
       } else {
         blocks.push({
           content: '',
-          type: 'divider'
+          type: 'divider',
         });
         i += 1;
       }
     } else {
       blocks.push({
         content: current,
-        type: 'normal'
+        type: 'normal',
       });
       i += 1;
     }
   }
 
   // Convert GitBook-specific content to Astro-friendly Markdown.
-  const transformedBlocks = blocks.map(b => ({
+  const transformedBlocks = blocks.map((b) => ({
     ...b,
-    content: b.content ? transformGitBookContent(b.content) : ''
+    content: b.content ? transformGitBookContent(b.content) : '',
   }));
 
   // Render Markdown into HTML.
@@ -133,14 +142,14 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
       const result = await markdownProcessor.process(block.content);
       return {
         ...block,
-        html: String(result)
+        html: String(result),
       };
     })
   );
 
   // Use the first <h1> as title; fall back to metadata description or default.
   let title = metadata.description || 'Untitled';
-  const firstBlock = htmlBlocks.find(b => b.html && b.html.includes('<h1>'));
+  const firstBlock = htmlBlocks.find((b) => b.html && b.html.includes('<h1>'));
   if (firstBlock) {
     const match = firstBlock.html?.match(/<h1[^>]*>(.*?)<\/h1>/);
     if (match) {
@@ -152,7 +161,7 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
     metadata,
     blocks: htmlBlocks,
     title,
-    description: metadata.description
+    description: metadata.description,
   };
 }
 
@@ -160,7 +169,10 @@ export async function parseMarkdownContent(rawContent: string): Promise<ParsedCo
  * Load overlay configuration for a content path.
  */
 export function loadOverlayConfig(contentPath: string): OverlayConfig | null {
-  const normalized = normalizeContentPath(contentPath).replace(/\.md$/, '.json');
+  const normalized = normalizeContentPath(contentPath).replace(
+    /\.md$/,
+    '.json'
+  );
   return overlayModules[`../overlays/${normalized}`] || null;
 }
 
@@ -177,12 +189,12 @@ export function applyOverlayRules(
 
   return blocks.map((block, index) => {
     const rules = overlayConfig.rules.filter(
-      rule => rule.blockIndex === undefined || rule.blockIndex === index
+      (rule) => rule.blockIndex === undefined || rule.blockIndex === index
     );
 
     return {
       ...block,
-      overlayRules: rules
+      overlayRules: rules,
     };
   });
 }
@@ -190,9 +202,7 @@ export function applyOverlayRules(
 /**
  * Render an article and apply its overlay rules.
  */
-export async function renderArticleWithOverlay(
-  contentPath: string
-): Promise<{
+export async function renderArticleWithOverlay(contentPath: string): Promise<{
   content: ParsedContent;
   overlayConfig: OverlayConfig | null;
   blocksWithOverlay: Block[];
@@ -206,13 +216,14 @@ export async function renderArticleWithOverlay(
 
   const content = await parseMarkdownContent(rawContent);
   const overlayConfig = loadOverlayConfig(normalized);
-  const blocksWithOverlay = content.blocks && content.blocks.length > 0
-    ? applyOverlayRules(content.blocks, overlayConfig)
-    : [];
+  const blocksWithOverlay =
+    content.blocks && content.blocks.length > 0
+      ? applyOverlayRules(content.blocks, overlayConfig)
+      : [];
 
   return {
     content,
     overlayConfig,
-    blocksWithOverlay
+    blocksWithOverlay,
   };
 }

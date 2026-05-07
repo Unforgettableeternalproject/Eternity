@@ -1,7 +1,7 @@
 ---
 /**
  * Enhanced Content Renderer - 四層式渲染架構
- * 
+ *
  * Layer 1: 原始層 - 讀取原始 Markdown
  * Layer 2: 設計層 - GitBook → Astro 語法轉換
  * Layer 3: 覆蓋層 - 使用者配置的段落增強
@@ -10,11 +10,6 @@
 
 import { processContent } from '../utils/ContentProcessor';
 import { loadOverlayConfig } from '../utils/overlay-helpers';
-import Hint from './Hint.astro';
-import Mark from './Mark.astro';
-import Spoiler from './Spoiler.astro';
-import Divider from './Divider.astro';
-import AudioPlayer from './AudioPlayer.astro';
 
 interface Props {
   /** 原始 Markdown 內容 */
@@ -27,18 +22,18 @@ interface Props {
   enableOverlay?: boolean;
 }
 
-const { 
-  rawContent, 
+const {
+  rawContent,
   contentPath,
   projectRoot = import.meta.env.PWD || process.cwd(),
-  enableOverlay = true 
+  enableOverlay = true,
 } = Astro.props;
 
 // Layer 3: 載入覆蓋層配置
 let overlayConfig;
 if (enableOverlay) {
   overlayConfig = loadOverlayConfig(contentPath, projectRoot);
-  
+
   if (overlayConfig) {
     console.log(`[Overlay] 已載入配置: ${contentPath}`);
   }
