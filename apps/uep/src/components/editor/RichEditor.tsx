@@ -99,6 +99,7 @@ export default function RichEditor({
   const [pageType, setPageType] = useState(initialPageType || 'page');
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
+  const [locked, setLocked] = useState(initialMetadata?.locked === true);
   const [icon, setIcon] = useState(initialMetadata?.icon || '');
   const [description, setDescription] = useState(
     initialMetadata?.description || ''
@@ -106,6 +107,7 @@ export default function RichEditor({
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'saving' | 'saved' | 'error'
   >('idle');
+  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -169,6 +171,7 @@ export default function RichEditor({
 
       const metadata: Record<string, any> = {
         ...(hidden ? { hidden: true } : {}),
+        ...(locked ? { locked: true } : {}),
         ...(icon ? { icon } : {}),
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
@@ -190,6 +193,7 @@ export default function RichEditor({
       if (!json.ok) throw new Error(json.error || 'Save failed');
       setIsDirty(false);
       setSaveStatus('saved');
+      setTreeRefreshKey((k) => k + 1);
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch {
       setSaveStatus('error');
@@ -208,6 +212,7 @@ export default function RichEditor({
     pageType,
     depth,
     hidden,
+    locked,
     icon,
     description,
   ]);
@@ -272,9 +277,40 @@ export default function RichEditor({
     setActiveDropdown(null);
   };
 
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
   const insertImage = () => {
-    const url = window.prompt('\u8F38\u5165\u5716\u7247 URL');
-    if (url) editor.chain().focus().setImage({ src: url }).run();
+    imageInputRef.current?.click();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+    e.target.value = '';
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${apiBase}/api/assets`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const imgUrl = `${apiBase}${json.data.url}`;
+        editor.chain().focus().setImage({ src: imgUrl }).run();
+        setIsDirty(true);
+      } else {
+        alert(`Upload failed: ${json.error}`);
+      }
+    } catch (err: any) {
+      alert(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const charCount = editor ? editor.getText().length : 0;
@@ -576,8 +612,8 @@ export default function RichEditor({
           >
             &lt;/&gt;
           </button>
-          <button className="tb-btn" onClick={insertImage} title="Image">
-            &#9634;
+          <button className="tb-btn" onClick={insertImage} title="Upload image" disabled={uploading}>
+            {uploading ? '\u23F3' : '\u25A2'}
           </button>
         </div>
         </>)}
@@ -596,11 +632,17 @@ export default function RichEditor({
             apiBase={apiBase}
             currentSlug={pageSlug}
             accent={accentMain}
+            refreshKey={treeRefreshKey}
           />
         </aside>
 
         {/* Middle — Editor */}
-        <main className="ned-editor">
+        <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
+          {locked && (
+            <div className="ned-lock-banner">
+              <span>🔒 This page is locked. Unlock from inspector to edit.</span>
+            </div>
+          )}
           <div className="ned-paper">
             <div className="ned-breadcrumb">
               {parentId ? `${area} / ${parentId.replace(/\//g, ' / ')}` : area}
@@ -629,6 +671,8 @@ export default function RichEditor({
             onDepthChange={setDepth}
             hidden={hidden}
             onHiddenChange={setHidden}
+            locked={locked}
+            onLockedChange={setLocked}
             icon={icon}
             onIconChange={setIcon}
             description={description}
@@ -641,6 +685,14 @@ export default function RichEditor({
           />
         </aside>
       </div>
+      {/* Hidden file input for image upload */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleImageUpload}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import { renderIcon } from '../editor/IconLibrary';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType = 'zone' | 'chapter' | 'arc' | 'section' | 'page';
@@ -565,9 +566,11 @@ export default function HistoryReader() {
                 style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
                 onClick={() => void loadPage(node)}
               >
-                <span className="history-tree-kind">
-                  {pageTypeLabel(node.pageType)}
-                </span>
+                {renderIcon(node.metadata?.icon as string, 14, 'history-tree-icon') || (
+                  <span className="history-tree-kind">
+                    {pageTypeLabel(node.pageType)}
+                  </span>
+                )}
                 <span className="history-tree-title">{node.title}</span>
               </button>
             </div>
@@ -782,7 +785,10 @@ export default function HistoryReader() {
                         {pageTypeLabel(currentPage.pageType)} /{' '}
                         {currentPage.slug}
                       </div>
-                      <h2>{currentPage.title}</h2>
+                      <h2 className="history-article-title">
+                        {renderIcon(currentPage.metadata?.icon as string, 24, 'history-article-icon')}
+                        {currentPage.title}
+                      </h2>
                       {typeof currentPage.metadata?.description ===
                         'string' && <p>{currentPage.metadata.description}</p>}
                     </header>
@@ -1137,6 +1143,12 @@ const historyReaderCss = `
     color: ${HISTORY_ZONE.main};
   }
 
+  .history-tree-icon {
+    color: ${HISTORY_ZONE.main};
+    flex-shrink: 0;
+    opacity: 0.75;
+  }
+
   .history-tree-title {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1192,6 +1204,18 @@ const historyReaderCss = `
     font-weight: 500;
     line-height: 1.05;
     color: var(--ink-title);
+  }
+
+  .history-article-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .history-article-icon {
+    color: ${HISTORY_ZONE.main};
+    flex-shrink: 0;
+    opacity: 0.7;
   }
 
   .history-landing p,
