@@ -1,4 +1,5 @@
 import React from 'react';
+import IconPicker from './IconLibrary';
 
 interface EditorInspectorProps {
   pageType: string;
@@ -9,6 +10,8 @@ interface EditorInspectorProps {
   onDepthChange: (v: number) => void;
   hidden: boolean;
   onHiddenChange: (v: boolean) => void;
+  locked: boolean;
+  onLockedChange: (v: boolean) => void;
   icon: string;
   onIconChange: (v: string) => void;
   description: string;
@@ -35,6 +38,8 @@ export default function EditorInspector({
   onDepthChange,
   hidden,
   onHiddenChange,
+  locked,
+  onLockedChange,
   icon,
   onIconChange,
   description,
@@ -93,12 +98,10 @@ export default function EditorInspector({
       </Section>
 
       <Section label="icon">
-        <input
-          className="ned-field"
-          type="text"
+        <IconPicker
           value={icon}
-          placeholder="e.g. sparkle"
-          onChange={(e) => handleChange(onIconChange)(e.target.value)}
+          onChange={handleChange(onIconChange)}
+          accent={accent}
         />
       </Section>
 
@@ -119,6 +122,14 @@ export default function EditorInspector({
           type="checkbox"
           checked={hidden}
           onChange={(e) => handleChange(onHiddenChange)(e.target.checked)}
+        />
+      </div>
+      <div className="ned-inspector-toggle">
+        <span>Locked</span>
+        <input
+          type="checkbox"
+          checked={locked}
+          onChange={(e) => handleChange(onLockedChange)(e.target.checked)}
         />
       </div>
 

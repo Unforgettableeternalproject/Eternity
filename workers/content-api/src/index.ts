@@ -505,6 +505,51 @@ export default {
       return jsonResponse({ ok: true, data: tree }, 200, cors);
     }
 
+    // ---- 圖片資源路由 (R2) ----
+    const assetMatch = path.match(/^\/api\/assets\/(.+)$/);
+    if (assetMatch) {
+      const key = assetMatch[1];
+
+      if (request.method === 'GET') {
+        const obj = await env.ASSETS_BUCKET.get(key);
+        if (!obj) {
+          return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+        }
+        const headers = new Headers(cors);
+        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        return new Response(obj.body, { headers });
+      }
+
+      if (request.method === 'DELETE') {
+        await env.ASSETS_BUCKET.delete(key);
+        return jsonResponse({ ok: true }, 200, cors);
+      }
+    }
+
+    if (path === '/api/assets' && request.method === 'POST') {
+      const formData = await request.formData();
+      const file = formData.get('file') as File | null;
+      if (!file) {
+        return jsonResponse({ ok: false, error: 'No file provided' }, 400, cors);
+      }
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+      const timestamp = Date.now();
+      const key = `images/${timestamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+      await env.ASSETS_BUCKET.put(key, file.stream(), {
+        httpMetadata: { contentType: file.type },
+        customMetadata: { originalName: file.name },
+      });
+
+      const assetUrl = `/api/assets/${key}`;
+      return jsonResponse({
+        ok: true,
+        data: { key, url: assetUrl, name: file.name, size: file.size, type: file.type },
+      }, 201, cors);
+    }
+
     // ---- 內容 CRUD 路由 ----
     // 匹配 /api/content/:area 或 /api/content/:area/:slug(可含子路徑)
     const contentMatch = path.match(/^\/api\/content\/([a-z]+)(?:\/(.+))?$/);

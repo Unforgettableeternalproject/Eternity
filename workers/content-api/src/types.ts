@@ -2,6 +2,7 @@
 
 export interface Env {
   CONTENT_DB: D1Database;
+  ASSETS_BUCKET: R2Bucket;
   ALLOWED_ORIGINS: string;
   API_TOKEN?: string;
 }

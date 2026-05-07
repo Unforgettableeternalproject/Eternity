@@ -11,6 +11,11 @@ binding = "CONTENT_DB"
 database_name = "eternity-content"
 database_id = "1f31587a-6cc7-441b-bbfb-eb99cba8a51b"
 
+# R2 圖片儲存
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "eternity-assets"
+
 # 環境變數
 [vars]
 ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321"
