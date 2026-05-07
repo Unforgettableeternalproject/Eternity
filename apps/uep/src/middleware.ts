@@ -83,7 +83,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
         displayName: 'Developer',
       };
     } else {
-      const jwtSecret = import.meta.env.JWT_SECRET;
+      // Cloudflare Pages runtime 環境變數需透過 locals.runtime.env 存取
+      // import.meta.env 只能存取 build-time 或 PUBLIC_ 前綴的變數
+      const jwtSecret =
+        context.locals.runtime?.env?.JWT_SECRET || import.meta.env.JWT_SECRET;
       if (!jwtSecret) {
         console.error('[middleware] JWT_SECRET 未設定，請檢查環境變數');
         return new Response('Server configuration error', { status: 500 });

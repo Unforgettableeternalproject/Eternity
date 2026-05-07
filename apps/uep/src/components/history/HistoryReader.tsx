@@ -176,19 +176,33 @@ function resolveInternalLink(
     ? currentPageId.substring(0, currentPageId.lastIndexOf('/'))
     : currentPageId;
 
+  // 候選 ID：優先當前頁面子頁，再同目錄，最後 history 根
   const candidates = [
-    `${currentDir}/${clean}`,
     `${currentPageId}/${clean}`,
+    `${currentDir}/${clean}`,
     `history/${clean.replace(/^history\//, '')}`,
   ];
 
+  // 第一輪：精確 ID 比對
+  const exact = pages.find((p) => candidates.includes(p.id));
+  if (exact) return exact;
+
+  // 第二輪：限定在當前頁面後代範圍中做 suffix 比對
+  const scopePrefix = `${currentPageId}/`;
+  const scoped = pages.find(
+    (p) =>
+      p.id.startsWith(scopePrefix) &&
+      (p.id.endsWith(`/${clean}`) || p.slug === clean)
+  );
+  if (scoped) return scoped;
+
+  // 第三輪：同目錄範圍 fallback
+  const dirPrefix = `${currentDir}/`;
   return (
     pages.find(
-      (page) =>
-        candidates.includes(page.id) ||
-        page.id.endsWith(`/${clean}`) ||
-        page.slug === clean ||
-        page.slug.endsWith(`/${clean}`)
+      (p) =>
+        p.id.startsWith(dirPrefix) &&
+        (p.id.endsWith(`/${clean}`) || p.slug === clean)
     ) || null
   );
 }
@@ -475,6 +489,17 @@ export default function HistoryReader() {
       href.startsWith('javascript:')
     )
       return;
+
+    // 處理編輯器插入的內部頁面連結（@page:{pageId} 格式）
+    if (href.startsWith('@page:')) {
+      const pageId = href.slice(6);
+      const target = flatPages.find((p) => p.id === pageId);
+      if (target && target.pageType !== 'page') {
+        event.preventDefault();
+        void loadPage(target);
+      }
+      return;
+    }
 
     const resolved = resolveInternalLink(currentId, href, flatPages);
     if (resolved && resolved.pageType !== 'page') {

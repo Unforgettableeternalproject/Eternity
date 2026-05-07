@@ -2,7 +2,7 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
-import { TextStyle } from '@tiptap/extension-text-style';
+import { TextStyle, FontSize } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { FontFamily } from '@tiptap/extension-font-family';
 import { Highlight } from '@tiptap/extension-highlight';
@@ -55,6 +55,14 @@ const HEADING_LEVELS = [
   { label: 'H1', value: 1 },
   { label: 'H2', value: 2 },
   { label: 'H3', value: 3 },
+];
+
+// === 字型大小預設值 ===
+const FONT_SIZES = [
+  { label: '小字', value: '13px' },
+  { label: '內文', value: '' },
+  { label: '大字', value: '20px' },
+  { label: '特大', value: '26px' },
 ];
 
 // === Props ===
@@ -113,6 +121,16 @@ export default function RichEditor({
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // 字型大小自訂輸入
+  const [customFontSize, setCustomFontSize] = useState('');
+
+  // 連結 popover 狀態
+  const [linkHref, setLinkHref] = useState('');
+  const [linkOpenInNew, setLinkOpenInNew] = useState(false);
+  const [linkMode, setLinkMode] = useState<'url' | 'page'>('url');
+  const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
+  const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
+
   // Echoes-specific state
   const isEchoes = area === 'echos' || zoneId === 'echoes';
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
@@ -125,9 +143,15 @@ export default function RichEditor({
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         horizontalRule: {},
+        link: {
+          openOnClick: false,
+          autolink: true,
+          linkOnPaste: true,
+        },
       }),
       Underline,
       TextStyle,
+      FontSize,
       Color,
       FontFamily,
       Highlight.configure({ multicolor: true }),
@@ -278,6 +302,85 @@ export default function RichEditor({
         .run();
     setActiveDropdown(null);
   };
+
+  // 設定字型大小
+  const handleSetFontSize = (size: string) => {
+    if (size) editor.chain().focus().setFontSize(size).run();
+    else editor.chain().focus().unsetFontSize().run();
+    setActiveDropdown(null);
+  };
+
+  // 套用連結
+  const applyLink = (href: string) => {
+    if (!href) return;
+    editor
+      .chain()
+      .focus()
+      .setLink({
+        href,
+        target: linkOpenInNew ? '_blank' : null,
+      })
+      .run();
+    setActiveDropdown(null);
+    setLinkHref('');
+  };
+
+  // 移除連結
+  const removeLink = () => {
+    editor.chain().focus().unsetLink().run();
+    setActiveDropdown(null);
+  };
+
+  // 載入頁面樹（供內部頁面選擇器使用）
+  const loadLinkPageTree = async () => {
+    if (linkPageTree.length) return;
+    setLinkPageTreeLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/content/${area}/tree`);
+      const json = await res.json();
+      if (json.ok) setLinkPageTree(json.data || []);
+    } catch {
+      // 靜默失敗
+    } finally {
+      setLinkPageTreeLoading(false);
+    }
+  };
+
+  // 開啟連結下拉面板（預填既有連結）
+  const handleOpenLinkDropdown = () => {
+    const existingHref = editor.getAttributes('link').href || '';
+    if (existingHref.startsWith('@page:')) {
+      setLinkHref('');
+      setLinkMode('page');
+    } else {
+      setLinkHref(existingHref);
+      setLinkMode('url');
+    }
+    setLinkOpenInNew(editor.getAttributes('link').target === '_blank');
+    toggleDropdown('link');
+  };
+
+  // 渲染內部頁面選擇器的樹狀結構
+  function renderLinkPageTree(nodes: any[], depth = 0): React.ReactNode {
+    return nodes.map((node: any) => (
+      <React.Fragment key={node.id}>
+        {node.pageType !== 'page' && (
+          <button
+            className="tb-link-page-item"
+            style={{ paddingLeft: `${8 + depth * 12}px` }}
+            onClick={() => applyLink(`@page:${node.id}`)}
+          >
+            <span className="tb-link-page-type">
+              {(node.pageType || 'P')[0].toUpperCase()}
+            </span>
+            {node.title}
+          </button>
+        )}
+        {node.children?.length > 0 &&
+          renderLinkPageTree(node.children, depth + 1)}
+      </React.Fragment>
+    ));
+  }
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -559,6 +662,78 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
+              {/* 字型大小 */}
+              <div className="tb-group">
+                <div className="tb-dropdown-wrap">
+                  <button
+                    className="tb-btn tb-dropdown-trigger"
+                    onClick={() => toggleDropdown('fontSize')}
+                    title="字型大小"
+                  >
+                    {editor
+                      .getAttributes('textStyle')
+                      .fontSize?.replace('px', '') || '大小'}
+                    <span className="tb-caret">&#9662;</span>
+                  </button>
+                  {activeDropdown === 'fontSize' && (
+                    <div className="tb-dropdown tb-fontsize-panel">
+                      {FONT_SIZES.map((s) => (
+                        <button
+                          key={s.value || 'default'}
+                          className={`tb-dropdown-item ${
+                            (editor.getAttributes('textStyle').fontSize ||
+                              '') === s.value
+                              ? 'is-active'
+                              : ''
+                          }`}
+                          onClick={() => handleSetFontSize(s.value)}
+                        >
+                          <span style={{ fontSize: s.value || 'inherit' }}>
+                            {s.label}
+                          </span>
+                          {s.value && (
+                            <span className="tb-fontsize-hint">{s.value}</span>
+                          )}
+                        </button>
+                      ))}
+                      <div className="tb-fontsize-divider" />
+                      <div className="tb-fontsize-custom">
+                        <input
+                          type="number"
+                          min="8"
+                          max="120"
+                          placeholder="自訂 px"
+                          value={customFontSize}
+                          onChange={(e) => setCustomFontSize(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && customFontSize) {
+                              handleSetFontSize(`${customFontSize}px`);
+                              setCustomFontSize('');
+                            }
+                            if (e.key === 'Escape') setActiveDropdown(null);
+                          }}
+                          className="tb-fontsize-input"
+                        />
+                        <button
+                          className="tb-btn"
+                          disabled={!customFontSize}
+                          onClick={() => {
+                            if (customFontSize) {
+                              handleSetFontSize(`${customFontSize}px`);
+                              setCustomFontSize('');
+                            }
+                          }}
+                        >
+                          套用
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="tb-sep" />
+
               {/* Alignment */}
               <div className="tb-group">
                 <button
@@ -651,6 +826,98 @@ export default function RichEditor({
                 >
                   {uploading ? '\u23F3' : '\u25A2'}
                 </button>
+              </div>
+
+              <div className="tb-sep" />
+
+              {/* 連結 */}
+              <div className="tb-group">
+                <div className="tb-dropdown-wrap">
+                  <button
+                    className={`tb-btn ${editor.isActive('link') ? 'is-active' : ''}`}
+                    onClick={handleOpenLinkDropdown}
+                    title="插入連結"
+                  >
+                    &#128279;
+                  </button>
+                  {activeDropdown === 'link' && (
+                    <div className="tb-dropdown tb-link-panel">
+                      {/* 模式切換 */}
+                      <div className="tb-link-tabs">
+                        <button
+                          className={`tb-link-tab ${linkMode === 'url' ? 'is-active' : ''}`}
+                          onClick={() => setLinkMode('url')}
+                        >
+                          URL
+                        </button>
+                        <button
+                          className={`tb-link-tab ${linkMode === 'page' ? 'is-active' : ''}`}
+                          onClick={() => {
+                            setLinkMode('page');
+                            void loadLinkPageTree();
+                          }}
+                        >
+                          內部頁面
+                        </button>
+                      </div>
+
+                      {linkMode === 'url' ? (
+                        <>
+                          <input
+                            className="tb-link-input"
+                            type="url"
+                            placeholder="https://..."
+                            value={linkHref}
+                            onChange={(e) => setLinkHref(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') applyLink(linkHref);
+                              if (e.key === 'Escape') setActiveDropdown(null);
+                            }}
+                            autoFocus
+                          />
+                          <label className="tb-link-option">
+                            <input
+                              type="checkbox"
+                              checked={linkOpenInNew}
+                              onChange={(e) =>
+                                setLinkOpenInNew(e.target.checked)
+                              }
+                            />
+                            開新分頁
+                          </label>
+                          <div className="tb-link-actions">
+                            <button
+                              className="tb-link-apply"
+                              disabled={!linkHref}
+                              onClick={() => applyLink(linkHref)}
+                            >
+                              套用
+                            </button>
+                            {editor.isActive('link') && (
+                              <button
+                                className="tb-link-remove"
+                                onClick={removeLink}
+                              >
+                                移除連結
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {linkPageTreeLoading && (
+                            <div className="tb-link-loading">載入頁面中...</div>
+                          )}
+                          {!linkPageTreeLoading && (
+                            <div className="tb-link-page-tree">
+                              {renderLinkPageTree(linkPageTree)}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
