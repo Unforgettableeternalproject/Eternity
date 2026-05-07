@@ -458,6 +458,111 @@
   color: #ef4444;
 }
 
+/* Insert zone — GitBook 風格：hover 在項目間顯示 + 按鈕 */
+.ned-tree-insert-zone {
+  position: relative;
+  height: 4px;
+  cursor: pointer;
+}
+
+.ned-tree-insert-line {
+  position: absolute;
+  left: 0;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+
+.ned-tree-insert-zone:hover .ned-tree-insert-line {
+  opacity: 1;
+}
+
+.ned-tree-insert-plus {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--ned-accent, var(--uep-gold));
+  background: var(--bg-card, var(--bg));
+  color: var(--ned-accent, var(--uep-gold));
+  font-size: 11px;
+  font-family: var(--font-mono);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.ned-tree-insert-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--ned-accent, var(--uep-gold));
+  opacity: 0.45;
+}
+
+/* Inline 新增頁面列 */
+.ned-tree-create-row {
+  animation: ned-create-in 0.15s ease;
+}
+
+@keyframes ned-create-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ned-tree-create-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--hairline-strong);
+  color: var(--ink-title);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 2px 0;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.15s;
+}
+
+.ned-tree-create-input:focus {
+  border-bottom-color: var(--ned-accent, var(--uep-gold));
+}
+
+.ned-tree-create-input::placeholder {
+  color: var(--ink-mute);
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+}
+
+.ned-tree-create-input:disabled {
+  opacity: 0.5;
+}
+
+.ned-tree-create-spinner {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  animation: ned-spin-pulse 0.8s ease infinite;
+}
+
+@keyframes ned-spin-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+.ned-tree-create-error {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #ef4444;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 /* === Middle — Editor Surface === */
 .ned-editor {
   overflow-y: auto;
@@ -469,6 +574,44 @@
   pointer-events: none;
   opacity: 0.5;
   user-select: none;
+}
+
+/* 空狀態 — 入口模式佔位 */
+.ned-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  animation: ned-empty-in 0.5s ease both;
+  padding: 40px 20px;
+}
+
+@keyframes ned-empty-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ned-empty-icon {
+  font-size: 36px;
+  margin-bottom: 18px;
+  opacity: 0.35;
+}
+
+.ned-empty-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink-title);
+  margin-bottom: 10px;
+}
+
+.ned-empty-desc {
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--ink-mute);
 }
 
 .ned-lock-banner {

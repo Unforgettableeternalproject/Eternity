@@ -91,6 +91,7 @@ export default function RichEditor({
   // Zone accent resolution
   const zone = ZONES.find((z) => z.id === zoneId || z.slug === zoneId);
   const accentMain = zone?.main ?? '#3A3A3A';
+  const isEntryMode = !pageSlug;
 
   // State
   const [isDirty, setIsDirty] = useState(false);
@@ -339,43 +340,53 @@ export default function RichEditor({
       {/* Header */}
       <header className="ned-header">
         <a href="/admin" className="ned-header-area">$ admin / {area}</a>
-        <div className="ned-header-sep" />
-        <input
-          className="ned-header-title"
-          type="text"
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            setIsDirty(true);
-          }}
-          placeholder="Page title..."
-        />
-        <span className="ned-header-status">
-          {statusLabel || `${pageStatus} \u00b7 ${isDirty ? 'modified' : 'saved'}`}
-        </span>
-        <div className="ned-header-spacer" />
-        <div className="ned-header-right">
-          <span className="ned-shortcut-hint">Ctrl+S</span>
-          <a
-            href={`/${area}?page=${area}/${pageSlug}`}
-            className="ned-btn-ghost"
-            target="_blank"
-            rel="noopener"
-          >
-            Preview
-          </a>
-          <button
-            className={`ned-btn-save ${isDirty ? 'is-dirty' : ''}`}
-            disabled={!isDirty || saveStatus === 'saving'}
-            onClick={handleSave}
-          >
-            {saveButtonLabel}
-          </button>
-        </div>
+        {isEntryMode ? (
+          <>
+            <div className="ned-header-spacer" />
+            <span className="ned-header-status">選擇頁面以開始編輯</span>
+          </>
+        ) : (
+          <>
+            <div className="ned-header-sep" />
+            <input
+              className="ned-header-title"
+              type="text"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setIsDirty(true);
+              }}
+              placeholder="Page title..."
+            />
+            <span className="ned-header-status">
+              {statusLabel || `${pageStatus} \u00b7 ${isDirty ? 'modified' : 'saved'}`}
+            </span>
+            <div className="ned-header-spacer" />
+            <div className="ned-header-right">
+              <span className="ned-shortcut-hint">Ctrl+S</span>
+              <a
+                href={`/${area}?page=${area}/${pageSlug}`}
+                className="ned-btn-ghost"
+                target="_blank"
+                rel="noopener"
+              >
+                Preview
+              </a>
+              <button
+                className={`ned-btn-save ${isDirty ? 'is-dirty' : ''}`}
+                disabled={!isDirty || saveStatus === 'saving'}
+                onClick={handleSave}
+              >
+                {saveButtonLabel}
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       {/* Toolbar */}
-      <div className="ned-toolbar" ref={dropdownRef}>
+      {/* Toolbar — 入口模式隱藏 */}
+      {!isEntryMode && <div className="ned-toolbar" ref={dropdownRef}>
         {!isEchoes && editor && (<>
         {/* Heading dropdown */}
         <div className="tb-group">
@@ -621,7 +632,7 @@ export default function RichEditor({
         <span className="ned-toolbar-right">
           {isEchoes ? 'song mode' : 'rich text'}{!isEchoes && ` \u00b7 ${charCount.toLocaleString()} chars`}
         </span>
-      </div>
+      </div>}
 
       {/* Body — 3 columns */}
       <div className="ned-body">
@@ -638,52 +649,67 @@ export default function RichEditor({
 
         {/* Middle — Editor */}
         <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
-          {locked && (
-            <div className="ned-lock-banner">
-              <span>🔒 This page is locked. Unlock from inspector to edit.</span>
+          {isEntryMode ? (
+            <div className="ned-empty-state">
+              <div className="ned-empty-icon" style={{ color: accentMain }}>&#9998;</div>
+              <div className="ned-empty-title">選擇一個項目開始編輯</div>
+              <div className="ned-empty-desc">
+                從左側的頁面樹點選要編輯的章節或段落，<br/>
+                或在項目之間 hover 來新增頁面。
+              </div>
             </div>
+          ) : (
+            <>
+              {locked && (
+                <div className="ned-lock-banner">
+                  <span>&#128274; This page is locked. Unlock from inspector to edit.</span>
+                </div>
+              )}
+              <div className="ned-paper">
+                <div className="ned-breadcrumb">
+                  {parentId ? `${area} / ${parentId.replace(/\//g, ' / ')}` : area}
+                </div>
+                {isEchoes ? (
+                  <EchoesEditorBody
+                    accent={accentMain}
+                    initialData={echoesData}
+                    onDataChange={setEchoesData}
+                    onDirty={() => setIsDirty(true)}
+                  />
+                ) : (
+                  <EditorContent editor={editor} />
+                )}
+              </div>
+            </>
           )}
-          <div className="ned-paper">
-            <div className="ned-breadcrumb">
-              {parentId ? `${area} / ${parentId.replace(/\//g, ' / ')}` : area}
-            </div>
-            {isEchoes ? (
-              <EchoesEditorBody
-                accent={accentMain}
-                initialData={echoesData}
-                onDataChange={setEchoesData}
-                onDirty={() => setIsDirty(true)}
-              />
-            ) : (
-              <EditorContent editor={editor} />
-            )}
-          </div>
         </main>
 
-        {/* Right — Inspector */}
-        <aside className="ned-panel--inspector">
-          <EditorInspector
-            pageType={pageType}
-            onPageTypeChange={setPageType}
-            parentId={parentId}
-            onParentIdChange={setParentId}
-            depth={depth}
-            onDepthChange={setDepth}
-            hidden={hidden}
-            onHiddenChange={setHidden}
-            locked={locked}
-            onLockedChange={setLocked}
-            icon={icon}
-            onIconChange={setIcon}
-            description={description}
-            onDescriptionChange={setDescription}
-            onDirty={() => setIsDirty(true)}
-            accent={accentMain}
-            pageStatus={pageStatus}
-            createdAt={createdAt}
-            updatedAt={updatedAt}
-          />
-        </aside>
+        {/* Right — Inspector（入口模式隱藏） */}
+        {!isEntryMode && (
+          <aside className="ned-panel--inspector">
+            <EditorInspector
+              pageType={pageType}
+              onPageTypeChange={setPageType}
+              parentId={parentId}
+              onParentIdChange={setParentId}
+              depth={depth}
+              onDepthChange={setDepth}
+              hidden={hidden}
+              onHiddenChange={setHidden}
+              locked={locked}
+              onLockedChange={setLocked}
+              icon={icon}
+              onIconChange={setIcon}
+              description={description}
+              onDescriptionChange={setDescription}
+              onDirty={() => setIsDirty(true)}
+              accent={accentMain}
+              pageStatus={pageStatus}
+              createdAt={createdAt}
+              updatedAt={updatedAt}
+            />
+          </aside>
+        )}
       </div>
       {/* Hidden file input for image upload */}
       <input

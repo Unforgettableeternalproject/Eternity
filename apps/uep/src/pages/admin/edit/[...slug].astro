@@ -14,23 +14,28 @@ const pageSlug = parts.slice(1).join('/');
 const apiBase =
   import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
+// pageSlug 為空 → 入口模式（不載入任何頁面）
+const isEntryMode = !pageSlug;
+
 let page: any = null;
 let fetchError: string | null = null;
 
-try {
-  const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
-  const ct = res.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) {
-    throw new Error('Content API not available (received non-JSON response)');
+if (!isEntryMode) {
+  try {
+    const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error('Content API not available (received non-JSON response)');
+    }
+    const json = await res.json();
+    if (json.ok) {
+      page = json.data;
+    } else {
+      fetchError = json.error || 'Page not found';
+    }
+  } catch (e: any) {
+    fetchError = e.message || 'Failed to connect to Content API';
   }
-  const json = await res.json();
-  if (json.ok) {
-    page = json.data;
-  } else {
-    fetchError = json.error || 'Page not found';
-  }
-} catch (e: any) {
-  fetchError = e.message || 'Failed to connect to Content API';
 }
 
 // Convert content blocks to HTML for TipTap
@@ -68,7 +73,7 @@ function blocksToHtml(blocks: any[]): string {
 const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
 ---
 
-<DesignLayout title={`Edit - ${page?.title || slug}`} zone={area}>
+<DesignLayout title={`Edit - ${page?.title || area}`} zone={area}>
   {
     fetchError ? (
       <div class="error-page">
@@ -78,24 +83,24 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
           <a href="/admin">Back to list</a>
         </div>
       </div>
-    ) : page ? (
+    ) : (
       <RichEditor
         client:only="react"
-        initialContent={initialHtml}
-        initialTitle={page.title}
+        initialContent={isEntryMode ? '' : initialHtml}
+        initialTitle={page?.title || ''}
         apiBase={apiBase}
         area={area}
         pageSlug={pageSlug}
-        pageStatus={page.status}
+        pageStatus={page?.status || ''}
         zoneId={area}
-        initialParentId={page.parentId}
-        initialPageType={page.pageType}
-        initialDepth={page.depth}
-        initialMetadata={page.metadata}
-        createdAt={page.createdAt}
-        updatedAt={page.updatedAt}
+        initialParentId={page?.parentId}
+        initialPageType={page?.pageType}
+        initialDepth={page?.depth}
+        initialMetadata={page?.metadata}
+        createdAt={page?.createdAt}
+        updatedAt={page?.updatedAt}
       />
-    ) : null
+    )
   }
 </DesignLayout>
 
