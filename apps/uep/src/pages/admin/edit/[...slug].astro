@@ -1,4 +1,5 @@
 ---
+import DesignLayout from '../../../layouts/DesignLayout.astro';
 import RichEditor from '../../../components/editor/RichEditor';
 
 export const prerender = false;
@@ -18,6 +19,10 @@ let fetchError: string | null = null;
 
 try {
   const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    throw new Error('Content API not available (received non-JSON response)');
+  }
   const json = await res.json();
   if (json.ok) {
     page = json.data;
@@ -28,16 +33,16 @@ try {
   fetchError = e.message || 'Failed to connect to Content API';
 }
 
-// 將 content blocks 轉成 HTML 供 TipTap 載入
+// Convert content blocks to HTML for TipTap
 function blocksToHtml(blocks: any[]): string {
   if (!blocks || blocks.length === 0) return '<p></p>';
 
-  // 新格式：rich_text 類型直接回傳 HTML
+  // New format: rich_text type returns HTML directly
   if (blocks.length === 1 && blocks[0].type === 'rich_text') {
     return blocks[0].content;
   }
 
-  // 舊格式：逐塊轉換
+  // Legacy format: convert block by block
   return blocks
     .map((block: any) => {
       switch (block.type) {
@@ -63,43 +68,38 @@ function blocksToHtml(blocks: any[]): string {
 const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
 ---
 
-<html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
-    <title>編輯 - {page?.title || slug}</title>
-  </head>
-  <body>
-    {
-      fetchError ? (
-        <div class="error-page">
-          <div class="error-box">
-            <h2>無法載入頁面</h2>
-            <p>{fetchError}</p>
-            <a href="/admin">返回列表</a>
-          </div>
+<DesignLayout title={`Edit - ${page?.title || slug}`} zone={area}>
+  {
+    fetchError ? (
+      <div class="error-page">
+        <div class="error-box">
+          <h2>Cannot load page</h2>
+          <p>{fetchError}</p>
+          <a href="/admin">Back to list</a>
         </div>
-      ) : page ? (
-        <RichEditor
-          client:only="react"
-          initialContent={initialHtml}
-          initialTitle={page.title}
-          apiBase={apiBase}
-          area={area}
-          pageSlug={pageSlug}
-          pageStatus={page.status}
-          initialParentId={page.parentId}
-          initialPageType={page.pageType}
-          initialDepth={page.depth}
-          initialMetadata={page.metadata}
-        />
-      ) : null
-    }
-  </body>
-</html>
+      </div>
+    ) : page ? (
+      <RichEditor
+        client:only="react"
+        initialContent={initialHtml}
+        initialTitle={page.title}
+        apiBase={apiBase}
+        area={area}
+        pageSlug={pageSlug}
+        pageStatus={page.status}
+        zoneId={area}
+        initialParentId={page.parentId}
+        initialPageType={page.pageType}
+        initialDepth={page.depth}
+        initialMetadata={page.metadata}
+        createdAt={page.createdAt}
+        updatedAt={page.updatedAt}
+      />
+    ) : null
+  }
+</DesignLayout>
 
-<style>
+<style is:global>
   html,
   body {
     margin: 0;
@@ -107,39 +107,42 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
     height: 100%;
     overflow: hidden;
   }
+</style>
 
+<style>
   .error-page {
     height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #0a0a0f;
-    color: #f8f8ff;
-    font-family:
-      system-ui,
-      -apple-system,
-      sans-serif;
+    font-family: var(--font-sans);
   }
 
   .error-box {
     text-align: center;
     padding: 2rem;
-    background: rgba(26, 26, 46, 0.6);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--hairline-strong);
   }
 
   .error-box h2 {
-    color: #f87171;
+    color: #ef4444;
     margin-bottom: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
   .error-box p {
-    color: #c0c0d8;
+    color: var(--ink-soft);
     margin-bottom: 1rem;
   }
   .error-box a {
-    color: #d5b618;
+    color: var(--uep-gold);
     text-decoration: none;
-    border-bottom: 1px solid #d5b618;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--uep-gold);
   }
 </style>
