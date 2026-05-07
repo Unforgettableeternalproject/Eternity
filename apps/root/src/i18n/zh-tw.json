@@ -248,5 +248,60 @@
     "connect": "聯繫我",
     "notSet": "尚未設定個人資料",
     "goToAdmin": "前往後台"
+  },
+  "updates": {
+    "title": "最新動態 - Eternity",
+    "description": "查看最新的更新動態與公告",
+    "heading": "最新動態",
+    "subtitle": "更新歷史",
+    "backToList": "返回動態列表",
+    "noUpdates": "目前沒有動態",
+    "categories": {
+      "website": "網站更新",
+      "project": "專案進展",
+      "announcement": "重要公告",
+      "other": "其他"
+    }
+  },
+  "projectsPage": {
+    "filterProjects": "篩選專案",
+    "projectStatus": "專案狀態",
+    "techTags": "技術標籤",
+    "allProjects": "全部",
+    "noProjects": "沒有符合的專案",
+    "noProjectsYet": "目前沒有專案",
+    "viewDetails": "查看詳情",
+    "website": "網站",
+    "status": {
+      "all": "全部",
+      "active": "進行中",
+      "paused": "暫時停滞",
+      "completed": "已完成",
+      "archived": "已封存"
+    }
+  },
+  "search": {
+    "pages": {
+      "home": {
+        "title": "首頁",
+        "description": "回到首頁"
+      },
+      "about": {
+        "title": "關於",
+        "description": "關於我的介紹"
+      },
+      "projects": {
+        "title": "專案",
+        "description": "查看我的專案作品"
+      },
+      "links": {
+        "title": "連結",
+        "description": "有用的連結與資源"
+      },
+      "updates": {
+        "title": "動態",
+        "description": "最新動態與更新"
+      }
+    }
   }
 }

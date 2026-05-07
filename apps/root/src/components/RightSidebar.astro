@@ -189,6 +189,7 @@ const stats = [
   // 自動生成目錄大綱
   function generateTOC() {
     const tocNav = document.getElementById('toc-nav');
+    const tocCard = document.getElementById('table-of-contents');
     if (!tocNav) return;
 
     // 只選擇 main 下直接的標題，排除卡片等元件內的標題
@@ -198,13 +199,38 @@ const stats = [
     const headings = Array.from(main.querySelectorAll('h2, h3')).filter(
       (heading) => {
         // 排除在 .card, .flip-card, [data-card-id] 等容器內的標題
-        return !heading.closest(
-          '.card, .flip-card, [data-card-id], .project-card'
-        );
+        if (
+          heading.closest('.card, .flip-card, [data-card-id], .project-card')
+        ) {
+          return false;
+        }
+
+        // 排除隱藏的元素（包括 #empty-state 等動態顯示/隱藏的區塊）
+        const headingElement = heading as HTMLElement;
+        if (
+          headingElement.offsetParent === null ||
+          headingElement.classList.contains('hidden') ||
+          headingElement.closest('.hidden') ||
+          window.getComputedStyle(headingElement).display === 'none'
+        ) {
+          return false;
+        }
+
+        return true;
       }
     );
 
-    if (headings.length === 0) return;
+    // 如果沒有標題，顯示提示訊息
+    if (headings.length === 0) {
+      tocNav.innerHTML =
+        '<p class="text-xs text-slate-500 dark:text-slate-400 italic">此頁面沒有大綱可顯示</p>';
+      return;
+    }
+
+    // 如果有標題，確保卡片顯示
+    if (tocCard) {
+      tocCard.style.display = '';
+    }
 
     tocNav.innerHTML = '';
 

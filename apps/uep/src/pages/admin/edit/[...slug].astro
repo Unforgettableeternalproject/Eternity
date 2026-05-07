@@ -1,0 +1,145 @@
+---
+import RichEditor from '../../../components/editor/RichEditor';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect('/admin');
+
+const parts = slug.split('/');
+const area = parts[0];
+const pageSlug = parts.slice(1).join('/');
+
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+let page: any = null;
+let fetchError: string | null = null;
+
+try {
+  const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+  const json = await res.json();
+  if (json.ok) {
+    page = json.data;
+  } else {
+    fetchError = json.error || 'Page not found';
+  }
+} catch (e: any) {
+  fetchError = e.message || 'Failed to connect to Content API';
+}
+
+// 將 content blocks 轉成 HTML 供 TipTap 載入
+function blocksToHtml(blocks: any[]): string {
+  if (!blocks || blocks.length === 0) return '<p></p>';
+
+  // 新格式：rich_text 類型直接回傳 HTML
+  if (blocks.length === 1 && blocks[0].type === 'rich_text') {
+    return blocks[0].content;
+  }
+
+  // 舊格式：逐塊轉換
+  return blocks
+    .map((block: any) => {
+      switch (block.type) {
+        case 'heading': {
+          const level = block.attrs?.level || 2;
+          return `<h${level}>${block.content}</h${level}>`;
+        }
+        case 'blockquote':
+          return `<blockquote><p>${block.content}</p></blockquote>`;
+        case 'divider':
+          return '<hr>';
+        case 'code':
+          return `<pre><code>${block.content}</code></pre>`;
+        case 'image':
+          return `<img src="${block.content}" alt="${block.attrs?.alt || ''}" />`;
+        default:
+          return `<p>${block.content}</p>`;
+      }
+    })
+    .join('');
+}
+
+const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
+---
+
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
+    <title>編輯 - {page?.title || slug}</title>
+  </head>
+  <body>
+    {
+      fetchError ? (
+        <div class="error-page">
+          <div class="error-box">
+            <h2>無法載入頁面</h2>
+            <p>{fetchError}</p>
+            <a href="/admin">返回列表</a>
+          </div>
+        </div>
+      ) : page ? (
+        <RichEditor
+          client:only="react"
+          initialContent={initialHtml}
+          initialTitle={page.title}
+          apiBase={apiBase}
+          area={area}
+          pageSlug={pageSlug}
+          pageStatus={page.status}
+          initialParentId={page.parentId}
+          initialPageType={page.pageType}
+          initialDepth={page.depth}
+          initialMetadata={page.metadata}
+        />
+      ) : null
+    }
+  </body>
+</html>
+
+<style>
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .error-page {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a0f;
+    color: #f8f8ff;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+
+  .error-box {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(26, 26, 46, 0.6);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+  }
+
+  .error-box h2 {
+    color: #f87171;
+    margin-bottom: 0.5rem;
+  }
+  .error-box p {
+    color: #c0c0d8;
+    margin-bottom: 1rem;
+  }
+  .error-box a {
+    color: #d5b618;
+    text-decoration: none;
+    border-bottom: 1px solid #d5b618;
+  }
+</style>

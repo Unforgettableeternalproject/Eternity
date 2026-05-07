@@ -1,498 +1,247 @@
-# 專案進度追蹤
+# U.E.P Progress
 
-## 最近更新 (2026-01-18)
+Last updated: 2026-05-07
 
-### ✅ 已完成
+This document tracks the current implementation state of the Eternity / UEP workspace for future agents. Older notes from January 2026 were mostly mojibake and described a now-superseded static-docs direction, so this file has been rewritten around the current architecture.
 
-- **UEP 文件站建設頁面完成** (NEW - 2026-01-18)
-  - **極簡自由畫布設計**：
-    * 移除所有組件依賴，整合至單一檔案
-    * 採用 `position: absolute` 自由排版
-    * 整頁限制 100vh，無需滾動
-  - **互動元素**：
-    * Big UEP.png 中央主角（發光效果、浮動動畫）
-    * 3 個可拖動貼紙（Working, Forklift, Lead）
-    * 隨機初始位置（每次載入不同）
-    * 拖動時播放隨機 pinch 音效（pinch1-6.wav）
-    * Hover 對話框：「我在指揮!」「我有一台大車車!」「我在工作!」
-  - **視覺特效**：
-    * 30 個動態粒子（金/紫/青三色）
-    * SVG 噪點紋理疊加
-    * 紫色建設徽章（脈衝動畫）
-    * 金色光環（旋轉動畫）
-    * 引言文字淡入淡出
-  - **拖動優化**：
-    * 使用 requestAnimationFrame 確保流暢
-    * 觸控與滑鼠雙支援
-    * 拖動時播放音效、改變游標
-  - **頁面架構**：
-    * `index.astro`：重導向至 `/construction`（保留給未來主頁）
-    * `construction.astro`：建設頁面（488 行單檔完整實現）
-  - **元素配置**：
-    * 中央：Big UEP + 光環
-    * 上方：建設中徽章
-    * 下方：引言文字
-    * 散落：3 個可拖動貼紙（Forklift 尺寸 150-250px）
-    * 右下：返回主維度連結
-    * 左下：構建進度指示器
+## Current Baseline
 
-- **UEP 文件站架構重構** (2026-01-18)
-  - **組件化架構**：
-    * 創建 `components` 目錄
-    * 分離組件：Hero, UEPImages, ProgressBar, ParticleBackground, Portals
-    * 創建 `styles` 目錄存放全局樣式
-    * 主頁僅負責組合組件，提升可維護性
-  - **簡化與優化**：
-    * 移除過度 tease 的內容（邊際世界區塊預覽、引導區）
-    * 保持簡潔，聚焦於「建設中」狀態
-    * 頁面高度縮減，避免過長
-  - **創意文字排版**：
-    * 標題文字拆解為單字元，每個字元浮動動畫（延遲漸進）
-    * 引言使用大引號框架，金色斜體
-    * 進度條標籤兩側加入閃電符號
-    * 區塊標題加入閃爍星號
-  - **Big UEP.png 整合**：
-    * 中央展示大型 U.E.P 圖片
-    * 發光環動畫（ringPulse）
-    * 圖片本身浮動效果（floatBig）
-    * 三個小插圖分布在下方
-  - **組件細節**：
-    * **Hero**：標題漸層動畫、建設徽章、引言區
-    * **UEPImages**：Big UEP 居中 + 3 個工作插圖（浮動、點擊重置）
-    * **ProgressBar**：閃電圖標、流動漸層、隨機進度
-    * **ParticleBackground**：50 粒子 + 雜訊層
-    * **Portals**：主站 + GitHub 傳送門卡片
-  - **文件結構**：
-    ```
-    apps/uep/src/
-    ├── components/
-    │   ├── Hero.astro
-    │   ├── UEPImages.astro
-    │   ├── ProgressBar.astro
-    │   ├── ParticleBackground.astro
-    │   └── Portals.astro
-    ├── styles/
-    │   └── globals.css
-    ├── pages/
-    │   └── index.astro (重構版)
-    └── layouts/
-        └── BaseLayout.astro
-    ```
+UEP is no longer only a static documentation site. The history section is now the first area backed by a Cloudflare Worker + D1 content layer, and the public history reader has been redesigned around the newer UEP map/zone experience.
 
-- **UEP 文件站全新主題設計** (2026-01-18)
-  - **世界觀整合**：基於「邊際世界」概念重新設計
-  - **視覺風格**：
-    * 深色主題（虛空黑 #0a0a0f + 虛空灰 #1a1a2e）
-    * 金色 (#d5b618) + 紫色 (#a855f7) + 青色 (#06b6d4) 三色漸層系統
-    * 玻璃擬態（Glassmorphism）美學
-    * 半透明元素 + backdrop-filter 模糊效果
-  - **粒子系統**：
-    * 50 個浮動粒子（金/紫/青三色）
-    * 無限上升動畫，模擬概念原質飄浮
-    * 雜訊覆蓋層（SVG noise filter）增加科幻感
-  - **Hero 區域**：
-    * 標題加入微妙的 glitch 抖動效果
-    * 三色漸層文字動畫（gradientShift）
-    * 紫色建設徽章，內含旋轉光效
-    * U.E.P 引言：「萬物由最原初的質所成...」
-  - **U.E.P 引導區**：
-    * UEP 頭像（發光球體 + 旋轉環）
-    * UEP 對話氣泡（金色文字 + 紫色符號）
-    * 掃描光效動畫
-  - **邊際世界區域卡片**：
-    * 4 個區域：歷史典藏庫、回音蒐藏間、幻影重現室、概念調整房
-    * 懸停時發光效果（cardGlow）
-    * 漸層邊框 + 陰影
-    * 「準備中...」狀態標籤
-  - **U.E.P 工作圖示區**：
-    * 圖片加入玻璃邊框
-    * 浮動動畫（分別延遲 0/0.5/1 秒）
-    * 金色標題文字發光效果
-  - **永恆詩歌區**：
-    * 引用 README.md 中的詩歌內容
-    * 重點文字（終點與起點、創世與毀滅等）使用金色高亮
-    * 「虛無」字眼加入紫色脈衝動畫
-    * 背景以太光效（ethereal）
-  - **傳送門卡片**：
-    * 主要維度（主站）+ 概念倉庫（GitHub）
-    * 懸停時光圈擴散效果（portal-light）
-    * 金色/紫色雙重陰影
-  - **進度條**：
-    * 三色漸層（紫→金→青）流動動畫
-    * 上層 shimmer 光效
-    * 隨機進度 30-50%
-    * 提示文字：「概念原質正在重組...」
-  - **BaseLayout 更新**：
-    * 深色背景 + 徑向漸層
-    * 玻璃材質 Header/Footer
-    * Logo 金紫漸層
-    * 導航欄底線動畫
-  - **JavaScript 互動**：
-    * 動態生成 50 個粒子
-    * 世界卡片 icon 縮放/旋轉效果
-    * 圖片卡片點擊重置動畫
+The important current split is:
 
-- **UEP 文件站建設中頁面** (2026-01-18 - 已升級)
-  - 創建 UEP 主題的「建設中...」頁面（apps/uep）
-  - **主題配色**：白色 + #d5b618（UEP 金色）→ 升級為深色 + 多色漸層
-  - **互動元素**：
-    * 3 個 UEP 貼圖（Working.png, Forklift.png, Lead.png）具有浮動動畫
-    * 建設中徽章具有呼吸動畫和擺動效果 → 升級為紫色光效徽章
-    * 進度條帶有發光動畫（隨機 25-45%）→ 升級為流動漸層動畫
-    * 連結卡片具有滑動光效和懸停效果 → 升級為傳送門卡片
-    * 圖片卡片可點擊並重新觸發動畫
-  - **頁面區塊**：
-    * Hero 區：標題 + 建設中徽章 + 副標題 + 引言
-    * UEP 引導區：頭像動畫 + 對話
-    * 邊際世界預覽區：4 個世界卡片
-    * UEP 貼圖展示區：3 個圖片卡片（浮動動畫）
-    * 永恆詩歌區：引用詩歌內容
-    * 傳送門區：主站 + GitHub
-    * 進度條區：模擬建設進度
-  - **響應式設計**：手機版單欄佈局、圖片堆疊
+- Static/generated Astro content still exists for the general UEP docs routes.
+- `/history` is now a client-side React reader that fetches history content from the content-api Worker at runtime.
+- The history landing page is not a normal article reader. It is the "三向通道" module home and embeds PAGE-level history content directly.
+- Reading pages begin from ZONE-level nodes and below.
 
-- **專案詳情頁圖片查看器模態視窗** (NEW - 2026-01-18)
-  - 創建 React Portal 組件 `ImageViewerModal`
-  - 使用 `createPortal` 渲染到 document.body，覆蓋整個頁面（包括導航欄、側邊欄、Footer）
-  - 全局單一實例設計，避免多個模態視窗同時開啟
-  - **功能特性**：
-    * 縮放控制：0.5x - 3x（按鈕控制 ±0.25，滾輪控制 ±0.1）
-    * 拖曳移動：縮放>1時可拖曳圖片
-    * 鍵盤快捷鍵：ESC（關閉）、+/-（縮放）、R（重置）
-    * 點擊 backdrop 關閉
-  - **視覺設計**：
-    * Glassmorphism（玻璃擬態）美學
-    * 85% 不透明度黑色背景 + 12px 模糊
-    * 頂部控制條：半透明圓角，含縮放按鈕、縮放百分比、重置、關閉
-    * 圖片容器：玻璃效果，漸層背景，白色半透明邊框
-    * 底部標題：圓角半透明背景
-  - **動畫效果**：
-    * 開啟：fadeIn (0.2s) + scaleIn (0.3s, cubic-bezier bounce)
-    * 關閉：fadeOut (0.2s) + scaleOut (0.2s)
-  - **響應式設計**：手機版調整控制條排版和圖片尺寸
-  - **技術整合**：
-    * 全局監聽 `openImageModal` 自定義事件
-    * MarkdocImage 點擊觸發事件傳遞圖片資訊
-    * 整合至 BaseLayout（唯一實例）
+## Completed: Content API Worker + D1
 
-- **專案內容 Markdoc 圖片支援** (2026-01-18)
-  - 配置 Keystatic markdoc 欄位支援圖片上傳
-  - 圖片目錄：`public/images/projects/`
-  - 創建 `markdoc.config.mjs` 自定義圖片渲染
-  - 創建 `MarkdocImage.astro` 組件處理圖片優化
-  - 使用 `import.meta.glob` 載入圖片資源
-  - 圖片優化（Astro Image 組件）+ 點擊放大功能
-  - 懸停效果：縮放 1.05 + 放大鏡圖標
+Implemented under `workers/content-api/`.
 
-- **專案「暫時停滯」狀態** (2026-01-18)
-  - Schema 新增 `paused` 狀態（active/paused/completed/archived）
-  - 所有專案詳情頁顯示暫停狀態（黃色徽章）
-  - 專案列表頁新增暫停狀態篩選按鈕
-  - 排序邏輯調整：狀態優先級（active > completed > paused > archived）→ 日期（新→舊）→ Order
-  - 卡片樣式：暫停狀態使用黃色配色（bg-yellow-100/900, text-yellow-700/300）
+- Added `workers/*` to `pnpm-workspace.yaml`.
+- Added `content-api-worker` package with Wrangler scripts:
+  - `dev`
+  - `deploy`
+  - `db:migrate:local`
+  - `db:migrate:remote`
+- Added D1 binding `CONTENT_DB`.
+- Added migrations:
+  - `0001_init.sql`: `pages`, `sync_log`, base indexes.
+  - `0002_add_hierarchy.sql`: `parent_id`, `depth`, `page_type`, hierarchy indexes.
+- `pages` supports sync and hierarchy metadata:
+  - `source_file`
+  - `base_content_hash`
+  - `status`: `synced`, `modified`, `local_only`
+  - `metadata`
+  - `parent_id`
+  - `depth`
+  - `page_type`
+- `page_type` currently supports:
+  - `zone`
+  - `chapter`
+  - `arc`
+  - `section`
+  - `page`
 
-- **首頁專案卡片優化** (2026-01-18)
-  - 移除卡片正面的敘述（避免重複，翻面才顯示）
-  - 卡片背面敘述限制為 6 行（line-clamp-6）
-  - 專案圖片改為正方形（aspect-square, 160x160）使用 object-cover
-  - View Details 連結固定在卡片左下角（使用 mt-auto）
+Implemented Worker endpoints:
 
-- **專案內容動態載入修復** (2026-01-18)
-  - 從 Astro.glob 改用 dynamic import
-  - 使用 title_zh/title_en 匹配專案資料夾名稱（而非格式化的 project.id）
-  - 支援中文和特殊字元的資料夾名稱
-  - 完整錯誤處理和 fallback 機制
+- `GET /api/health`
+- `GET /api/content/:area`
+- `GET /api/content/:area/tree`
+- `GET /api/content/:area/:slug`
+- `PUT /api/content/:area/:slug`
+- `DELETE /api/content/:area/:slug`
+- `POST /api/content/sync/import`
+- `GET /api/content/sync/status`
 
-## 最近更新 (2026-01-14)
+Other Worker notes:
 
-### ✅ 已完成
+- CORS is configured from `ALLOWED_ORIGINS`.
+- Write routes can be protected by `API_TOKEN`.
+- Tree responses are built from `parent_id`, `depth`, `page_type`, and `sort_order`.
 
-- **關於我頁面 - 打字機特效與 HTML 支援** (NEW - 2026-01-14)
-  - 創建 `AboutBioTypewriter` 元件，支援打字機特效
-  - **首次載入特效**：使用 localStorage 永久記錄，只在第一次訪問時播放
-  - **HTML 格式支援**：fullBio 支援 HTML 標籤（`<strong>`, `<em>`, `<span style="color:#xxx">`）
-  - 打字音效：每 5 個字元播放一次，音量 0.2（避免太吵）
-  - 打字速度：20ms/字元，延遲 300ms 開始
-  - 使用 `dangerouslySetInnerHTML` 渲染 HTML 內容
-  - 整合 prose 樣式（`prose prose-lg dark:prose-invert`）
+## Completed: History Migration
 
-- **關於我頁面改進** (2026-01-14)
-  - 添加 `fullBio` 欄位用於完整自我介紹
-  - `bio` 保留作為簡短介紹（顯示在頁面標題下方）
-  - `fullBio` 用於主要內容區（支援多行文字，`whitespace-pre-line`）
-  - 向下相容：如果 `fullBio` 為空，自動使用 `bio`
-  - 更新 Schema（content.config.ts 和 config.ts）
-  - 更新 Keystatic 配置（繁中和英文）
+Implemented in `scripts/migrate-history.mjs`.
 
-- **搜尋欄手機版優化** (2026-01-14)
-  - 移除手機版搜尋按鈕上的 `⌘K` 快捷鍵提示
-  - 移除手機版模態框底部的鍵盤操作說明（`↑↓` `Enter` `Esc`）
-  - 使用 CSS media query（≤640px）隱藏，避免觸控裝置看到無用的電腦操作提示
+- Parses `apps/uep/content/SUMMARY.md`.
+- Builds the history hierarchy from GitBook-style indentation.
+- Derives:
+  - `id`
+  - `slug`
+  - `parentId`
+  - `depth`
+  - `pageType`
+  - `sortOrder`
+- Converts Markdown and GitBook-flavored constructs into the rich content format used by the Worker.
+- Imports pages through `POST /api/content/sync/import`.
+- Can clear/import history content during local migration workflows.
 
-- **本日名言每日更新** (NEW - 2026-01-14)
-  - 改用基於日期種子的隨機算法
-  - 同一天所有用戶看到相同名言
-  - 每天午夜自動更換（無需手動觸發）
-  - 確定性隨機（相同日期永遠得到相同結果）
+Current practical status:
 
-- **音樂播放器 Toast 整合** (2026-01-14)
-  - 播放/暫停操作顯示 Toast 提示（⏸️ 音樂已暫停 / ▶️ 正在播放）
-  - 切換曲目顯示歌曲名稱和演唱者（🎵 歌名 - 歌手）
-  - 完整中英文支援
-  - 使用 `info` 類型（播放控制）和 `success` 類型（切換曲目）
+- Local D1 history content has been validated.
+- Remote D1 migration/import still needs confirmation before production deployment.
 
-- **Resend 郵件服務整合** (2026-01-14)
-  - 從 MailChannels 切換到 Resend（免費 3000 emails/月）
-  - Resend API 測試成功（Email ID: ff757d17-0d57-4594-b8e6-1a5143a0a372）
-  - DNS 記錄設置並驗證（DKIM, SPF, DMARC）
-  - Cloudflare Pages 環境變數雙重訪問機制（runtime.env + import.meta.env）
-  - TypeScript 類型定義（App.Locals.runtime）
-  - 創建 debug-env.json.ts 除錯 API
-  - 本地環境測試通過
-  - CI 測試全部通過（Lint, Typecheck, Format, Build）
-  - **待辦**: Cloudflare Pages 設置 RESEND_API_KEY 環境變數後測試
+## Completed: Admin Content UI
 
-- **聯絡頁面與視覺優化** (2026-01-13)
-  - **聯絡頁面實作**:
-    - 左右分佈設計（社群連結 + 聯絡表單）
-    - 社群平台簡潔條列式設計（hover 顯示背景色）
-    - 整合 Cloudflare MailChannels 免費郵件服務
-    - Toast 通知系統整合（移除內建訊息框）
-  - **全站幾何裝飾**:
-    - 主頁、關於、專案、聯絡頁面添加幾何圖形輪廓
-    - 6px 粗邊框，50-60% 透明度，固定定位
-    - 圓形、方形、旋轉圖形混搭，增加視覺豐富度
-  - **Footer 更新**: Bernie 連結改為聯絡頁面連結
-  - **程式碼清理**: 
-    - 移除 ConsoleEasterEgg 和 UEPCharacter 的 console.log
-    - 修正 ThemeToggle.astro 的 JSX 註解格式錯誤
-  - **i18n 支援**: 完整繁中/英文翻譯（社群平台、表單欄位、提示訊息）
-  - **CI/CD 驗證**: ✅ Lint (0 errors) / ✅ TypeCheck (0 errors) / ✅ Format / ✅ Build
-  - **狀態**: 準備部署至 staging 環境
+Implemented under `apps/uep/src/pages/admin/`.
 
-- **CI/CD Pipeline 修復** (2026-01-12晚)
-  - **ESLint 配置增強**: 添加完整的全域變數宣告（Audio, localStorage, setTimeout, React, HTMLDivElement, fetch, URL 等）
-  - **TypeScript 錯誤修復**: 
-    - MusicPlayer tracks 加入類型守衛過濾
-    - about.astro 使用類型斷言處理動態 schema
-    - 修正 slug 引用改為 id
-    - 動態路由的 mod.file 可選鏈保護
-  - **Prettier 格式化**:
-    - HTML 註解改為 JSX 註解（`{/* */}`）
-    - 創建 .prettierignore 排除自動產生檔案
-  - **Build 配置修復**:
-    - 安裝 @astrojs/cloudflare adapter
-    - 移除未使用的 API 路由 (search.json.ts)
-    - 配置 output: 'static' + adapter: cloudflare()
-  - **結果**: lint (0 errors, 39 warnings) ✅ / typecheck (0 errors) ✅ / format ✅ / build ✅
+- `admin/index.astro` talks to the content-api Worker.
+- It displays sync status from `/api/content/sync/status`.
+- History uses `/api/content/history/tree` and renders a tree view.
+- Non-history areas still use a flat table view.
+- Admin tree supports search, expand/collapse, status labels, and edit links.
+- `admin/edit/[...slug].astro` loads individual pages for editing.
+- `RichEditor.tsx` provides the current TipTap editor base.
+- `apps/uep/src/utils/content-api.ts` provides the frontend API client helpers.
 
-### ✅ 已完成
+Current limitation:
 
-- **音樂播放器 Cookie 整合與音量持久化**（NEW）
-  - Cookie consent 觸發音樂自動播放（繞過瀏覽器限制）
-  - 音量和曲目選擇僅在接受 Cookie 後儲存
-  - 修復音量持久化問題：
-    - 相容 `globalMusicPlayerState` JSON 格式（包含 volume、isPlaying、currentTrack、currentTime）
-    - 同時支援獨立 `music-volume` key
-    - 讀取優先順序：globalMusicPlayerState.volume → music-volume → 預設 0.5
-    - 儲存時同步更新兩種格式
-  - 添加 `cookie-consent-changed` 事件監聽，當使用者接受 Cookie 時重新載入設定
-  - 使用 sessionStorage 避免重複自動播放
+- The editor exists as a working base, but rich content round-trip, conflict resolution, and polished sync UX are not yet production-complete.
 
-- **U.E.P 角色互動系統**（NEW - 完整實作）
-  - **三種出現模式**（加權隨機）：
-    - Corner Mode (25%): 右下角固定，Fence.PNG ↔ Poke.PNG hover 切換
-    - Peek Mode (45%): 在特定元素探頭，Peek.png + wiggle 動畫
-    - Float Mode (30%): 隨機浮動，Lil.PNG，每 5-10 秒自動移動
-  - **雙重觸發系統**：
-    - 使用者活動：mousemove/keydown/scroll/touchstart，5% 概率
-    - 首頁載入：astro:page-load，25% 概率
-  - **狀態管理**：
-    - 顯示時間 8 秒，冷卻時間 30 秒
-    - sessionStorage 記憶（同一會話不重複觸發）
-  - **動畫效果**：
-    - 淡入/淡出動畫（600ms，scale + translateY）
-    - Corner hover：0.1s 延遲後放大（先切換圖片再動畫）
-    - Peek wiggle：旋轉搖擺
-    - Float bob：上下浮動 + 自動位置移動（hover 時暫停）
-  - **響應式設計**：
-    - Desktop: Corner 140px, Float 90px, Peek 85px
-    - Mobile: 適當縮小尺寸
-    - 支援 prefers-reduced-motion
-  - **Hover 提示框**：漸變背景 + 引導文字
-  - Debug 模式：開發時可設定 100% 觸發機率
+## Completed: History Reader Redesign
 
-- **TypewriterText 打字音效**（NEW）
-  - 每個字元播放 `/se/type.wav` 音效（音量 0.3）
-  - 自動重置 currentTime 確保快速連續播放
+Main files:
 
-- **View Transitions 相容性修復**
-  - FlipCard：添加 `astro:page-load` 事件監聽
-  - Reveal 動畫：添加 `astro:page-load` 支援
-  - 使用 `data-initialized` flag 避免重複綁定事件
-  - 移除巢狀 `transition:persist`（僅保留必要元素）
+- `apps/uep/src/pages/history.astro`
+- `apps/uep/src/components/history/HistoryReader.tsx`
 
-- **視覺細節優化**
-  - 首頁標題文字裁切修復：添加 pb-2 和 pb-1 padding，避免 y 等字元下緣被截斷
-  - i18n badge 文字更新：「歡迎來到我的數位空間」→「一個尚未完成的故事」（繁中/英文）
+Current behavior:
 
-- **Keystatic 側邊欄卡片管理系統**
-  - 每個卡片都是獨立的 singleton：
-    - 💬 名言卡片 (card-quote) - 支援繁中/英文名言陣列，隨機選擇顯示
-    - 🎵 音樂播放器 (card-music) - 歌曲清單管理
-    - 👥 訪客計數器 (card-visitor-counter) - 啟用/排序/位置控制
-    - 📢 最新動態 (card-latest-update) - 啟用/排序/位置控制
-  - 所有卡片都有：啟用狀態、排序順序、位置（左/右側邊欄）
-  - Quote 卡片：中英文名言陣列，每條名言可選填作者
-  - Music 卡片：歌曲清單（標題、演唱者、音檔路徑、封面圖）
-  - LeftSidebar.astro 整合 Keystatic 資料，隨機選擇名言
+- `history.astro` is now a thin wrapper around `HistoryReader`.
+- `HistoryReader` fetches runtime content from `PUBLIC_CONTENT_API_URL` or `http://localhost:8788`.
+- It loads:
+  - `/api/content/history/tree`
+  - `/api/content/:id`
+- `/history` defaults to the history landing view, not the old static home.
+- The landing view is based on `history/passage`, titled "三向通道".
+- PAGE-level content is embedded into the landing page:
+  - `history/passage`
+  - `history/note`
+- The three landing arches represent the U / E / P channel zones.
+- `路邊的紙條` is treated as a special note section on the landing page.
+- The left sidebar no longer shows PAGE-level nodes, because those are module-home content.
+- Reader navigation begins at ZONE-level nodes and continues into chapter/arc/section nodes.
+- The sidebar title "歷史典藏庫" is clickable and returns to the 三向通道 landing view.
+- `?page=` remains the deep-link mechanism for history reading pages.
+- Article pages use a main reading column and omit the right-side technical TOC.
 
-- **連結頁面細節優化**
-  - 精選連結淡入動畫（100ms delay）
-  - 查詢欄預設顯示全部內容（限制8個結果）
-  - 彩蛋按鈕淡入淡出效果（0.8s fade-in）
-  - 移除底部漸變陰影，增加底部內距避免與 footer 交界問題
+Design rationale:
 
-- **側邊欄拖曳排序系統**
-  - 透明卡片設計（融入背景）
-  - 拖曳把手（⋮⋮ Unicode 符號）
-  - 平滑動畫（所有卡片響應拖曳）
-  - 訪客計數器（僅主頁不重複訪客）
-  - 開發環境重置按鈕（使用 envConfig.showDevTools）
-  - 音樂播放器、最新更新、本日名言卡片
+- History content is novel/prose-like, so a right article outline is less useful than it is in a technical document.
+- PAGE-level nodes are module-home material, not normal reading entries.
 
-- **互動效果整合**
-  - TypewriterText 打字機效果整合到主頁
-    - 標題：80ms 延遲 300ms
-    - 名字：100ms 延遲 1200ms（漸變色）
-    - 副標題：40ms 延遲 2000ms（無游標）
-    - 使用 sessionStorage 避免重複播放
-  - RippleEffect 點擊漣漪效果
-    - 主頁 CTA 按鈕添加漣漪效果
-    - 自定義顏色配置
+## Completed: New UEP Design Adoption
 
-- **Markdoc 內容渲染系統**
-  - 修復 MDOC 內容載入邏輯（簡化為直接使用 `contentModules[0]`）
-  - 為內容區域添加淡入動畫（800ms duration）
-  - 修復淡入動畫初始狀態（添加 `opacity: 0`）
-  - 移除調試代碼
+The history area now shares the newer UEP zone/map interaction model instead of being a standalone GitBook-like page.
 
-- **語言切換功能修復**（2 處修復）
-  - 修復 LanguageSwitch.astro 路徑轉換邏輯
-  - 修復 NavigationWithSearch.astro 硬編碼路徑問題
-  - 現在切換語言時會保持當前頁面，只改變語言前綴
-  - 例如：`/zh-tw/projects/測試` ↔ `/en/projects/測試`
+Shared components now used by history or zone pages:
 
-- **FlipCard 3D 卡片系統**
-  - Astro 版本實現（使用 slots）
-  - 正面：標題、副標題、狀態標籤、tags
-  - 背面：封面圖（小圖）、內容摘要、查看詳情連結
-- **視覺優化**
-  - 封面圖調整為 128x128px 縮圖，放置於標題右側
-  - 內容摘要系統（`getExcerpt()` 函數）
+- `DesignLayout`
+- `TopBar`
+- `ZoneAtmosphere`
+- `UepDialogue`
+- `Minimap`
+- `BigMapModal`
+- `IntroOverlay`
+- `PortalTransition`
+- `PieMap3D`
 
-### ⏳ 進行中
+Map/navigation behavior:
 
-- **測試環境回饋修復** (2026-01-14)
-  - **響應式問題**:
-    - [x] 聯絡頁面缺少響應式處理（已優化 padding、grid、標題大小）
-    - [x] 搜尋欄在窄螢幕（≤320px）定位問題（margin 導致）
-    - [x] 導航欄按鈕在窄螢幕溢出（out of bounds）
-    - [x] 搜尋窗格 Tag 內容過多時被擠壓，文字超出容器
-  - **搜尋功能優化**:
-    - [x] 移除頁面類型搜尋結果（主頁、專案頁等）
-    - [x] 只保留物件搜尋（專案、更新、連結等實際內容）
-  - **郵件服務升級**:
-    - [x] 從 MailChannels 切換到 Resend（免費 3000 emails/月）
-    - [x] Resend API 測試成功（Email ID: ff757d17-0d57-4594-b8e6-1a5143a0a372）
-    - [x] DNS 記錄設置並驗證（DKIM, SPF, DMARC）
-    - [x] Cloudflare Pages 環境變數雙重訪問機制（runtime.env + import.meta.env）
-    - [x] TypeScript 類型定義（App.Locals.runtime）
-    - [x] 創建 debug-env.json.ts 除錯 API
-    - [x] 本地環境測試通過
-    - [x] Cloudflare Pages 設置 RESEND_API_KEY 環境變數（Production + Preview）
-    - [x] 測試機郵件功能驗證
-  - **Toast 整合擴展**:
-    - [x] 音樂播放器操作添加 Toast 提示（播放、暫停、切換曲目）
-    - [ ] 其他用戶互動添加 Toast 反饋（如需要）
-  - **小螢幕適配**:
-    - [ ] 針對極窄螢幕（320px，如 Samsung Galaxy S9+）優化排版
-    - [ ] 檢查所有主要頁面在小螢幕的表現
+- `Minimap` is draggable.
+- `Minimap` persists its position in `localStorage`, so it no longer resets to the bottom-left corner after route/zone changes.
+- Minimap and big-map zone picks use the same intro/portal transition flow as the home page.
+- Big map sectors are clickable and open the zone intro modal.
+- Confirming the intro enters the target zone.
+- In non-home contexts, clicking the big map center returns to the UEP home page.
+- `PieMap3D` pointer handling was adjusted so sector clicks are not swallowed by parent modal interactions.
 
-### 📋 待處理
+## Completed: Astro Build Compatibility
 
-- 將 RippleEffect 應用到更多可點擊元素
-- UEP 文件站內容遷移（從 U.E.P-s-Imaginary-Space）
-- Console 頁面特殊指令實作
-- 訂閱制度設計
+These routes/utilities were adjusted so UEP can continue to build cleanly while `/history` remains a runtime reader:
 
----
+- `apps/uep/src/pages/[...slug].astro`
+- `apps/uep/src/pages/article.astro`
+- `apps/uep/src/pages/test-overlay.astro`
+- `apps/uep/src/utils/overlay-renderer.ts`
+- `apps/uep/src/utils/summary.ts`
 
-## 🎭 U.E.P 角色互動系統實作計畫
+Current state:
 
-### 目標
+- Static UEP content routes continue to prerender.
+- Node-only `fs/path` usage was removed from UEP build paths and replaced with Vite raw import / `import.meta.glob` patterns where needed.
+- `/history` remains the D1-backed runtime route.
 
-讓 U.E.P 角色隨機出現在主站，宣傳文件站，符合世界觀設定（觀察者、故事分享者）
+## Validation
 
-### 素材資源
+Recently verified:
 
-- `apps/root/public/uep/Fence.PNG` - 圍欄姿勢
-- `apps/root/public/uep/Poke.PNG` - 戳戳姿勢
-- `apps/root/public/uep/Peek.png` - 偷看姿勢
-- `apps/root/public/uep/Lil.PNG` - 小型浮動姿勢
+- `pnpm --filter @uep/uep exec astro check` passes.
+- `pnpm --filter @uep/uep build` passes.
+- Local content-api endpoints returned expected history data:
+  - `/api/content/history/tree`
+  - `/api/content/history/passage`
+  - `/api/content/history/note`
+  - zone/article content endpoints
+- Route smoke checks passed:
+  - `/history`
+  - `/history?page=history/passage`
+  - `/history?page=history/passage/unforgettable_story`
 
-### 出現方式（三選一）
+Not yet fully verified:
 
-1. **Corner Mode (25%)**: 右下角固定，Fence.png ↔ Poke.png 切換
-2. **Peek Mode (45%)**: 在特定元素上探頭（主頁浮動框/關於頭像/側邊欄卡片）
-3. **Float Mode (30%)**: 隨機浮動，每 5-10 秒移動
+- Browser automation for big-map/minimap/portal interactions. Playwright is not installed in this workspace yet.
+- Remote D1 deployment/import state.
 
-### 觸發條件
+Known repo-wide CI noise:
 
-- **使用者操作**: mousemove/keydown/scroll/touchstart，5% 概率，30秒冷卻
-- **首頁載入**: astro:page-load，25% 概率，sessionStorage 記憶
+- Full `pnpm lint` still reports many pre-existing repo-wide issues.
+- Full `pnpm format:check` still reports many pre-existing formatting issues.
+- A local Windows `pnpm typecheck` run previously hit an `EPERM` around Vite cache cleanup in `apps/root`; this looks like local filesystem/cache noise rather than a UEP history regression.
 
-### 實作步驟
+## CI Notes
 
-- [ ] 建立 UEPCharacter.tsx 基礎框架
-- [ ] 實作觸發系統（操作 + 首頁載入）
-- [ ] 實作 Corner Mode
-- [ ] 實作 Float Mode
-- [ ] 實作 Peek Mode
-- [ ] 整合到 BaseLayout
-- [ ] 響應式優化與無障礙支援
+No CI change is required just because history now uses D1/content-api.
 
-### 🐛 已知問題
+Reason:
 
-- Astro.glob 已棄用警告（建議改用 import.meta.glob）
-- TypeScript 類型錯誤（既有問題，不影響運行）
+- The Astro build does not need the Worker or D1 to be running.
+- History content is fetched at runtime by the client-side reader.
+- Current CI only installs, lints, typechecks, format-checks, builds, and uploads `apps/*/dist`.
 
-### 🔧 技術細節備註
+If PR CI must be green, the repo-wide lint/format debt still needs to be handled separately or CI needs to be scoped to changed packages. That is not specific to the content Worker work.
 
-#### localStorage 儲存格式
+## Remaining Work
 
-- **Cookie Consent**: `cookie-consent` = 'accepted' | 'declined'
-- **音樂播放器狀態**（相容兩種格式）：
-  - `globalMusicPlayerState` = `{"isPlaying":boolean,"currentTrack":number,"volume":number,"currentTime":number}`
-  - `music-volume` = 數字字串（0-1）
-  - `music-current-track` = 數字字串（track index）
-- **sessionStorage**: `music-has-played`, `uep-shown`, `typewriter-shown-[text]`, `visitor-tracked`
+- Confirm remote D1 migrations and import for `eternity-content-api`.
+- Decide when/if non-history areas should move to D1.
+- If other areas move to D1, define their `page_type` and landing/reader rules rather than reusing history assumptions blindly.
+- Split `HistoryReader.tsx` into smaller components once behavior stabilizes:
+  - landing view
+  - sidebar tree
+  - article reader
+  - map integration
+  - content transforms
+- Productize the admin editor:
+  - save states
+  - sync conflict handling
+  - rich content round-trip checks
+  - clearer modified/local-only workflows
+- Add browser-level tests or a lightweight Playwright setup for:
+  - minimap drag persistence
+  - big map sector click
+  - center click home navigation
+  - intro modal enter flow
+  - `/history?page=...` deep links
 
-#### 自訂事件系統
+## Agent Handoff Notes
 
-- `cookie-consent-changed`: Cookie 同意狀態改變時觸發
-- `cookie-accepted-play-music`: 使用者接受 Cookie 時觸發音樂播放
-
-#### U.E.P 角色配置
-
-- 生產環境：USER_ACTION_CHANCE=5%, PAGE_LOAD_CHANCE=25%, IDLE_TIME=10s
-- Debug 模式：所有機率=100%, IDLE_TIME=2s
-- 顯示時間：8s，冷卻時間：30s
-
----
-
-**上次更新**: 2026-01-14
-**狀態**: 
-- ✅ Resend 郵件服務整合完成（本地測試通過，DNS 已驗證）
-- ⏳ 等待 Cloudflare Pages 環境變數設置後進行測試機驗證
-- 📋 準備開始下一階段開發（響應式優化 + 搜尋功能改進）
+- Treat `apps/uep/src/components/history/HistoryReader.tsx` as the current source of truth for history reading behavior.
+- Treat `workers/content-api/src/index.ts` and `workers/content-api/src/types.ts` as the current source of truth for content API behavior.
+- Treat `scripts/migrate-history.mjs` as the current source of truth for history hierarchy import rules.
+- Do not reintroduce the old static history landing page.
+- Do not put PAGE-level history entries back into the sidebar tree unless the product rule changes.
+- The three-arch landing is intentional and represents the U / E / P channels.
+- The minimap is a persistent top-level navigation affordance; avoid making it page-local state again.

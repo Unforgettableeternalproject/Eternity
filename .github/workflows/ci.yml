@@ -145,13 +145,20 @@ jobs:
           COMMIT_MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $COMMIT_MSG"
 
-          # 檢測分支類型
-          if echo "$COMMIT_MSG" | grep -q "from [^/]*/release/"; then
+          # 檢測 Release: "Release version v0.8.2 deploy to main"
+          if echo "$COMMIT_MSG" | grep -qE "Release version v[0-9]+\.[0-9]+\.[0-9]+"; then
             BRANCH_TYPE="release"
-            BRANCH_NAME=$(echo "$COMMIT_MSG" | grep -oP 'from [^/]+/release/\K.*' | head -1)
-          elif echo "$COMMIT_MSG" | grep -q "from [^/]*/hotfix/"; then
+            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
+            echo "Detected Release: v$VERSION"
+
+          # 檢測 Hotfix: "Hotfix version v0.8.2 batch #1 sent back to main"
+          elif echo "$COMMIT_MSG" | grep -qE "Hotfix version v[0-9]+\.[0-9]+\.[0-9]+ batch #[0-9]+"; then
             BRANCH_TYPE="hotfix"
-            BRANCH_NAME=$(echo "$COMMIT_MSG" | grep -oP 'from [^/]+/hotfix/\K.*' | head -1)
+            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
+            BATCH_NUM=$(echo "$COMMIT_MSG" | grep -oE "batch #[0-9]+" | grep -oE "[0-9]+")
+            echo "Detected Hotfix: v$VERSION batch #$BATCH_NUM"
+            echo "hotfix_batch=$BATCH_NUM" >> $GITHUB_OUTPUT
+
           else
             echo "Not a release or hotfix merge, skipping tagging"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -159,12 +166,14 @@ jobs:
           fi
 
           echo "branch_type=$BRANCH_TYPE" >> $GITHUB_OUTPUT
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-
-          # 從 package.json 獲取版本號
-          VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Detected: $BRANCH_TYPE merge, version: $VERSION"
+
+          # 驗證版本號與 package.json 一致
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "⚠️  Warning: Commit message version ($VERSION) differs from package.json ($PKG_VERSION)"
+            echo "Using commit message version: $VERSION"
+          fi
 
       - name: Calculate tag suffix
         if: steps.detect_merge.outputs.skip != 'true'
@@ -178,12 +187,10 @@ jobs:
             TAG_NAME="v${VERSION}-stable"
             echo "suffix=stable" >> $GITHUB_OUTPUT
           elif [ "$BRANCH_TYPE" = "hotfix" ]; then
-            # Hotfix: 計算該版本的 hotfix 次數
-            # 列出所有該版本的 hotfix tags
-            HOTFIX_COUNT=$(git tag -l "v${VERSION}-hotfix*" | wc -l)
-            NEXT_HOTFIX=$((HOTFIX_COUNT + 1))
-            TAG_NAME="v${VERSION}-hotfix${NEXT_HOTFIX}"
-            echo "suffix=hotfix${NEXT_HOTFIX}" >> $GITHUB_OUTPUT
+            # Hotfix: 使用 commit message 中的 batch number
+            BATCH_NUM="${{ steps.detect_merge.outputs.hotfix_batch }}"
+            TAG_NAME="v${VERSION}-hotfix${BATCH_NUM}"
+            echo "suffix=hotfix${BATCH_NUM}" >> $GITHUB_OUTPUT
           fi
 
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT

@@ -17,6 +17,13 @@ dist/
 # Lock files
 pnpm-lock.yaml
 
+# Git submodules
+apps/uep/content/
+
+# Wrangler build artifacts
+.wrangler/
+**/.wrangler/
+
 # Generated files
 *.d.ts
 **/*.d.ts

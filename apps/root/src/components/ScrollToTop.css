@@ -2,7 +2,7 @@
 .scroll-to-top {
   position: fixed;
   bottom: 8rem;
-  z-index: 40;
+  z-index: 40; /* 低於手機版控制面板 (z-50)，但高於一般內容 */
   width: 3.5rem;
   height: 3.5rem;
   display: flex;
@@ -146,7 +146,7 @@
   .scroll-to-top {
     width: 3rem;
     height: 3rem;
-    bottom: 1.5rem;
+    bottom: 5rem; /* 上移避免被控制中心擋住 */
   }
 
   .scroll-to-top--right {
@@ -160,5 +160,12 @@
   .scroll-to-top__icon {
     width: 1.25rem;
     height: 1.25rem;
+  }
+}
+
+/* 大螢幕調整 - 提高 z-index 避免被右側邊欄內容蓋住 */
+@media (min-width: 1536px) {
+  .scroll-to-top {
+    z-index: 60; /* 高於右側邊欄 (z-50) */
   }
 }

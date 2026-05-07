@@ -1,0 +1,355 @@
+---
+export const prerender = true;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import OverlayBlock from '../components/OverlayBlock.astro';
+import { loadSummary, extractRoutes } from '../utils/summary';
+import { renderArticleWithOverlay } from '../utils/overlay-renderer';
+
+function toPosixPath(value: string) {
+  return value.replace(/\\/g, '/');
+}
+
+export async function getStaticPaths() {
+  const contentDir = `${process.cwd()}/content`;
+
+  try {
+    const navigation = loadSummary(contentDir);
+    const routes = extractRoutes(navigation);
+
+    return routes.map((route) => ({
+      params: { slug: route.slug.join('/') },
+      props: {
+        filePath: route.filePath,
+        title: route.title,
+        areaId: route.slug[0], // 第一段路徑是區域 ID (history, echos, etc.)
+      },
+    }));
+  } catch (error) {
+    console.error('無法載入 SUMMARY.md:', error);
+    return [];
+  }
+}
+
+const { filePath, title } = Astro.props;
+
+let articleData: any = null;
+let error: Error | null = null;
+let pageTitle = title;
+
+try {
+  // 取得相對於 content 目錄的路徑
+  const contentRoot = `${toPosixPath(process.cwd())}/content/`;
+  const relativePath = toPosixPath(filePath).replace(contentRoot, '');
+
+  // 使用覆蓋層渲染系統
+  articleData = await renderArticleWithOverlay(relativePath);
+
+  // 使用 metadata 中的 description 作為標題
+  if (articleData.content.description) {
+    pageTitle = articleData.content.description;
+  } else if (articleData.content.title) {
+    pageTitle = articleData.content.title;
+  }
+} catch (e) {
+  error = e instanceof Error ? e : new Error(String(e));
+  console.error('無法讀取或渲染檔案:', filePath, e);
+}
+
+// 生成區域樣式類名
+---
+
+<BaseLayout title={title}>
+  <div class="doc-page">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>導航</h2>
+      </div>
+      <nav class="sidebar-nav">
+        <p class="construction-notice">導航功能建構中...</p>
+      </nav>
+    </aside>
+
+    <main class="content">
+      {
+        error ? (
+          <div class="error-message">
+            <h1>❌ 無法載入內容</h1>
+            <p>
+              檔案路徑: <code>{filePath}</code>
+            </p>
+            <p>錯誤: {error.message}</p>
+          </div>
+        ) : articleData ? (
+          <article class="markdown-content">
+            {/* 文章標頭 */}
+            <header class="article-header">
+              <h1 class="page-title">{pageTitle}</h1>
+              {articleData.content.description &&
+                pageTitle !== articleData.content.description && (
+                  <p class="article-subtitle">
+                    {articleData.content.description}
+                  </p>
+                )}
+
+              {articleData.overlayConfig &&
+                articleData.overlayConfig.rules &&
+                articleData.overlayConfig.rules.length > 0 && (
+                  <div class="overlay-badge">
+                    <span class="badge-icon">✨</span>
+                    <span>已啟用覆蓋層增強</span>
+                  </div>
+                )}
+            </header>
+
+            {/* 文章內容 */}
+            <div class="article-body">
+              {articleData.blocksWithOverlay &&
+                articleData.blocksWithOverlay.map(
+                  (block: any, index: number) => (
+                    <OverlayBlock block={block} index={index} />
+                  )
+                )}
+            </div>
+          </article>
+        ) : (
+          <div class="loading-message">
+            <p>載入中...</p>
+          </div>
+        )
+      }
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .doc-page {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 3rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 2rem;
+    min-height: calc(100vh - 4rem);
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 2rem;
+    height: fit-content;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    background: linear-gradient(
+      135deg,
+      rgba(26, 26, 46, 0.7),
+      rgba(10, 10, 15, 0.7)
+    );
+    border: 1px solid rgba(213, 182, 24, 0.2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .sidebar-header h2 {
+    color: #d5b618;
+    font-size: 1.25rem;
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(213, 182, 24, 0.3);
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .construction-notice {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-style: italic;
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+
+  .content {
+    background: linear-gradient(
+      135deg,
+      rgba(26, 26, 46, 0.5),
+      rgba(10, 10, 15, 0.5)
+    );
+    border: 1px solid rgba(213, 182, 24, 0.15);
+    border-radius: 12px;
+    padding: 3rem;
+    backdrop-filter: blur(10px);
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .markdown-content h1 {
+    color: #d5b618;
+    font-size: 2.5rem;
+    margin: 0 0 2rem 0;
+    font-weight: 700;
+    background: linear-gradient(135deg, #d5b618, #ffd700);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* 文章標頭 */
+  .article-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 2px solid rgba(213, 182, 24, 0.2);
+  }
+
+  .page-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+  }
+
+  .article-subtitle {
+    font-size: 1.25rem;
+    color: #d4af37;
+    margin: 0 0 1.5rem 0;
+    font-weight: 500;
+  }
+
+  .overlay-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 2rem;
+    color: #d4af37;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .badge-icon {
+    font-size: 1.125rem;
+  }
+
+  /* 文章內容區 */
+  .article-body {
+    line-height: 1.8;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .article-body :global(h1) {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .article-body :global(h2) {
+    font-size: 1.875rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    color: #d4af37;
+  }
+
+  .article-body :global(p) {
+    margin: 0;
+    line-height: 1.8;
+  }
+
+  .loading-message {
+    text-align: center;
+    padding: 3rem;
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  .error-message {
+    padding: 2rem;
+    background: rgba(220, 38, 38, 0.1);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    border-radius: 8px;
+  }
+
+  .error-message h1 {
+    color: #fca5a5;
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+  }
+
+  .error-message p {
+    color: #cbd5e1;
+    margin: 0.5rem 0;
+  }
+
+  .error-message code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #fbbf24;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 響應式設計 */
+  @media (max-width: 1024px) {
+    .doc-page {
+      grid-template-columns: 240px 1fr;
+      gap: 2rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .doc-page {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .sidebar {
+      position: static;
+      max-height: none;
+    }
+
+    .content {
+      padding: 2rem;
+    }
+  }
+
+  /* 自定義捲軸 */
+  .sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .sidebar::-webkit-scrollbar-track {
+    background: rgba(10, 10, 15, 0.5);
+    border-radius: 3px;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb {
+    background: rgba(213, 182, 24, 0.3);
+    border-radius: 3px;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(213, 182, 24, 0.5);
+  }
+</style>

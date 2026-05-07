@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getTranslations } from '../../i18n/utils';
 
 export async function getStaticPaths() {
   const updates = await getCollection('updates');
@@ -20,6 +21,7 @@ export async function getStaticPaths() {
 }
 
 const { update, locale } = Astro.props;
+const t = getTranslations(locale as 'zh-tw' | 'en');
 
 const contentModules = await Astro.glob(
   '../../content/updates/**/content_*.mdoc'
@@ -40,10 +42,10 @@ const formatDate = (date: Date) => {
 
 const getCategoryLabel = (category: string) => {
   const labels = {
-    website: locale === 'zh-tw' ? '網站更新' : 'Website',
-    project: locale === 'zh-tw' ? '專案進展' : 'Project',
-    announcement: locale === 'zh-tw' ? '重要公告' : 'Announcement',
-    other: locale === 'zh-tw' ? '其他' : 'Other',
+    website: t.updates.categories.website,
+    project: t.updates.categories.project,
+    announcement: t.updates.categories.announcement,
+    other: t.updates.categories.other,
   };
   return labels[category as keyof typeof labels] || category;
 };

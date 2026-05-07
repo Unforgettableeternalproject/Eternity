@@ -1,0 +1,3 @@
+[submodule "apps/uep/content"]
+	path = apps/uep/content
+	url = https://github.com/Unforgettableeternalproject/U.E.P-s-Imaginary-Space.git

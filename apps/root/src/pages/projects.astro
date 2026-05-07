@@ -94,7 +94,7 @@ const allTags = Array.from(
                     />
                   </svg>
                   <span class="text-base font-semibold text-slate-700 dark:text-slate-300">
-                    {locale === 'zh-tw' ? '篩選專案' : 'Filter Projects'}
+                    {t.projectsPage.filterProjects}
                   </span>
                 </div>
                 <svg
@@ -133,7 +133,7 @@ const allTags = Array.from(
                         />
                       </svg>
                       <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        {locale === 'zh-tw' ? '專案狀態' : 'Project Status'}
+                        {t.projectsPage.projectStatus}
                       </label>
                     </div>
                     <div class="flex flex-wrap gap-2" id="status-filters">
@@ -143,7 +143,7 @@ const allTags = Array.from(
                       >
                         <span class="flex items-center gap-2">
                           <span class="w-2 h-2 rounded-full bg-current opacity-70" />
-                          {locale === 'zh-tw' ? '全部' : 'All'}
+                          {t.projectsPage.status.all}
                         </span>
                       </button>
                       <button
@@ -152,7 +152,7 @@ const allTags = Array.from(
                       >
                         <span class="flex items-center gap-2">
                           <span class="w-2 h-2 rounded-full bg-green-500" />
-                          {locale === 'zh-tw' ? '進行中' : 'Active'}
+                          {t.projectsPage.status.active}
                         </span>
                       </button>
                       <button
@@ -161,7 +161,7 @@ const allTags = Array.from(
                       >
                         <span class="flex items-center gap-2">
                           <span class="w-2 h-2 rounded-full bg-yellow-500" />
-                          {locale === 'zh-tw' ? '暫時停滯' : 'Paused'}
+                          {t.projectsPage.status.paused}
                         </span>
                       </button>
                       <button
@@ -170,7 +170,7 @@ const allTags = Array.from(
                       >
                         <span class="flex items-center gap-2">
                           <span class="w-2 h-2 rounded-full bg-blue-500" />
-                          {locale === 'zh-tw' ? '已完成' : 'Completed'}
+                          {t.projectsPage.status.completed}
                         </span>
                       </button>
                       <button
@@ -179,7 +179,7 @@ const allTags = Array.from(
                       >
                         <span class="flex items-center gap-2">
                           <span class="w-2 h-2 rounded-full bg-slate-400" />
-                          {locale === 'zh-tw' ? '已封存' : 'Archived'}
+                          {t.projectsPage.status.archived}
                         </span>
                       </button>
                     </div>
@@ -205,7 +205,7 @@ const allTags = Array.from(
                         />
                       </svg>
                       <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        {locale === 'zh-tw' ? '技術標籤' : 'Tech Tags'}
+                        {t.projectsPage.techTags}
                       </label>
                     </div>
                     <div class="flex flex-wrap gap-2" id="tag-filters">
@@ -213,7 +213,7 @@ const allTags = Array.from(
                         class="tag-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all active"
                         data-tag="all"
                       >
-                        {locale === 'zh-tw' ? '全部' : 'All'}
+                        {t.projectsPage.allProjects}
                       </button>
                       {allTags.map((tag) => (
                         <button
@@ -251,7 +251,7 @@ const allTags = Array.from(
           </svg>
         </div>
         <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-          {locale === 'zh-tw' ? '沒有符合的專案' : 'No matching projects'}
+          {t.projectsPage.noProjects}
         </h3>
         <p class="text-slate-600 dark:text-slate-300 mb-6">
           {
@@ -339,7 +339,7 @@ const allTags = Array.from(
                         href={`${basePath}/projects/${project.id}`}
                         class="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium group/link"
                       >
-                        {locale === 'zh-tw' ? '查看詳情' : 'View Details'}
+                        {t.projectsPage.viewDetails}
                         <svg
                           class="w-4 h-4 transition-transform group-hover/link:translate-x-1"
                           fill="none"
@@ -362,7 +362,7 @@ const allTags = Array.from(
                           rel="noopener noreferrer"
                           class="inline-flex items-center gap-2 text-secondary-600 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300 font-medium"
                         >
-                          {locale === 'zh-tw' ? '網站' : 'Website'}
+                          {t.projectsPage.website}
                           <svg
                             class="w-4 h-4"
                             fill="none"
@@ -420,7 +420,7 @@ const allTags = Array.from(
               </svg>
             </div>
             <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              {locale === 'zh-tw' ? '目前沒有專案' : 'No projects yet'}
+              {t.projectsPage.noProjectsYet}
             </h3>
             <p class="text-slate-600 dark:text-slate-300 mb-6">
               {locale === 'zh-tw'
@@ -537,7 +537,7 @@ const allTags = Array.from(
 <script>
   function initProjectFilters() {
     let currentStatus = 'all';
-    let currentTag = 'all';
+    let selectedTags: string[] = []; // 改為陣列支援多選
     let isFilterExpanded = false;
 
     const projectCards = document.querySelectorAll('.project-card');
@@ -574,7 +574,12 @@ const allTags = Array.from(
 
         const statusMatch =
           currentStatus === 'all' || cardStatus === currentStatus;
-        const tagMatch = currentTag === 'all' || cardTags.includes(currentTag);
+
+        // 標籤匹配邏輯：如果沒有選擇任何標籤（selectedTags 為空），則顯示所有專案
+        // 如果有選擇標籤，則專案的 tags 中有任一個在 selectedTags 中即符合
+        const tagMatch =
+          selectedTags.length === 0 ||
+          cardTags.some((tag: string) => selectedTags.includes(tag));
 
         if (statusMatch && tagMatch) {
           cardElement.classList.remove('hidden');
@@ -609,14 +614,39 @@ const allTags = Array.from(
       });
     });
 
-    // 標籤篩選
+    // 標籤篩選 - 支援多選
     tagButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const tag = (btn as HTMLElement).dataset.tag || 'all';
-        currentTag = tag;
 
-        tagButtons.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
+        // 點擊「全部」時清空所有選擇
+        if (tag === 'all') {
+          selectedTags = [];
+          tagButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+        } else {
+          // 移除「全部」的 active 狀態
+          const allButton = Array.from(tagButtons).find(
+            (b) => (b as HTMLElement).dataset.tag === 'all'
+          );
+          allButton?.classList.remove('active');
+
+          // 切換當前標籤的選中狀態
+          if (selectedTags.includes(tag)) {
+            // 如果已選中，則取消選中
+            selectedTags = selectedTags.filter((t) => t !== tag);
+            btn.classList.remove('active');
+
+            // 如果沒有任何標籤被選中，自動啟用「全部」
+            if (selectedTags.length === 0) {
+              allButton?.classList.add('active');
+            }
+          } else {
+            // 如果未選中，則選中
+            selectedTags.push(tag);
+            btn.classList.add('active');
+          }
+        }
 
         filterProjects();
       });

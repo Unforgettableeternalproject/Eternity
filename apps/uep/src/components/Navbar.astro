@@ -1,0 +1,327 @@
+---
+interface Props {
+  currentPath?: string;
+}
+
+const { currentPath = '/' } = Astro.props;
+---
+
+<header class="navbar">
+  <div class="navbar-container">
+    <a href="/" class="logo-link">
+      <div class="logo">
+        <span class="logo-icon">✨</span>
+        <span class="logo-text">
+          <span class="logo-primary">U.E.P</span>
+          <span class="logo-subtitle">幻想空間</span>
+        </span>
+      </div>
+    </a>
+
+    <nav class="nav-menu">
+      <a href="/" class:list={['nav-link', { active: currentPath === '/' }]}>
+        <span class="nav-icon">🌍</span>
+        <span>世界的軸心</span>
+      </a>
+      <a
+        href="https://unforgettableeternalproject.com"
+        target="_blank"
+        class="nav-link external"
+      >
+        <span class="nav-icon">🏠</span>
+        <span>主站</span>
+        <span class="external-icon">↗</span>
+      </a>
+    </nav>
+
+    <!-- 裝飾性粒子 -->
+    <div class="navbar-particles" aria-hidden="true">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
+  </div>
+</header>
+
+<style>
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: rgba(10, 10, 15, 0.8);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(213, 182, 24, 0.2);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(213, 182, 24, 0.1);
+    animation: slideDown 0.5s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .navbar-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+  }
+
+  /* Logo 設計 */
+  .logo-link {
+    text-decoration: none;
+    transition: transform 0.3s ease;
+  }
+
+  .logo-link:hover {
+    transform: scale(1.05);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .logo-icon {
+    font-size: 2rem;
+    animation: twinkle 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 8px rgba(213, 182, 24, 0.6));
+  }
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.1) rotate(180deg);
+    }
+  }
+
+  .logo-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .logo-primary {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(
+      135deg,
+      var(--gold) 0%,
+      var(--purple) 50%,
+      var(--cyan) 100%
+    );
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientFlow 4s ease infinite;
+    letter-spacing: 0.05em;
+  }
+
+  @keyframes gradientFlow {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  .logo-subtitle {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.1em;
+    font-weight: 500;
+  }
+
+  /* 導航選單 */
+  .nav-menu {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+    font-size: 0.95rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(26, 26, 46, 0.4);
+  }
+
+  .nav-link::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--gold), var(--purple));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+  }
+
+  .nav-link:hover::before {
+    opacity: 0.15;
+  }
+
+  .nav-link:hover {
+    color: var(--gold);
+    border-color: rgba(213, 182, 24, 0.5);
+    transform: translateY(-2px);
+    box-shadow:
+      0 4px 12px rgba(213, 182, 24, 0.2),
+      0 0 20px rgba(213, 182, 24, 0.1);
+  }
+
+  .nav-link.active {
+    background: linear-gradient(
+      135deg,
+      rgba(213, 182, 24, 0.2),
+      rgba(168, 85, 247, 0.2)
+    );
+    border-color: rgba(213, 182, 24, 0.6);
+    color: var(--gold);
+    box-shadow: 0 0 20px rgba(213, 182, 24, 0.2);
+  }
+
+  .nav-icon {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+  }
+
+  .nav-link:hover .nav-icon {
+    transform: scale(1.2) rotate(10deg);
+  }
+
+  .external-icon {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    transition: all 0.3s ease;
+  }
+
+  .nav-link.external:hover .external-icon {
+    opacity: 1;
+    transform: translate(2px, -2px);
+  }
+
+  /* Navbar 裝飾粒子 */
+  .navbar-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .navbar-particles .particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--gold);
+    border-radius: 50%;
+    opacity: 0;
+    animation: floatParticle 8s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--gold);
+  }
+
+  .navbar-particles .particle:nth-child(1) {
+    left: 20%;
+    animation-delay: 0s;
+  }
+
+  .navbar-particles .particle:nth-child(2) {
+    left: 50%;
+    animation-delay: 2.5s;
+  }
+
+  .navbar-particles .particle:nth-child(3) {
+    left: 80%;
+    animation-delay: 5s;
+  }
+
+  @keyframes floatParticle {
+    0%,
+    100% {
+      top: 100%;
+      opacity: 0;
+      transform: translateX(0);
+    }
+    10% {
+      opacity: 0.6;
+    }
+    90% {
+      opacity: 0.6;
+    }
+    100% {
+      top: -10%;
+      opacity: 0;
+      transform: translateX(20px);
+    }
+  }
+
+  /* 響應式設計 */
+  @media (max-width: 768px) {
+    .navbar-container {
+      padding: 1rem;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .logo {
+      gap: 0.5rem;
+    }
+
+    .logo-icon {
+      font-size: 1.5rem;
+    }
+
+    .logo-primary {
+      font-size: 1.2rem;
+    }
+
+    .logo-subtitle {
+      font-size: 0.65rem;
+    }
+
+    .nav-menu {
+      width: 100%;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .nav-link {
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+    }
+
+    .nav-icon {
+      font-size: 1rem;
+    }
+  }
+</style>

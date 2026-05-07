@@ -39,9 +39,8 @@ export default function AboutBioTypewriter({
   const typeSound =
     typeof window !== 'undefined' ? new Audio('/se/type.wav') : null;
   if (typeSound) {
-    typeSound.volume = 0.2; // 較小音量
-    typeSound.preload = 'metadata';
-    typeSound.crossOrigin = 'anonymous';
+    typeSound.volume = 0.2;
+    typeSound.preload = 'auto';
   }
 
   // 客戶端才顯示游標
@@ -85,11 +84,11 @@ export default function AboutBioTypewriter({
           }
         }
 
-        // 播放打字音效（每 5 個字元播放一次，避免太吵）
+        // 直接播放打字音效（每 5 個字元播放一次）
         if (typeSound && currentIndex % 5 === 0) {
           typeSound.currentTime = 0;
           typeSound.play().catch(() => {
-            // 靜默忽略自動播放錯誤
+            // 靜默忽略錯誤
           });
         }
 
