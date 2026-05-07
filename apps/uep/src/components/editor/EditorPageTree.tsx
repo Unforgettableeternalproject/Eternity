@@ -29,7 +29,7 @@ const TYPE_LETTERS: Record<string, string> = {
   song: 'S',
 };
 
-const NO_EDIT_TYPES = new Set(['page']);      // cannot open in editor
+const NO_EDIT_TYPES = new Set(['page']); // cannot open in editor
 const NO_DRAG_TYPES = new Set(['page', 'zone']); // cannot be reordered
 
 // Flatten tree into ordered list with parent info for drag calculations
@@ -43,7 +43,7 @@ interface FlatNode {
 function flattenTree(
   nodes: PageTreeNode[],
   depth = 0,
-  parentId: string | null = null,
+  parentId: string | null = null
 ): FlatNode[] {
   const result: FlatNode[] = [];
   nodes.forEach((node, i) => {
@@ -83,14 +83,18 @@ export default function EditorPageTree({
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ id: string; pos: DropPosition } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    id: string;
+    pos: DropPosition;
+  } | null>(null);
 
   const fetchTree = useCallback(() => {
     setLoading(true);
     fetch(`${apiBase}/api/content/${area}/tree`)
       .then((res) => {
         const ct = res.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) throw new Error('API not available');
+        if (!ct.includes('application/json'))
+          throw new Error('API not available');
         return res.json();
       })
       .then((json) => {
@@ -101,12 +105,14 @@ export default function EditorPageTree({
       .finally(() => setLoading(false));
   }, [apiBase, area]);
 
-  useEffect(() => { fetchTree(); }, [fetchTree]);
+  useEffect(() => {
+    fetchTree();
+  }, [fetchTree]);
 
   // 儲存成功後由父元件遞增 refreshKey，觸發重新載入
   useEffect(() => {
     if (refreshKey) fetchTree();
-  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshKey]); // eslint-disable-line
 
   useEffect(() => {
     const handler = () => setContextNode(null);
@@ -168,7 +174,7 @@ export default function EditorPageTree({
     if (dropTarget.pos === 'child') {
       newParentId = targetFlat.node.id;
       newDepth = targetFlat.depth + 1;
-      newSortOrder = (targetFlat.node.children?.length ?? 0);
+      newSortOrder = targetFlat.node.children?.length ?? 0;
     } else if (dropTarget.pos === 'before') {
       newParentId = targetFlat.parentId;
       newDepth = targetFlat.depth;
@@ -207,7 +213,11 @@ export default function EditorPageTree({
   // --- CRUD ---
 
   // 開始 inline 建立 — 顯示輸入欄位
-  const startCreate = (parentId: string | null, parentDepth: number, insertIndex: number) => {
+  const startCreate = (
+    parentId: string | null,
+    parentDepth: number,
+    insertIndex: number
+  ) => {
     setCreating({ parentId, parentDepth, insertIndex });
     setNewTitle('');
     setCreateError(null);
@@ -230,11 +240,11 @@ export default function EditorPageTree({
     }
 
     const title = newTitle.trim();
-    const slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
-      .replace(/^-|-$/g, '')
-      || `page-${Date.now()}`;
+    const slug =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+        .replace(/^-|-$/g, '') || `page-${Date.now()}`;
 
     const parentPath = creating.parentId || area;
     const pageSlug = `${parentPath}/${slug}`.replace(`${area}/`, '');
@@ -296,10 +306,10 @@ export default function EditorPageTree({
           fetchTree();
         }
       } else {
-        alert(`Failed: ${json.error}`);
+        window.alert(`Failed: ${json.error}`);
       }
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      window.alert(`Error: ${e.message}`);
     }
   };
 
@@ -310,15 +320,23 @@ export default function EditorPageTree({
       className="ned-tree-item ned-tree-create-row"
       style={{ paddingLeft: `${18 + depth * 14}px` }}
     >
-      <span className="ned-tree-type" style={{ color: accent }}>+</span>
+      <span className="ned-tree-type" style={{ color: accent }}>
+        +
+      </span>
       <input
         ref={createInputRef}
         className="ned-tree-create-input"
         type="text"
         value={newTitle}
-        onChange={(e) => { setNewTitle(e.target.value); setCreateError(null); }}
+        onChange={(e) => {
+          setNewTitle(e.target.value);
+          setCreateError(null);
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); submitCreate(); }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submitCreate();
+          }
           if (e.key === 'Escape') cancelCreate();
         }}
         onBlur={() => {
@@ -329,11 +347,11 @@ export default function EditorPageTree({
         disabled={createLoading}
         autoFocus
       />
-      {createLoading && (
-        <span className="ned-tree-create-spinner">…</span>
-      )}
+      {createLoading && <span className="ned-tree-create-spinner">…</span>}
       {createError && (
-        <span className="ned-tree-create-error" title={createError}>!</span>
+        <span className="ned-tree-create-error" title={createError}>
+          !
+        </span>
       )}
     </div>
   );
@@ -344,14 +362,17 @@ export default function EditorPageTree({
     parentId: string | null,
     parentDepth: number,
     index: number,
-    depth: number,
+    depth: number
   ) => (
     <div
       key={`zone-${parentId ?? 'root'}-${index}`}
       className="ned-tree-insert-zone"
       onClick={() => startCreate(parentId, parentDepth, index)}
     >
-      <div className="ned-tree-insert-line" style={{ paddingLeft: `${14 + depth * 14}px` }}>
+      <div
+        className="ned-tree-insert-line"
+        style={{ paddingLeft: `${14 + depth * 14}px` }}
+      >
         <span className="ned-tree-insert-plus">+</span>
         <span className="ned-tree-insert-rule" />
       </div>
@@ -363,18 +384,19 @@ export default function EditorPageTree({
     nodes: PageTreeNode[],
     depth: number,
     parentId: string | null,
-    parentDepth: number,
+    parentDepth: number
   ) => {
     const result: React.ReactNode[] = [];
 
     for (let i = 0; i <= nodes.length; i++) {
-      const isCreatingHere = creating?.parentId === parentId && creating?.insertIndex === i;
+      const isCreatingHere =
+        creating?.parentId === parentId && creating?.insertIndex === i;
 
       if (isCreatingHere) {
         result.push(
           <React.Fragment key={`create-${parentId ?? 'root'}-${i}`}>
             {renderCreateRow(depth)}
-          </React.Fragment>,
+          </React.Fragment>
         );
       } else {
         result.push(renderInsertZone(parentId, parentDepth, i, depth));
@@ -439,14 +461,19 @@ export default function EditorPageTree({
             </span>
           )}
           {noEdit ? (
-            <span className="ned-tree-label ned-tree-label--locked" title="Homepage-level (not editable here)">
+            <span
+              className="ned-tree-label ned-tree-label--locked"
+              title="Homepage-level (not editable here)"
+            >
               {node.title || node.slug}
             </span>
           ) : (
             <a
               href={`/admin/edit/${node.id}`}
               className="ned-tree-label"
-              onClick={(e) => { if (isActive) e.preventDefault(); }}
+              onClick={(e) => {
+                if (isActive) e.preventDefault();
+              }}
             >
               {node.title || node.slug}
             </a>
@@ -466,16 +493,25 @@ export default function EditorPageTree({
             </button>
           )}
           {showContext && (
-            <div className="ned-tree-context" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="ned-tree-context"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 className="ned-tree-context-item"
-                onClick={() => { setContextNode(null); startCreate(node.id, node.depth, node.children?.length ?? 0); }}
+                onClick={() => {
+                  setContextNode(null);
+                  startCreate(node.id, node.depth, node.children?.length ?? 0);
+                }}
               >
                 + Add child
               </button>
               <button
                 className="ned-tree-context-item ned-tree-context-item--danger"
-                onClick={() => { setContextNode(null); handleDelete(node); }}
+                onClick={() => {
+                  setContextNode(null);
+                  handleDelete(node);
+                }}
               >
                 Delete
               </button>

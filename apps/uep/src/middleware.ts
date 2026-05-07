@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { defineMiddleware } from 'astro:middleware';
 
 const JWT_COOKIE = 'uep-admin-jwt';
@@ -22,7 +23,7 @@ function base64urlDecode(str: string): Uint8Array {
 
 async function verifyJwt(
   token: string,
-  secret: string,
+  secret: string
 ): Promise<JwtPayload | null> {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -37,18 +38,18 @@ async function verifyJwt(
       encoder.encode(secret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
-      ['verify'],
+      ['verify']
     );
     const valid = await crypto.subtle.verify(
       'HMAC',
       key,
       new Uint8Array(base64urlDecode(sig)) as unknown as ArrayBuffer,
-      encoder.encode(data),
+      encoder.encode(data)
     );
     if (!valid) return null;
 
     const payload: JwtPayload = JSON.parse(
-      new TextDecoder().decode(base64urlDecode(body)),
+      new TextDecoder().decode(base64urlDecode(body))
     );
 
     if (payload.exp && payload.exp < Date.now() / 1000) return null;

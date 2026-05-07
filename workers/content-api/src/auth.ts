@@ -20,10 +20,10 @@ const encoder = new TextEncoder();
 /** 簽發 JWT */
 export async function signJwt(
   payload: JwtPayload,
-  secret: string,
+  secret: string
 ): Promise<string> {
   const header = base64urlEncode(
-    encoder.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })),
+    encoder.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   );
   const body = base64urlEncode(encoder.encode(JSON.stringify(payload)));
   const data = `${header}.${body}`;
@@ -33,7 +33,7 @@ export async function signJwt(
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign'],
+    ['sign']
   );
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
 
@@ -43,7 +43,7 @@ export async function signJwt(
 /** 驗證 JWT，回傳 payload 或 null */
 export async function verifyJwt(
   token: string,
-  secret: string,
+  secret: string
 ): Promise<JwtPayload | null> {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -57,18 +57,18 @@ export async function verifyJwt(
       encoder.encode(secret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
-      ['verify'],
+      ['verify']
     );
     const valid = await crypto.subtle.verify(
       'HMAC',
       key,
       base64urlDecode(sig),
-      encoder.encode(data),
+      encoder.encode(data)
     );
     if (!valid) return null;
 
     const payload: JwtPayload = JSON.parse(
-      new TextDecoder().decode(base64urlDecode(body)),
+      new TextDecoder().decode(base64urlDecode(body))
     );
 
     // 檢查過期
@@ -95,13 +95,13 @@ export async function hashPassword(password: string): Promise<string> {
     encoder.encode(password),
     'PBKDF2',
     false,
-    ['deriveBits'],
+    ['deriveBits']
   );
 
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     keyMaterial,
-    256,
+    256
   );
 
   const saltB64 = base64urlEncode(salt);
@@ -113,7 +113,7 @@ export async function hashPassword(password: string): Promise<string> {
 /** 驗證密碼是否符合儲存的雜湊 */
 export async function verifyPassword(
   password: string,
-  storedHash: string,
+  storedHash: string
 ): Promise<boolean> {
   const parts = storedHash.split(':');
   if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
@@ -127,13 +127,13 @@ export async function verifyPassword(
     encoder.encode(password),
     'PBKDF2',
     false,
-    ['deriveBits'],
+    ['deriveBits']
   );
 
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     keyMaterial,
-    256,
+    256
   );
 
   const candidateHash = new Uint8Array(bits);

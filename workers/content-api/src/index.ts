@@ -12,12 +12,7 @@ import type {
   LoginRequest,
   BootstrapRequest,
 } from './types';
-import {
-  signJwt,
-  verifyJwt,
-  hashPassword,
-  verifyPassword,
-} from './auth';
+import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
 
 // ===== 工具函式 =====
 
@@ -469,7 +464,7 @@ async function handleLogin(
   body: LoginRequest,
   db: D1Database,
   jwtSecret: string,
-  cors: Record<string, string>,
+  cors: Record<string, string>
 ): Promise<Response> {
   const row = await db
     .prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1')
@@ -514,7 +509,7 @@ async function handleLogin(
       },
     },
     200,
-    cors,
+    cors
   );
 }
 
@@ -522,7 +517,7 @@ async function handleLogin(
 async function handleMe(
   request: Request,
   jwtSecret: string,
-  cors: Record<string, string>,
+  cors: Record<string, string>
 ): Promise<Response> {
   const auth = request.headers.get('Authorization');
   const token = auth?.replace('Bearer ', '');
@@ -532,7 +527,11 @@ async function handleMe(
 
   const payload = await verifyJwt(token, jwtSecret);
   if (!payload) {
-    return jsonResponse({ ok: false, error: 'Invalid or expired token' }, 401, cors);
+    return jsonResponse(
+      { ok: false, error: 'Invalid or expired token' },
+      401,
+      cors
+    );
   }
 
   return jsonResponse(
@@ -545,7 +544,7 @@ async function handleMe(
       },
     },
     200,
-    cors,
+    cors
   );
 }
 
@@ -555,7 +554,7 @@ async function handleBootstrap(
   request: Request,
   db: D1Database,
   bootstrapToken: string | undefined,
-  cors: Record<string, string>,
+  cors: Record<string, string>
 ): Promise<Response> {
   // 驗證 bootstrap token
   if (bootstrapToken) {
@@ -575,7 +574,7 @@ async function handleBootstrap(
     return jsonResponse(
       { ok: false, error: 'Admin users already exist. Bootstrap is disabled.' },
       403,
-      cors,
+      cors
     );
   }
 
@@ -585,9 +584,15 @@ async function handleBootstrap(
   await db
     .prepare(
       `INSERT INTO admin_users (username, password_hash, role, display_name, is_active, created_at, updated_at)
-       VALUES (?, ?, 'super_admin', ?, 1, ?, ?)`,
+       VALUES (?, ?, 'super_admin', ?, 1, ?, ?)`
     )
-    .bind(body.username, passwordHash, body.display_name || body.username, now, now)
+    .bind(
+      body.username,
+      passwordHash,
+      body.display_name || body.username,
+      now,
+      now
+    )
     .run();
 
   return jsonResponse(
@@ -600,7 +605,7 @@ async function handleBootstrap(
       },
     },
     201,
-    cors,
+    cors
   );
 }
 
@@ -622,7 +627,11 @@ export default {
 
     if (path === '/api/auth/login' && request.method === 'POST') {
       if (!env.JWT_SECRET) {
-        return jsonResponse({ ok: false, error: 'JWT_SECRET not configured' }, 500, cors);
+        return jsonResponse(
+          { ok: false, error: 'JWT_SECRET not configured' },
+          500,
+          cors
+        );
       }
       const body = (await request.json()) as LoginRequest;
       return handleLogin(body, env.CONTENT_DB, env.JWT_SECRET, cors);
@@ -630,14 +639,24 @@ export default {
 
     if (path === '/api/auth/me' && request.method === 'GET') {
       if (!env.JWT_SECRET) {
-        return jsonResponse({ ok: false, error: 'JWT_SECRET not configured' }, 500, cors);
+        return jsonResponse(
+          { ok: false, error: 'JWT_SECRET not configured' },
+          500,
+          cors
+        );
       }
       return handleMe(request, env.JWT_SECRET, cors);
     }
 
     if (path === '/api/auth/bootstrap' && request.method === 'POST') {
       const body = (await request.json()) as BootstrapRequest;
-      return handleBootstrap(body, request, env.CONTENT_DB, env.BOOTSTRAP_TOKEN, cors);
+      return handleBootstrap(
+        body,
+        request,
+        env.CONTENT_DB,
+        env.BOOTSTRAP_TOKEN,
+        cors
+      );
     }
 
     // ---- 內容路由授權檢查 ----
@@ -689,7 +708,10 @@ export default {
           return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
         }
         const headers = new Headers(cors);
-        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set(
+          'Content-Type',
+          obj.httpMetadata?.contentType || 'application/octet-stream'
+        );
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
         return new Response(obj.body, { headers });
       }
@@ -704,7 +726,11 @@ export default {
       const formData = await request.formData();
       const file = formData.get('file') as File | null;
       if (!file) {
-        return jsonResponse({ ok: false, error: 'No file provided' }, 400, cors);
+        return jsonResponse(
+          { ok: false, error: 'No file provided' },
+          400,
+          cors
+        );
       }
 
       const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
@@ -717,10 +743,20 @@ export default {
       });
 
       const assetUrl = `/api/assets/${key}`;
-      return jsonResponse({
-        ok: true,
-        data: { key, url: assetUrl, name: file.name, size: file.size, type: file.type },
-      }, 201, cors);
+      return jsonResponse(
+        {
+          ok: true,
+          data: {
+            key,
+            url: assetUrl,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          },
+        },
+        201,
+        cors
+      );
     }
 
     // ---- 內容 CRUD 路由 ----

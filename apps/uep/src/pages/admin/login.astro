@@ -5,7 +5,8 @@ import DesignLayout from '../../layouts/DesignLayout.astro';
 
 const JWT_COOKIE = 'uep-admin-jwt';
 const ACTIVE_COOKIE = 'uep-admin-active';
-const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 // 安全的 redirect：只允許站內 /admin 路徑
 function safeRedirect(url: string | null | undefined): string {
@@ -34,7 +35,11 @@ if (Astro.request.method === 'POST') {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    const json = await res.json() as { ok: boolean; data?: { token: string }; error?: string };
+    const json = (await res.json()) as {
+      ok: boolean;
+      data?: { token: string };
+      error?: string;
+    };
 
     if (json.ok && json.data?.token) {
       // 設定 JWT cookie (httpOnly)
@@ -69,9 +74,13 @@ const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
   <div class="login-wrap">
     <!-- 背景裝飾粒子 -->
     <div class="login-dust">
-      {[...Array(12)].map((_, i) => (
-        <i style={`left:${(i * 47) % 100}%;top:${(i * 31) % 100}%;animation-duration:${14 + (i % 5)}s;animation-delay:${(i * 0.5) % 6}s`} />
-      ))}
+      {
+        [...Array(12)].map((_, i) => (
+          <i
+            style={`left:${(i * 47) % 100}%;top:${(i * 31) % 100}%;animation-duration:${14 + (i % 5)}s;animation-delay:${(i * 0.5) % 6}s`}
+          />
+        ))
+      }
     </div>
 
     <div class="login-card">
@@ -121,17 +130,32 @@ const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
               placeholder="通行密語"
               required
             />
-            <button type="button" class="login-toggle-pw" id="togglePw" aria-label="切換密碼顯示">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path id="eyeIcon" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zm11-3a3 3 0 100 6 3 3 0 000-6z" />
+            <button
+              type="button"
+              class="login-toggle-pw"
+              id="togglePw"
+              aria-label="切換密碼顯示"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  id="eyeIcon"
+                  d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zm11-3a3 3 0 100 6 3 3 0 000-6z"
+                ></path>
               </svg>
             </button>
           </div>
         </div>
 
-        {error && (
-          <div class="login-error">{error}</div>
-        )}
+        {error && <div class="login-error">{error}</div>}
 
         <button type="submit" class="login-btn">驗證身分</button>
       </form>
@@ -168,10 +192,20 @@ const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
     animation: login-float linear infinite;
   }
   @keyframes login-float {
-    0%   { opacity: 0; transform: translateY(0); }
-    20%  { opacity: 0.35; }
-    80%  { opacity: 0.35; }
-    100% { opacity: 0; transform: translateY(-40px); }
+    0% {
+      opacity: 0;
+      transform: translateY(0);
+    }
+    20% {
+      opacity: 0.35;
+    }
+    80% {
+      opacity: 0.35;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-40px);
+    }
   }
 
   /* 卡片 */
@@ -336,7 +370,9 @@ const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
     font-weight: 500;
     letter-spacing: 0.12em;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    transition:
+      background 0.2s,
+      color 0.2s;
   }
   .login-btn:hover {
     background: var(--uep-gold);
@@ -375,8 +411,10 @@ const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
   const input = document.getElementById('password') as HTMLInputElement;
   const icon = document.getElementById('eyeIcon');
   if (toggle && input && icon) {
-    const eyeOpen = 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zm11-3a3 3 0 100 6 3 3 0 000-6z';
-    const eyeClosed = 'M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22M14.12 14.12A3 3 0 019.88 9.88';
+    const eyeOpen =
+      'M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zm11-3a3 3 0 100 6 3 3 0 000-6z';
+    const eyeClosed =
+      'M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22M14.12 14.12A3 3 0 019.88 9.88';
     toggle.addEventListener('click', () => {
       const isHidden = input.type === 'password';
       input.type = isHidden ? 'text' : 'password';

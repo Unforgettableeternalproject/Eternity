@@ -25,25 +25,38 @@ const historyPages = historyData?.ok ? historyData.data || [] : [];
 const echoesPages = echoesData?.ok ? echoesData.data || [] : [];
 
 // Compute stats
-const historyChapters = historyPages.filter((p: any) => p.pageType === 'chapter').length;
-const historyArcs = historyPages.filter((p: any) => p.pageType === 'arc').length;
-const historyDrafts = historyPages.filter((p: any) => p.status === 'modified' || p.status === 'local_only').length;
+const historyChapters = historyPages.filter(
+  (p: any) => p.pageType === 'chapter'
+).length;
+const historyArcs = historyPages.filter(
+  (p: any) => p.pageType === 'arc'
+).length;
+const historyDrafts = historyPages.filter(
+  (p: any) => p.status === 'modified' || p.status === 'local_only'
+).length;
 
 const echoesTotal = echoesPages.length;
-const echoesDrafts = echoesPages.filter((p: any) => p.status === 'modified' || p.status === 'local_only').length;
+const echoesDrafts = echoesPages.filter(
+  (p: any) => p.status === 'modified' || p.status === 'local_only'
+).length;
 
 const totalPages = historyPages.length + echoesPages.length;
-const totalEditsThisWeek = [...historyPages, ...echoesPages].filter((p: any) => {
-  if (!p.updatedAt) return false;
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  return new Date(p.updatedAt).getTime() > weekAgo;
-}).length;
+const totalEditsThisWeek = [...historyPages, ...echoesPages].filter(
+  (p: any) => {
+    if (!p.updatedAt) return false;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return new Date(p.updatedAt).getTime() > weekAgo;
+  }
+).length;
 
 // Recent edits per zone (latest 3)
 function getRecent(pages: any[]) {
   return pages
     .filter((p: any) => p.updatedAt)
-    .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .sort(
+      (a: any, b: any) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
     .slice(0, 3)
     .map((p: any) => ({
       title: p.title || p.slug,
@@ -70,8 +83,8 @@ function timeAgo(dateStr: string) {
 }
 
 const now = new Date();
-const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
+const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
 ---
 
 <DesignLayout title="Admin - U.E.P">
@@ -95,9 +108,10 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     <!-- Main scrollable area -->
     <main class="adm-main">
       <div class="adm-content">
-
         <!-- Greeting -->
-        <div class="adm-greeting-time">welcome back · {timeStr} · {dateStr}</div>
+        <div class="adm-greeting-time">
+          welcome back · {timeStr} · {dateStr}
+        </div>
         <h1 class="adm-greeting-title">哈囉哈囉! (｡･∀･)ﾉﾞ</h1>
         <p class="adm-greeting-desc">
           想要編輯哪個區塊呢? 全部都整理好了喔! 你可以從下方進到對應的編輯器。
@@ -132,36 +146,67 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
           <!-- History card -->
           <div class="adm-zone-card" style="border-top-color: #8A4423;">
             <div class="adm-zone-header">
-              <div class="adm-zone-icon" style="border-color: #8A4423; color: #8A4423;">❒</div>
+              <div
+                class="adm-zone-icon"
+                style="border-color: #8A4423; color: #8A4423;"
+              >
+                ❒
+              </div>
               <div class="adm-zone-info">
-                <div class="adm-zone-en" style="color: #8A4423;">HISTORY ARCHIVE</div>
+                <div class="adm-zone-en" style="color: #8A4423;">
+                  HISTORY ARCHIVE
+                </div>
                 <div class="adm-zone-name">歷史典藏庫</div>
                 <div class="adm-zone-desc">章節、卷、段落 — 富文本編輯</div>
               </div>
             </div>
             <div class="adm-zone-stats">
-              <div><span class="adm-zone-stat-val" style="color: #8A4423;">{historyArcs}</span><span class="adm-zone-stat-key">篇</span></div>
-              <div><span class="adm-zone-stat-val" style="color: #8A4423;">{historyChapters}</span><span class="adm-zone-stat-key">章</span></div>
-              <div><span class="adm-zone-stat-val" style="color: #8A4423;">{historyDrafts}</span><span class="adm-zone-stat-key">草稿</span></div>
+              <div>
+                <span class="adm-zone-stat-val" style="color: #8A4423;"
+                  >{historyArcs}</span
+                ><span class="adm-zone-stat-key">篇</span>
+              </div>
+              <div>
+                <span class="adm-zone-stat-val" style="color: #8A4423;"
+                  >{historyChapters}</span
+                ><span class="adm-zone-stat-key">章</span>
+              </div>
+              <div>
+                <span class="adm-zone-stat-val" style="color: #8A4423;"
+                  >{historyDrafts}</span
+                ><span class="adm-zone-stat-key">草稿</span>
+              </div>
             </div>
             <!-- Recent -->
             <div class="adm-zone-recent-title">最近編輯</div>
-            {historyRecent.length > 0 ? (
-              <div class="adm-zone-recent">
-                {historyRecent.map((r: any, i: number) => (
-                  <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
-                    <span class="adm-recent-title">{r.title}</span>
-                    <span class={`adm-recent-status adm-recent-status--${r.status}`}>· {r.status}</span>
-                    <span class="adm-recent-time">{timeAgo(r.updatedAt)}</span>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div class="adm-zone-empty">尚無編輯紀錄</div>
-            )}
+            {
+              historyRecent.length > 0 ? (
+                <div class="adm-zone-recent">
+                  {historyRecent.map((r: any) => (
+                    <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
+                      <span class="adm-recent-title">{r.title}</span>
+                      <span
+                        class={`adm-recent-status adm-recent-status--${r.status}`}
+                      >
+                        · {r.status}
+                      </span>
+                      <span class="adm-recent-time">
+                        {timeAgo(r.updatedAt)}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div class="adm-zone-empty">尚無編輯紀錄</div>
+              )
+            }
             <div class="adm-zone-spacer"></div>
             <div class="adm-zone-actions">
-              <a href="/admin/edit/history" class="adm-zone-btn-primary" style="background: #8A4423;">
+              <a
+                href="/admin/edit/history"
+                class="adm-zone-btn-primary"
+                style="background: #8A4423;"
+              >
                 <span>進入編輯器</span><span>→</span>
               </a>
             </div>
@@ -170,40 +215,73 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
           <!-- Echoes card -->
           <div class="adm-zone-card" style="border-top-color: #6B4F8E;">
             <div class="adm-zone-header">
-              <div class="adm-zone-icon" style="border-color: #6B4F8E; color: #6B4F8E;">♪</div>
+              <div
+                class="adm-zone-icon"
+                style="border-color: #6B4F8E; color: #6B4F8E;"
+              >
+                ♪
+              </div>
               <div class="adm-zone-info">
-                <div class="adm-zone-en" style="color: #6B4F8E;">ECHOES LIBRARY</div>
+                <div class="adm-zone-en" style="color: #6B4F8E;">
+                  ECHOES LIBRARY
+                </div>
                 <div class="adm-zone-name">回音蒐藏間</div>
-                <div class="adm-zone-desc">歌曲、子分類、Spoiler 鎖定 — 專屬欄位編輯</div>
+                <div class="adm-zone-desc">
+                  歌曲、子分類、Spoiler 鎖定 — 專屬欄位編輯
+                </div>
               </div>
             </div>
             <div class="adm-zone-stats">
-              <div><span class="adm-zone-stat-val" style="color: #6B4F8E;">{echoesTotal}</span><span class="adm-zone-stat-key">歌曲</span></div>
-              <div><span class="adm-zone-stat-val" style="color: #6B4F8E;">{echoesDrafts}</span><span class="adm-zone-stat-key">草稿</span></div>
+              <div>
+                <span class="adm-zone-stat-val" style="color: #6B4F8E;"
+                  >{echoesTotal}</span
+                ><span class="adm-zone-stat-key">歌曲</span>
+              </div>
+              <div>
+                <span class="adm-zone-stat-val" style="color: #6B4F8E;"
+                  >{echoesDrafts}</span
+                ><span class="adm-zone-stat-key">草稿</span>
+              </div>
             </div>
             <!-- Recent -->
             <div class="adm-zone-recent-title">最近編輯</div>
-            {echoesRecent.length > 0 ? (
-              <div class="adm-zone-recent">
-                {echoesRecent.map((r: any, i: number) => (
-                  <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
-                    <span class="adm-recent-title">
-                      {r.title}
-                      {r.spoiler && r.spoiler > 0 && (
-                        <span class={`adm-spoiler-badge ${r.spoiler >= 3 ? 'adm-spoiler--high' : ''}`}>L{r.spoiler}</span>
-                      )}
-                    </span>
-                    <span class={`adm-recent-status adm-recent-status--${r.status}`}>· {r.status}</span>
-                    <span class="adm-recent-time">{timeAgo(r.updatedAt)}</span>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div class="adm-zone-empty">尚無編輯紀錄</div>
-            )}
+            {
+              echoesRecent.length > 0 ? (
+                <div class="adm-zone-recent">
+                  {echoesRecent.map((r: any) => (
+                    <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
+                      <span class="adm-recent-title">
+                        {r.title}
+                        {r.spoiler && r.spoiler > 0 && (
+                          <span
+                            class={`adm-spoiler-badge ${r.spoiler >= 3 ? 'adm-spoiler--high' : ''}`}
+                          >
+                            L{r.spoiler}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        class={`adm-recent-status adm-recent-status--${r.status}`}
+                      >
+                        · {r.status}
+                      </span>
+                      <span class="adm-recent-time">
+                        {timeAgo(r.updatedAt)}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div class="adm-zone-empty">尚無編輯紀錄</div>
+              )
+            }
             <div class="adm-zone-spacer"></div>
             <div class="adm-zone-actions">
-              <a href="/admin/edit/echos" class="adm-zone-btn-primary" style="background: #6B4F8E;">
+              <a
+                href="/admin/edit/echos"
+                class="adm-zone-btn-primary"
+                style="background: #6B4F8E;"
+              >
                 <span>進入編輯器</span><span>→</span>
               </a>
             </div>
@@ -215,29 +293,49 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
         <div class="adm-tools-grid">
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">❝</span>
-            <div><div class="adm-tool-name">字條 / 對話</div><div class="adm-tool-sub">UEP 旁白編輯</div></div>
+            <div>
+              <div class="adm-tool-name">字條 / 對話</div><div
+                class="adm-tool-sub"
+              >
+                UEP 旁白編輯
+              </div>
+            </div>
           </a>
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">◯</span>
-            <div><div class="adm-tool-name">地圖節點</div><div class="adm-tool-sub">十二分區拓樸</div></div>
+            <div>
+              <div class="adm-tool-name">地圖節點</div><div
+                class="adm-tool-sub"
+              >
+                十二分區拓樸
+              </div>
+            </div>
           </a>
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">♫</span>
-            <div><div class="adm-tool-name">媒體庫</div><div class="adm-tool-sub">音檔 · 圖片</div></div>
+            <div>
+              <div class="adm-tool-name">媒體庫</div><div class="adm-tool-sub">
+                音檔 · 圖片
+              </div>
+            </div>
           </a>
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">⚙</span>
-            <div><div class="adm-tool-name">設定</div><div class="adm-tool-sub">主題 · 解鎖規則</div></div>
+            <div>
+              <div class="adm-tool-name">設定</div><div class="adm-tool-sub">
+                主題 · 解鎖規則
+              </div>
+            </div>
           </a>
         </div>
-
       </div>
     </main>
   </div>
 </DesignLayout>
 
 <style is:global>
-  html, body {
+  html,
+  body {
     height: 100%;
     overflow: hidden;
   }
@@ -283,7 +381,9 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     letter-spacing: 0;
   }
 
-  .adm-header-spacer { flex: 1; }
+  .adm-header-spacer {
+    flex: 1;
+  }
 
   .adm-header-version {
     font-family: var(--font-mono);
@@ -308,7 +408,7 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #5B9C7A;
+    background: #5b9c7a;
   }
 
   .adm-header-home {
@@ -435,7 +535,9 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     font-family: var(--font-display);
   }
 
-  .adm-zone-info { flex: 1; }
+  .adm-zone-info {
+    flex: 1;
+  }
 
   .adm-zone-en {
     font-family: var(--font-mono);
@@ -542,9 +644,15 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     text-transform: uppercase;
     color: var(--ink-mute);
   }
-  .adm-recent-status--modified { color: goldenrod; }
-  .adm-recent-status--synced { color: #5B9C7A; }
-  .adm-recent-status--local_only { color: #a855f7; }
+  .adm-recent-status--modified {
+    color: goldenrod;
+  }
+  .adm-recent-status--synced {
+    color: #5b9c7a;
+  }
+  .adm-recent-status--local_only {
+    color: #a855f7;
+  }
 
   .adm-recent-time {
     font-family: var(--font-mono);
@@ -560,7 +668,9 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     padding: 8px 0;
   }
 
-  .adm-zone-spacer { flex: 1; }
+  .adm-zone-spacer {
+    flex: 1;
+  }
 
   .adm-zone-actions {
     margin-top: 22px;
@@ -665,9 +775,15 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
   .adm-greeting-desc {
     animation: adm-enter 0.55s ease both;
   }
-  .adm-greeting-time  { animation-delay: 0.08s; }
-  .adm-greeting-title { animation-delay: 0.16s; }
-  .adm-greeting-desc  { animation-delay: 0.24s; }
+  .adm-greeting-time {
+    animation-delay: 0.08s;
+  }
+  .adm-greeting-title {
+    animation-delay: 0.16s;
+  }
+  .adm-greeting-desc {
+    animation-delay: 0.24s;
+  }
 
   .adm-stats-strip {
     animation: adm-enter 0.5s ease both;
@@ -677,8 +793,12 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
   .adm-zone-card {
     animation: adm-enter 0.5s ease both;
   }
-  .adm-zone-card:nth-child(1) { animation-delay: 0.40s; }
-  .adm-zone-card:nth-child(2) { animation-delay: 0.50s; }
+  .adm-zone-card:nth-child(1) {
+    animation-delay: 0.4s;
+  }
+  .adm-zone-card:nth-child(2) {
+    animation-delay: 0.5s;
+  }
 
   .adm-section-title {
     animation: adm-enter 0.5s ease both;
@@ -688,10 +808,18 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
   .adm-tool-card {
     animation: adm-enter 0.45s ease both;
   }
-  .adm-tool-card:nth-child(1) { animation-delay: 0.60s; }
-  .adm-tool-card:nth-child(2) { animation-delay: 0.66s; }
-  .adm-tool-card:nth-child(3) { animation-delay: 0.72s; }
-  .adm-tool-card:nth-child(4) { animation-delay: 0.78s; }
+  .adm-tool-card:nth-child(1) {
+    animation-delay: 0.6s;
+  }
+  .adm-tool-card:nth-child(2) {
+    animation-delay: 0.66s;
+  }
+  .adm-tool-card:nth-child(3) {
+    animation-delay: 0.72s;
+  }
+  .adm-tool-card:nth-child(4) {
+    animation-delay: 0.78s;
+  }
 
   /* === Responsive === */
   @media (max-width: 1024px) {

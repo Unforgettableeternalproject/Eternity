@@ -566,7 +566,11 @@ export default function HistoryReader() {
                 style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
                 onClick={() => void loadPage(node)}
               >
-                {renderIcon(node.metadata?.icon as string, 14, 'history-tree-icon') || (
+                {renderIcon(
+                  node.metadata?.icon as string,
+                  14,
+                  'history-tree-icon'
+                ) || (
                   <span className="history-tree-kind">
                     {pageTypeLabel(node.pageType)}
                   </span>
@@ -786,7 +790,11 @@ export default function HistoryReader() {
                         {currentPage.slug}
                       </div>
                       <h2 className="history-article-title">
-                        {renderIcon(currentPage.metadata?.icon as string, 24, 'history-article-icon')}
+                        {renderIcon(
+                          currentPage.metadata?.icon as string,
+                          24,
+                          'history-article-icon'
+                        )}
                         {currentPage.title}
                       </h2>
                       {typeof currentPage.metadata?.description ===
