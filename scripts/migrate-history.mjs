@@ -20,7 +20,12 @@ const API_BASE = USE_REMOTE
   ? 'https://eternity-content-api.ptyc4076.workers.dev'
   : 'http://localhost:8788';
 
-const CONTENT_ROOT = join(import.meta.dirname, '..', '..', 'U.E.P-s-Imaginary-Space');
+const CONTENT_ROOT = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  'U.E.P-s-Imaginary-Space'
+);
 const SUMMARY_PATH = join(CONTENT_ROOT, 'SUMMARY.md');
 
 console.log(`\n📚 History 內容遷移工具（含層級結構）`);
