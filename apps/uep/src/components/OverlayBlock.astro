@@ -13,59 +13,86 @@ const { block } = Astro.props;
 
 // 判斷是否有覆蓋層規則
 const hasOverlay = block.overlayRules && block.overlayRules.length > 0;
-const primaryRule = hasOverlay && block.overlayRules ? block.overlayRules[0] : null;
+const primaryRule =
+  hasOverlay && block.overlayRules ? block.overlayRules[0] : null;
+const markedHtml =
+  primaryRule?.type === 'mark' && primaryRule.pattern
+    ? block.html?.replace(
+        new RegExp(primaryRule.pattern, 'g'),
+        `<mark style="background: rgba(168, 85, 247, 0.3); color: #c084fc; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-weight: 600;">$&</mark>`
+      )
+    : block.html;
 ---
 
-{block.type === 'divider' ? (
-  <Divider style="gradient" spacing="large" />
-) : block.type === 'boundary-wrapped' ? (
-  <div class="boundary-section">
-    <div class="boundary-line top"></div>
-    <div class="boundary-content">
-      <div set:html={block.html} />
-    </div>
-    <div class="boundary-line bottom"></div>
-  </div>
-) : hasOverlay && primaryRule ? (
-  <!-- 根據覆蓋層規則渲染 -->
-  {primaryRule.type === 'hint' ? (
-    <div class="block-wrapper">
-      <Hint type={primaryRule.hintType || 'info'}>
+{block.type === 'divider' && <Divider style="gradient" spacing="large" />}
+
+{
+  block.type === 'boundary-wrapped' && (
+    <div class="boundary-section">
+      <div class="boundary-line top" />
+      <div class="boundary-content">
         <div set:html={block.html} />
-      </Hint>
+      </div>
+      <div class="boundary-line bottom" />
     </div>
-  ) : primaryRule.type.startsWith('spoiler') ? (
-    <div class="block-wrapper">
-      <Spoiler 
-        variant={
-          primaryRule.type === 'spoiler-blur' ? 'blur' :
-          primaryRule.type === 'spoiler-click' ? 'click' :
-          'censored'
-        }
-      >
+  )
+}
+
+{
+  block.type !== 'divider' &&
+    block.type !== 'boundary-wrapped' &&
+    primaryRule?.type === 'hint' && (
+      <div class="block-wrapper">
+        <Hint type={primaryRule.hintType || 'info'}>
+          <div set:html={block.html} />
+        </Hint>
+      </div>
+    )
+}
+
+{
+  block.type !== 'divider' &&
+    block.type !== 'boundary-wrapped' &&
+    primaryRule?.type?.startsWith('spoiler') && (
+      <div class="block-wrapper">
+        <Spoiler
+          variant={
+            primaryRule.type === 'spoiler-blur'
+              ? 'blur'
+              : primaryRule.type === 'spoiler-click'
+                ? 'click'
+                : 'censored'
+          }
+        >
+          <div set:html={block.html} />
+        </Spoiler>
+      </div>
+    )
+}
+
+{
+  block.type !== 'divider' &&
+    block.type !== 'boundary-wrapped' &&
+    primaryRule?.type === 'mark' &&
+    primaryRule.pattern && (
+      <div class="block-wrapper">
+        <div set:html={markedHtml} />
+      </div>
+    )
+}
+
+{
+  block.type !== 'divider' &&
+    block.type !== 'boundary-wrapped' &&
+    (!primaryRule ||
+      (primaryRule.type !== 'hint' &&
+        !primaryRule.type?.startsWith('spoiler') &&
+        primaryRule.type !== 'mark')) && (
+      <div class="block-wrapper">
         <div set:html={block.html} />
-      </Spoiler>
-    </div>
-  ) : primaryRule.type === 'mark' && primaryRule.pattern ? (
-    <div class="block-wrapper">
-      <div set:html={
-        block.html?.replace(
-          new RegExp(primaryRule.pattern, 'g'),
-          `<mark style="background: rgba(168, 85, 247, 0.3); color: #c084fc; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-weight: 600;">$&</mark>`
-        )
-      } />
-    </div>
-  ) : (
-    <div class="block-wrapper">
-      <div set:html={block.html} />
-    </div>
-  )}
-) : (
-  <!-- 無覆蓋層，正常渲染 -->
-  <div class="block-wrapper">
-    <div set:html={block.html} />
-  </div>
-)}
+      </div>
+    )
+}
 
 <style>
   /* 段落包裝器 - 區塊間距 */

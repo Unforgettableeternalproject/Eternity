@@ -17,13 +17,17 @@ const { currentPath = '/' } = Astro.props;
         </span>
       </div>
     </a>
-    
+
     <nav class="nav-menu">
       <a href="/" class:list={['nav-link', { active: currentPath === '/' }]}>
         <span class="nav-icon">🌍</span>
         <span>世界的軸心</span>
       </a>
-      <a href="https://unforgettableeternalproject.com" target="_blank" class="nav-link external">
+      <a
+        href="https://unforgettableeternalproject.com"
+        target="_blank"
+        class="nav-link external"
+      >
         <span class="nav-icon">🏠</span>
         <span>主站</span>
         <span class="external-icon">↗</span>
@@ -47,7 +51,7 @@ const { currentPath = '/' } = Astro.props;
     background: rgba(10, 10, 15, 0.8);
     backdrop-filter: blur(20px) saturate(180%);
     border-bottom: 1px solid rgba(213, 182, 24, 0.2);
-    box-shadow: 
+    box-shadow:
       0 4px 24px rgba(0, 0, 0, 0.4),
       0 0 40px rgba(213, 182, 24, 0.1);
     animation: slideDown 0.5s ease-out;
@@ -97,7 +101,8 @@ const { currentPath = '/' } = Astro.props;
   }
 
   @keyframes twinkle {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 1;
       transform: scale(1) rotate(0deg);
     }
@@ -116,7 +121,12 @@ const { currentPath = '/' } = Astro.props;
   .logo-primary {
     font-size: 1.5rem;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--gold) 0%, var(--purple) 50%, var(--cyan) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--gold) 0%,
+      var(--purple) 50%,
+      var(--cyan) 100%
+    );
     background-size: 200% 200%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -126,7 +136,8 @@ const { currentPath = '/' } = Astro.props;
   }
 
   @keyframes gradientFlow {
-    0%, 100% {
+    0%,
+    100% {
       background-position: 0% 50%;
     }
     50% {
@@ -183,13 +194,17 @@ const { currentPath = '/' } = Astro.props;
     color: var(--gold);
     border-color: rgba(213, 182, 24, 0.5);
     transform: translateY(-2px);
-    box-shadow: 
+    box-shadow:
       0 4px 12px rgba(213, 182, 24, 0.2),
       0 0 20px rgba(213, 182, 24, 0.1);
   }
 
   .nav-link.active {
-    background: linear-gradient(135deg, rgba(213, 182, 24, 0.2), rgba(168, 85, 247, 0.2));
+    background: linear-gradient(
+      135deg,
+      rgba(213, 182, 24, 0.2),
+      rgba(168, 85, 247, 0.2)
+    );
     border-color: rgba(213, 182, 24, 0.6);
     color: var(--gold);
     box-shadow: 0 0 20px rgba(213, 182, 24, 0.2);
@@ -250,7 +265,8 @@ const { currentPath = '/' } = Astro.props;
   }
 
   @keyframes floatParticle {
-    0%, 100% {
+    0%,
+    100% {
       top: 100%;
       opacity: 0;
       transform: translateX(0);

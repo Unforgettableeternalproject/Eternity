@@ -5,7 +5,11 @@ interface Props {
   zone?: string;
 }
 
-const { title, description = 'U.E.P · Imaginary Space — 邊際世界 · 觀測誌', zone } = Astro.props;
+const {
+  title,
+  description = 'U.E.P · Imaginary Space — 邊際世界 · 觀測誌',
+  zone,
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -21,11 +25,14 @@ const { title, description = 'U.E.P · Imaginary Space — 邊際世界 · 觀�
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
 
     <!-- Theme init (no flash) -->
     <script is:inline>
-      (function() {
+      (function () {
         var t = localStorage.getItem('uep-theme') || 'dark';
         document.documentElement.setAttribute('data-theme', t);
       })();
@@ -56,12 +63,18 @@ const { title, description = 'U.E.P · Imaginary Space — 邊際世界 · 觀�
     min-height: 100vh;
   }
 
-  a { color: inherit; }
+  a {
+    color: inherit;
+  }
 
-  img, svg { display: block; }
+  img,
+  svg {
+    display: block;
+  }
 
   /* Ensure Chinese text uses serif */
-  :lang(zh), :lang(zh-TW) {
+  :lang(zh),
+  :lang(zh-TW) {
     font-family: var(--font-serif-tc);
   }
 </style>

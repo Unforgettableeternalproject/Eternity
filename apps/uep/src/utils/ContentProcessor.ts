@@ -1,6 +1,6 @@
 /**
  * 內容處理器（Content Processor）
- * 
+ *
  * 實現四層式渲染架構：
  * 1. 原始層：讀取原始 Markdown 文件
  * 2. 設計層：應用 GitBook → Astro 語法轉換
@@ -23,13 +23,13 @@ import { transformGitBookContent } from './markdown-transforms';
 export function splitIntoParagraphs(content: string): string[] {
   // 移除 frontmatter
   const withoutFrontmatter = content.replace(/^---\n[\s\S]*?\n---\n/, '');
-  
+
   // 按照兩個或多個換行符分割（段落間的空行）
   const paragraphs = withoutFrontmatter
     .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
-  
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
   return paragraphs;
 }
 
@@ -43,28 +43,28 @@ export function matchSelector(
   rule: ParagraphRule
 ): boolean {
   const { selector } = rule;
-  
+
   // 索引匹配
   if (selector.index !== undefined) {
     return index === selector.index;
   }
-  
+
   // 範圍匹配 "3-5"
   if (selector.range) {
     const [start, end] = selector.range.split('-').map(Number);
     return index >= start && index <= end;
   }
-  
+
   // 內容開頭匹配
   if (selector.startsWith) {
     return paragraph.startsWith(selector.startsWith);
   }
-  
+
   // 內容包含匹配
   if (selector.contains) {
     return paragraph.includes(selector.contains);
   }
-  
+
   return false;
 }
 
@@ -84,55 +84,55 @@ export function applyRulesToParagraphs(
       hidden: false,
     }));
   }
-  
+
   const nodes: ParagraphNode[] = [];
-  
+
   paragraphs.forEach((content, index) => {
     const node: ParagraphNode = {
       index,
       content,
       hidden: false,
     };
-    
+
     // 查找匹配的規則
-    const matchedRule = rules.find(rule => 
+    const matchedRule = rules.find((rule) =>
       matchSelector(content, index, rule)
     );
-    
+
     if (matchedRule) {
       node.appliedRule = matchedRule;
-      
+
       // 根據操作類型處理
       switch (matchedRule.action) {
         case 'hide':
           node.hidden = true;
           break;
-          
+
         case 'insertBefore':
           if (matchedRule.content) {
             node.insertBefore = matchedRule.content;
           }
           break;
-          
+
         case 'insertAfter':
           if (matchedRule.content) {
             node.insertAfter = matchedRule.content;
           }
           break;
-          
+
         case 'replace':
           if (matchedRule.replacement) {
             node.content = matchedRule.replacement;
           }
           break;
-          
+
         // wrap 和 normal 在渲染時處理
       }
     }
-    
+
     nodes.push(node);
   });
-  
+
   return nodes;
 }
 
@@ -144,36 +144,36 @@ export function renderParagraphNode(node: ParagraphNode): string {
   if (node.hidden) {
     return '';
   }
-  
+
   const parts: string[] = [];
-  
+
   // 前置插入
   if (node.insertBefore) {
     parts.push(node.insertBefore);
   }
-  
+
   // 主要內容
   let content = node.content;
-  
+
   // 如果有包裝規則
   if (node.appliedRule?.action === 'wrap' && node.appliedRule.wrap) {
     const { component, props } = node.appliedRule.wrap;
-    const propsStr = props 
+    const propsStr = props
       ? Object.entries(props)
           .map(([key, value]) => `${key}="${value}"`)
           .join(' ')
       : '';
-    
+
     content = `<${component}${propsStr ? ' ' + propsStr : ''}>\n${content}\n</${component}>`;
   }
-  
+
   parts.push(content);
-  
+
   // 後置插入
   if (node.insertAfter) {
     parts.push(node.insertAfter);
   }
-  
+
   return parts.join('\n\n');
 }
 
@@ -190,24 +190,24 @@ export function processContent(
     // 僅應用設計層轉換
     return transformGitBookContent(rawContent);
   }
-  
+
   // 第一層：原始內容（已由調用方讀取）
-  
+
   // 分割段落
   const paragraphs = splitIntoParagraphs(rawContent);
-  
+
   // 第三層：應用覆蓋層配置
   const nodes = applyRulesToParagraphs(paragraphs, overlay?.paragraphRules);
-  
+
   // 渲染段落節點
   const enhancedMarkdown = nodes
     .map(renderParagraphNode)
-    .filter(p => p.length > 0)
+    .filter((p) => p.length > 0)
     .join('\n\n');
-  
+
   // 第二層：應用設計層轉換（GitBook → Astro）
   const transformedContent = transformGitBookContent(enhancedMarkdown);
-  
+
   return transformedContent;
 }
 
@@ -223,7 +223,7 @@ export function createRenderContext(
     splitIntoParagraphs(rawContent),
     overlay?.paragraphRules
   );
-  
+
   return {
     filePath,
     overlay,

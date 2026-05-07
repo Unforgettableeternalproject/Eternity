@@ -28,7 +28,22 @@
       "Bash(tar xzf:*)",
       "Bash(npx tsc:*)",
       "Bash(npx astro:*)",
-      "Bash(pkill -f \"astro dev\")"
+      "Bash(pkill -f \"astro dev\")",
+      "Bash(gh pr:*)",
+      "Bash(gh api:*)",
+      "Bash(gh run:*)",
+      "Bash(cat .prettierrc*)",
+      "Bash(pnpm format:check)",
+      "Bash(pnpm format:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm type-check:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm build:*)",
+      "Bash(git status:*)",
+      "Bash(git rm:*)",
+      "Bash(git reset:*)",
+      "Bash(git submodule:*)",
+      "Bash(git add:*)"
     ]
   }
 }

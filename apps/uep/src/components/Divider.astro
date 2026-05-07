@@ -13,18 +13,16 @@ const { style = 'star', spacing = 'normal' } = Astro.props;
 ---
 
 <div class={`divider divider-${style} spacing-${spacing}`}>
-  {style === 'star' && (
-    <div class="star-pattern">
-      {'❇︎'.repeat(28)}
-    </div>
-  )}
-  {style === 'dots' && (
-    <div class="dots-pattern">
-      <span></span>
-      <span></span>
-      <span></span>
-    </div>
-  )}
+  {style === 'star' && <div class="star-pattern">{'❇︎'.repeat(28)}</div>}
+  {
+    style === 'dots' && (
+      <div class="dots-pattern">
+        <span />
+        <span />
+        <span />
+      </div>
+    )
+  }
 </div>
 
 <style>
@@ -67,8 +65,8 @@ const { style = 'star', spacing = 'normal' } = Astro.props;
     width: 100%;
     height: 2px;
     background: linear-gradient(
-      90deg, 
-      transparent 0%, 
+      90deg,
+      transparent 0%,
       rgba(213, 182, 24, 0.5) 25%,
       rgba(168, 85, 247, 0.5) 50%,
       rgba(213, 182, 24, 0.5) 75%,
@@ -109,7 +107,8 @@ const { style = 'star', spacing = 'normal' } = Astro.props;
   }
 
   @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 0.5;
       transform: scale(1);
     }

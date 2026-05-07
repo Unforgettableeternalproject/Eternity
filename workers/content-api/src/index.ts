@@ -50,7 +50,9 @@ function rowToListItem(row: PageRow): PageListItem {
 }
 
 /** 將扁平列表轉換為樹狀結構 */
-function buildTree(items: (PageListItem & { metadata?: Record<string, unknown> })[]): PageTreeNode[] {
+function buildTree(
+  items: (PageListItem & { metadata?: Record<string, unknown> })[]
+): PageTreeNode[] {
   const map = new Map<string, PageTreeNode>();
   const roots: PageTreeNode[] = [];
 
@@ -82,14 +84,18 @@ function buildTree(items: (PageListItem & { metadata?: Record<string, unknown> }
   // 排序
   const sortNodes = (nodes: PageTreeNode[]) => {
     nodes.sort((a, b) => a.sortOrder - b.sortOrder);
-    nodes.forEach(n => sortNodes(n.children));
+    nodes.forEach((n) => sortNodes(n.children));
   };
   sortNodes(roots);
 
   return roots;
 }
 
-function jsonResponse<T>(data: ApiResponse<T>, status = 200, corsHeaders: Record<string, string> = {}): Response {
+function jsonResponse<T>(
+  data: ApiResponse<T>,
+  status = 200,
+  corsHeaders: Record<string, string> = {}
+): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -138,7 +144,11 @@ function isAuthorized(request: Request, env: Env): boolean {
 // ===== 路由處理 =====
 
 /** GET /api/content/:area — 列出區域內所有頁面 */
-async function listPages(area: string, db: D1Database, cors: Record<string, string>): Promise<Response> {
+async function listPages(
+  area: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
   const result = await db
     .prepare('SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC')
     .bind(area)
@@ -149,7 +159,12 @@ async function listPages(area: string, db: D1Database, cors: Record<string, stri
 }
 
 /** GET /api/content/:area/:slug — 取得單一頁面 */
-async function getPage(area: string, slug: string, db: D1Database, cors: Record<string, string>): Promise<Response> {
+async function getPage(
+  area: string,
+  slug: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
   const id = `${area}/${slug}`;
   const row = await db
     .prepare('SELECT * FROM pages WHERE id = ?')
@@ -252,14 +267,29 @@ async function upsertPage(
   }
 
   // 回傳更新後的頁面
-  const updated = await db.prepare('SELECT * FROM pages WHERE id = ?').bind(id).first<PageRow>();
-  return jsonResponse({ ok: true, data: updated ? rowToPage(updated) : null }, existing ? 200 : 201, cors);
+  const updated = await db
+    .prepare('SELECT * FROM pages WHERE id = ?')
+    .bind(id)
+    .first<PageRow>();
+  return jsonResponse(
+    { ok: true, data: updated ? rowToPage(updated) : null },
+    existing ? 200 : 201,
+    cors
+  );
 }
 
 /** DELETE /api/content/:area/:slug — 刪除頁面 */
-async function deletePage(area: string, slug: string, db: D1Database, cors: Record<string, string>): Promise<Response> {
+async function deletePage(
+  area: string,
+  slug: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
   const id = `${area}/${slug}`;
-  const result = await db.prepare('DELETE FROM pages WHERE id = ?').bind(id).run();
+  const result = await db
+    .prepare('DELETE FROM pages WHERE id = ?')
+    .bind(id)
+    .run();
 
   if (result.meta.changes === 0) {
     return jsonResponse({ ok: false, error: 'Page not found' }, 404, cors);
@@ -317,7 +347,14 @@ async function importPages(
           .prepare(
             `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, updated_at = ? WHERE id = ?`
           )
-          .bind(page.title, JSON.stringify(page.content), page.contentHash, page.sourceFile, now, page.id)
+          .bind(
+            page.title,
+            JSON.stringify(page.content),
+            page.contentHash,
+            page.sourceFile,
+            now,
+            page.id
+          )
           .run();
         updated.push(page.id);
       } else {
@@ -349,7 +386,11 @@ async function importPages(
     .bind(
       JSON.stringify([...imported, ...updated]),
       body.sourceCommit || null,
-      JSON.stringify({ imported: imported.length, updated: updated.length, skipped: skipped.length }),
+      JSON.stringify({
+        imported: imported.length,
+        updated: updated.length,
+        skipped: skipped.length,
+      }),
       now
     )
     .run();
@@ -370,7 +411,10 @@ async function importPages(
 }
 
 /** GET /api/content/sync/status — 取得同步狀態總覽 */
-async function getSyncStatus(db: D1Database, cors: Record<string, string>): Promise<Response> {
+async function getSyncStatus(
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
   const counts = await db
     .prepare(
       `SELECT
@@ -432,7 +476,10 @@ export default {
 
     // ---- 同步相關路由 ----
     if (path === '/api/content/sync/import' && request.method === 'POST') {
-      const body = await request.json() as { pages: ImportPageRequest[]; sourceCommit?: string };
+      const body = (await request.json()) as {
+        pages: ImportPageRequest[];
+        sourceCommit?: string;
+      };
       return importPages(body, env.CONTENT_DB, cors);
     }
 
@@ -444,12 +491,13 @@ export default {
     const treeMatch = path.match(/^\/api\/content\/([a-z]+)\/tree$/);
     if (treeMatch && request.method === 'GET') {
       const area = treeMatch[1];
-      const result = await env.CONTENT_DB
-        .prepare('SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC')
+      const result = await env.CONTENT_DB.prepare(
+        'SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC'
+      )
         .bind(area)
         .all<PageRow>();
       const rows = result.results || [];
-      const items = rows.map(r => ({
+      const items = rows.map((r) => ({
         ...rowToListItem(r),
         metadata: JSON.parse(r.metadata || '{}'),
       }));
@@ -466,8 +514,13 @@ export default {
 
       if (!slug) {
         // /api/content/:area
-        if (request.method === 'GET') return listPages(area, env.CONTENT_DB, cors);
-        return jsonResponse({ ok: false, error: 'Method not allowed' }, 405, cors);
+        if (request.method === 'GET')
+          return listPages(area, env.CONTENT_DB, cors);
+        return jsonResponse(
+          { ok: false, error: 'Method not allowed' },
+          405,
+          cors
+        );
       }
 
       // /api/content/:area/:slug
@@ -475,19 +528,27 @@ export default {
         case 'GET':
           return getPage(area, slug, env.CONTENT_DB, cors);
         case 'PUT': {
-          const body = await request.json() as UpsertPageRequest;
+          const body = (await request.json()) as UpsertPageRequest;
           return upsertPage(area, slug, body, env.CONTENT_DB, cors);
         }
         case 'DELETE':
           return deletePage(area, slug, env.CONTENT_DB, cors);
         default:
-          return jsonResponse({ ok: false, error: 'Method not allowed' }, 405, cors);
+          return jsonResponse(
+            { ok: false, error: 'Method not allowed' },
+            405,
+            cors
+          );
       }
     }
 
     // 健康檢查
     if (path === '/api/health') {
-      return jsonResponse({ ok: true, data: { service: 'content-api', version: '1.0.0' } }, 200, cors);
+      return jsonResponse(
+        { ok: true, data: { service: 'content-api', version: '1.0.0' } },
+        200,
+        cors
+      );
     }
 
     return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

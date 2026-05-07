@@ -1,6 +1,6 @@
 /**
  * 內容渲染系統 - 三層架構
- * 
+ *
  * Layer 1: 原始文檔（子模組，只讀）
  * Layer 2: 二次設計層（文字區段、排版控制）
  * Layer 3: 外層元件（附件、音樂播放器、互動元件）
@@ -25,14 +25,14 @@ export interface ContentSection {
 export interface EnhancedContent {
   // Layer 1: 原始內容
   rawSections: ContentSection[];
-  
+
   // Layer 2: 設計層配置
   layout?: {
     style?: string; // 區域特定樣式
     columns?: number;
     spacing?: 'compact' | 'normal' | 'relaxed';
   };
-  
+
   // Layer 3: 外層元件
   components?: {
     id: string;
@@ -49,14 +49,14 @@ export interface EnhancedContent {
 export function parseMarkdownToSections(markdown: string): ContentSection[] {
   const sections: ContentSection[] = [];
   const lines = markdown.split('\n');
-  
+
   let currentBlocks: ContentBlock[] = [];
   let sectionIndex = 0;
   let emptyLineCount = 0;
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
     // 檢測空行
     if (!line.trim()) {
       emptyLineCount++;
@@ -64,15 +64,15 @@ export function parseMarkdownToSections(markdown: string): ContentSection[] {
       if (emptyLineCount >= 2 && currentBlocks.length > 0) {
         sections.push({
           id: `section-${sectionIndex++}`,
-          blocks: currentBlocks
+          blocks: currentBlocks,
         });
         currentBlocks = [];
       }
       continue;
     }
-    
+
     emptyLineCount = 0;
-    
+
     // 解析不同類型的內容
     const block = parseLineToBlock(line, lines, i);
     if (block) {
@@ -83,123 +83,133 @@ export function parseMarkdownToSections(markdown: string): ContentSection[] {
       }
     }
   }
-  
+
   // 添加最後一個區段
   if (currentBlocks.length > 0) {
     sections.push({
       id: `section-${sectionIndex}`,
-      blocks: currentBlocks
+      blocks: currentBlocks,
     });
   }
-  
+
   return sections;
 }
 
 /**
  * 將單行解析為內容塊
  */
-function parseLineToBlock(line: string, allLines: string[], currentIndex: number): ContentBlock | null {
+function parseLineToBlock(
+  line: string,
+  allLines: string[],
+  currentIndex: number
+): ContentBlock | null {
   // 標題
   const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
   if (headingMatch) {
     return {
       type: 'heading',
       content: headingMatch[2],
-      level: headingMatch[1].length
+      level: headingMatch[1].length,
     };
   }
-  
+
   // 分隔線
   if (line.match(/^(-{3,}|\*{3,}|_{3,})$/)) {
     return {
       type: 'divider',
-      content: ''
+      content: '',
     };
   }
-  
+
   // 程式碼區塊
   if (line.startsWith('```')) {
     const language = line.slice(3).trim();
     const codeLines: string[] = [];
     let endIndex = currentIndex + 1;
-    
-    while (endIndex < allLines.length && !allLines[endIndex].startsWith('```')) {
+
+    while (
+      endIndex < allLines.length &&
+      !allLines[endIndex].startsWith('```')
+    ) {
       codeLines.push(allLines[endIndex]);
       endIndex++;
     }
-    
+
     return {
       type: 'code',
       content: codeLines.join('\n'),
       language: language || 'text',
-      metadata: { linesToSkip: endIndex - currentIndex }
+      metadata: { linesToSkip: endIndex - currentIndex },
     };
   }
-  
+
   // 引用
   if (line.startsWith('> ')) {
     return {
       type: 'quote',
-      content: line.slice(2)
+      content: line.slice(2),
     };
   }
-  
+
   // 圖片
   const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
   if (imageMatch) {
     return {
       type: 'image',
       content: imageMatch[2],
-      metadata: { alt: imageMatch[1] }
+      metadata: { alt: imageMatch[1] },
     };
   }
-  
+
   // 一般文字
   return {
     type: 'text',
-    content: line
+    content: line,
   };
 }
 
 /**
  * 為特定區域應用樣式配置
  */
-export function applyAreaStyle(areaId: string, content: EnhancedContent): EnhancedContent {
+export function applyAreaStyle(
+  areaId: string,
+  content: EnhancedContent
+): EnhancedContent {
   const areaStyles: Record<string, any> = {
     history: {
       layout: {
         style: 'narrative',
-        spacing: 'relaxed'
-      }
+        spacing: 'relaxed',
+      },
     },
     echos: {
       layout: {
         style: 'gallery',
-        columns: 2
-      }
+        columns: 2,
+      },
     },
     concepts: {
       layout: {
         style: 'documentation',
-        spacing: 'compact'
-      }
+        spacing: 'compact',
+      },
     },
     visuals: {
       layout: {
         style: 'showcase',
-        columns: 3
-      }
+        columns: 3,
+      },
     },
     storage: {
       layout: {
         style: 'casual',
-        spacing: 'normal'
-      }
-    }
+        spacing: 'normal',
+      },
+    },
   };
-  
+
   return {
     ...content,
-    layout: areaStyles[areaId]?.layout || { spacing: 'normal' }
+    layout: areaStyles[areaId]?.layout || { spacing: 'normal' },
   };
 }

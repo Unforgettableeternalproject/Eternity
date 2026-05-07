@@ -14,7 +14,14 @@ interface Props {
   pages?: PageItem[];
 }
 
-const { icon, title, description, themeColor, workingImage, pages = [] } = Astro.props;
+const {
+  icon,
+  title,
+  description,
+  themeColor,
+  workingImage,
+  pages = [],
+} = Astro.props;
 
 // 將頁面組織成樹狀結構（支援任意層級）
 interface TreeNode {
@@ -28,7 +35,7 @@ interface TreeNode {
 function buildTree(pages: PageItem[]): TreeNode[] {
   const roots: TreeNode[] = [];
   const stack: TreeNode[] = [];
-  
+
   pages.forEach((page, index) => {
     const slug = Array.isArray(page.slug) ? page.slug : [page.slug];
     const level = page.level ?? 0; // 預設為 0
@@ -37,11 +44,14 @@ function buildTree(pages: PageItem[]): TreeNode[] {
       slug,
       level,
       children: [],
-      id: `node-${index}`
+      id: `node-${index}`,
     };
 
     // 根據層級建立樹狀結構
-    while (stack.length > 0 && (stack[stack.length - 1]?.level ?? 0) >= node.level) {
+    while (
+      stack.length > 0 &&
+      (stack[stack.length - 1]?.level ?? 0) >= node.level
+    ) {
       stack.pop();
     }
 
@@ -72,7 +82,7 @@ function renderTreeNode(node: TreeNode): any {
   const hasChildren = node.children && node.children.length > 0;
   const slug = Array.isArray(node.slug) ? node.slug.join('/') : node.slug;
   const indent = 1.5 + node.level * 1.5;
-  
+
   return { node, hasChildren, slug, indent };
 }
 ---
@@ -92,145 +102,163 @@ function renderTreeNode(node: TreeNode): any {
     <p class="area-desc" set:html={description} />
   </div>
 
-  {pages.length > 0 ? (
-    <div class="pages-section">
-      <div class="section-header">
-        <h2 class="section-title">📖 區域導航</h2>
-        <p class="section-subtitle">點擊箭頭展開/收合</p>
-      </div>
+  {
+    pages.length > 0 ? (
+      <div class="pages-section">
+        <div class="section-header">
+          <h2 class="section-title">📖 區域導航</h2>
+          <p class="section-subtitle">點擊箭頭展開/收合</p>
+        </div>
 
-      <div class="navigation-tree">
-        {tree.map((node) => {
-          const { hasChildren, slug, indent } = renderTreeNode(node);
-          
-          return (
-            <div class="tree-node" data-level={node.level}>
-              <div class="node-row">
-                <a
-                  href={`/${slug}`}
-                  class="nav-item"
-                  data-level={node.level}
-                  style={`padding-left: ${indent}rem;`}
-                >
-                  <span class="nav-icon">{getIconForLevel(node.level)}</span>
-                  <span class="nav-title">{node.title}</span>
-                  <span class="nav-arrow">›</span>
-                </a>
-                {hasChildren && (
-                  <button
-                    class="expand-toggle"
-                    data-target={node.id}
-                    aria-expanded="true"
-                    aria-label={`展開/收合 ${node.title}`}
+        <div class="navigation-tree">
+          {tree.map((node) => {
+            const { hasChildren, slug, indent } = renderTreeNode(node);
+
+            return (
+              <div class="tree-node" data-level={node.level}>
+                <div class="node-row">
+                  <a
+                    href={`/${slug}`}
+                    class="nav-item"
+                    data-level={node.level}
+                    style={`padding-left: ${indent}rem;`}
                   >
-                    <span class="expand-chevron">▼</span>
-                  </button>
-                )}
-              </div>
-              {hasChildren && (
-                <div class="children-container" id={node.id}>
-                  {node.children.map((child) => {
-                    const childSlug = Array.isArray(child.slug) ? child.slug.join('/') : child.slug;
-                    const childIndent = 1.5 + child.level * 1.5;
-                    const childHasChildren = child.children && child.children.length > 0;
-                    
-                    return (
-                      <div class="tree-node" data-level={child.level}>
-                        <div class="node-row">
-                          <a
-                            href={`/${childSlug}`}
-                            class="nav-item"
-                            data-level={child.level}
-                            style={`padding-left: ${childIndent}rem;`}
-                          >
-                            <span class="nav-icon">{getIconForLevel(child.level)}</span>
-                            <span class="nav-title">{child.title}</span>
-                            <span class="nav-arrow">›</span>
-                          </a>
-                          {childHasChildren && (
-                            <button
-                              class="expand-toggle"
-                              data-target={child.id}
-                              aria-expanded="true"
-                              aria-label={`展開/收合 ${child.title}`}
+                    <span class="nav-icon">{getIconForLevel(node.level)}</span>
+                    <span class="nav-title">{node.title}</span>
+                    <span class="nav-arrow">›</span>
+                  </a>
+                  {hasChildren && (
+                    <button
+                      class="expand-toggle"
+                      data-target={node.id}
+                      aria-expanded="true"
+                      aria-label={`展開/收合 ${node.title}`}
+                    >
+                      <span class="expand-chevron">▼</span>
+                    </button>
+                  )}
+                </div>
+                {hasChildren && (
+                  <div class="children-container" id={node.id}>
+                    {node.children.map((child) => {
+                      const childSlug = Array.isArray(child.slug)
+                        ? child.slug.join('/')
+                        : child.slug;
+                      const childIndent = 1.5 + child.level * 1.5;
+                      const childHasChildren =
+                        child.children && child.children.length > 0;
+
+                      return (
+                        <div class="tree-node" data-level={child.level}>
+                          <div class="node-row">
+                            <a
+                              href={`/${childSlug}`}
+                              class="nav-item"
+                              data-level={child.level}
+                              style={`padding-left: ${childIndent}rem;`}
                             >
-                              <span class="expand-chevron">▼</span>
-                            </button>
+                              <span class="nav-icon">
+                                {getIconForLevel(child.level)}
+                              </span>
+                              <span class="nav-title">{child.title}</span>
+                              <span class="nav-arrow">›</span>
+                            </a>
+                            {childHasChildren && (
+                              <button
+                                class="expand-toggle"
+                                data-target={child.id}
+                                aria-expanded="true"
+                                aria-label={`展開/收合 ${child.title}`}
+                              >
+                                <span class="expand-chevron">▼</span>
+                              </button>
+                            )}
+                          </div>
+                          {childHasChildren && (
+                            <div class="children-container" id={child.id}>
+                              {child.children.map((grandchild) => {
+                                const grandchildSlug = Array.isArray(
+                                  grandchild.slug
+                                )
+                                  ? grandchild.slug.join('/')
+                                  : grandchild.slug;
+                                const grandchildIndent =
+                                  1.5 + grandchild.level * 1.5;
+
+                                return (
+                                  <a
+                                    href={`/${grandchildSlug}`}
+                                    class="nav-item"
+                                    data-level={grandchild.level}
+                                    style={`padding-left: ${grandchildIndent}rem;`}
+                                  >
+                                    <span class="nav-icon">
+                                      {getIconForLevel(grandchild.level)}
+                                    </span>
+                                    <span class="nav-title">
+                                      {grandchild.title}
+                                    </span>
+                                    <span class="nav-arrow">›</span>
+                                  </a>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
-                        {childHasChildren && (
-                          <div class="children-container" id={child.id}>
-                            {child.children.map((grandchild) => {
-                              const grandchildSlug = Array.isArray(grandchild.slug) ? grandchild.slug.join('/') : grandchild.slug;
-                              const grandchildIndent = 1.5 + grandchild.level * 1.5;
-                              
-                              return (
-                                <a
-                                  href={`/${grandchildSlug}`}
-                                  class="nav-item"
-                                  data-level={grandchild.level}
-                                  style={`padding-left: ${grandchildIndent}rem;`}
-                                >
-                                  <span class="nav-icon">{getIconForLevel(grandchild.level)}</span>
-                                  <span class="nav-title">{grandchild.title}</span>
-                                  <span class="nav-arrow">›</span>
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  ) : (
-    <div class="construction-box">
-      <div class="construction-particles">
-        <div class="construction-particle"></div>
-        <div class="construction-particle"></div>
-        <div class="construction-particle"></div>
-      </div>
-      
-      <div class="construction-content">
-        <div class="working-image-wrapper">
-          <img src={workingImage} alt="UEP Working" class="working-image" />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        
-        <div class="construction-text">
-          <h2 class="construction-title">內容建設中</h2>
-          <p class="construction-desc">U.E.P 正在整理這個區域的內容，請稍候！</p>
-          
-          <div class="loading-bar">
-            <div class="loading-progress"></div>
+      </div>
+    ) : (
+      <div class="construction-box">
+        <div class="construction-particles">
+          <div class="construction-particle" />
+          <div class="construction-particle" />
+          <div class="construction-particle" />
+        </div>
+
+        <div class="construction-content">
+          <div class="working-image-wrapper">
+            <img src={workingImage} alt="UEP Working" class="working-image" />
           </div>
-          
-          <p class="construction-hint">敬請期待 ✨</p>
+
+          <div class="construction-text">
+            <h2 class="construction-title">內容建設中</h2>
+            <p class="construction-desc">
+              U.E.P 正在整理這個區域的內容，請稍候！
+            </p>
+
+            <div class="loading-bar">
+              <div class="loading-progress" />
+            </div>
+
+            <p class="construction-hint">敬請期待 ✨</p>
+          </div>
         </div>
       </div>
-    </div>
-  )}
+    )
+  }
 </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const toggleButtons = document.querySelectorAll('.expand-toggle');
-    
-    toggleButtons.forEach(button => {
+
+    toggleButtons.forEach((button) => {
       button.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const targetId = button.getAttribute('data-target');
         const container = document.getElementById(targetId!);
         const chevron = button.querySelector('.expand-chevron');
         const isExpanded = button.getAttribute('aria-expanded') === 'true';
-        
+
         if (container && chevron) {
           if (isExpanded) {
             // 收合
@@ -249,6 +277,62 @@ function renderTreeNode(node: TreeNode): any {
       });
     });
   });
+</script>
+
+{/* 遞迴渲染節點的函數（Astro 片段） */}
+{tree.map(() => null)}
+<script is:inline define:vars={{ tree, getIconForLevel }}>
+  // 遞迴渲染節點函數
+  function renderNode(node, level = 0) {
+    const hasChildren = node.children && node.children.length > 0;
+    const slug = Array.isArray(node.slug) ? node.slug.join('/') : node.slug;
+    const indent = 1.5 + level * 1.5;
+    const icon = ['📚', '📖', '📝', '📋'][Math.min(level, 3)];
+
+    let html = `<div class="tree-node" data-level="${level}">`;
+
+    // 導航項目容器
+    html += `<div class="node-row">`;
+    html += `<a href="/${slug}" class="nav-item" data-level="${level}" style="padding-left: ${indent}rem;">`;
+    html += `<span class="nav-icon">${icon}</span>`;
+    html += `<div class="nav-content">`;
+    html += `<span class="nav-title">${node.title}</span>`;
+    html += `<span class="nav-path">/${slug}</span>`;
+    html += `</div>`;
+    html += `</a>`;
+
+    // 如果有子項，顯示展開/收合箭頭
+    if (hasChildren) {
+      html += `<button class="expand-toggle" data-target="${node.id}" aria-expanded="true" aria-label="展開/收合">`;
+      html += `<span class="expand-chevron">▼</span>`;
+      html += `</button>`;
+    }
+
+    html += `</div>`; // node-row
+
+    // 子項容器
+    if (hasChildren) {
+      html += `<div class="children-container" id="${node.id}">`;
+      node.children.forEach((child) => {
+        html += renderNode(child, level + 1);
+      });
+      html += `</div>`;
+    }
+
+    html += `</div>`; // tree-node
+
+    return html;
+  }
+
+  // 將渲染結果插入 DOM
+  if (typeof window !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.querySelector('.navigation-tree');
+      if (container && tree) {
+        container.innerHTML = tree.map((node) => renderNode(node, 0)).join('');
+      }
+    });
+  }
 </script>
 
 <style define:vars={{ themeColor }}>
@@ -285,62 +369,6 @@ function renderTreeNode(node: TreeNode): any {
     font-weight: 500;
   }
 
-{/* 遞迴渲染節點的函數（Astro 片段） */}
-{tree.map(() => null)}
-<script is:inline define:vars={{ tree, getIconForLevel }}>
-  // 遞迴渲染節點函數
-  function renderNode(node, level = 0) {
-    const hasChildren = node.children && node.children.length > 0;
-    const slug = Array.isArray(node.slug) ? node.slug.join('/') : node.slug;
-    const indent = 1.5 + level * 1.5;
-    const icon = ['📚', '📖', '📝', '📋'][Math.min(level, 3)];
-    
-    let html = `<div class="tree-node" data-level="${level}">`;
-    
-    // 導航項目容器
-    html += `<div class="node-row">`;
-    html += `<a href="/${slug}" class="nav-item" data-level="${level}" style="padding-left: ${indent}rem;">`;
-    html += `<span class="nav-icon">${icon}</span>`;
-    html += `<div class="nav-content">`;
-    html += `<span class="nav-title">${node.title}</span>`;
-    html += `<span class="nav-path">/${slug}</span>`;
-    html += `</div>`;
-    html += `</a>`;
-    
-    // 如果有子項，顯示展開/收合箭頭
-    if (hasChildren) {
-      html += `<button class="expand-toggle" data-target="${node.id}" aria-expanded="true" aria-label="展開/收合">`;
-      html += `<span class="expand-chevron">▼</span>`;
-      html += `</button>`;
-    }
-    
-    html += `</div>`; // node-row
-    
-    // 子項容器
-    if (hasChildren) {
-      html += `<div class="children-container" id="${node.id}">`;
-      node.children.forEach(child => {
-        html += renderNode(child, level + 1);
-      });
-      html += `</div>`;
-    }
-    
-    html += `</div>`; // tree-node
-    
-    return html;
-  }
-  
-  // 將渲染結果插入 DOM
-  if (typeof window !== 'undefined') {
-    document.addEventListener('DOMContentLoaded', () => {
-      const container = document.querySelector('.navigation-tree');
-      if (container && tree) {
-        container.innerHTML = tree.map(node => renderNode(node, 0)).join('');
-      }
-    });
-  }
-</script>
-
   .back-link:hover {
     background: rgba(213, 182, 24, 0.2);
     transform: translateX(-8px);
@@ -369,7 +397,8 @@ function renderTreeNode(node: TreeNode): any {
   }
 
   @keyframes float {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0);
     }
     50% {
@@ -387,7 +416,8 @@ function renderTreeNode(node: TreeNode): any {
   }
 
   @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 0.3;
       transform: scale(1);
     }
@@ -449,9 +479,7 @@ function renderTreeNode(node: TreeNode): any {
     font-size: 0.85rem;
   }
 
-  .expand-toggle[aria-expanded="false"] .expand-
-
-  .navigation-tree {
+  .expand-toggle[aria-expanded='false'] .expand- .navigation-tree {
     max-width: 1200px;
     margin: 0 auto;
     background: rgba(26, 26, 46, 0.4);
@@ -509,7 +537,7 @@ function renderTreeNode(node: TreeNode): any {
     font-size: 0.9rem;
   }
 
-  .expand-toggle[aria-expanded="false"] .expand-chevron {
+  .expand-toggle[aria-expanded='false'] .expand-chevron {
     transform: rotate(-90deg);
   }
 
@@ -521,7 +549,7 @@ function renderTreeNode(node: TreeNode): any {
     padding-top: 0.25rem;
   }
 
-  .children-container[style*="max-height: 0"] {
+  .children-container[style*='max-height: 0'] {
     opacity: 0;
   }
 
@@ -562,24 +590,28 @@ function renderTreeNode(node: TreeNode): any {
   }
 
   /* Level Colors */
-  .nav-item[data-level="0"] {
+  .nav-item[data-level='0'] {
     border-left-color: var(--gold);
     font-weight: 600;
     padding-top: 0.85rem;
     padding-bottom: 0.85rem;
-    background: linear-gradient(90deg, rgba(213, 182, 24, 0.05), rgba(255, 255, 255, 0.02));
+    background: linear-gradient(
+      90deg,
+      rgba(213, 182, 24, 0.05),
+      rgba(255, 255, 255, 0.02)
+    );
   }
 
-  .nav-item[data-level="1"] {
+  .nav-item[data-level='1'] {
     border-left-color: rgba(168, 85, 247, 0.4);
   }
 
-  .nav-item[data-level="2"] {
+  .nav-item[data-level='2'] {
     border-left-color: rgba(6, 182, 212, 0.4);
   }
 
-  .nav-item[data-level="3"],
-  .nav-item[data-level="4"] {
+  .nav-item[data-level='3'],
+  .nav-item[data-level='4'] {
     border-left-color: rgba(236, 72, 153, 0.4);
   }
 
@@ -603,7 +635,7 @@ function renderTreeNode(node: TreeNode): any {
     transform: scale(1.2) rotate(8deg);
   }
 
-  .nav-item[data-level="0"] .nav-icon {
+  .nav-item[data-level='0'] .nav-icon {
     font-size: 1.6rem;
   }
 
@@ -616,7 +648,7 @@ function renderTreeNode(node: TreeNode): any {
     flex: 1;
   }
 
-  .nav-item[data-level="0"] .nav-title {
+  .nav-item[data-level='0'] .nav-title {
     font-size: 1.1rem;
     font-weight: 600;
   }
@@ -649,7 +681,7 @@ function renderTreeNode(node: TreeNode): any {
   }
 
   /* Level 0 Separator */
-  .tree-node[data-level="0"]:not(:first-child) {
+  .tree-node[data-level='0']:not(:first-child) {
     margin-top: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -667,7 +699,7 @@ function renderTreeNode(node: TreeNode): any {
     transform: scale(1.15) rotate(5deg);
   }
 
-  .nav-item[data-level="0"] .nav-icon {
+  .nav-item[data-level='0'] .nav-icon {
     font-size: 1.55rem;
   }
 
@@ -688,7 +720,7 @@ function renderTreeNode(node: TreeNode): any {
     line-height: 1.4;
   }
 
-  .nav-item[data-level="0"] .nav-title {
+  .nav-item[data-level='0'] .nav-title {
     font-size: 1.05rem;
   }
 
@@ -734,7 +766,7 @@ function renderTreeNode(node: TreeNode): any {
 
   /* 有展開按鈕時，不顯示導航箭頭 */
   .node-row:has(.expand-toggle) .nav-arrow {
-    display: none
+    display: none;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
   }
 
@@ -747,7 +779,7 @@ function renderTreeNode(node: TreeNode): any {
     padding: 3rem;
     position: relative;
     overflow: hidden;
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.4),
       0 0 60px rgba(var(--themeColor), 0.2);
   }
@@ -817,7 +849,8 @@ function renderTreeNode(node: TreeNode): any {
   }
 
   @keyframes bobbing {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0) rotate(-3deg);
     }
     50% {
@@ -932,7 +965,7 @@ function renderTreeNode(node: TreeNode): any {
       font-size: 1.2rem;
     }
 
-    .nav-item[data-level="0"] .nav-icon {
+    .nav-item[data-level='0'] .nav-icon {
       font-size: 1.4rem;
     }
 
@@ -940,7 +973,7 @@ function renderTreeNode(node: TreeNode): any {
       font-size: 0.9rem;
     }
 
-    .nav-item[data-level="0"] .nav-title {
+    .nav-item[data-level='0'] .nav-title {
       font-size: 1rem;
     }
 

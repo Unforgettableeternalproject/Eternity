@@ -5,7 +5,12 @@
   height: 100vh;
   background: #0a0a0f;
   color: #f8f8ff;
-  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'Microsoft JhengHei',
+    sans-serif;
 }
 
 /* === Top Bar === */
@@ -44,7 +49,10 @@
   text-decoration: none;
   transition: all 0.15s;
 }
-.re-back-btn:hover { background: rgba(255,255,255,0.08); color: #d5b618; }
+.re-back-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d5b618;
+}
 
 .re-title-input {
   flex: 1;
@@ -59,8 +67,12 @@
   outline: none;
   transition: border-color 0.15s;
 }
-.re-title-input:focus { border-color: rgba(213,182,24,0.3); }
-.re-title-input::placeholder { color: rgba(213,182,24,0.3); }
+.re-title-input:focus {
+  border-color: rgba(213, 182, 24, 0.3);
+}
+.re-title-input::placeholder {
+  color: rgba(213, 182, 24, 0.3);
+}
 
 /* Status badges */
 .re-status {
@@ -70,23 +82,32 @@
   font-weight: 600;
   margin-left: 0.25rem;
 }
-.re-status-synced { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-.re-status-modified { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-.re-status-local_only { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.re-status-synced {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+.re-status-modified {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+.re-status-local_only {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
 
 .re-shortcut-hint {
   font-size: 0.7rem;
-  color: rgba(255,255,255,0.25);
+  color: rgba(255, 255, 255, 0.25);
   margin-right: 0.5rem;
   font-family: monospace;
 }
 
 .re-save-btn {
   padding: 0.3rem 1rem;
-  background: rgba(213,182,24,0.15);
-  border: 1px solid rgba(213,182,24,0.25);
+  background: rgba(213, 182, 24, 0.15);
+  border: 1px solid rgba(213, 182, 24, 0.25);
   border-radius: 6px;
-  color: rgba(213,182,24,0.5);
+  color: rgba(213, 182, 24, 0.5);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: not-allowed;
@@ -98,8 +119,13 @@
   color: #000;
   cursor: pointer;
 }
-.re-save-btn.active:hover { background: #e8c547; }
-.re-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.re-save-btn.active:hover {
+  background: #e8c547;
+}
+.re-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* === Toolbar === */
 .re-toolbar {
@@ -108,7 +134,7 @@
   gap: 2px;
   padding: 0.35rem 1rem;
   background: rgba(12, 12, 20, 0.95);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
   flex-wrap: wrap;
   z-index: 40;
@@ -123,7 +149,7 @@
 .tb-sep {
   width: 1px;
   height: 20px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   margin: 0 6px;
 }
 
@@ -144,27 +170,40 @@
   gap: 3px;
   white-space: nowrap;
 }
-.tb-btn:hover { background: rgba(255,255,255,0.08); color: #f8f8ff; }
-.tb-btn.is-active { background: rgba(213,182,24,0.15); color: #d5b618; }
+.tb-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8f8ff;
+}
+.tb-btn.is-active {
+  background: rgba(213, 182, 24, 0.15);
+  color: #d5b618;
+}
 
-.tb-caret { font-size: 0.6rem; opacity: 0.5; }
+.tb-caret {
+  font-size: 0.6rem;
+  opacity: 0.5;
+}
 
-.tb-dropdown-wrap { position: relative; }
+.tb-dropdown-wrap {
+  position: relative;
+}
 
 .tb-dropdown {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   background: rgba(20, 20, 32, 0.98);
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
   padding: 4px;
   min-width: 100px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   z-index: 100;
 }
 
-.tb-dropdown-trigger { min-width: 48px; }
+.tb-dropdown-trigger {
+  min-width: 48px;
+}
 
 .tb-dropdown-item {
   display: block;
@@ -179,7 +218,10 @@
   border-radius: 3px;
   transition: background 0.1s;
 }
-.tb-dropdown-item:hover { background: rgba(255,255,255,0.08); color: #f8f8ff; }
+.tb-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8f8ff;
+}
 
 /* 顏色面板 */
 .tb-color-grid {
@@ -194,11 +236,14 @@
   width: 22px;
   height: 22px;
   border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
   transition: all 0.1s;
 }
-.tb-color-swatch:hover { transform: scale(1.15); border-color: rgba(255,255,255,0.4); }
+.tb-color-swatch:hover {
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
 
 .tb-color-preview {
   border-bottom: 3px solid;
@@ -216,23 +261,27 @@
 /* === Page Settings === */
 .re-page-settings {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(12, 12, 20, 0.95);
 }
 
 .re-settings-toggle {
   padding: 0.35rem 1rem;
   font-size: 0.75rem;
-  color: rgba(255,255,255,0.35);
+  color: rgba(255, 255, 255, 0.35);
   cursor: pointer;
   user-select: none;
   list-style: none;
 }
 
-.re-settings-toggle:hover { color: rgba(255,255,255,0.6); }
+.re-settings-toggle:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
 
 .re-settings-toggle::marker,
-.re-settings-toggle::-webkit-details-marker { display: none; }
+.re-settings-toggle::-webkit-details-marker {
+  display: none;
+}
 
 .re-settings-toggle::before {
   content: '▸ ';
@@ -261,22 +310,31 @@ details[open] > .re-settings-toggle::before {
 .re-setting select,
 .re-setting input {
   padding: 0.2rem 0.5rem;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   color: #f8f8ff;
   font-size: 0.78rem;
   outline: none;
 }
 
-.re-setting select { min-width: 120px; }
-.re-setting input[type="text"] { min-width: 250px; }
-.re-setting input[type="number"] { width: 60px; text-align: center; }
+.re-setting select {
+  min-width: 120px;
+}
+.re-setting input[type='text'] {
+  min-width: 250px;
+}
+.re-setting input[type='number'] {
+  width: 60px;
+  text-align: center;
+}
 
 .re-setting select:focus,
-.re-setting input:focus { border-color: #d5b618; }
+.re-setting input:focus {
+  border-color: #d5b618;
+}
 
-.re-setting input[type="checkbox"] {
+.re-setting input[type='checkbox'] {
   width: 16px;
   height: 16px;
   accent-color: #d5b618;
@@ -286,7 +344,7 @@ details[open] > .re-settings-toggle::before {
 .re-settings-sep {
   width: 1px;
   height: 24px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   margin: 0 0.25rem;
 }
 
@@ -418,7 +476,12 @@ details[open] > .re-settings-toggle::before {
 .tiptap-content hr {
   border: none;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(213, 182, 24, 0.35), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(213, 182, 24, 0.35),
+    transparent
+  );
   margin: 1.5em 0;
 }
 
@@ -430,10 +493,19 @@ details[open] > .re-settings-toggle::before {
 }
 
 /* Bold / Italic / Underline */
-.tiptap-content strong { font-weight: 700; }
-.tiptap-content em { font-style: italic; }
-.tiptap-content u { text-decoration: underline; }
-.tiptap-content s { text-decoration: line-through; color: rgba(255,255,255,0.5); }
+.tiptap-content strong {
+  font-weight: 700;
+}
+.tiptap-content em {
+  font-style: italic;
+}
+.tiptap-content u {
+  text-decoration: underline;
+}
+.tiptap-content s {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.5);
+}
 
 /* Highlight */
 .tiptap-content mark {

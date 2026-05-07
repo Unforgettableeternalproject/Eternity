@@ -12,18 +12,18 @@ function toPosixPath(value: string) {
 
 export async function getStaticPaths() {
   const contentDir = `${process.cwd()}/content`;
-  
+
   try {
     const navigation = loadSummary(contentDir);
     const routes = extractRoutes(navigation);
-    
-    return routes.map(route => ({
+
+    return routes.map((route) => ({
       params: { slug: route.slug.join('/') },
       props: {
         filePath: route.filePath,
         title: route.title,
-        areaId: route.slug[0] // 第一段路徑是區域 ID (history, echos, etc.)
-      }
+        areaId: route.slug[0], // 第一段路徑是區域 ID (history, echos, etc.)
+      },
     }));
   } catch (error) {
     console.error('無法載入 SUMMARY.md:', error);
@@ -31,7 +31,7 @@ export async function getStaticPaths() {
   }
 }
 
-const { filePath, title, areaId } = Astro.props;
+const { filePath, title } = Astro.props;
 
 let articleData: any = null;
 let error: Error | null = null;
@@ -41,24 +41,22 @@ try {
   // 取得相對於 content 目錄的路徑
   const contentRoot = `${toPosixPath(process.cwd())}/content/`;
   const relativePath = toPosixPath(filePath).replace(contentRoot, '');
-  
+
   // 使用覆蓋層渲染系統
   articleData = await renderArticleWithOverlay(relativePath);
-  
+
   // 使用 metadata 中的 description 作為標題
   if (articleData.content.description) {
     pageTitle = articleData.content.description;
   } else if (articleData.content.title) {
     pageTitle = articleData.content.title;
   }
-  
 } catch (e) {
   error = e instanceof Error ? e : new Error(String(e));
   console.error('無法讀取或渲染檔案:', filePath, e);
 }
 
 // 生成區域樣式類名
-const areaStyleClass = areaId ? `area-${areaId}` : '';
 ---
 
 <BaseLayout title={title}>
@@ -73,41 +71,53 @@ const areaStyleClass = areaId ? `area-${areaId}` : '';
     </aside>
 
     <main class="content">
-      {error ? (
-        <div class="error-message">
-          <h1>❌ 無法載入內容</h1>
-          <p>檔案路徑: <code>{filePath}</code></p>
-          <p>錯誤: {error.message}</p>
-        </div>
-      ) : articleData ? (
-        <article class="markdown-content">
-          <!-- 文章標頭 -->
-          <header class="article-header">
-            <h1 class="page-title">{pageTitle}</h1>
-            {articleData.content.description && pageTitle !== articleData.content.description && (
-              <p class="article-subtitle">{articleData.content.description}</p>
-            )}
-            
-            {articleData.overlayConfig && articleData.overlayConfig.rules && articleData.overlayConfig.rules.length > 0 && (
-              <div class="overlay-badge">
-                <span class="badge-icon">✨</span>
-                <span>已啟用覆蓋層增強</span>
-              </div>
-            )}
-          </header>
-
-          <!-- 文章內容 -->
-          <div class="article-body">
-            {articleData.blocksWithOverlay && articleData.blocksWithOverlay.map((block: any, index: number) => (
-              <OverlayBlock block={block} index={index} />
-            ))}
+      {
+        error ? (
+          <div class="error-message">
+            <h1>❌ 無法載入內容</h1>
+            <p>
+              檔案路徑: <code>{filePath}</code>
+            </p>
+            <p>錯誤: {error.message}</p>
           </div>
-        </article>
-      ) : (
-        <div class="loading-message">
-          <p>載入中...</p>
-        </div>
-      )}
+        ) : articleData ? (
+          <article class="markdown-content">
+            {/* 文章標頭 */}
+            <header class="article-header">
+              <h1 class="page-title">{pageTitle}</h1>
+              {articleData.content.description &&
+                pageTitle !== articleData.content.description && (
+                  <p class="article-subtitle">
+                    {articleData.content.description}
+                  </p>
+                )}
+
+              {articleData.overlayConfig &&
+                articleData.overlayConfig.rules &&
+                articleData.overlayConfig.rules.length > 0 && (
+                  <div class="overlay-badge">
+                    <span class="badge-icon">✨</span>
+                    <span>已啟用覆蓋層增強</span>
+                  </div>
+                )}
+            </header>
+
+            {/* 文章內容 */}
+            <div class="article-body">
+              {articleData.blocksWithOverlay &&
+                articleData.blocksWithOverlay.map(
+                  (block: any, index: number) => (
+                    <OverlayBlock block={block} index={index} />
+                  )
+                )}
+            </div>
+          </article>
+        ) : (
+          <div class="loading-message">
+            <p>載入中...</p>
+          </div>
+        )
+      }
     </main>
   </div>
 </BaseLayout>
@@ -129,7 +139,11 @@ const areaStyleClass = areaId ? `area-${areaId}` : '';
     height: fit-content;
     max-height: calc(100vh - 4rem);
     overflow-y: auto;
-    background: linear-gradient(135deg, rgba(26, 26, 46, 0.7), rgba(10, 10, 15, 0.7));
+    background: linear-gradient(
+      135deg,
+      rgba(26, 26, 46, 0.7),
+      rgba(10, 10, 15, 0.7)
+    );
     border: 1px solid rgba(213, 182, 24, 0.2);
     border-radius: 12px;
     padding: 1.5rem;
@@ -159,7 +173,11 @@ const areaStyleClass = areaId ? `area-${areaId}` : '';
   }
 
   .content {
-    background: linear-gradient(135deg, rgba(26, 26, 46, 0.5), rgba(10, 10, 15, 0.5));
+    background: linear-gradient(
+      135deg,
+      rgba(26, 26, 46, 0.5),
+      rgba(10, 10, 15, 0.5)
+    );
     border: 1px solid rgba(213, 182, 24, 0.15);
     border-radius: 12px;
     padding: 3rem;

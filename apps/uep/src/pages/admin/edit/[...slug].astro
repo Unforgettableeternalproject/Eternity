@@ -10,7 +10,8 @@ const parts = slug.split('/');
 const area = parts[0];
 const pageSlug = parts.slice(1).join('/');
 
-const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 let page: any = null;
 let fetchError: string | null = null;
@@ -37,65 +38,75 @@ function blocksToHtml(blocks: any[]): string {
   }
 
   // 舊格式：逐塊轉換
-  return blocks.map((block: any) => {
-    switch (block.type) {
-      case 'heading': {
-        const level = block.attrs?.level || 2;
-        return `<h${level}>${block.content}</h${level}>`;
+  return blocks
+    .map((block: any) => {
+      switch (block.type) {
+        case 'heading': {
+          const level = block.attrs?.level || 2;
+          return `<h${level}>${block.content}</h${level}>`;
+        }
+        case 'blockquote':
+          return `<blockquote><p>${block.content}</p></blockquote>`;
+        case 'divider':
+          return '<hr>';
+        case 'code':
+          return `<pre><code>${block.content}</code></pre>`;
+        case 'image':
+          return `<img src="${block.content}" alt="${block.attrs?.alt || ''}" />`;
+        default:
+          return `<p>${block.content}</p>`;
       }
-      case 'blockquote':
-        return `<blockquote><p>${block.content}</p></blockquote>`;
-      case 'divider':
-        return '<hr>';
-      case 'code':
-        return `<pre><code>${block.content}</code></pre>`;
-      case 'image':
-        return `<img src="${block.content}" alt="${block.attrs?.alt || ''}" />`;
-      default:
-        return `<p>${block.content}</p>`;
-    }
-  }).join('');
+    })
+    .join('');
 }
 
 const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
 ---
 
 <html lang="zh-TW">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width" />
-  <link rel="icon" type="image/x-icon" href="/Logo.ico" />
-  <title>編輯 - {page?.title || slug}</title>
-</head>
-<body>
-  {fetchError ? (
-    <div class="error-page">
-      <div class="error-box">
-        <h2>無法載入頁面</h2>
-        <p>{fetchError}</p>
-        <a href="/admin">返回列表</a>
-      </div>
-    </div>
-  ) : page ? (
-    <RichEditor
-      client:only="react"
-      initialContent={initialHtml}
-      initialTitle={page.title}
-      apiBase={apiBase}
-      area={area}
-      pageSlug={pageSlug}
-      pageStatus={page.status}
-      initialParentId={page.parentId}
-      initialPageType={page.pageType}
-      initialDepth={page.depth}
-      initialMetadata={page.metadata}
-    />
-  ) : null}
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/x-icon" href="/Logo.ico" />
+    <title>編輯 - {page?.title || slug}</title>
+  </head>
+  <body>
+    {
+      fetchError ? (
+        <div class="error-page">
+          <div class="error-box">
+            <h2>無法載入頁面</h2>
+            <p>{fetchError}</p>
+            <a href="/admin">返回列表</a>
+          </div>
+        </div>
+      ) : page ? (
+        <RichEditor
+          client:only="react"
+          initialContent={initialHtml}
+          initialTitle={page.title}
+          apiBase={apiBase}
+          area={area}
+          pageSlug={pageSlug}
+          pageStatus={page.status}
+          initialParentId={page.parentId}
+          initialPageType={page.pageType}
+          initialDepth={page.depth}
+          initialMetadata={page.metadata}
+        />
+      ) : null
+    }
+  </body>
 </html>
 
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+  }
 
   .error-page {
     height: 100vh;
@@ -104,7 +115,10 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
     justify-content: center;
     background: #0a0a0f;
     color: #f8f8ff;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
 
   .error-box {
@@ -115,7 +129,17 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
     border-radius: 12px;
   }
 
-  .error-box h2 { color: #f87171; margin-bottom: 0.5rem; }
-  .error-box p { color: #c0c0d8; margin-bottom: 1rem; }
-  .error-box a { color: #d5b618; text-decoration: none; border-bottom: 1px solid #d5b618; }
+  .error-box h2 {
+    color: #f87171;
+    margin-bottom: 0.5rem;
+  }
+  .error-box p {
+    color: #c0c0d8;
+    margin-bottom: 1rem;
+  }
+  .error-box a {
+    color: #d5b618;
+    text-decoration: none;
+    border-bottom: 1px solid #d5b618;
+  }
 </style>
