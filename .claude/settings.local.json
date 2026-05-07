@@ -44,7 +44,13 @@
       "Bash(git reset:*)",
       "Bash(git submodule:*)",
       "Bash(git add:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "WebFetch(domain:eternity-content-api.ptyc4076.workers.dev)",
+      "Bash(git -C .git/modules/apps/uep/content log --oneline -5)",
+      "Bash(node:*)",
+      "Bash(xargs grep:*)",
+      "mcp__fff__grep",
+      "mcp__fff__find_files"
     ]
   }
 }
