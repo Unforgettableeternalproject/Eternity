@@ -161,7 +161,7 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
             )}
             <div class="adm-zone-spacer"></div>
             <div class="adm-zone-actions">
-              <a href={historyRecent[0] ? `/admin/edit/${historyRecent[0].id}` : '#'} class="adm-zone-btn-primary" style="background: #8A4423;">
+              <a href="/admin/edit/history" class="adm-zone-btn-primary" style="background: #8A4423;">
                 <span>進入編輯器</span><span>→</span>
               </a>
             </div>
@@ -203,7 +203,7 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
             )}
             <div class="adm-zone-spacer"></div>
             <div class="adm-zone-actions">
-              <a href={echoesRecent[0] ? `/admin/edit/${echoesRecent[0].id}` : '#'} class="adm-zone-btn-primary" style="background: #6B4F8E;">
+              <a href="/admin/edit/echos" class="adm-zone-btn-primary" style="background: #6B4F8E;">
                 <span>進入編輯器</span><span>→</span>
               </a>
             </div>
@@ -643,6 +643,55 @@ const dateStr = `${now.getMonth()+1}/${now.getDate()}`;
     color: var(--ink-mute);
     margin-top: 2px;
   }
+
+  /* === 入場動畫 === */
+  @keyframes adm-enter {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .adm-header {
+    animation: adm-enter 0.5s ease both;
+  }
+
+  .adm-greeting-time,
+  .adm-greeting-title,
+  .adm-greeting-desc {
+    animation: adm-enter 0.55s ease both;
+  }
+  .adm-greeting-time  { animation-delay: 0.08s; }
+  .adm-greeting-title { animation-delay: 0.16s; }
+  .adm-greeting-desc  { animation-delay: 0.24s; }
+
+  .adm-stats-strip {
+    animation: adm-enter 0.5s ease both;
+    animation-delay: 0.32s;
+  }
+
+  .adm-zone-card {
+    animation: adm-enter 0.5s ease both;
+  }
+  .adm-zone-card:nth-child(1) { animation-delay: 0.40s; }
+  .adm-zone-card:nth-child(2) { animation-delay: 0.50s; }
+
+  .adm-section-title {
+    animation: adm-enter 0.5s ease both;
+    animation-delay: 0.56s;
+  }
+
+  .adm-tool-card {
+    animation: adm-enter 0.45s ease both;
+  }
+  .adm-tool-card:nth-child(1) { animation-delay: 0.60s; }
+  .adm-tool-card:nth-child(2) { animation-delay: 0.66s; }
+  .adm-tool-card:nth-child(3) { animation-delay: 0.72s; }
+  .adm-tool-card:nth-child(4) { animation-delay: 0.78s; }
 
   /* === Responsive === */
   @media (max-width: 1024px) {

@@ -70,6 +70,17 @@ export default function EditorPageTree({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [contextNode, setContextNode] = useState<string | null>(null);
 
+  // Inline 新增表單狀態
+  const [creating, setCreating] = useState<{
+    parentId: string | null;
+    parentDepth: number;
+    insertIndex: number;
+  } | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const createInputRef = useRef<HTMLInputElement>(null);
+
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; pos: DropPosition } | null>(null);
@@ -195,18 +206,41 @@ export default function EditorPageTree({
 
   // --- CRUD ---
 
-  const handleCreate = async (parentId: string | null, parentDepth: number) => {
-    const title = window.prompt('New page title:');
-    if (!title) return;
+  // 開始 inline 建立 — 顯示輸入欄位
+  const startCreate = (parentId: string | null, parentDepth: number, insertIndex: number) => {
+    setCreating({ parentId, parentDepth, insertIndex });
+    setNewTitle('');
+    setCreateError(null);
+    // 如果是子頁面，確保父節點展開
+    if (parentId) {
+      setCollapsed((prev) => {
+        const next = new Set(prev);
+        next.delete(parentId);
+        return next;
+      });
+    }
+    setTimeout(() => createInputRef.current?.focus(), 30);
+  };
 
+  // 確認送出建立
+  const submitCreate = async () => {
+    if (!creating || !newTitle.trim()) {
+      cancelCreate();
+      return;
+    }
+
+    const title = newTitle.trim();
     const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
       .replace(/^-|-$/g, '')
       || `page-${Date.now()}`;
 
-    const parentPath = parentId || area;
+    const parentPath = creating.parentId || area;
     const pageSlug = `${parentPath}/${slug}`.replace(`${area}/`, '');
+
+    setCreateLoading(true);
+    setCreateError(null);
 
     try {
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -215,9 +249,10 @@ export default function EditorPageTree({
         body: JSON.stringify({
           title,
           content: [{ id: 'content', type: 'rich_text', content: '<p></p>' }],
-          parentId: parentId || null,
-          depth: parentDepth + 1,
+          parentId: creating.parentId || null,
+          depth: creating.parentDepth + 1,
           pageType: 'section',
+          sortOrder: creating.insertIndex,
           metadata: {},
         }),
       });
@@ -225,11 +260,20 @@ export default function EditorPageTree({
       if (json.ok) {
         window.location.href = `/admin/edit/${area}/${pageSlug}`;
       } else {
-        alert(`Failed: ${json.error}`);
+        setCreateError(json.error || '建立失敗');
+        setCreateLoading(false);
       }
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      setCreateError(e.message || '網路錯誤');
+      setCreateLoading(false);
     }
+  };
+
+  // 取消建立
+  const cancelCreate = () => {
+    setCreating(null);
+    setNewTitle('');
+    setCreateError(null);
   };
 
   const handleDelete = async (node: PageTreeNode) => {
@@ -257,6 +301,91 @@ export default function EditorPageTree({
     } catch (e: any) {
       alert(`Error: ${e.message}`);
     }
+  };
+
+  // --- Inline 建立輸入列 ---
+
+  const renderCreateRow = (depth: number) => (
+    <div
+      className="ned-tree-item ned-tree-create-row"
+      style={{ paddingLeft: `${18 + depth * 14}px` }}
+    >
+      <span className="ned-tree-type" style={{ color: accent }}>+</span>
+      <input
+        ref={createInputRef}
+        className="ned-tree-create-input"
+        type="text"
+        value={newTitle}
+        onChange={(e) => { setNewTitle(e.target.value); setCreateError(null); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submitCreate(); }
+          if (e.key === 'Escape') cancelCreate();
+        }}
+        onBlur={() => {
+          // 延遲一下，避免跟 loading 狀態衝突
+          if (!createLoading) setTimeout(() => cancelCreate(), 120);
+        }}
+        placeholder="輸入頁面標題…"
+        disabled={createLoading}
+        autoFocus
+      />
+      {createLoading && (
+        <span className="ned-tree-create-spinner">…</span>
+      )}
+      {createError && (
+        <span className="ned-tree-create-error" title={createError}>!</span>
+      )}
+    </div>
+  );
+
+  // --- Insert zone（GitBook 風格：hover 在項目間顯示 + 按鈕）---
+
+  const renderInsertZone = (
+    parentId: string | null,
+    parentDepth: number,
+    index: number,
+    depth: number,
+  ) => (
+    <div
+      key={`zone-${parentId ?? 'root'}-${index}`}
+      className="ned-tree-insert-zone"
+      onClick={() => startCreate(parentId, parentDepth, index)}
+    >
+      <div className="ned-tree-insert-line" style={{ paddingLeft: `${14 + depth * 14}px` }}>
+        <span className="ned-tree-insert-plus">+</span>
+        <span className="ned-tree-insert-rule" />
+      </div>
+    </div>
+  );
+
+  // 將節點列表與 insert zones 交錯排列
+  const renderNodeList = (
+    nodes: PageTreeNode[],
+    depth: number,
+    parentId: string | null,
+    parentDepth: number,
+  ) => {
+    const result: React.ReactNode[] = [];
+
+    for (let i = 0; i <= nodes.length; i++) {
+      const isCreatingHere = creating?.parentId === parentId && creating?.insertIndex === i;
+
+      if (isCreatingHere) {
+        result.push(
+          <React.Fragment key={`create-${parentId ?? 'root'}-${i}`}>
+            {renderCreateRow(depth)}
+          </React.Fragment>,
+        );
+      } else {
+        result.push(renderInsertZone(parentId, parentDepth, i, depth));
+      }
+
+      if (i < nodes.length) {
+        result.push(renderNode(nodes[i], depth));
+      }
+    }
+
+    return result;
   };
 
   // --- Render ---
@@ -340,7 +469,7 @@ export default function EditorPageTree({
             <div className="ned-tree-context" onClick={(e) => e.stopPropagation()}>
               <button
                 className="ned-tree-context-item"
-                onClick={() => { setContextNode(null); handleCreate(node.id, node.depth); }}
+                onClick={() => { setContextNode(null); startCreate(node.id, node.depth, node.children?.length ?? 0); }}
               >
                 + Add child
               </button>
@@ -354,7 +483,11 @@ export default function EditorPageTree({
           )}
         </div>
         {hasChildren && !isCollapsed && (
-          <div>{node.children.map((child) => renderNode(child, depth + 1))}</div>
+          <div>{renderNodeList(node.children, depth + 1, node.id, depth)}</div>
+        )}
+        {/* 無子節點但正在建立子頁面時，顯示 inline 表單 */}
+        {!hasChildren && creating?.parentId === node.id && (
+          <div>{renderCreateRow(depth + 1)}</div>
         )}
       </div>
     );
@@ -368,14 +501,14 @@ export default function EditorPageTree({
           className="ned-tree-add"
           style={{ color: accent }}
           title="New root-level page"
-          onClick={() => handleCreate(null, -1)}
+          onClick={() => startCreate(null, -1, tree.length)}
         >
           +
         </button>
       </div>
       {loading && <div className="ned-tree-status">Loading...</div>}
       {error && <div className="ned-tree-status ned-tree-error">{error}</div>}
-      {!loading && !error && tree.map((node) => renderNode(node, 0))}
+      {!loading && !error && renderNodeList(tree, 0, null, -1)}
     </div>
   );
 }
