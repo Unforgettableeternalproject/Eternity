@@ -60,6 +60,7 @@ temp/
 
 # Wrangler local state
 .wrangler/
+.dev.vars
 
 # Content submodule (private repo, clone manually for local dev)
 apps/uep/content/
