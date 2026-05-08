@@ -25,7 +25,9 @@ export type BlockType =
   | 'audio'
   | 'rich_text';
 
-export type PageType = 'zone' | 'chapter' | 'arc' | 'section' | 'page';
+export type PageType =
+  | 'zone' | 'chapter' | 'arc' | 'section' | 'page'       // History 專用
+  | 'cluster' | 'subcategory' | 'song';                     // Echoes 專用
 
 /** 單一內容區塊 */
 export interface ContentBlock {
