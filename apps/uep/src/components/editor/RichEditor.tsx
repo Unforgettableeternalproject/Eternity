@@ -131,8 +131,9 @@ export default function RichEditor({
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
-  // Echoes-specific state
-  const isEchoes = area === 'echos' || zoneId === 'echoes';
+  // Echoes song mode — 只有 song 類型才用特殊編輯器，其他 echoes 頁面用一般 TipTap
+  const isEchoes =
+    (area === 'echos' || zoneId === 'echoes') && pageType === 'song';
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
   );
@@ -470,7 +471,13 @@ export default function RichEditor({
             <div className="ned-header-right">
               <span className="ned-shortcut-hint">Ctrl+S</span>
               <a
-                href={`/${area}?page=${area}/${pageSlug}`}
+                href={
+                  isEchoes
+                    ? `/${area}?song=${area}/${pageSlug}`
+                    : (area === 'echos' || zoneId === 'echoes')
+                      ? `/${area}?page=${area}/${pageSlug}`
+                      : `/${area}?page=${area}/${pageSlug}`
+                }
                 className="ned-btn-ghost"
                 target="_blank"
                 rel="noopener"
@@ -991,6 +998,7 @@ export default function RichEditor({
         {!isEntryMode && (
           <aside className="ned-panel--inspector">
             <EditorInspector
+              area={area}
               pageType={pageType}
               onPageTypeChange={setPageType}
               parentId={parentId}

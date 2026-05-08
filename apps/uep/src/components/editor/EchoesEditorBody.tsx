@@ -45,17 +45,17 @@ export function serializeEchoesData(data: EchoesData): Record<string, any> {
 }
 
 const SPOILER_LEVELS = [
-  { l: 0, n: '\u7121' },
-  { l: 1, n: '\u9727\u5316' },
-  { l: 2, n: '\u906E\u7F69' },
-  { l: 3, n: '\u96DC\u8A0A' },
+  { l: 0, n: '無' },
+  { l: 1, n: '霧化' },
+  { l: 2, n: '遮罩' },
+  { l: 3, n: '雜訊' },
 ];
 
 const CATEGORIES = [
-  { value: 'area', label: '\u5834\u666F\u4E3B\u984C\u66F2' },
-  { value: 'character', label: '\u89D2\u8272\u4E3B\u984C\u66F2' },
-  { value: 'story', label: '\u5287\u60C5\u6B4C' },
-  { value: 'special', label: '\u7279\u6B8A\u66F2\u76EE' },
+  { value: 'area', label: '場景主題曲' },
+  { value: 'character', label: '角色主題曲' },
+  { value: 'story', label: '劇情歌' },
+  { value: 'special', label: '特殊曲目' },
 ];
 
 export default function EchoesEditorBody({
@@ -89,20 +89,20 @@ export default function EchoesEditorBody({
 
   return (
     <div className="ned-echoes-body">
-      {/* Subtitle */}
-      <label className="ned-field-label">\u526F\u6A19\u984C</label>
+      {/* 副標題 */}
+      <label className="ned-field-label">副標題</label>
       <input
         className="ned-field"
         type="text"
         value={data.subtitle}
-        placeholder="\u526F\u6A19\u984C"
+        placeholder="副標題"
         onChange={(e) => update({ subtitle: e.target.value })}
       />
 
-      {/* Category + Spoiler Level */}
+      {/* 分類 + 遮蔽等級 */}
       <div className="ned-echoes-row">
         <div>
-          <label className="ned-field-label">\u5206\u985E</label>
+          <label className="ned-field-label">分類</label>
           <select
             className="ned-field"
             value={data.category}
@@ -117,7 +117,7 @@ export default function EchoesEditorBody({
         </div>
         <div>
           <label className="ned-field-label">
-            \u906E\u853D\u7B49\u7D1A (Spoiler Level)
+            遮蔽等級 (Spoiler Level)
           </label>
           <div className="ned-spoiler-buttons">
             {SPOILER_LEVELS.map((o) => (
@@ -144,20 +144,20 @@ export default function EchoesEditorBody({
         </div>
       </div>
 
-      {/* Gate */}
+      {/* 解鎖條件 */}
       <label className="ned-field-label">
-        \u89E3\u9396\u689D\u4EF6 (\u5287\u60C5\u524D\u7F6E)
+        解鎖條件 (劇情前置)
       </label>
       <input
         className="ned-field"
         type="text"
         value={data.gate}
-        placeholder="\u54EA\u6BB5\u5287\u60C5\u89E3\u9396\u9019\u9996\u6B4C"
+        placeholder="哪段劇情解鎖這首歌"
         onChange={(e) => update({ gate: e.target.value })}
       />
 
-      {/* Audio file */}
-      <label className="ned-field-label">\u97F3\u6A94</label>
+      {/* 音檔 */}
+      <label className="ned-field-label">音檔</label>
       <div className="ned-audio-zone">
         {data.audioFile ? (
           <>
@@ -180,27 +180,27 @@ export default function EchoesEditorBody({
               type="button"
               onClick={() => update({ audioFile: null, audioMeta: null })}
             >
-              \u522A\u9664
+              刪除
             </button>
           </>
         ) : (
           <div className="ned-audio-empty">
-            \u5C1A\u672A\u4E0A\u50B3\u97F3\u6A94
+            尚未上傳音檔
           </div>
         )}
       </div>
 
-      {/* Appreciation paragraphs */}
+      {/* 賞析（可多段）*/}
       <div className="ned-appreciation-header">
         <label className="ned-field-label" style={{ margin: 0 }}>
-          \u8CDE\u6790\uFF08\u53EF\u591A\u6BB5\uFF09
+          賞析（可多段）
         </label>
         <button
           className="ned-btn-ghost ned-btn-sm"
           type="button"
           onClick={addAppreciation}
         >
-          + \u65B0\u589E\u6BB5\u843D
+          + 新增段落
         </button>
       </div>
       <div className="ned-appreciation-list">
@@ -217,20 +217,20 @@ export default function EchoesEditorBody({
               type="button"
               onClick={() => removeAppreciation(i)}
             >
-              \u00d7
+              ×
             </button>
           </div>
         ))}
       </div>
 
-      {/* Locked appreciation */}
+      {/* 賞析（鎖定時顯示）*/}
       <label className="ned-field-label">
-        \u8CDE\u6790\uFF08\u9396\u5B9A\u6642\u986F\u793A\uFF09
+        賞析（鎖定時顯示）
       </label>
       <textarea
         className="ned-field ned-field--textarea ned-field--italic"
         value={data.appreciationLocked}
-        placeholder="\u9396\u5B9A\u6642\u986F\u793A\u7684\u66FF\u4EE3\u6587\u5B57"
+        placeholder="鎖定時顯示的替代文字"
         onChange={(e) => update({ appreciationLocked: e.target.value })}
       />
     </div>

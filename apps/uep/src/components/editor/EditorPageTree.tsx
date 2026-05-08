@@ -26,11 +26,14 @@ const TYPE_LETTERS: Record<string, string> = {
   arc: 'A',
   section: 'S',
   page: 'P',
-  song: 'S',
+  cluster: 'CL',
+  subcategory: 'SC',
+  song: '♪',
 };
 
-const NO_EDIT_TYPES = new Set(['page']); // cannot open in editor
-const NO_DRAG_TYPES = new Set(['page', 'zone']); // cannot be reordered
+const NO_EDIT_TYPES = new Set(['page']); // 不可在編輯器開啟
+const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster']); // 不可拖動排序
+const NO_CHILDREN_TYPES = new Set(['song']); // 不可新增子頁面
 
 // Flatten tree into ordered list with parent info for drag calculations
 interface FlatNode {
@@ -481,6 +484,22 @@ export default function EditorPageTree({
           {hasChildren && (
             <span className="ned-tree-count">{node.children.length}</span>
           )}
+          {area === 'echos' &&
+            node.pageType === 'song' &&
+            typeof node.metadata?.spoilerLevel === 'number' &&
+            (node.metadata.spoilerLevel as number) > 0 && (
+              <span
+                className="ned-tree-spoiler-badge"
+                style={{
+                  color:
+                    (node.metadata.spoilerLevel as number) === 3
+                      ? 'crimson'
+                      : 'goldenrod',
+                }}
+              >
+                L{node.metadata.spoilerLevel as number}
+              </span>
+            )}
           {!noEdit && (
             <button
               className="ned-tree-menu-btn"
@@ -497,15 +516,17 @@ export default function EditorPageTree({
               className="ned-tree-context"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                className="ned-tree-context-item"
-                onClick={() => {
-                  setContextNode(null);
-                  startCreate(node.id, node.depth, node.children?.length ?? 0);
-                }}
-              >
-                + Add child
-              </button>
+              {!NO_CHILDREN_TYPES.has(node.pageType) && (
+                <button
+                  className="ned-tree-context-item"
+                  onClick={() => {
+                    setContextNode(null);
+                    startCreate(node.id, node.depth, node.children?.length ?? 0);
+                  }}
+                >
+                  + Add child
+                </button>
+              )}
               <button
                 className="ned-tree-context-item ned-tree-context-item--danger"
                 onClick={() => {

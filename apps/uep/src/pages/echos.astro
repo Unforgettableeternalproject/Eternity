@@ -1,8 +1,20 @@
 ---
+export const prerender = false;
+
 import DesignLayout from '../layouts/DesignLayout.astro';
-import ZoneEntryPage from '../components/zone/ZoneEntryPage';
+import EchoesReader from '../components/echoes/EchoesReader';
 ---
 
-<DesignLayout title="回音蒐藏間 - 邊際世界" zone="echoes">
-  <ZoneEntryPage client:load zoneId="echoes" />
+<DesignLayout
+  title="回音蒐藏間 - 邊際世界"
+  description="U.E.P Imaginary Space 的回音蒐藏間。音樂、OST、聲音作品。"
+  zone="echoes"
+>
+  <EchoesReader client:load />
 </DesignLayout>
+
+<style is:global>
+  body {
+    overflow: hidden;
+  }
+</style>

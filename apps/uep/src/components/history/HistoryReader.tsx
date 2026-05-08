@@ -11,7 +11,9 @@ import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { renderIcon } from '../editor/IconLibrary';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
-type PageType = 'zone' | 'chapter' | 'arc' | 'section' | 'page';
+type PageType =
+  | 'zone' | 'chapter' | 'arc' | 'section' | 'page'
+  | 'cluster' | 'subcategory' | 'song';
 
 interface ContentBlock {
   id: string;
@@ -89,6 +91,9 @@ function pageTypeLabel(type: PageType) {
     arc: 'ARC',
     section: 'SECT',
     page: 'PAGE',
+    cluster: 'CLST',
+    subcategory: 'SCAT',
+    song: 'SONG',
   };
   return labels[type] || 'PAGE';
 }

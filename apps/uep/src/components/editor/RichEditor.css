@@ -453,6 +453,14 @@
   margin-left: 4px;
 }
 
+.ned-tree-spoiler-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
 .ned-tree-status {
   padding: 14px 18px;
   font-family: var(--font-mono);
