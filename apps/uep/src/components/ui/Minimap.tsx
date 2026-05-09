@@ -126,6 +126,7 @@ export default function Minimap({
   return (
     <div
       ref={ref}
+      className="uep-minimap"
       style={{
         position: 'fixed',
         ...(pos.left != null ? { left: pos.left } : {}),
@@ -271,6 +272,12 @@ export default function Minimap({
       >
         {cur?.label || '邊際世界'}
       </div>
+
+      <style>{`
+        @media (max-width: 760px) {
+          .uep-minimap { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

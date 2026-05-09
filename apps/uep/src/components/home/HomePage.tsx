@@ -9,8 +9,59 @@ import Minimap from '../ui/Minimap';
 import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import PortalTransition from '../ui/PortalTransition';
+import { useIsMobile } from '../../utils/useIsMobile';
+
+const homePageCss = `
+  .home-hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 56px;
+    padding: 90px 64px;
+    min-height: 540px;
+    align-items: center;
+    position: relative;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .home-hero-h1 { font-size: 76px; }
+  .home-atlas { padding: 72px 64px 100px; }
+  .home-legend-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    max-width: 920px;
+    margin: 40px auto 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .home-verse { padding: 90px 64px 110px; }
+  .home-recents { padding: 60px 64px 90px; }
+  .home-recents-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  @media (max-width: 760px) {
+    .home-hero {
+      grid-template-columns: 1fr;
+      padding: 40px 20px 48px;
+      gap: 32px;
+      min-height: unset;
+    }
+    .home-hero-right { display: none; }
+    .home-hero-h1 { font-size: 44px !important; }
+    .home-atlas { padding: 40px 20px 56px; }
+    .home-legend-grid { grid-template-columns: repeat(2, 1fr); }
+    .home-verse { padding: 48px 20px 56px; }
+    .home-recents { padding: 32px 20px 56px; }
+    .home-recents-grid { grid-template-columns: 1fr; }
+  }
+`;
 
 export default function HomePage({ isDev = false }: { isDev?: boolean }) {
+  const isMobile = useIsMobile();
   const [hover, setHover] = useState<string | null>(null);
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
@@ -73,25 +124,27 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
   return (
     <div
-      style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        overflow: 'hidden',
+      }}
     >
+      <style>{homePageCss}</style>
       <TopBar onOpenMap={() => setShowMap(true)} />
 
-      <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+      <div
+        style={{
+          flex: '1 1 0%',
+          minHeight: 0,
+          overflowY: 'auto',
+          position: 'relative',
+        }}
+      >
         {/* ── HERO ── */}
-        <section
-          style={{
-            minHeight: 540,
-            padding: '90px 64px 90px',
-            display: 'grid',
-            gridTemplateColumns: '1.1fr 1fr',
-            gap: 56,
-            alignItems: 'center',
-            position: 'relative',
-            maxWidth: 1400,
-            margin: '0 auto',
-          }}
-        >
+        <section className="home-hero">
+
           {/* dust particles */}
           <div
             className="dust-field"
@@ -135,9 +188,9 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             </div>
 
             <h1
+              className="home-hero-h1"
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 76,
                 fontWeight: 500,
                 lineHeight: 1.0,
                 color: 'var(--ink-title)',
@@ -217,6 +270,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
           {/* portrait with outline rings */}
           <div
+            className="home-hero-right"
             style={{
               position: 'relative',
               display: 'grid',
@@ -312,8 +366,8 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         {/* ── ATLAS ── */}
         <section
           id="atlas"
+          className="home-atlas"
           style={{
-            padding: '72px 64px 100px',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -391,12 +445,12 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               display: 'grid',
               placeItems: 'center',
               position: 'relative',
-              minHeight: 600,
+              minHeight: isMobile ? 340 : 600,
             }}
           >
             <PieMap3D
               zones={ZONES}
-              size={580}
+              size={isMobile ? 320 : 580}
               hoveredId={hover}
               onHover={setHover}
               baseTone="light"
@@ -405,16 +459,8 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           </div>
 
           {/* legend */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(5,1fr)',
-              gap: 0,
-              maxWidth: 920,
-              margin: '40px auto 0',
-              borderTop: '1px solid var(--hairline)',
-            }}
-          >
+          <div className="home-legend-grid">
+
             {ZONES.map((z, idx) => (
               <div
                 key={z.id}
@@ -470,7 +516,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         <hr className="hairline-thick" />
 
         {/* ── ETERNAL VERSE ── */}
-        <section style={{ padding: '90px 64px 110px', position: 'relative' }}>
+        <section className="home-verse" style={{ position: 'relative' }}>
           <div
             style={{ maxWidth: 720, margin: '0 auto', position: 'relative' }}
           >
@@ -571,8 +617,8 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
         {/* ── RECENTS ── */}
         <section
+          className="home-recents"
           style={{
-            padding: '60px 64px 90px',
             maxWidth: 1400,
             margin: '0 auto',
           }}
@@ -611,15 +657,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               </h3>
             </div>
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(5,1fr)',
-              gap: 0,
-              borderTop: '1px solid var(--hairline)',
-              borderBottom: '1px solid var(--hairline)',
-            }}
-          >
+          <div className="home-recents-grid">
             {RECENTS.map((r, i) => {
               const z = ZONES.find((z) => z.id === r.zone);
               return (

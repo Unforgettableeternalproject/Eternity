@@ -28,6 +28,15 @@ export default function PortalTransition({
         pointerEvents: 'none',
       }}
     >
+      {/* 背景霧化層 — 從透明漸變為模糊+暗化 */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          animation: 'portal-fog 1.2s var(--ease-portal) forwards',
+        }}
+      />
+
       {/* expanding outline rings */}
       {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
         <div
@@ -67,6 +76,11 @@ export default function PortalTransition({
       ))}
 
       <style>{`
+        @keyframes portal-fog {
+          0%   { backdrop-filter: blur(0px); background: transparent; }
+          40%  { backdrop-filter: blur(4px); background: rgba(10,10,14,0.15); }
+          100% { backdrop-filter: blur(18px); background: rgba(10,10,14,0.55); }
+        }
         @keyframes portal-ring {
           0%   { width: 30px; height: 30px; opacity: 0; border-width: 2px; }
           25%  { opacity: 0.9; }

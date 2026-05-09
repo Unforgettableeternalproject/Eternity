@@ -21,6 +21,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
 
   return (
     <div
+      className="uep-topbar"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -34,6 +35,15 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
         background: 'var(--bg)',
       }}
     >
+      <style>{`
+        @media (max-width: 760px) {
+          .uep-topbar { padding: 12px 16px !important; }
+          .uep-topbar-subtitle { display: none !important; }
+          .uep-topbar .btn-outline { padding: 6px 10px !important; font-size: 11px; }
+          .uep-topbar-divider { display: none !important; }
+        }
+      `}</style>
+
       <a
         href="/"
         style={{
@@ -74,6 +84,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
             Imaginary Space
           </div>
           <div
+            className="uep-topbar-subtitle"
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 9.5,
@@ -99,6 +110,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
           </button>
         )}
         <span
+          className="uep-topbar-divider"
           style={{
             width: 1,
             height: 16,

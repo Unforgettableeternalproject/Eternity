@@ -17,6 +17,8 @@ import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
+import type { HomepageBlock, ZoneHeaderData, UepDialogueItem, OrbCluster } from '../editor/homepage/types';
+import { fromContentBlock } from '../editor/homepage/types';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別定義
@@ -24,7 +26,8 @@ import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType =
   | 'zone' | 'chapter' | 'arc' | 'section' | 'page'
-  | 'cluster' | 'subcategory' | 'song';
+  | 'cluster' | 'subcategory' | 'song'
+  | 'homepage';
 
 interface PageTreeNode {
   id: string;
@@ -796,11 +799,57 @@ export default function EchoesReader() {
   const plazaPage = plazaNode ? landingPages[plazaNode.id] : null;
   const photoPage = photoNode ? landingPages[photoNode.id] : null;
 
+  // 首頁區塊資料
+  const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
+  const [contentReady, setContentReady] = useState(false);
+
   // === 載入 landing 頁面內容 ===
   useEffect(() => {
     if (!pageLevelNodes.length) return;
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
+
+  // 載入首頁區塊資料
+  useEffect(() => {
+    const timeout = setTimeout(() => setContentReady(true), 2000);
+    fetch(`${API_BASE}/api/content/echos/homepage`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: any) => {
+        if (!json?.ok || !json.data?.content) return;
+        const raw = typeof json.data.content === 'string'
+          ? JSON.parse(json.data.content)
+          : json.data.content;
+        if (Array.isArray(raw) && raw.length > 0) {
+          setHomepageBlocks(raw.map(fromContentBlock));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timeout);
+        setContentReady(true);
+      });
+  }, []);
+
+  const hpHeader = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'zone-header');
+    return b ? (b.data as ZoneHeaderData) : null;
+  }, [homepageBlocks]);
+
+  const hpDialogues = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'uep-dialogue');
+    return b ? (b.data as UepDialogueItem[]) : null;
+  }, [homepageBlocks]);
+
+  const hpClusters = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'orb-cluster-grid');
+    return b ? (b.data as { clusters: OrbCluster[] }).clusters : null;
+  }, [homepageBlocks]);
+
+  const hpRichTexts = useMemo(() => {
+    return homepageBlocks
+      .filter((b) => b.type === 'rich-text')
+      .map((b) => (b.data as { html: string }).html);
+  }, [homepageBlocks]);
 
   async function fetchLandingPages(nodes: PageTreeNode[]) {
     setLandingLoading(true);
@@ -1056,117 +1105,167 @@ export default function EchoesReader() {
     return (
       <section className="echoes-landing">
         <div className="echoes-landing-inner">
-          <div className="echoes-kicker">Echoes / 空白廣場</div>
-          <h2 className="echoes-landing-title">
-            {plazaPage?.title || plazaNode?.title || '空白廣場'}
-          </h2>
-
-          {(treeLoading || landingLoading) && !plazaPage && (
-            <div className="echoes-state">正在讀取空白廣場...</div>
-          )}
-
-          {/* D1 中 plaza 頁面的敘事散文（card-grid 之前的部分）*/}
-          {landingParts.before && (
-            <div
-              className="echoes-prose echoes-landing-prose"
-              dangerouslySetInnerHTML={{ __html: landingParts.before }}
-            />
-          )}
-
-          {/* 四集群卡片 — 環狀粒子效果 */}
-          <div className="echoes-cluster-grid">
-            {CLUSTERS.map((cluster) => {
-              const songCount = countSongsInCluster(tree, cluster.id);
-              const orbCount = Math.max(songCount, 6);
-              return (
-                <button
-                  key={cluster.id}
-                  type="button"
-                  className="echoes-cluster-card"
-                  style={{
-                    ['--cluster-color' as string]: cluster.color,
-                    borderTopColor: cluster.color,
-                  }}
-                  onClick={() => navigateToCluster(cluster.id)}
-                >
-                  {/* 粒子環 + 中心球 */}
-                  <div className="echoes-orb-field">
-                    {Array.from({ length: orbCount }, (_, k) => {
-                      const angle = (k / orbCount) * Math.PI * 2;
-                      const radius = 36 + (k % 2) * 8;
-                      const cx = 55 + Math.cos(angle) * radius;
-                      const cy = 55 + Math.sin(angle) * radius;
-                      return (
-                        <span
-                          key={k}
-                          className="echoes-orb-particle"
-                          style={{
-                            left: cx - 5,
-                            top: cy - 5,
-                            background: cluster.color,
-                            opacity: 0.4 + (k % 3) * 0.2,
-                            boxShadow: `0 0 8px ${cluster.color}`,
-                            animationDelay: `${k * 0.2}s`,
-                          }}
-                        />
-                      );
-                    })}
-                    <span
-                      className="echoes-orb-center"
-                      style={{
-                        background: `radial-gradient(circle, ${cluster.color} 0%, ${cluster.color}80 60%, transparent 100%)`,
-                        boxShadow: `0 0 20px ${cluster.color}`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="echoes-cluster-text">
-                    <div className="echoes-cluster-name" style={{ color: cluster.color }}>
-                      「{cluster.label}」
+          {homepageBlocks.length > 0 ? (
+            /* ── 資料驅動：按區塊順序渲染 ── */
+            homepageBlocks.map((block) => {
+              switch (block.type) {
+                case 'zone-header': {
+                  const d = block.data as ZoneHeaderData;
+                  return (
+                    <div key={block.id}>
+                      <div className="echoes-kicker">Echoes / 空白廣場</div>
+                      <h2 className="echoes-landing-title">{d.title}</h2>
+                      {d.subtitle && (
+                        <p style={{
+                          fontFamily: 'var(--font-serif-tc)', fontSize: 16,
+                          color: 'var(--ink-soft)', fontStyle: 'italic',
+                          lineHeight: 1.9, maxWidth: 620, marginTop: 22,
+                        }}>{d.subtitle}</p>
+                      )}
                     </div>
-                    <div className="echoes-cluster-desc">
-                      {cluster.id === 'areas' && '藍色的，記憶著場景與環境'}
-                      {cluster.id === 'characters' && '紅色的，封存著一個又一個的角色'}
-                      {cluster.id === 'stories' && '綠色的，紀錄著故事的轉折'}
-                      {cluster.id === 'special' && '紫色的，獨立於其他族群之外'}
+                  );
+                }
+                case 'uep-dialogue': {
+                  const items = block.data as UepDialogueItem[];
+                  return (
+                    <div key={block.id} className="echoes-landing-uep">
+                      {items.map((d, i) => (
+                        <UepDialogue key={i} text={d.text} side={d.side} effects={d.effects as any} />
+                      ))}
                     </div>
-                  </div>
-                  <span className="echoes-cluster-meta">
-                    {songCount > 0 ? `${songCount} echoes` : '—'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* card-grid 之後的內容 */}
-          {landingParts.after && (
-            <div
-              className="echoes-prose echoes-landing-prose"
-              dangerouslySetInnerHTML={{ __html: landingParts.after }}
-            />
-          )}
-
-          {/* UEP 對話 */}
-          <div className="echoes-landing-uep">
-            <UepDialogue
-              text="歡迎來到充滿了世界之聲的蒐藏間，這裡聽到的全部都是實際存在的對話喔!"
-              effects={['shimmer', 'halo']}
-            />
-          </div>
-
-          {/* 褪色的相片（作為 sticky note，同 History 的 note 便條）*/}
-          {photoPage && (
-            <section className="echoes-photo-section">
-              <div className="echoes-kicker">Loose Note / Page</div>
-              <h3>{photoPage.title}</h3>
-              <div
-                className="echoes-prose echoes-photo-prose"
-                dangerouslySetInnerHTML={{
-                  __html: photoPage.content.map((b) => b.content || '').join('\n'),
-                }}
-              />
-            </section>
+                  );
+                }
+                case 'orb-cluster-grid': {
+                  const clusters = (block.data as { clusters: OrbCluster[] }).clusters;
+                  return (
+                    <div key={block.id} className="echoes-cluster-grid">
+                      {CLUSTERS.map((cluster, idx) => {
+                        const hp = clusters[idx];
+                        const color = hp?.color || cluster.color;
+                        const label = hp?.label || cluster.label;
+                        const songCount = countSongsInCluster(tree, cluster.id);
+                        const orbCount = Math.max(hp?.orbCount || songCount, 6);
+                        return (
+                          <button key={cluster.id} type="button" className="echoes-cluster-card"
+                            style={{ ['--cluster-color' as string]: color, borderTopColor: color }}
+                            onClick={() => navigateToCluster(cluster.id)}>
+                            <div className="echoes-orb-field">
+                              {Array.from({ length: orbCount }, (_, k) => {
+                                const angle = (k / orbCount) * Math.PI * 2;
+                                const r = 36 + (k % 2) * 8;
+                                return (
+                                  <span key={k} className="echoes-orb-particle" style={{
+                                    left: 55 + Math.cos(angle) * r - 5,
+                                    top: 55 + Math.sin(angle) * r - 5,
+                                    background: color, opacity: 0.4 + (k % 3) * 0.2,
+                                    boxShadow: `0 0 8px ${color}`, animationDelay: `${k * 0.2}s`,
+                                  }} />
+                                );
+                              })}
+                              <span className="echoes-orb-center" style={{
+                                background: `radial-gradient(circle, ${color} 0%, ${color}80 60%, transparent 100%)`,
+                                boxShadow: `0 0 20px ${color}`,
+                              }} />
+                            </div>
+                            <div className="echoes-cluster-text">
+                              <div className="echoes-cluster-name" style={{ color }}>「{label}」</div>
+                              <div className="echoes-cluster-desc">
+                                {cluster.id === 'areas' && '藍色的，記憶著場景與環境'}
+                                {cluster.id === 'characters' && '紅色的，封存著一個又一個的角色'}
+                                {cluster.id === 'stories' && '綠色的，紀錄著故事的轉折'}
+                                {cluster.id === 'special' && '紫色的，獨立於其他族群之外'}
+                              </div>
+                            </div>
+                            <span className="echoes-cluster-meta">
+                              {songCount > 0 ? `${songCount} echoes` : '—'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                case 'rich-text': {
+                  const html = (block.data as { html: string }).html;
+                  return (
+                    <div key={block.id} className="echoes-prose echoes-landing-prose"
+                      dangerouslySetInnerHTML={{ __html: html }} />
+                  );
+                }
+                default:
+                  return null;
+              }
+            })
+          ) : (
+            /* ── Fallback：舊版固定佈局 ── */
+            <>
+              <div className="echoes-kicker">Echoes / 空白廣場</div>
+              <h2 className="echoes-landing-title">
+                {plazaPage?.title || plazaNode?.title || '空白廣場'}
+              </h2>
+              {(treeLoading || landingLoading) && !plazaPage && (
+                <div className="echoes-state">正在讀取空白廣場...</div>
+              )}
+              {landingParts.before && (
+                <div className="echoes-prose echoes-landing-prose"
+                  dangerouslySetInnerHTML={{ __html: landingParts.before }} />
+              )}
+              <div className="echoes-cluster-grid">
+                {CLUSTERS.map((cluster) => {
+                  const songCount = countSongsInCluster(tree, cluster.id);
+                  const orbCount = Math.max(songCount, 6);
+                  return (
+                    <button key={cluster.id} type="button" className="echoes-cluster-card"
+                      style={{ ['--cluster-color' as string]: cluster.color, borderTopColor: cluster.color }}
+                      onClick={() => navigateToCluster(cluster.id)}>
+                      <div className="echoes-orb-field">
+                        {Array.from({ length: orbCount }, (_, k) => {
+                          const angle = (k / orbCount) * Math.PI * 2;
+                          const r = 36 + (k % 2) * 8;
+                          return (
+                            <span key={k} className="echoes-orb-particle" style={{
+                              left: 55 + Math.cos(angle) * r - 5, top: 55 + Math.sin(angle) * r - 5,
+                              background: cluster.color, opacity: 0.4 + (k % 3) * 0.2,
+                              boxShadow: `0 0 8px ${cluster.color}`, animationDelay: `${k * 0.2}s`,
+                            }} />
+                          );
+                        })}
+                        <span className="echoes-orb-center" style={{
+                          background: `radial-gradient(circle, ${cluster.color} 0%, ${cluster.color}80 60%, transparent 100%)`,
+                          boxShadow: `0 0 20px ${cluster.color}`,
+                        }} />
+                      </div>
+                      <div className="echoes-cluster-text">
+                        <div className="echoes-cluster-name" style={{ color: cluster.color }}>「{cluster.label}」</div>
+                        <div className="echoes-cluster-desc">
+                          {cluster.id === 'areas' && '藍色的，記憶著場景與環境'}
+                          {cluster.id === 'characters' && '紅色的，封存著一個又一個的角色'}
+                          {cluster.id === 'stories' && '綠色的，紀錄著故事的轉折'}
+                          {cluster.id === 'special' && '紫色的，獨立於其他族群之外'}
+                        </div>
+                      </div>
+                      <span className="echoes-cluster-meta">{songCount > 0 ? `${songCount} echoes` : '—'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {landingParts.after && (
+                <div className="echoes-prose echoes-landing-prose"
+                  dangerouslySetInnerHTML={{ __html: landingParts.after }} />
+              )}
+              <div className="echoes-landing-uep">
+                <UepDialogue text="歡迎來到充滿了世界之聲的蒐藏間，這裡聽到的全部都是實際存在的對話喔!"
+                  effects={['shimmer', 'halo']} />
+              </div>
+              {photoPage && (
+                <section className="echoes-photo-section">
+                  <div className="echoes-kicker">Loose Note / Page</div>
+                  <h3>{photoPage.title}</h3>
+                  <div className="echoes-prose echoes-photo-prose"
+                    dangerouslySetInnerHTML={{ __html: photoPage.content.map((b) => b.content || '').join('\n') }} />
+                </section>
+              )}
+            </>
           )}
         </div>
 
@@ -1784,6 +1883,28 @@ export default function EchoesReader() {
       <div className="echoes-reader">
         <style>{echoesReaderCss}</style>
 
+        {/* 入場霧化 — 等待首頁資料載入後再解除 */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50,
+            pointerEvents: 'none',
+            ...(contentReady
+              ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
+              : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }
+            ),
+          }}
+        />
+        <style>{`
+          @keyframes zone-arrival {
+            0%   { backdrop-filter: blur(18px); background: rgba(10,10,14,0.5); }
+            60%  { backdrop-filter: blur(4px); background: rgba(10,10,14,0.12); }
+            100% { backdrop-filter: blur(0px); background: transparent; }
+          }
+        `}</style>
+
         <TopBar onOpenMap={() => setShowMap(true)} dark={theme === 'dark'} />
 
         <div className="echoes-main">
@@ -2005,13 +2126,106 @@ const echoesReaderCss = `
     margin: 0 0 1.3em;
   }
 
-  .echoes-prose h1 { display: none; }
+  .echoes-prose h1,
+  .echoes-prose h2,
+  .echoes-prose h3 {
+    color: var(--ink-title);
+    line-height: 1.35;
+  }
+
+  .echoes-prose h1 {
+    font-family: var(--font-display);
+    font-size: 34px;
+    margin: 2.2em 0 .75em;
+  }
+
+  .echoes-prose h2 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    margin: 2em 0 .7em;
+    scroll-margin-top: 24px;
+  }
+
+  .echoes-prose h3 {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #355c7d;
+    margin: 2em 0 .65em;
+    scroll-margin-top: 24px;
+  }
+
+  .echoes-prose blockquote {
+    margin: 28px 0;
+    padding: 4px 0 4px 18px;
+    border-left: 3px solid #355c7d;
+    color: #355c7d;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 19px;
+    line-height: 1.65;
+  }
+
+  .echoes-prose a {
+    color: #6c5b7b;
+    text-decoration-color: color-mix(in srgb, #6c5b7b 52%, transparent);
+  }
+
+  .echoes-prose hr {
+    border: 0;
+    height: 1px;
+    margin: 38px 0;
+    background: linear-gradient(90deg, transparent, #355c7d, transparent);
+    opacity: .55;
+  }
+
+  .echoes-prose img {
+    max-width: 100%;
+    height: auto;
+    margin: 24px auto;
+  }
+
+  .echoes-prose pre {
+    overflow: auto;
+    padding: 16px;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+  }
+
+  .echoes-prose code {
+    font-family: var(--font-mono);
+    font-size: .9em;
+  }
+
+  .echoes-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 14px;
+  }
+
+  .echoes-prose th,
+  .echoes-prose td {
+    border-bottom: 1px solid var(--line);
+    padding: 9px 10px;
+    text-align: left;
+  }
+
+  .echoes-prose th {
+    color: #355c7d;
+    background: var(--echoes-tint);
+  }
 
   .echoes-prose .hint {
     border: 1px solid var(--line);
     background: var(--bg-card);
     padding: 14px 16px;
     margin: 20px 0;
+  }
+
+  .echoes-landing-prose h1 {
+    display: none;
   }
 
   .echoes-landing-prose {
