@@ -81,9 +81,9 @@ const ZONE_HOMEPAGES = {
   },
 
   // ── 2. 回音蒐藏間 ──────────────────────────────────────────────────────
-  echos: {
+  echoes: {
     label: '回音蒐藏間',
-    area: 'echos',
+    area: 'echoes',
     blocks: [
       {
         id: 'e1',
@@ -330,7 +330,7 @@ const MERGE_PAGES = {
     { slug: 'passage', kicker: 'History / Passage' },
     { slug: 'note', kicker: 'Loose Note / Page' },
   ],
-  echos: [
+  echoes: [
     { slug: 'plaza', kicker: 'Echoes / Plaza' },
     { slug: 'photo', kicker: 'Loose Note / Page' },
   ],
@@ -402,7 +402,7 @@ async function fetchAndConvertPage(area, slug, kicker) {
 
 /**
  * 將單一區域的首頁資料 PUT 到 content-api。
- * @param {string} area - 區域 id（history / echos / visuals / concepts / storage）
+ * @param {string} area - 區域 id（history / echoes / visuals / concepts / storage）
  * @param {string} label - 區域中文名稱（用於顯示）
  * @param {Array} blocks - ContentBlock 陣列
  */

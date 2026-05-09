@@ -18,7 +18,7 @@ import { createInterface } from 'readline';
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
 const REMOTE_API = 'https://eternity-content-api.ptyc4076.workers.dev';
-const ALL_AREAS = ['history', 'echos', 'visuals', 'concepts', 'storage', 'portal'];
+const ALL_AREAS = ['history', 'echoes', 'visuals', 'concepts', 'storage', 'portal'];
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -40,36 +40,57 @@ async function listPages(apiBase, area) {
   try {
     const res = await fetch(`${apiBase}/api/content/${area}`);
     if (!res.ok) return [];
-    const json = await res.json();
-    return json.ok ? json.data || [] : [];
+    const json = await safeJson(res);
+    return json?.ok ? json.data || [] : [];
   } catch {
     return [];
   }
 }
 
+/** 安全地解析 JSON 回應，回傳 null 若非 JSON */
+async function safeJson(res) {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** 從 API 取得單一頁面完整資料 */
 async function getPage(apiBase, area, slug) {
-  const res = await fetch(`${apiBase}/api/content/${area}/${slug}`);
-  const json = await res.json();
-  return json.ok ? json.data : null;
+  try {
+    const res = await fetch(`${apiBase}/api/content/${area}/${slug}`);
+    if (!res.ok) return null;
+    const json = await safeJson(res);
+    return json?.ok ? json.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /** 透過 PUT 端點寫入頁面 */
 async function putPage(apiBase, page) {
-  const res = await fetch(`${apiBase}/api/content/${page.area}/${page.slug}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title: page.title,
-      content: page.content,
-      parentId: page.parentId || null,
-      pageType: page.pageType,
-      depth: page.depth,
-      metadata: page.metadata || {},
-    }),
-  });
-  const json = await res.json();
-  return json.ok;
+  try {
+    const res = await fetch(`${apiBase}/api/content/${page.area}/${page.slug}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: page.title,
+        content: page.content,
+        parentId: page.parentId || null,
+        pageType: page.pageType,
+        depth: page.depth,
+        metadata: page.metadata || {},
+      }),
+    });
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
 }
 
 /** 比較兩個時間戳，回傳較新的一方 */
@@ -229,6 +250,19 @@ async function main() {
     );
     console.error('   pnpm --filter content-api-worker dev\n');
     process.exit(1);
+  }
+
+  // 檢查遠端 API 是否可用
+  try {
+    const check = await fetch(`${REMOTE_API}/api/content/history`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const ct = check.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      console.error('⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面），部分操作可能失敗');
+    }
+  } catch {
+    console.error('⚠️  無法連線到遠端 API，將只顯示本地資料\n');
   }
 
   let totalPush = 0;

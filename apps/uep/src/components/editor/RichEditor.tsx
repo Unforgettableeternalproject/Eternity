@@ -134,7 +134,7 @@ export default function RichEditor({
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
   // Echoes 特殊編輯模式
-  const isEchoesArea = area === 'echos' || zoneId === 'echoes';
+  const isEchoesArea = area === 'echoes' || zoneId === 'echoes';
   const isEchoes = isEchoesArea && pageType === 'song';
   const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
   const isZone = pageType === 'zone';
@@ -485,7 +485,7 @@ export default function RichEditor({
                 href={
                   isEchoes
                     ? `/${area}?song=${area}/${pageSlug}`
-                    : (area === 'echos' || zoneId === 'echoes')
+                    : (area === 'echoes' || zoneId === 'echoes')
                       ? `/${area}?page=${area}/${pageSlug}`
                       : `/${area}?page=${area}/${pageSlug}`
                 }

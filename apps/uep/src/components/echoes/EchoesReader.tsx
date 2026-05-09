@@ -795,8 +795,8 @@ export default function EchoesReader() {
     [flatPages]
   );
 
-  const plazaNode = pageLevelNodes.find((p) => p.id === 'echos/plaza') || null;
-  const photoNode = pageLevelNodes.find((p) => p.id === 'echos/photo') || null;
+  const plazaNode = pageLevelNodes.find((p) => p.id === 'echoes/plaza') || null;
+  const photoNode = pageLevelNodes.find((p) => p.id === 'echoes/photo') || null;
   const plazaPage = plazaNode ? landingPages[plazaNode.id] : null;
   const photoPage = photoNode ? landingPages[photoNode.id] : null;
 
@@ -813,7 +813,7 @@ export default function EchoesReader() {
   // 載入首頁區塊資料
   useEffect(() => {
     const timeout = setTimeout(() => setContentReady(true), 2000);
-    fetch(`${API_BASE}/api/content/echos/homepage`)
+    fetch(`${API_BASE}/api/content/echoes/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
         if (!json?.ok || !json.data?.content) return;
@@ -923,7 +923,7 @@ export default function EchoesReader() {
     setTreeLoading(true);
     setTreeError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/content/echos/tree`);
+      const res = await fetch(`${API_BASE}/api/content/echoes/tree`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { ok: boolean; data: PageTreeNode[]; error?: string };
       if (!json.ok) throw new Error(json.error || 'API returned ok=false');

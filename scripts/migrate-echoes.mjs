@@ -18,10 +18,10 @@
  *     events.md               →  section（含多首歌 → 拆成 song）
  *
  * 使用方式：
- *   node scripts/migrate-echos.mjs [--remote] [--clean] [--dry-run]
+ *   node scripts/migrate-echoes.mjs [--remote] [--clean] [--dry-run]
  *
  * --remote:  匯入到遠端 Worker（預設為 localhost:8788）
- * --clean:   先清除現有 echos 資料再匯入
+ * --clean:   先清除現有 echoes 資料再匯入
  * --dry-run: 只顯示結構，不實際匯入
  */
 
@@ -75,23 +75,23 @@ function detectPageType(filePath, depth, parentPageType) {
   return 'subcategory';
 }
 
-// === 解析 SUMMARY.md 取得 Echos 區域的結構 ===
-function parseSummaryForEchos() {
+// === 解析 SUMMARY.md 取得 Echoes 區域的結構 ===
+function parseSummaryForEchoes() {
   const summary = readFileSync(SUMMARY_PATH, 'utf-8');
   const lines = summary.split('\n');
 
-  let inEchos = false;
+  let inEchoes = false;
   const entries = [];
   let sortOrder = 0;
   const parentStack = [];
 
   for (const line of lines) {
     if (line.includes('回音蒐藏間') || line.includes('#echos')) {
-      inEchos = true;
+      inEchoes = true;
       continue;
     }
-    if (inEchos && line.startsWith('## ')) break;
-    if (!inEchos) continue;
+    if (inEchoes && line.startsWith('## ')) break;
+    if (!inEchoes) continue;
 
     const match = line.match(/^(\s*)\*\s+\[(.+?)\]\((.+?)\)/);
     if (!match) continue;
@@ -116,7 +116,7 @@ function parseSummaryForEchos() {
     // 簡化 slug：移除 plaza/ 前綴（plaza 是容器，不影響 ID 結構）
     slug = slug.replace(/^plaza\//, '');
 
-    const id = `echos/${slug}`;
+    const id = `echoes/${slug}`;
 
     // 找 parent
     while (
@@ -495,10 +495,10 @@ function hasSongsInFile(content) {
   return /^###\s/m.test(content) && /\{%\s*file\s/.test(content);
 }
 
-// === 清除現有 echos 資料 ===
-async function cleanEchos() {
-  console.log('🗑️  清除現有 Echos 資料...');
-  const res = await fetch(`${API_BASE}/api/content/echos`);
+// === 清除現有 echoes 資料 ===
+async function cleanEchoes() {
+  console.log('🗑️  清除現有 Echoes 資料...');
+  const res = await fetch(`${API_BASE}/api/content/echoes`);
   const json = await res.json();
   if (json.ok && json.data) {
     for (const page of json.data) {
@@ -526,7 +526,7 @@ async function importToApi(pages) {
     const payload = {
       pages: batch.map((p) => ({
         id: p.id,
-        area: 'echos',
+        area: 'echoes',
         title: p.title,
         slug: p.slug,
         sortOrder: p.sortOrder,
@@ -578,10 +578,10 @@ async function importToApi(pages) {
 
 // === 主程式 ===
 async function main() {
-  if (CLEAN && !DRY_RUN) await cleanEchos();
+  if (CLEAN && !DRY_RUN) await cleanEchoes();
 
-  const entries = parseSummaryForEchos();
-  console.log(`📖 解析出 ${entries.length} 個 Echos 頁面\n`);
+  const entries = parseSummaryForEchoes();
+  console.log(`📖 解析出 ${entries.length} 個 Echoes 頁面\n`);
 
   const typeIcons = {
     page: '📋',

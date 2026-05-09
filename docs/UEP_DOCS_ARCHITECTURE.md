@@ -35,7 +35,7 @@ apps/uep/
 │   │   ├── config.ts                 # Content Collections 定義
 │   │   └── uep-docs/                 # Git Submodule
 │   │       ├── history/              # 歷史典藏庫
-│   │       ├── echos/                # 回音蒐藏間
+│   │       ├── echoes/                # 回音蒐藏間
 │   │       ├── concepts/             # 概念調整房
 │   │       └── visuals/              # 幻影重現室
 │   ├── layouts/
@@ -86,7 +86,7 @@ const historyCollection = defineCollection({
   }),
 });
 
-const echosCollection = defineCollection({
+const echoesCollection = defineCollection({
   type: 'content',
   schema: z.object({
     title: z.string(),
@@ -123,7 +123,7 @@ const visualsCollection = defineCollection({
 
 export const collections = {
   history: historyCollection,
-  echos: echosCollection,
+  echoes: echoesCollection,
   concepts: conceptsCollection,
   visuals: visualsCollection,
 };
@@ -294,7 +294,7 @@ import DocLayout from '../../layouts/DocLayout.astro';
 export async function getStaticPaths() {
   const allDocs = await Promise.all([
     getCollection('history'),
-    getCollection('echos'),
+    getCollection('echoes'),
     getCollection('concepts'),
     getCollection('visuals'),
   ]).then((results) => results.flat());
