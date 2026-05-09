@@ -1406,6 +1406,20 @@ export default function EchoesReader() {
               })}
             </div>
           )}
+
+          {/* 返回上一層 */}
+          {cluster && (
+            <div className="echoes-back-bar">
+              <button
+                type="button"
+                className="echoes-back-btn"
+                style={{ ['--accent' as string]: color }}
+                onClick={() => navigateToCluster(cluster.id)}
+              >
+                ← 返回「{cluster.label}」
+              </button>
+            </div>
+          )}
         </div>
       </section>
     );
@@ -1611,6 +1625,20 @@ export default function EchoesReader() {
               </strong>
             </button>
           </div>
+
+          {/* 返回曲目清單 */}
+          {parentNode && (
+            <div className="echoes-back-bar">
+              <button
+                type="button"
+                className="echoes-back-btn"
+                style={{ ['--accent' as string]: color }}
+                onClick={() => void navigateToContent(parentNode.id)}
+              >
+                ← 返回「{parentNode.title}」曲目清單
+              </button>
+            </div>
+          )}
         </div>
       </section>
     );
@@ -2564,6 +2592,33 @@ const echoesReaderCss = `
     font-family: var(--font-serif-tc);
     font-size: 14px;
     color: var(--ink-title);
+  }
+
+  /* === 返回按鈕 === */
+  .echoes-back-bar {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    text-align: center;
+  }
+
+  .echoes-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-family: var(--font-serif-tc);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background .2s, color .2s;
+  }
+
+  .echoes-back-btn:hover {
+    background: var(--accent);
+    color: #fff;
   }
 
   /* === Spoiler Dialog === */

@@ -391,6 +391,9 @@ export default function EditorPageTree({
   ) => {
     const result: React.ReactNode[] = [];
 
+    // Echoes 區域：不顯示 hover insert zones，改由 context menu / subcategory editor 管理
+    const showInsertZones = area !== 'echos';
+
     for (let i = 0; i <= nodes.length; i++) {
       const isCreatingHere =
         creating?.parentId === parentId && creating?.insertIndex === i;
@@ -401,7 +404,7 @@ export default function EditorPageTree({
             {renderCreateRow(depth)}
           </React.Fragment>
         );
-      } else {
+      } else if (showInsertZones) {
         result.push(renderInsertZone(parentId, parentDepth, i, depth));
       }
 
@@ -416,8 +419,15 @@ export default function EditorPageTree({
   // --- Render ---
 
   const renderNode = (node: PageTreeNode, depth: number = 0) => {
+    // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）
+    if (area === 'echos' && node.pageType === 'song') return null;
+
     const isActive = node.id === `${area}/${currentSlug}`;
-    const hasChildren = node.children && node.children.length > 0;
+    // Echoes 區域：不計算 song children 為 tree children
+    const visibleChildren = area === 'echos'
+      ? (node.children || []).filter((c: PageTreeNode) => c.pageType !== 'song')
+      : node.children || [];
+    const hasChildren = visibleChildren.length > 0;
     const isCollapsed = collapsed.has(node.id);
     const noEdit = NO_EDIT_TYPES.has(node.pageType);
     const noDrag = NO_DRAG_TYPES.has(node.pageType);
@@ -516,15 +526,18 @@ export default function EditorPageTree({
               className="ned-tree-context"
               onClick={(e) => e.stopPropagation()}
             >
-              {!NO_CHILDREN_TYPES.has(node.pageType) && (
+              {!NO_CHILDREN_TYPES.has(node.pageType) &&
+                !(area === 'echos' && node.pageType === 'subcategory') && (
                 <button
                   className="ned-tree-context-item"
                   onClick={() => {
                     setContextNode(null);
-                    startCreate(node.id, node.depth, node.children?.length ?? 0);
+                    startCreate(node.id, node.depth, visibleChildren.length);
                   }}
                 >
-                  + Add child
+                  {area === 'echos' && node.pageType === 'cluster'
+                    ? '+ Add subcategory'
+                    : '+ Add child'}
                 </button>
               )}
               <button
@@ -540,7 +553,7 @@ export default function EditorPageTree({
           )}
         </div>
         {hasChildren && !isCollapsed && (
-          <div>{renderNodeList(node.children, depth + 1, node.id, depth)}</div>
+          <div>{renderNodeList(visibleChildren, depth + 1, node.id, depth)}</div>
         )}
         {/* 無子節點但正在建立子頁面時，顯示 inline 表單 */}
         {!hasChildren && creating?.parentId === node.id && (
