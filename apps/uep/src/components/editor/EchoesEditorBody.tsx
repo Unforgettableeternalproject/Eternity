@@ -575,7 +575,7 @@ export default function EchoesEditorBody({
         {data.coverImage ? (
           <div className="ned-cover-preview">
             <img
-              src={`${API_BASE}/api/assets/${data.coverImage}`}
+              src={`${API_BASE}/api/assets/${data.coverImage.split('/').map((s) => encodeURIComponent(s)).join('/')}`}
               alt="封面圖預覽"
               className="ned-cover-img"
             />

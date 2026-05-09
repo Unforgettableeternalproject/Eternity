@@ -53,6 +53,14 @@ function isAudio(item: AssetItem): boolean {
   );
 }
 
+/** R2 key 可能含空白或特殊字元，每段需要 encode */
+function encodeAssetKey(key: string): string {
+  return key
+    .split('/')
+    .map((s) => encodeURIComponent(s))
+    .join('/');
+}
+
 // ── 元件 ──
 
 export default function MediaLibrary({
@@ -69,6 +77,9 @@ export default function MediaLibrary({
   const [detail, setDetail] = useState<AssetItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmBatch, setConfirmBatch] = useState(false);
+  const [search, setSearch] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
 
   const authHeaders: Record<string, string> = jwtToken
     ? { Authorization: `Bearer ${jwtToken}` }
@@ -118,9 +129,14 @@ export default function MediaLibrary({
 
   // ── 衍生狀態 ──
 
+  const searchLower = search.toLowerCase();
   const filtered = items.filter((item) => {
-    if (tab === 'images') return isImage(item);
-    if (tab === 'audio') return isAudio(item);
+    if (tab === 'images' && !isImage(item)) return false;
+    if (tab === 'audio' && !isAudio(item)) return false;
+    if (searchLower) {
+      const name = (item.originalName || item.key).toLowerCase();
+      if (!name.includes(searchLower)) return false;
+    }
     return true;
   });
 
@@ -158,7 +174,7 @@ export default function MediaLibrary({
     if (!window.confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${apiBase}/api/assets/${key}`, {
+      const res = await fetch(`${apiBase}/api/assets/${encodeAssetKey(key)}`, {
         method: 'DELETE',
         headers: authHeaders,
       });
@@ -202,6 +218,51 @@ export default function MediaLibrary({
     }
   };
 
+  // ── 改名操作 ──
+
+  const startRename = () => {
+    if (!detail) return;
+    // 預填檔名部分（不含 prefix 路徑）
+    const parts = detail.key.split('/');
+    setRenameValue(parts.length > 1 ? parts.slice(1).join('/') : detail.key);
+    setRenaming(true);
+  };
+
+  const submitRename = async () => {
+    if (!detail || !renameValue.trim()) return;
+    // 保持原本的 prefix（audio/ images/ files/）
+    const prefix = detail.key.split('/')[0];
+    const newKey = `${prefix}/${renameValue.trim()}`;
+    if (newKey === detail.key) {
+      setRenaming(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${apiBase}/api/assets/rename`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldKey: detail.key, newKey }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { key: string };
+        error?: string;
+      };
+      if (!json.ok) throw new Error(json.error || '改名失敗');
+      // 更新本地狀態
+      setItems((prev) =>
+        prev.map((i) =>
+          i.key === detail.key ? { ...i, key: newKey } : i
+        )
+      );
+      setDetail((prev) => (prev ? { ...prev, key: newKey } : null));
+      setRenaming(false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '未知錯誤';
+      window.alert(`改名失敗：${msg}`);
+    }
+  };
+
   // ── 渲染 ──
 
   const tabLabels: Record<TabFilter, string> = {
@@ -242,6 +303,14 @@ export default function MediaLibrary({
             </button>
           ))}
         </div>
+
+        <input
+          type="text"
+          className="ml-search"
+          placeholder="搜尋檔名..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
         {selected.size > 0 ? (
           <div className="ml-actions">
@@ -317,7 +386,7 @@ export default function MediaLibrary({
                 <div className="ml-thumb">
                   {isImage(item) ? (
                     <img
-                      src={`${apiBase}/api/assets/${item.key}`}
+                      src={`${apiBase}/api/assets/${encodeAssetKey(item.key)}`}
                       alt={getDisplayName(item)}
                       loading="lazy"
                       className="ml-thumb-img"
@@ -370,7 +439,7 @@ export default function MediaLibrary({
               <div className="ml-detail-preview">
                 {isImage(detail) ? (
                   <img
-                    src={`${apiBase}/api/assets/${detail.key}`}
+                    src={`${apiBase}/api/assets/${encodeAssetKey(detail.key)}`}
                     alt={getDisplayName(detail)}
                     className="ml-detail-img"
                   />
@@ -390,9 +459,46 @@ export default function MediaLibrary({
                 )}
 
                 <div className="ml-detail-label">R2 路徑</div>
-                <div className="ml-detail-value ml-detail-key">
-                  {detail.key}
-                </div>
+                {renaming ? (
+                  <div className="ml-rename-row">
+                    <span className="ml-rename-prefix">
+                      {detail.key.split('/')[0]}/
+                    </span>
+                    <input
+                      type="text"
+                      className="ml-rename-input"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitRename();
+                        if (e.key === 'Escape') setRenaming(false);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="ml-btn"
+                      onClick={submitRename}
+                    >
+                      確認
+                    </button>
+                    <button
+                      type="button"
+                      className="ml-btn"
+                      onClick={() => setRenaming(false)}
+                    >
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className="ml-detail-value ml-detail-key ml-detail-key--renamable"
+                    onClick={startRename}
+                    title="點擊以改名"
+                  >
+                    {detail.key}
+                  </div>
+                )}
 
                 <div className="ml-detail-label">大小</div>
                 <div className="ml-detail-value">

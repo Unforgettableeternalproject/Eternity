@@ -414,6 +414,37 @@ function SpoilerTitle({
   );
 }
 
+/** 在文字中隨機穿插雜訊字元 */
+function injectNoise(text: string, density = 0.25, seed = 0): string {
+  const chars = [...text];
+  const result: string[] = [];
+  for (let i = 0; i < chars.length; i++) {
+    result.push(chars[i]);
+    if (!(/\s/.test(chars[i])) && ((i + seed) * 7 + 3) % Math.round(1 / density) === 0) {
+      result.push(NOISE_CHARS[(i + seed) % NOISE_CHARS.length]);
+    }
+  }
+  return result.join('');
+}
+
+/** 輕量 glitch 文字 — 用於列表項目的 L3 遮蔽 */
+function GlitchText({ text }: { text: string }) {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 120);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <span className="echoes-glitch-inline">
+      <span className="echoes-glitch-r">{scramble(text, tick + 5)}</span>
+      <span className="echoes-glitch-b">{scramble(text, tick + 11)}</span>
+      <span className="echoes-glitch-main">{scramble(text, tick)}</span>
+    </span>
+  );
+}
+
 // ──────────────────────────────────────────────────────────────────
 // VinylDisc — 唱片圖形
 // ──────────────────────────────────────────────────────────────────
@@ -429,7 +460,7 @@ function VinylDisc({
   coverImage?: string | null;
 }) {
   const coverUrl = coverImage
-    ? `${API_BASE}/api/assets/${coverImage}`
+    ? `${API_BASE}/api/assets/${coverImage.split('/').map((s) => encodeURIComponent(s)).join('/')}`
     : null;
 
   return (
@@ -679,8 +710,12 @@ function splitLandingHtml(html: string) {
 
 function buildAudioUrl(audioFile: string | null): string | null {
   if (!audioFile) return null;
-  // 音檔存在 content-api 的 assets 端點
-  return `${API_BASE}/api/assets/${audioFile}`;
+  // 音檔存在 content-api 的 assets 端點；檔名可能含空白或特殊字元需要 encode
+  const encoded = audioFile
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+  return `${API_BASE}/api/assets/${encoded}`;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1416,15 +1451,30 @@ export default function EchoesReader() {
                     onClick={() => void navigateToSong(song.id)}
                   >
                     <span className="echoes-playlist-num">{String(i + 1).padStart(2, '0')}</span>
-                    <div className="echoes-playlist-info">
-                      <div className="echoes-playlist-title">{song.title}</div>
-                      {subtitle && <div className="echoes-playlist-sub">{subtitle}</div>}
+                    <div
+                      className="echoes-playlist-info"
+                      style={{
+                        filter: spoiler === 1 ? 'blur(5px)' : undefined,
+                        userSelect: spoiler >= 1 ? 'none' : undefined,
+                      }}
+                    >
+                      <div className="echoes-playlist-title">
+                        {spoiler === 3
+                          ? <GlitchText text={song.title} />
+                          : spoiler === 2
+                            ? '████████'
+                            : song.title}
+                      </div>
+                      {subtitle && (
+                        <div className="echoes-playlist-sub">
+                          {spoiler === 3
+                            ? <GlitchText text={subtitle} />
+                            : spoiler === 2
+                              ? '████'
+                              : subtitle}
+                        </div>
+                      )}
                     </div>
-                    {spoiler > 0 && (
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: spoiler === 3 ? 'crimson' : 'goldenrod' }}>
-                        L{spoiler}
-                      </span>
-                    )}
                     <span className="echoes-subcat-arrow" style={{ color }}>→</span>
                   </button>
                 );
@@ -1509,7 +1559,7 @@ export default function EchoesReader() {
     const appreciationParagraphs = isUnlocked
       ? songData.appreciation.filter((p) => p.trim())
       : songData.appreciationLocked
-        ? [songData.appreciationLocked]
+        ? [spoiler === 3 ? injectNoise(songData.appreciationLocked, 0.2) : songData.appreciationLocked]
         : [];
     const hasAppreciation = appreciationParagraphs.length > 0;
 
@@ -1591,10 +1641,14 @@ export default function EchoesReader() {
               )}
               <div
                 className="echoes-song-subtitle"
-                style={{ color: isUnlocked ? color : 'var(--ink-mute)' }}
+                style={{
+                  color: isUnlocked ? color : 'var(--ink-mute)',
+                  filter: !isUnlocked && spoiler === 1 ? 'blur(5px)' : undefined,
+                  userSelect: !isUnlocked && spoiler >= 1 ? 'none' : undefined,
+                }}
               >
                 —「
-                {isUnlocked
+                {isUnlocked || spoiler === 0
                   ? songData.subtitle
                   : spoiler >= 2
                     ? '████████'
@@ -1648,7 +1702,9 @@ export default function EchoesReader() {
                 >
                   {isUnlocked
                     ? '此曲目暫無賞析內容。'
-                    : '*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*'}
+                    : spoiler === 3
+                      ? injectNoise('*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*', 0.3)
+                      : '*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*'}
                 </p>
               )}
             </div>
@@ -1766,8 +1822,8 @@ export default function EchoesReader() {
                 ⚠ SPOILER WARNING · LEVEL {spoilerWarning.level}
               </div>
               <div className="echoes-spoiler-dialog-body">
-                這首歌曲屬於尚未解鎖的劇情段落。你需要先讀過{' '}
-                <strong>{spoilerWarning.gate || '對應劇情'}</strong>{' '}
+                這首歌曲屬於尚未解鎖的劇情段落。你需要先{' '}
+                <strong>{spoilerWarning.gate || '讀過對應劇情'}</strong>{' '}
                 才能無遮蔽地聆聽。
               </div>
               <div className="echoes-spoiler-dialog-actions">
@@ -2394,6 +2450,46 @@ const echoesReaderCss = `
     color: var(--ink-mute);
     letter-spacing: 0.12em;
     margin-top: 2px;
+  }
+
+  /* Inline glitch 文字（列表用） */
+  .echoes-glitch-inline {
+    position: relative;
+    display: inline-block;
+    user-select: none;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+  .echoes-glitch-inline .echoes-glitch-r,
+  .echoes-glitch-inline .echoes-glitch-b {
+    position: absolute;
+    inset: 0;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .echoes-glitch-inline .echoes-glitch-r {
+    color: rgba(220, 40, 80, 0.6);
+    animation: echoes-glitch-shift-r 0.3s steps(2) infinite;
+  }
+  .echoes-glitch-inline .echoes-glitch-b {
+    color: rgba(40, 120, 200, 0.6);
+    animation: echoes-glitch-shift-b 0.3s steps(2) infinite;
+  }
+  .echoes-glitch-inline .echoes-glitch-main {
+    position: relative;
+  }
+
+  @keyframes echoes-glitch-shift-r {
+    0%   { transform: translate(1px, -1px); }
+    50%  { transform: translate(-1px, 1px); }
+    100% { transform: translate(1px, -1px); }
+  }
+  @keyframes echoes-glitch-shift-b {
+    0%   { transform: translate(-1px, 1px); }
+    50%  { transform: translate(1px, -1px); }
+    100% { transform: translate(-1px, 1px); }
   }
 
   /* === Song 視圖 === */

@@ -760,6 +760,98 @@ async function batchDeleteAssets(
   );
 }
 
+/** POST /api/assets/rename — 重新命名 R2 資產並更新 D1 引用 */
+async function renameAsset(
+  body: { oldKey: string; newKey: string },
+  bucket: R2Bucket,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const { oldKey, newKey } = body;
+  if (!oldKey || !newKey) {
+    return jsonResponse(
+      { ok: false, error: 'oldKey and newKey are required' },
+      400,
+      cors
+    );
+  }
+  if (oldKey === newKey) {
+    return jsonResponse({ ok: true, data: { key: newKey } }, 200, cors);
+  }
+
+  // 1. 確認原檔案存在
+  const obj = await bucket.get(oldKey);
+  if (!obj) {
+    return jsonResponse(
+      { ok: false, error: '原始檔案不存在' },
+      404,
+      cors
+    );
+  }
+
+  // 2. 複製到新 key
+  await bucket.put(newKey, obj.body, {
+    httpMetadata: obj.httpMetadata,
+    customMetadata: obj.customMetadata,
+  });
+
+  // 3. 刪除舊 key
+  await bucket.delete(oldKey);
+
+  // 4. 更新 D1 引用 — metadata（audioFile, coverImage）
+  const songRows = await db
+    .prepare("SELECT id, metadata FROM pages WHERE page_type = 'song'")
+    .all<{ id: string; metadata: string }>();
+
+  for (const row of songRows.results || []) {
+    try {
+      const meta = JSON.parse(row.metadata || '{}');
+      let changed = false;
+      if (meta.audioFile === oldKey) {
+        meta.audioFile = newKey;
+        changed = true;
+      }
+      if (meta.coverImage === oldKey) {
+        meta.coverImage = newKey;
+        changed = true;
+      }
+      if (changed) {
+        await db
+          .prepare(
+            "UPDATE pages SET metadata = ?, updated_at = datetime('now') WHERE id = ?"
+          )
+          .bind(JSON.stringify(meta), row.id)
+          .run();
+      }
+    } catch {
+      // 略過格式錯誤的 metadata
+    }
+  }
+
+  // 5. 更新 D1 引用 — content HTML 中的 /api/assets/ URL
+  const contentRows = await db
+    .prepare('SELECT id, content FROM pages')
+    .all<{ id: string; content: string }>();
+
+  for (const row of contentRows.results || []) {
+    try {
+      const content = row.content || '[]';
+      if (!content.includes(oldKey)) continue;
+      const updated = content.split(oldKey).join(newKey);
+      await db
+        .prepare(
+          "UPDATE pages SET content = ?, updated_at = datetime('now') WHERE id = ?"
+        )
+        .bind(updated, row.id)
+        .run();
+    } catch {
+      // 略過格式錯誤的 content
+    }
+  }
+
+  return jsonResponse({ ok: true, data: { key: newKey } }, 200, cors);
+}
+
 // ===== Worker 入口 =====
 
 export default {
@@ -839,6 +931,20 @@ export default {
       return batchDeleteAssets(body, env.ASSETS_BUCKET, cors);
     }
 
+    // POST /api/assets/rename — 重新命名資產
+    if (path === '/api/assets/rename' && request.method === 'POST') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse(
+          { ok: false, error: 'Unauthorized' },
+          401,
+          cors
+        );
+      }
+      const body = (await request.json()) as { oldKey: string; newKey: string };
+      return renameAsset(body, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
+    }
+
     // ---- 內容路由授權檢查 ----
     const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
 
@@ -880,7 +986,7 @@ export default {
     // ---- 圖片資源路由 (R2) ----
     const assetMatch = path.match(/^\/api\/assets\/(.+)$/);
     if (assetMatch) {
-      const key = assetMatch[1];
+      const key = decodeURIComponent(assetMatch[1]);
 
       if (request.method === 'GET') {
         const obj = await env.ASSETS_BUCKET.get(key);
@@ -921,7 +1027,7 @@ export default {
         : contentType.startsWith('image/')
           ? 'images'
           : 'files';
-      const key = `${prefix}/${timestamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const key = `${prefix}/${file.name}`;
 
       await env.ASSETS_BUCKET.put(key, file.stream(), {
         httpMetadata: { contentType: file.type },
