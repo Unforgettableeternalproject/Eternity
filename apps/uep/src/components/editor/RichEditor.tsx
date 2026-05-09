@@ -19,6 +19,7 @@ import EchoesEditorBody, {
   type EchoesData,
 } from './EchoesEditorBody';
 import EchoesSubcatEditor from './EchoesSubcatEditor';
+import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './RichEditor.css';
 
 // === Color palettes ===
@@ -136,8 +137,12 @@ export default function RichEditor({
   const isEchoesArea = area === 'echos' || zoneId === 'echoes';
   const isEchoes = isEchoesArea && pageType === 'song';
   const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
+  const isZone = pageType === 'zone';
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
+  );
+  const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
+    () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
   );
 
   // TipTap editor
@@ -204,6 +209,7 @@ export default function RichEditor({
         ...(icon ? { icon } : {}),
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
+        ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -232,7 +238,9 @@ export default function RichEditor({
     editor,
     isDirty,
     isEchoes,
+    isZone,
     echoesData,
+    zoneTabs,
     title,
     apiBase,
     area,
@@ -953,7 +961,7 @@ export default function RichEditor({
           )}
 
           <span className="ned-toolbar-right">
-            {isEchoes ? 'song mode' : isEchoesSubcat ? 'playlist mode' : 'rich text'}
+            {isEchoes ? 'song mode' : isEchoesSubcat ? 'playlist mode' : isZone ? 'zone mode' : 'rich text'}
             {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
           </span>
         </div>
@@ -1020,6 +1028,20 @@ export default function RichEditor({
                         pageSlug={pageSlug}
                         accent={accentMain}
                         onDirty={() => setIsDirty(true)}
+                        refreshKey={treeRefreshKey}
+                      />
+                    )}
+                    {isZone && (
+                      <ZoneTabsEditor
+                        area={area}
+                        apiBase={apiBase}
+                        pageId={`${area}/${pageSlug}`}
+                        accent={accentMain}
+                        zoneTabs={zoneTabs}
+                        onZoneTabsChange={(tabs) => {
+                          setZoneTabs(tabs);
+                          setIsDirty(true);
+                        }}
                         refreshKey={treeRefreshKey}
                       />
                     )}

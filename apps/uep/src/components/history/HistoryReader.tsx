@@ -169,6 +169,18 @@ function splitLandingHtml(html: string) {
   };
 }
 
+function findNodeInTree(
+  nodes: PageTreeNode[],
+  id: string
+): PageTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findNodeInTree(node.children || [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
 function resolveInternalLink(
   currentPageId: string,
   href: string,
@@ -235,6 +247,7 @@ export default function HistoryReader() {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [zoneActiveTab, setZoneActiveTab] = useState<number | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -415,6 +428,7 @@ export default function HistoryReader() {
     setContentLoading(true);
     setContentError(null);
     setArticleHtml('');
+    setZoneActiveTab(null);
 
     const ancestors = ancestorMap.get(node.id) || [];
     setExpanded(
@@ -626,6 +640,31 @@ export default function HistoryReader() {
         ].filter(Boolean) as PageTreeNode[]
       ).filter((page) => page.pageType !== 'page')
     : [];
+
+  // Zone 分頁目錄（從 metadata.zoneTabs 讀取）
+  const zoneTabsData = useMemo(() => {
+    if (currentPage?.pageType !== 'zone' || !currentPage.metadata?.zoneTabs)
+      return [] as { label: string; items: string[] }[];
+    return currentPage.metadata.zoneTabs as {
+      label: string;
+      items: string[];
+    }[];
+  }, [currentPage]);
+  const activeZoneTabIdx =
+    zoneActiveTab !== null &&
+    zoneActiveTab >= 0 &&
+    zoneActiveTab < zoneTabsData.length
+      ? zoneActiveTab
+      : zoneTabsData.length > 0
+        ? 0
+        : -1;
+  const zoneTabItems = useMemo(() => {
+    if (activeZoneTabIdx < 0) return [] as PageTreeNode[];
+    const tab = zoneTabsData[activeZoneTabIdx];
+    return (tab?.items || [])
+      .map((id: string) => flatPages.find((p) => p.id === id))
+      .filter(Boolean) as PageTreeNode[];
+  }, [activeZoneTabIdx, zoneTabsData, flatPages]);
 
   return (
     <div className="history-reader">
@@ -843,6 +882,50 @@ export default function HistoryReader() {
                   </>
                 )}
               </article>
+
+              {/* Zone 分頁目錄（從 metadata 讀取） */}
+              {zoneTabsData.length > 0 && (
+                <div className="history-zone-tabs">
+                  <div className="history-zone-tabs-bar">
+                    {zoneTabsData.map((tab, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`history-zone-tab ${activeZoneTabIdx === i ? 'active' : ''}`}
+                        onClick={() => setZoneActiveTab(i)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="history-zone-tabs-body">
+                    {zoneTabItems.length === 0 ? (
+                      <div className="history-zone-tabs-empty">
+                        此分頁下尚無內容
+                      </div>
+                    ) : (
+                      <ul className="history-zone-tab-list">
+                        {zoneTabItems.map((child) => (
+                          <li key={child.id}>
+                            <button
+                              type="button"
+                              className="history-zone-tab-link"
+                              onClick={() => void loadPage(child)}
+                            >
+                              {renderIcon(
+                                child.metadata?.icon as string,
+                                14,
+                                'history-zone-tab-link-icon'
+                              ) || null}
+                              {child.title}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="history-page-nav">
                 <button
@@ -1677,6 +1760,110 @@ const historyReaderCss = `
   .empty-notice {
     color: var(--ink-mute);
     font-style: italic;
+  }
+
+  /* === Zone 分頁目錄 === */
+  .history-zone-tabs {
+    margin-top: 36px;
+    border: 1px solid var(--line);
+    background: var(--bg-card);
+  }
+
+  .history-zone-tabs-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+
+  .history-zone-tab {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--font-serif-tc);
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color .15s, border-color .15s;
+  }
+
+  .history-zone-tab:hover {
+    color: var(--ink-title);
+  }
+
+  .history-zone-tab.active {
+    color: ${HISTORY_ZONE.main};
+    border-bottom-color: ${HISTORY_ZONE.main};
+  }
+
+  .history-zone-tab-icon {
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .history-zone-tabs-body {
+    padding: 8px 16px;
+  }
+
+  .history-zone-tabs-empty {
+    padding: 16px 0;
+    text-align: center;
+    color: var(--ink-mute);
+    font-family: var(--font-serif-tc);
+    font-size: 13px;
+  }
+
+  .history-zone-tab-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .history-zone-tab-list li {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .history-zone-tab-list li:last-child {
+    border-bottom: 0;
+  }
+
+  .history-zone-tab-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--font-serif-tc);
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+    transition: color .15s;
+  }
+
+  .history-zone-tab-link::before {
+    content: "•";
+    color: ${HISTORY_ZONE.main};
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .history-zone-tab-link:hover {
+    color: ${HISTORY_ZONE.soft};
+  }
+
+  .history-zone-tab-link-icon {
+    color: ${HISTORY_ZONE.main};
+    opacity: 0.7;
+    flex-shrink: 0;
   }
 
   @media (max-width: 760px) {
