@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ZONES } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import TopBar from '../ui/TopBar';
@@ -8,6 +8,9 @@ import Minimap from '../ui/Minimap';
 import BigMapModal from '../ui/BigMapModal';
 import PortalTransition from '../ui/PortalTransition';
 import IntroOverlay from '../ui/IntroOverlay';
+import ZoneHomepageRenderer from './ZoneHomepageRenderer';
+import type { HomepageBlock } from '../editor/homepage/types';
+import { fromContentBlock } from '../editor/homepage/types';
 
 // ─── Shared shell wrapper ──────────────────────────────────────────────────────
 
@@ -15,9 +18,11 @@ interface ZoneShellProps {
   zone: ZoneData;
   onOpenMap?: () => void;
   children: React.ReactNode;
+  /** 內容是否已準備好 — 控制入場霧化何時解除 */
+  ready?: boolean;
 }
 
-function ZoneShell({ zone, onOpenMap, children }: ZoneShellProps) {
+function ZoneShell({ zone, onOpenMap, children, ready = true }: ZoneShellProps) {
   const corners: Array<{
     pos: React.CSSProperties;
     borders: React.CSSProperties;
@@ -92,6 +97,40 @@ function ZoneShell({ zone, onOpenMap, children }: ZoneShellProps) {
           }}
         />
       ))}
+
+      {/* 入場反向霧化 — ready 時才播放動畫，否則保持模糊 */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 50,
+          pointerEvents: 'none',
+          ...(ready
+            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
+            : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }
+          ),
+        }}
+      />
+      <style>{`
+        @keyframes zone-arrival {
+          0%   { backdrop-filter: blur(18px); background: rgba(10,10,14,0.5); }
+          60%  { backdrop-filter: blur(4px); background: rgba(10,10,14,0.12); }
+          100% { backdrop-filter: blur(0px); background: transparent; }
+        }
+        .zone-entry-h1 { font-size: 88px; }
+        .zone-entry-content { padding: 60px 40px 80px; }
+        @media (max-width: 760px) {
+          .zone-entry-h1 { font-size: 44px !important; }
+          .zone-entry-content { padding: 32px 20px 56px !important; }
+          .zone-arch-grid { grid-template-columns: 1fr !important; }
+          .zone-arch-card { min-height: 200px !important; }
+          .zone-cluster-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .zone-storage-grid { grid-template-columns: 1fr !important; }
+          .zone-module-row { grid-template-columns: 36px 1fr 56px !important; gap: 8px !important; }
+          .zone-module-en { display: none !important; }
+        }
+      `}</style>
 
       {/* TopBar */}
       <div style={{ position: 'relative', zIndex: 10 }}>
@@ -233,10 +272,10 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
       </div>
 
       <div
+        className="zone-entry-content"
         style={{
           maxWidth: 900,
           margin: '0 auto',
-          padding: '60px 40px 80px',
           position: 'relative',
           zIndex: 1,
         }}
@@ -244,9 +283,9 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
+          className="zone-entry-h1"
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 88,
             fontWeight: 500,
             color: 'var(--ink-title)',
             lineHeight: 1,
@@ -278,6 +317,7 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
 
         {/* Three archway cards */}
         <div
+          className="zone-arch-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
@@ -528,10 +568,10 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
       </div>
 
       <div
+        className="zone-entry-content"
         style={{
           maxWidth: 960,
           margin: '0 auto',
-          padding: '60px 40px 80px',
           position: 'relative',
           zIndex: 1,
         }}
@@ -539,9 +579,9 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
+          className="zone-entry-h1"
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 88,
             fontWeight: 500,
             color: 'var(--ink-title)',
             lineHeight: 1,
@@ -573,6 +613,7 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
 
         {/* Orb cluster cards */}
         <div
+          className="zone-cluster-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
@@ -763,10 +804,10 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
       </div>
 
       <div
+        className="zone-entry-content"
         style={{
           maxWidth: 900,
           margin: '0 auto',
-          padding: '60px 40px 80px',
           position: 'relative',
           zIndex: 1,
         }}
@@ -774,9 +815,9 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
+          className="zone-entry-h1"
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 80,
             fontWeight: 500,
             color: 'var(--ink-title)',
             lineHeight: 1,
@@ -1068,10 +1109,10 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
       </div>
 
       <div
+        className="zone-entry-content"
         style={{
           maxWidth: 900,
           margin: '0 auto',
-          padding: '60px 40px 80px',
           position: 'relative',
           zIndex: 1,
         }}
@@ -1088,9 +1129,9 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
           }}
         >
           <h1
+            className="zone-entry-h1"
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 80,
               fontWeight: 500,
               color: 'var(--ink-title)',
               lineHeight: 1,
@@ -1177,6 +1218,7 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
           {modules.map((mod, i) => (
             <div
               key={mod.id}
+              className="zone-module-row"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '36px 1fr 1fr 80px 64px 24px',
@@ -1211,6 +1253,7 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
               </span>
               {/* en */}
               <span
+                className="zone-module-en"
                 style={{
                   fontSize: 11,
                   color: 'var(--ink-mute)',
@@ -1353,10 +1396,10 @@ function StorageEntry({ zone }: ZoneEntryProps) {
       </div>
 
       <div
+        className="zone-entry-content"
         style={{
           maxWidth: 900,
           margin: '0 auto',
-          padding: '60px 40px 80px',
           position: 'relative',
           zIndex: 1,
         }}
@@ -1364,9 +1407,9 @@ function StorageEntry({ zone }: ZoneEntryProps) {
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
+          className="zone-entry-h1"
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 88,
             fontWeight: 500,
             color: 'var(--ink-title)',
             lineHeight: 1,
@@ -1397,6 +1440,7 @@ function StorageEntry({ zone }: ZoneEntryProps) {
 
         {/* Two-column grid */}
         <div
+          className="zone-storage-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -1571,11 +1615,58 @@ interface ZoneEntryPageProps {
   zoneId: string;
 }
 
+// D1 API 的 area slug 映射（zoneId → API area）
+const ZONE_TO_AREA: Record<string, string> = {
+  history: 'history',
+  echoes: 'echos',
+  visuals: 'visuals',
+  concepts: 'concepts',
+  storage: 'storage',
+};
+
 export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
   const zone = ZONES.find((z) => z.id === zoneId);
   const [showMap, setShowMap] = useState(false);
   const [portalZone, setPortalZone] = useState<ZoneData | null>(null);
   const [introZone, setIntroZone] = useState<ZoneData | null>(null);
+
+  // D1 首頁資料
+  const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[] | null>(null);
+  const [homepageLoaded, setHomepageLoaded] = useState(false);
+
+  // 安全逾時：2 秒後無論如何都解除霧化
+  useEffect(() => {
+    const t = setTimeout(() => setHomepageLoaded(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!zone) return;
+    const area = ZONE_TO_AREA[zoneId] || zoneId;
+    const apiBase =
+      (import.meta as unknown as { env?: Record<string, string> }).env
+        ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+    fetch(`${apiBase}/api/content/${area}/homepage`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((json: any) => {
+        if (json?.ok && json.data?.content) {
+          const raw = typeof json.data.content === 'string'
+            ? JSON.parse(json.data.content)
+            : json.data.content;
+          if (Array.isArray(raw) && raw.length > 0) {
+            setHomepageBlocks(raw.map(fromContentBlock));
+          }
+        }
+      })
+      .catch(() => {
+        // API 失敗 — 使用硬編碼 fallback
+      })
+      .finally(() => setHomepageLoaded(true));
+  }, [zoneId]);
 
   if (!zone) {
     return (
@@ -1608,6 +1699,12 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
   };
 
   function renderEntry() {
+    // 有 D1 首頁資料時，使用資料驅動渲染器
+    if (homepageBlocks && homepageBlocks.length > 0) {
+      return <ZoneHomepageRenderer blocks={homepageBlocks} zone={zone!} />;
+    }
+
+    // Fallback：硬編碼的入口頁面
     switch (zoneId) {
       case 'history':
         return <HistoryEntry {...sharedRest} />;
@@ -1636,7 +1733,7 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
 
   return (
     <>
-      <ZoneShell zone={zone} onOpenMap={() => setShowMap(true)}>
+      <ZoneShell zone={zone} onOpenMap={() => setShowMap(true)} ready={homepageLoaded}>
         {renderEntry()}
       </ZoneShell>
 

@@ -27,7 +27,8 @@ export type BlockType =
 
 export type PageType =
   | 'zone' | 'chapter' | 'arc' | 'section' | 'page'       // History 專用
-  | 'cluster' | 'subcategory' | 'song';                     // Echoes 專用
+  | 'cluster' | 'subcategory' | 'song'                      // Echoes 專用
+  | 'homepage';                                              // 區域首頁
 
 /** 單一內容區塊 */
 export interface ContentBlock {

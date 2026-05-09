@@ -31,7 +31,7 @@ const TYPE_LETTERS: Record<string, string> = {
   song: '♪',
 };
 
-const NO_EDIT_TYPES = new Set(['page']); // 不可在編輯器開啟
+const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
 const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster']); // 不可拖動排序
 const NO_CHILDREN_TYPES = new Set(['song']); // 不可新增子頁面
 
@@ -418,7 +418,13 @@ export default function EditorPageTree({
 
   // --- Render ---
 
-  const renderNode = (node: PageTreeNode, depth: number = 0) => {
+  const renderNode = (node: PageTreeNode, depth: number = 0): React.ReactNode => {
+    // page / homepage 類型節點由首頁編輯器管理 — 跳過節點本身，但保留其子層
+    if (node.pageType === 'page' || node.pageType === 'homepage') {
+      const children = node.children || [];
+      if (children.length === 0) return null;
+      return <>{children.map((child: PageTreeNode) => renderNode(child, depth))}</>;
+    }
     // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）
     if (area === 'echos' && node.pageType === 'song') return null;
 

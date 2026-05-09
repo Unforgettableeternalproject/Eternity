@@ -108,7 +108,7 @@ export default function RichEditor({
   const [isDirty, setIsDirty] = useState(false);
   const [title, setTitle] = useState(initialTitle);
   const [parentId, setParentId] = useState(initialParentId || '');
-  const [pageType, setPageType] = useState(initialPageType || 'page');
+  const [pageType, setPageType] = useState(initialPageType || 'section');
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [locked, setLocked] = useState(initialMetadata?.locked === true);
@@ -138,6 +138,7 @@ export default function RichEditor({
   const isEchoes = isEchoesArea && pageType === 'song';
   const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
   const isZone = pageType === 'zone';
+  const isPageType = !isEntryMode && (pageType === 'page' || pageType === 'homepage');
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
   );
@@ -961,24 +962,26 @@ export default function RichEditor({
           )}
 
           <span className="ned-toolbar-right">
-            {isEchoes ? 'song mode' : isEchoesSubcat ? 'playlist mode' : isZone ? 'zone mode' : 'rich text'}
+            {isEchoes ? 'song mode' : isEchoesSubcat ? 'playlist mode' : isZone ? 'zone mode' : isPageType ? 'homepage mode' : 'rich text'}
             {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
           </span>
         </div>
       )}
 
-      {/* Body — 3 columns */}
-      <div className="ned-body">
-        {/* Left — Page Tree */}
-        <aside className="ned-panel--tree">
-          <EditorPageTree
-            area={area}
-            apiBase={apiBase}
-            currentSlug={pageSlug}
-            accent={accentMain}
-            refreshKey={treeRefreshKey}
-          />
-        </aside>
+      {/* Body — 3 columns (or 2 in homepage mode) */}
+      <div className={`ned-body ${isPageType ? 'ned-body--no-tree' : ''}`}>
+        {/* Left — Page Tree (hidden in homepage mode) */}
+        {!isPageType && (
+          <aside className="ned-panel--tree">
+            <EditorPageTree
+              area={area}
+              apiBase={apiBase}
+              currentSlug={pageSlug}
+              accent={accentMain}
+              refreshKey={treeRefreshKey}
+            />
+          </aside>
+        )}
 
         {/* Middle — Editor */}
         <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
