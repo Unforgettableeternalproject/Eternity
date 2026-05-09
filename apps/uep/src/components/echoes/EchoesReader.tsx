@@ -730,6 +730,7 @@ export default function EchoesReader() {
   // === 共用 UI 狀態 ===
   const [theme, setTheme] = useState('dark');
   const [showMap, setShowMap] = useState(false);
+  const [homePortal, setHomePortal] = useState(false);
   const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(null);
   const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(null);
 
@@ -1144,14 +1145,18 @@ export default function EchoesReader() {
                         const color = hp?.color || cluster.color;
                         const label = hp?.label || cluster.label;
                         const songCount = countSongsInCluster(tree, cluster.id);
-                        const orbCount = Math.max(hp?.orbCount || songCount, 6);
+                        const orbCount = Math.max(songCount, 6);
+                        // 內圈最多 40 個，超出的到外圈
+                        const innerCount = Math.min(orbCount, 40);
+                        const outerCount = Math.max(orbCount - 40, 0);
                         return (
                           <button key={cluster.id} type="button" className="echoes-cluster-card"
                             style={{ ['--cluster-color' as string]: color, borderTopColor: color }}
                             onClick={() => navigateToCluster(cluster.id)}>
                             <div className="echoes-orb-field">
-                              {Array.from({ length: orbCount }, (_, k) => {
-                                const angle = (k / orbCount) * Math.PI * 2;
+                              {/* 內圈 */}
+                              {Array.from({ length: innerCount }, (_, k) => {
+                                const angle = (k / innerCount) * Math.PI * 2;
                                 const r = 36 + (k % 2) * 8;
                                 return (
                                   <span key={k} className="echoes-orb-particle" style={{
@@ -1159,6 +1164,20 @@ export default function EchoesReader() {
                                     top: 55 + Math.sin(angle) * r - 5,
                                     background: color, opacity: 0.4 + (k % 3) * 0.2,
                                     boxShadow: `0 0 8px ${color}`, animationDelay: `${k * 0.2}s`,
+                                  }} />
+                                );
+                              })}
+                              {/* 外圈（超過 40 時） */}
+                              {Array.from({ length: outerCount }, (_, k) => {
+                                const angle = (k / outerCount) * Math.PI * 2;
+                                const r = 56 + (k % 2) * 8;
+                                return (
+                                  <span key={`o${k}`} className="echoes-orb-particle" style={{
+                                    left: 55 + Math.cos(angle) * r - 4,
+                                    top: 55 + Math.sin(angle) * r - 4,
+                                    width: 8, height: 8,
+                                    background: color, opacity: 0.25 + (k % 3) * 0.12,
+                                    boxShadow: `0 0 6px ${color}`, animationDelay: `${k * 0.15}s`,
                                   }} />
                                 );
                               })}
@@ -1214,19 +1233,34 @@ export default function EchoesReader() {
                 {CLUSTERS.map((cluster) => {
                   const songCount = countSongsInCluster(tree, cluster.id);
                   const orbCount = Math.max(songCount, 6);
+                  const innerCount = Math.min(orbCount, 40);
+                  const outerCount = Math.max(orbCount - 40, 0);
                   return (
                     <button key={cluster.id} type="button" className="echoes-cluster-card"
                       style={{ ['--cluster-color' as string]: cluster.color, borderTopColor: cluster.color }}
                       onClick={() => navigateToCluster(cluster.id)}>
                       <div className="echoes-orb-field">
-                        {Array.from({ length: orbCount }, (_, k) => {
-                          const angle = (k / orbCount) * Math.PI * 2;
+                        {Array.from({ length: innerCount }, (_, k) => {
+                          const angle = (k / innerCount) * Math.PI * 2;
                           const r = 36 + (k % 2) * 8;
                           return (
                             <span key={k} className="echoes-orb-particle" style={{
                               left: 55 + Math.cos(angle) * r - 5, top: 55 + Math.sin(angle) * r - 5,
                               background: cluster.color, opacity: 0.4 + (k % 3) * 0.2,
                               boxShadow: `0 0 8px ${cluster.color}`, animationDelay: `${k * 0.2}s`,
+                            }} />
+                          );
+                        })}
+                        {/* 外圈（超過 40 時） */}
+                        {Array.from({ length: outerCount }, (_, k) => {
+                          const angle = (k / outerCount) * Math.PI * 2;
+                          const r = 56 + (k % 2) * 8;
+                          return (
+                            <span key={`o${k}`} className="echoes-orb-particle" style={{
+                              left: 55 + Math.cos(angle) * r - 4, top: 55 + Math.sin(angle) * r - 4,
+                              width: 8, height: 8,
+                              background: cluster.color, opacity: 0.25 + (k % 3) * 0.12,
+                              boxShadow: `0 0 6px ${cluster.color}`, animationDelay: `${k * 0.15}s`,
                             }} />
                           );
                         })}
@@ -1905,7 +1939,14 @@ export default function EchoesReader() {
           }
         `}</style>
 
-        <TopBar onOpenMap={() => setShowMap(true)} dark={theme === 'dark'} />
+        <TopBar
+          onOpenMap={() => setShowMap(true)}
+          onGoHome={() => {
+            setHomePortal(true);
+            setTimeout(() => { window.location.href = '/'; }, 1100);
+          }}
+          dark={theme === 'dark'}
+        />
 
         <div className="echoes-main">
           <ZoneAtmosphere zone={echoesZone} intensity="subtle" />
@@ -1978,7 +2019,8 @@ export default function EchoesReader() {
             onPick={showZoneIntro}
             onCenterClick={() => {
               setShowMap(false);
-              window.location.href = '/';
+              setHomePortal(true);
+              setTimeout(() => { window.location.href = '/'; }, 1100);
             }}
           />
         )}
@@ -1993,6 +2035,7 @@ export default function EchoesReader() {
           }}
         />
         <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
+        <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
       </div>
     </AudioProvider>
   );

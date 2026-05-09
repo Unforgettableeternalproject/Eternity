@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 
 interface TopBarProps {
   onOpenMap?: () => void;
+  onGoHome?: () => void;
   dark?: boolean;
 }
 
-export default function TopBar({ onOpenMap, dark }: TopBarProps) {
+export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
   const [theme, setTheme] = useState<string>('dark');
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
 
       <a
         href="/"
+        onClick={onGoHome ? (e) => { e.preventDefault(); onGoHome(); } : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
