@@ -1236,7 +1236,7 @@ export default function HistoryReader() {
 
 const historyReaderCss = `
   .history-reader {
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     background: var(--bg);

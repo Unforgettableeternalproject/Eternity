@@ -110,6 +110,7 @@ export interface UpsertPageRequest {
   parentId?: string | null;
   depth?: number;
   pageType?: PageType;
+  status?: PageStatus;
 }
 
 /** 匯入頁面的請求（從子倉庫來源） */
