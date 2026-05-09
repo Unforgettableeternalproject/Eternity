@@ -19,7 +19,7 @@ async function safeFetchJson(url: string): Promise<any> {
 
 // Fetch data for each zone
 const historyData = await safeFetchJson(`${apiBase}/api/content/history`);
-const echoesData = await safeFetchJson(`${apiBase}/api/content/echos`);
+const echoesData = await safeFetchJson(`${apiBase}/api/content/echoes`);
 
 const historyPages = historyData?.ok ? historyData.data || [] : [];
 const echoesPages = echoesData?.ok ? echoesData.data || [] : [];
@@ -47,7 +47,7 @@ const allLandingPages = [
     .map((p: any) => ({ ...p, area: 'history' })),
   ...echoesPages
     .filter((p: any) => p.pageType === 'homepage' || p.pageType === 'page')
-    .map((p: any) => ({ ...p, area: 'echos' })),
+    .map((p: any) => ({ ...p, area: 'echoes' })),
 ];
 
 const totalPages = historyPages.length + echoesPages.length;
@@ -288,7 +288,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
             <div class="adm-zone-spacer"></div>
             <div class="adm-zone-actions">
               <a
-                href="/admin/edit/echos"
+                href="/admin/edit/echoes"
                 class="adm-zone-btn-primary"
                 style="background: #6B4F8E;"
               >
@@ -303,7 +303,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
         <div class="adm-homepage-grid">
           {[
             { area: 'history', label: '歷史典藏庫', color: 'var(--history-main)' },
-            { area: 'echos', label: '空白廣場', color: 'var(--echoes-main)' },
+            { area: 'echoes', label: '空白廣場', color: 'var(--echoes-main)' },
             { area: 'visuals', label: '鏡向十字路口', color: 'var(--visuals-main)' },
             { area: 'concepts', label: '概念調整房', color: 'var(--concepts-main)' },
             { area: 'storage', label: '雜亂的書桌', color: 'var(--storage-main)' },

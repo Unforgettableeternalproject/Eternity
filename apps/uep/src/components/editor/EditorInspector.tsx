@@ -33,7 +33,7 @@ const AREA_PAGE_TYPES: Record<string, { value: string; label: string }[]> = {
     { value: 'arc', label: 'Arc' },
     { value: 'section', label: 'Section' },
   ],
-  echos: [
+  echoes: [
     { value: 'page', label: 'Page' },
     { value: 'cluster', label: 'Cluster (集群)' },
     { value: 'subcategory', label: 'Subcategory (子分類)' },

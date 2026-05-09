@@ -16,7 +16,7 @@ import BlockEditor from './BlockEditor';
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 interface HomepageEditorProps {
-  /** 區域 slug，如 'history'、'echos'、'visuals' 等 */
+  /** 區域 slug，如 'history'、'echoes'、'visuals' 等 */
   area: string;
   /** 區域顯示名稱，如 '歷史典藏庫' */
   zoneLabel: string;
@@ -34,7 +34,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const ZONE_ICONS: Record<string, string> = {
   history: '❒',
-  echos: '◎',
+  echoes: '◎',
   visuals: '◈',
   concepts: '⬡',
   storage: '⊞',

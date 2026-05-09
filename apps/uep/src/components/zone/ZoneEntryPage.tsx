@@ -1619,7 +1619,7 @@ interface ZoneEntryPageProps {
 // D1 API 的 area slug 映射（zoneId → API area）
 const ZONE_TO_AREA: Record<string, string> = {
   history: 'history',
-  echoes: 'echos',
+  echoes: 'echoes',
   visuals: 'visuals',
   concepts: 'concepts',
   storage: 'storage',

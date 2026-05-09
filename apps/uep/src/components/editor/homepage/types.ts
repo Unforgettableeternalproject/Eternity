@@ -137,7 +137,7 @@ export const BLOCK_TYPE_LABELS: Record<HomepageBlockType, string> = {
 /** 各區域可用的區塊類型 */
 export const ZONE_BLOCK_TYPES: Record<string, HomepageBlockType[]> = {
   history: ['zone-header', 'uep-dialogue', 'archway-grid', 'hint-box', 'rich-text'],
-  echos: ['zone-header', 'uep-dialogue', 'orb-cluster-grid', 'rich-text'],
+  echoes: ['zone-header', 'uep-dialogue', 'orb-cluster-grid', 'rich-text'],
   visuals: ['zone-header', 'uep-dialogue', 'cross-road-grid', 'rich-text'],
   concepts: ['zone-header', 'uep-dialogue', 'terminal-module-table', 'rich-text'],
   storage: ['zone-header', 'uep-dialogue', 'storage-sticky-note', 'storage-links-list', 'rich-text'],

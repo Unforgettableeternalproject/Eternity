@@ -39,7 +39,7 @@ export const ZONES: ZoneData[] = [
   {
     id: 'echoes',
     label: '回音蒐藏間',
-    slug: 'echos',
+    slug: 'echoes',
     en: 'Echoes',
     kicker: 'Volume II',
     blurb: '音樂、OST、聲音作品。可被捧起的回憶之球。',

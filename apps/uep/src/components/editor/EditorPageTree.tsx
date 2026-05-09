@@ -392,7 +392,7 @@ export default function EditorPageTree({
     const result: React.ReactNode[] = [];
 
     // Echoes 區域：不顯示 hover insert zones，改由 context menu / subcategory editor 管理
-    const showInsertZones = area !== 'echos';
+    const showInsertZones = area !== 'echoes';
 
     for (let i = 0; i <= nodes.length; i++) {
       const isCreatingHere =
@@ -426,11 +426,11 @@ export default function EditorPageTree({
       return <>{children.map((child: PageTreeNode) => renderNode(child, depth))}</>;
     }
     // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）
-    if (area === 'echos' && node.pageType === 'song') return null;
+    if (area === 'echoes' && node.pageType === 'song') return null;
 
     const isActive = node.id === `${area}/${currentSlug}`;
     // Echoes 區域：不計算 song children 為 tree children
-    const visibleChildren = area === 'echos'
+    const visibleChildren = area === 'echoes'
       ? (node.children || []).filter((c: PageTreeNode) => c.pageType !== 'song')
       : node.children || [];
     const hasChildren = visibleChildren.length > 0;
@@ -500,7 +500,7 @@ export default function EditorPageTree({
           {hasChildren && (
             <span className="ned-tree-count">{node.children.length}</span>
           )}
-          {area === 'echos' &&
+          {area === 'echoes' &&
             node.pageType === 'song' &&
             typeof node.metadata?.spoilerLevel === 'number' &&
             (node.metadata.spoilerLevel as number) > 0 && (
@@ -533,7 +533,7 @@ export default function EditorPageTree({
               onClick={(e) => e.stopPropagation()}
             >
               {!NO_CHILDREN_TYPES.has(node.pageType) &&
-                !(area === 'echos' && node.pageType === 'subcategory') && (
+                !(area === 'echoes' && node.pageType === 'subcategory') && (
                 <button
                   className="ned-tree-context-item"
                   onClick={() => {
@@ -541,7 +541,7 @@ export default function EditorPageTree({
                     startCreate(node.id, node.depth, visibleChildren.length);
                   }}
                 >
-                  {area === 'echos' && node.pageType === 'cluster'
+                  {area === 'echoes' && node.pageType === 'cluster'
                     ? '+ Add subcategory'
                     : '+ Add child'}
                 </button>
