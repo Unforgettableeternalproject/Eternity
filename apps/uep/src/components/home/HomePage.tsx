@@ -127,7 +127,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: '100dvh',
         overflow: 'hidden',
       }}
     >

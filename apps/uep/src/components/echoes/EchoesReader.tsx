@@ -2285,7 +2285,7 @@ export default function EchoesReader() {
 // ──────────────────────────────────────────────────────────────────
 const echoesReaderCss = `
   .echoes-reader {
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     background: var(--bg);

@@ -273,10 +273,11 @@ async function upsertPage(
       .run();
   } else {
     // 建立新頁面
+    const insertStatus = body.status || 'local_only';
     await db
       .prepare(
         `INSERT INTO pages (id, area, title, slug, sort_order, content, status, metadata, parent_id, depth, page_type, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'local_only', ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -285,6 +286,7 @@ async function upsertPage(
         slug,
         body.sortOrder || 0,
         JSON.stringify(body.content || []),
+        insertStatus,
         JSON.stringify(body.metadata || {}),
         body.parentId || null,
         body.depth || 0,
@@ -1005,15 +1007,20 @@ export default {
         );
       }
 
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-      const timestamp = Date.now();
       const contentType = file.type || 'application/octet-stream';
-      const prefix = contentType.startsWith('audio/')
-        ? 'audio'
-        : contentType.startsWith('image/')
-          ? 'images'
-          : 'files';
-      const key = `${prefix}/${file.name}`;
+      // 允許透過 formData 指定 key（sync 用途），否則自動產生
+      const explicitKey = formData.get('key') as string | null;
+      let key: string;
+      if (explicitKey) {
+        key = explicitKey;
+      } else {
+        const prefix = contentType.startsWith('audio/')
+          ? 'audio'
+          : contentType.startsWith('image/')
+            ? 'images'
+            : 'files';
+        key = `${prefix}/${file.name}`;
+      }
 
       await env.ASSETS_BUCKET.put(key, file.stream(), {
         httpMetadata: { contentType: file.type },

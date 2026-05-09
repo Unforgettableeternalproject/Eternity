@@ -90,6 +90,7 @@ async function putPage(apiBase, page) {
           pageType: page.pageType,
           depth: page.depth,
           metadata: page.metadata || {},
+          status: page.status || 'synced',
         }),
       }
     );
@@ -373,11 +374,127 @@ async function main() {
     console.log();
   }
 
+  // === R2 資產同步 ===
+  await syncAssets();
+
   // 總結
   console.log('─'.repeat(40));
   console.log(
     `✅ 完成！ ↑推送: ${totalPush}  ↓拉取: ${totalPull}  =同步: ${totalSkip}`
   );
+  console.log();
+}
+
+// === R2 資產同步 ===
+
+/** 列出 R2 資產 keys */
+async function listAssets(apiBase) {
+  try {
+    const res = await fetch(`${apiBase}/api/assets`);
+    if (!res.ok) return [];
+    const json = await safeJson(res);
+    return json?.ok ? (json.data?.items || []).map((i) => i.key) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 從來源下載檔案並上傳到目標（保留原始 key） */
+async function transferAsset(fromBase, toBase, key) {
+  try {
+    const res = await fetch(`${fromBase}/api/assets/${encodeURIComponent(key)}`);
+    if (!res.ok) return false;
+    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    const blob = await res.blob();
+    const fileName = key.split('/').pop() || key;
+    const form = new FormData();
+    form.append('file', new File([blob], fileName, { type: contentType }));
+    form.append('key', key);
+    const upload = await fetch(`${toBase}/api/assets`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!upload.ok) return false;
+    const json = await safeJson(upload);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncAssets() {
+  const [localKeys, remoteKeys] = await Promise.all([
+    listAssets(LOCAL_API),
+    listAssets(REMOTE_API),
+  ]);
+
+  if (localKeys.length === 0 && remoteKeys.length === 0) return;
+
+  const localSet = new Set(localKeys);
+  const remoteSet = new Set(remoteKeys);
+
+  const toPush = localKeys.filter((k) => !remoteSet.has(k));
+  const toPull = remoteKeys.filter((k) => !localSet.has(k));
+  const inSync = localKeys.filter((k) => remoteSet.has(k));
+
+  if (toPush.length === 0 && toPull.length === 0) {
+    console.log(`\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`);
+    console.log(`   ✓ 完全同步 (${inSync.length} 個檔案)\n`);
+    return;
+  }
+
+  console.log(`\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`);
+  if (toPush.length > 0) console.log(`   ↑ 需推送: ${toPush.length} 個`);
+  if (toPull.length > 0) console.log(`   ↓ 需拉取: ${toPull.length} 個`);
+  if (inSync.length > 0) console.log(`   = 已同步: ${inSync.length} 個`);
+  console.log();
+
+  // 決定方向
+  let doPush = toPush;
+  let doPull = toPull;
+
+  if (DIRECTION === 'pull') {
+    doPush = [];
+  } else if (DIRECTION === 'push') {
+    doPull = [];
+  } else if (!DRY_RUN && (toPush.length > 0 || toPull.length > 0)) {
+    const answer = await ask(
+      `   同步 R2 資產？ [y] 全部 / [push] 只推送 / [pull] 只拉取 / [n] 跳過: `
+    );
+    if (answer === 'n' || answer === 'no') {
+      console.log('   ⏭ 跳過\n');
+      return;
+    }
+    if (answer === 'push') doPull = [];
+    if (answer === 'pull') doPush = [];
+  }
+
+  // 推送
+  if (doPush.length > 0) {
+    console.log(`   推送 ${doPush.length} 個檔案到遠端...`);
+    for (const key of doPush) {
+      if (DRY_RUN) {
+        console.log(`  → [dry-run] ${key}`);
+        continue;
+      }
+      const ok = await transferAsset(LOCAL_API, REMOTE_API, key);
+      console.log(ok ? `  ↑ ${key}` : `  ✗ 推送失敗 ${key}`);
+    }
+  }
+
+  // 拉取
+  if (doPull.length > 0) {
+    console.log(`   拉取 ${doPull.length} 個檔案到本地...`);
+    for (const key of doPull) {
+      if (DRY_RUN) {
+        console.log(`  ← [dry-run] ${key}`);
+        continue;
+      }
+      const ok = await transferAsset(REMOTE_API, LOCAL_API, key);
+      console.log(ok ? `  ↓ ${key}` : `  ✗ 拉取失敗 ${key}`);
+    }
+  }
+
   console.log();
 }
 
