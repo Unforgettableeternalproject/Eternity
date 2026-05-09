@@ -17,7 +17,12 @@ import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
-import type { HomepageBlock, ZoneHeaderData, UepDialogueItem, OrbCluster } from '../editor/homepage/types';
+import type {
+  HomepageBlock,
+  ZoneHeaderData,
+  UepDialogueItem,
+  OrbCluster,
+} from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
 
 // ──────────────────────────────────────────────────────────────────
@@ -25,8 +30,14 @@ import { fromContentBlock } from '../editor/homepage/types';
 // ──────────────────────────────────────────────────────────────────
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType =
-  | 'zone' | 'chapter' | 'arc' | 'section' | 'page'
-  | 'cluster' | 'subcategory' | 'song'
+  | 'zone'
+  | 'chapter'
+  | 'arc'
+  | 'section'
+  | 'page'
+  | 'cluster'
+  | 'subcategory'
+  | 'song'
   | 'homepage';
 
 interface PageTreeNode {
@@ -47,7 +58,12 @@ interface Page {
   title: string;
   slug: string;
   sortOrder: number;
-  content: { id: string; type: string; content: string; attrs?: Record<string, unknown> }[];
+  content: {
+    id: string;
+    type: string;
+    content: string;
+    attrs?: Record<string, unknown>;
+  }[];
   metadata: Record<string, unknown>;
   parentId: string | null;
   depth: number;
@@ -92,13 +108,20 @@ const CLUSTERS: ClusterDef[] = [
     icon: '▣',
     label: '場景回聲',
     labelEn: 'AREAS · ECHOES OF PLACES',
-    intro: '藍色的球狀物看上去很歡迎你的到訪，往左右兩側靠齊，讓出了一條路來給你走。',
-    uepNote: '你不需要去一一嘗試每一個回聲，這個裝置會幫你把它們都整理好喔! o((>ω< ))o',
+    intro:
+      '藍色的球狀物看上去很歡迎你的到訪，往左右兩側靠齊，讓出了一條路來給你走。',
+    uepNote:
+      '你不需要去一一嘗試每一個回聲，這個裝置會幫你把它們都整理好喔! o((>ω< ))o',
     subcategories: [
       { slug: 'main', label: '十二分區: 主要區域', locked: false },
       { slug: 'sub', label: '十二分區: 次要區域', locked: false },
       { slug: 'other', label: '十二分區: 其他區域', locked: false },
-      { slug: 'unk1', label: '尼@#?$!@#大陸: ?@?#!', locked: true, hint: '墨水太過稀薄' },
+      {
+        slug: 'unk1',
+        label: '尼@#?$!@#大陸: ?@?#!',
+        locked: true,
+        hint: '墨水太過稀薄',
+      },
       { slug: 'unk2', label: '*無法解讀的文字*', locked: true },
     ],
   },
@@ -109,7 +132,8 @@ const CLUSTERS: ClusterDef[] = [
     label: '人物回聲',
     labelEn: 'CHARACTERS · ECHOES OF SOULS',
     intro: '你對於這些紅色版本的回聲很感興趣，每一顆都有它們獨特的氣味。',
-    uepNote: '這些人其中一定有所謂的主角之類的身分存在，相較於其他的個體而言其影響力更加的廣泛。',
+    uepNote:
+      '這些人其中一定有所謂的主角之類的身分存在，相較於其他的個體而言其影響力更加的廣泛。',
     subcategories: [
       { slug: 'core', label: '核心人物', locked: false, accent: true },
       { slug: 'sub', label: '外圍人物', locked: false },
@@ -122,8 +146,10 @@ const CLUSTERS: ClusterDef[] = [
     icon: '✦',
     label: '情節回聲',
     labelEn: 'STORIES · ECHOES OF MOMENTS',
-    intro: '這個區塊的回聲們各個都具有著自己的性格，幾乎每一個回聲個體都對你表現出了一定的敬意。',
-    uepNote: '這些聲音都只代表著一段時間的記憶 —— 一段短暫、平凡，卻又不可或缺的記憶。',
+    intro:
+      '這個區塊的回聲們各個都具有著自己的性格，幾乎每一個回聲個體都對你表現出了一定的敬意。',
+    uepNote:
+      '這些聲音都只代表著一段時間的記憶 —— 一段短暫、平凡，卻又不可或缺的記憶。',
     subcategories: [
       { slug: 'u', label: '未被記載的傳說 (U)', locked: false },
       { slug: 'e', label: '永*@*?*元 (E)', locked: true },
@@ -144,8 +170,10 @@ const CLUSTERS: ClusterDef[] = [
     icon: '✺',
     label: '特別回聲',
     labelEn: 'SPECIAL · UNCATEGORIZED ECHOES',
-    intro: '你朝著四周觀望，能注意到在角落的各處散發著紫色的光芒。意圖接近卻無果，就像是在避開著你似的。',
-    uepNote: '在白光之中，紫色回聲們向你拉近了距離。這可能就是這種類型的回聲之特殊之處?',
+    intro:
+      '你朝著四周觀望，能注意到在角落的各處散發著紫色的光芒。意圖接近卻無果，就像是在避開著你似的。',
+    uepNote:
+      '在白光之中，紫色回聲們向你拉近了距離。這可能就是這種類型的回聲之特殊之處?',
     subcategories: [
       { slug: 'events', label: '特殊事件', locked: false },
       { slug: 'holidays', label: '特殊節日', locked: false },
@@ -237,12 +265,15 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
         setCurrentTime(0);
       }
 
-      audio.play().then(() => {
-        setIsPlaying(true);
-        rafRef.current = requestAnimationFrame(updateProgress);
-      }).catch(() => {
-        // 自動播放被阻擋時靜默處理
-      });
+      audio
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          rafRef.current = requestAnimationFrame(updateProgress);
+        })
+        .catch(() => {
+          // 自動播放被阻擋時靜默處理
+        });
     },
     [currentSongId, updateProgress]
   );
@@ -273,8 +304,28 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ currentSongId, isPlaying, progress, currentTime, duration, play, pause, toggle, seek }),
-    [currentSongId, isPlaying, progress, currentTime, duration, play, pause, toggle, seek]
+    () => ({
+      currentSongId,
+      isPlaying,
+      progress,
+      currentTime,
+      duration,
+      play,
+      pause,
+      toggle,
+      seek,
+    }),
+    [
+      currentSongId,
+      isPlaying,
+      progress,
+      currentTime,
+      duration,
+      play,
+      pause,
+      toggle,
+      seek,
+    ]
   );
 
   return <AudioCtx.Provider value={value}>{children}</AudioCtx.Provider>;
@@ -293,7 +344,9 @@ function fmtTime(s: number) {
 // ──────────────────────────────────────────────────────────────────
 function scramble(text: string, seed: number) {
   return [...text]
-    .map((c, i) => (/\s/.test(c) ? c : NOISE_CHARS[(i + seed) % NOISE_CHARS.length]))
+    .map((c, i) =>
+      /\s/.test(c) ? c : NOISE_CHARS[(i + seed) % NOISE_CHARS.length]
+    )
     .join('');
 }
 
@@ -423,7 +476,10 @@ function injectNoise(text: string, density = 0.25, seed = 0): string {
   const result: string[] = [];
   for (let i = 0; i < chars.length; i++) {
     result.push(chars[i]);
-    if (!(/\s/.test(chars[i])) && ((i + seed) * 7 + 3) % Math.round(1 / density) === 0) {
+    if (
+      !/\s/.test(chars[i]) &&
+      ((i + seed) * 7 + 3) % Math.round(1 / density) === 0
+    ) {
       result.push(NOISE_CHARS[(i + seed) % NOISE_CHARS.length]);
     }
   }
@@ -463,7 +519,10 @@ function VinylDisc({
   coverImage?: string | null;
 }) {
   const coverUrl = coverImage
-    ? `${API_BASE}/api/assets/${coverImage.split('/').map((s) => encodeURIComponent(s)).join('/')}`
+    ? `${API_BASE}/api/assets/${coverImage
+        .split('/')
+        .map((s) => encodeURIComponent(s))
+        .join('/')}`
     : null;
 
   return (
@@ -629,7 +688,10 @@ function countSongs(node: PageTreeNode): number {
 }
 
 /** 從 tree 中找到指定 cluster 節點 */
-function findClusterNode(tree: PageTreeNode[], clusterId: string): PageTreeNode | null {
+function findClusterNode(
+  tree: PageTreeNode[],
+  clusterId: string
+): PageTreeNode | null {
   for (const root of tree) {
     for (const cluster of root.children || []) {
       // 用 slug 尾段比對（slug 可能是 "areas" 或含路徑 "areas"）
@@ -731,8 +793,12 @@ export default function EchoesReader() {
   const [theme, setTheme] = useState('dark');
   const [showMap, setShowMap] = useState(false);
   const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(null);
-  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(null);
+  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
+    null
+  );
+  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
+    null
+  );
 
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -748,7 +814,9 @@ export default function EchoesReader() {
   const [activeSongId, setActiveSongId] = useState<string | null>(null);
   const [activeContentId, setActiveContentId] = useState<string | null>(null);
   const [currentSongPage, setCurrentSongPage] = useState<Page | null>(null);
-  const [currentContentPage, setCurrentContentPage] = useState<Page | null>(null);
+  const [currentContentPage, setCurrentContentPage] = useState<Page | null>(
+    null
+  );
   const [songLoading, setSongLoading] = useState(false);
   const [songError, setSongError] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
@@ -817,9 +885,10 @@ export default function EchoesReader() {
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
         if (!json?.ok || !json.data?.content) return;
-        const raw = typeof json.data.content === 'string'
-          ? JSON.parse(json.data.content)
-          : json.data.content;
+        const raw =
+          typeof json.data.content === 'string'
+            ? JSON.parse(json.data.content)
+            : json.data.content;
         if (Array.isArray(raw) && raw.length > 0) {
           setHomepageBlocks(raw.map(fromContentBlock));
         }
@@ -864,7 +933,10 @@ export default function EchoesReader() {
         })
       );
       setLandingPages(
-        Object.fromEntries(entries.filter(([, v]) => v !== null)) as Record<string, Page>
+        Object.fromEntries(entries.filter(([, v]) => v !== null)) as Record<
+          string,
+          Page
+        >
       );
     } catch (err) {
       console.error('Failed to load echoes landing pages:', err);
@@ -925,7 +997,11 @@ export default function EchoesReader() {
     try {
       const res = await fetch(`${API_BASE}/api/content/echoes/tree`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { ok: boolean; data: PageTreeNode[]; error?: string };
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: PageTreeNode[];
+        error?: string;
+      };
       if (!json.ok) throw new Error(json.error || 'API returned ok=false');
       setTree(json.data || []);
     } catch (err) {
@@ -941,7 +1017,11 @@ export default function EchoesReader() {
     try {
       const res = await fetch(`${API_BASE}/api/content/${id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { ok: boolean; data: Page; error?: string };
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: Page;
+        error?: string;
+      };
       if (!json.ok) throw new Error(json.error || 'API returned ok=false');
       setCurrentSongPage(json.data);
     } catch (err) {
@@ -1076,7 +1156,9 @@ export default function EchoesReader() {
     : null;
 
   // === 取得當前歌曲的集群資訊 ===
-  const activeSongCluster = activeClusterId ? getClusterDef(activeClusterId) : null;
+  const activeSongCluster = activeClusterId
+    ? getClusterDef(activeClusterId)
+    : null;
 
   // === Audio hook（必須在元件頂層呼叫）===
   const audio = useAudio();
@@ -1117,11 +1199,19 @@ export default function EchoesReader() {
                       <div className="echoes-kicker">Echoes / 空白廣場</div>
                       <h2 className="echoes-landing-title">{d.title}</h2>
                       {d.subtitle && (
-                        <p style={{
-                          fontFamily: 'var(--font-serif-tc)', fontSize: 16,
-                          color: 'var(--ink-soft)', fontStyle: 'italic',
-                          lineHeight: 1.9, maxWidth: 620, marginTop: 22,
-                        }}>{d.subtitle}</p>
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-serif-tc)',
+                            fontSize: 16,
+                            color: 'var(--ink-soft)',
+                            fontStyle: 'italic',
+                            lineHeight: 1.9,
+                            maxWidth: 620,
+                            marginTop: 22,
+                          }}
+                        >
+                          {d.subtitle}
+                        </p>
                       )}
                     </div>
                   );
@@ -1131,13 +1221,19 @@ export default function EchoesReader() {
                   return (
                     <div key={block.id} className="echoes-landing-uep">
                       {items.map((d, i) => (
-                        <UepDialogue key={i} text={d.text} side={d.side} effects={d.effects as any} />
+                        <UepDialogue
+                          key={i}
+                          text={d.text}
+                          side={d.side}
+                          effects={d.effects as any}
+                        />
                       ))}
                     </div>
                   );
                 }
                 case 'orb-cluster-grid': {
-                  const clusters = (block.data as { clusters: OrbCluster[] }).clusters;
+                  const clusters = (block.data as { clusters: OrbCluster[] })
+                    .clusters;
                   return (
                     <div key={block.id} className="echoes-cluster-grid">
                       {CLUSTERS.map((cluster, idx) => {
@@ -1150,21 +1246,34 @@ export default function EchoesReader() {
                         const innerCount = Math.min(orbCount, 40);
                         const outerCount = Math.max(orbCount - 40, 0);
                         return (
-                          <button key={cluster.id} type="button" className="echoes-cluster-card"
-                            style={{ ['--cluster-color' as string]: color, borderTopColor: color }}
-                            onClick={() => navigateToCluster(cluster.id)}>
+                          <button
+                            key={cluster.id}
+                            type="button"
+                            className="echoes-cluster-card"
+                            style={{
+                              ['--cluster-color' as string]: color,
+                              borderTopColor: color,
+                            }}
+                            onClick={() => navigateToCluster(cluster.id)}
+                          >
                             <div className="echoes-orb-field">
                               {/* 內圈 */}
                               {Array.from({ length: innerCount }, (_, k) => {
                                 const angle = (k / innerCount) * Math.PI * 2;
                                 const r = 36 + (k % 2) * 8;
                                 return (
-                                  <span key={k} className="echoes-orb-particle" style={{
-                                    left: 55 + Math.cos(angle) * r - 5,
-                                    top: 55 + Math.sin(angle) * r - 5,
-                                    background: color, opacity: 0.4 + (k % 3) * 0.2,
-                                    boxShadow: `0 0 8px ${color}`, animationDelay: `${k * 0.2}s`,
-                                  }} />
+                                  <span
+                                    key={k}
+                                    className="echoes-orb-particle"
+                                    style={{
+                                      left: 55 + Math.cos(angle) * r - 5,
+                                      top: 55 + Math.sin(angle) * r - 5,
+                                      background: color,
+                                      opacity: 0.4 + (k % 3) * 0.2,
+                                      boxShadow: `0 0 8px ${color}`,
+                                      animationDelay: `${k * 0.2}s`,
+                                    }}
+                                  />
                                 );
                               })}
                               {/* 外圈（超過 40 時） */}
@@ -1172,27 +1281,46 @@ export default function EchoesReader() {
                                 const angle = (k / outerCount) * Math.PI * 2;
                                 const r = 56 + (k % 2) * 8;
                                 return (
-                                  <span key={`o${k}`} className="echoes-orb-particle" style={{
-                                    left: 55 + Math.cos(angle) * r - 4,
-                                    top: 55 + Math.sin(angle) * r - 4,
-                                    width: 8, height: 8,
-                                    background: color, opacity: 0.25 + (k % 3) * 0.12,
-                                    boxShadow: `0 0 6px ${color}`, animationDelay: `${k * 0.15}s`,
-                                  }} />
+                                  <span
+                                    key={`o${k}`}
+                                    className="echoes-orb-particle"
+                                    style={{
+                                      left: 55 + Math.cos(angle) * r - 4,
+                                      top: 55 + Math.sin(angle) * r - 4,
+                                      width: 8,
+                                      height: 8,
+                                      background: color,
+                                      opacity: 0.25 + (k % 3) * 0.12,
+                                      boxShadow: `0 0 6px ${color}`,
+                                      animationDelay: `${k * 0.15}s`,
+                                    }}
+                                  />
                                 );
                               })}
-                              <span className="echoes-orb-center" style={{
-                                background: `radial-gradient(circle, ${color} 0%, ${color}80 60%, transparent 100%)`,
-                                boxShadow: `0 0 20px ${color}`,
-                              }} />
+                              <span
+                                className="echoes-orb-center"
+                                style={{
+                                  background: `radial-gradient(circle, ${color} 0%, ${color}80 60%, transparent 100%)`,
+                                  boxShadow: `0 0 20px ${color}`,
+                                }}
+                              />
                             </div>
                             <div className="echoes-cluster-text">
-                              <div className="echoes-cluster-name" style={{ color }}>「{label}」</div>
+                              <div
+                                className="echoes-cluster-name"
+                                style={{ color }}
+                              >
+                                「{label}」
+                              </div>
                               <div className="echoes-cluster-desc">
-                                {cluster.id === 'areas' && '藍色的，記憶著場景與環境'}
-                                {cluster.id === 'characters' && '紅色的，封存著一個又一個的角色'}
-                                {cluster.id === 'stories' && '綠色的，紀錄著故事的轉折'}
-                                {cluster.id === 'special' && '紫色的，獨立於其他族群之外'}
+                                {cluster.id === 'areas' &&
+                                  '藍色的，記憶著場景與環境'}
+                                {cluster.id === 'characters' &&
+                                  '紅色的，封存著一個又一個的角色'}
+                                {cluster.id === 'stories' &&
+                                  '綠色的，紀錄著故事的轉折'}
+                                {cluster.id === 'special' &&
+                                  '紫色的，獨立於其他族群之外'}
                               </div>
                             </div>
                             <span className="echoes-cluster-meta">
@@ -1207,8 +1335,11 @@ export default function EchoesReader() {
                 case 'rich-text': {
                   const html = (block.data as { html: string }).html;
                   return (
-                    <div key={block.id} className="echoes-prose echoes-landing-prose"
-                      dangerouslySetInnerHTML={{ __html: html }} />
+                    <div
+                      key={block.id}
+                      className="echoes-prose echoes-landing-prose"
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
                   );
                 }
                 default:
@@ -1226,8 +1357,10 @@ export default function EchoesReader() {
                 <div className="echoes-state">正在讀取空白廣場...</div>
               )}
               {landingParts.before && (
-                <div className="echoes-prose echoes-landing-prose"
-                  dangerouslySetInnerHTML={{ __html: landingParts.before }} />
+                <div
+                  className="echoes-prose echoes-landing-prose"
+                  dangerouslySetInnerHTML={{ __html: landingParts.before }}
+                />
               )}
               <div className="echoes-cluster-grid">
                 {CLUSTERS.map((cluster) => {
@@ -1236,19 +1369,33 @@ export default function EchoesReader() {
                   const innerCount = Math.min(orbCount, 40);
                   const outerCount = Math.max(orbCount - 40, 0);
                   return (
-                    <button key={cluster.id} type="button" className="echoes-cluster-card"
-                      style={{ ['--cluster-color' as string]: cluster.color, borderTopColor: cluster.color }}
-                      onClick={() => navigateToCluster(cluster.id)}>
+                    <button
+                      key={cluster.id}
+                      type="button"
+                      className="echoes-cluster-card"
+                      style={{
+                        ['--cluster-color' as string]: cluster.color,
+                        borderTopColor: cluster.color,
+                      }}
+                      onClick={() => navigateToCluster(cluster.id)}
+                    >
                       <div className="echoes-orb-field">
                         {Array.from({ length: innerCount }, (_, k) => {
                           const angle = (k / innerCount) * Math.PI * 2;
                           const r = 36 + (k % 2) * 8;
                           return (
-                            <span key={k} className="echoes-orb-particle" style={{
-                              left: 55 + Math.cos(angle) * r - 5, top: 55 + Math.sin(angle) * r - 5,
-                              background: cluster.color, opacity: 0.4 + (k % 3) * 0.2,
-                              boxShadow: `0 0 8px ${cluster.color}`, animationDelay: `${k * 0.2}s`,
-                            }} />
+                            <span
+                              key={k}
+                              className="echoes-orb-particle"
+                              style={{
+                                left: 55 + Math.cos(angle) * r - 5,
+                                top: 55 + Math.sin(angle) * r - 5,
+                                background: cluster.color,
+                                opacity: 0.4 + (k % 3) * 0.2,
+                                boxShadow: `0 0 8px ${cluster.color}`,
+                                animationDelay: `${k * 0.2}s`,
+                              }}
+                            />
                           );
                         })}
                         {/* 外圈（超過 40 時） */}
@@ -1256,47 +1403,78 @@ export default function EchoesReader() {
                           const angle = (k / outerCount) * Math.PI * 2;
                           const r = 56 + (k % 2) * 8;
                           return (
-                            <span key={`o${k}`} className="echoes-orb-particle" style={{
-                              left: 55 + Math.cos(angle) * r - 4, top: 55 + Math.sin(angle) * r - 4,
-                              width: 8, height: 8,
-                              background: cluster.color, opacity: 0.25 + (k % 3) * 0.12,
-                              boxShadow: `0 0 6px ${cluster.color}`, animationDelay: `${k * 0.15}s`,
-                            }} />
+                            <span
+                              key={`o${k}`}
+                              className="echoes-orb-particle"
+                              style={{
+                                left: 55 + Math.cos(angle) * r - 4,
+                                top: 55 + Math.sin(angle) * r - 4,
+                                width: 8,
+                                height: 8,
+                                background: cluster.color,
+                                opacity: 0.25 + (k % 3) * 0.12,
+                                boxShadow: `0 0 6px ${cluster.color}`,
+                                animationDelay: `${k * 0.15}s`,
+                              }}
+                            />
                           );
                         })}
-                        <span className="echoes-orb-center" style={{
-                          background: `radial-gradient(circle, ${cluster.color} 0%, ${cluster.color}80 60%, transparent 100%)`,
-                          boxShadow: `0 0 20px ${cluster.color}`,
-                        }} />
+                        <span
+                          className="echoes-orb-center"
+                          style={{
+                            background: `radial-gradient(circle, ${cluster.color} 0%, ${cluster.color}80 60%, transparent 100%)`,
+                            boxShadow: `0 0 20px ${cluster.color}`,
+                          }}
+                        />
                       </div>
                       <div className="echoes-cluster-text">
-                        <div className="echoes-cluster-name" style={{ color: cluster.color }}>「{cluster.label}」</div>
+                        <div
+                          className="echoes-cluster-name"
+                          style={{ color: cluster.color }}
+                        >
+                          「{cluster.label}」
+                        </div>
                         <div className="echoes-cluster-desc">
                           {cluster.id === 'areas' && '藍色的，記憶著場景與環境'}
-                          {cluster.id === 'characters' && '紅色的，封存著一個又一個的角色'}
-                          {cluster.id === 'stories' && '綠色的，紀錄著故事的轉折'}
-                          {cluster.id === 'special' && '紫色的，獨立於其他族群之外'}
+                          {cluster.id === 'characters' &&
+                            '紅色的，封存著一個又一個的角色'}
+                          {cluster.id === 'stories' &&
+                            '綠色的，紀錄著故事的轉折'}
+                          {cluster.id === 'special' &&
+                            '紫色的，獨立於其他族群之外'}
                         </div>
                       </div>
-                      <span className="echoes-cluster-meta">{songCount > 0 ? `${songCount} echoes` : '—'}</span>
+                      <span className="echoes-cluster-meta">
+                        {songCount > 0 ? `${songCount} echoes` : '—'}
+                      </span>
                     </button>
                   );
                 })}
               </div>
               {landingParts.after && (
-                <div className="echoes-prose echoes-landing-prose"
-                  dangerouslySetInnerHTML={{ __html: landingParts.after }} />
+                <div
+                  className="echoes-prose echoes-landing-prose"
+                  dangerouslySetInnerHTML={{ __html: landingParts.after }}
+                />
               )}
               <div className="echoes-landing-uep">
-                <UepDialogue text="歡迎來到充滿了世界之聲的蒐藏間，這裡聽到的全部都是實際存在的對話喔!"
-                  effects={['shimmer', 'halo']} />
+                <UepDialogue
+                  text="歡迎來到充滿了世界之聲的蒐藏間，這裡聽到的全部都是實際存在的對話喔!"
+                  effects={['shimmer', 'halo']}
+                />
               </div>
               {photoPage && (
                 <section className="echoes-photo-section">
                   <div className="echoes-kicker">Loose Note / Page</div>
                   <h3>{photoPage.title}</h3>
-                  <div className="echoes-prose echoes-photo-prose"
-                    dangerouslySetInnerHTML={{ __html: photoPage.content.map((b) => b.content || '').join('\n') }} />
+                  <div
+                    className="echoes-prose echoes-photo-prose"
+                    dangerouslySetInnerHTML={{
+                      __html: photoPage.content
+                        .map((b) => b.content || '')
+                        .join('\n'),
+                    }}
+                  />
                 </section>
               )}
             </>
@@ -1333,7 +1511,10 @@ export default function EchoesReader() {
     // 從 tree 中取得實際的 subcategory 節點（hidden 完全隱藏）
     const clusterNode = findClusterNode(tree, cluster.id);
     const subcatNodes = (clusterNode?.children || []).filter(
-      (n) => n.pageType !== 'song' && n.pageType !== 'page' && n.metadata?.hidden !== true
+      (n) =>
+        n.pageType !== 'song' &&
+        n.pageType !== 'page' &&
+        n.metadata?.hidden !== true
     );
     const totalSongs = clusterNode ? countSongs(clusterNode) : 0;
 
@@ -1373,10 +1554,7 @@ export default function EchoesReader() {
 
           {/* 敘事段落 (drop-cap) */}
           <p className="echoes-narrative">
-            <span
-              className="echoes-drop-cap"
-              style={{ color: cluster.color }}
-            >
+            <span className="echoes-drop-cap" style={{ color: cluster.color }}>
               {cluster.intro[0]}
             </span>
             {cluster.intro.slice(1)}
@@ -1384,10 +1562,7 @@ export default function EchoesReader() {
 
           {/* UEP 對話 */}
           <div className="echoes-uep-inline">
-            <UepDialogue
-              text={cluster.uepNote}
-              effects={['shimmer', 'halo']}
-            />
+            <UepDialogue text={cluster.uepNote} effects={['shimmer', 'halo']} />
           </div>
 
           <p className="echoes-instruction">
@@ -1435,7 +1610,9 @@ export default function EchoesReader() {
                   </span>
                   <span
                     className="echoes-subcat-arrow"
-                    style={{ color: isHidden ? 'var(--ink-mute)' : cluster.color }}
+                    style={{
+                      color: isHidden ? 'var(--ink-mute)' : cluster.color,
+                    }}
                   >
                     {isHidden ? '🔒' : '→'}
                   </span>
@@ -1483,7 +1660,9 @@ export default function EchoesReader() {
   // ────────────────────────────────────────────────────────────────
   function renderContent() {
     if (contentLoading) {
-      return <div className="echoes-state echoes-state-large">正在讀取頁面...</div>;
+      return (
+        <div className="echoes-state echoes-state-large">正在讀取頁面...</div>
+      );
     }
     if (!currentContentPage) return null;
 
@@ -1514,7 +1693,10 @@ export default function EchoesReader() {
             {cluster && (
               <>
                 <span>/</span>
-                <button type="button" onClick={() => navigateToCluster(cluster.id)}>
+                <button
+                  type="button"
+                  onClick={() => navigateToCluster(cluster.id)}
+                >
                   {cluster.label}
                 </button>
               </>
@@ -1525,11 +1707,16 @@ export default function EchoesReader() {
 
           <header className="echoes-content-head">
             <div className="echoes-kicker">
-              {currentContentPage.pageType.toUpperCase()} / {currentContentPage.slug.split('/').pop()}
+              {currentContentPage.pageType.toUpperCase()} /{' '}
+              {currentContentPage.slug.split('/').pop()}
             </div>
-            <h2 className="echoes-content-title" style={{ color }}>{currentContentPage.title}</h2>
+            <h2 className="echoes-content-title" style={{ color }}>
+              {currentContentPage.title}
+            </h2>
             {typeof currentContentPage.metadata?.description === 'string' && (
-              <p className="echoes-content-desc">{currentContentPage.metadata.description}</p>
+              <p className="echoes-content-desc">
+                {currentContentPage.metadata.description}
+              </p>
             )}
           </header>
 
@@ -1552,12 +1739,18 @@ export default function EchoesReader() {
                   style={{ borderLeftColor: color }}
                   onClick={() => void navigateToContent(child.id)}
                 >
-                  <span className="echoes-subcat-num" style={{ color }}>→</span>
+                  <span className="echoes-subcat-num" style={{ color }}>
+                    →
+                  </span>
                   <div className="echoes-subcat-info">
                     <div className="echoes-subcat-name">{child.title}</div>
                   </div>
-                  <span className="echoes-subcat-count">{countSongs(child)} echoes</span>
-                  <span className="echoes-subcat-arrow" style={{ color }}>→</span>
+                  <span className="echoes-subcat-count">
+                    {countSongs(child)} echoes
+                  </span>
+                  <span className="echoes-subcat-arrow" style={{ color }}>
+                    →
+                  </span>
                 </button>
               ))}
             </div>
@@ -1583,7 +1776,9 @@ export default function EchoesReader() {
                     style={{ ['--accent' as string]: color }}
                     onClick={() => void navigateToSong(song.id)}
                   >
-                    <span className="echoes-playlist-num">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="echoes-playlist-num">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
                     <div
                       className="echoes-playlist-info"
                       style={{
@@ -1592,23 +1787,29 @@ export default function EchoesReader() {
                       }}
                     >
                       <div className="echoes-playlist-title">
-                        {spoiler === 3
-                          ? <GlitchText text={song.title} />
-                          : spoiler === 2
-                            ? '████████'
-                            : song.title}
+                        {spoiler === 3 ? (
+                          <GlitchText text={song.title} />
+                        ) : spoiler === 2 ? (
+                          '████████'
+                        ) : (
+                          song.title
+                        )}
                       </div>
                       {subtitle && (
                         <div className="echoes-playlist-sub">
-                          {spoiler === 3
-                            ? <GlitchText text={subtitle} />
-                            : spoiler === 2
-                              ? '████'
-                              : subtitle}
+                          {spoiler === 3 ? (
+                            <GlitchText text={subtitle} />
+                          ) : spoiler === 2 ? (
+                            '████'
+                          ) : (
+                            subtitle
+                          )}
                         </div>
                       )}
                     </div>
-                    <span className="echoes-subcat-arrow" style={{ color }}>→</span>
+                    <span className="echoes-subcat-arrow" style={{ color }}>
+                      →
+                    </span>
                   </button>
                 );
               })}
@@ -1647,7 +1848,10 @@ export default function EchoesReader() {
         <div className="echoes-state echoes-state-error echoes-state-large">
           <span>曲目讀取失敗：{songError}</span>
           {activeSongId && (
-            <button type="button" onClick={() => void navigateToSong(activeSongId)}>
+            <button
+              type="button"
+              onClick={() => void navigateToSong(activeSongId)}
+            >
               重試
             </button>
           )}
@@ -1668,7 +1872,8 @@ export default function EchoesReader() {
     const locked = spoiler > 0 && !isUnlocked;
     const audioUrl = buildAudioUrl(songData.audioFile);
 
-    const isPlaying = audio.currentSongId === currentSongPage.id && audio.isPlaying;
+    const isPlaying =
+      audio.currentSongId === currentSongPage.id && audio.isPlaying;
 
     const handlePlayAttempt = () => {
       if (locked) {
@@ -1682,17 +1887,17 @@ export default function EchoesReader() {
 
     // 組合 metadata 顯示資訊（不含 album）
     const meta = songData.audioMeta;
-    const metaItems = [
-        meta?.artist,
-        meta?.year,
-        meta?.genre,
-      ].filter(Boolean);
+    const metaItems = [meta?.artist, meta?.year, meta?.genre].filter(Boolean);
 
     // 賞析內容
     const appreciationParagraphs = isUnlocked
       ? songData.appreciation.filter((p) => p.trim())
       : songData.appreciationLocked
-        ? [spoiler === 3 ? injectNoise(songData.appreciationLocked, 0.2) : songData.appreciationLocked]
+        ? [
+            spoiler === 3
+              ? injectNoise(songData.appreciationLocked, 0.2)
+              : songData.appreciationLocked,
+          ]
         : [];
     const hasAppreciation = appreciationParagraphs.length > 0;
 
@@ -1707,7 +1912,10 @@ export default function EchoesReader() {
             {cluster && (
               <>
                 <span>/</span>
-                <button type="button" onClick={() => navigateToCluster(cluster.id)}>
+                <button
+                  type="button"
+                  onClick={() => navigateToCluster(cluster.id)}
+                >
                   {cluster.label}
                 </button>
               </>
@@ -1715,7 +1923,10 @@ export default function EchoesReader() {
             {parentNode && (
               <>
                 <span>/</span>
-                <button type="button" onClick={() => void navigateToContent(parentNode.id)}>
+                <button
+                  type="button"
+                  onClick={() => void navigateToContent(parentNode.id)}
+                >
                   {parentNode.title}
                 </button>
               </>
@@ -1724,11 +1935,16 @@ export default function EchoesReader() {
 
           {/* Meta 資訊行 */}
           <div className="echoes-song-meta-line">
-            <span className="echoes-song-category" style={{ color, borderColor: `${color}50` }}>
+            <span
+              className="echoes-song-category"
+              style={{ color, borderColor: `${color}50` }}
+            >
               {parentNode?.title || '回聲'}
             </span>
             {spoiler > 0 && (
-              <span style={{ color: isUnlocked ? 'var(--ink-mute)' : 'crimson' }}>
+              <span
+                style={{ color: isUnlocked ? 'var(--ink-mute)' : 'crimson' }}
+              >
                 {isUnlocked ? '✓ unlocked' : `⚠ spoiler · L${spoiler}`}
               </span>
             )}
@@ -1738,7 +1954,9 @@ export default function EchoesReader() {
                   locked ? '???' : meta.format.toUpperCase(),
                   meta.bitrate && `${meta.bitrate}kbps`,
                   meta.duration != null && fmtTime(meta.duration),
-                ].filter(Boolean).join(' · ')}
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
             )}
           </div>
@@ -1776,7 +1994,8 @@ export default function EchoesReader() {
                 className="echoes-song-subtitle"
                 style={{
                   color: isUnlocked ? color : 'var(--ink-mute)',
-                  filter: !isUnlocked && spoiler === 1 ? 'blur(5px)' : undefined,
+                  filter:
+                    !isUnlocked && spoiler === 1 ? 'blur(5px)' : undefined,
                   userSelect: !isUnlocked && spoiler >= 1 ? 'none' : undefined,
                 }}
               >
@@ -1836,7 +2055,10 @@ export default function EchoesReader() {
                   {isUnlocked
                     ? '此曲目暫無賞析內容。'
                     : spoiler === 3
-                      ? injectNoise('*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*', 0.3)
+                      ? injectNoise(
+                          '*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*',
+                          0.3
+                        )
                       : '*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*'}
                 </p>
               )}
@@ -1857,8 +2079,8 @@ export default function EchoesReader() {
                     text={prevSong.title}
                     level={(prevSong.metadata?.spoilerLevel as number) || 0}
                     unlocked={
-                      ((prevSong.metadata?.spoilerLevel as number) || 0) === 0 ||
-                      isSongUnlocked(prevSong.id)
+                      ((prevSong.metadata?.spoilerLevel as number) || 0) ===
+                        0 || isSongUnlocked(prevSong.id)
                     }
                     size={14}
                   />
@@ -1879,8 +2101,8 @@ export default function EchoesReader() {
                     text={nextSong.title}
                     level={(nextSong.metadata?.spoilerLevel as number) || 0}
                     unlocked={
-                      ((nextSong.metadata?.spoilerLevel as number) || 0) === 0 ||
-                      isSongUnlocked(nextSong.id)
+                      ((nextSong.metadata?.spoilerLevel as number) || 0) ===
+                        0 || isSongUnlocked(nextSong.id)
                     }
                     size={14}
                   />
@@ -1927,8 +2149,10 @@ export default function EchoesReader() {
             pointerEvents: 'none',
             ...(contentReady
               ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-              : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }
-            ),
+              : {
+                  backdropFilter: 'blur(18px)',
+                  background: 'rgba(10,10,14,0.5)',
+                }),
           }}
         />
         <style>{`
@@ -1943,7 +2167,9 @@ export default function EchoesReader() {
           onOpenMap={() => setShowMap(true)}
           onGoHome={() => {
             setHomePortal(true);
-            setTimeout(() => { window.location.href = '/'; }, 1100);
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1100);
           }}
           dark={theme === 'dark'}
         />
@@ -1989,7 +2215,11 @@ export default function EchoesReader() {
                 才能無遮蔽地聆聽。
               </div>
               <div className="echoes-spoiler-dialog-actions">
-                <button type="button" className="echoes-btn-danger" onClick={confirmUnlock}>
+                <button
+                  type="button"
+                  className="echoes-btn-danger"
+                  onClick={confirmUnlock}
+                >
                   我已知情，繼續
                 </button>
                 <button
@@ -2020,7 +2250,9 @@ export default function EchoesReader() {
             onCenterClick={() => {
               setShowMap(false);
               setHomePortal(true);
-              setTimeout(() => { window.location.href = '/'; }, 1100);
+              setTimeout(() => {
+                window.location.href = '/';
+              }, 1100);
             }}
           />
         )}
@@ -2034,8 +2266,15 @@ export default function EchoesReader() {
             setIntroZone(null);
           }}
         />
-        <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-        <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
+        <PortalTransition
+          zone={portalZone}
+          onDone={() => setPortalZone(null)}
+        />
+        <PortalTransition
+          zone={null}
+          homeMode={homePortal}
+          onDone={() => setHomePortal(false)}
+        />
       </div>
     </AudioProvider>
   );

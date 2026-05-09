@@ -389,9 +389,7 @@ export default function ZoneTabsEditor({
                 </div>
               </>
             ) : (
-              <div className="ned-zone-tabs-hint">
-                點擊「+」新增第一個分頁
-              </div>
+              <div className="ned-zone-tabs-hint">點擊「+」新增第一個分頁</div>
             )}
           </div>
         </div>

@@ -117,7 +117,8 @@ function decodeTextFrame(bytes: Uint8Array): string {
       encoding === 2
         ? false
         : data.length >= 2 && data[0] === 0xff && data[1] === 0xfe;
-    const start = data.length >= 2 && (data[0] === 0xff || data[0] === 0xfe) ? 2 : 0;
+    const start =
+      data.length >= 2 && (data[0] === 0xff || data[0] === 0xfe) ? 2 : 0;
     const arr: number[] = [];
     for (let i = start; i + 1 < data.length; i += 2) {
       const code = isLE
@@ -138,7 +139,9 @@ function decodeTextFrame(bytes: Uint8Array): string {
 /** 解析 ID3v2 tags（讀取檔案前 128KB 即可） */
 async function readId3Tags(
   file: File
-): Promise<Partial<Pick<AudioMeta, 'title' | 'artist' | 'album' | 'year' | 'genre'>>> {
+): Promise<
+  Partial<Pick<AudioMeta, 'title' | 'artist' | 'album' | 'year' | 'genre'>>
+> {
   try {
     // 只讀取前 128KB（ID3 header 通常遠小於這個大小）
     const slice = file.slice(0, 131072);
@@ -150,7 +153,7 @@ async function readId3Tags(
     if (
       bytes[0] !== 0x49 || // I
       bytes[1] !== 0x44 || // D
-      bytes[2] !== 0x33    // 3
+      bytes[2] !== 0x33 // 3
     ) {
       return {};
     }
@@ -159,7 +162,9 @@ async function readId3Tags(
     const tagSize = readSynchsafe(dv, 6);
     const useSynchsafe = majorVersion >= 4;
 
-    const result: Partial<Pick<AudioMeta, 'title' | 'artist' | 'album' | 'year' | 'genre'>> = {};
+    const result: Partial<
+      Pick<AudioMeta, 'title' | 'artist' | 'album' | 'year' | 'genre'>
+    > = {};
     const frameIdMap: Record<string, keyof typeof result> = {
       TIT2: 'title',
       TPE1: 'artist',
@@ -174,7 +179,10 @@ async function readId3Tags(
 
     while (pos + 10 <= end) {
       const frameId = String.fromCharCode(
-        bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]
+        bytes[pos],
+        bytes[pos + 1],
+        bytes[pos + 2],
+        bytes[pos + 3]
       );
 
       // 遇到 padding (0x00) 或無效 frame 就停止
@@ -189,7 +197,9 @@ async function readId3Tags(
 
       const field = frameIdMap[frameId];
       if (field) {
-        const content = decodeTextFrame(bytes.slice(pos + 10, pos + 10 + frameSize));
+        const content = decodeTextFrame(
+          bytes.slice(pos + 10, pos + 10 + frameSize)
+        );
         if (content) {
           result[field] = content;
         }
@@ -368,9 +378,7 @@ export default function EchoesEditorBody({
           </select>
         </div>
         <div>
-          <label className="ned-field-label">
-            遮蔽等級 (Spoiler Level)
-          </label>
+          <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
           <div className="ned-spoiler-buttons">
             {SPOILER_LEVELS.map((o) => (
               <button
@@ -397,9 +405,7 @@ export default function EchoesEditorBody({
       </div>
 
       {/* 解鎖條件 */}
-      <label className="ned-field-label">
-        解鎖條件 (劇情前置)
-      </label>
+      <label className="ned-field-label">解鎖條件 (劇情前置)</label>
       <input
         className="ned-field"
         type="text"
@@ -436,10 +442,8 @@ export default function EchoesEditorBody({
               </div>
               <div className="ned-audio-meta">
                 {[
-                  data.audioMeta?.format &&
-                    data.audioMeta.format.toUpperCase(),
-                  data.audioMeta?.bitrate &&
-                    `${data.audioMeta.bitrate}kbps`,
+                  data.audioMeta?.format && data.audioMeta.format.toUpperCase(),
+                  data.audioMeta?.bitrate && `${data.audioMeta.bitrate}kbps`,
                   data.audioMeta?.duration != null &&
                     fmtDuration(data.audioMeta.duration),
                   data.audioMeta?.size &&
@@ -575,7 +579,10 @@ export default function EchoesEditorBody({
         {data.coverImage ? (
           <div className="ned-cover-preview">
             <img
-              src={`${API_BASE}/api/assets/${data.coverImage.split('/').map((s) => encodeURIComponent(s)).join('/')}`}
+              src={`${API_BASE}/api/assets/${data.coverImage
+                .split('/')
+                .map((s) => encodeURIComponent(s))
+                .join('/')}`}
               alt="封面圖預覽"
               className="ned-cover-img"
             />
@@ -649,9 +656,7 @@ export default function EchoesEditorBody({
       </div>
 
       {/* 賞析（鎖定時顯示）*/}
-      <label className="ned-field-label">
-        賞析（鎖定時顯示）
-      </label>
+      <label className="ned-field-label">賞析（鎖定時顯示）</label>
       <textarea
         className="ned-field ned-field--textarea ned-field--italic"
         value={data.appreciationLocked}

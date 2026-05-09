@@ -31,7 +31,7 @@ const HISTORY_CHARS = '史傳誌卷章序錄書頁遺憶典言述';
 /** 1. zone-header — 區域標題 + 副標題 */
 function renderZoneHeader(
   block: HomepageBlock,
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode {
   const data = block.data as ZoneHeaderData;
 
@@ -108,9 +108,7 @@ function renderUepDialogue(block: HomepageBlock): React.ReactNode {
           key={idx}
           side={item.side}
           text={item.text}
-          effects={
-            (item.effects ?? []) as Array<'shimmer' | 'glow' | 'halo'>
-          }
+          effects={(item.effects ?? []) as Array<'shimmer' | 'glow' | 'halo'>}
         />
       ))}
     </div>
@@ -120,7 +118,7 @@ function renderUepDialogue(block: HomepageBlock): React.ReactNode {
 /** 3. archway-grid — 拱門卡片格（歷史區用） */
 function renderArchwayGrid(
   block: HomepageBlock,
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode {
   const { cards } = block.data as { cards: ArchwayCard[] };
 
@@ -262,10 +260,7 @@ function renderArchwayGrid(
 }
 
 /** 4. hint-box — 左邊框提示框 */
-function renderHintBox(
-  block: HomepageBlock,
-  zone: ZoneData,
-): React.ReactNode {
+function renderHintBox(block: HomepageBlock, zone: ZoneData): React.ReactNode {
   const { text } = block.data as { text: string };
 
   return (
@@ -318,8 +313,7 @@ function renderOrbClusterGrid(block: HomepageBlock): React.ReactNode {
         {clusters.map((cluster) => {
           const r = 36;
           const orbs = Array.from({ length: cluster.orbCount }, (_, i) => {
-            const angle =
-              (i / cluster.orbCount) * Math.PI * 2 - Math.PI / 2;
+            const angle = (i / cluster.orbCount) * Math.PI * 2 - Math.PI / 2;
             const offset = (i % 2) * 10;
             return {
               x: Math.cos(angle) * (r + offset),
@@ -419,7 +413,7 @@ function renderOrbClusterGrid(block: HomepageBlock): React.ReactNode {
 /** 6. cross-road-grid — 羅盤十字路口（Visuals 區用） */
 function renderCrossRoadGrid(
   block: HomepageBlock,
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode {
   const { roads } = block.data as { roads: CrossRoad[] };
 
@@ -575,7 +569,7 @@ function renderCrossRoadGrid(
 /** 7. terminal-module-table — 終端模組列表（Concepts 區用） */
 function renderTerminalModuleTable(
   block: HomepageBlock,
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode {
   const { headerLabel, modules } = block.data as {
     headerLabel: string;
@@ -629,9 +623,7 @@ function renderTerminalModuleTable(
               gap: 12,
               padding: '14px 20px',
               borderBottom:
-                i < modules.length - 1
-                  ? `1px solid ${zone.main}18`
-                  : 'none',
+                i < modules.length - 1 ? `1px solid ${zone.main}18` : 'none',
               background: i % 2 === 0 ? `${zone.main}04` : 'transparent',
             }}
           >
@@ -677,9 +669,7 @@ function renderTerminalModuleTable(
                   background:
                     mod.state === 'sync' ? '#4ade80' : 'var(--ink-mute)',
                   boxShadow:
-                    mod.state === 'sync'
-                      ? '0 0 6px 2px #4ade8060'
-                      : 'none',
+                    mod.state === 'sync' ? '0 0 6px 2px #4ade8060' : 'none',
                   flexShrink: 0,
                 }}
               />
@@ -688,8 +678,7 @@ function renderTerminalModuleTable(
                   fontSize: 10,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
-                  color:
-                    mod.state === 'sync' ? '#4ade80' : 'var(--ink-mute)',
+                  color: mod.state === 'sync' ? '#4ade80' : 'var(--ink-mute)',
                 }}
               >
                 {mod.state}
@@ -804,14 +793,19 @@ function renderStorageStickyNote(block: HomepageBlock): React.ReactNode {
 /** 9. storage-links-list — 編號連結列表（Storage 區用） */
 function renderStorageLinksList(
   block: HomepageBlock,
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode {
   const { links } = block.data as { links: StorageLink[] };
 
   return (
     <div
       key={block.id}
-      style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        marginBottom: 24,
+      }}
     >
       {links.map((link) => (
         <a
@@ -923,7 +917,7 @@ function renderRichText(block: HomepageBlock): React.ReactNode {
  */
 function renderBlocksWithStorageLayout(
   blocks: HomepageBlock[],
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode[] {
   const result: React.ReactNode[] = [];
   let i = 0;
@@ -953,7 +947,7 @@ function renderBlocksWithStorageLayout(
           <div>{renderStorageStickyNote(block)}</div>
           {/* 右欄：連結列表 */}
           <div>{renderStorageLinksList(blocks[i + 1], zone)}</div>
-        </div>,
+        </div>
       );
       i += 2;
       continue;
@@ -970,7 +964,7 @@ function renderBlocksWithStorageLayout(
 /** 單一區塊分派函式 */
 function renderSingleBlock(
   block: HomepageBlock,
-  zone: ZoneData,
+  zone: ZoneData
 ): React.ReactNode {
   switch (block.type) {
     case 'zone-header':

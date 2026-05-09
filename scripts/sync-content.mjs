@@ -18,7 +18,14 @@ import { createInterface } from 'readline';
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
 const REMOTE_API = 'https://eternity-content-api.ptyc4076.workers.dev';
-const ALL_AREAS = ['history', 'echoes', 'visuals', 'concepts', 'storage', 'portal'];
+const ALL_AREAS = [
+  'history',
+  'echoes',
+  'visuals',
+  'concepts',
+  'storage',
+  'portal',
+];
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -29,9 +36,7 @@ const DIRECTION = args.includes('--pull')
     : null; // null = 互動模式
 const AREA_FLAG = args.indexOf('--area');
 const TARGET_AREAS =
-  AREA_FLAG !== -1 && args[AREA_FLAG + 1]
-    ? [args[AREA_FLAG + 1]]
-    : ALL_AREAS;
+  AREA_FLAG !== -1 && args[AREA_FLAG + 1] ? [args[AREA_FLAG + 1]] : ALL_AREAS;
 
 // === 工具函式 ===
 
@@ -73,18 +78,21 @@ async function getPage(apiBase, area, slug) {
 /** 透過 PUT 端點寫入頁面 */
 async function putPage(apiBase, page) {
   try {
-    const res = await fetch(`${apiBase}/api/content/${page.area}/${page.slug}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: page.title,
-        content: page.content,
-        parentId: page.parentId || null,
-        pageType: page.pageType,
-        depth: page.depth,
-        metadata: page.metadata || {},
-      }),
-    });
+    const res = await fetch(
+      `${apiBase}/api/content/${page.area}/${page.slug}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: page.title,
+          content: page.content,
+          parentId: page.parentId || null,
+          pageType: page.pageType,
+          depth: page.depth,
+          metadata: page.metadata || {},
+        }),
+      }
+    );
     if (!res.ok) return false;
     const json = await safeJson(res);
     return json?.ok ?? false;
@@ -105,7 +113,10 @@ function compareTimestamps(localTime, remoteTime) {
 /** 格式化時間戳為易讀格式 */
 function fmtTime(ts) {
   if (!ts) return '(無)';
-  return ts.replace('T', ' ').replace(/\.\d+Z$/, '').slice(0, 19);
+  return ts
+    .replace('T', ' ')
+    .replace(/\.\d+Z$/, '')
+    .slice(0, 19);
 }
 
 /** 互動式提問 */
@@ -172,9 +183,15 @@ function buildDiff(localPages, remotePages) {
 // === 同步執行 ===
 
 async function executePush(pages, area) {
+  // 按 depth 排序，確保父頁面先於子頁面建立（避免 FK 約束失敗）
+  const sorted = [...pages].sort((a, b) => {
+    const da = a.local?.depth ?? a.id.split('/').length - 1;
+    const db = b.local?.depth ?? b.id.split('/').length - 1;
+    return da - db;
+  });
   let ok = 0;
   let fail = 0;
-  for (const entry of pages) {
+  for (const entry of sorted) {
     const slug = entry.local?.slug || entry.id.replace(`${area}/`, '');
     const fullPage = await getPage(LOCAL_API, area, slug);
     if (!fullPage) {
@@ -259,7 +276,9 @@ async function main() {
     });
     const ct = check.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
-      console.error('⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面），部分操作可能失敗');
+      console.error(
+        '⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面），部分操作可能失敗'
+      );
     }
   } catch {
     console.error('⚠️  無法連線到遠端 API，將只顯示本地資料\n');
@@ -282,10 +301,7 @@ async function main() {
       `📂 ${area}  (本地: ${localPages.length} 頁 / 遠端: ${remotePages.length} 頁)`
     );
 
-    const { pushPages, pullPages, inSync } = buildDiff(
-      localPages,
-      remotePages
-    );
+    const { pushPages, pullPages, inSync } = buildDiff(localPages, remotePages);
 
     if (pushPages.length === 0 && pullPages.length === 0) {
       console.log(`   ✓ 完全同步 (${inSync.length} 頁)\n`);

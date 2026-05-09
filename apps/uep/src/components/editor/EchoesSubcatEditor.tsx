@@ -99,7 +99,7 @@ export default function EchoesSubcatEditor({
           title,
           content: [{ id: 'content', type: 'rich_text', content: '' }],
           parentId: pageId,
-          depth: (pageId.split('/').length),
+          depth: pageId.split('/').length,
           pageType: 'song',
           sortOrder: songs.length,
           metadata: {
@@ -188,9 +188,7 @@ export default function EchoesSubcatEditor({
           <label className="ned-field-label" style={{ margin: 0 }}>
             曲目列表
           </label>
-          <span className="ned-subcat-list-count">
-            {songs.length} 首
-          </span>
+          <span className="ned-subcat-list-count">{songs.length} 首</span>
           <button
             className="ned-btn-ghost ned-btn-sm"
             type="button"
@@ -226,9 +224,14 @@ export default function EchoesSubcatEditor({
                 onDragStart={() => handleDragStart(i)}
                 onDragOver={(e) => handleDragOver(e, i)}
                 onDrop={handleDrop}
-                onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+                onDragEnd={() => {
+                  setDragIdx(null);
+                  setDropIdx(null);
+                }}
               >
-                <span className="ned-subcat-song-grip" title="拖曳排序">⠿</span>
+                <span className="ned-subcat-song-grip" title="拖曳排序">
+                  ⠿
+                </span>
                 <span className="ned-subcat-song-num" style={{ color: accent }}>
                   {String(i + 1).padStart(2, '0')}
                 </span>
@@ -308,7 +311,10 @@ export default function EchoesSubcatEditor({
             <button
               type="button"
               className="ned-btn-ghost ned-btn-sm"
-              onClick={() => { setShowAdd(false); setNewTitle(''); }}
+              onClick={() => {
+                setShowAdd(false);
+                setNewTitle('');
+              }}
             >
               取消
             </button>

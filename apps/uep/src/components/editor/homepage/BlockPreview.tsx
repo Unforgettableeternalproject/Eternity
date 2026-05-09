@@ -76,14 +76,27 @@ function UepDialoguePreview({
 
   if (visible.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無對話內容）
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div
+      style={{
+        padding: '8px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+      }}
+    >
       {visible.map((item, i) => {
         const isRight = item.side === 'right';
         return (
@@ -115,7 +128,13 @@ function UepDialoguePreview({
         );
       })}
       {data.length > 3 && (
-        <div style={{ fontSize: '0.7rem', color: 'var(--ink-mute)', textAlign: 'center' }}>
+        <div
+          style={{
+            fontSize: '0.7rem',
+            color: 'var(--ink-mute)',
+            textAlign: 'center',
+          }}
+        >
           …還有 {data.length - 3} 條
         </div>
       )}
@@ -129,7 +148,13 @@ function ArchwayGridPreview({ data }: { data: { cards: ArchwayCard[] } }) {
 
   if (visible.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無卡片）
       </div>
     );
@@ -159,7 +184,9 @@ function ArchwayGridPreview({ data }: { data: { cards: ArchwayCard[] } }) {
             minWidth: 56,
           }}
         >
-          <span style={{ color: 'var(--uep-gold)', fontWeight: 600 }}>{card.tag || '#'}</span>
+          <span style={{ color: 'var(--uep-gold)', fontWeight: 600 }}>
+            {card.tag || '#'}
+          </span>
           <span
             style={{
               color: 'var(--ink)',
@@ -193,7 +220,13 @@ function ArchwayGridPreview({ data }: { data: { cards: ArchwayCard[] } }) {
 }
 
 /** 提示文字預覽 */
-function HintBoxPreview({ data, zoneColor }: { data: { text: string }; zoneColor: string }) {
+function HintBoxPreview({
+  data,
+  zoneColor,
+}: {
+  data: { text: string };
+  zoneColor: string;
+}) {
   return (
     <div
       style={{
@@ -222,14 +255,22 @@ function OrbClusterGridPreview({ data }: { data: { clusters: OrbCluster[] } }) {
 
   if (visible.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無集群）
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '8px 12px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+    <div
+      style={{ padding: '8px 12px', display: 'flex', flexWrap: 'wrap', gap: 8 }}
+    >
       {visible.map((cluster, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span
@@ -273,16 +314,37 @@ function CrossRoadGridPreview({ data }: { data: { roads: CrossRoad[] } }) {
 
   if (visible.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無路口）
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div
+      style={{
+        padding: '8px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
       {visible.map((road, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem' }}>
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: '0.8rem',
+          }}
+        >
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -320,14 +382,27 @@ function TerminalModuleTablePreview({
 
   if (visible.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無模組）
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <div
+      style={{
+        padding: '6px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3,
+      }}
+    >
       {data.headerLabel && (
         <div
           style={{
@@ -445,16 +520,37 @@ function StorageLinksListPreview({ data }: { data: { links: StorageLink[] } }) {
 
   if (visible.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無連結）
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div
+      style={{
+        padding: '6px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
       {visible.map((link, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: '0.8rem' }}>
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 6,
+            fontSize: '0.8rem',
+          }}
+        >
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -500,7 +596,8 @@ function RichTextPreview({ data }: { data: { html: string } }) {
         color: 'var(--ink-soft)',
         lineHeight: 1.5,
         // 淡出效果
-        WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+        WebkitMaskImage:
+          'linear-gradient(to bottom, black 60%, transparent 100%)',
         maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
       }}
       dangerouslySetInnerHTML={{ __html: data.html || '<p>（無內容）</p>' }}
@@ -523,7 +620,12 @@ function BlockBody({
     case 'zone-header':
       return <ZoneHeaderPreview data={data} />;
     case 'uep-dialogue':
-      return <UepDialoguePreview data={Array.isArray(data) ? data : []} zoneColor={zoneColor} />;
+      return (
+        <UepDialoguePreview
+          data={Array.isArray(data) ? data : []}
+          zoneColor={zoneColor}
+        />
+      );
     case 'archway-grid':
       return <ArchwayGridPreview data={data} />;
     case 'hint-box':
@@ -542,7 +644,13 @@ function BlockBody({
       return <RichTextPreview data={data} />;
     default:
       return (
-        <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+        <div
+          style={{
+            padding: '8px 12px',
+            color: 'var(--ink-mute)',
+            fontSize: '0.8rem',
+          }}
+        >
           （未知區塊類型）
         </div>
       );

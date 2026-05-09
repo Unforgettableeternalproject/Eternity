@@ -193,7 +193,12 @@ export default function PieMap3D({
             style={{ cursor: onCenterClick ? 'pointer' : 'default' }}
           >
             {/* hover 光暈 */}
-            <circle className="pie-center-glow" r="9" fill="var(--uep-gold)" fillOpacity="0" />
+            <circle
+              className="pie-center-glow"
+              r="9"
+              fill="var(--uep-gold)"
+              fillOpacity="0"
+            />
             <circle
               r="6.5"
               fill="none"

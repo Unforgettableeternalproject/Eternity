@@ -138,7 +138,8 @@ export default function RichEditor({
   const isEchoes = isEchoesArea && pageType === 'song';
   const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
   const isZone = pageType === 'zone';
-  const isPageType = !isEntryMode && (pageType === 'page' || pageType === 'homepage');
+  const isPageType =
+    !isEntryMode && (pageType === 'page' || pageType === 'homepage');
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
   );
@@ -485,7 +486,7 @@ export default function RichEditor({
                 href={
                   isEchoes
                     ? `/${area}?song=${area}/${pageSlug}`
-                    : (area === 'echoes' || zoneId === 'echoes')
+                    : area === 'echoes' || zoneId === 'echoes'
                       ? `/${area}?page=${area}/${pageSlug}`
                       : `/${area}?page=${area}/${pageSlug}`
                 }
@@ -962,7 +963,15 @@ export default function RichEditor({
           )}
 
           <span className="ned-toolbar-right">
-            {isEchoes ? 'song mode' : isEchoesSubcat ? 'playlist mode' : isZone ? 'zone mode' : isPageType ? 'homepage mode' : 'rich text'}
+            {isEchoes
+              ? 'song mode'
+              : isEchoesSubcat
+                ? 'playlist mode'
+                : isZone
+                  ? 'zone mode'
+                  : isPageType
+                    ? 'homepage mode'
+                    : 'rich text'}
             {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
           </span>
         </div>
