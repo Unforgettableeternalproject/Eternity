@@ -144,7 +144,6 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       >
         {/* ── HERO ── */}
         <section className="home-hero">
-
           {/* dust particles */}
           <div
             className="dust-field"
@@ -460,7 +459,6 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
           {/* legend */}
           <div className="home-legend-grid">
-
             {ZONES.map((z, idx) => (
               <div
                 key={z.id}

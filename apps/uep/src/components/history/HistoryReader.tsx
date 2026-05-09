@@ -9,13 +9,24 @@ import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { renderIcon } from '../editor/IconLibrary';
-import type { HomepageBlock, ZoneHeaderData, UepDialogueItem, ArchwayCard } from '../editor/homepage/types';
+import type {
+  HomepageBlock,
+  ZoneHeaderData,
+  UepDialogueItem,
+  ArchwayCard,
+} from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType =
-  | 'zone' | 'chapter' | 'arc' | 'section' | 'page'
-  | 'cluster' | 'subcategory' | 'song'
+  | 'zone'
+  | 'chapter'
+  | 'arc'
+  | 'section'
+  | 'page'
+  | 'cluster'
+  | 'subcategory'
+  | 'song'
   | 'homepage';
 
 interface ContentBlock {
@@ -347,9 +358,10 @@ export default function HistoryReader() {
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
         if (!json?.ok || !json.data?.content) return;
-        const raw = typeof json.data.content === 'string'
-          ? JSON.parse(json.data.content)
-          : json.data.content;
+        const raw =
+          typeof json.data.content === 'string'
+            ? JSON.parse(json.data.content)
+            : json.data.content;
         if (Array.isArray(raw) && raw.length > 0) {
           setHomepageBlocks(raw.map(fromContentBlock));
         }
@@ -744,8 +756,10 @@ export default function HistoryReader() {
           pointerEvents: 'none',
           ...(contentReady
             ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }
-          ),
+            : {
+                backdropFilter: 'blur(18px)',
+                background: 'rgba(10,10,14,0.5)',
+              }),
         }}
       />
       <style>{`
@@ -760,7 +774,9 @@ export default function HistoryReader() {
         onOpenMap={() => setShowMap(true)}
         onGoHome={() => {
           setHomePortal(true);
-          setTimeout(() => { window.location.href = '/'; }, 1100);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1100);
         }}
         dark={theme === 'dark'}
       />
@@ -861,7 +877,9 @@ export default function HistoryReader() {
                         const d = block.data as ZoneHeaderData;
                         return (
                           <div key={block.id}>
-                            <div className="history-kicker">History / Passage</div>
+                            <div className="history-kicker">
+                              History / Passage
+                            </div>
                             <h2>{d.title}</h2>
                             {d.subtitle && <p>{d.subtitle}</p>}
                           </div>
@@ -872,13 +890,19 @@ export default function HistoryReader() {
                         return (
                           <div key={block.id} className="history-uep-note">
                             {items.map((d, i) => (
-                              <UepDialogue key={i} text={d.text} side={d.side} effects={d.effects as any} />
+                              <UepDialogue
+                                key={i}
+                                text={d.text}
+                                side={d.side}
+                                effects={d.effects as any}
+                              />
                             ))}
                           </div>
                         );
                       }
                       case 'archway-grid': {
-                        const cards = (block.data as { cards: ArchwayCard[] }).cards;
+                        const cards = (block.data as { cards: ArchwayCard[] })
+                          .cards;
                         return (
                           <div key={block.id} className="history-arch-grid">
                             {archNodes.map((node, index) => {
@@ -894,19 +918,34 @@ export default function HistoryReader() {
                                       // 紅光閃爍表示不可用
                                       const el = e.currentTarget;
                                       el.classList.add('is-denied');
-                                      setTimeout(() => el.classList.remove('is-denied'), 600);
+                                      setTimeout(
+                                        () => el.classList.remove('is-denied'),
+                                        600
+                                      );
                                       return;
                                     }
                                     void loadPage(node);
                                   }}
-                                  style={isLocked ? { filter: 'grayscale(1)', opacity: 0.55 } : undefined}
+                                  style={
+                                    isLocked
+                                      ? {
+                                          filter: 'grayscale(1)',
+                                          opacity: 0.55,
+                                        }
+                                      : undefined
+                                  }
                                 >
                                   <span className="history-arch-index">
-                                    {card?.tag || ['U', 'E', 'P'][index] || String(index + 1).padStart(2, '0')}
+                                    {card?.tag ||
+                                      ['U', 'E', 'P'][index] ||
+                                      String(index + 1).padStart(2, '0')}
                                   </span>
-                                  <span className="history-arch-title">{card?.name || node.title}</span>
+                                  <span className="history-arch-title">
+                                    {card?.name || node.title}
+                                  </span>
                                   <span className="history-arch-meta">
-                                    {card?.stateLabel || `${node.children.length} entries / ${pageTypeLabel(node.pageType)}`}
+                                    {card?.stateLabel ||
+                                      `${node.children.length} entries / ${pageTypeLabel(node.pageType)}`}
                                   </span>
                                 </button>
                               );
@@ -917,12 +956,20 @@ export default function HistoryReader() {
                       case 'hint-box': {
                         const text = (block.data as { text: string }).text;
                         return (
-                          <div key={block.id} style={{
-                            marginTop: 28, padding: '14px 18px',
-                            borderLeft: `3px solid ${historyZone.main}60`,
-                            background: 'var(--bg-soft)', fontFamily: 'var(--font-serif-tc)',
-                            fontSize: 14, color: 'var(--ink-soft)', fontStyle: 'italic', lineHeight: 1.8,
-                          }}>
+                          <div
+                            key={block.id}
+                            style={{
+                              marginTop: 28,
+                              padding: '14px 18px',
+                              borderLeft: `3px solid ${historyZone.main}60`,
+                              background: 'var(--bg-soft)',
+                              fontFamily: 'var(--font-serif-tc)',
+                              fontSize: 14,
+                              color: 'var(--ink-soft)',
+                              fontStyle: 'italic',
+                              lineHeight: 1.8,
+                            }}
+                          >
                             {text}
                           </div>
                         );
@@ -930,8 +977,11 @@ export default function HistoryReader() {
                       case 'rich-text': {
                         const html = (block.data as { html: string }).html;
                         return (
-                          <div key={block.id} className="history-prose history-landing-prose"
-                            dangerouslySetInnerHTML={{ __html: html }} />
+                          <div
+                            key={block.id}
+                            className="history-prose history-landing-prose"
+                            dangerouslySetInnerHTML={{ __html: html }}
+                          />
                         );
                       }
                       default:
@@ -942,43 +992,64 @@ export default function HistoryReader() {
                   /* ── Fallback：舊版固定佈局 ── */
                   <>
                     <div className="history-kicker">History / Passage</div>
-                    <h2>{passagePage?.title || passageNode?.title || '三向通道'}</h2>
+                    <h2>
+                      {passagePage?.title || passageNode?.title || '三向通道'}
+                    </h2>
                     {(treeLoading || landingLoading) && !passagePage && (
                       <div className="history-state">正在讀取三向通道...</div>
                     )}
                     {landingParts.before && (
-                      <div className="history-prose history-landing-prose"
-                        dangerouslySetInnerHTML={{ __html: landingParts.before }} />
+                      <div
+                        className="history-prose history-landing-prose"
+                        dangerouslySetInnerHTML={{
+                          __html: landingParts.before,
+                        }}
+                      />
                     )}
                     <div className="history-arch-grid">
                       {archNodes.map((node, index) => (
-                        <button className="history-arch-card" type="button" key={node.id}
-                          onClick={() => void loadPage(node)}>
+                        <button
+                          className="history-arch-card"
+                          type="button"
+                          key={node.id}
+                          onClick={() => void loadPage(node)}
+                        >
                           <span className="history-arch-index">
-                            {['U', 'E', 'P'][index] || String(index + 1).padStart(2, '0')}
+                            {['U', 'E', 'P'][index] ||
+                              String(index + 1).padStart(2, '0')}
                           </span>
-                          <span className="history-arch-title">{node.title}</span>
+                          <span className="history-arch-title">
+                            {node.title}
+                          </span>
                           <span className="history-arch-meta">
-                            {node.children.length} entries / {pageTypeLabel(node.pageType)}
+                            {node.children.length} entries /{' '}
+                            {pageTypeLabel(node.pageType)}
                           </span>
                         </button>
                       ))}
                     </div>
                     {landingParts.after && (
-                      <div className="history-prose history-landing-prose"
-                        dangerouslySetInnerHTML={{ __html: landingParts.after }} />
+                      <div
+                        className="history-prose history-landing-prose"
+                        dangerouslySetInnerHTML={{ __html: landingParts.after }}
+                      />
                     )}
                     <div className="history-uep-note">
                       <UepDialogue
                         text="這裡是歷史典藏庫的三向通道。選擇 U、E、P 其中一扇門，就會進入對應區段的閱讀頁。"
-                        effects={['shimmer', 'halo']} />
+                        effects={['shimmer', 'halo']}
+                      />
                     </div>
                     {notePage && (
                       <section className="history-note-section">
                         <div className="history-kicker">Loose Note / Page</div>
                         <h3>{notePage.title}</h3>
-                        <div className="history-prose history-note-prose"
-                          dangerouslySetInnerHTML={{ __html: renderBlocks(notePage.content) }} />
+                        <div
+                          className="history-prose history-note-prose"
+                          dangerouslySetInnerHTML={{
+                            __html: renderBlocks(notePage.content),
+                          }}
+                        />
                       </section>
                     )}
                   </>
@@ -1137,7 +1208,9 @@ export default function HistoryReader() {
           onCenterClick={() => {
             setShowMap(false);
             setHomePortal(true);
-            setTimeout(() => { window.location.href = '/'; }, 1100);
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1100);
           }}
         />
       )}
@@ -1152,7 +1225,11 @@ export default function HistoryReader() {
         }}
       />
       <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
+      <PortalTransition
+        zone={null}
+        homeMode={homePortal}
+        onDone={() => setHomePortal(false)}
+      />
     </div>
   );
 }

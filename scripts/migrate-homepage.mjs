@@ -16,7 +16,7 @@ const IS_DRY_RUN = process.argv.includes('--dry-run');
 
 const API_BASE = IS_REMOTE
   ? (process.env.CONTENT_API_URL ??
-     'https://eternity-content-api.ptyc4076.workers.dev')
+    'https://eternity-content-api.ptyc4076.workers.dev')
   : 'http://localhost:8788';
 
 const API_TOKEN = process.env.API_TOKEN ?? '';
@@ -62,9 +62,24 @@ const ZONE_HOMEPAGES = {
         type: 'archway-grid',
         content: JSON.stringify({
           cards: [
-            { tag: '【U】', name: '未被記載的傳說', state: 'open', stateLabel: 'OPEN' },
-            { tag: '【E】', name: '*@*?*元', state: 'corrupted', stateLabel: 'CORRUPTED' },
-            { tag: '【P】', name: '*無法解讀的文字*', state: 'sealed', stateLabel: 'SEALED' },
+            {
+              tag: '【U】',
+              name: '未被記載的傳說',
+              state: 'open',
+              stateLabel: 'OPEN',
+            },
+            {
+              tag: '【E】',
+              name: '*@*?*元',
+              state: 'corrupted',
+              stateLabel: 'CORRUPTED',
+            },
+            {
+              tag: '【P】',
+              name: '*無法解讀的文字*',
+              state: 'sealed',
+              stateLabel: 'SEALED',
+            },
           ],
         }),
         attrs: {},
@@ -238,10 +253,34 @@ const ZONE_HOMEPAGES = {
         content: JSON.stringify({
           headerLabel: '// concepts.modules — listing',
           modules: [
-            { id: '01', name: '永續紀錄主機', en: 'persistent_log_server', state: 'sync', records: 124 },
-            { id: '02', name: '個性瀏覽器', en: 'identity_browser', state: 'sync', records: 38 },
-            { id: '03', name: '原質震盪時鐘', en: 'essence_oscillator', state: 'sync', records: 9 },
-            { id: '04', name: '認知對照平台', en: 'cognition_compare', state: 'idle', records: 14 },
+            {
+              id: '01',
+              name: '永續紀錄主機',
+              en: 'persistent_log_server',
+              state: 'sync',
+              records: 124,
+            },
+            {
+              id: '02',
+              name: '個性瀏覽器',
+              en: 'identity_browser',
+              state: 'sync',
+              records: 38,
+            },
+            {
+              id: '03',
+              name: '原質震盪時鐘',
+              en: 'essence_oscillator',
+              state: 'sync',
+              records: 9,
+            },
+            {
+              id: '04',
+              name: '認知對照平台',
+              en: 'cognition_compare',
+              state: 'idle',
+              records: 14,
+            },
           ],
         }),
         attrs: {},
@@ -355,30 +394,33 @@ async function fetchAndConvertPage(area, slug, kicker) {
 
     // 將 D1 頁面的所有內容區塊合併為一個 rich-text 區塊
     let html = '';
-    const contentArr = typeof page.content === 'string'
-      ? JSON.parse(page.content)
-      : (page.content || []);
+    const contentArr =
+      typeof page.content === 'string'
+        ? JSON.parse(page.content)
+        : page.content || [];
 
     if (Array.isArray(contentArr)) {
-      html = contentArr.map((b) => {
-        if (!b.content) return '';
-        switch (b.type) {
-          case 'heading': {
-            const lvl = b.attrs?.level || 2;
-            return `<h${lvl}>${b.content}</h${lvl}>`;
+      html = contentArr
+        .map((b) => {
+          if (!b.content) return '';
+          switch (b.type) {
+            case 'heading': {
+              const lvl = b.attrs?.level || 2;
+              return `<h${lvl}>${b.content}</h${lvl}>`;
+            }
+            case 'blockquote':
+              return `<blockquote><p>${b.content}</p></blockquote>`;
+            case 'code':
+              return `<pre><code>${b.content}</code></pre>`;
+            case 'divider':
+              return '<hr />';
+            case 'image':
+              return `<img src="${b.content}" alt="${b.attrs?.alt || ''}" />`;
+            default:
+              return b.content;
           }
-          case 'blockquote':
-            return `<blockquote><p>${b.content}</p></blockquote>`;
-          case 'code':
-            return `<pre><code>${b.content}</code></pre>`;
-          case 'divider':
-            return '<hr />';
-          case 'image':
-            return `<img src="${b.content}" alt="${b.attrs?.alt || ''}" />`;
-          default:
-            return b.content;
-        }
-      }).join('\n');
+        })
+        .join('\n');
     }
 
     if (html.trim()) {
@@ -424,7 +466,9 @@ async function migrateZone(area, label, blocks) {
     headers['Authorization'] = `Bearer ${API_TOKEN}`;
   }
 
-  console.log(`\n[${area}] ${IS_DRY_RUN ? '(DRY RUN) ' : ''}正在寫入「${label} 首頁」...`);
+  console.log(
+    `\n[${area}] ${IS_DRY_RUN ? '(DRY RUN) ' : ''}正在寫入「${label} 首頁」...`
+  );
   console.log(`  目標 URL: ${url}`);
   console.log(`  區塊數量: ${blocks.length}`);
 
@@ -434,15 +478,20 @@ async function migrateZone(area, label, blocks) {
     try {
       const parsed = JSON.parse(b.content);
       if (parsed.title) preview = parsed.title;
-      else if (Array.isArray(parsed) && parsed.length > 0) preview = `${parsed.length} 個項目`;
+      else if (Array.isArray(parsed) && parsed.length > 0)
+        preview = `${parsed.length} 個項目`;
       else if (parsed.cards) preview = `${parsed.cards.length} 張卡片`;
       else if (parsed.clusters) preview = `${parsed.clusters.length} 個集群`;
       else if (parsed.roads) preview = `${parsed.roads.length} 條路徑`;
       else if (parsed.modules) preview = `${parsed.modules.length} 個模組`;
       else if (parsed.links) preview = `${parsed.links.length} 個連結`;
-      else if (parsed.text) preview = parsed.text.slice(0, 30) + (parsed.text.length > 30 ? '...' : '');
+      else if (parsed.text)
+        preview =
+          parsed.text.slice(0, 30) + (parsed.text.length > 30 ? '...' : '');
       else if (parsed.html) preview = `HTML (${parsed.html.length} chars)`;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     console.log(`    ${b.id.padEnd(4)} │ ${b.type.padEnd(24)} │ ${preview}`);
   }
 
@@ -481,7 +530,9 @@ async function migrateZone(area, label, blocks) {
 async function main() {
   console.log('═══════════════════════════════════════════════');
   console.log('  UEP 首頁區塊遷移腳本');
-  console.log(`  模式: ${IS_REMOTE ? '遠端 (Remote)' : '本地 (Local)'}${IS_DRY_RUN ? ' (DRY RUN)' : ''}`);
+  console.log(
+    `  模式: ${IS_REMOTE ? '遠端 (Remote)' : '本地 (Local)'}${IS_DRY_RUN ? ' (DRY RUN)' : ''}`
+  );
   console.log(`  API Base: ${API_BASE}`);
   if (!API_TOKEN && IS_REMOTE) {
     console.warn('  警告: 未設定 API_TOKEN，若遠端需要驗證則會失敗');
@@ -500,7 +551,9 @@ async function main() {
       const result = await fetchAndConvertPage(area, slug, kicker);
       if (result && result.blocks.length > 0) {
         zone.blocks.push(...result.blocks);
-        console.log(`    ✓ 已合併「${result.title}」(${result.contentLength} 個原始區塊 → 1 個 rich-text 區塊)`);
+        console.log(
+          `    ✓ 已合併「${result.title}」(${result.contentLength} 個原始區塊 → 1 個 rich-text 區塊)`
+        );
       } else {
         console.log(`    ⤳ 未找到或內容為空，跳過`);
       }

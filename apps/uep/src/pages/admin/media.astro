@@ -24,11 +24,7 @@ const jwtToken = Astro.cookies.get(JWT_COOKIE)?.value || '';
       <a href="/admin" class="adm-header-home">← 返回管理首頁</a>
     </header>
     <main class="adm-main">
-      <MediaLibrary
-        client:only="react"
-        apiBase={apiBase}
-        jwtToken={jwtToken}
-      />
+      <MediaLibrary client:only="react" apiBase={apiBase} jwtToken={jwtToken} />
     </main>
   </div>
 </DesignLayout>

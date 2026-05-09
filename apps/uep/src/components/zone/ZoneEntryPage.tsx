@@ -23,7 +23,13 @@ interface ZoneShellProps {
   ready?: boolean;
 }
 
-function ZoneShell({ zone, onOpenMap, onGoHome, children, ready = true }: ZoneShellProps) {
+function ZoneShell({
+  zone,
+  onOpenMap,
+  onGoHome,
+  children,
+  ready = true,
+}: ZoneShellProps) {
   const corners: Array<{
     pos: React.CSSProperties;
     borders: React.CSSProperties;
@@ -109,8 +115,10 @@ function ZoneShell({ zone, onOpenMap, onGoHome, children, ready = true }: ZoneSh
           pointerEvents: 'none',
           ...(ready
             ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }
-          ),
+            : {
+                backdropFilter: 'blur(18px)',
+                background: 'rgba(10,10,14,0.5)',
+              }),
         }}
       />
       <style>{`
@@ -1633,7 +1641,9 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
   const [homePortal, setHomePortal] = useState(false);
 
   // D1 首頁資料
-  const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[] | null>(null);
+  const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[] | null>(
+    null
+  );
   const [homepageLoaded, setHomepageLoaded] = useState(false);
 
   // 安全逾時：2 秒後無論如何都解除霧化
@@ -1656,9 +1666,10 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
       })
       .then((json: any) => {
         if (json?.ok && json.data?.content) {
-          const raw = typeof json.data.content === 'string'
-            ? JSON.parse(json.data.content)
-            : json.data.content;
+          const raw =
+            typeof json.data.content === 'string'
+              ? JSON.parse(json.data.content)
+              : json.data.content;
           if (Array.isArray(raw) && raw.length > 0) {
             setHomepageBlocks(raw.map(fromContentBlock));
           }
@@ -1741,7 +1752,9 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
         ready={homepageLoaded}
         onGoHome={() => {
           setHomePortal(true);
-          setTimeout(() => { window.location.href = '/'; }, 1100);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1100);
         }}
       >
         {renderEntry()}
@@ -1768,7 +1781,9 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
           onCenterClick={() => {
             setShowMap(false);
             setHomePortal(true);
-            setTimeout(() => { window.location.href = '/'; }, 1100);
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1100);
           }}
         />
       )}
@@ -1783,7 +1798,11 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
         }}
       />
       <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
+      <PortalTransition
+        zone={null}
+        homeMode={homePortal}
+        onDone={() => setHomePortal(false)}
+      />
     </>
   );
 }

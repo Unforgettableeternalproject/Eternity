@@ -124,7 +124,10 @@ export default function HomepageEditor({
     if (!showAddMenu) return;
 
     const handler = (e: MouseEvent) => {
-      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+      if (
+        addMenuRef.current &&
+        !addMenuRef.current.contains(e.target as Node)
+      ) {
         setShowAddMenu(false);
       }
     };
@@ -222,7 +225,7 @@ export default function HomepageEditor({
   // ── 目前正在編輯的區塊物件 ────────────────────────────────────────────────
 
   const editingBlock = editingBlockId
-    ? blocks.find((b) => b.id === editingBlockId) ?? null
+    ? (blocks.find((b) => b.id === editingBlockId) ?? null)
     : null;
 
   // ── 此區域可用的區塊類型 ──────────────────────────────────────────────────
@@ -256,12 +259,8 @@ export default function HomepageEditor({
             {zoneIcon}
           </div>
           <div>
-            <div style={headerTitleStyle}>
-              首頁編輯 · {zoneLabel}
-            </div>
-            <div style={headerSubtitleStyle}>
-              {area}&nbsp;/&nbsp;homepage
-            </div>
+            <div style={headerTitleStyle}>首頁編輯 · {zoneLabel}</div>
+            <div style={headerSubtitleStyle}>{area}&nbsp;/&nbsp;homepage</div>
           </div>
         </div>
 
@@ -301,7 +300,8 @@ export default function HomepageEditor({
               background: zoneColor,
               borderColor: zoneColor,
               opacity: saveStatus === 'saving' || loading ? 0.6 : 1,
-              cursor: saveStatus === 'saving' || loading ? 'not-allowed' : 'pointer',
+              cursor:
+                saveStatus === 'saving' || loading ? 'not-allowed' : 'pointer',
             }}
           >
             儲存
@@ -343,10 +343,23 @@ export default function HomepageEditor({
           {/* 載入錯誤 */}
           {!loading && loadError && (
             <div style={loadErrorStyle}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: '#ef4444', marginBottom: 8 }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.75rem',
+                  color: '#ef4444',
+                  marginBottom: 8,
+                }}
+              >
                 ✕ 載入失敗
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--ink-soft)', marginBottom: 12 }}>
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--ink-soft)',
+                  marginBottom: 12,
+                }}
+              >
                 {loadError}
               </div>
               <button
@@ -374,7 +387,9 @@ export default function HomepageEditor({
                   >
                     尚無區塊
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--ink-mute)' }}>
+                  <div
+                    style={{ fontSize: '0.75rem', color: 'var(--ink-mute)' }}
+                  >
                     點擊下方「＋ 新增區塊」開始編輯首頁內容。
                   </div>
                 </div>
@@ -399,12 +414,17 @@ export default function HomepageEditor({
               )}
 
               {/* 新增區塊按鈕 */}
-              <div ref={addMenuRef} style={{ position: 'relative', marginTop: 16 }}>
+              <div
+                ref={addMenuRef}
+                style={{ position: 'relative', marginTop: 16 }}
+              >
                 <button
                   onClick={() => setShowAddMenu((v) => !v)}
                   style={{
                     ...addBlockButtonStyle,
-                    borderColor: showAddMenu ? zoneColor : 'var(--hairline-strong)',
+                    borderColor: showAddMenu
+                      ? zoneColor
+                      : 'var(--hairline-strong)',
                     color: showAddMenu ? zoneColor : 'var(--ink-soft)',
                   }}
                 >
@@ -420,14 +440,16 @@ export default function HomepageEditor({
                         onClick={() => addBlock(type)}
                         style={addMenuItemStyle}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            'var(--bg-soft)';
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = 'var(--bg-soft)';
                           (e.currentTarget as HTMLButtonElement).style.color =
                             zoneColor;
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            'transparent';
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = 'transparent';
                           (e.currentTarget as HTMLButtonElement).style.color =
                             'var(--ink)';
                         }}
@@ -444,7 +466,12 @@ export default function HomepageEditor({
                         >
                           {type}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem' }}>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '0.8rem',
+                          }}
+                        >
                           {BLOCK_TYPE_LABELS[type]}
                         </span>
                       </button>

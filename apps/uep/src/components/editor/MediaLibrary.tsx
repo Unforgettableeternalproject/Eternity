@@ -48,9 +48,7 @@ function isImage(item: AssetItem): boolean {
 }
 
 function isAudio(item: AssetItem): boolean {
-  return (
-    item.contentType.startsWith('audio/') || item.key.startsWith('audio/')
-  );
+  return item.contentType.startsWith('audio/') || item.key.startsWith('audio/');
 }
 
 /** R2 key 可能含空白或特殊字元，每段需要 encode */
@@ -63,10 +61,7 @@ function encodeAssetKey(key: string): string {
 
 // ── 元件 ──
 
-export default function MediaLibrary({
-  apiBase,
-  jwtToken,
-}: MediaLibraryProps) {
+export default function MediaLibrary({ apiBase, jwtToken }: MediaLibraryProps) {
   const [items, setItems] = useState<AssetItem[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
@@ -251,9 +246,7 @@ export default function MediaLibrary({
       if (!json.ok) throw new Error(json.error || '改名失敗');
       // 更新本地狀態
       setItems((prev) =>
-        prev.map((i) =>
-          i.key === detail.key ? { ...i, key: newKey } : i
-        )
+        prev.map((i) => (i.key === detail.key ? { ...i, key: newKey } : i))
       );
       setDetail((prev) => (prev ? { ...prev, key: newKey } : null));
       setRenaming(false);
@@ -279,9 +272,7 @@ export default function MediaLibrary({
         <span className="ml-stat-sep">&middot;</span>
         <span className="ml-stat">總計 {fmtBytes(totalSize)}</span>
         <span className="ml-stat-sep">&middot;</span>
-        <span
-          className={`ml-stat ${orphanCount > 0 ? 'ml-stat--warn' : ''}`}
-        >
+        <span className={`ml-stat ${orphanCount > 0 ? 'ml-stat--warn' : ''}`}>
           {orphanCount} 個孤兒檔案
         </span>
       </div>
@@ -323,21 +314,13 @@ export default function MediaLibrary({
             >
               批次刪除
             </button>
-            <button
-              type="button"
-              className="ml-btn"
-              onClick={clearSelection}
-            >
+            <button type="button" className="ml-btn" onClick={clearSelection}>
               取消選取
             </button>
           </div>
         ) : (
           <div className="ml-actions">
-            <button
-              type="button"
-              className="ml-btn"
-              onClick={selectOrphans}
-            >
+            <button type="button" className="ml-btn" onClick={selectOrphans}>
               選取孤兒
             </button>
             <button type="button" className="ml-btn" onClick={selectAll}>
@@ -373,7 +356,10 @@ export default function MediaLibrary({
               <div
                 key={item.key}
                 className={`ml-card${selected.has(item.key) ? ' ml-card--selected' : ''}${!item.referenced ? ' ml-card--orphan' : ''}`}
-                onClick={(e) => { e.stopPropagation(); setDetail(item); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDetail(item);
+                }}
               >
                 <input
                   type="checkbox"
@@ -397,10 +383,7 @@ export default function MediaLibrary({
                 </div>
 
                 {!item.referenced && (
-                  <span
-                    className="ml-orphan-badge"
-                    title="未被任何頁面引用"
-                  >
+                  <span className="ml-orphan-badge" title="未被任何頁面引用">
                     &#9888;
                   </span>
                 )}
@@ -452,9 +435,7 @@ export default function MediaLibrary({
                 {detail.originalName && (
                   <>
                     <div className="ml-detail-label">原始檔名</div>
-                    <div className="ml-detail-value">
-                      {detail.originalName}
-                    </div>
+                    <div className="ml-detail-value">{detail.originalName}</div>
                   </>
                 )}
 
@@ -501,9 +482,7 @@ export default function MediaLibrary({
                 )}
 
                 <div className="ml-detail-label">大小</div>
-                <div className="ml-detail-value">
-                  {fmtBytes(detail.size)}
-                </div>
+                <div className="ml-detail-value">{fmtBytes(detail.size)}</div>
 
                 <div className="ml-detail-label">上傳日期</div>
                 <div className="ml-detail-value">
@@ -511,9 +490,7 @@ export default function MediaLibrary({
                 </div>
 
                 <div className="ml-detail-label">類型</div>
-                <div className="ml-detail-value">
-                  {detail.contentType}
-                </div>
+                <div className="ml-detail-value">{detail.contentType}</div>
 
                 <div className="ml-detail-label">引用狀態</div>
                 <div className="ml-detail-value">
@@ -556,9 +533,7 @@ export default function MediaLibrary({
           ) : (
             <div className="ml-detail-empty">
               <div className="ml-detail-empty-icon">&#9654;</div>
-              <div className="ml-detail-empty-text">
-                點選左側檔案以查看詳情
-              </div>
+              <div className="ml-detail-empty-text">點選左側檔案以查看詳情</div>
             </div>
           )}
         </div>
@@ -571,12 +546,11 @@ export default function MediaLibrary({
             <div className="ml-dialog-title">確認批次刪除</div>
             <div className="ml-dialog-body">
               即將刪除 {selected.size} 個檔案，此操作無法復原。
-              {Array.from(selected).some((k) =>
-                items.find((i) => i.key === k)?.referenced
+              {Array.from(selected).some(
+                (k) => items.find((i) => i.key === k)?.referenced
               ) && (
                 <div className="ml-dialog-warn">
-                  &#9888;
-                  部分選取的檔案仍被頁面引用，刪除後相關頁面可能損壞。
+                  &#9888; 部分選取的檔案仍被頁面引用，刪除後相關頁面可能損壞。
                 </div>
               )}
             </div>

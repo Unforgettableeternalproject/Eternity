@@ -194,9 +194,7 @@ function extractSongs(content, parentId, parentSlug, parentDepth) {
     const appreciationMatch = trimmed.match(
       /####\s+\**(?:賞析|作者的話|敘述)[:\uff1a]?\**\s*\n([\s\S]*?)(?=\n\*\*\*|\n###|$)/
     );
-    let appreciationRaw = appreciationMatch
-      ? appreciationMatch[1].trim()
-      : '';
+    let appreciationRaw = appreciationMatch ? appreciationMatch[1].trim() : '';
 
     // 分段
     const appreciationParagraphs = appreciationRaw
@@ -245,7 +243,9 @@ function extractSongs(content, parentId, parentSlug, parentDepth) {
     const blockCount = (title.match(/◼/g) || []).length;
     if (blockCount > 0) {
       // 有遮蔽符號
-      const totalChars = [...title].filter((c) => !/[\s\-「」()\uff08\uff09]/u.test(c)).length;
+      const totalChars = [...title].filter(
+        (c) => !/[\s\-「」()\uff08\uff09]/u.test(c)
+      ).length;
       const ratio = blockCount / totalChars;
       if (ratio > 0.6) spoilerLevel = 2;
       else spoilerLevel = 1;
@@ -261,9 +261,7 @@ function extractSongs(content, parentId, parentSlug, parentDepth) {
       audioFile: audioFile || null,
       audioMeta: null,
       appreciation: isLockedAppreciation ? [''] : appreciationParagraphs,
-      appreciationLocked: isLockedAppreciation
-        ? appreciationParagraphs[0]
-        : '',
+      appreciationLocked: isLockedAppreciation ? appreciationParagraphs[0] : '',
     };
 
     songs.push({
@@ -552,7 +550,9 @@ async function importToApi(pages) {
       try {
         json = JSON.parse(text);
       } catch {
-        console.error(`   ❌ 批次 ${batchNum}/${totalBatches} — 非 JSON 回應: ${text.slice(0, 100)}`);
+        console.error(
+          `   ❌ 批次 ${batchNum}/${totalBatches} — 非 JSON 回應: ${text.slice(0, 100)}`
+        );
         continue;
       }
 
@@ -567,7 +567,9 @@ async function importToApi(pages) {
         console.error(`   ❌ 批次 ${batchNum}/${totalBatches} — ${json.error}`);
       }
     } catch (e) {
-      console.error(`   ❌ 批次 ${batchNum}/${totalBatches} — 連線錯誤: ${e.message}`);
+      console.error(
+        `   ❌ 批次 ${batchNum}/${totalBatches} — 連線錯誤: ${e.message}`
+      );
     }
   }
 
@@ -608,22 +610,13 @@ async function main() {
 
       // 對 subcategory 層級的檔案，嘗試拆解歌曲
       if (entry.pageType === 'subcategory' && hasSongsInFile(raw)) {
-        const songs = extractSongs(
-          raw,
-          entry.id,
-          entry.slug,
-          entry.depth
-        );
+        const songs = extractSongs(raw, entry.id, entry.slug, entry.depth);
         for (const song of songs) {
           const songIndent = '  '.repeat(song.depth);
-          console.log(
-            `${songIndent}🎵 ${song.title} [song] → ${song.id}`
-          );
+          console.log(`${songIndent}🎵 ${song.title} [song] → ${song.id}`);
           pages.push(song);
         }
-        console.log(
-          `${indent}   ↳ 拆解出 ${songs.length} 首歌曲`
-        );
+        console.log(`${indent}   ↳ 拆解出 ${songs.length} 首歌曲`);
       }
     } catch (e) {
       console.error(`  ✗ ${entry.slug} — ${e.message}`);

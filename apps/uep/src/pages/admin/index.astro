@@ -62,7 +62,10 @@ const totalEditsThisWeek = [...historyPages, ...echoesPages].filter(
 // Recent edits per zone (latest 3)
 function getRecent(pages: any[]) {
   return pages
-    .filter((p: any) => p.updatedAt && p.pageType !== 'page' && p.pageType !== 'homepage')
+    .filter(
+      (p: any) =>
+        p.updatedAt && p.pageType !== 'page' && p.pageType !== 'homepage'
+    )
     .sort(
       (a: any, b: any) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -301,29 +304,51 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
         <!-- Homepage editor section -->
         <div class="adm-section-title">· 首頁編輯 ·</div>
         <div class="adm-homepage-grid">
-          {[
-            { area: 'history', label: '歷史典藏庫', color: 'var(--history-main)' },
-            { area: 'echoes', label: '空白廣場', color: 'var(--echoes-main)' },
-            { area: 'visuals', label: '鏡向十字路口', color: 'var(--visuals-main)' },
-            { area: 'concepts', label: '概念調整房', color: 'var(--concepts-main)' },
-            { area: 'storage', label: '雜亂的書桌', color: 'var(--storage-main)' },
-          ].map((z) => {
-            const hp = allLandingPages.find((p: any) => p.area === z.area);
-            return (
-              <a href={`/admin/homepage/${z.area}`} class="adm-homepage-card">
-                <span class="adm-homepage-badge" style={`color: ${z.color};`}>
-                  {z.label}
-                </span>
-                <div class="adm-homepage-info">
-                  <div class="adm-homepage-name">{z.area}/homepage</div>
-                  <div class="adm-homepage-sub">
-                    {hp?.updatedAt ? timeAgo(hp.updatedAt) : '尚未建立'}
+          {
+            [
+              {
+                area: 'history',
+                label: '歷史典藏庫',
+                color: 'var(--history-main)',
+              },
+              {
+                area: 'echoes',
+                label: '空白廣場',
+                color: 'var(--echoes-main)',
+              },
+              {
+                area: 'visuals',
+                label: '鏡向十字路口',
+                color: 'var(--visuals-main)',
+              },
+              {
+                area: 'concepts',
+                label: '概念調整房',
+                color: 'var(--concepts-main)',
+              },
+              {
+                area: 'storage',
+                label: '雜亂的書桌',
+                color: 'var(--storage-main)',
+              },
+            ].map((z) => {
+              const hp = allLandingPages.find((p: any) => p.area === z.area);
+              return (
+                <a href={`/admin/homepage/${z.area}`} class="adm-homepage-card">
+                  <span class="adm-homepage-badge" style={`color: ${z.color};`}>
+                    {z.label}
+                  </span>
+                  <div class="adm-homepage-info">
+                    <div class="adm-homepage-name">{z.area}/homepage</div>
+                    <div class="adm-homepage-sub">
+                      {hp?.updatedAt ? timeAgo(hp.updatedAt) : '尚未建立'}
+                    </div>
                   </div>
-                </div>
-                <span class="adm-homepage-arrow">→</span>
-              </a>
-            );
-          })}
+                  <span class="adm-homepage-arrow">→</span>
+                </a>
+              );
+            })
+          }
         </div>
 
         <!-- Secondary tools -->

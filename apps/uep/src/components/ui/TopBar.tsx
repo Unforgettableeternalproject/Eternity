@@ -47,7 +47,14 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
 
       <a
         href="/"
-        onClick={onGoHome ? (e) => { e.preventDefault(); onGoHome(); } : undefined}
+        onClick={
+          onGoHome
+            ? (e) => {
+                e.preventDefault();
+                onGoHome();
+              }
+            : undefined
+        }
         style={{
           display: 'flex',
           alignItems: 'center',

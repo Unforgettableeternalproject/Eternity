@@ -24,7 +24,9 @@ export default function PortalTransition({
   if (!active) return null;
 
   // 首頁模式：白色粗線 + 白霧；區域模式：區域色細線 + 黑霧
-  const ringColor = homeMode ? 'rgba(255,255,255,0.85)' : (zone?.main || '#d5b618');
+  const ringColor = homeMode
+    ? 'rgba(255,255,255,0.85)'
+    : zone?.main || '#d5b618';
   const ringWidth = homeMode ? '2.5px' : '1px';
   const streakColor = homeMode
     ? 'linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)'

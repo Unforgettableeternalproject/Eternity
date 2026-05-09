@@ -418,21 +418,29 @@ export default function EditorPageTree({
 
   // --- Render ---
 
-  const renderNode = (node: PageTreeNode, depth: number = 0): React.ReactNode => {
+  const renderNode = (
+    node: PageTreeNode,
+    depth: number = 0
+  ): React.ReactNode => {
     // page / homepage 類型節點由首頁編輯器管理 — 跳過節點本身，但保留其子層
     if (node.pageType === 'page' || node.pageType === 'homepage') {
       const children = node.children || [];
       if (children.length === 0) return null;
-      return <>{children.map((child: PageTreeNode) => renderNode(child, depth))}</>;
+      return (
+        <>{children.map((child: PageTreeNode) => renderNode(child, depth))}</>
+      );
     }
     // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）
     if (area === 'echoes' && node.pageType === 'song') return null;
 
     const isActive = node.id === `${area}/${currentSlug}`;
     // Echoes 區域：不計算 song children 為 tree children
-    const visibleChildren = area === 'echoes'
-      ? (node.children || []).filter((c: PageTreeNode) => c.pageType !== 'song')
-      : node.children || [];
+    const visibleChildren =
+      area === 'echoes'
+        ? (node.children || []).filter(
+            (c: PageTreeNode) => c.pageType !== 'song'
+          )
+        : node.children || [];
     const hasChildren = visibleChildren.length > 0;
     const isCollapsed = collapsed.has(node.id);
     const noEdit = NO_EDIT_TYPES.has(node.pageType);
@@ -534,18 +542,18 @@ export default function EditorPageTree({
             >
               {!NO_CHILDREN_TYPES.has(node.pageType) &&
                 !(area === 'echoes' && node.pageType === 'subcategory') && (
-                <button
-                  className="ned-tree-context-item"
-                  onClick={() => {
-                    setContextNode(null);
-                    startCreate(node.id, node.depth, visibleChildren.length);
-                  }}
-                >
-                  {area === 'echoes' && node.pageType === 'cluster'
-                    ? '+ Add subcategory'
-                    : '+ Add child'}
-                </button>
-              )}
+                  <button
+                    className="ned-tree-context-item"
+                    onClick={() => {
+                      setContextNode(null);
+                      startCreate(node.id, node.depth, visibleChildren.length);
+                    }}
+                  >
+                    {area === 'echoes' && node.pageType === 'cluster'
+                      ? '+ Add subcategory'
+                      : '+ Add child'}
+                  </button>
+                )}
               <button
                 className="ned-tree-context-item ned-tree-context-item--danger"
                 onClick={() => {
@@ -559,7 +567,9 @@ export default function EditorPageTree({
           )}
         </div>
         {hasChildren && !isCollapsed && (
-          <div>{renderNodeList(visibleChildren, depth + 1, node.id, depth)}</div>
+          <div>
+            {renderNodeList(visibleChildren, depth + 1, node.id, depth)}
+          </div>
         )}
         {/* 無子節點但正在建立子頁面時，顯示 inline 表單 */}
         {!hasChildren && creating?.parentId === node.id && (

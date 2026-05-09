@@ -155,7 +155,15 @@ async function requireJwt(
   env: Env
 ): Promise<JwtPayload | null> {
   // 開發模式（無 JWT_SECRET）：允許所有請求
-  if (!env.JWT_SECRET) return { sub: 'dev', role: 'super_admin', display_name: 'Dev', iat: 0, exp: 0, jti: '' };
+  if (!env.JWT_SECRET)
+    return {
+      sub: 'dev',
+      role: 'super_admin',
+      display_name: 'Dev',
+      iat: 0,
+      exp: 0,
+      jti: '',
+    };
   const auth = request.headers.get('Authorization');
   const token = auth?.replace('Bearer ', '');
   if (!token) return null;
@@ -672,8 +680,7 @@ async function listAssets(
     .prepare('SELECT id, content FROM pages')
     .all<{ id: string; content: string }>();
 
-  const assetUrlRegex =
-    /\/api\/assets\/((?:images|audio|files)\/[^\s"'<>]+)/g;
+  const assetUrlRegex = /\/api\/assets\/((?:images|audio|files)\/[^\s"'<>]+)/g;
 
   for (const row of contentRows.results || []) {
     try {
@@ -701,8 +708,7 @@ async function listAssets(
       key: obj.key,
       size: obj.size,
       uploaded: obj.uploaded.toISOString(),
-      contentType:
-        obj.httpMetadata?.contentType || 'application/octet-stream',
+      contentType: obj.httpMetadata?.contentType || 'application/octet-stream',
       originalName: obj.customMetadata?.originalName,
       referenced: refs.length > 0,
       referencedBy: refs,
@@ -725,11 +731,7 @@ async function batchDeleteAssets(
   cors: Record<string, string>
 ): Promise<Response> {
   if (!Array.isArray(body.keys) || body.keys.length === 0) {
-    return jsonResponse(
-      { ok: false, error: 'No keys provided' },
-      400,
-      cors
-    );
+    return jsonResponse({ ok: false, error: 'No keys provided' }, 400, cors);
   }
   if (body.keys.length > 100) {
     return jsonResponse(
@@ -782,11 +784,7 @@ async function renameAsset(
   // 1. 確認原檔案存在
   const obj = await bucket.get(oldKey);
   if (!obj) {
-    return jsonResponse(
-      { ok: false, error: '原始檔案不存在' },
-      404,
-      cors
-    );
+    return jsonResponse({ ok: false, error: '原始檔案不存在' }, 404, cors);
   }
 
   // 2. 複製到新 key
@@ -908,11 +906,7 @@ export default {
     if (path === '/api/assets' && request.method === 'GET') {
       const jwtUser = await requireJwt(request, env);
       if (!jwtUser) {
-        return jsonResponse(
-          { ok: false, error: 'Unauthorized' },
-          401,
-          cors
-        );
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       return listAssets(url, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
     }
@@ -921,11 +915,7 @@ export default {
     if (path === '/api/assets/batch' && request.method === 'DELETE') {
       const jwtUser = await requireJwt(request, env);
       if (!jwtUser) {
-        return jsonResponse(
-          { ok: false, error: 'Unauthorized' },
-          401,
-          cors
-        );
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const body = (await request.json()) as BatchDeleteRequest;
       return batchDeleteAssets(body, env.ASSETS_BUCKET, cors);
@@ -935,11 +925,7 @@ export default {
     if (path === '/api/assets/rename' && request.method === 'POST') {
       const jwtUser = await requireJwt(request, env);
       if (!jwtUser) {
-        return jsonResponse(
-          { ok: false, error: 'Unauthorized' },
-          401,
-          cors
-        );
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const body = (await request.json()) as { oldKey: string; newKey: string };
       return renameAsset(body, env.ASSETS_BUCKET, env.CONTENT_DB, cors);

@@ -160,7 +160,13 @@ function ZoneHeaderForm({ data, onChange }: ZoneHeaderFormProps) {
 }
 
 // 可用特效選項（UEP 對話）
-const DIALOGUE_EFFECTS = ['glitch', 'flicker', 'fade', 'echo', 'static'] as const;
+const DIALOGUE_EFFECTS = [
+  'glitch',
+  'flicker',
+  'fade',
+  'echo',
+  'static',
+] as const;
 
 // 2. uep-dialogue
 interface UepDialogueFormProps {
@@ -190,7 +196,11 @@ function UepDialogueForm({ items, onChange }: UepDialogueFormProps) {
     <>
       {items.map((item, i) => (
         <div key={i} style={itemCardStyle}>
-          <button style={deleteButtonStyle} onClick={() => remove(i)} type="button">
+          <button
+            style={deleteButtonStyle}
+            onClick={() => remove(i)}
+            type="button"
+          >
             ×
           </button>
           <Field label={`對話 ${i + 1} — 文字`}>
@@ -204,7 +214,9 @@ function UepDialogueForm({ items, onChange }: UepDialogueFormProps) {
             <select
               style={selectStyle}
               value={item.side}
-              onChange={(e) => update(i, { side: e.target.value as 'left' | 'right' })}
+              onChange={(e) =>
+                update(i, { side: e.target.value as 'left' | 'right' })
+              }
             >
               <option value="left">左 left</option>
               <option value="right">右 right</option>
@@ -262,7 +274,11 @@ function ArchwayGridForm({ cards, onChange }: ArchwayGridFormProps) {
     <>
       {cards.map((card, i) => (
         <div key={i} style={itemCardStyle}>
-          <button style={deleteButtonStyle} onClick={() => remove(i)} type="button">
+          <button
+            style={deleteButtonStyle}
+            onClick={() => remove(i)}
+            type="button"
+          >
             ×
           </button>
           <Field label={`卡片 ${i + 1} — Tag`}>
@@ -334,14 +350,20 @@ function OrbClusterGridForm({ clusters, onChange }: OrbClusterGridFormProps) {
   const update = (i: number, patch: Partial<OrbCluster>) => {
     onChange(clusters.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   };
-  const remove = (i: number) => onChange(clusters.filter((_, idx) => idx !== i));
-  const add = () => onChange([...clusters, { color: '#6b8cba', label: '', orbCount: 0 }]);
+  const remove = (i: number) =>
+    onChange(clusters.filter((_, idx) => idx !== i));
+  const add = () =>
+    onChange([...clusters, { color: '#6b8cba', label: '', orbCount: 0 }]);
 
   return (
     <>
       {clusters.map((cl, i) => (
         <div key={i} style={itemCardStyle}>
-          <button style={deleteButtonStyle} onClick={() => remove(i)} type="button">
+          <button
+            style={deleteButtonStyle}
+            onClick={() => remove(i)}
+            type="button"
+          >
             ×
           </button>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
@@ -374,7 +396,15 @@ function OrbClusterGridForm({ clusters, onChange }: OrbClusterGridFormProps) {
               />
             </div>
             {/* 球數由實際歌曲數決定 */}
-            <div style={{ flex: '0 0 auto', fontSize: 11, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)', alignSelf: 'center' }}>
+            <div
+              style={{
+                flex: '0 0 auto',
+                fontSize: 11,
+                color: 'var(--ink-mute)',
+                fontFamily: 'var(--font-mono)',
+                alignSelf: 'center',
+              }}
+            >
               球數自動
             </div>
           </div>
@@ -404,10 +434,20 @@ function CrossRoadGridForm({ roads, onChange }: CrossRoadGridFormProps) {
     <>
       {roads.map((road, i) => (
         <div key={i} style={itemCardStyle}>
-          <button style={deleteButtonStyle} onClick={() => remove(i)} type="button">
+          <button
+            style={deleteButtonStyle}
+            onClick={() => remove(i)}
+            type="button"
+          >
             ×
           </button>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+            }}
+          >
             <Field label="Grid Area（fwd/lft/rgt/bck）">
               <input
                 style={inputStyle}
@@ -459,7 +499,11 @@ interface TerminalModuleTableFormProps {
   modules: TerminalModule[];
   onChange: (data: { headerLabel: string; modules: TerminalModule[] }) => void;
 }
-function TerminalModuleTableForm({ headerLabel, modules, onChange }: TerminalModuleTableFormProps) {
+function TerminalModuleTableForm({
+  headerLabel,
+  modules,
+  onChange,
+}: TerminalModuleTableFormProps) {
   const setHeader = (v: string) => onChange({ headerLabel: v, modules });
 
   const updateModule = (i: number, patch: Partial<TerminalModule>) => {
@@ -473,21 +517,38 @@ function TerminalModuleTableForm({ headerLabel, modules, onChange }: TerminalMod
   const addModule = () =>
     onChange({
       headerLabel,
-      modules: [...modules, { id: '', name: '', en: '', state: 'idle', records: 0 }],
+      modules: [
+        ...modules,
+        { id: '', name: '', en: '', state: 'idle', records: 0 },
+      ],
     });
 
   return (
     <>
       <Field label="表頭標籤 Header Label">
-        <input style={inputStyle} value={headerLabel} onChange={(e) => setHeader(e.target.value)} />
+        <input
+          style={inputStyle}
+          value={headerLabel}
+          onChange={(e) => setHeader(e.target.value)}
+        />
       </Field>
 
       {modules.map((mod, i) => (
         <div key={i} style={itemCardStyle}>
-          <button style={deleteButtonStyle} onClick={() => removeModule(i)} type="button">
+          <button
+            style={deleteButtonStyle}
+            onClick={() => removeModule(i)}
+            type="button"
+          >
             ×
           </button>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+            }}
+          >
             <Field label="ID">
               <input
                 style={inputStyle}
@@ -500,7 +561,9 @@ function TerminalModuleTableForm({ headerLabel, modules, onChange }: TerminalMod
                 style={selectStyle}
                 value={mod.state}
                 onChange={(e) =>
-                  updateModule(i, { state: e.target.value as TerminalModule['state'] })
+                  updateModule(i, {
+                    state: e.target.value as TerminalModule['state'],
+                  })
                 }
               >
                 <option value="sync">sync</option>
@@ -527,7 +590,9 @@ function TerminalModuleTableForm({ headerLabel, modules, onChange }: TerminalMod
                 min={0}
                 style={inputStyle}
                 value={mod.records}
-                onChange={(e) => updateModule(i, { records: Number(e.target.value) })}
+                onChange={(e) =>
+                  updateModule(i, { records: Number(e.target.value) })
+                }
               />
             </Field>
           </div>
@@ -546,7 +611,11 @@ interface StorageStickyNoteFormProps {
   attribution: string;
   onChange: (data: { text: string; attribution: string }) => void;
 }
-function StorageStickyNoteForm({ text, attribution, onChange }: StorageStickyNoteFormProps) {
+function StorageStickyNoteForm({
+  text,
+  attribution,
+  onChange,
+}: StorageStickyNoteFormProps) {
   return (
     <>
       <Field label="便條內容 Text">
@@ -584,10 +653,20 @@ function StorageLinksListForm({ links, onChange }: StorageLinksListFormProps) {
     <>
       {links.map((link, i) => (
         <div key={i} style={itemCardStyle}>
-          <button style={deleteButtonStyle} onClick={() => remove(i)} type="button">
+          <button
+            style={deleteButtonStyle}
+            onClick={() => remove(i)}
+            type="button"
+          >
             ×
           </button>
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '8px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '80px 1fr',
+              gap: '8px',
+            }}
+          >
             <Field label="編號 Num">
               <input
                 style={inputStyle}
@@ -603,7 +682,13 @@ function StorageLinksListForm({ links, onChange }: StorageLinksListFormProps) {
               />
             </Field>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+            }}
+          >
             <Field label="檔案名 File">
               <input
                 style={inputStyle}
@@ -667,32 +752,74 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
   return (
     <div>
       {/* 工具列 */}
-      <div style={{
-        display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8,
-        padding: '6px 8px', background: 'var(--bg-sunken)',
-        border: '1px solid var(--hairline)', borderBottom: 'none',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          flexWrap: 'wrap',
+          marginBottom: 8,
+          padding: '6px 8px',
+          background: 'var(--bg-sunken)',
+          border: '1px solid var(--hairline)',
+          borderBottom: 'none',
+        }}
+      >
         {[
-          { label: 'B', cmd: () => editor.chain().focus().toggleBold().run(), active: editor.isActive('bold') },
-          { label: 'I', cmd: () => editor.chain().focus().toggleItalic().run(), active: editor.isActive('italic') },
-          { label: 'U', cmd: () => editor.chain().focus().toggleUnderline().run(), active: editor.isActive('underline') },
-          { label: 'H2', cmd: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), active: editor.isActive('heading', { level: 2 }) },
-          { label: 'H3', cmd: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), active: editor.isActive('heading', { level: 3 }) },
-          { label: '—', cmd: () => editor.chain().focus().setHorizontalRule().run(), active: false },
-          { label: '❝', cmd: () => editor.chain().focus().toggleBlockquote().run(), active: editor.isActive('blockquote') },
+          {
+            label: 'B',
+            cmd: () => editor.chain().focus().toggleBold().run(),
+            active: editor.isActive('bold'),
+          },
+          {
+            label: 'I',
+            cmd: () => editor.chain().focus().toggleItalic().run(),
+            active: editor.isActive('italic'),
+          },
+          {
+            label: 'U',
+            cmd: () => editor.chain().focus().toggleUnderline().run(),
+            active: editor.isActive('underline'),
+          },
+          {
+            label: 'H2',
+            cmd: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+            active: editor.isActive('heading', { level: 2 }),
+          },
+          {
+            label: 'H3',
+            cmd: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+            active: editor.isActive('heading', { level: 3 }),
+          },
+          {
+            label: '—',
+            cmd: () => editor.chain().focus().setHorizontalRule().run(),
+            active: false,
+          },
+          {
+            label: '❝',
+            cmd: () => editor.chain().focus().toggleBlockquote().run(),
+            active: editor.isActive('blockquote'),
+          },
         ].map((btn) => (
           <button
             key={btn.label}
             type="button"
             onClick={btn.cmd}
             style={{
-              all: 'unset', cursor: 'pointer',
-              padding: '4px 8px', fontSize: 12,
-              fontFamily: btn.label.length <= 2 ? 'var(--font-serif-tc)' : 'var(--font-mono)',
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              fontSize: 12,
+              fontFamily:
+                btn.label.length <= 2
+                  ? 'var(--font-serif-tc)'
+                  : 'var(--font-mono)',
               fontWeight: btn.active ? 700 : 400,
               color: btn.active ? 'var(--ink-title)' : 'var(--ink-mute)',
               background: btn.active ? 'var(--bg-card)' : 'transparent',
-              border: btn.active ? '1px solid var(--hairline-strong)' : '1px solid transparent',
+              border: btn.active
+                ? '1px solid var(--hairline-strong)'
+                : '1px solid transparent',
             }}
           >
             {btn.label}
@@ -701,15 +828,20 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
       </div>
 
       {/* 編輯區 */}
-      <div style={{
-        border: '1px solid var(--hairline-strong)',
-        background: 'var(--bg-soft)',
-        minHeight: 200, maxHeight: 400, overflowY: 'auto',
-        padding: '12px 14px',
-        fontSize: 14, lineHeight: 1.7,
-        fontFamily: 'var(--font-serif-tc)',
-        color: 'var(--ink)',
-      }}>
+      <div
+        style={{
+          border: '1px solid var(--hairline-strong)',
+          background: 'var(--bg-soft)',
+          minHeight: 200,
+          maxHeight: 400,
+          overflowY: 'auto',
+          padding: '12px 14px',
+          fontSize: 14,
+          lineHeight: 1.7,
+          fontFamily: 'var(--font-serif-tc)',
+          color: 'var(--ink)',
+        }}
+      >
         <EditorContent editor={editor} />
       </div>
     </div>
@@ -718,10 +850,15 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
 
 // ─── 主元件：BlockEditor ──────────────────────────────────────────────────────
 
-export default function BlockEditor({ block, zoneColor, onSave, onCancel }: BlockEditorProps) {
+export default function BlockEditor({
+  block,
+  zoneColor,
+  onSave,
+  onCancel,
+}: BlockEditorProps) {
   // 複製一份資料作為本地狀態，避免直接修改父層的資料
   const [localData, setLocalData] = useState<HomepageBlock['data']>(() =>
-    JSON.parse(JSON.stringify(block.data)),
+    JSON.parse(JSON.stringify(block.data))
   );
 
   // 型別安全的資料更新輔助
@@ -790,8 +927,14 @@ export default function BlockEditor({ block, zoneColor, onSave, onCancel }: Bloc
       case 'terminal-module-table':
         return (
           <TerminalModuleTableForm
-            headerLabel={(localData as { headerLabel: string; modules: TerminalModule[] }).headerLabel}
-            modules={(localData as { headerLabel: string; modules: TerminalModule[] }).modules}
+            headerLabel={
+              (localData as { headerLabel: string; modules: TerminalModule[] })
+                .headerLabel
+            }
+            modules={
+              (localData as { headerLabel: string; modules: TerminalModule[] })
+                .modules
+            }
             onChange={(d) => setData(d)}
           />
         );
@@ -800,7 +943,9 @@ export default function BlockEditor({ block, zoneColor, onSave, onCancel }: Bloc
         return (
           <StorageStickyNoteForm
             text={(localData as { text: string; attribution: string }).text}
-            attribution={(localData as { text: string; attribution: string }).attribution}
+            attribution={
+              (localData as { text: string; attribution: string }).attribution
+            }
             onChange={(d) => setData(d)}
           />
         );
@@ -825,7 +970,13 @@ export default function BlockEditor({ block, zoneColor, onSave, onCancel }: Bloc
         // 理論上不應到達此處，但提供後備提示
         const _exhaustive: never = type;
         return (
-          <p style={{ color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+          <p
+            style={{
+              color: 'var(--ink-mute)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '12px',
+            }}
+          >
             未知區塊類型：{String(_exhaustive)}
           </p>
         );
