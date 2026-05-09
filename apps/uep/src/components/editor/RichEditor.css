@@ -1205,6 +1205,280 @@
   flex: 1;
 }
 
+/* === Zone Tabs Editor === */
+.ned-zone-tabs {
+  max-width: 720px;
+  margin: 28px auto 0;
+}
+
+.ned-zone-tabs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ned-zone-tabs-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+}
+
+.ned-zone-tabs-status {
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  border: 1px dashed var(--hairline-strong);
+}
+
+.ned-zone-tabs-hint {
+  padding: 18px 14px;
+  color: var(--ink-mute);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.ned-zone-tabs-container {
+  border: 1px solid var(--hairline);
+}
+
+/* 分頁標籤列 */
+.ned-zone-tabs-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--hairline);
+  overflow-x: auto;
+  background: var(--bg-soft);
+  align-items: stretch;
+}
+
+.ned-zone-tab-btn {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+  white-space: nowrap;
+}
+
+.ned-zone-tab-btn:hover {
+  background: var(--hairline);
+  color: var(--ink-title);
+}
+
+.ned-zone-tab-btn.is-active {
+  background: var(--bg-card);
+}
+
+.ned-zone-tab-close {
+  font-size: 13px;
+  opacity: 0.4;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 4px;
+  transition: opacity 0.1s;
+}
+
+.ned-zone-tab-close:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.ned-zone-tab-input {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid;
+  background: var(--bg-card);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  outline: none;
+  min-width: 80px;
+  max-width: 200px;
+}
+
+.ned-zone-tab-add {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.ned-zone-tab-add:hover {
+  opacity: 1;
+}
+
+/* 分頁內容 */
+.ned-zone-tabs-body {
+  min-height: 40px;
+}
+
+.ned-zone-tab-item {
+  display: grid;
+  grid-template-columns: 24px 28px 38px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline);
+  transition: background 0.1s;
+}
+
+.ned-zone-tab-item:last-child {
+  border-bottom: 0;
+}
+
+.ned-zone-tab-item:hover {
+  background: var(--bg-card);
+}
+
+.ned-zone-tab-item.is-dragging {
+  opacity: 0.35;
+}
+
+.ned-zone-tab-item.is-drop-target {
+  border-top: 2px solid var(--ned-accent);
+}
+
+.ned-zone-tab-item-grip {
+  cursor: grab;
+  color: var(--ink-mute);
+  font-size: 11px;
+  text-align: center;
+  user-select: none;
+}
+
+.ned-zone-tab-item-grip:active {
+  cursor: grabbing;
+}
+
+.ned-zone-tab-item-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.ned-zone-tab-item-icon {
+  color: var(--ink-mute);
+  flex-shrink: 0;
+}
+
+.ned-zone-tab-item-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ned-zone-tab-item-title {
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  color: var(--ink-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.ned-zone-tab-item-title:hover {
+  text-decoration: underline;
+}
+
+.ned-zone-tab-item--missing {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+.ned-zone-tab-item-edit {
+  font-size: 14px;
+  text-decoration: none;
+  padding: 2px 6px;
+}
+
+.ned-zone-tab-item-remove {
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.ned-zone-tab-item-remove:hover {
+  color: #ef4444;
+}
+
+/* 加入章節 */
+.ned-zone-tab-add-row {
+  padding: 8px 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.ned-zone-tab-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  padding: 6px 0;
+  transition: opacity 0.15s;
+}
+
+.ned-zone-tab-add-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* 頁面選擇器 */
+.ned-zone-tab-picker {
+  padding: 4px 0;
+}
+
+.ned-zone-tab-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ned-zone-tab-picker-item:hover {
+  background: var(--hairline);
+  color: var(--ink-title);
+}
+
 /* === Echoes Editor Body === */
 .ned-echoes-body {
   max-width: 720px;
