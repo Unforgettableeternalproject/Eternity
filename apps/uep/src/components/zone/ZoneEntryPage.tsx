@@ -17,12 +17,13 @@ import { fromContentBlock } from '../editor/homepage/types';
 interface ZoneShellProps {
   zone: ZoneData;
   onOpenMap?: () => void;
+  onGoHome?: () => void;
   children: React.ReactNode;
   /** 內容是否已準備好 — 控制入場霧化何時解除 */
   ready?: boolean;
 }
 
-function ZoneShell({ zone, onOpenMap, children, ready = true }: ZoneShellProps) {
+function ZoneShell({ zone, onOpenMap, onGoHome, children, ready = true }: ZoneShellProps) {
   const corners: Array<{
     pos: React.CSSProperties;
     borders: React.CSSProperties;
@@ -134,7 +135,7 @@ function ZoneShell({ zone, onOpenMap, children, ready = true }: ZoneShellProps) 
 
       {/* TopBar */}
       <div style={{ position: 'relative', zIndex: 10 }}>
-        <TopBar onOpenMap={onOpenMap} />
+        <TopBar onOpenMap={onOpenMap} onGoHome={onGoHome} />
       </div>
 
       {/* main content */}
@@ -1629,6 +1630,7 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
   const [showMap, setShowMap] = useState(false);
   const [portalZone, setPortalZone] = useState<ZoneData | null>(null);
   const [introZone, setIntroZone] = useState<ZoneData | null>(null);
+  const [homePortal, setHomePortal] = useState(false);
 
   // D1 首頁資料
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[] | null>(null);
@@ -1733,7 +1735,15 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
 
   return (
     <>
-      <ZoneShell zone={zone} onOpenMap={() => setShowMap(true)} ready={homepageLoaded}>
+      <ZoneShell
+        zone={zone}
+        onOpenMap={() => setShowMap(true)}
+        ready={homepageLoaded}
+        onGoHome={() => {
+          setHomePortal(true);
+          setTimeout(() => { window.location.href = '/'; }, 1100);
+        }}
+      >
         {renderEntry()}
       </ZoneShell>
 
@@ -1757,7 +1767,8 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
           }}
           onCenterClick={() => {
             setShowMap(false);
-            window.location.href = '/';
+            setHomePortal(true);
+            setTimeout(() => { window.location.href = '/'; }, 1100);
           }}
         />
       )}
@@ -1772,6 +1783,7 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
         }}
       />
       <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
+      <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
     </>
   );
 }

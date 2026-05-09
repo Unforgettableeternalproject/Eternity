@@ -231,6 +231,7 @@ function resolveInternalLink(
 export default function HistoryReader() {
   const [theme, setTheme] = useState('dark');
   const [showMap, setShowMap] = useState(false);
+  const [homePortal, setHomePortal] = useState(false);
   const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
     null
   );
@@ -755,7 +756,14 @@ export default function HistoryReader() {
         }
       `}</style>
 
-      <TopBar onOpenMap={() => setShowMap(true)} dark={theme === 'dark'} />
+      <TopBar
+        onOpenMap={() => setShowMap(true)}
+        onGoHome={() => {
+          setHomePortal(true);
+          setTimeout(() => { window.location.href = '/'; }, 1100);
+        }}
+        dark={theme === 'dark'}
+      />
 
       <div className="history-main">
         <ZoneAtmosphere zone={historyZone} intensity="subtle" />
@@ -875,17 +883,23 @@ export default function HistoryReader() {
                           <div key={block.id} className="history-arch-grid">
                             {archNodes.map((node, index) => {
                               const card = cards[index];
+                              const isLocked = card && card.state !== 'open';
                               return (
                                 <button
-                                  className="history-arch-card"
+                                  className={`history-arch-card ${isLocked ? 'is-locked' : ''}`}
                                   type="button"
                                   key={node.id}
-                                  onClick={() => void loadPage(node)}
-                                  style={
-                                    card && (card.state === 'corrupted' || card.state === 'sealed')
-                                      ? { filter: 'grayscale(1)', opacity: 0.55 }
-                                      : undefined
-                                  }
+                                  onClick={(e) => {
+                                    if (isLocked) {
+                                      // 紅光閃爍表示不可用
+                                      const el = e.currentTarget;
+                                      el.classList.add('is-denied');
+                                      setTimeout(() => el.classList.remove('is-denied'), 600);
+                                      return;
+                                    }
+                                    void loadPage(node);
+                                  }}
+                                  style={isLocked ? { filter: 'grayscale(1)', opacity: 0.55 } : undefined}
                                 >
                                   <span className="history-arch-index">
                                     {card?.tag || ['U', 'E', 'P'][index] || String(index + 1).padStart(2, '0')}
@@ -1122,7 +1136,8 @@ export default function HistoryReader() {
           onPick={showZoneIntro}
           onCenterClick={() => {
             setShowMap(false);
-            window.location.href = '/';
+            setHomePortal(true);
+            setTimeout(() => { window.location.href = '/'; }, 1100);
           }}
         />
       )}
@@ -1137,6 +1152,7 @@ export default function HistoryReader() {
         }}
       />
       <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
+      <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
     </div>
   );
 }
@@ -1569,6 +1585,24 @@ const historyReaderCss = `
 
   .history-arch-card:hover {
     background: var(--history-tint);
+  }
+
+  .history-arch-card.is-locked {
+    cursor: not-allowed;
+  }
+  .history-arch-card.is-locked:hover {
+    background: color-mix(in srgb, #6B3F2A 5%, transparent);
+  }
+
+  .history-arch-card.is-denied {
+    animation: arch-denied 0.6s ease;
+  }
+
+  @keyframes arch-denied {
+    0%   { box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0); }
+    20%  { box-shadow: inset 0 0 30px 4px rgba(220, 38, 38, 0.35); border-color: rgba(220, 38, 38, 0.7); }
+    50%  { box-shadow: inset 0 0 15px 2px rgba(220, 38, 38, 0.18); }
+    100% { box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0); }
   }
 
   .history-arch-index {

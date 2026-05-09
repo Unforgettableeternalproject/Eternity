@@ -335,7 +335,7 @@ function OrbClusterGridForm({ clusters, onChange }: OrbClusterGridFormProps) {
     onChange(clusters.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   };
   const remove = (i: number) => onChange(clusters.filter((_, idx) => idx !== i));
-  const add = () => onChange([...clusters, { color: '#6b8cba', label: '', orbCount: 3 }]);
+  const add = () => onChange([...clusters, { color: '#6b8cba', label: '', orbCount: 0 }]);
 
   return (
     <>
@@ -373,16 +373,9 @@ function OrbClusterGridForm({ clusters, onChange }: OrbClusterGridFormProps) {
                 onChange={(e) => update(i, { label: e.target.value })}
               />
             </div>
-            {/* 球數 */}
-            <div style={{ flex: '0 0 80px' }}>
-              <span style={labelStyle}>球數</span>
-              <input
-                type="number"
-                min={1}
-                style={inputStyle}
-                value={cl.orbCount}
-                onChange={(e) => update(i, { orbCount: Number(e.target.value) })}
-              />
+            {/* 球數由實際歌曲數決定 */}
+            <div style={{ flex: '0 0 auto', fontSize: 11, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)', alignSelf: 'center' }}>
+              球數自動
             </div>
           </div>
         </div>
