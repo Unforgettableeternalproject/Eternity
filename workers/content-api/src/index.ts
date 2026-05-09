@@ -11,6 +11,9 @@ import type {
   JwtPayload,
   LoginRequest,
   BootstrapRequest,
+  AssetItem,
+  ListAssetsResponse,
+  BatchDeleteRequest,
 } from './types';
 import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
 
@@ -144,6 +147,19 @@ function isAuthorized(request: Request, env: Env): boolean {
 
   const token = auth.replace('Bearer ', '');
   return token === env.API_TOKEN;
+}
+
+/** JWT 驗證 — 用於需要登入的 Admin 路由，回傳 payload 或 null */
+async function requireJwt(
+  request: Request,
+  env: Env
+): Promise<JwtPayload | null> {
+  // 開發模式（無 JWT_SECRET）：允許所有請求
+  if (!env.JWT_SECRET) return { sub: 'dev', role: 'super_admin', display_name: 'Dev', iat: 0, exp: 0, jti: '' };
+  const auth = request.headers.get('Authorization');
+  const token = auth?.replace('Bearer ', '');
+  if (!token) return null;
+  return verifyJwt(token, env.JWT_SECRET);
 }
 
 // ===== 路由處理 =====
@@ -609,6 +625,141 @@ async function handleBootstrap(
   );
 }
 
+// ===== 媒體庫處理 =====
+
+/** GET /api/assets — 列出 R2 資產並交叉比對 D1 引用 */
+async function listAssets(
+  url: URL,
+  bucket: R2Bucket,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const prefix = url.searchParams.get('prefix') || undefined;
+  const limit = Math.min(
+    parseInt(url.searchParams.get('limit') || '200', 10) || 200,
+    500
+  );
+  const cursor = url.searchParams.get('cursor') || undefined;
+
+  // 1. R2 列表
+  const listed = await bucket.list({ prefix, limit, cursor });
+
+  // 2. D1 交叉比對 — 建立引用 Map
+  const referenceMap = new Map<string, string[]>();
+
+  // 查詢 song 頁面的 metadata（audioFile, coverImage）
+  const songRows = await db
+    .prepare("SELECT id, metadata FROM pages WHERE page_type = 'song'")
+    .all<{ id: string; metadata: string }>();
+
+  for (const row of songRows.results || []) {
+    try {
+      const meta = JSON.parse(row.metadata || '{}');
+      for (const field of ['audioFile', 'coverImage']) {
+        const key: string | undefined = meta[field];
+        if (key) {
+          if (!referenceMap.has(key)) referenceMap.set(key, []);
+          referenceMap.get(key)!.push(row.id);
+        }
+      }
+    } catch {
+      // 略過格式錯誤的 metadata
+    }
+  }
+
+  // 掃描所有頁面的 content HTML，找出 /api/assets/ 引用
+  const contentRows = await db
+    .prepare('SELECT id, content FROM pages')
+    .all<{ id: string; content: string }>();
+
+  const assetUrlRegex =
+    /\/api\/assets\/((?:images|audio|files)\/[^\s"'<>]+)/g;
+
+  for (const row of contentRows.results || []) {
+    try {
+      const blocks = JSON.parse(row.content || '[]');
+      for (const block of blocks) {
+        if (typeof block.content !== 'string') continue;
+        assetUrlRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = assetUrlRegex.exec(block.content)) !== null) {
+          const key = match[1];
+          if (!referenceMap.has(key)) referenceMap.set(key, []);
+          const refs = referenceMap.get(key)!;
+          if (!refs.includes(row.id)) refs.push(row.id);
+        }
+      }
+    } catch {
+      // 略過格式錯誤的 content
+    }
+  }
+
+  // 3. 組合回傳
+  const items: AssetItem[] = listed.objects.map((obj) => {
+    const refs = referenceMap.get(obj.key) || [];
+    return {
+      key: obj.key,
+      size: obj.size,
+      uploaded: obj.uploaded.toISOString(),
+      contentType:
+        obj.httpMetadata?.contentType || 'application/octet-stream',
+      originalName: obj.customMetadata?.originalName,
+      referenced: refs.length > 0,
+      referencedBy: refs,
+    };
+  });
+
+  const data: ListAssetsResponse = {
+    items,
+    cursor: listed.truncated ? listed.cursor : undefined,
+    hasMore: listed.truncated,
+  };
+
+  return jsonResponse({ ok: true, data }, 200, cors);
+}
+
+/** DELETE /api/assets/batch — 批次刪除多個 R2 資產 */
+async function batchDeleteAssets(
+  body: BatchDeleteRequest,
+  bucket: R2Bucket,
+  cors: Record<string, string>
+): Promise<Response> {
+  if (!Array.isArray(body.keys) || body.keys.length === 0) {
+    return jsonResponse(
+      { ok: false, error: 'No keys provided' },
+      400,
+      cors
+    );
+  }
+  if (body.keys.length > 100) {
+    return jsonResponse(
+      { ok: false, error: 'Maximum 100 keys per batch' },
+      400,
+      cors
+    );
+  }
+
+  const results = await Promise.allSettled(
+    body.keys.map((key) => bucket.delete(key))
+  );
+  const failed = results
+    .map((r, i) => (r.status === 'rejected' ? body.keys[i] : null))
+    .filter(Boolean) as string[];
+
+  if (failed.length > 0) {
+    return jsonResponse(
+      { ok: false, error: `刪除失敗：${failed.join(', ')}` },
+      500,
+      cors
+    );
+  }
+  return jsonResponse(
+    { ok: true, data: { deleted: body.keys.length } },
+    200,
+    cors
+  );
+}
+
 // ===== Worker 入口 =====
 
 export default {
@@ -657,6 +808,35 @@ export default {
         env.BOOTSTRAP_TOKEN,
         cors
       );
+    }
+
+    // ---- 媒體庫路由（JWT 保護，在 isWriteMethod guard 之前） ----
+
+    // GET /api/assets — 列出所有資產
+    if (path === '/api/assets' && request.method === 'GET') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse(
+          { ok: false, error: 'Unauthorized' },
+          401,
+          cors
+        );
+      }
+      return listAssets(url, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
+    }
+
+    // DELETE /api/assets/batch — 批次刪除（必須在 assetMatch regex 之前）
+    if (path === '/api/assets/batch' && request.method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse(
+          { ok: false, error: 'Unauthorized' },
+          401,
+          cors
+        );
+      }
+      const body = (await request.json()) as BatchDeleteRequest;
+      return batchDeleteAssets(body, env.ASSETS_BUCKET, cors);
     }
 
     // ---- 內容路由授權檢查 ----
@@ -735,7 +915,13 @@ export default {
 
       const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
       const timestamp = Date.now();
-      const key = `images/${timestamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const contentType = file.type || 'application/octet-stream';
+      const prefix = contentType.startsWith('audio/')
+        ? 'audio'
+        : contentType.startsWith('image/')
+          ? 'images'
+          : 'files';
+      const key = `${prefix}/${timestamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
       await env.ASSETS_BUCKET.put(key, file.stream(), {
         httpMetadata: { contentType: file.type },

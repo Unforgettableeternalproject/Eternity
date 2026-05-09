@@ -421,28 +421,38 @@ function VinylDisc({
   isPlaying,
   isLocked,
   color,
+  coverImage,
 }: {
   isPlaying: boolean;
   isLocked: boolean;
   color: string;
+  coverImage?: string | null;
 }) {
+  const coverUrl = coverImage
+    ? `${API_BASE}/api/assets/${coverImage}`
+    : null;
+
   return (
     <div className="echoes-vinyl-wrap">
       <div
         className="echoes-vinyl"
         data-playing={isPlaying}
         style={{
-          background: `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, var(--bg-card) 13%, var(--bg-card) 100%)`,
+          background: coverUrl
+            ? `url(${coverUrl}) center/cover no-repeat`
+            : `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, var(--bg-card) 13%, var(--bg-card) 100%)`,
         }}
       >
-        {Array.from({ length: 10 }, (_, i) => (
-          <span
-            key={i}
-            className="echoes-vinyl-ring"
-            style={{ inset: `${10 + i * 4}%` }}
-          />
-        ))}
-        <span className="echoes-vinyl-hole" />
+        {!coverUrl &&
+          Array.from({ length: 10 }, (_, i) => (
+            <span
+              key={i}
+              className="echoes-vinyl-ring"
+              style={{ inset: `${10 + i * 4}%` }}
+            />
+          ))}
+        {!coverUrl && <span className="echoes-vinyl-hole" />}
+        {coverUrl && <div className="echoes-vinyl-cover-overlay" />}
       </div>
       {isLocked && (
         <div className="echoes-vinyl-lock">
@@ -983,6 +993,9 @@ export default function EchoesReader() {
   // === 取得當前歌曲的集群資訊 ===
   const activeSongCluster = activeClusterId ? getClusterDef(activeClusterId) : null;
 
+  // === Audio hook（必須在元件頂層呼叫）===
+  const audio = useAudio();
+
   // === Prev/Next 歌曲 (同一 parent subcategory) ===
   const subcatSongs = useMemo(() => {
     if (!activeSongId || !tree.length) return [];
@@ -1280,6 +1293,18 @@ export default function EchoesReader() {
               </div>
             </div>
           )}
+
+          {/* 返回按鈕 */}
+          <div className="echoes-back-bar">
+            <button
+              type="button"
+              className="echoes-back-btn"
+              style={{ ['--accent' as string]: cluster.color }}
+              onClick={() => navigateToLanding()}
+            >
+              ← 返回「回音蒐藏間」
+            </button>
+          </div>
         </div>
       </section>
     );
@@ -1460,7 +1485,6 @@ export default function EchoesReader() {
     const locked = spoiler > 0 && !isUnlocked;
     const audioUrl = buildAudioUrl(songData.audioFile);
 
-    const audio = useAudio();
     const isPlaying = audio.currentSongId === currentSongPage.id && audio.isPlaying;
 
     const handlePlayAttempt = () => {
@@ -1472,6 +1496,22 @@ export default function EchoesReader() {
         audio.toggle(currentSongPage.id, audioUrl);
       }
     };
+
+    // 組合 metadata 顯示資訊（不含 album）
+    const meta = songData.audioMeta;
+    const metaItems = [
+        meta?.artist,
+        meta?.year,
+        meta?.genre,
+      ].filter(Boolean);
+
+    // 賞析內容
+    const appreciationParagraphs = isUnlocked
+      ? songData.appreciation.filter((p) => p.trim())
+      : songData.appreciationLocked
+        ? [songData.appreciationLocked]
+        : [];
+    const hasAppreciation = appreciationParagraphs.length > 0;
 
     return (
       <section className="echoes-song-page">
@@ -1509,17 +1549,25 @@ export default function EchoesReader() {
                 {isUnlocked ? '✓ unlocked' : `⚠ spoiler · L${spoiler}`}
               </span>
             )}
-            <span style={{ color: 'var(--ink-mute)' }}>
-              {locked ? '???.wav' : songData.audioFile || '—'}{' '}
-              {songData.audioMeta?.size
-                ? `· ${Math.round((songData.audioMeta.size || 0) / 1024 / 1024)}MB`
-                : ''}
-            </span>
+            {meta?.format && (
+              <span style={{ color: 'var(--ink-mute)' }}>
+                {[
+                  locked ? '???' : meta.format.toUpperCase(),
+                  meta.bitrate && `${meta.bitrate}kbps`,
+                  meta.duration != null && fmtTime(meta.duration),
+                ].filter(Boolean).join(' · ')}
+              </span>
+            )}
           </div>
 
           {/* Hero: 唱片 + Meta */}
           <div className="echoes-song-hero">
-            <VinylDisc isPlaying={isPlaying} isLocked={locked} color={color} />
+            <VinylDisc
+              isPlaying={isPlaying}
+              isLocked={locked}
+              color={color}
+              coverImage={songData.coverImage}
+            />
 
             <div className="echoes-song-info">
               <h2 className="echoes-song-title">
@@ -1530,6 +1578,17 @@ export default function EchoesReader() {
                   size={42}
                 />
               </h2>
+              {/* 英文曲名（從 audioMeta.title 取得）*/}
+              {meta?.title && (
+                <div className="echoes-song-en-title">
+                  <SpoilerTitle
+                    text={meta.title}
+                    level={spoiler}
+                    unlocked={isUnlocked}
+                    size={16}
+                  />
+                </div>
+              )}
               <div
                 className="echoes-song-subtitle"
                 style={{ color: isUnlocked ? color : 'var(--ink-mute)' }}
@@ -1542,6 +1601,15 @@ export default function EchoesReader() {
                     : songData.subtitle}
                 」
               </div>
+
+              {/* 曲目 Metadata（artist / year / genre）*/}
+              {metaItems.length > 0 && (
+                <div className="echoes-song-audio-meta">
+                  {meta?.artist && <span>{meta.artist}</span>}
+                  {meta?.year && <span>{meta.year}</span>}
+                  {meta?.genre && <span>{meta.genre}</span>}
+                </div>
+              )}
 
               <div onClick={locked ? handlePlayAttempt : undefined}>
                 <EchoesAudioPlayer
@@ -1562,19 +1630,27 @@ export default function EchoesReader() {
               · 賞析 ·
             </div>
             <div className="echoes-appreciation-body">
-              {(isUnlocked
-                ? songData.appreciation
-                : songData.appreciationLocked
-                  ? [songData.appreciationLocked]
-                  : ['*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*']
-              ).map((p, i) => (
+              {hasAppreciation ? (
+                appreciationParagraphs.map((p, i) => (
+                  <p
+                    key={i}
+                    style={{ fontStyle: !isUnlocked ? 'italic' : 'normal' }}
+                  >
+                    {p}
+                  </p>
+                ))
+              ) : (
                 <p
-                  key={i}
-                  style={{ fontStyle: !isUnlocked ? 'italic' : 'normal' }}
+                  style={{
+                    fontStyle: 'italic',
+                    color: 'var(--ink-mute)',
+                  }}
                 >
-                  {p}
+                  {isUnlocked
+                    ? '此曲目暫無賞析內容。'
+                    : '*你感到不解，也許現在的你還沒有辦法給出什麼適當的敘述*'}
                 </p>
-              ))}
+              )}
             </div>
           </div>
 
@@ -2365,11 +2441,42 @@ const echoesReaderCss = `
     line-height: 1.1;
   }
 
+  .echoes-song-en-title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+  }
+
   .echoes-song-subtitle {
     font-family: var(--font-serif-tc);
     font-size: 17px;
     font-style: italic;
-    margin-bottom: 22px;
+    margin-bottom: 10px;
+  }
+
+  .echoes-song-audio-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-bottom: 18px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--ink-mute);
+  }
+
+  .echoes-song-audio-meta span {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .echoes-song-audio-meta span + span::before {
+    content: "·";
+    margin-right: 14px;
+    color: var(--line);
   }
 
   /* === 唱片 === */
@@ -2410,6 +2517,20 @@ const echoesReaderCss = `
     border-radius: 50%;
     background: var(--bg);
     border: 1px solid var(--line);
+  }
+
+  .echoes-vinyl-cover-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 50% 50%,
+      transparent 8%,
+      rgba(0,0,0,0.08) 10%,
+      transparent 12%,
+      transparent 100%
+    );
+    pointer-events: none;
   }
 
   .echoes-vinyl-lock {

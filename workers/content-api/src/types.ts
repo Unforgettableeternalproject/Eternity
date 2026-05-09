@@ -191,3 +191,25 @@ export interface PageListItem {
   pageType: PageType;
   updatedAt: string;
 }
+
+// ===== 媒體庫 =====
+
+export interface AssetItem {
+  key: string;
+  size: number;
+  uploaded: string;
+  contentType: string;
+  originalName?: string;
+  referenced: boolean;
+  referencedBy: string[];
+}
+
+export interface ListAssetsResponse {
+  items: AssetItem[];
+  cursor?: string;
+  hasMore: boolean;
+}
+
+export interface BatchDeleteRequest {
+  keys: string[];
+}
