@@ -1051,6 +1051,160 @@
   margin: 4px 6px;
 }
 
+/* === Echoes Subcategory Editor === */
+.ned-subcat-editor {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.ned-subcat-section {
+  margin-bottom: 28px;
+}
+
+.ned-subcat-desc {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.ned-subcat-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ned-subcat-list-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+}
+
+.ned-subcat-loading,
+.ned-subcat-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  border: 1px dashed var(--hairline-strong);
+}
+
+.ned-subcat-song-list {
+  border: 1px solid var(--hairline);
+}
+
+.ned-subcat-song-row {
+  display: grid;
+  grid-template-columns: 24px 28px 1fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  transition: background 0.1s;
+}
+
+.ned-subcat-song-row:last-child {
+  border-bottom: 0;
+}
+
+.ned-subcat-song-row:hover {
+  background: var(--bg-card);
+}
+
+.ned-subcat-song-row.is-dragging {
+  opacity: 0.4;
+}
+
+.ned-subcat-song-row.is-drop-target {
+  border-top: 2px solid var(--uep-gold);
+}
+
+.ned-subcat-song-grip {
+  cursor: grab;
+  color: var(--ink-mute);
+  font-size: 11px;
+  text-align: center;
+  user-select: none;
+}
+
+.ned-subcat-song-grip:active {
+  cursor: grabbing;
+}
+
+.ned-subcat-song-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.ned-subcat-song-info {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ned-subcat-song-title {
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  color: var(--ink-title);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ned-subcat-song-title:hover {
+  text-decoration: underline;
+}
+
+.ned-subcat-song-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.ned-subcat-song-spoiler {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.ned-subcat-song-edit {
+  font-size: 14px;
+  text-decoration: none;
+  padding: 2px 6px;
+}
+
+.ned-subcat-song-delete {
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.ned-subcat-song-delete:hover {
+  color: #ef4444;
+}
+
+.ned-subcat-add-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--hairline-strong);
+}
+
+.ned-subcat-add-input {
+  flex: 1;
+}
+
 /* === Echoes Editor Body === */
 .ned-echoes-body {
   max-width: 720px;

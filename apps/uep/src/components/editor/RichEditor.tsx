@@ -18,6 +18,7 @@ import EchoesEditorBody, {
   serializeEchoesData,
   type EchoesData,
 } from './EchoesEditorBody';
+import EchoesSubcatEditor from './EchoesSubcatEditor';
 import './RichEditor.css';
 
 // === Color palettes ===
@@ -131,9 +132,10 @@ export default function RichEditor({
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
-  // Echoes song mode — 只有 song 類型才用特殊編輯器，其他 echoes 頁面用一般 TipTap
-  const isEchoes =
-    (area === 'echos' || zoneId === 'echoes') && pageType === 'song';
+  // Echoes 特殊編輯模式
+  const isEchoesArea = area === 'echos' || zoneId === 'echoes';
+  const isEchoes = isEchoesArea && pageType === 'song';
+  const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
   );
@@ -926,12 +928,33 @@ export default function RichEditor({
                   )}
                 </div>
               </div>
+
+              <div className="tb-sep" />
+
+              {/* 清除格式 */}
+              <div className="tb-group">
+                <button
+                  className="tb-btn"
+                  onClick={() =>
+                    editor
+                      .chain()
+                      .focus()
+                      .unsetAllMarks()
+                      .clearNodes()
+                      .setParagraph()
+                      .run()
+                  }
+                  title="清除格式"
+                >
+                  ✕
+                </button>
+              </div>
             </>
           )}
 
           <span className="ned-toolbar-right">
-            {isEchoes ? 'song mode' : 'rich text'}
-            {!isEchoes && ` \u00b7 ${charCount.toLocaleString()} chars`}
+            {isEchoes ? 'song mode' : isEchoesSubcat ? 'playlist mode' : 'rich text'}
+            {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
           </span>
         </div>
       )}
@@ -987,7 +1010,20 @@ export default function RichEditor({
                     onDirty={() => setIsDirty(true)}
                   />
                 ) : (
-                  <EditorContent editor={editor} />
+                  <>
+                    <EditorContent editor={editor} />
+                    {isEchoesSubcat && (
+                      <EchoesSubcatEditor
+                        area={area}
+                        apiBase={apiBase}
+                        pageId={`${area}/${pageSlug}`}
+                        pageSlug={pageSlug}
+                        accent={accentMain}
+                        onDirty={() => setIsDirty(true)}
+                        refreshKey={treeRefreshKey}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </>
