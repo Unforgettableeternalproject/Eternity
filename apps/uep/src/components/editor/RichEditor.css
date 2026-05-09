@@ -1301,6 +1301,68 @@
   letter-spacing: 0.1em;
 }
 
+/* 音檔 Metadata 編輯區 */
+.ned-audio-meta-section {
+  margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ned-meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.ned-field-label--sm {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-size: 9px;
+}
+
+.ned-field--sm {
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+}
+
+/* 封面圖區 */
+.ned-cover-zone {
+  border: 1px dashed var(--hairline-strong);
+  background: var(--bg-card);
+  margin-top: 4px;
+}
+
+.ned-cover-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.ned-cover-img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.ned-cover-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ned-cover-btns {
+  display: flex;
+  gap: 8px;
+}
+
 .ned-appreciation-header {
   margin-top: 28px;
   display: flex;
