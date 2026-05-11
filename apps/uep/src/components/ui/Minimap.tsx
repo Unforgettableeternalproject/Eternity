@@ -66,6 +66,7 @@ export default function Minimap({
 }: MinimapProps) {
   // SSR 時先給一個佔位值，mount 後由 useLayoutEffect 立即修正
   const [pos, setPos] = useState<MinimapPosition>({ left: 20, top: 20 });
+  const [ready, setReady] = useState(false);
   const [drag, setDrag] = useState<{ offX: number; offY: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const posRef = useRef<MinimapPosition>(pos);
@@ -86,6 +87,7 @@ export default function Minimap({
     } else {
       updatePos(resolveDefaultPosition(position, w, h));
     }
+    setReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -125,7 +127,7 @@ export default function Minimap({
         position: 'fixed',
         left: pos.left,
         top: pos.top,
-        width: 138,
+        width: 120,
         background: 'var(--bg-card)',
         border: '1px solid var(--hairline-strong)',
         borderRadius: 2,
@@ -133,7 +135,8 @@ export default function Minimap({
         fontSize: 10,
         color: 'var(--ink-soft)',
         zIndex: 300,
-        transition: drag ? 'none' : 'box-shadow .25s var(--ease)',
+        opacity: ready ? 1 : 0,
+        transition: drag ? 'none' : 'box-shadow .25s var(--ease), opacity .2s var(--ease)',
         boxShadow: drag
           ? '0 18px 40px rgba(0,0,0,.22)'
           : '0 6px 18px rgba(0,0,0,.10)',
@@ -147,24 +150,15 @@ export default function Minimap({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '7px 10px',
+          padding: '5px 8px',
           cursor: drag ? 'grabbing' : 'grab',
           borderBottom: '1px solid var(--hairline)',
           touchAction: 'none',
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase' as const,
         }}
       >
-        <span
-          style={{
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase' as const,
-          }}
-        >
-          ·· map
-        </span>
-        <span style={{ color: 'var(--uep-gold)', fontSize: 11 }}>⤢</span>
+        ·· map
       </div>
 
       <button
@@ -172,15 +166,17 @@ export default function Minimap({
         title="展開大地圖"
         style={{
           all: 'unset',
-          display: 'block',
+          display: 'grid',
+          placeItems: 'center',
           width: '100%',
-          padding: '10px 10px 6px',
+          boxSizing: 'border-box',
+          padding: '4px',
           cursor: 'pointer',
         }}
       >
         <svg
-          viewBox="-50 -50 100 100"
-          style={{ width: '100%', height: 92, overflow: 'visible' }}
+          viewBox="-46 -46 92 92"
+          style={{ width: 82, height: 82, display: 'block' }}
         >
           <circle
             r="44"
@@ -254,11 +250,12 @@ export default function Minimap({
 
       <div
         style={{
-          padding: '4px 10px 10px',
+          padding: '2px 6px 6px',
+          textAlign: 'center',
           color: cur ? zoneTextColor(cur.main, isDark) : 'var(--ink)',
           fontWeight: 600,
           fontFamily: 'var(--font-serif-tc)',
-          fontSize: 12,
+          fontSize: 11,
           letterSpacing: 0,
         }}
       >
