@@ -402,9 +402,12 @@ async function listAssets(apiBase) {
 /** 從來源下載檔案並上傳到目標（保留原始 key） */
 async function transferAsset(fromBase, toBase, key) {
   try {
-    const res = await fetch(`${fromBase}/api/assets/${encodeURIComponent(key)}`);
+    const res = await fetch(
+      `${fromBase}/api/assets/${encodeURIComponent(key)}`
+    );
     if (!res.ok) return false;
-    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    const contentType =
+      res.headers.get('content-type') || 'application/octet-stream';
     const blob = await res.blob();
     const fileName = key.split('/').pop() || key;
     const form = new FormData();
@@ -438,12 +441,16 @@ async function syncAssets() {
   const inSync = localKeys.filter((k) => remoteSet.has(k));
 
   if (toPush.length === 0 && toPull.length === 0) {
-    console.log(`\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`);
+    console.log(
+      `\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`
+    );
     console.log(`   ✓ 完全同步 (${inSync.length} 個檔案)\n`);
     return;
   }
 
-  console.log(`\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`);
+  console.log(
+    `\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`
+  );
   if (toPush.length > 0) console.log(`   ↑ 需推送: ${toPush.length} 個`);
   if (toPull.length > 0) console.log(`   ↓ 需拉取: ${toPull.length} 個`);
   if (inSync.length > 0) console.log(`   = 已同步: ${inSync.length} 個`);

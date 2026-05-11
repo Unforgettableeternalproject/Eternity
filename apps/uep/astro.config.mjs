@@ -25,15 +25,5 @@ export default defineConfig({
         allow: ['..', '../..'],
       },
     },
-    optimizeDeps: {
-      // 排除 API 路徑，避免 Vite 嘗試優化它們
-      exclude: ['/api/*'],
-    },
-    resolve: {
-      // 防止 Vite 將 API 路徑解析為模組
-      alias: {
-        '/api': false,
-      },
-    },
   },
 });

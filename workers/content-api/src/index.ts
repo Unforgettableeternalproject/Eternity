@@ -933,6 +933,18 @@ export default {
       return renameAsset(body, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
     }
 
+    // DELETE /api/assets/:key — 單筆刪除（JWT 保護，與批次刪除一致）
+    const assetDeleteMatch = path.match(/^\/api\/assets\/(.+)$/);
+    if (assetDeleteMatch && request.method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const key = decodeURIComponent(assetDeleteMatch[1]);
+      await env.ASSETS_BUCKET.delete(key);
+      return jsonResponse({ ok: true }, 200, cors);
+    }
+
     // ---- 內容路由授權檢查 ----
     const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
 
@@ -1019,7 +1031,14 @@ export default {
           : contentType.startsWith('image/')
             ? 'images'
             : 'files';
-        key = `${prefix}/${file.name}`;
+        // 加上 timestamp + random suffix 避免同名檔案覆蓋 R2 資源
+        const ext = file.name.includes('.')
+          ? `.${file.name.split('.').pop()}`
+          : '';
+        const base = file.name.replace(/\.[^.]+$/, '');
+        const suffix =
+          Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        key = `${prefix}/${base}-${suffix}${ext}`;
       }
 
       await env.ASSETS_BUCKET.put(key, file.stream(), {

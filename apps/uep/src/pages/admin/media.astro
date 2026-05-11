@@ -6,10 +6,6 @@ export const prerender = false;
 
 const apiBase =
   import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
-
-// SSR 端讀取 httpOnly cookie — JavaScript 無法直接存取
-const JWT_COOKIE = 'uep-admin-jwt';
-const jwtToken = Astro.cookies.get(JWT_COOKIE)?.value || '';
 ---
 
 <DesignLayout title="媒體庫 — U.E.P Admin">
@@ -24,7 +20,7 @@ const jwtToken = Astro.cookies.get(JWT_COOKIE)?.value || '';
       <a href="/admin" class="adm-header-home">← 返回管理首頁</a>
     </header>
     <main class="adm-main">
-      <MediaLibrary client:only="react" apiBase={apiBase} jwtToken={jwtToken} />
+      <MediaLibrary client:only="react" apiBase={apiBase} />
     </main>
   </div>
 </DesignLayout>
