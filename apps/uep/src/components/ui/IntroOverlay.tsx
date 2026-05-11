@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ZoneData } from '../../data/zones';
+import { zoneTextColor } from '../../data/zones';
 import UepDialogue from './UepDialogue';
 
 interface IntroOverlayProps {
@@ -14,6 +15,10 @@ export default function IntroOverlay({
   onEnter,
 }: IntroOverlayProps) {
   if (!zone) return null;
+
+  const isDark =
+    typeof document !== 'undefined' &&
+    document.documentElement.dataset.theme === 'dark';
 
   return (
     <div
@@ -65,7 +70,7 @@ export default function IntroOverlay({
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            color: zone.main,
+            color: zoneTextColor(zone.main, isDark),
             letterSpacing: '0.24em',
             textTransform: 'uppercase' as const,
             marginBottom: 6,

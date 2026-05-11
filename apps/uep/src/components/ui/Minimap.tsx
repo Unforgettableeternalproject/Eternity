@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useLayoutEffect, useState, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
+import { zoneTextColor } from '../../data/zones';
 
 interface MinimapProps {
   zones: ZoneData[];
@@ -11,35 +12,18 @@ interface MinimapProps {
 
 const MINIMAP_POSITION_KEY = 'uep-minimap-position';
 
-type MinimapPosition = {
-  left?: number;
-  top?: number;
-  right?: number;
-  bottom?: number;
-};
-
-function defaultPosition(
-  position: MinimapProps['position'] = 'bottom-left'
-): MinimapPosition {
-  return {
-    'bottom-left': { left: 20, top: undefined, right: undefined, bottom: 20 },
-    'bottom-right': { right: 20, top: undefined, left: undefined, bottom: 20 },
-    'top-left': { left: 20, top: 20, right: undefined, bottom: undefined },
-    'top-right': { right: 20, top: 20, left: undefined, bottom: undefined },
-  }[position];
-}
+// 永遠只用 left/top，不使用 right/bottom，避免四值同時存在時被合併為 inset
+type MinimapPosition = { left: number; top: number };
 
 function clampPosition(
   left: number,
   top: number,
   width: number,
   height: number
-) {
+): MinimapPosition {
   return {
     left: Math.max(8, Math.min(window.innerWidth - width - 8, left)),
     top: Math.max(8, Math.min(window.innerHeight - height - 8, top)),
-    right: undefined,
-    bottom: undefined,
   };
 }
 
@@ -50,15 +34,27 @@ function readStoredPosition(): MinimapPosition | null {
     const parsed = JSON.parse(raw) as { left?: unknown; top?: unknown };
     if (typeof parsed.left !== 'number' || typeof parsed.top !== 'number')
       return null;
-    return {
-      left: parsed.left,
-      top: parsed.top,
-      right: undefined,
-      bottom: undefined,
-    };
+    return { left: parsed.left, top: parsed.top };
   } catch {
     return null;
   }
+}
+
+// 根據 position prop 換算 left/top pixel 值（需要知道元件尺寸）
+function resolveDefaultPosition(
+  position: NonNullable<MinimapProps['position']>,
+  w: number,
+  h: number
+): MinimapPosition {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const PAD = 20;
+  return {
+    'bottom-left': { left: PAD, top: vh - h - PAD },
+    'bottom-right': { left: vw - w - PAD, top: vh - h - PAD },
+    'top-left': { left: PAD, top: PAD },
+    'top-right': { left: vw - w - PAD, top: PAD },
+  }[position];
 }
 
 export default function Minimap({
@@ -68,10 +64,8 @@ export default function Minimap({
   onPickZone,
   position = 'bottom-left',
 }: MinimapProps) {
-  const [pos, setPos] = useState<MinimapPosition>(() => {
-    if (typeof window === 'undefined') return defaultPosition(position);
-    return readStoredPosition() || defaultPosition(position);
-  });
+  // SSR 時先給一個佔位值，mount 後由 useLayoutEffect 立即修正
+  const [pos, setPos] = useState<MinimapPosition>({ left: 20, top: 20 });
   const [drag, setDrag] = useState<{ offX: number; offY: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const posRef = useRef<MinimapPosition>(pos);
@@ -81,17 +75,18 @@ export default function Minimap({
     setPos(next);
   }
 
-  useEffect(() => {
+  // mount 時立即將位置設為 left/top pixel，避免任何 right/bottom 殘留
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const w = ref.current.offsetWidth;
+    const h = ref.current.offsetHeight;
     const stored = readStoredPosition();
-    if (!stored || !ref.current) return;
-    updatePos(
-      clampPosition(
-        stored.left || 0,
-        stored.top || 0,
-        ref.current.offsetWidth,
-        ref.current.offsetHeight
-      )
-    );
+    if (stored) {
+      updatePos(clampPosition(stored.left, stored.top, w, h));
+    } else {
+      updatePos(resolveDefaultPosition(position, w, h));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startDrag(e: React.PointerEvent) {
@@ -113,15 +108,14 @@ export default function Minimap({
 
   function endDrag() {
     setDrag(null);
-    const current = posRef.current;
-    if (current.left == null || current.top == null) return;
-    localStorage.setItem(
-      MINIMAP_POSITION_KEY,
-      JSON.stringify({ left: current.left, top: current.top })
-    );
+    const { left, top } = posRef.current;
+    localStorage.setItem(MINIMAP_POSITION_KEY, JSON.stringify({ left, top }));
   }
 
   const cur = zones.find((z) => z.id === currentId);
+  const isDark =
+    typeof document !== 'undefined' &&
+    document.documentElement.dataset.theme === 'dark';
 
   return (
     <div
@@ -129,10 +123,8 @@ export default function Minimap({
       className="uep-minimap"
       style={{
         position: 'fixed',
-        ...(pos.left != null ? { left: pos.left } : {}),
-        ...(pos.right != null ? { right: pos.right } : {}),
-        ...(pos.top != null ? { top: pos.top } : {}),
-        ...(pos.bottom != null ? { bottom: pos.bottom } : {}),
+        left: pos.left,
+        top: pos.top,
         width: 138,
         background: 'var(--bg-card)',
         border: '1px solid var(--hairline-strong)',
@@ -263,7 +255,7 @@ export default function Minimap({
       <div
         style={{
           padding: '4px 10px 10px',
-          color: cur ? cur.main : 'var(--ink)',
+          color: cur ? zoneTextColor(cur.main, isDark) : 'var(--ink)',
           fontWeight: 600,
           fontFamily: 'var(--font-serif-tc)',
           fontSize: 12,
