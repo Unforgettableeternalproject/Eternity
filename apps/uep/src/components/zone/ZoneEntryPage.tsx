@@ -11,6 +11,7 @@ import IntroOverlay from '../ui/IntroOverlay';
 import ZoneHomepageRenderer from './ZoneHomepageRenderer';
 import type { HomepageBlock } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import './ZoneEntry.css';
 
 // ─── Shared shell wrapper ──────────────────────────────────────────────────────
 
@@ -121,26 +122,6 @@ function ZoneShell({
               }),
         }}
       />
-      <style>{`
-        @keyframes zone-arrival {
-          0%   { backdrop-filter: blur(18px); background: rgba(10,10,14,0.5); }
-          60%  { backdrop-filter: blur(4px); background: rgba(10,10,14,0.12); }
-          100% { backdrop-filter: blur(0px); background: transparent; }
-        }
-        .zone-entry-h1 { font-size: 88px; }
-        .zone-entry-content { padding: 60px 40px 80px; }
-        @media (max-width: 760px) {
-          .zone-entry-h1 { font-size: 44px !important; }
-          .zone-entry-content { padding: 32px 20px 56px !important; }
-          .zone-arch-grid { grid-template-columns: 1fr !important; }
-          .zone-arch-card { min-height: 200px !important; }
-          .zone-cluster-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .zone-storage-grid { grid-template-columns: 1fr !important; }
-          .zone-module-row { grid-template-columns: 36px 1fr 56px !important; gap: 8px !important; }
-          .zone-module-en { display: none !important; }
-        }
-      `}</style>
-
       {/* TopBar */}
       <div style={{ position: 'relative', zIndex: 10 }}>
         <TopBar onOpenMap={onOpenMap} onGoHome={onGoHome} />
@@ -243,19 +224,11 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
   ];
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%' }}>
+    <div className="zone-entry-root">
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* drifting character particles */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
+      <div aria-hidden="true" className="zone-entry-particles">
         {charParticles.map((p, i) => (
           <span
             key={i}
@@ -282,44 +255,20 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
 
       <div
         className="zone-entry-content"
-        style={{
-          maxWidth: 900,
-          margin: '0 auto',
-          position: 'relative',
-          zIndex: 1,
-        }}
       >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
           className="zone-entry-h1"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 500,
-            color: 'var(--ink-title)',
-            lineHeight: 1,
-            margin: '0 0 20px',
-            letterSpacing: '-0.02em',
-          }}
         >
           三向通道
         </h1>
-        <p
-          style={{
-            fontFamily: 'var(--font-serif-tc)',
-            fontSize: 16,
-            color: 'var(--ink-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.8,
-            marginBottom: 36,
-            maxWidth: 560,
-          }}
-        >
+        <p className="zone-entry-intro">
           眼前的景色讓你嘆為觀止。這裡儼然是一座大型圖書館，無數書頁正有條理地在天空中飛舞著。
         </p>
 
         {/* UEP dialogue */}
-        <div style={{ marginBottom: 48 }}>
+        <div className="zone-entry-dialogue">
           <UepDialogue text={zone.uep[0]} />
           <UepDialogue side="right" text={zone.uep[1]} effects={['glow']} />
         </div>
@@ -384,15 +333,7 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
 
               {/* open arch: drifting chars inside */}
               {arch.state === 'open' && (
-                <div
-                  aria-hidden="true"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    overflow: 'hidden',
-                    pointerEvents: 'none',
-                  }}
-                >
+                <div aria-hidden="true" className="zone-entry-particles">
                   {Array.from({ length: 5 }, (_, i) => (
                     <span
                       key={i}
@@ -501,32 +442,12 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
     { color: '#8E6CB6', label: '特殊回聲', orbCount: 3 },
   ];
 
-  const orbPulseStyle = `
-    @keyframes orb-pulse {
-      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
-      50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
-    }
-    @keyframes orb-pulse-sm {
-      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
-      50% { transform: translate(-50%, -50%) scale(1.08); opacity: 0.9; }
-    }
-  `;
-
   return (
-    <div style={{ position: 'relative', minHeight: '100%' }}>
+    <div className="zone-entry-root">
       <ZoneAtmosphere zone={zone} intensity="subtle" />
-      <style>{orbPulseStyle}</style>
 
       {/* pearl strings */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
+      <div aria-hidden="true" className="zone-entry-particles">
         {pearlStrings.map((s, si) => (
           <div
             key={si}
@@ -578,44 +499,21 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
 
       <div
         className="zone-entry-content"
-        style={{
-          maxWidth: 960,
-          margin: '0 auto',
-          position: 'relative',
-          zIndex: 1,
-        }}
+        style={{ maxWidth: 960 }}
       >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
           className="zone-entry-h1"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 500,
-            color: 'var(--ink-title)',
-            lineHeight: 1,
-            margin: '0 0 20px',
-            letterSpacing: '-0.02em',
-          }}
         >
           空白廣場
         </h1>
-        <p
-          style={{
-            fontFamily: 'var(--font-serif-tc)',
-            fontSize: 16,
-            color: 'var(--ink-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.8,
-            marginBottom: 36,
-            maxWidth: 560,
-          }}
-        >
+        <p className="zone-entry-intro">
           音樂、OST、聲音作品。可被捧起的回憶之球，在廣場上靜靜地漂浮著。
         </p>
 
         {/* UEP dialogues */}
-        <div style={{ marginBottom: 48 }}>
+        <div className="zone-entry-dialogue">
           <UepDialogue text={zone.uep[0]} />
           <UepDialogue side="right" text={zone.uep[2]} effects={['shimmer']} />
         </div>
@@ -776,19 +674,11 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
   ];
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%' }}>
+    <div className="zone-entry-root">
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* diamond particles */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
+      <div aria-hidden="true" className="zone-entry-particles">
         {diamondParticles.map((p, i) => (
           <div
             key={i}
@@ -814,44 +704,20 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
 
       <div
         className="zone-entry-content"
-        style={{
-          maxWidth: 900,
-          margin: '0 auto',
-          position: 'relative',
-          zIndex: 1,
-        }}
       >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
           className="zone-entry-h1"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 500,
-            color: 'var(--ink-title)',
-            lineHeight: 1,
-            margin: '0 0 20px',
-            letterSpacing: '-0.02em',
-          }}
         >
           鏡向十字路口
         </h1>
-        <p
-          style={{
-            fontFamily: 'var(--font-serif-tc)',
-            fontSize: 16,
-            color: 'var(--ink-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.8,
-            marginBottom: 36,
-            maxWidth: 560,
-          }}
-        >
+        <p className="zone-entry-intro">
           畫作、插圖、視覺作品。半透明的人物像在水面盪漾，鏡中的倒影引導著方向。
         </p>
 
         {/* UEP dialogues */}
-        <div style={{ marginBottom: 48 }}>
+        <div className="zone-entry-dialogue">
           <UepDialogue text={zone.uep[0]} />
           <UepDialogue side="right" text={zone.uep[1]} effects={['glow']} />
         </div>
@@ -1051,19 +917,11 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
   ];
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%' }}>
+    <div className="zone-entry-root">
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* essence symbol particles + faint grid */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
+      <div aria-hidden="true" className="zone-entry-particles">
         {/* faint grid background */}
         <svg
           style={{
@@ -1119,12 +977,6 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
 
       <div
         className="zone-entry-content"
-        style={{
-          maxWidth: 900,
-          margin: '0 auto',
-          position: 'relative',
-          zIndex: 1,
-        }}
       >
         {/* Header */}
         <ZoneKicker zone={zone} />
@@ -1139,14 +991,7 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
         >
           <h1
             className="zone-entry-h1"
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 500,
-              color: 'var(--ink-title)',
-              lineHeight: 1,
-              margin: 0,
-              letterSpacing: '-0.02em',
-            }}
+            style={{ margin: 0 }}
           >
             概念調整房
           </h1>
@@ -1169,22 +1014,12 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
             $ root@uep:~ · CONNECTED
           </div>
         </div>
-        <p
-          style={{
-            fontFamily: 'var(--font-serif-tc)',
-            fontSize: 16,
-            color: 'var(--ink-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.8,
-            marginBottom: 36,
-            maxWidth: 560,
-          }}
-        >
+        <p className="zone-entry-intro">
           世界觀、設定文件。原質、概念、伺服器內部，所有的規則都在這裡自我修復。
         </p>
 
         {/* UEP dialogues */}
-        <div style={{ marginBottom: 48 }}>
+        <div className="zone-entry-dialogue">
           <UepDialogue text={zone.uep[0]} />
           <UepDialogue side="right" text={zone.uep[2]} effects={['shimmer']} />
         </div>
@@ -1356,7 +1191,7 @@ function StorageEntry({ zone }: ZoneEntryProps) {
   ];
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%' }}>
+    <div className="zone-entry-root">
       <ZoneAtmosphere zone={zone} intensity="subtle" />
 
       {/* warm desk lamp light */}
@@ -1372,15 +1207,7 @@ function StorageEntry({ zone }: ZoneEntryProps) {
       />
 
       {/* floating dust */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
+      <div aria-hidden="true" className="zone-entry-particles">
         {dustParticles.map((p, i) => (
           <div
             key={i}
@@ -1406,44 +1233,20 @@ function StorageEntry({ zone }: ZoneEntryProps) {
 
       <div
         className="zone-entry-content"
-        style={{
-          maxWidth: 900,
-          margin: '0 auto',
-          position: 'relative',
-          zIndex: 1,
-        }}
       >
         {/* Header */}
         <ZoneKicker zone={zone} />
         <h1
           className="zone-entry-h1"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 500,
-            color: 'var(--ink-title)',
-            lineHeight: 1,
-            margin: '0 0 20px',
-            letterSpacing: '-0.02em',
-          }}
         >
           雜亂的書桌
         </h1>
-        <p
-          style={{
-            fontFamily: 'var(--font-serif-tc)',
-            fontSize: 16,
-            color: 'var(--ink-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.8,
-            marginBottom: 36,
-            maxWidth: 560,
-          }}
-        >
+        <p className="zone-entry-intro">
           公告、Meta、雜項。一片散亂卻自有秩序的房間，好像某個人留下的痕跡。
         </p>
 
         {/* UEP dialogue */}
-        <div style={{ marginBottom: 48 }}>
+        <div className="zone-entry-dialogue">
           <UepDialogue text={zone.uep[0]} />
         </div>
 

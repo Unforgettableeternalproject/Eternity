@@ -252,6 +252,21 @@ body {
   }
 }
 
+@keyframes zone-arrival {
+  0% {
+    backdrop-filter: blur(18px);
+    background: rgba(10, 10, 14, 0.5);
+  }
+  60% {
+    backdrop-filter: blur(4px);
+    background: rgba(10, 10, 14, 0.12);
+  }
+  100% {
+    backdrop-filter: blur(0px);
+    background: transparent;
+  }
+}
+
 /* ── Hairlines ── */
 .hairline {
   height: 1px;

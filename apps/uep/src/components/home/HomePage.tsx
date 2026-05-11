@@ -10,61 +10,7 @@ import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import PortalTransition from '../ui/PortalTransition';
 import { useIsMobile } from '../../utils/useIsMobile';
-
-const homePageCss = `
-  .home-hero {
-    display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 56px;
-    padding: 90px 64px;
-    min-height: 540px;
-    align-items: center;
-    position: relative;
-    max-width: 1400px;
-    margin: 0 auto;
-  }
-  .home-hero-h1 { font-size: 76px; }
-  .home-atlas { padding: 72px 64px 100px; }
-  .home-legend-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0;
-    max-width: 920px;
-    margin: 40px auto 0;
-    border-top: 1px solid var(--hairline);
-  }
-  .home-verse { padding: 90px 64px 110px; }
-  .home-recents { padding: 60px 64px 90px; }
-  .home-recents-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0;
-    border-top: 1px solid var(--hairline);
-    border-bottom: 1px solid var(--hairline);
-  }
-
-  @media (max-width: 760px) {
-    .home-hero {
-      grid-template-columns: 1fr;
-      padding: 40px 20px 48px;
-      gap: 32px;
-      min-height: unset;
-    }
-    .home-hero-right { display: none; }
-    .home-hero-h1 { font-size: 44px !important; }
-    .home-atlas { padding: 40px 20px 56px; }
-    .home-legend-grid { grid-template-columns: repeat(2, 1fr); }
-    .home-verse { padding: 48px 20px 56px; }
-    .home-recents { padding: 32px 20px 56px; }
-    .home-recents-grid { grid-template-columns: 1fr; }
-  }
-
-  @keyframes zone-arrival {
-    0%   { backdrop-filter: blur(18px); background: rgba(10,10,14,0.5); }
-    60%  { backdrop-filter: blur(4px);  background: rgba(10,10,14,0.12); }
-    100% { backdrop-filter: blur(0px);  background: transparent; }
-  }
-`;
+import './HomePage.css';
 
 export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const isMobile = useIsMobile();
@@ -147,8 +93,6 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         overflow: 'hidden',
       }}
     >
-      <style>{homePageCss}</style>
-
       {/* 進場霧化淡入 */}
       <div
         aria-hidden
