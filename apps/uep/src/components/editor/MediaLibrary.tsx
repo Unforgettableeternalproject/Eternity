@@ -15,7 +15,6 @@ interface AssetItem {
 
 interface MediaLibraryProps {
   apiBase: string;
-  jwtToken: string;
 }
 
 type TabFilter = 'all' | 'images' | 'audio';
@@ -61,7 +60,7 @@ function encodeAssetKey(key: string): string {
 
 // ── 元件 ──
 
-export default function MediaLibrary({ apiBase, jwtToken }: MediaLibraryProps) {
+export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
   const [items, setItems] = useState<AssetItem[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
@@ -76,47 +75,36 @@ export default function MediaLibrary({ apiBase, jwtToken }: MediaLibraryProps) {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
-  const authHeaders: Record<string, string> = jwtToken
-    ? { Authorization: `Bearer ${jwtToken}` }
-    : {};
-
   // ── 載入資產 ──
 
-  const fetchAssets = useCallback(
-    async (nextCursor?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({ limit: '200' });
-        if (nextCursor) params.set('cursor', nextCursor);
-        const res = await fetch(`${apiBase}/api/assets?${params}`, {
-          headers: authHeaders,
-        });
-        const json = (await res.json()) as {
-          ok: boolean;
-          data?: {
-            items: AssetItem[];
-            cursor?: string;
-            hasMore: boolean;
-          };
-          error?: string;
+  const fetchAssets = useCallback(async (nextCursor?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: '200' });
+      if (nextCursor) params.set('cursor', nextCursor);
+      const res = await fetch(`/api/assets?${params}`);
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: {
+          items: AssetItem[];
+          cursor?: string;
+          hasMore: boolean;
         };
-        if (!json.ok) throw new Error(json.error || '載入失敗');
-        const data = json.data!;
-        setItems((prev) =>
-          nextCursor ? [...prev, ...data.items] : data.items
-        );
-        setCursor(data.cursor);
-        setHasMore(data.hasMore);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : '未知錯誤';
-        setError(msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [apiBase, jwtToken]
-  );
+        error?: string;
+      };
+      if (!json.ok) throw new Error(json.error || '載入失敗');
+      const data = json.data!;
+      setItems((prev) => (nextCursor ? [...prev, ...data.items] : data.items));
+      setCursor(data.cursor);
+      setHasMore(data.hasMore);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '未知錯誤';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchAssets();
@@ -169,9 +157,8 @@ export default function MediaLibrary({ apiBase, jwtToken }: MediaLibraryProps) {
     if (!window.confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${apiBase}/api/assets/${encodeAssetKey(key)}`, {
+      const res = await fetch(`/api/assets/${encodeAssetKey(key)}`, {
         method: 'DELETE',
-        headers: authHeaders,
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
       if (!json.ok) throw new Error(json.error || '刪除失敗');
@@ -195,9 +182,9 @@ export default function MediaLibrary({ apiBase, jwtToken }: MediaLibraryProps) {
     setDeleting(true);
     setConfirmBatch(false);
     try {
-      const res = await fetch(`${apiBase}/api/assets/batch`, {
+      const res = await fetch(`/api/assets/batch`, {
         method: 'DELETE',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keys }),
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
@@ -233,9 +220,9 @@ export default function MediaLibrary({ apiBase, jwtToken }: MediaLibraryProps) {
       return;
     }
     try {
-      const res = await fetch(`${apiBase}/api/assets/rename`, {
+      const res = await fetch(`/api/assets/rename`, {
         method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ oldKey: detail.key, newKey }),
       });
       const json = (await res.json()) as {
