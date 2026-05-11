@@ -2,6 +2,7 @@ import React from 'react';
 import IconPicker from './IconLibrary';
 
 interface EditorInspectorProps {
+  area: string;
   pageType: string;
   onPageTypeChange: (v: string) => void;
   parentId: string;
@@ -23,6 +24,31 @@ interface EditorInspectorProps {
   updatedAt?: string;
 }
 
+/** 各區域可用的頁面類型 */
+const AREA_PAGE_TYPES: Record<string, { value: string; label: string }[]> = {
+  history: [
+    { value: 'page', label: 'Page' },
+    { value: 'zone', label: 'Zone' },
+    { value: 'chapter', label: 'Chapter' },
+    { value: 'arc', label: 'Arc' },
+    { value: 'section', label: 'Section' },
+  ],
+  echoes: [
+    { value: 'page', label: 'Page' },
+    { value: 'cluster', label: 'Cluster (集群)' },
+    { value: 'subcategory', label: 'Subcategory (子分類)' },
+    { value: 'song', label: 'Song (歌曲)' },
+  ],
+};
+
+/** 通用 fallback */
+const DEFAULT_PAGE_TYPES = [
+  { value: 'page', label: 'Page' },
+  { value: 'zone', label: 'Zone' },
+  { value: 'chapter', label: 'Chapter' },
+  { value: 'section', label: 'Section' },
+];
+
 const STATUS_LABELS: Record<string, string> = {
   synced: 'synced',
   modified: 'modified',
@@ -30,6 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function EditorInspector({
+  area,
   pageType,
   onPageTypeChange,
   parentId,
@@ -67,12 +94,11 @@ export default function EditorInspector({
           value={pageType}
           onChange={(e) => handleChange(onPageTypeChange)(e.target.value)}
         >
-          <option value="page">Page</option>
-          <option value="zone">Zone</option>
-          <option value="chapter">Chapter</option>
-          <option value="arc">Arc</option>
-          <option value="section">Section</option>
-          <option value="song">Song</option>
+          {(AREA_PAGE_TYPES[area] || DEFAULT_PAGE_TYPES).map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
         </select>
       </Section>
 

@@ -184,18 +184,27 @@ export default function PieMap3D({
             );
           })}
           <g
+            className="pie-center"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onCenterClick?.();
             }}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: onCenterClick ? 'pointer' : 'default' }}
           >
+            {/* hover 光暈 */}
+            <circle
+              className="pie-center-glow"
+              r="9"
+              fill="var(--uep-gold)"
+              fillOpacity="0"
+            />
             <circle
               r="6.5"
               fill="none"
               stroke="var(--uep-gold)"
               strokeWidth="0.4"
+              className="pie-center-ring"
             />
             <circle
               r="5"
@@ -211,9 +220,52 @@ export default function PieMap3D({
               fontFamily="var(--font-display)"
               fontWeight="600"
               fill="var(--uep-gold)"
+              className="pie-center-label"
             >
               U
             </text>
+            {/* hover 提示文字（描邊增加可讀性） */}
+            <text
+              className="pie-center-hint"
+              textAnchor="middle"
+              y="12"
+              fontSize="2.2"
+              fontFamily="var(--font-mono)"
+              letterSpacing="0.08em"
+              fill="var(--ink-title)"
+              fillOpacity="0"
+              stroke="var(--bg)"
+              strokeOpacity="0"
+              strokeWidth="0.3"
+              paintOrder="stroke"
+            >
+              世界的軸心
+            </text>
+            <style>{`
+              .pie-center-glow {
+                transition: fill-opacity 0.3s ease;
+              }
+              .pie-center-hint {
+                transition: fill-opacity 0.3s ease, stroke-opacity 0.3s ease;
+              }
+              .pie-center-ring {
+                transition: stroke-width 0.3s ease, stroke-opacity 0.3s ease;
+              }
+              .pie-center-label {
+                transition: font-size 0.3s ease, fill-opacity 0.3s ease;
+              }
+              .pie-center:hover .pie-center-glow {
+                fill-opacity: 0.12;
+              }
+              .pie-center:hover .pie-center-ring {
+                stroke-width: 0.7;
+                stroke-opacity: 1;
+              }
+              .pie-center:hover .pie-center-hint {
+                fill-opacity: 0.7;
+                stroke-opacity: 0.7;
+              }
+            `}</style>
           </g>
         </>
       )}

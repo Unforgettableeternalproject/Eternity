@@ -18,7 +18,14 @@ import { createInterface } from 'readline';
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
 const REMOTE_API = 'https://eternity-content-api.ptyc4076.workers.dev';
-const ALL_AREAS = ['history', 'echos', 'visuals', 'concepts', 'storage', 'portal'];
+const ALL_AREAS = [
+  'history',
+  'echoes',
+  'visuals',
+  'concepts',
+  'storage',
+  'portal',
+];
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -29,9 +36,7 @@ const DIRECTION = args.includes('--pull')
     : null; // null = 互動模式
 const AREA_FLAG = args.indexOf('--area');
 const TARGET_AREAS =
-  AREA_FLAG !== -1 && args[AREA_FLAG + 1]
-    ? [args[AREA_FLAG + 1]]
-    : ALL_AREAS;
+  AREA_FLAG !== -1 && args[AREA_FLAG + 1] ? [args[AREA_FLAG + 1]] : ALL_AREAS;
 
 // === 工具函式 ===
 
@@ -40,36 +45,61 @@ async function listPages(apiBase, area) {
   try {
     const res = await fetch(`${apiBase}/api/content/${area}`);
     if (!res.ok) return [];
-    const json = await res.json();
-    return json.ok ? json.data || [] : [];
+    const json = await safeJson(res);
+    return json?.ok ? json.data || [] : [];
   } catch {
     return [];
   }
 }
 
+/** 安全地解析 JSON 回應，回傳 null 若非 JSON */
+async function safeJson(res) {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** 從 API 取得單一頁面完整資料 */
 async function getPage(apiBase, area, slug) {
-  const res = await fetch(`${apiBase}/api/content/${area}/${slug}`);
-  const json = await res.json();
-  return json.ok ? json.data : null;
+  try {
+    const res = await fetch(`${apiBase}/api/content/${area}/${slug}`);
+    if (!res.ok) return null;
+    const json = await safeJson(res);
+    return json?.ok ? json.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /** 透過 PUT 端點寫入頁面 */
 async function putPage(apiBase, page) {
-  const res = await fetch(`${apiBase}/api/content/${page.area}/${page.slug}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title: page.title,
-      content: page.content,
-      parentId: page.parentId || null,
-      pageType: page.pageType,
-      depth: page.depth,
-      metadata: page.metadata || {},
-    }),
-  });
-  const json = await res.json();
-  return json.ok;
+  try {
+    const res = await fetch(
+      `${apiBase}/api/content/${page.area}/${page.slug}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: page.title,
+          content: page.content,
+          parentId: page.parentId || null,
+          pageType: page.pageType,
+          depth: page.depth,
+          metadata: page.metadata || {},
+          status: page.status || 'synced',
+        }),
+      }
+    );
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
 }
 
 /** 比較兩個時間戳，回傳較新的一方 */
@@ -84,7 +114,10 @@ function compareTimestamps(localTime, remoteTime) {
 /** 格式化時間戳為易讀格式 */
 function fmtTime(ts) {
   if (!ts) return '(無)';
-  return ts.replace('T', ' ').replace(/\.\d+Z$/, '').slice(0, 19);
+  return ts
+    .replace('T', ' ')
+    .replace(/\.\d+Z$/, '')
+    .slice(0, 19);
 }
 
 /** 互動式提問 */
@@ -151,9 +184,15 @@ function buildDiff(localPages, remotePages) {
 // === 同步執行 ===
 
 async function executePush(pages, area) {
+  // 按 depth 排序，確保父頁面先於子頁面建立（避免 FK 約束失敗）
+  const sorted = [...pages].sort((a, b) => {
+    const da = a.local?.depth ?? a.id.split('/').length - 1;
+    const db = b.local?.depth ?? b.id.split('/').length - 1;
+    return da - db;
+  });
   let ok = 0;
   let fail = 0;
-  for (const entry of pages) {
+  for (const entry of sorted) {
     const slug = entry.local?.slug || entry.id.replace(`${area}/`, '');
     const fullPage = await getPage(LOCAL_API, area, slug);
     if (!fullPage) {
@@ -231,6 +270,21 @@ async function main() {
     process.exit(1);
   }
 
+  // 檢查遠端 API 是否可用
+  try {
+    const check = await fetch(`${REMOTE_API}/api/content/history`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const ct = check.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      console.error(
+        '⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面），部分操作可能失敗'
+      );
+    }
+  } catch {
+    console.error('⚠️  無法連線到遠端 API，將只顯示本地資料\n');
+  }
+
   let totalPush = 0;
   let totalPull = 0;
   let totalSkip = 0;
@@ -248,10 +302,7 @@ async function main() {
       `📂 ${area}  (本地: ${localPages.length} 頁 / 遠端: ${remotePages.length} 頁)`
     );
 
-    const { pushPages, pullPages, inSync } = buildDiff(
-      localPages,
-      remotePages
-    );
+    const { pushPages, pullPages, inSync } = buildDiff(localPages, remotePages);
 
     if (pushPages.length === 0 && pullPages.length === 0) {
       console.log(`   ✓ 完全同步 (${inSync.length} 頁)\n`);
@@ -323,11 +374,134 @@ async function main() {
     console.log();
   }
 
+  // === R2 資產同步 ===
+  await syncAssets();
+
   // 總結
   console.log('─'.repeat(40));
   console.log(
     `✅ 完成！ ↑推送: ${totalPush}  ↓拉取: ${totalPull}  =同步: ${totalSkip}`
   );
+  console.log();
+}
+
+// === R2 資產同步 ===
+
+/** 列出 R2 資產 keys */
+async function listAssets(apiBase) {
+  try {
+    const res = await fetch(`${apiBase}/api/assets`);
+    if (!res.ok) return [];
+    const json = await safeJson(res);
+    return json?.ok ? (json.data?.items || []).map((i) => i.key) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 從來源下載檔案並上傳到目標（保留原始 key） */
+async function transferAsset(fromBase, toBase, key) {
+  try {
+    const res = await fetch(
+      `${fromBase}/api/assets/${encodeURIComponent(key)}`
+    );
+    if (!res.ok) return false;
+    const contentType =
+      res.headers.get('content-type') || 'application/octet-stream';
+    const blob = await res.blob();
+    const fileName = key.split('/').pop() || key;
+    const form = new FormData();
+    form.append('file', new File([blob], fileName, { type: contentType }));
+    form.append('key', key);
+    const upload = await fetch(`${toBase}/api/assets`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!upload.ok) return false;
+    const json = await safeJson(upload);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncAssets() {
+  const [localKeys, remoteKeys] = await Promise.all([
+    listAssets(LOCAL_API),
+    listAssets(REMOTE_API),
+  ]);
+
+  if (localKeys.length === 0 && remoteKeys.length === 0) return;
+
+  const localSet = new Set(localKeys);
+  const remoteSet = new Set(remoteKeys);
+
+  const toPush = localKeys.filter((k) => !remoteSet.has(k));
+  const toPull = remoteKeys.filter((k) => !localSet.has(k));
+  const inSync = localKeys.filter((k) => remoteSet.has(k));
+
+  if (toPush.length === 0 && toPull.length === 0) {
+    console.log(
+      `\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`
+    );
+    console.log(`   ✓ 完全同步 (${inSync.length} 個檔案)\n`);
+    return;
+  }
+
+  console.log(
+    `\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`
+  );
+  if (toPush.length > 0) console.log(`   ↑ 需推送: ${toPush.length} 個`);
+  if (toPull.length > 0) console.log(`   ↓ 需拉取: ${toPull.length} 個`);
+  if (inSync.length > 0) console.log(`   = 已同步: ${inSync.length} 個`);
+  console.log();
+
+  // 決定方向
+  let doPush = toPush;
+  let doPull = toPull;
+
+  if (DIRECTION === 'pull') {
+    doPush = [];
+  } else if (DIRECTION === 'push') {
+    doPull = [];
+  } else if (!DRY_RUN && (toPush.length > 0 || toPull.length > 0)) {
+    const answer = await ask(
+      `   同步 R2 資產？ [y] 全部 / [push] 只推送 / [pull] 只拉取 / [n] 跳過: `
+    );
+    if (answer === 'n' || answer === 'no') {
+      console.log('   ⏭ 跳過\n');
+      return;
+    }
+    if (answer === 'push') doPull = [];
+    if (answer === 'pull') doPush = [];
+  }
+
+  // 推送
+  if (doPush.length > 0) {
+    console.log(`   推送 ${doPush.length} 個檔案到遠端...`);
+    for (const key of doPush) {
+      if (DRY_RUN) {
+        console.log(`  → [dry-run] ${key}`);
+        continue;
+      }
+      const ok = await transferAsset(LOCAL_API, REMOTE_API, key);
+      console.log(ok ? `  ↑ ${key}` : `  ✗ 推送失敗 ${key}`);
+    }
+  }
+
+  // 拉取
+  if (doPull.length > 0) {
+    console.log(`   拉取 ${doPull.length} 個檔案到本地...`);
+    for (const key of doPull) {
+      if (DRY_RUN) {
+        console.log(`  ← [dry-run] ${key}`);
+        continue;
+      }
+      const ok = await transferAsset(REMOTE_API, LOCAL_API, key);
+      console.log(ok ? `  ↓ ${key}` : `  ✗ 拉取失敗 ${key}`);
+    }
+  }
+
   console.log();
 }
 

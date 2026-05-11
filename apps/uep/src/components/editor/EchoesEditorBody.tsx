@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+/* global File, FormData */
+import React, { useRef, useState } from 'react';
+
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 interface EchoesEditorBodyProps {
   accent: string;
@@ -7,13 +12,27 @@ interface EchoesEditorBodyProps {
   onDirty: () => void;
 }
 
+export interface AudioMeta {
+  size?: number;
+  duration?: number;
+  info?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  year?: string;
+  genre?: string;
+  bitrate?: number;
+  format?: string;
+}
+
 export interface EchoesData {
   subtitle: string;
   category: string;
   spoilerLevel: number;
   gate: string;
   audioFile: string | null;
-  audioMeta: { size?: number; duration?: number; info?: string } | null;
+  audioMeta: AudioMeta | null;
+  coverImage: string | null;
   appreciation: string[];
   appreciationLocked: string;
 }
@@ -26,6 +45,7 @@ export function parseEchoesData(metadata: Record<string, any>): EchoesData {
     gate: metadata?.gate || '',
     audioFile: metadata?.audioFile || null,
     audioMeta: metadata?.audioMeta || null,
+    coverImage: metadata?.coverImage || null,
     appreciation: metadata?.appreciation || [''],
     appreciationLocked: metadata?.appreciationLocked || '',
   };
@@ -39,23 +59,222 @@ export function serializeEchoesData(data: EchoesData): Record<string, any> {
     gate: data.gate || undefined,
     audioFile: data.audioFile || undefined,
     audioMeta: data.audioMeta || undefined,
+    coverImage: data.coverImage || undefined,
     appreciation: data.appreciation.filter((p) => p.trim()),
     appreciationLocked: data.appreciationLocked || undefined,
   };
 }
 
+/** 用 HTMLAudioElement 讀取 duration */
+function readAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    const url = URL.createObjectURL(file);
+    audio.preload = 'metadata';
+    audio.addEventListener('loadedmetadata', () => {
+      URL.revokeObjectURL(url);
+      resolve(audio.duration || 0);
+    });
+    audio.addEventListener('error', () => {
+      URL.revokeObjectURL(url);
+      resolve(0);
+    });
+    audio.src = url;
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
+// 輕量 ID3v2 解析器（純瀏覽器端，零依賴）
+// 支援 ID3v2.3 / v2.4 的 text frames (TIT2, TPE1, TALB, TDRC/TYER, TCON)
+// ──────────────────────────────────────────────────────────────
+
+/** 從 DataView 讀取 ID3v2 synchsafe integer（4 bytes, 每 byte 只用 7 bits）*/
+function readSynchsafe(dv: DataView, offset: number): number {
+  return (
+    ((dv.getUint8(offset) & 0x7f) << 21) |
+    ((dv.getUint8(offset + 1) & 0x7f) << 14) |
+    ((dv.getUint8(offset + 2) & 0x7f) << 7) |
+    (dv.getUint8(offset + 3) & 0x7f)
+  );
+}
+
+/** 解碼 ID3v2 文字 frame 的內容 */
+function decodeTextFrame(bytes: Uint8Array): string {
+  if (bytes.length === 0) return '';
+  const encoding = bytes[0];
+  const data = bytes.slice(1);
+
+  if (encoding === 0) {
+    // ISO-8859-1
+    return Array.from(data)
+      .map((b) => String.fromCharCode(b))
+      .join('')
+      .replace(/\0+$/, '');
+  }
+  if (encoding === 1 || encoding === 2) {
+    // UTF-16 (LE/BE with or without BOM)
+    const isLE =
+      encoding === 2
+        ? false
+        : data.length >= 2 && data[0] === 0xff && data[1] === 0xfe;
+    const start =
+      data.length >= 2 && (data[0] === 0xff || data[0] === 0xfe) ? 2 : 0;
+    const arr: number[] = [];
+    for (let i = start; i + 1 < data.length; i += 2) {
+      const code = isLE
+        ? data[i] | (data[i + 1] << 8)
+        : (data[i] << 8) | data[i + 1];
+      if (code === 0) break;
+      arr.push(code);
+    }
+    return String.fromCharCode(...arr);
+  }
+  if (encoding === 3) {
+    // UTF-8
+    return new TextDecoder('utf-8').decode(data).replace(/\0+$/, '');
+  }
+  return '';
+}
+
+/** 解析 ID3v2 tags（讀取檔案前 128KB 即可） */
+async function readId3Tags(
+  file: File
+): Promise<
+  Partial<Pick<AudioMeta, 'title' | 'artist' | 'album' | 'year' | 'genre'>>
+> {
+  try {
+    // 只讀取前 128KB（ID3 header 通常遠小於這個大小）
+    const slice = file.slice(0, 131072);
+    const buf = await slice.arrayBuffer();
+    const dv = new DataView(buf);
+    const bytes = new Uint8Array(buf);
+
+    // 檢查 ID3v2 header: "ID3"
+    if (
+      bytes[0] !== 0x49 || // I
+      bytes[1] !== 0x44 || // D
+      bytes[2] !== 0x33 // 3
+    ) {
+      return {};
+    }
+
+    const majorVersion = bytes[3]; // 3 or 4
+    const tagSize = readSynchsafe(dv, 6);
+    const useSynchsafe = majorVersion >= 4;
+
+    const result: Partial<
+      Pick<AudioMeta, 'title' | 'artist' | 'album' | 'year' | 'genre'>
+    > = {};
+    const frameIdMap: Record<string, keyof typeof result> = {
+      TIT2: 'title',
+      TPE1: 'artist',
+      TALB: 'album',
+      TYER: 'year',
+      TDRC: 'year',
+      TCON: 'genre',
+    };
+
+    let pos = 10; // header 後開始
+    const end = Math.min(10 + tagSize, buf.byteLength);
+
+    while (pos + 10 <= end) {
+      const frameId = String.fromCharCode(
+        bytes[pos],
+        bytes[pos + 1],
+        bytes[pos + 2],
+        bytes[pos + 3]
+      );
+
+      // 遇到 padding (0x00) 或無效 frame 就停止
+      if (!/^[A-Z0-9]{4}$/.test(frameId)) break;
+
+      const frameSize = useSynchsafe
+        ? readSynchsafe(dv, pos + 4)
+        : dv.getUint32(pos + 4);
+
+      // 安全檢查
+      if (frameSize <= 0 || pos + 10 + frameSize > end) break;
+
+      const field = frameIdMap[frameId];
+      if (field) {
+        const content = decodeTextFrame(
+          bytes.slice(pos + 10, pos + 10 + frameSize)
+        );
+        if (content) {
+          result[field] = content;
+        }
+      }
+
+      pos += 10 + frameSize;
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/** 從瀏覽器讀取音檔 metadata（duration + ID3 tags）*/
+async function readAudioMeta(file: File): Promise<Partial<AudioMeta>> {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const [duration, id3] = await Promise.all([
+    readAudioDuration(file),
+    readId3Tags(file),
+  ]);
+  const bitrate =
+    duration > 0 ? Math.round((file.size * 8) / duration / 1000) : undefined;
+  return {
+    size: file.size,
+    duration: Math.round(duration * 100) / 100,
+    bitrate,
+    format: ext,
+    ...id3,
+  };
+}
+
+/** 上傳檔案到 R2 */
+async function uploadAsset(
+  file: File
+): Promise<{ key: string; url: string; size: number } | null> {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch(`${API_BASE}/api/assets`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: { key: string; url: string; size: number };
+    };
+    if (!json.ok) throw new Error('Upload returned ok=false');
+    return json.data;
+  } catch (err) {
+    console.error('Upload error:', err);
+    return null;
+  }
+}
+
+/** 格式化時長 */
+function fmtDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 const SPOILER_LEVELS = [
-  { l: 0, n: '\u7121' },
-  { l: 1, n: '\u9727\u5316' },
-  { l: 2, n: '\u906E\u7F69' },
-  { l: 3, n: '\u96DC\u8A0A' },
+  { l: 0, n: '無' },
+  { l: 1, n: '霧化' },
+  { l: 2, n: '遮罩' },
+  { l: 3, n: '雜訊' },
 ];
 
 const CATEGORIES = [
-  { value: 'area', label: '\u5834\u666F\u4E3B\u984C\u66F2' },
-  { value: 'character', label: '\u89D2\u8272\u4E3B\u984C\u66F2' },
-  { value: 'story', label: '\u5287\u60C5\u6B4C' },
-  { value: 'special', label: '\u7279\u6B8A\u66F2\u76EE' },
+  { value: 'area', label: '場景主題曲' },
+  { value: 'character', label: '角色主題曲' },
+  { value: 'story', label: '劇情歌' },
+  { value: 'special', label: '特殊曲目' },
 ];
 
 export default function EchoesEditorBody({
@@ -65,12 +284,55 @@ export default function EchoesEditorBody({
   onDirty,
 }: EchoesEditorBodyProps) {
   const [data, setData] = useState<EchoesData>(initialData);
+  const [uploading, setUploading] = useState<'audio' | 'cover' | null>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const update = (patch: Partial<EchoesData>) => {
     const next = { ...data, ...patch };
     setData(next);
     onDataChange(next);
     onDirty();
+  };
+
+  const updateAudioMeta = (patch: Partial<AudioMeta>) => {
+    update({ audioMeta: { ...data.audioMeta, ...patch } });
+  };
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading('audio');
+    try {
+      const [result, meta] = await Promise.all([
+        uploadAsset(file),
+        readAudioMeta(file),
+      ]);
+      if (result) {
+        update({
+          audioFile: result.key,
+          audioMeta: { ...data.audioMeta, ...meta },
+        });
+      }
+    } finally {
+      setUploading(null);
+      if (audioInputRef.current) audioInputRef.current.value = '';
+    }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading('cover');
+    try {
+      const result = await uploadAsset(file);
+      if (result) {
+        update({ coverImage: result.key });
+      }
+    } finally {
+      setUploading(null);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
   };
 
   const updateAppreciation = (index: number, value: string) => {
@@ -89,20 +351,20 @@ export default function EchoesEditorBody({
 
   return (
     <div className="ned-echoes-body">
-      {/* Subtitle */}
-      <label className="ned-field-label">\u526F\u6A19\u984C</label>
+      {/* 副標題 */}
+      <label className="ned-field-label">副標題</label>
       <input
         className="ned-field"
         type="text"
         value={data.subtitle}
-        placeholder="\u526F\u6A19\u984C"
+        placeholder="副標題"
         onChange={(e) => update({ subtitle: e.target.value })}
       />
 
-      {/* Category + Spoiler Level */}
+      {/* 分類 + 遮蔽等級 */}
       <div className="ned-echoes-row">
         <div>
-          <label className="ned-field-label">\u5206\u985E</label>
+          <label className="ned-field-label">分類</label>
           <select
             className="ned-field"
             value={data.category}
@@ -116,9 +378,7 @@ export default function EchoesEditorBody({
           </select>
         </div>
         <div>
-          <label className="ned-field-label">
-            \u906E\u853D\u7B49\u7D1A (Spoiler Level)
-          </label>
+          <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
           <div className="ned-spoiler-buttons">
             {SPOILER_LEVELS.map((o) => (
               <button
@@ -144,20 +404,25 @@ export default function EchoesEditorBody({
         </div>
       </div>
 
-      {/* Gate */}
-      <label className="ned-field-label">
-        \u89E3\u9396\u689D\u4EF6 (\u5287\u60C5\u524D\u7F6E)
-      </label>
+      {/* 解鎖條件 */}
+      <label className="ned-field-label">解鎖條件 (劇情前置)</label>
       <input
         className="ned-field"
         type="text"
         value={data.gate}
-        placeholder="\u54EA\u6BB5\u5287\u60C5\u89E3\u9396\u9019\u9996\u6B4C"
+        placeholder="哪段劇情解鎖這首歌"
         onChange={(e) => update({ gate: e.target.value })}
       />
 
-      {/* Audio file */}
-      <label className="ned-field-label">\u97F3\u6A94</label>
+      {/* 音檔 */}
+      <label className="ned-field-label">音檔</label>
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/*"
+        style={{ display: 'none' }}
+        onChange={handleAudioUpload}
+      />
       <div className="ned-audio-zone">
         {data.audioFile ? (
           <>
@@ -165,42 +430,209 @@ export default function EchoesEditorBody({
               className="ned-audio-icon"
               style={{ borderColor: accent, color: accent }}
             >
-              {data.audioMeta?.size
-                ? `${Math.round((data.audioMeta.size || 0) / 1024 / 1024)}MB`
-                : '?'}
+              {data.audioMeta?.format
+                ? data.audioMeta.format.toUpperCase()
+                : data.audioMeta?.size
+                  ? `${Math.round((data.audioMeta.size || 0) / 1024 / 1024)}MB`
+                  : '♪'}
             </div>
             <div className="ned-audio-info">
-              <div className="ned-audio-name">{data.audioFile}</div>
+              <div className="ned-audio-name">
+                {data.audioFile.split('/').pop()}
+              </div>
               <div className="ned-audio-meta">
-                {data.audioMeta?.info || 'uploaded'}
+                {[
+                  data.audioMeta?.format && data.audioMeta.format.toUpperCase(),
+                  data.audioMeta?.bitrate && `${data.audioMeta.bitrate}kbps`,
+                  data.audioMeta?.duration != null &&
+                    fmtDuration(data.audioMeta.duration),
+                  data.audioMeta?.size &&
+                    `${(data.audioMeta.size / 1024 / 1024).toFixed(1)}MB`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'uploaded'}
               </div>
             </div>
             <button
-              className="ned-btn-ghost"
+              className="ned-btn-ghost ned-btn-sm"
+              type="button"
+              onClick={() => audioInputRef.current?.click()}
+              disabled={uploading === 'audio'}
+            >
+              替換
+            </button>
+            <button
+              className="ned-btn-ghost ned-btn-sm"
               type="button"
               onClick={() => update({ audioFile: null, audioMeta: null })}
             >
-              \u522A\u9664
+              刪除
             </button>
           </>
         ) : (
-          <div className="ned-audio-empty">
-            \u5C1A\u672A\u4E0A\u50B3\u97F3\u6A94
-          </div>
+          <button
+            className="ned-btn-ghost"
+            type="button"
+            onClick={() => audioInputRef.current?.click()}
+            disabled={uploading === 'audio'}
+            style={{ width: '100%', textAlign: 'center', padding: '14px' }}
+          >
+            {uploading === 'audio' ? '上傳中...' : '+ 選擇音檔上傳'}
+          </button>
         )}
       </div>
 
-      {/* Appreciation paragraphs */}
+      {/* 音檔 Metadata（音檔存在時顯示）*/}
+      {data.audioFile && (
+        <div className="ned-audio-meta-section">
+          <div className="ned-meta-row">
+            <div>
+              <label className="ned-field-label ned-field-label--sm">
+                曲名
+              </label>
+              <input
+                className="ned-field ned-field--sm"
+                type="text"
+                value={data.audioMeta?.title || ''}
+                placeholder="曲名"
+                onChange={(e) => updateAudioMeta({ title: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="ned-field-label ned-field-label--sm">
+                演出者
+              </label>
+              <input
+                className="ned-field ned-field--sm"
+                type="text"
+                value={data.audioMeta?.artist || ''}
+                placeholder="演出者 / 作曲者"
+                onChange={(e) => updateAudioMeta({ artist: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="ned-meta-row">
+            <div>
+              <label className="ned-field-label ned-field-label--sm">
+                專輯
+              </label>
+              <input
+                className="ned-field ned-field--sm"
+                type="text"
+                value={data.audioMeta?.album || ''}
+                placeholder="專輯名稱"
+                onChange={(e) => updateAudioMeta({ album: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="ned-field-label ned-field-label--sm">
+                年份
+              </label>
+              <input
+                className="ned-field ned-field--sm"
+                type="text"
+                value={data.audioMeta?.year || ''}
+                placeholder="年份"
+                onChange={(e) => updateAudioMeta({ year: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="ned-meta-row">
+            <div>
+              <label className="ned-field-label ned-field-label--sm">
+                類型
+              </label>
+              <input
+                className="ned-field ned-field--sm"
+                type="text"
+                value={data.audioMeta?.genre || ''}
+                placeholder="類型"
+                onChange={(e) => updateAudioMeta({ genre: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="ned-field-label ned-field-label--sm">
+                備註
+              </label>
+              <input
+                className="ned-field ned-field--sm"
+                type="text"
+                value={data.audioMeta?.info || ''}
+                placeholder="備註"
+                onChange={(e) => updateAudioMeta({ info: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 封面圖 */}
+      <label className="ned-field-label">封面圖</label>
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleCoverUpload}
+      />
+      <div className="ned-cover-zone">
+        {data.coverImage ? (
+          <div className="ned-cover-preview">
+            <img
+              src={`${API_BASE}/api/assets/${data.coverImage
+                .split('/')
+                .map((s) => encodeURIComponent(s))
+                .join('/')}`}
+              alt="封面圖預覽"
+              className="ned-cover-img"
+            />
+            <div className="ned-cover-actions">
+              <div className="ned-audio-name">
+                {data.coverImage.split('/').pop()}
+              </div>
+              <div className="ned-cover-btns">
+                <button
+                  className="ned-btn-ghost ned-btn-sm"
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={uploading === 'cover'}
+                >
+                  替換
+                </button>
+                <button
+                  className="ned-btn-ghost ned-btn-sm"
+                  type="button"
+                  onClick={() => update({ coverImage: null })}
+                >
+                  刪除
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            className="ned-btn-ghost"
+            type="button"
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploading === 'cover'}
+            style={{ width: '100%', textAlign: 'center', padding: '14px' }}
+          >
+            {uploading === 'cover' ? '上傳中...' : '+ 選擇封面圖上傳'}
+          </button>
+        )}
+      </div>
+
+      {/* 賞析（可多段）*/}
       <div className="ned-appreciation-header">
         <label className="ned-field-label" style={{ margin: 0 }}>
-          \u8CDE\u6790\uFF08\u53EF\u591A\u6BB5\uFF09
+          賞析（可多段）
         </label>
         <button
           className="ned-btn-ghost ned-btn-sm"
           type="button"
           onClick={addAppreciation}
         >
-          + \u65B0\u589E\u6BB5\u843D
+          + 新增段落
         </button>
       </div>
       <div className="ned-appreciation-list">
@@ -217,20 +649,18 @@ export default function EchoesEditorBody({
               type="button"
               onClick={() => removeAppreciation(i)}
             >
-              \u00d7
+              ×
             </button>
           </div>
         ))}
       </div>
 
-      {/* Locked appreciation */}
-      <label className="ned-field-label">
-        \u8CDE\u6790\uFF08\u9396\u5B9A\u6642\u986F\u793A\uFF09
-      </label>
+      {/* 賞析（鎖定時顯示）*/}
+      <label className="ned-field-label">賞析（鎖定時顯示）</label>
       <textarea
         className="ned-field ned-field--textarea ned-field--italic"
         value={data.appreciationLocked}
-        placeholder="\u9396\u5B9A\u6642\u986F\u793A\u7684\u66FF\u4EE3\u6587\u5B57"
+        placeholder="鎖定時顯示的替代文字"
         onChange={(e) => update({ appreciationLocked: e.target.value })}
       />
     </div>

@@ -4,7 +4,7 @@
 -- 頁面內容表
 CREATE TABLE IF NOT EXISTS pages (
   id TEXT PRIMARY KEY,                          -- 頁面路徑識別碼，例如 "history/chapter-1"
-  area TEXT NOT NULL,                           -- 所屬區域：history, echos, visuals, concepts, storage, portal
+  area TEXT NOT NULL,                           -- 所屬區域：history, echoes, visuals, concepts, storage, portal
   title TEXT NOT NULL DEFAULT '',                -- 頁面標題
   slug TEXT NOT NULL,                           -- URL slug
   sort_order INTEGER NOT NULL DEFAULT 0,        -- 在區域內的排序

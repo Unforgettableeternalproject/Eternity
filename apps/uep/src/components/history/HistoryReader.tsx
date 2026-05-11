@@ -9,9 +9,25 @@ import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { renderIcon } from '../editor/IconLibrary';
+import type {
+  HomepageBlock,
+  ZoneHeaderData,
+  UepDialogueItem,
+  ArchwayCard,
+} from '../editor/homepage/types';
+import { fromContentBlock } from '../editor/homepage/types';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
-type PageType = 'zone' | 'chapter' | 'arc' | 'section' | 'page';
+type PageType =
+  | 'zone'
+  | 'chapter'
+  | 'arc'
+  | 'section'
+  | 'page'
+  | 'cluster'
+  | 'subcategory'
+  | 'song'
+  | 'homepage';
 
 interface ContentBlock {
   id: string;
@@ -89,6 +105,10 @@ function pageTypeLabel(type: PageType) {
     arc: 'ARC',
     section: 'SECT',
     page: 'PAGE',
+    cluster: 'CLST',
+    subcategory: 'SCAT',
+    song: 'SONG',
+    homepage: 'HOME',
   };
   return labels[type] || 'PAGE';
 }
@@ -164,6 +184,18 @@ function splitLandingHtml(html: string) {
   };
 }
 
+function findNodeInTree(
+  nodes: PageTreeNode[],
+  id: string
+): PageTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findNodeInTree(node.children || [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
 function resolveInternalLink(
   currentPageId: string,
   href: string,
@@ -210,6 +242,7 @@ function resolveInternalLink(
 export default function HistoryReader() {
   const [theme, setTheme] = useState('dark');
   const [showMap, setShowMap] = useState(false);
+  const [homePortal, setHomePortal] = useState(false);
   const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
     null
   );
@@ -230,6 +263,11 @@ export default function HistoryReader() {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [zoneActiveTab, setZoneActiveTab] = useState<number | null>(null);
+
+  // 首頁區塊資料（從 D1 homepage 頁面載入）
+  const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
+  const [contentReady, setContentReady] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -285,8 +323,14 @@ export default function HistoryReader() {
     setTheme(storedTheme);
     document.documentElement.setAttribute('data-theme', storedTheme);
 
-    const storedSidebar = localStorage.getItem('history-sidebar');
-    if (storedSidebar === 'closed') setSidebarOpen(false);
+    // 手機上預設收合側邊欄；桌面尊重 localStorage
+    const isMobileNow = window.matchMedia('(max-width: 760px)').matches;
+    if (isMobileNow) {
+      setSidebarOpen(false);
+    } else {
+      const storedSidebar = localStorage.getItem('history-sidebar');
+      if (storedSidebar === 'closed') setSidebarOpen(false);
+    }
 
     void fetchTree();
   }, []);
@@ -305,6 +349,56 @@ export default function HistoryReader() {
     if (!pageLevelNodes.length) return;
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
+
+  // 載入首頁區塊資料
+  useEffect(() => {
+    // 安全逾時：2 秒後無論如何解除霧化
+    const timeout = setTimeout(() => setContentReady(true), 2000);
+    fetch(`${API_BASE}/api/content/history/homepage`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: any) => {
+        if (!json?.ok || !json.data?.content) return;
+        const raw =
+          typeof json.data.content === 'string'
+            ? JSON.parse(json.data.content)
+            : json.data.content;
+        if (Array.isArray(raw) && raw.length > 0) {
+          setHomepageBlocks(raw.map(fromContentBlock));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timeout);
+        setContentReady(true);
+      });
+  }, []);
+
+  // 從首頁區塊中提取特定類型的資料
+  const hpHeader = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'zone-header');
+    return b ? (b.data as ZoneHeaderData) : null;
+  }, [homepageBlocks]);
+
+  const hpDialogues = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'uep-dialogue');
+    return b ? (b.data as UepDialogueItem[]) : null;
+  }, [homepageBlocks]);
+
+  const hpArchCards = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'archway-grid');
+    return b ? (b.data as { cards: ArchwayCard[] }).cards : null;
+  }, [homepageBlocks]);
+
+  const hpHintBox = useMemo(() => {
+    const b = homepageBlocks.find((b) => b.type === 'hint-box');
+    return b ? (b.data as { text: string }).text : null;
+  }, [homepageBlocks]);
+
+  const hpRichTexts = useMemo(() => {
+    return homepageBlocks
+      .filter((b) => b.type === 'rich-text')
+      .map((b) => (b.data as { html: string }).html);
+  }, [homepageBlocks]);
 
   useEffect(() => {
     if (!contentRef.current) return;
@@ -410,6 +504,7 @@ export default function HistoryReader() {
     setContentLoading(true);
     setContentError(null);
     setArticleHtml('');
+    setZoneActiveTab(null);
 
     const ancestors = ancestorMap.get(node.id) || [];
     setExpanded(
@@ -561,7 +656,7 @@ export default function HistoryReader() {
         const children = (node.children || []).filter(
           (child) => !isHidden(child)
         );
-        if (node.pageType === 'page') {
+        if (node.pageType === 'page' || node.pageType === 'homepage') {
           return renderTree(children, depth);
         }
 
@@ -622,11 +717,69 @@ export default function HistoryReader() {
       ).filter((page) => page.pageType !== 'page')
     : [];
 
+  // Zone 分頁目錄（從 metadata.zoneTabs 讀取）
+  const zoneTabsData = useMemo(() => {
+    if (currentPage?.pageType !== 'zone' || !currentPage.metadata?.zoneTabs)
+      return [] as { label: string; items: string[] }[];
+    return currentPage.metadata.zoneTabs as {
+      label: string;
+      items: string[];
+    }[];
+  }, [currentPage]);
+  const activeZoneTabIdx =
+    zoneActiveTab !== null &&
+    zoneActiveTab >= 0 &&
+    zoneActiveTab < zoneTabsData.length
+      ? zoneActiveTab
+      : zoneTabsData.length > 0
+        ? 0
+        : -1;
+  const zoneTabItems = useMemo(() => {
+    if (activeZoneTabIdx < 0) return [] as PageTreeNode[];
+    const tab = zoneTabsData[activeZoneTabIdx];
+    return (tab?.items || [])
+      .map((id: string) => flatPages.find((p) => p.id === id))
+      .filter(Boolean) as PageTreeNode[];
+  }, [activeZoneTabIdx, zoneTabsData, flatPages]);
+
   return (
     <div className="history-reader">
       <style>{historyReaderCss}</style>
 
-      <TopBar onOpenMap={() => setShowMap(true)} dark={theme === 'dark'} />
+      {/* 入場霧化 — 等待首頁資料載入後再解除 */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 50,
+          pointerEvents: 'none',
+          ...(contentReady
+            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
+            : {
+                backdropFilter: 'blur(18px)',
+                background: 'rgba(10,10,14,0.5)',
+              }),
+        }}
+      />
+      <style>{`
+        @keyframes zone-arrival {
+          0%   { backdrop-filter: blur(18px); background: rgba(10,10,14,0.5); }
+          60%  { backdrop-filter: blur(4px); background: rgba(10,10,14,0.12); }
+          100% { backdrop-filter: blur(0px); background: transparent; }
+        }
+      `}</style>
+
+      <TopBar
+        onOpenMap={() => setShowMap(true)}
+        onGoHome={() => {
+          setHomePortal(true);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1100);
+        }}
+        dark={theme === 'dark'}
+      />
 
       <div className="history-main">
         <ZoneAtmosphere zone={historyZone} intensity="subtle" />
@@ -693,6 +846,15 @@ export default function HistoryReader() {
           </nav>
         </aside>
 
+        {/* 手機端側邊欄打開時的背景模糊遮罩 */}
+        {sidebarOpen && (
+          <div
+            className="history-sidebar-backdrop"
+            onClick={toggleSidebar}
+            aria-hidden="true"
+          />
+        )}
+
         {!sidebarOpen && (
           <button
             className="history-sidebar-peek"
@@ -707,66 +869,190 @@ export default function HistoryReader() {
           {!currentId ? (
             <section className="history-landing">
               <div className="history-landing-inner">
-                <div className="history-kicker">History / Passage</div>
-                <h2>
-                  {passagePage?.title || passageNode?.title || '三向通道'}
-                </h2>
-                {(treeLoading || landingLoading) && !passagePage && (
-                  <div className="history-state">正在讀取三向通道...</div>
-                )}
-                {landingParts.before && (
-                  <div
-                    className="history-prose history-landing-prose"
-                    dangerouslySetInnerHTML={{ __html: landingParts.before }}
-                  />
-                )}
-
-                <div className="history-arch-grid">
-                  {archNodes.map((node, index) => (
-                    <button
-                      className="history-arch-card"
-                      type="button"
-                      key={node.id}
-                      onClick={() => void loadPage(node)}
-                    >
-                      <span className="history-arch-index">
-                        {['U', 'E', 'P'][index] ||
-                          String(index + 1).padStart(2, '0')}
-                      </span>
-                      <span className="history-arch-title">{node.title}</span>
-                      <span className="history-arch-meta">
-                        {node.children.length} entries /{' '}
-                        {pageTypeLabel(node.pageType)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {landingParts.after && (
-                  <div
-                    className="history-prose history-landing-prose"
-                    dangerouslySetInnerHTML={{ __html: landingParts.after }}
-                  />
-                )}
-
-                <div className="history-uep-note">
-                  <UepDialogue
-                    text="這裡是歷史典藏庫的三向通道。選擇 U、E、P 其中一扇門，就會進入對應區段的閱讀頁。"
-                    effects={['shimmer', 'halo']}
-                  />
-                </div>
-
-                {notePage && (
-                  <section className="history-note-section">
-                    <div className="history-kicker">Loose Note / Page</div>
-                    <h3>{notePage.title}</h3>
-                    <div
-                      className="history-prose history-note-prose"
-                      dangerouslySetInnerHTML={{
-                        __html: renderBlocks(notePage.content),
-                      }}
-                    />
-                  </section>
+                {homepageBlocks.length > 0 ? (
+                  /* ── 資料驅動：按區塊順序渲染 ── */
+                  homepageBlocks.map((block) => {
+                    switch (block.type) {
+                      case 'zone-header': {
+                        const d = block.data as ZoneHeaderData;
+                        return (
+                          <div key={block.id}>
+                            <div className="history-kicker">
+                              History / Passage
+                            </div>
+                            <h2>{d.title}</h2>
+                            {d.subtitle && <p>{d.subtitle}</p>}
+                          </div>
+                        );
+                      }
+                      case 'uep-dialogue': {
+                        const items = block.data as UepDialogueItem[];
+                        return (
+                          <div key={block.id} className="history-uep-note">
+                            {items.map((d, i) => (
+                              <UepDialogue
+                                key={i}
+                                text={d.text}
+                                side={d.side}
+                                effects={d.effects as any}
+                              />
+                            ))}
+                          </div>
+                        );
+                      }
+                      case 'archway-grid': {
+                        const cards = (block.data as { cards: ArchwayCard[] })
+                          .cards;
+                        return (
+                          <div key={block.id} className="history-arch-grid">
+                            {archNodes.map((node, index) => {
+                              const card = cards[index];
+                              const isLocked = card && card.state !== 'open';
+                              return (
+                                <button
+                                  className={`history-arch-card ${isLocked ? 'is-locked' : ''}`}
+                                  type="button"
+                                  key={node.id}
+                                  onClick={(e) => {
+                                    if (isLocked) {
+                                      // 紅光閃爍表示不可用
+                                      const el = e.currentTarget;
+                                      el.classList.add('is-denied');
+                                      setTimeout(
+                                        () => el.classList.remove('is-denied'),
+                                        600
+                                      );
+                                      return;
+                                    }
+                                    void loadPage(node);
+                                  }}
+                                  style={
+                                    isLocked
+                                      ? {
+                                          filter: 'grayscale(1)',
+                                          opacity: 0.55,
+                                        }
+                                      : undefined
+                                  }
+                                >
+                                  <span className="history-arch-index">
+                                    {card?.tag ||
+                                      ['U', 'E', 'P'][index] ||
+                                      String(index + 1).padStart(2, '0')}
+                                  </span>
+                                  <span className="history-arch-title">
+                                    {card?.name || node.title}
+                                  </span>
+                                  <span className="history-arch-meta">
+                                    {card?.stateLabel ||
+                                      `${node.children.length} entries / ${pageTypeLabel(node.pageType)}`}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      case 'hint-box': {
+                        const text = (block.data as { text: string }).text;
+                        return (
+                          <div
+                            key={block.id}
+                            style={{
+                              marginTop: 28,
+                              padding: '14px 18px',
+                              borderLeft: `3px solid ${historyZone.main}60`,
+                              background: 'var(--bg-soft)',
+                              fontFamily: 'var(--font-serif-tc)',
+                              fontSize: 14,
+                              color: 'var(--ink-soft)',
+                              fontStyle: 'italic',
+                              lineHeight: 1.8,
+                            }}
+                          >
+                            {text}
+                          </div>
+                        );
+                      }
+                      case 'rich-text': {
+                        const html = (block.data as { html: string }).html;
+                        return (
+                          <div
+                            key={block.id}
+                            className="history-prose history-landing-prose"
+                            dangerouslySetInnerHTML={{ __html: html }}
+                          />
+                        );
+                      }
+                      default:
+                        return null;
+                    }
+                  })
+                ) : (
+                  /* ── Fallback：舊版固定佈局 ── */
+                  <>
+                    <div className="history-kicker">History / Passage</div>
+                    <h2>
+                      {passagePage?.title || passageNode?.title || '三向通道'}
+                    </h2>
+                    {(treeLoading || landingLoading) && !passagePage && (
+                      <div className="history-state">正在讀取三向通道...</div>
+                    )}
+                    {landingParts.before && (
+                      <div
+                        className="history-prose history-landing-prose"
+                        dangerouslySetInnerHTML={{
+                          __html: landingParts.before,
+                        }}
+                      />
+                    )}
+                    <div className="history-arch-grid">
+                      {archNodes.map((node, index) => (
+                        <button
+                          className="history-arch-card"
+                          type="button"
+                          key={node.id}
+                          onClick={() => void loadPage(node)}
+                        >
+                          <span className="history-arch-index">
+                            {['U', 'E', 'P'][index] ||
+                              String(index + 1).padStart(2, '0')}
+                          </span>
+                          <span className="history-arch-title">
+                            {node.title}
+                          </span>
+                          <span className="history-arch-meta">
+                            {node.children.length} entries /{' '}
+                            {pageTypeLabel(node.pageType)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {landingParts.after && (
+                      <div
+                        className="history-prose history-landing-prose"
+                        dangerouslySetInnerHTML={{ __html: landingParts.after }}
+                      />
+                    )}
+                    <div className="history-uep-note">
+                      <UepDialogue
+                        text="這裡是歷史典藏庫的三向通道。選擇 U、E、P 其中一扇門，就會進入對應區段的閱讀頁。"
+                        effects={['shimmer', 'halo']}
+                      />
+                    </div>
+                    {notePage && (
+                      <section className="history-note-section">
+                        <div className="history-kicker">Loose Note / Page</div>
+                        <h3>{notePage.title}</h3>
+                        <div
+                          className="history-prose history-note-prose"
+                          dangerouslySetInnerHTML={{
+                            __html: renderBlocks(notePage.content),
+                          }}
+                        />
+                      </section>
+                    )}
+                  </>
                 )}
               </div>
             </section>
@@ -839,6 +1125,50 @@ export default function HistoryReader() {
                 )}
               </article>
 
+              {/* Zone 分頁目錄（從 metadata 讀取） */}
+              {zoneTabsData.length > 0 && (
+                <div className="history-zone-tabs">
+                  <div className="history-zone-tabs-bar">
+                    {zoneTabsData.map((tab, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`history-zone-tab ${activeZoneTabIdx === i ? 'active' : ''}`}
+                        onClick={() => setZoneActiveTab(i)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="history-zone-tabs-body">
+                    {zoneTabItems.length === 0 ? (
+                      <div className="history-zone-tabs-empty">
+                        此分頁下尚無內容
+                      </div>
+                    ) : (
+                      <ul className="history-zone-tab-list">
+                        {zoneTabItems.map((child) => (
+                          <li key={child.id}>
+                            <button
+                              type="button"
+                              className="history-zone-tab-link"
+                              onClick={() => void loadPage(child)}
+                            >
+                              {renderIcon(
+                                child.metadata?.icon as string,
+                                14,
+                                'history-zone-tab-link-icon'
+                              ) || null}
+                              {child.title}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="history-page-nav">
                 <button
                   type="button"
@@ -877,7 +1207,10 @@ export default function HistoryReader() {
           onPick={showZoneIntro}
           onCenterClick={() => {
             setShowMap(false);
-            window.location.href = '/';
+            setHomePortal(true);
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1100);
           }}
         />
       )}
@@ -892,13 +1225,18 @@ export default function HistoryReader() {
         }}
       />
       <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
+      <PortalTransition
+        zone={null}
+        homeMode={homePortal}
+        onDone={() => setHomePortal(false)}
+      />
     </div>
   );
 }
 
 const historyReaderCss = `
   .history-reader {
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     background: var(--bg);
@@ -1267,6 +1605,10 @@ const historyReaderCss = `
     margin-top: 28px;
   }
 
+  .history-landing-prose p {
+    font-style: normal;
+  }
+
   .history-landing-prose h1 {
     display: none;
   }
@@ -1320,6 +1662,24 @@ const historyReaderCss = `
 
   .history-arch-card:hover {
     background: var(--history-tint);
+  }
+
+  .history-arch-card.is-locked {
+    cursor: not-allowed;
+  }
+  .history-arch-card.is-locked:hover {
+    background: color-mix(in srgb, #6B3F2A 5%, transparent);
+  }
+
+  .history-arch-card.is-denied {
+    animation: arch-denied 0.6s ease;
+  }
+
+  @keyframes arch-denied {
+    0%   { box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0); }
+    20%  { box-shadow: inset 0 0 30px 4px rgba(220, 38, 38, 0.35); border-color: rgba(220, 38, 38, 0.7); }
+    50%  { box-shadow: inset 0 0 15px 2px rgba(220, 38, 38, 0.18); }
+    100% { box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0); }
   }
 
   .history-arch-index {
@@ -1674,6 +2034,115 @@ const historyReaderCss = `
     font-style: italic;
   }
 
+  /* === Zone 分頁目錄 === */
+  .history-zone-tabs {
+    margin-top: 36px;
+    border: 1px solid var(--line);
+    background: var(--bg-card);
+  }
+
+  .history-zone-tabs-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+
+  .history-zone-tab {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--font-serif-tc);
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color .15s, border-color .15s;
+  }
+
+  .history-zone-tab:hover {
+    color: var(--ink-title);
+  }
+
+  .history-zone-tab.active {
+    color: ${HISTORY_ZONE.main};
+    border-bottom-color: ${HISTORY_ZONE.main};
+  }
+
+  .history-zone-tab-icon {
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .history-zone-tabs-body {
+    padding: 8px 16px;
+  }
+
+  .history-zone-tabs-empty {
+    padding: 16px 0;
+    text-align: center;
+    color: var(--ink-mute);
+    font-family: var(--font-serif-tc);
+    font-size: 13px;
+  }
+
+  .history-zone-tab-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .history-zone-tab-list li {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .history-zone-tab-list li:last-child {
+    border-bottom: 0;
+  }
+
+  .history-zone-tab-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--font-serif-tc);
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+    transition: color .15s;
+  }
+
+  .history-zone-tab-link::before {
+    content: "•";
+    color: ${HISTORY_ZONE.main};
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .history-zone-tab-link:hover {
+    color: ${HISTORY_ZONE.soft};
+  }
+
+  .history-zone-tab-link-icon {
+    color: ${HISTORY_ZONE.main};
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  /* 背景遮罩（桌面隱藏，手機用） */
+  .history-sidebar-backdrop {
+    display: none;
+  }
+
   @media (max-width: 760px) {
     .history-topbar {
       padding: 0 16px;
@@ -1687,6 +2156,18 @@ const historyReaderCss = `
       position: absolute;
       inset: 0 auto 0 0;
       box-shadow: 18px 0 42px rgba(0,0,0,.24);
+      z-index: 15;
+    }
+
+    .history-sidebar-backdrop {
+      display: block;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      z-index: 14;
+      cursor: pointer;
     }
 
     .history-landing,

@@ -18,6 +18,8 @@ import EchoesEditorBody, {
   serializeEchoesData,
   type EchoesData,
 } from './EchoesEditorBody';
+import EchoesSubcatEditor from './EchoesSubcatEditor';
+import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './RichEditor.css';
 
 // === Color palettes ===
@@ -106,7 +108,7 @@ export default function RichEditor({
   const [isDirty, setIsDirty] = useState(false);
   const [title, setTitle] = useState(initialTitle);
   const [parentId, setParentId] = useState(initialParentId || '');
-  const [pageType, setPageType] = useState(initialPageType || 'page');
+  const [pageType, setPageType] = useState(initialPageType || 'section');
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [locked, setLocked] = useState(initialMetadata?.locked === true);
@@ -131,10 +133,18 @@ export default function RichEditor({
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
-  // Echoes-specific state
-  const isEchoes = area === 'echos' || zoneId === 'echoes';
+  // Echoes 特殊編輯模式
+  const isEchoesArea = area === 'echoes' || zoneId === 'echoes';
+  const isEchoes = isEchoesArea && pageType === 'song';
+  const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
+  const isZone = pageType === 'zone';
+  const isPageType =
+    !isEntryMode && (pageType === 'page' || pageType === 'homepage');
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
+  );
+  const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
+    () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
   );
 
   // TipTap editor
@@ -201,6 +211,7 @@ export default function RichEditor({
         ...(icon ? { icon } : {}),
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
+        ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -229,7 +240,9 @@ export default function RichEditor({
     editor,
     isDirty,
     isEchoes,
+    isZone,
     echoesData,
+    zoneTabs,
     title,
     apiBase,
     area,
@@ -470,7 +483,13 @@ export default function RichEditor({
             <div className="ned-header-right">
               <span className="ned-shortcut-hint">Ctrl+S</span>
               <a
-                href={`/${area}?page=${area}/${pageSlug}`}
+                href={
+                  isEchoes
+                    ? `/${area}?song=${area}/${pageSlug}`
+                    : area === 'echoes' || zoneId === 'echoes'
+                      ? `/${area}?page=${area}/${pageSlug}`
+                      : `/${area}?page=${area}/${pageSlug}`
+                }
                 className="ned-btn-ghost"
                 target="_blank"
                 rel="noopener"
@@ -919,28 +938,59 @@ export default function RichEditor({
                   )}
                 </div>
               </div>
+
+              <div className="tb-sep" />
+
+              {/* 清除格式 */}
+              <div className="tb-group">
+                <button
+                  className="tb-btn"
+                  onClick={() =>
+                    editor
+                      .chain()
+                      .focus()
+                      .unsetAllMarks()
+                      .clearNodes()
+                      .setParagraph()
+                      .run()
+                  }
+                  title="清除格式"
+                >
+                  ✕
+                </button>
+              </div>
             </>
           )}
 
           <span className="ned-toolbar-right">
-            {isEchoes ? 'song mode' : 'rich text'}
-            {!isEchoes && ` \u00b7 ${charCount.toLocaleString()} chars`}
+            {isEchoes
+              ? 'song mode'
+              : isEchoesSubcat
+                ? 'playlist mode'
+                : isZone
+                  ? 'zone mode'
+                  : isPageType
+                    ? 'homepage mode'
+                    : 'rich text'}
+            {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
           </span>
         </div>
       )}
 
-      {/* Body — 3 columns */}
-      <div className="ned-body">
-        {/* Left — Page Tree */}
-        <aside className="ned-panel--tree">
-          <EditorPageTree
-            area={area}
-            apiBase={apiBase}
-            currentSlug={pageSlug}
-            accent={accentMain}
-            refreshKey={treeRefreshKey}
-          />
-        </aside>
+      {/* Body — 3 columns (or 2 in homepage mode) */}
+      <div className={`ned-body ${isPageType ? 'ned-body--no-tree' : ''}`}>
+        {/* Left — Page Tree (hidden in homepage mode) */}
+        {!isPageType && (
+          <aside className="ned-panel--tree">
+            <EditorPageTree
+              area={area}
+              apiBase={apiBase}
+              currentSlug={pageSlug}
+              accent={accentMain}
+              refreshKey={treeRefreshKey}
+            />
+          </aside>
+        )}
 
         {/* Middle — Editor */}
         <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
@@ -980,7 +1030,34 @@ export default function RichEditor({
                     onDirty={() => setIsDirty(true)}
                   />
                 ) : (
-                  <EditorContent editor={editor} />
+                  <>
+                    <EditorContent editor={editor} />
+                    {isEchoesSubcat && (
+                      <EchoesSubcatEditor
+                        area={area}
+                        apiBase={apiBase}
+                        pageId={`${area}/${pageSlug}`}
+                        pageSlug={pageSlug}
+                        accent={accentMain}
+                        onDirty={() => setIsDirty(true)}
+                        refreshKey={treeRefreshKey}
+                      />
+                    )}
+                    {isZone && (
+                      <ZoneTabsEditor
+                        area={area}
+                        apiBase={apiBase}
+                        pageId={`${area}/${pageSlug}`}
+                        accent={accentMain}
+                        zoneTabs={zoneTabs}
+                        onZoneTabsChange={(tabs) => {
+                          setZoneTabs(tabs);
+                          setIsDirty(true);
+                        }}
+                        refreshKey={treeRefreshKey}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </>
@@ -991,6 +1068,7 @@ export default function RichEditor({
         {!isEntryMode && (
           <aside className="ned-panel--inspector">
             <EditorInspector
+              area={area}
               pageType={pageType}
               onPageTypeChange={setPageType}
               parentId={parentId}

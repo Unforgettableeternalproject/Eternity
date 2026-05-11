@@ -11,6 +11,9 @@ import type {
   JwtPayload,
   LoginRequest,
   BootstrapRequest,
+  AssetItem,
+  ListAssetsResponse,
+  BatchDeleteRequest,
 } from './types';
 import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
 
@@ -146,6 +149,27 @@ function isAuthorized(request: Request, env: Env): boolean {
   return token === env.API_TOKEN;
 }
 
+/** JWT 驗證 — 用於需要登入的 Admin 路由，回傳 payload 或 null */
+async function requireJwt(
+  request: Request,
+  env: Env
+): Promise<JwtPayload | null> {
+  // 開發模式（無 JWT_SECRET）：允許所有請求
+  if (!env.JWT_SECRET)
+    return {
+      sub: 'dev',
+      role: 'super_admin',
+      display_name: 'Dev',
+      iat: 0,
+      exp: 0,
+      jti: '',
+    };
+  const auth = request.headers.get('Authorization');
+  const token = auth?.replace('Bearer ', '');
+  if (!token) return null;
+  return verifyJwt(token, env.JWT_SECRET);
+}
+
 // ===== 路由處理 =====
 
 /** GET /api/content/:area — 列出區域內所有頁面 */
@@ -249,10 +273,11 @@ async function upsertPage(
       .run();
   } else {
     // 建立新頁面
+    const insertStatus = body.status || 'local_only';
     await db
       .prepare(
         `INSERT INTO pages (id, area, title, slug, sort_order, content, status, metadata, parent_id, depth, page_type, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'local_only', ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -261,6 +286,7 @@ async function upsertPage(
         slug,
         body.sortOrder || 0,
         JSON.stringify(body.content || []),
+        insertStatus,
         JSON.stringify(body.metadata || {}),
         body.parentId || null,
         body.depth || 0,
@@ -609,6 +635,223 @@ async function handleBootstrap(
   );
 }
 
+// ===== 媒體庫處理 =====
+
+/** GET /api/assets — 列出 R2 資產並交叉比對 D1 引用 */
+async function listAssets(
+  url: URL,
+  bucket: R2Bucket,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const prefix = url.searchParams.get('prefix') || undefined;
+  const limit = Math.min(
+    parseInt(url.searchParams.get('limit') || '200', 10) || 200,
+    500
+  );
+  const cursor = url.searchParams.get('cursor') || undefined;
+
+  // 1. R2 列表
+  const listed = await bucket.list({ prefix, limit, cursor });
+
+  // 2. D1 交叉比對 — 建立引用 Map
+  const referenceMap = new Map<string, string[]>();
+
+  // 查詢 song 頁面的 metadata（audioFile, coverImage）
+  const songRows = await db
+    .prepare("SELECT id, metadata FROM pages WHERE page_type = 'song'")
+    .all<{ id: string; metadata: string }>();
+
+  for (const row of songRows.results || []) {
+    try {
+      const meta = JSON.parse(row.metadata || '{}');
+      for (const field of ['audioFile', 'coverImage']) {
+        const key: string | undefined = meta[field];
+        if (key) {
+          if (!referenceMap.has(key)) referenceMap.set(key, []);
+          referenceMap.get(key)!.push(row.id);
+        }
+      }
+    } catch {
+      // 略過格式錯誤的 metadata
+    }
+  }
+
+  // 掃描所有頁面的 content HTML，找出 /api/assets/ 引用
+  const contentRows = await db
+    .prepare('SELECT id, content FROM pages')
+    .all<{ id: string; content: string }>();
+
+  const assetUrlRegex = /\/api\/assets\/((?:images|audio|files)\/[^\s"'<>]+)/g;
+
+  for (const row of contentRows.results || []) {
+    try {
+      const blocks = JSON.parse(row.content || '[]');
+      for (const block of blocks) {
+        if (typeof block.content !== 'string') continue;
+        assetUrlRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = assetUrlRegex.exec(block.content)) !== null) {
+          const key = match[1];
+          if (!referenceMap.has(key)) referenceMap.set(key, []);
+          const refs = referenceMap.get(key)!;
+          if (!refs.includes(row.id)) refs.push(row.id);
+        }
+      }
+    } catch {
+      // 略過格式錯誤的 content
+    }
+  }
+
+  // 3. 組合回傳
+  const items: AssetItem[] = listed.objects.map((obj) => {
+    const refs = referenceMap.get(obj.key) || [];
+    return {
+      key: obj.key,
+      size: obj.size,
+      uploaded: obj.uploaded.toISOString(),
+      contentType: obj.httpMetadata?.contentType || 'application/octet-stream',
+      originalName: obj.customMetadata?.originalName,
+      referenced: refs.length > 0,
+      referencedBy: refs,
+    };
+  });
+
+  const data: ListAssetsResponse = {
+    items,
+    cursor: listed.truncated ? listed.cursor : undefined,
+    hasMore: listed.truncated,
+  };
+
+  return jsonResponse({ ok: true, data }, 200, cors);
+}
+
+/** DELETE /api/assets/batch — 批次刪除多個 R2 資產 */
+async function batchDeleteAssets(
+  body: BatchDeleteRequest,
+  bucket: R2Bucket,
+  cors: Record<string, string>
+): Promise<Response> {
+  if (!Array.isArray(body.keys) || body.keys.length === 0) {
+    return jsonResponse({ ok: false, error: 'No keys provided' }, 400, cors);
+  }
+  if (body.keys.length > 100) {
+    return jsonResponse(
+      { ok: false, error: 'Maximum 100 keys per batch' },
+      400,
+      cors
+    );
+  }
+
+  const results = await Promise.allSettled(
+    body.keys.map((key) => bucket.delete(key))
+  );
+  const failed = results
+    .map((r, i) => (r.status === 'rejected' ? body.keys[i] : null))
+    .filter(Boolean) as string[];
+
+  if (failed.length > 0) {
+    return jsonResponse(
+      { ok: false, error: `刪除失敗：${failed.join(', ')}` },
+      500,
+      cors
+    );
+  }
+  return jsonResponse(
+    { ok: true, data: { deleted: body.keys.length } },
+    200,
+    cors
+  );
+}
+
+/** POST /api/assets/rename — 重新命名 R2 資產並更新 D1 引用 */
+async function renameAsset(
+  body: { oldKey: string; newKey: string },
+  bucket: R2Bucket,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const { oldKey, newKey } = body;
+  if (!oldKey || !newKey) {
+    return jsonResponse(
+      { ok: false, error: 'oldKey and newKey are required' },
+      400,
+      cors
+    );
+  }
+  if (oldKey === newKey) {
+    return jsonResponse({ ok: true, data: { key: newKey } }, 200, cors);
+  }
+
+  // 1. 確認原檔案存在
+  const obj = await bucket.get(oldKey);
+  if (!obj) {
+    return jsonResponse({ ok: false, error: '原始檔案不存在' }, 404, cors);
+  }
+
+  // 2. 複製到新 key
+  await bucket.put(newKey, obj.body, {
+    httpMetadata: obj.httpMetadata,
+    customMetadata: obj.customMetadata,
+  });
+
+  // 3. 刪除舊 key
+  await bucket.delete(oldKey);
+
+  // 4. 更新 D1 引用 — metadata（audioFile, coverImage）
+  const songRows = await db
+    .prepare("SELECT id, metadata FROM pages WHERE page_type = 'song'")
+    .all<{ id: string; metadata: string }>();
+
+  for (const row of songRows.results || []) {
+    try {
+      const meta = JSON.parse(row.metadata || '{}');
+      let changed = false;
+      if (meta.audioFile === oldKey) {
+        meta.audioFile = newKey;
+        changed = true;
+      }
+      if (meta.coverImage === oldKey) {
+        meta.coverImage = newKey;
+        changed = true;
+      }
+      if (changed) {
+        await db
+          .prepare(
+            "UPDATE pages SET metadata = ?, updated_at = datetime('now') WHERE id = ?"
+          )
+          .bind(JSON.stringify(meta), row.id)
+          .run();
+      }
+    } catch {
+      // 略過格式錯誤的 metadata
+    }
+  }
+
+  // 5. 更新 D1 引用 — content HTML 中的 /api/assets/ URL
+  const contentRows = await db
+    .prepare('SELECT id, content FROM pages')
+    .all<{ id: string; content: string }>();
+
+  for (const row of contentRows.results || []) {
+    try {
+      const content = row.content || '[]';
+      if (!content.includes(oldKey)) continue;
+      const updated = content.split(oldKey).join(newKey);
+      await db
+        .prepare(
+          "UPDATE pages SET content = ?, updated_at = datetime('now') WHERE id = ?"
+        )
+        .bind(updated, row.id)
+        .run();
+    } catch {
+      // 略過格式錯誤的 content
+    }
+  }
+
+  return jsonResponse({ ok: true, data: { key: newKey } }, 200, cors);
+}
+
 // ===== Worker 入口 =====
 
 export default {
@@ -659,6 +902,49 @@ export default {
       );
     }
 
+    // ---- 媒體庫路由（JWT 保護，在 isWriteMethod guard 之前） ----
+
+    // GET /api/assets — 列出所有資產
+    if (path === '/api/assets' && request.method === 'GET') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      return listAssets(url, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
+    }
+
+    // DELETE /api/assets/batch — 批次刪除（必須在 assetMatch regex 之前）
+    if (path === '/api/assets/batch' && request.method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const body = (await request.json()) as BatchDeleteRequest;
+      return batchDeleteAssets(body, env.ASSETS_BUCKET, cors);
+    }
+
+    // POST /api/assets/rename — 重新命名資產
+    if (path === '/api/assets/rename' && request.method === 'POST') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const body = (await request.json()) as { oldKey: string; newKey: string };
+      return renameAsset(body, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
+    }
+
+    // DELETE /api/assets/:key — 單筆刪除（JWT 保護，與批次刪除一致）
+    const assetDeleteMatch = path.match(/^\/api\/assets\/(.+)$/);
+    if (assetDeleteMatch && request.method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const key = decodeURIComponent(assetDeleteMatch[1]);
+      await env.ASSETS_BUCKET.delete(key);
+      return jsonResponse({ ok: true }, 200, cors);
+    }
+
     // ---- 內容路由授權檢查 ----
     const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
 
@@ -700,7 +986,7 @@ export default {
     // ---- 圖片資源路由 (R2) ----
     const assetMatch = path.match(/^\/api\/assets\/(.+)$/);
     if (assetMatch) {
-      const key = assetMatch[1];
+      const key = decodeURIComponent(assetMatch[1]);
 
       if (request.method === 'GET') {
         const obj = await env.ASSETS_BUCKET.get(key);
@@ -733,9 +1019,27 @@ export default {
         );
       }
 
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-      const timestamp = Date.now();
-      const key = `images/${timestamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const contentType = file.type || 'application/octet-stream';
+      // 允許透過 formData 指定 key（sync 用途），否則自動產生
+      const explicitKey = formData.get('key') as string | null;
+      let key: string;
+      if (explicitKey) {
+        key = explicitKey;
+      } else {
+        const prefix = contentType.startsWith('audio/')
+          ? 'audio'
+          : contentType.startsWith('image/')
+            ? 'images'
+            : 'files';
+        // 加上 timestamp + random suffix 避免同名檔案覆蓋 R2 資源
+        const ext = file.name.includes('.')
+          ? `.${file.name.split('.').pop()}`
+          : '';
+        const base = file.name.replace(/\.[^.]+$/, '');
+        const suffix =
+          Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        key = `${prefix}/${base}-${suffix}${ext}`;
+      }
 
       await env.ASSETS_BUCKET.put(key, file.stream(), {
         httpMetadata: { contentType: file.type },

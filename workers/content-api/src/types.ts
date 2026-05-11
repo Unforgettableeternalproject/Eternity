@@ -25,7 +25,16 @@ export type BlockType =
   | 'audio'
   | 'rich_text';
 
-export type PageType = 'zone' | 'chapter' | 'arc' | 'section' | 'page';
+export type PageType =
+  | 'zone'
+  | 'chapter'
+  | 'arc'
+  | 'section'
+  | 'page' // History 專用
+  | 'cluster'
+  | 'subcategory'
+  | 'song' // Echoes 專用
+  | 'homepage'; // 區域首頁
 
 /** 單一內容區塊 */
 export interface ContentBlock {
@@ -101,6 +110,7 @@ export interface UpsertPageRequest {
   parentId?: string | null;
   depth?: number;
   pageType?: PageType;
+  status?: PageStatus;
 }
 
 /** 匯入頁面的請求（從子倉庫來源） */
@@ -188,4 +198,26 @@ export interface PageListItem {
   depth: number;
   pageType: PageType;
   updatedAt: string;
+}
+
+// ===== 媒體庫 =====
+
+export interface AssetItem {
+  key: string;
+  size: number;
+  uploaded: string;
+  contentType: string;
+  originalName?: string;
+  referenced: boolean;
+  referencedBy: string[];
+}
+
+export interface ListAssetsResponse {
+  items: AssetItem[];
+  cursor?: string;
+  hasMore: boolean;
+}
+
+export interface BatchDeleteRequest {
+  keys: string[];
 }

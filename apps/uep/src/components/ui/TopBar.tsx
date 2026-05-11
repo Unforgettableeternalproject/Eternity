@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 
 interface TopBarProps {
   onOpenMap?: () => void;
+  onGoHome?: () => void;
   dark?: boolean;
 }
 
-export default function TopBar({ onOpenMap, dark }: TopBarProps) {
+export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
   const [theme, setTheme] = useState<string>('dark');
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
 
   return (
     <div
+      className="uep-topbar"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -34,8 +36,25 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
         background: 'var(--bg)',
       }}
     >
+      <style>{`
+        @media (max-width: 760px) {
+          .uep-topbar { padding: 12px 16px !important; }
+          .uep-topbar-subtitle { display: none !important; }
+          .uep-topbar .btn-outline { padding: 6px 10px !important; font-size: 11px; }
+          .uep-topbar-divider { display: none !important; }
+        }
+      `}</style>
+
       <a
         href="/"
+        onClick={
+          onGoHome
+            ? (e) => {
+                e.preventDefault();
+                onGoHome();
+              }
+            : undefined
+        }
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -74,6 +93,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
             Imaginary Space
           </div>
           <div
+            className="uep-topbar-subtitle"
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 9.5,
@@ -99,6 +119,7 @@ export default function TopBar({ onOpenMap, dark }: TopBarProps) {
           </button>
         )}
         <span
+          className="uep-topbar-divider"
           style={{
             width: 1,
             height: 16,
