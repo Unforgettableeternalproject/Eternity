@@ -427,7 +427,9 @@ export default function EditorPageTree({
       const children = node.children || [];
       if (children.length === 0) return null;
       return (
-        <>{children.map((child: PageTreeNode) => renderNode(child, depth))}</>
+        <React.Fragment key={node.id}>
+          {children.map((child: PageTreeNode) => renderNode(child, depth))}
+        </React.Fragment>
       );
     }
     // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）

@@ -784,6 +784,8 @@
 }
 
 .echoes-vinyl {
+  --vinyl-body: #e8e4de;
+  --vinyl-edge: #d5d0c8;
   position: absolute;
   inset: 0;
   border-radius: 50%;
@@ -796,10 +798,19 @@
   animation-play-state: paused;
 }
 
+[data-theme="dark"] .echoes-vinyl {
+  --vinyl-body: #3d3d48;
+  --vinyl-edge: #30303a;
+}
+
 .echoes-vinyl-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+[data-theme="dark"] .echoes-vinyl-ring {
+  border-color: rgba(255,255,255,0.07);
 }
 
 /* 固定中心孔：不隨碟片旋轉，提供視覺錨點 */
@@ -811,20 +822,28 @@
   width: 16%;
   height: 16%;
   border-radius: 50%;
-  background: #0e0e0e;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg);
+  border: 1px solid rgba(0,0,0,0.08);
   display: grid;
   place-items: center;
   z-index: 2;
   pointer-events: none;
 }
 
+[data-theme="dark"] .echoes-vinyl-center {
+  border-color: rgba(255,255,255,0.1);
+}
+
 .echoes-vinyl-hole {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #050505;
-  border: 1px solid rgba(255,255,255,0.15);
+  background: var(--bg);
+  border: 1px solid rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .echoes-vinyl-hole {
+  border-color: rgba(255,255,255,0.15);
 }
 
 .echoes-vinyl-lock {
@@ -879,6 +898,8 @@
 
 .echoes-player-bar {
   position: relative;
+  /* 將進度條區塊向下偏移，使 track 與播放按鈕、音量圖示垂直對齊 */
+  padding-top: 6px;
 }
 
 .echoes-player-track {
@@ -892,7 +913,10 @@
   left: 0;
   top: 0;
   bottom: 0;
-  transition: width .15s linear;
+}
+
+.echoes-player-fill.is-seeking {
+  transition: none;
 }
 
 .echoes-player-thumb {
@@ -902,12 +926,19 @@
   height: 9px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  transition: left .15s linear;
+}
+
+.echoes-player-thumb.is-seeking {
+  transition: none;
 }
 
 .echoes-player-seek {
   position: absolute;
-  inset: -6px 0;
+  left: 0;
+  right: 0;
+  /* 對齊 track：padding-top(6px) 往上延伸 6px 可點區域 */
+  top: 0;
+  height: calc(3px + 12px + 6px);
   width: 100%;
   opacity: 0;
   cursor: pointer;
