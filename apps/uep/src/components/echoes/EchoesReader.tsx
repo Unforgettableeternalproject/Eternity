@@ -569,7 +569,7 @@ function VinylDisc({
         style={{
           ...(coverUrl
             ? { backgroundImage: `url(${coverUrl})` }
-            : { background: `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, #1a1a1a 13%, #111 100%)` }),
+            : { background: `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, var(--vinyl-body, #e8e4de) 13%, var(--vinyl-edge, #d5d0c8) 100%)` }),
           animationPlayState: isPlaying ? 'running' : 'paused',
         }}
       >
@@ -623,7 +623,8 @@ function EchoesAudioPlayer({
 
   // 本地拖曳進度（避免 RAF 在拖曳期間覆蓋受控 input）
   const [seekProg, setSeekProg] = useState<number | null>(null);
-  const displayProg = seekProg !== null ? seekProg : prog;
+  const isSeeking = seekProg !== null;
+  const displayProg = isSeeking ? seekProg : prog;
 
   // 音量面板開關（雙狀態：mounted 控制 DOM 存在，open 控制動畫）
   const [volMounted, setVolMounted] = useState(false);
@@ -670,20 +671,30 @@ function EchoesAudioPlayer({
   };
 
   const handleSeekPointerDown = () => {
-    if (!isMe) return;
-    a.beginSeek();
+    if (isMe) a.beginSeek();
+    setSeekProg(displayProg);
   };
 
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isMe) return;
     setSeekProg(parseFloat(e.target.value));
   };
 
-  const handleSeekPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
-    if (!isMe) return;
-    const val = seekProg ?? parseFloat((e.target as HTMLInputElement).value);
+  const commitSeek = (val: number) => {
     setSeekProg(null);
-    a.endSeek(val);
+    if (isMe) {
+      // 已在播放中：直接 seek
+      a.endSeek(val);
+    } else if (audioUrl && !locked) {
+      // 尚未播放：先開始播放，再 seek 到指定位置
+      a.play(songId, audioUrl);
+      // 等 play 之後 seek（利用 setTimeout 確保 audio.src 已設定）
+      setTimeout(() => a.seek(val), 50);
+    }
+  };
+
+  const handleSeekPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
+    const val = seekProg ?? parseFloat((e.target as HTMLInputElement).value);
+    commitSeek(val);
   };
 
   return (
@@ -714,16 +725,16 @@ function EchoesAudioPlayer({
       <div className="echoes-player-bar">
         <div className="echoes-player-track">
           <div
-            className="echoes-player-fill"
+            className={`echoes-player-fill${isSeeking ? ' is-seeking' : ''}`}
             style={{ width: `${displayProg * 100}%`, background: color }}
           />
           <div
-            className="echoes-player-thumb"
+            className={`echoes-player-thumb${isSeeking ? ' is-seeking' : ''}`}
             style={{
               left: `${displayProg * 100}%`,
               background: color,
               boxShadow: `0 0 6px ${color}`,
-              opacity: isMe ? 1 : 0,
+              opacity: isMe || isSeeking ? 1 : 0,
             }}
           />
         </div>
@@ -737,7 +748,7 @@ function EchoesAudioPlayer({
           onChange={handleSeekChange}
           onPointerDown={handleSeekPointerDown}
           onPointerUp={handleSeekPointerUp}
-          disabled={!isMe}
+          disabled={disabled}
         />
         <div className="echoes-player-times">
           <span>{fmtTime(cur)}</span>
