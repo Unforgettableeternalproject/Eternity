@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ZONES, VERSES, RECENTS } from '../../data/zones';
+import { ZONES, VERSES, RECENTS, zoneTextColor } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import TopBar from '../ui/TopBar';
 import UepAvatar from '../ui/UepAvatar';
@@ -58,6 +58,12 @@ const homePageCss = `
     .home-recents { padding: 32px 20px 56px; }
     .home-recents-grid { grid-template-columns: 1fr; }
   }
+
+  @keyframes zone-arrival {
+    0%   { backdrop-filter: blur(18px); background: rgba(10,10,14,0.5); }
+    60%  { backdrop-filter: blur(4px);  background: rgba(10,10,14,0.12); }
+    100% { backdrop-filter: blur(0px);  background: transparent; }
+  }
 `;
 
 export default function HomePage({ isDev = false }: { isDev?: boolean }) {
@@ -66,6 +72,16 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [ready, setReady] = useState(false);
+  const isDark =
+    typeof document !== 'undefined' &&
+    document.documentElement.dataset.theme === 'dark';
+
+  // 進場淡入：mount 後一小段延遲啟動 zone-arrival 動畫
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 80);
+    return () => clearTimeout(t);
+  }, []);
 
   // 檢查是否已登入（透過前端可讀的指示 cookie）
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -132,6 +148,21 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       }}
     >
       <style>{homePageCss}</style>
+
+      {/* 進場霧化淡入 */}
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 50,
+          pointerEvents: 'none',
+          ...(ready
+            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
+            : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }),
+        }}
+      />
+
       <TopBar onOpenMap={() => setShowMap(true)} />
 
       <div
@@ -477,7 +508,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
-                    color: z.main,
+                    color: zoneTextColor(z.main, isDark),
                     letterSpacing: '0.18em',
                     textTransform: 'uppercase' as const,
                   }}
@@ -673,7 +704,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: 10,
-                      color: z?.main,
+                      color: zoneTextColor(z?.main ?? '', isDark),
                       letterSpacing: '0.16em',
                       textTransform: 'uppercase' as const,
                     }}

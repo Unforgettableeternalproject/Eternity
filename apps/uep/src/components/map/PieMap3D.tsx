@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { ZoneData } from '../../data/zones';
+import { zoneTextColor } from '../../data/zones';
 import './PieMap3D.css';
 
 interface PieMap3DProps {
@@ -68,6 +69,9 @@ export default function PieMap3D({
 
   const cardZone = zones.find((z) => z.id === hoveredId);
   const cardIndex = cardZone ? zones.indexOf(cardZone) : -1;
+  const isDark =
+    typeof document !== 'undefined' &&
+    document.documentElement.dataset.theme === 'dark';
 
   const renderDisc = (opacity = 1, mode: 'top' | 'wall' = 'top') => (
     <svg
@@ -504,7 +508,7 @@ export default function PieMap3D({
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
-              color: cardZone.main,
+              color: zoneTextColor(cardZone.main, isDark),
               letterSpacing: '0.18em',
               textTransform: 'uppercase' as const,
             }}

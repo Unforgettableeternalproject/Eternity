@@ -106,7 +106,7 @@ export const ZONES: ZoneData[] = [
     atmos: '個人筆記、後台、Meta',
     icon: 'S',
     glyphs: ['記', '雜', '稿', 'Σ'],
-    main: '#3A3A3A',
+    main: '#6E6E6E',
     soft: '#D5B618',
     tint: 'var(--storage-tint)',
     uep: [
@@ -117,6 +117,30 @@ export const ZONES: ZoneData[] = [
     stats: { 對話: 1, 紀錄: 4, 外界: 2 },
   },
 ];
+
+/**
+ * 在深色模式下自動將區域主色調亮至可讀亮度（≥55% lightness）。
+ * 亮色模式原色不變；只接受 6 位 hex (#rrggbb)。
+ */
+export function zoneTextColor(hex: string, isDark: boolean): string {
+  if (!isDark || !/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (l >= 0.5) return hex; // 已夠亮
+  const d = max - min;
+  const s = d / (l > 0.5 ? 2 - max - min : max + min) || 0;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return `hsl(${Math.round(h * 360)}, ${Math.round(s * 100)}%, 58%)`;
+}
 
 export const VERSES: string[] = [
   '萬物由最原初的質所成',

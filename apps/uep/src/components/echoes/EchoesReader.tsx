@@ -194,11 +194,17 @@ interface AudioState {
   progress: number;
   currentTime: number;
   duration: number;
+  volume: number;
   play: (songId: string, url: string) => void;
   pause: () => void;
   toggle: (songId: string, url: string) => void;
   seek: (fraction: number) => void;
+  setVolume: (v: number) => void;
+  beginSeek: () => void;
+  endSeek: (fraction: number) => void;
 }
+
+const VOLUME_KEY = 'uep-player-volume';
 
 const AudioCtx = createContext<AudioState>({
   currentSongId: null,
@@ -206,24 +212,34 @@ const AudioCtx = createContext<AudioState>({
   progress: 0,
   currentTime: 0,
   duration: 0,
+  volume: 1,
   play: () => {},
   pause: () => {},
   toggle: () => {},
   seek: () => {},
+  setVolume: () => {},
+  beginSeek: () => {},
+  endSeek: () => {},
 });
 
 function AudioProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number>(0);
+  const isSeekingRef = useRef(false);
   const [currentSongId, setCurrentSongId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolumeState] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return parseFloat(localStorage.getItem(VOLUME_KEY) ?? '1');
+  });
 
   useEffect(() => {
     audioRef.current = new Audio();
     audioRef.current.preload = 'metadata';
+    audioRef.current.volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '1');
 
     const audio = audioRef.current;
     audio.addEventListener('ended', () => {
@@ -244,9 +260,12 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
   const updateProgress = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const dur = audio.duration || 0;
-    setCurrentTime(audio.currentTime);
-    setProgress(dur > 0 ? audio.currentTime / dur : 0);
+    // 拖曳 seek 期間暫停更新，避免受控 input 被 RAF 覆蓋
+    if (!isSeekingRef.current) {
+      const dur = audio.duration || 0;
+      setCurrentTime(audio.currentTime);
+      setProgress(dur > 0 ? audio.currentTime / dur : 0);
+    }
     if (!audio.paused) {
       rafRef.current = requestAnimationFrame(updateProgress);
     }
@@ -303,6 +322,26 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
     setProgress(fraction);
   }, []);
 
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    if (audioRef.current) audioRef.current.volume = clamped;
+    localStorage.setItem(VOLUME_KEY, String(clamped));
+    setVolumeState(clamped);
+  }, []);
+
+  const beginSeek = useCallback(() => {
+    isSeekingRef.current = true;
+  }, []);
+
+  const endSeek = useCallback((fraction: number) => {
+    isSeekingRef.current = false;
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    audio.currentTime = fraction * audio.duration;
+    setCurrentTime(audio.currentTime);
+    setProgress(fraction);
+  }, []);
+
   const value = useMemo(
     () => ({
       currentSongId,
@@ -310,10 +349,14 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
       progress,
       currentTime,
       duration,
+      volume,
       play,
       pause,
       toggle,
       seek,
+      setVolume,
+      beginSeek,
+      endSeek,
     }),
     [
       currentSongId,
@@ -321,10 +364,14 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
       progress,
       currentTime,
       duration,
+      volume,
       play,
       pause,
       toggle,
       seek,
+      setVolume,
+      beginSeek,
+      endSeek,
     ]
   );
 
@@ -418,7 +465,7 @@ function SpoilerTitle({
     );
   }
 
-  // L3: glitch
+  // L3: glitch（單色，無紅藍色差）
   const scrambled = scramble(text, tick);
   return (
     <span
@@ -433,27 +480,16 @@ function SpoilerTitle({
         color: 'var(--ink-title)',
       }}
     >
+      {/* 單色殘影層 — 用灰階取代原先的紅/藍色差 */}
       <span
         style={{
           position: 'absolute',
           inset: 0,
-          color: 'rgba(220,40,80,0.7)',
+          color: 'rgba(200,200,200,0.35)',
           transform: `translate(${(tick % 3) - 1}px, ${(tick % 2) - 1}px)`,
-          mixBlendMode: 'multiply',
         }}
       >
         {scramble(text, tick + 7)}
-      </span>
-      <span
-        style={{
-          position: 'absolute',
-          inset: 0,
-          color: 'rgba(40,120,200,0.7)',
-          transform: `translate(${-((tick % 3) - 1)}px, ${(tick % 2) - 1}px)`,
-          mixBlendMode: 'multiply',
-        }}
-      >
-        {scramble(text, tick + 13)}
       </span>
       <span style={{ position: 'relative' }}>{scrambled}</span>
       <span
@@ -486,7 +522,7 @@ function injectNoise(text: string, density = 0.25, seed = 0): string {
   return result.join('');
 }
 
-/** 輕量 glitch 文字 — 用於列表項目的 L3 遮蔽 */
+/** 輕量 glitch 文字 — 用於列表項目的 L3 遮蔽（單色，無紅藍色差）*/
 function GlitchText({ text }: { text: string }) {
   const [tick, setTick] = useState(0);
 
@@ -497,8 +533,7 @@ function GlitchText({ text }: { text: string }) {
 
   return (
     <span className="echoes-glitch-inline">
-      <span className="echoes-glitch-r">{scramble(text, tick + 5)}</span>
-      <span className="echoes-glitch-b">{scramble(text, tick + 11)}</span>
+      <span className="echoes-glitch-ghost">{scramble(text, tick + 5)}</span>
       <span className="echoes-glitch-main">{scramble(text, tick)}</span>
     </span>
   );
@@ -527,13 +562,14 @@ function VinylDisc({
 
   return (
     <div className="echoes-vinyl-wrap">
+      {/* 外圈：旋轉碟片，背景為封面圖或溝槽 */}
       <div
         className="echoes-vinyl"
-        data-playing={isPlaying}
         style={{
-          background: coverUrl
-            ? `url(${coverUrl}) center/cover no-repeat`
-            : `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, var(--bg-card) 13%, var(--bg-card) 100%)`,
+          ...(coverUrl
+            ? { backgroundImage: `url(${coverUrl})` }
+            : { background: `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, #1a1a1a 13%, #111 100%)` }),
+          animationPlayState: isPlaying ? 'running' : 'paused',
         }}
       >
         {!coverUrl &&
@@ -544,8 +580,10 @@ function VinylDisc({
               style={{ inset: `${10 + i * 4}%` }}
             />
           ))}
-        {!coverUrl && <span className="echoes-vinyl-hole" />}
-        {coverUrl && <div className="echoes-vinyl-cover-overlay" />}
+      </div>
+      {/* 中心孔：固定不旋轉，疊在碟片上方 */}
+      <div className="echoes-vinyl-center">
+        <span className="echoes-vinyl-hole" />
       </div>
       {isLocked && (
         <div className="echoes-vinyl-lock">
@@ -582,6 +620,45 @@ function EchoesAudioPlayer({
   const dur = isMe && a.duration > 0 ? a.duration : metaDuration || 0;
   const disabled = locked || !audioUrl;
 
+  // 本地拖曳進度（避免 RAF 在拖曳期間覆蓋受控 input）
+  const [seekProg, setSeekProg] = useState<number | null>(null);
+  const displayProg = seekProg !== null ? seekProg : prog;
+
+  // 音量面板開關（雙狀態：mounted 控制 DOM 存在，open 控制動畫）
+  const [volMounted, setVolMounted] = useState(false);
+  const [volOpen, setVolOpen] = useState(false);
+  const volRef = useRef<HTMLDivElement>(null);
+  const volCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openVol = useCallback(() => {
+    if (volCloseTimer.current) clearTimeout(volCloseTimer.current);
+    setVolMounted(true);
+    // 等一幀讓 DOM 掛載後再加 is-open，使 transition 觸發
+    requestAnimationFrame(() => requestAnimationFrame(() => setVolOpen(true)));
+  }, []);
+
+  const closeVol = useCallback(() => {
+    setVolOpen(false);
+    volCloseTimer.current = setTimeout(() => setVolMounted(false), 240);
+  }, []);
+
+  // 元件卸載時清除計時器
+  useEffect(() => {
+    return () => { if (volCloseTimer.current) clearTimeout(volCloseTimer.current); };
+  }, []);
+
+  // 點擊外部關閉
+  useEffect(() => {
+    if (!volMounted) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (volRef.current && !volRef.current.contains(e.target as Node)) {
+        closeVol();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [volMounted, closeVol]);
+
   const handlePlay = () => {
     if (locked) {
       onLockedClick?.();
@@ -591,9 +668,21 @@ function EchoesAudioPlayer({
     a.toggle(songId, audioUrl);
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeekPointerDown = () => {
     if (!isMe) return;
-    a.seek(parseFloat(e.target.value));
+    a.beginSeek();
+  };
+
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isMe) return;
+    setSeekProg(parseFloat(e.target.value));
+  };
+
+  const handleSeekPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
+    if (!isMe) return;
+    const val = seekProg ?? parseFloat((e.target as HTMLInputElement).value);
+    setSeekProg(null);
+    a.endSeek(val);
   };
 
   return (
@@ -625,12 +714,12 @@ function EchoesAudioPlayer({
         <div className="echoes-player-track">
           <div
             className="echoes-player-fill"
-            style={{ width: `${prog * 100}%`, background: color }}
+            style={{ width: `${displayProg * 100}%`, background: color }}
           />
           <div
             className="echoes-player-thumb"
             style={{
-              left: `${prog * 100}%`,
+              left: `${displayProg * 100}%`,
               background: color,
               boxShadow: `0 0 6px ${color}`,
               opacity: isMe ? 1 : 0,
@@ -643,14 +732,45 @@ function EchoesAudioPlayer({
           min={0}
           max={1}
           step={0.001}
-          value={prog}
-          onChange={handleSeek}
+          value={displayProg}
+          onChange={handleSeekChange}
+          onPointerDown={handleSeekPointerDown}
+          onPointerUp={handleSeekPointerUp}
           disabled={!isMe}
         />
         <div className="echoes-player-times">
           <span>{fmtTime(cur)}</span>
           <span>{dur > 0 ? fmtTime(dur) : '--:--'}</span>
         </div>
+      </div>
+
+      {/* 音量控制（可展開） */}
+      <div className="echoes-player-vol" ref={volRef}>
+        {volMounted && (
+          <div className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}>
+            <span className="echoes-player-vol-pct">
+              {Math.round(a.volume * 100)}%
+            </span>
+            <input
+              type="range"
+              className="echoes-player-vol-slider"
+              style={{ '--vol': a.volume } as React.CSSProperties}
+              min={0}
+              max={1}
+              step={0.05}
+              value={a.volume}
+              onChange={(e) => a.setVolume(parseFloat(e.target.value))}
+            />
+          </div>
+        )}
+        <button
+          type="button"
+          className="echoes-player-vol-btn"
+          onClick={() => (volMounted ? closeVol() : openVol())}
+          title={`音量 ${Math.round(a.volume * 100)}%`}
+        >
+          {a.volume === 0 ? '🔇' : a.volume < 0.4 ? '🔉' : '🔊'}
+        </button>
       </div>
 
       <span
@@ -784,9 +904,9 @@ function buildAudioUrl(audioFile: string | null): string | null {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// 主元件: EchoesReader
+// 主元件內層（必須是 AudioProvider 的子元件才能用 useAudio）
 // ──────────────────────────────────────────────────────────────────
-export default function EchoesReader() {
+function EchoesReaderInner() {
   const echoesZone = ZONES.find((z) => z.id === 'echoes') || ZONES[0];
 
   // === 共用 UI 狀態 ===
@@ -2135,8 +2255,7 @@ export default function EchoesReader() {
   // Render
   // ────────────────────────────────────────────────────────────────
   return (
-    <AudioProvider>
-      <div className="echoes-reader">
+    <div className="echoes-reader">
         <style>{echoesReaderCss}</style>
 
         {/* 入場霧化 — 等待首頁資料載入後再解除 */}
@@ -2276,6 +2395,16 @@ export default function EchoesReader() {
           onDone={() => setHomePortal(false)}
         />
       </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 外層 export：AudioProvider 包住 EchoesReaderInner
+// ──────────────────────────────────────────────────────────────────
+export default function EchoesReader() {
+  return (
+    <AudioProvider>
+      <EchoesReaderInner />
     </AudioProvider>
   );
 }
@@ -2956,36 +3085,24 @@ const echoesReaderCss = `
     font-family: var(--font-mono);
     letter-spacing: 0.04em;
   }
-  .echoes-glitch-inline .echoes-glitch-r,
-  .echoes-glitch-inline .echoes-glitch-b {
+  /* 單色殘影層（取代原有紅/藍色差）*/
+  .echoes-glitch-inline .echoes-glitch-ghost {
     position: absolute;
     inset: 0;
-    mix-blend-mode: multiply;
     pointer-events: none;
     overflow: hidden;
     white-space: nowrap;
-  }
-  .echoes-glitch-inline .echoes-glitch-r {
-    color: rgba(220, 40, 80, 0.6);
-    animation: echoes-glitch-shift-r 0.3s steps(2) infinite;
-  }
-  .echoes-glitch-inline .echoes-glitch-b {
-    color: rgba(40, 120, 200, 0.6);
-    animation: echoes-glitch-shift-b 0.3s steps(2) infinite;
+    color: rgba(200, 200, 200, 0.4);
+    animation: echoes-glitch-shift 0.3s steps(2) infinite;
   }
   .echoes-glitch-inline .echoes-glitch-main {
     position: relative;
   }
 
-  @keyframes echoes-glitch-shift-r {
+  @keyframes echoes-glitch-shift {
     0%   { transform: translate(1px, -1px); }
     50%  { transform: translate(-1px, 1px); }
     100% { transform: translate(1px, -1px); }
-  }
-  @keyframes echoes-glitch-shift-b {
-    0%   { transform: translate(-1px, 1px); }
-    50%  { transform: translate(1px, -1px); }
-    100% { transform: translate(-1px, 1px); }
   }
 
   /* === Song 視圖 === */
@@ -3085,44 +3202,42 @@ const echoesReaderCss = `
     border-radius: 50%;
     border: 1px solid var(--line);
     box-shadow: 0 12px 28px rgba(20,12,4,0.06);
+    background-size: cover;
+    background-position: center;
+    will-change: transform;
     animation: vinyl-spin 16s linear infinite;
     animation-play-state: paused;
-  }
-
-  .echoes-vinyl[data-playing="true"] {
-    animation-play-state: running;
   }
 
   .echoes-vinyl-ring {
     position: absolute;
     border-radius: 50%;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(255,255,255,0.07);
   }
 
-  .echoes-vinyl-hole {
+  /* 固定中心孔：不隨碟片旋轉，提供視覺錨點 */
+  .echoes-vinyl-center {
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    width: 12px;
-    height: 12px;
+    width: 16%;
+    height: 16%;
     border-radius: 50%;
-    background: var(--bg);
-    border: 1px solid var(--line);
+    background: #0e0e0e;
+    border: 1px solid rgba(255,255,255,0.1);
+    display: grid;
+    place-items: center;
+    z-index: 2;
+    pointer-events: none;
   }
 
-  .echoes-vinyl-cover-overlay {
-    position: absolute;
-    inset: 0;
+  .echoes-vinyl-hole {
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: radial-gradient(
-      circle at 50% 50%,
-      transparent 8%,
-      rgba(0,0,0,0.08) 10%,
-      transparent 12%,
-      transparent 100%
-    );
-    pointer-events: none;
+    background: #050505;
+    border: 1px solid rgba(255,255,255,0.15);
   }
 
   .echoes-vinyl-lock {
@@ -3133,6 +3248,7 @@ const echoesReaderCss = `
     background: rgba(255,253,247,0.8);
     border-radius: 50%;
     backdrop-filter: blur(4px);
+    z-index: 3;
   }
 
   [data-theme="dark"] .echoes-vinyl-lock {
@@ -3155,7 +3271,7 @@ const echoesReaderCss = `
   /* === 播放器 === */
   .echoes-player {
     display: grid;
-    grid-template-columns: 40px 1fr 90px;
+    grid-template-columns: 40px 1fr 28px 90px;
     gap: 14px;
     align-items: center;
     padding: 13px 16px;
@@ -3225,6 +3341,110 @@ const echoesReaderCss = `
     font-size: 10px;
     letter-spacing: 0.18em;
     text-align: right;
+  }
+
+  /* 音量控制（可展開） */
+  .echoes-player-vol {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .echoes-player-vol-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+    cursor: pointer;
+    line-height: 1;
+    border-radius: 3px;
+    transition: opacity 0.15s;
+  }
+  .echoes-player-vol-btn:hover {
+    opacity: 0.7;
+  }
+
+  .echoes-player-vol-popup {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--hairline-strong);
+    padding: 12px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 20;
+    box-shadow:
+      0 2px 8px rgba(31, 27, 20, 0.08),
+      0 8px 24px rgba(31, 27, 20, 0.06);
+    /* 展開/收合動畫：從底部（靠近按鈕）向上展開，向下收合 */
+    clip-path: inset(100% 0 0% 0);
+    opacity: 0;
+    transition:
+      clip-path 0.22s var(--ease-out),
+      opacity 0.15s;
+  }
+
+  .echoes-player-vol-popup.is-open {
+    clip-path: inset(0% 0 0% 0);
+    opacity: 1;
+  }
+
+  .echoes-player-vol-pct {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--ink-mute);
+    line-height: 1;
+    user-select: none;
+  }
+
+  .echoes-player-vol-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    -webkit-appearance: slider-vertical;
+    appearance: none;
+    width: 3px;
+    height: 72px;
+    cursor: pointer;
+    outline: none;
+    border-radius: 2px;
+    padding: 0;
+    background: linear-gradient(
+      to top,
+      var(--ink-soft) calc(var(--vol, 1) * 100%),
+      var(--hairline) calc(var(--vol, 1) * 100%)
+    );
+  }
+  .echoes-player-vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 1.5px solid var(--ink-soft);
+    box-shadow: 0 1px 4px rgba(31, 27, 20, 0.15);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .echoes-player-vol-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+  .echoes-player-vol-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 1.5px solid var(--ink-soft);
+    box-shadow: 0 1px 4px rgba(31, 27, 20, 0.15);
+    cursor: pointer;
   }
 
   /* === 賞析 === */

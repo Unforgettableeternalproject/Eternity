@@ -21,7 +21,7 @@ async function proxyToWorker(
   const res = await fetch(target, {
     method: request.method,
     headers,
-    body: ['POST', 'PUT', 'PATCH'].includes(request.method)
+    body: ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
       ? await request.text()
       : undefined,
   });
