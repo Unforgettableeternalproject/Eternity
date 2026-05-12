@@ -129,8 +129,8 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
   if (isAllowed) {
     headers['Access-Control-Allow-Origin'] = origin;
-    headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+    headers['Access-Control-Allow-Methods'] = 'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Range';
   }
 
   return headers;
@@ -989,7 +989,11 @@ export default {
       const key = decodeURIComponent(assetMatch[1]);
 
       if (request.method === 'GET') {
-        const obj = await env.ASSETS_BUCKET.get(key);
+        // 解析 Range header 以支援音訊 seek（瀏覽器 <audio> 需要 206 Partial Content）
+        const rangeHeader = request.headers.get('Range');
+        const obj = await env.ASSETS_BUCKET.get(key, rangeHeader ? {
+          range: request.headers,
+        } : undefined);
         if (!obj) {
           return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
         }
@@ -999,7 +1003,45 @@ export default {
           obj.httpMetadata?.contentType || 'application/octet-stream'
         );
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        headers.set('Accept-Ranges', 'bytes');
+        // R2 有處理 Range 時會在 obj.range 回傳實際範圍
+        if (rangeHeader && obj.range) {
+          const r = obj.range;
+          const offset = 'offset' in r ? r.offset ?? 0 : 0;
+          const length = 'length' in r ? r.length : undefined;
+          const suffix = 'suffix' in r ? r.suffix : undefined;
+          let start: number;
+          let end: number;
+          if (suffix != null) {
+            start = obj.size - suffix;
+            end = obj.size - 1;
+          } else if (length != null) {
+            start = offset;
+            end = offset + length - 1;
+          } else {
+            start = offset;
+            end = obj.size - 1;
+          }
+          const contentLength = end - start + 1;
+          headers.set('Content-Length', String(contentLength));
+          headers.set('Content-Range', `bytes ${start}-${end}/${obj.size}`);
+          return new Response(obj.body, { status: 206, headers });
+        }
+        headers.set('Content-Length', String(obj.size));
         return new Response(obj.body, { headers });
+      }
+
+      if (request.method === 'HEAD') {
+        const obj = await env.ASSETS_BUCKET.head(key);
+        if (!obj) {
+          return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+        }
+        const headers = new Headers(cors);
+        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set('Content-Length', String(obj.size));
+        headers.set('Accept-Ranges', 'bytes');
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        return new Response(null, { headers });
       }
 
       if (request.method === 'DELETE') {
