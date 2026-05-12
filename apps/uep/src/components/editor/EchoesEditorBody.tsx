@@ -277,6 +277,57 @@ const CATEGORIES = [
   { value: 'special', label: '特殊曲目' },
 ];
 
+// === 音檔選擇器（從媒體庫選取既有音檔）===
+interface AudioPickerItem {
+  key: string;
+  size: number;
+  contentType: string;
+  originalName: string;
+  referenced: boolean;
+  referencedBy: string[];
+}
+
+/** 從 content-api 取得音檔列表（僅音檔，孤兒排前面）*/
+async function fetchAudioAssets(): Promise<AudioPickerItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/assets?prefix=audio/&limit=500`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: { items: AudioPickerItem[] };
+    };
+    if (!json.ok) return [];
+    const items = json.data.items.filter(
+      (i) => i.contentType?.startsWith('audio/') || i.key.startsWith('audio/')
+    );
+    // 孤兒排前面
+    items.sort((a, b) => {
+      if (a.referenced === b.referenced) return 0;
+      return a.referenced ? 1 : -1;
+    });
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+/** 從音檔 URL 讀取 duration（透過 HTMLAudioElement）*/
+function readDurationFromUrl(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.addEventListener('loadedmetadata', () => {
+      resolve(audio.duration || 0);
+      audio.src = '';
+    });
+    audio.addEventListener('error', () => {
+      resolve(0);
+      audio.src = '';
+    });
+    audio.src = url;
+  });
+}
+
 export default function EchoesEditorBody({
   accent,
   initialData,
@@ -287,6 +338,18 @@ export default function EchoesEditorBody({
   const [uploading, setUploading] = useState<'audio' | 'cover' | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // === 音檔選擇器 state ===
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerItems, setPickerItems] = useState<AudioPickerItem[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerSelecting, setPickerSelecting] = useState<string | null>(null);
+
+  // === 刪除確認 state ===
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'audio' | 'cover';
+    key: string;
+  } | null>(null);
 
   const update = (patch: Partial<EchoesData>) => {
     const next = { ...data, ...patch };
@@ -317,6 +380,64 @@ export default function EchoesEditorBody({
     } finally {
       setUploading(null);
       if (audioInputRef.current) audioInputRef.current.value = '';
+    }
+  };
+
+  const openAudioPicker = async () => {
+    setPickerOpen(true);
+    setPickerLoading(true);
+    const items = await fetchAudioAssets();
+    setPickerItems(items);
+    setPickerLoading(false);
+  };
+
+  const selectFromLibrary = async (item: AudioPickerItem) => {
+    setPickerSelecting(item.key);
+    // 讀取 duration
+    const url = `${API_BASE}/api/assets/${item.key.split('/').map(encodeURIComponent).join('/')}`;
+    const duration = await readDurationFromUrl(url);
+    const ext = item.key.split('.').pop()?.toLowerCase() || '';
+    const bitrate = duration > 0 ? Math.round((item.size * 8) / duration / 1000) : undefined;
+    update({
+      audioFile: item.key,
+      audioMeta: {
+        ...data.audioMeta,
+        size: item.size,
+        duration: Math.round(duration * 100) / 100,
+        bitrate,
+        format: ext,
+      },
+    });
+    setPickerSelecting(null);
+    setPickerOpen(false);
+  };
+
+  const handleRemoveOnly = () => {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.type === 'audio') {
+      update({ audioFile: null, audioMeta: null });
+    } else {
+      update({ coverImage: null });
+    }
+    setDeleteConfirm(null);
+  };
+
+  const handleDeleteFromLibrary = async () => {
+    if (!deleteConfirm) return;
+    const key = deleteConfirm.key;
+    // 先移除引用
+    if (deleteConfirm.type === 'audio') {
+      update({ audioFile: null, audioMeta: null });
+    } else {
+      update({ coverImage: null });
+    }
+    setDeleteConfirm(null);
+    // 再從 R2 刪除
+    try {
+      const encoded = key.split('/').map(encodeURIComponent).join('/');
+      await fetch(`${API_BASE}/api/assets/${encoded}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('刪除媒體庫檔案失敗:', err);
     }
   };
 
@@ -464,21 +585,38 @@ export default function EchoesEditorBody({
             <button
               className="ned-btn-ghost ned-btn-sm"
               type="button"
-              onClick={() => update({ audioFile: null, audioMeta: null })}
+              onClick={openAudioPicker}
+            >
+              媒體庫
+            </button>
+            <button
+              className="ned-btn-ghost ned-btn-sm"
+              type="button"
+              onClick={() => setDeleteConfirm({ type: 'audio', key: data.audioFile! })}
             >
               刪除
             </button>
           </>
         ) : (
-          <button
-            className="ned-btn-ghost"
-            type="button"
-            onClick={() => audioInputRef.current?.click()}
-            disabled={uploading === 'audio'}
-            style={{ width: '100%', textAlign: 'center', padding: '14px' }}
-          >
-            {uploading === 'audio' ? '上傳中...' : '+ 選擇音檔上傳'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+            <button
+              className="ned-btn-ghost"
+              type="button"
+              onClick={() => audioInputRef.current?.click()}
+              disabled={uploading === 'audio'}
+              style={{ flex: 1, textAlign: 'center', padding: '14px' }}
+            >
+              {uploading === 'audio' ? '上傳中...' : '+ 上傳音檔'}
+            </button>
+            <button
+              className="ned-btn-ghost"
+              type="button"
+              onClick={openAudioPicker}
+              style={{ flex: 1, textAlign: 'center', padding: '14px' }}
+            >
+              📂 從媒體庫選擇
+            </button>
+          </div>
         )}
       </div>
 
@@ -602,7 +740,7 @@ export default function EchoesEditorBody({
                 <button
                   className="ned-btn-ghost ned-btn-sm"
                   type="button"
-                  onClick={() => update({ coverImage: null })}
+                  onClick={() => setDeleteConfirm({ type: 'cover', key: data.coverImage! })}
                 >
                   刪除
                 </button>
@@ -663,6 +801,184 @@ export default function EchoesEditorBody({
         placeholder="鎖定時顯示的替代文字"
         onChange={(e) => update({ appreciationLocked: e.target.value })}
       />
+
+      {/* 刪除確認 Dialog */}
+      {deleteConfirm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => setDeleteConfirm(null)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card, #1a1a22)', border: '1px solid var(--line, #333)',
+              borderRadius: 12, padding: '24px 28px', maxWidth: 400, width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}>
+              刪除{deleteConfirm.type === 'audio' ? '音檔' : '封面圖'}
+            </div>
+            <div style={{
+              fontSize: '0.85em', color: 'var(--ink-mute, #888)',
+              marginBottom: 16, wordBreak: 'break-all',
+            }}>
+              {deleteConfirm.key.split('/').pop()}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={handleRemoveOnly}
+                style={{ width: '100%', padding: '10px 16px', textAlign: 'left' }}
+              >
+                📎 僅移除引用
+                <span style={{ display: 'block', fontSize: '0.8em', color: 'var(--ink-mute, #888)', marginTop: 2 }}>
+                  檔案保留在媒體庫中，可供其他頁面使用
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => void handleDeleteFromLibrary()}
+                style={{
+                  width: '100%', padding: '10px 16px', textAlign: 'left',
+                  borderColor: 'crimson', color: 'crimson',
+                }}
+              >
+                🗑 從媒體庫永久刪除
+                <span style={{ display: 'block', fontSize: '0.8em', color: 'var(--ink-mute, #888)', marginTop: 2 }}>
+                  移除引用並從 R2 儲存空間中刪除檔案
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => setDeleteConfirm(null)}
+                style={{ width: '100%', padding: '8px 16px', textAlign: 'center', marginTop: 4 }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 音檔選擇器 Modal */}
+      {pickerOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card, #1a1a22)', border: '1px solid var(--line, #333)',
+              borderRadius: 12, width: '90%', maxWidth: 640, maxHeight: '80vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--line, #333)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <strong>從媒體庫選擇音檔</strong>
+                <span style={{ marginLeft: 10, fontSize: '0.85em', color: 'var(--ink-mute, #888)' }}>
+                  僅顯示音檔 · 孤兒檔案優先
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                style={{
+                  background: 'none', border: 'none', color: 'var(--ink, #ccc)',
+                  fontSize: 20, cursor: 'pointer', padding: '0 4px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+              {pickerLoading ? (
+                <div style={{ textAlign: 'center', padding: 32, color: 'var(--ink-mute, #888)' }}>
+                  載入中...
+                </div>
+              ) : pickerItems.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 32, color: 'var(--ink-mute, #888)' }}>
+                  媒體庫中沒有音檔
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {pickerItems.map((item) => {
+                    const name = item.originalName || item.key.split('/').pop() || item.key;
+                    const sizeMB = (item.size / 1024 / 1024).toFixed(1);
+                    const isOrphan = !item.referenced;
+                    const isCurrent = data.audioFile === item.key;
+                    const isSelecting = pickerSelecting === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        disabled={isSelecting || isCurrent}
+                        onClick={() => void selectFromLibrary(item)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px', borderRadius: 8, cursor: isCurrent ? 'default' : 'pointer',
+                          border: `1px solid ${isOrphan ? 'goldenrod' : isCurrent ? accent : 'var(--line, #333)'}`,
+                          background: isCurrent ? `${accent}15` : 'transparent',
+                          opacity: isSelecting ? 0.5 : 1,
+                          textAlign: 'left', width: '100%',
+                          color: 'var(--ink, #ccc)', fontSize: '0.9em',
+                        }}
+                      >
+                        <span style={{
+                          flexShrink: 0, width: 36, height: 36, borderRadius: 6,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: isOrphan ? 'rgba(218,165,32,0.15)' : 'var(--bg-elevated, #252530)',
+                          fontSize: 14, color: isOrphan ? 'goldenrod' : 'var(--ink-mute, #888)',
+                        }}>
+                          {isOrphan ? '⚠' : '♪'}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            fontWeight: 500,
+                          }}>
+                            {name}
+                          </div>
+                          <div style={{ fontSize: '0.8em', color: 'var(--ink-mute, #888)', marginTop: 2 }}>
+                            {sizeMB} MB
+                            {isOrphan && <span style={{ color: 'goldenrod', marginLeft: 8 }}>孤兒檔案</span>}
+                            {!isOrphan && item.referencedBy.length > 0 && (
+                              <span style={{ marginLeft: 8 }}>
+                                被 {item.referencedBy.length} 個頁面引用
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span style={{ flexShrink: 0, fontSize: '0.8em', color: 'var(--ink-mute, #888)' }}>
+                          {isCurrent ? '目前使用中' : isSelecting ? '選取中...' : '選取'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

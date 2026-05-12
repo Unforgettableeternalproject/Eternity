@@ -664,6 +664,7 @@ export default function HistoryReader() {
         const hasChildren = children.length > 0;
         const isExpanded = expanded.has(node.id) || Boolean(query.trim());
         const isCurrent = node.id === currentId;
+        const isLocked = node.metadata?.locked === true;
 
         return (
           <div className="history-tree-item" data-depth={depth} key={node.id}>
@@ -684,10 +685,17 @@ export default function HistoryReader() {
               <button
                 type="button"
                 className={`history-tree-link ${isCurrent ? 'is-current' : ''}`}
-                style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
-                onClick={() => void loadPage(node)}
+                style={{
+                  paddingLeft: `${Math.min(depth, 5) * 10 + 8}px`,
+                  opacity: isLocked ? 0.45 : undefined,
+                  cursor: isLocked ? 'not-allowed' : undefined,
+                }}
+                onClick={() => { if (!isLocked) void loadPage(node); }}
+                disabled={isLocked}
               >
-                {renderIcon(
+                {isLocked ? (
+                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>🔒</span>
+                ) : renderIcon(
                   node.metadata?.icon as string,
                   14,
                   'history-tree-icon'

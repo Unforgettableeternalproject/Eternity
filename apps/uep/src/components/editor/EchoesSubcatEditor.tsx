@@ -246,16 +246,33 @@ export default function EchoesSubcatEditor({
                     <span className="ned-subcat-song-sub">{subtitle}</span>
                   )}
                 </div>
-                {spoiler > 0 && (
-                  <span
-                    className="ned-subcat-song-spoiler"
-                    style={{
-                      color: spoiler === 3 ? 'crimson' : 'goldenrod',
-                    }}
-                  >
-                    L{spoiler}
-                  </span>
-                )}
+                <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
+                  {meta.hidden === true ? (
+                    <span
+                      className="ned-subcat-song-spoiler"
+                      style={{ color: 'var(--ink-mute, #888)' }}
+                    >
+                      隱藏
+                    </span>
+                  ) : meta.locked === true ? (
+                    <span
+                      className="ned-subcat-song-spoiler"
+                      style={{ color: 'var(--ink-mute, #888)' }}
+                    >
+                      鎖定
+                    </span>
+                  ) : null}
+                  {spoiler > 0 && (
+                    <span
+                      className="ned-subcat-song-spoiler"
+                      style={{
+                        color: spoiler === 3 ? 'crimson' : 'goldenrod',
+                      }}
+                    >
+                      L{spoiler}
+                    </span>
+                  )}
+                </span>
                 <a
                   href={`/admin/edit/${song.id}`}
                   className="ned-subcat-song-edit"
