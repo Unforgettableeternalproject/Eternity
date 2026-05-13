@@ -20,9 +20,11 @@ async function safeFetchJson(url: string): Promise<any> {
 // Fetch data for each zone
 const historyData = await safeFetchJson(`${apiBase}/api/content/history`);
 const echoesData = await safeFetchJson(`${apiBase}/api/content/echoes`);
+const visualsData = await safeFetchJson(`${apiBase}/api/content/visuals`);
 
 const historyPages = historyData?.ok ? historyData.data || [] : [];
 const echoesPages = echoesData?.ok ? echoesData.data || [] : [];
+const visualsPages = visualsData?.ok ? visualsData.data || [] : [];
 
 // Compute stats
 const historyChapters = historyPages.filter(
@@ -40,6 +42,13 @@ const echoesDrafts = echoesPages.filter(
   (p: any) => p.status === 'modified' || p.status === 'local_only'
 ).length;
 
+const visualsGalleries = visualsPages.filter(
+  (p: any) => p.pageType === 'gallery'
+).length;
+const visualsDrafts = visualsPages.filter(
+  (p: any) => p.status === 'modified' || p.status === 'local_only'
+).length;
+
 // 首頁等級頁面（homepage type）
 const allLandingPages = [
   ...historyPages
@@ -48,10 +57,13 @@ const allLandingPages = [
   ...echoesPages
     .filter((p: any) => p.pageType === 'homepage' || p.pageType === 'page')
     .map((p: any) => ({ ...p, area: 'echoes' })),
+  ...visualsPages
+    .filter((p: any) => p.pageType === 'homepage' || p.pageType === 'page')
+    .map((p: any) => ({ ...p, area: 'visuals' })),
 ];
 
-const totalPages = historyPages.length + echoesPages.length;
-const totalEditsThisWeek = [...historyPages, ...echoesPages].filter(
+const totalPages = historyPages.length + echoesPages.length + visualsPages.length;
+const totalEditsThisWeek = [...historyPages, ...echoesPages, ...visualsPages].filter(
   (p: any) => {
     if (!p.updatedAt) return false;
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -82,6 +94,7 @@ function getRecent(pages: any[]) {
 
 const historyRecent = getRecent(historyPages);
 const echoesRecent = getRecent(echoesPages);
+const visualsRecent = getRecent(visualsPages);
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -294,6 +307,81 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
                 href="/admin/edit/echoes"
                 class="adm-zone-btn-primary"
                 style="background: #6B4F8E;"
+              >
+                <span>進入編輯器</span><span>→</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Visuals card -->
+          <div class="adm-zone-card" style="border-top-color: #5E548E;">
+            <div class="adm-zone-header">
+              <div
+                class="adm-zone-icon"
+                style="border-color: #5E548E; color: #5E548E;"
+              >
+                V
+              </div>
+              <div class="adm-zone-info">
+                <div class="adm-zone-en" style="color: #5E548E;">
+                  VISUALS GALLERY
+                </div>
+                <div class="adm-zone-name">幻影重現室</div>
+                <div class="adm-zone-desc">
+                  畫廊、圖片陣列、Spoiler 遮蔽 — 4 種展示風格
+                </div>
+              </div>
+            </div>
+            <div class="adm-zone-stats">
+              <div>
+                <span class="adm-zone-stat-val" style="color: #5E548E;"
+                  >{visualsGalleries}</span
+                ><span class="adm-zone-stat-key">畫廊</span>
+              </div>
+              <div>
+                <span class="adm-zone-stat-val" style="color: #5E548E;"
+                  >{visualsDrafts}</span
+                ><span class="adm-zone-stat-key">草稿</span>
+              </div>
+            </div>
+            <!-- Recent -->
+            <div class="adm-zone-recent-title">最近編輯</div>
+            {
+              visualsRecent.length > 0 ? (
+                <div class="adm-zone-recent">
+                  {visualsRecent.map((r: any) => (
+                    <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
+                      <span class="adm-recent-title">
+                        {r.title}
+                        {r.spoiler && r.spoiler > 0 && (
+                          <span
+                            class={`adm-spoiler-badge ${r.spoiler >= 3 ? 'adm-spoiler--high' : ''}`}
+                          >
+                            L{r.spoiler}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        class={`adm-recent-status adm-recent-status--${r.status}`}
+                      >
+                        · {r.status}
+                      </span>
+                      <span class="adm-recent-time">
+                        {timeAgo(r.updatedAt)}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div class="adm-zone-empty">尚無編輯紀錄</div>
+              )
+            }
+            <div class="adm-zone-spacer"></div>
+            <div class="adm-zone-actions">
+              <a
+                href="/admin/edit/visuals"
+                class="adm-zone-btn-primary"
+                style="background: #5E548E;"
               >
                 <span>進入編輯器</span><span>→</span>
               </a>

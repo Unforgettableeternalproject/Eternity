@@ -39,6 +39,11 @@ const AREA_PAGE_TYPES: Record<string, { value: string; label: string }[]> = {
     { value: 'subcategory', label: 'Subcategory (子分類)' },
     { value: 'song', label: 'Song (歌曲)' },
   ],
+  visuals: [
+    { value: 'division', label: 'Division (分館)' },
+    { value: 'subcategory', label: 'Subcategory (子分類)' },
+    { value: 'gallery', label: 'Gallery (畫廊)' },
+  ],
 };
 
 /** 通用 fallback */
