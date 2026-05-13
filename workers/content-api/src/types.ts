@@ -113,6 +113,8 @@ export interface UpsertPageRequest {
   depth?: number;
   pageType?: PageType;
   status?: PageStatus;
+  /** 同步時保留來源端的時間戳（不傳則用伺服器當前時間） */
+  updatedAt?: string;
 }
 
 /** 匯入頁面的請求（從子倉庫來源） */

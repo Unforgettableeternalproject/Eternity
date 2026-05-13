@@ -14,8 +14,9 @@ import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
-import type { HomepageBlock, ZoneHeaderData, UepDialogueItem } from '../editor/homepage/types';
+import type { HomepageBlock, ZoneHeaderData, UepDialogueItem, CrossRoad } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
 import './VisualsReader.css';
 
@@ -158,6 +159,24 @@ function countGalleries(node: PageTreeNode): number {
   return count;
 }
 
+/** 從 subcategory 中找到第一張可用的縮圖 URL */
+function findFirstThumb(node: PageTreeNode): string | null {
+  for (const child of node.children || []) {
+    if (child.pageType === 'gallery' && !child.metadata?.hidden) {
+      const images = Array.isArray(child.metadata?.images)
+        ? (child.metadata.images as { file: string }[])
+        : [];
+      if (images.length > 0 && images[0].file) {
+        return images[0].file;
+      }
+    }
+    // 遞迴搜尋
+    const found = findFirstThumb(child);
+    if (found) return found;
+  }
+  return null;
+}
+
 function spoilerFilter(level: number): string {
   if (level === 1) return 'blur(4px)';
   if (level === 2) return 'blur(10px)';
@@ -213,8 +232,14 @@ function VisualsReaderInner() {
   );
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // 十字路口 hover 追蹤
+  const [crossroadHover, setCrossroadHover] = useState<string | null>(null);
+
   // Corridor 索引
   const [corridorIdx, setCorridorIdx] = useState(0);
+
+  // 滾動位置記憶 — key 是 view state 的標識
+  const scrollMemory = useRef<Map<string, number>>(new Map());
 
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {
@@ -308,13 +333,41 @@ function VisualsReaderInner() {
     window.history.pushState({}, '', url.toString());
   }
 
+  /** 建立目前 view 的 scroll key */
+  function currentScrollKey(): string {
+    if (view === 'gallery' && activeGalleryId) return `gallery:${activeGalleryId}`;
+    if (view === 'subcat' && activeSubcatId) return `subcat:${activeSubcatId}`;
+    if (view === 'division' && activeDivisionId) return `division:${activeDivisionId}`;
+    return 'landing';
+  }
+
+  /** 離開目前頁面前保存滾動位置 */
+  function saveScroll() {
+    if (scrollRef.current) {
+      scrollMemory.current.set(currentScrollKey(), scrollRef.current.scrollTop);
+    }
+  }
+
+  /** 恢復目標頁面的滾動位置（如果有記憶），否則歸頂 */
+  function restoreScroll(key: string) {
+    requestAnimationFrame(() => {
+      const saved = scrollMemory.current.get(key);
+      if (saved != null && saved > 0) {
+        scrollRef.current?.scrollTo({ top: saved });
+      } else {
+        scrollRef.current?.scrollTo({ top: 0 });
+      }
+    });
+  }
+
   function navigateToLanding(push = true) {
+    saveScroll();
     setView('landing');
     setActiveDivisionId(null);
     setActiveSubcatId(null);
     setActiveGalleryId(null);
     setGalleryPage(null);
-    scrollRef.current?.scrollTo({ top: 0 });
+    restoreScroll('landing');
     if (push) {
       const url = new URL(window.location.href);
       url.search = '';
@@ -323,36 +376,37 @@ function VisualsReaderInner() {
   }
 
   function navigateToDivision(divId: string, push = true) {
+    saveScroll();
     setView('division');
     setActiveDivisionId(divId);
     setActiveSubcatId(null);
     setActiveGalleryId(null);
     setGalleryPage(null);
-    scrollRef.current?.scrollTo({ top: 0 });
+    restoreScroll(`division:${divId}`);
     if (push) pushUrl({ division: divId });
   }
 
   function navigateToSubcat(subcatId: string, groupIdx = 0, push = true) {
+    saveScroll();
     setView('subcat');
     setActiveSubcatId(subcatId);
     setActiveGroupIdx(groupIdx);
     setActiveGalleryId(null);
     setGalleryPage(null);
-    // 從 subcatId 推導 divisionId
     const divDef = findParentDivision(tree, subcatId);
     if (divDef) setActiveDivisionId(divDef.id);
-    scrollRef.current?.scrollTo({ top: 0 });
+    restoreScroll(`subcat:${subcatId}`);
     if (push) pushUrl({ subcat: subcatId, group: String(groupIdx) });
   }
 
   async function navigateToGallery(pageId: string, push = true) {
+    saveScroll();
     setView('gallery');
     setActiveGalleryId(pageId);
     setCorridorIdx(0);
-    // 推導 divisionId
     const divDef = findParentDivision(tree, pageId);
     if (divDef) setActiveDivisionId(divDef.id);
-    scrollRef.current?.scrollTo({ top: 0 });
+    restoreScroll(`gallery:${pageId}`);
     if (push) pushUrl({ page: pageId });
     // Fetch page
     try {
@@ -412,49 +466,229 @@ function VisualsReaderInner() {
     return () => window.removeEventListener('keydown', handler);
   }, [lightboxIdx, lightboxImages.length]);
 
+  // === 十字路口道路 SVG ===
+  function renderCrossroadSvg() {
+    const cx = 50, cy = 50;
+    const rw = 2; // 路寬（半邊）
+    // 路線終點 — 在卡片邊緣前停住（不穿透卡片）
+    const ends = {
+      fwd: { x: cx, y: 18 },
+      bck: { x: cx, y: 82 },
+      lft: { x: 18, y: cy },
+      rgt: { x: 82, y: cy },
+    };
+    const dirs = ['fwd', 'lft', 'rgt', 'bck'] as const;
+    // 引導線長度（中心到終點的距離）
+    const guideLen = 34;
+
+    return (
+      <svg className="visuals-crossroad-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          {dirs.map((d) => {
+            const e = ends[d];
+            const isV = d === 'fwd' || d === 'bck';
+            // 漸層方向：從中心向終點方向
+            return (
+              <radialGradient key={`g-${d}`} id={`glow-${d}`}
+                cx={`${e.x}%`} cy={`${e.y}%`} r={isV ? '12%' : '12%'}
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stopColor="#9F86C0" stopOpacity="0.9" />
+                <stop offset="60%" stopColor="#9F86C0" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#9F86C0" stopOpacity="0" />
+              </radialGradient>
+            );
+          })}
+        </defs>
+
+        {/* 道路邊線 + 中線 */}
+        {dirs.map((d) => {
+          const e = ends[d];
+          const isV = d === 'fwd' || d === 'bck';
+          return (
+            <g key={`road-${d}`}>
+              {isV ? (
+                <>
+                  <line x1={cx - rw} y1={cy} x2={e.x - rw} y2={e.y} className="visuals-road-edge" />
+                  <line x1={cx + rw} y1={cy} x2={e.x + rw} y2={e.y} className="visuals-road-edge" />
+                  <line x1={cx} y1={cy} x2={e.x} y2={e.y} className="visuals-road-center" />
+                </>
+              ) : (
+                <>
+                  <line x1={cx} y1={cy - rw} x2={e.x} y2={e.y - rw} className="visuals-road-edge" />
+                  <line x1={cx} y1={cy + rw} x2={e.x} y2={e.y + rw} className="visuals-road-edge" />
+                  <line x1={cx} y1={cy} x2={e.x} y2={e.y} className="visuals-road-center" />
+                </>
+              )}
+            </g>
+          );
+        })}
+
+        {/* 路盡頭微光 */}
+        {dirs.map((d) => (
+          <circle
+            key={`glow-${d}`}
+            className="visuals-road-glow"
+            data-dir={d}
+            cx={ends[d].x}
+            cy={ends[d].y}
+            r={6}
+            fill={`url(#glow-${d})`}
+          />
+        ))}
+
+        {/* Hover 引導線 — 從中心繪製出來 */}
+        {dirs.map((d) => (
+          <line
+            key={`guide-${d}`}
+            className="visuals-road-guide"
+            data-dir={d}
+            x1={cx} y1={cy}
+            x2={ends[d].x} y2={ends[d].y}
+            strokeDasharray={guideLen}
+            strokeDashoffset={guideLen}
+          />
+        ))}
+      </svg>
+    );
+  }
+
   // === Render helpers ===
   const activeDivision = DIVISIONS.find((d) => d.id === activeDivisionId) || null;
 
   // ─── RENDER: Landing ───
   function renderLanding() {
+    // 資料驅動模式：有 homepage blocks 時使用
+    if (homepageBlocks.length > 0) {
+      return (
+        <div className="visuals-landing-page">
+          {homepageBlocks.map((block) => {
+            switch (block.type) {
+              case 'zone-header': {
+                const d = block.data as ZoneHeaderData;
+                return (
+                  <div key={block.id}>
+                    <div className="visuals-landing-kicker">Volume III · VISUALS</div>
+                    <h1 className="visuals-landing-title">{d.title}</h1>
+                    {d.subtitle && (
+                      <div className="visuals-landing-subtitle">{d.subtitle}</div>
+                    )}
+                  </div>
+                );
+              }
+              case 'uep-dialogue': {
+                const items = block.data as UepDialogueItem[];
+                return (
+                  <div key={block.id} className="visuals-landing-uep">
+                    {items.map((d, i) => (
+                      <UepDialogue key={i} text={d.text} side={d.side} effects={d.effects as any} />
+                    ))}
+                  </div>
+                );
+              }
+              case 'cross-road-grid': {
+                const { roads } = block.data as { roads: CrossRoad[] };
+                return (
+                  <div
+                    key={block.id}
+                    className="visuals-crossroad"
+                    data-hover={crossroadHover || undefined}
+                    onMouseLeave={() => setCrossroadHover(null)}
+                  >
+                    {renderCrossroadSvg()}
+                    {/* 中央羅盤 */}
+                    <div className="visuals-crossroad-center">
+                      <svg width={110} height={110} viewBox="0 0 110 110">
+                        <circle cx={55} cy={55} r={48} fill="none" stroke={ACCENT} strokeOpacity={0.3} strokeWidth={1} />
+                        <circle cx={55} cy={55} r={36} fill="none" stroke={ACCENT} strokeOpacity={0.15} strokeWidth={0.5} strokeDasharray="3 4" />
+                        <line x1={55} y1={7} x2={55} y2={103} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
+                        <line x1={7} y1={55} x2={103} y2={55} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
+                        <text x={55} y={59} textAnchor="middle" fill={ACCENT} fontSize={18} fontFamily="var(--font-display)">✦</text>
+                      </svg>
+                    </div>
+                    {/* 四個方向 */}
+                    {roads.map((road) => {
+                      const divMatch = road.href.match(/division=(\w+)/);
+                      const divId = divMatch?.[1];
+                      return (
+                        <button
+                          key={road.area}
+                          className="visuals-crossroad-card"
+                          data-area={road.area}
+                          onClick={() => divId && navigateToDivision(divId)}
+                          onMouseEnter={() => setCrossroadHover(road.area)}
+                        >
+                          <span className="visuals-crossroad-dir">{road.dir}</span>
+                          <span className="visuals-crossroad-name">{road.name}</span>
+                          <span className="visuals-crossroad-hint">{road.hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              case 'rich-text': {
+                const { html } = block.data as { html: string };
+                return (
+                  <div
+                    key={block.id}
+                    className="visuals-narrative"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                );
+              }
+              default:
+                return null;
+            }
+          })}
+        </div>
+      );
+    }
+
+    // Fallback：靜態十字路口
     return (
       <div className="visuals-landing-page">
-        {/* Header */}
         <div className="visuals-landing-kicker">Volume III · VISUALS</div>
         <h1 className="visuals-landing-title">幻影重現室</h1>
         <div className="visuals-landing-subtitle">
           畫作、插圖、視覺作品。半透明的人物像在水面盪漾。
         </div>
 
-        {/* UEP dialogues */}
         <div className="visuals-landing-uep">
           {VISUALS_ZONE.uep.map((text, i) => (
             <UepDialogue key={i} side="left" effects={i === 0 ? ['shimmer', 'halo'] : []} text={text} />
           ))}
         </div>
 
-        {/* Division grid */}
-        <div className="visuals-division-grid">
-          {DIVISIONS.map((div) => {
-            const node = findDivisionNode(tree, div.id);
-            const count = node ? countGalleries(node) : 0;
+        <div
+          className="visuals-crossroad"
+          data-hover={crossroadHover || undefined}
+          onMouseLeave={() => setCrossroadHover(null)}
+        >
+          {renderCrossroadSvg()}
+          <div className="visuals-crossroad-center">
+            <svg width={110} height={110} viewBox="0 0 110 110">
+              <circle cx={55} cy={55} r={48} fill="none" stroke={ACCENT} strokeOpacity={0.3} strokeWidth={1} />
+              <circle cx={55} cy={55} r={36} fill="none" stroke={ACCENT} strokeOpacity={0.15} strokeWidth={0.5} strokeDasharray="3 4" />
+              <line x1={55} y1={7} x2={55} y2={103} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
+              <line x1={7} y1={55} x2={103} y2={55} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
+              <text x={55} y={59} textAnchor="middle" fill={ACCENT} fontSize={18} fontFamily="var(--font-display)">✦</text>
+            </svg>
+          </div>
+          {DIVISIONS.map((div, i) => {
+            const areas = ['fwd', 'lft', 'rgt', 'bck'] as const;
+            const dirs = ['前方', '左方', '右方', '後方'];
             return (
               <button
                 key={div.id}
-                className="visuals-division-card"
+                className="visuals-crossroad-card"
+                data-area={areas[i]}
                 onClick={() => navigateToDivision(div.id)}
+                onMouseEnter={() => setCrossroadHover(areas[i])}
               >
-                <div className="visuals-division-card-icon">{div.icon}</div>
-                <div className="visuals-division-card-name">{div.label}</div>
-                <div className="visuals-division-card-en">{div.labelEn}</div>
-                <div className="visuals-division-card-desc">
-                  {div.intro.slice(0, 50)}...
-                  {count > 0 && (
-                    <span style={{ marginLeft: 8, color: ACCENT }}>
-                      {count} 個畫廊
-                    </span>
-                  )}
-                </div>
+                <span className="visuals-crossroad-dir">{dirs[i]}</span>
+                <span className="visuals-crossroad-name">{div.label}</span>
+                <span className="visuals-crossroad-hint">{div.intro.slice(0, 30)}...</span>
               </button>
             );
           })}
@@ -498,34 +732,8 @@ function VisualsReaderInner() {
 
         <UepDialogue side="left" effects={['shimmer', 'halo']} text={activeDivision.uepNote} />
 
-        {/* Subcat list */}
-        <div className="visuals-subcat-list">
-          {subcats.map((sc, i) => {
-            const galleryCount = countGalleries(sc);
-            const locked = sc.metadata?.locked === true;
-            return (
-              <button
-                key={sc.id}
-                className={`visuals-subcat-card ${locked ? 'is-locked' : ''}`}
-                onClick={() => !locked && navigateToSubcat(sc.id)}
-                disabled={locked}
-              >
-                <span className="visuals-subcat-card-num">
-                  {String(i + 1).padStart(2, '0')}.
-                </span>
-                <div>
-                  <div className="visuals-subcat-card-title">{sc.title}</div>
-                </div>
-                <span className="visuals-subcat-card-count">
-                  {locked ? '— sealed —' : `${galleryCount} galleries`}
-                </span>
-                <span className="visuals-subcat-card-arrow">
-                  {locked ? '🔒' : '→'}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Subcat — 依 division 風格渲染 */}
+        {renderDivisionSubcats(activeDivision.galleryStyle, subcats)}
 
         {subcats.length === 0 && <div className="visuals-empty">尚無子分類</div>}
 
@@ -539,6 +747,177 @@ function VisualsReaderInner() {
   }
 
   // ─── RENDER: Subcat ───
+  // ─── Division Subcat 風格渲染 ───
+  function renderDivisionSubcats(style: string, subcats: PageTreeNode[]) {
+    switch (style) {
+      case 'corridor':
+        return (
+          <div className="visuals-div-corridor">
+            {subcats.map((sc, i) => {
+              const count = countGalleries(sc);
+              const locked = sc.metadata?.locked === true;
+              return (
+                <button
+                  key={sc.id}
+                  className="visuals-div-corridor-item"
+                  onClick={() => !locked && navigateToSubcat(sc.id)}
+                  disabled={locked}
+                  style={locked ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                >
+                  <div className="visuals-div-corridor-inner">
+                    <div className="visuals-div-corridor-num">
+                      {locked ? '🔒' : String(i + 1).padStart(2, '0')}
+                    </div>
+                    <div className="visuals-div-corridor-info">
+                      <div className="visuals-div-corridor-title">{sc.title}</div>
+                      <div className="visuals-div-corridor-meta">
+                        {locked ? 'sealed' : `${count} galleries`}
+                      </div>
+                    </div>
+                    {!locked && <span className="visuals-div-corridor-arrow">→</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        );
+
+      case 'museum':
+        return (
+          <div className="visuals-div-museum">
+            {subcats.map((sc) => {
+              const count = countGalleries(sc);
+              const locked = sc.metadata?.locked === true;
+              return (
+                <button
+                  key={sc.id}
+                  className="visuals-div-museum-frame"
+                  onClick={() => !locked && navigateToSubcat(sc.id)}
+                  disabled={locked}
+                  style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  <div className="visuals-div-museum-placeholder">
+                    {locked ? '🔒' : sc.title.slice(0, 2)}
+                  </div>
+                  <div className="visuals-div-museum-label">
+                    「{sc.title}」
+                  </div>
+                  <div className="visuals-div-museum-count">
+                    {locked ? '— sealed —' : `${count} galleries`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        );
+
+      case 'pinboard':
+        return (
+          <div className="visuals-div-pinboard">
+            {subcats.map((sc, i) => {
+              const count = countGalleries(sc);
+              const locked = sc.metadata?.locked === true;
+              const rot = ((i % 5) - 2) * 3;
+              return (
+                <button
+                  key={sc.id}
+                  className="visuals-div-pinboard-note"
+                  onClick={() => !locked && navigateToSubcat(sc.id)}
+                  disabled={locked}
+                  style={{
+                    transform: `rotate(${rot}deg)`,
+                    ...(locked ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                  }}
+                >
+                  <span className="visuals-div-pinboard-pin" />
+                  <div className="visuals-div-pinboard-title">
+                    {locked ? '🔒 ' : ''}{sc.title}
+                  </div>
+                  <div className="visuals-div-pinboard-count">
+                    {locked ? 'sealed' : `${count} galleries`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        );
+
+      case 'pixel':
+        return (
+          <div className="visuals-div-terminal">
+            <div className="visuals-div-terminal-header">
+              PHANTOM://PIXEL/BASE_LAYER_LAB
+            </div>
+            <div className="visuals-div-terminal-body">
+              {subcats.map((sc, i) => {
+                const count = countGalleries(sc);
+                const locked = sc.metadata?.locked === true;
+                return (
+                  <button
+                    key={sc.id}
+                    className="visuals-div-terminal-row"
+                    onClick={() => !locked && navigateToSubcat(sc.id)}
+                    disabled={locked}
+                    style={locked ? { opacity: 0.3, cursor: 'not-allowed' } : undefined}
+                  >
+                    <span className="visuals-div-terminal-cursor">▸</span>
+                    <span className="visuals-div-terminal-name">
+                      {locked ? `[SEALED] ${sc.title}` : sc.title}
+                    </span>
+                    <span className="visuals-div-terminal-count">
+                      {locked ? '---' : `${count} entries`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="visuals-div-terminal-status">
+              {subcats.length} DIRECTORIES · READY
+            </div>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="visuals-gallery-card-grid">
+            {subcats.map((sc) => {
+              const count = countGalleries(sc);
+              return (
+                <button key={sc.id} className="visuals-gallery-card" onClick={() => navigateToSubcat(sc.id)}>
+                  <div className="visuals-placeholder-art" style={{ background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)` }}>
+                    {sc.title.slice(0, 2)}
+                  </div>
+                  <div className="visuals-gallery-card-body">
+                    <div className="visuals-gallery-card-title">{sc.title}</div>
+                    <div className="visuals-gallery-card-meta">{count} galleries</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        );
+    }
+  }
+
+  // 拖曳切換群組
+  const dragStartX = useRef<number | null>(null);
+
+  function handleViewerPointerDown(e: React.PointerEvent) {
+    dragStartX.current = e.clientX;
+  }
+
+  function handleViewerPointerUp(e: React.PointerEvent, groupCount: number) {
+    if (dragStartX.current === null) return;
+    const dx = e.clientX - dragStartX.current;
+    dragStartX.current = null;
+    const threshold = 60;
+    if (dx < -threshold && activeGroupIdx < groupCount - 1) {
+      navigateToSubcat(activeSubcatId!, activeGroupIdx + 1);
+    } else if (dx > threshold && activeGroupIdx > 0) {
+      navigateToSubcat(activeSubcatId!, activeGroupIdx - 1);
+    }
+  }
+
   function renderSubcat() {
     if (!activeSubcatId) return null;
     const subcatNode = findNodeById(tree, activeSubcatId);
@@ -559,6 +938,7 @@ function VisualsReaderInner() {
     const safeGroupIdx = Math.min(activeGroupIdx, Math.max(0, groupList.length - 1));
     const currentGroup = groupList[safeGroupIdx] || '全部';
     const currentGalleries = groupMap.get(currentGroup) || galleries;
+    const maxIdx = Math.max(0, groupList.length - 1);
 
     return (
       <div className="visuals-subcat-page">
@@ -573,83 +953,97 @@ function VisualsReaderInner() {
           <span>{subcatNode.title}</span>
         </div>
 
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 36, fontWeight: 600, color: 'var(--ink-title)', margin: '8px 0 4px' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 36, fontWeight: 600, color: 'var(--ink-title)', margin: '8px 0 4px', textAlign: 'center' }}>
           {subcatNode.title}
         </h2>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '0.16em' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '0.16em', textAlign: 'center' }}>
           {galleries.length} galleries · {groupList.length} groups
         </div>
         <div className="visuals-gradient-divider" />
 
-        {/* Group navigation */}
-        {groupList.length > 1 && (
-          <div className="visuals-tag-bar">
+        {/* 群組檢視器 */}
+        <div className="visuals-viewer">
+          {/* 導航列 — 永遠顯示箭頭 */}
+          <div className="visuals-viewer-nav">
             <button
-              className="visuals-tag-btn"
+              className="visuals-viewer-arrow"
               disabled={safeGroupIdx <= 0}
               onClick={() => navigateToSubcat(activeSubcatId!, safeGroupIdx - 1)}
             >
               ‹
             </button>
-            <div className="visuals-tag-label">
-              {currentGroup} ({safeGroupIdx + 1} / {groupList.length})
+            <div className="visuals-viewer-label">
+              <div className="visuals-viewer-group-name">{currentGroup}</div>
+              <div className="visuals-viewer-group-counter">
+                {groupList.length > 0
+                  ? `${safeGroupIdx + 1} / ${groupList.length}`
+                  : '—'}
+              </div>
             </div>
             <button
-              className="visuals-tag-btn"
-              disabled={safeGroupIdx >= groupList.length - 1}
+              className="visuals-viewer-arrow"
+              disabled={safeGroupIdx >= maxIdx}
               onClick={() => navigateToSubcat(activeSubcatId!, safeGroupIdx + 1)}
             >
               ›
             </button>
           </div>
-        )}
 
-        {/* Gallery cards */}
-        <div className="visuals-gallery-card-grid">
-          {currentGalleries.map((g) => {
-            const images = Array.isArray(g.metadata?.images) ? (g.metadata.images as ImageItem[]) : [];
-            const spoiler = (g.metadata?.spoilerLevel as number) || 0;
-            const gate = (g.metadata?.gate as string) || '';
-            const thumbUrl = images.length > 0 ? buildImageUrl(images[0].file) : '';
-            const isLocked = spoiler > 0 && !isUnlocked(g.id);
+          {/* 內容區 — 可拖曳切換 */}
+          <div
+            className="visuals-viewer-body"
+            onPointerDown={handleViewerPointerDown}
+            onPointerUp={(e) => handleViewerPointerUp(e, groupList.length)}
+          >
+            {currentGalleries.length === 0 ? (
+              <div className="visuals-empty">此分組尚無畫廊</div>
+            ) : (
+              <div className="visuals-gallery-card-grid">
+                {currentGalleries.map((g) => {
+                  const images = Array.isArray(g.metadata?.images) ? (g.metadata.images as ImageItem[]) : [];
+                  const spoiler = (g.metadata?.spoilerLevel as number) || 0;
+                  const gate = (g.metadata?.gate as string) || '';
+                  const thumbUrl = images.length > 0 ? buildImageUrl(images[0].file) : '';
+                  const isLocked = spoiler > 0 && !isUnlocked(g.id);
 
-            const handleClick = () => {
-              if (isLocked) {
-                requestUnlock(g.id, spoiler, gate, () => {
-                  void navigateToGallery(g.id);
-                });
-              } else {
-                void navigateToGallery(g.id);
-              }
-            };
+                  const handleClick = () => {
+                    if (isLocked) {
+                      requestUnlock(g.id, spoiler, gate, () => {
+                        void navigateToGallery(g.id);
+                      });
+                    } else {
+                      void navigateToGallery(g.id);
+                    }
+                  };
 
-            return (
-              <button key={g.id} className="visuals-gallery-card" onClick={handleClick}>
-                {thumbUrl ? (
-                  <img
-                    className="visuals-gallery-card-thumb"
-                    src={thumbUrl}
-                    alt={g.title}
-                    style={{ filter: isLocked ? spoilerFilter(spoiler) : 'none' }}
-                  />
-                ) : (
-                  <div className="visuals-placeholder-art" style={{ background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)` }}>
-                    PLACEHOLDER
-                  </div>
-                )}
-                <div className="visuals-gallery-card-body">
-                  <div className="visuals-gallery-card-title">{g.title}</div>
-                  <div className="visuals-gallery-card-meta">
-                    {images.length} 張圖片
-                    {spoiler > 0 && <span style={{ color: spoiler === 3 ? 'crimson' : 'goldenrod', marginLeft: 8 }}>L{spoiler}</span>}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+                  return (
+                    <button key={g.id} className="visuals-gallery-card" onClick={handleClick}>
+                      {thumbUrl ? (
+                        <img
+                          className="visuals-gallery-card-thumb"
+                          src={thumbUrl}
+                          alt={g.title}
+                          style={{ filter: isLocked ? spoilerFilter(spoiler) : 'none' }}
+                        />
+                      ) : (
+                        <div className="visuals-placeholder-art" style={{ background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)` }}>
+                          {g.title.slice(0, 2)}
+                        </div>
+                      )}
+                      <div className="visuals-gallery-card-body">
+                        <div className="visuals-gallery-card-title">{g.title}</div>
+                        <div className="visuals-gallery-card-meta">
+                          {images.length} 張圖片
+                          {spoiler > 0 && <span style={{ color: spoiler === 3 ? 'crimson' : 'goldenrod', marginLeft: 8 }}>L{spoiler}</span>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-
-        {currentGalleries.length === 0 && <div className="visuals-empty">此分組尚無畫廊</div>}
 
         <div className="visuals-back-bar">
           <button className="visuals-back-btn" onClick={() => activeDivision && navigateToDivision(activeDivision.id)}>
