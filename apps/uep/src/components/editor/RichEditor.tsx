@@ -19,6 +19,12 @@ import EchoesEditorBody, {
   type EchoesData,
 } from './EchoesEditorBody';
 import EchoesSubcatEditor from './EchoesSubcatEditor';
+import VisualsEditorBody, {
+  parseVisualsData,
+  serializeVisualsData,
+  type VisualsData,
+} from './VisualsEditorBody';
+import VisualsSubcatEditor from './VisualsSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './RichEditor.css';
 
@@ -137,11 +143,18 @@ export default function RichEditor({
   const isEchoesArea = area === 'echoes' || zoneId === 'echoes';
   const isEchoes = isEchoesArea && pageType === 'song';
   const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
+  // Visuals 特殊編輯模式
+  const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
+  const isVisuals = isVisualsArea && pageType === 'gallery';
+  const isVisualsSubcat = isVisualsArea && pageType === 'subcategory';
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
+  );
+  const [visualsData, setVisualsData] = useState<VisualsData>(() =>
+    parseVisualsData(initialMetadata || {})
   );
   const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
     () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
@@ -198,10 +211,10 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
-    if (!isEchoes && !editor) return;
+    if (!isEchoes && !isVisuals && !editor) return;
     setSaveStatus('saving');
     try {
-      const content = isEchoes
+      const content = (isEchoes || isVisuals)
         ? [{ id: 'content', type: 'rich_text', content: '' }]
         : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
 
@@ -211,6 +224,7 @@ export default function RichEditor({
         ...(icon ? { icon } : {}),
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
+        ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
       };
 
@@ -240,8 +254,10 @@ export default function RichEditor({
     editor,
     isDirty,
     isEchoes,
+    isVisuals,
     isZone,
     echoesData,
+    visualsData,
     zoneTabs,
     title,
     apiBase,
@@ -280,7 +296,7 @@ export default function RichEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  if (!editor && !isEchoes) return null;
+  if (!editor && !isEchoes && !isVisuals) return null;
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -512,7 +528,7 @@ export default function RichEditor({
       {/* Toolbar — 入口模式隱藏 */}
       {!isEntryMode && (
         <div className="ned-toolbar" ref={dropdownRef}>
-          {!isEchoes && editor && (
+          {!isEchoes && !isVisuals && editor && (
             <>
               {/* Heading dropdown */}
               <div className="tb-group">
@@ -1029,11 +1045,29 @@ export default function RichEditor({
                     onDataChange={setEchoesData}
                     onDirty={() => setIsDirty(true)}
                   />
+                ) : isVisuals ? (
+                  <VisualsEditorBody
+                    accent={accentMain}
+                    initialData={visualsData}
+                    onDataChange={setVisualsData}
+                    onDirty={() => setIsDirty(true)}
+                  />
                 ) : (
                   <>
                     <EditorContent editor={editor} />
                     {isEchoesSubcat && (
                       <EchoesSubcatEditor
+                        area={area}
+                        apiBase={apiBase}
+                        pageId={`${area}/${pageSlug}`}
+                        pageSlug={pageSlug}
+                        accent={accentMain}
+                        onDirty={() => setIsDirty(true)}
+                        refreshKey={treeRefreshKey}
+                      />
+                    )}
+                    {isVisualsSubcat && (
+                      <VisualsSubcatEditor
                         area={area}
                         apiBase={apiBase}
                         pageId={`${area}/${pageSlug}`}

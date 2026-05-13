@@ -34,7 +34,9 @@ export type PageType =
   | 'cluster'
   | 'subcategory'
   | 'song' // Echoes 專用
-  | 'homepage'; // 區域首頁
+  | 'homepage' // 區域首頁
+  | 'division' // Visuals 專用：分館（profiles/illustrations/sketchs/pixel）
+  | 'gallery'; // Visuals 專用：畫廊頁面（含多張圖片）
 
 /** 單一內容區塊 */
 export interface ContentBlock {
