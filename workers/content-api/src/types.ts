@@ -68,6 +68,7 @@ export interface PageRow {
   page_type: PageType;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 /** API 回傳用的頁面資料（已解析 JSON） */
@@ -87,6 +88,7 @@ export interface Page {
   pageType: PageType;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 /** 樹狀結構的頁面節點 */
@@ -202,6 +204,7 @@ export interface PageListItem {
   depth: number;
   pageType: PageType;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 // ===== 媒體庫 =====
