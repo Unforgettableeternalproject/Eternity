@@ -14,7 +14,12 @@ import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
-import type { HomepageBlock, ZoneHeaderData, UepDialogueItem, CrossRoad } from '../editor/homepage/types';
+import type {
+  HomepageBlock,
+  ZoneHeaderData,
+  UepDialogueItem,
+  CrossRoad,
+} from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
 import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
@@ -23,7 +28,13 @@ import './VisualsReader.css';
 // ──────────────────────────────────────────────────────────────
 // 型別
 // ──────────────────────────────────────────────────────────────
-type PageType = 'zone' | 'division' | 'subcategory' | 'gallery' | 'homepage' | 'page';
+type PageType =
+  | 'zone'
+  | 'division'
+  | 'subcategory'
+  | 'gallery'
+  | 'homepage'
+  | 'page';
 
 interface PageTreeNode {
   id: string;
@@ -41,7 +52,12 @@ interface Page {
   id: string;
   title: string;
   slug: string;
-  content: { id: string; type: string; content: string; attrs?: Record<string, unknown> }[];
+  content: {
+    id: string;
+    type: string;
+    content: string;
+    attrs?: Record<string, unknown>;
+  }[];
   metadata: Record<string, unknown>;
   parentId: string | null;
   pageType: string;
@@ -73,8 +89,10 @@ const DIVISIONS: DivisionDef[] = [
     label: '陳列走廊',
     labelEn: 'PROFILES · GALLERY HALL',
     icon: '⬚',
-    intro: '你站在一條看不到盡頭的長廊，兩側懸掛著無數的肖像。每一張臉都似乎在對你訴說著他們的故事——有些溫暖，有些冰冷，有些你甚至覺得見過。',
-    uepNote: '這裡是我幫你整理好的所有「設定圖」喔，每一張都對應到一個我認識的人或地方!',
+    intro:
+      '你站在一條看不到盡頭的長廊，兩側懸掛著無數的肖像。每一張臉都似乎在對你訴說著他們的故事——有些溫暖，有些冰冷，有些你甚至覺得見過。',
+    uepNote:
+      '這裡是我幫你整理好的所有「設定圖」喔，每一張都對應到一個我認識的人或地方!',
     galleryStyle: 'corridor',
   },
   {
@@ -82,7 +100,8 @@ const DIVISIONS: DivisionDef[] = [
     label: '鑲框室',
     labelEn: 'ILLUSTRATIONS · FRAMED HALL',
     icon: '❒',
-    intro: '有一道厚重的木門，門後是一個寬敞的長方形房間。所有的牆都掛滿了被鍍金邊框圍住的畫作。你彷彿置身於一座古老的美術館之中。',
+    intro:
+      '有一道厚重的木門，門後是一個寬敞的長方形房間。所有的牆都掛滿了被鍍金邊框圍住的畫作。你彷彿置身於一座古老的美術館之中。',
     uepNote: '這些都是我比較花心思去構想的場景! 你可以慢慢看~',
     galleryStyle: 'museum',
   },
@@ -91,7 +110,8 @@ const DIVISIONS: DivisionDef[] = [
     label: '抽象萃取間',
     labelEn: 'SKETCHS · EXTRACTION ROOM',
     icon: '✎',
-    intro: '這個區域瀰漫著鉛筆與炭灰的氣味，紙張被無序地釘在四面八方的軟木牆上。這些是尚未完成的意念，半成品的幻象。',
+    intro:
+      '這個區域瀰漫著鉛筆與炭灰的氣味，紙張被無序地釘在四面八方的軟木牆上。這些是尚未完成的意念，半成品的幻象。',
     uepNote: '這些是還沒完成的草稿~ 有時候我也會回來修一修它們!',
     galleryStyle: 'pinboard',
   },
@@ -100,7 +120,8 @@ const DIVISIONS: DivisionDef[] = [
     label: '基底實驗室',
     labelEn: 'PIXEL · BASE LAYER LAB',
     icon: '▦',
-    intro: '你進入了一個被冷光照亮的小房間。中央的儀器正在播放著一張張不斷重組的小型圖樣。每一個像素都是經過精密計算的。',
+    intro:
+      '你進入了一個被冷光照亮的小房間。中央的儀器正在播放著一張張不斷重組的小型圖樣。每一個像素都是經過精密計算的。',
     uepNote: '最近 Bernie 在玩像素藝術! 我覺得很有趣所以也想保存下來~',
     galleryStyle: 'pixel',
   },
@@ -113,7 +134,10 @@ function buildImageUrl(key: string): string {
   return `${API_BASE}/api/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-function findDivisionNode(tree: PageTreeNode[], divId: string): PageTreeNode | null {
+function findDivisionNode(
+  tree: PageTreeNode[],
+  divId: string
+): PageTreeNode | null {
   for (const n of tree) {
     if (n.pageType === 'division' && n.slug.endsWith(divId)) return n;
     for (const c of n.children || []) {
@@ -132,7 +156,10 @@ function findNodeById(tree: PageTreeNode[], id: string): PageTreeNode | null {
   return null;
 }
 
-function findParentDivision(tree: PageTreeNode[], nodeId: string): DivisionDef | null {
+function findParentDivision(
+  tree: PageTreeNode[],
+  nodeId: string
+): DivisionDef | null {
   for (const n of tree) {
     for (const div of n.children || []) {
       if (div.pageType !== 'division') continue;
@@ -213,7 +240,10 @@ function VisualsReaderInner() {
   // Spoiler
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [spoilerWarning, setSpoilerWarning] = useState<{
-    id: string; level: number; gate: string; onConfirm: () => void;
+    id: string;
+    level: number;
+    gate: string;
+    onConfirm: () => void;
   } | null>(null);
 
   // Lightbox
@@ -228,7 +258,10 @@ function VisualsReaderInner() {
   const [portalZone, setPortalZone] = useState<any>(null);
   const [introZone, setIntroZone] = useState<any>(null);
   const [theme, setTheme] = useState(
-    () => (typeof localStorage !== 'undefined' && localStorage.getItem('uep-theme')) || 'dark'
+    () =>
+      (typeof localStorage !== 'undefined' &&
+        localStorage.getItem('uep-theme')) ||
+      'dark'
   );
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -269,7 +302,9 @@ function VisualsReaderInner() {
           .filter(Boolean) as HomepageBlock[];
         setHomepageBlocks(blocks);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -299,7 +334,6 @@ function VisualsReaderInner() {
     } else if (division) {
       navigateToDivision(division, false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treeLoading, tree]);
 
   useEffect(() => {
@@ -322,7 +356,6 @@ function VisualsReaderInner() {
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree]);
 
   // === Navigation ===
@@ -335,9 +368,11 @@ function VisualsReaderInner() {
 
   /** 建立目前 view 的 scroll key */
   function currentScrollKey(): string {
-    if (view === 'gallery' && activeGalleryId) return `gallery:${activeGalleryId}`;
+    if (view === 'gallery' && activeGalleryId)
+      return `gallery:${activeGalleryId}`;
     if (view === 'subcat' && activeSubcatId) return `subcat:${activeSubcatId}`;
-    if (view === 'division' && activeDivisionId) return `division:${activeDivisionId}`;
+    if (view === 'division' && activeDivisionId)
+      return `division:${activeDivisionId}`;
     return 'landing';
   }
 
@@ -415,11 +450,18 @@ function VisualsReaderInner() {
       if (!res.ok) return;
       const json = await res.json();
       if (json.ok) setGalleryPage(json.data);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // === Spoiler unlock ===
-  function requestUnlock(id: string, level: number, gate: string, onConfirm: () => void) {
+  function requestUnlock(
+    id: string,
+    level: number,
+    gate: string,
+    onConfirm: () => void
+  ) {
     setSpoilerWarning({ id, level, gate, onConfirm });
   }
 
@@ -468,7 +510,8 @@ function VisualsReaderInner() {
 
   // === 十字路口道路 SVG ===
   function renderCrossroadSvg() {
-    const cx = 50, cy = 50;
+    const cx = 50,
+      cy = 50;
     const rw = 2; // 路寬（半邊）
     // 路線終點 — 在卡片邊緣前停住（不穿透卡片）
     const ends = {
@@ -482,15 +525,23 @@ function VisualsReaderInner() {
     const guideLen = 34;
 
     return (
-      <svg className="visuals-crossroad-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <svg
+        className="visuals-crossroad-svg"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
         <defs>
           {dirs.map((d) => {
             const e = ends[d];
             const isV = d === 'fwd' || d === 'bck';
             // 漸層方向：從中心向終點方向
             return (
-              <radialGradient key={`g-${d}`} id={`glow-${d}`}
-                cx={`${e.x}%`} cy={`${e.y}%`} r={isV ? '12%' : '12%'}
+              <radialGradient
+                key={`g-${d}`}
+                id={`glow-${d}`}
+                cx={`${e.x}%`}
+                cy={`${e.y}%`}
+                r={isV ? '12%' : '12%'}
                 gradientUnits="userSpaceOnUse"
               >
                 <stop offset="0%" stopColor="#9F86C0" stopOpacity="0.9" />
@@ -509,15 +560,51 @@ function VisualsReaderInner() {
             <g key={`road-${d}`}>
               {isV ? (
                 <>
-                  <line x1={cx - rw} y1={cy} x2={e.x - rw} y2={e.y} className="visuals-road-edge" />
-                  <line x1={cx + rw} y1={cy} x2={e.x + rw} y2={e.y} className="visuals-road-edge" />
-                  <line x1={cx} y1={cy} x2={e.x} y2={e.y} className="visuals-road-center" />
+                  <line
+                    x1={cx - rw}
+                    y1={cy}
+                    x2={e.x - rw}
+                    y2={e.y}
+                    className="visuals-road-edge"
+                  />
+                  <line
+                    x1={cx + rw}
+                    y1={cy}
+                    x2={e.x + rw}
+                    y2={e.y}
+                    className="visuals-road-edge"
+                  />
+                  <line
+                    x1={cx}
+                    y1={cy}
+                    x2={e.x}
+                    y2={e.y}
+                    className="visuals-road-center"
+                  />
                 </>
               ) : (
                 <>
-                  <line x1={cx} y1={cy - rw} x2={e.x} y2={e.y - rw} className="visuals-road-edge" />
-                  <line x1={cx} y1={cy + rw} x2={e.x} y2={e.y + rw} className="visuals-road-edge" />
-                  <line x1={cx} y1={cy} x2={e.x} y2={e.y} className="visuals-road-center" />
+                  <line
+                    x1={cx}
+                    y1={cy - rw}
+                    x2={e.x}
+                    y2={e.y - rw}
+                    className="visuals-road-edge"
+                  />
+                  <line
+                    x1={cx}
+                    y1={cy + rw}
+                    x2={e.x}
+                    y2={e.y + rw}
+                    className="visuals-road-edge"
+                  />
+                  <line
+                    x1={cx}
+                    y1={cy}
+                    x2={e.x}
+                    y2={e.y}
+                    className="visuals-road-center"
+                  />
                 </>
               )}
             </g>
@@ -543,8 +630,10 @@ function VisualsReaderInner() {
             key={`guide-${d}`}
             className="visuals-road-guide"
             data-dir={d}
-            x1={cx} y1={cy}
-            x2={ends[d].x} y2={ends[d].y}
+            x1={cx}
+            y1={cy}
+            x2={ends[d].x}
+            y2={ends[d].y}
             strokeDasharray={guideLen}
             strokeDashoffset={guideLen}
           />
@@ -554,7 +643,8 @@ function VisualsReaderInner() {
   }
 
   // === Render helpers ===
-  const activeDivision = DIVISIONS.find((d) => d.id === activeDivisionId) || null;
+  const activeDivision =
+    DIVISIONS.find((d) => d.id === activeDivisionId) || null;
 
   // ─── RENDER: Landing ───
   function renderLanding() {
@@ -568,10 +658,14 @@ function VisualsReaderInner() {
                 const d = block.data as ZoneHeaderData;
                 return (
                   <div key={block.id}>
-                    <div className="visuals-landing-kicker">Volume III · VISUALS</div>
+                    <div className="visuals-landing-kicker">
+                      Volume III · VISUALS
+                    </div>
                     <h1 className="visuals-landing-title">{d.title}</h1>
                     {d.subtitle && (
-                      <div className="visuals-landing-subtitle">{d.subtitle}</div>
+                      <div className="visuals-landing-subtitle">
+                        {d.subtitle}
+                      </div>
                     )}
                   </div>
                 );
@@ -581,7 +675,12 @@ function VisualsReaderInner() {
                 return (
                   <div key={block.id} className="visuals-landing-uep">
                     {items.map((d, i) => (
-                      <UepDialogue key={i} text={d.text} side={d.side} effects={d.effects as any} />
+                      <UepDialogue
+                        key={i}
+                        text={d.text}
+                        side={d.side}
+                        effects={d.effects as any}
+                      />
                     ))}
                   </div>
                 );
@@ -599,11 +698,53 @@ function VisualsReaderInner() {
                     {/* 中央羅盤 */}
                     <div className="visuals-crossroad-center">
                       <svg width={110} height={110} viewBox="0 0 110 110">
-                        <circle cx={55} cy={55} r={48} fill="none" stroke={ACCENT} strokeOpacity={0.3} strokeWidth={1} />
-                        <circle cx={55} cy={55} r={36} fill="none" stroke={ACCENT} strokeOpacity={0.15} strokeWidth={0.5} strokeDasharray="3 4" />
-                        <line x1={55} y1={7} x2={55} y2={103} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
-                        <line x1={7} y1={55} x2={103} y2={55} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
-                        <text x={55} y={59} textAnchor="middle" fill={ACCENT} fontSize={18} fontFamily="var(--font-display)">✦</text>
+                        <circle
+                          cx={55}
+                          cy={55}
+                          r={48}
+                          fill="none"
+                          stroke={ACCENT}
+                          strokeOpacity={0.3}
+                          strokeWidth={1}
+                        />
+                        <circle
+                          cx={55}
+                          cy={55}
+                          r={36}
+                          fill="none"
+                          stroke={ACCENT}
+                          strokeOpacity={0.15}
+                          strokeWidth={0.5}
+                          strokeDasharray="3 4"
+                        />
+                        <line
+                          x1={55}
+                          y1={7}
+                          x2={55}
+                          y2={103}
+                          stroke={ACCENT}
+                          strokeOpacity={0.4}
+                          strokeWidth={0.5}
+                        />
+                        <line
+                          x1={7}
+                          y1={55}
+                          x2={103}
+                          y2={55}
+                          stroke={ACCENT}
+                          strokeOpacity={0.4}
+                          strokeWidth={0.5}
+                        />
+                        <text
+                          x={55}
+                          y={59}
+                          textAnchor="middle"
+                          fill={ACCENT}
+                          fontSize={18}
+                          fontFamily="var(--font-display)"
+                        >
+                          ✦
+                        </text>
                       </svg>
                     </div>
                     {/* 四個方向 */}
@@ -618,9 +759,15 @@ function VisualsReaderInner() {
                           onClick={() => divId && navigateToDivision(divId)}
                           onMouseEnter={() => setCrossroadHover(road.area)}
                         >
-                          <span className="visuals-crossroad-dir">{road.dir}</span>
-                          <span className="visuals-crossroad-name">{road.name}</span>
-                          <span className="visuals-crossroad-hint">{road.hint}</span>
+                          <span className="visuals-crossroad-dir">
+                            {road.dir}
+                          </span>
+                          <span className="visuals-crossroad-name">
+                            {road.name}
+                          </span>
+                          <span className="visuals-crossroad-hint">
+                            {road.hint}
+                          </span>
                         </button>
                       );
                     })}
@@ -656,7 +803,12 @@ function VisualsReaderInner() {
 
         <div className="visuals-landing-uep">
           {VISUALS_ZONE.uep.map((text, i) => (
-            <UepDialogue key={i} side="left" effects={i === 0 ? ['shimmer', 'halo'] : []} text={text} />
+            <UepDialogue
+              key={i}
+              side="left"
+              effects={i === 0 ? ['shimmer', 'halo'] : []}
+              text={text}
+            />
           ))}
         </div>
 
@@ -668,11 +820,53 @@ function VisualsReaderInner() {
           {renderCrossroadSvg()}
           <div className="visuals-crossroad-center">
             <svg width={110} height={110} viewBox="0 0 110 110">
-              <circle cx={55} cy={55} r={48} fill="none" stroke={ACCENT} strokeOpacity={0.3} strokeWidth={1} />
-              <circle cx={55} cy={55} r={36} fill="none" stroke={ACCENT} strokeOpacity={0.15} strokeWidth={0.5} strokeDasharray="3 4" />
-              <line x1={55} y1={7} x2={55} y2={103} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
-              <line x1={7} y1={55} x2={103} y2={55} stroke={ACCENT} strokeOpacity={0.4} strokeWidth={0.5} />
-              <text x={55} y={59} textAnchor="middle" fill={ACCENT} fontSize={18} fontFamily="var(--font-display)">✦</text>
+              <circle
+                cx={55}
+                cy={55}
+                r={48}
+                fill="none"
+                stroke={ACCENT}
+                strokeOpacity={0.3}
+                strokeWidth={1}
+              />
+              <circle
+                cx={55}
+                cy={55}
+                r={36}
+                fill="none"
+                stroke={ACCENT}
+                strokeOpacity={0.15}
+                strokeWidth={0.5}
+                strokeDasharray="3 4"
+              />
+              <line
+                x1={55}
+                y1={7}
+                x2={55}
+                y2={103}
+                stroke={ACCENT}
+                strokeOpacity={0.4}
+                strokeWidth={0.5}
+              />
+              <line
+                x1={7}
+                y1={55}
+                x2={103}
+                y2={55}
+                stroke={ACCENT}
+                strokeOpacity={0.4}
+                strokeWidth={0.5}
+              />
+              <text
+                x={55}
+                y={59}
+                textAnchor="middle"
+                fill={ACCENT}
+                fontSize={18}
+                fontFamily="var(--font-display)"
+              >
+                ✦
+              </text>
             </svg>
           </div>
           {DIVISIONS.map((div, i) => {
@@ -688,7 +882,9 @@ function VisualsReaderInner() {
               >
                 <span className="visuals-crossroad-dir">{dirs[i]}</span>
                 <span className="visuals-crossroad-name">{div.label}</span>
-                <span className="visuals-crossroad-hint">{div.intro.slice(0, 30)}...</span>
+                <span className="visuals-crossroad-hint">
+                  {div.intro.slice(0, 30)}...
+                </span>
               </button>
             );
           })}
@@ -716,7 +912,9 @@ function VisualsReaderInner() {
 
         {/* Header */}
         <div className="visuals-division-header">
-          <span className="visuals-division-header-icon">{activeDivision.icon}</span>
+          <span className="visuals-division-header-icon">
+            {activeDivision.icon}
+          </span>
           <h2>{activeDivision.label}</h2>
         </div>
         <div className="visuals-division-stats">
@@ -730,15 +928,24 @@ function VisualsReaderInner() {
           {activeDivision.intro.slice(1)}
         </p>
 
-        <UepDialogue side="left" effects={['shimmer', 'halo']} text={activeDivision.uepNote} />
+        <UepDialogue
+          side="left"
+          effects={['shimmer', 'halo']}
+          text={activeDivision.uepNote}
+        />
 
         {/* Subcat — 依 division 風格渲染 */}
         {renderDivisionSubcats(activeDivision.galleryStyle, subcats)}
 
-        {subcats.length === 0 && <div className="visuals-empty">尚無子分類</div>}
+        {subcats.length === 0 && (
+          <div className="visuals-empty">尚無子分類</div>
+        )}
 
         <div className="visuals-back-bar">
-          <button className="visuals-back-btn" onClick={() => navigateToLanding()}>
+          <button
+            className="visuals-back-btn"
+            onClick={() => navigateToLanding()}
+          >
             ← 返回幻影重現室
           </button>
         </div>
@@ -762,19 +969,27 @@ function VisualsReaderInner() {
                   className="visuals-div-corridor-item"
                   onClick={() => !locked && navigateToSubcat(sc.id)}
                   disabled={locked}
-                  style={locked ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                  style={
+                    locked
+                      ? { opacity: 0.45, cursor: 'not-allowed' }
+                      : undefined
+                  }
                 >
                   <div className="visuals-div-corridor-inner">
                     <div className="visuals-div-corridor-num">
                       {locked ? '🔒' : String(i + 1).padStart(2, '0')}
                     </div>
                     <div className="visuals-div-corridor-info">
-                      <div className="visuals-div-corridor-title">{sc.title}</div>
+                      <div className="visuals-div-corridor-title">
+                        {sc.title}
+                      </div>
                       <div className="visuals-div-corridor-meta">
                         {locked ? 'sealed' : `${count} galleries`}
                       </div>
                     </div>
-                    {!locked && <span className="visuals-div-corridor-arrow">→</span>}
+                    {!locked && (
+                      <span className="visuals-div-corridor-arrow">→</span>
+                    )}
                   </div>
                 </button>
               );
@@ -794,14 +1009,14 @@ function VisualsReaderInner() {
                   className="visuals-div-museum-frame"
                   onClick={() => !locked && navigateToSubcat(sc.id)}
                   disabled={locked}
-                  style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                  style={
+                    locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined
+                  }
                 >
                   <div className="visuals-div-museum-placeholder">
                     {locked ? '🔒' : sc.title.slice(0, 2)}
                   </div>
-                  <div className="visuals-div-museum-label">
-                    「{sc.title}」
-                  </div>
+                  <div className="visuals-div-museum-label">「{sc.title}」</div>
                   <div className="visuals-div-museum-count">
                     {locked ? '— sealed —' : `${count} galleries`}
                   </div>
@@ -831,7 +1046,8 @@ function VisualsReaderInner() {
                 >
                   <span className="visuals-div-pinboard-pin" />
                   <div className="visuals-div-pinboard-title">
-                    {locked ? '🔒 ' : ''}{sc.title}
+                    {locked ? '🔒 ' : ''}
+                    {sc.title}
                   </div>
                   <div className="visuals-div-pinboard-count">
                     {locked ? 'sealed' : `${count} galleries`}
@@ -858,7 +1074,11 @@ function VisualsReaderInner() {
                     className="visuals-div-terminal-row"
                     onClick={() => !locked && navigateToSubcat(sc.id)}
                     disabled={locked}
-                    style={locked ? { opacity: 0.3, cursor: 'not-allowed' } : undefined}
+                    style={
+                      locked
+                        ? { opacity: 0.3, cursor: 'not-allowed' }
+                        : undefined
+                    }
                   >
                     <span className="visuals-div-terminal-cursor">▸</span>
                     <span className="visuals-div-terminal-name">
@@ -883,13 +1103,24 @@ function VisualsReaderInner() {
             {subcats.map((sc) => {
               const count = countGalleries(sc);
               return (
-                <button key={sc.id} className="visuals-gallery-card" onClick={() => navigateToSubcat(sc.id)}>
-                  <div className="visuals-placeholder-art" style={{ background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)` }}>
+                <button
+                  key={sc.id}
+                  className="visuals-gallery-card"
+                  onClick={() => navigateToSubcat(sc.id)}
+                >
+                  <div
+                    className="visuals-placeholder-art"
+                    style={{
+                      background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)`,
+                    }}
+                  >
                     {sc.title.slice(0, 2)}
                   </div>
                   <div className="visuals-gallery-card-body">
                     <div className="visuals-gallery-card-title">{sc.title}</div>
-                    <div className="visuals-gallery-card-meta">{count} galleries</div>
+                    <div className="visuals-gallery-card-meta">
+                      {count} galleries
+                    </div>
                   </div>
                 </button>
               );
@@ -935,7 +1166,10 @@ function VisualsReaderInner() {
       groupMap.get(group)!.push(g);
     }
     const groupList = [...groupMap.keys()];
-    const safeGroupIdx = Math.min(activeGroupIdx, Math.max(0, groupList.length - 1));
+    const safeGroupIdx = Math.min(
+      activeGroupIdx,
+      Math.max(0, groupList.length - 1)
+    );
     const currentGroup = groupList[safeGroupIdx] || '全部';
     const currentGalleries = groupMap.get(currentGroup) || galleries;
     const maxIdx = Math.max(0, groupList.length - 1);
@@ -946,17 +1180,38 @@ function VisualsReaderInner() {
         <div className="visuals-breadcrumb">
           <button onClick={() => navigateToLanding()}>幻影重現室</button>
           <span className="visuals-breadcrumb-sep">/</span>
-          <button onClick={() => activeDivision && navigateToDivision(activeDivision.id)}>
+          <button
+            onClick={() =>
+              activeDivision && navigateToDivision(activeDivision.id)
+            }
+          >
             {activeDivision?.label || '...'}
           </button>
           <span className="visuals-breadcrumb-sep">/</span>
           <span>{subcatNode.title}</span>
         </div>
 
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 36, fontWeight: 600, color: 'var(--ink-title)', margin: '8px 0 4px', textAlign: 'center' }}>
+        <h2
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 36,
+            fontWeight: 600,
+            color: 'var(--ink-title)',
+            margin: '8px 0 4px',
+            textAlign: 'center',
+          }}
+        >
           {subcatNode.title}
         </h2>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '0.16em', textAlign: 'center' }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--ink-mute)',
+            letterSpacing: '0.16em',
+            textAlign: 'center',
+          }}
+        >
           {galleries.length} galleries · {groupList.length} groups
         </div>
         <div className="visuals-gradient-divider" />
@@ -968,7 +1223,9 @@ function VisualsReaderInner() {
             <button
               className="visuals-viewer-arrow"
               disabled={safeGroupIdx <= 0}
-              onClick={() => navigateToSubcat(activeSubcatId!, safeGroupIdx - 1)}
+              onClick={() =>
+                navigateToSubcat(activeSubcatId!, safeGroupIdx - 1)
+              }
             >
               ‹
             </button>
@@ -983,7 +1240,9 @@ function VisualsReaderInner() {
             <button
               className="visuals-viewer-arrow"
               disabled={safeGroupIdx >= maxIdx}
-              onClick={() => navigateToSubcat(activeSubcatId!, safeGroupIdx + 1)}
+              onClick={() =>
+                navigateToSubcat(activeSubcatId!, safeGroupIdx + 1)
+              }
             >
               ›
             </button>
@@ -1000,10 +1259,13 @@ function VisualsReaderInner() {
             ) : (
               <div className="visuals-gallery-card-grid">
                 {currentGalleries.map((g) => {
-                  const images = Array.isArray(g.metadata?.images) ? (g.metadata.images as ImageItem[]) : [];
+                  const images = Array.isArray(g.metadata?.images)
+                    ? (g.metadata.images as ImageItem[])
+                    : [];
                   const spoiler = (g.metadata?.spoilerLevel as number) || 0;
                   const gate = (g.metadata?.gate as string) || '';
-                  const thumbUrl = images.length > 0 ? buildImageUrl(images[0].file) : '';
+                  const thumbUrl =
+                    images.length > 0 ? buildImageUrl(images[0].file) : '';
                   const isLocked = spoiler > 0 && !isUnlocked(g.id);
 
                   const handleClick = () => {
@@ -1017,24 +1279,46 @@ function VisualsReaderInner() {
                   };
 
                   return (
-                    <button key={g.id} className="visuals-gallery-card" onClick={handleClick}>
+                    <button
+                      key={g.id}
+                      className="visuals-gallery-card"
+                      onClick={handleClick}
+                    >
                       {thumbUrl ? (
                         <img
                           className="visuals-gallery-card-thumb"
                           src={thumbUrl}
                           alt={g.title}
-                          style={{ filter: isLocked ? spoilerFilter(spoiler) : 'none' }}
+                          style={{
+                            filter: isLocked ? spoilerFilter(spoiler) : 'none',
+                          }}
                         />
                       ) : (
-                        <div className="visuals-placeholder-art" style={{ background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)` }}>
+                        <div
+                          className="visuals-placeholder-art"
+                          style={{
+                            background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)`,
+                          }}
+                        >
                           {g.title.slice(0, 2)}
                         </div>
                       )}
                       <div className="visuals-gallery-card-body">
-                        <div className="visuals-gallery-card-title">{g.title}</div>
+                        <div className="visuals-gallery-card-title">
+                          {g.title}
+                        </div>
                         <div className="visuals-gallery-card-meta">
                           {images.length} 張圖片
-                          {spoiler > 0 && <span style={{ color: spoiler === 3 ? 'crimson' : 'goldenrod', marginLeft: 8 }}>L{spoiler}</span>}
+                          {spoiler > 0 && (
+                            <span
+                              style={{
+                                color: spoiler === 3 ? 'crimson' : 'goldenrod',
+                                marginLeft: 8,
+                              }}
+                            >
+                              L{spoiler}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -1046,7 +1330,12 @@ function VisualsReaderInner() {
         </div>
 
         <div className="visuals-back-bar">
-          <button className="visuals-back-btn" onClick={() => activeDivision && navigateToDivision(activeDivision.id)}>
+          <button
+            className="visuals-back-btn"
+            onClick={() =>
+              activeDivision && navigateToDivision(activeDivision.id)
+            }
+          >
             ← 返回{activeDivision?.label || ''}
           </button>
         </div>
@@ -1059,7 +1348,9 @@ function VisualsReaderInner() {
     if (!galleryPage) return <div className="visuals-empty">載入中...</div>;
 
     const meta = galleryPage.metadata || {};
-    const images: ImageItem[] = Array.isArray(meta.images) ? (meta.images as ImageItem[]) : [];
+    const images: ImageItem[] = Array.isArray(meta.images)
+      ? (meta.images as ImageItem[])
+      : [];
     const style = activeDivision?.galleryStyle || 'museum';
 
     return (
@@ -1068,7 +1359,11 @@ function VisualsReaderInner() {
         <div className="visuals-breadcrumb">
           <button onClick={() => navigateToLanding()}>幻影重現室</button>
           <span className="visuals-breadcrumb-sep">/</span>
-          <button onClick={() => activeDivision && navigateToDivision(activeDivision.id)}>
+          <button
+            onClick={() =>
+              activeDivision && navigateToDivision(activeDivision.id)
+            }
+          >
             {activeDivision?.label || '...'}
           </button>
           <span className="visuals-breadcrumb-sep">/</span>
@@ -1084,9 +1379,13 @@ function VisualsReaderInner() {
         </div>
 
         <div className="visuals-gallery-header">
-          <div className="visuals-landing-kicker">{activeDivision?.labelEn}</div>
+          <div className="visuals-landing-kicker">
+            {activeDivision?.labelEn}
+          </div>
           <h2>{galleryPage.title}</h2>
-          <div className="visuals-gallery-count">{images.length} pieces · {style} layout</div>
+          <div className="visuals-gallery-count">
+            {images.length} pieces · {style} layout
+          </div>
         </div>
         <div className="visuals-gradient-divider" />
 
@@ -1097,7 +1396,16 @@ function VisualsReaderInner() {
         )}
 
         <div className="visuals-back-bar">
-          <button className="visuals-back-btn" onClick={() => activeSubcatId ? navigateToSubcat(activeSubcatId) : activeDivision ? navigateToDivision(activeDivision.id) : navigateToLanding()}>
+          <button
+            className="visuals-back-btn"
+            onClick={() =>
+              activeSubcatId
+                ? navigateToSubcat(activeSubcatId)
+                : activeDivision
+                  ? navigateToDivision(activeDivision.id)
+                  : navigateToLanding()
+            }
+          >
             ← 返回
           </button>
         </div>
@@ -1108,34 +1416,50 @@ function VisualsReaderInner() {
   // ─── Gallery Styles ───
   function renderGalleryByStyle(style: string, images: ImageItem[]) {
     switch (style) {
-      case 'corridor': return renderCorridor(images);
-      case 'museum': return renderMuseum(images);
-      case 'pinboard': return renderPinboard(images);
-      case 'pixel': return renderPixel(images);
-      default: return renderMuseum(images);
+      case 'corridor':
+        return renderCorridor(images);
+      case 'museum':
+        return renderMuseum(images);
+      case 'pinboard':
+        return renderPinboard(images);
+      case 'pixel':
+        return renderPixel(images);
+      default:
+        return renderMuseum(images);
     }
   }
 
   function renderCorridor(images: ImageItem[]) {
     const art = images[corridorIdx] || images[0];
     if (!art) return null;
-    const prev = () => setCorridorIdx((corridorIdx - 1 + images.length) % images.length);
+    const prev = () =>
+      setCorridorIdx((corridorIdx - 1 + images.length) % images.length);
     const next = () => setCorridorIdx((corridorIdx + 1) % images.length);
 
     return (
       <div className="visuals-gallery-corridor">
         <div className="visuals-corridor-stage">
-          <button className="visuals-corridor-arrow" onClick={prev}>‹</button>
-          <div className="visuals-corridor-main" onClick={() => openLightbox(images, corridorIdx)}>
+          <button className="visuals-corridor-arrow" onClick={prev}>
+            ‹
+          </button>
+          <div
+            className="visuals-corridor-main"
+            onClick={() => openLightbox(images, corridorIdx)}
+          >
             <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
           </div>
-          <button className="visuals-corridor-arrow" onClick={next}>›</button>
+          <button className="visuals-corridor-arrow" onClick={next}>
+            ›
+          </button>
         </div>
         <div className="visuals-corridor-caption">
           <div className="visuals-corridor-counter">
-            {String(corridorIdx + 1).padStart(2, '0')} / {String(images.length).padStart(2, '0')}
+            {String(corridorIdx + 1).padStart(2, '0')} /{' '}
+            {String(images.length).padStart(2, '0')}
           </div>
-          <div className="visuals-corridor-title">{art.caption || galleryPage?.title}</div>
+          <div className="visuals-corridor-title">
+            {art.caption || galleryPage?.title}
+          </div>
         </div>
         <div className="visuals-corridor-strip">
           {images.map((img, i) => (
@@ -1156,9 +1480,15 @@ function VisualsReaderInner() {
     return (
       <div className="visuals-gallery-museum">
         {images.map((art, i) => (
-          <div key={art.id} className="visuals-museum-frame" onClick={() => openLightbox(images, i)}>
+          <div
+            key={art.id}
+            className="visuals-museum-frame"
+            onClick={() => openLightbox(images, i)}
+          >
             <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-            <div className="visuals-museum-label">「{art.caption || '無題'}」</div>
+            <div className="visuals-museum-label">
+              「{art.caption || '無題'}」
+            </div>
           </div>
         ))}
       </div>
@@ -1191,9 +1521,15 @@ function VisualsReaderInner() {
     return (
       <div className="visuals-gallery-pixel">
         {images.map((art, i) => (
-          <div key={art.id} className="visuals-pixel-cell" onClick={() => openLightbox(images, i)}>
+          <div
+            key={art.id}
+            className="visuals-pixel-cell"
+            onClick={() => openLightbox(images, i)}
+          >
             <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-            <div className="visuals-pixel-label">{art.caption || art.file.split('/').pop()}</div>
+            <div className="visuals-pixel-label">
+              {art.caption || art.file.split('/').pop()}
+            </div>
           </div>
         ))}
       </div>
@@ -1237,7 +1573,10 @@ function VisualsReaderInner() {
 
     return (
       <div className="visuals-lightbox" onClick={closeLightbox}>
-        <div className="visuals-lightbox-inner" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="visuals-lightbox-inner"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button className="visuals-lightbox-close" onClick={closeLightbox}>
             關閉 ✕
           </button>
@@ -1288,8 +1627,14 @@ function VisualsReaderInner() {
   function renderSpoilerDialog() {
     if (!spoilerWarning) return null;
     return (
-      <div className="visuals-spoiler-dialog" onClick={() => setSpoilerWarning(null)}>
-        <div className="visuals-spoiler-dialog-inner" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="visuals-spoiler-dialog"
+        onClick={() => setSpoilerWarning(null)}
+      >
+        <div
+          className="visuals-spoiler-dialog-inner"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="visuals-spoiler-dialog-title">
             ⚠ SPOILER WARNING · LEVEL {spoilerWarning.level}
           </div>
@@ -1297,10 +1642,16 @@ function VisualsReaderInner() {
             {spoilerWarning.gate || '此內容包含劇透，確定要繼續嗎？'}
           </div>
           <div className="visuals-spoiler-dialog-actions">
-            <button className="visuals-spoiler-dialog-confirm" onClick={confirmUnlock}>
+            <button
+              className="visuals-spoiler-dialog-confirm"
+              onClick={confirmUnlock}
+            >
               我已知情，繼續
             </button>
-            <button className="visuals-spoiler-dialog-cancel" onClick={() => setSpoilerWarning(null)}>
+            <button
+              className="visuals-spoiler-dialog-cancel"
+              onClick={() => setSpoilerWarning(null)}
+            >
               取消
             </button>
           </div>
@@ -1351,7 +1702,9 @@ function VisualsReaderInner() {
           const z = ZONES.find((zz) => zz.id === zoneId);
           if (z) {
             setPortalZone(z);
-            setTimeout(() => { window.location.href = `/${z.slug}`; }, 1100);
+            setTimeout(() => {
+              window.location.href = `/${z.slug}`;
+            }, 1100);
           }
         }}
         position="bottom-left"
@@ -1385,10 +1738,7 @@ function VisualsReaderInner() {
         onClose={() => setIntroZone(null)}
       />
 
-      <PortalTransition
-        zone={portalZone}
-        onDone={() => setPortalZone(null)}
-      />
+      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
       <PortalTransition
         zone={null}
         homeMode={homePortal}

@@ -131,8 +131,10 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
   if (isAllowed) {
     headers['Access-Control-Allow-Origin'] = origin;
-    headers['Access-Control-Allow-Methods'] = 'GET, HEAD, POST, PUT, DELETE, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Range';
+    headers['Access-Control-Allow-Methods'] =
+      'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+    headers['Access-Control-Allow-Headers'] =
+      'Content-Type, Authorization, Range';
   }
 
   return headers;
@@ -224,7 +226,9 @@ async function upsertPage(
 
   // 檢查是否已存在（包含已軟刪除的記錄）
   const existing = await db
-    .prepare('SELECT id, source_file, status, deleted_at FROM pages WHERE id = ?')
+    .prepare(
+      'SELECT id, source_file, status, deleted_at FROM pages WHERE id = ?'
+    )
     .bind(id)
     .first<Pick<PageRow, 'id' | 'source_file' | 'status' | 'deleted_at'>>();
 
@@ -1078,9 +1082,14 @@ export default {
       if (request.method === 'GET') {
         // 解析 Range header 以支援音訊 seek（瀏覽器 <audio> 需要 206 Partial Content）
         const rangeHeader = request.headers.get('Range');
-        const obj = await env.ASSETS_BUCKET.get(key, rangeHeader ? {
-          range: request.headers,
-        } : undefined);
+        const obj = await env.ASSETS_BUCKET.get(
+          key,
+          rangeHeader
+            ? {
+                range: request.headers,
+              }
+            : undefined
+        );
         if (!obj) {
           return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
         }
@@ -1094,7 +1103,7 @@ export default {
         // R2 有處理 Range 時會在 obj.range 回傳實際範圍
         if (rangeHeader && obj.range) {
           const r = obj.range;
-          const offset = 'offset' in r ? r.offset ?? 0 : 0;
+          const offset = 'offset' in r ? (r.offset ?? 0) : 0;
           const length = 'length' in r ? r.length : undefined;
           const suffix = 'suffix' in r ? r.suffix : undefined;
           let start: number;
@@ -1124,7 +1133,10 @@ export default {
           return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
         }
         const headers = new Headers(cors);
-        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set(
+          'Content-Type',
+          obj.httpMetadata?.contentType || 'application/octet-stream'
+        );
         headers.set('Content-Length', String(obj.size));
         headers.set('Accept-Ranges', 'bytes');
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
@@ -1199,8 +1211,7 @@ export default {
     if (contentMatch) {
       const [, area, slug] = contentMatch;
 
-      const includeDeleted =
-        url.searchParams.get('include_deleted') === 'true';
+      const includeDeleted = url.searchParams.get('include_deleted') === 'true';
 
       if (!slug) {
         // /api/content/:area

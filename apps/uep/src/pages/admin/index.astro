@@ -62,14 +62,17 @@ const allLandingPages = [
     .map((p: any) => ({ ...p, area: 'visuals' })),
 ];
 
-const totalPages = historyPages.length + echoesPages.length + visualsPages.length;
-const totalEditsThisWeek = [...historyPages, ...echoesPages, ...visualsPages].filter(
-  (p: any) => {
-    if (!p.updatedAt) return false;
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return new Date(p.updatedAt).getTime() > weekAgo;
-  }
-).length;
+const totalPages =
+  historyPages.length + echoesPages.length + visualsPages.length;
+const totalEditsThisWeek = [
+  ...historyPages,
+  ...echoesPages,
+  ...visualsPages,
+].filter((p: any) => {
+  if (!p.updatedAt) return false;
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return new Date(p.updatedAt).getTime() > weekAgo;
+}).length;
 
 // Recent edits per zone (latest 3)
 function getRecent(pages: any[]) {

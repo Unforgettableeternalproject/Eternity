@@ -33,9 +33,7 @@ const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const PURGE_FLAG = args.indexOf('--purge');
 const PURGE_MODE = PURGE_FLAG !== -1;
-const PURGE_DAYS = PURGE_MODE
-  ? parseInt(args[PURGE_FLAG + 1], 10) || 30
-  : 30;
+const PURGE_DAYS = PURGE_MODE ? parseInt(args[PURGE_FLAG + 1], 10) || 30 : 30;
 const DIRECTION = args.includes('--pull')
   ? 'pull'
   : args.includes('--push')
@@ -155,7 +153,10 @@ let remoteToken = null;
 /** 提示輸入（不顯示密碼） */
 function askPassword(question) {
   return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
     // 嘗試隱藏密碼輸入
     process.stdout.write(question);
     const stdin = process.stdin;
@@ -235,6 +236,7 @@ function buildDiff(localPages, remotePages) {
   const pullPages = []; // 遠端有、本地沒有，或遠端較新
   const deleteOnRemote = []; // 本地已刪除，需傳播刪除到遠端
   const deleteOnLocal = []; // 遠端已刪除，需傳播刪除到本地
+  const statusFix = []; // 內容一致但 status 不正確，需修正為 synced
   const conflicts = []; // 無法自動判斷
   const inSync = []; // 兩端一致
 
@@ -320,7 +322,20 @@ function buildDiff(localPages, remotePages) {
             remote,
           });
         } else {
-          inSync.push(id);
+          // 時間戳一致，但檢查 status 是否需要修正
+          const needsFix =
+            (local.status !== 'synced' && local.sourceFile) ||
+            (remote.status !== 'synced' && remote.sourceFile);
+          if (needsFix) {
+            statusFix.push({
+              id,
+              reason: `狀態修正 (${local.status}/${remote.status} → synced)`,
+              local,
+              remote,
+            });
+          } else {
+            inSync.push(id);
+          }
         }
       }
     }
@@ -331,6 +346,7 @@ function buildDiff(localPages, remotePages) {
     pullPages,
     deleteOnRemote,
     deleteOnLocal,
+    statusFix,
     conflicts,
     inSync,
   };
@@ -400,15 +416,58 @@ async function executePull(pages, area) {
   return { ok, fail };
 }
 
+/** 修正兩端的 status 為 synced（只更新 status，不動內容） */
+async function executeStatusFix(pages, area) {
+  let ok = 0;
+  let fail = 0;
+  for (const entry of pages) {
+    const slug = entry.local?.slug || entry.id.replace(`${area}/`, '');
+    if (DRY_RUN) {
+      console.log(`  🔧 [dry-run] 會修正 ${entry.id} 狀態`);
+      ok++;
+      continue;
+    }
+    // 對兩端都送 PUT，只帶 status
+    for (const api of [LOCAL_API, REMOTE_API]) {
+      try {
+        const res = await fetch(`${api}/api/content/${area}/${slug}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(api),
+          },
+          body: JSON.stringify({ status: 'synced' }),
+        });
+        if (!res.ok) {
+          console.log(
+            `  ✗ 修正失敗 ${entry.id} (${api === REMOTE_API ? '遠端' : '本地'})`
+          );
+        }
+      } catch {
+        console.log(
+          `  ✗ 修正失敗 ${entry.id} (${api === REMOTE_API ? '遠端' : '本地'})`
+        );
+      }
+    }
+    console.log(`  🔧 ${entry.id}`);
+    ok++;
+  }
+  return { ok, fail };
+}
+
 /** 對目標端執行軟刪除（透過 DELETE 端點） */
 async function executeDelete(pages, area, targetApi) {
   let ok = 0;
   let fail = 0;
   for (const entry of pages) {
     const slug =
-      entry.local?.slug || entry.remote?.slug || entry.id.replace(`${area}/`, '');
+      entry.local?.slug ||
+      entry.remote?.slug ||
+      entry.id.replace(`${area}/`, '');
     if (DRY_RUN) {
-      console.log(`  🗑 [dry-run] 會刪除 ${entry.id} (${targetApi === REMOTE_API ? '遠端' : '本地'})`);
+      console.log(
+        `  🗑 [dry-run] 會刪除 ${entry.id} (${targetApi === REMOTE_API ? '遠端' : '本地'})`
+      );
       ok++;
       continue;
     }
@@ -418,7 +477,9 @@ async function executeDelete(pages, area, targetApi) {
         headers: authHeaders(targetApi),
       });
       if (res.ok) {
-        console.log(`  🗑 ${entry.id} (${targetApi === REMOTE_API ? '遠端' : '本地'})`);
+        console.log(
+          `  🗑 ${entry.id} (${targetApi === REMOTE_API ? '遠端' : '本地'})`
+        );
         ok++;
       } else {
         console.log(`  ✗ 刪除失敗 ${entry.id}`);
@@ -555,14 +616,21 @@ async function main() {
         : `${remoteActive} 頁`;
     console.log(`📂 ${area}  (本地: ${localInfo} / 遠端: ${remoteInfo})`);
 
-    const { pushPages, pullPages, deleteOnRemote, deleteOnLocal, inSync } =
-      buildDiff(localPages, remotePages);
+    const {
+      pushPages,
+      pullPages,
+      deleteOnRemote,
+      deleteOnLocal,
+      statusFix,
+      inSync,
+    } = buildDiff(localPages, remotePages);
 
     const hasChanges =
       pushPages.length > 0 ||
       pullPages.length > 0 ||
       deleteOnRemote.length > 0 ||
-      deleteOnLocal.length > 0;
+      deleteOnLocal.length > 0 ||
+      statusFix.length > 0;
 
     if (!hasChanges) {
       console.log(`   ✓ 完全同步 (${inSync.length} 頁)\n`);
@@ -584,18 +652,20 @@ async function main() {
       }
     }
     if (deleteOnRemote.length > 0) {
-      console.log(
-        `\n   🗑 傳播刪除到遠端 (${deleteOnRemote.length} 頁):`
-      );
+      console.log(`\n   🗑 傳播刪除到遠端 (${deleteOnRemote.length} 頁):`);
       for (const p of deleteOnRemote) {
         console.log(`     ${p.id}  — ${p.reason}`);
       }
     }
     if (deleteOnLocal.length > 0) {
-      console.log(
-        `\n   🗑 傳播刪除到本地 (${deleteOnLocal.length} 頁):`
-      );
+      console.log(`\n   🗑 傳播刪除到本地 (${deleteOnLocal.length} 頁):`);
       for (const p of deleteOnLocal) {
+        console.log(`     ${p.id}  — ${p.reason}`);
+      }
+    }
+    if (statusFix.length > 0) {
+      console.log(`\n   🔧 狀態修正 (${statusFix.length} 頁):`);
+      for (const p of statusFix) {
         console.log(`     ${p.id}  — ${p.reason}`);
       }
     }
@@ -658,6 +728,12 @@ async function main() {
       console.log(`   傳播刪除到本地 ${doDeleteLocal.length} 頁...`);
       const result = await executeDelete(doDeleteLocal, area, LOCAL_API);
       totalDelete += result.ok;
+    }
+    // 狀態修正不受方向控制，一律執行
+    if (statusFix.length > 0) {
+      console.log(`   修正 ${statusFix.length} 頁狀態為 synced...`);
+      const result = await executeStatusFix(statusFix, area);
+      totalSkip += result.ok;
     }
     totalSkip += inSync.length;
 

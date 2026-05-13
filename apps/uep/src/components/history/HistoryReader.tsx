@@ -690,19 +690,25 @@ export default function HistoryReader() {
                   opacity: isLocked ? 0.45 : undefined,
                   cursor: isLocked ? 'not-allowed' : undefined,
                 }}
-                onClick={() => { if (!isLocked) void loadPage(node); }}
+                onClick={() => {
+                  if (!isLocked) void loadPage(node);
+                }}
                 disabled={isLocked}
               >
                 {isLocked ? (
-                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>🔒</span>
-                ) : renderIcon(
-                  node.metadata?.icon as string,
-                  14,
-                  'history-tree-icon'
-                ) || (
-                  <span className="history-tree-kind">
-                    {pageTypeLabel(node.pageType)}
+                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>
+                    🔒
                   </span>
+                ) : (
+                  renderIcon(
+                    node.metadata?.icon as string,
+                    14,
+                    'history-tree-icon'
+                  ) || (
+                    <span className="history-tree-kind">
+                      {pageTypeLabel(node.pageType)}
+                    </span>
+                  )
                 )}
                 <span className="history-tree-title">{node.title}</span>
               </button>
@@ -1232,4 +1238,3 @@ export default function HistoryReader() {
     </div>
   );
 }
-

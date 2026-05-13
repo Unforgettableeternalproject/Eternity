@@ -88,7 +88,6 @@ export default function Minimap({
       updatePos(resolveDefaultPosition(position, w, h));
     }
     setReady(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startDrag(e: React.PointerEvent) {
@@ -136,7 +135,9 @@ export default function Minimap({
         color: 'var(--ink-soft)',
         zIndex: 300,
         opacity: ready ? 1 : 0,
-        transition: drag ? 'none' : 'box-shadow .25s var(--ease), opacity .2s var(--ease)',
+        transition: drag
+          ? 'none'
+          : 'box-shadow .25s var(--ease), opacity .2s var(--ease)',
         boxShadow: drag
           ? '0 18px 40px rgba(0,0,0,.22)'
           : '0 6px 18px rgba(0,0,0,.10)',

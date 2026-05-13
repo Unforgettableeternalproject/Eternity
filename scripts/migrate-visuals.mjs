@@ -37,9 +37,7 @@ console.log(`   清除模式: ${CLEAN ? '是' : '否'}\n`);
 // 2. 去掉 crossroad/ 中間層（crossroad 是首頁，不是結構層）
 // 3. aiart → pixel
 function normalizeSlug(filePath) {
-  let slug = filePath
-    .replace(/^visuals\//, '')
-    .replace(/\.md$/, '');
+  let slug = filePath.replace(/^visuals\//, '').replace(/\.md$/, '');
 
   // crossroad.md 本身 → homepage
   if (slug === 'crossroad') return 'homepage';
@@ -69,7 +67,10 @@ function detectPageType(slug, depth) {
   const parts = slug.split('/');
 
   // 4 個 division
-  if (parts.length === 1 && ['profiles', 'illustrations', 'sketchs', 'pixel'].includes(parts[0])) {
+  if (
+    parts.length === 1 &&
+    ['profiles', 'illustrations', 'sketchs', 'pixel'].includes(parts[0])
+  ) {
     return 'division';
   }
 
@@ -192,7 +193,9 @@ function convertLines(body) {
 
     if (trimmed.startsWith('```')) {
       if (inCodeBlock) {
-        htmlParts.push(`<pre><code>${escapeHtml(codeContent.trim())}</code></pre>`);
+        htmlParts.push(
+          `<pre><code>${escapeHtml(codeContent.trim())}</code></pre>`
+        );
         codeContent = '';
         inCodeBlock = false;
       } else {
@@ -206,15 +209,24 @@ function convertLines(body) {
     }
 
     // GitBook 語法行 — 保留
-    if (trimmed.match(/^\{%\s*(hint|endhint|tabs|endtabs|tab|endtab|file|endfile|stepper|endstepper|content-ref|endcontent-ref)/)) {
+    if (
+      trimmed.match(
+        /^\{%\s*(hint|endhint|tabs|endtabs|tab|endtab|file|endfile|stepper|endstepper|content-ref|endcontent-ref)/
+      )
+    ) {
       htmlParts.push(line);
       continue;
     }
 
     // HTML 區塊 — 保留
-    if (trimmed.startsWith('<table') || trimmed.startsWith('<div') ||
-        trimmed.startsWith('<img') || trimmed.startsWith('<a ') ||
-        trimmed.startsWith('</a>') || trimmed.startsWith('<figure')) {
+    if (
+      trimmed.startsWith('<table') ||
+      trimmed.startsWith('<div') ||
+      trimmed.startsWith('<img') ||
+      trimmed.startsWith('<a ') ||
+      trimmed.startsWith('</a>') ||
+      trimmed.startsWith('<figure')
+    ) {
       htmlParts.push(line);
       continue;
     }
@@ -222,8 +234,14 @@ function convertLines(body) {
     // Markdown 表格
     if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
       if (trimmed.match(/^\|[\s\-:]+\|$/)) continue;
-      if (!inTable) { inTable = true; tableRows = []; }
-      const cells = trimmed.split('|').filter(c => c !== '').map(c => c.trim());
+      if (!inTable) {
+        inTable = true;
+        tableRows = [];
+      }
+      const cells = trimmed
+        .split('|')
+        .filter((c) => c !== '')
+        .map((c) => c.trim());
       tableRows.push(cells);
       continue;
     } else if (inTable) {
@@ -242,12 +260,16 @@ function convertLines(body) {
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      htmlParts.push(`<h${level}>${processInline(headingMatch[2])}</h${level}>`);
+      htmlParts.push(
+        `<h${level}>${processInline(headingMatch[2])}</h${level}>`
+      );
       continue;
     }
 
     if (trimmed.startsWith('> ')) {
-      htmlParts.push(`<blockquote><p>${processInline(trimmed.slice(2))}</p></blockquote>`);
+      htmlParts.push(
+        `<blockquote><p>${processInline(trimmed.slice(2))}</p></blockquote>`
+      );
       continue;
     }
 
@@ -274,7 +296,12 @@ function convertGitBookBlocks(html) {
   html = html.replace(
     /\{%\s*hint\s+style="(\w+)"\s*%\}\s*\n?([\s\S]*?)\n?\{%\s*endhint\s*%\}/g,
     (_, style, content) => {
-      const colors = { info: '#06b6d4', warning: '#f59e0b', danger: '#ef4444', success: '#22c55e' };
+      const colors = {
+        info: '#06b6d4',
+        warning: '#f59e0b',
+        danger: '#ef4444',
+        success: '#22c55e',
+      };
       const color = colors[style] || colors.info;
       const cleaned = content.replace(/<\/?p>/g, '').trim();
       return `<div class="hint hint-${style}" style="border-left:3px solid ${color};background:${color}15;padding:0.75rem 1rem;border-radius:6px;margin:0.5rem 0;"><p>${cleaned}</p></div>`;
@@ -310,8 +337,13 @@ function buildTable(rows) {
   if (!rows.length) return '';
   const header = rows[0];
   const body = rows.slice(1);
-  const ths = header.map(h => `<th>${processInline(h)}</th>`).join('');
-  const trs = body.map(row => `<tr>${row.map(c => `<td>${processInline(c)}</td>`).join('')}</tr>`).join('\n');
+  const ths = header.map((h) => `<th>${processInline(h)}</th>`).join('');
+  const trs = body
+    .map(
+      (row) =>
+        `<tr>${row.map((c) => `<td>${processInline(c)}</td>`).join('')}</tr>`
+    )
+    .join('\n');
   return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
 }
 
@@ -320,14 +352,20 @@ function processInline(text) {
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
   text = text.replace(/`(.+?)`/g, '<code>$1</code>');
-  text = text.replace(/<mark\s+style="color:([^"]+)">/g, '<mark style="color:$1">');
+  text = text.replace(
+    /<mark\s+style="color:([^"]+)">/g,
+    '<mark style="color:$1">'
+  );
   text = text.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
   text = text.replace(/!\[(.+?)\]\((.+?)\)/g, '<img src="$2" alt="$1" />');
   return text;
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function parseFrontmatter(raw) {
@@ -337,8 +375,10 @@ function parseFrontmatter(raw) {
     if (match) {
       let value = match[2].trim();
       // 去除引號
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
         value = value.slice(1, -1);
       }
       if (value === 'true') value = true;
@@ -351,7 +391,10 @@ function parseFrontmatter(raw) {
 }
 
 function contentHash(content) {
-  return createHash('sha256').update(content, 'utf-8').digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(content, 'utf-8')
+    .digest('hex')
+    .slice(0, 16);
 }
 
 // === 建構首頁結構化區塊 ===
@@ -366,7 +409,9 @@ function buildHomepageBlocks(html, frontmatter) {
     type: 'zone-header',
     content: JSON.stringify({
       title: '幻影重現室',
-      subtitle: frontmatter.description || '跟隨著幻影的腳步，你無意間來到了一個十字路口',
+      subtitle:
+        frontmatter.description ||
+        '跟隨著幻影的腳步，你無意間來到了一個十字路口',
     }),
   });
 
@@ -375,9 +420,21 @@ function buildHomepageBlocks(html, frontmatter) {
     id: 'blk-uep',
     type: 'uep-dialogue',
     content: JSON.stringify([
-      { text: '小心不要跟錯人了喔，小U.E.P可是獨一無二的!', side: 'left', effects: ['shimmer', 'halo'] },
-      { text: '這裡是世界的印象，每一個人都曾經存在於某一個時間當中。', side: 'left', effects: [] },
-      { text: '他們是虛假幻象，但你是可以去接觸甚至仔細觀察他們的喔!', side: 'left', effects: [] },
+      {
+        text: '小心不要跟錯人了喔，小U.E.P可是獨一無二的!',
+        side: 'left',
+        effects: ['shimmer', 'halo'],
+      },
+      {
+        text: '這裡是世界的印象，每一個人都曾經存在於某一個時間當中。',
+        side: 'left',
+        effects: [],
+      },
+      {
+        text: '他們是虛假幻象，但你是可以去接觸甚至仔細觀察他們的喔!',
+        side: 'left',
+        effects: [],
+      },
     ]),
   });
 
@@ -443,11 +500,15 @@ function buildHomepageBlocks(html, frontmatter) {
         blocks.push({
           id: 'blk-debris',
           type: 'rich-text',
-          content: JSON.stringify({ html: `<h3>扭曲的留言</h3>\n${debrisHtml}` }),
+          content: JSON.stringify({
+            html: `<h3>扭曲的留言</h3>\n${debrisHtml}`,
+          }),
         });
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return blocks;
 }
@@ -472,7 +533,7 @@ async function importToApi(pages) {
   console.log(`\n📤 匯入 ${pages.length} 個頁面...\n`);
 
   const payload = {
-    pages: pages.map(p => ({
+    pages: pages.map((p) => ({
       id: p.id,
       area: 'visuals',
       title: p.title,
@@ -500,7 +561,9 @@ async function importToApi(pages) {
 
     const json = await res.json();
     if (json.ok) {
-      console.log(`✅ 完成！新增: ${json.data.imported}, 更新: ${json.data.updated}, 跳過: ${json.data.skipped}`);
+      console.log(
+        `✅ 完成！新增: ${json.data.imported}, 更新: ${json.data.updated}, 跳過: ${json.data.skipped}`
+      );
     } else {
       console.error(`❌ API 錯誤: ${json.error}`);
     }

@@ -253,16 +253,10 @@ function HistoryEntry({ zone }: ZoneEntryProps) {
         ))}
       </div>
 
-      <div
-        className="zone-entry-content"
-      >
+      <div className="zone-entry-content">
         {/* Header */}
         <ZoneKicker zone={zone} />
-        <h1
-          className="zone-entry-h1"
-        >
-          三向通道
-        </h1>
+        <h1 className="zone-entry-h1">三向通道</h1>
         <p className="zone-entry-intro">
           眼前的景色讓你嘆為觀止。這裡儼然是一座大型圖書館，無數書頁正有條理地在天空中飛舞著。
         </p>
@@ -497,17 +491,10 @@ function EchoesEntry({ zone }: ZoneEntryProps) {
         ))}
       </div>
 
-      <div
-        className="zone-entry-content"
-        style={{ maxWidth: 960 }}
-      >
+      <div className="zone-entry-content" style={{ maxWidth: 960 }}>
         {/* Header */}
         <ZoneKicker zone={zone} />
-        <h1
-          className="zone-entry-h1"
-        >
-          空白廣場
-        </h1>
+        <h1 className="zone-entry-h1">空白廣場</h1>
         <p className="zone-entry-intro">
           音樂、OST、聲音作品。可被捧起的回憶之球，在廣場上靜靜地漂浮著。
         </p>
@@ -702,16 +689,10 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
         ))}
       </div>
 
-      <div
-        className="zone-entry-content"
-      >
+      <div className="zone-entry-content">
         {/* Header */}
         <ZoneKicker zone={zone} />
-        <h1
-          className="zone-entry-h1"
-        >
-          鏡向十字路口
-        </h1>
+        <h1 className="zone-entry-h1">鏡向十字路口</h1>
         <p className="zone-entry-intro">
           畫作、插圖、視覺作品。半透明的人物像在水面盪漾，鏡中的倒影引導著方向。
         </p>
@@ -975,9 +956,7 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
         ))}
       </div>
 
-      <div
-        className="zone-entry-content"
-      >
+      <div className="zone-entry-content">
         {/* Header */}
         <ZoneKicker zone={zone} />
         <div
@@ -989,10 +968,7 @@ function ConceptsEntry({ zone }: ZoneEntryProps) {
             marginBottom: 10,
           }}
         >
-          <h1
-            className="zone-entry-h1"
-            style={{ margin: 0 }}
-          >
+          <h1 className="zone-entry-h1" style={{ margin: 0 }}>
             概念調整房
           </h1>
           {/* terminal badge */}
@@ -1231,16 +1207,10 @@ function StorageEntry({ zone }: ZoneEntryProps) {
         ))}
       </div>
 
-      <div
-        className="zone-entry-content"
-      >
+      <div className="zone-entry-content">
         {/* Header */}
         <ZoneKicker zone={zone} />
-        <h1
-          className="zone-entry-h1"
-        >
-          雜亂的書桌
-        </h1>
+        <h1 className="zone-entry-h1">雜亂的書桌</h1>
         <p className="zone-entry-intro">
           公告、Meta、雜項。一片散亂卻自有秩序的房間，好像某個人留下的痕跡。
         </p>

@@ -63,9 +63,7 @@ export default function VisualsSubcatEditor({
       if (node) {
         const galleryChildren = (node.children || [])
           .filter((c: any) => c.pageType === 'gallery')
-          .sort(
-            (a: GalleryItem, b: GalleryItem) => a.sortOrder - b.sortOrder
-          );
+          .sort((a: GalleryItem, b: GalleryItem) => a.sortOrder - b.sortOrder);
         setGalleries(galleryChildren);
       }
     } catch (err) {
@@ -93,29 +91,24 @@ export default function VisualsSubcatEditor({
 
     const gallerySlug = `${pageSlug}/${slug}`;
     try {
-      const res = await fetch(
-        `${apiBase}/api/content/${area}/${gallerySlug}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title,
-            content: [
-              { id: 'content', type: 'rich_text', content: '' },
-            ],
-            parentId: pageId,
-            depth: pageId.split('/').length,
-            pageType: 'gallery',
-            sortOrder: galleries.length,
-            metadata: {
-              images: [],
-              group: '',
-              spoilerLevel: 0,
-              gate: '',
-            },
-          }),
-        }
-      );
+      const res = await fetch(`${apiBase}/api/content/${area}/${gallerySlug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content: [{ id: 'content', type: 'rich_text', content: '' }],
+          parentId: pageId,
+          depth: pageId.split('/').length,
+          pageType: 'gallery',
+          sortOrder: galleries.length,
+          metadata: {
+            images: [],
+            group: '',
+            spoilerLevel: 0,
+            gate: '',
+          },
+        }),
+      });
       const json = await res.json();
       if (json.ok) {
         setNewTitle('');
@@ -187,9 +180,7 @@ export default function VisualsSubcatEditor({
           <label className="ned-field-label" style={{ margin: 0 }}>
             畫廊頁面
           </label>
-          <span className="ned-subcat-list-count">
-            {galleries.length} 個
-          </span>
+          <span className="ned-subcat-list-count">{galleries.length} 個</span>
           <button
             className="ned-btn-ghost ned-btn-sm"
             type="button"
@@ -214,9 +205,7 @@ export default function VisualsSubcatEditor({
             const meta = gallery.metadata || {};
             const spoiler = (meta.spoilerLevel as number) || 0;
             const group = (meta.group as string) || '';
-            const images = Array.isArray(meta.images)
-              ? meta.images
-              : [];
+            const images = Array.isArray(meta.images) ? meta.images : [];
             const isDragging = dragIdx === i;
             const isDropTarget = dropIdx === i;
 
@@ -233,16 +222,10 @@ export default function VisualsSubcatEditor({
                   setDropIdx(null);
                 }}
               >
-                <span
-                  className="ned-subcat-song-grip"
-                  title="拖曳排序"
-                >
+                <span className="ned-subcat-song-grip" title="拖曳排序">
                   ⠿
                 </span>
-                <span
-                  className="ned-subcat-song-num"
-                  style={{ color: accent }}
-                >
+                <span className="ned-subcat-song-num" style={{ color: accent }}>
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <div className="ned-subcat-song-info">
@@ -283,8 +266,7 @@ export default function VisualsSubcatEditor({
                     <span
                       className="ned-subcat-song-spoiler"
                       style={{
-                        color:
-                          spoiler === 3 ? 'crimson' : 'goldenrod',
+                        color: spoiler === 3 ? 'crimson' : 'goldenrod',
                       }}
                     >
                       L{spoiler}

@@ -214,9 +214,10 @@ export default function RichEditor({
     if (!isEchoes && !isVisuals && !editor) return;
     setSaveStatus('saving');
     try {
-      const content = (isEchoes || isVisuals)
-        ? [{ id: 'content', type: 'rich_text', content: '' }]
-        : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
+      const content =
+        isEchoes || isVisuals
+          ? [{ id: 'content', type: 'rich_text', content: '' }]
+          : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
 
       const metadata: Record<string, any> = {
         ...(hidden ? { hidden: true } : {}),
