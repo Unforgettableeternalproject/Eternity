@@ -1819,10 +1819,10 @@
   font-family: var(--font-display);
   color: #5e548e;
   opacity: 0.12;
-  animation: drift 30s linear infinite;
+  animation: visuals-particle-float 30s linear infinite;
 }
 
-@keyframes drift {
+@keyframes visuals-particle-float {
   0% {
     transform: translateY(0) rotate(0deg);
   }

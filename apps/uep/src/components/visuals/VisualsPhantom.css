@@ -13,6 +13,51 @@
   z-index: 1;
 }
 
+/* ── 背景裝飾圓弧 ──
+   History: 左上 + 右下（土棕色）
+   Echoes:  左上 + 右下（藍灰色）— 位置相同
+   Visuals: 右上 + 左下（紫色）— 鏡像位置，呼應「幻影/鏡像」主題 */
+.visuals-phantom::before,
+.visuals-phantom::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--visuals-main) 22%, transparent);
+}
+
+.visuals-phantom::before {
+  width: 75vw;
+  height: 75vw;
+  right: -32vw;
+  top: -40vw;
+}
+
+.visuals-phantom::after {
+  width: 60vw;
+  height: 60vw;
+  left: -28vw;
+  bottom: -34vw;
+  border-style: dashed;
+}
+
+/* ── SVG 漂浮粒子（畫筆、調色盤等） ── */
+.vp-svg-particle {
+  position: absolute;
+  color: rgba(94, 84, 142, 0.35);
+  opacity: 0;
+  /* animation 由 inline style 設定（使用全域 drift keyframe） */
+}
+
+.vp-svg-particle svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+[data-theme='dark'] .vp-svg-particle {
+  color: rgba(159, 134, 192, 0.3);
+}
+
 /* ══════════════════════════════════════════════════════════════
    射線系統 — 彗星式蹤跡，從邊緣劃入再穿出
    ══════════════════════════════════════════════════════════════ */
@@ -132,10 +177,36 @@
 
 /* ══════════════════════════════════════════════════════════════
    Variant：profiles — 陳列走廊
-   直立肖像框、雙層邊框暗示
+   直立肖像框、雙層邊框、底部銘牌裝飾
    ══════════════════════════════════════════════════════════════ */
 .visuals-phantom--profiles .vp-frame {
-  box-shadow: inset 0 0 0 2px rgba(94, 84, 142, 0.08);
+  border-width: 1.5px;
+  box-shadow: inset 0 0 0 3px rgba(94, 84, 142, 0.06);
+}
+
+/* 底部銘牌裝飾線 — 模擬肖像畫下方的名牌 */
+.visuals-phantom--profiles .vp-frame::after {
+  content: '';
+  position: absolute;
+  bottom: 12%;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(94, 84, 142, 0.25),
+    transparent
+  );
+}
+
+[data-theme='dark'] .visuals-phantom--profiles .vp-frame::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(159, 134, 192, 0.25),
+    transparent
+  );
 }
 
 .visuals-phantom--profiles .vp-ray-streak {
@@ -146,12 +217,37 @@
 
 /* ══════════════════════════════════════════════════════════════
    Variant：illustrations — 鑲框室
-   橫幅畫框、金色雙層框暗示、射線更銳利
+   橫幅畫框、金色角飾、鍍金內框
    ══════════════════════════════════════════════════════════════ */
 .visuals-phantom--illustrations .vp-frame {
+  border-width: 1.5px;
   box-shadow:
-    inset 0 0 0 3px rgba(94, 84, 142, 0.06),
-    inset 0 0 0 4px rgba(213, 182, 24, 0.1);
+    inset 0 0 0 3px rgba(94, 84, 142, 0.04),
+    inset 0 0 0 4px rgba(213, 182, 24, 0.12);
+}
+
+/* 左上角飾 */
+.visuals-phantom--illustrations .vp-frame::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid rgba(213, 182, 24, 0.3);
+  border-left: 1px solid rgba(213, 182, 24, 0.3);
+}
+
+/* 右下角飾 */
+.visuals-phantom--illustrations .vp-frame::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 1px solid rgba(213, 182, 24, 0.3);
+  border-right: 1px solid rgba(213, 182, 24, 0.3);
 }
 
 .visuals-phantom--illustrations .vp-blob {
@@ -180,12 +276,26 @@
 
 /* ══════════════════════════════════════════════════════════════
    Variant：sketchs — 抽象萃取間
-   虛線框、有旋轉、粗糙筆觸感
+   虛線框、有旋轉、圖釘裝飾、粗糙筆觸感
    ══════════════════════════════════════════════════════════════ */
 .visuals-phantom--sketchs .vp-frame {
   border-style: dashed;
   border-width: 1.5px;
   border-color: rgba(94, 84, 142, 0.25);
+}
+
+/* 頂部圖釘暗示 — 小圓點 */
+.visuals-phantom--sketchs .vp-frame::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(213, 182, 24, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 [data-theme='dark'] .visuals-phantom--sketchs .vp-frame {
@@ -199,7 +309,7 @@
 
 /* ══════════════════════════════════════════════════════════════
    Variant：pixel — 基底實驗室
-   方塊框、無模糊、步階動畫、數位感
+   方塊框、無模糊、步階動畫、掃描線、數位感
    ══════════════════════════════════════════════════════════════ */
 .visuals-phantom--pixel .vp-frame {
   border-width: 2px;
@@ -207,6 +317,21 @@
   filter: none;
   animation-name: vp-flicker-step;
   animation-timing-function: steps(8);
+}
+
+/* 水平掃描線裝飾 — CRT 感 */
+.visuals-phantom--pixel .vp-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(159, 134, 192, 0.04) 3px,
+    rgba(159, 134, 192, 0.04) 4px
+  );
+  pointer-events: none;
 }
 
 [data-theme='dark'] .visuals-phantom--pixel .vp-frame {

@@ -44,15 +44,17 @@
 .echoes-atmosphere::before {
   width: 80vw;
   height: 80vw;
-  left: -35vw;
-  top: -42vw;
+  left: -38vw;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .echoes-atmosphere::after {
   width: 62vw;
   height: 62vw;
   right: -30vw;
-  bottom: -36vw;
+  top: 50%;
+  transform: translateY(-50%);
   border-style: dashed;
 }
 

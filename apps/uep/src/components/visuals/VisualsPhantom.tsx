@@ -139,6 +139,41 @@ function getEdgePos(dir: number, pos: number): { x: string; y: string } {
 }
 
 // ──────────────────────────────────────────────────────────────
+// SVG 漂浮粒子圖標（畫筆、調色盤、畫框、畫布、顏料滴等）
+// ──────────────────────────────────────────────────────────────
+const SVG_ICONS: React.ReactNode[] = [
+  // 畫筆
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M3 21l3.5-3.5M9.5 14.5L21 3l-3 3-8.5 8.5M9.5 14.5l-2-2M9.5 14.5l2 2" />
+  </svg>,
+  // 調色盤
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.4 2-1.5 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-1.1.9-2 2-2h2.3c3.1 0 5.5-2.5 5.5-5.5C23 6.5 18 2 12 2z" />
+    <circle cx="7.5" cy="11" r="1.5" fill="currentColor" />
+    <circle cx="10" cy="7" r="1.5" fill="currentColor" />
+    <circle cx="15" cy="7" r="1.5" fill="currentColor" />
+    <circle cx="17.5" cy="11" r="1.5" fill="currentColor" />
+  </svg>,
+  // 畫框
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="3" y="3" width="18" height="18" rx="1" />
+    <rect x="6" y="6" width="12" height="12" rx="0.5" />
+  </svg>,
+  // 畫布/畫架
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M4 4h16v12H4zM8 20l4-4 4 4M12 16v-4" />
+  </svg>,
+  // 顏料滴
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M12 2C12 2 5 10 5 15a7 7 0 0014 0c0-5-7-13-7-13z" />
+  </svg>,
+  // 鉛筆
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M17 3l4 4L7 21H3v-4L17 3z" />
+  </svg>,
+];
+
+// ──────────────────────────────────────────────────────────────
 // 元件
 // ──────────────────────────────────────────────────────────────
 export default function VisualsPhantom({ variant = 'landing' }: Props) {
@@ -163,6 +198,22 @@ export default function VisualsPhantom({ variant = 'landing' }: Props) {
       return { w, h, top, left, dur, delay, rot, i };
     });
   }, [variant, c]);
+
+  /* ── 確定性 SVG 漂浮粒子 ── */
+  const svgParticles = useMemo(() => {
+    const r = seeded(variant.charCodeAt(0) * 73 + 99);
+    return Array.from({ length: 10 }, (_, i) => ({
+      icon: i % SVG_ICONS.length,
+      left: 5 + r() * 90,
+      top: 5 + r() * 90,
+      size: 14 + r() * 10, // 14-24px
+      dur: 14 + r() * 12, // 14-26s
+      delay: r() * 12,
+      driftY: -(30 + r() * 40),
+      driftX: (r() - 0.5) * 20,
+      i,
+    }));
+  }, [variant]);
 
   /* ── 動態射線生成器 ── */
   const [rays, setRays] = useState<RayStreak[]>([]);
@@ -275,6 +326,28 @@ export default function VisualsPhantom({ variant = 'landing' }: Props) {
         >
           {c.blob && <div className="vp-blob" />}
         </div>
+      ))}
+
+      {/* ── SVG 漂浮粒子（畫筆、調色盤、畫框等） ── */}
+      {svgParticles.map((p) => (
+        <span
+          key={`svg${p.i}`}
+          className="vp-svg-particle"
+          style={
+            {
+              left: `${p.left}%`,
+              top: `${p.top}%`,
+              width: p.size,
+              height: p.size,
+              animation: `drift ${p.dur}s ${p.delay}s linear infinite`,
+              '--drift-x': `${p.driftX}px`,
+              '--drift-y': `${p.driftY}px`,
+              '--drift-opacity': '0.2',
+            } as React.CSSProperties
+          }
+        >
+          {SVG_ICONS[p.icon]}
+        </span>
       ))}
     </div>
   );

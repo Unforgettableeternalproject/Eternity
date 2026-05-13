@@ -1,0 +1,200 @@
+/* ══════════════════════════════════════════════════════════════
+   EchoesRipple — 球體脈衝 + 漣漪擴散背景效果
+   靜止時：緩慢出現的發光球體，帶環繞粒子和淡漣漪
+   播放時：更大更亮更快，更多粒子和漣漪圈
+   ══════════════════════════════════════════════════════════════ */
+
+.echoes-ripple {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* ── 球體容器 ── */
+.er-orb {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: er-orb-life ease-in-out forwards;
+}
+
+/* 整個球體的生命週期：浮現 → 停留 → 消逝 */
+@keyframes er-orb-life {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+}
+
+/* ── 中心發光球 ── */
+.er-orb-core {
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(53, 92, 125, 0.3),
+    rgba(108, 91, 123, 0.15) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 20px rgba(53, 92, 125, 0.12);
+  animation: er-core-pulse 3s ease-in-out infinite;
+}
+
+@keyframes er-core-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(53, 92, 125, 0.12);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 32px rgba(53, 92, 125, 0.2);
+  }
+}
+
+/* ── 環繞小粒子 ── */
+.er-orb-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(53, 92, 125, 0.4);
+  transform: translate(-50%, -50%)
+    rotate(var(--er-dot-angle, 0deg))
+    translateX(var(--er-dot-dist, 20px));
+  opacity: 0;
+  animation: er-dot-orbit ease-in-out forwards;
+}
+
+@keyframes er-dot-orbit {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%)
+      rotate(var(--er-dot-angle, 0deg))
+      translateX(calc(var(--er-dot-dist, 20px) * 0.3));
+  }
+  20% {
+    opacity: 0.6;
+  }
+  60% {
+    opacity: 0.4;
+    transform: translate(-50%, -50%)
+      rotate(calc(var(--er-dot-angle, 0deg) + 40deg))
+      translateX(var(--er-dot-dist, 20px));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%)
+      rotate(calc(var(--er-dot-angle, 0deg) + 60deg))
+      translateX(calc(var(--er-dot-dist, 20px) * 1.3));
+  }
+}
+
+/* ── 漣漪擴散環 ── */
+.er-orb-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(53, 92, 125, 0.2);
+  opacity: 0;
+  animation: er-ring-expand ease-out forwards;
+}
+
+@keyframes er-ring-expand {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 0.18;
+  }
+  100% {
+    width: var(--er-ring-size, 200px);
+    height: var(--er-ring-size, 200px);
+    opacity: 0;
+  }
+}
+
+/* ── 播放中：更亮更飽和 ── */
+.echoes-ripple.is-playing .er-orb-core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(53, 92, 125, 0.45),
+    rgba(108, 91, 123, 0.25) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 28px rgba(53, 92, 125, 0.2);
+}
+
+.echoes-ripple.is-playing .er-orb-dot {
+  width: 5px;
+  height: 5px;
+  background: rgba(53, 92, 125, 0.5);
+}
+
+.echoes-ripple.is-playing .er-orb-ring {
+  border-width: 1.5px;
+  border-color: rgba(53, 92, 125, 0.3);
+}
+
+/* ── 暗色模式 ── */
+[data-theme='dark'] .er-orb-core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(108, 91, 123, 0.35),
+    rgba(248, 177, 149, 0.1) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 24px rgba(108, 91, 123, 0.15);
+}
+
+[data-theme='dark'] .er-orb-dot {
+  background: rgba(108, 91, 123, 0.45);
+}
+
+[data-theme='dark'] .er-orb-ring {
+  border-color: rgba(108, 91, 123, 0.25);
+}
+
+[data-theme='dark'] .echoes-ripple.is-playing .er-orb-core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(108, 91, 123, 0.5),
+    rgba(248, 177, 149, 0.15) 60%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 32px rgba(108, 91, 123, 0.2),
+    0 0 60px rgba(248, 177, 149, 0.06);
+}
+
+[data-theme='dark'] .echoes-ripple.is-playing .er-orb-dot {
+  background: rgba(108, 91, 123, 0.55);
+}
+
+[data-theme='dark'] .echoes-ripple.is-playing .er-orb-ring {
+  border-color: rgba(108, 91, 123, 0.35);
+}
