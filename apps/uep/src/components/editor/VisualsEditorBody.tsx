@@ -31,9 +31,7 @@ export interface VisualsData {
   gate: string;
 }
 
-export function parseVisualsData(
-  metadata: Record<string, any>
-): VisualsData {
+export function parseVisualsData(metadata: Record<string, any>): VisualsData {
   return {
     images: Array.isArray(metadata?.images) ? metadata.images : [],
     group: metadata?.group || '',
@@ -42,9 +40,7 @@ export function parseVisualsData(
   };
 }
 
-export function serializeVisualsData(
-  data: VisualsData
-): Record<string, any> {
+export function serializeVisualsData(data: VisualsData): Record<string, any> {
   return {
     images: data.images,
     group: data.group || undefined,
@@ -97,9 +93,7 @@ interface ImagePickerItem {
 
 async function fetchImageAssets(): Promise<ImagePickerItem[]> {
   try {
-    const res = await fetch(
-      `${API_BASE}/api/assets?prefix=images/&limit=500`
-    );
+    const res = await fetch(`${API_BASE}/api/assets?prefix=images/&limit=500`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
       ok: boolean;
@@ -107,8 +101,7 @@ async function fetchImageAssets(): Promise<ImagePickerItem[]> {
     };
     if (!json.ok) return [];
     const items = json.data.items.filter(
-      (i) =>
-        i.contentType?.startsWith('image/') || i.key.startsWith('images/')
+      (i) => i.contentType?.startsWith('image/') || i.key.startsWith('images/')
     );
     items.sort((a, b) => {
       if (a.referenced === b.referenced) return 0;
@@ -194,9 +187,7 @@ export default function VisualsEditorBody({
   };
 
   // 上傳圖片
-  const handleImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -257,10 +248,7 @@ export default function VisualsEditorBody({
     removeImage(deleteConfirm.imageId);
     setDeleteConfirm(null);
     try {
-      const encoded = file
-        .split('/')
-        .map(encodeURIComponent)
-        .join('/');
+      const encoded = file.split('/').map(encodeURIComponent).join('/');
       await fetch(`${API_BASE}/api/assets/${encoded}`, {
         method: 'DELETE',
       });
@@ -299,9 +287,7 @@ export default function VisualsEditorBody({
           <label className="ned-field-label" style={{ margin: 0 }}>
             圖片清單
           </label>
-          <span className="ned-subcat-list-count">
-            {data.images.length} 張
-          </span>
+          <span className="ned-subcat-list-count">{data.images.length} 張</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <button
               className="ned-btn-ghost ned-btn-sm"
@@ -333,9 +319,7 @@ export default function VisualsEditorBody({
         />
 
         {data.images.length === 0 && (
-          <div className="ned-subcat-empty">
-            尚無圖片 — 上傳或從媒體庫選取
-          </div>
+          <div className="ned-subcat-empty">尚無圖片 — 上傳或從媒體庫選取</div>
         )}
 
         <div className="ned-subcat-song-list">
@@ -357,10 +341,7 @@ export default function VisualsEditorBody({
                     setDropIdx(null);
                   }}
                 >
-                  <span
-                    className="ned-subcat-song-grip"
-                    title="拖曳排序"
-                  >
+                  <span className="ned-subcat-song-grip" title="拖曳排序">
                     ⠿
                   </span>
                   <span
@@ -397,16 +378,12 @@ export default function VisualsEditorBody({
                     <span
                       className="ned-subcat-song-title"
                       style={{ cursor: 'pointer' }}
-                      onClick={() =>
-                        setExpandedId(isExpanded ? null : img.id)
-                      }
+                      onClick={() => setExpandedId(isExpanded ? null : img.id)}
                     >
                       {img.file?.split('/').pop() || '(未上傳)'}
                     </span>
                     {img.caption && (
-                      <span className="ned-subcat-song-sub">
-                        {img.caption}
-                      </span>
+                      <span className="ned-subcat-song-sub">{img.caption}</span>
                     )}
                   </div>
                   <button
@@ -414,9 +391,7 @@ export default function VisualsEditorBody({
                     className="ned-subcat-song-edit"
                     style={{ color: accent }}
                     title={isExpanded ? '收合' : '展開編輯'}
-                    onClick={() =>
-                      setExpandedId(isExpanded ? null : img.id)
-                    }
+                    onClick={() => setExpandedId(isExpanded ? null : img.id)}
                   >
                     {isExpanded ? '▾' : '▸'}
                   </button>
@@ -506,15 +481,10 @@ export default function VisualsEditorBody({
             className={`ned-spoiler-btn ${data.spoilerLevel === o.l ? 'is-active' : ''}`}
             style={{
               borderColor:
-                data.spoilerLevel === o.l
-                  ? accent
-                  : 'var(--hairline-strong)',
+                data.spoilerLevel === o.l ? accent : 'var(--hairline-strong)',
               background:
-                data.spoilerLevel === o.l
-                  ? `${accent}12`
-                  : 'transparent',
-              color:
-                data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
+                data.spoilerLevel === o.l ? `${accent}12` : 'transparent',
+              color: data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
             }}
             onClick={() => update({ spoilerLevel: o.l })}
             type="button"
@@ -741,7 +711,8 @@ export default function VisualsEditorBody({
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(120px, 1fr))',
                     gap: 8,
                   }}
                 >
@@ -759,9 +730,7 @@ export default function VisualsEditorBody({
                           display: 'flex',
                           flexDirection: 'column',
                           border: `1px solid ${already ? accent : 'var(--line, #333)'}`,
-                          background: already
-                            ? `${accent}15`
-                            : 'transparent',
+                          background: already ? `${accent}15` : 'transparent',
                           borderRadius: 6,
                           overflow: 'hidden',
                           cursor: already ? 'default' : 'pointer',
@@ -788,8 +757,7 @@ export default function VisualsEditorBody({
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {item.originalName ||
-                            item.key.split('/').pop()}
+                          {item.originalName || item.key.split('/').pop()}
                         </div>
                       </button>
                     );

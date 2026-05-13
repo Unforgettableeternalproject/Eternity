@@ -243,7 +243,9 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     audioRef.current = new Audio();
     audioRef.current.preload = 'metadata';
-    audioRef.current.volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '0.6');
+    audioRef.current.volume = parseFloat(
+      localStorage.getItem(VOLUME_KEY) ?? '0.6'
+    );
 
     const audio = audioRef.current;
     audio.addEventListener('ended', () => {
@@ -597,7 +599,9 @@ function VinylDisc({
         style={{
           ...(coverUrl
             ? { backgroundImage: `url(${coverUrl})` }
-            : { background: `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, var(--vinyl-body, #e8e4de) 13%, var(--vinyl-edge, #d5d0c8) 100%)` }),
+            : {
+                background: `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 11%, var(--vinyl-body, #e8e4de) 13%, var(--vinyl-edge, #d5d0c8) 100%)`,
+              }),
           animationPlayState: isPlaying ? 'running' : 'paused',
         }}
       >
@@ -653,7 +657,8 @@ function EchoesAudioPlayer({
 
   // === 預覽模式（L3 解鎖：僅播放前 N 秒）===
   const isPreview = previewLimit != null && previewLimit > 0;
-  const previewFraction = isPreview && dur > 0 ? Math.min(1, previewLimit / dur) : 1;
+  const previewFraction =
+    isPreview && dur > 0 ? Math.min(1, previewLimit / dur) : 1;
   const [previewEnded, setPreviewEnded] = useState(false);
 
   // 超過預覽上限時自動暫停
@@ -674,9 +679,10 @@ function EchoesAudioPlayer({
   const [seekProg, setSeekProg] = useState<number | null>(null);
   const isSeeking = seekProg !== null;
   // 預覽模式：將進度正規化到 0–1 代表 0–previewLimit 秒
-  const normalProg = isPreview && previewFraction > 0
-    ? Math.min(1, prog / previewFraction)
-    : prog;
+  const normalProg =
+    isPreview && previewFraction > 0
+      ? Math.min(1, prog / previewFraction)
+      : prog;
   const displayProg = isSeeking ? seekProg : normalProg;
 
   // 音量面板開關（雙狀態：mounted 控制 DOM 存在，open 控制動畫）
@@ -699,7 +705,9 @@ function EchoesAudioPlayer({
 
   // 元件卸載時清除計時器
   useEffect(() => {
-    return () => { if (volCloseTimer.current) clearTimeout(volCloseTimer.current); };
+    return () => {
+      if (volCloseTimer.current) clearTimeout(volCloseTimer.current);
+    };
   }, []);
 
   // 點擊外部關閉
@@ -820,14 +828,22 @@ function EchoesAudioPlayer({
         />
         <div className="echoes-player-times">
           <span>{fmtTime(cur)}</span>
-          <span>{isPreview ? fmtTime(previewLimit) : dur > 0 ? fmtTime(dur) : '--:--'}</span>
+          <span>
+            {isPreview
+              ? fmtTime(previewLimit)
+              : dur > 0
+                ? fmtTime(dur)
+                : '--:--'}
+          </span>
         </div>
       </div>
 
       {/* 音量控制（可展開） */}
       <div className="echoes-player-vol" ref={volRef}>
         {volMounted && (
-          <div className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}>
+          <div
+            className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}
+          >
             <span className="echoes-player-vol-pct">
               {Math.round(a.volume * 100)}%
             </span>
@@ -855,15 +871,21 @@ function EchoesAudioPlayer({
 
       <span
         className="echoes-player-status"
-        style={{ color: previewEnded ? 'crimson' : isMe ? color : 'var(--ink-mute)' }}
+        style={{
+          color: previewEnded ? 'crimson' : isMe ? color : 'var(--ink-mute)',
+        }}
       >
         {locked
           ? '🔒 LOCKED'
           : previewEnded
             ? '⏸ 預覽結束 · 目前你還無法接觸到後續的內容'
             : isPreview
-              ? playing ? `♪ PREVIEW · ${fmtTime(previewLimit)}` : `PREVIEW · ${fmtTime(previewLimit)}`
-              : playing ? 'NOW PLAYING' : 'STANDBY'}
+              ? playing
+                ? `♪ PREVIEW · ${fmtTime(previewLimit)}`
+                : `PREVIEW · ${fmtTime(previewLimit)}`
+              : playing
+                ? 'NOW PLAYING'
+                : 'STANDBY'}
       </span>
     </div>
   );
@@ -1796,7 +1818,9 @@ function EchoesReaderInner() {
                   type="button"
                   className="echoes-subcat-card"
                   style={{
-                    borderLeftColor: inaccessible ? 'var(--line)' : cluster.color,
+                    borderLeftColor: inaccessible
+                      ? 'var(--line)'
+                      : cluster.color,
                     opacity: inaccessible ? 0.5 : 1,
                     fontStyle: inaccessible ? 'italic' : 'normal',
                     cursor: inaccessible ? 'not-allowed' : 'pointer',
@@ -1821,7 +1845,11 @@ function EchoesReaderInner() {
                     )}
                   </div>
                   <span className="echoes-subcat-count">
-                    {isHidden ? '— sealed —' : isLocked ? '🔒 locked' : `${songCount} echoes`}
+                    {isHidden
+                      ? '— sealed —'
+                      : isLocked
+                        ? '🔒 locked'
+                        : `${songCount} echoes`}
                   </span>
                   <span
                     className="echoes-subcat-arrow"
@@ -2001,7 +2029,9 @@ function EchoesReaderInner() {
                       opacity: isPageLocked ? 0.5 : 1,
                       cursor: isPageLocked ? 'not-allowed' : 'pointer',
                     }}
-                    onClick={() => { if (!isPageLocked) void navigateToSong(song.id); }}
+                    onClick={() => {
+                      if (!isPageLocked) void navigateToSong(song.id);
+                    }}
                     disabled={isPageLocked}
                   >
                     <span className="echoes-playlist-num">
@@ -2010,7 +2040,10 @@ function EchoesReaderInner() {
                     <div
                       className="echoes-playlist-info"
                       style={{
-                        filter: !songCanSeeTitle && sp === 1 ? 'blur(5px)' : undefined,
+                        filter:
+                          !songCanSeeTitle && sp === 1
+                            ? 'blur(5px)'
+                            : undefined,
                         userSelect: !songCanSeeTitle ? 'none' : undefined,
                       }}
                     >
@@ -2041,22 +2074,34 @@ function EchoesReaderInner() {
                     </div>
                     {/* 狀態標籤 */}
                     {isPageLocked && (
-                      <span style={{
-                        flexShrink: 0, fontSize: '0.7em', padding: '2px 7px',
-                        borderRadius: 4, fontWeight: 600,
-                        color: 'var(--ink-mute)', border: '1px solid var(--ink-mute)',
-                      }}>
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          fontSize: '0.7em',
+                          padding: '2px 7px',
+                          borderRadius: 4,
+                          fontWeight: 600,
+                          color: 'var(--ink-mute)',
+                          border: '1px solid var(--ink-mute)',
+                        }}
+                      >
                         🔒
                       </span>
                     )}
                     {sp > 0 && !songHasUnlocked && (
-                      <span style={{
-                        flexShrink: 0, fontSize: '0.7em', padding: '2px 7px',
-                        borderRadius: 4, fontWeight: 600, letterSpacing: '0.04em',
-                        color: sp === 3 ? 'crimson' : 'goldenrod',
-                        border: `1px solid ${sp === 3 ? 'crimson' : 'goldenrod'}`,
-                        opacity: 0.8,
-                      }}>
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          fontSize: '0.7em',
+                          padding: '2px 7px',
+                          borderRadius: 4,
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                          color: sp === 3 ? 'crimson' : 'goldenrod',
+                          border: `1px solid ${sp === 3 ? 'crimson' : 'goldenrod'}`,
+                          opacity: 0.8,
+                        }}
+                      >
                         L{sp}
                       </span>
                     )}
@@ -2153,15 +2198,16 @@ function EchoesReaderInner() {
     const metaItems = [meta?.artist, meta?.year, meta?.genre].filter(Boolean);
 
     // 賞析內容：僅 L0 顯示完整賞析，L1/L2/L3 不論解鎖與否都顯示 appreciationLocked
-    const appreciationParagraphs = spoiler === 0
-      ? songData.appreciation.filter((p) => p.trim())
-      : songData.appreciationLocked
-        ? [
-            spoiler === 3
-              ? injectNoise(songData.appreciationLocked, 0.2)
-              : songData.appreciationLocked,
-          ]
-        : [];
+    const appreciationParagraphs =
+      spoiler === 0
+        ? songData.appreciation.filter((p) => p.trim())
+        : songData.appreciationLocked
+          ? [
+              spoiler === 3
+                ? injectNoise(songData.appreciationLocked, 0.2)
+                : songData.appreciationLocked,
+            ]
+          : [];
     const hasAppreciation = appreciationParagraphs.length > 0;
 
     return (
@@ -2305,11 +2351,16 @@ function EchoesReaderInner() {
             <div className="echoes-appreciation-label" style={{ color }}>
               · 賞析 ·
               {isPartialAppreciation && (
-                <span style={{
-                  fontSize: '0.85em', opacity: 0.7, marginLeft: 10,
-                  fontWeight: 400, letterSpacing: '0.03em',
-                  color: 'var(--ink-mute)',
-                }}>
+                <span
+                  style={{
+                    fontSize: '0.85em',
+                    opacity: 0.7,
+                    marginLeft: 10,
+                    fontWeight: 400,
+                    letterSpacing: '0.03em',
+                    color: 'var(--ink-mute)',
+                  }}
+                >
                   — 非完整賞析
                 </span>
               )}
@@ -2353,20 +2404,22 @@ function EchoesReaderInner() {
             >
               <span>← PREV</span>
               <strong>
-                {prevSong ? (() => {
-                  const pSp = (prevSong.metadata?.spoilerLevel as number) || 0;
-                  const pUnlocked = pSp === 0 || isSongUnlocked(prevSong.id);
-                  return (
-                    <SpoilerTitle
-                      text={prevSong.title}
-                      level={pSp}
-                      unlocked={pUnlocked && pSp <= 2}
-                      size={14}
-                    />
-                  );
-                })() : (
-                  '沒有上一首'
-                )}
+                {prevSong
+                  ? (() => {
+                      const pSp =
+                        (prevSong.metadata?.spoilerLevel as number) || 0;
+                      const pUnlocked =
+                        pSp === 0 || isSongUnlocked(prevSong.id);
+                      return (
+                        <SpoilerTitle
+                          text={prevSong.title}
+                          level={pSp}
+                          unlocked={pUnlocked && pSp <= 2}
+                          size={14}
+                        />
+                      );
+                    })()
+                  : '沒有上一首'}
               </strong>
             </button>
             <button
@@ -2376,20 +2429,22 @@ function EchoesReaderInner() {
             >
               <span style={{ color }}>NEXT →</span>
               <strong>
-                {nextSong ? (() => {
-                  const nSp = (nextSong.metadata?.spoilerLevel as number) || 0;
-                  const nUnlocked = nSp === 0 || isSongUnlocked(nextSong.id);
-                  return (
-                    <SpoilerTitle
-                      text={nextSong.title}
-                      level={nSp}
-                      unlocked={nUnlocked && nSp <= 2}
-                      size={14}
-                    />
-                  );
-                })() : (
-                  '沒有下一首'
-                )}
+                {nextSong
+                  ? (() => {
+                      const nSp =
+                        (nextSong.metadata?.spoilerLevel as number) || 0;
+                      const nUnlocked =
+                        nSp === 0 || isSongUnlocked(nextSong.id);
+                      return (
+                        <SpoilerTitle
+                          text={nextSong.title}
+                          level={nSp}
+                          unlocked={nUnlocked && nSp <= 2}
+                          size={14}
+                        />
+                      );
+                    })()
+                  : '沒有下一首'}
               </strong>
             </button>
           </div>
@@ -2417,135 +2472,132 @@ function EchoesReaderInner() {
   // ────────────────────────────────────────────────────────────────
   return (
     <div className="echoes-reader">
-        {/* 入場霧化 — 等待首頁資料載入後再解除 */}
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 50,
-            pointerEvents: 'none',
-            ...(contentReady
-              ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-              : {
-                  backdropFilter: 'blur(18px)',
-                  background: 'rgba(10,10,14,0.5)',
-                }),
-          }}
-        />
-        <TopBar
-          onOpenMap={() => setShowMap(true)}
-          onGoHome={() => {
+      {/* 入場霧化 — 等待首頁資料載入後再解除 */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 50,
+          pointerEvents: 'none',
+          ...(contentReady
+            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
+            : {
+                backdropFilter: 'blur(18px)',
+                background: 'rgba(10,10,14,0.5)',
+              }),
+        }}
+      />
+      <TopBar
+        onOpenMap={() => setShowMap(true)}
+        onGoHome={() => {
+          setHomePortal(true);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1100);
+        }}
+        dark={theme === 'dark'}
+      />
+
+      <div className="echoes-main">
+        <ZoneAtmosphere zone={echoesZone} intensity="subtle" />
+
+        {/* 氛圍裝飾環 */}
+        <div className="echoes-atmosphere" aria-hidden="true">
+          {Array.from({ length: 18 }, (_, i) => (
+            <span
+              key={i}
+              style={{
+                left: `${(i * 53) % 100}%`,
+                top: `${(i * 37) % 100}%`,
+                animationDelay: `${(i * 0.5) % 10}s`,
+                animationDuration: `${12 + (i % 6)}s`,
+              }}
+            >
+              {MUSIC_NOTES[i % MUSIC_NOTES.length]}
+            </span>
+          ))}
+        </div>
+
+        <div className="echoes-content" ref={scrollRef}>
+          {view === 'landing' && renderLanding()}
+          {view === 'cluster' && renderCluster()}
+          {view === 'content' && renderContent()}
+          {view === 'song' && renderSong()}
+        </div>
+      </div>
+
+      {/* Spoiler Warning Dialog */}
+      {spoilerWarning && (
+        <div className="echoes-spoiler-overlay">
+          <div className="echoes-spoiler-dialog">
+            <div className="echoes-spoiler-dialog-header">
+              ⚠ SPOILER WARNING · LEVEL {spoilerWarning.level}
+            </div>
+            <div className="echoes-spoiler-dialog-body">
+              這首歌曲屬於尚未解鎖的劇情段落。你需要先{' '}
+              <strong>{spoilerWarning.gate || '讀過對應劇情'}</strong>{' '}
+              才能無遮蔽地聆聽。
+            </div>
+            <div className="echoes-spoiler-dialog-actions">
+              <button
+                type="button"
+                className="echoes-btn-danger"
+                onClick={confirmUnlock}
+              >
+                我已知情，繼續
+              </button>
+              <button
+                type="button"
+                className="echoes-btn-ghost"
+                onClick={() => setSpoilerWarning(null)}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Minimap
+        zones={ZONES}
+        currentId="echoes"
+        onExpand={() => setShowMap(true)}
+        onPickZone={enterZoneFromMap}
+        position="bottom-left"
+      />
+
+      {showMap && (
+        <BigMapModal
+          zones={ZONES}
+          onClose={() => setShowMap(false)}
+          onPick={showZoneIntro}
+          onCenterClick={() => {
+            setShowMap(false);
             setHomePortal(true);
             setTimeout(() => {
               window.location.href = '/';
             }, 1100);
           }}
-          dark={theme === 'dark'}
         />
+      )}
 
-        <div className="echoes-main">
-          <ZoneAtmosphere zone={echoesZone} intensity="subtle" />
-
-          {/* 氛圍裝飾環 */}
-          <div className="echoes-atmosphere" aria-hidden="true">
-            {Array.from({ length: 18 }, (_, i) => (
-              <span
-                key={i}
-                style={{
-                  left: `${(i * 53) % 100}%`,
-                  top: `${(i * 37) % 100}%`,
-                  animationDelay: `${(i * 0.5) % 10}s`,
-                  animationDuration: `${12 + (i % 6)}s`,
-                }}
-              >
-                {MUSIC_NOTES[i % MUSIC_NOTES.length]}
-              </span>
-            ))}
-          </div>
-
-          <div className="echoes-content" ref={scrollRef}>
-            {view === 'landing' && renderLanding()}
-            {view === 'cluster' && renderCluster()}
-            {view === 'content' && renderContent()}
-            {view === 'song' && renderSong()}
-          </div>
-        </div>
-
-        {/* Spoiler Warning Dialog */}
-        {spoilerWarning && (
-          <div className="echoes-spoiler-overlay">
-            <div className="echoes-spoiler-dialog">
-              <div className="echoes-spoiler-dialog-header">
-                ⚠ SPOILER WARNING · LEVEL {spoilerWarning.level}
-              </div>
-              <div className="echoes-spoiler-dialog-body">
-                這首歌曲屬於尚未解鎖的劇情段落。你需要先{' '}
-                <strong>{spoilerWarning.gate || '讀過對應劇情'}</strong>{' '}
-                才能無遮蔽地聆聽。
-              </div>
-              <div className="echoes-spoiler-dialog-actions">
-                <button
-                  type="button"
-                  className="echoes-btn-danger"
-                  onClick={confirmUnlock}
-                >
-                  我已知情，繼續
-                </button>
-                <button
-                  type="button"
-                  className="echoes-btn-ghost"
-                  onClick={() => setSpoilerWarning(null)}
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <Minimap
-          zones={ZONES}
-          currentId="echoes"
-          onExpand={() => setShowMap(true)}
-          onPickZone={enterZoneFromMap}
-          position="bottom-left"
-        />
-
-        {showMap && (
-          <BigMapModal
-            zones={ZONES}
-            onClose={() => setShowMap(false)}
-            onPick={showZoneIntro}
-            onCenterClick={() => {
-              setShowMap(false);
-              setHomePortal(true);
-              setTimeout(() => {
-                window.location.href = '/';
-              }, 1100);
-            }}
-          />
-        )}
-
-        <IntroOverlay
-          zone={introZone}
-          onClose={() => setIntroZone(null)}
-          onEnter={() => {
-            if (!introZone) return;
-            enterZoneFromMap(introZone.id);
-            setIntroZone(null);
-          }}
-        />
-        <PortalTransition
-          zone={portalZone}
-          onDone={() => setPortalZone(null)}
-        />
-        <PortalTransition
-          zone={null}
-          homeMode={homePortal}
-          onDone={() => setHomePortal(false)}
-        />
-      </div>
+      <IntroOverlay
+        zone={introZone}
+        onClose={() => setIntroZone(null)}
+        onEnter={() => {
+          if (!introZone) return;
+          enterZoneFromMap(introZone.id);
+          setIntroZone(null);
+        }}
+      />
+      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
+      <PortalTransition
+        zone={null}
+        homeMode={homePortal}
+        onDone={() => setHomePortal(false)}
+      />
+    </div>
   );
 }
 
