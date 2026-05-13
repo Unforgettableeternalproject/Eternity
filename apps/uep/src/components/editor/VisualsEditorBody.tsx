@@ -29,7 +29,17 @@ export interface VisualsData {
   spoilerLevel: number;
   /** 解鎖條件 */
   gate: string;
+  /** 展示風格 */
+  layout: string;
 }
+
+export const LAYOUT_OPTIONS = [
+  { value: '', label: '繼承 (使用上層設定)' },
+  { value: 'corridor', label: '走廊透視 (Corridor)' },
+  { value: 'museum', label: '鑲框展示 (Museum)' },
+  { value: 'pinboard', label: '布告欄 (Pinboard)' },
+  { value: 'pixel', label: '像素格 (Pixel)' },
+] as const;
 
 export function parseVisualsData(metadata: Record<string, any>): VisualsData {
   return {
@@ -37,6 +47,7 @@ export function parseVisualsData(metadata: Record<string, any>): VisualsData {
     group: metadata?.group || '',
     spoilerLevel: metadata?.spoilerLevel ?? 0,
     gate: metadata?.gate || '',
+    layout: metadata?.layout || '',
   };
 }
 
@@ -46,6 +57,7 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
     group: data.group || undefined,
     spoilerLevel: data.spoilerLevel,
     gate: data.gate || undefined,
+    layout: data.layout || undefined,
   };
 }
 
@@ -504,6 +516,21 @@ export default function VisualsEditorBody({
         placeholder="哪段劇情解鎖此畫廊"
         onChange={(e) => update({ gate: e.target.value })}
       />
+
+      {/* 展示風格 */}
+      <label className="ned-field-label">展示風格 (Layout)</label>
+      <select
+        className="ned-field"
+        value={data.layout}
+        onChange={(e) => update({ layout: e.target.value })}
+        style={{ color: data.layout ? accent : 'var(--ink-mute)' }}
+      >
+        {LAYOUT_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
 
       {/* 刪除確認 Dialog */}
       {deleteConfirm && (
