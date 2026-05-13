@@ -667,7 +667,7 @@ function VisualsEntry({ zone }: ZoneEntryProps) {
     {
       area: 'bck',
       dir: '後方',
-      name: 'AI 萃取區',
+      name: '基底實驗室',
       hint: '直覺告訴你有甚麼地方很詭異',
       href: '/visuals/ai',
     },

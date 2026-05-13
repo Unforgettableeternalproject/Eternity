@@ -216,7 +216,7 @@ async function upsertPage(
   cors: Record<string, string>
 ): Promise<Response> {
   const id = `${area}/${slug}`;
-  const now = new Date().toISOString();
+  const now = body.updatedAt || new Date().toISOString();
 
   // 檢查是否已存在
   const existing = await db

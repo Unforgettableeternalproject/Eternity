@@ -75,14 +75,17 @@ async function getPage(apiBase, area, slug) {
   }
 }
 
-/** 透過 PUT 端點寫入頁面 */
+/** 透過 PUT 端點寫入頁面（保留來源端的 updatedAt） */
 async function putPage(apiBase, page) {
   try {
     const res = await fetch(
       `${apiBase}/api/content/${page.area}/${page.slug}`,
       {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(apiBase),
+        },
         body: JSON.stringify({
           title: page.title,
           content: page.content,
@@ -91,6 +94,8 @@ async function putPage(apiBase, page) {
           depth: page.depth,
           metadata: page.metadata || {},
           status: page.status || 'synced',
+          updatedAt: page.updatedAt,
+          sortOrder: page.sortOrder,
         }),
       }
     );
@@ -129,6 +134,79 @@ function ask(question) {
       resolve(answer.trim().toLowerCase());
     });
   });
+}
+
+// === 認證 ===
+
+/** 遠端 JWT token（登入後設定）*/
+let remoteToken = null;
+
+/** 提示輸入（不顯示密碼） */
+function askPassword(question) {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    // 嘗試隱藏密碼輸入
+    process.stdout.write(question);
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    if (stdin.setRawMode) stdin.setRawMode(true);
+    let pwd = '';
+    const onData = (ch) => {
+      const c = ch.toString();
+      if (c === '\n' || c === '\r') {
+        if (stdin.setRawMode) stdin.setRawMode(wasRaw);
+        stdin.removeListener('data', onData);
+        process.stdout.write('\n');
+        rl.close();
+        resolve(pwd);
+      } else if (c === '\u007f' || c === '\b') {
+        if (pwd.length > 0) {
+          pwd = pwd.slice(0, -1);
+          process.stdout.write('\b \b');
+        }
+      } else if (c.charCodeAt(0) >= 32) {
+        pwd += c;
+        process.stdout.write('*');
+      }
+    };
+    stdin.on('data', onData);
+    stdin.resume();
+  });
+}
+
+/** 登入遠端 API 取得 JWT */
+async function loginRemote() {
+  console.log('🔐 需要登入遠端 API 以同步 R2 資產\n');
+  const username = await ask('   帳號: ');
+  const password = await askPassword('   密碼: ');
+
+  try {
+    const res = await fetch(`${REMOTE_API}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const json = await safeJson(res);
+    if (json?.ok && json.data?.token) {
+      remoteToken = json.data.token;
+      console.log(`   ✓ 登入成功 (${json.data.display_name || username})\n`);
+      return true;
+    } else {
+      console.log(`   ✗ 登入失敗: ${json?.error || '未知錯誤'}\n`);
+      return false;
+    }
+  } catch (e) {
+    console.log(`   ✗ 連線錯誤: ${e.message}\n`);
+    return false;
+  }
+}
+
+/** 為請求加上認證 header */
+function authHeaders(apiBase) {
+  if (apiBase === REMOTE_API && remoteToken) {
+    return { Authorization: `Bearer ${remoteToken}` };
+  }
+  return {};
 }
 
 // === 比對邏輯 ===
@@ -285,6 +363,14 @@ async function main() {
     console.error('⚠️  無法連線到遠端 API，將只顯示本地資料\n');
   }
 
+  // 登入遠端（R2 資產同步和寫入操作需要）
+  if (!DRY_RUN) {
+    const loggedIn = await loginRemote();
+    if (!loggedIn) {
+      console.log('   繼續同步但 R2 資產將無法存取\n');
+    }
+  }
+
   let totalPush = 0;
   let totalPull = 0;
   let totalSkip = 0;
@@ -390,7 +476,9 @@ async function main() {
 /** 列出 R2 資產 keys */
 async function listAssets(apiBase) {
   try {
-    const res = await fetch(`${apiBase}/api/assets`);
+    const res = await fetch(`${apiBase}/api/assets`, {
+      headers: authHeaders(apiBase),
+    });
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? (json.data?.items || []).map((i) => i.key) : [];
@@ -403,7 +491,8 @@ async function listAssets(apiBase) {
 async function transferAsset(fromBase, toBase, key) {
   try {
     const res = await fetch(
-      `${fromBase}/api/assets/${encodeURIComponent(key)}`
+      `${fromBase}/api/assets/${encodeURIComponent(key)}`,
+      { headers: authHeaders(fromBase) }
     );
     if (!res.ok) return false;
     const contentType =
@@ -415,6 +504,7 @@ async function transferAsset(fromBase, toBase, key) {
     form.append('key', key);
     const upload = await fetch(`${toBase}/api/assets`, {
       method: 'POST',
+      headers: authHeaders(toBase),
       body: form,
     });
     if (!upload.ok) return false;
