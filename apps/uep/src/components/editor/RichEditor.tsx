@@ -122,6 +122,7 @@ export default function RichEditor({
   const [description, setDescription] = useState(
     initialMetadata?.description || ''
   );
+  const [layout, setLayout] = useState(initialMetadata?.layout || '');
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'saving' | 'saved' | 'error'
   >('idle');
@@ -219,6 +220,7 @@ export default function RichEditor({
           ? [{ id: 'content', type: 'rich_text', content: '' }]
           : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
 
+      const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
         ...(hidden ? { hidden: true } : {}),
         ...(locked ? { locked: true } : {}),
@@ -227,6 +229,7 @@ export default function RichEditor({
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
+        ...(isVisualsDivision && layout ? { layout } : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -271,6 +274,8 @@ export default function RichEditor({
     locked,
     icon,
     description,
+    layout,
+    isVisualsArea,
   ]);
 
   // Ctrl+S
@@ -1118,6 +1123,8 @@ export default function RichEditor({
               onIconChange={setIcon}
               description={description}
               onDescriptionChange={setDescription}
+              layout={layout}
+              onLayoutChange={setLayout}
               onDirty={() => setIsDirty(true)}
               accent={accentMain}
               pageStatus={pageStatus}

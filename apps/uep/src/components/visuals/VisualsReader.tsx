@@ -14,6 +14,8 @@ import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import VisualsPhantom from './VisualsPhantom';
+import type { PhantomVariant } from './VisualsPhantom';
 import type {
   HomepageBlock,
   ZoneHeaderData,
@@ -228,6 +230,8 @@ function VisualsReaderInner() {
   const [activeGalleryId, setActiveGalleryId] = useState<string | null>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
   const [galleryPage, setGalleryPage] = useState<Page | null>(null);
+  const [divisionPage, setDivisionPage] = useState<Page | null>(null);
+  const [subcatPage, setSubcatPage] = useState<Page | null>(null);
 
   // Tree
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -402,6 +406,8 @@ function VisualsReaderInner() {
     setActiveSubcatId(null);
     setActiveGalleryId(null);
     setGalleryPage(null);
+    setDivisionPage(null);
+    setSubcatPage(null);
     restoreScroll('landing');
     if (push) {
       const url = new URL(window.location.href);
@@ -410,19 +416,34 @@ function VisualsReaderInner() {
     }
   }
 
-  function navigateToDivision(divId: string, push = true) {
+  async function navigateToDivision(divId: string, push = true) {
     saveScroll();
     setView('division');
     setActiveDivisionId(divId);
     setActiveSubcatId(null);
     setActiveGalleryId(null);
     setGalleryPage(null);
+    setDivisionPage(null);
+    setSubcatPage(null);
     restoreScroll(`division:${divId}`);
     if (push) pushUrl({ division: divId });
+    // 載入 division 頁面內容
+    const divNode = findDivisionNode(tree, divId);
+    if (divNode) {
+      try {
+        const slug = divNode.id.replace('visuals/', '');
+        const res = await fetch(`${API_BASE}/api/content/visuals/${slug}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok) setDivisionPage(json.data);
+        }
+      } catch { /* ignore */ }
+    }
   }
 
-  function navigateToSubcat(subcatId: string, groupIdx = 0, push = true) {
+  async function navigateToSubcat(subcatId: string, groupIdx = 0, push = true) {
     saveScroll();
+    const subcatChanged = subcatId !== activeSubcatId;
     setView('subcat');
     setActiveSubcatId(subcatId);
     setActiveGroupIdx(groupIdx);
@@ -432,6 +453,21 @@ function VisualsReaderInner() {
     if (divDef) setActiveDivisionId(divDef.id);
     restoreScroll(`subcat:${subcatId}`);
     if (push) pushUrl({ subcat: subcatId, group: String(groupIdx) });
+    // 只在切換到不同 subcat 時 fetch
+    if (subcatChanged) {
+      setSubcatPage(null);
+      const subcatNode = findNodeById(tree, subcatId);
+      if (subcatNode) {
+        try {
+          const slug = subcatNode.id.replace('visuals/', '');
+          const res = await fetch(`${API_BASE}/api/content/visuals/${slug}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (json.ok) setSubcatPage(json.data);
+          }
+        } catch { /* ignore */ }
+      }
+    }
   }
 
   async function navigateToGallery(pageId: string, push = true) {
@@ -779,7 +815,7 @@ function VisualsReaderInner() {
                 return (
                   <div
                     key={block.id}
-                    className="visuals-narrative"
+                    className="visuals-prose"
                     dangerouslySetInnerHTML={{ __html: html }}
                   />
                 );
@@ -901,6 +937,11 @@ function VisualsReaderInner() {
       .filter((c) => c.pageType === 'subcategory' && !c.metadata?.hidden)
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
+    // 展示風格：API metadata > DIVISIONS 硬編碼 > fallback
+    const divLayout =
+      (divisionPage?.metadata?.layout as string) ||
+      activeDivision.galleryStyle;
+
     return (
       <div className="visuals-division-page">
         {/* Breadcrumb */}
@@ -918,24 +959,40 @@ function VisualsReaderInner() {
           <h2>{activeDivision.label}</h2>
         </div>
         <div className="visuals-division-stats">
-          {subcats.length} categories · {activeDivision.galleryStyle} layout
+          {subcats.length} 個子分類
         </div>
         <div className="visuals-gradient-divider" />
 
-        {/* Intro */}
-        <p className="visuals-narrative">
-          <span className="visuals-drop-cap">{activeDivision.intro[0]}</span>
-          {activeDivision.intro.slice(1)}
-        </p>
-
-        <UepDialogue
-          side="left"
-          effects={['shimmer', 'halo']}
-          text={activeDivision.uepNote}
-        />
+        {/* 內容：優先使用 API，fallback 到硬編碼 */}
+        {divisionPage?.content && divisionPage.content.length > 0 ? (
+          <div className="visuals-prose">
+            {divisionPage.content
+              .filter((b) => b.type === 'rich_text')
+              .map((b) => (
+                <div
+                  key={b.id}
+                  dangerouslySetInnerHTML={{ __html: b.content }}
+                />
+              ))}
+          </div>
+        ) : (
+          <>
+            <p className="visuals-narrative">
+              <span className="visuals-drop-cap">
+                {activeDivision.intro[0]}
+              </span>
+              {activeDivision.intro.slice(1)}
+            </p>
+            <UepDialogue
+              side="left"
+              effects={['shimmer', 'halo']}
+              text={activeDivision.uepNote}
+            />
+          </>
+        )}
 
         {/* Subcat — 依 division 風格渲染 */}
-        {renderDivisionSubcats(activeDivision.galleryStyle, subcats)}
+        {renderDivisionSubcats(divLayout, subcats)}
 
         {subcats.length === 0 && (
           <div className="visuals-empty">尚無子分類</div>
@@ -1216,19 +1273,24 @@ function VisualsReaderInner() {
         </div>
         <div className="visuals-gradient-divider" />
 
+        {/* 富文本內容（來自編輯器） */}
+        {subcatPage?.content && subcatPage.content.length > 0 && (
+          <div className="visuals-prose visuals-subcat-intro">
+            {subcatPage.content
+              .filter((b) => b.type === 'rich_text')
+              .map((b) => (
+                <div
+                  key={b.id}
+                  dangerouslySetInnerHTML={{ __html: b.content }}
+                />
+              ))}
+          </div>
+        )}
+
         {/* 群組檢視器 */}
         <div className="visuals-viewer">
-          {/* 導航列 — 永遠顯示箭頭 */}
+          {/* 導航列 — 只顯示群組名和計數 */}
           <div className="visuals-viewer-nav">
-            <button
-              className="visuals-viewer-arrow"
-              disabled={safeGroupIdx <= 0}
-              onClick={() =>
-                navigateToSubcat(activeSubcatId!, safeGroupIdx - 1)
-              }
-            >
-              ‹
-            </button>
             <div className="visuals-viewer-label">
               <div className="visuals-viewer-group-name">{currentGroup}</div>
               <div className="visuals-viewer-group-counter">
@@ -1237,23 +1299,40 @@ function VisualsReaderInner() {
                   : '—'}
               </div>
             </div>
-            <button
-              className="visuals-viewer-arrow"
-              disabled={safeGroupIdx >= maxIdx}
-              onClick={() =>
-                navigateToSubcat(activeSubcatId!, safeGroupIdx + 1)
-              }
-            >
-              ›
-            </button>
           </div>
 
-          {/* 內容區 — 可拖曳切換 */}
+          {/* 內容區 — 箭頭浮在兩側 */}
           <div
             className="visuals-viewer-body"
             onPointerDown={handleViewerPointerDown}
             onPointerUp={(e) => handleViewerPointerUp(e, groupList.length)}
           >
+            {groupList.length > 1 && (
+              <button
+                className="visuals-viewer-side-arrow is-left"
+                disabled={safeGroupIdx <= 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateToSubcat(activeSubcatId!, safeGroupIdx - 1);
+                }}
+              >
+                <svg
+                  width="20"
+                  height="36"
+                  viewBox="0 0 20 36"
+                  fill="none"
+                >
+                  <polyline
+                    points="16,2 4,18 16,34"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )}
+
             {currentGalleries.length === 0 ? (
               <div className="visuals-empty">此分組尚無畫廊</div>
             ) : (
@@ -1326,6 +1405,32 @@ function VisualsReaderInner() {
                 })}
               </div>
             )}
+
+            {groupList.length > 1 && (
+              <button
+                className="visuals-viewer-side-arrow is-right"
+                disabled={safeGroupIdx >= maxIdx}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateToSubcat(activeSubcatId!, safeGroupIdx + 1);
+                }}
+              >
+                <svg
+                  width="20"
+                  height="36"
+                  viewBox="0 0 20 36"
+                  fill="none"
+                >
+                  <polyline
+                    points="4,2 16,18 4,34"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1351,7 +1456,12 @@ function VisualsReaderInner() {
     const images: ImageItem[] = Array.isArray(meta.images)
       ? (meta.images as ImageItem[])
       : [];
-    const style = activeDivision?.galleryStyle || 'museum';
+    // 優先使用 gallery 自身的 layout，再 fallback 到 division 的 metadata/硬編碼
+    const style =
+      (meta.layout as string) ||
+      (divisionPage?.metadata?.layout as string) ||
+      activeDivision?.galleryStyle ||
+      'museum';
 
     return (
       <div className="visuals-gallery-page">
@@ -1384,7 +1494,7 @@ function VisualsReaderInner() {
           </div>
           <h2>{galleryPage.title}</h2>
           <div className="visuals-gallery-count">
-            {images.length} pieces · {style} layout
+            {images.length} pieces
           </div>
         </div>
         <div className="visuals-gradient-divider" />
@@ -1447,6 +1557,9 @@ function VisualsReaderInner() {
             onClick={() => openLightbox(images, corridorIdx)}
           >
             <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
+            <div className="visuals-gallery-hover-overlay">
+              <span className="visuals-gallery-hover-icon">⤢</span>
+            </div>
           </div>
           <button className="visuals-corridor-arrow" onClick={next}>
             ›
@@ -1485,7 +1598,12 @@ function VisualsReaderInner() {
             className="visuals-museum-frame"
             onClick={() => openLightbox(images, i)}
           >
-            <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
+            <div className="visuals-gallery-img-container">
+              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
+              <div className="visuals-gallery-hover-overlay">
+                <span className="visuals-gallery-hover-icon">⤢</span>
+              </div>
+            </div>
             <div className="visuals-museum-label">
               「{art.caption || '無題'}」
             </div>
@@ -1499,17 +1617,32 @@ function VisualsReaderInner() {
     return (
       <div className="visuals-gallery-pinboard">
         {images.map((art, i) => {
-          const rot = ((i % 5) - 2) * 1.2;
+          // 用 sin 函式產生更自然的隨機傾斜角度（±7°）
+          const rot = Math.sin(i * 2.34 + 0.7) * 7;
+          // 輕微的垂直偏移讓排列更有散落感
+          const yOff = Math.cos(i * 1.87 + 0.3) * 8;
           return (
             <div
               key={art.id}
               className="visuals-pinboard-card"
-              style={{ transform: `rotate(${rot}deg)` }}
+              style={
+                {
+                  '--pin-rot': `${rot.toFixed(1)}deg`,
+                  '--pin-y': `${yOff.toFixed(1)}px`,
+                } as React.CSSProperties
+              }
               onClick={() => openLightbox(images, i)}
             >
               <span className="visuals-pinboard-pin" />
-              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-              <div className="visuals-pinboard-label">{art.caption || ''}</div>
+              <div className="visuals-pinboard-photo">
+                <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
+                <div className="visuals-gallery-hover-overlay">
+                  <span className="visuals-gallery-hover-icon">⤢</span>
+                </div>
+              </div>
+              <div className="visuals-pinboard-label">
+                {art.caption || ''}
+              </div>
             </div>
           );
         })}
@@ -1526,7 +1659,12 @@ function VisualsReaderInner() {
             className="visuals-pixel-cell"
             onClick={() => openLightbox(images, i)}
           >
-            <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
+            <div className="visuals-gallery-img-container is-pixel">
+              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
+              <div className="visuals-gallery-hover-overlay">
+                <span className="visuals-gallery-hover-icon">⤢</span>
+              </div>
+            </div>
             <div className="visuals-pixel-label">
               {art.caption || art.file.split('/').pop()}
             </div>
@@ -1683,10 +1821,22 @@ function VisualsReaderInner() {
       <div className="visuals-main">
         <ZoneAtmosphere zone={VISUALS_ZONE} intensity="subtle" />
         <div className="visuals-content" ref={scrollRef}>
-          {view === 'landing' && renderLanding()}
-          {view === 'division' && renderDivision()}
-          {view === 'subcat' && renderSubcat()}
-          {view === 'gallery' && renderGallery()}
+          <VisualsPhantom
+            variant={
+              (view === 'landing'
+                ? 'landing'
+                : activeDivisionId ?? 'landing') as PhantomVariant
+            }
+          />
+          <div
+            key={`${view}-${activeDivisionId}-${activeSubcatId}-${activeGalleryId}`}
+            className="visuals-view-animate"
+          >
+            {view === 'landing' && renderLanding()}
+            {view === 'division' && renderDivision()}
+            {view === 'subcat' && renderSubcat()}
+            {view === 'gallery' && renderGallery()}
+          </div>
         </div>
       </div>
 

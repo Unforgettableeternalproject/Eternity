@@ -56,15 +56,15 @@
 .visuals-landing-kicker {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #5e548e;
 }
 
 .visuals-landing-title {
   font-family: var(--font-display);
-  font-size: 52px;
-  font-weight: 600;
+  font-size: 58px;
+  font-weight: 500;
   color: var(--ink-title);
   margin: 10px 0 6px;
   letter-spacing: -0.02em;
@@ -743,9 +743,119 @@
 .visuals-narrative {
   font-family: var(--font-serif-tc);
   font-size: 17px;
-  line-height: 2;
+  line-height: 2.08;
   color: var(--ink);
-  margin: 0 0 1em;
+  margin: 0 0 1.3em;
+}
+
+/* === 文章正文 (Prose) === */
+.visuals-prose {
+  font-family: var(--font-serif-tc);
+  font-size: 17px;
+  line-height: 2.08;
+  color: var(--ink);
+}
+
+.visuals-prose p {
+  margin: 0 0 1.3em;
+}
+
+.visuals-prose h1,
+.visuals-prose h2,
+.visuals-prose h3 {
+  color: var(--ink-title);
+  line-height: 1.35;
+}
+
+.visuals-prose h1 {
+  font-family: var(--font-display);
+  font-size: 34px;
+  margin: 2.2em 0 0.75em;
+}
+
+.visuals-prose h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  margin: 2em 0 0.7em;
+  scroll-margin-top: 24px;
+}
+
+.visuals-prose h3 {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5e548e;
+  margin: 2em 0 0.65em;
+  scroll-margin-top: 24px;
+}
+
+.visuals-prose blockquote {
+  margin: 28px 0;
+  padding: 4px 0 4px 18px;
+  border-left: 3px solid #5e548e;
+  color: #5e548e;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.65;
+}
+
+.visuals-prose a {
+  color: #9f86c0;
+  text-decoration-color: color-mix(in srgb, #9f86c0 52%, transparent);
+}
+
+.visuals-prose hr {
+  border: 0;
+  height: 1px;
+  margin: 38px 0;
+  background: linear-gradient(90deg, transparent, #5e548e, transparent);
+  opacity: 0.55;
+}
+
+.visuals-prose img {
+  max-width: 100%;
+  height: auto;
+  margin: 24px auto;
+}
+
+.visuals-prose pre {
+  overflow: auto;
+  padding: 16px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+}
+
+.visuals-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.visuals-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 24px 0;
+  font-size: 14px;
+}
+
+.visuals-prose th,
+.visuals-prose td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.visuals-prose th {
+  color: #5e548e;
+  background: color-mix(in srgb, #5e548e 6%, transparent);
+}
+
+.visuals-prose .hint {
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  padding: 14px 16px;
+  margin: 20px 0;
 }
 
 .visuals-drop-cap {
@@ -872,35 +982,9 @@
 .visuals-viewer-nav {
   display: flex;
   align-items: center;
+  justify-content: center;
   border-bottom: 1px solid var(--line);
   background: var(--bg-soft);
-}
-
-.visuals-viewer-arrow {
-  width: 52px;
-  height: 48px;
-  border: none;
-  background: transparent;
-  color: #5e548e;
-  font-family: var(--font-display);
-  font-size: 24px;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition:
-    background 0.15s,
-    color 0.15s;
-  flex-shrink: 0;
-}
-
-.visuals-viewer-arrow:hover:not(:disabled) {
-  background: rgba(94, 84, 142, 0.08);
-}
-
-.visuals-viewer-arrow:disabled {
-  color: var(--ink-mute);
-  opacity: 0.3;
-  cursor: not-allowed;
 }
 
 .visuals-viewer-label {
@@ -926,15 +1010,71 @@
 
 /* 內容區（可拖曳切換） */
 .visuals-viewer-body {
-  padding: 24px 28px 28px;
+  padding: 24px 52px 28px;
   min-height: 180px;
   user-select: none;
   touch-action: pan-y;
   cursor: grab;
+  position: relative;
 }
 
 .visuals-viewer-body:active {
   cursor: grabbing;
+}
+
+/* 側邊箭頭（浮在內容區兩側） */
+.visuals-viewer-side-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 40px;
+  height: 68px;
+  border: 1px solid rgba(94, 84, 142, 0.25);
+  background: var(--bg-card);
+  color: #5e548e;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    box-shadow 0.25s,
+    color 0.25s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.visuals-viewer-side-arrow.is-left {
+  left: 4px;
+  border-radius: 6px;
+}
+
+.visuals-viewer-side-arrow.is-right {
+  right: 4px;
+  border-radius: 6px;
+}
+
+.visuals-viewer-side-arrow:hover:not(:disabled) {
+  background: rgba(94, 84, 142, 0.1);
+  border-color: #5e548e;
+  box-shadow: 0 4px 16px rgba(94, 84, 142, 0.2);
+  color: #3e3066;
+}
+
+.visuals-viewer-side-arrow:disabled {
+  opacity: 0.15;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .visuals-viewer-body {
+    padding: 24px 40px 28px;
+  }
+  .visuals-viewer-side-arrow {
+    width: 32px;
+    height: 52px;
+  }
 }
 
 /* Gallery 卡片網格（在 viewer 內） */
@@ -991,18 +1131,43 @@
   right: 3px;
   bottom: 3px;
   border: 1px solid transparent;
-  transition: border-color 0.25s;
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
   pointer-events: none;
 }
 
+/* 裝飾：頂部角標記 */
+.visuals-gallery-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 28px 28px 0;
+  border-color: transparent rgba(94, 84, 142, 0.08) transparent transparent;
+  z-index: 2;
+  pointer-events: none;
+  transition: border-color 0.25s;
+}
+
 .visuals-gallery-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  transform: translateY(-6px);
+  box-shadow:
+    0 16px 32px rgba(94, 84, 142, 0.15),
+    0 4px 8px rgba(0, 0, 0, 0.08);
   border-color: #5e548e;
 }
 
 .visuals-gallery-card:hover::after {
-  border-color: rgba(94, 84, 142, 0.25);
+  border-color: rgba(94, 84, 142, 0.3);
+  box-shadow: inset 0 0 12px rgba(94, 84, 142, 0.06);
+}
+
+.visuals-gallery-card:hover::before {
+  border-color: transparent rgba(94, 84, 142, 0.25) transparent transparent;
 }
 
 .visuals-gallery-card-thumb {
@@ -1101,11 +1266,21 @@
   border: 1px solid rgba(94, 84, 142, 0.25);
   background: var(--bg-card);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
 }
 
 .visuals-corridor-main img {
   width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: contain;
   display: block;
+  transition: transform 0.4s var(--ease, ease);
+}
+
+.visuals-corridor-main:hover img {
+  transform: scale(1.02);
 }
 
 .visuals-corridor-caption {
@@ -1165,6 +1340,78 @@
   object-fit: cover;
 }
 
+/* --- 統一圖片容器 (Fixed View) --- */
+.visuals-gallery-img-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: var(--bg-soft);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visuals-gallery-img-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.visuals-gallery-img-container.is-pinboard {
+  aspect-ratio: 1/1;
+}
+
+.visuals-gallery-img-container.is-pixel img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* --- Hover 回饋覆層 --- */
+.visuals-gallery-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(94, 84, 142, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease, ease);
+  pointer-events: none;
+}
+
+.visuals-museum-frame:hover .visuals-gallery-hover-overlay,
+.visuals-pinboard-card:hover .visuals-gallery-hover-overlay,
+.visuals-pixel-cell:hover .visuals-gallery-hover-overlay,
+.visuals-corridor-main:hover .visuals-gallery-hover-overlay,
+.visuals-pinboard-photo:hover .visuals-gallery-hover-overlay {
+  opacity: 1;
+}
+
+.visuals-gallery-hover-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #5e548e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: scale(0.7);
+  transition: transform 0.3s var(--ease, ease);
+}
+
+.visuals-museum-frame:hover .visuals-gallery-hover-icon,
+.visuals-pinboard-card:hover .visuals-gallery-hover-icon,
+.visuals-pixel-cell:hover .visuals-gallery-hover-icon,
+.visuals-corridor-main:hover .visuals-gallery-hover-icon,
+.visuals-pinboard-photo:hover .visuals-gallery-hover-icon {
+  transform: scale(1);
+}
+
 /* --- Museum --- */
 .visuals-gallery-museum {
   display: grid;
@@ -1198,21 +1445,16 @@
     inset 0 0 0 5px var(--uep-gold, #d5b618);
   cursor: pointer;
   transition:
-    transform 0.25s var(--ease, ease),
-    box-shadow 0.25s;
+    transform 0.3s var(--ease, ease),
+    box-shadow 0.3s;
 }
 
 .visuals-museum-frame:hover {
-  transform: scale(1.04);
+  transform: scale(1.04) rotate(-1deg);
   box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.12),
+    0 16px 36px rgba(0, 0, 0, 0.14),
     inset 0 0 0 4px var(--bg-card),
     inset 0 0 0 5px var(--uep-gold, #d5b618);
-}
-
-.visuals-museum-frame img {
-  width: 100%;
-  display: block;
 }
 
 .visuals-museum-label {
@@ -1224,67 +1466,105 @@
   text-align: center;
 }
 
-/* --- Pinboard --- */
+/* --- Pinboard (拍立得散落風格) --- */
 .visuals-gallery-pinboard {
-  column-count: 3;
-  column-gap: 16px;
-  padding: 20px 12px;
-  background: radial-gradient(
-    circle at 20% 20%,
-    rgba(94, 84, 142, 0.05),
-    transparent 60%
-  );
-}
-
-@media (max-width: 640px) {
-  .visuals-gallery-pinboard {
-    column-count: 2;
-  }
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 18px;
+  padding: 32px 20px 40px;
+  background:
+    radial-gradient(circle at 25% 30%, rgba(94, 84, 142, 0.06), transparent 55%),
+    radial-gradient(circle at 75% 70%, rgba(159, 134, 192, 0.04), transparent 50%);
+  min-height: 280px;
 }
 
 .visuals-pinboard-card {
-  break-inside: avoid;
-  margin-bottom: 16px;
-  padding: 4px;
-  background: var(--bg-card);
+  flex: 0 0 auto;
+  width: 210px;
+  padding: 10px 10px 0;
+  background: #fff;
+  border: none;
   box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.08),
-    0 1px 0 rgba(0, 0, 0, 0.1);
-  border: 1px solid var(--line);
+    0 3px 10px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08);
   position: relative;
   cursor: pointer;
-  transition: transform 0.25s var(--ease, ease);
+  transform: rotate(var(--pin-rot, 0deg)) translateY(var(--pin-y, 0px));
+  transition:
+    transform 0.3s var(--ease, ease),
+    box-shadow 0.3s;
+}
+
+/* 暗色主題微調 */
+[data-theme='dark'] .visuals-pinboard-card,
+.dark .visuals-pinboard-card {
+  background: var(--bg-card);
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .visuals-pinboard-card:hover {
-  transform: scale(1.06) !important;
-  z-index: 2;
+  transform: scale(1.08) rotate(0deg) translateY(0px) !important;
+  z-index: 3;
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.18),
+    0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.visuals-pinboard-card img {
-  display: block;
+/* 拍立得圖片區 */
+.visuals-pinboard-photo {
+  position: relative;
   width: 100%;
+  aspect-ratio: 1/1;
+  background: var(--bg-soft, #f0f0f0);
+  overflow: hidden;
 }
 
+.visuals-pinboard-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* 圖釘 */
 .visuals-pinboard-pin {
   position: absolute;
-  top: -6px;
+  top: -7px;
   left: 50%;
   transform: translateX(-50%);
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: var(--uep-gold, #d5b618);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  z-index: 3;
+  background: radial-gradient(circle at 40% 35%, #e8cc42, #b8941a);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  z-index: 4;
 }
 
+/* 拍立得底部標籤區 */
 .visuals-pinboard-label {
-  padding: 6px 4px 2px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-mute);
+  padding: 10px 4px 12px;
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-soft);
   text-align: center;
+  min-height: 36px;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .visuals-pinboard-card {
+    width: 160px;
+    padding: 8px 8px 0;
+  }
+  .visuals-pinboard-label {
+    padding: 8px 2px 10px;
+    font-size: 11px;
+  }
 }
 
 /* --- Pixel --- */
@@ -1315,20 +1595,15 @@
   position: relative;
   transition:
     transform 0.2s,
-    box-shadow 0.2s;
+    box-shadow 0.2s,
+    border-color 0.2s;
 }
 
 .visuals-pixel-cell:hover {
   transform: scale(1.06);
   z-index: 2;
-  box-shadow: 0 0 12px rgba(94, 84, 142, 0.4);
-}
-
-.visuals-pixel-cell img {
-  width: 100%;
-  display: block;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  box-shadow: 0 0 16px rgba(94, 84, 142, 0.5);
+  border-color: rgba(94, 84, 142, 0.6);
 }
 
 .visuals-pixel-label {
@@ -1361,7 +1636,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeIn 0.25s var(--ease, ease);
+  animation: lightboxIn 0.3s var(--ease, ease) both;
 }
 
 .visuals-lightbox-inner {
@@ -1380,6 +1655,7 @@
   cursor: grab;
   user-select: none;
   transition: transform 0.15s;
+  animation: lightboxImgIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .visuals-lightbox-img.is-panning {
@@ -1576,4 +1852,345 @@
   letter-spacing: 0.16em;
   color: rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
+}
+
+/* === Subcat 富文本介紹區 === */
+.visuals-subcat-intro {
+  margin-bottom: 8px;
+}
+
+/* === 頁面轉場動畫系統 === */
+
+/* 包裹動畫容器 — 透過 React key 變化觸發重新 mount */
+.visuals-view-animate {
+  animation: viewReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes viewReveal {
+  0% {
+    opacity: 0;
+    clip-path: inset(5% 3% 5% 3%);
+    transform: translateY(20px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* === 子元素逐一入場 (Stagger) === */
+@keyframes staggerSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.visuals-landing-page > *,
+.visuals-division-page > *,
+.visuals-subcat-page > *,
+.visuals-gallery-page > * {
+  animation: staggerSlideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.visuals-landing-page > *:nth-child(1),
+.visuals-division-page > *:nth-child(1),
+.visuals-subcat-page > *:nth-child(1),
+.visuals-gallery-page > *:nth-child(1) {
+  animation-delay: 0.03s;
+}
+
+.visuals-landing-page > *:nth-child(2),
+.visuals-division-page > *:nth-child(2),
+.visuals-subcat-page > *:nth-child(2),
+.visuals-gallery-page > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.visuals-landing-page > *:nth-child(3),
+.visuals-division-page > *:nth-child(3),
+.visuals-subcat-page > *:nth-child(3),
+.visuals-gallery-page > *:nth-child(3) {
+  animation-delay: 0.13s;
+}
+
+.visuals-landing-page > *:nth-child(4),
+.visuals-division-page > *:nth-child(4),
+.visuals-subcat-page > *:nth-child(4),
+.visuals-gallery-page > *:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.visuals-landing-page > *:nth-child(5),
+.visuals-division-page > *:nth-child(5),
+.visuals-subcat-page > *:nth-child(5),
+.visuals-gallery-page > *:nth-child(5) {
+  animation-delay: 0.23s;
+}
+
+.visuals-landing-page > *:nth-child(6),
+.visuals-division-page > *:nth-child(6),
+.visuals-subcat-page > *:nth-child(6),
+.visuals-gallery-page > *:nth-child(6) {
+  animation-delay: 0.28s;
+}
+
+.visuals-landing-page > *:nth-child(7),
+.visuals-division-page > *:nth-child(7),
+.visuals-subcat-page > *:nth-child(7),
+.visuals-gallery-page > *:nth-child(7) {
+  animation-delay: 0.33s;
+}
+
+.visuals-landing-page > *:nth-child(n + 8),
+.visuals-division-page > *:nth-child(n + 8),
+.visuals-subcat-page > *:nth-child(n + 8),
+.visuals-gallery-page > *:nth-child(n + 8) {
+  animation-delay: 0.38s;
+}
+
+/* === Gallery 卡片入場動畫 === */
+@keyframes cardReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card {
+  animation: cardReveal 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card:nth-child(1) {
+  animation-delay: 0.06s;
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card:nth-child(3) {
+  animation-delay: 0.18s;
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card:nth-child(4) {
+  animation-delay: 0.24s;
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card:nth-child(5) {
+  animation-delay: 0.30s;
+}
+
+.visuals-gallery-card-grid .visuals-gallery-card:nth-child(n + 6) {
+  animation-delay: 0.36s;
+}
+
+/* === Gallery 圖片項入場 === */
+.visuals-gallery-museum .visuals-museum-frame,
+.visuals-gallery-pixel .visuals-pixel-cell {
+  animation: cardReveal 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Pinboard 專用入場動畫 — 保留 custom property 的傾斜與偏移 */
+@keyframes pinboardReveal {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--pin-rot, 0deg))
+      translateY(calc(var(--pin-y, 0px) + 24px)) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--pin-rot, 0deg))
+      translateY(var(--pin-y, 0px)) scale(1);
+  }
+}
+
+.visuals-gallery-pinboard > .visuals-pinboard-card {
+  animation: pinboardReveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.visuals-gallery-museum .visuals-museum-frame:nth-child(1),
+.visuals-gallery-pinboard > .visuals-pinboard-card:nth-child(1),
+.visuals-gallery-pixel .visuals-pixel-cell:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.visuals-gallery-museum .visuals-museum-frame:nth-child(2),
+.visuals-gallery-pinboard > .visuals-pinboard-card:nth-child(2),
+.visuals-gallery-pixel .visuals-pixel-cell:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.visuals-gallery-museum .visuals-museum-frame:nth-child(3),
+.visuals-gallery-pinboard > .visuals-pinboard-card:nth-child(3),
+.visuals-gallery-pixel .visuals-pixel-cell:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.visuals-gallery-museum .visuals-museum-frame:nth-child(4),
+.visuals-gallery-pinboard > .visuals-pinboard-card:nth-child(4),
+.visuals-gallery-pixel .visuals-pixel-cell:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+.visuals-gallery-museum .visuals-museum-frame:nth-child(5),
+.visuals-gallery-pinboard > .visuals-pinboard-card:nth-child(5),
+.visuals-gallery-pixel .visuals-pixel-cell:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+.visuals-gallery-museum .visuals-museum-frame:nth-child(n + 6),
+.visuals-gallery-pinboard > .visuals-pinboard-card:nth-child(n + 6),
+.visuals-gallery-pixel .visuals-pixel-cell:nth-child(n + 6) {
+  animation-delay: 0.3s;
+}
+
+/* === Corridor 入場 === */
+.visuals-gallery-corridor {
+  animation: viewReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.1s;
+}
+
+/* === Division 子分類列表入場 === */
+.visuals-div-corridor .visuals-div-corridor-item,
+.visuals-div-museum .visuals-div-museum-frame,
+.visuals-div-pinboard .visuals-div-pinboard-note,
+.visuals-div-terminal .visuals-div-terminal-row {
+  animation: staggerSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.visuals-div-corridor .visuals-div-corridor-item:nth-child(1),
+.visuals-div-museum .visuals-div-museum-frame:nth-child(1),
+.visuals-div-pinboard .visuals-div-pinboard-note:nth-child(1),
+.visuals-div-terminal .visuals-div-terminal-row:nth-child(1) {
+  animation-delay: 0.08s;
+}
+
+.visuals-div-corridor .visuals-div-corridor-item:nth-child(2),
+.visuals-div-museum .visuals-div-museum-frame:nth-child(2),
+.visuals-div-pinboard .visuals-div-pinboard-note:nth-child(2),
+.visuals-div-terminal .visuals-div-terminal-row:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.visuals-div-corridor .visuals-div-corridor-item:nth-child(3),
+.visuals-div-museum .visuals-div-museum-frame:nth-child(3),
+.visuals-div-pinboard .visuals-div-pinboard-note:nth-child(3),
+.visuals-div-terminal .visuals-div-terminal-row:nth-child(3) {
+  animation-delay: 0.20s;
+}
+
+.visuals-div-corridor .visuals-div-corridor-item:nth-child(n + 4),
+.visuals-div-museum .visuals-div-museum-frame:nth-child(n + 4),
+.visuals-div-pinboard .visuals-div-pinboard-note:nth-child(n + 4),
+.visuals-div-terminal .visuals-div-terminal-row:nth-child(n + 4) {
+  animation-delay: 0.26s;
+}
+
+/* === Lightbox 改進動畫 === */
+@keyframes lightboxIn {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes lightboxImgIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* === 按鈕互動 micro-animation === */
+.visuals-back-btn,
+.visuals-breadcrumb button {
+  transition:
+    background 0.2s,
+    transform 0.15s,
+    color 0.2s;
+}
+
+.visuals-back-btn:active {
+  transform: scale(0.96);
+}
+
+.visuals-breadcrumb button:active {
+  transform: scale(0.97);
+}
+
+/* === 十字路口卡片入場 === */
+.visuals-crossroad .visuals-crossroad-card {
+  animation: cardReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.visuals-crossroad .visuals-crossroad-card[data-area='fwd'] {
+  animation-delay: 0.1s;
+}
+
+.visuals-crossroad .visuals-crossroad-card[data-area='lft'] {
+  animation-delay: 0.2s;
+}
+
+.visuals-crossroad .visuals-crossroad-card[data-area='rgt'] {
+  animation-delay: 0.25s;
+}
+
+.visuals-crossroad .visuals-crossroad-card[data-area='bck'] {
+  animation-delay: 0.35s;
+}
+
+/* 中央羅盤旋轉入場 */
+@keyframes compassIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(-90deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.visuals-crossroad-center {
+  animation: compassIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+/* === 減少動態偏好 === */
+@media (prefers-reduced-motion: reduce) {
+  .visuals-view-animate,
+  .visuals-landing-page > *,
+  .visuals-division-page > *,
+  .visuals-subcat-page > *,
+  .visuals-gallery-page > *,
+  .visuals-gallery-card-grid .visuals-gallery-card,
+  .visuals-gallery-museum .visuals-museum-frame,
+  .visuals-gallery-pinboard > .visuals-pinboard-card:not(:hover),
+  .visuals-gallery-pixel .visuals-pixel-cell,
+  .visuals-div-corridor .visuals-div-corridor-item,
+  .visuals-div-museum .visuals-div-museum-frame,
+  .visuals-div-pinboard .visuals-div-pinboard-note,
+  .visuals-div-terminal .visuals-div-terminal-row,
+  .visuals-crossroad .visuals-crossroad-card,
+  .visuals-crossroad-center,
+  .visuals-gallery-corridor {
+    animation: none !important;
+  }
 }

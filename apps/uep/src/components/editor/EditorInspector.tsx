@@ -1,5 +1,6 @@
 import React from 'react';
 import IconPicker from './IconLibrary';
+import { LAYOUT_OPTIONS } from './VisualsEditorBody';
 
 interface EditorInspectorProps {
   area: string;
@@ -17,6 +18,8 @@ interface EditorInspectorProps {
   onIconChange: (v: string) => void;
   description: string;
   onDescriptionChange: (v: string) => void;
+  layout?: string;
+  onLayoutChange?: (v: string) => void;
   onDirty: () => void;
   accent: string;
   pageStatus: string;
@@ -76,6 +79,8 @@ export default function EditorInspector({
   onIconChange,
   description,
   onDescriptionChange,
+  layout,
+  onLayoutChange,
   onDirty,
   accent,
   pageStatus,
@@ -146,6 +151,23 @@ export default function EditorInspector({
           onChange={(e) => handleChange(onDescriptionChange)(e.target.value)}
         />
       </Section>
+
+      {/* Visuals division 預設展示風格 */}
+      {area === 'visuals' && pageType === 'division' && onLayoutChange && (
+        <Section label="default layout">
+          <select
+            className="ned-field"
+            value={layout || ''}
+            onChange={(e) => handleChange(onLayoutChange)(e.target.value)}
+          >
+            {LAYOUT_OPTIONS.filter((o) => o.value !== '').map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </Section>
+      )}
 
       <div className="ned-inspector-sep" />
 
