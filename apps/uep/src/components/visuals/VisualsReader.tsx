@@ -277,6 +277,7 @@ function VisualsReaderInner() {
 
   // 滾動位置記憶 — key 是 view state 的標識
   const scrollMemory = useRef<Map<string, number>>(new Map());
+  const pendingScrollKey = useRef<string | null>(null);
 
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {
@@ -387,17 +388,28 @@ function VisualsReaderInner() {
     }
   }
 
-  /** 恢復目標頁面的滾動位置（如果有記憶），否則歸頂 */
+  /** 標記需要恢復的滾動位置 key（實際恢復在 useEffect 中執行） */
   function restoreScroll(key: string) {
-    requestAnimationFrame(() => {
-      const saved = scrollMemory.current.get(key);
-      if (saved != null && saved > 0) {
-        scrollRef.current?.scrollTo({ top: saved });
-      } else {
-        scrollRef.current?.scrollTo({ top: 0 });
-      }
-    });
+    pendingScrollKey.current = key;
   }
+
+  // 在 React re-render 後實際恢復滾動位置
+  useEffect(() => {
+    if (!pendingScrollKey.current) return;
+    const key = pendingScrollKey.current;
+    pendingScrollKey.current = null;
+    // 雙層 rAF 確保 DOM 已完成 paint（含 key 變化導致的 remount）
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const saved = scrollMemory.current.get(key);
+        if (saved != null && saved > 0) {
+          scrollRef.current?.scrollTo({ top: saved });
+        } else {
+          scrollRef.current?.scrollTo({ top: 0 });
+        }
+      });
+    });
+  }, [view, activeDivisionId, activeSubcatId, activeGalleryId]);
 
   function navigateToLanding(push = true) {
     saveScroll();
@@ -1819,7 +1831,7 @@ function VisualsReaderInner() {
       />
 
       <div className="visuals-main">
-        <ZoneAtmosphere zone={VISUALS_ZONE} intensity="subtle" />
+        <ZoneAtmosphere zone={VISUALS_ZONE} intensity="subtle" skipGlyphs />
         <div className="visuals-content" ref={scrollRef}>
           <VisualsPhantom
             variant={

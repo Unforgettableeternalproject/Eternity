@@ -16,6 +16,7 @@ import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import EchoesRipple from './EchoesRipple';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -2500,7 +2501,8 @@ function EchoesReaderInner() {
       />
 
       <div className="echoes-main">
-        <ZoneAtmosphere zone={echoesZone} intensity="subtle" />
+        <ZoneAtmosphere zone={echoesZone} intensity="subtle" skipGlyphs />
+        <EchoesRipple isPlaying={audio.isPlaying} />
 
         {/* 氛圍裝飾環 */}
         <div className="echoes-atmosphere" aria-hidden="true">

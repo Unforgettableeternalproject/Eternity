@@ -4,11 +4,14 @@ import type { ZoneData } from '../../data/zones';
 interface ZoneAtmosphereProps {
   zone: ZoneData;
   intensity?: 'subtle' | 'normal' | 'rich';
+  /** 是否跳過中文字元粒子，只保留圓點粒子 */
+  skipGlyphs?: boolean;
 }
 
 export default function ZoneAtmosphere({
   zone,
   intensity = 'normal',
+  skipGlyphs = false,
 }: ZoneAtmosphereProps) {
   const count = { subtle: 14, normal: 26, rich: 40 }[intensity] || 26;
 
@@ -51,7 +54,7 @@ export default function ZoneAtmosphere({
 
       {/* drift particles + occasional glyphs */}
       {[...Array(count)].map((_, i) => {
-        const isGlyph = i % 5 === 0 && zone.glyphs;
+        const isGlyph = !skipGlyphs && i % 5 === 0 && zone.glyphs;
         const dur = 12 + (i % 9);
         const delay = (i * 0.7) % 10;
         const left = (i * 53) % 100;
