@@ -10,6 +10,7 @@ import { TextAlign } from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Image } from '@tiptap/extension-image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { uepToast } from '../ui/UepToast';
 import { ZONES } from '../../data/zones';
 import EditorPageTree from './EditorPageTree';
 import EditorInspector from './EditorInspector';
@@ -444,10 +445,10 @@ export default function RichEditor({
         editor.chain().focus().setImage({ src: imgUrl }).run();
         setIsDirty(true);
       } else {
-        window.alert(`Upload failed: ${json.error}`);
+        uepToast.error(`Upload failed: ${json.error}`);
       }
     } catch (err: any) {
-      window.alert(`Upload error: ${err.message}`);
+      uepToast.error(`Upload error: ${err.message}`);
     } finally {
       setUploading(false);
     }

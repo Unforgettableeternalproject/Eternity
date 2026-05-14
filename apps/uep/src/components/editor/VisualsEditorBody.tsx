@@ -1,5 +1,6 @@
 /* global File, FormData */
 import React, { useRef, useState } from 'react';
+import { uepDialog } from '../ui/UepDialog';
 import SpriteEditorModal from './SpriteEditorModal';
 
 const API_BASE =
@@ -331,15 +332,15 @@ export default function VisualsEditorBody({
   };
 
   // 切換模式時清理資料
-  const switchMode = (mode: EditorMode) => {
+  const switchMode = async (mode: EditorMode) => {
     if (mode === editorMode) return;
     if (
       data.images.length > 0 &&
-      !confirm(
+      !(await uepDialog.confirm(
         mode === 'sprite'
           ? '切換到精靈圖模式會清除目前的圖片，確定嗎？'
           : '切換到普通圖片模式會清除目前的精靈圖，確定嗎？',
-      )
+      ))
     ) {
       return;
     }

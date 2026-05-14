@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { uepDialog } from '../ui/UepDialog';
+import { uepToast } from '../ui/UepToast';
 import { renderIcon } from './IconLibrary';
 
 interface PageTreeNode {
@@ -296,7 +298,7 @@ export default function EditorPageTree({
     const msg = hasChildren
       ? `"${node.title}" has ${node.children.length} child page(s). Delete anyway?`
       : `Delete "${node.title}"?`;
-    if (!window.confirm(msg)) return;
+    if (!(await uepDialog.confirm(msg))) return;
 
     const pageSlug = node.id.replace(`${area}/`, '');
     try {
@@ -311,10 +313,10 @@ export default function EditorPageTree({
           fetchTree();
         }
       } else {
-        window.alert(`Failed: ${json.error}`);
+        uepToast.error(`Failed: ${json.error}`);
       }
     } catch (e: any) {
-      window.alert(`Error: ${e.message}`);
+      uepToast.error(`Error: ${e.message}`);
     }
   };
 

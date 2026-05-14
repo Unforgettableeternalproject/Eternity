@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { uepDialog } from '../ui/UepDialog';
 import { renderIcon } from './IconLibrary';
 
 /* === 分頁資料型別（儲存在 zone page 的 metadata.zoneTabs） === */
@@ -106,11 +107,11 @@ export default function ZoneTabsEditor({
     setActiveIdx(zoneTabs.length);
   };
 
-  const removeTab = (idx: number) => {
+  const removeTab = async (idx: number) => {
     if (
-      !window.confirm(
+      !(await uepDialog.confirm(
         `確定刪除分頁「${zoneTabs[idx].label}」？其中的項目將變為未分類。`
-      )
+      ))
     )
       return;
     const next = zoneTabs.filter((_, i) => i !== idx);

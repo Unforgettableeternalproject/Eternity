@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { uepDialog } from '../ui/UepDialog';
+import { uepToast } from '../ui/UepToast';
 import './MediaLibrary.css';
 
 // ── 型別 ──
@@ -154,7 +156,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
   // ── 刪除操作 ──
 
   const deleteSingle = async (key: string) => {
-    if (!window.confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
+    if (!(await uepDialog.confirm(`確定要刪除「${getFilename(key)}」嗎？`))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/assets/${encodeAssetKey(key)}`, {
@@ -171,7 +173,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '未知錯誤';
-      window.alert(`刪除失敗：${msg}`);
+      uepToast.error(`刪除失敗：${msg}`);
     } finally {
       setDeleting(false);
     }
@@ -194,7 +196,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
       setSelected(new Set());
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '未知錯誤';
-      window.alert(`批次刪除失敗：${msg}`);
+      uepToast.error(`批次刪除失敗：${msg}`);
     } finally {
       setDeleting(false);
     }
@@ -239,7 +241,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
       setRenaming(false);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '未知錯誤';
-      window.alert(`改名失敗：${msg}`);
+      uepToast.error(`改名失敗：${msg}`);
     }
   };
 

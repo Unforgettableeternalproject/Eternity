@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { uepDialog } from '../ui/UepDialog';
+import { uepToast } from '../ui/UepToast';
 
 interface GalleryItem {
   id: string;
@@ -115,10 +117,10 @@ export default function VisualsSubcatEditor({
         setShowAdd(false);
         await fetchGalleries();
       } else {
-        alert(`新增失敗: ${json.error}`);
+        uepToast.error(`新增失敗: ${json.error}`);
       }
     } catch (e: any) {
-      alert(`錯誤: ${e.message}`);
+      uepToast.error(`錯誤: ${e.message}`);
     } finally {
       setCreating(false);
     }
@@ -161,7 +163,7 @@ export default function VisualsSubcatEditor({
 
   // 刪除畫廊
   const handleDeleteGallery = async (gallery: GalleryItem) => {
-    if (!window.confirm(`確定刪除畫廊「${gallery.title}」?`)) return;
+    if (!(await uepDialog.confirm(`確定刪除畫廊「${gallery.title}」?`))) return;
     const gSlug = gallery.id.replace(`${area}/`, '');
     try {
       await fetch(`${apiBase}/api/content/${area}/${gSlug}`, {
@@ -169,7 +171,7 @@ export default function VisualsSubcatEditor({
       });
       await fetchGalleries();
     } catch (e: any) {
-      alert(`刪除失敗: ${e.message}`);
+      uepToast.error(`刪除失敗: ${e.message}`);
     }
   };
 
