@@ -25,6 +25,7 @@ import type {
 import { fromContentBlock } from '../editor/homepage/types';
 import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
+import SpriteViewer from './SpriteViewer';
 import './VisualsReader.css';
 
 // ──────────────────────────────────────────────────────────────
@@ -1029,38 +1030,38 @@ function VisualsReaderInner() {
       case 'corridor':
         return (
           <div className="visuals-div-corridor">
+            <div className="visuals-div-corridor-axis" />
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
               const locked = sc.metadata?.locked === true;
+              const side = i % 2 === 0 ? 'left' : 'right';
               return (
-                <button
+                <div
                   key={sc.id}
-                  className="visuals-div-corridor-item"
-                  onClick={() => !locked && navigateToSubcat(sc.id)}
-                  disabled={locked}
-                  style={
-                    locked
-                      ? { opacity: 0.45, cursor: 'not-allowed' }
-                      : undefined
-                  }
+                  className={`visuals-div-corridor-slot visuals-div-corridor-slot--${side}`}
                 >
-                  <div className="visuals-div-corridor-inner">
+                  <button
+                    className="visuals-div-corridor-door"
+                    onClick={() => !locked && navigateToSubcat(sc.id)}
+                    disabled={locked}
+                    style={
+                      locked
+                        ? { opacity: 0.35, cursor: 'not-allowed' }
+                        : undefined
+                    }
+                  >
                     <div className="visuals-div-corridor-num">
                       {locked ? '🔒' : String(i + 1).padStart(2, '0')}
                     </div>
-                    <div className="visuals-div-corridor-info">
-                      <div className="visuals-div-corridor-title">
-                        {sc.title}
-                      </div>
-                      <div className="visuals-div-corridor-meta">
-                        {locked ? 'sealed' : `${count} galleries`}
-                      </div>
+                    <div className="visuals-div-corridor-title">
+                      {sc.title}
                     </div>
-                    {!locked && (
-                      <span className="visuals-div-corridor-arrow">→</span>
-                    )}
-                  </div>
-                </button>
+                    <div className="visuals-div-corridor-meta">
+                      {locked ? 'sealed' : `${count} galleries`}
+                    </div>
+                  </button>
+                  <div className="visuals-div-corridor-connector" />
+                </div>
               );
             })}
           </div>
@@ -1082,12 +1083,16 @@ function VisualsReaderInner() {
                     locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined
                   }
                 >
-                  <div className="visuals-div-museum-placeholder">
-                    {locked ? '🔒' : sc.title.slice(0, 2)}
-                  </div>
-                  <div className="visuals-div-museum-label">「{sc.title}」</div>
-                  <div className="visuals-div-museum-count">
-                    {locked ? '— sealed —' : `${count} galleries`}
+                  <span className="visuals-div-museum-hook" />
+                  <div className="visuals-div-museum-inner">
+                    <div className="visuals-div-museum-ornament">❖</div>
+                    <div className="visuals-div-museum-label">
+                      「{locked ? '🔒 ' : ''}{sc.title}」
+                    </div>
+                    <div className="visuals-div-museum-divider" />
+                    <div className="visuals-div-museum-count">
+                      {locked ? '— sealed —' : `${count} galleries`}
+                    </div>
                   </div>
                 </button>
               );
@@ -1101,7 +1106,9 @@ function VisualsReaderInner() {
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
               const locked = sc.metadata?.locked === true;
-              const rot = ((i % 5) - 2) * 3;
+              // 用 sin/cos 產生自然的隨機傾斜與偏移（同 gallery pinboard）
+              const rot = Math.sin(i * 2.34 + 0.7) * 6;
+              const yOff = Math.cos(i * 1.87 + 0.3) * 6;
               return (
                 <button
                   key={sc.id}
@@ -1109,9 +1116,10 @@ function VisualsReaderInner() {
                   onClick={() => !locked && navigateToSubcat(sc.id)}
                   disabled={locked}
                   style={{
-                    transform: `rotate(${rot}deg)`,
+                    '--note-rot': `${rot.toFixed(1)}deg`,
+                    '--note-y': `${yOff.toFixed(1)}px`,
                     ...(locked ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
-                  }}
+                  } as React.CSSProperties}
                 >
                   <span className="visuals-div-pinboard-pin" />
                   <div className="visuals-div-pinboard-title">
@@ -1129,39 +1137,33 @@ function VisualsReaderInner() {
 
       case 'pixel':
         return (
-          <div className="visuals-div-terminal">
-            <div className="visuals-div-terminal-header">
-              PHANTOM://PIXEL/BASE_LAYER_LAB
-            </div>
-            <div className="visuals-div-terminal-body">
-              {subcats.map((sc, i) => {
+          <div className="visuals-div-gridpaper">
+            <div className="visuals-div-gridpaper-cards">
+              {subcats.map((sc) => {
                 const count = countGalleries(sc);
                 const locked = sc.metadata?.locked === true;
                 return (
                   <button
                     key={sc.id}
-                    className="visuals-div-terminal-row"
+                    className="visuals-div-gridpaper-card"
                     onClick={() => !locked && navigateToSubcat(sc.id)}
                     disabled={locked}
                     style={
                       locked
-                        ? { opacity: 0.3, cursor: 'not-allowed' }
+                        ? { opacity: 0.35, cursor: 'not-allowed' }
                         : undefined
                     }
                   >
-                    <span className="visuals-div-terminal-cursor">▸</span>
-                    <span className="visuals-div-terminal-name">
+                    <span className="visuals-div-gridpaper-icon">▦</span>
+                    <span className="visuals-div-gridpaper-title">
                       {locked ? `[SEALED] ${sc.title}` : sc.title}
                     </span>
-                    <span className="visuals-div-terminal-count">
-                      {locked ? '---' : `${count} entries`}
+                    <span className="visuals-div-gridpaper-count">
+                      {locked ? '—' : `${count} entries`}
                     </span>
                   </button>
                 );
               })}
-            </div>
-            <div className="visuals-div-terminal-status">
-              {subcats.length} DIRECTORIES · READY
             </div>
           </div>
         );
@@ -1546,6 +1548,8 @@ function VisualsReaderInner() {
         return renderPinboard(images);
       case 'pixel':
         return renderPixel(images);
+      case 'sprite':
+        return renderSprite(images);
       default:
         return renderMuseum(images);
     }
@@ -1683,6 +1687,19 @@ function VisualsReaderInner() {
           </div>
         ))}
       </div>
+    );
+  }
+
+  // ─── RENDER: Sprite ───
+  function renderSprite(images: ImageItem[]) {
+    const sprite = images.find((img) => img.isSpriteSheet);
+    if (!sprite) return renderMuseum(images);
+    return (
+      <SpriteViewer
+        sprite={sprite}
+        spriteUrl={buildImageUrl(sprite.file)}
+        onOpenLightbox={() => openLightbox(images, images.indexOf(sprite))}
+      />
     );
   }
 
