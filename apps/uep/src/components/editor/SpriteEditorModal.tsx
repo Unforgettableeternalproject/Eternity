@@ -1,6 +1,7 @@
 /* global File, FormData */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageItem, SpriteAnimations } from './VisualsEditorBody';
+import { uepToast } from '../ui/UepToast';
 
 // ──────────────────────────────────────────────────────────────
 // 常數 & 工具
@@ -400,7 +401,7 @@ export default function SpriteEditorModal({
       setPhase('define-anims');
     } catch (err) {
       console.error('合成失敗:', err);
-      alert('精靈圖合成失敗，請重試');
+      uepToast.error('精靈圖合成失敗，請重試');
     } finally {
       setUploading(false);
     }
@@ -427,7 +428,7 @@ export default function SpriteEditorModal({
       setPhase('define-anims');
     } catch (err) {
       console.error('上傳失敗:', err);
-      alert('上傳失敗，請重試');
+      uepToast.error('上傳失敗，請重試');
     } finally {
       setUploading(false);
     }
