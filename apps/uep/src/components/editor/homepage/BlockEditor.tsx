@@ -1,3 +1,4 @@
+/* global FormData */
 // ─── 首頁區塊編輯器 ─────────────────────────────────────────────────────────
 // 每種區塊類型各自渲染專屬的表單欄位。
 // 使用者點擊「套用」後才呼叫 onSave，中途編輯只維持本地狀態。
@@ -860,30 +861,105 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
         }}
       >
         {/* 格式 */}
-        {tbBtn('B', () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'), '粗體')}
-        {tbBtn('I', () => editor.chain().focus().toggleItalic().run(), editor.isActive('italic'), '斜體')}
-        {tbBtn('U', () => editor.chain().focus().toggleUnderline().run(), editor.isActive('underline'), '底線')}
-        {tbBtn('S', () => editor.chain().focus().toggleStrike().run(), editor.isActive('strike'), '刪除線')}
+        {tbBtn(
+          'B',
+          () => editor.chain().focus().toggleBold().run(),
+          editor.isActive('bold'),
+          '粗體'
+        )}
+        {tbBtn(
+          'I',
+          () => editor.chain().focus().toggleItalic().run(),
+          editor.isActive('italic'),
+          '斜體'
+        )}
+        {tbBtn(
+          'U',
+          () => editor.chain().focus().toggleUnderline().run(),
+          editor.isActive('underline'),
+          '底線'
+        )}
+        {tbBtn(
+          'S',
+          () => editor.chain().focus().toggleStrike().run(),
+          editor.isActive('strike'),
+          '刪除線'
+        )}
         {tbSep('s1')}
         {/* 標題 */}
-        {tbBtn('H1', () => editor.chain().focus().toggleHeading({ level: 1 }).run(), editor.isActive('heading', { level: 1 }))}
-        {tbBtn('H2', () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive('heading', { level: 2 }))}
-        {tbBtn('H3', () => editor.chain().focus().toggleHeading({ level: 3 }).run(), editor.isActive('heading', { level: 3 }))}
+        {tbBtn(
+          'H1',
+          () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+          editor.isActive('heading', { level: 1 })
+        )}
+        {tbBtn(
+          'H2',
+          () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+          editor.isActive('heading', { level: 2 })
+        )}
+        {tbBtn(
+          'H3',
+          () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+          editor.isActive('heading', { level: 3 })
+        )}
         {tbSep('s2')}
         {/* 對齊 */}
-        {tbBtn('←', () => editor.chain().focus().setTextAlign('left').run(), editor.isActive({ textAlign: 'left' }), '靠左')}
-        {tbBtn('↔', () => editor.chain().focus().setTextAlign('center').run(), editor.isActive({ textAlign: 'center' }), '置中')}
-        {tbBtn('→', () => editor.chain().focus().setTextAlign('right').run(), editor.isActive({ textAlign: 'right' }), '靠右')}
+        {tbBtn(
+          '←',
+          () => editor.chain().focus().setTextAlign('left').run(),
+          editor.isActive({ textAlign: 'left' }),
+          '靠左'
+        )}
+        {tbBtn(
+          '↔',
+          () => editor.chain().focus().setTextAlign('center').run(),
+          editor.isActive({ textAlign: 'center' }),
+          '置中'
+        )}
+        {tbBtn(
+          '→',
+          () => editor.chain().focus().setTextAlign('right').run(),
+          editor.isActive({ textAlign: 'right' }),
+          '靠右'
+        )}
         {tbSep('s3')}
         {/* 列表 / 引用 */}
-        {tbBtn('•', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'), '項目列表')}
-        {tbBtn('1.', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'), '編號列表')}
-        {tbBtn('❝', () => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote'), '引用')}
+        {tbBtn(
+          '•',
+          () => editor.chain().focus().toggleBulletList().run(),
+          editor.isActive('bulletList'),
+          '項目列表'
+        )}
+        {tbBtn(
+          '1.',
+          () => editor.chain().focus().toggleOrderedList().run(),
+          editor.isActive('orderedList'),
+          '編號列表'
+        )}
+        {tbBtn(
+          '❝',
+          () => editor.chain().focus().toggleBlockquote().run(),
+          editor.isActive('blockquote'),
+          '引用'
+        )}
         {tbSep('s4')}
         {/* 插入 */}
-        {tbBtn('—', () => editor.chain().focus().setHorizontalRule().run(), false, '分隔線')}
+        {tbBtn(
+          '—',
+          () => editor.chain().focus().setHorizontalRule().run(),
+          false,
+          '分隔線'
+        )}
         {tbBtn('🖼', () => imageInputRef.current?.click(), false, '插入圖片')}
-        {tbBtn('🔗', () => { setLinkUrl(editor.getAttributes('link').href || ''); setShowLinkInput(!showLinkInput); }, editor.isActive('link'), '連結')}
+        {tbBtn(
+          '🔗',
+          () => {
+            setLinkUrl(editor.getAttributes('link').href || '');
+            setShowLinkInput(!showLinkInput);
+          },
+          editor.isActive('link'),
+          '連結'
+        )}
       </div>
 
       {/* 連結輸入列 */}
@@ -907,7 +983,11 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
             onChange={(e) => setLinkUrl(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applyLink()}
           />
-          <button type="button" onClick={applyLink} style={{ ...tbBtnBase, color: 'var(--ink-title)' }}>
+          <button
+            type="button"
+            onClick={applyLink}
+            style={{ ...tbBtnBase, color: 'var(--ink-title)' }}
+          >
             套用
           </button>
           <button

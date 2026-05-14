@@ -450,7 +450,9 @@ function VisualsReaderInner() {
           const json = await res.json();
           if (json.ok) setDivisionPage(json.data);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -478,7 +480,9 @@ function VisualsReaderInner() {
             const json = await res.json();
             if (json.ok) setSubcatPage(json.data);
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     }
   }
@@ -952,8 +956,7 @@ function VisualsReaderInner() {
 
     // 展示風格：API metadata > DIVISIONS 硬編碼 > fallback
     const divLayout =
-      (divisionPage?.metadata?.layout as string) ||
-      activeDivision.galleryStyle;
+      (divisionPage?.metadata?.layout as string) || activeDivision.galleryStyle;
 
     return (
       <div className="visuals-division-page">
@@ -971,9 +974,7 @@ function VisualsReaderInner() {
           </span>
           <h2>{activeDivision.label}</h2>
         </div>
-        <div className="visuals-division-stats">
-          {subcats.length} 個子分類
-        </div>
+        <div className="visuals-division-stats">{subcats.length} 個子分類</div>
         <div className="visuals-gradient-divider" />
 
         {/* 內容：優先使用 API，fallback 到硬編碼 */}
@@ -1053,9 +1054,7 @@ function VisualsReaderInner() {
                     <div className="visuals-div-corridor-num">
                       {locked ? '🔒' : String(i + 1).padStart(2, '0')}
                     </div>
-                    <div className="visuals-div-corridor-title">
-                      {sc.title}
-                    </div>
+                    <div className="visuals-div-corridor-title">{sc.title}</div>
                     <div className="visuals-div-corridor-meta">
                       {locked ? 'sealed' : `${count} galleries`}
                     </div>
@@ -1087,7 +1086,8 @@ function VisualsReaderInner() {
                   <div className="visuals-div-museum-inner">
                     <div className="visuals-div-museum-ornament">❖</div>
                     <div className="visuals-div-museum-label">
-                      「{locked ? '🔒 ' : ''}{sc.title}」
+                      「{locked ? '🔒 ' : ''}
+                      {sc.title}」
                     </div>
                     <div className="visuals-div-museum-divider" />
                     <div className="visuals-div-museum-count">
@@ -1115,11 +1115,15 @@ function VisualsReaderInner() {
                   className="visuals-div-pinboard-note"
                   onClick={() => !locked && navigateToSubcat(sc.id)}
                   disabled={locked}
-                  style={{
-                    '--note-rot': `${rot.toFixed(1)}deg`,
-                    '--note-y': `${yOff.toFixed(1)}px`,
-                    ...(locked ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
-                  } as React.CSSProperties}
+                  style={
+                    {
+                      '--note-rot': `${rot.toFixed(1)}deg`,
+                      '--note-y': `${yOff.toFixed(1)}px`,
+                      ...(locked
+                        ? { opacity: 0.4, cursor: 'not-allowed' }
+                        : {}),
+                    } as React.CSSProperties
+                  }
                 >
                   <span className="visuals-div-pinboard-pin" />
                   <div className="visuals-div-pinboard-title">
@@ -1330,12 +1334,7 @@ function VisualsReaderInner() {
                   navigateToSubcat(activeSubcatId!, safeGroupIdx - 1);
                 }}
               >
-                <svg
-                  width="20"
-                  height="36"
-                  viewBox="0 0 20 36"
-                  fill="none"
-                >
+                <svg width="20" height="36" viewBox="0 0 20 36" fill="none">
                   <polyline
                     points="16,2 4,18 16,34"
                     stroke="currentColor"
@@ -1429,12 +1428,7 @@ function VisualsReaderInner() {
                   navigateToSubcat(activeSubcatId!, safeGroupIdx + 1);
                 }}
               >
-                <svg
-                  width="20"
-                  height="36"
-                  viewBox="0 0 20 36"
-                  fill="none"
-                >
+                <svg width="20" height="36" viewBox="0 0 20 36" fill="none">
                   <polyline
                     points="4,2 16,18 4,34"
                     stroke="currentColor"
@@ -1507,9 +1501,7 @@ function VisualsReaderInner() {
             {activeDivision?.labelEn}
           </div>
           <h2>{galleryPage.title}</h2>
-          <div className="visuals-gallery-count">
-            {images.length} pieces
-          </div>
+          <div className="visuals-gallery-count">{images.length} pieces</div>
         </div>
         <div className="visuals-gradient-divider" />
 
@@ -1656,9 +1648,7 @@ function VisualsReaderInner() {
                   <span className="visuals-gallery-hover-icon">⤢</span>
                 </div>
               </div>
-              <div className="visuals-pinboard-label">
-                {art.caption || ''}
-              </div>
+              <div className="visuals-pinboard-label">{art.caption || ''}</div>
             </div>
           );
         })}
@@ -1854,7 +1844,7 @@ function VisualsReaderInner() {
             variant={
               (view === 'landing'
                 ? 'landing'
-                : activeDivisionId ?? 'landing') as PhantomVariant
+                : (activeDivisionId ?? 'landing')) as PhantomVariant
             }
           />
           <div

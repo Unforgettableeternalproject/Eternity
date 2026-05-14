@@ -160,10 +160,28 @@ body {
   animation: uep-glitch 3s steps(8) infinite;
 }
 @keyframes uep-glitch {
-  0%, 90%, 100% { transform: none; text-shadow: none; }
-  92% { transform: translate(-2px, 1px); text-shadow: 2px 0 #d5b618, -2px 0 rgba(159, 134, 192, 0.6); }
-  94% { transform: translate(1px, -1px); text-shadow: -2px 0 #d5b618, 2px 0 rgba(159, 134, 192, 0.6); }
-  96% { transform: translate(-1px, 0); text-shadow: 1px 0 #d5b618; }
+  0%,
+  90%,
+  100% {
+    transform: none;
+    text-shadow: none;
+  }
+  92% {
+    transform: translate(-2px, 1px);
+    text-shadow:
+      2px 0 #d5b618,
+      -2px 0 rgba(159, 134, 192, 0.6);
+  }
+  94% {
+    transform: translate(1px, -1px);
+    text-shadow:
+      -2px 0 #d5b618,
+      2px 0 rgba(159, 134, 192, 0.6);
+  }
+  96% {
+    transform: translate(-1px, 0);
+    text-shadow: 1px 0 #d5b618;
+  }
 }
 
 /* ── Flicker：忽明忽暗 ── */
@@ -171,14 +189,31 @@ body {
   animation: uep-flicker 4s ease-in-out infinite;
 }
 @keyframes uep-flicker {
-  0%, 100% { opacity: 1; }
-  8% { opacity: 0.4; }
-  10% { opacity: 1; }
-  42% { opacity: 1; }
-  44% { opacity: 0.3; }
-  46% { opacity: 0.8; }
-  48% { opacity: 0.35; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.4;
+  }
+  10% {
+    opacity: 1;
+  }
+  42% {
+    opacity: 1;
+  }
+  44% {
+    opacity: 0.3;
+  }
+  46% {
+    opacity: 0.8;
+  }
+  48% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── Fade：緩慢呼吸淡入淡出 ── */
@@ -186,8 +221,13 @@ body {
   animation: uep-fade 5s ease-in-out infinite;
 }
 @keyframes uep-fade {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── Echo：多層疊影 ── */
@@ -199,7 +239,8 @@ body {
   animation: uep-echo 4s ease-in-out infinite;
 }
 @keyframes uep-echo {
-  0%, 100% {
+  0%,
+  100% {
     text-shadow:
       1px 1px 0 rgba(213, 182, 24, 0.25),
       2px 2px 0 rgba(213, 182, 24, 0.15),
@@ -221,9 +262,15 @@ body {
   animation: uep-static 0.15s steps(3) infinite;
 }
 @keyframes uep-static {
-  0% { transform: translate(0, 0); }
-  33% { transform: translate(0.5px, -0.5px); }
-  66% { transform: translate(-0.5px, 0.3px); }
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(0.5px, -0.5px);
+  }
+  66% {
+    transform: translate(-0.5px, 0.3px);
+  }
 }
 
 /* ── Halo behind UEP avatar ── */

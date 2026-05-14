@@ -1,7 +1,7 @@
-/* global File, FormData */
+/* global File, FormData, Blob, HTMLCanvasElement, performance */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImageItem, SpriteAnimations } from './VisualsEditorBody';
 import { uepToast } from '../ui/UepToast';
+import type { ImageItem, SpriteAnimations } from './VisualsEditorBody';
 
 // ──────────────────────────────────────────────────────────────
 // 常數 & 工具
@@ -27,7 +27,7 @@ function buildAssetUrl(key: string): string {
 
 async function uploadBlob(
   blob: Blob,
-  filename: string,
+  filename: string
 ): Promise<{ key: string } | null> {
   const file = new File([blob], filename, { type: 'image/png' });
   const formData = new FormData();
@@ -64,7 +64,7 @@ export default function SpriteEditorModal({
 }: SpriteEditorModalProps) {
   // ── 階段 ──
   const [phase, setPhase] = useState<Phase>(
-    existing ? 'define-anims' : 'select-method',
+    existing ? 'define-anims' : 'select-method'
   );
   const [method, setMethod] = useState<Method>(existing ? 'grid' : 'multi');
 
@@ -72,7 +72,7 @@ export default function SpriteEditorModal({
   const [columns, setColumns] = useState(existing?.columns || 4);
   const [rows, setRows] = useState(existing?.rows || 1);
   const [basePixelSize, setBasePixelSize] = useState(
-    existing?.basePixelSize || 3,
+    existing?.basePixelSize || 3
   );
   const [fps, setFps] = useState(existing?.fps || 8);
   const [uploading, setUploading] = useState(false);
@@ -86,10 +86,10 @@ export default function SpriteEditorModal({
   const [gridFile, setGridFile] = useState<File | null>(null);
   const [gridPreview, setGridPreview] = useState<string>('');
   const [gridNaturalW, setGridNaturalW] = useState(
-    existing ? (existing.frameWidth || 32) * (existing.columns || 1) : 0,
+    existing ? (existing.frameWidth || 32) * (existing.columns || 1) : 0
   );
   const [gridNaturalH, setGridNaturalH] = useState(
-    existing ? (existing.frameHeight || 32) * (existing.rows || 1) : 0,
+    existing ? (existing.frameHeight || 32) * (existing.rows || 1) : 0
   );
   const gridInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,7 +101,7 @@ export default function SpriteEditorModal({
 
   // ── 動畫定義 ──
   const [animations, setAnimations] = useState<SpriteAnimations>(
-    existing?.animations || { default: [0, 0] },
+    existing?.animations || { default: [0, 0] }
   );
   const [newAnimName, setNewAnimName] = useState('');
   const [previewAnim, setPreviewAnim] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export default function SpriteEditorModal({
   const handleMultiFiles = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files || []).sort((a, b) =>
-        naturalSort(a.name, b.name),
+        naturalSort(a.name, b.name)
       );
       setMultiFiles(files);
       const urls = files.map((f) => URL.createObjectURL(f));
@@ -135,7 +135,7 @@ export default function SpriteEditorModal({
       setColumns(cols);
       setRows(Math.ceil(files.length / cols));
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -163,7 +163,7 @@ export default function SpriteEditorModal({
       };
       img.src = url;
     },
-    [columns, rows],
+    [columns, rows]
   );
 
   useEffect(() => {
@@ -174,7 +174,13 @@ export default function SpriteEditorModal({
 
   // 根據 columns/rows 更新 cell 尺寸
   useEffect(() => {
-    if (method === 'grid' && gridNaturalW && gridNaturalH && columns > 0 && rows > 0) {
+    if (
+      method === 'grid' &&
+      gridNaturalW &&
+      gridNaturalH &&
+      columns > 0 &&
+      rows > 0
+    ) {
       setFrameWidth(Math.floor(gridNaturalW / columns));
       setFrameHeight(Math.floor(gridNaturalH / rows));
       setFrameCount(columns * rows);
@@ -304,7 +310,7 @@ export default function SpriteEditorModal({
       if (distRight < 12) dragTypeRef.current = 'col';
       else if (distBottom < 12) dragTypeRef.current = 'row';
     },
-    [method, gridNaturalW, columns, rows],
+    [method, gridNaturalW, columns, rows]
   );
 
   const handleCanvasMouseMove = useCallback(
@@ -326,7 +332,7 @@ export default function SpriteEditorModal({
         if (newRows !== rows) setRows(newRows);
       }
     },
-    [gridNaturalW, gridNaturalH, canvasScale, columns, rows],
+    [gridNaturalW, gridNaturalH, canvasScale, columns, rows]
   );
 
   const handleCanvasMouseUp = useCallback(() => {
@@ -352,7 +358,7 @@ export default function SpriteEditorModal({
       else if (distBottom < 12) canvas.style.cursor = 'ns-resize';
       else canvas.style.cursor = 'default';
     },
-    [method, gridNaturalW, columns, rows],
+    [method, gridNaturalW, columns, rows]
   );
 
   // ──────────────────────────────────────────────────────────────
@@ -370,8 +376,8 @@ export default function SpriteEditorModal({
               img.onload = () => resolve(img);
               img.onerror = reject;
               img.src = URL.createObjectURL(f);
-            }),
-        ),
+            })
+        )
       );
       const fw = images[0].naturalWidth;
       const fh = images[0].naturalHeight;
@@ -382,12 +388,19 @@ export default function SpriteEditorModal({
       offCanvas.height = rws * fh;
       const offCtx = offCanvas.getContext('2d')!;
       images.forEach((img, i) => {
-        offCtx.drawImage(img, (i % cols) * fw, Math.floor(i / cols) * fh, fw, fh);
+        offCtx.drawImage(
+          img,
+          (i % cols) * fw,
+          Math.floor(i / cols) * fh,
+          fw,
+          fh
+        );
       });
       const blob = await new Promise<Blob>((resolve) =>
-        offCanvas.toBlob((b) => resolve(b!), 'image/png'),
+        offCanvas.toBlob((b) => resolve(b!), 'image/png')
       );
-      const prefix = multiFiles[0].name.replace(/[-_]?\d+\.\w+$/, '') || 'sprite';
+      const prefix =
+        multiFiles[0].name.replace(/[-_]?\d+\.\w+$/, '') || 'sprite';
       const result = await uploadBlob(blob, `sprite-${prefix}.png`);
       if (!result) throw new Error('上傳失敗');
       setR2Key(result.key);
@@ -461,7 +474,7 @@ export default function SpriteEditorModal({
       if (previewAnim === oldName) setPreviewAnim(trimmed);
       setEditingAnimName(null);
     },
-    [animations, previewAnim],
+    [animations, previewAnim]
   );
 
   const removeAnimation = useCallback((name: string) => {
@@ -480,7 +493,7 @@ export default function SpriteEditorModal({
         return { ...prev, [name]: range };
       });
     },
-    [frameCount],
+    [frameCount]
   );
 
   // ──────────────────────────────────────────────────────────────
@@ -541,39 +554,74 @@ export default function SpriteEditorModal({
     };
     onConfirm(item);
   }, [
-    existing, r2Key, frameWidth, frameHeight, frameCount,
-    columns, rows, fps, animations, basePixelSize, onConfirm,
+    existing,
+    r2Key,
+    frameWidth,
+    frameHeight,
+    frameCount,
+    columns,
+    rows,
+    fps,
+    animations,
+    basePixelSize,
+    onConfirm,
   ]);
 
   // ──────────────────────────────────────────────────────────────
   // 共用樣式
   // ──────────────────────────────────────────────────────────────
   const overlayStyle: React.CSSProperties = {
-    position: 'fixed', inset: 0, zIndex: 9999,
-    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-    display: 'grid', placeItems: 'center', padding: 24,
+    position: 'fixed',
+    inset: 0,
+    zIndex: 9999,
+    background: 'rgba(0,0,0,0.6)',
+    backdropFilter: 'blur(4px)',
+    display: 'grid',
+    placeItems: 'center',
+    padding: 24,
   };
   const panelStyle: React.CSSProperties = {
-    background: 'var(--bg-card, #1a1a22)', border: '1px solid var(--line, #333)',
-    borderRadius: 12, maxWidth: 780, width: '100%',
-    maxHeight: '85vh', overflow: 'auto', padding: 28,
+    background: 'var(--bg-card, #1a1a22)',
+    border: '1px solid var(--line, #333)',
+    borderRadius: 12,
+    maxWidth: 780,
+    width: '100%',
+    maxHeight: '85vh',
+    overflow: 'auto',
+    padding: 28,
   };
   const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em',
-    color: 'var(--ink-mute)', marginBottom: 4, display: 'block',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    letterSpacing: '0.12em',
+    color: 'var(--ink-mute)',
+    marginBottom: 4,
+    display: 'block',
   };
   const inputStyle: React.CSSProperties = {
-    padding: '6px 10px', border: '1px solid var(--line, #444)',
-    background: 'transparent', borderRadius: 4, color: 'inherit',
-    fontFamily: 'var(--font-mono)', fontSize: 13, width: 80,
+    padding: '6px 10px',
+    border: '1px solid var(--line, #444)',
+    background: 'transparent',
+    borderRadius: 4,
+    color: 'inherit',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 13,
+    width: 80,
   };
   const btnStyle: React.CSSProperties = {
-    padding: '8px 20px', border: '1px solid var(--line, #444)',
-    background: 'transparent', color: 'inherit', cursor: 'pointer',
-    borderRadius: 6, fontSize: 13,
+    padding: '8px 20px',
+    border: '1px solid var(--line, #444)',
+    background: 'transparent',
+    color: 'inherit',
+    cursor: 'pointer',
+    borderRadius: 6,
+    fontSize: 13,
   };
   const primaryBtnStyle: React.CSSProperties = {
-    ...btnStyle, background: '#5e548e', borderColor: '#5e548e', color: '#fff',
+    ...btnStyle,
+    background: '#5e548e',
+    borderColor: '#5e548e',
+    color: '#fff',
   };
 
   // ──────────────────────────────────────────────────────────────
@@ -582,34 +630,59 @@ export default function SpriteEditorModal({
   if (phase === 'select-method') {
     return (
       <div style={overlayStyle} onClick={onClose}>
-        <div style={{ ...panelStyle, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div
+          style={{ ...panelStyle, maxWidth: 480 }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 600 }}>
             精靈圖設定
           </h3>
           <div style={{ display: 'flex', gap: 16 }}>
             <button
-              style={{ ...btnStyle, flex: 1, padding: '24px 16px', textAlign: 'center' }}
-              onClick={() => { setMethod('multi'); setPhase('configure'); }}
+              style={{
+                ...btnStyle,
+                flex: 1,
+                padding: '24px 16px',
+                textAlign: 'center',
+              }}
+              onClick={() => {
+                setMethod('multi');
+                setPhase('configure');
+              }}
             >
               <div style={{ fontSize: 28, marginBottom: 8 }}>⊞</div>
               <div style={{ fontWeight: 600 }}>多檔合成</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 4 }}>
+              <div
+                style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 4 }}
+              >
                 上傳多個幀圖片，自動合成
               </div>
             </button>
             <button
-              style={{ ...btnStyle, flex: 1, padding: '24px 16px', textAlign: 'center' }}
-              onClick={() => { setMethod('grid'); setPhase('configure'); }}
+              style={{
+                ...btnStyle,
+                flex: 1,
+                padding: '24px 16px',
+                textAlign: 'center',
+              }}
+              onClick={() => {
+                setMethod('grid');
+                setPhase('configure');
+              }}
             >
               <div style={{ fontSize: 28, marginBottom: 8 }}>▦</div>
               <div style={{ fontWeight: 600 }}>網格切割</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 4 }}>
+              <div
+                style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 4 }}
+              >
                 上傳整張精靈圖，設定切割
               </div>
             </button>
           </div>
           <div style={{ marginTop: 16, textAlign: 'right' }}>
-            <button style={btnStyle} onClick={onClose}>取消</button>
+            <button style={btnStyle} onClick={onClose}>
+              取消
+            </button>
           </div>
         </div>
       </div>
@@ -630,30 +703,57 @@ export default function SpriteEditorModal({
           {/* 檔案選取 */}
           {method === 'multi' ? (
             <>
-              <input ref={multiInputRef} type="file" accept="image/*" multiple
-                style={{ display: 'none' }} onChange={handleMultiFiles} />
-              <button style={{ ...btnStyle, marginBottom: 12 }}
-                onClick={() => multiInputRef.current?.click()}>
+              <input
+                ref={multiInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={handleMultiFiles}
+              />
+              <button
+                style={{ ...btnStyle, marginBottom: 12 }}
+                onClick={() => multiInputRef.current?.click()}
+              >
                 選擇幀圖片（多選）
               </button>
               {multiFiles.length > 0 && (
-                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 12 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--ink-mute)',
+                    marginBottom: 12,
+                  }}
+                >
                   已選擇 {multiFiles.length} 個檔案
                 </div>
               )}
             </>
           ) : (
             <>
-              <input ref={gridInputRef} type="file" accept="image/*"
-                style={{ display: 'none' }} onChange={handleGridFile} />
+              <input
+                ref={gridInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleGridFile}
+              />
               {!r2Key && (
-                <button style={{ ...btnStyle, marginBottom: 12 }}
-                  onClick={() => gridInputRef.current?.click()}>
+                <button
+                  style={{ ...btnStyle, marginBottom: 12 }}
+                  onClick={() => gridInputRef.current?.click()}
+                >
                   選擇精靈圖
                 </button>
               )}
               {(gridFile || r2Key) && (
-                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 12 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--ink-mute)',
+                    marginBottom: 12,
+                  }}
+                >
                   {gridFile ? `${gridFile.name} (` : ''}
                   {gridNaturalW}×{gridNaturalH}
                   {gridFile ? ')' : ' px'}
@@ -680,47 +780,77 @@ export default function SpriteEditorModal({
               }}
             />
             {method === 'grid' && effectivePreview && (
-              <div style={{ fontSize: 10, color: 'var(--ink-mute)', marginTop: 4 }}>
-                拖曳紫色圓點調整格線 · Cell: {frameWidth}×{frameHeight}px · {frameCount} 幀
+              <div
+                style={{ fontSize: 10, color: 'var(--ink-mute)', marginTop: 4 }}
+              >
+                拖曳紫色圓點調整格線 · Cell: {frameWidth}×{frameHeight}px ·{' '}
+                {frameCount} 幀
               </div>
             )}
           </div>
 
           {/* 數值設定 */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-            gap: 12, marginBottom: 16,
-          }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
             <div>
               <label style={labelStyle}>Columns</label>
-              <input type="number" min={1} value={columns}
+              <input
+                type="number"
+                min={1}
+                value={columns}
                 onChange={(e) => setColumns(Math.max(1, +e.target.value))}
-                style={inputStyle} />
+                style={inputStyle}
+              />
             </div>
             <div>
               <label style={labelStyle}>Rows</label>
-              <input type="number" min={1} value={rows}
+              <input
+                type="number"
+                min={1}
+                value={rows}
                 onChange={(e) => setRows(Math.max(1, +e.target.value))}
-                style={inputStyle} />
+                style={inputStyle}
+              />
             </div>
             <div>
               <label style={labelStyle}>Base Pixel</label>
-              <input type="number" min={1} value={basePixelSize}
+              <input
+                type="number"
+                min={1}
+                value={basePixelSize}
                 onChange={(e) => setBasePixelSize(Math.max(1, +e.target.value))}
-                style={inputStyle} />
+                style={inputStyle}
+              />
             </div>
             <div>
               <label style={labelStyle}>FPS</label>
-              <input type="number" min={1} max={60} value={fps}
-                onChange={(e) => setFps(Math.max(1, Math.min(60, +e.target.value)))}
-                style={inputStyle} />
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={fps}
+                onChange={(e) =>
+                  setFps(Math.max(1, Math.min(60, +e.target.value)))
+                }
+                style={inputStyle}
+              />
             </div>
           </div>
 
           {/* 按鈕列 */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button style={btnStyle}
-              onClick={() => r2Key ? setPhase('define-anims') : setPhase('select-method')}>
+            <button
+              style={btnStyle}
+              onClick={() =>
+                r2Key ? setPhase('define-anims') : setPhase('select-method')
+              }
+            >
               返回
             </button>
             <button
@@ -761,16 +891,34 @@ export default function SpriteEditorModal({
           定義動畫
         </h3>
 
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 200px', gap: 20,
-          minHeight: 300,
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 200px',
+            gap: 20,
+            minHeight: 300,
+          }}
+        >
           {/* 左側：動畫列表 */}
           <div>
-            <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 12 }}>
-              {frameWidth}×{frameHeight}px · {columns}×{rows} · {frameCount} 幀 · {fps}fps
-              <button style={{ ...btnStyle, padding: '2px 8px', fontSize: 10, marginLeft: 8 }}
-                onClick={() => setPhase('configure')}>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--ink-mute)',
+                marginBottom: 12,
+              }}
+            >
+              {frameWidth}×{frameHeight}px · {columns}×{rows} · {frameCount} 幀
+              · {fps}fps
+              <button
+                style={{
+                  ...btnStyle,
+                  padding: '2px 8px',
+                  fontSize: 10,
+                  marginLeft: 8,
+                }}
+                onClick={() => setPhase('configure')}
+              >
                 調整參數
               </button>
             </div>
@@ -778,12 +926,20 @@ export default function SpriteEditorModal({
             {/* 動畫列表 */}
             <div style={{ marginBottom: 12 }}>
               {Object.entries(animations).map(([name, [start, end]]) => (
-                <div key={name} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 0', borderBottom: '1px solid var(--line, #333)',
-                  background: previewAnim === name ? 'rgba(94,84,142,0.08)' : undefined,
-                  cursor: 'pointer',
-                }} onClick={() => setPreviewAnim(name)}>
+                <div
+                  key={name}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 0',
+                    borderBottom: '1px solid var(--line, #333)',
+                    background:
+                      previewAnim === name ? 'rgba(94,84,142,0.08)' : undefined,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setPreviewAnim(name)}
+                >
                   {editingAnimName === name ? (
                     <input
                       autoFocus
@@ -791,16 +947,24 @@ export default function SpriteEditorModal({
                       onChange={(e) => setEditingNameValue(e.target.value)}
                       onBlur={() => renameAnimation(name, editingNameValue)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') renameAnimation(name, editingNameValue);
+                        if (e.key === 'Enter')
+                          renameAnimation(name, editingNameValue);
                         if (e.key === 'Escape') setEditingAnimName(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      style={{ ...inputStyle, width: 70, fontSize: 12, fontWeight: 600 }}
+                      style={{
+                        ...inputStyle,
+                        width: 70,
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
                     />
                   ) : (
                     <span
                       style={{
-                        fontWeight: 600, fontSize: 13, minWidth: 70,
+                        fontWeight: 600,
+                        fontSize: 13,
+                        minWidth: 70,
                         color: previewAnim === name ? '#5e548e' : 'inherit',
                         cursor: 'text',
                       }}
@@ -811,23 +975,51 @@ export default function SpriteEditorModal({
                       }}
                       title="雙擊重新命名"
                     >
-                      {previewAnim === name ? '▸ ' : ''}{name}
+                      {previewAnim === name ? '▸ ' : ''}
+                      {name}
                     </span>
                   )}
-                  <label style={{ ...labelStyle, marginBottom: 0, fontSize: 9 }}>起始</label>
-                  <input type="number" min={0} max={frameCount - 1} value={start}
+                  <label
+                    style={{ ...labelStyle, marginBottom: 0, fontSize: 9 }}
+                  >
+                    起始
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={frameCount - 1}
+                    value={start}
                     onChange={(e) => updateAnimRange(name, 0, +e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    style={{ ...inputStyle, width: 50, fontSize: 11 }} />
-                  <label style={{ ...labelStyle, marginBottom: 0, fontSize: 9 }}>結束</label>
-                  <input type="number" min={0} max={frameCount - 1} value={end}
+                    style={{ ...inputStyle, width: 50, fontSize: 11 }}
+                  />
+                  <label
+                    style={{ ...labelStyle, marginBottom: 0, fontSize: 9 }}
+                  >
+                    結束
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={frameCount - 1}
+                    value={end}
                     onChange={(e) => updateAnimRange(name, 1, +e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    style={{ ...inputStyle, width: 50, fontSize: 11 }} />
-                  <button style={{
-                    ...btnStyle, padding: '2px 6px', fontSize: 10,
-                    color: '#c44', borderColor: '#c44',
-                  }} onClick={(e) => { e.stopPropagation(); removeAnimation(name); }}>
+                    style={{ ...inputStyle, width: 50, fontSize: 11 }}
+                  />
+                  <button
+                    style={{
+                      ...btnStyle,
+                      padding: '2px 6px',
+                      fontSize: 10,
+                      color: '#c44',
+                      borderColor: '#c44',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeAnimation(name);
+                    }}
+                  >
                     ✕
                   </button>
                 </div>
@@ -836,57 +1028,101 @@ export default function SpriteEditorModal({
 
             {/* 新增動畫 */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="text" placeholder="動畫名稱" value={newAnimName}
+              <input
+                type="text"
+                placeholder="動畫名稱"
+                value={newAnimName}
                 onChange={(e) => setNewAnimName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addAnimation()}
-                style={{ ...inputStyle, width: 120 }} />
-              <button style={btnStyle} onClick={addAnimation}>+ 新增</button>
+                style={{ ...inputStyle, width: 120 }}
+              />
+              <button style={btnStyle} onClick={addAnimation}>
+                + 新增
+              </button>
             </div>
           </div>
 
           {/* 右側：即時預覽 */}
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            gap: 8, paddingTop: 8,
-          }}>
-            <div style={{ fontSize: 10, color: 'var(--ink-mute)', letterSpacing: '0.1em' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+              paddingTop: 8,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: 'var(--ink-mute)',
+                letterSpacing: '0.1em',
+              }}
+            >
               預覽
             </div>
             {existingImageUrl ? (
-              <div style={{
-                width: pvW, height: pvH, overflow: 'hidden', flexShrink: 0,
-                border: '1px dashed var(--line, #444)',
-                backgroundImage: `url(${existingImageUrl})`,
-                backgroundSize: `${pvSheetW}px auto`,
-                backgroundPosition: `${-(pvCol * pvW)}px ${-(pvRow * pvH)}px`,
-                backgroundRepeat: 'no-repeat',
-                imageRendering: 'pixelated',
-              }} />
+              <div
+                style={{
+                  width: pvW,
+                  height: pvH,
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  border: '1px dashed var(--line, #444)',
+                  backgroundImage: `url(${existingImageUrl})`,
+                  backgroundSize: `${pvSheetW}px auto`,
+                  backgroundPosition: `${-(pvCol * pvW)}px ${-(pvRow * pvH)}px`,
+                  backgroundRepeat: 'no-repeat',
+                  imageRendering: 'pixelated',
+                }}
+              />
             ) : (
-              <div style={{
-                width: 120, height: 120, border: '1px dashed var(--line, #444)',
-                display: 'grid', placeItems: 'center', fontSize: 11,
-                color: 'var(--ink-mute)',
-              }}>
+              <div
+                style={{
+                  width: 120,
+                  height: 120,
+                  border: '1px dashed var(--line, #444)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                }}
+              >
                 尚無圖片
               </div>
             )}
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-mute)',
-            }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'var(--ink-mute)',
+              }}
+            >
               Frame {previewFrame}
               {previewAnim && animations[previewAnim] && (
-                <> / {animations[previewAnim][0]}–{animations[previewAnim][1]}</>
+                <>
+                  {' '}
+                  / {animations[previewAnim][0]}–{animations[previewAnim][1]}
+                </>
               )}
             </div>
           </div>
         </div>
 
         {/* 按鈕列 */}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button style={primaryBtnStyle}
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            justifyContent: 'flex-end',
+            marginTop: 16,
+          }}
+        >
+          <button
+            style={primaryBtnStyle}
             disabled={!r2Key || Object.keys(animations).length === 0}
-            onClick={handleConfirm}>
+            onClick={handleConfirm}
+          >
             確認
           </button>
         </div>
