@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import './VisualsPhantom.css';
 
 // ──────────────────────────────────────────────────────────────
@@ -297,13 +303,15 @@ export default function VisualsPhantom({ variant = 'landing' }: Props) {
         >
           <div
             className="vp-ray-streak"
-            style={{
-              width: r.len,
-              animationDuration: `${r.dur}s`,
-              animationDelay: `${r.delay}s`,
-              '--ray-hue': `${r.hue}deg`,
-              '--ray-bright': r.bright,
-            } as React.CSSProperties}
+            style={
+              {
+                width: r.len,
+                animationDuration: `${r.dur}s`,
+                animationDelay: `${r.delay}s`,
+                '--ray-hue': `${r.hue}deg`,
+                '--ray-bright': r.bright,
+              } as React.CSSProperties
+            }
             onAnimationEnd={() => removeRay(r.id)}
           />
         </div>

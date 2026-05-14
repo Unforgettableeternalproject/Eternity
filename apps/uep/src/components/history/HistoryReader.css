@@ -399,7 +399,10 @@
 }
 
 .history-uep-note {
-  margin-top: 34px;
+  margin: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .history-arch-grid {

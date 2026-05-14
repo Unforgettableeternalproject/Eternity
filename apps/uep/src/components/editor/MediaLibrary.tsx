@@ -156,7 +156,8 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
   // ── 刪除操作 ──
 
   const deleteSingle = async (key: string) => {
-    if (!(await uepDialog.confirm(`確定要刪除「${getFilename(key)}」嗎？`))) return;
+    if (!(await uepDialog.confirm(`確定要刪除「${getFilename(key)}」嗎？`)))
+      return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/assets/${encodeAssetKey(key)}`, {

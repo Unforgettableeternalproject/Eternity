@@ -29,7 +29,7 @@ function isFarEnough(
   x: number,
   y: number,
   existing: Orb[],
-  minDist: number,
+  minDist: number
 ): boolean {
   for (const o of existing) {
     const dx = x - o.x;
@@ -135,17 +135,21 @@ export default function EchoesRipple({ isPlaying = false }: Props) {
           {/* 環繞小粒子 */}
           {Array.from({ length: o.particles }, (_, i) => {
             const angle = (360 / o.particles) * i + ((o.id * 17 + i * 53) % 30);
-            const dist = o.size * 1.2 + ((o.id * 31 + i * 71) % 100) / 100 * o.size * 0.8;
+            const dist =
+              o.size * 1.2 +
+              (((o.id * 31 + i * 71) % 100) / 100) * o.size * 0.8;
             return (
               <div
                 key={`p${i}`}
                 className="er-orb-dot"
-                style={{
-                  '--er-dot-angle': `${angle}deg`,
-                  '--er-dot-dist': `${dist}px`,
-                  animationDelay: `${o.delay + i * 0.15}s`,
-                  animationDuration: `${o.dur * 0.8}s`,
-                } as React.CSSProperties}
+                style={
+                  {
+                    '--er-dot-angle': `${angle}deg`,
+                    '--er-dot-dist': `${dist}px`,
+                    animationDelay: `${o.delay + i * 0.15}s`,
+                    animationDuration: `${o.dur * 0.8}s`,
+                  } as React.CSSProperties
+                }
               />
             );
           })}
@@ -155,11 +159,13 @@ export default function EchoesRipple({ isPlaying = false }: Props) {
             <div
               key={`r${i}`}
               className="er-orb-ring"
-              style={{
-                animationDuration: `${o.dur * (0.7 + i * 0.3)}s`,
-                animationDelay: `${o.delay + i * 0.4}s`,
-                '--er-ring-size': `${o.size * 6 + i * o.size * 3}px`,
-              } as React.CSSProperties}
+              style={
+                {
+                  animationDuration: `${o.dur * (0.7 + i * 0.3)}s`,
+                  animationDelay: `${o.delay + i * 0.4}s`,
+                  '--er-ring-size': `${o.size * 6 + i * o.size * 3}px`,
+                } as React.CSSProperties
+              }
             />
           ))}
         </div>

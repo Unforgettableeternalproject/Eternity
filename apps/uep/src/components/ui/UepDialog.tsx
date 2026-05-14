@@ -31,7 +31,10 @@ function notifyAll() {
 
 export const uepDialog = {
   /** 顯示 alert 對話框（只有「確定」按鈕） */
-  alert(message: string, opts?: { title?: string; confirmText?: string }): Promise<void> {
+  alert(
+    message: string,
+    opts?: { title?: string; confirmText?: string }
+  ): Promise<void> {
     return new Promise((resolve) => {
       currentReq = {
         id: ++dialogId,
@@ -48,7 +51,7 @@ export const uepDialog = {
   /** 顯示 confirm 對話框，返回使用者是否點了確認 */
   confirm(
     message: string,
-    opts?: { title?: string; confirmText?: string; cancelText?: string },
+    opts?: { title?: string; confirmText?: string; cancelText?: string }
   ): Promise<boolean> {
     return new Promise((resolve) => {
       currentReq = {
@@ -117,17 +120,14 @@ export default function UepDialogContainer() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [req]);
 
-  const close = useCallback(
-    (ok: boolean) => {
-      setClosing(true);
-      setTimeout(() => {
-        const mgr = window.__uepDialogManager ?? uepDialog;
-        mgr._close(ok);
-        setClosing(false);
-      }, 200);
-    },
-    [],
-  );
+  const close = useCallback((ok: boolean) => {
+    setClosing(true);
+    setTimeout(() => {
+      const mgr = window.__uepDialogManager ?? uepDialog;
+      mgr._close(ok);
+      setClosing(false);
+    }, 200);
+  }, []);
 
   if (!req) return null;
 

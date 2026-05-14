@@ -131,7 +131,11 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
   }
 
   // localhost 一律允許（開發環境各 port 都能存取）
-  if (origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+  if (
+    origin &&
+    (origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:'))
+  ) {
     headers['Access-Control-Allow-Origin'] = origin;
     headers['Access-Control-Allow-Methods'] =
       'GET, HEAD, POST, PUT, DELETE, OPTIONS';

@@ -74,8 +74,7 @@
   height: 4px;
   border-radius: 50%;
   background: rgba(53, 92, 125, 0.4);
-  transform: translate(-50%, -50%)
-    rotate(var(--er-dot-angle, 0deg))
+  transform: translate(-50%, -50%) rotate(var(--er-dot-angle, 0deg))
     translateX(var(--er-dot-dist, 20px));
   opacity: 0;
   animation: er-dot-orbit ease-in-out forwards;
@@ -84,8 +83,7 @@
 @keyframes er-dot-orbit {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%)
-      rotate(var(--er-dot-angle, 0deg))
+    transform: translate(-50%, -50%) rotate(var(--er-dot-angle, 0deg))
       translateX(calc(var(--er-dot-dist, 20px) * 0.3));
   }
   20% {

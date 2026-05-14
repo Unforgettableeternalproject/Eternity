@@ -192,7 +192,7 @@ export default function VisualsEditorBody({
   // 編輯器模式：普通圖片 / 精靈圖
   type EditorMode = 'image' | 'sprite';
   const [editorMode, setEditorMode] = useState<EditorMode>(
-    data.images.some((img) => img.isSpriteSheet) ? 'sprite' : 'image',
+    data.images.some((img) => img.isSpriteSheet) ? 'sprite' : 'image'
   );
 
   // 精靈圖編輯器狀態
@@ -214,7 +214,6 @@ export default function VisualsEditorBody({
     imageId: string;
     file: string;
   } | null>(null);
-
 
   const update = (patch: Partial<VisualsData>) => {
     const next = { ...data, ...patch };
@@ -339,7 +338,7 @@ export default function VisualsEditorBody({
       !(await uepDialog.confirm(
         mode === 'sprite'
           ? '切換到精靈圖模式會清除目前的圖片，確定嗎？'
-          : '切換到普通圖片模式會清除目前的精靈圖，確定嗎？',
+          : '切換到普通圖片模式會清除目前的精靈圖，確定嗎？'
       ))
     ) {
       return;
@@ -357,7 +356,9 @@ export default function VisualsEditorBody({
         </label>
         {spriteItem && (
           <span className="ned-subcat-list-count">
-            {spriteItem.frameWidth}×{spriteItem.frameHeight} · {spriteItem.frameCount} 幀 · {Object.keys(spriteItem.animations || {}).length} 動畫
+            {spriteItem.frameWidth}×{spriteItem.frameHeight} ·{' '}
+            {spriteItem.frameCount} 幀 ·{' '}
+            {Object.keys(spriteItem.animations || {}).length} 動畫
           </span>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -432,16 +433,25 @@ export default function VisualsEditorBody({
                   lineHeight: 1.8,
                 }}
               >
-                <div>幀尺寸: {spriteItem.frameWidth}×{spriteItem.frameHeight}px</div>
-                <div>格局: {spriteItem.columns}×{spriteItem.rows} ({spriteItem.frameCount} 幀)</div>
+                <div>
+                  幀尺寸: {spriteItem.frameWidth}×{spriteItem.frameHeight}px
+                </div>
+                <div>
+                  格局: {spriteItem.columns}×{spriteItem.rows} (
+                  {spriteItem.frameCount} 幀)
+                </div>
                 <div>播放速率: {spriteItem.fps} fps</div>
                 <div>基準像素: {spriteItem.basePixelSize}×</div>
-                <div>動畫數: {Object.keys(spriteItem.animations || {}).length}</div>
-                {Object.entries(spriteItem.animations || {}).map(([name, [s, e]]) => (
-                  <div key={name} style={{ paddingLeft: 12 }}>
-                    ├ {name}: 幀 {s}–{e}
-                  </div>
-                ))}
+                <div>
+                  動畫數: {Object.keys(spriteItem.animations || {}).length}
+                </div>
+                {Object.entries(spriteItem.animations || {}).map(
+                  ([name, [s, e]]) => (
+                    <div key={name} style={{ paddingLeft: 12 }}>
+                      ├ {name}: 幀 {s}–{e}
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -486,13 +496,19 @@ export default function VisualsEditorBody({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}>
+            <div
+              style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}
+            >
               移除精靈圖
             </div>
-            <div style={{
-              fontSize: '0.85em', color: 'var(--ink-mute, #888)',
-              marginBottom: 16, wordBreak: 'break-all',
-            }}>
+            <div
+              style={{
+                fontSize: '0.85em',
+                color: 'var(--ink-mute, #888)',
+                marginBottom: 16,
+                wordBreak: 'break-all',
+              }}
+            >
               {spriteItem.file.split('/').pop()}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -503,13 +519,21 @@ export default function VisualsEditorBody({
                   update({ images: [], layout: '' });
                   setSpriteDeleteOpen(false);
                 }}
-                style={{ width: '100%', padding: '10px 16px', textAlign: 'left' }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                }}
               >
                 📎 僅從此畫廊移除
-                <span style={{
-                  display: 'block', fontSize: '0.8em',
-                  color: 'var(--ink-mute, #888)', marginTop: 2,
-                }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
                   檔案保留在媒體庫中，可供其他頁面使用
                 </span>
               </button>
@@ -521,7 +545,10 @@ export default function VisualsEditorBody({
                   update({ images: [], layout: '' });
                   setSpriteDeleteOpen(false);
                   try {
-                    const encoded = file.split('/').map(encodeURIComponent).join('/');
+                    const encoded = file
+                      .split('/')
+                      .map(encodeURIComponent)
+                      .join('/');
                     await fetch(`${API_BASE}/api/assets/${encoded}`, {
                       method: 'DELETE',
                     });
@@ -530,15 +557,22 @@ export default function VisualsEditorBody({
                   }
                 }}
                 style={{
-                  width: '100%', padding: '10px 16px', textAlign: 'left',
-                  borderColor: 'crimson', color: 'crimson',
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  borderColor: 'crimson',
+                  color: 'crimson',
                 }}
               >
                 🗑 從媒體庫永久刪除
-                <span style={{
-                  display: 'block', fontSize: '0.8em',
-                  color: 'var(--ink-mute, #888)', marginTop: 2,
-                }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
                   移除引用並從 R2 儲存空間中刪除檔案
                 </span>
               </button>
@@ -546,7 +580,12 @@ export default function VisualsEditorBody({
                 type="button"
                 className="ned-btn-ghost"
                 onClick={() => setSpriteDeleteOpen(false)}
-                style={{ width: '100%', padding: '8px 16px', textAlign: 'center', marginTop: 4 }}
+                style={{
+                  width: '100%',
+                  padding: '8px 16px',
+                  textAlign: 'center',
+                  marginTop: 4,
+                }}
               >
                 取消
               </button>
@@ -596,186 +635,194 @@ export default function VisualsEditorBody({
       {editorMode === 'sprite' ? (
         renderSpriteEditor()
       ) : (
-      /* 圖片清單 */
-      <div className="ned-subcat-section">
-        <div className="ned-subcat-list-header">
-          <label className="ned-field-label" style={{ margin: 0 }}>
-            圖片清單
-          </label>
-          <span className="ned-subcat-list-count">{data.images.length} 張</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <button
-              className="ned-btn-ghost ned-btn-sm"
-              type="button"
-              onClick={openImagePicker}
-              style={{ color: accent }}
-            >
-              📂 媒體庫
-            </button>
-            <button
-              className="ned-btn-ghost ned-btn-sm"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{ color: accent }}
-            >
-              {uploading ? '上傳中...' : '+ 上傳圖片'}
-            </button>
+        /* 圖片清單 */
+        <div className="ned-subcat-section">
+          <div className="ned-subcat-list-header">
+            <label className="ned-field-label" style={{ margin: 0 }}>
+              圖片清單
+            </label>
+            <span className="ned-subcat-list-count">
+              {data.images.length} 張
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button
+                className="ned-btn-ghost ned-btn-sm"
+                type="button"
+                onClick={openImagePicker}
+                style={{ color: accent }}
+              >
+                📂 媒體庫
+              </button>
+              <button
+                className="ned-btn-ghost ned-btn-sm"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{ color: accent }}
+              >
+                {uploading ? '上傳中...' : '+ 上傳圖片'}
+              </button>
+            </div>
           </div>
-        </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleImageUpload}
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleImageUpload}
+          />
 
-        {data.images.length === 0 && (
-          <div className="ned-subcat-empty">尚無圖片 — 上傳或從媒體庫選取</div>
-        )}
+          {data.images.length === 0 && (
+            <div className="ned-subcat-empty">
+              尚無圖片 — 上傳或從媒體庫選取
+            </div>
+          )}
 
-        <div className="ned-subcat-song-list">
-          {data.images.map((img, i) => {
-            const isExpanded = expandedId === img.id;
-            const isDragging = dragIdx === i;
-            const isDropTarget = dropIdx === i;
+          <div className="ned-subcat-song-list">
+            {data.images.map((img, i) => {
+              const isExpanded = expandedId === img.id;
+              const isDragging = dragIdx === i;
+              const isDropTarget = dropIdx === i;
 
-            return (
-              <div key={img.id}>
-                <div
-                  className={`ned-subcat-song-row ${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
-                  draggable
-                  onDragStart={() => handleDragStart(i)}
-                  onDragOver={(e) => handleDragOver(e, i)}
-                  onDrop={handleDrop}
-                  onDragEnd={() => {
-                    setDragIdx(null);
-                    setDropIdx(null);
-                  }}
-                >
-                  <span className="ned-subcat-song-grip" title="拖曳排序">
-                    ⠿
-                  </span>
-                  <span
-                    className="ned-subcat-song-num"
-                    style={{ color: accent }}
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  {/* 縮圖 */}
+              return (
+                <div key={img.id}>
                   <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      flexShrink: 0,
-                      overflow: 'hidden',
-                      border: '1px solid var(--line, #333)',
-                      borderRadius: 4,
-                      background: 'var(--bg-elevated, #252530)',
+                    className={`ned-subcat-song-row ${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+                    draggable
+                    onDragStart={() => handleDragStart(i)}
+                    onDragOver={(e) => handleDragOver(e, i)}
+                    onDrop={handleDrop}
+                    onDragEnd={() => {
+                      setDragIdx(null);
+                      setDropIdx(null);
                     }}
                   >
-                    {img.file && (
-                      <img
-                        src={buildImageUrl(img.file)}
-                        alt=""
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="ned-subcat-song-info" style={{ flex: 1 }}>
-                    <span
-                      className="ned-subcat-song-title"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => setExpandedId(isExpanded ? null : img.id)}
-                    >
-                      {img.file?.split('/').pop() || '(未上傳)'}
+                    <span className="ned-subcat-song-grip" title="拖曳排序">
+                      ⠿
                     </span>
-                    {img.caption && (
-                      <span className="ned-subcat-song-sub">{img.caption}</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="ned-subcat-song-edit"
-                    style={{ color: accent }}
-                    title={isExpanded ? '收合' : '展開編輯'}
-                    onClick={() => setExpandedId(isExpanded ? null : img.id)}
-                  >
-                    {isExpanded ? '▾' : '▸'}
-                  </button>
-                  <button
-                    type="button"
-                    className="ned-subcat-song-delete"
-                    onClick={() =>
-                      setDeleteConfirm({
-                        imageId: img.id,
-                        file: img.file,
-                      })
-                    }
-                    title="刪除圖片"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {/* 展開的編輯區 */}
-                {isExpanded && (
-                  <div
-                    style={{
-                      padding: '12px 16px 12px 60px',
-                      borderBottom: '1px solid var(--line, #333)',
-                      background: 'var(--bg-soft, #1a1a22)',
-                    }}
-                  >
-                    {/* 圖片預覽 */}
-                    {img.file && (
-                      <div
-                        style={{
-                          marginBottom: 12,
-                          maxWidth: 320,
-                          border: '1px solid var(--line, #333)',
-                          borderRadius: 4,
-                          overflow: 'hidden',
-                        }}
-                      >
+                    <span
+                      className="ned-subcat-song-num"
+                      style={{ color: accent }}
+                    >
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    {/* 縮圖 */}
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        flexShrink: 0,
+                        overflow: 'hidden',
+                        border: '1px solid var(--line, #333)',
+                        borderRadius: 4,
+                        background: 'var(--bg-elevated, #252530)',
+                      }}
+                    >
+                      {img.file && (
                         <img
                           src={buildImageUrl(img.file)}
-                          alt={img.caption || ''}
+                          alt=""
                           style={{
                             width: '100%',
-                            display: 'block',
+                            height: '100%',
+                            objectFit: 'cover',
                           }}
                         />
-                      </div>
-                    )}
-                    <label className="ned-field-label ned-field-label--sm">
-                      說明 (Caption)
-                    </label>
-                    <input
-                      className="ned-field ned-field--sm"
-                      type="text"
-                      value={img.caption}
-                      placeholder="圖片說明..."
-                      onChange={(e) =>
-                        updateImage(img.id, {
-                          caption: e.target.value,
+                      )}
+                    </div>
+                    <div className="ned-subcat-song-info" style={{ flex: 1 }}>
+                      <span
+                        className="ned-subcat-song-title"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() =>
+                          setExpandedId(isExpanded ? null : img.id)
+                        }
+                      >
+                        {img.file?.split('/').pop() || '(未上傳)'}
+                      </span>
+                      {img.caption && (
+                        <span className="ned-subcat-song-sub">
+                          {img.caption}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="ned-subcat-song-edit"
+                      style={{ color: accent }}
+                      title={isExpanded ? '收合' : '展開編輯'}
+                      onClick={() => setExpandedId(isExpanded ? null : img.id)}
+                    >
+                      {isExpanded ? '▾' : '▸'}
+                    </button>
+                    <button
+                      type="button"
+                      className="ned-subcat-song-delete"
+                      onClick={() =>
+                        setDeleteConfirm({
+                          imageId: img.id,
+                          file: img.file,
                         })
                       }
-                    />
+                      title="刪除圖片"
+                    >
+                      ×
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })}
+
+                  {/* 展開的編輯區 */}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        padding: '12px 16px 12px 60px',
+                        borderBottom: '1px solid var(--line, #333)',
+                        background: 'var(--bg-soft, #1a1a22)',
+                      }}
+                    >
+                      {/* 圖片預覽 */}
+                      {img.file && (
+                        <div
+                          style={{
+                            marginBottom: 12,
+                            maxWidth: 320,
+                            border: '1px solid var(--line, #333)',
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <img
+                            src={buildImageUrl(img.file)}
+                            alt={img.caption || ''}
+                            style={{
+                              width: '100%',
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      )}
+                      <label className="ned-field-label ned-field-label--sm">
+                        說明 (Caption)
+                      </label>
+                      <input
+                        className="ned-field ned-field--sm"
+                        type="text"
+                        value={img.caption}
+                        placeholder="圖片說明..."
+                        onChange={(e) =>
+                          updateImage(img.id, {
+                            caption: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
       )}
 
       {/* 分組標籤 */}
@@ -1099,7 +1146,6 @@ export default function VisualsEditorBody({
           </div>
         </div>
       )}
-
     </div>
   );
 }

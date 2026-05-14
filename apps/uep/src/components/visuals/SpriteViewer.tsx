@@ -1,3 +1,4 @@
+/* global performance */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageItem } from '../editor/VisualsEditorBody';
 
@@ -62,9 +63,10 @@ export default function SpriteViewer({
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // 當前動畫的幀範圍
-  const [rangeStart, rangeEnd] = activeAnim && animations[activeAnim]
-    ? animations[activeAnim]
-    : [0, frameCount - 1];
+  const [rangeStart, rangeEnd] =
+    activeAnim && animations[activeAnim]
+      ? animations[activeAnim]
+      : [0, frameCount - 1];
 
   // 切換動畫時重置
   useEffect(() => {
@@ -113,14 +115,11 @@ export default function SpriteViewer({
   const bgY = -(row * viewH);
 
   // ── Zoom（滾輪）──
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.15 : 0.15;
-      setZoom((z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z + delta * z)));
-    },
-    [],
-  );
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    setZoom((z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z + delta * z)));
+  }, []);
 
   // ── Pan（拖曳）──
   const handlePointerDown = useCallback(
@@ -132,29 +131,23 @@ export default function SpriteViewer({
       // 在 wrap 元素上設定 pointer capture，確保拖曳不中斷
       wrapRef.current?.setPointerCapture(e.pointerId);
     },
-    [pan],
+    [pan]
   );
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isPanningRef.current) return;
-      e.preventDefault();
-      setPan({
-        x: panOriginRef.current.x + (e.clientX - panStartRef.current.x),
-        y: panOriginRef.current.y + (e.clientY - panStartRef.current.y),
-      });
-    },
-    [],
-  );
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isPanningRef.current) return;
+    e.preventDefault();
+    setPan({
+      x: panOriginRef.current.x + (e.clientX - panStartRef.current.x),
+      y: panOriginRef.current.y + (e.clientY - panStartRef.current.y),
+    });
+  }, []);
 
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isPanningRef.current) return;
-      isPanningRef.current = false;
-      wrapRef.current?.releasePointerCapture(e.pointerId);
-    },
-    [],
-  );
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!isPanningRef.current) return;
+    isPanningRef.current = false;
+    wrapRef.current?.releasePointerCapture(e.pointerId);
+  }, []);
 
   // ── 復原 ──
   const resetView = useCallback(() => {
@@ -167,13 +160,10 @@ export default function SpriteViewer({
   }, [resetView]);
 
   // 切換動畫
-  const selectAnim = useCallback(
-    (name: string) => {
-      setActiveAnim(name);
-      setPlaying(true);
-    },
-    [],
-  );
+  const selectAnim = useCallback((name: string) => {
+    setActiveAnim(name);
+    setPlaying(true);
+  }, []);
 
   const isZoomed = zoom !== 1 || pan.x !== 0 || pan.y !== 0;
 
@@ -285,10 +275,7 @@ export default function SpriteViewer({
         </div>
 
         {/* 檢視原始精靈圖 */}
-        <button
-          className="visuals-sprite-sheet-btn"
-          onClick={onOpenLightbox}
-        >
+        <button className="visuals-sprite-sheet-btn" onClick={onOpenLightbox}>
           檢視原始精靈圖
         </button>
       </div>
