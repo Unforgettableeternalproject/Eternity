@@ -1,5 +1,6 @@
 /* global File, FormData */
 import React, { useRef, useState } from 'react';
+import SpriteEditorModal from './SpriteEditorModal';
 
 const API_BASE =
   (import.meta as unknown as { env?: Record<string, string> }).env
@@ -8,6 +9,11 @@ const API_BASE =
 // ──────────────────────────────────────────────────────────────
 //  型別定義
 // ──────────────────────────────────────────────────────────────
+
+/** 精靈圖動畫定義：動畫名稱 → [起始幀, 結束幀] */
+export interface SpriteAnimations {
+  [name: string]: [number, number];
+}
 
 export interface ImageItem {
   /** 頁面內唯一 ID */
@@ -18,6 +24,26 @@ export interface ImageItem {
   caption: string;
   /** 排序 */
   sortOrder: number;
+
+  // ── 精靈圖專用欄位（僅當 isSpriteSheet = true 時填入）──
+  /** 標記為精靈圖 */
+  isSpriteSheet?: boolean;
+  /** 單幀寬度 (px) */
+  frameWidth?: number;
+  /** 單幀高度 (px) */
+  frameHeight?: number;
+  /** 總幀數 */
+  frameCount?: number;
+  /** 橫向格數 */
+  columns?: number;
+  /** 縱向格數 */
+  rows?: number;
+  /** 預設播放速率 (幀/秒) */
+  fps?: number;
+  /** 具名動畫定義 */
+  animations?: SpriteAnimations;
+  /** 基準像素大小（展示縮放用） */
+  basePixelSize?: number;
 }
 
 export interface VisualsData {
@@ -39,6 +65,7 @@ export const LAYOUT_OPTIONS = [
   { value: 'museum', label: '鑲框展示 (Museum)' },
   { value: 'pinboard', label: '布告欄 (Pinboard)' },
   { value: 'pixel', label: '像素格 (Pixel)' },
+  { value: 'sprite', label: '精靈圖檢視器 (Sprite)' },
 ] as const;
 
 export function parseVisualsData(metadata: Record<string, any>): VisualsData {
@@ -161,6 +188,17 @@ export default function VisualsEditorBody({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 編輯器模式：普通圖片 / 精靈圖
+  type EditorMode = 'image' | 'sprite';
+  const [editorMode, setEditorMode] = useState<EditorMode>(
+    data.images.some((img) => img.isSpriteSheet) ? 'sprite' : 'image',
+  );
+
+  // 精靈圖編輯器狀態
+  const [spriteModalOpen, setSpriteModalOpen] = useState(false);
+  const [spriteDeleteOpen, setSpriteDeleteOpen] = useState(false);
+  const spriteItem = data.images.find((img) => img.isSpriteSheet) || undefined;
+
   // 圖片選擇器
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerItems, setPickerItems] = useState<ImagePickerItem[]>([]);
@@ -175,6 +213,7 @@ export default function VisualsEditorBody({
     imageId: string;
     file: string;
   } | null>(null);
+
 
   const update = (patch: Partial<VisualsData>) => {
     const next = { ...data, ...patch };
@@ -291,9 +330,272 @@ export default function VisualsEditorBody({
     setDropIdx(null);
   };
 
+  // 切換模式時清理資料
+  const switchMode = (mode: EditorMode) => {
+    if (mode === editorMode) return;
+    if (
+      data.images.length > 0 &&
+      !confirm(
+        mode === 'sprite'
+          ? '切換到精靈圖模式會清除目前的圖片，確定嗎？'
+          : '切換到普通圖片模式會清除目前的精靈圖，確定嗎？',
+      )
+    ) {
+      return;
+    }
+    update({ images: [], layout: mode === 'sprite' ? 'sprite' : '' });
+    setEditorMode(mode);
+  };
+
+  // ── 精靈圖編輯器的內嵌 UI ──
+  const renderSpriteEditor = () => (
+    <div className="ned-subcat-section">
+      <div className="ned-subcat-list-header">
+        <label className="ned-field-label" style={{ margin: 0 }}>
+          精靈圖
+        </label>
+        {spriteItem && (
+          <span className="ned-subcat-list-count">
+            {spriteItem.frameWidth}×{spriteItem.frameHeight} · {spriteItem.frameCount} 幀 · {Object.keys(spriteItem.animations || {}).length} 動畫
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button
+            className="ned-btn-ghost ned-btn-sm"
+            type="button"
+            onClick={() => setSpriteModalOpen(true)}
+            style={{ color: accent }}
+          >
+            {spriteItem ? '✎ 編輯精靈圖' : '+ 設定精靈圖'}
+          </button>
+          {spriteItem && (
+            <button
+              className="ned-btn-ghost ned-btn-sm"
+              type="button"
+              onClick={() => setSpriteDeleteOpen(true)}
+              style={{ color: '#c44' }}
+            >
+              ✕ 移除
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!spriteItem ? (
+        <div className="ned-subcat-empty">
+          尚未設定精靈圖 — 點擊上方按鈕開始設定
+        </div>
+      ) : (
+        <div style={{ padding: '12px 0' }}>
+          {/* 精靈圖預覽 */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,
+              alignItems: 'flex-start',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div
+              style={{
+                width: 120,
+                height: 120,
+                flexShrink: 0,
+                overflow: 'hidden',
+                border: '1px solid var(--line, #333)',
+                borderRadius: 4,
+                background: 'var(--bg-elevated, #252530)',
+                imageRendering: 'pixelated',
+              }}
+            >
+              <img
+                src={buildImageUrl(spriteItem.file)}
+                alt="sprite sheet"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  imageRendering: 'pixelated',
+                }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 600 }}>
+                {spriteItem.file.split('/').pop()}
+              </div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                  lineHeight: 1.8,
+                }}
+              >
+                <div>幀尺寸: {spriteItem.frameWidth}×{spriteItem.frameHeight}px</div>
+                <div>格局: {spriteItem.columns}×{spriteItem.rows} ({spriteItem.frameCount} 幀)</div>
+                <div>播放速率: {spriteItem.fps} fps</div>
+                <div>基準像素: {spriteItem.basePixelSize}×</div>
+                <div>動畫數: {Object.keys(spriteItem.animations || {}).length}</div>
+                {Object.entries(spriteItem.animations || {}).map(([name, [s, e]]) => (
+                  <div key={name} style={{ paddingLeft: 12 }}>
+                    ├ {name}: 幀 {s}–{e}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SpriteEditorModal */}
+      {spriteModalOpen && (
+        <SpriteEditorModal
+          existing={spriteItem}
+          onConfirm={(item) => {
+            update({ images: [item], layout: 'sprite' });
+            setSpriteModalOpen(false);
+          }}
+          onClose={() => setSpriteModalOpen(false)}
+        />
+      )}
+
+      {/* 精靈圖刪除確認 */}
+      {spriteDeleteOpen && spriteItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setSpriteDeleteOpen(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card, #1a1a22)',
+              border: '1px solid var(--line, #333)',
+              borderRadius: 12,
+              padding: '24px 28px',
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}>
+              移除精靈圖
+            </div>
+            <div style={{
+              fontSize: '0.85em', color: 'var(--ink-mute, #888)',
+              marginBottom: 16, wordBreak: 'break-all',
+            }}>
+              {spriteItem.file.split('/').pop()}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => {
+                  update({ images: [], layout: '' });
+                  setSpriteDeleteOpen(false);
+                }}
+                style={{ width: '100%', padding: '10px 16px', textAlign: 'left' }}
+              >
+                📎 僅從此畫廊移除
+                <span style={{
+                  display: 'block', fontSize: '0.8em',
+                  color: 'var(--ink-mute, #888)', marginTop: 2,
+                }}>
+                  檔案保留在媒體庫中，可供其他頁面使用
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={async () => {
+                  const file = spriteItem.file;
+                  update({ images: [], layout: '' });
+                  setSpriteDeleteOpen(false);
+                  try {
+                    const encoded = file.split('/').map(encodeURIComponent).join('/');
+                    await fetch(`${API_BASE}/api/assets/${encoded}`, {
+                      method: 'DELETE',
+                    });
+                  } catch (err) {
+                    console.error('刪除媒體庫檔案失敗:', err);
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '10px 16px', textAlign: 'left',
+                  borderColor: 'crimson', color: 'crimson',
+                }}
+              >
+                🗑 從媒體庫永久刪除
+                <span style={{
+                  display: 'block', fontSize: '0.8em',
+                  color: 'var(--ink-mute, #888)', marginTop: 2,
+                }}>
+                  移除引用並從 R2 儲存空間中刪除檔案
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => setSpriteDeleteOpen(false)}
+                style={{ width: '100%', padding: '8px 16px', textAlign: 'center', marginTop: 4 }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="ned-echoes-body">
-      {/* 圖片清單 */}
+      {/* 編輯器模式切換 */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 0,
+          marginBottom: 16,
+          borderBottom: '1px solid var(--line, #333)',
+        }}
+      >
+        {(['image', 'sprite'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => switchMode(mode)}
+            style={{
+              padding: '8px 20px',
+              border: 'none',
+              borderBottom:
+                editorMode === mode
+                  ? `2px solid ${accent}`
+                  : '2px solid transparent',
+              background: 'transparent',
+              color: editorMode === mode ? accent : 'var(--ink-mute)',
+              fontWeight: editorMode === mode ? 600 : 400,
+              fontSize: 13,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {mode === 'image' ? '普通圖片' : '精靈圖'}
+          </button>
+        ))}
+      </div>
+
+      {editorMode === 'sprite' ? (
+        renderSpriteEditor()
+      ) : (
+      /* 圖片清單 */
       <div className="ned-subcat-section">
         <div className="ned-subcat-list-header">
           <label className="ned-field-label" style={{ margin: 0 }}>
@@ -473,6 +775,7 @@ export default function VisualsEditorBody({
           })}
         </div>
       </div>
+      )}
 
       {/* 分組標籤 */}
       <label className="ned-field-label">分組標籤</label>
@@ -795,6 +1098,7 @@ export default function VisualsEditorBody({
           </div>
         </div>
       )}
+
     </div>
   );
 }

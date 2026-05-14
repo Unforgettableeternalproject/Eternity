@@ -48,8 +48,8 @@
 
 /* === Landing 頁面 === */
 .visuals-landing-page {
-  padding: 80px 56px 100px;
-  max-width: 960px;
+  padding: 48px 56px 72px;
+  max-width: 920px;
   margin: 0 auto;
 }
 
@@ -66,7 +66,7 @@
   font-size: 58px;
   font-weight: 500;
   color: var(--ink-title);
-  margin: 10px 0 6px;
+  margin: 10px 0 0;
   letter-spacing: -0.02em;
 }
 
@@ -259,138 +259,156 @@
 
 /* === Division Subcat 風格 — 走廊透視 (profiles/corridor) === */
 .visuals-div-corridor {
+  margin-top: 28px;
+  padding: 40px 0 24px;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  margin-top: 28px;
-  border: 1px solid var(--line);
-  overflow: hidden;
-  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-soft) 100%);
+  gap: 24px;
 }
 
-.visuals-div-corridor-item {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.3s var(--ease, ease);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  width: 100%;
-  position: relative;
-  overflow: hidden;
-}
-
-.visuals-div-corridor-item:last-child {
-  border-bottom: none;
-}
-
-.visuals-div-corridor-item:hover {
-  background: rgba(94, 84, 142, 0.04);
-}
-
-.visuals-div-corridor-item:hover .visuals-div-corridor-inner {
-  transform: translateX(6px);
-}
-
-.visuals-div-corridor-inner {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 20px 28px;
-  width: 100%;
-  transition: transform 0.3s var(--ease, ease);
-}
-
-/* 左側裝飾色帶 — 漸進變窄表示透視 */
-.visuals-div-corridor-item::before {
-  content: '';
+/* 走廊中央軸線 */
+.visuals-div-corridor-axis {
   position: absolute;
-  left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
-  background: #5e548e;
-  opacity: 0.6;
-  transition:
-    width 0.25s,
-    opacity 0.25s;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(94, 84, 142, 0.18) 10%,
+    rgba(94, 84, 142, 0.18) 90%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 
-.visuals-div-corridor-item:hover::before {
-  width: 6px;
-  opacity: 1;
+/* 每一個走廊槽位 */
+.visuals-div-corridor-slot {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+
+.visuals-div-corridor-slot--left {
+  flex-direction: row;
+  justify-content: flex-start;
+  padding-right: 52%;
+}
+
+.visuals-div-corridor-slot--right {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  padding-left: 52%;
+}
+
+/* 連接線：門口到中軸 */
+.visuals-div-corridor-connector {
+  flex: 1;
+  height: 1px;
+  background: rgba(94, 84, 142, 0.15);
+  min-width: 16px;
+}
+
+/* 門口卡片 */
+.visuals-div-corridor-door {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 24px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  position: relative;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  min-width: 160px;
+  transition:
+    transform 0.3s var(--ease, ease),
+    box-shadow 0.3s,
+    border-color 0.3s;
+}
+
+/* 門口頂部裝飾橫條 */
+.visuals-div-corridor-door::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(94, 84, 142, 0.3),
+    transparent
+  );
+}
+
+.visuals-div-corridor-door:hover {
+  transform: translateY(-4px);
+  border-color: rgba(94, 84, 142, 0.4);
+  box-shadow: 0 8px 24px rgba(94, 84, 142, 0.1);
 }
 
 .visuals-div-corridor-num {
-  width: 48px;
-  height: 48px;
-  border: 1px solid rgba(94, 84, 142, 0.3);
-  background: rgba(94, 84, 142, 0.06);
-  display: grid;
-  place-items: center;
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 600;
-  color: #5e548e;
-  flex-shrink: 0;
-  transition:
-    background 0.2s,
-    border-color 0.2s;
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(94, 84, 142, 0.25);
+  line-height: 1;
 }
 
-.visuals-div-corridor-item:hover .visuals-div-corridor-num {
-  border-color: #5e548e;
-  background: rgba(94, 84, 142, 0.12);
-}
-
-.visuals-div-corridor-info {
-  flex: 1;
+.visuals-div-corridor-door:hover .visuals-div-corridor-num {
+  color: rgba(94, 84, 142, 0.5);
 }
 
 .visuals-div-corridor-title {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--ink-title);
 }
 
 .visuals-div-corridor-meta {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ink-mute);
   letter-spacing: 0.14em;
-  margin-top: 3px;
 }
 
-.visuals-div-corridor-arrow {
-  font-family: var(--font-display);
-  font-size: 20px;
-  color: #5e548e;
-  opacity: 0.4;
-  transition:
-    opacity 0.2s,
-    transform 0.2s;
-  flex-shrink: 0;
+/* 小螢幕：回退為單列 */
+@media (max-width: 640px) {
+  .visuals-div-corridor-slot--left,
+  .visuals-div-corridor-slot--right {
+    padding-left: 0;
+    padding-right: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .visuals-div-corridor-connector {
+    display: none;
+  }
+  .visuals-div-corridor-axis {
+    display: none;
+  }
+  .visuals-div-corridor-door {
+    width: 100%;
+  }
 }
 
-.visuals-div-corridor-item:hover .visuals-div-corridor-arrow {
-  opacity: 1;
-  transform: translateX(4px);
-}
-
-/* === Division Subcat 風格 — 畫牆 (illustrations/museum) === */
+/* === Division Subcat 風格 — 畫牆銘牌 (illustrations/museum) === */
 .visuals-div-museum {
   display: flex;
   flex-wrap: wrap;
-  gap: 32px;
+  gap: 40px 32px;
   justify-content: center;
   margin-top: 28px;
-  padding: 28px 0;
+  padding: 48px 0 32px;
   background: repeating-linear-gradient(
     0deg,
     transparent,
@@ -401,21 +419,16 @@
 }
 
 .visuals-div-museum-frame {
-  width: 200px;
-  padding: 16px 14px 12px;
-  border: 1px solid var(--ink-mute);
-  background: var(--bg-card);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 4px var(--bg-card),
-    inset 0 0 0 5px var(--uep-gold, #d5b618);
+  position: relative;
+  padding: 0;
+  border: none;
+  background: transparent;
   cursor: pointer;
-  transition:
-    transform 0.3s var(--ease, ease),
-    box-shadow 0.3s;
   text-align: center;
   color: inherit;
   font: inherit;
+  transition:
+    transform 0.3s var(--ease, ease);
 }
 
 .visuals-div-museum-frame:nth-child(even) {
@@ -423,32 +436,95 @@
 }
 
 .visuals-div-museum-frame:hover {
-  transform: rotate(-2deg) scale(1.06);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.12),
-    inset 0 0 0 4px var(--bg-card),
-    inset 0 0 0 5px var(--uep-gold, #d5b618);
+  transform: rotate(-1.5deg) scale(1.05);
 }
 
-.visuals-div-museum-placeholder {
-  width: 100%;
-  aspect-ratio: 3/4;
-  background: linear-gradient(135deg, #5e548e, #9f86c0);
-  display: grid;
-  place-items: center;
-  color: rgba(255, 255, 255, 0.4);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.14em;
+/* 掛鉤裝飾 */
+.visuals-div-museum-hook {
+  display: block;
+  width: 1px;
+  height: 20px;
+  background: linear-gradient(180deg, rgba(94, 84, 142, 0.1), rgba(94, 84, 142, 0.25));
+  margin: 0 auto 0;
+}
+
+.visuals-div-museum-hook::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--uep-gold, #d5b618);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin: 0 auto;
+  transform: translateY(-4px);
+}
+
+/* 內框銘牌 */
+.visuals-div-museum-inner {
+  padding: 20px 36px;
+  background: var(--bg-card);
+  border: 2px solid var(--uep-gold, #d5b618);
+  position: relative;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 5px var(--bg-card),
+    inset 0 0 0 6px rgba(94, 84, 142, 0.12);
+  min-width: 180px;
+}
+
+/* 四角裝飾 */
+.visuals-div-museum-inner::before,
+.visuals-div-museum-inner::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--uep-gold, #d5b618);
+  border-style: solid;
+  opacity: 0.6;
+}
+
+.visuals-div-museum-inner::before {
+  top: 6px;
+  left: 6px;
+  border-width: 1px 0 0 1px;
+}
+
+.visuals-div-museum-inner::after {
+  top: 6px;
+  right: 6px;
+  border-width: 1px 1px 0 0;
+}
+
+.visuals-div-museum-frame:hover .visuals-div-museum-inner {
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 5px var(--bg-card),
+    inset 0 0 0 6px rgba(94, 84, 142, 0.2);
+}
+
+.visuals-div-museum-ornament {
+  font-size: 12px;
+  color: var(--uep-gold, #d5b618);
+  opacity: 0.5;
+  margin-bottom: 4px;
 }
 
 .visuals-div-museum-label {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 18px;
   font-style: italic;
   font-weight: 600;
   color: var(--ink-title);
-  margin-top: 10px;
+}
+
+.visuals-div-museum-divider {
+  width: 40px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--uep-gold, #d5b618), transparent);
+  margin: 8px auto;
+  opacity: 0.4;
 }
 
 .visuals-div-museum-count {
@@ -456,7 +532,6 @@
   font-size: 9px;
   color: var(--ink-mute);
   letter-spacing: 0.14em;
-  margin-top: 4px;
 }
 
 /* === Division Subcat 風格 — 布告欄 (sketchs/pinboard) === */
@@ -484,6 +559,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   position: relative;
+  transform: rotate(var(--note-rot, 0deg)) translateY(var(--note-y, 0px));
   transition:
     transform 0.2s var(--ease, ease),
     box-shadow 0.2s;
@@ -493,7 +569,7 @@
 }
 
 .visuals-div-pinboard-note:hover {
-  transform: scale(1.08) rotate(0deg) !important;
+  transform: scale(1.08) rotate(0deg) translateY(0px) !important;
   z-index: 2;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
@@ -527,136 +603,89 @@
   margin-top: 6px;
 }
 
-/* === Division Subcat 風格 — 終端機 CRT (pixel/terminal) === */
-.visuals-div-terminal {
+/* === Division Subcat 風格 — 方格紙 (pixel/gridpaper) === */
+.visuals-div-gridpaper {
   margin-top: 28px;
-  background: #08080e;
-  border: 2px solid #1a1a24;
-  border-radius: 8px;
-  padding: 0;
-  font-family: var(--font-mono);
+  padding: 28px 20px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 23px,
+      rgba(94, 84, 142, 0.07) 23px,
+      rgba(94, 84, 142, 0.07) 24px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 23px,
+      rgba(94, 84, 142, 0.07) 23px,
+      rgba(94, 84, 142, 0.07) 24px
+    );
+  border: 1px dashed rgba(94, 84, 142, 0.25);
   position: relative;
-  overflow: hidden;
-  box-shadow:
-    0 0 40px rgba(94, 84, 142, 0.08),
-    inset 0 0 80px rgba(0, 0, 0, 0.4);
 }
 
-/* CRT 掃描線 */
-.visuals-div-terminal::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(255, 255, 255, 0.02) 2px,
-    rgba(255, 255, 255, 0.02) 4px
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* CRT 螢幕邊緣暈影 */
-.visuals-div-terminal::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 50%,
-    rgba(0, 0, 0, 0.5) 100%
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-.visuals-div-terminal-header {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: #9f86c0;
-  padding: 16px 20px 8px;
-  text-transform: uppercase;
-  position: relative;
-  z-index: 2;
-}
-
-.visuals-div-terminal-header::before {
-  content: '■ ';
-  color: #5e548e;
-}
-
-.visuals-div-terminal-body {
-  padding: 4px 12px 16px;
-  position: relative;
-  z-index: 2;
-}
-
-.visuals-div-terminal-row {
+.visuals-div-gridpaper-cards {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+}
+
+.visuals-div-gridpaper-card {
+  width: 200px;
+  padding: 20px 16px 16px;
+  background: var(--bg-card);
+  border: 1px dashed rgba(94, 84, 142, 0.3);
   cursor: pointer;
-  transition: all 0.2s;
-  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
   font: inherit;
-  text-align: left;
-  width: 100%;
-  background: transparent;
+  color: inherit;
   position: relative;
+  transition:
+    transform 0.25s var(--ease, ease),
+    box-shadow 0.25s,
+    border-color 0.25s;
 }
 
-.visuals-div-terminal-row:hover {
-  border-color: rgba(159, 134, 192, 0.4);
-  background: rgba(94, 84, 142, 0.1);
-  color: #e0b1cb;
-  box-shadow: 0 0 16px rgba(94, 84, 142, 0.1);
+.visuals-div-gridpaper-card::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(94, 84, 142, 0.08);
+  pointer-events: none;
 }
 
-.visuals-div-terminal-cursor {
-  color: #9f86c0;
-  font-size: 14px;
-  animation: termBlink 1s step-end infinite;
-  flex-shrink: 0;
+.visuals-div-gridpaper-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(94, 84, 142, 0.5);
+  box-shadow: 0 8px 24px rgba(94, 84, 142, 0.12);
 }
 
-@keyframes termBlink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
+.visuals-div-gridpaper-icon {
+  font-size: 28px;
+  color: #5e548e;
+  line-height: 1;
+  opacity: 0.6;
 }
 
-.visuals-div-terminal-name {
-  flex: 1;
-  font-size: 13px;
-  letter-spacing: 0.04em;
+.visuals-div-gridpaper-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-title);
 }
 
-.visuals-div-terminal-count {
-  font-size: 10px;
-  color: rgba(159, 134, 192, 0.4);
-  letter-spacing: 0.14em;
-  flex-shrink: 0;
-}
-
-.visuals-div-terminal-status {
-  padding: 16px 20px 0;
+.visuals-div-gridpaper-count {
+  font-family: var(--font-mono);
   font-size: 9px;
-  color: rgba(159, 134, 192, 0.25);
-  letter-spacing: 0.16em;
-  border-top: 1px solid #1a1a24;
-  margin-top: 8px;
-  padding-bottom: 12px;
-  position: relative;
-  z-index: 2;
+  color: var(--ink-mute);
+  letter-spacing: 0.14em;
 }
 
 /* === Division 入口頁 === */
@@ -1571,48 +1600,297 @@
 .visuals-gallery-pixel {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 14px;
-  background: #1a1a1a;
-  border: 1px solid var(--line);
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 16px 16px;
+  gap: 16px;
+  padding: 24px;
+  border: 1px dashed rgba(94, 84, 142, 0.25);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 15px,
+      rgba(94, 84, 142, 0.05) 15px,
+      rgba(94, 84, 142, 0.05) 16px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 15px,
+      rgba(94, 84, 142, 0.05) 15px,
+      rgba(94, 84, 142, 0.05) 16px
+    );
 }
 
 @media (max-width: 640px) {
   .visuals-gallery-pixel {
     grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 16px;
   }
 }
 
 .visuals-pixel-cell {
-  padding: 8px;
-  background: #0d0d0d;
-  border: 2px solid #2a2a2a;
+  padding: 10px 10px 6px;
+  background: var(--bg-card);
+  border: 1px dashed rgba(94, 84, 142, 0.2);
   cursor: pointer;
   position: relative;
   transition:
-    transform 0.2s,
-    box-shadow 0.2s,
-    border-color 0.2s;
+    transform 0.25s var(--ease, ease),
+    box-shadow 0.25s,
+    border-color 0.25s;
 }
 
 .visuals-pixel-cell:hover {
-  transform: scale(1.06);
+  transform: translateY(-3px);
   z-index: 2;
-  box-shadow: 0 0 16px rgba(94, 84, 142, 0.5);
-  border-color: rgba(94, 84, 142, 0.6);
+  box-shadow: 0 6px 20px rgba(94, 84, 142, 0.15);
+  border-color: rgba(94, 84, 142, 0.45);
 }
 
 .visuals-pixel-label {
   margin-top: 8px;
   font-family: var(--font-mono);
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ink-mute);
   text-align: center;
   letter-spacing: 0.1em;
+}
+
+/* === Sprite 檢視器 === */
+.visuals-sprite-viewer {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0;
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  min-height: 400px;
+  overflow: hidden;
+}
+
+/* ── 左側動畫列表 ── */
+.visuals-sprite-anim-panel {
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.visuals-sprite-anim-header {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-mute);
+  padding: 14px 16px 10px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+
+.visuals-sprite-anim-empty {
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+.visuals-sprite-anim-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.visuals-sprite-anim-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.visuals-sprite-anim-btn:hover {
+  background: rgba(94, 84, 142, 0.06);
+}
+
+.visuals-sprite-anim-btn.is-active {
+  background: rgba(94, 84, 142, 0.1);
+  border-left: 3px solid #5e548e;
+}
+
+.visuals-sprite-anim-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+
+.visuals-sprite-anim-btn.is-active .visuals-sprite-anim-name {
+  color: #5e548e;
+}
+
+.visuals-sprite-anim-range {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+/* ── 右側播放區 ── */
+.visuals-sprite-display-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  gap: 16px;
+}
+
+.visuals-sprite-viewport-wrap {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 200px;
+  width: 100%;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 15px,
+      rgba(94, 84, 142, 0.04) 15px,
+      rgba(94, 84, 142, 0.04) 16px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 15px,
+      rgba(94, 84, 142, 0.04) 15px,
+      rgba(94, 84, 142, 0.04) 16px
+    );
+  border: 1px dashed rgba(94, 84, 142, 0.2);
+  padding: 24px;
+}
+
+.visuals-sprite-viewport {
+  /* 尺寸和 background 由 inline style 控制 */
+  flex-shrink: 0;
+}
+
+/* ── 播放控制列 ── */
+.visuals-sprite-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.visuals-sprite-play-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+  color: inherit;
+}
+
+.visuals-sprite-play-btn:hover {
+  border-color: #5e548e;
+  background: rgba(94, 84, 142, 0.08);
+}
+
+.visuals-sprite-speed-group {
+  display: flex;
+  gap: 4px;
+}
+
+.visuals-sprite-speed-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.visuals-sprite-speed-btn:hover {
+  border-color: rgba(94, 84, 142, 0.4);
+}
+
+.visuals-sprite-speed-btn.is-active {
+  background: rgba(94, 84, 142, 0.12);
+  border-color: #5e548e;
+  color: #5e548e;
+}
+
+.visuals-sprite-frame-counter {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+}
+
+/* ── 檢視原始精靈圖按鈕 ── */
+.visuals-sprite-sheet-btn {
+  padding: 8px 20px;
+  border: 1px dashed rgba(94, 84, 142, 0.3);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #5e548e;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.visuals-sprite-sheet-btn:hover {
+  background: rgba(94, 84, 142, 0.06);
+  border-color: rgba(94, 84, 142, 0.5);
+}
+
+/* ── 小螢幕適配 ── */
+@media (max-width: 640px) {
+  .visuals-sprite-viewer {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .visuals-sprite-anim-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    max-height: 120px;
+  }
+  .visuals-sprite-anim-list {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .visuals-sprite-anim-btn {
+    flex-shrink: 0;
+    border-bottom: none;
+    border-right: 1px solid var(--line);
+  }
+  .visuals-sprite-anim-btn.is-active {
+    border-left: none;
+    border-bottom: 3px solid #5e548e;
+  }
 }
 
 /* === Spoiler 濾鏡 === */
@@ -1891,6 +2169,18 @@
   }
 }
 
+/* pinboard 專用入場：結束時保留 rotation + offset */
+@keyframes pinboardSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--note-rot, 0deg)) translateY(var(--note-y, 0px));
+  }
+}
+
 .visuals-landing-page > *,
 .visuals-division-page > *,
 .visuals-subcat-page > *,
@@ -2061,38 +2351,42 @@
 }
 
 /* === Division 子分類列表入場 === */
-.visuals-div-corridor .visuals-div-corridor-item,
+.visuals-div-corridor > .visuals-div-corridor-slot,
 .visuals-div-museum .visuals-div-museum-frame,
-.visuals-div-pinboard .visuals-div-pinboard-note,
-.visuals-div-terminal .visuals-div-terminal-row {
+.visuals-div-gridpaper .visuals-div-gridpaper-card {
   animation: staggerSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.visuals-div-corridor .visuals-div-corridor-item:nth-child(1),
+/* pinboard 用專用動畫，結束時保留歪斜 */
+.visuals-div-pinboard .visuals-div-pinboard-note {
+  animation: pinboardSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.visuals-div-corridor > .visuals-div-corridor-slot:nth-child(2),
 .visuals-div-museum .visuals-div-museum-frame:nth-child(1),
 .visuals-div-pinboard .visuals-div-pinboard-note:nth-child(1),
-.visuals-div-terminal .visuals-div-terminal-row:nth-child(1) {
+.visuals-div-gridpaper .visuals-div-gridpaper-card:nth-child(1) {
   animation-delay: 0.08s;
 }
 
-.visuals-div-corridor .visuals-div-corridor-item:nth-child(2),
+.visuals-div-corridor > .visuals-div-corridor-slot:nth-child(3),
 .visuals-div-museum .visuals-div-museum-frame:nth-child(2),
 .visuals-div-pinboard .visuals-div-pinboard-note:nth-child(2),
-.visuals-div-terminal .visuals-div-terminal-row:nth-child(2) {
+.visuals-div-gridpaper .visuals-div-gridpaper-card:nth-child(2) {
   animation-delay: 0.14s;
 }
 
-.visuals-div-corridor .visuals-div-corridor-item:nth-child(3),
+.visuals-div-corridor > .visuals-div-corridor-slot:nth-child(4),
 .visuals-div-museum .visuals-div-museum-frame:nth-child(3),
 .visuals-div-pinboard .visuals-div-pinboard-note:nth-child(3),
-.visuals-div-terminal .visuals-div-terminal-row:nth-child(3) {
+.visuals-div-gridpaper .visuals-div-gridpaper-card:nth-child(3) {
   animation-delay: 0.20s;
 }
 
-.visuals-div-corridor .visuals-div-corridor-item:nth-child(n + 4),
+.visuals-div-corridor > .visuals-div-corridor-slot:nth-child(n + 5),
 .visuals-div-museum .visuals-div-museum-frame:nth-child(n + 4),
 .visuals-div-pinboard .visuals-div-pinboard-note:nth-child(n + 4),
-.visuals-div-terminal .visuals-div-terminal-row:nth-child(n + 4) {
+.visuals-div-gridpaper .visuals-div-gridpaper-card:nth-child(n + 4) {
   animation-delay: 0.26s;
 }
 
@@ -2184,10 +2478,10 @@
   .visuals-gallery-museum .visuals-museum-frame,
   .visuals-gallery-pinboard > .visuals-pinboard-card:not(:hover),
   .visuals-gallery-pixel .visuals-pixel-cell,
-  .visuals-div-corridor .visuals-div-corridor-item,
+  .visuals-div-corridor > .visuals-div-corridor-slot,
   .visuals-div-museum .visuals-div-museum-frame,
   .visuals-div-pinboard .visuals-div-pinboard-note,
-  .visuals-div-terminal .visuals-div-terminal-row,
+  .visuals-div-gridpaper .visuals-div-gridpaper-card,
   .visuals-crossroad .visuals-crossroad-card,
   .visuals-crossroad-center,
   .visuals-gallery-corridor {

@@ -115,9 +115,32 @@ function jsonResponse<T>(
 // ===== CORS =====
 
 function getCorsHeaders(request: Request, env: Env): Record<string, string> {
-  const allowedOrigins = env.ALLOWED_ORIGINS?.split(',') || [];
   const origin = request.headers.get('Origin') || '';
   const headers: Record<string, string> = {};
+
+  // 沒設定 ALLOWED_ORIGINS 時允許所有 origin（開發模式）
+  if (!env.ALLOWED_ORIGINS) {
+    if (origin) {
+      headers['Access-Control-Allow-Origin'] = origin;
+      headers['Access-Control-Allow-Methods'] =
+        'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+      headers['Access-Control-Allow-Headers'] =
+        'Content-Type, Authorization, Range';
+    }
+    return headers;
+  }
+
+  // localhost 一律允許（開發環境各 port 都能存取）
+  if (origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Methods'] =
+      'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+    headers['Access-Control-Allow-Headers'] =
+      'Content-Type, Authorization, Range';
+    return headers;
+  }
+
+  const allowedOrigins = env.ALLOWED_ORIGINS.split(',');
 
   const isAllowed = allowedOrigins.some((allowed) => {
     allowed = allowed.trim();
@@ -752,6 +775,27 @@ async function listAssets(
         if (key) {
           if (!referenceMap.has(key)) referenceMap.set(key, []);
           referenceMap.get(key)!.push(row.id);
+        }
+      }
+    } catch {
+      // 略過格式錯誤的 metadata
+    }
+  }
+
+  // 掃描 gallery 頁面的 metadata.images 陣列，找出圖片/精靈圖引用
+  const galleryRows = await db
+    .prepare("SELECT id, metadata FROM pages WHERE page_type = 'gallery'")
+    .all<{ id: string; metadata: string }>();
+
+  for (const row of galleryRows.results || []) {
+    try {
+      const meta = JSON.parse(row.metadata || '{}');
+      const imgs = Array.isArray(meta.images) ? meta.images : [];
+      for (const img of imgs) {
+        if (typeof img.file === 'string' && img.file) {
+          if (!referenceMap.has(img.file)) referenceMap.set(img.file, []);
+          const refs = referenceMap.get(img.file)!;
+          if (!refs.includes(row.id)) refs.push(row.id);
         }
       }
     } catch {
