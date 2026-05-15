@@ -2502,7 +2502,12 @@ function EchoesReaderInner() {
 
       <div className="echoes-main">
         <ZoneAtmosphere zone={echoesZone} intensity="subtle" skipGlyphs />
-        <EchoesRipple isPlaying={audio.isPlaying} />
+        <EchoesRipple
+          isPlaying={audio.isPlaying}
+          color={
+            activeClusterId ? getClusterDef(activeClusterId)?.color : undefined
+          }
+        />
 
         {/* 氛圍裝飾環 */}
         <div className="echoes-atmosphere" aria-hidden="true">

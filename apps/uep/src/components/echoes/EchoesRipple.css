@@ -2,6 +2,7 @@
    EchoesRipple — 球體脈衝 + 漣漪擴散背景效果
    靜止時：緩慢出現的發光球體，帶環繞粒子和淡漣漪
    播放時：更大更亮更快，更多粒子和漣漪圈
+   顏色由 --er-r/g/b CSS variables 驅動，隨 cluster 變化
    ══════════════════════════════════════════════════════════════ */
 
 .echoes-ripple {
@@ -10,6 +11,12 @@
   pointer-events: none;
   overflow: hidden;
   z-index: 1;
+  /* 預設色（ECHOES_ZONE.main = #355C7D） */
+  --er-r: 53;
+  --er-g: 92;
+  --er-b: 125;
+  /* 次要色：由主色自動計算偏移 */
+  --er-color: rgb(var(--er-r), var(--er-g), var(--er-b));
 }
 
 /* ── 球體容器 ── */
@@ -45,23 +52,24 @@
   border-radius: 50%;
   background: radial-gradient(
     circle at 40% 35%,
-    rgba(53, 92, 125, 0.3),
-    rgba(108, 91, 123, 0.15) 60%,
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.3),
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.1) 60%,
     transparent 100%
   );
-  box-shadow: 0 0 20px rgba(53, 92, 125, 0.12);
+  box-shadow: 0 0 20px rgba(var(--er-r), var(--er-g), var(--er-b), 0.12);
   animation: er-core-pulse 3s ease-in-out infinite;
+  transition:
+    background 1.2s ease,
+    box-shadow 1.2s ease;
 }
 
 @keyframes er-core-pulse {
   0%,
   100% {
     transform: scale(1);
-    box-shadow: 0 0 20px rgba(53, 92, 125, 0.12);
   }
   50% {
     transform: scale(1.15);
-    box-shadow: 0 0 32px rgba(53, 92, 125, 0.2);
   }
 }
 
@@ -73,11 +81,12 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: rgba(53, 92, 125, 0.4);
+  background: rgba(var(--er-r), var(--er-g), var(--er-b), 0.4);
   transform: translate(-50%, -50%) rotate(var(--er-dot-angle, 0deg))
     translateX(var(--er-dot-dist, 20px));
   opacity: 0;
   animation: er-dot-orbit ease-in-out forwards;
+  transition: background 1.2s ease;
 }
 
 @keyframes er-dot-orbit {
@@ -112,9 +121,10 @@
   height: 0;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  border: 1px solid rgba(53, 92, 125, 0.2);
+  border: 1px solid rgba(var(--er-r), var(--er-g), var(--er-b), 0.2);
   opacity: 0;
   animation: er-ring-expand ease-out forwards;
+  transition: border-color 1.2s ease;
 }
 
 @keyframes er-ring-expand {
@@ -140,59 +150,59 @@
 .echoes-ripple.is-playing .er-orb-core {
   background: radial-gradient(
     circle at 40% 35%,
-    rgba(53, 92, 125, 0.45),
-    rgba(108, 91, 123, 0.25) 60%,
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.45),
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.2) 60%,
     transparent 100%
   );
-  box-shadow: 0 0 28px rgba(53, 92, 125, 0.2);
+  box-shadow: 0 0 28px rgba(var(--er-r), var(--er-g), var(--er-b), 0.2);
 }
 
 .echoes-ripple.is-playing .er-orb-dot {
   width: 5px;
   height: 5px;
-  background: rgba(53, 92, 125, 0.5);
+  background: rgba(var(--er-r), var(--er-g), var(--er-b), 0.5);
 }
 
 .echoes-ripple.is-playing .er-orb-ring {
   border-width: 1.5px;
-  border-color: rgba(53, 92, 125, 0.3);
+  border-color: rgba(var(--er-r), var(--er-g), var(--er-b), 0.3);
 }
 
-/* ── 暗色模式 ── */
+/* ── 暗色模式：降低明度、增加柔和感 ── */
 [data-theme='dark'] .er-orb-core {
   background: radial-gradient(
     circle at 40% 35%,
-    rgba(108, 91, 123, 0.35),
-    rgba(248, 177, 149, 0.1) 60%,
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.35),
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.08) 60%,
     transparent 100%
   );
-  box-shadow: 0 0 24px rgba(108, 91, 123, 0.15);
+  box-shadow: 0 0 24px rgba(var(--er-r), var(--er-g), var(--er-b), 0.15);
 }
 
 [data-theme='dark'] .er-orb-dot {
-  background: rgba(108, 91, 123, 0.45);
+  background: rgba(var(--er-r), var(--er-g), var(--er-b), 0.45);
 }
 
 [data-theme='dark'] .er-orb-ring {
-  border-color: rgba(108, 91, 123, 0.25);
+  border-color: rgba(var(--er-r), var(--er-g), var(--er-b), 0.25);
 }
 
 [data-theme='dark'] .echoes-ripple.is-playing .er-orb-core {
   background: radial-gradient(
     circle at 40% 35%,
-    rgba(108, 91, 123, 0.5),
-    rgba(248, 177, 149, 0.15) 60%,
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.5),
+    rgba(var(--er-r), var(--er-g), var(--er-b), 0.12) 60%,
     transparent 100%
   );
   box-shadow:
-    0 0 32px rgba(108, 91, 123, 0.2),
-    0 0 60px rgba(248, 177, 149, 0.06);
+    0 0 32px rgba(var(--er-r), var(--er-g), var(--er-b), 0.2),
+    0 0 60px rgba(var(--er-r), var(--er-g), var(--er-b), 0.06);
 }
 
 [data-theme='dark'] .echoes-ripple.is-playing .er-orb-dot {
-  background: rgba(108, 91, 123, 0.55);
+  background: rgba(var(--er-r), var(--er-g), var(--er-b), 0.55);
 }
 
 [data-theme='dark'] .echoes-ripple.is-playing .er-orb-ring {
-  border-color: rgba(108, 91, 123, 0.35);
+  border-color: rgba(var(--er-r), var(--er-g), var(--er-b), 0.35);
 }
