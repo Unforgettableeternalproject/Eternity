@@ -1,10 +1,20 @@
 import React from 'react';
 import UepAvatar from './UepAvatar';
 
+type UepEffect =
+  | 'shimmer'
+  | 'glow'
+  | 'halo'
+  | 'glitch'
+  | 'flicker'
+  | 'fade'
+  | 'echo'
+  | 'static';
+
 interface UepDialogueProps {
   side?: 'left' | 'right';
   text: string;
-  effects?: Array<'shimmer' | 'glow' | 'halo'>;
+  effects?: UepEffect[];
   avatarSize?: number;
 }
 
@@ -19,6 +29,11 @@ export default function UepDialogue({
     'uep-voice',
     effects.includes('shimmer') && 'uep-voice--shimmer',
     effects.includes('glow') && 'uep-voice--glow',
+    effects.includes('glitch') && 'uep-voice--glitch',
+    effects.includes('flicker') && 'uep-voice--flicker',
+    effects.includes('fade') && 'uep-voice--fade',
+    effects.includes('echo') && 'uep-voice--echo',
+    effects.includes('static') && 'uep-voice--static',
   ]
     .filter(Boolean)
     .join(' ');
@@ -26,19 +41,18 @@ export default function UepDialogue({
   return (
     <div
       style={{
-        display: 'flex',
+        display: 'inline-flex',
         flexDirection: isRight ? 'row-reverse' : 'row',
         gap: 14,
         alignItems: 'flex-start',
         maxWidth: 640,
-        margin: '14px 0',
+        margin: isRight ? '14px 0 14px auto' : '14px 0',
       }}
     >
       <UepAvatar size={avatarSize} halo={effects.includes('halo')} />
       <div
         style={{
           position: 'relative',
-          flex: 1,
           background:
             'linear-gradient(180deg, rgba(213,182,24,0.05), rgba(213,182,24,0.02))',
           border: '1px solid rgba(213,182,24,0.30)',
@@ -47,6 +61,7 @@ export default function UepDialogue({
           fontFamily: 'var(--font-serif-tc)',
           fontSize: 15,
           lineHeight: 1.7,
+          textAlign: isRight ? 'right' : 'left',
         }}
       >
         {/* speech tail */}

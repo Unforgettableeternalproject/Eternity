@@ -1,8 +1,20 @@
 ---
+export const prerender = false;
+
 import DesignLayout from '../layouts/DesignLayout.astro';
-import ZoneEntryPage from '../components/zone/ZoneEntryPage';
+import VisualsReader from '../components/visuals/VisualsReader';
 ---
 
-<DesignLayout title="幻影重現室 - 邊際世界" zone="visuals">
-  <ZoneEntryPage client:load zoneId="visuals" />
+<DesignLayout
+  title="幻影重現室 - 邊際世界"
+  description="U.E.P Imaginary Space 的幻影重現室。畫作、插圖、視覺藝術。"
+  zone="visuals"
+>
+  <VisualsReader client:only="react" />
 </DesignLayout>
+
+<style is:global>
+  body {
+    overflow: hidden;
+  }
+</style>

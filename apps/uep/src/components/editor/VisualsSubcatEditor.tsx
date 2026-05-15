@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { uepDialog } from '../ui/UepDialog';
 import { uepToast } from '../ui/UepToast';
 
-interface SongItem {
+interface GalleryItem {
   id: string;
   title: string;
   slug: string;
@@ -10,7 +10,7 @@ interface SongItem {
   metadata: Record<string, unknown>;
 }
 
-interface EchoesSubcatEditorProps {
+interface VisualsSubcatEditorProps {
   area: string;
   apiBase: string;
   pageId: string;
@@ -20,7 +20,7 @@ interface EchoesSubcatEditorProps {
   refreshKey?: number;
 }
 
-export default function EchoesSubcatEditor({
+export default function VisualsSubcatEditor({
   area,
   apiBase,
   pageId,
@@ -28,11 +28,11 @@ export default function EchoesSubcatEditor({
   accent,
   onDirty,
   refreshKey,
-}: EchoesSubcatEditorProps) {
-  const [songs, setSongs] = useState<SongItem[]>([]);
+}: VisualsSubcatEditorProps) {
+  const [galleries, setGalleries] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 新增歌曲表單
+  // 新增畫廊表單
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
@@ -42,8 +42,8 @@ export default function EchoesSubcatEditor({
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
 
-  // 載入子歌曲
-  const fetchSongs = useCallback(async () => {
+  // 載入子畫廊頁面
+  const fetchGalleries = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${apiBase}/api/content/${area}/tree`);
@@ -63,25 +63,24 @@ export default function EchoesSubcatEditor({
 
       const node = findNode(json.data || []);
       if (node) {
-        // 收集所有 song 類型的直接子節點
-        const songChildren = (node.children || [])
-          .filter((c: any) => c.pageType === 'song')
-          .sort((a: SongItem, b: SongItem) => a.sortOrder - b.sortOrder);
-        setSongs(songChildren);
+        const galleryChildren = (node.children || [])
+          .filter((c: any) => c.pageType === 'gallery')
+          .sort((a: GalleryItem, b: GalleryItem) => a.sortOrder - b.sortOrder);
+        setGalleries(galleryChildren);
       }
     } catch (err) {
-      console.error('載入歌曲清單失敗:', err);
+      console.error('載入畫廊清單失敗:', err);
     } finally {
       setLoading(false);
     }
   }, [apiBase, area, pageId]);
 
   useEffect(() => {
-    void fetchSongs();
-  }, [fetchSongs, refreshKey]);
+    void fetchGalleries();
+  }, [fetchGalleries, refreshKey]);
 
-  // 新增歌曲
-  const handleAddSong = async () => {
+  // 新增畫廊
+  const handleAddGallery = async () => {
     if (!newTitle.trim()) return;
     setCreating(true);
 
@@ -90,11 +89,11 @@ export default function EchoesSubcatEditor({
       title
         .toLowerCase()
         .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
-        .replace(/^-|-$/g, '') || `song-${Date.now()}`;
+        .replace(/^-|-$/g, '') || `gallery-${Date.now()}`;
 
-    const songSlug = `${pageSlug}/${slug}`;
+    const gallerySlug = `${pageSlug}/${slug}`;
     try {
-      const res = await fetch(`${apiBase}/api/content/${area}/${songSlug}`, {
+      const res = await fetch(`${apiBase}/api/content/${area}/${gallerySlug}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,17 +101,13 @@ export default function EchoesSubcatEditor({
           content: [{ id: 'content', type: 'rich_text', content: '' }],
           parentId: pageId,
           depth: pageId.split('/').length,
-          pageType: 'song',
-          sortOrder: songs.length,
+          pageType: 'gallery',
+          sortOrder: galleries.length,
           metadata: {
-            subtitle: '',
-            category: 'area',
+            images: [],
+            group: '',
             spoilerLevel: 0,
             gate: '',
-            audioFile: null,
-            audioMeta: null,
-            appreciation: [''],
-            appreciationLocked: '',
           },
         }),
       });
@@ -120,7 +115,7 @@ export default function EchoesSubcatEditor({
       if (json.ok) {
         setNewTitle('');
         setShowAdd(false);
-        await fetchSongs();
+        await fetchGalleries();
       } else {
         uepToast.error(`新增失敗: ${json.error}`);
       }
@@ -146,20 +141,18 @@ export default function EchoesSubcatEditor({
       return;
     }
 
-    // 重新排列
-    const newSongs = [...songs];
-    const [moved] = newSongs.splice(dragIdx, 1);
-    newSongs.splice(dropIdx, 0, moved);
-    setSongs(newSongs);
+    const newGalleries = [...galleries];
+    const [moved] = newGalleries.splice(dragIdx, 1);
+    newGalleries.splice(dropIdx, 0, moved);
+    setGalleries(newGalleries);
     setDragIdx(null);
     setDropIdx(null);
 
-    // 更新每首歌的 sortOrder
-    for (let i = 0; i < newSongs.length; i++) {
-      const song = newSongs[i];
-      if (song.sortOrder !== i) {
-        const songSlug = song.id.replace(`${area}/`, '');
-        await fetch(`${apiBase}/api/content/${area}/${songSlug}`, {
+    for (let i = 0; i < newGalleries.length; i++) {
+      const g = newGalleries[i];
+      if (g.sortOrder !== i) {
+        const gSlug = g.id.replace(`${area}/`, '');
+        await fetch(`${apiBase}/api/content/${area}/${gSlug}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sortOrder: i }),
@@ -168,15 +161,15 @@ export default function EchoesSubcatEditor({
     }
   };
 
-  // 刪除歌曲
-  const handleDeleteSong = async (song: SongItem) => {
-    if (!(await uepDialog.confirm(`確定刪除「${song.title}」?`))) return;
-    const songSlug = song.id.replace(`${area}/`, '');
+  // 刪除畫廊
+  const handleDeleteGallery = async (gallery: GalleryItem) => {
+    if (!(await uepDialog.confirm(`確定刪除畫廊「${gallery.title}」?`))) return;
+    const gSlug = gallery.id.replace(`${area}/`, '');
     try {
-      await fetch(`${apiBase}/api/content/${area}/${songSlug}`, {
+      await fetch(`${apiBase}/api/content/${area}/${gSlug}`, {
         method: 'DELETE',
       });
-      await fetchSongs();
+      await fetchGalleries();
     } catch (e: any) {
       uepToast.error(`刪除失敗: ${e.message}`);
     }
@@ -184,13 +177,12 @@ export default function EchoesSubcatEditor({
 
   return (
     <div className="ned-subcat-editor">
-      {/* 曲目列表 */}
       <div className="ned-subcat-section">
         <div className="ned-subcat-list-header">
           <label className="ned-field-label" style={{ margin: 0 }}>
-            曲目列表
+            畫廊頁面
           </label>
-          <span className="ned-subcat-list-count">{songs.length} 首</span>
+          <span className="ned-subcat-list-count">{galleries.length} 個</span>
           <button
             className="ned-btn-ghost ned-btn-sm"
             type="button"
@@ -200,27 +192,28 @@ export default function EchoesSubcatEditor({
             }}
             style={{ marginLeft: 'auto', color: accent }}
           >
-            + 新增歌曲
+            + 新增畫廊
           </button>
         </div>
 
         {loading && <div className="ned-subcat-loading">載入中...</div>}
 
-        {!loading && songs.length === 0 && !showAdd && (
-          <div className="ned-subcat-empty">尚無曲目</div>
+        {!loading && galleries.length === 0 && !showAdd && (
+          <div className="ned-subcat-empty">尚無畫廊頁面</div>
         )}
 
         <div className="ned-subcat-song-list">
-          {songs.map((song, i) => {
-            const meta = song.metadata || {};
+          {galleries.map((gallery, i) => {
+            const meta = gallery.metadata || {};
             const spoiler = (meta.spoilerLevel as number) || 0;
-            const subtitle = (meta.subtitle as string) || '';
+            const group = (meta.group as string) || '';
+            const images = Array.isArray(meta.images) ? meta.images : [];
             const isDragging = dragIdx === i;
             const isDropTarget = dropIdx === i;
 
             return (
               <div
-                key={song.id}
+                key={gallery.id}
                 className={`ned-subcat-song-row ${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
                 draggable
                 onDragStart={() => handleDragStart(i)}
@@ -239,16 +232,23 @@ export default function EchoesSubcatEditor({
                 </span>
                 <div className="ned-subcat-song-info">
                   <a
-                    href={`/admin/edit/${song.id}`}
+                    href={`/admin/edit/${gallery.id}`}
                     className="ned-subcat-song-title"
                   >
-                    {song.title || '(無標題)'}
+                    {gallery.title || '(無標題)'}
                   </a>
-                  {subtitle && (
-                    <span className="ned-subcat-song-sub">{subtitle}</span>
-                  )}
+                  <span className="ned-subcat-song-sub">
+                    {images.length} 張圖片
+                    {group && ` · ${group}`}
+                  </span>
                 </div>
-                <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    gap: 4,
+                    flexShrink: 0,
+                  }}
+                >
                   {meta.hidden === true ? (
                     <span
                       className="ned-subcat-song-spoiler"
@@ -276,18 +276,18 @@ export default function EchoesSubcatEditor({
                   )}
                 </span>
                 <a
-                  href={`/admin/edit/${song.id}`}
+                  href={`/admin/edit/${gallery.id}`}
                   className="ned-subcat-song-edit"
                   style={{ color: accent }}
-                  title="編輯歌曲"
+                  title="編輯畫廊"
                 >
                   →
                 </a>
                 <button
                   type="button"
                   className="ned-subcat-song-delete"
-                  onClick={() => handleDeleteSong(song)}
-                  title="刪除歌曲"
+                  onClick={() => handleDeleteGallery(gallery)}
+                  title="刪除畫廊"
                 >
                   ×
                 </button>
@@ -296,7 +296,7 @@ export default function EchoesSubcatEditor({
           })}
         </div>
 
-        {/* 新增歌曲表單 */}
+        {/* 新增畫廊表單 */}
         {showAdd && (
           <div className="ned-subcat-add-form">
             <input
@@ -304,12 +304,12 @@ export default function EchoesSubcatEditor({
               className="ned-field ned-subcat-add-input"
               type="text"
               value={newTitle}
-              placeholder="輸入歌曲標題..."
+              placeholder="輸入畫廊標題..."
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  void handleAddSong();
+                  void handleAddGallery();
                 }
                 if (e.key === 'Escape') {
                   setShowAdd(false);
@@ -321,7 +321,7 @@ export default function EchoesSubcatEditor({
             <button
               type="button"
               className="ned-btn-ghost ned-btn-sm"
-              onClick={() => void handleAddSong()}
+              onClick={() => void handleAddGallery()}
               disabled={creating || !newTitle.trim()}
               style={{ color: accent }}
             >

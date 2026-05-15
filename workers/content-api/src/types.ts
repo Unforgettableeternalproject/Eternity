@@ -34,7 +34,9 @@ export type PageType =
   | 'cluster'
   | 'subcategory'
   | 'song' // Echoes 專用
-  | 'homepage'; // 區域首頁
+  | 'homepage' // 區域首頁
+  | 'division' // Visuals 專用：分館（profiles/illustrations/sketchs/pixel）
+  | 'gallery'; // Visuals 專用：畫廊頁面（含多張圖片）
 
 /** 單一內容區塊 */
 export interface ContentBlock {
@@ -66,6 +68,7 @@ export interface PageRow {
   page_type: PageType;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 /** API 回傳用的頁面資料（已解析 JSON） */
@@ -85,6 +88,7 @@ export interface Page {
   pageType: PageType;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 /** 樹狀結構的頁面節點 */
@@ -111,6 +115,8 @@ export interface UpsertPageRequest {
   depth?: number;
   pageType?: PageType;
   status?: PageStatus;
+  /** 同步時保留來源端的時間戳（不傳則用伺服器當前時間） */
+  updatedAt?: string;
 }
 
 /** 匯入頁面的請求（從子倉庫來源） */
@@ -198,6 +204,7 @@ export interface PageListItem {
   depth: number;
   pageType: PageType;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 // ===== 媒體庫 =====

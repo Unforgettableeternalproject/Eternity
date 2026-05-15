@@ -10,6 +10,7 @@ import { TextAlign } from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Image } from '@tiptap/extension-image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { uepToast } from '../ui/UepToast';
 import { ZONES } from '../../data/zones';
 import EditorPageTree from './EditorPageTree';
 import EditorInspector from './EditorInspector';
@@ -19,6 +20,12 @@ import EchoesEditorBody, {
   type EchoesData,
 } from './EchoesEditorBody';
 import EchoesSubcatEditor from './EchoesSubcatEditor';
+import VisualsEditorBody, {
+  parseVisualsData,
+  serializeVisualsData,
+  type VisualsData,
+} from './VisualsEditorBody';
+import VisualsSubcatEditor from './VisualsSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './RichEditor.css';
 
@@ -116,6 +123,7 @@ export default function RichEditor({
   const [description, setDescription] = useState(
     initialMetadata?.description || ''
   );
+  const [layout, setLayout] = useState(initialMetadata?.layout || '');
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'saving' | 'saved' | 'error'
   >('idle');
@@ -137,11 +145,18 @@ export default function RichEditor({
   const isEchoesArea = area === 'echoes' || zoneId === 'echoes';
   const isEchoes = isEchoesArea && pageType === 'song';
   const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
+  // Visuals 特殊編輯模式
+  const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
+  const isVisuals = isVisualsArea && pageType === 'gallery';
+  const isVisualsSubcat = isVisualsArea && pageType === 'subcategory';
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
+  );
+  const [visualsData, setVisualsData] = useState<VisualsData>(() =>
+    parseVisualsData(initialMetadata || {})
   );
   const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
     () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
@@ -198,20 +213,24 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
-    if (!isEchoes && !editor) return;
+    if (!isEchoes && !isVisuals && !editor) return;
     setSaveStatus('saving');
     try {
-      const content = isEchoes
-        ? [{ id: 'content', type: 'rich_text', content: '' }]
-        : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
+      const content =
+        isEchoes || isVisuals
+          ? [{ id: 'content', type: 'rich_text', content: '' }]
+          : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
 
+      const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
         ...(hidden ? { hidden: true } : {}),
         ...(locked ? { locked: true } : {}),
         ...(icon ? { icon } : {}),
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
+        ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
+        ...(isVisualsDivision && layout ? { layout } : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -240,8 +259,10 @@ export default function RichEditor({
     editor,
     isDirty,
     isEchoes,
+    isVisuals,
     isZone,
     echoesData,
+    visualsData,
     zoneTabs,
     title,
     apiBase,
@@ -254,6 +275,8 @@ export default function RichEditor({
     locked,
     icon,
     description,
+    layout,
+    isVisualsArea,
   ]);
 
   // Ctrl+S
@@ -280,7 +303,7 @@ export default function RichEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  if (!editor && !isEchoes) return null;
+  if (!editor && !isEchoes && !isVisuals) return null;
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -422,10 +445,10 @@ export default function RichEditor({
         editor.chain().focus().setImage({ src: imgUrl }).run();
         setIsDirty(true);
       } else {
-        window.alert(`Upload failed: ${json.error}`);
+        uepToast.error(`Upload failed: ${json.error}`);
       }
     } catch (err: any) {
-      window.alert(`Upload error: ${err.message}`);
+      uepToast.error(`Upload error: ${err.message}`);
     } finally {
       setUploading(false);
     }
@@ -512,7 +535,7 @@ export default function RichEditor({
       {/* Toolbar — 入口模式隱藏 */}
       {!isEntryMode && (
         <div className="ned-toolbar" ref={dropdownRef}>
-          {!isEchoes && editor && (
+          {!isEchoes && !isVisuals && editor && (
             <>
               {/* Heading dropdown */}
               <div className="tb-group">
@@ -1029,11 +1052,29 @@ export default function RichEditor({
                     onDataChange={setEchoesData}
                     onDirty={() => setIsDirty(true)}
                   />
+                ) : isVisuals ? (
+                  <VisualsEditorBody
+                    accent={accentMain}
+                    initialData={visualsData}
+                    onDataChange={setVisualsData}
+                    onDirty={() => setIsDirty(true)}
+                  />
                 ) : (
                   <>
                     <EditorContent editor={editor} />
                     {isEchoesSubcat && (
                       <EchoesSubcatEditor
+                        area={area}
+                        apiBase={apiBase}
+                        pageId={`${area}/${pageSlug}`}
+                        pageSlug={pageSlug}
+                        accent={accentMain}
+                        onDirty={() => setIsDirty(true)}
+                        refreshKey={treeRefreshKey}
+                      />
+                    )}
+                    {isVisualsSubcat && (
+                      <VisualsSubcatEditor
                         area={area}
                         apiBase={apiBase}
                         pageId={`${area}/${pageSlug}`}
@@ -1083,6 +1124,8 @@ export default function RichEditor({
               onIconChange={setIcon}
               description={description}
               onDescriptionChange={setDescription}
+              layout={layout}
+              onLayoutChange={setLayout}
               onDirty={() => setIsDirty(true)}
               accent={accentMain}
               pageStatus={pageStatus}

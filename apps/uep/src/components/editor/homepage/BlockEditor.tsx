@@ -1,12 +1,20 @@
+/* global FormData */
 // ─── 首頁區塊編輯器 ─────────────────────────────────────────────────────────
 // 每種區塊類型各自渲染專屬的表單欄位。
 // 使用者點擊「套用」後才呼叫 onSave，中途編輯只維持本地狀態。
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
 import { Image } from '@tiptap/extension-image';
+import { TextAlign } from '@tiptap/extension-text-align';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+
+const RT_API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 import type {
   HomepageBlock,
   HomepageBlockType,
@@ -726,13 +734,21 @@ interface RichTextFormProps {
   onChange: (html: string) => void;
 }
 function RichTextForm({ html, onChange }: RichTextFormProps) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        horizontalRule: {},
       }),
       Underline,
-      Image,
+      TextStyle,
+      Color,
+      Image.configure({ inline: false }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
     ],
     content: html,
     onUpdate: ({ editor: e }) => {
@@ -740,7 +756,6 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
     },
   });
 
-  // 若外部 html 改變則同步（例如初始載入）
   useEffect(() => {
     if (editor && html !== editor.getHTML()) {
       editor.commands.setContent(html, { emitUpdate: false });
@@ -748,6 +763,86 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
   }, [html, editor]);
 
   if (!editor) return null;
+
+  const tbBtn = (
+    label: string,
+    cmd: () => void,
+    active: boolean,
+    title?: string
+  ) => (
+    <button
+      key={label}
+      type="button"
+      onClick={cmd}
+      title={title || label}
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        padding: '4px 8px',
+        fontSize: 12,
+        fontFamily:
+          label.length <= 2 ? 'var(--font-serif-tc)' : 'var(--font-mono)',
+        fontWeight: active ? 700 : 400,
+        color: active ? 'var(--ink-title)' : 'var(--ink-mute)',
+        background: active ? 'var(--bg-card)' : 'transparent',
+        border: active
+          ? '1px solid var(--hairline-strong)'
+          : '1px solid transparent',
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const tbSep = (key: string) => (
+    <span
+      key={key}
+      style={{
+        width: 1,
+        height: 18,
+        background: 'var(--hairline)',
+        margin: '0 2px',
+        alignSelf: 'center',
+      }}
+    />
+  );
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${RT_API_BASE}/api/assets`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.ok && json.data?.key) {
+        const url = `${RT_API_BASE}/api/assets/${json.data.key.split('/').map(encodeURIComponent).join('/')}`;
+        editor.chain().focus().setImage({ src: url }).run();
+      }
+    } catch {
+      /* ignore */
+    }
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
+
+  const applyLink = () => {
+    if (linkUrl) {
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange('link')
+        .setLink({ href: linkUrl })
+        .run();
+    } else {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    }
+    setShowLinkInput(false);
+    setLinkUrl('');
+  };
 
   return (
     <div>
@@ -757,6 +852,7 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
           display: 'flex',
           gap: 4,
           flexWrap: 'wrap',
+          alignItems: 'center',
           marginBottom: 8,
           padding: '6px 8px',
           background: 'var(--bg-sunken)',
@@ -764,68 +860,148 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
           borderBottom: 'none',
         }}
       >
-        {[
-          {
-            label: 'B',
-            cmd: () => editor.chain().focus().toggleBold().run(),
-            active: editor.isActive('bold'),
+        {/* 格式 */}
+        {tbBtn(
+          'B',
+          () => editor.chain().focus().toggleBold().run(),
+          editor.isActive('bold'),
+          '粗體'
+        )}
+        {tbBtn(
+          'I',
+          () => editor.chain().focus().toggleItalic().run(),
+          editor.isActive('italic'),
+          '斜體'
+        )}
+        {tbBtn(
+          'U',
+          () => editor.chain().focus().toggleUnderline().run(),
+          editor.isActive('underline'),
+          '底線'
+        )}
+        {tbBtn(
+          'S',
+          () => editor.chain().focus().toggleStrike().run(),
+          editor.isActive('strike'),
+          '刪除線'
+        )}
+        {tbSep('s1')}
+        {/* 標題 */}
+        {tbBtn(
+          'H1',
+          () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+          editor.isActive('heading', { level: 1 })
+        )}
+        {tbBtn(
+          'H2',
+          () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+          editor.isActive('heading', { level: 2 })
+        )}
+        {tbBtn(
+          'H3',
+          () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+          editor.isActive('heading', { level: 3 })
+        )}
+        {tbSep('s2')}
+        {/* 對齊 */}
+        {tbBtn(
+          '←',
+          () => editor.chain().focus().setTextAlign('left').run(),
+          editor.isActive({ textAlign: 'left' }),
+          '靠左'
+        )}
+        {tbBtn(
+          '↔',
+          () => editor.chain().focus().setTextAlign('center').run(),
+          editor.isActive({ textAlign: 'center' }),
+          '置中'
+        )}
+        {tbBtn(
+          '→',
+          () => editor.chain().focus().setTextAlign('right').run(),
+          editor.isActive({ textAlign: 'right' }),
+          '靠右'
+        )}
+        {tbSep('s3')}
+        {/* 列表 / 引用 */}
+        {tbBtn(
+          '•',
+          () => editor.chain().focus().toggleBulletList().run(),
+          editor.isActive('bulletList'),
+          '項目列表'
+        )}
+        {tbBtn(
+          '1.',
+          () => editor.chain().focus().toggleOrderedList().run(),
+          editor.isActive('orderedList'),
+          '編號列表'
+        )}
+        {tbBtn(
+          '❝',
+          () => editor.chain().focus().toggleBlockquote().run(),
+          editor.isActive('blockquote'),
+          '引用'
+        )}
+        {tbSep('s4')}
+        {/* 插入 */}
+        {tbBtn(
+          '—',
+          () => editor.chain().focus().setHorizontalRule().run(),
+          false,
+          '分隔線'
+        )}
+        {tbBtn('🖼', () => imageInputRef.current?.click(), false, '插入圖片')}
+        {tbBtn(
+          '🔗',
+          () => {
+            setLinkUrl(editor.getAttributes('link').href || '');
+            setShowLinkInput(!showLinkInput);
           },
-          {
-            label: 'I',
-            cmd: () => editor.chain().focus().toggleItalic().run(),
-            active: editor.isActive('italic'),
-          },
-          {
-            label: 'U',
-            cmd: () => editor.chain().focus().toggleUnderline().run(),
-            active: editor.isActive('underline'),
-          },
-          {
-            label: 'H2',
-            cmd: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-            active: editor.isActive('heading', { level: 2 }),
-          },
-          {
-            label: 'H3',
-            cmd: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-            active: editor.isActive('heading', { level: 3 }),
-          },
-          {
-            label: '—',
-            cmd: () => editor.chain().focus().setHorizontalRule().run(),
-            active: false,
-          },
-          {
-            label: '❝',
-            cmd: () => editor.chain().focus().toggleBlockquote().run(),
-            active: editor.isActive('blockquote'),
-          },
-        ].map((btn) => (
-          <button
-            key={btn.label}
-            type="button"
-            onClick={btn.cmd}
-            style={{
-              all: 'unset',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              fontSize: 12,
-              fontFamily:
-                btn.label.length <= 2
-                  ? 'var(--font-serif-tc)'
-                  : 'var(--font-mono)',
-              fontWeight: btn.active ? 700 : 400,
-              color: btn.active ? 'var(--ink-title)' : 'var(--ink-mute)',
-              background: btn.active ? 'var(--bg-card)' : 'transparent',
-              border: btn.active
-                ? '1px solid var(--hairline-strong)'
-                : '1px solid transparent',
-            }}
-          >
-            {btn.label}
-          </button>
-        ))}
+          editor.isActive('link'),
+          '連結'
+        )}
       </div>
+
+      {/* 連結輸入列 */}
+      {showLinkInput && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            padding: '6px 8px',
+            background: 'var(--bg-sunken)',
+            border: '1px solid var(--hairline)',
+            borderTop: 'none',
+            borderBottom: 'none',
+          }}
+        >
+          <input
+            style={{ ...inputStyle, flex: 1, fontSize: 12 }}
+            type="text"
+            placeholder="輸入 URL..."
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyLink()}
+          />
+          <button
+            type="button"
+            onClick={applyLink}
+            style={{ ...tbBtnBase, color: 'var(--ink-title)' }}
+          >
+            套用
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              editor.chain().focus().extendMarkRange('link').unsetLink().run();
+              setShowLinkInput(false);
+            }}
+            style={{ ...tbBtnBase, color: 'crimson' }}
+          >
+            移除
+          </button>
+        </div>
+      )}
 
       {/* 編輯區 */}
       <div
@@ -844,9 +1020,24 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
       >
         <EditorContent editor={editor} />
       </div>
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleImageUpload}
+      />
     </div>
   );
 }
+
+const tbBtnBase: React.CSSProperties = {
+  all: 'unset',
+  cursor: 'pointer',
+  padding: '4px 8px',
+  fontSize: 11,
+  fontFamily: 'var(--font-mono)',
+};
 
 // ─── 主元件：BlockEditor ──────────────────────────────────────────────────────
 

@@ -1,0 +1,190 @@
+/* ── 遮罩 ── */
+.uep-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  animation: uepOverlayIn 0.2s ease-out;
+}
+
+.uep-dialog-overlay--closing {
+  animation: uepOverlayOut 0.2s ease forwards;
+}
+
+/* ── 對話框 ── */
+.uep-dialog {
+  position: relative;
+  width: 92vw;
+  max-width: 24rem;
+  background: var(--bg-card, #20232c);
+  border: 1px solid var(--hairline-strong, rgba(255, 255, 255, 0.22));
+  border-radius: 14px;
+  padding: 1.75rem 1.5rem 1.25rem;
+  box-shadow:
+    0 0 0 1px rgba(213, 182, 24, 0.06),
+    0 20px 48px rgba(0, 0, 0, 0.45);
+  animation: uepDialogIn 0.25s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  overflow: hidden;
+}
+
+.uep-dialog--closing {
+  animation: uepDialogOut 0.2s ease forwards;
+}
+
+/* ── 頂部金色裝飾線 ── */
+.uep-dialog__accent {
+  position: absolute;
+  top: 0;
+  left: 1.5rem;
+  right: 1.5rem;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--uep-gold, #d5b618) 30%,
+    var(--uep-gold-soft, #e9cd3f) 50%,
+    var(--uep-gold, #d5b618) 70%,
+    transparent 100%
+  );
+  opacity: 0.7;
+  border-radius: 0 0 2px 2px;
+}
+
+/* ── 標題 ── */
+.uep-dialog__title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display, 'Cormorant Garamond', Georgia, serif);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--ink-title, #ffffff);
+  line-height: 1.4;
+}
+
+/* ── 訊息 ── */
+.uep-dialog__message {
+  margin: 0 0 1.5rem;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--ink-soft, #b3ae9f);
+  word-break: break-word;
+}
+
+/* ── 按鈕列 ── */
+.uep-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.625rem;
+}
+
+/* ── 按鈕 ── */
+.uep-dialog__btn {
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+  line-height: 1.4;
+}
+
+.uep-dialog__btn--cancel {
+  background: transparent;
+  border: 1px solid var(--hairline-strong, rgba(255, 255, 255, 0.22));
+  color: var(--ink-soft, #b3ae9f);
+}
+
+.uep-dialog__btn--cancel:hover {
+  border-color: var(--ink-mute, #7a7669);
+  color: var(--ink, #ece9df);
+  background: var(--line, rgba(255, 255, 255, 0.08));
+}
+
+.uep-dialog__btn--confirm {
+  background: rgba(213, 182, 24, 0.12);
+  border: 1px solid rgba(213, 182, 24, 0.35);
+  color: var(--uep-gold-soft, #e9cd3f);
+}
+
+.uep-dialog__btn--confirm:hover {
+  background: rgba(213, 182, 24, 0.22);
+  border-color: rgba(213, 182, 24, 0.55);
+  box-shadow: 0 0 12px rgba(213, 182, 24, 0.15);
+}
+
+.uep-dialog__btn:focus-visible {
+  outline: 2px solid var(--uep-gold, #d5b618);
+  outline-offset: 2px;
+}
+
+/* ── 動畫 ── */
+@keyframes uepOverlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes uepOverlayOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes uepDialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes uepDialogOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(6px);
+  }
+}
+
+/* ── 減少動畫偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  .uep-dialog-overlay,
+  .uep-dialog-overlay--closing,
+  .uep-dialog,
+  .uep-dialog--closing {
+    animation: none !important;
+  }
+  .uep-dialog-overlay--closing,
+  .uep-dialog--closing {
+    opacity: 0;
+  }
+}
+
+/* ── 小螢幕 ── */
+@media (max-width: 640px) {
+  .uep-dialog {
+    width: calc(100vw - 2rem);
+    padding: 1.5rem 1.25rem 1rem;
+  }
+}

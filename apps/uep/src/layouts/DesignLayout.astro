@@ -1,4 +1,7 @@
 ---
+import UepToastContainer from '../components/ui/UepToast';
+import UepDialogContainer from '../components/ui/UepDialog';
+
 interface Props {
   title: string;
   description?: string;
@@ -43,6 +46,8 @@ const {
   </head>
   <body data-zone={zone}>
     <slot />
+    <UepToastContainer client:only="react" />
+    <UepDialogContainer client:only="react" />
   </body>
 </html>
 

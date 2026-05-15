@@ -40,14 +40,17 @@
   font-size: 16px;
   color: var(--ink-soft);
   font-style: italic;
-  line-height: 1.8;
+  line-height: 1.9;
   margin-bottom: 36px;
-  max-width: 560px;
+  max-width: 620px;
 }
 
 /* UEP 對話區間距 */
 .zone-entry-dialogue {
-  margin-bottom: 48px;
+  margin: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 /* ── Orb pulse keyframes ── */

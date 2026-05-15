@@ -1,0 +1,60 @@
+name: Deploy Workers
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'workers/**'
+
+jobs:
+  detect-changes:
+    name: Detect Changed Workers
+    runs-on: ubuntu-latest
+    outputs:
+      content-api: ${{ steps.filter.outputs.content-api }}
+      visitor-counter: ${{ steps.filter.outputs.visitor-counter }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            content-api:
+              - 'workers/content-api/**'
+            visitor-counter:
+              - 'workers/visitor-counter/**'
+
+  deploy-content-api:
+    name: Deploy Content API
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.content-api == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/content-api
+
+  deploy-visitor-counter:
+    name: Deploy Visitor Counter
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.visitor-counter == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/visitor-counter

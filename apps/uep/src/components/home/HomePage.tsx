@@ -103,7 +103,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           pointerEvents: 'none',
           ...(ready
             ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : { backdropFilter: 'blur(18px)', background: 'rgba(10,10,14,0.5)' }),
+            : {
+                backdropFilter: 'blur(18px)',
+                background: 'rgba(10,10,14,0.5)',
+              }),
         }}
       />
 

@@ -17,49 +17,116 @@ async function safeFetchJson(url: string): Promise<any> {
   }
 }
 
-// Fetch data for each zone
-const historyData = await safeFetchJson(`${apiBase}/api/content/history`);
-const echoesData = await safeFetchJson(`${apiBase}/api/content/echoes`);
-
-const historyPages = historyData?.ok ? historyData.data || [] : [];
-const echoesPages = echoesData?.ok ? echoesData.data || [] : [];
-
-// Compute stats
-const historyChapters = historyPages.filter(
-  (p: any) => p.pageType === 'chapter'
-).length;
-const historyArcs = historyPages.filter(
-  (p: any) => p.pageType === 'arc'
-).length;
-const historyDrafts = historyPages.filter(
-  (p: any) => p.status === 'modified' || p.status === 'local_only'
-).length;
-
-const echoesTotal = echoesPages.length;
-const echoesDrafts = echoesPages.filter(
-  (p: any) => p.status === 'modified' || p.status === 'local_only'
-).length;
-
-// 首頁等級頁面（homepage type）
-const allLandingPages = [
-  ...historyPages
-    .filter((p: any) => p.pageType === 'homepage' || p.pageType === 'page')
-    .map((p: any) => ({ ...p, area: 'history' })),
-  ...echoesPages
-    .filter((p: any) => p.pageType === 'homepage' || p.pageType === 'page')
-    .map((p: any) => ({ ...p, area: 'echoes' })),
+// 區域設定
+const ZONES = [
+  {
+    id: 'history',
+    icon: '❒',
+    en: 'HISTORY ARCHIVE',
+    name: '歷史典藏庫',
+    color: '#8A4423',
+    desc: '章節、卷、段落 — 富文本編輯',
+    hasEditor: true,
+  },
+  {
+    id: 'echoes',
+    icon: '♪',
+    en: 'ECHOES LIBRARY',
+    name: '回音蒐藏間',
+    color: '#6B4F8E',
+    desc: '歌曲、子分類、Spoiler 鎖定 — 專屬欄位編輯',
+    hasEditor: true,
+  },
+  {
+    id: 'visuals',
+    icon: '◈',
+    en: 'VISUALS GALLERY',
+    name: '幻影重現室',
+    color: '#5E548E',
+    desc: '畫廊、圖片陣列、Spoiler 遮蔽 — 4 種展示風格',
+    hasEditor: true,
+  },
+  {
+    id: 'concepts',
+    icon: '✦',
+    en: 'CONCEPT LAB',
+    name: '概念調整房',
+    color: '#2d6a4f',
+    desc: '設定、概念、世界觀架構',
+    hasEditor: false,
+  },
+  {
+    id: 'storage',
+    icon: '⬡',
+    en: 'STORAGE DESK',
+    name: '雜亂的書桌',
+    color: '#6e6e6e',
+    desc: '草稿、筆記、暫存素材',
+    hasEditor: false,
+  },
 ];
 
-const totalPages = historyPages.length + echoesPages.length;
-const totalEditsThisWeek = [...historyPages, ...echoesPages].filter(
-  (p: any) => {
-    if (!p.updatedAt) return false;
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return new Date(p.updatedAt).getTime() > weekAgo;
-  }
-).length;
+// 並行取得所有區域資料
+const [historyData, echoesData, visualsData, conceptsData, storageData] =
+  await Promise.all([
+    safeFetchJson(`${apiBase}/api/content/history`),
+    safeFetchJson(`${apiBase}/api/content/echoes`),
+    safeFetchJson(`${apiBase}/api/content/visuals`),
+    safeFetchJson(`${apiBase}/api/content/concepts`),
+    safeFetchJson(`${apiBase}/api/content/storage`),
+  ]);
 
-// Recent edits per zone (latest 3)
+const zonePages: Record<string, any[]> = {
+  history: historyData?.ok ? historyData.data || [] : [],
+  echoes: echoesData?.ok ? echoesData.data || [] : [],
+  visuals: visualsData?.ok ? visualsData.data || [] : [],
+  concepts: conceptsData?.ok ? conceptsData.data || [] : [],
+  storage: storageData?.ok ? storageData.data || [] : [],
+};
+
+// 區域統計
+function getZoneStats(
+  zoneId: string,
+  pages: any[]
+): { val: number; key: string }[] {
+  const drafts = pages.filter(
+    (p: any) => p.status === 'modified' || p.status === 'local_only'
+  ).length;
+  switch (zoneId) {
+    case 'history':
+      return [
+        {
+          val: pages.filter((p: any) => p.pageType === 'arc').length,
+          key: '篇',
+        },
+        {
+          val: pages.filter((p: any) => p.pageType === 'chapter').length,
+          key: '章',
+        },
+        { val: drafts, key: '草稿' },
+      ];
+    case 'echoes':
+      return [
+        { val: pages.length, key: '歌曲' },
+        { val: drafts, key: '草稿' },
+      ];
+    case 'visuals':
+      return [
+        {
+          val: pages.filter((p: any) => p.pageType === 'gallery').length,
+          key: '畫廊',
+        },
+        { val: drafts, key: '草稿' },
+      ];
+    default:
+      if (pages.length === 0) return [];
+      return [
+        { val: pages.length, key: '頁面' },
+        { val: drafts, key: '草稿' },
+      ];
+  }
+}
+
 function getRecent(pages: any[]) {
   return pages
     .filter(
@@ -80,9 +147,6 @@ function getRecent(pages: any[]) {
     }));
 }
 
-const historyRecent = getRecent(historyPages);
-const echoesRecent = getRecent(echoesPages);
-
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -95,6 +159,50 @@ function timeAgo(dateStr: string) {
   return `${days} 天前`;
 }
 
+// 首頁頁面
+const allLandingPages = Object.entries(zonePages).flatMap(([area, pages]) =>
+  pages
+    .filter((p: any) => p.pageType === 'homepage' || p.pageType === 'page')
+    .map((p: any) => ({ ...p, area }))
+);
+
+// 組裝各區域完整資料
+const zonesWithData = ZONES.map((z) => {
+  const pages = zonePages[z.id] || [];
+  return {
+    ...z,
+    pages,
+    total: pages.length,
+    stats: getZoneStats(z.id, pages),
+    recent: getRecent(pages),
+    homepage: allLandingPages.find((p: any) => p.area === z.id),
+    tabStat: pages.length > 0 ? `${pages.length} 頁面` : '尚無內容',
+  };
+});
+
+// 總覽統計
+const totalPages = Object.values(zonePages).reduce(
+  (sum, p) => sum + p.length,
+  0
+);
+const historyChapters = (zonePages.history || []).filter(
+  (p: any) => p.pageType === 'chapter'
+).length;
+const historyDrafts = (zonePages.history || []).filter(
+  (p: any) => p.status === 'modified' || p.status === 'local_only'
+).length;
+const echoesTotal = (zonePages.echoes || []).length;
+const echoesDrafts = (zonePages.echoes || []).filter(
+  (p: any) => p.status === 'modified' || p.status === 'local_only'
+).length;
+const totalEditsThisWeek = Object.values(zonePages)
+  .flat()
+  .filter((p: any) => {
+    if (!p.updatedAt) return false;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return new Date(p.updatedAt).getTime() > weekAgo;
+  }).length;
+
 const now = new Date();
 const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
@@ -102,40 +210,40 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
 
 <DesignLayout title="Admin - U.E.P">
   <div class="adm">
-    <!-- Top bar -->
+    <!-- 頂部列 -->
     <header class="adm-header">
       <div class="adm-header-brand">
         <span class="adm-header-logo">U</span>
         U.E.P · ADMIN
       </div>
       <div class="adm-header-spacer"></div>
-      <span class="adm-header-version">v0.4 · 觀測誌</span>
+      <span class="adm-header-version">v0.5 · 觀測誌</span>
       <span class="adm-header-status">
         <span class="adm-status-dot"></span>
         ONLINE
       </span>
-      <a href="/admin/logout" class="adm-header-home">登出</a>
-      <a href="/" class="adm-header-home">← 回到文件站</a>
+      <a href="/admin/logout" class="adm-header-link">登出</a>
+      <a href="/" class="adm-header-link">← 回到文件站</a>
     </header>
 
-    <!-- Main scrollable area -->
+    <!-- 主區域 -->
     <main class="adm-main">
       <div class="adm-content">
-        <!-- Greeting -->
+        <!-- 問候語 -->
         <div class="adm-greeting-time">
           welcome back · {timeStr} · {dateStr}
         </div>
         <h1 class="adm-greeting-title">哈囉哈囉! (｡･∀･)ﾉﾞ</h1>
         <p class="adm-greeting-desc">
-          想要編輯哪個區塊呢? 全部都整理好了喔! 你可以從下方進到對應的編輯器。
+          想要編輯哪個區塊呢? 全部都整理好了喔! 從左側選取區域，右側會顯示詳情。
         </p>
 
-        <!-- Quick stats strip -->
+        <!-- 總覽統計 -->
         <div class="adm-stats-strip">
           <div class="adm-stat-cell">
             <div class="adm-stat-label">總頁面</div>
             <div class="adm-stat-value">{totalPages}</div>
-            <div class="adm-stat-sub">history + echoes</div>
+            <div class="adm-stat-sub">全部區域</div>
           </div>
           <div class="adm-stat-cell">
             <div class="adm-stat-label">總章節</div>
@@ -154,240 +262,198 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
           </div>
         </div>
 
-        <!-- Zone cards -->
-        <div class="adm-zone-grid">
-          <!-- History card -->
-          <div class="adm-zone-card" style="border-top-color: #8A4423;">
-            <div class="adm-zone-header">
-              <div
-                class="adm-zone-icon"
-                style="border-color: #8A4423; color: #8A4423;"
-              >
-                ❒
-              </div>
-              <div class="adm-zone-info">
-                <div class="adm-zone-en" style="color: #8A4423;">
-                  HISTORY ARCHIVE
-                </div>
-                <div class="adm-zone-name">歷史典藏庫</div>
-                <div class="adm-zone-desc">章節、卷、段落 — 富文本編輯</div>
-              </div>
-            </div>
-            <div class="adm-zone-stats">
-              <div>
-                <span class="adm-zone-stat-val" style="color: #8A4423;"
-                  >{historyArcs}</span
-                ><span class="adm-zone-stat-key">篇</span>
-              </div>
-              <div>
-                <span class="adm-zone-stat-val" style="color: #8A4423;"
-                  >{historyChapters}</span
-                ><span class="adm-zone-stat-key">章</span>
-              </div>
-              <div>
-                <span class="adm-zone-stat-val" style="color: #8A4423;"
-                  >{historyDrafts}</span
-                ><span class="adm-zone-stat-key">草稿</span>
-              </div>
-            </div>
-            <!-- Recent -->
-            <div class="adm-zone-recent-title">最近編輯</div>
+        <!-- 區域管理 — Zone Navigator -->
+        <div class="adm-section-title">· 區域管理 ·</div>
+        <div class="adm-zone-nav">
+          <!-- 左側標籤列 -->
+          <div class="adm-zone-tabs">
             {
-              historyRecent.length > 0 ? (
-                <div class="adm-zone-recent">
-                  {historyRecent.map((r: any) => (
-                    <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
-                      <span class="adm-recent-title">{r.title}</span>
-                      <span
-                        class={`adm-recent-status adm-recent-status--${r.status}`}
-                      >
-                        · {r.status}
-                      </span>
-                      <span class="adm-recent-time">
-                        {timeAgo(r.updatedAt)}
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div class="adm-zone-empty">尚無編輯紀錄</div>
-              )
-            }
-            <div class="adm-zone-spacer"></div>
-            <div class="adm-zone-actions">
-              <a
-                href="/admin/edit/history"
-                class="adm-zone-btn-primary"
-                style="background: #8A4423;"
-              >
-                <span>進入編輯器</span><span>→</span>
-              </a>
-            </div>
-          </div>
-
-          <!-- Echoes card -->
-          <div class="adm-zone-card" style="border-top-color: #6B4F8E;">
-            <div class="adm-zone-header">
-              <div
-                class="adm-zone-icon"
-                style="border-color: #6B4F8E; color: #6B4F8E;"
-              >
-                ♪
-              </div>
-              <div class="adm-zone-info">
-                <div class="adm-zone-en" style="color: #6B4F8E;">
-                  ECHOES LIBRARY
-                </div>
-                <div class="adm-zone-name">回音蒐藏間</div>
-                <div class="adm-zone-desc">
-                  歌曲、子分類、Spoiler 鎖定 — 專屬欄位編輯
-                </div>
-              </div>
-            </div>
-            <div class="adm-zone-stats">
-              <div>
-                <span class="adm-zone-stat-val" style="color: #6B4F8E;"
-                  >{echoesTotal}</span
-                ><span class="adm-zone-stat-key">歌曲</span>
-              </div>
-              <div>
-                <span class="adm-zone-stat-val" style="color: #6B4F8E;"
-                  >{echoesDrafts}</span
-                ><span class="adm-zone-stat-key">草稿</span>
-              </div>
-            </div>
-            <!-- Recent -->
-            <div class="adm-zone-recent-title">最近編輯</div>
-            {
-              echoesRecent.length > 0 ? (
-                <div class="adm-zone-recent">
-                  {echoesRecent.map((r: any) => (
-                    <a href={`/admin/edit/${r.id}`} class="adm-recent-row">
-                      <span class="adm-recent-title">
-                        {r.title}
-                        {r.spoiler && r.spoiler > 0 && (
-                          <span
-                            class={`adm-spoiler-badge ${r.spoiler >= 3 ? 'adm-spoiler--high' : ''}`}
-                          >
-                            L{r.spoiler}
-                          </span>
-                        )}
-                      </span>
-                      <span
-                        class={`adm-recent-status adm-recent-status--${r.status}`}
-                      >
-                        · {r.status}
-                      </span>
-                      <span class="adm-recent-time">
-                        {timeAgo(r.updatedAt)}
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div class="adm-zone-empty">尚無編輯紀錄</div>
-              )
-            }
-            <div class="adm-zone-spacer"></div>
-            <div class="adm-zone-actions">
-              <a
-                href="/admin/edit/echoes"
-                class="adm-zone-btn-primary"
-                style="background: #6B4F8E;"
-              >
-                <span>進入編輯器</span><span>→</span>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <!-- Homepage editor section -->
-        <div class="adm-section-title">· 首頁編輯 ·</div>
-        <div class="adm-homepage-grid">
-          {
-            [
-              {
-                area: 'history',
-                label: '歷史典藏庫',
-                color: 'var(--history-main)',
-              },
-              {
-                area: 'echoes',
-                label: '空白廣場',
-                color: 'var(--echoes-main)',
-              },
-              {
-                area: 'visuals',
-                label: '鏡向十字路口',
-                color: 'var(--visuals-main)',
-              },
-              {
-                area: 'concepts',
-                label: '概念調整房',
-                color: 'var(--concepts-main)',
-              },
-              {
-                area: 'storage',
-                label: '雜亂的書桌',
-                color: 'var(--storage-main)',
-              },
-            ].map((z) => {
-              const hp = allLandingPages.find((p: any) => p.area === z.area);
-              return (
-                <a href={`/admin/homepage/${z.area}`} class="adm-homepage-card">
-                  <span class="adm-homepage-badge" style={`color: ${z.color};`}>
-                    {z.label}
+              zonesWithData.map((z, i) => (
+                <button
+                  class={`adm-zone-tab ${i === 0 ? 'active' : ''}`}
+                  data-zone={z.id}
+                  style={`--zone-clr: ${z.color};`}
+                >
+                  <span
+                    class="adm-tab-icon"
+                    style={`color: ${z.color}; border-color: color-mix(in srgb, ${z.color} 40%, transparent);`}
+                  >
+                    {z.icon}
                   </span>
-                  <div class="adm-homepage-info">
-                    <div class="adm-homepage-name">{z.area}/homepage</div>
-                    <div class="adm-homepage-sub">
-                      {hp?.updatedAt ? timeAgo(hp.updatedAt) : '尚未建立'}
+                  <div class="adm-tab-info">
+                    <div class="adm-tab-name">{z.name}</div>
+                    <div class="adm-tab-stat">{z.tabStat}</div>
+                  </div>
+                  <span class="adm-tab-arrow" style={`color: ${z.color};`}>
+                    ›
+                  </span>
+                </button>
+              ))
+            }
+          </div>
+
+          <!-- 右側詳情面板 -->
+          <div class="adm-zone-panels">
+            {
+              zonesWithData.map((z, i) => (
+                <div
+                  class={`adm-zone-panel ${i === 0 ? 'active' : ''}`}
+                  id={`panel-${z.id}`}
+                  style={`--zone-clr: ${z.color};`}
+                >
+                  {/* 區域標題 */}
+                  <div class="adm-panel-header">
+                    <div
+                      class="adm-panel-icon"
+                      style={`border-color: ${z.color}; color: ${z.color};`}
+                    >
+                      {z.icon}
+                    </div>
+                    <div class="adm-panel-info">
+                      <div class="adm-panel-en" style={`color: ${z.color};`}>
+                        {z.en}
+                      </div>
+                      <div class="adm-panel-name">{z.name}</div>
+                      <div class="adm-panel-desc">{z.desc}</div>
                     </div>
                   </div>
-                  <span class="adm-homepage-arrow">→</span>
-                </a>
-              );
-            })
-          }
+
+                  {/* 區域統計 */}
+                  {z.stats.length > 0 ? (
+                    <div class="adm-panel-stats">
+                      {z.stats.map((s) => (
+                        <div class="adm-panel-stat-item">
+                          <span
+                            class="adm-panel-stat-val"
+                            style={`color: ${z.color};`}
+                          >
+                            {s.val}
+                          </span>
+                          <span class="adm-panel-stat-key">{s.key}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div class="adm-panel-stats adm-panel-stats--empty">
+                      <span class="adm-panel-stat-key">尚無內容資料</span>
+                    </div>
+                  )}
+
+                  {/* 最近編輯 — 僅有編輯器的區域 */}
+                  {z.hasEditor && (
+                    <div class="adm-panel-recent-section">
+                      <div class="adm-panel-recent-title">最近編輯</div>
+                      {z.recent.length > 0 ? (
+                        <div class="adm-panel-recent">
+                          {z.recent.map((r: any) => (
+                            <a
+                              href={`/admin/edit/${r.id}`}
+                              class="adm-recent-row"
+                            >
+                              <span class="adm-recent-title">
+                                {r.title}
+                                {r.spoiler && r.spoiler > 0 && (
+                                  <span
+                                    class={`adm-spoiler-badge ${r.spoiler >= 3 ? 'adm-spoiler--high' : ''}`}
+                                  >
+                                    L{r.spoiler}
+                                  </span>
+                                )}
+                              </span>
+                              <span
+                                class={`adm-recent-status adm-recent-status--${r.status}`}
+                              >
+                                · {r.status}
+                              </span>
+                              <span class="adm-recent-time">
+                                {timeAgo(r.updatedAt)}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <div class="adm-zone-empty">尚無編輯紀錄</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 尚無編輯器的區域 */}
+                  {!z.hasEditor && (
+                    <div class="adm-panel-coming">
+                      <div class="adm-coming-icon">⏳</div>
+                      <div class="adm-coming-text">
+                        <div class="adm-coming-title">內容編輯器開發中</div>
+                        <div class="adm-coming-desc">
+                          目前可透過首頁編輯器管理此區域的入口頁面
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 彈性間距 */}
+                  <div class="adm-panel-spacer" />
+
+                  {/* 操作按鈕 */}
+                  <div class="adm-panel-actions">
+                    {z.hasEditor && (
+                      <a
+                        href={`/admin/edit/${z.id}`}
+                        class="adm-panel-btn-primary"
+                        style={`background: ${z.color};`}
+                      >
+                        <span>進入編輯器</span>
+                        <span>→</span>
+                      </a>
+                    )}
+                    <a
+                      href={`/admin/homepage/${z.id}`}
+                      class="adm-panel-btn-secondary"
+                      style={`border-color: color-mix(in srgb, ${z.color} 50%, transparent); color: ${z.color};`}
+                    >
+                      <span>編輯區域首頁</span>
+                      {z.homepage?.updatedAt && (
+                        <span class="adm-btn-sub">
+                          · {timeAgo(z.homepage.updatedAt)}
+                        </span>
+                      )}
+                      <span>→</span>
+                    </a>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
         </div>
 
-        <!-- Secondary tools -->
-        <div class="adm-section-title">· 其他工具 ·</div>
+        <!-- 快速工具 -->
+        <div class="adm-section-title">· 快速工具 ·</div>
         <div class="adm-tools-grid">
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">❝</span>
             <div>
-              <div class="adm-tool-name">字條 / 對話</div><div
-                class="adm-tool-sub"
-              >
-                UEP 旁白編輯
-              </div>
+              <div class="adm-tool-name">字條 / 對話</div>
+              <div class="adm-tool-sub">UEP 旁白編輯</div>
             </div>
           </a>
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">◯</span>
             <div>
-              <div class="adm-tool-name">地圖節點</div><div
-                class="adm-tool-sub"
-              >
-                十二分區拓樸
-              </div>
+              <div class="adm-tool-name">地圖節點</div>
+              <div class="adm-tool-sub">十二分區拓樸</div>
             </div>
           </a>
           <a href="/admin/media" class="adm-tool-card">
             <span class="adm-tool-icon">♫</span>
             <div>
-              <div class="adm-tool-name">媒體庫</div><div class="adm-tool-sub">
-                音檔 · 圖片
-              </div>
+              <div class="adm-tool-name">媒體庫</div>
+              <div class="adm-tool-sub">音檔 · 圖片</div>
             </div>
           </a>
           <a href="#" class="adm-tool-card">
             <span class="adm-tool-icon">⚙</span>
             <div>
-              <div class="adm-tool-name">設定</div><div class="adm-tool-sub">
-                主題 · 解鎖規則
-              </div>
+              <div class="adm-tool-name">設定</div>
+              <div class="adm-tool-sub">主題 · 解鎖規則</div>
             </div>
           </a>
         </div>
@@ -395,6 +461,32 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     </main>
   </div>
 </DesignLayout>
+
+<!-- Tab 切換邏輯 -->
+<script is:inline>
+  (function () {
+    var tabs = document.querySelectorAll('.adm-zone-tab');
+    var panels = document.querySelectorAll('.adm-zone-panel');
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var zone = tab.dataset.zone;
+        if (!zone || tab.classList.contains('active')) return;
+
+        tabs.forEach(function (t) {
+          t.classList.remove('active');
+        });
+        panels.forEach(function (p) {
+          p.classList.remove('active');
+        });
+
+        tab.classList.add('active');
+        var panel = document.getElementById('panel-' + zone);
+        if (panel) panel.classList.add('active');
+      });
+    });
+  })();
+</script>
 
 <style is:global>
   html,
@@ -410,7 +502,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     font-family: var(--font-sans);
   }
 
-  /* === Header === */
+  /* ===== Header ===== */
   .adm-header {
     height: 56px;
     flex: 0 0 56px;
@@ -474,7 +566,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     background: #5b9c7a;
   }
 
-  .adm-header-home {
+  .adm-header-link {
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--ink-soft);
@@ -482,11 +574,11 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     text-decoration: none;
     transition: color 0.15s;
   }
-  .adm-header-home:hover {
+  .adm-header-link:hover {
     color: var(--uep-gold);
   }
 
-  /* === Main === */
+  /* ===== Main ===== */
   .adm-main {
     flex: 1;
     overflow-y: auto;
@@ -498,7 +590,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     margin: 0 auto;
   }
 
-  /* === Greeting === */
+  /* ===== Greeting ===== */
   .adm-greeting-time {
     font-family: var(--font-mono);
     font-size: 10px;
@@ -525,7 +617,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     margin: 0;
   }
 
-  /* === Stats strip === */
+  /* ===== Stats strip ===== */
   .adm-stats-strip {
     margin-top: 32px;
     display: grid;
@@ -564,81 +656,208 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     color: var(--ink-mute);
   }
 
-  /* === Zone cards === */
-  .adm-zone-grid {
-    margin-top: 32px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 22px;
+  /* ===== Section title ===== */
+  .adm-section-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin-top: 36px;
+    margin-bottom: 14px;
   }
 
-  .adm-zone-card {
+  /* ===== Zone Navigator ===== */
+  .adm-zone-nav {
+    display: grid;
+    grid-template-columns: 250px 1fr;
     border: 1px solid var(--hairline);
-    border-top: 3px solid;
-    background: var(--bg-card);
-    padding: 26px 28px;
+    min-height: 440px;
+  }
+
+  /* --- 左側標籤列 --- */
+  .adm-zone-tabs {
+    border-right: 1px solid var(--hairline);
+    background: var(--bg-soft);
     display: flex;
     flex-direction: column;
   }
 
-  .adm-zone-header {
+  .adm-zone-tab {
+    all: unset;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 18px 16px 18px 20px;
+    border-bottom: 1px solid var(--hairline);
+    border-left: 3px solid transparent;
+    cursor: pointer;
     display: flex;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: center;
+    gap: 12px;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      box-shadow 0.2s;
   }
 
-  .adm-zone-icon {
-    width: 52px;
-    height: 52px;
-    flex: 0 0 52px;
+  .adm-zone-tab:last-child {
+    border-bottom: none;
+  }
+
+  .adm-zone-tab:hover {
+    background: var(--bg-card);
+  }
+
+  .adm-zone-tab.active {
+    border-left-color: var(--zone-clr);
+    background: var(--bg-card);
+  }
+
+  .adm-tab-icon {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
     border: 1px solid;
-    font-size: 26px;
+    display: grid;
+    place-items: center;
+    font-size: 17px;
+    font-family: var(--font-display);
+    transition: border-color 0.15s;
+  }
+
+  .adm-tab-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .adm-tab-name {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-title);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .adm-tab-stat {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  .adm-tab-arrow {
+    font-size: 18px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .adm-zone-tab.active .adm-tab-arrow {
+    opacity: 1;
+  }
+
+  /* --- 右側詳情面板 --- */
+  .adm-zone-panels {
+    position: relative;
+    background: var(--bg-card);
+  }
+
+  .adm-zone-panel {
+    display: none;
+    flex-direction: column;
+    padding: 28px 32px;
+    height: 100%;
+    box-sizing: border-box;
+  }
+
+  .adm-zone-panel.active {
+    display: flex;
+    animation: adm-panel-in 0.22s ease both;
+  }
+
+  @keyframes adm-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 面板標題 */
+  .adm-panel-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+  }
+
+  .adm-panel-icon {
+    width: 56px;
+    height: 56px;
+    flex: 0 0 56px;
+    border: 1px solid;
+    font-size: 28px;
     display: grid;
     place-items: center;
     font-family: var(--font-display);
   }
 
-  .adm-zone-info {
+  .adm-panel-info {
     flex: 1;
   }
 
-  .adm-zone-en {
+  .adm-panel-en {
     font-family: var(--font-mono);
     font-size: 9px;
     letter-spacing: 0.24em;
   }
 
-  .adm-zone-name {
+  .adm-panel-name {
     font-family: var(--font-display);
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 600;
     color: var(--ink-title);
     margin-top: 2px;
   }
 
-  .adm-zone-desc {
+  .adm-panel-desc {
     font-family: var(--font-serif-tc);
     font-size: 13px;
     color: var(--ink-soft);
     margin-top: 4px;
   }
 
-  .adm-zone-stats {
+  /* 面板統計 */
+  .adm-panel-stats {
     margin-top: 22px;
     display: flex;
     gap: 24px;
-    padding-top: 16px;
+    padding: 16px 0;
     border-top: 1px dashed var(--hairline);
+    border-bottom: 1px dashed var(--hairline);
   }
 
-  .adm-zone-stat-val {
+  .adm-panel-stats--empty {
+    padding: 14px 0;
+  }
+
+  .adm-panel-stat-item {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .adm-panel-stat-val {
     font-family: var(--font-display);
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 600;
-    margin-right: 4px;
   }
 
-  .adm-zone-stat-key {
+  .adm-panel-stat-key {
     font-family: var(--font-mono);
     font-size: 9px;
     color: var(--ink-mute);
@@ -646,17 +865,21 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     text-transform: uppercase;
   }
 
-  .adm-zone-recent-title {
+  /* 最近編輯 */
+  .adm-panel-recent-section {
+    margin-top: 18px;
+  }
+
+  .adm-panel-recent-title {
     font-family: var(--font-mono);
     font-size: 9px;
     color: var(--ink-mute);
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    margin-top: 18px;
     margin-bottom: 10px;
   }
 
-  .adm-zone-recent {
+  .adm-panel-recent {
     display: flex;
     flex-direction: column;
   }
@@ -670,13 +893,13 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     align-items: center;
     text-decoration: none;
     color: inherit;
-    transition: background 0.12s;
+    transition: opacity 0.12s;
   }
   .adm-recent-row:last-child {
     border-bottom: none;
   }
   .adm-recent-row:hover {
-    opacity: 0.8;
+    opacity: 0.75;
   }
 
   .adm-recent-title {
@@ -731,19 +954,50 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     padding: 8px 0;
   }
 
-  .adm-zone-spacer {
+  /* 開發中提示 */
+  .adm-panel-coming {
+    margin-top: 24px;
+    padding: 20px;
+    border: 1px dashed var(--hairline-strong);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .adm-coming-icon {
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .adm-coming-title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-title);
+  }
+
+  .adm-coming-desc {
+    font-family: var(--font-serif-tc);
+    font-size: 12px;
+    color: var(--ink-mute);
+    margin-top: 3px;
+  }
+
+  /* 彈性間距 */
+  .adm-panel-spacer {
     flex: 1;
   }
 
-  .adm-zone-actions {
-    margin-top: 22px;
+  /* 操作按鈕 */
+  .adm-panel-actions {
+    margin-top: 24px;
     display: flex;
     gap: 10px;
   }
 
-  .adm-zone-btn-primary {
+  .adm-panel-btn-primary {
     flex: 1;
-    padding: 12px 16px;
+    padding: 13px 18px;
     text-decoration: none;
     color: #fff;
     font-family: var(--font-mono);
@@ -755,22 +1009,42 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     justify-content: space-between;
     transition: filter 0.15s;
   }
-  .adm-zone-btn-primary:hover {
+  .adm-panel-btn-primary:hover {
     filter: brightness(1.15);
   }
 
-  /* === Section title === */
-  .adm-section-title {
+  .adm-panel-btn-secondary {
+    flex: 1;
+    padding: 13px 18px;
+    text-decoration: none;
+    border: 1px solid;
+    background: transparent;
     font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--ink-mute);
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    margin-top: 36px;
-    margin-bottom: 14px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition:
+      background 0.15s,
+      filter 0.15s;
+  }
+  .adm-panel-btn-secondary:hover {
+    filter: brightness(1.2);
+    background: color-mix(in srgb, var(--zone-clr) 6%, transparent);
   }
 
-  /* === Tools grid === */
+  .adm-btn-sub {
+    font-size: 9px;
+    opacity: 0.6;
+    letter-spacing: 0.06em;
+  }
+
+  .adm-panel-btn-secondary span:last-child {
+    margin-left: auto;
+  }
+
+  /* ===== Tools grid ===== */
   .adm-tools-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -817,62 +1091,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     margin-top: 2px;
   }
 
-  /* === 首頁編輯 === */
-  .adm-homepage-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 32px;
-    animation: adm-enter 0.5s 0.35s both;
-  }
-
-  .adm-homepage-card {
-    text-decoration: none;
-    color: inherit;
-    padding: 14px 18px;
-    border: 1px solid var(--hairline);
-    background: var(--bg-card);
-    display: grid;
-    grid-template-columns: 48px 1fr 24px;
-    align-items: center;
-    gap: 14px;
-    transition: border-color 0.15s;
-  }
-  .adm-homepage-card:hover {
-    border-color: var(--uep-gold);
-  }
-
-  .adm-homepage-badge {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    text-align: center;
-  }
-
-  .adm-homepage-name {
-    font-family: var(--font-display);
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ink-title);
-  }
-
-  .adm-homepage-sub {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--ink-mute);
-    margin-top: 2px;
-    letter-spacing: 0.04em;
-  }
-
-  .adm-homepage-arrow {
-    font-size: 14px;
-    color: var(--ink-mute);
-    text-align: right;
-  }
-
-  /* === 入場動畫 === */
+  /* ===== 入場動畫 ===== */
   @keyframes adm-enter {
     from {
       opacity: 0;
@@ -888,58 +1107,46 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     animation: adm-enter 0.5s ease both;
   }
 
-  .adm-greeting-time,
-  .adm-greeting-title,
-  .adm-greeting-desc {
-    animation: adm-enter 0.55s ease both;
-  }
   .adm-greeting-time {
-    animation-delay: 0.08s;
+    animation: adm-enter 0.55s 0.08s ease both;
   }
   .adm-greeting-title {
-    animation-delay: 0.16s;
+    animation: adm-enter 0.55s 0.16s ease both;
   }
   .adm-greeting-desc {
-    animation-delay: 0.24s;
+    animation: adm-enter 0.55s 0.24s ease both;
   }
 
   .adm-stats-strip {
-    animation: adm-enter 0.5s ease both;
-    animation-delay: 0.32s;
+    animation: adm-enter 0.5s 0.32s ease both;
   }
 
-  .adm-zone-card {
-    animation: adm-enter 0.5s ease both;
-  }
-  .adm-zone-card:nth-child(1) {
-    animation-delay: 0.4s;
-  }
-  .adm-zone-card:nth-child(2) {
-    animation-delay: 0.5s;
+  .adm-section-title:nth-of-type(1) {
+    animation: adm-enter 0.5s 0.38s ease both;
   }
 
-  .adm-section-title {
-    animation: adm-enter 0.5s ease both;
-    animation-delay: 0.56s;
+  .adm-zone-nav {
+    animation: adm-enter 0.5s 0.44s ease both;
   }
 
-  .adm-tool-card {
-    animation: adm-enter 0.45s ease both;
+  .adm-section-title:nth-of-type(2) {
+    animation: adm-enter 0.5s 0.52s ease both;
   }
+
   .adm-tool-card:nth-child(1) {
-    animation-delay: 0.6s;
+    animation: adm-enter 0.45s 0.56s ease both;
   }
   .adm-tool-card:nth-child(2) {
-    animation-delay: 0.66s;
+    animation: adm-enter 0.45s 0.62s ease both;
   }
   .adm-tool-card:nth-child(3) {
-    animation-delay: 0.72s;
+    animation: adm-enter 0.45s 0.68s ease both;
   }
   .adm-tool-card:nth-child(4) {
-    animation-delay: 0.78s;
+    animation: adm-enter 0.45s 0.74s ease both;
   }
 
-  /* === Responsive === */
+  /* ===== Responsive ===== */
   @media (max-width: 1024px) {
     .adm-main {
       padding: 32px 28px 60px;
@@ -947,11 +1154,50 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     .adm-stats-strip {
       grid-template-columns: repeat(2, 1fr);
     }
-    .adm-zone-grid {
-      grid-template-columns: 1fr;
+    .adm-zone-nav {
+      grid-template-columns: 200px 1fr;
+      min-height: 380px;
     }
     .adm-tools-grid {
       grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .adm-zone-nav {
+      grid-template-columns: 1fr;
+      min-height: auto;
+    }
+    .adm-zone-tabs {
+      border-right: none;
+      border-bottom: 1px solid var(--hairline);
+      flex-direction: row;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .adm-zone-tab {
+      border-bottom: none;
+      border-left: none;
+      border-bottom: 3px solid transparent;
+      padding: 14px 16px;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 100px;
+      text-align: center;
+    }
+    .adm-zone-tab.active {
+      border-bottom-color: var(--zone-clr);
+      border-left-color: transparent;
+      box-shadow: 0 4px 16px -6px var(--zone-clr);
+    }
+    .adm-tab-arrow {
+      display: none;
+    }
+    .adm-tab-stat {
+      display: none;
+    }
+    .adm-zone-panel {
+      padding: 20px 18px;
     }
   }
 
@@ -975,6 +1221,18 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
     .adm-header-version,
     .adm-header-status {
       display: none;
+    }
+    .adm-panel-actions {
+      flex-direction: column;
+    }
+    .adm-panel-name {
+      font-size: 22px;
+    }
+    .adm-panel-icon {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+      font-size: 22px;
     }
   }
 </style>

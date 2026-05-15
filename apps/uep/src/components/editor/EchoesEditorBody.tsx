@@ -397,7 +397,8 @@ export default function EchoesEditorBody({
     const url = `${API_BASE}/api/assets/${item.key.split('/').map(encodeURIComponent).join('/')}`;
     const duration = await readDurationFromUrl(url);
     const ext = item.key.split('.').pop()?.toLowerCase() || '';
-    const bitrate = duration > 0 ? Math.round((item.size * 8) / duration / 1000) : undefined;
+    const bitrate =
+      duration > 0 ? Math.round((item.size * 8) / duration / 1000) : undefined;
     update({
       audioFile: item.key,
       audioMeta: {
@@ -592,7 +593,9 @@ export default function EchoesEditorBody({
             <button
               className="ned-btn-ghost ned-btn-sm"
               type="button"
-              onClick={() => setDeleteConfirm({ type: 'audio', key: data.audioFile! })}
+              onClick={() =>
+                setDeleteConfirm({ type: 'audio', key: data.audioFile! })
+              }
             >
               刪除
             </button>
@@ -740,7 +743,9 @@ export default function EchoesEditorBody({
                 <button
                   className="ned-btn-ghost ned-btn-sm"
                   type="button"
-                  onClick={() => setDeleteConfirm({ type: 'cover', key: data.coverImage! })}
+                  onClick={() =>
+                    setDeleteConfirm({ type: 'cover', key: data.coverImage! })
+                  }
                 >
                   刪除
                 </button>
@@ -806,26 +811,41 @@ export default function EchoesEditorBody({
       {deleteConfirm && (
         <div
           style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
           onClick={() => setDeleteConfirm(null)}
         >
           <div
             style={{
-              background: 'var(--bg-card, #1a1a22)', border: '1px solid var(--line, #333)',
-              borderRadius: 12, padding: '24px 28px', maxWidth: 400, width: '90%',
+              background: 'var(--bg-card, #1a1a22)',
+              border: '1px solid var(--line, #333)',
+              borderRadius: 12,
+              padding: '24px 28px',
+              maxWidth: 400,
+              width: '90%',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}>
+            <div
+              style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}
+            >
               刪除{deleteConfirm.type === 'audio' ? '音檔' : '封面圖'}
             </div>
-            <div style={{
-              fontSize: '0.85em', color: 'var(--ink-mute, #888)',
-              marginBottom: 16, wordBreak: 'break-all',
-            }}>
+            <div
+              style={{
+                fontSize: '0.85em',
+                color: 'var(--ink-mute, #888)',
+                marginBottom: 16,
+                wordBreak: 'break-all',
+              }}
+            >
               {deleteConfirm.key.split('/').pop()}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -833,10 +853,21 @@ export default function EchoesEditorBody({
                 type="button"
                 className="ned-btn-ghost"
                 onClick={handleRemoveOnly}
-                style={{ width: '100%', padding: '10px 16px', textAlign: 'left' }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                }}
               >
                 📎 僅移除引用
-                <span style={{ display: 'block', fontSize: '0.8em', color: 'var(--ink-mute, #888)', marginTop: 2 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
                   檔案保留在媒體庫中，可供其他頁面使用
                 </span>
               </button>
@@ -845,12 +876,22 @@ export default function EchoesEditorBody({
                 className="ned-btn-ghost"
                 onClick={() => void handleDeleteFromLibrary()}
                 style={{
-                  width: '100%', padding: '10px 16px', textAlign: 'left',
-                  borderColor: 'crimson', color: 'crimson',
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  borderColor: 'crimson',
+                  color: 'crimson',
                 }}
               >
                 🗑 從媒體庫永久刪除
-                <span style={{ display: 'block', fontSize: '0.8em', color: 'var(--ink-mute, #888)', marginTop: 2 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
                   移除引用並從 R2 儲存空間中刪除檔案
                 </span>
               </button>
@@ -858,7 +899,12 @@ export default function EchoesEditorBody({
                 type="button"
                 className="ned-btn-ghost"
                 onClick={() => setDeleteConfirm(null)}
-                style={{ width: '100%', padding: '8px 16px', textAlign: 'center', marginTop: 4 }}
+                style={{
+                  width: '100%',
+                  padding: '8px 16px',
+                  textAlign: 'center',
+                  marginTop: 4,
+                }}
               >
                 取消
               </button>
@@ -871,28 +917,50 @@ export default function EchoesEditorBody({
       {pickerOpen && (
         <div
           style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
           onClick={() => setPickerOpen(false)}
         >
           <div
             style={{
-              background: 'var(--bg-card, #1a1a22)', border: '1px solid var(--line, #333)',
-              borderRadius: 12, width: '90%', maxWidth: 640, maxHeight: '80vh',
-              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              background: 'var(--bg-card, #1a1a22)',
+              border: '1px solid var(--line, #333)',
+              borderRadius: 12,
+              width: '90%',
+              maxWidth: 640,
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{
-              padding: '16px 20px', borderBottom: '1px solid var(--line, #333)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--line, #333)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <div>
                 <strong>從媒體庫選擇音檔</strong>
-                <span style={{ marginLeft: 10, fontSize: '0.85em', color: 'var(--ink-mute, #888)' }}>
+                <span
+                  style={{
+                    marginLeft: 10,
+                    fontSize: '0.85em',
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
                   僅顯示音檔 · 孤兒檔案優先
                 </span>
               </div>
@@ -900,8 +968,12 @@ export default function EchoesEditorBody({
                 type="button"
                 onClick={() => setPickerOpen(false)}
                 style={{
-                  background: 'none', border: 'none', color: 'var(--ink, #ccc)',
-                  fontSize: 20, cursor: 'pointer', padding: '0 4px',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--ink, #ccc)',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  padding: '0 4px',
                 }}
               >
                 ×
@@ -911,17 +983,34 @@ export default function EchoesEditorBody({
             {/* Body */}
             <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
               {pickerLoading ? (
-                <div style={{ textAlign: 'center', padding: 32, color: 'var(--ink-mute, #888)' }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
                   載入中...
                 </div>
               ) : pickerItems.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 32, color: 'var(--ink-mute, #888)' }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
                   媒體庫中沒有音檔
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                >
                   {pickerItems.map((item) => {
-                    const name = item.originalName || item.key.split('/').pop() || item.key;
+                    const name =
+                      item.originalName ||
+                      item.key.split('/').pop() ||
+                      item.key;
                     const sizeMB = (item.size / 1024 / 1024).toFixed(1);
                     const isOrphan = !item.referenced;
                     const isCurrent = data.audioFile === item.key;
@@ -933,33 +1022,67 @@ export default function EchoesEditorBody({
                         disabled={isSelecting || isCurrent}
                         onClick={() => void selectFromLibrary(item)}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 14px', borderRadius: 8, cursor: isCurrent ? 'default' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          cursor: isCurrent ? 'default' : 'pointer',
                           border: `1px solid ${isOrphan ? 'goldenrod' : isCurrent ? accent : 'var(--line, #333)'}`,
                           background: isCurrent ? `${accent}15` : 'transparent',
                           opacity: isSelecting ? 0.5 : 1,
-                          textAlign: 'left', width: '100%',
-                          color: 'var(--ink, #ccc)', fontSize: '0.9em',
+                          textAlign: 'left',
+                          width: '100%',
+                          color: 'var(--ink, #ccc)',
+                          fontSize: '0.9em',
                         }}
                       >
-                        <span style={{
-                          flexShrink: 0, width: 36, height: 36, borderRadius: 6,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: isOrphan ? 'rgba(218,165,32,0.15)' : 'var(--bg-elevated, #252530)',
-                          fontSize: 14, color: isOrphan ? 'goldenrod' : 'var(--ink-mute, #888)',
-                        }}>
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            width: 36,
+                            height: 36,
+                            borderRadius: 6,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: isOrphan
+                              ? 'rgba(218,165,32,0.15)'
+                              : 'var(--bg-elevated, #252530)',
+                            fontSize: 14,
+                            color: isOrphan
+                              ? 'goldenrod'
+                              : 'var(--ink-mute, #888)',
+                          }}
+                        >
                           {isOrphan ? '⚠' : '♪'}
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            fontWeight: 500,
-                          }}>
+                          <div
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontWeight: 500,
+                            }}
+                          >
                             {name}
                           </div>
-                          <div style={{ fontSize: '0.8em', color: 'var(--ink-mute, #888)', marginTop: 2 }}>
+                          <div
+                            style={{
+                              fontSize: '0.8em',
+                              color: 'var(--ink-mute, #888)',
+                              marginTop: 2,
+                            }}
+                          >
                             {sizeMB} MB
-                            {isOrphan && <span style={{ color: 'goldenrod', marginLeft: 8 }}>孤兒檔案</span>}
+                            {isOrphan && (
+                              <span
+                                style={{ color: 'goldenrod', marginLeft: 8 }}
+                              >
+                                孤兒檔案
+                              </span>
+                            )}
                             {!isOrphan && item.referencedBy.length > 0 && (
                               <span style={{ marginLeft: 8 }}>
                                 被 {item.referencedBy.length} 個頁面引用
@@ -967,8 +1090,18 @@ export default function EchoesEditorBody({
                             )}
                           </div>
                         </div>
-                        <span style={{ flexShrink: 0, fontSize: '0.8em', color: 'var(--ink-mute, #888)' }}>
-                          {isCurrent ? '目前使用中' : isSelecting ? '選取中...' : '選取'}
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            fontSize: '0.8em',
+                            color: 'var(--ink-mute, #888)',
+                          }}
+                        >
+                          {isCurrent
+                            ? '目前使用中'
+                            : isSelecting
+                              ? '選取中...'
+                              : '選取'}
                         </span>
                       </button>
                     );

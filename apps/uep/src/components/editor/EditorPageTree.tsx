@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { uepDialog } from '../ui/UepDialog';
+import { uepToast } from '../ui/UepToast';
 import { renderIcon } from './IconLibrary';
 
 interface PageTreeNode {
@@ -29,11 +31,13 @@ const TYPE_LETTERS: Record<string, string> = {
   cluster: 'CL',
   subcategory: 'SC',
   song: '♪',
+  division: 'DV',
+  gallery: 'GA',
 };
 
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
-const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster']); // 不可拖動排序
-const NO_CHILDREN_TYPES = new Set(['song']); // 不可新增子頁面
+const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division']); // 不可拖動排序
+const NO_CHILDREN_TYPES = new Set(['song', 'gallery']); // 不可新增子頁面
 
 // Flatten tree into ordered list with parent info for drag calculations
 interface FlatNode {
@@ -294,7 +298,7 @@ export default function EditorPageTree({
     const msg = hasChildren
       ? `"${node.title}" has ${node.children.length} child page(s). Delete anyway?`
       : `Delete "${node.title}"?`;
-    if (!window.confirm(msg)) return;
+    if (!(await uepDialog.confirm(msg))) return;
 
     const pageSlug = node.id.replace(`${area}/`, '');
     try {
@@ -309,10 +313,10 @@ export default function EditorPageTree({
           fetchTree();
         }
       } else {
-        window.alert(`Failed: ${json.error}`);
+        uepToast.error(`Failed: ${json.error}`);
       }
     } catch (e: any) {
-      window.alert(`Error: ${e.message}`);
+      uepToast.error(`Error: ${e.message}`);
     }
   };
 
@@ -392,7 +396,7 @@ export default function EditorPageTree({
     const result: React.ReactNode[] = [];
 
     // Echoes 區域：不顯示 hover insert zones，改由 context menu / subcategory editor 管理
-    const showInsertZones = area !== 'echoes';
+    const showInsertZones = area !== 'echoes' && area !== 'visuals';
 
     for (let i = 0; i <= nodes.length; i++) {
       const isCreatingHere =
@@ -434,15 +438,21 @@ export default function EditorPageTree({
     }
     // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）
     if (area === 'echoes' && node.pageType === 'song') return null;
+    // Visuals 區域：gallery 節點不顯示在樹中（從 subcategory 編輯器管理）
+    if (area === 'visuals' && node.pageType === 'gallery') return null;
 
     const isActive = node.id === `${area}/${currentSlug}`;
-    // Echoes 區域：不計算 song children 為 tree children
+    // Echoes/Visuals 區域：不計算 song/gallery children 為 tree children
     const visibleChildren =
       area === 'echoes'
         ? (node.children || []).filter(
             (c: PageTreeNode) => c.pageType !== 'song'
           )
-        : node.children || [];
+        : area === 'visuals'
+          ? (node.children || []).filter(
+              (c: PageTreeNode) => c.pageType !== 'gallery'
+            )
+          : node.children || [];
     const hasChildren = visibleChildren.length > 0;
     const isCollapsed = collapsed.has(node.id);
     const noEdit = NO_EDIT_TYPES.has(node.pageType);
@@ -543,7 +553,8 @@ export default function EditorPageTree({
               onClick={(e) => e.stopPropagation()}
             >
               {!NO_CHILDREN_TYPES.has(node.pageType) &&
-                !(area === 'echoes' && node.pageType === 'subcategory') && (
+                !(area === 'echoes' && node.pageType === 'subcategory') &&
+                !(area === 'visuals' && node.pageType === 'subcategory') && (
                   <button
                     className="ned-tree-context-item"
                     onClick={() => {
@@ -551,7 +562,8 @@ export default function EditorPageTree({
                       startCreate(node.id, node.depth, visibleChildren.length);
                     }}
                   >
-                    {area === 'echoes' && node.pageType === 'cluster'
+                    {(area === 'echoes' && node.pageType === 'cluster') ||
+                    (area === 'visuals' && node.pageType === 'division')
                       ? '+ Add subcategory'
                       : '+ Add child'}
                   </button>

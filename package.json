@@ -17,7 +17,9 @@
     "format:check": "prettier --check .",
     "sync": "node scripts/sync-content.mjs",
     "sync:push": "node scripts/sync-content.mjs --push",
-    "sync:pull": "node scripts/sync-content.mjs --pull"
+    "sync:pull": "node scripts/sync-content.mjs --pull",
+    "deploy:content-api": "pnpm --filter content-api-worker ship",
+    "deploy:visitor": "pnpm --filter visitor-counter-worker ship"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

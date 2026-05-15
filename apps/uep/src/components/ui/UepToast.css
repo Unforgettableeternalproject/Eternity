@@ -1,0 +1,170 @@
+/* ── UEP Toast 容器 ── */
+.uep-toast-container {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  pointer-events: none;
+  max-width: 90vw;
+}
+
+/* ── 單一 Toast ── */
+.uep-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 16rem;
+  max-width: 26rem;
+  padding: 0.875rem 1rem;
+  border-radius: 10px;
+  background: var(--bg-card, #20232c);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.1));
+  box-shadow:
+    0 0 0 1px rgba(213, 182, 24, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  animation: uepToastIn 0.3s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+}
+
+.uep-toast--closing {
+  animation: uepToastOut 0.28s var(--ease, cubic-bezier(0.2, 0.7, 0.3, 1))
+    forwards;
+}
+
+/* ── 類型左邊色條 ── */
+.uep-toast--success {
+  border-left: 3px solid #34d399;
+}
+.uep-toast--error {
+  border-left: 3px solid #f87171;
+}
+.uep-toast--warning {
+  border-left: 3px solid var(--uep-gold, #d5b618);
+}
+.uep-toast--info {
+  border-left: 3px solid #60a5fa;
+}
+
+/* ── 圖標 ── */
+.uep-toast__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+}
+
+.uep-toast__icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.uep-toast--success .uep-toast__icon {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+}
+.uep-toast--error .uep-toast__icon {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+}
+.uep-toast--warning .uep-toast__icon {
+  color: var(--uep-gold, #d5b618);
+  background: rgba(213, 182, 24, 0.12);
+}
+.uep-toast--info .uep-toast__icon {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+}
+
+/* ── 文字 ── */
+.uep-toast__msg {
+  flex: 1;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink, #ece9df);
+}
+
+/* ── 關閉按鈕 ── */
+.uep-toast__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute, #7a7669);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.uep-toast__close:hover {
+  background: var(--line, rgba(255, 255, 255, 0.08));
+  color: var(--ink, #ece9df);
+}
+
+.uep-toast__close svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* ── 動畫 ── */
+@keyframes uepToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes uepToastOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40%) scale(0.95);
+  }
+}
+
+/* ── 減少動畫偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  .uep-toast,
+  .uep-toast--closing {
+    animation: none !important;
+  }
+  .uep-toast--closing {
+    opacity: 0;
+  }
+}
+
+/* ── 小螢幕 ── */
+@media (max-width: 640px) {
+  .uep-toast-container {
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 0.75rem;
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .uep-toast {
+    min-width: auto;
+    width: 100%;
+  }
+}

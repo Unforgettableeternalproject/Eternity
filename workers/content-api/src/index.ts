@@ -37,6 +37,7 @@ function rowToPage(row: PageRow): Page {
     pageType: row.page_type,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
   };
 }
 
@@ -54,6 +55,7 @@ function rowToListItem(row: PageRow): PageListItem {
     depth: row.depth,
     pageType: row.page_type,
     updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
   };
 }
 
@@ -113,9 +115,36 @@ function jsonResponse<T>(
 // ===== CORS =====
 
 function getCorsHeaders(request: Request, env: Env): Record<string, string> {
-  const allowedOrigins = env.ALLOWED_ORIGINS?.split(',') || [];
   const origin = request.headers.get('Origin') || '';
   const headers: Record<string, string> = {};
+
+  // 沒設定 ALLOWED_ORIGINS 時允許所有 origin（開發模式）
+  if (!env.ALLOWED_ORIGINS) {
+    if (origin) {
+      headers['Access-Control-Allow-Origin'] = origin;
+      headers['Access-Control-Allow-Methods'] =
+        'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+      headers['Access-Control-Allow-Headers'] =
+        'Content-Type, Authorization, Range';
+    }
+    return headers;
+  }
+
+  // localhost 一律允許（開發環境各 port 都能存取）
+  if (
+    origin &&
+    (origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:'))
+  ) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Methods'] =
+      'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+    headers['Access-Control-Allow-Headers'] =
+      'Content-Type, Authorization, Range';
+    return headers;
+  }
+
+  const allowedOrigins = env.ALLOWED_ORIGINS.split(',');
 
   const isAllowed = allowedOrigins.some((allowed) => {
     allowed = allowed.trim();
@@ -129,8 +158,10 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
   if (isAllowed) {
     headers['Access-Control-Allow-Origin'] = origin;
-    headers['Access-Control-Allow-Methods'] = 'GET, HEAD, POST, PUT, DELETE, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Range';
+    headers['Access-Control-Allow-Methods'] =
+      'GET, HEAD, POST, PUT, DELETE, OPTIONS';
+    headers['Access-Control-Allow-Headers'] =
+      'Content-Type, Authorization, Range';
   }
 
   return headers;
@@ -176,12 +207,13 @@ async function requireJwt(
 async function listPages(
   area: string,
   db: D1Database,
-  cors: Record<string, string>
+  cors: Record<string, string>,
+  includeDeleted = false
 ): Promise<Response> {
-  const result = await db
-    .prepare('SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC')
-    .bind(area)
-    .all<PageRow>();
+  const query = includeDeleted
+    ? 'SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC'
+    : 'SELECT * FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC';
+  const result = await db.prepare(query).bind(area).all<PageRow>();
 
   const items: PageListItem[] = (result.results || []).map(rowToListItem);
   return jsonResponse({ ok: true, data: items }, 200, cors);
@@ -192,13 +224,14 @@ async function getPage(
   area: string,
   slug: string,
   db: D1Database,
-  cors: Record<string, string>
+  cors: Record<string, string>,
+  includeDeleted = false
 ): Promise<Response> {
   const id = `${area}/${slug}`;
-  const row = await db
-    .prepare('SELECT * FROM pages WHERE id = ?')
-    .bind(id)
-    .first<PageRow>();
+  const query = includeDeleted
+    ? 'SELECT * FROM pages WHERE id = ?'
+    : 'SELECT * FROM pages WHERE id = ? AND deleted_at IS NULL';
+  const row = await db.prepare(query).bind(id).first<PageRow>();
 
   if (!row) {
     return jsonResponse({ ok: false, error: 'Page not found' }, 404, cors);
@@ -216,13 +249,15 @@ async function upsertPage(
   cors: Record<string, string>
 ): Promise<Response> {
   const id = `${area}/${slug}`;
-  const now = new Date().toISOString();
+  const now = body.updatedAt || new Date().toISOString();
 
-  // 檢查是否已存在
+  // 檢查是否已存在（包含已軟刪除的記錄）
   const existing = await db
-    .prepare('SELECT id, source_file, status FROM pages WHERE id = ?')
+    .prepare(
+      'SELECT id, source_file, status, deleted_at FROM pages WHERE id = ?'
+    )
     .bind(id)
-    .first<Pick<PageRow, 'id' | 'source_file' | 'status'>>();
+    .first<Pick<PageRow, 'id' | 'source_file' | 'status' | 'deleted_at'>>();
 
   if (existing) {
     // 更新現有頁面
@@ -258,9 +293,18 @@ async function upsertPage(
       values.push(body.pageType);
     }
 
-    // 如果有來源檔案且內容被修改，標記為 modified
-    if (body.content !== undefined && existing.source_file) {
+    // 如果請求明確指定 status（同步腳本會傳 'synced'），優先使用
+    if (body.status !== undefined) {
+      updates.push('status = ?');
+      values.push(body.status);
+    } else if (body.content !== undefined && existing.source_file) {
+      // 未指定 status 但有來源檔案且內容被修改 → 標記為 modified
       updates.push("status = 'modified'");
+    }
+
+    // 如果頁面已被軟刪除，PUT 操作會恢復它
+    if (existing.deleted_at) {
+      updates.push('deleted_at = NULL');
     }
 
     updates.push('updated_at = ?');
@@ -309,7 +353,7 @@ async function upsertPage(
   );
 }
 
-/** DELETE /api/content/:area/:slug — 刪除頁面 */
+/** DELETE /api/content/:area/:slug — 軟刪除頁面（標記 deleted_at） */
 async function deletePage(
   area: string,
   slug: string,
@@ -317,9 +361,12 @@ async function deletePage(
   cors: Record<string, string>
 ): Promise<Response> {
   const id = `${area}/${slug}`;
+  const now = new Date().toISOString();
   const result = await db
-    .prepare('DELETE FROM pages WHERE id = ?')
-    .bind(id)
+    .prepare(
+      'UPDATE pages SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+    )
+    .bind(now, now, id)
     .run();
 
   if (result.meta.changes === 0) {
@@ -441,6 +488,66 @@ async function importPages(
   );
 }
 
+/** POST /api/content/purge — 硬刪除超過指定天數的軟刪除記錄 */
+async function purgeDeletedPages(
+  url: URL,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const days = parseInt(url.searchParams.get('days') || '30', 10);
+  if (isNaN(days) || days < 0) {
+    return jsonResponse(
+      { ok: false, error: 'days 參數必須為非負整數' },
+      400,
+      cors
+    );
+  }
+
+  const cutoff = new Date(
+    Date.now() - days * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  // 先查詢會被清除的頁面
+  const toDelete = await db
+    .prepare(
+      'SELECT id, area, title, deleted_at FROM pages WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
+    )
+    .bind(cutoff)
+    .all<{ id: string; area: string; title: string; deleted_at: string }>();
+
+  const ids = (toDelete.results || []).map((r) => r.id);
+
+  if (ids.length === 0) {
+    return jsonResponse(
+      { ok: true, data: { purged: 0, message: '沒有需要清除的記錄' } },
+      200,
+      cors
+    );
+  }
+
+  // 執行硬刪除
+  const result = await db
+    .prepare(
+      'DELETE FROM pages WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
+    )
+    .bind(cutoff)
+    .run();
+
+  return jsonResponse(
+    {
+      ok: true,
+      data: {
+        purged: result.meta.changes,
+        cutoffDate: cutoff,
+        days,
+        ids,
+      },
+    },
+    200,
+    cors
+  );
+}
+
 /** GET /api/content/sync/status — 取得同步狀態總覽 */
 async function getSyncStatus(
   db: D1Database,
@@ -453,6 +560,7 @@ async function getSyncStatus(
         status,
         COUNT(*) as count
        FROM pages
+       WHERE deleted_at IS NULL
        GROUP BY area, status
        ORDER BY area`
     )
@@ -461,7 +569,8 @@ async function getSyncStatus(
   const pendingUpdates = await db
     .prepare(
       `SELECT id, area, title FROM pages
-       WHERE json_extract(metadata, '$.pendingSourceHash') IS NOT NULL`
+       WHERE deleted_at IS NULL
+         AND json_extract(metadata, '$.pendingSourceHash') IS NOT NULL`
     )
     .all<{ id: string; area: string; title: string }>();
 
@@ -670,6 +779,27 @@ async function listAssets(
         if (key) {
           if (!referenceMap.has(key)) referenceMap.set(key, []);
           referenceMap.get(key)!.push(row.id);
+        }
+      }
+    } catch {
+      // 略過格式錯誤的 metadata
+    }
+  }
+
+  // 掃描 gallery 頁面的 metadata.images 陣列，找出圖片/精靈圖引用
+  const galleryRows = await db
+    .prepare("SELECT id, metadata FROM pages WHERE page_type = 'gallery'")
+    .all<{ id: string; metadata: string }>();
+
+  for (const row of galleryRows.results || []) {
+    try {
+      const meta = JSON.parse(row.metadata || '{}');
+      const imgs = Array.isArray(meta.images) ? meta.images : [];
+      for (const img of imgs) {
+        if (typeof img.file === 'string' && img.file) {
+          if (!referenceMap.has(img.file)) referenceMap.set(img.file, []);
+          const refs = referenceMap.get(img.file)!;
+          if (!refs.includes(row.id)) refs.push(row.id);
         }
       }
     } catch {
@@ -953,6 +1083,12 @@ export default {
     }
 
     // ---- 同步相關路由 ----
+
+    // POST /api/content/purge — 硬刪除過期的軟刪除記錄
+    if (path === '/api/content/purge' && request.method === 'POST') {
+      return purgeDeletedPages(url, env.CONTENT_DB, cors);
+    }
+
     if (path === '/api/content/sync/import' && request.method === 'POST') {
       const body = (await request.json()) as {
         pages: ImportPageRequest[];
@@ -969,9 +1105,12 @@ export default {
     const treeMatch = path.match(/^\/api\/content\/([a-z]+)\/tree$/);
     if (treeMatch && request.method === 'GET') {
       const area = treeMatch[1];
-      const result = await env.CONTENT_DB.prepare(
-        'SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC'
-      )
+      const treeIncludeDeleted =
+        url.searchParams.get('include_deleted') === 'true';
+      const treeQuery = treeIncludeDeleted
+        ? 'SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC'
+        : 'SELECT * FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC';
+      const result = await env.CONTENT_DB.prepare(treeQuery)
         .bind(area)
         .all<PageRow>();
       const rows = result.results || [];
@@ -991,9 +1130,14 @@ export default {
       if (request.method === 'GET') {
         // 解析 Range header 以支援音訊 seek（瀏覽器 <audio> 需要 206 Partial Content）
         const rangeHeader = request.headers.get('Range');
-        const obj = await env.ASSETS_BUCKET.get(key, rangeHeader ? {
-          range: request.headers,
-        } : undefined);
+        const obj = await env.ASSETS_BUCKET.get(
+          key,
+          rangeHeader
+            ? {
+                range: request.headers,
+              }
+            : undefined
+        );
         if (!obj) {
           return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
         }
@@ -1007,7 +1151,7 @@ export default {
         // R2 有處理 Range 時會在 obj.range 回傳實際範圍
         if (rangeHeader && obj.range) {
           const r = obj.range;
-          const offset = 'offset' in r ? r.offset ?? 0 : 0;
+          const offset = 'offset' in r ? (r.offset ?? 0) : 0;
           const length = 'length' in r ? r.length : undefined;
           const suffix = 'suffix' in r ? r.suffix : undefined;
           let start: number;
@@ -1037,7 +1181,10 @@ export default {
           return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
         }
         const headers = new Headers(cors);
-        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set(
+          'Content-Type',
+          obj.httpMetadata?.contentType || 'application/octet-stream'
+        );
         headers.set('Content-Length', String(obj.size));
         headers.set('Accept-Ranges', 'bytes');
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
@@ -1112,10 +1259,12 @@ export default {
     if (contentMatch) {
       const [, area, slug] = contentMatch;
 
+      const includeDeleted = url.searchParams.get('include_deleted') === 'true';
+
       if (!slug) {
         // /api/content/:area
         if (request.method === 'GET')
-          return listPages(area, env.CONTENT_DB, cors);
+          return listPages(area, env.CONTENT_DB, cors, includeDeleted);
         return jsonResponse(
           { ok: false, error: 'Method not allowed' },
           405,
@@ -1126,7 +1275,7 @@ export default {
       // /api/content/:area/:slug
       switch (request.method) {
         case 'GET':
-          return getPage(area, slug, env.CONTENT_DB, cors);
+          return getPage(area, slug, env.CONTENT_DB, cors, includeDeleted);
         case 'PUT': {
           const body = (await request.json()) as UpsertPageRequest;
           return upsertPage(area, slug, body, env.CONTENT_DB, cors);
