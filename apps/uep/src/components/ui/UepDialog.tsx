@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import './UepDialog.css';
 
 /* ── 型別 ── */
-type DialogKind = 'alert' | 'confirm';
+type DialogKind = 'alert' | 'confirm' | 'prompt';
 
 interface DialogRequest {
   id: number;
@@ -11,7 +11,10 @@ interface DialogRequest {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  placeholder?: string;
+  defaultValue?: string;
   resolve: (ok: boolean) => void;
+  resolvePrompt?: (value: string | null) => void;
 }
 
 /* ── 全域佇列（跨 React island） ── */
@@ -67,10 +70,36 @@ export const uepDialog = {
     });
   },
 
+  /** 顯示 prompt 對話框，返回輸入值或 null */
+  prompt(
+    message: string,
+    opts?: { title?: string; confirmText?: string; cancelText?: string; placeholder?: string; defaultValue?: string }
+  ): Promise<string | null> {
+    return new Promise((resolve) => {
+      currentReq = {
+        id: ++dialogId,
+        kind: 'prompt',
+        message,
+        title: opts?.title,
+        confirmText: opts?.confirmText,
+        cancelText: opts?.cancelText,
+        placeholder: opts?.placeholder,
+        defaultValue: opts?.defaultValue,
+        resolve: () => {},
+        resolvePrompt: resolve,
+      };
+      notifyAll();
+    });
+  },
+
   /** 關閉當前對話框 */
-  _close(ok: boolean) {
+  _close(ok: boolean, promptValue?: string) {
     if (currentReq) {
-      currentReq.resolve(ok);
+      if (currentReq.kind === 'prompt' && currentReq.resolvePrompt) {
+        currentReq.resolvePrompt(ok ? (promptValue ?? '') : null);
+      } else {
+        currentReq.resolve(ok);
+      }
       currentReq = null;
       notifyAll();
     }
@@ -94,17 +123,24 @@ if (typeof window !== 'undefined' && !window.__uepDialogManager) {
 export default function UepDialogContainer() {
   const [req, setReq] = useState<DialogRequest | null>(null);
   const [closing, setClosing] = useState(false);
+  const [promptValue, setPromptValue] = useState('');
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const mgr = window.__uepDialogManager ?? uepDialog;
     return mgr.subscribe(setReq);
   }, []);
 
-  /* 出現時自動 focus 確認按鈕 */
+  /* 出現時自動 focus */
   useEffect(() => {
     if (req && !closing) {
-      confirmRef.current?.focus();
+      if (req.kind === 'prompt') {
+        setPromptValue(req.defaultValue || '');
+        setTimeout(() => inputRef.current?.focus(), 50);
+      } else {
+        confirmRef.current?.focus();
+      }
     }
   }, [req, closing]);
 
@@ -113,7 +149,7 @@ export default function UepDialogContainer() {
     if (!req) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        close(req.kind === 'confirm' ? false : true);
+        close(false);
       }
     };
     document.addEventListener('keydown', handleKey);
@@ -122,19 +158,24 @@ export default function UepDialogContainer() {
 
   const close = useCallback((ok: boolean) => {
     setClosing(true);
+    const val = promptValue;
     setTimeout(() => {
       const mgr = window.__uepDialogManager ?? uepDialog;
-      mgr._close(ok);
+      mgr._close(ok, val);
       setClosing(false);
+      setPromptValue('');
     }, 200);
-  }, []);
+  }, [promptValue]);
 
   if (!req) return null;
+
+  const isPrompt = req.kind === 'prompt';
+  const showCancel = req.kind === 'confirm' || isPrompt;
 
   return (
     <div
       className={`uep-dialog-overlay${closing ? ' uep-dialog-overlay--closing' : ''}`}
-      onClick={() => close(req.kind === 'confirm' ? false : true)}
+      onClick={() => close(false)}
     >
       <div
         className={`uep-dialog${closing ? ' uep-dialog--closing' : ''}`}
@@ -157,8 +198,21 @@ export default function UepDialogContainer() {
           {req.message}
         </p>
 
+        {/* Prompt 輸入框 */}
+        {isPrompt && (
+          <input
+            ref={inputRef}
+            className="uep-dialog__input"
+            type="text"
+            value={promptValue}
+            onChange={(e) => setPromptValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && promptValue.trim()) close(true); }}
+            placeholder={req.placeholder || ''}
+          />
+        )}
+
         <div className="uep-dialog__actions">
-          {req.kind === 'confirm' && (
+          {showCancel && (
             <button
               className="uep-dialog__btn uep-dialog__btn--cancel"
               onClick={() => close(false)}
@@ -172,6 +226,7 @@ export default function UepDialogContainer() {
             className="uep-dialog__btn uep-dialog__btn--confirm"
             onClick={() => close(true)}
             type="button"
+            disabled={isPrompt && !promptValue.trim()}
           >
             {req.confirmText || '確定'}
           </button>
