@@ -70,7 +70,13 @@ function blocksToHtml(blocks: any[]): string {
     .join('');
 }
 
-const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
+// Concepts type 頁面：TipTap 只取 rich_text block 的 HTML，結構化 block 由 ConceptsEditorBody 處理
+const isConceptsType = area === 'concepts' && page?.pageType === 'type';
+const initialHtml = page
+  ? isConceptsType
+    ? (Array.isArray(page.content) ? page.content.find((b: any) => b.type === 'rich_text')?.content : '') || '<p></p>'
+    : blocksToHtml(page.content)
+  : '<p></p>';
 ---
 
 <DesignLayout title={`Edit - ${page?.title || area}`} zone={area}>
@@ -97,6 +103,7 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
         initialPageType={page?.pageType}
         initialDepth={page?.depth}
         initialMetadata={page?.metadata}
+        initialContentBlocks={isConceptsType ? page?.content : undefined}
         createdAt={page?.createdAt}
         updatedAt={page?.updatedAt}
       />

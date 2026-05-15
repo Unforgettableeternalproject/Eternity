@@ -125,7 +125,7 @@ export default function EchoesRipple({ isPlaying = false, color }: Props) {
       activeRef.current = false;
       if (tidRef.current) clearTimeout(tidRef.current);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // isPlaying 改變時：取消當前排程，用新的間隔立刻重新排程（不清空現有 orbs）
   useEffect(() => {

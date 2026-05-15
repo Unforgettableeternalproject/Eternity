@@ -26,6 +26,11 @@ import VisualsEditorBody, {
   type VisualsData,
 } from './VisualsEditorBody';
 import VisualsSubcatEditor from './VisualsSubcatEditor';
+import ConceptsEditorBody, {
+  parseConceptsEditorData,
+  serializeConceptsContent,
+  type ConceptsEditorData,
+} from './ConceptsEditorBody';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './RichEditor.css';
 
@@ -87,6 +92,8 @@ interface RichEditorProps {
   initialPageType?: string;
   initialDepth?: number;
   initialMetadata?: Record<string, any>;
+  /** Concepts type 頁面的原始 content blocks（結構化 JSON），由 astro 頁面傳入 */
+  initialContentBlocks?: { id: string; type: string; content: string }[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -103,6 +110,7 @@ export default function RichEditor({
   initialPageType,
   initialDepth,
   initialMetadata,
+  initialContentBlocks,
   createdAt,
   updatedAt,
 }: RichEditorProps) {
@@ -111,8 +119,16 @@ export default function RichEditor({
   const accentMain = zone?.main ?? '#3A3A3A';
   const isEntryMode = !pageSlug;
 
-  // State
-  const [isDirty, setIsDirty] = useState(false);
+  // State — dirty 由多來源聯合判斷
+  const initialContentRef = useRef(initialContent || '<p></p>');
+  const initialTitleRef = useRef(initialTitle);
+  // 各來源 dirty 標記
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [metaDirty, setMetaDirty] = useState(false);
+  const [conceptsDirty, setConceptsDirty] = useState(false);
+  const isDirty = editorDirty || metaDirty || conceptsDirty;
+  // 重置所有 dirty（儲存後呼叫）
+  function resetDirty() { setEditorDirty(false); setMetaDirty(false); setConceptsDirty(false); }
   const [title, setTitle] = useState(initialTitle);
   const [parentId, setParentId] = useState(initialParentId || '');
   const [pageType, setPageType] = useState(initialPageType || 'section');
@@ -149,6 +165,10 @@ export default function RichEditor({
   const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
   const isVisuals = isVisualsArea && pageType === 'gallery';
   const isVisualsSubcat = isVisualsArea && pageType === 'subcategory';
+  // Concepts 特殊編輯模式
+  const isConceptsArea = area === 'concepts' || zoneId === 'concepts';
+  const isConcepts = isConceptsArea && pageType === 'type';
+  const conceptsStackStyle = (initialMetadata?.stack_style as string) || 'dossier';
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
@@ -157,6 +177,9 @@ export default function RichEditor({
   );
   const [visualsData, setVisualsData] = useState<VisualsData>(() =>
     parseVisualsData(initialMetadata || {})
+  );
+  const [conceptsData, setConceptsData] = useState<ConceptsEditorData>(() =>
+    parseConceptsEditorData(initialContentBlocks || [], initialMetadata || {})
   );
   const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
     () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
@@ -191,8 +214,12 @@ export default function RichEditor({
         spellcheck: 'false',
       },
     },
-    onUpdate: () => {
-      setIsDirty(true);
+    onCreate: ({ editor: e }) => {
+      // 用 TipTap 正規化後的 HTML 作為基準快照
+      initialContentRef.current = e.getHTML();
+    },
+    onUpdate: ({ editor: e }) => {
+      setEditorDirty(e.getHTML() !== initialContentRef.current);
     },
   });
 
@@ -219,7 +246,9 @@ export default function RichEditor({
       const content =
         isEchoes || isVisuals
           ? [{ id: 'content', type: 'rich_text', content: '' }]
-          : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
+          : isConcepts
+            ? [{ id: 'intro', type: 'rich_text', content: editor!.getHTML() }, ...serializeConceptsContent(conceptsData)]
+            : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
@@ -229,6 +258,7 @@ export default function RichEditor({
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
+        ...(isConcepts ? { type_group: initialMetadata?.type_group, era: initialMetadata?.era, stack_style: conceptsStackStyle } : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
         ...(isVisualsDivision && layout ? { layout } : {}),
       };
@@ -247,7 +277,11 @@ export default function RichEditor({
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'Save failed');
-      setIsDirty(false);
+      // 更新快照並重置 dirty
+      if (editor) initialContentRef.current = editor.getHTML();
+      initialTitleRef.current = title;
+      window.dispatchEvent(new Event('concepts-editor-saved'));
+      resetDirty();
       setSaveStatus('saved');
       setTreeRefreshKey((k) => k + 1);
       setTimeout(() => setSaveStatus('idle'), 2000);
@@ -260,9 +294,12 @@ export default function RichEditor({
     isDirty,
     isEchoes,
     isVisuals,
+    isConcepts,
     isZone,
     echoesData,
     visualsData,
+    conceptsData,
+    conceptsStackStyle,
     zoneTabs,
     title,
     apiBase,
@@ -443,7 +480,7 @@ export default function RichEditor({
       if (json.ok) {
         const imgUrl = `${apiBase}${json.data.url}`;
         editor.chain().focus().setImage({ src: imgUrl }).run();
-        setIsDirty(true);
+        setMetaDirty(true);
       } else {
         uepToast.error(`Upload failed: ${json.error}`);
       }
@@ -494,7 +531,7 @@ export default function RichEditor({
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
-                setIsDirty(true);
+                setMetaDirty(e.target.value !== initialTitleRef.current);
               }}
               placeholder="Page title..."
             />
@@ -1050,18 +1087,27 @@ export default function RichEditor({
                     accent={accentMain}
                     initialData={echoesData}
                     onDataChange={setEchoesData}
-                    onDirty={() => setIsDirty(true)}
+                    onDirty={() => setMetaDirty(true)}
                   />
                 ) : isVisuals ? (
                   <VisualsEditorBody
                     accent={accentMain}
                     initialData={visualsData}
                     onDataChange={setVisualsData}
-                    onDirty={() => setIsDirty(true)}
+                    onDirty={() => setMetaDirty(true)}
                   />
                 ) : (
                   <>
                     <EditorContent editor={editor} />
+                    {isConcepts && (
+                      <ConceptsEditorBody
+                        accent={accentMain}
+                        stackStyle={conceptsStackStyle as 'dossier' | 'browser' | 'chrono' | 'diff'}
+                        initialData={conceptsData}
+                        onDataChange={setConceptsData}
+                        onDirty={setConceptsDirty}
+                      />
+                    )}
                     {isEchoesSubcat && (
                       <EchoesSubcatEditor
                         area={area}
@@ -1069,7 +1115,7 @@ export default function RichEditor({
                         pageId={`${area}/${pageSlug}`}
                         pageSlug={pageSlug}
                         accent={accentMain}
-                        onDirty={() => setIsDirty(true)}
+                        onDirty={() => setMetaDirty(true)}
                         refreshKey={treeRefreshKey}
                       />
                     )}
@@ -1080,7 +1126,7 @@ export default function RichEditor({
                         pageId={`${area}/${pageSlug}`}
                         pageSlug={pageSlug}
                         accent={accentMain}
-                        onDirty={() => setIsDirty(true)}
+                        onDirty={() => setMetaDirty(true)}
                         refreshKey={treeRefreshKey}
                       />
                     )}
@@ -1093,7 +1139,7 @@ export default function RichEditor({
                         zoneTabs={zoneTabs}
                         onZoneTabsChange={(tabs) => {
                           setZoneTabs(tabs);
-                          setIsDirty(true);
+                          setMetaDirty(true);
                         }}
                         refreshKey={treeRefreshKey}
                       />
@@ -1126,7 +1172,7 @@ export default function RichEditor({
               onDescriptionChange={setDescription}
               layout={layout}
               onLayoutChange={setLayout}
-              onDirty={() => setIsDirty(true)}
+              onDirty={() => setMetaDirty(true)}
               accent={accentMain}
               pageStatus={pageStatus}
               createdAt={createdAt}

@@ -13,64 +13,41 @@ import {
   type UepDialogueItem,
   fromContentBlock,
 } from '../editor/homepage/types';
+import type {
+  StackDef,
+  DossierContent,
+  BrowserContent,
+  CharacterProfile,
+  ChronoContent,
+  ChronoFieldDef,
+  ChronoField,
+  DiffContent,
+  ConceptsVariationMeta,
+} from './types';
 import './ConceptsReader.css';
 
 // ──────────────────────────────────────────────────────────────────
-// 型別定義
+// 型別
 // ──────────────────────────────────────────────────────────────────
-type PageStatus = 'synced' | 'modified' | 'local_only';
-type ConceptsPageType =
-  | 'stack'
-  | 'type'
-  | 'subcategory'
-  | 'context'
-  | 'homepage'
-  | 'page';
-
 interface PageTreeNode {
   id: string;
   title: string;
   slug: string;
   sortOrder: number;
-  pageType: ConceptsPageType;
+  pageType: string;
   depth: number;
-  status: PageStatus;
+  status: string;
   metadata: Record<string, unknown>;
   children: PageTreeNode[];
 }
 
 interface Page {
   id: string;
-  area: string;
   title: string;
   slug: string;
-  sortOrder: number;
   content: { id: string; type: string; content: string }[];
   metadata: Record<string, unknown>;
-  parentId: string | null;
-  depth: number;
-  pageType: ConceptsPageType;
-  status: PageStatus;
-  updatedAt: string;
-}
-
-interface StackDef {
-  id: string;
-  slug: string;
-  label: string;
-  labelEn: string;
-  icon: string;
-  intro: string;
-  uepNote: string;
-  style: 'dossier' | 'browser' | 'chrono' | 'diff';
-}
-
-interface TerminalModule {
-  id: string;
-  name: string;
-  en: string;
-  state: 'sync' | 'idle';
-  records: number;
+  pageType: string;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -80,87 +57,656 @@ const API_BASE =
   (import.meta as unknown as { env?: Record<string, string> }).env
     ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
+const CONCEPTS_ZONE = ZONES.find((z) => z.id === 'concepts')!;
 const CONC_MAIN = '#2D6A4F';
 const CONC_SOFT = '#74C69D';
 
-const CONCEPTS_ZONE = ZONES.find((z) => z.id === 'concepts')!;
-
-// 四個 Stack 的硬編碼定義
 const STACKS: StackDef[] = [
   {
-    id: 'server/records',
-    slug: 'server/records',
-    label: '永續紀錄主機',
-    labelEn: 'PERSISTENT_LOG_SERVER',
-    icon: 'Σ',
-    intro:
-      '一台不會中斷運作的大型電腦，連接著後方的印表機，不知道都在記錄些甚麼呢？這裡保存著所有關於世界基礎設定的資料——角色列表、地區條列、魔獸紀錄，以及各式理論體系。',
-    uepNote:
-      '這台印表機的紀錄永遠不會停止喔！因為有新的冒險就會有新的東西需要被記錄下來~ (๑•̀ᗝ•́)و',
+    id: 'server/records', slug: 'server/records',
+    label: '永續紀錄主機', labelEn: 'PERSISTENT_LOG_SERVER', icon: 'Σ',
     style: 'dossier',
+    intro: '一台不會中斷運作的大型電腦，連接著後方的印表機，不知道都在記錄些甚麼呢？這裡保存著所有關於世界基礎設定的資料——角色列表、地區條列、魔獸紀錄，以及各式理論體系。',
+    uepNote: '這台印表機的紀錄永遠不會停止喔！因為有新的冒險就會有新的東西需要被記錄下來~ (๑•̀ᗝ•́)و',
   },
   {
-    id: 'server/browser',
-    slug: 'server/browser',
-    label: '個性瀏覽器',
-    labelEn: 'IDENTITY_BROWSER',
-    icon: 'Φ',
-    intro:
-      '很多全息投影的視窗在移動著，每一個都正動態地顯示著各種人物的資訊。這裡是角色的深度分析模組——記錄著他們的背景故事、人際關係、以及隱藏的秘密。',
-    uepNote:
-      '每個人都有屬於自己的祕密呢，不過透過這些視窗你可以稍微看到一些~ (≧▽≦)',
+    id: 'server/browser', slug: 'server/browser',
+    label: '個性瀏覽器', labelEn: 'IDENTITY_BROWSER', icon: 'Φ',
     style: 'browser',
+    intro: '很多全息投影的視窗在移動著，每一個都正動態地顯示著各種人物的資訊。這裡是角色的深度分析模組——記錄著他們的背景故事、人際關係、以及隱藏的秘密。',
+    uepNote: '每個人都有屬於自己的祕密呢，不過透過這些視窗你可以稍微看到一些~ (≧▽≦)',
   },
   {
-    id: 'server/time_logs',
-    slug: 'server/time_logs',
-    label: '原質震盪時鐘',
-    labelEn: 'ESSENCE_OSCILLATOR',
-    icon: '⟳',
-    intro:
-      '從遠處就能聽到的鐘擺聲，其真身是一座巨大的電子時鐘。時間軸上的每一個刻度都記載著某個重要的事件，從創世到終結，一切都被精確地標記著。',
-    uepNote:
-      '時間是很有趣的東西呢！它看起來是直線的，但實際上...嘻嘻，你會慢慢知道的~ ✧',
+    id: 'server/time_logs', slug: 'server/time_logs',
+    label: '原質震盪時鐘', labelEn: 'ESSENCE_OSCILLATOR', icon: '⟳',
     style: 'chrono',
+    intro: '從遠處就能聽到的鐘擺聲，其真身是一座巨大的電子時鐘。時間軸上的每一個刻度都記載著某個重要的事件，從創世到終結，一切都被精確地標記著。',
+    uepNote: '時間是很有趣的東西呢！它看起來是直線的，但實際上...嘻嘻，你會慢慢知道的~ ✧',
   },
   {
-    id: 'server/translation',
-    slug: 'server/translation',
-    label: '認知對照平台',
-    labelEn: 'COGNITION_COMPARE',
-    icon: '⇌',
-    intro:
-      '在這面大鏡子的前方有一座漂浮著的平台。各種名詞、術語和概念在這裡被翻譯成不同的語言，讓來自不同世界的觀察者都能理解。',
-    uepNote:
-      '名字是很重要的喔！同一個人可能在不同地方有不同的稱呼呢~ ( •̀ᴗ•́ )/',
+    id: 'server/translation', slug: 'server/translation',
+    label: '認知對照平台', labelEn: 'COGNITION_COMPARE', icon: '⇌',
     style: 'diff',
+    intro: '在這面大鏡子的前方有一座漂浮著的平台。各種名詞、術語和概念在這裡被翻譯成不同的語言，讓來自不同世界的觀察者都能理解。',
+    uepNote: '名字是很重要的喔！同一個人可能在不同地方有不同的稱呼呢~ ( •̀ᴗ•́ )/',
   },
 ];
 
-// 本質符號——飄移粒子
-const ESSENCE_SYMBOLS = [
-  'Σ', '∑', '∮', '∇', '∂', 'Φ', 'Ψ', 'Ω', 'λ', 'δ', 'ε', 'θ',
-];
+const ESSENCE_SYMBOLS = ['Σ', '∑', '∮', '∇', '∂', 'Φ', 'Ψ', 'Ω', 'λ', 'δ', 'ε', 'θ'];
+
+
+// ──────────────────────────────────────────────────────────────────
+// 子元件：ReaderDossier（records stack）
+// ──────────────────────────────────────────────────────────────────
+function ReaderDossier({ data }: { data: DossierContent }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const [activeGroup, setActiveGroup] = useState(0);
+  const subcat = data.subcategories[activeTab];
+  const groups = subcat?.groups || [];
+  const currentGroup = groups[activeGroup];
+
+  // 切換 subcat 時重置 group
+  useEffect(() => { setActiveGroup(0); }, [activeTab]);
+
+  return (
+    <div>
+
+      {/* Subcat 選擇器 — 終端路徑風格 */}
+      {data.subcategories.length > 1 && (
+        <div className="conc-subcat-selector">
+          <div className="conc-subcat-prompt">
+            <span className="conc-subcat-prompt-symbol">$</span>
+            <span className="conc-subcat-prompt-text">cd ~/records/</span>
+          </div>
+          <div className="conc-subcat-options">
+            {data.subcategories.map((sc, i) => (
+              <button
+                key={i}
+                className={`conc-subcat-option ${i === activeTab ? 'active' : ''}`}
+                onClick={() => setActiveTab(i)}
+              >
+                <span className="conc-subcat-indicator" />
+                <span className="conc-subcat-label">{sc.label}</span>
+                <span className="conc-subcat-count">{sc.groups.reduce((s, g) => s + g.entries.length, 0)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 左右分欄：group 列表 / group 內容 */}
+      <div className="conc-dossier-grid">
+        {/* 左欄：group 分類列表 */}
+        <div className="conc-dossier-groups">
+          <div className="conc-dossier-list-bar">
+            <span>$ ls ./{subcat?.label || 'all'}/</span>
+            <span>{groups.length} dirs</span>
+          </div>
+          {groups.map((group, i) => (
+            <button
+              key={i}
+              className={`conc-dossier-group ${i === activeGroup ? 'active' : ''}`}
+              onClick={() => setActiveGroup(i)}
+            >
+              <span className="conc-dossier-group-arrow">{i === activeGroup ? '▸' : '·'}</span>
+              <div className="conc-dossier-group-info">
+                <div className="conc-dossier-group-name">{group.label || '未分類'}</div>
+                <div className="conc-dossier-group-count">{group.entries.length} entries</div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* 右欄：條目列表 */}
+        <div className="conc-dossier-entries">
+          {currentGroup ? (
+            <>
+              <div className="conc-dossier-detail-bar">
+                <span>· {currentGroup.label || '未分類'} ·</span>
+                <span className="conc-hl">{currentGroup.entries.length} records</span>
+              </div>
+              <div className="conc-dossier-entries-body">
+                {currentGroup.entries.map((entry, i) => (
+                  <div key={i} className="conc-dossier-entry-card">
+                    <div className="conc-dossier-entry-header">
+                      <span className="conc-dossier-entry-idx">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="conc-dossier-entry-name">{entry.name}</span>
+                    </div>
+                    {entry.content_html && (
+                      <div className="conc-dossier-entry-content" dangerouslySetInnerHTML={{ __html: entry.content_html }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="conc-dossier-detail-empty">選擇一個分類</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 子元件：ReaderBrowserTabs（browser stack）— wiki 瀏覽器式導航
+// ──────────────────────────────────────────────────────────────────
+function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
+  const [navPath, setNavPath] = useState<string[]>([]);
+  const [viewingIdx, setViewingIdx] = useState<number | null>(null);
+
+  // 過濾掉佔位 profile（名稱為空或括號包裹的臨時名稱）
+  const validProfiles = useMemo(() =>
+    data.profiles.map((p, i) => ({ ...p, _idx: i })).filter(p => p.name && !p.name.match(/^\(.*\)$/)),
+  [data.profiles]);
+
+  // 當前路徑下的子分類和角色
+  const { subcategories, profiles: currentProfiles } = useMemo(() => {
+    const subcatSet = new Set<string>();
+    const profs: (CharacterProfile & { _idx: number })[] = [];
+
+    if (data.category_tree) {
+      let nodes = data.category_tree;
+      for (const seg of navPath) { const f = nodes.find(n => n.label === seg); nodes = f?.children || []; }
+      for (const n of nodes) subcatSet.add(n.label);
+    }
+
+    for (const p of validProfiles) {
+      const cats = p.categories || [];
+      if (!navPath.every((seg, d) => cats[d] === seg)) continue;
+      if (cats.length > navPath.length) subcatSet.add(cats[navPath.length]);
+      else profs.push(p);
+    }
+    return { subcategories: [...subcatSet].sort(), profiles: profs };
+  }, [validProfiles, data.category_tree, navPath]);
+
+  function countInCategory(catPath: string[]): number {
+    return validProfiles.filter(p => { const c = p.categories || []; return catPath.every((s, d) => c[d] === s); }).length;
+  }
+
+  const activeProfile = viewingIdx !== null ? data.profiles[viewingIdx] : null;
+  const realProfileCount = validProfiles.filter(p => !p.placeholder).length;
+
+  // 統一導航列
+  const pathSegments = activeProfile
+    ? [...(activeProfile.categories || []), activeProfile.name]
+    : navPath;
+
+  return (
+    <div>
+      <div className="conc-enc">
+        {/* 統一導航列：地址欄 + 麵包屑 */}
+        <div className="conc-enc-navbar">
+          <div className="conc-enc-addr-row">
+            <span className="conc-enc-addr-icon">Φ</span>
+            <span className="conc-enc-addr-text">
+              identity://registry{pathSegments.length > 0 ? `/${pathSegments.map(s => s.toLowerCase().replace(/\s+/g, '_')).join('/')}` : ''}
+            </span>
+            <span className="conc-enc-addr-count">{realProfileCount} profiles</span>
+          </div>
+          {(navPath.length > 0 || activeProfile) && (
+            <div className="conc-enc-breadcrumb-row">
+              <button className="conc-enc-nav-btn" onClick={() => { if (activeProfile) setViewingIdx(null); else setNavPath(prev => prev.slice(0, -1)); }}>‹</button>
+              <button className="conc-enc-crumb" onClick={() => { setNavPath([]); setViewingIdx(null); }}>首頁</button>
+              {navPath.map((seg, d) => (
+                <React.Fragment key={d}>
+                  <span className="conc-enc-crumb-sep">›</span>
+                  <button className="conc-enc-crumb" onClick={() => { setNavPath(prev => prev.slice(0, d + 1)); setViewingIdx(null); }}>{seg}</button>
+                </React.Fragment>
+              ))}
+              {activeProfile && (
+                <>
+                  <span className="conc-enc-crumb-sep">›</span>
+                  <span className="conc-enc-crumb-current">{activeProfile.name}</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="conc-enc-body">
+          {activeProfile ? (
+            /* ─── 角色檔案頁 ─── */
+            <div className="conc-enc-detail-view">
+              {activeProfile.placeholder ? (
+                <div className="conc-enc-locked">
+                  <div className="conc-enc-locked-sigil">?</div>
+                  <div className="conc-enc-locked-name">{activeProfile.name}</div>
+                  <div className="conc-enc-locked-msg">access restricted · 此檔案目前無法存取</div>
+                </div>
+              ) : (
+                <div className="conc-enc-profile">
+                  <div className="conc-enc-profile-header">
+                    <div className="conc-enc-sigil-box">
+                      {activeProfile.avatar ? (
+                        <img src={`${API_BASE}/api/assets/${activeProfile.avatar.split('/').map(encodeURIComponent).join('/')}`} alt="" className="conc-enc-avatar-img" />
+                      ) : (
+                        <span className="conc-enc-sigil">{activeProfile.name?.[0] || '?'}</span>
+                      )}
+                    </div>
+                    <div className="conc-enc-profile-intro">
+                      {activeProfile.categories && <div className="conc-enc-section-tag">{activeProfile.categories.join(' › ')}</div>}
+                      <h3 className="conc-enc-profile-name">{activeProfile.name}</h3>
+                    </div>
+                  </div>
+
+                  {activeProfile.basic && Object.keys(activeProfile.basic).length > 0 && (
+                    <div className="conc-enc-block">
+                      <div className="conc-enc-block-label"><span className="conc-enc-label-icon">◈</span> 基本資料</div>
+                      <div className="conc-enc-basic-grid">
+                        {Object.entries(activeProfile.basic).map(([k, v]) => (
+                          <div key={k} className="conc-enc-basic-row">
+                            <span className="conc-enc-basic-key">{k}</span>
+                            <span className="conc-enc-basic-val">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeProfile.sections?.map((section, si) => (
+                    <div key={si} className="conc-enc-block">
+                      <div className="conc-enc-block-label"><span className="conc-enc-label-icon">◈</span> {section.label}</div>
+                      <div className="conc-enc-section-content" dangerouslySetInnerHTML={{ __html: section.content_html }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ─── 目錄瀏覽頁 ─── */
+            <div className="conc-enc-browse">
+              {subcategories.length > 0 && (
+                <div className="conc-enc-folders">
+                  {subcategories.map(cat => (
+                    <button key={cat} className="conc-enc-folder-card" onClick={() => setNavPath(prev => [...prev, cat])}>
+                      <div className="conc-enc-folder-icon">📁</div>
+                      <div className="conc-enc-folder-info">
+                        <div className="conc-enc-folder-name">{cat}</div>
+                        <div className="conc-enc-folder-count">{countInCategory([...navPath, cat])} 筆資料</div>
+                      </div>
+                      <span className="conc-enc-entry-arrow">›</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {currentProfiles.length > 0 && (
+                <div className="conc-enc-entries">
+                  {subcategories.length > 0 && <div className="conc-enc-entries-divider">此層級的角色</div>}
+                  {currentProfiles.map((p) => (
+                    <button key={p._idx} className={`conc-enc-entry ${p.placeholder ? 'locked' : ''}`} onClick={() => !p.placeholder && setViewingIdx(p._idx)}>
+                      <div className="conc-enc-entry-sigil-box">
+                        {!p.placeholder && p.avatar ? (
+                          <img src={`${API_BASE}/api/assets/${p.avatar.split('/').map(encodeURIComponent).join('/')}`} alt="" className="conc-enc-entry-avatar" />
+                        ) : (
+                          <span>{p.placeholder ? '?' : p.name[0]}</span>
+                        )}
+                      </div>
+                      <div className="conc-enc-entry-info">
+                        <div className="conc-enc-entry-name">{p.name}</div>
+                        {!p.placeholder && p.basic && (
+                          <div className="conc-enc-entry-sub">{Object.entries(p.basic).slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(' · ')}</div>
+                        )}
+                        {p.placeholder && <div className="conc-enc-entry-sub locked-sub">access restricted</div>}
+                      </div>
+                      <span className="conc-enc-entry-arrow">{p.placeholder ? '🔒' : '›'}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {subcategories.length === 0 && currentProfiles.length === 0 && (
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>此分類下暫無資料</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 子元件：ReaderChronograph（oscillator stack）— 水平拖曳時間軸
+// ──────────────────────────────────────────────────────────────────
+function ReaderChronograph({ data }: { data: ChronoContent }) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const fadeLRef = useRef<HTMLDivElement>(null);
+  const fadeRRef = useRef<HTMLDivElement>(null);
+  const offsetX = useRef(0);
+  const dragging = useRef(false);
+  const hasDragged = useRef(false);
+  const dragStartX = useRef(0);
+  const offsetStart = useRef(0);
+
+  // 使用 transform 移動內部容器
+  function applyTransform(x: number) {
+    if (!innerRef.current || !viewportRef.current) return;
+    const vw = viewportRef.current.clientWidth;
+    const iw = innerRef.current.scrollWidth;
+    const minX = -(iw);
+    const maxX = vw;
+    const clamped = Math.max(minX, Math.min(maxX, x));
+    offsetX.current = clamped;
+    innerRef.current.style.transform = `translateX(${clamped}px)`;
+
+    // 碰到邊界時在對應側顯示紅光提示
+    fadeLRef.current?.classList.toggle('hit', clamped >= maxX);
+    fadeRRef.current?.classList.toggle('hit', clamped <= minX);
+  }
+
+  // mousedown 從 React 事件觸發，mousemove/mouseup 掛到 document
+  function handleDragStart(e: React.MouseEvent) {
+    dragging.current = true;
+    hasDragged.current = false;
+    dragStartX.current = e.clientX;
+    offsetStart.current = offsetX.current;
+    if (viewportRef.current) viewportRef.current.style.cursor = 'grabbing';
+    e.preventDefault();
+
+    function onMouseMove(ev: MouseEvent) {
+      if (!dragging.current) return;
+      const dx = ev.clientX - dragStartX.current;
+      if (Math.abs(dx) > 5) hasDragged.current = true;
+      applyTransform(offsetStart.current + dx);
+    }
+    function onMouseUp() {
+      dragging.current = false;
+      if (viewportRef.current) viewportRef.current.style.cursor = 'grab';
+      fadeLRef.current?.classList.remove('hit');
+      fadeRRef.current?.classList.remove('hit');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+
+  return (
+    <div className="conc-chrono">
+
+      {/* 背景時鐘裝飾 */}
+      <div className="conc-chrono-clock" aria-hidden="true">
+        <svg viewBox="0 0 200 200" className="conc-chrono-clock-svg">
+          <circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
+          <circle cx="100" cy="100" r="70" fill="none" stroke="currentColor" strokeWidth="0.3" opacity="0.1" strokeDasharray="4 8" />
+          {/* 時鐘刻度 */}
+          {Array.from({ length: 12 }).map((_, i) => {
+            const angle = (i * 30 - 90) * (Math.PI / 180);
+            const x1 = 100 + 82 * Math.cos(angle);
+            const y1 = 100 + 82 * Math.sin(angle);
+            const x2 = 100 + 90 * Math.cos(angle);
+            const y2 = 100 + 90 * Math.sin(angle);
+            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth={i % 3 === 0 ? '1.2' : '0.5'} opacity={i % 3 === 0 ? 0.25 : 0.12} />;
+          })}
+          {/* 旋轉指針 */}
+          <line x1="100" y1="100" x2="100" y2="30" stroke="currentColor" strokeWidth="0.6" opacity="0.12" className="conc-chrono-hand-slow" />
+          <line x1="100" y1="100" x2="100" y2="45" stroke="currentColor" strokeWidth="0.4" opacity="0.08" className="conc-chrono-hand-fast" />
+          <circle cx="100" cy="100" r="3" fill="currentColor" opacity="0.15" />
+        </svg>
+      </div>
+
+      {/* 水平時間軸 */}
+      <div className="conc-chrono-viewport" ref={viewportRef} onMouseDown={handleDragStart}>
+        {/* 軌道線——固定在 viewport，不隨拖曳移動 */}
+        <div className="conc-chrono-rail" />
+
+        <div className="conc-chrono-track" ref={innerRef}>
+          {data.periods.map((period, pi) => (
+            <div key={pi} className={`conc-chrono-node ${expandedIdx === pi ? 'expanded' : ''}`}>
+              {/* 時間點 */}
+              <button
+                className={`conc-chrono-dot ${expandedIdx === pi ? 'active' : ''}`}
+                onClick={() => { if (hasDragged.current) return; setExpandedIdx(expandedIdx === pi ? null : pi); }}
+              >
+                <span className="conc-chrono-dot-inner" />
+              </button>
+              {/* 年份標籤 */}
+              <div className="conc-chrono-year-label">
+                <span className="conc-chrono-year">{period.year}</span>
+                {(period.title || (period as any).subtitle) && <span className="conc-chrono-subtitle">{period.title || (period as any).subtitle}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 兩端淡出 */}
+        <div className="conc-chrono-fade-left" ref={fadeLRef} />
+        <div className="conc-chrono-fade-right" ref={fadeRRef} />
+      </div>
+
+      {/* 拖曳提示 */}
+      <div className="conc-chrono-drag-hint">
+        <span>↔ 拖曳瀏覽時間軸 · 點擊時間點展開</span>
+      </div>
+
+      {/* 展開的時間點詳細內容 */}
+      {expandedIdx !== null && data.periods[expandedIdx] && (() => {
+        const ep = data.periods[expandedIdx];
+        // 新格式（fieldDefs + fields）或舊格式（sections）向後相容
+        const hasNewFormat = !!(data as any).fieldDefs && !!(ep as any).fields;
+        const fieldDefs: ChronoFieldDef[] = hasNewFormat
+          ? (data as any).fieldDefs
+          : ((ep as any).sections || []).map((s: any, i: number) => ({ id: `legacy_${i}`, icon: s.icon, label: s.label, style: 'flat' as const }));
+        const fields: Record<string, ChronoField> = hasNewFormat
+          ? (ep as any).fields
+          : Object.fromEntries(((ep as any).sections || []).map((s: any, i: number) => [`legacy_${i}`, { items: s.events }]));
+
+        return (
+          <div className="conc-chrono-expanded">
+            <div className="conc-chrono-expanded-header">
+              <span className="conc-chrono-expanded-icon">⟳</span>
+              <span className="conc-chrono-expanded-year">{ep.year}</span>
+              {(ep.title || (ep as any).subtitle) && <span className="conc-chrono-expanded-sub">{ep.title || (ep as any).subtitle}</span>}
+              <button className="conc-chrono-expanded-close" onClick={() => setExpandedIdx(null)}>✕</button>
+            </div>
+            <div className="conc-chrono-expanded-body">
+              {fieldDefs.map((def) => {
+                const field = fields[def.id];
+                if (!field) return null;
+                const hasContent = (field.items && field.items.length > 0) || (field.groups && field.groups.length > 0);
+                if (!hasContent) return null;
+                return (
+                  <div key={def.id} className="conc-chrono-section">
+                    <div className="conc-chrono-section-header">
+                      <span className="conc-chrono-section-icon">{def.icon}</span>
+                      <span className="conc-chrono-section-label">{def.label}</span>
+                    </div>
+                    {/* flat 模式 */}
+                    {field.items && field.items.map((ev, ei) => (
+                      <div key={ei} className="conc-chrono-event">· {ev}</div>
+                    ))}
+                    {/* grouped 模式 */}
+                    {field.groups && field.groups.map((group, gi) => (
+                      <div key={gi} className="conc-chrono-section" style={{ marginLeft: 8, marginBottom: 8 }}>
+                        <div className="conc-chrono-section-header" style={{ borderBottom: 'none', paddingBottom: 2 }}>
+                          <span className="conc-chrono-section-label" style={{ fontSize: 12, fontWeight: 600 }}>{group.label}</span>
+                        </div>
+                        {group.items.map((ev, ei) => (
+                          <div key={ei} className="conc-chrono-event">· {ev}</div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 佔位符（下方） */}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 子元件：ReaderDiff（compare stack）— 查詢平台風格
+// ──────────────────────────────────────────────────────────────────
+
+/** 無意義的 group label 清單 */
+const MEANINGLESS_LABELS = ['', '未被歸類', '未分類', 'uncategorized'];
+
+function ReaderDiff({ data }: { data: DiffContent }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const [filter, setFilter] = useState('');
+  const subcat = data.subcategories[activeTab];
+
+  // 判斷是多欄對照（有多 values）還是術語定義（values 長度 1 或 0）
+  const isTable = subcat?.sections?.some((s) => s.entries.some((e) => e.values.length > 1));
+
+  // 展平並過濾所有條目
+  const allEntries = useMemo(() => {
+    if (!subcat) return [];
+    const entries: { term: string; values: string[]; sectionLabel: string; spoiler?: number }[] = [];
+    for (const section of subcat.sections) {
+      for (const entry of section.entries) {
+        entries.push({ ...entry, sectionLabel: section.label });
+      }
+    }
+    return entries;
+  }, [subcat]);
+
+  const filtered = useMemo(() => {
+    if (!filter) return allEntries;
+    const q = filter.toLowerCase();
+    return allEntries.filter((e) => e.term.toLowerCase().includes(q) || e.values.some((v) => v.toLowerCase().includes(q)));
+  }, [allEntries, filter]);
+
+  // 是否只有一個無意義 section（不需要分組顯示）
+  const hasMeaningfulSections = subcat?.sections.some((s) => !MEANINGLESS_LABELS.includes(s.label.trim().toLowerCase()));
+
+  return (
+    <div>
+
+      <div className="conc-diff-platform">
+        {/* 平台控制列 */}
+        <div className="conc-diff-toolbar">
+          <div className="conc-diff-toolbar-left">
+            <span className="conc-diff-toolbar-icon">⇌</span>
+            <span className="conc-diff-toolbar-title">COGNITION_COMPARE</span>
+          </div>
+          <div className="conc-diff-toolbar-right">
+            <span className="conc-diff-toolbar-stat">{filtered.length} / {allEntries.length} entries</span>
+            <div className="conc-diff-search">
+              <span className="conc-diff-search-icon">⌕</span>
+              <input className="conc-diff-filter" placeholder="搜尋詞條..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        {data.subcategories.length > 1 && (
+          <div className="conc-diff-tabbar">
+            {data.subcategories.map((sc, i) => (
+              <button key={i} className={`conc-diff-tab ${i === activeTab ? 'active' : ''}`} onClick={() => { setActiveTab(i); setFilter(''); }}>
+                {sc.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 內容 */}
+        {allEntries.length === 0 ? (
+          <div className="conc-diff-empty">
+            <div className="conc-diff-empty-icon">⇌</div>
+            <div className="conc-diff-empty-text">此分類尚無條目資料</div>
+            <div className="conc-diff-empty-sub">內容將隨故事進展逐步出現</div>
+          </div>
+        ) : subcat && isTable ? (
+          /* 多欄對照表 */
+          <div className="conc-diff-table-body">
+            {hasMeaningfulSections ? (
+              subcat.sections.map((section, si) => {
+                const sectionEntries = filter
+                  ? section.entries.filter((e) => e.term.toLowerCase().includes(filter.toLowerCase()) || e.values.some((v) => v.toLowerCase().includes(filter.toLowerCase())))
+                  : section.entries;
+                if (sectionEntries.length === 0) return null;
+                const showLabel = !MEANINGLESS_LABELS.includes(section.label.trim().toLowerCase());
+                return (
+                  <div key={si}>
+                    {showLabel && <div className="conc-diff-section-label">{section.label}</div>}
+                    {sectionEntries.map((entry, ei) => (
+                      <div key={ei} className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}>
+                        <span className="conc-diff-term">{entry.term}</span>
+                        {entry.values.map((v, vi) => (
+                          <span key={vi} className={`conc-diff-val ${vi === 0 ? 'en' : 'jp'}`}>{v || '—'}</span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            ) : (
+              filtered.map((entry, ei) => (
+                <div key={ei} className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}>
+                  <span className="conc-diff-term">{entry.term}</span>
+                  {entry.values.map((v, vi) => (
+                    <span key={vi} className={`conc-diff-val ${vi === 0 ? 'en' : 'jp'}`}>{v || '—'}</span>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          /* 術語定義列表 */
+          <div className="conc-diff-defs-body">
+            {hasMeaningfulSections ? (
+              subcat?.sections.map((section, si) => {
+                const showLabel = !MEANINGLESS_LABELS.includes(section.label.trim().toLowerCase());
+                const sectionEntries = filter
+                  ? section.entries.filter((e) => e.term.toLowerCase().includes(filter.toLowerCase()) || e.values.some((v) => v.toLowerCase().includes(filter.toLowerCase())))
+                  : section.entries;
+                if (sectionEntries.length === 0) return null;
+                return (
+                  <div key={si} className="conc-diff-defs">
+                    {showLabel && <h3 className="conc-diff-defs-title">{section.label}</h3>}
+                    {sectionEntries.map((entry, ei) => (
+                      <div key={ei} className="conc-diff-def-item">
+                        <span className="conc-diff-def-term">{entry.term}</span>
+                        {entry.values[0] && <span className="conc-diff-def-desc">{entry.values[0]}</span>}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="conc-diff-defs">
+                {filtered.map((entry, ei) => (
+                  <div key={ei} className="conc-diff-def-item">
+                    <span className="conc-diff-def-term">{entry.term}</span>
+                    {entry.values[0] && <span className="conc-diff-def-desc">{entry.values[0]}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 底部狀態列 */}
+        <div className="conc-diff-footer">
+          <span>mode: {isTable ? 'table_compare' : 'definition_lookup'}</span>
+          <span>{subcat?.label || '—'} · {filter ? `filtered: "${filter}"` : 'showing all'}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ──────────────────────────────────────────────────────────────────
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function ConceptsReader() {
-  // === 共用 UI 狀態 ===
-  const [theme, setTheme] = useState(
-    () =>
-      (typeof localStorage !== 'undefined' &&
-        localStorage.getItem('uep-theme')) ||
-      'dark'
-  );
+  // === UI 狀態 ===
+  const [theme, setTheme] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('uep-theme')) || 'dark');
   const [showMap, setShowMap] = useState(false);
   const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
+  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(null);
+  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(null);
 
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -177,66 +723,28 @@ export default function ConceptsReader() {
   const [readingPage, setReadingPage] = useState<Page | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
 
-  // === 側邊欄 ===
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-
-  // === Refs ===
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // === 提取 tree 中的 stack 節點 ===
+  // === 衍生資料 ===
   const stackNodes = useMemo(() => {
-    // tree 的第一層子節點是 homepage → children 是 stacks
-    const flat: PageTreeNode[] = [];
     for (const node of tree) {
-      if (node.pageType === 'homepage' && node.children) {
-        flat.push(...node.children);
-      } else if (node.pageType === 'stack') {
-        flat.push(node);
-      }
+      if (node.pageType === 'homepage' && node.children) return node.children;
     }
-    return flat;
+    return tree.filter((n) => n.pageType === 'stack');
   }, [tree]);
 
-  // 用一個 flat list 快速查找任何節點
   const flatNodes = useMemo(() => {
     const acc: PageTreeNode[] = [];
-    function walk(nodes: PageTreeNode[]) {
-      for (const n of nodes) {
-        acc.push(n);
-        walk(n.children || []);
-      }
-    }
-    walk(tree);
+    (function walk(nodes: PageTreeNode[]) { for (const n of nodes) { acc.push(n); walk(n.children || []); } })(tree);
     return acc;
   }, [tree]);
 
-  // === Homepage blocks 解析 ===
-  const hpHeader = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'zone-header');
-    return b ? (b.data as ZoneHeaderData) : null;
-  }, [homepageBlocks]);
+  const hpHeader = useMemo(() => { const b = homepageBlocks.find((b) => b.type === 'zone-header'); return b ? (b.data as ZoneHeaderData) : null; }, [homepageBlocks]);
+  const hpDialogues = useMemo(() => { const b = homepageBlocks.find((b) => b.type === 'uep-dialogue'); return b ? (b.data as UepDialogueItem[]) : null; }, [homepageBlocks]);
+  const hpRichTexts = useMemo(() => homepageBlocks.filter((b) => b.type === 'rich-text').map((b) => (b.data as { html: string }).html), [homepageBlocks]);
+  const hpModules = useMemo(() => { const b = homepageBlocks.find((b) => b.type === 'terminal-module-table'); return b ? (b.data as { headerLabel: string; modules: { id: string; name: string; en: string; state: string; records: number }[] }) : null; }, [homepageBlocks]);
 
-  const hpDialogues = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'uep-dialogue');
-    return b ? (b.data as UepDialogueItem[]) : null;
-  }, [homepageBlocks]);
-
-  const hpRichTexts = useMemo(() => {
-    return homepageBlocks
-      .filter((b) => b.type === 'rich-text')
-      .map((b) => (b.data as { html: string }).html);
-  }, [homepageBlocks]);
-
-  const hpModules = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'terminal-module-table');
-    return b
-      ? (b.data as { headerLabel: string; modules: TerminalModule[] })
-      : null;
-  }, [homepageBlocks]);
-
-  // ──────────────────────────────────────────────────────────────────
-  // 初始化
-  // ──────────────────────────────────────────────────────────────────
+  // ── 初始化 ─────────────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     void fetchTree();
@@ -248,22 +756,13 @@ export default function ConceptsReader() {
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
         if (!json?.ok || !json.data?.content) return;
-        const raw =
-          typeof json.data.content === 'string'
-            ? JSON.parse(json.data.content)
-            : json.data.content;
-        if (Array.isArray(raw) && raw.length > 0) {
-          setHomepageBlocks(raw.map(fromContentBlock));
-        }
+        const raw = typeof json.data.content === 'string' ? JSON.parse(json.data.content) : json.data.content;
+        if (Array.isArray(raw) && raw.length > 0) setHomepageBlocks(raw.map(fromContentBlock));
       })
       .catch(() => {})
-      .finally(() => {
-        clearTimeout(timeout);
-        setContentReady(true);
-      });
+      .finally(() => { clearTimeout(timeout); setContentReady(true); });
   }, []);
 
-  // === URL 初始解析 ===
   useEffect(() => {
     if (treeLoading || !tree.length) return;
     const params = new URLSearchParams(window.location.search);
@@ -273,7 +772,6 @@ export default function ConceptsReader() {
     else if (stack) navigateToStack(stack, false);
   }, [treeLoading, tree]);
 
-  // === popstate ===
   useEffect(() => {
     function handler() {
       const params = new URLSearchParams(window.location.search);
@@ -287,20 +785,14 @@ export default function ConceptsReader() {
     return () => window.removeEventListener('popstate', handler);
   }, [tree]);
 
-  // ──────────────────────────────────────────────────────────────────
-  // 資料載入
-  // ──────────────────────────────────────────────────────────────────
+  // ── 資料載入 ───────────────────────────────────────────────────
   async function fetchTree() {
     setTreeLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/content/concepts/tree`);
       const json = await res.json();
       if (json.ok && json.data) setTree(json.data as PageTreeNode[]);
-    } catch {
-      /* 靜默 */
-    } finally {
-      setTreeLoading(false);
-    }
+    } catch { /* 靜默 */ } finally { setTreeLoading(false); }
   }
 
   async function fetchPageData(slug: string): Promise<Page | null> {
@@ -309,23 +801,13 @@ export default function ConceptsReader() {
       const json = await res.json();
       if (json.ok && json.data) {
         const page = json.data;
-        return {
-          ...page,
-          content:
-            typeof page.content === 'string'
-              ? JSON.parse(page.content)
-              : page.content || [],
-        } as Page;
+        return { ...page, content: typeof page.content === 'string' ? JSON.parse(page.content) : page.content || [] } as Page;
       }
-    } catch {
-      /* 靜默 */
-    }
+    } catch { /* 靜默 */ }
     return null;
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // URL 輔助
-  // ──────────────────────────────────────────────────────────────────
+  // ── URL 輔助 ───────────────────────────────────────────────────
   function pushUrl(params: Record<string, string>) {
     const url = new URL(window.location.href);
     url.search = '';
@@ -333,252 +815,89 @@ export default function ConceptsReader() {
     window.history.pushState({}, '', url.toString());
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // 導航
-  // ──────────────────────────────────────────────────────────────────
+  // ── 導航 ───────────────────────────────────────────────────────
   function navigateToLanding(push = true) {
-    setView('landing');
-    setActiveStackId(null);
-    setActivePageId(null);
-    setStackPage(null);
-    setReadingPage(null);
-    if (push) {
-      const url = new URL(window.location.href);
-      url.search = '';
-      window.history.pushState({}, '', url.toString());
-    }
+    setView('landing'); setActiveStackId(null); setActivePageId(null);
+    setStackPage(null); setReadingPage(null);
+    if (push) { const url = new URL(window.location.href); url.search = ''; window.history.pushState({}, '', url.toString()); }
     scrollRef.current?.scrollTo(0, 0);
   }
 
   function navigateToStack(stackSlug: string, push = true) {
-    const fullId = stackSlug.startsWith('concepts/')
-      ? stackSlug
-      : `concepts/${stackSlug}`;
+    const fullId = stackSlug.startsWith('concepts/') ? stackSlug : `concepts/${stackSlug}`;
     const slug = fullId.replace('concepts/', '');
-
-    setView('stack');
-    setActiveStackId(fullId);
-    setActivePageId(null);
-    setReadingPage(null);
+    setView('stack'); setActiveStackId(fullId); setActivePageId(null); setReadingPage(null);
     if (push) pushUrl({ stack: slug });
     scrollRef.current?.scrollTo(0, 0);
-
-    // 展開 sidebar
-    setExpandedNodes((prev) => new Set([...prev, fullId]));
-
-    // fetch
     setPageLoading(true);
-    fetchPageData(slug).then((p) => {
-      setStackPage(p);
-      setPageLoading(false);
-    });
+    fetchPageData(slug).then((p) => { setStackPage(p); setPageLoading(false); });
   }
 
   function navigateToPage(pageSlug: string, push = true) {
-    const fullId = pageSlug.startsWith('concepts/')
-      ? pageSlug
-      : `concepts/${pageSlug}`;
+    const fullId = pageSlug.startsWith('concepts/') ? pageSlug : `concepts/${pageSlug}`;
     const slug = fullId.replace('concepts/', '');
-
-    setView('reading');
-    setActivePageId(fullId);
+    setView('reading'); setActivePageId(fullId);
     if (push) pushUrl({ page: slug });
     scrollRef.current?.scrollTo(0, 0);
-
-    // 判斷所屬 stack 並展開
     const stackDef = STACKS.find((s) => slug.startsWith(s.slug));
-    if (stackDef) {
-      setActiveStackId(`concepts/${stackDef.slug}`);
-      setExpandedNodes((prev) => new Set([...prev, `concepts/${stackDef.slug}`]));
-    }
-
+    if (stackDef) setActiveStackId(`concepts/${stackDef.slug}`);
     setPageLoading(true);
-    fetchPageData(slug).then((p) => {
-      setReadingPage(p);
-      setPageLoading(false);
-    });
+    fetchPageData(slug).then((p) => { setReadingPage(p); setPageLoading(false); });
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // Zone 切換
-  // ──────────────────────────────────────────────────────────────────
+  // ── Zone 切換 ──────────────────────────────────────────────────
   function handlePickZone(zoneId: string) {
     if (zoneId === 'concepts') return;
     const z = ZONES.find((zz) => zz.id === zoneId);
-    if (z) {
-      setPortalZone(z);
-      setTimeout(() => {
-        window.location.href = `/${z.slug}`;
-      }, 1100);
-    }
+    if (z) { setPortalZone(z); setTimeout(() => { window.location.href = `/${z.slug}`; }, 1100); }
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // 內容解析：從 HTML 中抽取結構化資料
-  // ──────────────────────────────────────────────────────────────────
-
-  /** 從 HTML 中抽取所有 <table> 區段（含前方 <h3> 標題） */
-  function extractTables(html: string): { title: string; headers: string[]; rows: string[][] }[] {
-    const results: { title: string; headers: string[]; rows: string[][] }[] = [];
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
-    const tables = doc.querySelectorAll('table');
-    tables.forEach((table) => {
-      // 找前方最近的 h3 作為標題
-      let title = '';
-      let prev = table.previousElementSibling;
-      while (prev) {
-        if (prev.tagName === 'H3' || prev.tagName === 'H2') {
-          title = prev.textContent?.trim() || '';
-          break;
-        }
-        if (prev.tagName === 'HR') { prev = prev.previousElementSibling; continue; }
-        break;
-      }
-      const headers: string[] = [];
-      table.querySelectorAll('thead th').forEach((th) => headers.push(th.textContent?.trim() || ''));
-      const rows: string[][] = [];
-      table.querySelectorAll('tbody tr').forEach((tr) => {
-        const cells: string[] = [];
-        tr.querySelectorAll('td').forEach((td) => cells.push(td.textContent?.trim() || ''));
-        // 跳過分隔線行
-        if (cells.every((c) => /^[-—]+$/.test(c))) return;
-        rows.push(cells);
-      });
-      if (rows.length > 0) results.push({ title, headers, rows });
-    });
-    return results;
-  }
-
-  /** 從 HTML 中抽取 <details> 區段 */
-  function extractDetails(html: string): { title: string; content: string }[] {
-    const results: { title: string; content: string }[] = [];
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
-    doc.querySelectorAll('details').forEach((det) => {
-      const summary = det.querySelector('summary');
-      const title = summary?.textContent?.trim() || '未知';
-      // 取 summary 以外的所有內容
-      const clone = det.cloneNode(true) as HTMLElement;
-      clone.querySelector('summary')?.remove();
-      results.push({ title, content: clone.innerHTML });
-    });
-    return results;
-  }
-
-  /** 抽取 hints（提示區塊）和非結構化散文 */
-  function extractProse(html: string): string {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
-    // 移除 tables 和 details，留下提示和段落
-    doc.querySelectorAll('table, details').forEach((el) => el.remove());
-    return doc.body.innerHTML;
-  }
-
-  // ──────────────────────────────────────────────────────────────────
-  // Landing 視圖
-  // ──────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // Landing
+  // ══════════════════════════════════════════════════════════════
   function renderLanding() {
     return (
       <section className="conc-landing">
         <div className="conc-landing-inner">
-          {homepageBlocks.length > 0 ? (
-            homepageBlocks.map((block) => {
-              switch (block.type) {
-                case 'zone-header': {
-                  const d = block.data as ZoneHeaderData;
-                  return (
-                    <div key={block.id}>
-                      <div className="conc-kicker">
-                        Volume IV · CONCEPTS
-                      </div>
-                      <div className="conc-landing-title-row">
-                        <h1 className="conc-landing-title">{d.title}</h1>
-                        <span className="conc-terminal-badge">
-                          $ root@uep:~ · CONNECTED
-                        </span>
-                      </div>
-                      {d.subtitle && (
-                        <p className="conc-landing-subtitle">{d.subtitle}</p>
-                      )}
-                    </div>
-                  );
-                }
-                case 'uep-dialogue': {
-                  const items = block.data as UepDialogueItem[];
-                  return (
-                    <div key={block.id} className="conc-landing-uep">
-                      {items.map((d, i) => (
-                        <UepDialogue
-                          key={i}
-                          text={d.text}
-                          side={d.side}
-                          effects={d.effects as never[]}
-                        />
-                      ))}
-                    </div>
-                  );
-                }
-                case 'rich-text': {
-                  const d = block.data as { html: string };
-                  return (
-                    <div
-                      key={block.id}
-                      className="conc-prose"
-                      dangerouslySetInnerHTML={{ __html: d.html }}
-                    />
-                  );
-                }
-                case 'terminal-module-table': {
-                  const d = block.data as {
-                    headerLabel: string;
-                    modules: TerminalModule[];
-                  };
-                  return (
-                    <div key={block.id} className="conc-module-table">
-                      <div className="conc-module-table-bar">
-                        <span>{d.headerLabel}</span>
-                        <span>{d.modules.length} units</span>
-                      </div>
-                      {d.modules.map((mod, i) => (
-                        <button
-                          key={mod.id}
-                          className="conc-module-row"
-                          onClick={() => {
-                            const stack = STACKS[i];
-                            if (stack) navigateToStack(stack.slug);
-                          }}
-                        >
-                          <span className="conc-mod-num">{mod.id}</span>
-                          <span className="conc-mod-name">{mod.name}</span>
-                          <span className="conc-mod-en">{mod.en}</span>
-                          <span
-                            className={`conc-mod-state ${mod.state}`}
-                          >
-                            <span className="conc-mod-dot" />
-                            {mod.state}
-                          </span>
-                          <span className="conc-mod-rec">
-                            {mod.records} rec
-                          </span>
-                          <span className="conc-mod-arrow">›</span>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                }
-                default:
-                  return null;
-              }
-            })
-          ) : (
-            /* fallback 硬編碼 */
-            <div>
-              <div className="conc-kicker">Volume IV · CONCEPTS</div>
-              <h1 className="conc-landing-title">概念調整房</h1>
-              <p className="conc-landing-subtitle">
-                世界觀、設定文件。一切關於這個世界「為什麼是這樣」的解答都在這裡。
-              </p>
+          {/* zone-header */}
+          <div className="conc-kicker">Volume IV · CONCEPTS</div>
+          <div className="conc-landing-title-row">
+            <h1 className="conc-landing-title">{hpHeader?.title || '概念調整房'}</h1>
+            <span className="conc-terminal-badge">$ root@uep:~ · CONNECTED</span>
+          </div>
+          {(hpHeader?.subtitle || '') && <p className="conc-landing-subtitle">{hpHeader?.subtitle}</p>}
+
+          {/* uep-dialogue */}
+          {hpDialogues && (
+            <div className="conc-landing-uep">
+              {hpDialogues.map((d, i) => (
+                <UepDialogue key={i} text={d.text} side={d.side} effects={d.effects as never[]} />
+              ))}
+            </div>
+          )}
+
+          {/* rich-text */}
+          {hpRichTexts.map((html, i) => (
+            <div key={i} className="conc-prose" dangerouslySetInnerHTML={{ __html: html }} />
+          ))}
+
+          {/* terminal-module-table */}
+          {hpModules && (
+            <div className="conc-module-table">
+              <div className="conc-module-table-bar">
+                <span>{hpModules.headerLabel}</span>
+                <span>{hpModules.modules.length} units</span>
+              </div>
+              {hpModules.modules.map((mod, i) => (
+                <button key={mod.id} className="conc-module-row" onClick={() => { const s = STACKS[i]; if (s) navigateToStack(s.slug); }}>
+                  <span className="conc-mod-num">{mod.id}</span>
+                  <span className="conc-mod-name">{mod.name}</span>
+                  <span className="conc-mod-en">{mod.en}</span>
+                  <span className={`conc-mod-state ${mod.state}`}><span className="conc-mod-dot" />{mod.state}</span>
+                  <span className="conc-mod-rec">{mod.records} rec</span>
+                  <span className="conc-mod-arrow">›</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -586,336 +905,194 @@ export default function ConceptsReader() {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // Stack 視圖
-  // ──────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // Stack 頁面
+  // ══════════════════════════════════════════════════════════════
   function renderStack() {
-    const stackDef = STACKS.find(
-      (s) => `concepts/${s.slug}` === activeStackId
-    );
+    if (pageLoading) return <div className="conc-page-loading"><span className="conc-cursor" />&nbsp;載入中...</div>;
+    const stackDef = STACKS.find((s) => `concepts/${s.slug}` === activeStackId);
     const stackNode = stackNodes.find((n) => n.id === activeStackId);
     if (!stackDef || !stackNode) return null;
-
     const children = stackNode.children || [];
+
+    // 從 D1 載入的 stackPage 取得動態內容
+    const stackTitle = stackPage?.title || stackDef.label;
+    const stackDesc = typeof stackPage?.metadata?.description === 'string' ? stackPage.metadata.description as string : '';
+    // stack 頁面的 content 是 rich_text 格式
+    const stackContentHtml = stackPage?.content?.[0]?.content || '';
 
     return (
       <div className="conc-stack-page">
-        {/* StackHeader */}
-        <div className="conc-stack-header">
-          <div className="conc-stack-breadcrumb">
-            <span className="conc-stack-breadcrumb-line" />
-            <button onClick={navigateToLanding.bind(null, true)}>
-              CONCEPTS
-            </button>
-            <span>·</span>
-            <span>{stackDef.labelEn}</span>
-          </div>
-          <div className="conc-stack-title-row">
-            <span className="conc-stack-icon">{stackDef.icon}</span>
-            <h1 className="conc-stack-title">{stackDef.label}</h1>
-            <div className="conc-stack-sync-badge">
-              <span className="conc-mod-dot sync" />
-              {children.length} types · sync ok
-            </div>
-          </div>
-          <div className="conc-stack-path">
-            {stackDef.labelEn}
-            <span className="conc-stack-motto">
-              // {stackDef.style}.layout
-            </span>
-          </div>
-          <div className="conc-gradient-line" />
+        <div className="conc-stack-breadcrumb">
+          <span className="conc-stack-breadcrumb-line" />
+          <button onClick={() => navigateToLanding()}>CONCEPTS</button>
+          <span>·</span>
+          <span>{stackDef.labelEn}</span>
         </div>
 
-        {/* Intro 段落（首字放大） */}
-        <p className="conc-stack-intro">
-          <span className="conc-drop-cap">{stackDef.intro[0]}</span>
-          {stackDef.intro.slice(1)}
-        </p>
-
-        {/* UEP 對話 */}
-        <div className="conc-stack-uep">
-          <UepDialogue
-            side="left"
-            effects={['shimmer', 'halo'] as never[]}
-            text={stackDef.uepNote}
-          />
+        <div className="conc-stack-title-row">
+          <span className="conc-stack-icon">{stackDef.icon}</span>
+          <h1 className="conc-stack-title">{stackTitle}</h1>
+          <div className="conc-stack-sync-badge"><span className="conc-mod-dot sync" />{children.filter(c => c.metadata?.hidden !== true).length} types · sync ok</div>
         </div>
+        <div className="conc-stack-path">{stackDef.labelEn}<span className="conc-stack-motto">// {stackDef.style}.layout</span></div>
+        {stackDesc && <p className="conc-reading-desc">{stackDesc}</p>}
+        <div className="conc-gradient-line" />
 
-        {/* API 內容 */}
-        {stackPage?.content?.some((b) => b.content?.trim()) && (
-          <div
-            className="conc-prose"
-            dangerouslySetInnerHTML={{
-              __html: stackPage.content.map((b) => b.content || '').join(''),
-            }}
-          />
+        {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
+        {stackContentHtml ? (
+          <div className="conc-stack-intro conc-prose" dangerouslySetInnerHTML={{ __html: stackContentHtml }} />
+        ) : (
+          <p className="conc-stack-intro">
+            <span className="conc-drop-cap">{stackDef.intro[0]}</span>
+            {stackDef.intro.slice(1)}
+          </p>
         )}
+
+        <div className="conc-stack-uep">
+          <UepDialogue side="left" effects={['shimmer', 'halo'] as never[]} text={stackDef.uepNote} />
+        </div>
 
         {/* 終端目錄列表 */}
         <div className="conc-dir-listing">
           <div className="conc-dir-bar">
-            <span>
-              $ ls ./{stackDef.slug.split('/').pop()} --long
-            </span>
-            <span>{children.length} entries</span>
+            <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
+            <span>{children.filter(c => c.metadata?.hidden !== true).length} entries</span>
           </div>
           <div className="conc-dir-header-row">
-            <span>#</span>
-            <span>name</span>
-            <span>identifier</span>
-            <span>entries</span>
-            <span>state</span>
-            <span />
+            <span>#</span><span>name</span><span>identifier</span><span>state</span><span />
           </div>
-          {children.map((child, i) => {
-            const isHidden = child.metadata?.hidden === true;
-            const childCount = child.children?.length || 0;
+          {children
+            .filter((child) => child.metadata?.hidden !== true)
+            .map((child, i) => {
+            const isLocked = child.metadata?.locked === true;
             return (
-              <button
-                key={child.id}
-                className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${isHidden ? 'locked' : ''}`}
-                onClick={() => navigateToPage(child.slug)}
-              >
-                <span className="conc-dir-num">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
+              <button key={child.id} className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${isLocked ? 'locked' : ''}`} onClick={() => !isLocked && navigateToPage(child.slug)}>
+                <span className="conc-dir-num">{String(i + 1).padStart(2, '0')}</span>
                 <div className="conc-dir-name-cell">
                   <div className="conc-dir-name">{child.title}</div>
-                  <div className="conc-dir-hint">
-                    {typeof child.metadata?.description === 'string'
-                      ? (child.metadata.description as string).slice(0, 40)
-                      : isHidden
-                        ? 'sealed'
-                        : `${childCount || '—'}`}
-                  </div>
+                  <div className="conc-dir-hint">{isLocked ? '' : typeof child.metadata?.description === 'string' ? (child.metadata.description as string).slice(0, 50) : ''}</div>
                 </div>
-                <span className="conc-dir-en">{child.slug.split('/').pop()}</span>
-                <span className="conc-dir-count">
-                  {childCount > 0 ? childCount : '—'}
-                </span>
-                <span
-                  className={`conc-dir-state ${isHidden ? 'sealed' : 'sync'}`}
-                >
-                  <span className="conc-mod-dot" />
-                  {isHidden ? 'sealed' : 'sync'}
-                </span>
-                <span className="conc-dir-arrow">›</span>
+                <span className="conc-dir-en">{isLocked ? '—' : child.slug.split('/').pop()}</span>
+                <span className={`conc-dir-state ${isLocked ? 'sealed' : 'sync'}`}><span className="conc-mod-dot" />{isLocked ? 'sealed' : 'sync'}</span>
+                <span className="conc-dir-arrow">{isLocked ? '🔒' : '›'}</span>
               </button>
             );
           })}
           <div className="conc-dir-tip">
             <span className="conc-dir-tip-prompt">$</span>
-            <span>
-              tip — 被標記為{' '}
-              <span className="conc-hl">sealed</span> 的類別會隨著故事進度自動解鎖
-            </span>
+            <span>tip — 被標記為 <span className="conc-hl">sealed</span> 的類別會隨著故事進度自動解鎖</span>
             <span className="conc-cursor" />
           </div>
         </div>
 
-        {/* 返回按鈕 */}
         <div className="conc-back-bar">
-          <button
-            className="conc-back-btn"
-            onClick={() => navigateToLanding()}
-          >
-            ← 返回概念調整房
-          </button>
+          <button className="conc-back-btn" onClick={() => navigateToLanding()}>← 返回概念調整房</button>
         </div>
       </div>
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // Reading 視圖
-  // ──────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // Reading 頁面 — 分派四種 Reader
+  // ══════════════════════════════════════════════════════════════
   function renderReading() {
-    if (pageLoading) {
-      return (
-        <div className="conc-page-loading">
-          <span className="conc-cursor" />
-          &nbsp;載入中...
-        </div>
-      );
-    }
-    if (!readingPage) {
-      return <div className="conc-page-loading">找不到頁面</div>;
-    }
+    if (pageLoading) return <div className="conc-page-loading"><span className="conc-cursor" />&nbsp;載入中...</div>;
+    if (!readingPage) return <div className="conc-page-loading">找不到頁面</div>;
 
-    const node = flatNodes.find((n) => n.id === readingPage.id);
-    const children = node?.children || [];
-    const stackDef = STACKS.find((s) =>
-      readingPage.slug.startsWith(s.slug)
-    );
+    const meta = readingPage.metadata as Partial<ConceptsVariationMeta>;
+    const isLocked = readingPage.metadata?.locked === true;
+    const stackDef = STACKS.find((s) => readingPage.slug.startsWith(s.slug));
+    const style = meta.stack_style || stackDef?.style || 'dossier';
+
+    // 多 block 支援：rich_text block 為上方富文本，其他為結構化資料
+    const introBlock = readingPage.content?.find((b: { type: string }) => b.type === 'rich_text');
+    const structBlock = readingPage.content?.find((b: { type: string }) => b.type !== 'rich_text') || readingPage.content?.[0];
+    const introHtml = introBlock?.content || '';
+    let parsed: DossierContent | BrowserContent | ChronoContent | DiffContent | null = null;
+    if (!isLocked && structBlock?.content && structBlock.type !== 'rich_text') {
+      try { parsed = JSON.parse(structBlock.content); } catch { /* 靜默 */ }
+    }
 
     // 麵包屑
     const crumbs = readingPage.slug.split('/').filter(Boolean);
 
     return (
       <div className="conc-reading-page">
-        {/* 麵包屑 */}
         <div className="conc-stack-breadcrumb">
           <span className="conc-stack-breadcrumb-line" />
           <button onClick={() => navigateToLanding()}>CONCEPTS</button>
-          {stackDef && (
-            <>
-              <span>·</span>
-              <button onClick={() => navigateToStack(stackDef.slug)}>
-                {stackDef.labelEn}
-              </button>
-            </>
-          )}
+          {stackDef && (<><span>·</span><button onClick={() => navigateToStack(stackDef.slug)}>{stackDef.labelEn}</button></>)}
           <span>·</span>
           <span>{crumbs[crumbs.length - 1]?.toUpperCase()}</span>
         </div>
 
-        {/* 標題 */}
-        <div className="conc-reading-header">
-          <h1>{readingPage.title}</h1>
-          {typeof node?.metadata?.description === 'string' && (
-            <p className="conc-reading-desc">
-              {node.metadata.description as string}
-            </p>
+        {/* 子頁面標題（不帶 icon，與 echoes/visuals 一致） */}
+        <div className="conc-stack-title-row" style={{ marginTop: 14 }}>
+          <h1 className="conc-stack-title">{readingPage.title}</h1>
+          {meta.era && meta.era !== 'default' && (
+            <div className="conc-era-badge">{meta.era.toUpperCase()}</div>
           )}
-          <span className="conc-reading-type-badge">
-            {readingPage.pageType}
-          </span>
+        </div>
+        {!isLocked && typeof readingPage.metadata?.description === 'string' && (
+          <p className="conc-reading-desc">{readingPage.metadata.description as string}</p>
+        )}
+        <div className="conc-gradient-line" />
+
+        {/* 上方富文本（TipTap 內容） */}
+        {!isLocked && introHtml && introHtml !== '<p></p>' && (
+          <div className="conc-prose" dangerouslySetInnerHTML={{ __html: introHtml }} />
+        )}
+
+        {/* 分派 Reader */}
+        <div className="conc-reader-body">
+          {isLocked ? (
+            <div className="conc-locked-notice">
+              <div className="conc-locked-notice-icon">🔒</div>
+              <div className="conc-locked-notice-title">ACCESS RESTRICTED</div>
+              <div className="conc-locked-notice-text">此內容尚未在故事中揭露，隨著劇情推進將自動解鎖。</div>
+            </div>
+          ) : parsed ? (
+            style === 'dossier' ? <ReaderDossier data={parsed as DossierContent} /> :
+            style === 'browser' ? <ReaderBrowserTabs data={parsed as BrowserContent} /> :
+            style === 'chrono' ? <ReaderChronograph data={parsed as ChronoContent} /> :
+            style === 'diff' ? <ReaderDiff data={parsed as DiffContent} /> :
+            <div className="conc-prose">無法識別的內容格式</div>
+          ) : (
+            <div className="conc-page-loading">此頁面尚無結構化內容</div>
+          )}
         </div>
 
-        {/* 子頁面列表 */}
-        {children.length > 0 && (
-          <div className="conc-dir-listing">
-            <div className="conc-dir-bar">
-              <span>$ ls ./{crumbs[crumbs.length - 1]} --long</span>
-              <span>{children.length} entries</span>
-            </div>
-            {children.map((child, i) => {
-              const isHidden = child.metadata?.hidden === true;
-              return (
-                <button
-                  key={child.id}
-                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${isHidden ? 'locked' : ''}`}
-                  onClick={() => navigateToPage(child.slug)}
-                >
-                  <span className="conc-dir-num">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <div className="conc-dir-name-cell">
-                    <div className="conc-dir-name">{child.title}</div>
-                  </div>
-                  <span className="conc-dir-en">
-                    {child.slug.split('/').pop()}
-                  </span>
-                  <span className="conc-dir-count">
-                    {child.children?.length || '—'}
-                  </span>
-                  <span
-                    className={`conc-dir-state ${isHidden ? 'sealed' : 'sync'}`}
-                  >
-                    <span className="conc-mod-dot" />
-                    {isHidden ? 'sealed' : 'sync'}
-                  </span>
-                  <span className="conc-dir-arrow">›</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* 內容 */}
-        {readingPage.content?.some((b) => b.content?.trim()) && (
-          <div
-            className="conc-prose"
-            dangerouslySetInnerHTML={{
-              __html: readingPage.content
-                .map((b) => b.content || '')
-                .join(''),
-            }}
-          />
-        )}
-
-        {/* 返回按鈕 */}
         <div className="conc-back-bar">
           {stackDef ? (
-            <button
-              className="conc-back-btn"
-              onClick={() => navigateToStack(stackDef.slug)}
-            >
-              ← 返回{stackDef.label}
-            </button>
+            <button className="conc-back-btn" onClick={() => navigateToStack(stackDef.slug)}>← 返回{stackDef.label}</button>
           ) : (
-            <button
-              className="conc-back-btn"
-              onClick={() => navigateToLanding()}
-            >
-              ← 返回概念調整房
-            </button>
+            <button className="conc-back-btn" onClick={() => navigateToLanding()}>← 返回概念調整房</button>
           )}
         </div>
       </div>
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
   // 主渲染
-  // ──────────────────────────────────────────────────────────────────
-  const isInShell = view === 'stack' || view === 'reading';
-  const chromeUrl = activeStackId
-    ? `uep.terminal ~ /concepts/${STACKS.find((s) => `concepts/${s.slug}` === activeStackId)?.slug.split('/').pop() || ''}/`
-    : 'uep.terminal ~ /concepts/';
-
+  // ══════════════════════════════════════════════════════════════
   return (
-    <div className={`concepts-reader ${isInShell ? 'in-shell' : ''}`}>
-      {/* 入場霧化 */}
-      <div
-        aria-hidden="true"
-        className="conc-fog"
-        style={{ opacity: contentReady ? 0 : 1 }}
-      />
+    <div className="concepts-reader">
+      <div aria-hidden="true" className="conc-fog" style={{ opacity: contentReady ? 0 : 1 }} />
 
-      {/* 掃描線 + 格線（shell 模式才啟用） */}
-      {isInShell && (
-        <>
-          <div className="conc-scanline-overlay" aria-hidden="true" />
-          <div className="conc-grid-overlay" aria-hidden="true" />
-        </>
-      )}
-
-      {/* 終端地址欄（shell 模式才顯示） */}
-      {isInShell && renderChrome(chromeUrl)}
-
-      <TopBar
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={() => {
-          setHomePortal(true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1100);
-        }}
-        dark={theme === 'dark'}
-      />
+      <TopBar onOpenMap={() => setShowMap(true)} onGoHome={() => { setHomePortal(true); setTimeout(() => { window.location.href = '/'; }, 1100); }} dark={theme === 'dark'} />
 
       <div className="conc-main">
         <ZoneAtmosphere zone={CONCEPTS_ZONE} intensity="subtle" skipGlyphs />
 
-        {/* 飄移符號粒子 */}
+        {/* 飄移符號 */}
         <div className="conc-symbols" aria-hidden="true">
           {ESSENCE_SYMBOLS.flatMap((s, i) =>
             [0, 1].map((k) => {
               const idx = i * 2 + k;
               return (
-                <span
-                  key={idx}
-                  className="conc-symbol"
-                  style={{
-                    left: `${(idx * 37) % 96}%`,
-                    top: `${(idx * 23) % 92}%`,
-                    fontSize: 12 + (idx % 4) * 5,
-                    animationDuration: `${16 + (idx % 5)}s`,
-                    animationDelay: `${(idx * 0.35) % 9}s`,
-                  }}
-                >
+                <span key={idx} className="conc-symbol" style={{ left: `${(idx * 37) % 96}%`, top: `${(idx * 23) % 92}%`, fontSize: 12 + (idx % 4) * 5, animationDuration: `${16 + (idx % 5)}s`, animationDelay: `${(idx * 0.35) % 9}s` }}>
                   {s}
                 </span>
               );
@@ -923,10 +1100,6 @@ export default function ConceptsReader() {
           )}
         </div>
 
-        {/* 側邊欄（shell 模式才顯示） */}
-        {isInShell && renderSidebar()}
-
-        {/* 主內容 */}
         <div className="conc-content" ref={scrollRef}>
           {view === 'landing' && renderLanding()}
           {view === 'stack' && renderStack()}
@@ -934,45 +1107,16 @@ export default function ConceptsReader() {
         </div>
       </div>
 
-      {/* 浮動元件 */}
-      <Minimap
-        zones={ZONES}
-        currentId="concepts"
-        onExpand={() => setShowMap(true)}
-        onPickZone={handlePickZone}
-        position="bottom-left"
-      />
-
+      <Minimap zones={ZONES} currentId="concepts" onExpand={() => setShowMap(true)} onPickZone={handlePickZone} position="bottom-left" />
       {showMap && (
-        <BigMapModal
-          zones={ZONES}
-          onClose={() => setShowMap(false)}
-          onPick={(zone) => {
-            setShowMap(false);
-            handlePickZone(zone.id);
-          }}
-          onCenterClick={() => {
-            setShowMap(false);
-            setHomePortal(true);
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 1100);
-          }}
+        <BigMapModal zones={ZONES} onClose={() => setShowMap(false)}
+          onPick={(zone) => { setShowMap(false); handlePickZone(zone.id); }}
+          onCenterClick={() => { setShowMap(false); setHomePortal(true); setTimeout(() => { window.location.href = '/'; }, 1100); }}
         />
       )}
-
-      <IntroOverlay
-        zone={introZone}
-        onEnter={() => setIntroZone(null)}
-        onClose={() => setIntroZone(null)}
-      />
-
+      <IntroOverlay zone={introZone} onEnter={() => setIntroZone(null)} onClose={() => setIntroZone(null)} />
       <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition
-        zone={null}
-        homeMode={homePortal}
-        onDone={() => setHomePortal(false)}
-      />
+      <PortalTransition zone={null} homeMode={homePortal} onDone={() => setHomePortal(false)} />
     </div>
   );
 }
