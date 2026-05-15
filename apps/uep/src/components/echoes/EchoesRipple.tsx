@@ -7,6 +7,8 @@ import './EchoesRipple.css';
 interface Props {
   /** 是否正在播放音樂 — 播放時脈衝更快更亮 */
   isPlaying?: boolean;
+  /** 主色調（hex），根據 cluster 變化 */
+  color?: string;
 }
 
 interface Orb {
@@ -39,13 +41,31 @@ function isFarEnough(
   return true;
 }
 
+/** 將 hex 色碼轉為 [r, g, b] */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
+}
+
 // ──────────────────────────────────────────────────────────────
 // 元件
 // ──────────────────────────────────────────────────────────────
-export default function EchoesRipple({ isPlaying = false }: Props) {
+export default function EchoesRipple({ isPlaying = false, color }: Props) {
   const [orbs, setOrbs] = useState<Orb[]>([]);
   const idRef = useRef(0);
   const orbsRef = useRef<Orb[]>([]);
+  const activeRef = useRef(true);
+  const tidRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 用 ref 追蹤 isPlaying，讓 spawn 閉包能讀到最新值
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   // 同步 ref 讓 spawn 能讀到最新狀態
   useEffect(() => {
@@ -56,60 +76,81 @@ export default function EchoesRipple({ isPlaying = false }: Props) {
     setOrbs((prev) => prev.filter((o) => o.id !== id));
   }, []);
 
-  useEffect(() => {
-    setOrbs([]);
-    orbsRef.current = [];
-    idRef.current = 0;
-    let active = true;
-    let tid: ReturnType<typeof setTimeout>;
+  // spawn 與 schedule 提取為 ref callback，讓外部 effect 也能呼叫
+  const spawnRef = useRef<() => void>();
+  const scheduleRef = useRef<() => void>();
 
-    function spawn() {
-      if (!active) return;
+  spawnRef.current = () => {
+    if (!activeRef.current) return;
+    const playing = isPlayingRef.current;
 
-      // 嘗試找一個夠遠的位置（最多 10 次）
-      let x = 10 + Math.random() * 80;
-      let y = 10 + Math.random() * 80;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        if (isFarEnough(x, y, orbsRef.current, MIN_DIST)) break;
-        x = 10 + Math.random() * 80;
-        y = 10 + Math.random() * 80;
-      }
-
-      const orb: Orb = {
-        id: idRef.current++,
-        x,
-        y,
-        size: isPlaying ? 20 + Math.random() * 16 : 16 + Math.random() * 12,
-        dur: isPlaying ? 3 + Math.random() * 2 : 6 + Math.random() * 4,
-        delay: Math.random() * 0.5,
-        particles: isPlaying ? 4 + Math.floor(Math.random() * 3) : 3,
-        rings: isPlaying ? 2 + Math.floor(Math.random() * 2) : 1,
-      };
-
-      setOrbs((prev) => [...prev, orb]);
-      schedule();
+    let x = 10 + Math.random() * 80;
+    let y = 10 + Math.random() * 80;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      if (isFarEnough(x, y, orbsRef.current, MIN_DIST)) break;
+      x = 10 + Math.random() * 80;
+      y = 10 + Math.random() * 80;
     }
 
-    function schedule() {
-      if (!active) return;
-      const interval = isPlaying
-        ? 2000 + Math.random() * 2500
-        : 5000 + Math.random() * 5000;
-      tid = setTimeout(spawn, interval);
-    }
-
-    tid = setTimeout(spawn, 800);
-
-    return () => {
-      active = false;
-      clearTimeout(tid);
+    const orb: Orb = {
+      id: idRef.current++,
+      x,
+      y,
+      size: playing ? 20 + Math.random() * 16 : 16 + Math.random() * 12,
+      dur: playing ? 3 + Math.random() * 2 : 6 + Math.random() * 4,
+      delay: Math.random() * 0.5,
+      particles: playing ? 4 + Math.floor(Math.random() * 3) : 3,
+      rings: playing ? 2 + Math.floor(Math.random() * 2) : 1,
     };
+
+    setOrbs((prev) => [...prev, orb]);
+    scheduleRef.current?.();
+  };
+
+  scheduleRef.current = () => {
+    if (!activeRef.current) return;
+    const playing = isPlayingRef.current;
+    const interval = playing
+      ? 2000 + Math.random() * 2500
+      : 5000 + Math.random() * 5000;
+    if (tidRef.current) clearTimeout(tidRef.current);
+    tidRef.current = setTimeout(() => spawnRef.current?.(), interval);
+  };
+
+  // 啟動 spawn 迴圈（僅 mount 一次）
+  useEffect(() => {
+    activeRef.current = true;
+    tidRef.current = setTimeout(() => spawnRef.current?.(), 800);
+    return () => {
+      activeRef.current = false;
+      if (tidRef.current) clearTimeout(tidRef.current);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // isPlaying 改變時：取消當前排程，用新的間隔立刻重新排程（不清空現有 orbs）
+  useEffect(() => {
+    if (tidRef.current) clearTimeout(tidRef.current);
+    // 用較短的延遲產生下一顆，讓切換後的節奏感快速反映
+    const delay = isPlaying
+      ? 500 + Math.random() * 1000
+      : 2000 + Math.random() * 2000;
+    tidRef.current = setTimeout(() => spawnRef.current?.(), delay);
   }, [isPlaying]);
+
+  // 計算 CSS custom properties
+  const [r, g, b] = color ? hexToRgb(color) : [53, 92, 125];
 
   return (
     <div
       className={`echoes-ripple ${isPlaying ? 'is-playing' : ''}`}
       aria-hidden="true"
+      style={
+        {
+          '--er-r': r,
+          '--er-g': g,
+          '--er-b': b,
+        } as React.CSSProperties
+      }
     >
       {orbs.map((o) => (
         <div
