@@ -1074,7 +1074,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.25s, transform 0.25s;
+  transition:
+    color 0.25s,
+    transform 0.25s;
 }
 
 .visuals-viewer-side-arrow.is-left {
