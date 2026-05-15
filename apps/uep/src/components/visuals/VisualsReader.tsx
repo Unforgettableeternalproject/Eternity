@@ -1356,8 +1356,10 @@ function VisualsReaderInner() {
                     : [];
                   const spoiler = (g.metadata?.spoilerLevel as number) || 0;
                   const gate = (g.metadata?.gate as string) || '';
-                  const thumbUrl =
-                    images.length > 0 ? buildImageUrl(images[0].file) : '';
+                  const firstImg = images.length > 0 ? images[0] : null;
+                  const thumbUrl = firstImg
+                    ? buildImageUrl(firstImg.file)
+                    : '';
                   const isLocked = spoiler > 0 && !isUnlocked(g.id);
 
                   const handleClick = () => {
@@ -1370,13 +1372,53 @@ function VisualsReaderInner() {
                     }
                   };
 
+                  // 精靈圖縮圖：顯示第一個動畫的第一幀
+                  const isSpriteThumb =
+                    firstImg?.isSpriteSheet &&
+                    firstImg.frameWidth &&
+                    firstImg.frameHeight &&
+                    firstImg.columns;
+
                   return (
                     <button
                       key={g.id}
                       className="visuals-gallery-card"
                       onClick={handleClick}
                     >
-                      {thumbUrl ? (
+                      {thumbUrl && isSpriteThumb ? (() => {
+                        const cols = firstImg.columns!;
+                        const rows = firstImg.rows || Math.ceil(
+                          (firstImg.frameCount || 1) / cols
+                        );
+                        const anims = firstImg.animations || {};
+                        const animKeys = Object.keys(anims);
+                        // 取第一個動畫的起始幀
+                        const startFrame = animKeys.length > 0
+                          ? anims[animKeys[0]][0]
+                          : 0;
+                        const frameCol = startFrame % cols;
+                        const frameRow = Math.floor(startFrame / cols);
+                        // 百分比定位：讓每幀正好填滿容器寬度
+                        const bgPosX = cols > 1
+                          ? (frameCol / (cols - 1)) * 100 : 0;
+                        const bgPosY = rows > 1
+                          ? (frameRow / (rows - 1)) * 100 : 0;
+                        return (
+                          <div
+                            className="visuals-gallery-card-thumb visuals-sprite-thumb"
+                            role="img"
+                            aria-label={g.title}
+                            style={{
+                              backgroundImage: `url(${thumbUrl})`,
+                              backgroundSize: `${cols * 100}% auto`,
+                              backgroundPosition: `${bgPosX}% ${bgPosY}%`,
+                              backgroundRepeat: 'no-repeat',
+                              imageRendering: 'pixelated',
+                              filter: isLocked ? spoilerFilter(spoiler) : 'none',
+                            }}
+                          />
+                        );
+                      })() : thumbUrl ? (
                         <img
                           className="visuals-gallery-card-thumb"
                           src={thumbUrl}
