@@ -828,8 +828,12 @@ async function listAssets(
             const data = JSON.parse(block.content);
             const profiles = Array.isArray(data.profiles) ? data.profiles : [];
             for (const profile of profiles) {
-              if (typeof profile.avatar === 'string' && bareKeyRegex.test(profile.avatar)) {
-                if (!referenceMap.has(profile.avatar)) referenceMap.set(profile.avatar, []);
+              if (
+                typeof profile.avatar === 'string' &&
+                bareKeyRegex.test(profile.avatar)
+              ) {
+                if (!referenceMap.has(profile.avatar))
+                  referenceMap.set(profile.avatar, []);
                 const refs = referenceMap.get(profile.avatar)!;
                 if (!refs.includes(row.id)) refs.push(row.id);
               }

@@ -1307,7 +1307,8 @@ function BrowserEditor({
                           const file = e.target.files?.[0];
                           if (!file) return;
                           const result = await uploadAsset(file);
-                          if (result) updateProfile({ avatar: toAssetPath(result.key) });
+                          if (result)
+                            updateProfile({ avatar: toAssetPath(result.key) });
                           e.target.value = '';
                         }}
                       />
@@ -1594,7 +1595,9 @@ function BrowserEditor({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}>
+            <div
+              style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}
+            >
               移除頭像
             </div>
             <div
@@ -1615,7 +1618,11 @@ function BrowserEditor({
                   updateProfile({ avatar: undefined });
                   setAvatarDeleteOpen(false);
                 }}
-                style={{ width: '100%', padding: '10px 16px', textAlign: 'left' }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                }}
               >
                 📎 僅從此角色移除
                 <span
