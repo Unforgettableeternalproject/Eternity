@@ -4,38 +4,73 @@
 
 /* ═══ 入場動畫 — 幻影閃現 ═══ */
 .vis-boot {
-  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
   background: #0a0810;
   overflow: hidden;
   transition: opacity 0.6s ease;
 }
-.vis-boot.is-ready { opacity: 0; }
+.vis-boot.is-ready {
+  opacity: 0;
+}
 
 /* 左右交替的透光閃現 */
 .vis-boot-flash {
-  position: absolute; inset: 0;
+  position: absolute;
+  inset: 0;
   opacity: 0;
 }
 .vis-boot-flash--l {
-  background: linear-gradient(to right, rgba(159,134,192,0.45) 0%, rgba(159,134,192,0.2) 35%, transparent 65%);
-  animation: vis-flash-in 0.3s ease-out 0.2s forwards, vis-flash-out 0.35s ease-in 0.45s forwards;
+  background: linear-gradient(
+    to right,
+    rgba(159, 134, 192, 0.45) 0%,
+    rgba(159, 134, 192, 0.2) 35%,
+    transparent 65%
+  );
+  animation:
+    vis-flash-in 0.3s ease-out 0.2s forwards,
+    vis-flash-out 0.35s ease-in 0.45s forwards;
 }
 .vis-boot-flash--r {
-  background: linear-gradient(to left, rgba(224,177,203,0.4) 0%, rgba(224,177,203,0.18) 35%, transparent 65%);
-  animation: vis-flash-in 0.3s ease-out 0.6s forwards, vis-flash-out 0.35s ease-in 0.85s forwards;
+  background: linear-gradient(
+    to left,
+    rgba(224, 177, 203, 0.4) 0%,
+    rgba(224, 177, 203, 0.18) 35%,
+    transparent 65%
+  );
+  animation:
+    vis-flash-in 0.3s ease-out 0.6s forwards,
+    vis-flash-out 0.35s ease-in 0.85s forwards;
 }
 .vis-boot-flash--l2 {
-  background: linear-gradient(to right, rgba(159,134,192,0.35) 0%, rgba(94,84,142,0.15) 40%, transparent 70%);
-  animation: vis-flash-in 0.25s ease-out 1.0s forwards, vis-flash-out 0.3s ease-in 1.2s forwards;
+  background: linear-gradient(
+    to right,
+    rgba(159, 134, 192, 0.35) 0%,
+    rgba(94, 84, 142, 0.15) 40%,
+    transparent 70%
+  );
+  animation:
+    vis-flash-in 0.25s ease-out 1s forwards,
+    vis-flash-out 0.3s ease-in 1.2s forwards;
 }
 .vis-boot-flash--r2 {
-  background: linear-gradient(to left, rgba(224,177,203,0.3) 0%, rgba(159,134,192,0.12) 40%, transparent 70%);
-  animation: vis-flash-in 0.25s ease-out 1.3s forwards, vis-flash-out 0.3s ease-in 1.5s forwards;
+  background: linear-gradient(
+    to left,
+    rgba(224, 177, 203, 0.3) 0%,
+    rgba(159, 134, 192, 0.12) 40%,
+    transparent 70%
+  );
+  animation:
+    vis-flash-in 0.25s ease-out 1.3s forwards,
+    vis-flash-out 0.3s ease-in 1.5s forwards;
 }
 
 /* 微膠片噪點紋理 */
 .vis-boot-grain {
-  position: absolute; inset: 0;
+  position: absolute;
+  inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 128px 128px;
   opacity: 0.06;
@@ -44,18 +79,34 @@
 }
 
 @keyframes vis-flash-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes vis-flash-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 @keyframes vis-grain-flicker {
-  0% { opacity: 0.06; }
-  33% { opacity: 0.03; }
-  66% { opacity: 0.07; }
-  100% { opacity: 0.06; }
+  0% {
+    opacity: 0.06;
+  }
+  33% {
+    opacity: 0.03;
+  }
+  66% {
+    opacity: 0.07;
+  }
+  100% {
+    opacity: 0.06;
+  }
 }
 
 /* === 基礎佈局 === */
@@ -831,7 +882,12 @@
 
 .visuals-gradient-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--visuals-main), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--visuals-main),
+    transparent
+  );
   opacity: 0.4;
   margin: 24px 0;
 }
@@ -907,7 +963,12 @@
   border: 0;
   height: 1px;
   margin: 38px 0;
-  background: linear-gradient(90deg, transparent, var(--visuals-main), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--visuals-main),
+    transparent
+  );
   opacity: 0.55;
 }
 
@@ -2242,7 +2303,11 @@
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 40%, rgba(94, 84, 142, 0.2), transparent 70%);
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(94, 84, 142, 0.2),
+    transparent 70%
+  );
   pointer-events: none;
   z-index: 5;
   animation: vis-glow-flash 0.55s ease-out both;
@@ -2271,9 +2336,15 @@
 }
 
 @keyframes vis-glow-flash {
-  0%   { opacity: 0; }
-  25%  { opacity: 1; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* === 子元素逐一入場 (Stagger) === */

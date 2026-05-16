@@ -13,7 +13,8 @@
 import React, { useState, useCallback, useRef } from 'react';
 // 透過 window 全域橋接取得 dialog manager（跨 React island）
 function getDialog() {
-  return (window as any).__uepDialogManager as typeof import('../ui/UepDialog').uepDialog;
+  return (window as any)
+    .__uepDialogManager as typeof import('../ui/UepDialog').uepDialog;
 }
 
 const API_BASE =
@@ -24,15 +25,25 @@ function buildImageUrl(key: string): string {
   return `${API_BASE}/api/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-async function uploadAsset(file: File): Promise<{ key: string; url: string } | null> {
+async function uploadAsset(
+  file: File
+): Promise<{ key: string; url: string } | null> {
   const formData = new FormData();
   formData.append('file', file);
   try {
-    const res = await fetch(`${API_BASE}/api/assets`, { method: 'POST', body: formData });
+    const res = await fetch(`${API_BASE}/api/assets`, {
+      method: 'POST',
+      body: formData,
+    });
     if (!res.ok) return null;
-    const json = await res.json() as { ok: boolean; data: { key: string; url: string } };
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: { key: string; url: string };
+    };
     return json.ok ? json.data : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
@@ -85,8 +96,12 @@ export function parseConceptsEditorData(
 ): ConceptsEditorData {
   const stackStyle = (metadata.stack_style as StackStyle) || 'dossier';
   // 找到第一個非 rich_text 的結構化 block
-  const block = contentBlocks?.find(b => b.type !== 'rich_text') || contentBlocks?.[0];
-  const contentBlockType = block?.type === 'rich_text' ? getBlockType(stackStyle) : (block?.type || getBlockType(stackStyle));
+  const block =
+    contentBlocks?.find((b) => b.type !== 'rich_text') || contentBlocks?.[0];
+  const contentBlockType =
+    block?.type === 'rich_text'
+      ? getBlockType(stackStyle)
+      : block?.type || getBlockType(stackStyle);
 
   let data: ConceptsData;
   if (block?.content) {
@@ -101,9 +116,13 @@ export function parseConceptsEditorData(
 
   // 舊版 dossier 資料相容：若是 {subcategories:[...]} 則包成單一 variant
   if (stackStyle === 'dossier') {
-    const d = data as Partial<DossierContent> & { subcategories?: DossierSubcat[] };
+    const d = data as Partial<DossierContent> & {
+      subcategories?: DossierSubcat[];
+    };
     if (!Array.isArray(d.variants)) {
-      const legacySubcats = Array.isArray(d.subcategories) ? d.subcategories : [];
+      const legacySubcats = Array.isArray(d.subcategories)
+        ? d.subcategories
+        : [];
       data = {
         variants: [
           { id: 'default', label: 'DEFAULT', subcategories: legacySubcats },
@@ -120,51 +139,87 @@ export function parseConceptsEditorData(
 }
 
 /** 序列化為 content block 格式（用於 save） */
-export function serializeConceptsContent(editorData: ConceptsEditorData): { id: string; type: string; content: string }[] {
-  return [{
-    id: 'content',
-    type: editorData.contentBlockType,
-    content: JSON.stringify(editorData.data),
-  }];
+export function serializeConceptsContent(
+  editorData: ConceptsEditorData
+): { id: string; type: string; content: string }[] {
+  return [
+    {
+      id: 'content',
+      type: editorData.contentBlockType,
+      content: JSON.stringify(editorData.data),
+    },
+  ];
 }
 
 function getBlockType(style: StackStyle): string {
   switch (style) {
-    case 'dossier': return 'dossier';
-    case 'browser': return 'browser_profile';
-    case 'chrono': return 'chronograph';
-    case 'diff': return 'diff_table';
+    case 'dossier':
+      return 'dossier';
+    case 'browser':
+      return 'browser_profile';
+    case 'chrono':
+      return 'chronograph';
+    case 'diff':
+      return 'diff_table';
   }
 }
 
 function getEmptyData(style: StackStyle): ConceptsData {
   switch (style) {
-    case 'dossier': return {
-      variants: [{ id: 'default', label: 'DEFAULT', subcategories: [] }],
-    } as DossierContent;
-    case 'browser': return { profiles: [] } as BrowserContent;
-    case 'chrono': return {
-      fieldDefs: [
-        { id: 'main', icon: '☀', label: '主線事件 / 核心敘事', style: 'flat' },
-        { id: 'regional', icon: '🏞', label: '區域動態 / 地區歷史', style: 'grouped' },
-        { id: 'character', icon: '👤', label: '角色關鍵點', style: 'flat' },
-      ],
-      periods: [],
-    } as ChronoContent;
-    case 'diff': return { subcategories: [] } as DiffContent;
+    case 'dossier':
+      return {
+        variants: [{ id: 'default', label: 'DEFAULT', subcategories: [] }],
+      } as DossierContent;
+    case 'browser':
+      return { profiles: [] } as BrowserContent;
+    case 'chrono':
+      return {
+        fieldDefs: [
+          {
+            id: 'main',
+            icon: '☀',
+            label: '主線事件 / 核心敘事',
+            style: 'flat',
+          },
+          {
+            id: 'regional',
+            icon: '🏞',
+            label: '區域動態 / 地區歷史',
+            style: 'grouped',
+          },
+          { id: 'character', icon: '👤', label: '角色關鍵點', style: 'flat' },
+        ],
+        periods: [],
+      } as ChronoContent;
+    case 'diff':
+      return { subcategories: [] } as DiffContent;
   }
 }
 
 // ── 輕量 TipTap 編輯器（用於條目內容） ────────────────────────────
 
-function MiniEditor({ value, onChange, placeholder }: { value: string; onChange: (html: string) => void; placeholder?: string }) {
+function MiniEditor({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+}) {
   const initialized = useRef(false);
-  const handleUpdate = useCallback(({ editor: e }: { editor: { getHTML: () => string } }) => {
-    // 跳過初始化時的第一次 onUpdate
-    if (!initialized.current) { initialized.current = true; return; }
-    const html = e.getHTML();
-    onChange(html === '<p></p>' ? '' : html);
-  }, [onChange]);
+  const handleUpdate = useCallback(
+    ({ editor: e }: { editor: { getHTML: () => string } }) => {
+      // 跳過初始化時的第一次 onUpdate
+      if (!initialized.current) {
+        initialized.current = true;
+        return;
+      }
+      const html = e.getHTML();
+      onChange(html === '<p></p>' ? '' : html);
+    },
+    [onChange]
+  );
 
   const editor = useEditor({
     extensions: [
@@ -180,10 +235,50 @@ function MiniEditor({ value, onChange, placeholder }: { value: string; onChange:
   return (
     <div className="ced-mini-editor">
       <div className="ced-mini-toolbar">
-        <button type="button" className={editor.isActive('bold') ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }} title="粗體"><b>B</b></button>
-        <button type="button" className={editor.isActive('italic') ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }} title="斜體"><i>I</i></button>
-        <button type="button" className={editor.isActive('strike') ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }} title="刪除線"><s>S</s></button>
-        <button type="button" className={editor.isActive('bulletList') ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }} title="列表">•</button>
+        <button
+          type="button"
+          className={editor.isActive('bold') ? 'active' : ''}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            editor.chain().focus().toggleBold().run();
+          }}
+          title="粗體"
+        >
+          <b>B</b>
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('italic') ? 'active' : ''}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            editor.chain().focus().toggleItalic().run();
+          }}
+          title="斜體"
+        >
+          <i>I</i>
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('strike') ? 'active' : ''}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            editor.chain().focus().toggleStrike().run();
+          }}
+          title="刪除線"
+        >
+          <s>S</s>
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('bulletList') ? 'active' : ''}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            editor.chain().focus().toggleBulletList().run();
+          }}
+          title="列表"
+        >
+          •
+        </button>
       </div>
       <EditorContent editor={editor} />
     </div>
@@ -192,7 +287,13 @@ function MiniEditor({ value, onChange, placeholder }: { value: string; onChange:
 
 // ── 主元件 ────────────────────────────────────────────────────────
 
-export default function ConceptsEditorBody({ accent, stackStyle, initialData, onDataChange, onDirty }: ConceptsEditorBodyProps) {
+export default function ConceptsEditorBody({
+  accent,
+  stackStyle,
+  initialData,
+  onDataChange,
+  onDirty,
+}: ConceptsEditorBodyProps) {
   const [data, setData] = useState<ConceptsEditorData>(initialData);
   const lastSavedSnapshot = useRef(JSON.stringify(initialData.data));
 
@@ -205,25 +306,58 @@ export default function ConceptsEditorBody({ accent, stackStyle, initialData, on
 
   // 讓 parent 在 save 成功後可以更新 snapshot（透過 window event）
   React.useEffect(() => {
-    function handleSaved() { lastSavedSnapshot.current = JSON.stringify(data.data); }
+    function handleSaved() {
+      lastSavedSnapshot.current = JSON.stringify(data.data);
+    }
     window.addEventListener('concepts-editor-saved', handleSaved);
-    return () => window.removeEventListener('concepts-editor-saved', handleSaved);
+    return () =>
+      window.removeEventListener('concepts-editor-saved', handleSaved);
   }, [data.data]);
 
   return (
-    <div className="ced" style={{ '--ced-accent': accent } as React.CSSProperties}>
+    <div
+      className="ced"
+      style={{ '--ced-accent': accent } as React.CSSProperties}
+    >
       <div className="ced-header">
-        <span className="ced-badge" style={{ borderColor: accent, color: accent }}>
+        <span
+          className="ced-badge"
+          style={{ borderColor: accent, color: accent }}
+        >
           {stackStyle.toUpperCase()} EDITOR
         </span>
         <span className="ced-type-label">{data.contentBlockType}</span>
       </div>
 
       {/* 依 stackStyle 分派（上方 TipTap 由 RichEditor 處理） */}
-      {stackStyle === 'dossier' && <DossierEditor data={data.data as DossierContent} onChange={(d) => update(d)} accent={accent} />}
-      {stackStyle === 'browser' && <BrowserEditor data={data.data as BrowserContent} onChange={(d) => update(d)} accent={accent} />}
-      {stackStyle === 'chrono' && <ChronoEditor data={data.data as ChronoContent} onChange={(d) => update(d)} accent={accent} />}
-      {stackStyle === 'diff' && <DiffEditor data={data.data as DiffContent} onChange={(d) => update(d)} accent={accent} />}
+      {stackStyle === 'dossier' && (
+        <DossierEditor
+          data={data.data as DossierContent}
+          onChange={(d) => update(d)}
+          accent={accent}
+        />
+      )}
+      {stackStyle === 'browser' && (
+        <BrowserEditor
+          data={data.data as BrowserContent}
+          onChange={(d) => update(d)}
+          accent={accent}
+        />
+      )}
+      {stackStyle === 'chrono' && (
+        <ChronoEditor
+          data={data.data as ChronoContent}
+          onChange={(d) => update(d)}
+          accent={accent}
+        />
+      )}
+      {stackStyle === 'diff' && (
+        <DiffEditor
+          data={data.data as DiffContent}
+          onChange={(d) => update(d)}
+          accent={accent}
+        />
+      )}
     </div>
   );
 }
@@ -232,10 +366,19 @@ export default function ConceptsEditorBody({ accent, stackStyle, initialData, on
 // Dossier 編輯器（外層：variant tab 列）
 // ══════════════════════════════════════════════════════════════════
 
-function DossierEditor({ data, onChange, accent }: { data: DossierContent; onChange: (d: DossierContent) => void; accent: string }) {
-  const variants: DossierVariant[] = data.variants && data.variants.length > 0
-    ? data.variants
-    : [{ id: 'default', label: 'DEFAULT', subcategories: [] }];
+function DossierEditor({
+  data,
+  onChange,
+  accent,
+}: {
+  data: DossierContent;
+  onChange: (d: DossierContent) => void;
+  accent: string;
+}) {
+  const variants: DossierVariant[] =
+    data.variants && data.variants.length > 0
+      ? data.variants
+      : [{ id: 'default', label: 'DEFAULT', subcategories: [] }];
   const [activeVariantIdx, setActiveVariantIdx] = useState(0);
   const safeIdx = Math.min(activeVariantIdx, variants.length - 1);
   const currentVariant = variants[safeIdx];
@@ -245,24 +388,35 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
     if (!data.variants || data.variants.length === 0) {
       onChange({ variants });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
-  function updateVariants(next: DossierVariant[]) { onChange({ variants: next }); }
+  function updateVariants(next: DossierVariant[]) {
+    onChange({ variants: next });
+  }
   function updateCurrentSubcats(subcategories: DossierSubcat[]) {
-    updateVariants(variants.map((v, i) => i === safeIdx ? { ...v, subcategories } : v));
+    updateVariants(
+      variants.map((v, i) => (i === safeIdx ? { ...v, subcategories } : v))
+    );
   }
 
   async function addVariant() {
-    const idRaw = await getDialog().prompt('輸入新 variant 的 ID（小寫，建議 u/e/p 等 era 代號）：', { title: '新增 Variant', placeholder: 'u' });
+    const idRaw = await getDialog().prompt(
+      '輸入新 variant 的 ID（小寫，建議 u/e/p 等 era 代號）：',
+      { title: '新增 Variant', placeholder: 'u' }
+    );
     if (!idRaw) return;
     const id = idRaw.trim().toLowerCase();
     if (!id) return;
-    if (variants.some(v => v.id === id)) {
-      await getDialog().alert(`Variant ID「${id}」已存在。`, { title: '無法新增' });
+    if (variants.some((v) => v.id === id)) {
+      await getDialog().alert(`Variant ID「${id}」已存在。`, {
+        title: '無法新增',
+      });
       return;
     }
-    const labelRaw = await getDialog().prompt('輸入顯示用標籤（會出現在 reader 標題旁，慣例為大寫）：', { title: '新增 Variant', placeholder: id.toUpperCase() });
+    const labelRaw = await getDialog().prompt(
+      '輸入顯示用標籤（會出現在 reader 標題旁，慣例為大寫）：',
+      { title: '新增 Variant', placeholder: id.toUpperCase() }
+    );
     const label = (labelRaw?.trim() || id).toUpperCase();
     updateVariants([...variants, { id, label, subcategories: [] }]);
     setActiveVariantIdx(variants.length);
@@ -271,19 +425,30 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
   async function renameVariant(idx: number) {
     const v = variants[idx];
     if (!v) return;
-    const labelRaw = await getDialog().prompt('變更顯示標籤：', { title: '重新命名 Variant', placeholder: v.label, defaultValue: v.label });
+    const labelRaw = await getDialog().prompt('變更顯示標籤：', {
+      title: '重新命名 Variant',
+      placeholder: v.label,
+      defaultValue: v.label,
+    });
     if (labelRaw === null || labelRaw === undefined) return;
     const label = labelRaw.trim().toUpperCase() || v.label;
-    updateVariants(variants.map((vv, i) => i === idx ? { ...vv, label } : vv));
+    updateVariants(
+      variants.map((vv, i) => (i === idx ? { ...vv, label } : vv))
+    );
   }
 
   async function removeVariant(idx: number) {
     if (variants.length <= 1) {
-      await getDialog().alert('至少要保留一個 variant。', { title: '無法刪除' });
+      await getDialog().alert('至少要保留一個 variant。', {
+        title: '無法刪除',
+      });
       return;
     }
     const v = variants[idx];
-    const count = v.subcategories.reduce((s, sc) => s + sc.groups.reduce((g, gr) => g + gr.entries.length, 0), 0);
+    const count = v.subcategories.reduce(
+      (s, sc) => s + sc.groups.reduce((g, gr) => g + gr.entries.length, 0),
+      0
+    );
     const ok = await getDialog().confirm(
       `確定要刪除 variant「${v.label}」(${v.id})？\n此 variant 內有 ${count} 個條目，刪除後無法復原。`,
       { title: '刪除 Variant', confirmText: '刪除', cancelText: '取消' }
@@ -291,7 +456,8 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
     if (!ok) return;
     const next = variants.filter((_, i) => i !== idx);
     updateVariants(next);
-    if (safeIdx >= next.length) setActiveVariantIdx(Math.max(0, next.length - 1));
+    if (safeIdx >= next.length)
+      setActiveVariantIdx(Math.max(0, next.length - 1));
     else if (safeIdx > idx) setActiveVariantIdx(safeIdx - 1);
   }
 
@@ -302,7 +468,10 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
         <span className="ced-variant-bar-label">VARIANT</span>
         <div className="ced-variant-tabs">
           {variants.map((v, i) => (
-            <div key={v.id + '-' + i} className={`ced-variant-tab ${i === safeIdx ? 'active' : ''}`}>
+            <div
+              key={v.id + '-' + i}
+              className={`ced-variant-tab ${i === safeIdx ? 'active' : ''}`}
+            >
               <button
                 type="button"
                 className="ced-variant-tab-btn"
@@ -315,12 +484,24 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
                 <span className="ced-variant-tab-id">{v.id}</span>
               </button>
               {variants.length > 1 && (
-                <button type="button" className="ced-variant-tab-del" onClick={() => removeVariant(i)} title="刪除 variant">✕</button>
+                <button
+                  type="button"
+                  className="ced-variant-tab-del"
+                  onClick={() => removeVariant(i)}
+                  title="刪除 variant"
+                >
+                  ✕
+                </button>
               )}
             </div>
           ))}
         </div>
-        <button type="button" className="ced-variant-add" onClick={addVariant} style={{ color: accent, borderColor: accent }}>
+        <button
+          type="button"
+          className="ced-variant-add"
+          onClick={addVariant}
+          style={{ color: accent, borderColor: accent }}
+        >
           + 新增 Variant
         </button>
       </div>
@@ -339,24 +520,52 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
 // Dossier 編輯器（單一 variant 內容）
 // ══════════════════════════════════════════════════════════════════
 
-function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcategories: DossierSubcat[]; onSubcatsChange: (subcats: DossierSubcat[]) => void; accent: string }) {
+function DossierVariantBody({
+  subcategories,
+  onSubcatsChange,
+  accent,
+}: {
+  subcategories: DossierSubcat[];
+  onSubcatsChange: (subcats: DossierSubcat[]) => void;
+  accent: string;
+}) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
   const [activeEntry, setActiveEntry] = useState<number | null>(null);
   // 右側面板模式：'group'=編輯群組, 'entry'=編輯條目
   const [panelMode, setPanelMode] = useState<'group' | 'entry'>('group');
-  const [dragEntryInfo, setDragEntryInfo] = useState<{ groupIdx: number; entryIdx: number } | null>(null);
+  const [dragEntryInfo, setDragEntryInfo] = useState<{
+    groupIdx: number;
+    entryIdx: number;
+  } | null>(null);
 
-  function updateSubcats(subcats: DossierSubcat[]) { onSubcatsChange(subcats); }
-  function addSubcat() { updateSubcats([...subcategories, { label: '新分類', groups: [{ label: '', entries: [] }] }]); }
-  function removeSubcat(i: number) { updateSubcats(subcategories.filter((_, idx) => idx !== i)); if (activeTab >= subcategories.length - 1) setActiveTab(Math.max(0, subcategories.length - 2)); setActiveEntry(null); }
+  function updateSubcats(subcats: DossierSubcat[]) {
+    onSubcatsChange(subcats);
+  }
+  function addSubcat() {
+    updateSubcats([
+      ...subcategories,
+      { label: '新分類', groups: [{ label: '', entries: [] }] },
+    ]);
+  }
+  function removeSubcat(i: number) {
+    updateSubcats(subcategories.filter((_, idx) => idx !== i));
+    if (activeTab >= subcategories.length - 1)
+      setActiveTab(Math.max(0, subcategories.length - 2));
+    setActiveEntry(null);
+  }
 
   const subcat = subcategories[activeTab];
 
   function updateGroups(groups: DossierGroup[]) {
-    updateSubcats(subcategories.map((sc, i) => i === activeTab ? { ...sc, groups } : sc));
+    updateSubcats(
+      subcategories.map((sc, i) => (i === activeTab ? { ...sc, groups } : sc))
+    );
   }
-  function addGroup() { if (!subcat) return; updateGroups([...subcat.groups, { label: '新群組', entries: [] }]); }
+  function addGroup() {
+    if (!subcat) return;
+    updateGroups([...subcat.groups, { label: '新群組', entries: [] }]);
+  }
 
   // 刪除群組：條目移至預設群組或全部刪除
   async function removeGroup(gi: number) {
@@ -370,27 +579,47 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
       if (!ok) return;
       // 移動條目到預設群組（index 0）
       const newGroups = [...subcat.groups];
-      newGroups[0] = { ...newGroups[0], entries: [...newGroups[0].entries, ...g.entries] };
+      newGroups[0] = {
+        ...newGroups[0],
+        entries: [...newGroups[0].entries, ...g.entries],
+      };
       newGroups.splice(gi, 1);
       updateGroups(newGroups);
     } else {
       updateGroups(subcat.groups.filter((_, idx) => idx !== gi));
     }
     if (activeGroup >= gi) setActiveGroup(Math.max(0, activeGroup - 1));
-    setActiveEntry(null); setPanelMode('group');
+    setActiveEntry(null);
+    setPanelMode('group');
   }
 
   const group = subcat?.groups[activeGroup];
 
   function updateEntries(entries: DossierEntry[]) {
     if (!subcat) return;
-    updateGroups(subcat.groups.map((g, i) => i === activeGroup ? { ...g, entries } : g));
+    updateGroups(
+      subcat.groups.map((g, i) => (i === activeGroup ? { ...g, entries } : g))
+    );
   }
-  function addEntry() { if (!group) return; updateEntries([...group.entries, { name: '' }]); setActiveEntry(group.entries.length); setPanelMode('entry'); }
-  function removeEntry(i: number) { if (!group) return; updateEntries(group.entries.filter((_, idx) => idx !== i)); if (activeEntry === i) { setActiveEntry(null); setPanelMode('group'); } }
+  function addEntry() {
+    if (!group) return;
+    updateEntries([...group.entries, { name: '' }]);
+    setActiveEntry(group.entries.length);
+    setPanelMode('entry');
+  }
+  function removeEntry(i: number) {
+    if (!group) return;
+    updateEntries(group.entries.filter((_, idx) => idx !== i));
+    if (activeEntry === i) {
+      setActiveEntry(null);
+      setPanelMode('group');
+    }
+  }
   function updateEntry(i: number, patch: Partial<DossierEntry>) {
     if (!group) return;
-    updateEntries(group.entries.map((e, idx) => idx === i ? { ...e, ...patch } : e));
+    updateEntries(
+      group.entries.map((e, idx) => (idx === i ? { ...e, ...patch } : e))
+    );
   }
 
   // 拖曳條目到其他群組
@@ -401,12 +630,17 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
     const srcGroup = subcat.groups[srcGi];
     const entry = srcGroup.entries[srcEi];
     const newGroups = subcat.groups.map((g, gi) => {
-      if (gi === srcGi) return { ...g, entries: g.entries.filter((_, idx) => idx !== srcEi) };
-      if (gi === targetGroupIdx) return { ...g, entries: [...g.entries, entry] };
+      if (gi === srcGi)
+        return { ...g, entries: g.entries.filter((_, idx) => idx !== srcEi) };
+      if (gi === targetGroupIdx)
+        return { ...g, entries: [...g.entries, entry] };
       return g;
     });
     updateGroups(newGroups);
-    if (activeGroup === srcGi && activeEntry === srcEi) { setActiveEntry(null); setPanelMode('group'); }
+    if (activeGroup === srcGi && activeEntry === srcEi) {
+      setActiveEntry(null);
+      setPanelMode('group');
+    }
     setDragEntryInfo(null);
   }
 
@@ -422,24 +656,47 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
     setDragEntryInfo(null);
   }
 
-  const entry = activeEntry !== null && group ? group.entries[activeEntry] : null;
+  const entry =
+    activeEntry !== null && group ? group.entries[activeEntry] : null;
 
   React.useEffect(() => {
-    if (subcat && subcat.groups.length === 0) updateGroups([{ label: '', entries: [] }]);
+    if (subcat && subcat.groups.length === 0)
+      updateGroups([{ label: '', entries: [] }]);
   }, [activeTab, subcat?.groups.length]);
 
   return (
     <div className="ced-section">
       <div className="ced-section-header">
         <span className="ced-section-title">分類</span>
-        <button className="ced-add-btn" onClick={addSubcat} style={{ color: accent }}>+ 新增分類</button>
+        <button
+          className="ced-add-btn"
+          onClick={addSubcat}
+          style={{ color: accent }}
+        >
+          + 新增分類
+        </button>
       </div>
       {subcategories.length > 0 && (
         <div className="ced-tabs">
           {subcategories.map((sc, i) => (
-            <div key={i} className={`ced-tab ${i === activeTab ? 'active' : ''}`}>
-              <button className="ced-tab-btn" onClick={() => { setActiveTab(i); setActiveGroup(0); setActiveEntry(null); setPanelMode('group'); }}>{sc.label || '(未命名)'}</button>
-              <button className="ced-tab-del" onClick={() => removeSubcat(i)}>✕</button>
+            <div
+              key={i}
+              className={`ced-tab ${i === activeTab ? 'active' : ''}`}
+            >
+              <button
+                className="ced-tab-btn"
+                onClick={() => {
+                  setActiveTab(i);
+                  setActiveGroup(0);
+                  setActiveEntry(null);
+                  setPanelMode('group');
+                }}
+              >
+                {sc.label || '(未命名)'}
+              </button>
+              <button className="ced-tab-del" onClick={() => removeSubcat(i)}>
+                ✕
+              </button>
             </div>
           ))}
         </div>
@@ -449,7 +706,17 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
         <>
           <div className="ced-field-row">
             <label className="ced-label">分類名稱</label>
-            <input className="ced-input" value={subcat.label} onChange={(e) => updateSubcats(subcategories.map((sc, i) => i === activeTab ? { ...sc, label: e.target.value } : sc))} />
+            <input
+              className="ced-input"
+              value={subcat.label}
+              onChange={(e) =>
+                updateSubcats(
+                  subcategories.map((sc, i) =>
+                    i === activeTab ? { ...sc, label: e.target.value } : sc
+                  )
+                )
+              }
+            />
           </div>
 
           <div className="ced-browser-split" style={{ minHeight: 250 }}>
@@ -457,48 +724,136 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
             <div className="ced-browser-nav">
               <div className="ced-browser-breadcrumb">
                 <span style={{ fontWeight: 600 }}>群組</span>
-                <button className="ced-add-btn" onClick={addGroup} style={{ color: accent, marginLeft: 'auto', fontSize: 10 }}>+ 群組</button>
+                <button
+                  className="ced-add-btn"
+                  onClick={addGroup}
+                  style={{ color: accent, marginLeft: 'auto', fontSize: 10 }}
+                >
+                  + 群組
+                </button>
               </div>
 
               {subcat.groups.map((g, gi) => (
                 <div key={gi}>
                   <div
                     className={`ced-browser-folder ${gi === activeGroup && panelMode === 'group' ? 'active' : ''}`}
-                    onClick={() => { setActiveGroup(gi); setActiveEntry(null); setPanelMode('group'); }}
-                    style={{ borderLeft: gi === activeGroup ? `3px solid ${accent}` : '3px solid transparent' }}
-                    onDragOver={dragEntryInfo ? (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); } : undefined}
-                    onDragLeave={dragEntryInfo ? (e) => { e.currentTarget.classList.remove('drag-over'); } : undefined}
-                    onDrop={dragEntryInfo ? (e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleEntryDropOnGroup(gi); } : undefined}
+                    onClick={() => {
+                      setActiveGroup(gi);
+                      setActiveEntry(null);
+                      setPanelMode('group');
+                    }}
+                    style={{
+                      borderLeft:
+                        gi === activeGroup
+                          ? `3px solid ${accent}`
+                          : '3px solid transparent',
+                    }}
+                    onDragOver={
+                      dragEntryInfo
+                        ? (e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.add('drag-over');
+                          }
+                        : undefined
+                    }
+                    onDragLeave={
+                      dragEntryInfo
+                        ? (e) => {
+                            e.currentTarget.classList.remove('drag-over');
+                          }
+                        : undefined
+                    }
+                    onDrop={
+                      dragEntryInfo
+                        ? (e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.remove('drag-over');
+                            handleEntryDropOnGroup(gi);
+                          }
+                        : undefined
+                    }
                   >
-                    <span className="ced-browser-folder-name" style={{ fontSize: 12 }}>{gi === 0 && !g.label ? '(預設)' : g.label || '(未命名)'}</span>
+                    <span
+                      className="ced-browser-folder-name"
+                      style={{ fontSize: 12 }}
+                    >
+                      {gi === 0 && !g.label ? '(預設)' : g.label || '(未命名)'}
+                    </span>
                     <span className="ced-count">{g.entries.length}</span>
                     {gi > 0 && (
-                      <button className="ced-browser-file-del" onClick={(e) => { e.stopPropagation(); removeGroup(gi); }} style={{ opacity: 1 }}>✕</button>
+                      <button
+                        className="ced-browser-file-del"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeGroup(gi);
+                        }}
+                        style={{ opacity: 1 }}
+                      >
+                        ✕
+                      </button>
                     )}
                   </div>
-                  {gi === activeGroup && g.entries.map((ent, ei) => (
-                    <div
-                      key={ei}
-                      className={`ced-browser-file ${activeEntry === ei && panelMode === 'entry' ? 'active' : ''} ${dragEntryInfo?.groupIdx === gi && dragEntryInfo?.entryIdx === ei ? 'dragging' : ''}`}
-                      onClick={() => { setActiveEntry(ei); setPanelMode('entry'); }}
-                      style={{ paddingLeft: 20 }}
-                      draggable
-                      onDragStart={() => setDragEntryInfo({ groupIdx: gi, entryIdx: ei })}
-                      onDragEnd={() => setDragEntryInfo(null)}
-                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }}
-                      onDragLeave={(e) => { e.currentTarget.classList.remove('drag-over'); }}
-                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleEntryReorder(ei); }}
-                    >
-                      <span className="ced-browser-file-icon" style={{ fontSize: 10 }}>◈</span>
-                      <span className="ced-browser-file-name">{ent.name || '(空條目)'}</span>
-                      <button className="ced-browser-file-del" onClick={(e) => { e.stopPropagation(); removeEntry(ei); }}>✕</button>
-                    </div>
-                  ))}
+                  {gi === activeGroup &&
+                    g.entries.map((ent, ei) => (
+                      <div
+                        key={ei}
+                        className={`ced-browser-file ${activeEntry === ei && panelMode === 'entry' ? 'active' : ''} ${dragEntryInfo?.groupIdx === gi && dragEntryInfo?.entryIdx === ei ? 'dragging' : ''}`}
+                        onClick={() => {
+                          setActiveEntry(ei);
+                          setPanelMode('entry');
+                        }}
+                        style={{ paddingLeft: 20 }}
+                        draggable
+                        onDragStart={() =>
+                          setDragEntryInfo({ groupIdx: gi, entryIdx: ei })
+                        }
+                        onDragEnd={() => setDragEntryInfo(null)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.add('drag-over');
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove('drag-over');
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('drag-over');
+                          handleEntryReorder(ei);
+                        }}
+                      >
+                        <span
+                          className="ced-browser-file-icon"
+                          style={{ fontSize: 10 }}
+                        >
+                          ◈
+                        </span>
+                        <span className="ced-browser-file-name">
+                          {ent.name || '(空條目)'}
+                        </span>
+                        <button
+                          className="ced-browser-file-del"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEntry(ei);
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                 </div>
               ))}
 
               <div className="ced-browser-actions">
-                {group && <button className="ced-add-btn" onClick={addEntry} style={{ color: accent }}>+ 新增條目</button>}
+                {group && (
+                  <button
+                    className="ced-add-btn"
+                    onClick={addEntry}
+                    style={{ color: accent }}
+                  >
+                    + 新增條目
+                  </button>
+                )}
               </div>
             </div>
 
@@ -508,32 +863,81 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
                 <>
                   <div className="ced-browser-detail-header">
                     <span>{entry.name || '(空條目)'}</span>
-                    <button className="ced-del-btn" onClick={() => removeEntry(activeEntry!)}>✕</button>
+                    <button
+                      className="ced-del-btn"
+                      onClick={() => removeEntry(activeEntry!)}
+                    >
+                      ✕
+                    </button>
                   </div>
                   <div className="ced-field-row">
                     <label className="ced-label">名稱</label>
-                    <input className="ced-input" value={entry.name} onChange={(e) => updateEntry(activeEntry!, { name: e.target.value })} />
+                    <input
+                      className="ced-input"
+                      value={entry.name}
+                      onChange={(e) =>
+                        updateEntry(activeEntry!, { name: e.target.value })
+                      }
+                    />
                   </div>
-                  <div className="ced-section-header"><span className="ced-section-title">描述</span></div>
-                  <MiniEditor value={entry.content_html || ''} onChange={(html) => updateEntry(activeEntry!, { content_html: html || undefined })} placeholder="描述內容..." />
+                  <div className="ced-section-header">
+                    <span className="ced-section-title">描述</span>
+                  </div>
+                  <MiniEditor
+                    value={entry.content_html || ''}
+                    onChange={(html) =>
+                      updateEntry(activeEntry!, {
+                        content_html: html || undefined,
+                      })
+                    }
+                    placeholder="描述內容..."
+                  />
                 </>
               ) : group ? (
                 <>
                   <div className="ced-browser-detail-header">
                     <span>群組設定{activeGroup === 0 ? ' (預設)' : ''}</span>
-                    {activeGroup > 0 && <button className="ced-del-btn" onClick={() => removeGroup(activeGroup)}>刪除群組</button>}
+                    {activeGroup > 0 && (
+                      <button
+                        className="ced-del-btn"
+                        onClick={() => removeGroup(activeGroup)}
+                      >
+                        刪除群組
+                      </button>
+                    )}
                   </div>
                   <div className="ced-field-row">
                     <label className="ced-label">群組名稱</label>
-                    <input className="ced-input" value={group.label} onChange={(e) => updateGroups(subcat.groups.map((g, i) => i === activeGroup ? { ...g, label: e.target.value } : g))} placeholder={activeGroup === 0 ? '留空則閱讀器不顯示名稱' : '群組名稱'} />
+                    <input
+                      className="ced-input"
+                      value={group.label}
+                      onChange={(e) =>
+                        updateGroups(
+                          subcat.groups.map((g, i) =>
+                            i === activeGroup
+                              ? { ...g, label: e.target.value }
+                              : g
+                          )
+                        )
+                      }
+                      placeholder={
+                        activeGroup === 0
+                          ? '留空則閱讀器不顯示名稱'
+                          : '群組名稱'
+                      }
+                    />
                   </div>
                   <div className="ced-empty" style={{ marginTop: 8 }}>
-                    {activeGroup === 0 ? '預設群組不可刪除。名稱留空時閱讀器不會顯示群組標題。' : '拖曳左側條目到群組名稱上可移動條目。'}
+                    {activeGroup === 0
+                      ? '預設群組不可刪除。名稱留空時閱讀器不會顯示群組標題。'
+                      : '拖曳左側條目到群組名稱上可移動條目。'}
                   </div>
                   <div className="ced-empty">{group.entries.length} 個條目</div>
                 </>
               ) : (
-                <div className="ced-browser-empty"><div>選擇一個群組</div></div>
+                <div className="ced-browser-empty">
+                  <div>選擇一個群組</div>
+                </div>
               )}
             </div>
           </div>
@@ -547,7 +951,15 @@ function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcat
 // Browser 編輯器（資料夾瀏覽器模式 + 拖曳分類）
 // ══════════════════════════════════════════════════════════════════
 
-function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onChange: (d: BrowserContent) => void; accent: string }) {
+function BrowserEditor({
+  data,
+  onChange,
+  accent,
+}: {
+  data: BrowserContent;
+  onChange: (d: BrowserContent) => void;
+  accent: string;
+}) {
   // 左側：當前瀏覽路徑（分類層級）
   const [navPath, setNavPath] = useState<string[]>([]);
   // 右側：選中的角色 index（null = 顯示目錄）
@@ -558,10 +970,14 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
   const [newCatName, setNewCatName] = useState('');
   // 圖片選取器
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerItems, setPickerItems] = useState<{ key: string; size: number }[]>([]);
+  const [pickerItems, setPickerItems] = useState<
+    { key: string; size: number }[]
+  >([]);
   const [pickerLoading, setPickerLoading] = useState(false);
 
-  function updateProfiles(profiles: CharacterProfile[]) { onChange({ ...data, profiles }); }
+  function updateProfiles(profiles: CharacterProfile[]) {
+    onChange({ ...data, profiles });
+  }
 
   // 取得當前路徑下的子分類和角色
   const { subcategories, profiles: currentProfiles } = React.useMemo(() => {
@@ -572,7 +988,7 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
     if (data.category_tree) {
       let nodes = data.category_tree;
       for (const seg of navPath) {
-        const found = nodes.find(n => n.label === seg);
+        const found = nodes.find((n) => n.label === seg);
         nodes = found?.children || [];
       }
       for (const n of nodes) subcatSet.add(n.label);
@@ -597,11 +1013,16 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
 
   function updateProfile(patch: Partial<CharacterProfile>) {
     if (activeIdx === null) return;
-    updateProfiles(data.profiles.map((p, i) => i === activeIdx ? { ...p, ...patch } : p));
+    updateProfiles(
+      data.profiles.map((p, i) => (i === activeIdx ? { ...p, ...patch } : p))
+    );
   }
   async function removeProfile(i: number) {
     const name = data.profiles[i]?.name || '(未命名)';
-    const ok = await getDialog().confirm(`確定要刪除角色「${name}」嗎？此操作無法復原。`, { title: '刪除角色', confirmText: '刪除', cancelText: '取消' });
+    const ok = await getDialog().confirm(
+      `確定要刪除角色「${name}」嗎？此操作無法復原。`,
+      { title: '刪除角色', confirmText: '刪除', cancelText: '取消' }
+    );
     if (!ok) return;
     updateProfiles(data.profiles.filter((_, idx) => idx !== i));
     if (activeIdx === i) setActiveIdx(null);
@@ -614,15 +1035,20 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
   function addSubcategory() {
     if (!newCatName.trim()) return;
     // 在 category_tree 中新增分類節點
-    const tree = JSON.parse(JSON.stringify(data.category_tree || [])) as import('../concepts/types').TagNode[];
+    const tree = JSON.parse(
+      JSON.stringify(data.category_tree || [])
+    ) as import('../concepts/types').TagNode[];
     let nodes = tree;
     for (const seg of navPath) {
-      let found = nodes.find(n => n.label === seg);
-      if (!found) { found = { label: seg, children: [] }; nodes.push(found); }
+      let found = nodes.find((n) => n.label === seg);
+      if (!found) {
+        found = { label: seg, children: [] };
+        nodes.push(found);
+      }
       if (!found.children) found.children = [];
       nodes = found.children;
     }
-    if (!nodes.find(n => n.label === newCatName.trim())) {
+    if (!nodes.find((n) => n.label === newCatName.trim())) {
       nodes.push({ label: newCatName.trim(), children: [] });
     }
     onChange({ ...data, category_tree: tree });
@@ -633,15 +1059,26 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
   function handleDrop(targetPath: string[]) {
     if (dragIdx === null) return;
     const updated = data.profiles.map((p, i) =>
-      i === dragIdx ? { ...p, categories: targetPath.length > 0 ? targetPath : undefined } : p
+      i === dragIdx
+        ? { ...p, categories: targetPath.length > 0 ? targetPath : undefined }
+        : p
     );
     updateProfiles(updated);
     setDragIdx(null);
   }
 
-  function updateSections(sections: CharacterProfile['sections']) { updateProfile({ sections }); }
-  function addSection() { updateSections([...(profile?.sections || []), { label: '新區段', content_html: '' }]); }
-  function removeSection(i: number) { updateSections((profile?.sections || []).filter((_, idx) => idx !== i)); }
+  function updateSections(sections: CharacterProfile['sections']) {
+    updateProfile({ sections });
+  }
+  function addSection() {
+    updateSections([
+      ...(profile?.sections || []),
+      { label: '新區段', content_html: '' },
+    ]);
+  }
+  function removeSection(i: number) {
+    updateSections((profile?.sections || []).filter((_, idx) => idx !== i));
+  }
   // 區段拖曳排序
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
   function handleSectionDrop(targetIdx: number) {
@@ -654,11 +1091,17 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
   }
   // 麵包屑 drop handler
   function handleBreadcrumbDrop(e: React.DragEvent, targetPath: string[]) {
-    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
     handleDrop(targetPath);
   }
-  function handleDragOverBreadcrumb(e: React.DragEvent) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-  function handleDragLeaveBreadcrumb(e: React.DragEvent) { e.currentTarget.classList.remove('drag-over'); }
+  function handleDragOverBreadcrumb(e: React.DragEvent) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  }
+  function handleDragLeaveBreadcrumb(e: React.DragEvent) {
+    e.currentTarget.classList.remove('drag-over');
+  }
 
   return (
     <div className="ced-section">
@@ -668,43 +1111,86 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
           {/* 麵包屑 */}
           <div className="ced-browser-breadcrumb">
             <button
-              onClick={() => { setNavPath([]); setActiveIdx(null); }}
+              onClick={() => {
+                setNavPath([]);
+                setActiveIdx(null);
+              }}
               className={`${navPath.length === 0 ? 'active' : ''} ${dragIdx !== null ? 'drop-target' : ''}`}
-              onDragOver={dragIdx !== null ? handleDragOverBreadcrumb : undefined}
-              onDragLeave={dragIdx !== null ? handleDragLeaveBreadcrumb : undefined}
-              onDrop={dragIdx !== null ? (e) => handleBreadcrumbDrop(e, []) : undefined}
-            >全部</button>
+              onDragOver={
+                dragIdx !== null ? handleDragOverBreadcrumb : undefined
+              }
+              onDragLeave={
+                dragIdx !== null ? handleDragLeaveBreadcrumb : undefined
+              }
+              onDrop={
+                dragIdx !== null
+                  ? (e) => handleBreadcrumbDrop(e, [])
+                  : undefined
+              }
+            >
+              全部
+            </button>
             {navPath.map((seg, d) => (
               <React.Fragment key={d}>
                 <span className="ced-browser-sep">›</span>
                 <button
-                  onClick={() => { setNavPath(prev => prev.slice(0, d + 1)); setActiveIdx(null); }}
+                  onClick={() => {
+                    setNavPath((prev) => prev.slice(0, d + 1));
+                    setActiveIdx(null);
+                  }}
                   className={`${d === navPath.length - 1 ? 'active' : ''} ${dragIdx !== null ? 'drop-target' : ''}`}
-                  onDragOver={dragIdx !== null ? handleDragOverBreadcrumb : undefined}
-                  onDragLeave={dragIdx !== null ? handleDragLeaveBreadcrumb : undefined}
-                  onDrop={dragIdx !== null ? (e) => handleBreadcrumbDrop(e, navPath.slice(0, d + 1)) : undefined}
-                >{seg}</button>
+                  onDragOver={
+                    dragIdx !== null ? handleDragOverBreadcrumb : undefined
+                  }
+                  onDragLeave={
+                    dragIdx !== null ? handleDragLeaveBreadcrumb : undefined
+                  }
+                  onDrop={
+                    dragIdx !== null
+                      ? (e) => handleBreadcrumbDrop(e, navPath.slice(0, d + 1))
+                      : undefined
+                  }
+                >
+                  {seg}
+                </button>
               </React.Fragment>
             ))}
           </div>
 
           {/* 子分類資料夾 */}
-          {subcategories.map(cat => (
+          {subcategories.map((cat) => (
             <div
               key={cat}
               className={`ced-browser-folder ${dragIdx !== null ? 'drop-target' : ''}`}
-              onClick={() => { setNavPath(prev => [...prev, cat]); setActiveIdx(null); }}
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }}
-              onDragLeave={(e) => { e.currentTarget.classList.remove('drag-over'); }}
-              onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleDrop([...navPath, cat]); }}
+              onClick={() => {
+                setNavPath((prev) => [...prev, cat]);
+                setActiveIdx(null);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.add('drag-over');
+              }}
+              onDragLeave={(e) => {
+                e.currentTarget.classList.remove('drag-over');
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drag-over');
+                handleDrop([...navPath, cat]);
+              }}
             >
               <span className="ced-browser-folder-icon">📁</span>
               <span className="ced-browser-folder-name">{cat}</span>
               <span className="ced-count">
-                {data.profiles.filter(p => {
-                  const c = p.categories || [];
-                  return navPath.every((s, d) => c[d] === s) && c[navPath.length] === cat;
-                }).length}
+                {
+                  data.profiles.filter((p) => {
+                    const c = p.categories || [];
+                    return (
+                      navPath.every((s, d) => c[d] === s) &&
+                      c[navPath.length] === cat
+                    );
+                  }).length
+                }
               </span>
               <span className="ced-browser-folder-arrow">›</span>
             </div>
@@ -720,18 +1206,50 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
               onDragEnd={() => setDragIdx(null)}
               onClick={() => setActiveIdx(idx)}
             >
-              <span className="ced-browser-file-icon">{p.placeholder ? '🔒' : '👤'}</span>
-              <span className="ced-browser-file-name">{p.name || '(未命名)'}</span>
-              <button className="ced-browser-file-del" onClick={(e) => { e.stopPropagation(); removeProfile(idx); }} title="刪除">✕</button>
+              <span className="ced-browser-file-icon">
+                {p.placeholder ? '🔒' : '👤'}
+              </span>
+              <span className="ced-browser-file-name">
+                {p.name || '(未命名)'}
+              </span>
+              <button
+                className="ced-browser-file-del"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeProfile(idx);
+                }}
+                title="刪除"
+              >
+                ✕
+              </button>
             </div>
           ))}
 
           {/* 操作列 */}
           <div className="ced-browser-actions">
-            <button className="ced-add-btn" onClick={addProfileHere} style={{ color: accent }}>+ 新增角色</button>
+            <button
+              className="ced-add-btn"
+              onClick={addProfileHere}
+              style={{ color: accent }}
+            >
+              + 新增角色
+            </button>
             <div className="ced-browser-add-cat">
-              <input className="ced-input" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="新分類名稱..." onKeyDown={(e) => e.key === 'Enter' && addSubcategory()} style={{ fontSize: 11, padding: '4px 8px' }} />
-              <button className="ced-add-btn" onClick={addSubcategory} style={{ color: accent }}>+ 分類</button>
+              <input
+                className="ced-input"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="新分類名稱..."
+                onKeyDown={(e) => e.key === 'Enter' && addSubcategory()}
+                style={{ fontSize: 11, padding: '4px 8px' }}
+              />
+              <button
+                className="ced-add-btn"
+                onClick={addSubcategory}
+                style={{ color: accent }}
+              >
+                + 分類
+              </button>
             </div>
           </div>
         </div>
@@ -742,74 +1260,155 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
             <>
               <div className="ced-browser-detail-header">
                 <span>{profile.name || '(未命名)'}</span>
-                <button className="ced-del-btn" onClick={() => removeProfile(activeIdx!)} title="刪除角色">✕</button>
+                <button
+                  className="ced-del-btn"
+                  onClick={() => removeProfile(activeIdx!)}
+                  title="刪除角色"
+                >
+                  ✕
+                </button>
               </div>
 
               {/* 頭像 + 名稱 */}
               <div className="ced-avatar-row">
                 <div className="ced-avatar-box">
                   {profile.avatar ? (
-                    <img src={buildImageUrl(profile.avatar)} alt="" className="ced-avatar-img" />
+                    <img
+                      src={buildImageUrl(profile.avatar)}
+                      alt=""
+                      className="ced-avatar-img"
+                    />
                   ) : (
-                    <span className="ced-avatar-placeholder">{profile.name?.[0] || '?'}</span>
+                    <span className="ced-avatar-placeholder">
+                      {profile.name?.[0] || '?'}
+                    </span>
                   )}
                   <div className="ced-avatar-actions">
-                    <label className="ced-avatar-upload-btn" style={{ borderColor: accent, color: accent }}>
+                    <label
+                      className="ced-avatar-upload-btn"
+                      style={{ borderColor: accent, color: accent }}
+                    >
                       ⬆
-                      <input type="file" accept="image/*" hidden onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const result = await uploadAsset(file);
-                        if (result) updateProfile({ avatar: result.key });
-                        e.target.value = '';
-                      }} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const result = await uploadAsset(file);
+                          if (result) updateProfile({ avatar: result.key });
+                          e.target.value = '';
+                        }}
+                      />
                     </label>
-                    <button className="ced-avatar-lib-btn" style={{ borderColor: accent, color: accent }} onClick={async () => {
-                      setPickerOpen(true);
-                      setPickerLoading(true);
-                      try {
-                        const res = await fetch(`${API_BASE}/api/assets?prefix=images/&limit=500`);
-                        const json = await res.json() as { ok: boolean; data: { items: { key: string; size: number }[] } };
-                        if (json.ok) setPickerItems(json.data.items || []);
-                      } catch { /* 靜默 */ }
-                      setPickerLoading(false);
-                    }} title="從媒體庫選取">📂</button>
-                    {profile.avatar && (
-                      <button className="ced-avatar-del-btn" onClick={async () => {
-                        const key = profile.avatar!;
-                        const doRemove = await getDialog().confirm(
-                          '確定要移除此頭像嗎？',
-                          { title: '移除頭像', confirmText: '移除', cancelText: '取消' }
-                        );
-                        if (!doRemove) return;
-                        updateProfile({ avatar: undefined });
-                        const doDelete = await getDialog().confirm(
-                          '是否同時從媒體庫永久刪除此圖片？\n檔案刪除後無法復原。',
-                          { title: '刪除媒體檔案', confirmText: '永久刪除', cancelText: '保留檔案' }
-                        );
-                        if (doDelete) {
-                          try {
-                            const encoded = key.split('/').map(encodeURIComponent).join('/');
-                            await fetch(`${API_BASE}/api/assets/${encoded}`, { method: 'DELETE' });
-                          } catch { /* 靜默 */ }
+                    <button
+                      className="ced-avatar-lib-btn"
+                      style={{ borderColor: accent, color: accent }}
+                      onClick={async () => {
+                        setPickerOpen(true);
+                        setPickerLoading(true);
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/api/assets?prefix=images/&limit=500`
+                          );
+                          const json = (await res.json()) as {
+                            ok: boolean;
+                            data: { items: { key: string; size: number }[] };
+                          };
+                          if (json.ok) setPickerItems(json.data.items || []);
+                        } catch {
+                          /* 靜默 */
                         }
-                      }} title="移除頭像">✕</button>
+                        setPickerLoading(false);
+                      }}
+                      title="從媒體庫選取"
+                    >
+                      📂
+                    </button>
+                    {profile.avatar && (
+                      <button
+                        className="ced-avatar-del-btn"
+                        onClick={async () => {
+                          const key = profile.avatar!;
+                          const doRemove = await getDialog().confirm(
+                            '確定要移除此頭像嗎？',
+                            {
+                              title: '移除頭像',
+                              confirmText: '移除',
+                              cancelText: '取消',
+                            }
+                          );
+                          if (!doRemove) return;
+                          updateProfile({ avatar: undefined });
+                          const doDelete = await getDialog().confirm(
+                            '是否同時從媒體庫永久刪除此圖片？\n檔案刪除後無法復原。',
+                            {
+                              title: '刪除媒體檔案',
+                              confirmText: '永久刪除',
+                              cancelText: '保留檔案',
+                            }
+                          );
+                          if (doDelete) {
+                            try {
+                              const encoded = key
+                                .split('/')
+                                .map(encodeURIComponent)
+                                .join('/');
+                              await fetch(`${API_BASE}/api/assets/${encoded}`, {
+                                method: 'DELETE',
+                              });
+                            } catch {
+                              /* 靜默 */
+                            }
+                          }
+                        }}
+                        title="移除頭像"
+                      >
+                        ✕
+                      </button>
                     )}
                   </div>
                 </div>
                 <div className="ced-avatar-fields">
                   <div className="ced-field-row">
                     <label className="ced-label">角色名稱</label>
-                    <input className="ced-input" value={profile.name} onChange={(e) => updateProfile({ name: e.target.value })} />
+                    <input
+                      className="ced-input"
+                      value={profile.name}
+                      onChange={(e) => updateProfile({ name: e.target.value })}
+                    />
                   </div>
                   <div className="ced-field-row">
                     <label className="ced-label">分類路徑</label>
-                    <input className="ced-input" value={profile.categories?.join(' › ') || ''} onChange={(e) => updateProfile({ categories: e.target.value ? e.target.value.split('›').map(s => s.trim()).filter(Boolean) : undefined })} placeholder="用 › 分隔" />
+                    <input
+                      className="ced-input"
+                      value={profile.categories?.join(' › ') || ''}
+                      onChange={(e) =>
+                        updateProfile({
+                          categories: e.target.value
+                            ? e.target.value
+                                .split('›')
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                            : undefined,
+                        })
+                      }
+                      placeholder="用 › 分隔"
+                    />
                   </div>
                 </div>
               </div>
               <label className="ced-checkbox-row">
-                <input type="checkbox" checked={!!profile.placeholder} onChange={(e) => updateProfile({ placeholder: e.target.checked || undefined })} />
+                <input
+                  type="checkbox"
+                  checked={!!profile.placeholder}
+                  onChange={(e) =>
+                    updateProfile({
+                      placeholder: e.target.checked || undefined,
+                    })
+                  }
+                />
                 <span>佔位符（鎖定狀態）</span>
               </label>
 
@@ -817,22 +1416,63 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
                 <>
                   <div className="ced-section-header">
                     <span className="ced-section-title">基本資料</span>
-                    <button className="ced-add-btn" onClick={async () => {
-                      const key = await getDialog().prompt('請輸入欄位名稱', { title: '新增基本資料欄位', placeholder: '如：種族、生日、能力' });
-                      if (key) { const basic = { ...(profile.basic || {}), [key]: '' }; updateProfile({ basic }); }
-                    }} style={{ color: accent }}>+ 欄位</button>
+                    <button
+                      className="ced-add-btn"
+                      onClick={async () => {
+                        const key = await getDialog().prompt('請輸入欄位名稱', {
+                          title: '新增基本資料欄位',
+                          placeholder: '如：種族、生日、能力',
+                        });
+                        if (key) {
+                          const basic = { ...(profile.basic || {}), [key]: '' };
+                          updateProfile({ basic });
+                        }
+                      }}
+                      style={{ color: accent }}
+                    >
+                      + 欄位
+                    </button>
                   </div>
-                  {profile.basic && Object.entries(profile.basic).map(([k, v]) => (
-                    <div key={k} className="ced-field-row">
-                      <label className="ced-label ced-label-sm">{k}</label>
-                      <input className="ced-input" value={v} onChange={(e) => updateProfile({ basic: { ...profile.basic, [k]: e.target.value } })} />
-                      <button className="ced-del-btn" onClick={() => { const next = { ...profile.basic }; delete next![k]; updateProfile({ basic: Object.keys(next!).length > 0 ? next : undefined }); }}>✕</button>
-                    </div>
-                  ))}
+                  {profile.basic &&
+                    Object.entries(profile.basic).map(([k, v]) => (
+                      <div key={k} className="ced-field-row">
+                        <label className="ced-label ced-label-sm">{k}</label>
+                        <input
+                          className="ced-input"
+                          value={v}
+                          onChange={(e) =>
+                            updateProfile({
+                              basic: { ...profile.basic, [k]: e.target.value },
+                            })
+                          }
+                        />
+                        <button
+                          className="ced-del-btn"
+                          onClick={() => {
+                            const next = { ...profile.basic };
+                            delete next![k];
+                            updateProfile({
+                              basic:
+                                Object.keys(next!).length > 0
+                                  ? next
+                                  : undefined,
+                            });
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
 
                   <div className="ced-section-header">
                     <span className="ced-section-title">區段</span>
-                    <button className="ced-add-btn" onClick={addSection} style={{ color: accent }}>+ 區段</button>
+                    <button
+                      className="ced-add-btn"
+                      onClick={addSection}
+                      style={{ color: accent }}
+                    >
+                      + 區段
+                    </button>
                   </div>
                   {(profile.sections || []).map((section, si) => (
                     <div
@@ -841,16 +1481,49 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
                       draggable
                       onDragStart={() => setDragSectionIdx(si)}
                       onDragEnd={() => setDragSectionIdx(null)}
-                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over-section'); }}
-                      onDragLeave={(e) => { e.currentTarget.classList.remove('drag-over-section'); }}
-                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over-section'); handleSectionDrop(si); }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.add('drag-over-section');
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.classList.remove('drag-over-section');
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('drag-over-section');
+                        handleSectionDrop(si);
+                      }}
                     >
                       <div className="ced-entry-top">
-                        <span className="ced-drag-handle" title="拖曳排序">⠿</span>
-                        <input className="ced-input ced-input-name" value={section.label} onChange={(e) => { const next = [...(profile.sections || [])]; next[si] = { ...next[si], label: e.target.value }; updateSections(next); }} placeholder="區段名稱" />
-                        <button className="ced-del-btn" onClick={() => removeSection(si)}>✕</button>
+                        <span className="ced-drag-handle" title="拖曳排序">
+                          ⠿
+                        </span>
+                        <input
+                          className="ced-input ced-input-name"
+                          value={section.label}
+                          onChange={(e) => {
+                            const next = [...(profile.sections || [])];
+                            next[si] = { ...next[si], label: e.target.value };
+                            updateSections(next);
+                          }}
+                          placeholder="區段名稱"
+                        />
+                        <button
+                          className="ced-del-btn"
+                          onClick={() => removeSection(si)}
+                        >
+                          ✕
+                        </button>
                       </div>
-                      <MiniEditor value={section.content_html} onChange={(html) => { const next = [...(profile.sections || [])]; next[si] = { ...next[si], content_html: html }; updateSections(next); }} placeholder="區段內容..." />
+                      <MiniEditor
+                        value={section.content_html}
+                        onChange={(html) => {
+                          const next = [...(profile.sections || [])];
+                          next[si] = { ...next[si], content_html: html };
+                          updateSections(next);
+                        }}
+                        placeholder="區段內容..."
+                      />
                     </div>
                   ))}
                 </>
@@ -859,7 +1532,9 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
           ) : (
             <div className="ced-browser-empty">
               <div>選擇角色進行編輯</div>
-              <div style={{ fontSize: 11, marginTop: 4 }}>拖曳角色到資料夾可變更分類</div>
+              <div style={{ fontSize: 11, marginTop: 4 }}>
+                拖曳角色到資料夾可變更分類
+              </div>
             </div>
           )}
         </div>
@@ -867,16 +1542,38 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
 
       {/* 圖片選取器 overlay */}
       {pickerOpen && (
-        <div className="ced-picker-overlay" onClick={() => setPickerOpen(false)}>
-          <div className="ced-picker-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="ced-picker-overlay"
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            className="ced-picker-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="ced-picker-header">
               <strong>從媒體庫選擇頭像</strong>
-              <span style={{ fontSize: 11, color: 'var(--ink-mute)', marginLeft: 10 }}>{pickerItems.length} 張圖片</span>
-              <button className="ced-del-btn" onClick={() => setPickerOpen(false)} style={{ marginLeft: 'auto' }}>✕</button>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                  marginLeft: 10,
+                }}
+              >
+                {pickerItems.length} 張圖片
+              </span>
+              <button
+                className="ced-del-btn"
+                onClick={() => setPickerOpen(false)}
+                style={{ marginLeft: 'auto' }}
+              >
+                ✕
+              </button>
             </div>
             <div className="ced-picker-grid">
               {pickerLoading && <div className="ced-empty">載入中...</div>}
-              {!pickerLoading && pickerItems.length === 0 && <div className="ced-empty">媒體庫中沒有圖片</div>}
+              {!pickerLoading && pickerItems.length === 0 && (
+                <div className="ced-empty">媒體庫中沒有圖片</div>
+              )}
               {pickerItems.map((item) => (
                 <button
                   key={item.key}
@@ -904,7 +1601,12 @@ function BrowserEditor({ data, onChange, accent }: { data: BrowserContent; onCha
 /** 預設欄位類別 */
 const DEFAULT_FIELD_DEFS: ChronoFieldDef[] = [
   { id: 'main', icon: '☀', label: '主線事件 / 核心敘事', style: 'flat' },
-  { id: 'regional', icon: '🏞', label: '區域動態 / 地區歷史', style: 'grouped' },
+  {
+    id: 'regional',
+    icon: '🏞',
+    label: '區域動態 / 地區歷史',
+    style: 'grouped',
+  },
   { id: 'character', icon: '👤', label: '角色關鍵點', style: 'flat' },
 ];
 
@@ -917,7 +1619,7 @@ const CHRONO_ERAS: { id: ChronoEra; label: string; maxYear?: number }[] = [
 ];
 
 function formatChronoYear(era: ChronoEra, yearNum: number): string {
-  const def = CHRONO_ERAS.find(e => e.id === era);
+  const def = CHRONO_ERAS.find((e) => e.id === era);
   return `${def?.label || era} ${yearNum} 年`;
 }
 
@@ -935,7 +1637,12 @@ function parseChronoYear(yearStr: string): { era: ChronoEra; yearNum: number } {
 }
 
 /** 紀元時序排序權重 */
-const ERA_ORDER: Record<ChronoEra, number> = { 'pre-ad': 0, ad: 1, fa: 2, nw: 3 };
+const ERA_ORDER: Record<ChronoEra, number> = {
+  'pre-ad': 0,
+  ad: 1,
+  fa: 2,
+  nw: 3,
+};
 
 /** 依紀元＋年份排序（AD前降序，其餘升序） */
 function sortChronoPeriods(periods: ChronoPeriod[]): ChronoPeriod[] {
@@ -965,31 +1672,51 @@ function migrateChronoData(raw: any): ChronoContent {
   // 有 fieldDefs 但 period 還用 subtitle → 遷移 period 欄位
   if (raw.fieldDefs && Array.isArray(raw.fieldDefs)) {
     const periods: ChronoPeriod[] = (raw.periods || []).map((op: any) => {
-      const { era, yearNum } = op.era ? { era: op.era, yearNum: op.yearNum } : parseChronoYear(op.year || '');
-      return { era, yearNum, year: formatChronoYear(era, yearNum), title: op.title || op.subtitle, fields: op.fields || {} };
+      const { era, yearNum } = op.era
+        ? { era: op.era, yearNum: op.yearNum }
+        : parseChronoYear(op.year || '');
+      return {
+        era,
+        yearNum,
+        year: formatChronoYear(era, yearNum),
+        title: op.title || op.subtitle,
+        fields: op.fields || {},
+      };
     });
     return { fieldDefs: raw.fieldDefs, periods: sortChronoPeriods(periods) };
   }
   // 舊格式：periods[].sections[]
-  const oldPeriods: { year: string; subtitle?: string; sections?: { icon: string; label: string; events: string[] }[] }[] = raw.periods || [];
+  const oldPeriods: {
+    year: string;
+    subtitle?: string;
+    sections?: { icon: string; label: string; events: string[] }[];
+  }[] = raw.periods || [];
   const iconMap: Record<string, { icon: string; label: string }> = {};
   for (const p of oldPeriods) {
-    for (const s of (p.sections || [])) {
+    for (const s of p.sections || []) {
       if (!iconMap[s.icon]) iconMap[s.icon] = { icon: s.icon, label: s.label };
     }
   }
-  const fieldDefs: ChronoFieldDef[] = DEFAULT_FIELD_DEFS.map(d => {
-    if (iconMap[d.icon]) { delete iconMap[d.icon]; return d; }
+  const fieldDefs: ChronoFieldDef[] = DEFAULT_FIELD_DEFS.map((d) => {
+    if (iconMap[d.icon]) {
+      delete iconMap[d.icon];
+      return d;
+    }
     return d;
   });
   for (const [, v] of Object.entries(iconMap)) {
-    fieldDefs.push({ id: v.label.replace(/\s/g, '_').toLowerCase(), icon: v.icon, label: v.label, style: 'flat' });
+    fieldDefs.push({
+      id: v.label.replace(/\s/g, '_').toLowerCase(),
+      icon: v.icon,
+      label: v.label,
+      style: 'flat',
+    });
   }
-  const periods: ChronoPeriod[] = oldPeriods.map(op => {
+  const periods: ChronoPeriod[] = oldPeriods.map((op) => {
     const { era, yearNum } = parseChronoYear(op.year);
     const fields: Record<string, ChronoField> = {};
-    for (const s of (op.sections || [])) {
-      const def = fieldDefs.find(d => d.icon === s.icon);
+    for (const s of op.sections || []) {
+      const def = fieldDefs.find((d) => d.icon === s.icon);
       if (!def) continue;
       if (def.style === 'grouped') {
         fields[def.id] = { groups: [{ label: '未分類', items: s.events }] };
@@ -997,12 +1724,26 @@ function migrateChronoData(raw: any): ChronoContent {
         fields[def.id] = { items: s.events };
       }
     }
-    return { era, yearNum, year: formatChronoYear(era, yearNum), title: op.subtitle, fields };
+    return {
+      era,
+      yearNum,
+      year: formatChronoYear(era, yearNum),
+      title: op.subtitle,
+      fields,
+    };
   });
   return { fieldDefs, periods: sortChronoPeriods(periods) };
 }
 
-function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent; onChange: (d: ChronoContent) => void; accent: string }) {
+function ChronoEditor({
+  data: rawData,
+  onChange,
+  accent,
+}: {
+  data: ChronoContent;
+  onChange: (d: ChronoContent) => void;
+  accent: string;
+}) {
   const data = React.useMemo(() => migrateChronoData(rawData), [rawData]);
   const [activePeriod, setActivePeriod] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -1010,9 +1751,16 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   // 時間點拖曳排序
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   // 欄位內項目拖曳（通用）
-  const [itemDrag, setItemDrag] = useState<{ defId: string; type: 'flat' | 'group' | 'groupItem'; gi?: number; idx: number } | null>(null);
+  const [itemDrag, setItemDrag] = useState<{
+    defId: string;
+    type: 'flat' | 'group' | 'groupItem';
+    gi?: number;
+    idx: number;
+  } | null>(null);
 
-  function emit(next: ChronoContent) { onChange(next); }
+  function emit(next: ChronoContent) {
+    onChange(next);
+  }
   function updatePeriods(periods: ChronoPeriod[], skipSort = false) {
     const sorted = skipSort ? periods : sortChronoPeriods(periods);
     emit({ ...data, fieldDefs: data.fieldDefs, periods: sorted });
@@ -1023,19 +1771,32 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
     for (const def of data.fieldDefs) {
       fields[def.id] = def.style === 'grouped' ? { groups: [] } : { items: [] };
     }
-    const newPeriod: ChronoPeriod = { era: 'ad', yearNum: 1, year: formatChronoYear('ad', 1), fields };
+    const newPeriod: ChronoPeriod = {
+      era: 'ad',
+      yearNum: 1,
+      year: formatChronoYear('ad', 1),
+      fields,
+    };
     const newPeriods = sortChronoPeriods([...data.periods, newPeriod]);
-    const newIdx = newPeriods.findIndex(p => p === newPeriod);
+    const newIdx = newPeriods.findIndex((p) => p === newPeriod);
     emit({ ...data, fieldDefs: data.fieldDefs, periods: newPeriods });
     setActivePeriod(newIdx >= 0 ? newIdx : 0);
   }
 
   async function removePeriod(i: number) {
     const p = data.periods[i];
-    const ok = await getDialog().confirm(`確定要刪除時間點「${p.year}」嗎？`, { title: '刪除時間點', confirmText: '刪除', cancelText: '取消' });
+    const ok = await getDialog().confirm(`確定要刪除時間點「${p.year}」嗎？`, {
+      title: '刪除時間點',
+      confirmText: '刪除',
+      cancelText: '取消',
+    });
     if (!ok) return;
-    updatePeriods(data.periods.filter((_, idx) => idx !== i), true);
-    if (activePeriod >= data.periods.length - 1) setActivePeriod(Math.max(0, data.periods.length - 2));
+    updatePeriods(
+      data.periods.filter((_, idx) => idx !== i),
+      true
+    );
+    if (activePeriod >= data.periods.length - 1)
+      setActivePeriod(Math.max(0, data.periods.length - 2));
   }
 
   function handleDrop(targetIdx: number) {
@@ -1051,28 +1812,44 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   const period = data.periods[activePeriod];
 
   function updatePeriod(patch: Partial<ChronoPeriod>) {
-    updatePeriods(data.periods.map((p, i) => i === activePeriod ? { ...p, ...patch } : p), true);
+    updatePeriods(
+      data.periods.map((p, i) => (i === activePeriod ? { ...p, ...patch } : p)),
+      true
+    );
   }
 
   // 年份變更（era 或 yearNum）— 排序後追蹤 activePeriod
   function setEra(era: ChronoEra) {
     if (!period) return;
-    const eraDef = CHRONO_ERAS.find(e => e.id === era);
+    const eraDef = CHRONO_ERAS.find((e) => e.id === era);
     let yearNum = period.yearNum || 1;
     if (eraDef?.maxYear && yearNum > eraDef.maxYear) yearNum = eraDef.maxYear;
-    const updated = { ...period, era, yearNum, year: formatChronoYear(era, yearNum) };
-    const newPeriods = sortChronoPeriods(data.periods.map((p, i) => i === activePeriod ? updated : p));
+    const updated = {
+      ...period,
+      era,
+      yearNum,
+      year: formatChronoYear(era, yearNum),
+    };
+    const newPeriods = sortChronoPeriods(
+      data.periods.map((p, i) => (i === activePeriod ? updated : p))
+    );
     const newIdx = newPeriods.indexOf(updated);
     emit({ ...data, fieldDefs: data.fieldDefs, periods: newPeriods });
     setActivePeriod(newIdx >= 0 ? newIdx : 0);
   }
   function setYearNum(num: number) {
     if (!period) return;
-    const eraDef = CHRONO_ERAS.find(e => e.id === period.era);
+    const eraDef = CHRONO_ERAS.find((e) => e.id === period.era);
     const clamped = eraDef?.maxYear ? Math.min(num, eraDef.maxYear) : num;
     const yearNum = Math.max(1, clamped);
-    const updated = { ...period, yearNum, year: formatChronoYear(period.era, yearNum) };
-    const newPeriods = sortChronoPeriods(data.periods.map((p, i) => i === activePeriod ? updated : p));
+    const updated = {
+      ...period,
+      yearNum,
+      year: formatChronoYear(period.era, yearNum),
+    };
+    const newPeriods = sortChronoPeriods(
+      data.periods.map((p, i) => (i === activePeriod ? updated : p))
+    );
     const newIdx = newPeriods.indexOf(updated);
     emit({ ...data, fieldDefs: data.fieldDefs, periods: newPeriods });
     setActivePeriod(newIdx >= 0 ? newIdx : 0);
@@ -1084,36 +1861,61 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   }
 
   // ── 欄位類別管理 ──
-  function updateFieldDefs(defs: ChronoFieldDef[]) { emit({ ...data, fieldDefs: defs, periods: data.periods }); }
+  function updateFieldDefs(defs: ChronoFieldDef[]) {
+    emit({ ...data, fieldDefs: defs, periods: data.periods });
+  }
 
   async function addFieldDef() {
-    const label = await getDialog().prompt('請輸入欄位類別名稱', { title: '新增欄位類別', placeholder: '如：組織動態、技術發展' });
+    const label = await getDialog().prompt('請輸入欄位類別名稱', {
+      title: '新增欄位類別',
+      placeholder: '如：組織動態、技術發展',
+    });
     if (!label) return;
-    const id = label.replace(/[\s/]/g, '_').toLowerCase() + '_' + Date.now().toString(36);
-    const icon = await getDialog().prompt('圖示（emoji）', { title: '欄位圖示', placeholder: '◇' }) || '◇';
-    const styleChoice = await getDialog().confirm('此欄位是否需要分組？\n確定 → 分組模式（如區域動態）\n取消 → 純列表', { title: '欄位風格', confirmText: '分組 (grouped)', cancelText: '列表 (flat)' });
+    const id =
+      label.replace(/[\s/]/g, '_').toLowerCase() +
+      '_' +
+      Date.now().toString(36);
+    const icon =
+      (await getDialog().prompt('圖示（emoji）', {
+        title: '欄位圖示',
+        placeholder: '◇',
+      })) || '◇';
+    const styleChoice = await getDialog().confirm(
+      '此欄位是否需要分組？\n確定 → 分組模式（如區域動態）\n取消 → 純列表',
+      {
+        title: '欄位風格',
+        confirmText: '分組 (grouped)',
+        cancelText: '列表 (flat)',
+      }
+    );
     const style: 'flat' | 'grouped' = styleChoice ? 'grouped' : 'flat';
     updateFieldDefs([...data.fieldDefs, { id, icon, label, style }]);
   }
 
   async function removeFieldDef(defId: string) {
-    const def = data.fieldDefs.find(d => d.id === defId);
+    const def = data.fieldDefs.find((d) => d.id === defId);
     if (!def) return;
-    const hasData = data.periods.some(p => {
+    const hasData = data.periods.some((p) => {
       const f = p.fields[defId];
       if (!f) return false;
-      return (f.items && f.items.length > 0) || (f.groups && f.groups.length > 0);
+      return (
+        (f.items && f.items.length > 0) || (f.groups && f.groups.length > 0)
+      );
     });
     const msg = hasData
-      ? `欄位「${def.label}」在 ${data.periods.filter(p => p.fields[defId]?.items?.length || p.fields[defId]?.groups?.length).length} 個時間點有資料。刪除後資料將遺失。`
+      ? `欄位「${def.label}」在 ${data.periods.filter((p) => p.fields[defId]?.items?.length || p.fields[defId]?.groups?.length).length} 個時間點有資料。刪除後資料將遺失。`
       : `確定要刪除欄位類別「${def.label}」嗎？`;
-    const ok = await getDialog().confirm(msg, { title: '刪除欄位類別', confirmText: '刪除', cancelText: '取消' });
+    const ok = await getDialog().confirm(msg, {
+      title: '刪除欄位類別',
+      confirmText: '刪除',
+      cancelText: '取消',
+    });
     if (!ok) return;
-    updateFieldDefs(data.fieldDefs.filter(d => d.id !== defId));
+    updateFieldDefs(data.fieldDefs.filter((d) => d.id !== defId));
   }
 
   function toggleCollapse(defId: string) {
-    setCollapsed(prev => ({ ...prev, [defId]: !prev[defId] }));
+    setCollapsed((prev) => ({ ...prev, [defId]: !prev[defId] }));
   }
 
   // ── flat 欄位操作 ──
@@ -1123,46 +1925,73 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   }
   function updateFlatItem(defId: string, idx: number, text: string) {
     const field = period?.fields[defId] || { items: [] };
-    const items = [...(field.items || [])]; items[idx] = text;
+    const items = [...(field.items || [])];
+    items[idx] = text;
     updateField(defId, { ...field, items });
   }
   function removeFlatItem(defId: string, idx: number) {
     const field = period?.fields[defId] || { items: [] };
-    updateField(defId, { ...field, items: (field.items || []).filter((_, i) => i !== idx) });
+    updateField(defId, {
+      ...field,
+      items: (field.items || []).filter((_, i) => i !== idx),
+    });
   }
   function reorderFlatItem(defId: string, from: number, to: number) {
     const field = period?.fields[defId] || { items: [] };
-    updateField(defId, { ...field, items: reorder(field.items || [], from, to) });
+    updateField(defId, {
+      ...field,
+      items: reorder(field.items || [], from, to),
+    });
   }
 
   // ── grouped 欄位操作 ──
   function addGroup(defId: string) {
     const field = period?.fields[defId] || { groups: [] };
-    updateField(defId, { ...field, groups: [...(field.groups || []), { label: '', items: [''] }] });
+    updateField(defId, {
+      ...field,
+      groups: [...(field.groups || []), { label: '', items: [''] }],
+    });
   }
   function updateGroupLabel(defId: string, gi: number, label: string) {
     const field = period?.fields[defId] || { groups: [] };
-    const groups = (field.groups || []).map((g, i) => i === gi ? { ...g, label } : g);
+    const groups = (field.groups || []).map((g, i) =>
+      i === gi ? { ...g, label } : g
+    );
     updateField(defId, { ...field, groups });
   }
   function removeGroup(defId: string, gi: number) {
     const field = period?.fields[defId] || { groups: [] };
-    updateField(defId, { ...field, groups: (field.groups || []).filter((_, i) => i !== gi) });
+    updateField(defId, {
+      ...field,
+      groups: (field.groups || []).filter((_, i) => i !== gi),
+    });
   }
   function reorderGroup(defId: string, from: number, to: number) {
     const field = period?.fields[defId] || { groups: [] };
-    updateField(defId, { ...field, groups: reorder(field.groups || [], from, to) });
+    updateField(defId, {
+      ...field,
+      groups: reorder(field.groups || [], from, to),
+    });
   }
   function addGroupItem(defId: string, gi: number) {
     const field = period?.fields[defId] || { groups: [] };
-    const groups = (field.groups || []).map((g, i) => i === gi ? { ...g, items: [...g.items, ''] } : g);
+    const groups = (field.groups || []).map((g, i) =>
+      i === gi ? { ...g, items: [...g.items, ''] } : g
+    );
     updateField(defId, { ...field, groups });
   }
-  function updateGroupItem(defId: string, gi: number, ii: number, text: string) {
+  function updateGroupItem(
+    defId: string,
+    gi: number,
+    ii: number,
+    text: string
+  ) {
     const field = period?.fields[defId] || { groups: [] };
     const groups = (field.groups || []).map((g, i) => {
       if (i !== gi) return g;
-      const items = [...g.items]; items[ii] = text; return { ...g, items };
+      const items = [...g.items];
+      items[ii] = text;
+      return { ...g, items };
     });
     updateField(defId, { ...field, groups });
   }
@@ -1174,7 +2003,12 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
     });
     updateField(defId, { ...field, groups });
   }
-  function reorderGroupItem(defId: string, gi: number, from: number, to: number) {
+  function reorderGroupItem(
+    defId: string,
+    gi: number,
+    from: number,
+    to: number
+  ) {
     const field = period?.fields[defId] || { groups: [] };
     const groups = (field.groups || []).map((g, i) => {
       if (i !== gi) return g;
@@ -1187,24 +2021,48 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   function fieldItemCount(f: ChronoField | undefined): number {
     if (!f) return 0;
     if (f.items) return f.items.filter(Boolean).length;
-    if (f.groups) return f.groups.reduce((sum, g) => sum + g.items.filter(Boolean).length, 0);
+    if (f.groups)
+      return f.groups.reduce(
+        (sum, g) => sum + g.items.filter(Boolean).length,
+        0
+      );
     return 0;
   }
 
   // 拖曳 handlers
-  function onItemDragStart(defId: string, type: 'flat' | 'group' | 'groupItem', idx: number, gi?: number) {
+  function onItemDragStart(
+    defId: string,
+    type: 'flat' | 'group' | 'groupItem',
+    idx: number,
+    gi?: number
+  ) {
     setItemDrag({ defId, type, gi, idx });
   }
-  function onItemDrop(defId: string, type: 'flat' | 'group' | 'groupItem', targetIdx: number, gi?: number) {
+  function onItemDrop(
+    defId: string,
+    type: 'flat' | 'group' | 'groupItem',
+    targetIdx: number,
+    gi?: number
+  ) {
     if (!itemDrag || itemDrag.defId !== defId || itemDrag.type !== type) return;
     if (type === 'flat') reorderFlatItem(defId, itemDrag.idx, targetIdx);
     else if (type === 'group') reorderGroup(defId, itemDrag.idx, targetIdx);
-    else if (type === 'groupItem' && gi !== undefined && itemDrag.gi === gi) reorderGroupItem(defId, gi, itemDrag.idx, targetIdx);
+    else if (type === 'groupItem' && gi !== undefined && itemDrag.gi === gi)
+      reorderGroupItem(defId, gi, itemDrag.idx, targetIdx);
     setItemDrag(null);
   }
-  function dragOverHandler(e: React.DragEvent) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-  function dragLeaveHandler(e: React.DragEvent) { e.currentTarget.classList.remove('drag-over'); }
-  function dropHandler(e: React.DragEvent, cb: () => void) { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); cb(); }
+  function dragOverHandler(e: React.DragEvent) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  }
+  function dragLeaveHandler(e: React.DragEvent) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+  function dropHandler(e: React.DragEvent, cb: () => void) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    cb();
+  }
 
   return (
     <div className="ced-section">
@@ -1213,7 +2071,16 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
         {/* 左側：時間軸池 */}
         <div className="ced-chrono-pool">
           <div className="ced-chrono-pool-header">
-            <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.16em' }}>時間軸</span>
+            <span
+              style={{
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                letterSpacing: '0.16em',
+              }}
+            >
+              時間軸
+            </span>
           </div>
 
           <div className="ced-chrono-pool-list">
@@ -1229,18 +2096,46 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
                 onDragLeave={dragLeaveHandler}
                 onDrop={(e) => dropHandler(e, () => handleDrop(pi))}
               >
-                <div className="ced-chrono-node-dot" style={{ borderColor: accent, background: pi === activePeriod ? accent : undefined }} />
-                {pi < data.periods.length - 1 && <div className="ced-chrono-node-line" style={{ background: accent }} />}
+                <div
+                  className="ced-chrono-node-dot"
+                  style={{
+                    borderColor: accent,
+                    background: pi === activePeriod ? accent : undefined,
+                  }}
+                />
+                {pi < data.periods.length - 1 && (
+                  <div
+                    className="ced-chrono-node-line"
+                    style={{ background: accent }}
+                  />
+                )}
                 <div className="ced-chrono-node-info">
                   <span className="ced-chrono-node-year">{p.year}</span>
-                  {p.title && <span className="ced-chrono-node-sub">{p.title}</span>}
+                  {p.title && (
+                    <span className="ced-chrono-node-sub">{p.title}</span>
+                  )}
                 </div>
-                <button className="ced-del-btn" onClick={(e) => { e.stopPropagation(); removePeriod(pi); }} style={{ fontSize: 11 }}>✕</button>
+                <button
+                  className="ced-del-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removePeriod(pi);
+                  }}
+                  style={{ fontSize: 11 }}
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
 
-          <button className="ced-add-btn ced-chrono-add-node" onClick={addPeriod} style={{ color: accent }}>+ 新增時間點</button>
+          <button
+            className="ced-add-btn ced-chrono-add-node"
+            onClick={addPeriod}
+            style={{ color: accent }}
+          >
+            + 新增時間點
+          </button>
         </div>
 
         {/* 右側：結構化編輯面板 */}
@@ -1255,28 +2150,60 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
               {/* 年份選擇器 */}
               <div className="ced-field-row">
                 <label className="ced-label">年份</label>
-                <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
-                  <select className="ced-select" value={period.era} onChange={(e) => setEra(e.target.value as ChronoEra)}>
-                    {CHRONO_ERAS.map(era => (
-                      <option key={era.id} value={era.id}>{era.label}{era.maxYear ? ` (≤${era.maxYear})` : ''}</option>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    flex: 1,
+                    alignItems: 'center',
+                  }}
+                >
+                  <select
+                    className="ced-select"
+                    value={period.era}
+                    onChange={(e) => setEra(e.target.value as ChronoEra)}
+                  >
+                    {CHRONO_ERAS.map((era) => (
+                      <option key={era.id} value={era.id}>
+                        {era.label}
+                        {era.maxYear ? ` (≤${era.maxYear})` : ''}
+                      </option>
                     ))}
                   </select>
                   <input
                     className="ced-input ced-input-sm"
                     type="number"
                     min={1}
-                    max={CHRONO_ERAS.find(e => e.id === period.era)?.maxYear || undefined}
+                    max={
+                      CHRONO_ERAS.find((e) => e.id === period.era)?.maxYear ||
+                      undefined
+                    }
                     value={period.yearNum}
                     onChange={(e) => setYearNum(parseInt(e.target.value) || 1)}
                     style={{ width: 80 }}
                   />
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-mute)' }}>年</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      color: 'var(--ink-mute)',
+                    }}
+                  >
+                    年
+                  </span>
                 </div>
               </div>
 
               <div className="ced-field-row">
                 <label className="ced-label">標題</label>
-                <input className="ced-input" value={period.title || ''} onChange={(e) => updatePeriod({ title: e.target.value || undefined })} placeholder="選填" />
+                <input
+                  className="ced-input"
+                  value={period.title || ''}
+                  onChange={(e) =>
+                    updatePeriod({ title: e.target.value || undefined })
+                  }
+                  placeholder="選填"
+                />
               </div>
 
               {/* 各欄位類別 */}
@@ -1289,18 +2216,55 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
                 return (
                   <div key={def.id} className="ced-chrono-field-section">
                     <div className="ced-chrono-field-header">
-                      <button className="ced-chrono-field-toggle" onClick={() => toggleCollapse(def.id)}>
-                        <span className="ced-chrono-field-chevron">{isCollapsed ? '▸' : '▾'}</span>
-                        <span className="ced-chrono-field-icon">{def.icon}</span>
-                        <span className="ced-chrono-field-label">{def.label}</span>
+                      <button
+                        className="ced-chrono-field-toggle"
+                        onClick={() => toggleCollapse(def.id)}
+                      >
+                        <span className="ced-chrono-field-chevron">
+                          {isCollapsed ? '▸' : '▾'}
+                        </span>
+                        <span className="ced-chrono-field-icon">
+                          {def.icon}
+                        </span>
+                        <span className="ced-chrono-field-label">
+                          {def.label}
+                        </span>
                         <span className="ced-count">{count}</span>
                       </button>
                       <div className="ced-chrono-field-actions">
                         <div className="ced-chrono-move-btns">
-                          <button className="ced-chrono-move-btn" disabled={di === 0} onClick={() => updateFieldDefs(reorder(data.fieldDefs, di, di - 1))} title="上移">▲</button>
-                          <button className="ced-chrono-move-btn" disabled={di === defCount - 1} onClick={() => updateFieldDefs(reorder(data.fieldDefs, di, di + 1))} title="下移">▼</button>
+                          <button
+                            className="ced-chrono-move-btn"
+                            disabled={di === 0}
+                            onClick={() =>
+                              updateFieldDefs(
+                                reorder(data.fieldDefs, di, di - 1)
+                              )
+                            }
+                            title="上移"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            className="ced-chrono-move-btn"
+                            disabled={di === defCount - 1}
+                            onClick={() =>
+                              updateFieldDefs(
+                                reorder(data.fieldDefs, di, di + 1)
+                              )
+                            }
+                            title="下移"
+                          >
+                            ▼
+                          </button>
                         </div>
-                        <button className="ced-del-btn" onClick={() => removeFieldDef(def.id)} title="刪除欄位">✕</button>
+                        <button
+                          className="ced-del-btn"
+                          onClick={() => removeFieldDef(def.id)}
+                          title="刪除欄位"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
 
@@ -1313,18 +2277,51 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
                                 key={ii}
                                 className={`ced-chrono-flat-item ${itemDrag?.defId === def.id && itemDrag?.type === 'flat' && itemDrag?.idx === ii ? 'dragging' : ''}`}
                                 draggable
-                                onDragStart={() => onItemDragStart(def.id, 'flat', ii)}
+                                onDragStart={() =>
+                                  onItemDragStart(def.id, 'flat', ii)
+                                }
                                 onDragEnd={() => setItemDrag(null)}
                                 onDragOver={dragOverHandler}
                                 onDragLeave={dragLeaveHandler}
-                                onDrop={(e) => dropHandler(e, () => onItemDrop(def.id, 'flat', ii))}
+                                onDrop={(e) =>
+                                  dropHandler(e, () =>
+                                    onItemDrop(def.id, 'flat', ii)
+                                  )
+                                }
                               >
-                                <span className="ced-drag-handle" title="拖曳排序">⠿</span>
-                                <input className="ced-input ced-input-sm" value={item} onChange={(e) => updateFlatItem(def.id, ii, e.target.value)} placeholder="事件描述..." />
-                                <button className="ced-del-btn" onClick={() => removeFlatItem(def.id, ii)}>✕</button>
+                                <span
+                                  className="ced-drag-handle"
+                                  title="拖曳排序"
+                                >
+                                  ⠿
+                                </span>
+                                <input
+                                  className="ced-input ced-input-sm"
+                                  value={item}
+                                  onChange={(e) =>
+                                    updateFlatItem(def.id, ii, e.target.value)
+                                  }
+                                  placeholder="事件描述..."
+                                />
+                                <button
+                                  className="ced-del-btn"
+                                  onClick={() => removeFlatItem(def.id, ii)}
+                                >
+                                  ✕
+                                </button>
                               </div>
                             ))}
-                            <button className="ced-add-btn" onClick={() => addFlatItem(def.id)} style={{ color: accent, fontSize: 11, marginTop: 4 }}>+ 新增事件</button>
+                            <button
+                              className="ced-add-btn"
+                              onClick={() => addFlatItem(def.id)}
+                              style={{
+                                color: accent,
+                                fontSize: 11,
+                                marginTop: 4,
+                              }}
+                            >
+                              + 新增事件
+                            </button>
                           </>
                         ) : (
                           <>
@@ -1334,34 +2331,130 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
                                 <div key={gi} className="ced-chrono-group">
                                   <div className="ced-chrono-group-header">
                                     <div className="ced-chrono-move-btns">
-                                      <button className="ced-chrono-move-btn" disabled={gi === 0} onClick={() => reorderGroup(def.id, gi, gi - 1)} title="上移">▲</button>
-                                      <button className="ced-chrono-move-btn" disabled={gi === groupCount - 1} onClick={() => reorderGroup(def.id, gi, gi + 1)} title="下移">▼</button>
+                                      <button
+                                        className="ced-chrono-move-btn"
+                                        disabled={gi === 0}
+                                        onClick={() =>
+                                          reorderGroup(def.id, gi, gi - 1)
+                                        }
+                                        title="上移"
+                                      >
+                                        ▲
+                                      </button>
+                                      <button
+                                        className="ced-chrono-move-btn"
+                                        disabled={gi === groupCount - 1}
+                                        onClick={() =>
+                                          reorderGroup(def.id, gi, gi + 1)
+                                        }
+                                        title="下移"
+                                      >
+                                        ▼
+                                      </button>
                                     </div>
-                                    <input className="ced-input ced-input-sm ced-input-name" value={group.label} onChange={(e) => updateGroupLabel(def.id, gi, e.target.value)} placeholder="區域名稱..." />
-                                    <span className="ced-count">{group.items.filter(Boolean).length}</span>
-                                    <button className="ced-del-btn" onClick={() => removeGroup(def.id, gi)}>✕</button>
+                                    <input
+                                      className="ced-input ced-input-sm ced-input-name"
+                                      value={group.label}
+                                      onChange={(e) =>
+                                        updateGroupLabel(
+                                          def.id,
+                                          gi,
+                                          e.target.value
+                                        )
+                                      }
+                                      placeholder="區域名稱..."
+                                    />
+                                    <span className="ced-count">
+                                      {group.items.filter(Boolean).length}
+                                    </span>
+                                    <button
+                                      className="ced-del-btn"
+                                      onClick={() => removeGroup(def.id, gi)}
+                                    >
+                                      ✕
+                                    </button>
                                   </div>
                                   {group.items.map((item, ii) => (
                                     <div
                                       key={ii}
                                       className={`ced-chrono-group-item ${itemDrag?.defId === def.id && itemDrag?.type === 'groupItem' && itemDrag?.gi === gi && itemDrag?.idx === ii ? 'dragging' : ''}`}
                                       draggable
-                                      onDragStart={() => onItemDragStart(def.id, 'groupItem', ii, gi)}
+                                      onDragStart={() =>
+                                        onItemDragStart(
+                                          def.id,
+                                          'groupItem',
+                                          ii,
+                                          gi
+                                        )
+                                      }
                                       onDragEnd={() => setItemDrag(null)}
                                       onDragOver={dragOverHandler}
                                       onDragLeave={dragLeaveHandler}
-                                      onDrop={(e) => dropHandler(e, () => onItemDrop(def.id, 'groupItem', ii, gi))}
+                                      onDrop={(e) =>
+                                        dropHandler(e, () =>
+                                          onItemDrop(
+                                            def.id,
+                                            'groupItem',
+                                            ii,
+                                            gi
+                                          )
+                                        )
+                                      }
                                     >
-                                      <span className="ced-drag-handle" title="拖曳排序">⠿</span>
-                                      <input className="ced-input ced-input-sm" value={item} onChange={(e) => updateGroupItem(def.id, gi, ii, e.target.value)} placeholder="事件描述..." />
-                                      <button className="ced-del-btn" onClick={() => removeGroupItem(def.id, gi, ii)}>✕</button>
+                                      <span
+                                        className="ced-drag-handle"
+                                        title="拖曳排序"
+                                      >
+                                        ⠿
+                                      </span>
+                                      <input
+                                        className="ced-input ced-input-sm"
+                                        value={item}
+                                        onChange={(e) =>
+                                          updateGroupItem(
+                                            def.id,
+                                            gi,
+                                            ii,
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="事件描述..."
+                                      />
+                                      <button
+                                        className="ced-del-btn"
+                                        onClick={() =>
+                                          removeGroupItem(def.id, gi, ii)
+                                        }
+                                      >
+                                        ✕
+                                      </button>
                                     </div>
                                   ))}
-                                  <button className="ced-add-btn" onClick={() => addGroupItem(def.id, gi)} style={{ color: accent, fontSize: 10, marginLeft: 22 }}>+ 事件</button>
+                                  <button
+                                    className="ced-add-btn"
+                                    onClick={() => addGroupItem(def.id, gi)}
+                                    style={{
+                                      color: accent,
+                                      fontSize: 10,
+                                      marginLeft: 22,
+                                    }}
+                                  >
+                                    + 事件
+                                  </button>
                                 </div>
                               );
                             })}
-                            <button className="ced-add-btn" onClick={() => addGroup(def.id)} style={{ color: accent, fontSize: 11, marginTop: 4 }}>+ 新增區域</button>
+                            <button
+                              className="ced-add-btn"
+                              onClick={() => addGroup(def.id)}
+                              style={{
+                                color: accent,
+                                fontSize: 11,
+                                marginTop: 4,
+                              }}
+                            >
+                              + 新增區域
+                            </button>
                           </>
                         )}
                       </div>
@@ -1371,7 +2464,13 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
               })}
 
               {/* 新增欄位區塊 */}
-              <button className="ced-add-btn" onClick={addFieldDef} style={{ color: accent, fontSize: 11, marginTop: 12 }}>+ 新增欄位</button>
+              <button
+                className="ced-add-btn"
+                onClick={addFieldDef}
+                style={{ color: accent, fontSize: 11, marginTop: 12 }}
+              >
+                + 新增欄位
+              </button>
             </>
           ) : (
             <div className="ced-browser-empty" style={{ height: '100%' }}>
@@ -1388,23 +2487,53 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
 // Diff 編輯器（對照表/術語 + hidden/locked 支援）
 // ══════════════════════════════════════════════════════════════════
 
-function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (d: DiffContent) => void; accent: string }) {
+function DiffEditor({
+  data,
+  onChange,
+  accent,
+}: {
+  data: DiffContent;
+  onChange: (d: DiffContent) => void;
+  accent: string;
+}) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
   const [activeEntry, setActiveEntry] = useState<number | null>(null);
   const [panelMode, setPanelMode] = useState<'section' | 'entry'>('section');
-  const [dragEntryInfo, setDragEntryInfo] = useState<{ sectionIdx: number; entryIdx: number } | null>(null);
+  const [dragEntryInfo, setDragEntryInfo] = useState<{
+    sectionIdx: number;
+    entryIdx: number;
+  } | null>(null);
 
-  function updateSubcats(subcats: DiffSubcat[]) { onChange({ ...data, subcategories: subcats }); }
-  function addSubcat() { updateSubcats([...data.subcategories, { label: '新分類', sections: [{ label: '', entries: [] }] }]); }
-  function removeSubcat(i: number) { updateSubcats(data.subcategories.filter((_, idx) => idx !== i)); if (activeTab >= data.subcategories.length - 1) setActiveTab(Math.max(0, data.subcategories.length - 2)); setActiveEntry(null); }
+  function updateSubcats(subcats: DiffSubcat[]) {
+    onChange({ ...data, subcategories: subcats });
+  }
+  function addSubcat() {
+    updateSubcats([
+      ...data.subcategories,
+      { label: '新分類', sections: [{ label: '', entries: [] }] },
+    ]);
+  }
+  function removeSubcat(i: number) {
+    updateSubcats(data.subcategories.filter((_, idx) => idx !== i));
+    if (activeTab >= data.subcategories.length - 1)
+      setActiveTab(Math.max(0, data.subcategories.length - 2));
+    setActiveEntry(null);
+  }
 
   const subcat = data.subcategories[activeTab];
 
   function updateSections(sections: DiffSection[]) {
-    updateSubcats(data.subcategories.map((sc, i) => i === activeTab ? { ...sc, sections } : sc));
+    updateSubcats(
+      data.subcategories.map((sc, i) =>
+        i === activeTab ? { ...sc, sections } : sc
+      )
+    );
   }
-  function addSection() { if (!subcat) return; updateSections([...subcat.sections, { label: '新區段', entries: [] }]); }
+  function addSection() {
+    if (!subcat) return;
+    updateSections([...subcat.sections, { label: '新區段', entries: [] }]);
+  }
 
   async function removeSection(si: number) {
     if (!subcat || si === 0) return;
@@ -1416,31 +2545,54 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
       );
       if (!ok) return;
       const newSections = [...subcat.sections];
-      newSections[0] = { ...newSections[0], entries: [...newSections[0].entries, ...s.entries] };
+      newSections[0] = {
+        ...newSections[0],
+        entries: [...newSections[0].entries, ...s.entries],
+      };
       newSections.splice(si, 1);
       updateSections(newSections);
     } else {
       updateSections(subcat.sections.filter((_, idx) => idx !== si));
     }
     if (activeSection >= si) setActiveSection(Math.max(0, activeSection - 1));
-    setActiveEntry(null); setPanelMode('section');
+    setActiveEntry(null);
+    setPanelMode('section');
   }
 
   React.useEffect(() => {
-    if (subcat && subcat.sections.length === 0) updateSections([{ label: '', entries: [] }]);
+    if (subcat && subcat.sections.length === 0)
+      updateSections([{ label: '', entries: [] }]);
   }, [activeTab, subcat?.sections.length]);
 
   const section = subcat?.sections[activeSection];
 
   function updateEntries(entries: DiffEntry[]) {
     if (!subcat) return;
-    updateSections(subcat.sections.map((s, i) => i === activeSection ? { ...s, entries } : s));
+    updateSections(
+      subcat.sections.map((s, i) =>
+        i === activeSection ? { ...s, entries } : s
+      )
+    );
   }
-  function addEntry() { if (!section) return; updateEntries([...section.entries, { term: '', values: [''] }]); setActiveEntry(section.entries.length); setPanelMode('entry'); }
-  function removeEntry(i: number) { if (!section) return; updateEntries(section.entries.filter((_, idx) => idx !== i)); if (activeEntry === i) { setActiveEntry(null); setPanelMode('section'); } }
+  function addEntry() {
+    if (!section) return;
+    updateEntries([...section.entries, { term: '', values: [''] }]);
+    setActiveEntry(section.entries.length);
+    setPanelMode('entry');
+  }
+  function removeEntry(i: number) {
+    if (!section) return;
+    updateEntries(section.entries.filter((_, idx) => idx !== i));
+    if (activeEntry === i) {
+      setActiveEntry(null);
+      setPanelMode('section');
+    }
+  }
   function updateEntry(i: number, patch: Partial<DiffEntry>) {
     if (!section) return;
-    updateEntries(section.entries.map((e, idx) => idx === i ? { ...e, ...patch } : e));
+    updateEntries(
+      section.entries.map((e, idx) => (idx === i ? { ...e, ...patch } : e))
+    );
   }
 
   // 跨區段拖曳
@@ -1451,12 +2603,16 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
     const srcSection = subcat.sections[srcSi];
     const ent = srcSection.entries[srcEi];
     const newSections = subcat.sections.map((s, si) => {
-      if (si === srcSi) return { ...s, entries: s.entries.filter((_, idx) => idx !== srcEi) };
+      if (si === srcSi)
+        return { ...s, entries: s.entries.filter((_, idx) => idx !== srcEi) };
       if (si === targetSi) return { ...s, entries: [...s.entries, ent] };
       return s;
     });
     updateSections(newSections);
-    if (activeSection === srcSi && activeEntry === srcEi) { setActiveEntry(null); setPanelMode('section'); }
+    if (activeSection === srcSi && activeEntry === srcEi) {
+      setActiveEntry(null);
+      setPanelMode('section');
+    }
     setDragEntryInfo(null);
   }
 
@@ -1472,21 +2628,42 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
     setDragEntryInfo(null);
   }
 
-  const entry = activeEntry !== null && section ? section.entries[activeEntry] : null;
+  const entry =
+    activeEntry !== null && section ? section.entries[activeEntry] : null;
 
   return (
     <div className="ced-section">
       {/* 分類 Tab */}
       <div className="ced-section-header">
         <span className="ced-section-title">分類</span>
-        <button className="ced-add-btn" onClick={addSubcat} style={{ color: accent }}>+ 新增分類</button>
+        <button
+          className="ced-add-btn"
+          onClick={addSubcat}
+          style={{ color: accent }}
+        >
+          + 新增分類
+        </button>
       </div>
       {data.subcategories.length > 0 && (
         <div className="ced-tabs">
           {data.subcategories.map((sc, i) => (
-            <div key={i} className={`ced-tab ${i === activeTab ? 'active' : ''}`}>
-              <button className="ced-tab-btn" onClick={() => { setActiveTab(i); setActiveSection(0); setActiveEntry(null); }}>{sc.label || '(未命名)'}</button>
-              <button className="ced-tab-del" onClick={() => removeSubcat(i)}>✕</button>
+            <div
+              key={i}
+              className={`ced-tab ${i === activeTab ? 'active' : ''}`}
+            >
+              <button
+                className="ced-tab-btn"
+                onClick={() => {
+                  setActiveTab(i);
+                  setActiveSection(0);
+                  setActiveEntry(null);
+                }}
+              >
+                {sc.label || '(未命名)'}
+              </button>
+              <button className="ced-tab-del" onClick={() => removeSubcat(i)}>
+                ✕
+              </button>
             </div>
           ))}
         </div>
@@ -1496,7 +2673,17 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
         <>
           <div className="ced-field-row">
             <label className="ced-label">分類名稱</label>
-            <input className="ced-input" value={subcat.label} onChange={(e) => updateSubcats(data.subcategories.map((sc, i) => i === activeTab ? { ...sc, label: e.target.value } : sc))} />
+            <input
+              className="ced-input"
+              value={subcat.label}
+              onChange={(e) =>
+                updateSubcats(
+                  data.subcategories.map((sc, i) =>
+                    i === activeTab ? { ...sc, label: e.target.value } : sc
+                  )
+                )
+              }
+            />
           </div>
 
           {/* 左右分欄：區段+條目列表 / 條目編輯 */}
@@ -1505,51 +2692,140 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
             <div className="ced-browser-nav">
               <div className="ced-browser-breadcrumb">
                 <span style={{ fontWeight: 600 }}>區段</span>
-                <button className="ced-add-btn" onClick={addSection} style={{ color: accent, marginLeft: 'auto', fontSize: 10 }}>+ 區段</button>
+                <button
+                  className="ced-add-btn"
+                  onClick={addSection}
+                  style={{ color: accent, marginLeft: 'auto', fontSize: 10 }}
+                >
+                  + 區段
+                </button>
               </div>
 
               {subcat.sections.map((s, si) => (
                 <div key={si}>
                   <div
                     className={`ced-browser-folder ${si === activeSection && panelMode === 'section' ? 'active' : ''}`}
-                    onClick={() => { setActiveSection(si); setActiveEntry(null); setPanelMode('section'); }}
-                    style={{ borderLeft: si === activeSection ? `3px solid ${accent}` : '3px solid transparent' }}
-                    onDragOver={dragEntryInfo ? (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); } : undefined}
-                    onDragLeave={dragEntryInfo ? (e) => { e.currentTarget.classList.remove('drag-over'); } : undefined}
-                    onDrop={dragEntryInfo ? (e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleEntryDropOnSection(si); } : undefined}
+                    onClick={() => {
+                      setActiveSection(si);
+                      setActiveEntry(null);
+                      setPanelMode('section');
+                    }}
+                    style={{
+                      borderLeft:
+                        si === activeSection
+                          ? `3px solid ${accent}`
+                          : '3px solid transparent',
+                    }}
+                    onDragOver={
+                      dragEntryInfo
+                        ? (e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.add('drag-over');
+                          }
+                        : undefined
+                    }
+                    onDragLeave={
+                      dragEntryInfo
+                        ? (e) => {
+                            e.currentTarget.classList.remove('drag-over');
+                          }
+                        : undefined
+                    }
+                    onDrop={
+                      dragEntryInfo
+                        ? (e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.remove('drag-over');
+                            handleEntryDropOnSection(si);
+                          }
+                        : undefined
+                    }
                   >
-                    <span className="ced-browser-folder-name" style={{ fontSize: 12 }}>{si === 0 && !s.label ? '(預設)' : s.label || '(未命名)'}</span>
+                    <span
+                      className="ced-browser-folder-name"
+                      style={{ fontSize: 12 }}
+                    >
+                      {si === 0 && !s.label ? '(預設)' : s.label || '(未命名)'}
+                    </span>
                     <span className="ced-count">{s.entries.length}</span>
                     {si > 0 && (
-                      <button className="ced-browser-file-del" onClick={(e) => { e.stopPropagation(); removeSection(si); }} style={{ opacity: 1 }}>✕</button>
+                      <button
+                        className="ced-browser-file-del"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeSection(si);
+                        }}
+                        style={{ opacity: 1 }}
+                      >
+                        ✕
+                      </button>
                     )}
                   </div>
-                  {si === activeSection && s.entries.map((ent, ei) => (
-                    <div
-                      key={ei}
-                      className={`ced-browser-file ${activeEntry === ei && panelMode === 'entry' ? 'active' : ''} ${dragEntryInfo?.sectionIdx === si && dragEntryInfo?.entryIdx === ei ? 'dragging' : ''}`}
-                      onClick={() => { setActiveEntry(ei); setPanelMode('entry'); }}
-                      style={{ paddingLeft: 20 }}
-                      draggable
-                      onDragStart={() => setDragEntryInfo({ sectionIdx: si, entryIdx: ei })}
-                      onDragEnd={() => setDragEntryInfo(null)}
-                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }}
-                      onDragLeave={(e) => { e.currentTarget.classList.remove('drag-over'); }}
-                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleEntryReorder(ei); }}
-                    >
-                      <span className="ced-browser-file-icon" style={{ fontSize: 10, opacity: ent.hidden ? 0.3 : ent.locked ? 0.5 : 1 }}>
-                        {ent.hidden ? '◌' : ent.locked ? '🔒' : '◈'}
-                      </span>
-                      <span className="ced-browser-file-name">{ent.term || '(空詞條)'}</span>
-                      <button className="ced-browser-file-del" onClick={(e) => { e.stopPropagation(); removeEntry(ei); }}>✕</button>
-                    </div>
-                  ))}
+                  {si === activeSection &&
+                    s.entries.map((ent, ei) => (
+                      <div
+                        key={ei}
+                        className={`ced-browser-file ${activeEntry === ei && panelMode === 'entry' ? 'active' : ''} ${dragEntryInfo?.sectionIdx === si && dragEntryInfo?.entryIdx === ei ? 'dragging' : ''}`}
+                        onClick={() => {
+                          setActiveEntry(ei);
+                          setPanelMode('entry');
+                        }}
+                        style={{ paddingLeft: 20 }}
+                        draggable
+                        onDragStart={() =>
+                          setDragEntryInfo({ sectionIdx: si, entryIdx: ei })
+                        }
+                        onDragEnd={() => setDragEntryInfo(null)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.add('drag-over');
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove('drag-over');
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('drag-over');
+                          handleEntryReorder(ei);
+                        }}
+                      >
+                        <span
+                          className="ced-browser-file-icon"
+                          style={{
+                            fontSize: 10,
+                            opacity: ent.hidden ? 0.3 : ent.locked ? 0.5 : 1,
+                          }}
+                        >
+                          {ent.hidden ? '◌' : ent.locked ? '🔒' : '◈'}
+                        </span>
+                        <span className="ced-browser-file-name">
+                          {ent.term || '(空詞條)'}
+                        </span>
+                        <button
+                          className="ced-browser-file-del"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEntry(ei);
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                 </div>
               ))}
 
               {/* 操作 */}
               <div className="ced-browser-actions">
-                {section && <button className="ced-add-btn" onClick={addEntry} style={{ color: accent }}>+ 新增條目</button>}
+                {section && (
+                  <button
+                    className="ced-add-btn"
+                    onClick={addEntry}
+                    style={{ color: accent }}
+                  >
+                    + 新增條目
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1559,44 +2835,100 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
                 <>
                   <div className="ced-browser-detail-header">
                     <span>{entry.term || '(空詞條)'}</span>
-                    <button className="ced-del-btn" onClick={() => removeEntry(activeEntry!)}>✕</button>
+                    <button
+                      className="ced-del-btn"
+                      onClick={() => removeEntry(activeEntry!)}
+                    >
+                      ✕
+                    </button>
                   </div>
 
                   <div className="ced-field-row">
                     <label className="ced-label">詞條名稱</label>
-                    <input className="ced-input" value={entry.term} onChange={(e) => updateEntry(activeEntry!, { term: e.target.value })} />
+                    <input
+                      className="ced-input"
+                      value={entry.term}
+                      onChange={(e) =>
+                        updateEntry(activeEntry!, { term: e.target.value })
+                      }
+                    />
                   </div>
 
                   {/* 值欄位（可新增/刪除） */}
                   <div className="ced-section-header">
-                    <span className="ced-section-title">值 ({entry.values.length})</span>
-                    <button className="ced-add-btn" onClick={() => updateEntry(activeEntry!, { values: [...entry.values, ''] })} style={{ color: accent }}>+ 新增值</button>
+                    <span className="ced-section-title">
+                      值 ({entry.values.length})
+                    </span>
+                    <button
+                      className="ced-add-btn"
+                      onClick={() =>
+                        updateEntry(activeEntry!, {
+                          values: [...entry.values, ''],
+                        })
+                      }
+                      style={{ color: accent }}
+                    >
+                      + 新增值
+                    </button>
                   </div>
                   {entry.values.map((v, vi) => (
                     <div key={vi} className="ced-field-row">
-                      <label className="ced-label ced-label-sm">值 {vi + 1}</label>
-                      <input className="ced-input" value={v} onChange={(e) => {
-                        const vals = [...entry.values];
-                        vals[vi] = e.target.value;
-                        updateEntry(activeEntry!, { values: vals });
-                      }} />
+                      <label className="ced-label ced-label-sm">
+                        值 {vi + 1}
+                      </label>
+                      <input
+                        className="ced-input"
+                        value={v}
+                        onChange={(e) => {
+                          const vals = [...entry.values];
+                          vals[vi] = e.target.value;
+                          updateEntry(activeEntry!, { values: vals });
+                        }}
+                      />
                       {entry.values.length > 1 && (
-                        <button className="ced-del-btn" onClick={() => {
-                          updateEntry(activeEntry!, { values: entry.values.filter((_, idx) => idx !== vi) });
-                        }}>✕</button>
+                        <button
+                          className="ced-del-btn"
+                          onClick={() => {
+                            updateEntry(activeEntry!, {
+                              values: entry.values.filter(
+                                (_, idx) => idx !== vi
+                              ),
+                            });
+                          }}
+                        >
+                          ✕
+                        </button>
                       )}
                     </div>
                   ))}
 
                   {/* 可見性 */}
-                  <div className="ced-section-header"><span className="ced-section-title">可見性</span></div>
+                  <div className="ced-section-header">
+                    <span className="ced-section-title">可見性</span>
+                  </div>
                   <div style={{ display: 'flex', gap: 16 }}>
                     <label className="ced-checkbox-row">
-                      <input type="checkbox" checked={!!entry.hidden} onChange={(e) => updateEntry(activeEntry!, { hidden: e.target.checked || undefined })} />
+                      <input
+                        type="checkbox"
+                        checked={!!entry.hidden}
+                        onChange={(e) =>
+                          updateEntry(activeEntry!, {
+                            hidden: e.target.checked || undefined,
+                          })
+                        }
+                      />
                       <span>隱藏（未出現）</span>
                     </label>
                     <label className="ced-checkbox-row">
-                      <input type="checkbox" checked={!!entry.locked} onChange={(e) => updateEntry(activeEntry!, { locked: e.target.checked || undefined })} />
+                      <input
+                        type="checkbox"
+                        checked={!!entry.locked}
+                        onChange={(e) =>
+                          updateEntry(activeEntry!, {
+                            locked: e.target.checked || undefined,
+                          })
+                        }
+                      />
                       <span>鎖定（已提及未解釋）</span>
                     </label>
                   </div>
@@ -1605,19 +2937,49 @@ function DiffEditor({ data, onChange, accent }: { data: DiffContent; onChange: (
                 <>
                   <div className="ced-browser-detail-header">
                     <span>區段設定{activeSection === 0 ? ' (預設)' : ''}</span>
-                    {activeSection > 0 && <button className="ced-del-btn" onClick={() => removeSection(activeSection)}>刪除區段</button>}
+                    {activeSection > 0 && (
+                      <button
+                        className="ced-del-btn"
+                        onClick={() => removeSection(activeSection)}
+                      >
+                        刪除區段
+                      </button>
+                    )}
                   </div>
                   <div className="ced-field-row">
                     <label className="ced-label">區段名稱</label>
-                    <input className="ced-input" value={section.label} onChange={(e) => updateSections(subcat.sections.map((s, i) => i === activeSection ? { ...s, label: e.target.value } : s))} placeholder={activeSection === 0 ? '留空則閱讀器不顯示名稱' : '區段名稱'} />
+                    <input
+                      className="ced-input"
+                      value={section.label}
+                      onChange={(e) =>
+                        updateSections(
+                          subcat.sections.map((s, i) =>
+                            i === activeSection
+                              ? { ...s, label: e.target.value }
+                              : s
+                          )
+                        )
+                      }
+                      placeholder={
+                        activeSection === 0
+                          ? '留空則閱讀器不顯示名稱'
+                          : '區段名稱'
+                      }
+                    />
                   </div>
                   <div className="ced-empty" style={{ marginTop: 8 }}>
-                    {activeSection === 0 ? '預設區段不可刪除。名稱留空時閱讀器不會顯示區段標題。' : '拖曳左側條目到區段名稱上可移動條目。'}
+                    {activeSection === 0
+                      ? '預設區段不可刪除。名稱留空時閱讀器不會顯示區段標題。'
+                      : '拖曳左側條目到區段名稱上可移動條目。'}
                   </div>
-                  <div className="ced-empty">{section.entries.length} 個條目</div>
+                  <div className="ced-empty">
+                    {section.entries.length} 個條目
+                  </div>
                 </>
               ) : (
-                <div className="ced-browser-empty"><div>選擇一個區段</div></div>
+                <div className="ced-browser-empty">
+                  <div>選擇一個區段</div>
+                </div>
               )}
             </div>
           </div>

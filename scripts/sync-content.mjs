@@ -538,12 +538,18 @@ async function main() {
 
       // 清除 R2 資產刪除紀錄
       console.log('\n   清除 R2 資產刪除紀錄...');
-      for (const [label, api] of [['本地', LOCAL_API], ['遠端', REMOTE_API]]) {
+      for (const [label, api] of [
+        ['本地', LOCAL_API],
+        ['遠端', REMOTE_API],
+      ]) {
         try {
-          const res = await fetch(`${api}/api/assets/deleted/purge?days=${PURGE_DAYS}`, {
-            method: 'POST',
-            headers: authHeaders(api),
-          });
+          const res = await fetch(
+            `${api}/api/assets/deleted/purge?days=${PURGE_DAYS}`,
+            {
+              method: 'POST',
+              headers: authHeaders(api),
+            }
+          );
           const json = await safeJson(res);
           if (json?.ok) {
             console.log(`   ✓ ${label}清除 ${json.data.purged} 筆 R2 刪除紀錄`);
@@ -589,13 +595,8 @@ async function main() {
         : `${remoteActive} 頁`;
     console.log(`📂 ${area}  (本地: ${localInfo} / 遠端: ${remoteInfo})`);
 
-    const {
-      pushPages,
-      pullPages,
-      deleteOnRemote,
-      deleteOnLocal,
-      inSync,
-    } = buildDiff(localPages, remotePages);
+    const { pushPages, pullPages, deleteOnRemote, deleteOnLocal, inSync } =
+      buildDiff(localPages, remotePages);
 
     const hasChanges =
       pushPages.length > 0 ||
@@ -933,9 +934,7 @@ async function syncAssets() {
 
   // 傳播刪除到遠端
   if (doDeleteRemote.length > 0) {
-    console.log(
-      `   傳播刪除到遠端 ${doDeleteRemote.length} 個檔案...`
-    );
+    console.log(`   傳播刪除到遠端 ${doDeleteRemote.length} 個檔案...`);
     for (const key of doDeleteRemote) {
       if (DRY_RUN) {
         console.log(`  🗑 [dry-run] 遠端 ${key}`);
@@ -948,9 +947,7 @@ async function syncAssets() {
 
   // 傳播刪除到本地
   if (doDeleteLocal.length > 0) {
-    console.log(
-      `   傳播刪除到本地 ${doDeleteLocal.length} 個檔案...`
-    );
+    console.log(`   傳播刪除到本地 ${doDeleteLocal.length} 個檔案...`);
     for (const key of doDeleteLocal) {
       if (DRY_RUN) {
         console.log(`  🗑 [dry-run] 本地 ${key}`);

@@ -73,7 +73,13 @@ export const uepDialog = {
   /** 顯示 prompt 對話框，返回輸入值或 null */
   prompt(
     message: string,
-    opts?: { title?: string; confirmText?: string; cancelText?: string; placeholder?: string; defaultValue?: string }
+    opts?: {
+      title?: string;
+      confirmText?: string;
+      cancelText?: string;
+      placeholder?: string;
+      defaultValue?: string;
+    }
   ): Promise<string | null> {
     return new Promise((resolve) => {
       currentReq = {
@@ -156,16 +162,19 @@ export default function UepDialogContainer() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [req]);
 
-  const close = useCallback((ok: boolean) => {
-    setClosing(true);
-    const val = promptValue;
-    setTimeout(() => {
-      const mgr = window.__uepDialogManager ?? uepDialog;
-      mgr._close(ok, val);
-      setClosing(false);
-      setPromptValue('');
-    }, 200);
-  }, [promptValue]);
+  const close = useCallback(
+    (ok: boolean) => {
+      setClosing(true);
+      const val = promptValue;
+      setTimeout(() => {
+        const mgr = window.__uepDialogManager ?? uepDialog;
+        mgr._close(ok, val);
+        setClosing(false);
+        setPromptValue('');
+      }, 200);
+    },
+    [promptValue]
+  );
 
   if (!req) return null;
 
@@ -206,7 +215,9 @@ export default function UepDialogContainer() {
             type="text"
             value={promptValue}
             onChange={(e) => setPromptValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && promptValue.trim()) close(true); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && promptValue.trim()) close(true);
+            }}
             placeholder={req.placeholder || ''}
           />
         )}

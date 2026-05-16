@@ -2469,7 +2469,10 @@ function EchoesReaderInner() {
   return (
     <div className="echoes-reader">
       {/* 入場動畫 — 漣漪擴散 */}
-      <div aria-hidden="true" className={`echo-boot ${contentReady ? 'is-ready' : ''}`}>
+      <div
+        aria-hidden="true"
+        className={`echo-boot ${contentReady ? 'is-ready' : ''}`}
+      >
         <div className="echo-boot-pulse" />
         <div className="echo-boot-wave" />
         <div className="echo-boot-wave" />

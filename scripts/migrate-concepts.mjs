@@ -18,7 +18,12 @@ const API_BASE = USE_REMOTE
   : 'http://localhost:8788';
 const API_TOKEN = process.env.API_TOKEN ?? '';
 
-const CONTENT_ROOT = join(import.meta.dirname, '..', '..', 'U.E.P-s-Imaginary-Space');
+const CONTENT_ROOT = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  'U.E.P-s-Imaginary-Space'
+);
 
 console.log(`\n⬡ Concepts 內容遷移工具（結構化 JSON）`);
 console.log(`  目標: ${API_BASE}`);
@@ -29,47 +34,72 @@ console.log(`  清除模式: ${CLEAN ? '是' : '否'}\n`);
 // 其他 stack 維持單一 file 對單一頁面。
 const STACKS = {
   records: {
-    slug: 'server/records', style: 'dossier', label: '永續紀錄主機',
+    slug: 'server/records',
+    style: 'dossier',
+    label: '永續紀錄主機',
     // 每個 type 一個項目，variants 列出該 type 在各 era 的來源檔
     types: [
       {
-        slug: 'character_list', typeGroup: 'character_list',
+        slug: 'character_list',
+        typeGroup: 'character_list',
         variants: [
-          { id: 'u', label: 'U', src: 'concepts/server/records/character_list_u.md' },
+          {
+            id: 'u',
+            label: 'U',
+            src: 'concepts/server/records/character_list_u.md',
+          },
         ],
       },
       {
-        slug: 'inversa', typeGroup: 'inversa',
+        slug: 'inversa',
+        typeGroup: 'inversa',
         variants: [
           { id: 'u', label: 'U', src: 'concepts/server/records/inversa_u.md' },
         ],
       },
       {
-        slug: 'location_list', typeGroup: 'location_list',
+        slug: 'location_list',
+        typeGroup: 'location_list',
         variants: [
-          { id: 'u', label: 'U', src: 'concepts/server/records/location_list_u.md' },
+          {
+            id: 'u',
+            label: 'U',
+            src: 'concepts/server/records/location_list_u.md',
+          },
         ],
       },
       {
-        slug: 'hostile_creatures', typeGroup: 'hostile_creatures',
+        slug: 'hostile_creatures',
+        typeGroup: 'hostile_creatures',
         variants: [
-          { id: 'u', label: 'U', src: 'concepts/server/records/hostile_creatures_u.md' },
+          {
+            id: 'u',
+            label: 'U',
+            src: 'concepts/server/records/hostile_creatures_u.md',
+          },
         ],
       },
       {
-        slug: 'vestera', typeGroup: 'vestera',
+        slug: 'vestera',
+        typeGroup: 'vestera',
         variants: [
           { id: 'u', label: 'U', src: 'concepts/server/records/vestera_u.md' },
         ],
       },
       {
-        slug: 'special_rules', typeGroup: 'special_rules',
+        slug: 'special_rules',
+        typeGroup: 'special_rules',
         variants: [
-          { id: 'u', label: 'U', src: 'concepts/server/records/special_rules_u.md' },
+          {
+            id: 'u',
+            label: 'U',
+            src: 'concepts/server/records/special_rules_u.md',
+          },
         ],
       },
       {
-        slug: 'truth', typeGroup: 'truth',
+        slug: 'truth',
+        typeGroup: 'truth',
         variants: [
           { id: 'u', label: 'U', src: 'concepts/server/records/truth_u.md' },
         ],
@@ -77,26 +107,64 @@ const STACKS = {
     ],
   },
   browser: {
-    slug: 'server/browser', style: 'browser', label: '個性瀏覽器',
+    slug: 'server/browser',
+    style: 'browser',
+    label: '個性瀏覽器',
     files: [
-      { src: 'concepts/server/browser/charateristics.md', typeGroup: 'characteristics', era: 'u' },
-      { src: 'concepts/server/browser/final_analysis.md', typeGroup: 'final_analysis', era: 'u' },
-      { src: 'concepts/server/browser/entitled.md', typeGroup: 'entitled', era: 'u' },
+      {
+        src: 'concepts/server/browser/charateristics.md',
+        typeGroup: 'characteristics',
+        era: 'u',
+      },
+      {
+        src: 'concepts/server/browser/final_analysis.md',
+        typeGroup: 'final_analysis',
+        era: 'u',
+      },
+      {
+        src: 'concepts/server/browser/entitled.md',
+        typeGroup: 'entitled',
+        era: 'u',
+      },
     ],
   },
   oscillator: {
-    slug: 'server/time_logs', style: 'chrono', label: '原質震盪時鐘',
+    slug: 'server/time_logs',
+    style: 'chrono',
+    label: '原質震盪時鐘',
     files: [
-      { src: 'concepts/server/time_logs/chronicles.md', typeGroup: 'chronicles', era: 'u' },
-      { src: 'concepts/server/time_logs/spoilers.md', typeGroup: 'spoilers', era: 'u' },
+      {
+        src: 'concepts/server/time_logs/chronicles.md',
+        typeGroup: 'chronicles',
+        era: 'u',
+      },
+      {
+        src: 'concepts/server/time_logs/spoilers.md',
+        typeGroup: 'spoilers',
+        era: 'u',
+      },
     ],
   },
   compare: {
-    slug: 'server/translation', style: 'diff', label: '認知對照平台',
+    slug: 'server/translation',
+    style: 'diff',
+    label: '認知對照平台',
     files: [
-      { src: 'concepts/server/translation/explainations.md', typeGroup: 'explanations', era: 'default' },
-      { src: 'concepts/server/translation/multilingual.md', typeGroup: 'multilingual', era: 'default' },
-      { src: 'concepts/server/translation/fake_name.md', typeGroup: 'fake_name', era: 'default' },
+      {
+        src: 'concepts/server/translation/explainations.md',
+        typeGroup: 'explanations',
+        era: 'default',
+      },
+      {
+        src: 'concepts/server/translation/multilingual.md',
+        typeGroup: 'multilingual',
+        era: 'default',
+      },
+      {
+        src: 'concepts/server/translation/fake_name.md',
+        typeGroup: 'fake_name',
+        era: 'default',
+      },
     ],
   },
 };
@@ -125,13 +193,18 @@ function readMd(filePath) {
   const frontmatter = fmMatch ? parseFrontmatter(fmMatch[1]) : {};
   // 移除第一個 h1 標題
   const cleaned = body.replace(/^\s*#\s+.+\r?\n/, '');
-  return { body: cleaned, frontmatter, title: body.match(/^#\s+(.+)/m)?.[1]?.trim() || '' };
+  return {
+    body: cleaned,
+    frontmatter,
+    title: body.match(/^#\s+(.+)/m)?.[1]?.trim() || '',
+  };
 }
 
 // === Hint 解析 → 轉為 intro_html ===
 function extractIntroHtml(body) {
   const hints = [];
-  const regex = /\{%\s*hint\s+style="(\w+)"\s*%\}\s*\n?([\s\S]*?)\n?\{%\s*endhint\s*%\}/g;
+  const regex =
+    /\{%\s*hint\s+style="(\w+)"\s*%\}\s*\n?([\s\S]*?)\n?\{%\s*endhint\s*%\}/g;
   let m;
   while ((m = regex.exec(body))) {
     hints.push(`<p>${m[2].trim()}</p>`);
@@ -143,7 +216,8 @@ function extractIntroHtml(body) {
 function extractTabs(body) {
   const tabsMatch = body.match(/\{%\s*tabs\s*%\}([\s\S]*?)\{%\s*endtabs\s*%\}/);
   if (!tabsMatch) return [];
-  const tabRegex = /\{%\s*tab\s+title="(.+?)"\s*%\}\s*\n?([\s\S]*?)(?=\n?\{%\s*endtab\s*%\})/g;
+  const tabRegex =
+    /\{%\s*tab\s+title="(.+?)"\s*%\}\s*\n?([\s\S]*?)(?=\n?\{%\s*endtab\s*%\})/g;
   const tabs = [];
   let m;
   while ((m = tabRegex.exec(tabsMatch[1]))) {
@@ -174,14 +248,20 @@ function parseGroups(content) {
   for (let i = 0; i < matches.length; i++) {
     if (lastLabel !== null) {
       const sectionContent = content.slice(lastIdx, matches[i].index).trim();
-      groups.push({ label: lastLabel, entries: parseEntries(sectionContent, lastLabel) });
+      groups.push({
+        label: lastLabel,
+        entries: parseEntries(sectionContent, lastLabel),
+      });
     }
     lastLabel = matches[i][1].trim();
     lastIdx = matches[i].index + matches[i][0].length;
   }
   if (lastLabel !== null) {
     const sectionContent = content.slice(lastIdx).trim();
-    groups.push({ label: lastLabel, entries: parseEntries(sectionContent, lastLabel) });
+    groups.push({
+      label: lastLabel,
+      entries: parseEntries(sectionContent, lastLabel),
+    });
   }
 
   // 如果沒有 group heading，把整段當一個 group
@@ -212,9 +292,13 @@ function parseEntries(text, groupLabel) {
       const parts = [];
       if (titleMatch) parts.push(`【${titleMatch[1]}】`);
       if (abilityMatch) parts.push(`✮ ${abilityMatch[1].trim()}`);
-      const content_html = parts.length > 0 ? `<p>${parts.join(' ')}</p>` : undefined;
+      const content_html =
+        parts.length > 0 ? `<p>${parts.join(' ')}</p>` : undefined;
 
-      entries.push({ name: nameClean, ...(content_html ? { content_html } : {}) });
+      entries.push({
+        name: nameClean,
+        ...(content_html ? { content_html } : {}),
+      });
     }
     return entries;
   }
@@ -243,7 +327,8 @@ function parseInversa(body) {
     for (let i = 0; i < matches.length; i++) {
       const label = matches[i][1].trim();
       const start = matches[i].index + matches[i][0].length;
-      const end = i + 1 < matches.length ? matches[i + 1].index : tab.content.length;
+      const end =
+        i + 1 < matches.length ? matches[i + 1].index : tab.content.length;
       const sectionContent = tab.content.slice(start, end).trim();
 
       // 提取列表項作為 content_html
@@ -260,10 +345,16 @@ function parseInversa(body) {
       const name = nameAbility ? nameAbility[1].trim() : label;
       const parts = [];
       if (nameAbility) parts.push(`✮ ${nameAbility[2].trim()}`);
-      if (lines.length > 0) parts.push(...lines.map(l => l));
-      const content_html = parts.length > 0 ? parts.map(p => `<p>${p}</p>`).join('\n') : undefined;
+      if (lines.length > 0) parts.push(...lines.map((l) => l));
+      const content_html =
+        parts.length > 0
+          ? parts.map((p) => `<p>${p}</p>`).join('\n')
+          : undefined;
 
-      groups.push({ label: name, entries: [{ name, ...(content_html ? { content_html } : {}) }] });
+      groups.push({
+        label: name,
+        entries: [{ name, ...(content_html ? { content_html } : {}) }],
+      });
     }
 
     return { label: tab.label, groups };
@@ -278,10 +369,13 @@ function parseBrowser(body) {
 
   // 提取 blockquote 區段標題
   const sectionTitleRegex = /^>\s*###\s+\**(.+?)\**\s*$/gm;
-  const sectionTitles = [...body.matchAll(sectionTitleRegex)].map(m => m[1].trim());
+  const sectionTitles = [...body.matchAll(sectionTitleRegex)].map((m) =>
+    m[1].trim()
+  );
 
   // 提取 <details> 區段
-  const detailsRegex = /<details>\s*\n\s*<summary><strong>(.+?)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
+  const detailsRegex =
+    /<details>\s*\n\s*<summary><strong>(.+?)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
   let m;
   while ((m = detailsRegex.exec(body))) {
     const name = m[1].trim();
@@ -289,7 +383,11 @@ function parseBrowser(body) {
 
     // 檢查是否為佔位符
     if (content.length < 100 && !content.includes('###')) {
-      profiles.push({ name, placeholder: true, sectionTitle: sectionTitles[0] || '' });
+      profiles.push({
+        name,
+        placeholder: true,
+        sectionTitle: sectionTitles[0] || '',
+      });
       continue;
     }
 
@@ -325,14 +423,19 @@ function parseBrowser(body) {
           htmlParts.push(`<li>${trimmed.slice(2)}</li>`);
         } else if (trimmed.match(/^\*\*.+:\*\*/)) {
           const kvMatch = trimmed.match(/^\*\*(.+?):\*\*\s*(.+)/);
-          if (kvMatch) htmlParts.push(`<p><strong>${kvMatch[1]}:</strong> ${kvMatch[2]}</p>`);
+          if (kvMatch)
+            htmlParts.push(
+              `<p><strong>${kvMatch[1]}:</strong> ${kvMatch[2]}</p>`
+            );
           else htmlParts.push(`<p>${trimmed}</p>`);
         } else {
           htmlParts.push(`<p>${trimmed}</p>`);
         }
       }
       // 把連續的 <li> 包成 <ul>
-      let html = htmlParts.join('\n').replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+      let html = htmlParts
+        .join('\n')
+        .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
       if (html) sections.push({ label, content_html: html });
     }
 
@@ -348,7 +451,12 @@ function parseBrowser(body) {
 const CHRONO_ICON_TO_DEF = { '☀': 'main', '🏞': 'regional', '👤': 'character' };
 const CHRONO_DEFAULT_FIELD_DEFS = [
   { id: 'main', icon: '☀', label: '主線事件 / 核心敘事', style: 'flat' },
-  { id: 'regional', icon: '🏞', label: '區域動態 / 地區歷史', style: 'grouped' },
+  {
+    id: 'regional',
+    icon: '🏞',
+    label: '區域動態 / 地區歷史',
+    style: 'grouped',
+  },
   { id: 'character', icon: '👤', label: '角色關鍵點', style: 'flat' },
 ];
 
@@ -368,7 +476,8 @@ function parseChrono(body) {
   }
 
   // 提取 <details> 時間段
-  const detailsRegex = /<details>\s*\n\s*<summary><strong>(.+?)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
+  const detailsRegex =
+    /<details>\s*\n\s*<summary><strong>(.+?)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
   let m;
   while ((m = detailsRegex.exec(body))) {
     const year = m[1].trim();
@@ -376,18 +485,30 @@ function parseChrono(body) {
 
     // 標題（#### 開頭，選填）
     const titleMatch = content.match(/^####\s+(.+)/m);
-    const title = titleMatch ? titleMatch[1].replace(/[「」]/g, '').trim() : undefined;
+    const title = titleMatch
+      ? titleMatch[1].replace(/[「」]/g, '').trim()
+      : undefined;
 
     // 解析時期與年份數字
-    let era = 'ad', yearNum = 1;
+    let era = 'ad',
+      yearNum = 1;
     const preAdM = year.match(/AD前\s*(\d+)/);
     const faM = year.match(/FA\s*(\d+)/);
     const nwM = year.match(/NW\s*(\d+)/);
     const adM = year.match(/AD\s*(\d+)/);
-    if (preAdM) { era = 'pre-ad'; yearNum = parseInt(preAdM[1]) || 1; }
-    else if (faM) { era = 'fa'; yearNum = parseInt(faM[1]) || 1; }
-    else if (nwM) { era = 'nw'; yearNum = parseInt(nwM[1]) || 1; }
-    else if (adM) { era = 'ad'; yearNum = parseInt(adM[1]) || 1; }
+    if (preAdM) {
+      era = 'pre-ad';
+      yearNum = parseInt(preAdM[1]) || 1;
+    } else if (faM) {
+      era = 'fa';
+      yearNum = parseInt(faM[1]) || 1;
+    } else if (nwM) {
+      era = 'nw';
+      yearNum = parseInt(nwM[1]) || 1;
+    } else if (adM) {
+      era = 'ad';
+      yearNum = parseInt(adM[1]) || 1;
+    }
 
     // 解析事件區段
     const fields = {};
@@ -411,18 +532,22 @@ function parseChrono(body) {
       }
 
       const start = sectionMatches[i].index + sectionMatches[i][0].length;
-      const end = i + 1 < sectionMatches.length ? sectionMatches[i + 1].index : content.length;
+      const end =
+        i + 1 < sectionMatches.length
+          ? sectionMatches[i + 1].index
+          : content.length;
       const sectionContent = content.slice(start, end);
 
       // 提取事件列表
       const events = [];
       const eventItems = sectionContent.match(/^\*\s+(.+)$/gm);
       if (eventItems) {
-        for (const ev of eventItems) events.push(ev.replace(/^\*\s+/, '').trim());
+        for (const ev of eventItems)
+          events.push(ev.replace(/^\*\s+/, '').trim());
       }
 
       if (events.length > 0 || label) {
-        const def = fieldDefs.find(d => d.id === defId);
+        const def = fieldDefs.find((d) => d.id === defId);
         if (def && def.style === 'grouped') {
           // grouped 模式：MD 來源目前沒有區域分組，先放入「未分類」
           fields[defId] = { groups: [{ label: '未分類', items: events }] };
@@ -436,9 +561,14 @@ function parseChrono(body) {
   }
 
   // 佔位符併入 intro_html
-  const phParts = placeholders.map(ph => `<p><em>${ph}</em></p>`).join('\n');
-  const combinedIntro = [intro_html, phParts].filter(Boolean).join('\n') || undefined;
-  return { ...(combinedIntro ? { intro_html: combinedIntro } : {}), fieldDefs, periods };
+  const phParts = placeholders.map((ph) => `<p><em>${ph}</em></p>`).join('\n');
+  const combinedIntro =
+    [intro_html, phParts].filter(Boolean).join('\n') || undefined;
+  return {
+    ...(combinedIntro ? { intro_html: combinedIntro } : {}),
+    fieldDefs,
+    periods,
+  };
 }
 
 // === Diff 解析（explainations — 術語定義） ===
@@ -454,7 +584,8 @@ function parseDiffExplanations(body) {
     for (let i = 0; i < matches.length; i++) {
       const label = matches[i][1].trim();
       const start = matches[i].index + matches[i][0].length;
-      const end = i + 1 < matches.length ? matches[i + 1].index : tab.content.length;
+      const end =
+        i + 1 < matches.length ? matches[i + 1].index : tab.content.length;
       const sectionContent = tab.content.slice(start, end).trim();
 
       const entries = [];
@@ -467,7 +598,10 @@ function parseDiffExplanations(body) {
 
       // 如果沒有 term-definition 格式，嘗試作為純文字
       if (entries.length === 0 && sectionContent.trim()) {
-        const plainText = sectionContent.replace(/^\*{3}\s*$/gm, '').replace(/^✫\s*/gm, '').trim();
+        const plainText = sectionContent
+          .replace(/^\*{3}\s*$/gm, '')
+          .replace(/^✫\s*/gm, '')
+          .trim();
         if (plainText) {
           entries.push({ term: plainText, values: [] });
         }
@@ -512,15 +646,20 @@ function parseDiffMultilingual(body) {
     // 解析 table
     const tMatch = tableRegex.exec(sectionContent);
     tableRegex.lastIndex = 0; // reset
-    const tMatch2 = sectionContent.match(/\|(.+)\|\s*\n\|[-\s|]+\|\s*\n((?:\|.+\|\s*\n?)+)/);
+    const tMatch2 = sectionContent.match(
+      /\|(.+)\|\s*\n\|[-\s|]+\|\s*\n((?:\|.+\|\s*\n?)+)/
+    );
 
     const entries = [];
     if (tMatch2) {
       const rows = tMatch2[2].trim().split('\n');
       for (const row of rows) {
-        const cells = row.split('|').filter(c => c.trim()).map(c => c.trim());
+        const cells = row
+          .split('|')
+          .filter((c) => c.trim())
+          .map((c) => c.trim());
         // 跳過分隔行
-        if (cells.every(c => /^[-—]+$/.test(c))) continue;
+        if (cells.every((c) => /^[-—]+$/.test(c))) continue;
         if (cells.length >= 2) {
           entries.push({ term: cells[0], values: cells.slice(1) });
         }
@@ -537,7 +676,10 @@ function parseDiffMultilingual(body) {
 
 // === 頁面產出 ===
 function contentHash(content) {
-  return createHash('sha256').update(content, 'utf-8').digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(content, 'utf-8')
+    .digest('hex')
+    .slice(0, 16);
 }
 
 function buildPage(stackKey, fileDef, parsed, md) {
@@ -557,10 +699,14 @@ function buildPage(stackKey, fileDef, parsed, md) {
   }
   contentBlocks.push({
     id: 'content',
-    type: stack.style === 'dossier' ? 'dossier'
-        : stack.style === 'browser' ? 'browser_profile'
-        : stack.style === 'chrono' ? 'chronograph'
-        : 'diff_table',
+    type:
+      stack.style === 'dossier'
+        ? 'dossier'
+        : stack.style === 'browser'
+          ? 'browser_profile'
+          : stack.style === 'chrono'
+            ? 'chronograph'
+            : 'diff_table',
     content: JSON.stringify(structData),
   });
 
@@ -570,7 +716,8 @@ function buildPage(stackKey, fileDef, parsed, md) {
     stack_style: stack.style,
   };
   if (md.frontmatter.icon) metadata.icon = md.frontmatter.icon;
-  if (md.frontmatter.description) metadata.description = md.frontmatter.description;
+  if (md.frontmatter.description)
+    metadata.description = md.frontmatter.description;
   if (md.frontmatter.hidden === true) metadata.hidden = true;
 
   return {
@@ -613,12 +760,14 @@ function buildDossierPage(stackKey, typeDef) {
     }
     sources.push(v.src);
 
-    const parsed = typeDef.typeGroup === 'inversa'
-      ? parseInversa(md.body)
-      : parseDossier(md.body);
+    const parsed =
+      typeDef.typeGroup === 'inversa'
+        ? parseInversa(md.body)
+        : parseDossier(md.body);
     if (!parsed) continue;
 
-    if (parsed.intro_html && !firstIntroHtml) firstIntroHtml = parsed.intro_html;
+    if (parsed.intro_html && !firstIntroHtml)
+      firstIntroHtml = parsed.intro_html;
 
     variants.push({
       id: v.id,
@@ -632,21 +781,31 @@ function buildDossierPage(stackKey, typeDef) {
   const structData = { variants };
   const contentBlocks = [];
   if (firstIntroHtml) {
-    contentBlocks.push({ id: 'intro', type: 'rich_text', content: firstIntroHtml });
+    contentBlocks.push({
+      id: 'intro',
+      type: 'rich_text',
+      content: firstIntroHtml,
+    });
   }
-  contentBlocks.push({ id: 'content', type: 'dossier', content: JSON.stringify(structData) });
+  contentBlocks.push({
+    id: 'content',
+    type: 'dossier',
+    content: JSON.stringify(structData),
+  });
 
   const metadata = {
     type_group: typeDef.typeGroup,
     stack_style: 'dossier',
   };
   if (firstMd?.frontmatter?.icon) metadata.icon = firstMd.frontmatter.icon;
-  if (firstMd?.frontmatter?.description) metadata.description = firstMd.frontmatter.description;
+  if (firstMd?.frontmatter?.description)
+    metadata.description = firstMd.frontmatter.description;
   if (firstMd?.frontmatter?.hidden === true) metadata.hidden = true;
 
   // 標題：用 typeDef.title 優先（如有），否則用第一個 variant 的標題去掉 (X) 後綴
   const titleRaw = typeDef.title || firstTitle;
-  const title = titleRaw.replace(/\s*[（(][A-Za-z]+[)）]\s*$/, '').trim() || titleRaw;
+  const title =
+    titleRaw.replace(/\s*[（(][A-Za-z]+[)）]\s*$/, '').trim() || titleRaw;
 
   return {
     id,
@@ -662,7 +821,15 @@ function buildDossierPage(stackKey, typeDef) {
     pageType: 'type',
     metadata,
     _variantCount: variants.length,
-    _entryCount: variants.reduce((s, v) => s + v.subcategories.reduce((g, sc) => g + sc.groups.reduce((e, gr) => e + gr.entries.length, 0), 0), 0),
+    _entryCount: variants.reduce(
+      (s, v) =>
+        s +
+        v.subcategories.reduce(
+          (g, sc) => g + sc.groups.reduce((e, gr) => e + gr.entries.length, 0),
+          0
+        ),
+      0
+    ),
   };
 }
 
@@ -682,7 +849,9 @@ async function importPages(pages) {
     });
     const json = await res.json();
     if (json.ok) {
-      console.log(`✅ 新增: ${json.data.imported}, 更新: ${json.data.updated}, 跳過: ${json.data.skipped}`);
+      console.log(
+        `✅ 新增: ${json.data.imported}, 更新: ${json.data.updated}, 跳過: ${json.data.skipped}`
+      );
     } else {
       console.error(`❌ API 錯誤: ${json.error}`);
     }
@@ -714,39 +883,79 @@ async function createHomepage() {
         .replace(/\*{3}/g, '<hr>')
         .replace(/<details>[\s\S]*?<\/details>/g, '')
         .split('\n')
-        .filter(l => l.trim())
-        .map(l => `<p>${l.trim()}</p>`)
+        .filter((l) => l.trim())
+        .map((l) => `<p>${l.trim()}</p>`)
         .join('\n')
     : '';
 
   const blocks = [
     {
-      id: 'c1', type: 'zone-header',
-      content: JSON.stringify({ title: '概念調整房', subtitle: '世界觀、設定文件。一切關於這個世界「為什麼是這樣」的解答都在這裡，如果你找得到的話。' }),
+      id: 'c1',
+      type: 'zone-header',
+      content: JSON.stringify({
+        title: '概念調整房',
+        subtitle:
+          '世界觀、設定文件。一切關於這個世界「為什麼是這樣」的解答都在這裡，如果你找得到的話。',
+      }),
       attrs: {},
     },
     {
-      id: 'c2', type: 'uep-dialogue',
+      id: 'c2',
+      type: 'uep-dialogue',
       content: JSON.stringify([
-        { text: '嘿~這裡是「概念調整房」! 有點複雜對吧? (｡•̀ᴗ-)✧', side: 'left', effects: [] },
-        { text: '簡單來說就是...這邊存放著所有關於這個世界的「設定」和「規則」! 像是角色是怎麼運作的之類的~', side: 'right', effects: ['shimmer'] },
+        {
+          text: '嘿~這裡是「概念調整房」! 有點複雜對吧? (｡•̀ᴗ-)✧',
+          side: 'left',
+          effects: [],
+        },
+        {
+          text: '簡單來說就是...這邊存放著所有關於這個世界的「設定」和「規則」! 像是角色是怎麼運作的之類的~',
+          side: 'right',
+          effects: ['shimmer'],
+        },
       ]),
       attrs: {},
     },
     {
-      id: 'c-rich', type: 'rich-text',
+      id: 'c-rich',
+      type: 'rich-text',
       content: JSON.stringify({ html: narrativeHtml }),
       attrs: {},
     },
     {
-      id: 'c3', type: 'terminal-module-table',
+      id: 'c3',
+      type: 'terminal-module-table',
       content: JSON.stringify({
         headerLabel: '// concepts.modules — listing',
         modules: [
-          { id: '01', name: '永續紀錄主機', en: 'persistent_log_server', state: 'sync', records: 124 },
-          { id: '02', name: '個性瀏覽器', en: 'identity_browser', state: 'sync', records: 38 },
-          { id: '03', name: '原質震盪時鐘', en: 'essence_oscillator', state: 'sync', records: 9 },
-          { id: '04', name: '認知對照平台', en: 'cognition_compare', state: 'idle', records: 14 },
+          {
+            id: '01',
+            name: '永續紀錄主機',
+            en: 'persistent_log_server',
+            state: 'sync',
+            records: 124,
+          },
+          {
+            id: '02',
+            name: '個性瀏覽器',
+            en: 'identity_browser',
+            state: 'sync',
+            records: 38,
+          },
+          {
+            id: '03',
+            name: '原質震盪時鐘',
+            en: 'essence_oscillator',
+            state: 'sync',
+            records: 9,
+          },
+          {
+            id: '04',
+            name: '認知對照平台',
+            en: 'cognition_compare',
+            state: 'idle',
+            records: 14,
+          },
         ],
       }),
       attrs: {},
@@ -759,7 +968,13 @@ async function createHomepage() {
   const res = await fetch(`${API_BASE}/api/content/concepts/homepage`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify({ title: '概念調整房 首頁', content: blocks, pageType: 'homepage', parentId: null, depth: 0 }),
+    body: JSON.stringify({
+      title: '概念調整房 首頁',
+      content: blocks,
+      pageType: 'homepage',
+      parentId: null,
+      depth: 0,
+    }),
   });
   const json = await res.json();
   console.log(json.ok ? `  ✅ 首頁已建立` : `  ❌ ${json.error}`);
@@ -834,9 +1049,12 @@ async function main() {
         page.sortOrder = sortOrder++;
         const variantCount = page._variantCount;
         const entryCount = page._entryCount;
-        delete page._variantCount; delete page._entryCount;
+        delete page._variantCount;
+        delete page._entryCount;
         pages.push(page);
-        console.log(`  ✓ ${page.title} → ${variantCount} variant(s), ${entryCount} 筆條目`);
+        console.log(
+          `  ✓ ${page.title} → ${variantCount} variant(s), ${entryCount} 筆條目`
+        );
       }
       continue;
     }
@@ -874,11 +1092,23 @@ async function main() {
 
       // 摘要
       const itemCount =
-        parsed.subcategories?.reduce((s, sc) => s + (sc.groups?.reduce((g, gr) => g + (gr.entries?.length || 0), 0) || sc.sections?.reduce((g, sec) => g + (sec.entries?.length || 0), 0) || 0), 0) ||
+        parsed.subcategories?.reduce(
+          (s, sc) =>
+            s +
+            (sc.groups?.reduce((g, gr) => g + (gr.entries?.length || 0), 0) ||
+              sc.sections?.reduce(
+                (g, sec) => g + (sec.entries?.length || 0),
+                0
+              ) ||
+              0),
+          0
+        ) ||
         parsed.profiles?.length ||
         parsed.periods?.length ||
         0;
-      console.log(`  ✓ ${md.title || fileDef.typeGroup} → ${itemCount} 筆結構化資料`);
+      console.log(
+        `  ✓ ${md.title || fileDef.typeGroup} → ${itemCount} 筆結構化資料`
+      );
     }
   }
 

@@ -982,7 +982,9 @@ function VisualsReaderInner() {
           </span>
           <h2>{activeDivision.label}</h2>
         </div>
-        <div className="visuals-division-stats">{subcats.length} subcategories</div>
+        <div className="visuals-division-stats">
+          {subcats.length} subcategories
+        </div>
         <div className="visuals-gradient-divider" />
 
         {/* 內容：優先使用 API，fallback 到硬編碼 */}
@@ -1855,7 +1857,10 @@ function VisualsReaderInner() {
   return (
     <div className="visuals-reader">
       {/* 入場動畫 — 幻影閃現 */}
-      <div className={`vis-boot ${contentReady ? 'is-ready' : ''}`} aria-hidden="true">
+      <div
+        className={`vis-boot ${contentReady ? 'is-ready' : ''}`}
+        aria-hidden="true"
+      >
         <div className="vis-boot-flash vis-boot-flash--l" />
         <div className="vis-boot-flash vis-boot-flash--r" />
         <div className="vis-boot-flash vis-boot-flash--l2" />

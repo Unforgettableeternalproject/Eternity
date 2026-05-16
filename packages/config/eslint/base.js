@@ -70,6 +70,13 @@ export default [
         Headers: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
+        // Form / File APIs
+        File: 'readonly',
+        FormData: 'readonly',
+        Blob: 'readonly',
+        // Canvas / Performance
+        HTMLCanvasElement: 'readonly',
+        performance: 'readonly',
         // Other browser APIs
         TextDecoder: 'readonly',
         alert: 'readonly',

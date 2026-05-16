@@ -128,7 +128,11 @@ export default function RichEditor({
   const [conceptsDirty, setConceptsDirty] = useState(false);
   const isDirty = editorDirty || metaDirty || conceptsDirty;
   // 重置所有 dirty（儲存後呼叫）
-  function resetDirty() { setEditorDirty(false); setMetaDirty(false); setConceptsDirty(false); }
+  function resetDirty() {
+    setEditorDirty(false);
+    setMetaDirty(false);
+    setConceptsDirty(false);
+  }
   const [title, setTitle] = useState(initialTitle);
   const [parentId, setParentId] = useState(initialParentId || '');
   const [pageType, setPageType] = useState(initialPageType || 'section');
@@ -168,7 +172,8 @@ export default function RichEditor({
   // Concepts 特殊編輯模式
   const isConceptsArea = area === 'concepts' || zoneId === 'concepts';
   const isConcepts = isConceptsArea && pageType === 'type';
-  const conceptsStackStyle = (initialMetadata?.stack_style as string) || 'dossier';
+  const conceptsStackStyle =
+    (initialMetadata?.stack_style as string) || 'dossier';
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
@@ -247,8 +252,17 @@ export default function RichEditor({
         isEchoes || isVisuals
           ? [{ id: 'content', type: 'rich_text', content: '' }]
           : isConcepts
-            ? [{ id: 'intro', type: 'rich_text', content: editor!.getHTML() }, ...serializeConceptsContent(conceptsData)]
-            : [{ id: 'content', type: 'rich_text', content: editor!.getHTML() }];
+            ? [
+                { id: 'intro', type: 'rich_text', content: editor!.getHTML() },
+                ...serializeConceptsContent(conceptsData),
+              ]
+            : [
+                {
+                  id: 'content',
+                  type: 'rich_text',
+                  content: editor!.getHTML(),
+                },
+              ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
@@ -258,7 +272,13 @@ export default function RichEditor({
         ...(description ? { description } : {}),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
-        ...(isConcepts ? { type_group: initialMetadata?.type_group, era: initialMetadata?.era, stack_style: conceptsStackStyle } : {}),
+        ...(isConcepts
+          ? {
+              type_group: initialMetadata?.type_group,
+              era: initialMetadata?.era,
+              stack_style: conceptsStackStyle,
+            }
+          : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
         ...(isVisualsDivision && layout ? { layout } : {}),
       };
@@ -1102,7 +1122,13 @@ export default function RichEditor({
                     {isConcepts && (
                       <ConceptsEditorBody
                         accent={accentMain}
-                        stackStyle={conceptsStackStyle as 'dossier' | 'browser' | 'chrono' | 'diff'}
+                        stackStyle={
+                          conceptsStackStyle as
+                            | 'dossier'
+                            | 'browser'
+                            | 'chrono'
+                            | 'diff'
+                        }
                         initialData={conceptsData}
                         onDataChange={setConceptsData}
                         onDirty={setConceptsDirty}

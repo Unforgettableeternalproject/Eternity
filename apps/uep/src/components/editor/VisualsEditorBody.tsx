@@ -1,4 +1,3 @@
-/* global File, FormData */
 import React, { useRef, useState } from 'react';
 import { uepDialog } from '../ui/UepDialog';
 import SpriteEditorModal from './SpriteEditorModal';
