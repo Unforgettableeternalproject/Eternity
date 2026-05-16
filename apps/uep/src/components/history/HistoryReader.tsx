@@ -806,7 +806,7 @@ export default function HistoryReader() {
         <aside className={`history-sidebar ${sidebarOpen ? '' : 'is-closed'}`}>
           <div className="history-sidebar-head">
             <div>
-              <div className="history-kicker">Volume I / Archive</div>
+              <div className="history-kicker">Volume I · HISTORY</div>
               <button
                 className="history-sidebar-title"
                 type="button"

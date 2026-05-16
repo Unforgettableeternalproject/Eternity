@@ -1440,22 +1440,10 @@ function EchoesReaderInner() {
                   const d = block.data as ZoneHeaderData;
                   return (
                     <div key={block.id}>
-                      <div className="echoes-kicker">Echoes / 空白廣場</div>
-                      <h2 className="echoes-landing-title">{d.title}</h2>
+                      <div className="echoes-kicker">Volume II · ECHOES</div>
+                      <h1 className="echoes-landing-title">{d.title}</h1>
                       {d.subtitle && (
-                        <p
-                          style={{
-                            fontFamily: 'var(--font-serif-tc)',
-                            fontSize: 16,
-                            color: 'var(--ink-soft)',
-                            fontStyle: 'italic',
-                            lineHeight: 1.9,
-                            maxWidth: 620,
-                            marginTop: 22,
-                          }}
-                        >
-                          {d.subtitle}
-                        </p>
+                        <p className="echoes-landing-blurb">{d.subtitle}</p>
                       )}
                     </div>
                   );
@@ -1593,7 +1581,7 @@ function EchoesReaderInner() {
           ) : (
             /* ── Fallback：舊版固定佈局 ── */
             <>
-              <div className="echoes-kicker">Echoes / 空白廣場</div>
+              <div className="echoes-kicker">Volume II · ECHOES</div>
               <h2 className="echoes-landing-title">
                 {plazaPage?.title || plazaNode?.title || '空白廣場'}
               </h2>
@@ -1767,10 +1755,11 @@ function EchoesReaderInner() {
         <div className="echoes-cluster-inner">
           {/* 麵包屑 */}
           <div className="echoes-breadcrumb" style={{ color: cluster.color }}>
+            <span className="echoes-breadcrumb-line" />
             <button type="button" onClick={() => navigateToLanding()}>
               回音蒐藏間
             </button>
-            <span>/</span>
+            <span>·</span>
             <span>{cluster.labelEn}</span>
           </div>
 
@@ -1942,12 +1931,13 @@ function EchoesReaderInner() {
         <div className="echoes-content-inner">
           {/* 麵包屑導航 */}
           <div className="echoes-breadcrumb" style={{ color }}>
+            <span className="echoes-breadcrumb-line" />
             <button type="button" onClick={() => navigateToLanding()}>
               回音蒐藏間
             </button>
             {cluster && (
               <>
-                <span>/</span>
+                <span>·</span>
                 <button
                   type="button"
                   onClick={() => navigateToCluster(cluster.id)}
@@ -1956,15 +1946,11 @@ function EchoesReaderInner() {
                 </button>
               </>
             )}
-            <span>/</span>
+            <span>·</span>
             <span>{currentContentPage.title}</span>
           </div>
 
           <header className="echoes-content-head">
-            <div className="echoes-kicker">
-              {currentContentPage.pageType.toUpperCase()} /{' '}
-              {currentContentPage.slug.split('/').pop()}
-            </div>
             <h2 className="echoes-content-title" style={{ color }}>
               {currentContentPage.title}
             </h2>
@@ -2224,12 +2210,13 @@ function EchoesReaderInner() {
         <div className="echoes-song-inner">
           {/* 麵包屑（每層可點擊返回）*/}
           <div className="echoes-breadcrumb" style={{ color }}>
+            <span className="echoes-breadcrumb-line" />
             <button type="button" onClick={() => navigateToLanding()}>
               回音蒐藏間
             </button>
             {cluster && (
               <>
-                <span>/</span>
+                <span>·</span>
                 <button
                   type="button"
                   onClick={() => navigateToCluster(cluster.id)}
@@ -2240,7 +2227,7 @@ function EchoesReaderInner() {
             )}
             {parentNode && (
               <>
-                <span>/</span>
+                <span>·</span>
                 <button
                   type="button"
                   onClick={() => void navigateToContent(parentNode.id)}

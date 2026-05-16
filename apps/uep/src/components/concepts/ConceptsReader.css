@@ -207,7 +207,7 @@
 .conc-landing-title { font-size: 58px; font-weight: 500; margin: 10px 0 0; color: var(--ink-heading); line-height: 1; }
 .conc-terminal-badge { font-family: var(--font-mono); font-size: 12px; color: var(--concepts-main); letter-spacing: 0.16em; padding: 4px 10px; border: 1px solid var(--concepts-main); }
 .conc-landing-subtitle { font-family: var(--font-serif-tc); font-size: 16px; line-height: 1.85; color: var(--ink-sub); max-width: 600px; margin-top: 24px; font-style: italic; }
-.conc-landing-uep { margin: 24px 0; }
+.conc-landing-uep { margin: 32px 0; display: flex; flex-direction: column; gap: 14px; }
 
 /* 模組表格 */
 .conc-module-table { margin-top: 36px; border: 1px solid var(--concepts-main); background: var(--bg-card); }
@@ -235,9 +235,9 @@
 .conc-stack-breadcrumb button { background: none; border: none; color: var(--concepts-main); font: inherit; letter-spacing: inherit; cursor: pointer; padding: 0; }
 .conc-stack-breadcrumb button:hover { text-decoration: underline; }
 .conc-stack-breadcrumb-line { width: 28px; height: 1px; background: var(--concepts-main); }
-.conc-stack-title-row { display: flex; align-items: flex-end; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+.conc-stack-title-row { display: flex; align-items: center; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
 .conc-stack-icon { font-size: 38px; color: var(--concepts-main); font-family: var(--font-display); line-height: 1; }
-.conc-stack-title { font-family: var(--font-display); font-size: 50px; font-weight: 600; color: var(--ink-heading); margin: 0; letter-spacing: -0.01em; line-height: 1; }
+.conc-stack-title { font-family: var(--font-display); font-size: 44px; font-weight: 600; color: var(--ink-heading); margin: 0; letter-spacing: -0.01em; }
 .conc-stack-sync-badge { font-family: var(--font-mono); font-size: 10px; color: var(--concepts-main); letter-spacing: 0.18em; padding: 4px 10px; border: 1px solid var(--concepts-main); margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .conc-stack-path { margin-top: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); letter-spacing: 0.06em; }
 .conc-stack-motto { margin-left: 12px; color: var(--concepts-soft); font-style: italic; }
@@ -570,6 +570,7 @@
 .conc-chrono-expanded-close { margin-left: auto; background: none; border: 1px solid color-mix(in srgb, var(--concepts-main) 30%, transparent); color: var(--ink-mute); width: 28px; height: 28px; display: grid; place-items: center; cursor: pointer; font-size: 12px; transition: background 0.15s, color 0.15s; }
 .conc-chrono-expanded-close:hover { background: color-mix(in srgb, var(--concepts-main) 10%, transparent); color: var(--concepts-main); }
 .conc-chrono-expanded-body { padding: 18px 20px; }
+.conc-chrono-empty { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mute); text-align: center; padding: 24px 0; opacity: 0.7; letter-spacing: 0.05em; }
 
 /* 共用：section / event（同時用於展開卡片） */
 .conc-chrono-section { margin-bottom: 16px; }

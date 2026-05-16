@@ -934,6 +934,20 @@ function parseChronoYear(yearStr: string): { era: ChronoEra; yearNum: number } {
   return { era: 'ad', yearNum: num ? parseInt(num[1]) : 1 };
 }
 
+/** 紀元時序排序權重 */
+const ERA_ORDER: Record<ChronoEra, number> = { 'pre-ad': 0, ad: 1, fa: 2, nw: 3 };
+
+/** 依紀元＋年份排序（AD前降序，其餘升序） */
+function sortChronoPeriods(periods: ChronoPeriod[]): ChronoPeriod[] {
+  return [...periods].sort((a, b) => {
+    const eraA = ERA_ORDER[a.era] ?? 0;
+    const eraB = ERA_ORDER[b.era] ?? 0;
+    if (eraA !== eraB) return eraA - eraB;
+    if (a.era === 'pre-ad') return b.yearNum - a.yearNum;
+    return a.yearNum - b.yearNum;
+  });
+}
+
 /** 通用陣列排序 */
 function reorder<T>(arr: T[], from: number, to: number): T[] {
   const result = [...arr];
@@ -945,14 +959,16 @@ function reorder<T>(arr: T[], from: number, to: number): T[] {
 /** 舊格式 → 新格式轉換（向後相容） */
 function migrateChronoData(raw: any): ChronoContent {
   // 已是新格式（有 fieldDefs 且 periods 有 era）
-  if (raw.fieldDefs && Array.isArray(raw.fieldDefs) && raw.periods?.[0]?.era) return raw as ChronoContent;
+  if (raw.fieldDefs && Array.isArray(raw.fieldDefs) && raw.periods?.[0]?.era) {
+    return { ...raw, periods: sortChronoPeriods(raw.periods) } as ChronoContent;
+  }
   // 有 fieldDefs 但 period 還用 subtitle → 遷移 period 欄位
   if (raw.fieldDefs && Array.isArray(raw.fieldDefs)) {
     const periods: ChronoPeriod[] = (raw.periods || []).map((op: any) => {
       const { era, yearNum } = op.era ? { era: op.era, yearNum: op.yearNum } : parseChronoYear(op.year || '');
       return { era, yearNum, year: formatChronoYear(era, yearNum), title: op.title || op.subtitle, fields: op.fields || {} };
     });
-    return { fieldDefs: raw.fieldDefs, periods };
+    return { fieldDefs: raw.fieldDefs, periods: sortChronoPeriods(periods) };
   }
   // 舊格式：periods[].sections[]
   const oldPeriods: { year: string; subtitle?: string; sections?: { icon: string; label: string; events: string[] }[] }[] = raw.periods || [];
@@ -983,7 +999,7 @@ function migrateChronoData(raw: any): ChronoContent {
     }
     return { era, yearNum, year: formatChronoYear(era, yearNum), title: op.subtitle, fields };
   });
-  return { fieldDefs, periods };
+  return { fieldDefs, periods: sortChronoPeriods(periods) };
 }
 
 function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent; onChange: (d: ChronoContent) => void; accent: string }) {
@@ -997,22 +1013,28 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   const [itemDrag, setItemDrag] = useState<{ defId: string; type: 'flat' | 'group' | 'groupItem'; gi?: number; idx: number } | null>(null);
 
   function emit(next: ChronoContent) { onChange(next); }
-  function updatePeriods(periods: ChronoPeriod[]) { emit({ ...data, fieldDefs: data.fieldDefs, periods }); }
+  function updatePeriods(periods: ChronoPeriod[], skipSort = false) {
+    const sorted = skipSort ? periods : sortChronoPeriods(periods);
+    emit({ ...data, fieldDefs: data.fieldDefs, periods: sorted });
+  }
 
   function addPeriod() {
     const fields: Record<string, ChronoField> = {};
     for (const def of data.fieldDefs) {
       fields[def.id] = def.style === 'grouped' ? { groups: [] } : { items: [] };
     }
-    updatePeriods([...data.periods, { era: 'ad', yearNum: 1, year: formatChronoYear('ad', 1), fields }]);
-    setActivePeriod(data.periods.length);
+    const newPeriod: ChronoPeriod = { era: 'ad', yearNum: 1, year: formatChronoYear('ad', 1), fields };
+    const newPeriods = sortChronoPeriods([...data.periods, newPeriod]);
+    const newIdx = newPeriods.findIndex(p => p === newPeriod);
+    emit({ ...data, fieldDefs: data.fieldDefs, periods: newPeriods });
+    setActivePeriod(newIdx >= 0 ? newIdx : 0);
   }
 
   async function removePeriod(i: number) {
     const p = data.periods[i];
     const ok = await getDialog().confirm(`確定要刪除時間點「${p.year}」嗎？`, { title: '刪除時間點', confirmText: '刪除', cancelText: '取消' });
     if (!ok) return;
-    updatePeriods(data.periods.filter((_, idx) => idx !== i));
+    updatePeriods(data.periods.filter((_, idx) => idx !== i), true);
     if (activePeriod >= data.periods.length - 1) setActivePeriod(Math.max(0, data.periods.length - 2));
   }
 
@@ -1021,7 +1043,7 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
     const items = [...data.periods];
     const [moved] = items.splice(dragIdx, 1);
     items.splice(targetIdx, 0, moved);
-    updatePeriods(items);
+    updatePeriods(items, true);
     if (activePeriod === dragIdx) setActivePeriod(targetIdx);
     setDragIdx(null);
   }
@@ -1029,22 +1051,31 @@ function ChronoEditor({ data: rawData, onChange, accent }: { data: ChronoContent
   const period = data.periods[activePeriod];
 
   function updatePeriod(patch: Partial<ChronoPeriod>) {
-    updatePeriods(data.periods.map((p, i) => i === activePeriod ? { ...p, ...patch } : p));
+    updatePeriods(data.periods.map((p, i) => i === activePeriod ? { ...p, ...patch } : p), true);
   }
 
-  // 年份變更（era 或 yearNum）
+  // 年份變更（era 或 yearNum）— 排序後追蹤 activePeriod
   function setEra(era: ChronoEra) {
+    if (!period) return;
     const eraDef = CHRONO_ERAS.find(e => e.id === era);
-    let yearNum = period?.yearNum || 1;
+    let yearNum = period.yearNum || 1;
     if (eraDef?.maxYear && yearNum > eraDef.maxYear) yearNum = eraDef.maxYear;
-    updatePeriod({ era, yearNum, year: formatChronoYear(era, yearNum) });
+    const updated = { ...period, era, yearNum, year: formatChronoYear(era, yearNum) };
+    const newPeriods = sortChronoPeriods(data.periods.map((p, i) => i === activePeriod ? updated : p));
+    const newIdx = newPeriods.indexOf(updated);
+    emit({ ...data, fieldDefs: data.fieldDefs, periods: newPeriods });
+    setActivePeriod(newIdx >= 0 ? newIdx : 0);
   }
   function setYearNum(num: number) {
     if (!period) return;
     const eraDef = CHRONO_ERAS.find(e => e.id === period.era);
     const clamped = eraDef?.maxYear ? Math.min(num, eraDef.maxYear) : num;
     const yearNum = Math.max(1, clamped);
-    updatePeriod({ yearNum, year: formatChronoYear(period.era, yearNum) });
+    const updated = { ...period, yearNum, year: formatChronoYear(period.era, yearNum) };
+    const newPeriods = sortChronoPeriods(data.periods.map((p, i) => i === activePeriod ? updated : p));
+    const newIdx = newPeriods.indexOf(updated);
+    emit({ ...data, fieldDefs: data.fieldDefs, periods: newPeriods });
+    setActivePeriod(newIdx >= 0 ? newIdx : 0);
   }
 
   function updateField(defId: string, field: ChronoField) {
