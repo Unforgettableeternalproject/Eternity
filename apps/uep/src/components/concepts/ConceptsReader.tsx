@@ -21,6 +21,7 @@ import type {
   BrowserContent,
   CharacterProfile,
   ChronoContent,
+  ChronoEra,
   ChronoFieldDef,
   ChronoField,
   DiffContent,
@@ -424,7 +425,20 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
 // ──────────────────────────────────────────────────────────────────
 // 子元件：ReaderChronograph（oscillator stack）— 水平拖曳時間軸
 // ──────────────────────────────────────────────────────────────────
-function ReaderChronograph({ data }: { data: ChronoContent }) {
+const CHRONO_ERA_ORDER: Record<ChronoEra, number> = { 'pre-ad': 0, ad: 1, fa: 2, nw: 3 };
+
+function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
+  const data = useMemo(() => {
+    const sorted = [...rawData.periods].sort((a, b) => {
+      const eaOrd = CHRONO_ERA_ORDER[a.era] ?? 0;
+      const ebOrd = CHRONO_ERA_ORDER[b.era] ?? 0;
+      if (eaOrd !== ebOrd) return eaOrd - ebOrd;
+      if (a.era === 'pre-ad') return b.yearNum - a.yearNum;
+      return a.yearNum - b.yearNum;
+    });
+    return { ...rawData, periods: sorted };
+  }, [rawData]);
+
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -565,35 +579,39 @@ function ReaderChronograph({ data }: { data: ChronoContent }) {
               <button className="conc-chrono-expanded-close" onClick={() => setExpandedIdx(null)}>✕</button>
             </div>
             <div className="conc-chrono-expanded-body">
-              {fieldDefs.map((def) => {
-                const field = fields[def.id];
-                if (!field) return null;
-                const hasContent = (field.items && field.items.length > 0) || (field.groups && field.groups.length > 0);
-                if (!hasContent) return null;
-                return (
-                  <div key={def.id} className="conc-chrono-section">
-                    <div className="conc-chrono-section-header">
-                      <span className="conc-chrono-section-icon">{def.icon}</span>
-                      <span className="conc-chrono-section-label">{def.label}</span>
-                    </div>
-                    {/* flat 模式 */}
-                    {field.items && field.items.map((ev, ei) => (
-                      <div key={ei} className="conc-chrono-event">· {ev}</div>
-                    ))}
-                    {/* grouped 模式 */}
-                    {field.groups && field.groups.map((group, gi) => (
-                      <div key={gi} className="conc-chrono-section" style={{ marginLeft: 8, marginBottom: 8 }}>
-                        <div className="conc-chrono-section-header" style={{ borderBottom: 'none', paddingBottom: 2 }}>
-                          <span className="conc-chrono-section-label" style={{ fontSize: 12, fontWeight: 600 }}>{group.label}</span>
-                        </div>
-                        {group.items.map((ev, ei) => (
-                          <div key={ei} className="conc-chrono-event">· {ev}</div>
-                        ))}
+              {(() => {
+                const rendered = fieldDefs.map((def) => {
+                  const field = fields[def.id];
+                  if (!field) return null;
+                  const hasContent = (field.items && field.items.length > 0) || (field.groups && field.groups.length > 0);
+                  if (!hasContent) return null;
+                  return (
+                    <div key={def.id} className="conc-chrono-section">
+                      <div className="conc-chrono-section-header">
+                        <span className="conc-chrono-section-icon">{def.icon}</span>
+                        <span className="conc-chrono-section-label">{def.label}</span>
                       </div>
-                    ))}
-                  </div>
-                );
-              })}
+                      {field.items && field.items.map((ev, ei) => (
+                        <div key={ei} className="conc-chrono-event">· {ev}</div>
+                      ))}
+                      {field.groups && field.groups.map((group, gi) => (
+                        <div key={gi} className="conc-chrono-section" style={{ marginLeft: 8, marginBottom: 8 }}>
+                          <div className="conc-chrono-section-header" style={{ borderBottom: 'none', paddingBottom: 2 }}>
+                            <span className="conc-chrono-section-label" style={{ fontSize: 12, fontWeight: 600 }}>{group.label}</span>
+                          </div>
+                          {group.items.map((ev, ei) => (
+                            <div key={ei} className="conc-chrono-event">· {ev}</div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }).filter(Boolean);
+                if (rendered.length === 0) {
+                  return <div className="conc-chrono-empty">此時間點尚無記錄</div>;
+                }
+                return rendered;
+              })()}
             </div>
           </div>
         );
@@ -1009,7 +1027,7 @@ export default function ConceptsReader() {
       <div className="conc-stack-page">
         <div className="conc-stack-breadcrumb">
           <span className="conc-stack-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>CONCEPTS</button>
+          <button onClick={() => navigateToLanding()}>概念調整房</button>
           <span>·</span>
           <span>{stackDef.labelEn}</span>
         </div>
@@ -1124,7 +1142,7 @@ export default function ConceptsReader() {
       <div className="conc-reading-page">
         <div className="conc-stack-breadcrumb">
           <span className="conc-stack-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>CONCEPTS</button>
+          <button onClick={() => navigateToLanding()}>概念調整房</button>
           {stackDef && (<><span>·</span><button onClick={() => navigateToStack(stackDef.slug)}>{stackDef.labelEn}</button></>)}
           <span>·</span>
           <span>{crumbs[crumbs.length - 1]?.toUpperCase()}</span>
@@ -1133,8 +1151,7 @@ export default function ConceptsReader() {
         {/* 子頁面標題（不帶 icon，與 echoes/visuals 一致） */}
         <div className="conc-stack-title-row" style={{ marginTop: 14 }}>
           <h1 className="conc-stack-title">{readingPage.title}</h1>
-          {badgeLabel && (
-            hasMultipleVariants ? (
+          {badgeLabel && hasMultipleVariants && (
               <button
                 type="button"
                 className="conc-era-badge conc-era-badge--switch"
@@ -1145,9 +1162,6 @@ export default function ConceptsReader() {
                 <span className="conc-era-badge__label">{badgeLabel}</span>
                 <span className="conc-era-badge__arrow">▸</span>
               </button>
-            ) : (
-              <div className="conc-era-badge">{badgeLabel}</div>
-            )
           )}
         </div>
         {!isLocked && typeof readingPage.metadata?.description === 'string' && (
