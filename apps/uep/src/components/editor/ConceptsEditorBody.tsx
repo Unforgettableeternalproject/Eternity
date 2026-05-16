@@ -39,6 +39,7 @@ import { StarterKit } from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import type {
   DossierContent,
+  DossierVariant,
   DossierSubcat,
   DossierGroup,
   DossierEntry,
@@ -98,6 +99,23 @@ export function parseConceptsEditorData(
     data = getEmptyData(stackStyle);
   }
 
+  // 舊版 dossier 資料相容：若是 {subcategories:[...]} 則包成單一 variant
+  if (stackStyle === 'dossier') {
+    const d = data as Partial<DossierContent> & { subcategories?: DossierSubcat[] };
+    if (!Array.isArray(d.variants)) {
+      const legacySubcats = Array.isArray(d.subcategories) ? d.subcategories : [];
+      data = {
+        variants: [
+          { id: 'default', label: 'DEFAULT', subcategories: legacySubcats },
+        ],
+      } as DossierContent;
+    } else if (d.variants.length === 0) {
+      data = {
+        variants: [{ id: 'default', label: 'DEFAULT', subcategories: [] }],
+      } as DossierContent;
+    }
+  }
+
   return { stackStyle, contentBlockType, data };
 }
 
@@ -121,7 +139,9 @@ function getBlockType(style: StackStyle): string {
 
 function getEmptyData(style: StackStyle): ConceptsData {
   switch (style) {
-    case 'dossier': return { subcategories: [] } as DossierContent;
+    case 'dossier': return {
+      variants: [{ id: 'default', label: 'DEFAULT', subcategories: [] }],
+    } as DossierContent;
     case 'browser': return { profiles: [] } as BrowserContent;
     case 'chrono': return {
       fieldDefs: [
@@ -209,10 +229,117 @@ export default function ConceptsEditorBody({ accent, stackStyle, initialData, on
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Dossier 編輯器
+// Dossier 編輯器（外層：variant tab 列）
 // ══════════════════════════════════════════════════════════════════
 
 function DossierEditor({ data, onChange, accent }: { data: DossierContent; onChange: (d: DossierContent) => void; accent: string }) {
+  const variants: DossierVariant[] = data.variants && data.variants.length > 0
+    ? data.variants
+    : [{ id: 'default', label: 'DEFAULT', subcategories: [] }];
+  const [activeVariantIdx, setActiveVariantIdx] = useState(0);
+  const safeIdx = Math.min(activeVariantIdx, variants.length - 1);
+  const currentVariant = variants[safeIdx];
+
+  // 第一次掛載時若 data 沒有 variants，補一個預設讓父層同步
+  React.useEffect(() => {
+    if (!data.variants || data.variants.length === 0) {
+      onChange({ variants });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function updateVariants(next: DossierVariant[]) { onChange({ variants: next }); }
+  function updateCurrentSubcats(subcategories: DossierSubcat[]) {
+    updateVariants(variants.map((v, i) => i === safeIdx ? { ...v, subcategories } : v));
+  }
+
+  async function addVariant() {
+    const idRaw = await getDialog().prompt('輸入新 variant 的 ID（小寫，建議 u/e/p 等 era 代號）：', { title: '新增 Variant', placeholder: 'u' });
+    if (!idRaw) return;
+    const id = idRaw.trim().toLowerCase();
+    if (!id) return;
+    if (variants.some(v => v.id === id)) {
+      await getDialog().alert(`Variant ID「${id}」已存在。`, { title: '無法新增' });
+      return;
+    }
+    const labelRaw = await getDialog().prompt('輸入顯示用標籤（會出現在 reader 標題旁，慣例為大寫）：', { title: '新增 Variant', placeholder: id.toUpperCase() });
+    const label = (labelRaw?.trim() || id).toUpperCase();
+    updateVariants([...variants, { id, label, subcategories: [] }]);
+    setActiveVariantIdx(variants.length);
+  }
+
+  async function renameVariant(idx: number) {
+    const v = variants[idx];
+    if (!v) return;
+    const labelRaw = await getDialog().prompt('變更顯示標籤：', { title: '重新命名 Variant', placeholder: v.label, defaultValue: v.label });
+    if (labelRaw === null || labelRaw === undefined) return;
+    const label = labelRaw.trim().toUpperCase() || v.label;
+    updateVariants(variants.map((vv, i) => i === idx ? { ...vv, label } : vv));
+  }
+
+  async function removeVariant(idx: number) {
+    if (variants.length <= 1) {
+      await getDialog().alert('至少要保留一個 variant。', { title: '無法刪除' });
+      return;
+    }
+    const v = variants[idx];
+    const count = v.subcategories.reduce((s, sc) => s + sc.groups.reduce((g, gr) => g + gr.entries.length, 0), 0);
+    const ok = await getDialog().confirm(
+      `確定要刪除 variant「${v.label}」(${v.id})？\n此 variant 內有 ${count} 個條目，刪除後無法復原。`,
+      { title: '刪除 Variant', confirmText: '刪除', cancelText: '取消' }
+    );
+    if (!ok) return;
+    const next = variants.filter((_, i) => i !== idx);
+    updateVariants(next);
+    if (safeIdx >= next.length) setActiveVariantIdx(Math.max(0, next.length - 1));
+    else if (safeIdx > idx) setActiveVariantIdx(safeIdx - 1);
+  }
+
+  return (
+    <>
+      {/* Variant tab 列 */}
+      <div className="ced-variant-bar">
+        <span className="ced-variant-bar-label">VARIANT</span>
+        <div className="ced-variant-tabs">
+          {variants.map((v, i) => (
+            <div key={v.id + '-' + i} className={`ced-variant-tab ${i === safeIdx ? 'active' : ''}`}>
+              <button
+                type="button"
+                className="ced-variant-tab-btn"
+                onClick={() => setActiveVariantIdx(i)}
+                onDoubleClick={() => renameVariant(i)}
+                title={`${v.id} (雙擊重新命名)`}
+                style={{ borderColor: i === safeIdx ? accent : undefined }}
+              >
+                <span className="ced-variant-tab-label">{v.label}</span>
+                <span className="ced-variant-tab-id">{v.id}</span>
+              </button>
+              {variants.length > 1 && (
+                <button type="button" className="ced-variant-tab-del" onClick={() => removeVariant(i)} title="刪除 variant">✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+        <button type="button" className="ced-variant-add" onClick={addVariant} style={{ color: accent, borderColor: accent }}>
+          + 新增 Variant
+        </button>
+      </div>
+
+      <DossierVariantBody
+        key={currentVariant.id}
+        subcategories={currentVariant.subcategories}
+        onSubcatsChange={updateCurrentSubcats}
+        accent={accent}
+      />
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Dossier 編輯器（單一 variant 內容）
+// ══════════════════════════════════════════════════════════════════
+
+function DossierVariantBody({ subcategories, onSubcatsChange, accent }: { subcategories: DossierSubcat[]; onSubcatsChange: (subcats: DossierSubcat[]) => void; accent: string }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
   const [activeEntry, setActiveEntry] = useState<number | null>(null);
@@ -220,14 +347,14 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
   const [panelMode, setPanelMode] = useState<'group' | 'entry'>('group');
   const [dragEntryInfo, setDragEntryInfo] = useState<{ groupIdx: number; entryIdx: number } | null>(null);
 
-  function updateSubcats(subcats: DossierSubcat[]) { onChange({ ...data, subcategories: subcats }); }
-  function addSubcat() { updateSubcats([...data.subcategories, { label: '新分類', groups: [{ label: '', entries: [] }] }]); }
-  function removeSubcat(i: number) { updateSubcats(data.subcategories.filter((_, idx) => idx !== i)); if (activeTab >= data.subcategories.length - 1) setActiveTab(Math.max(0, data.subcategories.length - 2)); setActiveEntry(null); }
+  function updateSubcats(subcats: DossierSubcat[]) { onSubcatsChange(subcats); }
+  function addSubcat() { updateSubcats([...subcategories, { label: '新分類', groups: [{ label: '', entries: [] }] }]); }
+  function removeSubcat(i: number) { updateSubcats(subcategories.filter((_, idx) => idx !== i)); if (activeTab >= subcategories.length - 1) setActiveTab(Math.max(0, subcategories.length - 2)); setActiveEntry(null); }
 
-  const subcat = data.subcategories[activeTab];
+  const subcat = subcategories[activeTab];
 
   function updateGroups(groups: DossierGroup[]) {
-    updateSubcats(data.subcategories.map((sc, i) => i === activeTab ? { ...sc, groups } : sc));
+    updateSubcats(subcategories.map((sc, i) => i === activeTab ? { ...sc, groups } : sc));
   }
   function addGroup() { if (!subcat) return; updateGroups([...subcat.groups, { label: '新群組', entries: [] }]); }
 
@@ -307,9 +434,9 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
         <span className="ced-section-title">分類</span>
         <button className="ced-add-btn" onClick={addSubcat} style={{ color: accent }}>+ 新增分類</button>
       </div>
-      {data.subcategories.length > 0 && (
+      {subcategories.length > 0 && (
         <div className="ced-tabs">
-          {data.subcategories.map((sc, i) => (
+          {subcategories.map((sc, i) => (
             <div key={i} className={`ced-tab ${i === activeTab ? 'active' : ''}`}>
               <button className="ced-tab-btn" onClick={() => { setActiveTab(i); setActiveGroup(0); setActiveEntry(null); setPanelMode('group'); }}>{sc.label || '(未命名)'}</button>
               <button className="ced-tab-del" onClick={() => removeSubcat(i)}>✕</button>
@@ -322,7 +449,7 @@ function DossierEditor({ data, onChange, accent }: { data: DossierContent; onCha
         <>
           <div className="ced-field-row">
             <label className="ced-label">分類名稱</label>
-            <input className="ced-input" value={subcat.label} onChange={(e) => updateSubcats(data.subcategories.map((sc, i) => i === activeTab ? { ...sc, label: e.target.value } : sc))} />
+            <input className="ced-input" value={subcat.label} onChange={(e) => updateSubcats(subcategories.map((sc, i) => i === activeTab ? { ...sc, label: e.target.value } : sc))} />
           </div>
 
           <div className="ced-browser-split" style={{ minHeight: 250 }}>

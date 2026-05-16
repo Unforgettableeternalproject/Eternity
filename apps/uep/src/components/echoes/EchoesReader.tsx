@@ -1051,6 +1051,7 @@ function EchoesReaderInner() {
   const [songLoading, setSongLoading] = useState(false);
   const [songError, setSongError] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
+  const [transitionKey, setTransitionKey] = useState(0);
 
   // === Spoiler ===
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -1102,6 +1103,7 @@ function EchoesReaderInner() {
   // 首頁區塊資料
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const [contentReady, setContentReady] = useState(false);
+  const bootMountTime = useRef(Date.now());
 
   // === 載入 landing 頁面內容 ===
   useEffect(() => {
@@ -1111,7 +1113,7 @@ function EchoesReaderInner() {
 
   // 載入首頁區塊資料
   useEffect(() => {
-    const timeout = setTimeout(() => setContentReady(true), 2000);
+    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/echoes/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -1127,7 +1129,9 @@ function EchoesReaderInner() {
       .catch(() => {})
       .finally(() => {
         clearTimeout(timeout);
-        setContentReady(true);
+        const elapsed = Date.now() - bootMountTime.current;
+        const delay = Math.max(0, 1800 - elapsed);
+        setTimeout(() => setContentReady(true), delay);
       });
   }, []);
 
@@ -1269,6 +1273,7 @@ function EchoesReaderInner() {
     setActiveClusterId(null);
     setActiveSongId(null);
     setCurrentSongPage(null);
+    setTransitionKey((k) => k + 1);
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     if (pushState) {
       const url = new URL(window.location.href);
@@ -1286,6 +1291,7 @@ function EchoesReaderInner() {
     setActiveContentId(null);
     setCurrentSongPage(null);
     setCurrentContentPage(null);
+    setTransitionKey((k) => k + 1);
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     if (pushState) {
       const url = new URL(window.location.href);
@@ -1319,6 +1325,7 @@ function EchoesReaderInner() {
       console.error('Failed to load content page:', err);
     } finally {
       setContentLoading(false);
+      setTransitionKey((k) => k + 1);
     }
     if (pushState) {
       const url = new URL(window.location.href);
@@ -1341,6 +1348,7 @@ function EchoesReaderInner() {
     }
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     await fetchSong(songId);
+    setTransitionKey((k) => k + 1);
     if (pushState) {
       const url = new URL(window.location.href);
       url.searchParams.set('song', songId);
@@ -2473,22 +2481,13 @@ function EchoesReaderInner() {
   // ────────────────────────────────────────────────────────────────
   return (
     <div className="echoes-reader">
-      {/* 入場霧化 — 等待首頁資料載入後再解除 */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 50,
-          pointerEvents: 'none',
-          ...(contentReady
-            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : {
-                backdropFilter: 'blur(18px)',
-                background: 'rgba(10,10,14,0.5)',
-              }),
-        }}
-      />
+      {/* 入場動畫 — 漣漪擴散 */}
+      <div aria-hidden="true" className={`echo-boot ${contentReady ? 'is-ready' : ''}`}>
+        <div className="echo-boot-pulse" />
+        <div className="echo-boot-wave" />
+        <div className="echo-boot-wave" />
+        <div className="echo-boot-wave" />
+      </div>
       <TopBar
         onOpenMap={() => setShowMap(true)}
         onGoHome={() => {
@@ -2527,10 +2526,12 @@ function EchoesReaderInner() {
         </div>
 
         <div className="echoes-content" ref={scrollRef}>
-          {view === 'landing' && renderLanding()}
-          {view === 'cluster' && renderCluster()}
-          {view === 'content' && renderContent()}
-          {view === 'song' && renderSong()}
+          <div key={transitionKey} className="echoes-page-transition">
+            {view === 'landing' && renderLanding()}
+            {view === 'cluster' && renderCluster()}
+            {view === 'content' && renderContent()}
+            {view === 'song' && renderSong()}
+          </div>
         </div>
       </div>
 

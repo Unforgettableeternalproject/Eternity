@@ -16,6 +16,8 @@ import {
 import type {
   StackDef,
   DossierContent,
+  DossierVariant,
+  DossierSubcat,
   BrowserContent,
   CharacterProfile,
   ChronoContent,
@@ -94,32 +96,84 @@ const STACKS: StackDef[] = [
 
 const ESSENCE_SYMBOLS = ['Σ', '∑', '∮', '∇', '∂', 'Φ', 'Ψ', 'Ω', 'λ', 'δ', 'ε', 'θ'];
 
+const SYMBOL_ITEMS = ESSENCE_SYMBOLS.flatMap((s, i) =>
+  [0, 1].map((k) => {
+    const idx = i * 2 + k;
+    return { char: s, idx, style: { left: `${(idx * 37) % 96}%`, top: `${(idx * 23) % 92}%`, fontSize: 12 + (idx % 4) * 5, animationDuration: `${16 + (idx % 5)}s`, animationDelay: `${(idx * 0.35) % 9}s` } };
+  })
+);
+
+// 駭客風飄落字元池（混入二進位、十六進位、特殊符號，盡量看起來像資料流）
+const RAIN_GLYPHS = '01010110ABCDEF{}[]<>/\\|+-*=#$%@?!~';
+
+/** 數位雨欄位定義 — 模組層級常數，避免每次 render 重建物件觸發多餘 diff */
+const RAIN_COLUMNS = Array.from({ length: 14 }, (_, i) => {
+  const seed = i * 37 + 13;
+  const len = 6 + (seed % 6);
+  return {
+    style: {
+      left: `${(seed * 7) % 98}%`,
+      fontSize: `${11 + (seed % 4)}px`,
+      animationDuration: `${16 + ((seed * 3) % 10)}s`,
+      animationDelay: `${((seed * 0.6) % 12) - 6}s`,
+    },
+    chars: Array.from({ length: len }, (_, j) => ({
+      char: RAIN_GLYPHS[(seed + j * 5) % RAIN_GLYPHS.length],
+      style: {
+        animationDuration: `${1.6 + (j % 3) * 0.4}s`,
+        animationDelay: `${(j * 0.18) % 1.2}s`,
+      },
+    })),
+  };
+});
+
+
+// ──────────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────────
+
+/** 將 dossier 資料正規化為 variants 陣列，相容舊版 {subcategories} 結構 */
+function normalizeDossierVariants(data: unknown): DossierVariant[] {
+  const d = data as Partial<DossierContent> & { subcategories?: DossierSubcat[] };
+  if (d && Array.isArray(d.variants) && d.variants.length > 0) return d.variants;
+  if (d && Array.isArray(d.subcategories)) {
+    return [{ id: 'default', label: 'DEFAULT', subcategories: d.subcategories }];
+  }
+  return [{ id: 'default', label: 'DEFAULT', subcategories: [] }];
+}
+
 
 // ──────────────────────────────────────────────────────────────────
 // 子元件：ReaderDossier（records stack）
+// 接收已選定 variant 的 subcategories；variant 切換由父層控制
 // ──────────────────────────────────────────────────────────────────
-function ReaderDossier({ data }: { data: DossierContent }) {
+function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
-  const subcat = data.subcategories[activeTab];
+  const subcat = subcategories[activeTab];
   const groups = subcat?.groups || [];
   const currentGroup = groups[activeGroup];
 
   // 切換 subcat 時重置 group
   useEffect(() => { setActiveGroup(0); }, [activeTab]);
 
+  // 若 activeTab 超出範圍（variant 切換後 subcats 變少），重置
+  useEffect(() => {
+    if (activeTab >= subcategories.length) setActiveTab(0);
+  }, [subcategories.length, activeTab]);
+
   return (
     <div>
 
       {/* Subcat 選擇器 — 終端路徑風格 */}
-      {data.subcategories.length > 1 && (
+      {subcategories.length > 1 && (
         <div className="conc-subcat-selector">
           <div className="conc-subcat-prompt">
             <span className="conc-subcat-prompt-symbol">$</span>
             <span className="conc-subcat-prompt-text">cd ~/records/</span>
           </div>
           <div className="conc-subcat-options">
-            {data.subcategories.map((sc, i) => (
+            {subcategories.map((sc, i) => (
               <button
                 key={i}
                 className={`conc-subcat-option ${i === activeTab ? 'active' : ''}`}
@@ -429,6 +483,9 @@ function ReaderChronograph({ data }: { data: ChronoContent }) {
   return (
     <div className="conc-chrono">
 
+      {/* 時間軸舞台 — 將時鐘與時間軸包在獨立容器，避免下方展開卡片把時鐘擠開 */}
+      <div className="conc-chrono-stage">
+
       {/* 背景時鐘裝飾 */}
       <div className="conc-chrono-clock" aria-hidden="true">
         <svg viewBox="0 0 200 200" className="conc-chrono-clock-svg">
@@ -483,6 +540,9 @@ function ReaderChronograph({ data }: { data: ChronoContent }) {
       <div className="conc-chrono-drag-hint">
         <span>↔ 拖曳瀏覽時間軸 · 點擊時間點展開</span>
       </div>
+
+      </div>
+      {/* /conc-chrono-stage */}
 
       {/* 展開的時間點詳細內容 */}
       {expandedIdx !== null && data.periods[expandedIdx] && (() => {
@@ -713,6 +773,19 @@ export default function ConceptsReader() {
   const [treeLoading, setTreeLoading] = useState(true);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const [contentReady, setContentReady] = useState(false);
+  const hpLoaded = useRef(false);
+  const navPending = useRef(false);
+  const bootFired = useRef(false);
+  const bootMountTime = useRef(Date.now());
+  function tryBootReady() {
+    if (hpLoaded.current && !navPending.current && !bootFired.current) {
+      bootFired.current = true;
+      // 確保 CRT 開機畫面至少停留 2s（文字動畫 ~1s + 額外 1s）
+      const elapsed = Date.now() - bootMountTime.current;
+      const delay = Math.max(0, 2000 - elapsed);
+      setTimeout(() => setContentReady(true), delay);
+    }
+  }
 
   // === 導航狀態 ===
   type View = 'landing' | 'stack' | 'reading';
@@ -721,7 +794,11 @@ export default function ConceptsReader() {
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [stackPage, setStackPage] = useState<Page | null>(null);
   const [readingPage, setReadingPage] = useState<Page | null>(null);
-  const [pageLoading, setPageLoading] = useState(false);
+  // 轉場 key — 資料載入完成時才遞增，讓動畫在內容就緒後才播放
+  const [transitionKey, setTransitionKey] = useState(0);
+  // dossier 的 variant 切換索引（每次切換 readingPage 時重置）
+  const [dossierVariantIdx, setDossierVariantIdx] = useState(0);
+  useEffect(() => { setDossierVariantIdx(0); }, [readingPage?.id]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -751,7 +828,7 @@ export default function ConceptsReader() {
   }, []);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setContentReady(true), 2000);
+    const timeout = setTimeout(() => { hpLoaded.current = true; navPending.current = false; bootFired.current = true; setContentReady(true); }, 5000);
     fetch(`${API_BASE}/api/content/concepts/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -760,7 +837,7 @@ export default function ConceptsReader() {
         if (Array.isArray(raw) && raw.length > 0) setHomepageBlocks(raw.map(fromContentBlock));
       })
       .catch(() => {})
-      .finally(() => { clearTimeout(timeout); setContentReady(true); });
+      .finally(() => { clearTimeout(timeout); hpLoaded.current = true; tryBootReady(); });
   }, []);
 
   useEffect(() => {
@@ -768,8 +845,9 @@ export default function ConceptsReader() {
     const params = new URLSearchParams(window.location.search);
     const page = params.get('page');
     const stack = params.get('stack');
-    if (page) navigateToPage(page, false);
-    else if (stack) navigateToStack(stack, false);
+    if (page) { navPending.current = true; navigateToPage(page, false); }
+    else if (stack) { navPending.current = true; navigateToStack(stack, false); }
+    else tryBootReady();
   }, [treeLoading, tree]);
 
   useEffect(() => {
@@ -819,6 +897,7 @@ export default function ConceptsReader() {
   function navigateToLanding(push = true) {
     setView('landing'); setActiveStackId(null); setActivePageId(null);
     setStackPage(null); setReadingPage(null);
+    setTransitionKey((k) => k + 1);
     if (push) { const url = new URL(window.location.href); url.search = ''; window.history.pushState({}, '', url.toString()); }
     scrollRef.current?.scrollTo(0, 0);
   }
@@ -826,23 +905,29 @@ export default function ConceptsReader() {
   function navigateToStack(stackSlug: string, push = true) {
     const fullId = stackSlug.startsWith('concepts/') ? stackSlug : `concepts/${stackSlug}`;
     const slug = fullId.replace('concepts/', '');
-    setView('stack'); setActiveStackId(fullId); setActivePageId(null); setReadingPage(null);
+    setActiveStackId(fullId); setActivePageId(null);
     if (push) pushUrl({ stack: slug });
-    scrollRef.current?.scrollTo(0, 0);
-    setPageLoading(true);
-    fetchPageData(slug).then((p) => { setStackPage(p); setPageLoading(false); });
+    fetchPageData(slug).then((p) => {
+      setStackPage(p); setReadingPage(null); setView('stack');
+      setTransitionKey((k) => k + 1);
+      requestAnimationFrame(() => scrollRef.current?.scrollTo(0, 0));
+      if (navPending.current) { navPending.current = false; tryBootReady(); }
+    });
   }
 
   function navigateToPage(pageSlug: string, push = true) {
     const fullId = pageSlug.startsWith('concepts/') ? pageSlug : `concepts/${pageSlug}`;
     const slug = fullId.replace('concepts/', '');
-    setView('reading'); setActivePageId(fullId);
+    setActivePageId(fullId);
     if (push) pushUrl({ page: slug });
-    scrollRef.current?.scrollTo(0, 0);
     const stackDef = STACKS.find((s) => slug.startsWith(s.slug));
     if (stackDef) setActiveStackId(`concepts/${stackDef.slug}`);
-    setPageLoading(true);
-    fetchPageData(slug).then((p) => { setReadingPage(p); setPageLoading(false); });
+    fetchPageData(slug).then((p) => {
+      setReadingPage(p); setView('reading');
+      setTransitionKey((k) => k + 1);
+      requestAnimationFrame(() => scrollRef.current?.scrollTo(0, 0));
+      if (navPending.current) { navPending.current = false; tryBootReady(); }
+    });
   }
 
   // ── Zone 切換 ──────────────────────────────────────────────────
@@ -909,7 +994,6 @@ export default function ConceptsReader() {
   // Stack 頁面
   // ══════════════════════════════════════════════════════════════
   function renderStack() {
-    if (pageLoading) return <div className="conc-page-loading"><span className="conc-cursor" />&nbsp;載入中...</div>;
     const stackDef = STACKS.find((s) => `concepts/${s.slug}` === activeStackId);
     const stackNode = stackNodes.find((n) => n.id === activeStackId);
     if (!stackDef || !stackNode) return null;
@@ -997,7 +1081,6 @@ export default function ConceptsReader() {
   // Reading 頁面 — 分派四種 Reader
   // ══════════════════════════════════════════════════════════════
   function renderReading() {
-    if (pageLoading) return <div className="conc-page-loading"><span className="conc-cursor" />&nbsp;載入中...</div>;
     if (!readingPage) return <div className="conc-page-loading">找不到頁面</div>;
 
     const meta = readingPage.metadata as Partial<ConceptsVariationMeta>;
@@ -1012,6 +1095,26 @@ export default function ConceptsReader() {
     let parsed: DossierContent | BrowserContent | ChronoContent | DiffContent | null = null;
     if (!isLocked && structBlock?.content && structBlock.type !== 'rich_text') {
       try { parsed = JSON.parse(structBlock.content); } catch { /* 靜默 */ }
+    }
+
+    // dossier 的 variant 處理
+    const dossierVariants = style === 'dossier' && parsed
+      ? normalizeDossierVariants(parsed)
+      : [];
+    const dossierIdx = dossierVariants.length > 0
+      ? dossierVariantIdx % dossierVariants.length
+      : 0;
+    const currentDossierVariant = dossierVariants[dossierIdx];
+    const hasMultipleVariants = dossierVariants.length > 1;
+
+    // 標題旁 badge 顯示內容：dossier 時為 variant.label，其他為 meta.era
+    const badgeLabel = style === 'dossier' && currentDossierVariant
+      ? currentDossierVariant.label
+      : (meta.era && meta.era !== 'default' ? meta.era.toUpperCase() : null);
+
+    function cycleDossierVariant() {
+      if (!hasMultipleVariants) return;
+      setDossierVariantIdx((i) => (i + 1) % dossierVariants.length);
     }
 
     // 麵包屑
@@ -1030,8 +1133,21 @@ export default function ConceptsReader() {
         {/* 子頁面標題（不帶 icon，與 echoes/visuals 一致） */}
         <div className="conc-stack-title-row" style={{ marginTop: 14 }}>
           <h1 className="conc-stack-title">{readingPage.title}</h1>
-          {meta.era && meta.era !== 'default' && (
-            <div className="conc-era-badge">{meta.era.toUpperCase()}</div>
+          {badgeLabel && (
+            hasMultipleVariants ? (
+              <button
+                type="button"
+                className="conc-era-badge conc-era-badge--switch"
+                onClick={cycleDossierVariant}
+                title={`切換 variant（共 ${dossierVariants.length} 個）`}
+                aria-label={`目前 variant: ${badgeLabel}，點擊切換`}
+              >
+                <span className="conc-era-badge__label">{badgeLabel}</span>
+                <span className="conc-era-badge__arrow">▸</span>
+              </button>
+            ) : (
+              <div className="conc-era-badge">{badgeLabel}</div>
+            )
           )}
         </div>
         {!isLocked && typeof readingPage.metadata?.description === 'string' && (
@@ -1053,7 +1169,12 @@ export default function ConceptsReader() {
               <div className="conc-locked-notice-text">此內容尚未在故事中揭露，隨著劇情推進將自動解鎖。</div>
             </div>
           ) : parsed ? (
-            style === 'dossier' ? <ReaderDossier data={parsed as DossierContent} /> :
+            style === 'dossier' && currentDossierVariant ? (
+              <ReaderDossier
+                key={currentDossierVariant.id + ':' + dossierIdx}
+                subcategories={currentDossierVariant.subcategories}
+              />
+            ) :
             style === 'browser' ? <ReaderBrowserTabs data={parsed as BrowserContent} /> :
             style === 'chrono' ? <ReaderChronograph data={parsed as ChronoContent} /> :
             style === 'diff' ? <ReaderDiff data={parsed as DiffContent} /> :
@@ -1079,31 +1200,59 @@ export default function ConceptsReader() {
   // ══════════════════════════════════════════════════════════════
   return (
     <div className="concepts-reader">
-      <div aria-hidden="true" className="conc-fog" style={{ opacity: contentReady ? 0 : 1 }} />
+      {/* CRT 開機入場動畫 — 黑底 + scanline 紋理 + 終端文字 + 一道掃描線；contentReady 後淡出 */}
+      <div aria-hidden="true" className={`conc-boot ${contentReady ? 'is-ready' : ''}`}>
+        <div className="conc-boot-scanlines" />
+        <div className="conc-boot-sweep" />
+        <div className="conc-boot-center">
+          <div className="conc-boot-line">{'> mount /dev/concepts ............... [ OK ]'}</div>
+          <div className="conc-boot-line">{'> loading essence_oscillator ........ [ OK ]'}</div>
+          <div className="conc-boot-line">
+            {'> ready'}<span className="conc-boot-cursor" />
+          </div>
+        </div>
+      </div>
 
       <TopBar onOpenMap={() => setShowMap(true)} onGoHome={() => { setHomePortal(true); setTimeout(() => { window.location.href = '/'; }, 1100); }} dark={theme === 'dark'} />
 
       <div className="conc-main">
         <ZoneAtmosphere zone={CONCEPTS_ZONE} intensity="subtle" skipGlyphs />
 
+        {/* 背景網格 — 整體基底，極淡，並有水平閃光偶爾掠過 */}
+        <div className="conc-grid-bg" aria-hidden="true">
+          <div className="conc-grid-flash" />
+        </div>
+
+        {/* 數位雨 — 駭客風飄落字元，透明度低 */}
+        <div className="conc-rain" aria-hidden="true">
+          {RAIN_COLUMNS.map((col, i) => (
+            <div key={i} className="conc-rain-col" style={col.style}>
+              {col.chars.map((ch, j) => (
+                <span key={j} className="conc-rain-char" style={ch.style}>{ch.char}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+
         {/* 飄移符號 */}
         <div className="conc-symbols" aria-hidden="true">
-          {ESSENCE_SYMBOLS.flatMap((s, i) =>
-            [0, 1].map((k) => {
-              const idx = i * 2 + k;
-              return (
-                <span key={idx} className="conc-symbol" style={{ left: `${(idx * 37) % 96}%`, top: `${(idx * 23) % 92}%`, fontSize: 12 + (idx % 4) * 5, animationDuration: `${16 + (idx % 5)}s`, animationDelay: `${(idx * 0.35) % 9}s` }}>
-                  {s}
-                </span>
-              );
-            })
-          )}
+          {SYMBOL_ITEMS.map((item) => (
+            <span key={item.idx} className="conc-symbol" style={item.style}>
+              {item.char}
+            </span>
+          ))}
         </div>
 
         <div className="conc-content" ref={scrollRef}>
-          {view === 'landing' && renderLanding()}
-          {view === 'stack' && renderStack()}
-          {view === 'reading' && renderReading()}
+          {/* 頁面轉場 — transitionKey 在資料就緒後才遞增，動畫不會卡在 loading 態 */}
+          <div
+            key={transitionKey}
+            className="conc-page-transition"
+          >
+            {view === 'landing' && renderLanding()}
+            {view === 'stack' && renderStack()}
+            {view === 'reading' && renderReading()}
+          </div>
         </div>
       </div>
 

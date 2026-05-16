@@ -1927,6 +1927,53 @@
 .ced-del-btn { background: none; border: none; color: var(--ink-mute); font-size: 13px; cursor: pointer; padding: 2px 6px; transition: color 0.15s; flex-shrink: 0; }
 .ced-del-btn:hover { color: #ef4444; }
 
+/* Variant bar（dossier 專屬，標示同一 type 下不同故事/時代的資料集） */
+.ced-variant-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 14px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--ced-accent, var(--ink-sub)) 4%, transparent);
+}
+.ced-variant-bar-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+  color: var(--ink-mute); font-weight: 600;
+}
+.ced-variant-tabs { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+.ced-variant-tab {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--hairline); background: var(--bg-card);
+}
+.ced-variant-tab.active {
+  border-color: var(--ced-accent, var(--ink-sub));
+  border-width: 2px;
+  background: color-mix(in srgb, var(--ced-accent, var(--ink-sub)) 12%, transparent);
+}
+.ced-variant-tab-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; background: none; border: none; cursor: pointer;
+}
+.ced-variant-tab-label {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--ink-body);
+}
+.ced-variant-tab.active .ced-variant-tab-label { color: var(--ced-accent, var(--ink-body)); }
+.ced-variant-tab-id {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em;
+  color: var(--ink-mute); padding: 1px 4px;
+  border: 1px solid var(--hairline);
+}
+.ced-variant-tab-del {
+  padding: 0 6px; background: none; border: none; border-left: 1px solid var(--hairline);
+  color: var(--ink-mute); font-size: 10px; cursor: pointer;
+}
+.ced-variant-tab-del:hover { color: #ef4444; }
+.ced-variant-add {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  padding: 4px 10px; border: 1px dashed currentColor; background: none; cursor: pointer;
+  transition: background 0.15s;
+}
+.ced-variant-add:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+
 /* Tab bar */
 .ced-tabs { display: flex; gap: 2px; margin-bottom: 12px; flex-wrap: wrap; }
 .ced-tab { display: flex; align-items: center; border: 1px solid var(--hairline); background: var(--bg-card); }

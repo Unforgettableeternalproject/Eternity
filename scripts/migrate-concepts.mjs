@@ -25,17 +25,55 @@ console.log(`  目標: ${API_BASE}`);
 console.log(`  清除模式: ${CLEAN ? '是' : '否'}\n`);
 
 // === Stack 定義 ===
+// records (dossier) 採用多 variant 結構：每個 type 一個 D1 頁面，內含多個 variant；
+// 其他 stack 維持單一 file 對單一頁面。
 const STACKS = {
   records: {
     slug: 'server/records', style: 'dossier', label: '永續紀錄主機',
-    files: [
-      { src: 'concepts/server/records/character_list_u.md', typeGroup: 'character_list', era: 'u' },
-      { src: 'concepts/server/records/inversa_u.md', typeGroup: 'inversa', era: 'u' },
-      { src: 'concepts/server/records/location_list_u.md', typeGroup: 'location_list', era: 'u' },
-      { src: 'concepts/server/records/hostile_creatures_u.md', typeGroup: 'hostile_creatures', era: 'u' },
-      { src: 'concepts/server/records/vestera_u.md', typeGroup: 'vestera', era: 'u' },
-      { src: 'concepts/server/records/special_rules_u.md', typeGroup: 'special_rules', era: 'u' },
-      { src: 'concepts/server/records/truth_u.md', typeGroup: 'truth', era: 'u' },
+    // 每個 type 一個項目，variants 列出該 type 在各 era 的來源檔
+    types: [
+      {
+        slug: 'character_list', typeGroup: 'character_list',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/character_list_u.md' },
+        ],
+      },
+      {
+        slug: 'inversa', typeGroup: 'inversa',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/inversa_u.md' },
+        ],
+      },
+      {
+        slug: 'location_list', typeGroup: 'location_list',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/location_list_u.md' },
+        ],
+      },
+      {
+        slug: 'hostile_creatures', typeGroup: 'hostile_creatures',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/hostile_creatures_u.md' },
+        ],
+      },
+      {
+        slug: 'vestera', typeGroup: 'vestera',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/vestera_u.md' },
+        ],
+      },
+      {
+        slug: 'special_rules', typeGroup: 'special_rules',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/special_rules_u.md' },
+        ],
+      },
+      {
+        slug: 'truth', typeGroup: 'truth',
+        variants: [
+          { id: 'u', label: 'U', src: 'concepts/server/records/truth_u.md' },
+        ],
+      },
     ],
   },
   browser: {
@@ -551,6 +589,83 @@ function buildPage(stackKey, fileDef, parsed, md) {
   };
 }
 
+// === Dossier 多 variant 頁面組裝 ===
+function buildDossierPage(stackKey, typeDef) {
+  const stack = STACKS[stackKey];
+  const slug = `${stack.slug}/${typeDef.slug}`;
+  const id = `concepts/${slug}`;
+
+  const variants = [];
+  let firstIntroHtml = '';
+  let firstMd = null;
+  let firstTitle = '';
+  const sources = [];
+
+  for (const v of typeDef.variants) {
+    const md = readMd(v.src);
+    if (!md) {
+      console.log(`  ⚠ 跳過 variant ${v.id}（檔案不存在）: ${v.src}`);
+      continue;
+    }
+    if (!firstMd) {
+      firstMd = md;
+      firstTitle = md.title || typeDef.typeGroup;
+    }
+    sources.push(v.src);
+
+    const parsed = typeDef.typeGroup === 'inversa'
+      ? parseInversa(md.body)
+      : parseDossier(md.body);
+    if (!parsed) continue;
+
+    if (parsed.intro_html && !firstIntroHtml) firstIntroHtml = parsed.intro_html;
+
+    variants.push({
+      id: v.id,
+      label: v.label || v.id.toUpperCase(),
+      subcategories: parsed.subcategories || [],
+    });
+  }
+
+  if (variants.length === 0) return null;
+
+  const structData = { variants };
+  const contentBlocks = [];
+  if (firstIntroHtml) {
+    contentBlocks.push({ id: 'intro', type: 'rich_text', content: firstIntroHtml });
+  }
+  contentBlocks.push({ id: 'content', type: 'dossier', content: JSON.stringify(structData) });
+
+  const metadata = {
+    type_group: typeDef.typeGroup,
+    stack_style: 'dossier',
+  };
+  if (firstMd?.frontmatter?.icon) metadata.icon = firstMd.frontmatter.icon;
+  if (firstMd?.frontmatter?.description) metadata.description = firstMd.frontmatter.description;
+  if (firstMd?.frontmatter?.hidden === true) metadata.hidden = true;
+
+  // 標題：用 typeDef.title 優先（如有），否則用第一個 variant 的標題去掉 (X) 後綴
+  const titleRaw = typeDef.title || firstTitle;
+  const title = titleRaw.replace(/\s*[（(][A-Za-z]+[)）]\s*$/, '').trim() || titleRaw;
+
+  return {
+    id,
+    area: 'concepts',
+    title,
+    slug,
+    sortOrder: 0,
+    content: contentBlocks,
+    sourceFile: sources.join(','),
+    contentHash: contentHash(JSON.stringify(structData)),
+    parentId: `concepts/${stack.slug}`,
+    depth: 2,
+    pageType: 'type',
+    metadata,
+    _variantCount: variants.length,
+    _entryCount: variants.reduce((s, v) => s + v.subcategories.reduce((g, sc) => g + sc.groups.reduce((e, gr) => e + gr.entries.length, 0), 0), 0),
+  };
+}
+
 // === 匯入 ===
 async function importPages(pages) {
   console.log(`\n📤 匯入 ${pages.length} 個頁面...\n`);
@@ -708,6 +823,25 @@ async function main() {
   for (const [stackKey, stack] of Object.entries(STACKS)) {
     console.log(`\n📂 解析 ${stack.label}...`);
 
+    // Dossier (records) 走多 variant 流程：每個 type 一頁，含多 variant
+    if (stack.style === 'dossier' && Array.isArray(stack.types)) {
+      for (const typeDef of stack.types) {
+        const page = buildDossierPage(stackKey, typeDef);
+        if (!page) {
+          console.log(`  ⚠ 跳過 type（無有效 variant）: ${typeDef.typeGroup}`);
+          continue;
+        }
+        page.sortOrder = sortOrder++;
+        const variantCount = page._variantCount;
+        const entryCount = page._entryCount;
+        delete page._variantCount; delete page._entryCount;
+        pages.push(page);
+        console.log(`  ✓ ${page.title} → ${variantCount} variant(s), ${entryCount} 筆條目`);
+      }
+      continue;
+    }
+
+    // 其他 stack 維持單一檔案結構
     for (const fileDef of stack.files) {
       const md = readMd(fileDef.src);
       if (!md) {
@@ -717,14 +851,7 @@ async function main() {
 
       let parsed;
 
-      if (stack.style === 'dossier') {
-        // 特殊處理 inversa（角色能力用 #### heading）
-        if (fileDef.typeGroup === 'inversa') {
-          parsed = parseInversa(md.body);
-        } else {
-          parsed = parseDossier(md.body);
-        }
-      } else if (stack.style === 'browser') {
+      if (stack.style === 'browser') {
         parsed = parseBrowser(md.body);
       } else if (stack.style === 'chrono') {
         parsed = parseChrono(md.body);

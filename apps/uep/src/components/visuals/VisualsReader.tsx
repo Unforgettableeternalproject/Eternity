@@ -241,6 +241,8 @@ function VisualsReaderInner() {
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const [contentReady, setContentReady] = useState(false);
+  const bootMountTime = useRef(Date.now());
+  const bootFired = useRef(false);
 
   // Spoiler
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -316,12 +318,17 @@ function VisualsReaderInner() {
   useEffect(() => {
     void fetchTree();
     void fetchHomepage();
-    const t = setTimeout(() => setContentReady(true), 2000);
+    const t = setTimeout(() => setContentReady(true), 5000);
     return () => clearTimeout(t);
   }, [fetchTree, fetchHomepage]);
 
   useEffect(() => {
-    if (!treeLoading) setContentReady(true);
+    if (!treeLoading && !bootFired.current) {
+      bootFired.current = true;
+      const elapsed = Date.now() - bootMountTime.current;
+      const delay = Math.max(0, 1800 - elapsed);
+      setTimeout(() => setContentReady(true), delay);
+    }
   }, [treeLoading]);
 
   // === URL state ===
@@ -1863,11 +1870,14 @@ function VisualsReaderInner() {
   // === Main render ===
   return (
     <div className="visuals-reader">
-      {/* 進場霧化 */}
-      <div
-        className={`visuals-arrival ${contentReady ? 'is-ready' : ''}`}
-        aria-hidden="true"
-      />
+      {/* 入場動畫 — 幻影閃現 */}
+      <div className={`vis-boot ${contentReady ? 'is-ready' : ''}`} aria-hidden="true">
+        <div className="vis-boot-flash vis-boot-flash--l" />
+        <div className="vis-boot-flash vis-boot-flash--r" />
+        <div className="vis-boot-flash vis-boot-flash--l2" />
+        <div className="vis-boot-flash vis-boot-flash--r2" />
+        <div className="vis-boot-grain" />
+      </div>
 
       <TopBar
         onOpenMap={() => setShowMap(true)}
