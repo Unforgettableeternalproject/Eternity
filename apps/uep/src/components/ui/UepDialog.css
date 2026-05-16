@@ -87,7 +87,9 @@
   font-size: 0.875rem;
   color: var(--ink, #ece9df);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
   box-sizing: border-box;
 }
 .uep-dialog__input:focus {

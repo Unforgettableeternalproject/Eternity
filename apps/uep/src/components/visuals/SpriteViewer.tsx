@@ -1,4 +1,3 @@
-/* global performance */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageItem } from '../editor/VisualsEditorBody';
 

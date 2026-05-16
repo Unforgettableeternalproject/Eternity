@@ -74,7 +74,9 @@ function blocksToHtml(blocks: any[]): string {
 const isConceptsType = area === 'concepts' && page?.pageType === 'type';
 const initialHtml = page
   ? isConceptsType
-    ? (Array.isArray(page.content) ? page.content.find((b: any) => b.type === 'rich_text')?.content : '') || '<p></p>'
+    ? (Array.isArray(page.content)
+        ? page.content.find((b: any) => b.type === 'rich_text')?.content
+        : '') || '<p></p>'
     : blocksToHtml(page.content)
   : '<p></p>';
 ---

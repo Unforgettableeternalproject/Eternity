@@ -284,9 +284,19 @@ export default function EditorPageTree({
       if (parentNode?.pageType === 'stack') {
         newPageType = 'type';
         // 從已有的子頁面繼承 stack_style，或從 slug 映射
-        const existingChild = (parentNode.children || []).find(c => c.metadata?.stack_style);
-        const stackStyle = existingChild?.metadata?.stack_style
-          || ({ 'server/records': 'dossier', 'server/browser': 'browser', 'server/time_logs': 'chrono', 'server/translation': 'diff' } as Record<string, string>)[parentNode.slug];
+        const existingChild = (parentNode.children || []).find(
+          (c) => c.metadata?.stack_style
+        );
+        const stackStyle =
+          existingChild?.metadata?.stack_style ||
+          (
+            {
+              'server/records': 'dossier',
+              'server/browser': 'browser',
+              'server/time_logs': 'chrono',
+              'server/translation': 'diff',
+            } as Record<string, string>
+          )[parentNode.slug];
         if (stackStyle) newMetadata = { stack_style: stackStyle };
       }
     }

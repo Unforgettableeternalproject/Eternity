@@ -1074,7 +1074,13 @@ export default {
         'SELECT key, deleted_at FROM deleted_assets ORDER BY deleted_at DESC'
       ).all<{ key: string; deleted_at: string }>();
       return jsonResponse(
-        { ok: true, data: (result.results || []).map((r) => ({ key: r.key, deletedAt: r.deleted_at })) },
+        {
+          ok: true,
+          data: (result.results || []).map((r) => ({
+            key: r.key,
+            deletedAt: r.deleted_at,
+          })),
+        },
         200,
         cors
       );
@@ -1103,13 +1109,21 @@ export default {
     if (path === '/api/assets/deleted/record' && request.method === 'POST') {
       const body = (await request.json()) as { keys: string[] };
       if (!Array.isArray(body.keys) || body.keys.length === 0) {
-        return jsonResponse({ ok: false, error: 'No keys provided' }, 400, cors);
+        return jsonResponse(
+          { ok: false, error: 'No keys provided' },
+          400,
+          cors
+        );
       }
       const stmt = env.CONTENT_DB.prepare(
         "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
       );
       await env.CONTENT_DB.batch(body.keys.map((key) => stmt.bind(key)));
-      return jsonResponse({ ok: true, data: { recorded: body.keys.length } }, 200, cors);
+      return jsonResponse(
+        { ok: true, data: { recorded: body.keys.length } },
+        200,
+        cors
+      );
     }
 
     // POST /api/assets/rename — 重新命名資產
@@ -1304,9 +1318,7 @@ export default {
         customMetadata: { originalName: file.name },
       });
 
-      await env.CONTENT_DB.prepare(
-        'DELETE FROM deleted_assets WHERE key = ?'
-      )
+      await env.CONTENT_DB.prepare('DELETE FROM deleted_assets WHERE key = ?')
         .bind(key)
         .run();
 

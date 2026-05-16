@@ -26,7 +26,12 @@ export interface ConceptsVariationMeta {
 /** D1 content 欄位中單一 block 的結構（與其他區域相同） */
 export interface ConceptsContentBlock {
   id: string;
-  type: 'dossier' | 'browser_profile' | 'chronograph' | 'diff_table' | 'rich_text';
+  type:
+    | 'dossier'
+    | 'browser_profile'
+    | 'chronograph'
+    | 'diff_table'
+    | 'rich_text';
   /** JSON.stringify 過的結構化資料 */
   content: string;
 }

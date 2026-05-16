@@ -1,4 +1,3 @@
-/* global File, FormData, Blob, HTMLCanvasElement, performance */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { uepToast } from '../ui/UepToast';
 import type { ImageItem, SpriteAnimations } from './VisualsEditorBody';

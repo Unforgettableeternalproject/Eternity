@@ -67,7 +67,8 @@ async function fetchPage(id) {
 // ── 從 slug 抽出 era 後綴 ─────────────────────────────────────────
 function extractEra(slug, metadata) {
   // 優先用 metadata.era，否則從 slug 後綴
-  if (metadata?.era && typeof metadata.era === 'string') return metadata.era.toLowerCase();
+  if (metadata?.era && typeof metadata.era === 'string')
+    return metadata.era.toLowerCase();
   const lastSeg = slug.split('/').pop() || '';
   const m = lastSeg.match(ERA_SUFFIX_RE);
   return m ? m[1] : null;
@@ -78,7 +79,10 @@ function stripEraSuffix(slug) {
 }
 
 function contentHash(content) {
-  return createHash('sha256').update(content, 'utf-8').digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(content, 'utf-8')
+    .digest('hex')
+    .slice(0, 16);
 }
 
 // ── 主要合併邏輯 ──────────────────────────────────────────────────
@@ -118,22 +122,33 @@ async function main() {
       const era = extractEra(full.slug, full.metadata) || 'u';
       const content = Array.isArray(full.content) ? full.content : [];
       const introBlock = content.find((b) => b.type === 'rich_text');
-      const structBlock = content.find((b) => b.type === 'dossier') || content.find((b) => b.type !== 'rich_text');
+      const structBlock =
+        content.find((b) => b.type === 'dossier') ||
+        content.find((b) => b.type !== 'rich_text');
 
       let structData = null;
       if (structBlock?.content) {
-        try { structData = JSON.parse(structBlock.content); } catch { structData = null; }
+        try {
+          structData = JSON.parse(structBlock.content);
+        } catch {
+          structData = null;
+        }
       }
 
       let subcategories = [];
       if (structData) {
-        if (Array.isArray(structData.variants) && structData.variants.length > 0) {
+        if (
+          Array.isArray(structData.variants) &&
+          structData.variants.length > 0
+        ) {
           // 已是新格式（罕見，但有可能是重複跑此腳本）— 合併 variants
           for (const v of structData.variants) {
             variants.push({
               id: v.id || era,
               label: v.label || (v.id || era).toUpperCase(),
-              subcategories: Array.isArray(v.subcategories) ? v.subcategories : [],
+              subcategories: Array.isArray(v.subcategories)
+                ? v.subcategories
+                : [],
             });
           }
           subcategories = null; // 已處理完
@@ -150,13 +165,16 @@ async function main() {
         });
       }
 
-      if (!firstIntroHtml && introBlock?.content) firstIntroHtml = introBlock.content;
+      if (!firstIntroHtml && introBlock?.content)
+        firstIntroHtml = introBlock.content;
       if (!firstMeta) firstMeta = { ...(full.metadata || {}) };
       if (!firstTitle) firstTitle = full.title || '';
       oldIds.push(full.id);
       if (full.sourceFile) sourceFiles.push(full.sourceFile);
 
-      console.log(`    ↳ 載入 ${full.slug}  (variant: ${era})  → ${countEntries(subcategories || [])} 筆條目`);
+      console.log(
+        `    ↳ 載入 ${full.slug}  (variant: ${era})  → ${countEntries(subcategories || [])} 筆條目`
+      );
     }
 
     if (variants.length === 0) {
@@ -168,15 +186,27 @@ async function main() {
     const newId = `concepts/${newSlug}`;
     const structData = { variants };
     const contentBlocks = [];
-    if (firstIntroHtml) contentBlocks.push({ id: 'intro', type: 'rich_text', content: firstIntroHtml });
-    contentBlocks.push({ id: 'content', type: 'dossier', content: JSON.stringify(structData) });
+    if (firstIntroHtml)
+      contentBlocks.push({
+        id: 'intro',
+        type: 'rich_text',
+        content: firstIntroHtml,
+      });
+    contentBlocks.push({
+      id: 'content',
+      type: 'dossier',
+      content: JSON.stringify(structData),
+    });
 
     const newMeta = { ...(firstMeta || {}) };
     delete newMeta.era; // era 已移至 variant 層
     if (!newMeta.stack_style) newMeta.stack_style = 'dossier';
 
     // 清掉標題中的「(X)」後綴
-    const title = (firstTitle || newSlug.split('/').pop() || '').replace(/\s*[（(][A-Za-z]+[)）]\s*$/, '').trim() || firstTitle;
+    const title =
+      (firstTitle || newSlug.split('/').pop() || '')
+        .replace(/\s*[（(][A-Za-z]+[)）]\s*$/, '')
+        .trim() || firstTitle;
 
     const newPage = {
       id: newId,
@@ -196,7 +226,9 @@ async function main() {
     const idsToDelete = oldIds.filter((id) => id !== newId);
     operations.push({ newPage, idsToDelete });
 
-    console.log(`    ✓ 將建立 / 更新: ${newId}  (variants: ${variants.map(v => v.id).join('/')})`);
+    console.log(
+      `    ✓ 將建立 / 更新: ${newId}  (variants: ${variants.map((v) => v.id).join('/')})`
+    );
     if (idsToDelete.length > 0) {
       console.log(`    ✓ 將刪除舊頁面: ${idsToDelete.join(', ')}`);
     }
@@ -209,26 +241,31 @@ async function main() {
 
   if (!APPLY) {
     console.log(`🅓 dry-run 結束。確認上述計畫無誤後，加 --apply 實際執行：`);
-    console.log(`   node scripts/merge-dossier-variants.mjs ${USE_REMOTE ? '--remote ' : ''}--apply\n`);
+    console.log(
+      `   node scripts/merge-dossier-variants.mjs ${USE_REMOTE ? '--remote ' : ''}--apply\n`
+    );
     return;
   }
 
   // 實際執行
   for (const op of operations) {
     console.log(`▸ 寫入 ${op.newPage.id}`);
-    const res = await fetch(`${API_BASE}/api/content/concepts/${op.newPage.slug}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({
-        title: op.newPage.title,
-        content: op.newPage.content,
-        parentId: op.newPage.parentId,
-        depth: op.newPage.depth,
-        pageType: op.newPage.pageType,
-        metadata: op.newPage.metadata,
-        sourceFile: op.newPage.sourceFile,
-      }),
-    });
+    const res = await fetch(
+      `${API_BASE}/api/content/concepts/${op.newPage.slug}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          title: op.newPage.title,
+          content: op.newPage.content,
+          parentId: op.newPage.parentId,
+          depth: op.newPage.depth,
+          pageType: op.newPage.pageType,
+          metadata: op.newPage.metadata,
+          sourceFile: op.newPage.sourceFile,
+        }),
+      }
+    );
     const json = await res.json();
     if (!json.ok) {
       console.error(`  ❌ 寫入失敗: ${json.error}`);
@@ -237,12 +274,17 @@ async function main() {
     console.log(`  ✓ 寫入成功`);
 
     for (const oldId of op.idsToDelete) {
-      const res2 = await fetch(`${API_BASE}/api/content/${oldId}`, { method: 'DELETE', headers });
+      const res2 = await fetch(`${API_BASE}/api/content/${oldId}`, {
+        method: 'DELETE',
+        headers,
+      });
       const json2 = await res2.json().catch(() => ({}));
       if (res2.ok || json2.ok) {
         console.log(`  ✓ 已刪除舊頁面 ${oldId}`);
       } else {
-        console.log(`  ⚠ 刪除舊頁面失敗 ${oldId}: ${json2.error || res2.status}`);
+        console.log(
+          `  ⚠ 刪除舊頁面失敗 ${oldId}: ${json2.error || res2.status}`
+        );
       }
     }
     console.log();
@@ -252,7 +294,11 @@ async function main() {
 }
 
 function countEntries(subcats) {
-  return subcats.reduce((s, sc) => s + (sc.groups || []).reduce((g, gr) => g + (gr.entries || []).length, 0), 0);
+  return subcats.reduce(
+    (s, sc) =>
+      s + (sc.groups || []).reduce((g, gr) => g + (gr.entries || []).length, 0),
+    0
+  );
 }
 
 main().catch((e) => {
