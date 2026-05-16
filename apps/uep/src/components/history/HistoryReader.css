@@ -1,5 +1,64 @@
 /* ── HistoryReader 樣式 ── */
 
+/* ═══ 入場動畫 — 墨韻暈染 ═══ */
+.hist-boot {
+  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  background: #16100c;
+  overflow: hidden;
+  transition: opacity 0.8s ease;
+}
+.hist-boot.is-ready { opacity: 0; }
+
+/* 墨暈：分散在畫面各處的墨水暈開 */
+.hist-boot-ink {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  background: radial-gradient(circle, rgba(200,164,106,0.3) 0%, rgba(107,63,42,0.15) 35%, transparent 65%);
+}
+.hist-boot-ink--1 { top: 20%; left: 15%; width: 300px; height: 300px; animation: hist-ink-spread 1.6s ease-out 0.1s forwards; }
+.hist-boot-ink--2 { top: 60%; left: 70%; width: 260px; height: 260px; animation: hist-ink-spread 1.4s ease-out 0.4s forwards; }
+.hist-boot-ink--3 { top: 10%; left: 60%; width: 220px; height: 220px; animation: hist-ink-spread 1.5s ease-out 0.6s forwards; }
+.hist-boot-ink--4 { top: 55%; left: 25%; width: 280px; height: 280px; animation: hist-ink-spread 1.7s ease-out 0.3s forwards; }
+
+/* 墨痕滴落 */
+.hist-boot-drip {
+  position: absolute;
+  width: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(to bottom, rgba(200,164,106,0.5), rgba(200,164,106,0.1), transparent);
+  transform: scaleY(0);
+  transform-origin: top;
+}
+.hist-boot-drip--1 { top: 15%; left: 35%; height: 120px; animation: hist-drip-fall 1s ease-in 0.4s forwards; }
+.hist-boot-drip--2 { top: 25%; left: 72%; height: 90px; animation: hist-drip-fall 0.8s ease-in 0.8s forwards; }
+
+/* 水平筆觸線 */
+.hist-boot-stroke {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  height: 2px; width: 0;
+  background: linear-gradient(to right, transparent 0%, rgba(200,164,106,0.6) 20%, rgba(200,164,106,0.6) 80%, transparent 100%);
+  box-shadow: 0 0 16px rgba(200,164,106,0.3);
+  animation: hist-stroke-bleed 1.4s ease-out 0.2s forwards;
+}
+
+@keyframes hist-ink-spread {
+  0% { transform: scale(0); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: scale(3); opacity: 0; }
+}
+@keyframes hist-drip-fall {
+  0% { transform: scaleY(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+@keyframes hist-stroke-bleed {
+  0% { width: 0; opacity: 0; }
+  20% { opacity: 1; }
+  60% { width: 50vw; opacity: 0.7; }
+  100% { width: 80vw; opacity: 0; }
+}
+
 .history-reader {
   height: 100dvh;
   display: flex;
@@ -331,6 +390,28 @@
   overflow: auto;
   position: relative;
   z-index: 1;
+}
+
+/* === 頁面轉場 — 卷軸展開 === */
+.history-page-transition {
+  position: relative;
+  animation: hist-scroll-unroll 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 內容從上往下展開，配合垂直閱讀方向 */
+@keyframes hist-scroll-unroll {
+  0% {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0.6;
+  }
+  60% {
+    clip-path: inset(0 0 5% 0);
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
 }
 
 .history-landing,

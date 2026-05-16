@@ -46,8 +46,26 @@ export interface StackDef {
 
 // ── 1. Records — Dossier ──────────────────────────────────────────
 
-/** 人物列表、地區列表等「條目型」頁面的內容 */
+/**
+ * 人物列表、地區列表等「條目型」頁面的內容。
+ *
+ * 多 variant 結構：同一個 type（如 character_list）可能因不同故事/時代
+ * 而有不同的資料集（U/E/P 等），每個 variant 各自獨立。
+ */
 export interface DossierContent {
+  /**
+   * 變體列表。第一個 variant 為預設顯示。
+   * 至少要有一個 variant；若解析到舊版（直接 subcategories）會自動包成
+   * 單一 variant（id: 'default', label: 'DEFAULT'）。
+   */
+  variants: DossierVariant[];
+}
+
+export interface DossierVariant {
+  /** 變體識別碼（自由命名，慣例為小寫 era，如 'u'/'e'/'p'） */
+  id: string;
+  /** 顯示用標籤（會顯示在 reader 標題旁的循環按鈕中，慣例為大寫） */
+  label: string;
   /** 各 tab 分類 */
   subcategories: DossierSubcat[];
 }

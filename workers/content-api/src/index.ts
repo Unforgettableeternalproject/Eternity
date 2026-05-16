@@ -860,6 +860,7 @@ async function listAssets(
 async function batchDeleteAssets(
   body: BatchDeleteRequest,
   bucket: R2Bucket,
+  db: D1Database,
   cors: Record<string, string>
 ): Promise<Response> {
   if (!Array.isArray(body.keys) || body.keys.length === 0) {
@@ -887,6 +888,12 @@ async function batchDeleteAssets(
       cors
     );
   }
+
+  const stmt = db.prepare(
+    "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+  );
+  await db.batch(body.keys.map((key) => stmt.bind(key)));
+
   return jsonResponse(
     { ok: true, data: { deleted: body.keys.length } },
     200,
@@ -925,8 +932,16 @@ async function renameAsset(
     customMetadata: obj.customMetadata,
   });
 
-  // 3. 刪除舊 key
+  // 3. 刪除舊 key，記錄刪除並清除新 key 的刪除紀錄
   await bucket.delete(oldKey);
+  await db.batch([
+    db
+      .prepare(
+        "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+      )
+      .bind(oldKey),
+    db.prepare('DELETE FROM deleted_assets WHERE key = ?').bind(newKey),
+  ]);
 
   // 4. 更新 D1 引用 — metadata（audioFile, coverImage）
   const songRows = await db
@@ -1050,7 +1065,51 @@ export default {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const body = (await request.json()) as BatchDeleteRequest;
-      return batchDeleteAssets(body, env.ASSETS_BUCKET, cors);
+      return batchDeleteAssets(body, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
+    }
+
+    // GET /api/assets/deleted — 列出已刪除的資產紀錄（同步用）
+    if (path === '/api/assets/deleted' && request.method === 'GET') {
+      const result = await env.CONTENT_DB.prepare(
+        'SELECT key, deleted_at FROM deleted_assets ORDER BY deleted_at DESC'
+      ).all<{ key: string; deleted_at: string }>();
+      return jsonResponse(
+        { ok: true, data: (result.results || []).map((r) => ({ key: r.key, deletedAt: r.deleted_at })) },
+        200,
+        cors
+      );
+    }
+
+    // POST /api/assets/deleted/purge — 清除過期的刪除紀錄
+    if (path === '/api/assets/deleted/purge' && request.method === 'POST') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const days = parseInt(url.searchParams.get('days') || '30', 10);
+      const result = await env.CONTENT_DB.prepare(
+        "DELETE FROM deleted_assets WHERE deleted_at < datetime('now', '-' || ? || ' days')"
+      )
+        .bind(days)
+        .run();
+      return jsonResponse(
+        { ok: true, data: { purged: result.meta.changes || 0 } },
+        200,
+        cors
+      );
+    }
+
+    // POST /api/assets/deleted/record — 記錄刪除（同步傳播用，不實際刪除 R2）
+    if (path === '/api/assets/deleted/record' && request.method === 'POST') {
+      const body = (await request.json()) as { keys: string[] };
+      if (!Array.isArray(body.keys) || body.keys.length === 0) {
+        return jsonResponse({ ok: false, error: 'No keys provided' }, 400, cors);
+      }
+      const stmt = env.CONTENT_DB.prepare(
+        "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+      );
+      await env.CONTENT_DB.batch(body.keys.map((key) => stmt.bind(key)));
+      return jsonResponse({ ok: true, data: { recorded: body.keys.length } }, 200, cors);
     }
 
     // POST /api/assets/rename — 重新命名資產
@@ -1072,6 +1131,11 @@ export default {
       }
       const key = decodeURIComponent(assetDeleteMatch[1]);
       await env.ASSETS_BUCKET.delete(key);
+      await env.CONTENT_DB.prepare(
+        "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+      )
+        .bind(key)
+        .run();
       return jsonResponse({ ok: true }, 200, cors);
     }
 
@@ -1193,6 +1257,11 @@ export default {
 
       if (request.method === 'DELETE') {
         await env.ASSETS_BUCKET.delete(key);
+        await env.CONTENT_DB.prepare(
+          "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+        )
+          .bind(key)
+          .run();
         return jsonResponse({ ok: true }, 200, cors);
       }
     }
@@ -1234,6 +1303,12 @@ export default {
         httpMetadata: { contentType: file.type },
         customMetadata: { originalName: file.name },
       });
+
+      await env.CONTENT_DB.prepare(
+        'DELETE FROM deleted_assets WHERE key = ?'
+      )
+        .bind(key)
+        .run();
 
       const assetUrl = `/api/assets/${key}`;
       return jsonResponse(

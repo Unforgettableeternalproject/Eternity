@@ -3,13 +3,195 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .concepts-reader { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg-body); color: var(--ink-body); overflow: hidden; }
-.conc-fog { position: fixed; inset: 0; background: var(--bg-body); z-index: 100; pointer-events: none; transition: opacity 0.8s ease; }
 .conc-main { display: flex; flex: 1; min-height: 0; position: relative; }
 .conc-content { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; z-index: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   子頁面轉場動畫 — 終端刷新風格
+   ═══════════════════════════════════════════════════════════════════ */
+.conc-page-transition {
+  position: relative;
+  will-change: transform, opacity;
+  animation: conc-page-enter 0.45s ease-out both;
+}
+/* 一道快速掃過的水平亮線（偽元素） */
+.conc-page-transition::after {
+  content: '';
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  height: 3px;
+  background: linear-gradient(to right, transparent, var(--concepts-main), transparent);
+  box-shadow: 0 0 14px rgba(116, 198, 157, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  will-change: transform, opacity;
+  animation: conc-page-scanline 0.45s ease-out both;
+}
+@keyframes conc-page-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes conc-page-scanline {
+  0%   { transform: translateY(0); opacity: 0; }
+  15%  { opacity: 0.7; }
+  80%  { opacity: 0.4; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CRT 開機入場動畫
+   ═══════════════════════════════════════════════════════════════════ */
+.conc-boot {
+  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  background: #050a08;
+  overflow: hidden;
+  transition: opacity 0.8s ease, filter 0.8s ease;
+}
+.conc-boot.is-ready { opacity: 0; filter: blur(20px); }
+
+/* scanline 紋理 */
+.conc-boot-scanlines {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(116, 198, 157, 0.0) 0px,
+    rgba(116, 198, 157, 0.0) 2px,
+    rgba(116, 198, 157, 0.06) 3px,
+    rgba(116, 198, 157, 0.0) 4px
+  );
+  opacity: 0.7;
+  animation: conc-boot-flicker 2.2s steps(2) infinite;
+}
+
+/* 一道由上往下的掃描亮線 */
+.conc-boot-sweep {
+  position: absolute; left: 0; right: 0; top: 0; height: 6px;
+  background: linear-gradient(to bottom,
+    transparent,
+    rgba(116, 198, 157, 0.85),
+    transparent);
+  box-shadow: 0 0 18px rgba(116, 198, 157, 0.55);
+  animation: conc-boot-sweep 1.4s ease-out forwards;
+}
+
+/* 中央終端文字 */
+.conc-boot-center {
+  position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #74c69d;
+  text-shadow: 0 0 6px rgba(116, 198, 157, 0.6);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-align: left;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.conc-boot-line { opacity: 0; animation: conc-boot-line-in 0.22s ease-out forwards; }
+.conc-boot-line:nth-child(1) { animation-delay: 0.15s; }
+.conc-boot-line:nth-child(2) { animation-delay: 0.45s; }
+.conc-boot-line:nth-child(3) { animation-delay: 0.75s; }
+.conc-boot-cursor {
+  display: inline-block; width: 8px; height: 1em;
+  background: #74c69d; margin-left: 6px; vertical-align: -2px;
+  animation: conc-blink 0.7s steps(1) infinite;
+}
+
+@keyframes conc-boot-line-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes conc-boot-sweep {
+  0% { top: -6px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+@keyframes conc-boot-flicker {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.5; }
+}
 
 /* 飄移符號 */
 .conc-symbols { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
 .conc-symbol { position: absolute; font-family: var(--font-display); color: var(--concepts-main); opacity: 0; animation: drift linear infinite; --drift-y: -60px; --drift-opacity: 0.22; }
+
+/* ─── 背景網格 ─── */
+.conc-grid-bg {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--concepts-main) 100%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--concepts-main) 100%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.045;
+  animation: conc-grid-pulse 14s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0.4) 70%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0.4) 70%, transparent 100%);
+}
+.conc-grid-flash {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(to right, transparent, var(--concepts-main), transparent);
+  opacity: 0.0;
+  animation: conc-grid-flash 11s ease-in-out infinite;
+}
+@keyframes conc-grid-pulse {
+  0%, 100% { opacity: 0.04; }
+  50% { opacity: 0.07; }
+}
+@keyframes conc-grid-flash {
+  0%, 92% { top: -4px; opacity: 0; }
+  93% { opacity: 0; }
+  95% { opacity: 0.35; }
+  100% { top: 100%; opacity: 0; }
+}
+[data-theme='light'] .conc-grid-bg { opacity: 0.06; }
+
+/* ─── 數位雨（駭客風飄落字元） ─── */
+.conc-rain {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+}
+.conc-rain-col {
+  position: absolute;
+  top: -20%;
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: var(--font-mono);
+  color: var(--concepts-soft);
+  animation: conc-rain-fall linear infinite;
+  white-space: nowrap;
+}
+.conc-rain-char {
+  display: block;
+  opacity: 0;
+  animation: conc-rain-glow ease-in-out infinite;
+}
+/* 整欄從上往下飄，最後淡出 */
+@keyframes conc-rain-fall {
+  0%   { transform: translateY(-20vh); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(120vh); opacity: 0; }
+}
+/* 每個字元微微閃爍出現 */
+@keyframes conc-rain-glow {
+  0%, 100% { opacity: 0.04; }
+  50%      { opacity: 0.18; }
+}
+[data-theme='light'] .conc-rain-col { color: var(--concepts-main); }
+[data-theme='light'] .conc-rain-char { animation-name: conc-rain-glow-light; }
+@keyframes conc-rain-glow-light {
+  0%, 100% { opacity: 0.06; }
+  50%      { opacity: 0.22; }
+}
 
 /* 閃爍游標 */
 .conc-cursor { display: inline-block; width: 8px; height: 1em; background: var(--concepts-soft); margin-left: 2px; vertical-align: -2px; animation: conc-blink 1.05s steps(1) infinite; }
@@ -63,7 +245,13 @@
 .conc-stack-intro { font-family: var(--font-serif-tc); font-size: 17px; line-height: 2; color: var(--ink-body); margin: 30px 0 0; }
 .conc-drop-cap { font-family: var(--font-display); font-size: 56px; font-weight: 600; float: left; line-height: 0.85; padding-top: 6px; padding-right: 8px; color: var(--concepts-main); }
 .conc-stack-uep { margin: 24px 0; clear: both; }
-.conc-era-badge { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--concepts-main); border: 2px solid var(--concepts-main); padding: 2px 12px; letter-spacing: 0.12em; }
+.conc-era-badge { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--concepts-main); border: 2px solid var(--concepts-main); padding: 2px 12px; letter-spacing: 0.12em; display: inline-flex; align-items: center; gap: 6px; }
+.conc-era-badge--switch { background: none; cursor: pointer; transition: background 0.18s, color 0.18s, transform 0.15s; position: relative; }
+.conc-era-badge--switch:hover { background: var(--concepts-main); color: var(--bg, #fff); }
+.conc-era-badge--switch:active { transform: translateY(1px); }
+.conc-era-badge__arrow { font-size: 10px; opacity: 0.55; transition: transform 0.18s, opacity 0.18s; }
+.conc-era-badge--switch:hover .conc-era-badge__arrow { transform: translateX(2px); opacity: 1; }
+[data-theme='dark'] .conc-era-badge--switch:hover { color: #0a1410; }
 .conc-reading-desc { font-size: 15px; color: var(--ink-sub); line-height: 1.6; margin: 8px 0 0; }
 
 /* 終端目錄列表 */
@@ -328,6 +516,9 @@
    ═══════════════════════════════════════════════════════════════════ */
 .conc-chrono { position: relative; }
 .conc-chrono-placeholder { border-left: 3px solid var(--hairline); padding: 12px 16px; margin: 12px 0; font-family: var(--font-serif-tc); font-size: 15px; color: var(--ink-mute); font-style: italic; }
+
+/* 時間軸舞台 — 時鐘只相對於此區域置中，不被下方展開卡片影響 */
+.conc-chrono-stage { position: relative; min-height: 360px; }
 
 /* 背景時鐘 */
 .conc-chrono-clock { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 360px; height: 360px; pointer-events: none; z-index: 0; color: var(--concepts-main); }

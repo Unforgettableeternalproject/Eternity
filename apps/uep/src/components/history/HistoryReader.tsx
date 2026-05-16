@@ -263,12 +263,14 @@ export default function HistoryReader() {
   const [landingLoading, setLandingLoading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
+  const [transitionKey, setTransitionKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [zoneActiveTab, setZoneActiveTab] = useState<number | null>(null);
 
   // 首頁區塊資料（從 D1 homepage 頁面載入）
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const [contentReady, setContentReady] = useState(false);
+  const bootMountTime = useRef(Date.now());
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -353,8 +355,7 @@ export default function HistoryReader() {
 
   // 載入首頁區塊資料
   useEffect(() => {
-    // 安全逾時：2 秒後無論如何解除霧化
-    const timeout = setTimeout(() => setContentReady(true), 2000);
+    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/history/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -370,7 +371,9 @@ export default function HistoryReader() {
       .catch(() => {})
       .finally(() => {
         clearTimeout(timeout);
-        setContentReady(true);
+        const elapsed = Date.now() - bootMountTime.current;
+        const delay = Math.max(0, 1800 - elapsed);
+        setTimeout(() => setContentReady(true), delay);
       });
   }, []);
 
@@ -527,6 +530,7 @@ export default function HistoryReader() {
       setContentError(err instanceof Error ? err.message : String(err));
     } finally {
       setContentLoading(false);
+      setTransitionKey((k) => k + 1);
     }
   }
 
@@ -634,6 +638,7 @@ export default function HistoryReader() {
     setCurrentId(null);
     setCurrentPage(null);
     setArticleHtml('');
+    setTransitionKey((k) => k + 1);
     const url = new URL(window.location.href);
     url.searchParams.delete('page');
     window.history.pushState({}, '', url);
@@ -759,22 +764,16 @@ export default function HistoryReader() {
 
   return (
     <div className="history-reader">
-      {/* 入場霧化 — 等待首頁資料載入後再解除 */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 50,
-          pointerEvents: 'none',
-          ...(contentReady
-            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : {
-                backdropFilter: 'blur(18px)',
-                background: 'rgba(10,10,14,0.5)',
-              }),
-        }}
-      />
+      {/* 入場動畫 — 墨韻暈染 */}
+      <div aria-hidden="true" className={`hist-boot ${contentReady ? 'is-ready' : ''}`}>
+        <div className="hist-boot-ink hist-boot-ink--1" />
+        <div className="hist-boot-ink hist-boot-ink--2" />
+        <div className="hist-boot-ink hist-boot-ink--3" />
+        <div className="hist-boot-ink hist-boot-ink--4" />
+        <div className="hist-boot-drip hist-boot-drip--1" />
+        <div className="hist-boot-drip hist-boot-drip--2" />
+        <div className="hist-boot-stroke" />
+      </div>
       <TopBar
         onOpenMap={() => setShowMap(true)}
         onGoHome={() => {
@@ -871,6 +870,7 @@ export default function HistoryReader() {
         )}
 
         <div className="history-content" ref={scrollRef}>
+          <div key={transitionKey} className="history-page-transition">
           {!currentId ? (
             <section className="history-landing">
               <div className="history-landing-inner">
@@ -1194,6 +1194,7 @@ export default function HistoryReader() {
               </div>
             </section>
           )}
+          </div>
         </div>
       </div>
 
