@@ -807,18 +807,39 @@ async function listAssets(
     }
   }
 
-  // 掃描所有頁面的 content HTML，找出 /api/assets/ 引用
+  // 掃描所有頁面的 content，找出資產引用
   const contentRows = await db
     .prepare('SELECT id, content FROM pages')
     .all<{ id: string; content: string }>();
 
   const assetUrlRegex = /\/api\/assets\/((?:images|audio|files)\/[^\s"'<>]+)/g;
+  // 裸 R2 key 格式（用於 JSON 結構化資料中直接儲存的 key）
+  const bareKeyRegex = /^(images|audio|files)\//;
 
   for (const row of contentRows.results || []) {
     try {
       const blocks = JSON.parse(row.content || '[]');
       for (const block of blocks) {
         if (typeof block.content !== 'string') continue;
+
+        // browser_profile 區塊：掃描 profiles[].avatar 裸 R2 key
+        if (block.type === 'browser_profile') {
+          try {
+            const data = JSON.parse(block.content);
+            const profiles = Array.isArray(data.profiles) ? data.profiles : [];
+            for (const profile of profiles) {
+              if (typeof profile.avatar === 'string' && bareKeyRegex.test(profile.avatar)) {
+                if (!referenceMap.has(profile.avatar)) referenceMap.set(profile.avatar, []);
+                const refs = referenceMap.get(profile.avatar)!;
+                if (!refs.includes(row.id)) refs.push(row.id);
+              }
+            }
+          } catch {
+            // 略過格式錯誤的 browser_profile
+          }
+        }
+
+        // HTML 內容：掃描 /api/assets/ URL 引用
         assetUrlRegex.lastIndex = 0;
         let match: RegExpExecArray | null;
         while ((match = assetUrlRegex.exec(block.content)) !== null) {
@@ -1107,6 +1128,10 @@ export default {
 
     // POST /api/assets/deleted/record — 記錄刪除（同步傳播用，不實際刪除 R2）
     if (path === '/api/assets/deleted/record' && request.method === 'POST') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
       const body = (await request.json()) as { keys: string[] };
       if (!Array.isArray(body.keys) || body.keys.length === 0) {
         return jsonResponse(

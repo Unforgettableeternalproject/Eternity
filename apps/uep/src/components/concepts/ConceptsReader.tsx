@@ -60,6 +60,14 @@ const API_BASE =
   (import.meta as unknown as { env?: Record<string, string> }).env
     ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
+function resolveAssetUrl(ref: string): string {
+  if (ref.startsWith('/api/assets/')) {
+    const path = ref.slice('/api/assets/'.length);
+    return `${API_BASE}/api/assets/${path.split('/').map(encodeURIComponent).join('/')}`;
+  }
+  return `${API_BASE}/api/assets/${ref.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 const CONCEPTS_ZONE = ZONES.find((z) => z.id === 'concepts')!;
 const CONC_MAIN = '#2D6A4F';
 const CONC_SOFT = '#74C69D';
@@ -443,7 +451,7 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                     <div className="conc-enc-sigil-box">
                       {activeProfile.avatar ? (
                         <img
-                          src={`${API_BASE}/api/assets/${activeProfile.avatar.split('/').map(encodeURIComponent).join('/')}`}
+                          src={resolveAssetUrl(activeProfile.avatar)}
                           alt=""
                           className="conc-enc-avatar-img"
                         />
@@ -538,7 +546,7 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                       <div className="conc-enc-entry-sigil-box">
                         {!p.placeholder && p.avatar ? (
                           <img
-                            src={`${API_BASE}/api/assets/${p.avatar.split('/').map(encodeURIComponent).join('/')}`}
+                            src={resolveAssetUrl(p.avatar)}
                             alt=""
                             className="conc-enc-entry-avatar"
                           />

@@ -12,7 +12,8 @@ CREATE TABLE pages_new (
   content           TEXT,
   source_file       TEXT,
   base_content_hash TEXT,
-  status            TEXT NOT NULL DEFAULT 'synced',
+  status            TEXT NOT NULL DEFAULT 'synced'
+    CHECK (status IN ('synced', 'modified', 'local_only')),
   metadata          TEXT DEFAULT '{}',
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at        TEXT NOT NULL DEFAULT (datetime('now')),

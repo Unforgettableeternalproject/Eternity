@@ -22,7 +22,16 @@ const API_BASE =
     ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 function buildImageUrl(key: string): string {
+  if (key.startsWith('/api/assets/')) {
+    const path = key.slice('/api/assets/'.length);
+    return `${API_BASE}/api/assets/${path.split('/').map(encodeURIComponent).join('/')}`;
+  }
   return `${API_BASE}/api/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+/** 將裸 R2 key 轉為統一的 /api/assets/ 路徑 */
+function toAssetPath(key: string): string {
+  return key.startsWith('/api/assets/') ? key : `/api/assets/${key}`;
 }
 
 async function uploadAsset(
@@ -974,6 +983,7 @@ function BrowserEditor({
     { key: string; size: number }[]
   >([]);
   const [pickerLoading, setPickerLoading] = useState(false);
+  const [avatarDeleteOpen, setAvatarDeleteOpen] = useState(false);
 
   function updateProfiles(profiles: CharacterProfile[]) {
     onChange({ ...data, profiles });
@@ -1297,7 +1307,7 @@ function BrowserEditor({
                           const file = e.target.files?.[0];
                           if (!file) return;
                           const result = await uploadAsset(file);
-                          if (result) updateProfile({ avatar: result.key });
+                          if (result) updateProfile({ avatar: toAssetPath(result.key) });
                           e.target.value = '';
                         }}
                       />
@@ -1329,40 +1339,7 @@ function BrowserEditor({
                     {profile.avatar && (
                       <button
                         className="ced-avatar-del-btn"
-                        onClick={async () => {
-                          const key = profile.avatar!;
-                          const doRemove = await getDialog().confirm(
-                            '確定要移除此頭像嗎？',
-                            {
-                              title: '移除頭像',
-                              confirmText: '移除',
-                              cancelText: '取消',
-                            }
-                          );
-                          if (!doRemove) return;
-                          updateProfile({ avatar: undefined });
-                          const doDelete = await getDialog().confirm(
-                            '是否同時從媒體庫永久刪除此圖片？\n檔案刪除後無法復原。',
-                            {
-                              title: '刪除媒體檔案',
-                              confirmText: '永久刪除',
-                              cancelText: '保留檔案',
-                            }
-                          );
-                          if (doDelete) {
-                            try {
-                              const encoded = key
-                                .split('/')
-                                .map(encodeURIComponent)
-                                .join('/');
-                              await fetch(`${API_BASE}/api/assets/${encoded}`, {
-                                method: 'DELETE',
-                              });
-                            } catch {
-                              /* 靜默 */
-                            }
-                          }
-                        }}
+                        onClick={() => setAvatarDeleteOpen(true)}
                         title="移除頭像"
                       >
                         ✕
@@ -1577,15 +1554,136 @@ function BrowserEditor({
               {pickerItems.map((item) => (
                 <button
                   key={item.key}
-                  className={`ced-picker-item ${profile?.avatar === item.key ? 'selected' : ''}`}
+                  className={`ced-picker-item ${profile?.avatar === toAssetPath(item.key) ? 'selected' : ''}`}
                   onClick={() => {
-                    updateProfile({ avatar: item.key });
+                    updateProfile({ avatar: toAssetPath(item.key) });
                     setPickerOpen(false);
                   }}
                 >
                   <img src={buildImageUrl(item.key)} alt="" loading="lazy" />
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 頭像刪除確認 */}
+      {avatarDeleteOpen && profile?.avatar && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setAvatarDeleteOpen(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card, #1a1a22)',
+              border: '1px solid var(--line, #333)',
+              borderRadius: 12,
+              padding: '24px 28px',
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}>
+              移除頭像
+            </div>
+            <div
+              style={{
+                fontSize: '0.85em',
+                color: 'var(--ink-mute, #888)',
+                marginBottom: 16,
+                wordBreak: 'break-all',
+              }}
+            >
+              {profile.avatar.split('/').pop()}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => {
+                  updateProfile({ avatar: undefined });
+                  setAvatarDeleteOpen(false);
+                }}
+                style={{ width: '100%', padding: '10px 16px', textAlign: 'left' }}
+              >
+                📎 僅從此角色移除
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
+                  檔案保留在媒體庫中，可供其他頁面使用
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={async () => {
+                  const key = profile.avatar!;
+                  updateProfile({ avatar: undefined });
+                  setAvatarDeleteOpen(false);
+                  try {
+                    const raw = key.startsWith('/api/assets/')
+                      ? key.slice('/api/assets/'.length)
+                      : key;
+                    const encoded = raw
+                      .split('/')
+                      .map(encodeURIComponent)
+                      .join('/');
+                    await fetch(`${API_BASE}/api/assets/${encoded}`, {
+                      method: 'DELETE',
+                    });
+                  } catch {
+                    /* 靜默 */
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  borderColor: 'crimson',
+                  color: 'crimson',
+                }}
+              >
+                🗑 從媒體庫永久刪除
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
+                  移除引用並從 R2 儲存空間中刪除檔案
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => setAvatarDeleteOpen(false)}
+                style={{
+                  width: '100%',
+                  padding: '8px 16px',
+                  textAlign: 'center',
+                  marginTop: 4,
+                }}
+              >
+                取消
+              </button>
             </div>
           </div>
         </div>
