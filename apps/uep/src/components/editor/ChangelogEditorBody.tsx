@@ -66,9 +66,10 @@ export function parseLogItems(
   const block = blocks.find((b) => b.type === 'log_items');
   if (!block) return [];
   try {
-    const arr = typeof block.content === 'string'
-      ? JSON.parse(block.content)
-      : block.content;
+    const arr =
+      typeof block.content === 'string'
+        ? JSON.parse(block.content)
+        : block.content;
     if (!Array.isArray(arr)) return [];
     return arr.map((item: any) => ({
       id: item.id || nextItemId(),
@@ -202,11 +203,12 @@ export default function ChangelogEditorBody({
     typeCounts[it.type] = (typeCounts[it.type] || 0) + 1;
   }
 
-  const visibleItems = filterType === 'all'
-    ? items.map((it, i) => ({ item: it, originalIndex: i }))
-    : items
-        .map((it, i) => ({ item: it, originalIndex: i }))
-        .filter(({ item }) => item.type === filterType);
+  const visibleItems =
+    filterType === 'all'
+      ? items.map((it, i) => ({ item: it, originalIndex: i }))
+      : items
+          .map((it, i) => ({ item: it, originalIndex: i }))
+          .filter(({ item }) => item.type === filterType);
 
   return (
     <div className="sto-cl-editor">
@@ -232,7 +234,10 @@ export default function ChangelogEditorBody({
             className="sto-cl-meta-input"
             type="text"
             value={meta.version}
-            onChange={(e) => { onMetaChange({ ...meta, version: e.target.value }); onDirty(); }}
+            onChange={(e) => {
+              onMetaChange({ ...meta, version: e.target.value });
+              onDirty();
+            }}
             placeholder="0.4.??"
           />
         </div>
@@ -242,7 +247,10 @@ export default function ChangelogEditorBody({
             className="sto-cl-meta-input"
             type="text"
             value={meta.date}
-            onChange={(e) => { onMetaChange({ ...meta, date: e.target.value }); onDirty(); }}
+            onChange={(e) => {
+              onMetaChange({ ...meta, date: e.target.value });
+              onDirty();
+            }}
             placeholder="?? / ?? / ??"
           />
         </div>
@@ -252,7 +260,10 @@ export default function ChangelogEditorBody({
             className="sto-cl-meta-input"
             type="text"
             value={meta.author}
-            onChange={(e) => { onMetaChange({ ...meta, author: e.target.value }); onDirty(); }}
+            onChange={(e) => {
+              onMetaChange({ ...meta, author: e.target.value });
+              onDirty();
+            }}
             placeholder="◼︎◼︎◼︎◼︎◼︎◼︎"
           />
         </div>
@@ -261,9 +272,7 @@ export default function ChangelogEditorBody({
       {/* 類型標籤庫 */}
       <div className="sto-cl-section-label">
         <span>類型標籤庫</span>
-        <span className="sto-cl-hint">
-          點擊新增一條紀錄
-        </span>
+        <span className="sto-cl-hint">點擊新增一條紀錄</span>
       </div>
       <div className="sto-cl-type-palette">
         {LOG_ITEM_TYPES.map((t) => (
@@ -285,9 +294,7 @@ export default function ChangelogEditorBody({
       {/* 篩選列 */}
       <div className="sto-cl-section-label">
         <span>紀錄列表</span>
-        <span className="sto-cl-hint">
-          ⌘↩ 新增 · ⌘↑↓ 移動
-        </span>
+        <span className="sto-cl-hint">⌘↩ 新增 · ⌘↑↓ 移動</span>
       </div>
       <div className="sto-cl-filter-bar">
         <button

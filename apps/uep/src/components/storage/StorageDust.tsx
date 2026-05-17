@@ -96,9 +96,10 @@ export default function StorageDust() {
         if (p.y > ch + 10) p.y = -10;
 
         const brightDist = Math.sqrt((p.x - mx) ** 2 + (p.y - my) ** 2);
-        const glow = brightDist < scatterR * 1.5
-          ? 0.15 * (1 - brightDist / (scatterR * 1.5))
-          : 0;
+        const glow =
+          brightDist < scatterR * 1.5
+            ? 0.15 * (1 - brightDist / (scatterR * 1.5))
+            : 0;
         p.opacity = p.baseOpacity + glow;
 
         ctx.beginPath();
@@ -119,10 +120,6 @@ export default function StorageDust() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="sto-dust-canvas"
-      aria-hidden="true"
-    />
+    <canvas ref={canvasRef} className="sto-dust-canvas" aria-hidden="true" />
   );
 }

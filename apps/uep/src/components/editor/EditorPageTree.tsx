@@ -48,7 +48,14 @@ const TYPE_LETTERS: Record<string, string> = {
 };
 
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
-const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division', 'type', 'clearing']); // 不可拖動排序
+const NO_DRAG_TYPES = new Set([
+  'page',
+  'zone',
+  'cluster',
+  'division',
+  'type',
+  'clearing',
+]); // 不可拖動排序
 const NO_CHILDREN_TYPES = new Set(['song', 'gallery', 'type', 'stuff']); // 不可新增子頁面
 
 // Flatten tree into ordered list with parent info for drag calculations

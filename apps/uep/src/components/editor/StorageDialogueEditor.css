@@ -13,12 +13,12 @@
   align-items: center;
   padding: 8px 12px;
   margin-bottom: 16px;
-  border: 1px solid var(--storage-soft, #D5B618);
+  border: 1px solid var(--storage-soft, #d5b618);
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--storage-soft, #D5B618);
+  color: var(--storage-soft, #d5b618);
 }
 
 /* 區段標題 */
@@ -91,7 +91,7 @@
   transition: border-color 0.15s;
 }
 .sto-de-scene-btn:hover {
-  border-color: var(--storage-soft, #D5B618);
+  border-color: var(--storage-soft, #d5b618);
 }
 .sto-de-scene-btn.is-collapsed {
   opacity: 0.55;
@@ -110,7 +110,7 @@
   transition: background 0.15s;
 }
 .sto-de-scene-jump:hover {
-  background: color-mix(in srgb, var(--storage-soft, #D5B618) 8%, transparent);
+  background: color-mix(in srgb, var(--storage-soft, #d5b618) 8%, transparent);
 }
 .sto-de-scene-fold-btn {
   padding: 0 7px;
@@ -120,17 +120,19 @@
   cursor: pointer;
   font-size: 10px;
   color: var(--ink-mute);
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 .sto-de-scene-fold-btn:hover {
-  color: var(--storage-soft, #D5B618);
-  background: color-mix(in srgb, var(--storage-soft, #D5B618) 8%, transparent);
+  color: var(--storage-soft, #d5b618);
+  background: color-mix(in srgb, var(--storage-soft, #d5b618) 8%, transparent);
 }
 .sto-de-scene-num {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
-  color: var(--storage-soft, #D5B618);
+  color: var(--storage-soft, #d5b618);
 }
 .sto-de-scene-label {
   font-family: var(--font-serif-tc);
@@ -161,30 +163,36 @@
   border-bottom: 1px solid var(--hairline);
   cursor: pointer;
   border-left: 3px solid transparent;
-  transition: background 0.15s, border-left-color 0.15s;
+  transition:
+    background 0.15s,
+    border-left-color 0.15s;
 }
 .sto-de-line:last-child {
   border-bottom: none;
 }
 .sto-de-line:hover {
-  background: color-mix(in srgb, var(--role-color, var(--ink-mute)) 4%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--role-color, var(--ink-mute)) 4%,
+    transparent
+  );
 }
 .sto-de-line.is-selected {
-  background: color-mix(in srgb, var(--storage-soft, #D5B618) 6%, transparent);
-  border-left-color: var(--storage-soft, #D5B618);
+  background: color-mix(in srgb, var(--storage-soft, #d5b618) 6%, transparent);
+  border-left-color: var(--storage-soft, #d5b618);
 }
 /* 角色專屬左邊框色彩 */
-.sto-de-line[data-role="narrator"] {
+.sto-de-line[data-role='narrator'] {
   border-left-color: color-mix(in srgb, var(--role-color) 30%, transparent);
 }
-.sto-de-line[data-role="uep"] {
-  border-left-color: #D5B618;
-  background: color-mix(in srgb, #D5B618 3%, transparent);
+.sto-de-line[data-role='uep'] {
+  border-left-color: #d5b618;
+  background: color-mix(in srgb, #d5b618 3%, transparent);
 }
-.sto-de-line[data-role="you"] {
+.sto-de-line[data-role='you'] {
   border-left-color: #a85a2d;
 }
-.sto-de-line[data-role="sfx"] {
+.sto-de-line[data-role='sfx'] {
   border-left-color: color-mix(in srgb, #888 25%, transparent);
   background: color-mix(in srgb, var(--ink-mute) 2%, transparent);
 }
@@ -195,15 +203,15 @@
   align-items: center;
   padding: 12px 12px;
   border-bottom: 1px solid var(--hairline);
-  border-left-color: var(--storage-soft, #D5B618) !important;
+  border-left-color: var(--storage-soft, #d5b618) !important;
   cursor: default;
 }
 .sto-de-line--scene-start .sto-de-line-num {
-  color: var(--storage-soft, #D5B618);
+  color: var(--storage-soft, #d5b618);
   font-weight: 700;
 }
 .sto-de-line--scene-start .sto-de-break-label {
-  color: var(--storage-soft, #D5B618);
+  color: var(--storage-soft, #d5b618);
 }
 
 /* 場景斷行 */
@@ -246,7 +254,7 @@
   border-color: var(--hairline-strong);
 }
 .sto-de-break-input:focus {
-  border-color: var(--storage-soft, #D5B618);
+  border-color: var(--storage-soft, #d5b618);
   color: var(--ink-soft);
 }
 .sto-de-break-input::placeholder {
@@ -315,9 +323,9 @@
   transition: all 0.15s;
 }
 .sto-de-side-btn.is-active {
-  background: var(--storage-soft, #D5B618);
+  background: var(--storage-soft, #d5b618);
   color: #3a2f08;
-  border-color: var(--storage-soft, #D5B618);
+  border-color: var(--storage-soft, #d5b618);
 }
 .sto-de-side-spacer {
   width: 30px;

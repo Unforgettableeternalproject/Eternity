@@ -660,15 +660,17 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           </div>
           <div className="home-recents-grid">
             {recents.length === 0 && (
-              <div style={{
-                gridColumn: '1 / -1',
-                padding: '24px 18px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                color: 'var(--ink-mute)',
-                letterSpacing: '0.12em',
-                textAlign: 'center',
-              }}>
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  padding: '24px 18px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'var(--ink-mute)',
+                  letterSpacing: '0.12em',
+                  textAlign: 'center',
+                }}
+              >
                 — loading —
               </div>
             )}

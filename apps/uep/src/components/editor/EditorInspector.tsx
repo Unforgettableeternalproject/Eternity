@@ -27,9 +27,12 @@ interface EditorInspectorProps {
     intro: string;
     uepNote: string;
   };
-  onStorageClearingMetaChange?: (
-    meta: { style: string; labelEn: string; intro: string; uepNote: string }
-  ) => void;
+  onStorageClearingMetaChange?: (meta: {
+    style: string;
+    labelEn: string;
+    intro: string;
+    uepNote: string;
+  }) => void;
   onDirty: () => void;
   accent: string;
   pageStatus: string;

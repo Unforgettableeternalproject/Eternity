@@ -1569,7 +1569,11 @@ function EchoesReaderInner() {
                   const html = (block.data as { html: string }).html;
                   return (
                     <React.Fragment key={block.id}>
-                      {renderHtmlWithUep(html, block.id, 'echoes-prose echoes-landing-prose')}
+                      {renderHtmlWithUep(
+                        html,
+                        block.id,
+                        'echoes-prose echoes-landing-prose'
+                      )}
                     </React.Fragment>
                   );
                 }
@@ -1589,7 +1593,11 @@ function EchoesReaderInner() {
               )}
               {landingParts.before && (
                 <>
-                  {renderHtmlWithUep(landingParts.before, 'landing-before', 'echoes-prose echoes-landing-prose')}
+                  {renderHtmlWithUep(
+                    landingParts.before,
+                    'landing-before',
+                    'echoes-prose echoes-landing-prose'
+                  )}
                 </>
               )}
               <div className="echoes-cluster-grid">
@@ -1683,7 +1691,11 @@ function EchoesReaderInner() {
               </div>
               {landingParts.after && (
                 <>
-                  {renderHtmlWithUep(landingParts.after, 'landing-after', 'echoes-prose echoes-landing-prose')}
+                  {renderHtmlWithUep(
+                    landingParts.after,
+                    'landing-after',
+                    'echoes-prose echoes-landing-prose'
+                  )}
                 </>
               )}
               <div className="echoes-landing-uep">
@@ -1959,9 +1971,7 @@ function EchoesReaderInner() {
 
           {/* 頁面內容 (rich text) */}
           {contentHtml && (
-            <>
-              {renderHtmlWithUep(contentHtml, 'content', 'echoes-prose')}
-            </>
+            <>{renderHtmlWithUep(contentHtml, 'content', 'echoes-prose')}</>
           )}
 
           {/* 子分類列表 */}

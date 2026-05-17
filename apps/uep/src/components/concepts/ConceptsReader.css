@@ -1904,7 +1904,6 @@
 /* 時間軸舞台 — 時鐘只相對於此區域置中，不被下方展開卡片影響 */
 .conc-chrono-stage {
   position: relative;
-  min-height: 360px;
 }
 
 /* 背景時鐘 */
@@ -2077,7 +2076,7 @@
   color: var(--ink-mute);
   letter-spacing: 0.08em;
   opacity: 0.6;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 
 /* 展開的內容卡片 */
@@ -2095,6 +2094,19 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+.conc-chrono-expanded.is-closing {
+  animation: chrono-collapse 0.25s ease both;
+}
+@keyframes chrono-collapse {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 }
 .conc-chrono-expanded-header {

@@ -1217,9 +1217,10 @@ export default {
       );
       const leafTypes = ['page', 'song', 'gallery', 'stuff'];
       const placeholders = leafTypes.map(() => '?').join(',');
-      const rows = (
-        await env.CONTENT_DB.prepare(
-          `SELECT id, area, title, slug, page_type, metadata, updated_at
+      const rows =
+        (
+          await env.CONTENT_DB.prepare(
+            `SELECT id, area, title, slug, page_type, metadata, updated_at
            FROM pages
            WHERE page_type IN (${placeholders})
              AND deleted_at IS NULL
@@ -1228,10 +1229,10 @@ export default {
              AND COALESCE(json_extract(metadata, '$.hidden'), 0) != 1
            ORDER BY updated_at DESC
            LIMIT ?`
-        )
-          .bind(...leafTypes, limit)
-          .all<PageRow>()
-      ).results || [];
+          )
+            .bind(...leafTypes, limit)
+            .all<PageRow>()
+        ).results || [];
       const items = rows.map((r) => ({
         id: r.id,
         area: r.area,

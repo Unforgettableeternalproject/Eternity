@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import React from 'react';
 import UepDialogue from './UepDialogue';
 
@@ -47,7 +48,8 @@ export default function renderHtmlWithUep(
       const el = child as HTMLElement;
       if (el.getAttribute('data-role') === 'uep') {
         flushBuf();
-        const side = (el.getAttribute('data-side') as 'left' | 'right') || 'left';
+        const side =
+          (el.getAttribute('data-side') as 'left' | 'right') || 'left';
         const text = el.textContent || '';
         nodes.push(
           <div

@@ -3,7 +3,7 @@
 .sto-sce {
   margin-top: 24px;
   margin-bottom: 120px;
-  border: 1px solid var(--sce-accent, #D5B618);
+  border: 1px solid var(--sce-accent, #d5b618);
   border-radius: 4px;
   background: var(--bg-card, #fff);
 }
@@ -21,7 +21,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--sce-accent, #D5B618);
+  color: var(--sce-accent, #d5b618);
 }
 .sto-sce-count {
   font-family: var(--font-mono, monospace);
@@ -31,16 +31,16 @@
 .sto-sce-add {
   margin-left: auto;
   padding: 4px 10px;
-  border: 1px solid var(--sce-accent, #D5B618);
+  border: 1px solid var(--sce-accent, #d5b618);
   background: transparent;
-  color: var(--sce-accent, #D5B618);
+  color: var(--sce-accent, #d5b618);
   font-family: var(--font-mono, monospace);
   font-size: 11px;
   cursor: pointer;
   transition: background 0.15s;
 }
 .sto-sce-add:hover {
-  background: color-mix(in srgb, var(--sce-accent, #D5B618) 12%, transparent);
+  background: color-mix(in srgb, var(--sce-accent, #d5b618) 12%, transparent);
 }
 
 .sto-sce-empty {

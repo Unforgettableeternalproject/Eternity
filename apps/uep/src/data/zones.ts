@@ -163,4 +163,3 @@ export const VERSES: string[] = [
   '輪迴 與 置換 相互平衡',
   '而萬物的終焉將歸約於 — 虛無',
 ];
-

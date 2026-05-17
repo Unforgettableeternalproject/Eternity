@@ -1239,9 +1239,7 @@ export default function BlockEditor({
       case 'storage-room-map':
         return (
           <StorageRoomMapForm
-            areas={
-              (localData as { areas: StorageRoomArea[] }).areas || []
-            }
+            areas={(localData as { areas: StorageRoomArea[] }).areas || []}
             onChange={(areas) => setData({ areas })}
           />
         );
