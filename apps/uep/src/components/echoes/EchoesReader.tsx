@@ -18,6 +18,9 @@ import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import EchoesRipple from './EchoesRipple';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -1066,6 +1069,22 @@ function EchoesReaderInner() {
   // === UI ===
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // === 滾動位置記憶 ===
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [
+    view,
+    activeClusterId,
+    activeContentId,
+    activeSongId,
+  ]);
+
+  /** 根據目前視圖狀態回傳唯一的捲軸記憶 key */
+  function currentScrollKey(): string {
+    if (view === 'song' && activeSongId) return `song:${activeSongId}`;
+    if (view === 'content' && activeContentId) return `content:${activeContentId}`;
+    if (view === 'cluster' && activeClusterId) return `cluster:${activeClusterId}`;
+    return 'landing';
+  }
+
   // === 初始化 ===
   useEffect(() => {
     const storedTheme =
@@ -1103,8 +1122,8 @@ function EchoesReaderInner() {
 
   // 首頁區塊資料
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const bootMountTime = useRef(Date.now());
+  // 使用統一的 boot ready hook 管理開機動畫解除時機
+  const { contentReady, markContentReady, setNavPending } = useZoneBootReady();
 
   // === 載入 landing 頁面內容 ===
   useEffect(() => {
@@ -1112,9 +1131,8 @@ function EchoesReaderInner() {
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
 
-  // 載入首頁區塊資料
+  // 載入首頁區塊資料；完成後交由 hook 計算最短顯示時間與安全超時
   useEffect(() => {
-    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/echoes/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -1129,12 +1147,10 @@ function EchoesReaderInner() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        const elapsed = Date.now() - bootMountTime.current;
-        const delay = Math.max(0, 1800 - elapsed);
-        setTimeout(() => setContentReady(true), delay);
+        // 通知 hook 首頁資料已就緒，由 hook 統一管理延遲與超時
+        markContentReady();
       });
-  }, []);
+  }, [markContentReady]);
 
   const hpHeader = useMemo(() => {
     const b = homepageBlocks.find((b) => b.type === 'zone-header');
@@ -1269,13 +1285,14 @@ function EchoesReaderInner() {
 
   // === 導航函式 ===
   function navigateToLanding(pushState = true) {
+    saveScroll(currentScrollKey());
     audio.pause();
     setView('landing');
     setActiveClusterId(null);
     setActiveSongId(null);
     setCurrentSongPage(null);
     setTransitionKey((k) => k + 1);
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    restoreScroll('landing');
     if (pushState) {
       const url = new URL(window.location.href);
       url.searchParams.delete('cluster');
@@ -1285,6 +1302,7 @@ function EchoesReaderInner() {
   }
 
   function navigateToCluster(clusterId: string, pushState = true) {
+    saveScroll(currentScrollKey());
     audio.pause();
     setView('cluster');
     setActiveClusterId(clusterId);
@@ -1293,7 +1311,7 @@ function EchoesReaderInner() {
     setCurrentSongPage(null);
     setCurrentContentPage(null);
     setTransitionKey((k) => k + 1);
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    restoreScroll(`cluster:${clusterId}`);
     if (pushState) {
       const url = new URL(window.location.href);
       url.searchParams.set('cluster', clusterId);
@@ -1305,6 +1323,7 @@ function EchoesReaderInner() {
 
   /** 導航到非 song 的內容頁面（subcategory 等），比照 History 的閱讀視圖 */
   async function navigateToContent(pageId: string, pushState = true) {
+    saveScroll(currentScrollKey());
     audio.pause();
     setView('content');
     setActiveContentId(pageId);
@@ -1315,7 +1334,7 @@ function EchoesReaderInner() {
     if (clusterId) {
       setActiveClusterId(clusterId);
     }
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    restoreScroll(`content:${pageId}`);
     setContentLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/content/${pageId}`);
@@ -1338,6 +1357,7 @@ function EchoesReaderInner() {
   }
 
   async function navigateToSong(songId: string, pushState = true) {
+    saveScroll(currentScrollKey());
     // 切換歌曲頁面時停止當前播放
     audio.pause();
     setView('song');
@@ -1347,7 +1367,7 @@ function EchoesReaderInner() {
     if (clusterId) {
       setActiveClusterId(clusterId);
     }
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    restoreScroll(`song:${songId}`);
     await fetchSong(songId);
     setTransitionKey((k) => k + 1);
     if (pushState) {
@@ -1761,15 +1781,13 @@ function EchoesReaderInner() {
     return (
       <section className="echoes-cluster-page">
         <div className="echoes-cluster-inner">
-          {/* 麵包屑 */}
-          <div className="echoes-breadcrumb" style={{ color: cluster.color }}>
-            <span className="echoes-breadcrumb-line" />
-            <button type="button" onClick={() => navigateToLanding()}>
-              回音蒐藏間
-            </button>
-            <span>·</span>
-            <span>{cluster.labelEn}</span>
-          </div>
+          <ZoneBreadcrumb
+            segments={[
+              { label: '回音蒐藏間', onClick: () => navigateToLanding() },
+              { label: cluster.labelEn },
+            ]}
+            color={cluster.color}
+          />
 
           {/* 標題 */}
           <div className="echoes-cluster-head">
@@ -1937,26 +1955,21 @@ function EchoesReaderInner() {
     return (
       <section className="echoes-content-page">
         <div className="echoes-content-inner">
-          {/* 麵包屑導航 */}
-          <div className="echoes-breadcrumb" style={{ color }}>
-            <span className="echoes-breadcrumb-line" />
-            <button type="button" onClick={() => navigateToLanding()}>
-              回音蒐藏間
-            </button>
-            {cluster && (
-              <>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => navigateToCluster(cluster.id)}
-                >
-                  {cluster.label}
-                </button>
-              </>
-            )}
-            <span>·</span>
-            <span>{currentContentPage.title}</span>
-          </div>
+          <ZoneBreadcrumb
+            segments={[
+              { label: '回音蒐藏間', onClick: () => navigateToLanding() },
+              ...(cluster
+                ? [
+                    {
+                      label: cluster.label,
+                      onClick: () => navigateToCluster(cluster.id),
+                    },
+                  ]
+                : []),
+              { label: currentContentPage.title },
+            ]}
+            color={color}
+          />
 
           <header className="echoes-content-head">
             <h2 className="echoes-content-title" style={{ color }}>
@@ -2213,35 +2226,28 @@ function EchoesReaderInner() {
     return (
       <section className="echoes-song-page">
         <div className="echoes-song-inner">
-          {/* 麵包屑（每層可點擊返回）*/}
-          <div className="echoes-breadcrumb" style={{ color }}>
-            <span className="echoes-breadcrumb-line" />
-            <button type="button" onClick={() => navigateToLanding()}>
-              回音蒐藏間
-            </button>
-            {cluster && (
-              <>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => navigateToCluster(cluster.id)}
-                >
-                  {cluster.label}
-                </button>
-              </>
-            )}
-            {parentNode && (
-              <>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => void navigateToContent(parentNode.id)}
-                >
-                  {parentNode.title}
-                </button>
-              </>
-            )}
-          </div>
+          <ZoneBreadcrumb
+            segments={[
+              { label: '回音蒐藏間', onClick: () => navigateToLanding() },
+              ...(cluster
+                ? [
+                    {
+                      label: cluster.label,
+                      onClick: () => navigateToCluster(cluster.id),
+                    },
+                  ]
+                : []),
+              ...(parentNode
+                ? [
+                    {
+                      label: parentNode.title,
+                      onClick: () => void navigateToContent(parentNode.id),
+                    },
+                  ]
+                : []),
+            ]}
+            color={color}
+          />
 
           {/* Meta 資訊行 */}
           <div className="echoes-song-meta-line">

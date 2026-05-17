@@ -27,6 +27,9 @@ import { fromContentBlock } from '../editor/homepage/types';
 import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
 import SpriteViewer from './SpriteViewer';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
 import './VisualsReader.css';
 
 // ──────────────────────────────────────────────────────────────
@@ -241,9 +244,7 @@ function VisualsReaderInner() {
 
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const bootMountTime = useRef(Date.now());
-  const bootFired = useRef(false);
+  const { contentReady, markContentReady } = useZoneBootReady();
 
   // Spoiler
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -279,9 +280,9 @@ function VisualsReaderInner() {
   // Corridor 索引
   const [corridorIdx, setCorridorIdx] = useState(0);
 
-  // 滾動位置記憶 — key 是 view state 的標識
-  const scrollMemory = useRef<Map<string, number>>(new Map());
-  const pendingScrollKey = useRef<string | null>(null);
+  // 滾動位置記憶
+  const { saveScroll: saveScrollTo, restoreScroll: restoreScrollTo } =
+    useScrollMemory(scrollRef, [view, activeDivisionId, activeSubcatId, activeGalleryId]);
 
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {
@@ -319,18 +320,13 @@ function VisualsReaderInner() {
   useEffect(() => {
     void fetchTree();
     void fetchHomepage();
-    const t = setTimeout(() => setContentReady(true), 5000);
-    return () => clearTimeout(t);
   }, [fetchTree, fetchHomepage]);
 
   useEffect(() => {
-    if (!treeLoading && !bootFired.current) {
-      bootFired.current = true;
-      const elapsed = Date.now() - bootMountTime.current;
-      const delay = Math.max(0, 1800 - elapsed);
-      setTimeout(() => setContentReady(true), delay);
+    if (!treeLoading) {
+      markContentReady();
     }
-  }, [treeLoading]);
+  }, [treeLoading, markContentReady]);
 
   // === URL state ===
   useEffect(() => {
@@ -380,7 +376,6 @@ function VisualsReaderInner() {
     window.history.pushState({}, '', url.toString());
   }
 
-  /** 建立目前 view 的 scroll key */
   function currentScrollKey(): string {
     if (view === 'gallery' && activeGalleryId)
       return `gallery:${activeGalleryId}`;
@@ -390,35 +385,13 @@ function VisualsReaderInner() {
     return 'landing';
   }
 
-  /** 離開目前頁面前保存滾動位置 */
   function saveScroll() {
-    if (scrollRef.current) {
-      scrollMemory.current.set(currentScrollKey(), scrollRef.current.scrollTop);
-    }
+    saveScrollTo(currentScrollKey());
   }
 
-  /** 標記需要恢復的滾動位置 key（實際恢復在 useEffect 中執行） */
   function restoreScroll(key: string) {
-    pendingScrollKey.current = key;
+    restoreScrollTo(key);
   }
-
-  // 在 React re-render 後實際恢復滾動位置
-  useEffect(() => {
-    if (!pendingScrollKey.current) return;
-    const key = pendingScrollKey.current;
-    pendingScrollKey.current = null;
-    // 雙層 rAF 確保 DOM 已完成 paint（含 key 變化導致的 remount）
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const saved = scrollMemory.current.get(key);
-        if (saved != null && saved > 0) {
-          scrollRef.current?.scrollTo({ top: saved });
-        } else {
-          scrollRef.current?.scrollTo({ top: 0 });
-        }
-      });
-    });
-  }, [view, activeDivisionId, activeSubcatId, activeGalleryId]);
 
   function navigateToLanding(push = true) {
     saveScroll();
@@ -966,13 +939,13 @@ function VisualsReaderInner() {
 
     return (
       <div className="visuals-division-page">
-        {/* Breadcrumb */}
-        <div className="visuals-breadcrumb">
-          <span className="visuals-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>幻影重現室</button>
-          <span className="visuals-breadcrumb-sep">·</span>
-          <span>{activeDivision.labelEn}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '幻影重現室', onClick: () => navigateToLanding() },
+            { label: activeDivision.labelEn },
+          ]}
+          color="var(--visuals-main)"
+        />
 
         {/* Header */}
         <div className="visuals-division-header">
@@ -1259,21 +1232,19 @@ function VisualsReaderInner() {
 
     return (
       <div className="visuals-subcat-page">
-        {/* Breadcrumb */}
-        <div className="visuals-breadcrumb">
-          <span className="visuals-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>幻影重現室</button>
-          <span className="visuals-breadcrumb-sep">·</span>
-          <button
-            onClick={() =>
-              activeDivision && navigateToDivision(activeDivision.id)
-            }
-          >
-            {activeDivision?.label || '...'}
-          </button>
-          <span className="visuals-breadcrumb-sep">·</span>
-          <span>{subcatNode.title}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '幻影重現室', onClick: () => navigateToLanding() },
+            {
+              label: activeDivision?.label || '...',
+              onClick: activeDivision
+                ? () => navigateToDivision(activeDivision.id)
+                : undefined,
+            },
+            { label: subcatNode.title },
+          ]}
+          color="var(--visuals-main)"
+        />
 
         <h2 className="visuals-subcat-title">{subcatNode.title}</h2>
         <div className="visuals-subcat-meta">
@@ -1505,29 +1476,28 @@ function VisualsReaderInner() {
 
     return (
       <div className="visuals-gallery-page">
-        {/* Breadcrumb */}
-        <div className="visuals-breadcrumb">
-          <span className="visuals-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>幻影重現室</button>
-          <span className="visuals-breadcrumb-sep">·</span>
-          <button
-            onClick={() =>
-              activeDivision && navigateToDivision(activeDivision.id)
-            }
-          >
-            {activeDivision?.label || '...'}
-          </button>
-          <span className="visuals-breadcrumb-sep">·</span>
-          {activeSubcatId && (
-            <>
-              <button onClick={() => navigateToSubcat(activeSubcatId!)}>
-                {findNodeById(tree, activeSubcatId)?.title || '...'}
-              </button>
-              <span className="visuals-breadcrumb-sep">·</span>
-            </>
-          )}
-          <span>{galleryPage.title}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '幻影重現室', onClick: () => navigateToLanding() },
+            {
+              label: activeDivision?.label || '...',
+              onClick: activeDivision
+                ? () => navigateToDivision(activeDivision.id)
+                : undefined,
+            },
+            ...(activeSubcatId
+              ? [
+                  {
+                    label:
+                      findNodeById(tree, activeSubcatId)?.title || '...',
+                    onClick: () => navigateToSubcat(activeSubcatId!),
+                  },
+                ]
+              : []),
+            { label: galleryPage.title },
+          ]}
+          color="var(--visuals-main)"
+        />
 
         <div className="visuals-gallery-header">
           <h2>{galleryPage.title}</h2>

@@ -287,38 +287,6 @@
   background: var(--storage-soft);
 }
 
-.sto-breadcrumb {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--storage-soft);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.sto-breadcrumb-line {
-  width: 28px;
-  height: 1px;
-  background: var(--storage-soft);
-}
-.sto-breadcrumb button {
-  background: none;
-  border: none;
-  color: var(--storage-soft);
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  padding: 0;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-.sto-breadcrumb button:hover {
-  opacity: 1;
-  text-decoration: underline;
-}
 
 .sto-gradient-line {
   margin-top: 18px;

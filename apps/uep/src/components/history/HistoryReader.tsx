@@ -9,6 +9,9 @@ import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import type {
@@ -270,11 +273,13 @@ export default function HistoryReader() {
 
   // 首頁區塊資料（從 D1 homepage 頁面載入）
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const bootMountTime = useRef(Date.now());
+  // boot 動畫解除狀態由統一 hook 管理
+  const { contentReady, markContentReady, setNavPending } = useZoneBootReady();
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 跨頁面導航的滾動位置記憶
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [currentId]);
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
@@ -346,7 +351,11 @@ export default function HistoryReader() {
     const target = pageId
       ? readablePages.find((page) => page.id === pageId)
       : null;
-    if (target) void loadPage(target);
+    if (target) {
+      // 有 deep link 參數時先暫停 boot 動畫解除，等導航完成
+      setNavPending(true);
+      loadPage(target).finally(() => setNavPending(false)).catch(() => {});
+    }
   }, [tree, readablePages, currentId]);
 
   useEffect(() => {
@@ -354,9 +363,8 @@ export default function HistoryReader() {
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
 
-  // 載入首頁區塊資料
+  // 載入首頁區塊資料，完成後通知 boot hook 解除動畫
   useEffect(() => {
-    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/history/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -371,12 +379,10 @@ export default function HistoryReader() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        const elapsed = Date.now() - bootMountTime.current;
-        const delay = Math.max(0, 1800 - elapsed);
-        setTimeout(() => setContentReady(true), delay);
+        // 通知 hook homepage 資料已就緒（安全超時由 hook 內部處理）
+        markContentReady();
       });
-  }, []);
+  }, [markContentReady]);
 
   // 從首頁區塊中提取特定類型的資料
   const hpHeader = useMemo(() => {
@@ -490,6 +496,9 @@ export default function HistoryReader() {
   }
 
   async function loadPage(node: PageTreeNode, pushState = true) {
+    // 導航前先儲存當前頁面的滾動位置
+    saveScroll(currentId || 'landing');
+
     if (node.pageType === 'page') {
       setCurrentId(null);
       setCurrentPage(null);
@@ -497,7 +506,7 @@ export default function HistoryReader() {
       const url = new URL(window.location.href);
       url.searchParams.delete('page');
       window.history.pushState({}, '', url);
-      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      restoreScroll('landing');
       if (node.children.length) {
         setExpanded((prev) => new Set([...prev, node.id]));
       }
@@ -520,7 +529,8 @@ export default function HistoryReader() {
       const page = await fetchPageById(node.id);
       setCurrentPage(page);
       setArticleHtml(renderBlocks(page.content));
-      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      // 恢復目標頁面的滾動位置（若首次造訪則回到頂部）
+      restoreScroll(node.id);
 
       if (pushState) {
         const url = new URL(window.location.href);
@@ -636,6 +646,8 @@ export default function HistoryReader() {
   }
 
   function returnToLanding() {
+    // 導航回首頁前先儲存當前頁面的滾動位置
+    saveScroll(currentId || 'landing');
     setCurrentId(null);
     setCurrentPage(null);
     setArticleHtml('');
@@ -643,7 +655,8 @@ export default function HistoryReader() {
     const url = new URL(window.location.href);
     url.searchParams.delete('page');
     window.history.pushState({}, '', url);
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // 恢復首頁的滾動位置
+    restoreScroll('landing');
   }
 
   function isNodeVisible(node: PageTreeNode) {
@@ -1077,20 +1090,14 @@ export default function HistoryReader() {
               </section>
             ) : (
               <section className="history-reading">
-                <div className="history-breadcrumb">
-                  <span className="history-breadcrumb-line" />
-                  {crumbs.map((crumb, index) => (
-                    <React.Fragment key={crumb.id}>
-                      <button
-                        type="button"
-                        onClick={() => void loadPage(crumb)}
-                      >
-                        {crumb.title}
-                      </button>
-                      {index < crumbs.length - 1 && <span>·</span>}
-                    </React.Fragment>
-                  ))}
-                </div>
+                <ZoneBreadcrumb
+                  segments={crumbs.map((crumb) => ({
+                    label: crumb.title,
+                    onClick: () => void loadPage(crumb),
+                  }))}
+                  color="var(--history-main)"
+                  bordered
+                />
 
                 <article className="history-article">
                   {contentLoading && (

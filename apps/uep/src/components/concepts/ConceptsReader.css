@@ -556,34 +556,6 @@
   position: relative;
   z-index: 1;
 }
-.conc-stack-breadcrumb {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--concepts-main);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.conc-stack-breadcrumb button {
-  background: none;
-  border: none;
-  color: var(--concepts-main);
-  font: inherit;
-  letter-spacing: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.conc-stack-breadcrumb button:hover {
-  text-decoration: underline;
-}
-.conc-stack-breadcrumb-line {
-  width: 28px;
-  height: 1px;
-  background: var(--concepts-main);
-}
 .conc-stack-title-row {
   display: flex;
   align-items: center;
