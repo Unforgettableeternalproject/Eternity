@@ -18,6 +18,7 @@
     "sync": "node scripts/sync-content.mjs",
     "sync:push": "node scripts/sync-content.mjs --push",
     "sync:pull": "node scripts/sync-content.mjs --pull",
+    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
     "deploy:content-api": "pnpm --filter content-api-worker ship",
     "deploy:visitor": "pnpm --filter visitor-counter-worker ship"
   },

@@ -74,6 +74,38 @@
   word-break: break-word;
 }
 
+/* ── 輸入框（prompt） ── */
+.uep-dialog__input {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin: 0 0 1.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hairline-strong, rgba(255, 255, 255, 0.22));
+  border-radius: 8px;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 0.875rem;
+  color: var(--ink, #ece9df);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  box-sizing: border-box;
+}
+.uep-dialog__input:focus {
+  border-color: var(--uep-gold, #d5b618);
+  box-shadow: 0 0 0 2px rgba(213, 182, 24, 0.15);
+}
+.uep-dialog__input::placeholder {
+  color: var(--ink-mute, #7a7669);
+}
+
+/* ── 停用按鈕 ── */
+.uep-dialog__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ── 按鈕列 ── */
 .uep-dialog__actions {
   display: flex;

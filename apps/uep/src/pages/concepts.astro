@@ -1,8 +1,15 @@
 ---
+export const prerender = false;
 import DesignLayout from '../layouts/DesignLayout.astro';
-import ZoneEntryPage from '../components/zone/ZoneEntryPage';
+import ConceptsReader from '../components/concepts/ConceptsReader';
 ---
 
 <DesignLayout title="概念調整房 - 邊際世界" zone="concepts">
-  <ZoneEntryPage client:load zoneId="concepts" />
+  <ConceptsReader client:only="react" />
 </DesignLayout>
+
+<style is:global>
+  body {
+    overflow: hidden;
+  }
+</style>

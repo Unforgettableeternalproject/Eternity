@@ -1,5 +1,87 @@
 /* ── EchoesReader 樣式 ── */
 
+/* ═══ 入場動畫 — 漣漪擴散 ═══ */
+.echo-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: #080d14;
+  overflow: hidden;
+  transition: opacity 0.6s ease;
+}
+.echo-boot.is-ready {
+  opacity: 0;
+}
+
+/* 中央脈衝光點 */
+.echo-boot-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #7badc9;
+  box-shadow:
+    0 0 20px 4px rgba(123, 173, 201, 0.6),
+    0 0 60px 8px rgba(53, 92, 125, 0.3);
+  animation: echo-pulse-glow 1.4s ease-in-out infinite alternate;
+}
+
+/* 擴散漣漪環 */
+.echo-boot-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  border: 1.5px solid rgba(123, 173, 201, 0.5);
+  box-shadow: 0 0 8px rgba(123, 173, 201, 0.2);
+  opacity: 0;
+  animation: echo-wave-expand 2.2s ease-out infinite;
+}
+.echo-boot-wave:nth-child(2) {
+  animation-delay: 0s;
+}
+.echo-boot-wave:nth-child(3) {
+  animation-delay: 0.7s;
+}
+.echo-boot-wave:nth-child(4) {
+  animation-delay: 1.4s;
+}
+
+@keyframes echo-pulse-glow {
+  0% {
+    box-shadow:
+      0 0 16px 3px rgba(123, 173, 201, 0.5),
+      0 0 50px 6px rgba(53, 92, 125, 0.2);
+  }
+  100% {
+    box-shadow:
+      0 0 24px 6px rgba(123, 173, 201, 0.7),
+      0 0 70px 12px rgba(53, 92, 125, 0.4);
+  }
+}
+@keyframes echo-wave-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+    border-width: 2px;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(40);
+    opacity: 0;
+    border-width: 0.5px;
+  }
+}
+
 .echoes-reader {
   height: 100dvh;
   display: flex;
@@ -10,11 +92,21 @@
 }
 
 .echoes-kicker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--ink-mute);
+  color: var(--echoes-main);
+  margin-bottom: 8px;
+}
+.echoes-kicker::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--echoes-main);
 }
 
 .echoes-main {
@@ -92,16 +184,127 @@
   z-index: 1;
 }
 
+/* === 頁面轉場 — 回聲殘響 === */
+.echoes-page-transition {
+  position: relative;
+  /* 內容像聲波般左右折返，振幅遞減後穩定 */
+  animation: echo-reverb 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 預回聲殘影 — 偏左的淡影 */
+.echoes-page-transition::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  animation: echo-ghost-left 0.6s ease-out both;
+}
+
+/* 預回聲殘影 — 偏右的淡影 */
+.echoes-page-transition::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  animation: echo-ghost-right 0.6s 0.05s ease-out both;
+}
+
+/* 主體：水平振盪衰減 — 像聲波在兩面牆之間反射直到安靜 */
+@keyframes echo-reverb {
+  0% {
+    opacity: 0;
+    transform: translateX(18px);
+    filter: blur(4px);
+  }
+  15% {
+    opacity: 0.5;
+    transform: translateX(-10px);
+    filter: blur(2px);
+  }
+  30% {
+    opacity: 0.8;
+    transform: translateX(6px);
+    filter: blur(1px);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateX(-3px);
+    filter: blur(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 左側殘影：先出現偏左，再淡出 */
+@keyframes echo-ghost-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+    filter: blur(6px);
+  }
+  25% {
+    opacity: 0.15;
+    transform: translateX(-12px);
+    filter: blur(4px);
+  }
+  60% {
+    opacity: 0.06;
+    transform: translateX(-4px);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+/* 右側殘影：先出現偏右，再淡出 */
+@keyframes echo-ghost-right {
+  0% {
+    opacity: 0;
+    transform: translateX(16px);
+    filter: blur(5px);
+  }
+  25% {
+    opacity: 0.12;
+    transform: translateX(10px);
+    filter: blur(3px);
+  }
+  60% {
+    opacity: 0.05;
+    transform: translateX(3px);
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
 /* === Landing === */
 .echoes-landing {
   min-height: 100%;
-  padding: 48px 56px 72px;
   position: relative;
 }
 
 .echoes-landing-inner {
   max-width: 920px;
   margin: 0 auto;
+  padding: 48px 56px 72px;
   position: relative;
   z-index: 1;
 }
@@ -111,8 +314,8 @@
   font-family: var(--font-display);
   font-size: 58px;
   font-weight: 500;
-  line-height: 1.05;
   color: var(--ink-title);
+  letter-spacing: -0.02em;
 }
 
 .echoes-landing-blurb {
@@ -404,12 +607,12 @@
 /* === Cluster 視圖 === */
 .echoes-cluster-page {
   min-height: 100%;
-  padding: 40px 56px 80px;
 }
 
 .echoes-cluster-inner {
-  max-width: 720px;
+  max-width: 920px;
   margin: 0 auto;
+  padding: 36px 56px 100px;
 }
 
 .echoes-breadcrumb {
@@ -419,7 +622,14 @@
   text-transform: uppercase;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.echoes-breadcrumb-line {
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  flex-shrink: 0;
 }
 
 .echoes-breadcrumb button {
@@ -440,7 +650,7 @@
   display: flex;
   align-items: baseline;
   gap: 16px;
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 .echoes-cluster-head-icon {
@@ -459,10 +669,11 @@
 }
 
 .echoes-cluster-subtitle {
-  font-family: var(--font-serif-tc);
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--ink-mute);
   margin-top: 6px;
+  letter-spacing: 0.06em;
 }
 
 .echoes-gradient-divider {
@@ -588,11 +799,11 @@
 /* === Content 視圖 (subcategory/cluster 閱讀) === */
 .echoes-content-page {
   min-height: 100%;
-  padding: 40px 56px 80px;
 }
 
 .echoes-content-inner {
-  max-width: 820px;
+  max-width: 920px;
+  padding: 36px 56px 100px;
   margin: 0 auto;
 }
 
@@ -723,12 +934,12 @@
 /* === Song 視圖 === */
 .echoes-song-page {
   min-height: 100%;
-  padding: 40px 56px 80px;
 }
 
 .echoes-song-inner {
-  max-width: 720px;
+  max-width: 920px;
   margin: 0 auto;
+  padding: 36px 56px 100px;
 }
 
 .echoes-song-meta-line {
@@ -1310,9 +1521,10 @@
 
 /* === 響應式 === */
 @media (max-width: 760px) {
-  .echoes-landing,
-  .echoes-cluster-page,
-  .echoes-song-page {
+  .echoes-landing-inner,
+  .echoes-cluster-inner,
+  .echoes-content-inner,
+  .echoes-song-inner {
     padding: 32px 20px 56px;
   }
 

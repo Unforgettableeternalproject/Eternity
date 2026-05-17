@@ -116,10 +116,10 @@ async function putPage(apiBase, page) {
   }
 }
 
-/** 比較兩個時間戳，回傳較新的一方 */
+/** 比較兩個時間戳，回傳較新的一方（截斷到秒，忽略毫秒差異） */
 function compareTimestamps(localTime, remoteTime) {
-  const l = new Date(localTime).getTime();
-  const r = new Date(remoteTime).getTime();
+  const l = Math.floor(new Date(localTime).getTime() / 1000);
+  const r = Math.floor(new Date(remoteTime).getTime() / 1000);
   if (l > r) return 'local';
   if (r > l) return 'remote';
   return 'same';
@@ -236,7 +236,6 @@ function buildDiff(localPages, remotePages) {
   const pullPages = []; // 遠端有、本地沒有，或遠端較新
   const deleteOnRemote = []; // 本地已刪除，需傳播刪除到遠端
   const deleteOnLocal = []; // 遠端已刪除，需傳播刪除到本地
-  const statusFix = []; // 內容一致但 status 不正確，需修正為 synced
   const conflicts = []; // 無法自動判斷
   const inSync = []; // 兩端一致
 
@@ -245,11 +244,19 @@ function buildDiff(localPages, remotePages) {
     const remote = remoteMap.get(id);
 
     if (local && !remote) {
-      // 本地有、遠端完全不存在 → 推送
-      pushPages.push({ id, reason: '僅存在本地', local });
+      if (local.deletedAt) {
+        // 本地建立後又刪除，遠端從未出現過 → 無需同步
+        inSync.push(id);
+      } else {
+        pushPages.push({ id, reason: '僅存在本地', local });
+      }
     } else if (!local && remote) {
-      // 遠端有、本地完全不存在 → 拉取
-      pullPages.push({ id, reason: '僅存在遠端', remote });
+      if (remote.deletedAt) {
+        // 遠端建立後又刪除，本地從未出現過 → 無需同步
+        inSync.push(id);
+      } else {
+        pullPages.push({ id, reason: '僅存在遠端', remote });
+      }
     } else {
       // 兩端都有記錄
       const localDeleted = !!local.deletedAt;
@@ -322,20 +329,7 @@ function buildDiff(localPages, remotePages) {
             remote,
           });
         } else {
-          // 時間戳一致，但檢查 status 是否需要修正
-          const needsFix =
-            (local.status !== 'synced' && local.sourceFile) ||
-            (remote.status !== 'synced' && remote.sourceFile);
-          if (needsFix) {
-            statusFix.push({
-              id,
-              reason: `狀態修正 (${local.status}/${remote.status} → synced)`,
-              local,
-              remote,
-            });
-          } else {
-            inSync.push(id);
-          }
+          inSync.push(id);
         }
       }
     }
@@ -346,7 +340,6 @@ function buildDiff(localPages, remotePages) {
     pullPages,
     deleteOnRemote,
     deleteOnLocal,
-    statusFix,
     conflicts,
     inSync,
   };
@@ -412,45 +405,6 @@ async function executePull(pages, area) {
       console.log(`  ✗ 拉取失敗 ${entry.id}`);
       fail++;
     }
-  }
-  return { ok, fail };
-}
-
-/** 修正兩端的 status 為 synced（只更新 status，不動內容） */
-async function executeStatusFix(pages, area) {
-  let ok = 0;
-  let fail = 0;
-  for (const entry of pages) {
-    const slug = entry.local?.slug || entry.id.replace(`${area}/`, '');
-    if (DRY_RUN) {
-      console.log(`  🔧 [dry-run] 會修正 ${entry.id} 狀態`);
-      ok++;
-      continue;
-    }
-    // 對兩端都送 PUT，只帶 status
-    for (const api of [LOCAL_API, REMOTE_API]) {
-      try {
-        const res = await fetch(`${api}/api/content/${area}/${slug}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders(api),
-          },
-          body: JSON.stringify({ status: 'synced' }),
-        });
-        if (!res.ok) {
-          console.log(
-            `  ✗ 修正失敗 ${entry.id} (${api === REMOTE_API ? '遠端' : '本地'})`
-          );
-        }
-      } catch {
-        console.log(
-          `  ✗ 修正失敗 ${entry.id} (${api === REMOTE_API ? '遠端' : '本地'})`
-        );
-      }
-    }
-    console.log(`  🔧 ${entry.id}`);
-    ok++;
   }
   return { ok, fail };
 }
@@ -581,6 +535,31 @@ async function main() {
       } else {
         console.log('   ✗ 遠端清除失敗');
       }
+
+      // 清除 R2 資產刪除紀錄
+      console.log('\n   清除 R2 資產刪除紀錄...');
+      for (const [label, api] of [
+        ['本地', LOCAL_API],
+        ['遠端', REMOTE_API],
+      ]) {
+        try {
+          const res = await fetch(
+            `${api}/api/assets/deleted/purge?days=${PURGE_DAYS}`,
+            {
+              method: 'POST',
+              headers: authHeaders(api),
+            }
+          );
+          const json = await safeJson(res);
+          if (json?.ok) {
+            console.log(`   ✓ ${label}清除 ${json.data.purged} 筆 R2 刪除紀錄`);
+          } else {
+            console.log(`   ✗ ${label} R2 刪除紀錄清除失敗`);
+          }
+        } catch {
+          console.log(`   ✗ ${label} R2 刪除紀錄清除失敗`);
+        }
+      }
     }
 
     console.log('\n' + '─'.repeat(40));
@@ -616,21 +595,14 @@ async function main() {
         : `${remoteActive} 頁`;
     console.log(`📂 ${area}  (本地: ${localInfo} / 遠端: ${remoteInfo})`);
 
-    const {
-      pushPages,
-      pullPages,
-      deleteOnRemote,
-      deleteOnLocal,
-      statusFix,
-      inSync,
-    } = buildDiff(localPages, remotePages);
+    const { pushPages, pullPages, deleteOnRemote, deleteOnLocal, inSync } =
+      buildDiff(localPages, remotePages);
 
     const hasChanges =
       pushPages.length > 0 ||
       pullPages.length > 0 ||
       deleteOnRemote.length > 0 ||
-      deleteOnLocal.length > 0 ||
-      statusFix.length > 0;
+      deleteOnLocal.length > 0;
 
     if (!hasChanges) {
       console.log(`   ✓ 完全同步 (${inSync.length} 頁)\n`);
@@ -660,12 +632,6 @@ async function main() {
     if (deleteOnLocal.length > 0) {
       console.log(`\n   🗑 傳播刪除到本地 (${deleteOnLocal.length} 頁):`);
       for (const p of deleteOnLocal) {
-        console.log(`     ${p.id}  — ${p.reason}`);
-      }
-    }
-    if (statusFix.length > 0) {
-      console.log(`\n   🔧 狀態修正 (${statusFix.length} 頁):`);
-      for (const p of statusFix) {
         console.log(`     ${p.id}  — ${p.reason}`);
       }
     }
@@ -729,12 +695,6 @@ async function main() {
       const result = await executeDelete(doDeleteLocal, area, LOCAL_API);
       totalDelete += result.ok;
     }
-    // 狀態修正不受方向控制，一律執行
-    if (statusFix.length > 0) {
-      console.log(`   修正 ${statusFix.length} 頁狀態為 synced...`);
-      const result = await executeStatusFix(statusFix, area);
-      totalSkip += result.ok;
-    }
     totalSkip += inSync.length;
 
     console.log();
@@ -767,6 +727,37 @@ async function listAssets(apiBase) {
   }
 }
 
+/** 列出已刪除的資產紀錄 */
+async function listDeletedAssets(apiBase) {
+  try {
+    const res = await fetch(`${apiBase}/api/assets/deleted`, {
+      headers: authHeaders(apiBase),
+    });
+    if (!res.ok) return [];
+    const json = await safeJson(res);
+    return json?.ok ? json.data || [] : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 在目標端記錄刪除紀錄（不實際刪除 R2，用於傳播刪除狀態） */
+async function recordDeletions(apiBase, keys) {
+  if (keys.length === 0) return;
+  try {
+    await fetch(`${apiBase}/api/assets/deleted/record`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(apiBase),
+      },
+      body: JSON.stringify({ keys }),
+    });
+  } catch {
+    // 靜默失敗
+  }
+}
+
 /** 從來源下載檔案並上傳到目標（保留原始 key） */
 async function transferAsset(fromBase, toBase, key) {
   try {
@@ -795,46 +786,109 @@ async function transferAsset(fromBase, toBase, key) {
   }
 }
 
-async function syncAssets() {
-  const [localKeys, remoteKeys] = await Promise.all([
-    listAssets(LOCAL_API),
-    listAssets(REMOTE_API),
-  ]);
+/** 刪除目標端的 R2 資產 */
+async function deleteAsset(apiBase, key) {
+  try {
+    const res = await fetch(
+      `${apiBase}/api/assets/${encodeURIComponent(key)}`,
+      {
+        method: 'DELETE',
+        headers: authHeaders(apiBase),
+      }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
-  if (localKeys.length === 0 && remoteKeys.length === 0) return;
+async function syncAssets() {
+  const [localKeys, remoteKeys, localDeleted, remoteDeleted] =
+    await Promise.all([
+      listAssets(LOCAL_API),
+      listAssets(REMOTE_API),
+      listDeletedAssets(LOCAL_API),
+      listDeletedAssets(REMOTE_API),
+    ]);
+
+  if (
+    localKeys.length === 0 &&
+    remoteKeys.length === 0 &&
+    localDeleted.length === 0 &&
+    remoteDeleted.length === 0
+  )
+    return;
 
   const localSet = new Set(localKeys);
   const remoteSet = new Set(remoteKeys);
+  const localDeletedSet = new Set(localDeleted.map((d) => d.key));
+  const remoteDeletedSet = new Set(remoteDeleted.map((d) => d.key));
 
-  const toPush = localKeys.filter((k) => !remoteSet.has(k));
-  const toPull = remoteKeys.filter((k) => !localSet.has(k));
+  const toPush = []; // 本地有、遠端沒有、且遠端沒有刪除紀錄 → 推送
+  const toPull = []; // 遠端有、本地沒有、且本地沒有刪除紀錄 → 拉取
+  const deleteOnRemote = []; // 本地有刪除紀錄、遠端還存在 → 傳播刪除
+  const deleteOnLocal = []; // 遠端有刪除紀錄、本地還存在 → 傳播刪除
   const inSync = localKeys.filter((k) => remoteSet.has(k));
 
-  if (toPush.length === 0 && toPull.length === 0) {
-    console.log(
-      `\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`
-    );
-    console.log(`   ✓ 完全同步 (${inSync.length} 個檔案)\n`);
-    return;
+  // 本地有、遠端沒有
+  for (const key of localKeys) {
+    if (remoteSet.has(key)) continue;
+    if (remoteDeletedSet.has(key)) {
+      // 遠端曾經刪除過 → 傳播刪除到本地
+      deleteOnLocal.push(key);
+    } else {
+      toPush.push(key);
+    }
   }
+
+  // 遠端有、本地沒有
+  for (const key of remoteKeys) {
+    if (localSet.has(key)) continue;
+    if (localDeletedSet.has(key)) {
+      // 本地曾經刪除過 → 傳播刪除到遠端
+      deleteOnRemote.push(key);
+    } else {
+      toPull.push(key);
+    }
+  }
+
+  const hasChanges =
+    toPush.length > 0 ||
+    toPull.length > 0 ||
+    deleteOnRemote.length > 0 ||
+    deleteOnLocal.length > 0;
 
   console.log(
     `\n🗂️  R2 資產  (本地: ${localKeys.length} / 遠端: ${remoteKeys.length})`
   );
+
+  if (!hasChanges) {
+    console.log(`   ✓ 完全同步 (${inSync.length} 個檔案)\n`);
+    return;
+  }
+
   if (toPush.length > 0) console.log(`   ↑ 需推送: ${toPush.length} 個`);
   if (toPull.length > 0) console.log(`   ↓ 需拉取: ${toPull.length} 個`);
+  if (deleteOnRemote.length > 0)
+    console.log(`   🗑 傳播刪除到遠端: ${deleteOnRemote.length} 個`);
+  if (deleteOnLocal.length > 0)
+    console.log(`   🗑 傳播刪除到本地: ${deleteOnLocal.length} 個`);
   if (inSync.length > 0) console.log(`   = 已同步: ${inSync.length} 個`);
   console.log();
 
   // 決定方向
   let doPush = toPush;
   let doPull = toPull;
+  let doDeleteRemote = deleteOnRemote;
+  let doDeleteLocal = deleteOnLocal;
 
   if (DIRECTION === 'pull') {
     doPush = [];
+    doDeleteRemote = [];
   } else if (DIRECTION === 'push') {
     doPull = [];
-  } else if (!DRY_RUN && (toPush.length > 0 || toPull.length > 0)) {
+    doDeleteLocal = [];
+  } else if (!DRY_RUN && hasChanges) {
     const answer = await ask(
       `   同步 R2 資產？ [y] 全部 / [push] 只推送 / [pull] 只拉取 / [n] 跳過: `
     );
@@ -842,8 +896,14 @@ async function syncAssets() {
       console.log('   ⏭ 跳過\n');
       return;
     }
-    if (answer === 'push') doPull = [];
-    if (answer === 'pull') doPush = [];
+    if (answer === 'push') {
+      doPull = [];
+      doDeleteLocal = [];
+    }
+    if (answer === 'pull') {
+      doPush = [];
+      doDeleteRemote = [];
+    }
   }
 
   // 推送
@@ -869,6 +929,32 @@ async function syncAssets() {
       }
       const ok = await transferAsset(REMOTE_API, LOCAL_API, key);
       console.log(ok ? `  ↓ ${key}` : `  ✗ 拉取失敗 ${key}`);
+    }
+  }
+
+  // 傳播刪除到遠端
+  if (doDeleteRemote.length > 0) {
+    console.log(`   傳播刪除到遠端 ${doDeleteRemote.length} 個檔案...`);
+    for (const key of doDeleteRemote) {
+      if (DRY_RUN) {
+        console.log(`  🗑 [dry-run] 遠端 ${key}`);
+        continue;
+      }
+      const ok = await deleteAsset(REMOTE_API, key);
+      console.log(ok ? `  🗑 遠端 ${key}` : `  ✗ 刪除失敗 ${key}`);
+    }
+  }
+
+  // 傳播刪除到本地
+  if (doDeleteLocal.length > 0) {
+    console.log(`   傳播刪除到本地 ${doDeleteLocal.length} 個檔案...`);
+    for (const key of doDeleteLocal) {
+      if (DRY_RUN) {
+        console.log(`  🗑 [dry-run] 本地 ${key}`);
+        continue;
+      }
+      const ok = await deleteAsset(LOCAL_API, key);
+      console.log(ok ? `  🗑 本地 ${key}` : `  ✗ 刪除失敗 ${key}`);
     }
   }
 

@@ -263,12 +263,14 @@ export default function HistoryReader() {
   const [landingLoading, setLandingLoading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
+  const [transitionKey, setTransitionKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [zoneActiveTab, setZoneActiveTab] = useState<number | null>(null);
 
   // 首頁區塊資料（從 D1 homepage 頁面載入）
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const [contentReady, setContentReady] = useState(false);
+  const bootMountTime = useRef(Date.now());
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -353,8 +355,7 @@ export default function HistoryReader() {
 
   // 載入首頁區塊資料
   useEffect(() => {
-    // 安全逾時：2 秒後無論如何解除霧化
-    const timeout = setTimeout(() => setContentReady(true), 2000);
+    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/history/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -370,7 +371,9 @@ export default function HistoryReader() {
       .catch(() => {})
       .finally(() => {
         clearTimeout(timeout);
-        setContentReady(true);
+        const elapsed = Date.now() - bootMountTime.current;
+        const delay = Math.max(0, 1800 - elapsed);
+        setTimeout(() => setContentReady(true), delay);
       });
   }, []);
 
@@ -527,6 +530,7 @@ export default function HistoryReader() {
       setContentError(err instanceof Error ? err.message : String(err));
     } finally {
       setContentLoading(false);
+      setTransitionKey((k) => k + 1);
     }
   }
 
@@ -634,6 +638,7 @@ export default function HistoryReader() {
     setCurrentId(null);
     setCurrentPage(null);
     setArticleHtml('');
+    setTransitionKey((k) => k + 1);
     const url = new URL(window.location.href);
     url.searchParams.delete('page');
     window.history.pushState({}, '', url);
@@ -759,22 +764,19 @@ export default function HistoryReader() {
 
   return (
     <div className="history-reader">
-      {/* 入場霧化 — 等待首頁資料載入後再解除 */}
+      {/* 入場動畫 — 墨韻暈染 */}
       <div
         aria-hidden="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 50,
-          pointerEvents: 'none',
-          ...(contentReady
-            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : {
-                backdropFilter: 'blur(18px)',
-                background: 'rgba(10,10,14,0.5)',
-              }),
-        }}
-      />
+        className={`hist-boot ${contentReady ? 'is-ready' : ''}`}
+      >
+        <div className="hist-boot-ink hist-boot-ink--1" />
+        <div className="hist-boot-ink hist-boot-ink--2" />
+        <div className="hist-boot-ink hist-boot-ink--3" />
+        <div className="hist-boot-ink hist-boot-ink--4" />
+        <div className="hist-boot-drip hist-boot-drip--1" />
+        <div className="hist-boot-drip hist-boot-drip--2" />
+        <div className="hist-boot-stroke" />
+      </div>
       <TopBar
         onOpenMap={() => setShowMap(true)}
         onGoHome={() => {
@@ -807,7 +809,7 @@ export default function HistoryReader() {
         <aside className={`history-sidebar ${sidebarOpen ? '' : 'is-closed'}`}>
           <div className="history-sidebar-head">
             <div>
-              <div className="history-kicker">Volume I / Archive</div>
+              <div className="history-kicker">Volume I · HISTORY</div>
               <button
                 className="history-sidebar-title"
                 type="button"
@@ -871,329 +873,340 @@ export default function HistoryReader() {
         )}
 
         <div className="history-content" ref={scrollRef}>
-          {!currentId ? (
-            <section className="history-landing">
-              <div className="history-landing-inner">
-                {homepageBlocks.length > 0 ? (
-                  /* ── 資料驅動：按區塊順序渲染 ── */
-                  homepageBlocks.map((block) => {
-                    switch (block.type) {
-                      case 'zone-header': {
-                        const d = block.data as ZoneHeaderData;
-                        return (
-                          <div key={block.id}>
-                            <div className="history-kicker">
-                              History / Passage
+          <div key={transitionKey} className="history-page-transition">
+            {!currentId ? (
+              <section className="history-landing">
+                <div className="history-landing-inner">
+                  {homepageBlocks.length > 0 ? (
+                    /* ── 資料驅動：按區塊順序渲染 ── */
+                    homepageBlocks.map((block) => {
+                      switch (block.type) {
+                        case 'zone-header': {
+                          const d = block.data as ZoneHeaderData;
+                          return (
+                            <div key={block.id}>
+                              <div className="history-kicker">
+                                History / Passage
+                              </div>
+                              <h2 className="history-zone-title">{d.title}</h2>
+                              {d.subtitle && <p>{d.subtitle}</p>}
                             </div>
-                            <h2>{d.title}</h2>
-                            {d.subtitle && <p>{d.subtitle}</p>}
-                          </div>
-                        );
-                      }
-                      case 'uep-dialogue': {
-                        const items = block.data as UepDialogueItem[];
-                        return (
-                          <div key={block.id} className="history-uep-note">
-                            {items.map((d, i) => (
-                              <UepDialogue
-                                key={i}
-                                text={d.text}
-                                side={d.side}
-                                effects={d.effects as any}
-                              />
-                            ))}
-                          </div>
-                        );
-                      }
-                      case 'archway-grid': {
-                        const cards = (block.data as { cards: ArchwayCard[] })
-                          .cards;
-                        return (
-                          <div key={block.id} className="history-arch-grid">
-                            {archNodes.map((node, index) => {
-                              const card = cards[index];
-                              const isLocked = card && card.state !== 'open';
-                              return (
-                                <button
-                                  className={`history-arch-card ${isLocked ? 'is-locked' : ''}`}
-                                  type="button"
-                                  key={node.id}
-                                  onClick={(e) => {
-                                    if (isLocked) {
-                                      // 紅光閃爍表示不可用
-                                      const el = e.currentTarget;
-                                      el.classList.add('is-denied');
-                                      setTimeout(
-                                        () => el.classList.remove('is-denied'),
-                                        600
-                                      );
-                                      return;
+                          );
+                        }
+                        case 'uep-dialogue': {
+                          const items = block.data as UepDialogueItem[];
+                          return (
+                            <div key={block.id} className="history-uep-note">
+                              {items.map((d, i) => (
+                                <UepDialogue
+                                  key={i}
+                                  text={d.text}
+                                  side={d.side}
+                                  effects={d.effects as any}
+                                />
+                              ))}
+                            </div>
+                          );
+                        }
+                        case 'archway-grid': {
+                          const cards = (block.data as { cards: ArchwayCard[] })
+                            .cards;
+                          return (
+                            <div key={block.id} className="history-arch-grid">
+                              {archNodes.map((node, index) => {
+                                const card = cards[index];
+                                const isLocked = card && card.state !== 'open';
+                                return (
+                                  <button
+                                    className={`history-arch-card ${isLocked ? 'is-locked' : ''}`}
+                                    type="button"
+                                    key={node.id}
+                                    onClick={(e) => {
+                                      if (isLocked) {
+                                        // 紅光閃爍表示不可用
+                                        const el = e.currentTarget;
+                                        el.classList.add('is-denied');
+                                        setTimeout(
+                                          () =>
+                                            el.classList.remove('is-denied'),
+                                          600
+                                        );
+                                        return;
+                                      }
+                                      void loadPage(node);
+                                    }}
+                                    style={
+                                      isLocked
+                                        ? {
+                                            filter: 'grayscale(1)',
+                                            opacity: 0.55,
+                                          }
+                                        : undefined
                                     }
-                                    void loadPage(node);
-                                  }}
-                                  style={
-                                    isLocked
-                                      ? {
-                                          filter: 'grayscale(1)',
-                                          opacity: 0.55,
-                                        }
-                                      : undefined
-                                  }
-                                >
-                                  <span className="history-arch-index">
-                                    {card?.tag ||
-                                      ['U', 'E', 'P'][index] ||
-                                      String(index + 1).padStart(2, '0')}
-                                  </span>
-                                  <span className="history-arch-title">
-                                    {card?.name || node.title}
-                                  </span>
-                                  <span className="history-arch-meta">
-                                    {card?.stateLabel ||
-                                      `${node.children.length} entries / ${pageTypeLabel(node.pageType)}`}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
+                                  >
+                                    <span className="history-arch-index">
+                                      {card?.tag ||
+                                        ['U', 'E', 'P'][index] ||
+                                        String(index + 1).padStart(2, '0')}
+                                    </span>
+                                    <span className="history-arch-title">
+                                      {card?.name || node.title}
+                                    </span>
+                                    <span className="history-arch-meta">
+                                      {card?.stateLabel ||
+                                        `${node.children.length} entries / ${pageTypeLabel(node.pageType)}`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+                        case 'hint-box': {
+                          const text = (block.data as { text: string }).text;
+                          return (
+                            <div
+                              key={block.id}
+                              style={{
+                                marginTop: 28,
+                                padding: '14px 18px',
+                                borderLeft: `3px solid ${historyZone.main}60`,
+                                background: 'var(--bg-soft)',
+                                fontFamily: 'var(--font-serif-tc)',
+                                fontSize: 14,
+                                color: 'var(--ink-soft)',
+                                fontStyle: 'italic',
+                                lineHeight: 1.8,
+                              }}
+                            >
+                              {text}
+                            </div>
+                          );
+                        }
+                        case 'rich-text': {
+                          const html = (block.data as { html: string }).html;
+                          return (
+                            <div
+                              key={block.id}
+                              className="history-prose history-landing-prose"
+                              dangerouslySetInnerHTML={{ __html: html }}
+                            />
+                          );
+                        }
+                        default:
+                          return null;
                       }
-                      case 'hint-box': {
-                        const text = (block.data as { text: string }).text;
-                        return (
-                          <div
-                            key={block.id}
-                            style={{
-                              marginTop: 28,
-                              padding: '14px 18px',
-                              borderLeft: `3px solid ${historyZone.main}60`,
-                              background: 'var(--bg-soft)',
-                              fontFamily: 'var(--font-serif-tc)',
-                              fontSize: 14,
-                              color: 'var(--ink-soft)',
-                              fontStyle: 'italic',
-                              lineHeight: 1.8,
-                            }}
+                    })
+                  ) : (
+                    /* ── Fallback：舊版固定佈局 ── */
+                    <>
+                      <div className="history-kicker">History / Passage</div>
+                      <h2>
+                        {passagePage?.title || passageNode?.title || '三向通道'}
+                      </h2>
+                      {(treeLoading || landingLoading) && !passagePage && (
+                        <div className="history-state">正在讀取三向通道...</div>
+                      )}
+                      {landingParts.before && (
+                        <div
+                          className="history-prose history-landing-prose"
+                          dangerouslySetInnerHTML={{
+                            __html: landingParts.before,
+                          }}
+                        />
+                      )}
+                      <div className="history-arch-grid">
+                        {archNodes.map((node, index) => (
+                          <button
+                            className="history-arch-card"
+                            type="button"
+                            key={node.id}
+                            onClick={() => void loadPage(node)}
                           >
-                            {text}
+                            <span className="history-arch-index">
+                              {['U', 'E', 'P'][index] ||
+                                String(index + 1).padStart(2, '0')}
+                            </span>
+                            <span className="history-arch-title">
+                              {node.title}
+                            </span>
+                            <span className="history-arch-meta">
+                              {node.children.length} entries /{' '}
+                              {pageTypeLabel(node.pageType)}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      {landingParts.after && (
+                        <div
+                          className="history-prose history-landing-prose"
+                          dangerouslySetInnerHTML={{
+                            __html: landingParts.after,
+                          }}
+                        />
+                      )}
+                      <div className="history-uep-note">
+                        <UepDialogue
+                          text="這裡是歷史典藏庫的三向通道。選擇 U、E、P 其中一扇門，就會進入對應區段的閱讀頁。"
+                          effects={['shimmer', 'halo']}
+                        />
+                      </div>
+                      {notePage && (
+                        <section className="history-note-section">
+                          <div className="history-kicker">
+                            Loose Note / Page
                           </div>
-                        );
-                      }
-                      case 'rich-text': {
-                        const html = (block.data as { html: string }).html;
-                        return (
+                          <h3>{notePage.title}</h3>
                           <div
-                            key={block.id}
-                            className="history-prose history-landing-prose"
-                            dangerouslySetInnerHTML={{ __html: html }}
+                            className="history-prose history-note-prose"
+                            dangerouslySetInnerHTML={{
+                              __html: renderBlocks(notePage.content),
+                            }}
                           />
-                        );
-                      }
-                      default:
-                        return null;
-                    }
-                  })
-                ) : (
-                  /* ── Fallback：舊版固定佈局 ── */
-                  <>
-                    <div className="history-kicker">History / Passage</div>
-                    <h2>
-                      {passagePage?.title || passageNode?.title || '三向通道'}
-                    </h2>
-                    {(treeLoading || landingLoading) && !passagePage && (
-                      <div className="history-state">正在讀取三向通道...</div>
-                    )}
-                    {landingParts.before && (
+                        </section>
+                      )}
+                    </>
+                  )}
+                </div>
+              </section>
+            ) : (
+              <section className="history-reading">
+                <div className="history-breadcrumb">
+                  <span className="history-breadcrumb-line" />
+                  {crumbs.map((crumb, index) => (
+                    <React.Fragment key={crumb.id}>
+                      <button
+                        type="button"
+                        onClick={() => void loadPage(crumb)}
+                      >
+                        {crumb.title}
+                      </button>
+                      {index < crumbs.length - 1 && <span>·</span>}
+                    </React.Fragment>
+                  ))}
+                </div>
+
+                <article className="history-article">
+                  {contentLoading && (
+                    <div className="history-state history-state-large">
+                      正在讀取內容...
+                    </div>
+                  )}
+                  {contentError && (
+                    <div className="history-state history-state-error history-state-large">
+                      <span>內容讀取失敗：{contentError}</span>
+                      {currentId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const node = flatPages.find(
+                              (page) => page.id === currentId
+                            );
+                            if (node) void loadPage(node);
+                          }}
+                        >
+                          重試
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!contentLoading && !contentError && currentPage && (
+                    <>
+                      <header className="history-article-head">
+                        <div className="history-kicker">
+                          {pageTypeLabel(currentPage.pageType)} /{' '}
+                          {currentPage.slug}
+                        </div>
+                        <h2 className="history-article-title">
+                          {renderIcon(
+                            currentPage.metadata?.icon as string,
+                            24,
+                            'history-article-icon'
+                          )}
+                          {currentPage.title}
+                        </h2>
+                        {typeof currentPage.metadata?.description ===
+                          'string' && <p>{currentPage.metadata.description}</p>}
+                      </header>
                       <div
-                        className="history-prose history-landing-prose"
+                        ref={contentRef}
+                        className="history-prose"
+                        onClick={onArticleClick}
                         dangerouslySetInnerHTML={{
-                          __html: landingParts.before,
+                          __html:
+                            articleHtml ||
+                            '<p class="empty-notice">這篇內容目前是空的。</p>',
                         }}
                       />
-                    )}
-                    <div className="history-arch-grid">
-                      {archNodes.map((node, index) => (
+                    </>
+                  )}
+                </article>
+
+                {/* Zone 分頁目錄（從 metadata 讀取） */}
+                {zoneTabsData.length > 0 && (
+                  <div className="history-zone-tabs">
+                    <div className="history-zone-tabs-bar">
+                      {zoneTabsData.map((tab, i) => (
                         <button
-                          className="history-arch-card"
+                          key={i}
                           type="button"
-                          key={node.id}
-                          onClick={() => void loadPage(node)}
+                          className={`history-zone-tab ${activeZoneTabIdx === i ? 'active' : ''}`}
+                          onClick={() => setZoneActiveTab(i)}
                         >
-                          <span className="history-arch-index">
-                            {['U', 'E', 'P'][index] ||
-                              String(index + 1).padStart(2, '0')}
-                          </span>
-                          <span className="history-arch-title">
-                            {node.title}
-                          </span>
-                          <span className="history-arch-meta">
-                            {node.children.length} entries /{' '}
-                            {pageTypeLabel(node.pageType)}
-                          </span>
+                          {tab.label}
                         </button>
                       ))}
                     </div>
-                    {landingParts.after && (
-                      <div
-                        className="history-prose history-landing-prose"
-                        dangerouslySetInnerHTML={{ __html: landingParts.after }}
-                      />
-                    )}
-                    <div className="history-uep-note">
-                      <UepDialogue
-                        text="這裡是歷史典藏庫的三向通道。選擇 U、E、P 其中一扇門，就會進入對應區段的閱讀頁。"
-                        effects={['shimmer', 'halo']}
-                      />
+                    <div className="history-zone-tabs-body">
+                      {zoneTabItems.length === 0 ? (
+                        <div className="history-zone-tabs-empty">
+                          此分頁下尚無內容
+                        </div>
+                      ) : (
+                        <ul className="history-zone-tab-list">
+                          {zoneTabItems.map((child) => (
+                            <li key={child.id}>
+                              <button
+                                type="button"
+                                className="history-zone-tab-link"
+                                onClick={() => void loadPage(child)}
+                              >
+                                {renderIcon(
+                                  child.metadata?.icon as string,
+                                  14,
+                                  'history-zone-tab-link-icon'
+                                ) || null}
+                                {child.title}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    {notePage && (
-                      <section className="history-note-section">
-                        <div className="history-kicker">Loose Note / Page</div>
-                        <h3>{notePage.title}</h3>
-                        <div
-                          className="history-prose history-note-prose"
-                          dangerouslySetInnerHTML={{
-                            __html: renderBlocks(notePage.content),
-                          }}
-                        />
-                      </section>
-                    )}
-                  </>
+                  </div>
                 )}
-              </div>
-            </section>
-          ) : (
-            <section className="history-reading">
-              <div className="history-breadcrumb">
-                {crumbs.map((crumb, index) => (
-                  <React.Fragment key={crumb.id}>
-                    <button type="button" onClick={() => void loadPage(crumb)}>
-                      {crumb.title}
-                    </button>
-                    {index < crumbs.length - 1 && <span>/</span>}
-                  </React.Fragment>
-                ))}
-              </div>
 
-              <article className="history-article">
-                {contentLoading && (
-                  <div className="history-state history-state-large">
-                    正在讀取內容...
-                  </div>
-                )}
-                {contentError && (
-                  <div className="history-state history-state-error history-state-large">
-                    <span>內容讀取失敗：{contentError}</span>
-                    {currentId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const node = flatPages.find(
-                            (page) => page.id === currentId
-                          );
-                          if (node) void loadPage(node);
-                        }}
-                      >
-                        重試
-                      </button>
-                    )}
-                  </div>
-                )}
-                {!contentLoading && !contentError && currentPage && (
-                  <>
-                    <header className="history-article-head">
-                      <div className="history-kicker">
-                        {pageTypeLabel(currentPage.pageType)} /{' '}
-                        {currentPage.slug}
-                      </div>
-                      <h2 className="history-article-title">
-                        {renderIcon(
-                          currentPage.metadata?.icon as string,
-                          24,
-                          'history-article-icon'
-                        )}
-                        {currentPage.title}
-                      </h2>
-                      {typeof currentPage.metadata?.description ===
-                        'string' && <p>{currentPage.metadata.description}</p>}
-                    </header>
-                    <div
-                      ref={contentRef}
-                      className="history-prose"
-                      onClick={onArticleClick}
-                      dangerouslySetInnerHTML={{
-                        __html:
-                          articleHtml ||
-                          '<p class="empty-notice">這篇內容目前是空的。</p>',
-                      }}
-                    />
-                  </>
-                )}
-              </article>
-
-              {/* Zone 分頁目錄（從 metadata 讀取） */}
-              {zoneTabsData.length > 0 && (
-                <div className="history-zone-tabs">
-                  <div className="history-zone-tabs-bar">
-                    {zoneTabsData.map((tab, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className={`history-zone-tab ${activeZoneTabIdx === i ? 'active' : ''}`}
-                        onClick={() => setZoneActiveTab(i)}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="history-zone-tabs-body">
-                    {zoneTabItems.length === 0 ? (
-                      <div className="history-zone-tabs-empty">
-                        此分頁下尚無內容
-                      </div>
-                    ) : (
-                      <ul className="history-zone-tab-list">
-                        {zoneTabItems.map((child) => (
-                          <li key={child.id}>
-                            <button
-                              type="button"
-                              className="history-zone-tab-link"
-                              onClick={() => void loadPage(child)}
-                            >
-                              {renderIcon(
-                                child.metadata?.icon as string,
-                                14,
-                                'history-zone-tab-link-icon'
-                              ) || null}
-                              {child.title}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                <div className="history-page-nav">
+                  <button
+                    type="button"
+                    disabled={!prevPage}
+                    onClick={() => prevPage && void loadPage(prevPage)}
+                  >
+                    <span>PREV</span>
+                    <strong>{prevPage?.title || '沒有上一篇'}</strong>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!nextPage}
+                    onClick={() => nextPage && void loadPage(nextPage)}
+                  >
+                    <span>NEXT</span>
+                    <strong>{nextPage?.title || '沒有下一篇'}</strong>
+                  </button>
                 </div>
-              )}
-
-              <div className="history-page-nav">
-                <button
-                  type="button"
-                  disabled={!prevPage}
-                  onClick={() => prevPage && void loadPage(prevPage)}
-                >
-                  <span>PREV</span>
-                  <strong>{prevPage?.title || '沒有上一篇'}</strong>
-                </button>
-                <button
-                  type="button"
-                  disabled={!nextPage}
-                  onClick={() => nextPage && void loadPage(nextPage)}
-                >
-                  <span>NEXT</span>
-                  <strong>{nextPage?.title || '沒有下一篇'}</strong>
-                </button>
-              </div>
-            </section>
-          )}
+              </section>
+            )}
+          </div>
         </div>
       </div>
 

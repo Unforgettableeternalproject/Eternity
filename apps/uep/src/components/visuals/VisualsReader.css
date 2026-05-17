@@ -2,6 +2,113 @@
    Visuals Reader — 幻影重現室
    ────────────────────────────────────────────────────────────── */
 
+/* ═══ 入場動畫 — 幻影閃現 ═══ */
+.vis-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: #0a0810;
+  overflow: hidden;
+  transition: opacity 0.6s ease;
+}
+.vis-boot.is-ready {
+  opacity: 0;
+}
+
+/* 左右交替的透光閃現 */
+.vis-boot-flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.vis-boot-flash--l {
+  background: linear-gradient(
+    to right,
+    rgba(159, 134, 192, 0.45) 0%,
+    rgba(159, 134, 192, 0.2) 35%,
+    transparent 65%
+  );
+  animation:
+    vis-flash-in 0.3s ease-out 0.2s forwards,
+    vis-flash-out 0.35s ease-in 0.45s forwards;
+}
+.vis-boot-flash--r {
+  background: linear-gradient(
+    to left,
+    rgba(224, 177, 203, 0.4) 0%,
+    rgba(224, 177, 203, 0.18) 35%,
+    transparent 65%
+  );
+  animation:
+    vis-flash-in 0.3s ease-out 0.6s forwards,
+    vis-flash-out 0.35s ease-in 0.85s forwards;
+}
+.vis-boot-flash--l2 {
+  background: linear-gradient(
+    to right,
+    rgba(159, 134, 192, 0.35) 0%,
+    rgba(94, 84, 142, 0.15) 40%,
+    transparent 70%
+  );
+  animation:
+    vis-flash-in 0.25s ease-out 1s forwards,
+    vis-flash-out 0.3s ease-in 1.2s forwards;
+}
+.vis-boot-flash--r2 {
+  background: linear-gradient(
+    to left,
+    rgba(224, 177, 203, 0.3) 0%,
+    rgba(159, 134, 192, 0.12) 40%,
+    transparent 70%
+  );
+  animation:
+    vis-flash-in 0.25s ease-out 1.3s forwards,
+    vis-flash-out 0.3s ease-in 1.5s forwards;
+}
+
+/* 微膠片噪點紋理 */
+.vis-boot-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  animation: vis-grain-flicker 0.12s steps(3) infinite;
+}
+
+@keyframes vis-flash-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes vis-flash-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vis-grain-flicker {
+  0% {
+    opacity: 0.06;
+  }
+  33% {
+    opacity: 0.03;
+  }
+  66% {
+    opacity: 0.07;
+  }
+  100% {
+    opacity: 0.06;
+  }
+}
+
 /* === 基礎佈局 === */
 .visuals-reader {
   height: 100dvh;
@@ -29,23 +136,6 @@
   z-index: 1;
 }
 
-/* === 進場動畫 === */
-.visuals-arrival {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  pointer-events: none;
-  background: var(--bg);
-  transition:
-    opacity 0.8s var(--ease, ease),
-    filter 0.8s var(--ease, ease);
-}
-
-.visuals-arrival.is-ready {
-  opacity: 0;
-  filter: blur(16px);
-}
-
 /* === Landing 頁面 === */
 .visuals-landing-page {
   padding: 48px 56px 72px;
@@ -54,11 +144,20 @@
 }
 
 .visuals-landing-kicker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #5e548e;
+  color: var(--visuals-main);
+}
+.visuals-landing-kicker::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--visuals-main);
 }
 
 .visuals-landing-title {
@@ -71,10 +170,13 @@
 }
 
 .visuals-landing-subtitle {
-  font-family: var(--font-display);
-  font-size: 17px;
+  font-family: var(--font-serif-tc);
+  font-size: 16px;
   font-style: italic;
   color: var(--ink-soft);
+  line-height: 1.9;
+  max-width: 620px;
+  margin-top: 16px;
 }
 
 .visuals-landing-uep {
@@ -120,7 +222,7 @@
 
 /* 路線邊線 */
 .visuals-road-edge {
-  stroke: #5e548e;
+  stroke: var(--visuals-main);
   stroke-opacity: 0.12;
   stroke-width: 0.5;
   fill: none;
@@ -128,7 +230,7 @@
 
 /* 路線中線虛線 */
 .visuals-road-center {
-  stroke: #5e548e;
+  stroke: var(--visuals-main);
   stroke-opacity: 0.08;
   stroke-width: 0.3;
   stroke-dasharray: 4 3;
@@ -229,7 +331,7 @@
 
 .visuals-crossroad-card:hover {
   transform: scale(1.05);
-  border-color: #5e548e;
+  border-color: var(--visuals-main);
   box-shadow: 0 8px 28px rgba(94, 84, 142, 0.18);
   background: rgba(94, 84, 142, 0.06);
 }
@@ -677,7 +779,7 @@
 
 .visuals-div-gridpaper-icon {
   font-size: 28px;
-  color: #5e548e;
+  color: var(--visuals-main);
   line-height: 1;
   opacity: 0.6;
 }
@@ -698,8 +800,8 @@
 
 /* === Division 入口頁 === */
 .visuals-division-page {
-  padding: 60px 56px 100px;
-  max-width: 820px;
+  padding: 36px 56px 100px;
+  max-width: 920px;
   margin: 0 auto;
 }
 
@@ -709,7 +811,7 @@
   font-size: 10px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #5e548e;
+  color: var(--visuals-main);
   margin-bottom: 20px;
   display: flex;
   gap: 6px;
@@ -737,18 +839,25 @@
 .visuals-breadcrumb-sep {
   opacity: 0.4;
 }
+.visuals-breadcrumb-line {
+  width: 28px;
+  height: 1px;
+  background: var(--visuals-main);
+  flex-shrink: 0;
+}
 
 /* === Division header === */
 .visuals-division-header {
   display: flex;
   align-items: baseline;
   gap: 16px;
+  margin-top: 14px;
   margin-bottom: 6px;
 }
 
 .visuals-division-header-icon {
   font-size: 38px;
-  color: #5e548e;
+  color: var(--visuals-main);
   font-family: var(--font-display);
   line-height: 1;
 }
@@ -763,15 +872,22 @@
 }
 
 .visuals-division-stats {
-  font-family: var(--font-serif-tc);
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--ink-mute);
+  margin-top: 6px;
   margin-bottom: 8px;
+  letter-spacing: 0.06em;
 }
 
 .visuals-gradient-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, #5e548e, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--visuals-main),
+    transparent
+  );
   opacity: 0.4;
   margin: 24px 0;
 }
@@ -822,7 +938,7 @@
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #5e548e;
+  color: var(--visuals-main);
   margin: 2em 0 0.65em;
   scroll-margin-top: 24px;
 }
@@ -830,8 +946,8 @@
 .visuals-prose blockquote {
   margin: 28px 0;
   padding: 4px 0 4px 18px;
-  border-left: 3px solid #5e548e;
-  color: #5e548e;
+  border-left: 3px solid var(--visuals-main);
+  color: var(--visuals-main);
   font-family: var(--font-display);
   font-style: italic;
   font-size: 19px;
@@ -847,7 +963,12 @@
   border: 0;
   height: 1px;
   margin: 38px 0;
-  background: linear-gradient(90deg, transparent, #5e548e, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--visuals-main),
+    transparent
+  );
   opacity: 0.55;
 }
 
@@ -884,8 +1005,8 @@
 }
 
 .visuals-prose th {
-  color: #5e548e;
-  background: color-mix(in srgb, #5e548e 6%, transparent);
+  color: var(--visuals-main);
+  background: color-mix(in srgb, var(--visuals-main) 6%, transparent);
 }
 
 .visuals-prose .hint {
@@ -903,7 +1024,7 @@
   line-height: 0.85;
   padding-top: 6px;
   padding-right: 8px;
-  color: #5e548e;
+  color: var(--visuals-main);
 }
 
 /* === Subcat 卡片 (Division 內) === */
@@ -921,7 +1042,7 @@
   align-items: center;
   padding: 16px 18px;
   border: 1px solid var(--line);
-  border-left: 3px solid #5e548e;
+  border-left: 3px solid var(--visuals-main);
   background: var(--bg-card);
   text-decoration: none;
   color: inherit;
@@ -936,7 +1057,7 @@
 
 .visuals-subcat-card:hover {
   transform: translateX(4px);
-  border-color: #5e548e;
+  border-color: var(--visuals-main);
 }
 
 .visuals-subcat-card.is-locked {
@@ -948,7 +1069,7 @@
 .visuals-subcat-card-num {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #5e548e;
+  color: var(--visuals-main);
   letter-spacing: 0.12em;
 }
 
@@ -968,15 +1089,30 @@
 }
 
 .visuals-subcat-card-arrow {
-  color: #5e548e;
+  color: var(--visuals-main);
   font-size: 16px;
 }
 
 /* === Subcat 頁面 (Gallery 卡片列表) === */
 .visuals-subcat-page {
-  padding: 60px 56px 100px;
+  padding: 36px 56px 100px;
   max-width: 920px;
   margin: 0 auto;
+}
+
+.visuals-subcat-title {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 8px 0 4px;
+  letter-spacing: -0.01em;
+}
+.visuals-subcat-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
 }
 
 /* === 群組檢視器 (Subcat 頁面) === */
@@ -996,7 +1132,7 @@
   position: absolute;
   width: 20px;
   height: 20px;
-  border-color: #5e548e;
+  border-color: var(--visuals-main);
   border-style: solid;
   opacity: 0.4;
   z-index: 2;
@@ -1188,7 +1324,7 @@
   box-shadow:
     0 16px 32px rgba(94, 84, 142, 0.15),
     0 4px 8px rgba(0, 0, 0, 0.08);
-  border-color: #5e548e;
+  border-color: var(--visuals-main);
 }
 
 .visuals-gallery-card:hover::after {
@@ -1283,7 +1419,7 @@
   height: 52px;
   border: 1px solid rgba(94, 84, 142, 0.25);
   background: var(--bg-card);
-  color: #5e548e;
+  color: var(--visuals-main);
   font-family: var(--font-display);
   font-size: 32px;
   font-weight: 500;
@@ -1329,7 +1465,7 @@
 .visuals-corridor-counter {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: #5e548e;
+  color: var(--visuals-main);
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
@@ -1364,7 +1500,7 @@
 }
 
 .visuals-corridor-thumb.is-active {
-  border: 2px solid #5e548e;
+  border: 2px solid var(--visuals-main);
   opacity: 1;
 }
 
@@ -1432,7 +1568,7 @@
   height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
-  color: #5e548e;
+  color: var(--visuals-main);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1737,7 +1873,7 @@
 
 .visuals-sprite-anim-btn.is-active {
   background: rgba(94, 84, 142, 0.1);
-  border-left: 3px solid #5e548e;
+  border-left: 3px solid var(--visuals-main);
 }
 
 .visuals-sprite-anim-name {
@@ -1748,7 +1884,7 @@
 }
 
 .visuals-sprite-anim-btn.is-active .visuals-sprite-anim-name {
-  color: #5e548e;
+  color: var(--visuals-main);
 }
 
 .visuals-sprite-anim-range {
@@ -1824,7 +1960,7 @@
 }
 
 .visuals-sprite-play-btn:hover {
-  border-color: #5e548e;
+  border-color: var(--visuals-main);
   background: rgba(94, 84, 142, 0.08);
 }
 
@@ -1853,8 +1989,8 @@
 
 .visuals-sprite-speed-btn.is-active {
   background: rgba(94, 84, 142, 0.12);
-  border-color: #5e548e;
-  color: #5e548e;
+  border-color: var(--visuals-main);
+  color: var(--visuals-main);
 }
 
 .visuals-sprite-frame-counter {
@@ -1871,7 +2007,7 @@
   background: transparent;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #5e548e;
+  color: var(--visuals-main);
   cursor: pointer;
   letter-spacing: 0.06em;
   transition:
@@ -1906,7 +2042,7 @@
   }
   .visuals-sprite-anim-btn.is-active {
     border-left: none;
-    border-bottom: 3px solid #5e548e;
+    border-bottom: 3px solid var(--visuals-main);
   }
 }
 
@@ -2085,9 +2221,9 @@
 
 .visuals-back-btn {
   padding: 10px 20px;
-  border: 1px solid #5e548e;
+  border: 1px solid var(--visuals-main);
   background: transparent;
-  color: #5e548e;
+  color: var(--visuals-main);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.16em;
@@ -2112,7 +2248,7 @@
 .visuals-particle {
   position: absolute;
   font-family: var(--font-display);
-  color: #5e548e;
+  color: var(--visuals-main);
   opacity: 0.12;
   animation: visuals-particle-float 30s linear infinite;
 }
@@ -2154,23 +2290,60 @@
   margin-bottom: 8px;
 }
 
-/* === 頁面轉場動畫系統 === */
+/* === 頁面轉場動畫系統 — 幻影光影風格 === */
 
 /* 包裹動畫容器 — 透過 React key 變化觸發重新 mount */
 .visuals-view-animate {
-  animation: viewReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: relative;
+  animation: vis-phantom-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes viewReveal {
+/* 紫色光暈閃現 */
+.visuals-view-animate::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(94, 84, 142, 0.2),
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 5;
+  animation: vis-glow-flash 0.55s ease-out both;
+}
+
+@keyframes vis-phantom-enter {
   0% {
     opacity: 0;
-    clip-path: inset(5% 3% 5% 3%);
-    transform: translateY(20px) scale(0.985);
+    transform: translateY(16px) translateX(-3px) scale(0.985);
+    filter: blur(2px) brightness(1.3);
+  }
+  20% {
+    transform: translateY(8px) translateX(2px) scale(0.992);
+    filter: blur(1px) brightness(1.1);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-1px) translateX(0) scale(1.002);
+    filter: blur(0) brightness(1.04);
   }
   100% {
     opacity: 1;
-    clip-path: inset(0 0 0 0);
-    transform: translateY(0) scale(1);
+    transform: translateY(0) translateX(0) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes vis-glow-flash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 

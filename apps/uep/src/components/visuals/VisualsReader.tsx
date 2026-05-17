@@ -241,6 +241,8 @@ function VisualsReaderInner() {
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const [contentReady, setContentReady] = useState(false);
+  const bootMountTime = useRef(Date.now());
+  const bootFired = useRef(false);
 
   // Spoiler
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -316,12 +318,17 @@ function VisualsReaderInner() {
   useEffect(() => {
     void fetchTree();
     void fetchHomepage();
-    const t = setTimeout(() => setContentReady(true), 2000);
+    const t = setTimeout(() => setContentReady(true), 5000);
     return () => clearTimeout(t);
   }, [fetchTree, fetchHomepage]);
 
   useEffect(() => {
-    if (!treeLoading) setContentReady(true);
+    if (!treeLoading && !bootFired.current) {
+      bootFired.current = true;
+      const elapsed = Date.now() - bootMountTime.current;
+      const delay = Math.max(0, 1800 - elapsed);
+      setTimeout(() => setContentReady(true), delay);
+    }
   }, [treeLoading]);
 
   // === URL state ===
@@ -962,8 +969,9 @@ function VisualsReaderInner() {
       <div className="visuals-division-page">
         {/* Breadcrumb */}
         <div className="visuals-breadcrumb">
+          <span className="visuals-breadcrumb-line" />
           <button onClick={() => navigateToLanding()}>幻影重現室</button>
-          <span className="visuals-breadcrumb-sep">/</span>
+          <span className="visuals-breadcrumb-sep">·</span>
           <span>{activeDivision.labelEn}</span>
         </div>
 
@@ -974,7 +982,9 @@ function VisualsReaderInner() {
           </span>
           <h2>{activeDivision.label}</h2>
         </div>
-        <div className="visuals-division-stats">{subcats.length} 個子分類</div>
+        <div className="visuals-division-stats">
+          {subcats.length} subcategories
+        </div>
         <div className="visuals-gradient-divider" />
 
         {/* 內容：優先使用 API，fallback 到硬編碼 */}
@@ -1253,8 +1263,9 @@ function VisualsReaderInner() {
       <div className="visuals-subcat-page">
         {/* Breadcrumb */}
         <div className="visuals-breadcrumb">
+          <span className="visuals-breadcrumb-line" />
           <button onClick={() => navigateToLanding()}>幻影重現室</button>
-          <span className="visuals-breadcrumb-sep">/</span>
+          <span className="visuals-breadcrumb-sep">·</span>
           <button
             onClick={() =>
               activeDivision && navigateToDivision(activeDivision.id)
@@ -1262,31 +1273,12 @@ function VisualsReaderInner() {
           >
             {activeDivision?.label || '...'}
           </button>
-          <span className="visuals-breadcrumb-sep">/</span>
+          <span className="visuals-breadcrumb-sep">·</span>
           <span>{subcatNode.title}</span>
         </div>
 
-        <h2
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 36,
-            fontWeight: 600,
-            color: 'var(--ink-title)',
-            margin: '8px 0 4px',
-            textAlign: 'center',
-          }}
-        >
-          {subcatNode.title}
-        </h2>
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--ink-mute)',
-            letterSpacing: '0.16em',
-            textAlign: 'center',
-          }}
-        >
+        <h2 className="visuals-subcat-title">{subcatNode.title}</h2>
+        <div className="visuals-subcat-meta">
           {galleries.length} galleries · {groupList.length} groups
         </div>
         <div className="visuals-gradient-divider" />
@@ -1518,8 +1510,9 @@ function VisualsReaderInner() {
       <div className="visuals-gallery-page">
         {/* Breadcrumb */}
         <div className="visuals-breadcrumb">
+          <span className="visuals-breadcrumb-line" />
           <button onClick={() => navigateToLanding()}>幻影重現室</button>
-          <span className="visuals-breadcrumb-sep">/</span>
+          <span className="visuals-breadcrumb-sep">·</span>
           <button
             onClick={() =>
               activeDivision && navigateToDivision(activeDivision.id)
@@ -1527,13 +1520,13 @@ function VisualsReaderInner() {
           >
             {activeDivision?.label || '...'}
           </button>
-          <span className="visuals-breadcrumb-sep">/</span>
+          <span className="visuals-breadcrumb-sep">·</span>
           {activeSubcatId && (
             <>
               <button onClick={() => navigateToSubcat(activeSubcatId!)}>
                 {findNodeById(tree, activeSubcatId)?.title || '...'}
               </button>
-              <span className="visuals-breadcrumb-sep">/</span>
+              <span className="visuals-breadcrumb-sep">·</span>
             </>
           )}
           <span>{galleryPage.title}</span>
@@ -1863,11 +1856,17 @@ function VisualsReaderInner() {
   // === Main render ===
   return (
     <div className="visuals-reader">
-      {/* 進場霧化 */}
+      {/* 入場動畫 — 幻影閃現 */}
       <div
-        className={`visuals-arrival ${contentReady ? 'is-ready' : ''}`}
+        className={`vis-boot ${contentReady ? 'is-ready' : ''}`}
         aria-hidden="true"
-      />
+      >
+        <div className="vis-boot-flash vis-boot-flash--l" />
+        <div className="vis-boot-flash vis-boot-flash--r" />
+        <div className="vis-boot-flash vis-boot-flash--l2" />
+        <div className="vis-boot-flash vis-boot-flash--r2" />
+        <div className="vis-boot-grain" />
+      </div>
 
       <TopBar
         onOpenMap={() => setShowMap(true)}

@@ -47,6 +47,12 @@ const AREA_PAGE_TYPES: Record<string, { value: string; label: string }[]> = {
     { value: 'subcategory', label: 'Subcategory (子分類)' },
     { value: 'gallery', label: 'Gallery (畫廊)' },
   ],
+  concepts: [
+    { value: 'stack', label: 'Stack (模組)' },
+    { value: 'type', label: 'Type (分類)' },
+    { value: 'subcategory', label: 'Subcategory (子分類)' },
+    { value: 'context', label: 'Context (內容)' },
+  ],
 };
 
 /** 通用 fallback */

@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { uepDialog } from '../ui/UepDialog';
-import { uepToast } from '../ui/UepToast';
+import type { uepDialog as UepDialogType } from '../ui/UepDialog';
+import type { uepToast as UepToastType } from '../ui/UepToast';
+
+// 跨 React island 取得全域 manager（避免 module instance 不同步）
+function getDialog(): typeof UepDialogType {
+  return (window as any).__uepDialogManager;
+}
+function getToast(): typeof UepToastType {
+  return (window as any).__uepToastManager;
+}
 import { renderIcon } from './IconLibrary';
 
 interface PageTreeNode {
@@ -33,11 +41,13 @@ const TYPE_LETTERS: Record<string, string> = {
   song: '♪',
   division: 'DV',
   gallery: 'GA',
+  stack: 'ST',
+  type: 'TP',
 };
 
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
-const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division']); // 不可拖動排序
-const NO_CHILDREN_TYPES = new Set(['song', 'gallery']); // 不可新增子頁面
+const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division', 'type']); // 不可拖動排序
+const NO_CHILDREN_TYPES = new Set(['song', 'gallery', 'type']); // 不可新增子頁面
 
 // Flatten tree into ordered list with parent info for drag calculations
 interface FlatNode {
@@ -239,6 +249,16 @@ export default function EditorPageTree({
     setTimeout(() => createInputRef.current?.focus(), 30);
   };
 
+  // 從 tree 中查找節點
+  function findNode(nodes: PageTreeNode[], id: string): PageTreeNode | null {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      const found = findNode(n.children || [], id);
+      if (found) return found;
+    }
+    return null;
+  }
+
   // 確認送出建立
   const submitCreate = async () => {
     if (!creating || !newTitle.trim()) {
@@ -256,6 +276,31 @@ export default function EditorPageTree({
     const parentPath = creating.parentId || area;
     const pageSlug = `${parentPath}/${slug}`.replace(`${area}/`, '');
 
+    // Concepts 區域：stack 下的子頁面自動設定 pageType 和 stack_style
+    let newPageType = 'section';
+    let newMetadata: Record<string, unknown> = {};
+    if (area === 'concepts' && creating.parentId) {
+      const parentNode = findNode(tree, creating.parentId);
+      if (parentNode?.pageType === 'stack') {
+        newPageType = 'type';
+        // 從已有的子頁面繼承 stack_style，或從 slug 映射
+        const existingChild = (parentNode.children || []).find(
+          (c) => c.metadata?.stack_style
+        );
+        const stackStyle =
+          existingChild?.metadata?.stack_style ||
+          (
+            {
+              'server/records': 'dossier',
+              'server/browser': 'browser',
+              'server/time_logs': 'chrono',
+              'server/translation': 'diff',
+            } as Record<string, string>
+          )[parentNode.slug];
+        if (stackStyle) newMetadata = { stack_style: stackStyle };
+      }
+    }
+
     setCreateLoading(true);
     setCreateError(null);
 
@@ -268,9 +313,9 @@ export default function EditorPageTree({
           content: [{ id: 'content', type: 'rich_text', content: '<p></p>' }],
           parentId: creating.parentId || null,
           depth: creating.parentDepth + 1,
-          pageType: 'section',
+          pageType: newPageType,
           sortOrder: creating.insertIndex,
-          metadata: {},
+          metadata: newMetadata,
         }),
       });
       const json = await res.json();
@@ -296,9 +341,9 @@ export default function EditorPageTree({
   const handleDelete = async (node: PageTreeNode) => {
     const hasChildren = node.children && node.children.length > 0;
     const msg = hasChildren
-      ? `"${node.title}" has ${node.children.length} child page(s). Delete anyway?`
-      : `Delete "${node.title}"?`;
-    if (!(await uepDialog.confirm(msg))) return;
+      ? `確定要刪除 "${node.title}" 嗎？此節點有 ${node.children.length} 個子頁面。`
+      : `確定要刪除 "${node.title}" 嗎？`;
+    if (!(await getDialog().confirm(msg))) return;
 
     const pageSlug = node.id.replace(`${area}/`, '');
     try {
@@ -313,10 +358,10 @@ export default function EditorPageTree({
           fetchTree();
         }
       } else {
-        uepToast.error(`Failed: ${json.error}`);
+        getToast().error(`Failed: ${json.error}`);
       }
     } catch (e: any) {
-      uepToast.error(`Error: ${e.message}`);
+      getToast().error(`Error: ${e.message}`);
     }
   };
 
