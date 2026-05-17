@@ -1,0 +1,993 @@
+/* ═══════════════════════════════════════════════════════════════════
+   StorageReader — 某人的置物空間
+   ═══════════════════════════════════════════════════════════════════ */
+
+.storage-reader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-body);
+  color: var(--ink-body);
+  overflow: hidden;
+}
+.sto-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.sto-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   轉場動畫
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-page-transition {
+  position: relative;
+  will-change: transform, opacity;
+  animation: sto-page-enter 0.4s ease-out both;
+}
+@keyframes sto-page-enter {
+  0% { opacity: 0; transform: translate3d(0, 8px, 0); }
+  40% { opacity: 1; }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   入場動畫 — 書桌燈漸亮
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: #0d0c0a;
+  overflow: hidden;
+  transition: opacity 0.8s ease, filter 0.8s ease;
+}
+.sto-boot.is-ready {
+  opacity: 0;
+  filter: blur(4px);
+  pointer-events: none;
+}
+.sto-boot-lamp {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(213, 182, 24, 0.15) 0%, transparent 70%);
+  animation: sto-lamp-glow 2s ease-in-out forwards;
+}
+@keyframes sto-lamp-glow {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  60% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   共用元素：Kicker / Breadcrumb / Divider / Prose
+   （數值對齊 Concepts/Echoes/Visuals 標準）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.sto-kicker::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--storage-soft);
+}
+
+.sto-breadcrumb {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--storage-soft);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sto-breadcrumb-line {
+  width: 28px;
+  height: 1px;
+  background: var(--storage-soft);
+}
+.sto-breadcrumb button {
+  background: none;
+  border: none;
+  color: var(--storage-soft);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.sto-breadcrumb button:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.sto-gradient-line {
+  margin-top: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--storage-soft), transparent);
+  opacity: 0.5;
+}
+
+.sto-prose {
+  font-family: var(--font-serif-tc);
+  font-size: 17px;
+  line-height: 2.08;
+  color: var(--ink);
+  margin: 24px 0;
+}
+.sto-prose p {
+  margin: 0 0 1.3em;
+}
+.sto-prose hr {
+  border: none;
+  height: 1px;
+  background: var(--hairline);
+  margin: 24px 0;
+}
+.sto-drop-cap {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 600;
+  float: left;
+  line-height: 0.85;
+  padding-top: 6px;
+  padding-right: 8px;
+  color: var(--storage-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Landing 首頁
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-landing {
+  min-height: 100%;
+}
+.sto-landing-inner {
+  max-width: 920px;
+  padding: 48px 56px 72px;
+  margin: 0 auto;
+}
+.sto-landing-title {
+  font-family: var(--font-display);
+  font-size: 58px;
+  font-weight: 500;
+  color: var(--ink-heading);
+  line-height: 1;
+  margin: 10px 0 0;
+}
+.sto-landing-subtitle {
+  font-family: var(--font-serif-tc);
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--ink-sub);
+  max-width: 600px;
+  margin-top: 24px;
+  font-style: italic;
+}
+.sto-landing-uep {
+  margin: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Storage Room Map — 置物空間節點地圖
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-room-map {
+  margin-top: 40px;
+}
+.sto-room-map-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.sto-room-map-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--storage-soft), transparent);
+  opacity: 0.35;
+}
+
+/* 房間地板 — 節點空間 */
+.sto-room-floor {
+  position: relative;
+  min-height: 380px;
+  border: 1px solid color-mix(in srgb, var(--storage-soft) 15%, transparent);
+  background:
+    radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--storage-soft) 3%, transparent) 0%, transparent 60%),
+    var(--bg-card);
+  overflow: hidden;
+}
+
+/* 連接線 */
+.sto-room-paths {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sto-room-path {
+  stroke: var(--storage-soft);
+  stroke-width: 0.3;
+  stroke-dasharray: 2 3;
+  opacity: 0.35;
+}
+.sto-room-center-dot {
+  fill: var(--storage-soft);
+  opacity: 0.25;
+}
+
+/* 節點容器 — CSS grid 三角佈局 */
+.sto-room-nodes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas:
+    "a b"
+    "c c";
+  gap: 0;
+  padding: 24px;
+}
+
+/* 單一節點 */
+.sto-room-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  position: relative;
+  transition: transform 0.3s ease;
+}
+.sto-room-node:hover {
+  transform: scale(1.05);
+}
+
+/* 節點信標 — 呼吸光暈 */
+.sto-room-node-beacon {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--storage-soft) 12%, transparent), transparent 70%);
+  opacity: 0.6;
+  animation: sto-beacon-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+.sto-room-node:nth-child(2) .sto-room-node-beacon {
+  animation-delay: -1s;
+}
+.sto-room-node:nth-child(3) .sto-room-node-beacon {
+  animation-delay: -2s;
+}
+@keyframes sto-beacon-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.25); opacity: 0.7; }
+}
+
+/* 節點圖示 */
+.sto-room-node-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  color: var(--storage-soft);
+  border: 1.5px solid color-mix(in srgb, var(--storage-soft) 40%, transparent);
+  background: var(--bg-body);
+  position: relative;
+  z-index: 1;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.sto-room-node:hover .sto-room-node-icon {
+  border-color: var(--storage-soft);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--storage-soft) 20%, transparent);
+}
+
+.sto-room-node-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink-title);
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.sto-room-node-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  position: relative;
+  z-index: 1;
+}
+.sto-room-node-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  font-style: italic;
+  text-align: center;
+  max-width: 180px;
+  position: relative;
+  z-index: 1;
+}
+.sto-room-node-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--storage-soft);
+  opacity: 0.7;
+  letter-spacing: 0.08em;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 子頁面
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-clearing-page {
+  max-width: 920px;
+  padding: 36px 56px 100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+.sto-clearing-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 14px;
+}
+.sto-clearing-title-icon {
+  font-size: 38px;
+  color: var(--storage-soft);
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.sto-clearing-title {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.sto-clearing-stats {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  letter-spacing: 0.06em;
+  margin-top: 6px;
+}
+.sto-clearing-uep {
+  margin: 24px 0 32px;
+}
+
+/* Entry 卡片列表 — 對齊 echoes-subcat-card 模式 */
+.sto-entries-header {
+  margin-top: 32px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--storage-soft);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.sto-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sto-entry-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 30px 1fr 80px 24px;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--storage-soft);
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background 0.2s, transform 0.2s;
+}
+.sto-entry-card:hover:not(.locked) {
+  background: var(--bg-soft);
+  transform: translateX(4px);
+}
+.sto-entry-card.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-left-color: var(--ink-mute);
+}
+.sto-entry-card-idx {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--storage-soft);
+  letter-spacing: 0.12em;
+}
+.sto-entry-card.locked .sto-entry-card-idx {
+  color: var(--ink-mute);
+}
+.sto-entry-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sto-entry-card-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-entry-card-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sto-entry-card-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+  text-align: right;
+}
+.sto-entry-card-lock {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+}
+.sto-entry-card-arrow {
+  font-size: 16px;
+  color: var(--storage-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading 閱讀頁
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-reading-page {
+  max-width: 920px;
+  padding: 36px 56px 100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+.sto-reading-title {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 14px 0 0;
+  letter-spacing: -0.01em;
+}
+.sto-reading-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.14em;
+}
+.sto-reading-body {
+  margin-top: 28px;
+}
+
+/* 劇本角色樣式 */
+.sto-script-narrator {
+  font-family: var(--font-serif-tc);
+  font-size: 17px;
+  line-height: 2.08;
+  color: var(--ink);
+  margin: 0 0 18px;
+}
+.sto-script-sfx {
+  margin: 16px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--ink-mute);
+  text-align: center;
+}
+.sto-script-you {
+  margin: 16px 0 18px;
+  padding: 8px 16px 8px 18px;
+  border-left: 3px solid var(--storage-soft);
+  background: color-mix(in srgb, var(--storage-soft) 4%, transparent);
+  font-family: var(--font-serif-tc);
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--ink);
+  font-style: italic;
+  position: relative;
+}
+.sto-script-you-label {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 1px 8px;
+  background: var(--bg-body);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  font-style: normal;
+}
+.sto-script-break {
+  margin: 34px 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sto-script-break-line {
+  flex: 1;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+.sto-script-break-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+
+/* 遮蔽墨水 */
+.sto-redact {
+  background: #222;
+  color: #222;
+  padding: 0 4px;
+  border-radius: 2px;
+  letter-spacing: -0.1em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 入口卡片 — boxes（紙箱風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-crate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px;
+  margin-top: 14px;
+}
+.sto-crate-card {
+  position: relative;
+  padding: 24px 22px 22px;
+  background: repeating-linear-gradient(135deg, #e7d4a4 0 8px, #ddc998 8px 16px);
+  min-height: 200px;
+  color: #3a2f08;
+  cursor: pointer;
+  transition: transform 0.25s, box-shadow 0.25s;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.12), inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  border: none;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+[data-theme="dark"] .sto-crate-card {
+  background: repeating-linear-gradient(135deg, #3d3520 0 8px, #352e1c 8px 16px);
+  color: #e8dfc8;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.sto-crate-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.16), inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.sto-crate-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: repeating-linear-gradient(135deg, #d8c9a0 0 8px, #ccbf95 8px 16px);
+}
+.sto-crate-card.locked:hover {
+  transform: none;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.12);
+}
+.sto-crate-tape {
+  position: absolute;
+  width: 64px;
+  height: 18px;
+  background: rgba(231, 220, 178, 0.85);
+  border-left: 1px dashed rgba(0, 0, 0, 0.10);
+  border-right: 1px dashed rgba(0, 0, 0, 0.10);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+[data-theme="dark"] .sto-crate-tape {
+  background: rgba(80, 70, 45, 0.85);
+}
+.sto-crate-label {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  padding: 4px 10px;
+  background: rgba(255, 247, 222, 0.88);
+  border: 1px solid rgba(58, 47, 8, 0.30);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+[data-theme="dark"] .sto-crate-label {
+  background: rgba(60, 50, 30, 0.88);
+  border-color: rgba(213, 182, 24, 0.3);
+  color: var(--storage-soft);
+}
+.sto-crate-date {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+.sto-crate-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.sto-crate-hint {
+  margin-top: 12px;
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 1.7;
+  font-style: italic;
+  padding: 8px 10px;
+  background: rgba(255, 247, 222, 0.55);
+}
+[data-theme="dark"] .sto-crate-hint {
+  background: rgba(40, 35, 20, 0.55);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 入口卡片 — changelog（信紙風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-lognote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+.sto-lognote-card {
+  position: relative;
+  padding: 24px 28px 26px;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(58, 58, 58, 0.07) 31px 32px),
+    var(--bg-card);
+  border-top: 1px solid var(--hairline-strong);
+  border-bottom: 1px solid var(--hairline-strong);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  border-left: none;
+  border-right: none;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+.sto-lognote-card:hover:not(.locked) {
+  transform: translateX(2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+.sto-lognote-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.sto-lognote-holes {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  padding: 18px 0;
+}
+.sto-lognote-hole {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-soft);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.10);
+}
+.sto-lognote-tab {
+  position: absolute;
+  top: -8px;
+  right: 26px;
+  padding: 4px 10px;
+  background: #FBE782;
+  color: #3a2f08;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.10);
+}
+[data-theme="dark"] .sto-lognote-tab {
+  background: #5c4f1a;
+  color: #fbe782;
+}
+.sto-lognote-body {
+  margin-left: 26px;
+}
+.sto-lognote-date {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  margin-bottom: 4px;
+}
+.sto-lognote-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink-title);
+  letter-spacing: -0.005em;
+}
+.sto-lognote-author {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 入口卡片 — extras（部落格風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-extras-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+.sto-extras-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 22px;
+  align-items: start;
+  padding: 24px 28px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--storage-soft);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+.sto-extras-card:hover:not(.locked) {
+  transform: translateX(3px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+.sto-extras-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-left-color: var(--ink-mute);
+  border-style: dashed;
+}
+.sto-extras-num {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--storage-soft);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.sto-extras-date {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+}
+.sto-extras-meta-line {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  margin-bottom: 4px;
+}
+.sto-extras-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink-title);
+  letter-spacing: -0.005em;
+}
+.sto-extras-hint {
+  margin-top: 10px;
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+.sto-extras-arrow {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--storage-soft);
+  align-self: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading — ScriptReader 場景面板
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-script-cast-panel {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px dashed var(--hairline-strong);
+  background: var(--bg-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.sto-script-cast-label {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+.sto-script-cast-value {
+  margin-top: 4px;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading — LogReader metadata 面板
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-log-meta-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border: 1px solid var(--hairline-strong);
+}
+.sto-log-meta-cell {
+  padding: 12px 16px;
+  border-right: 1px solid var(--hairline-strong);
+}
+.sto-log-meta-cell:last-child {
+  border-right: none;
+}
+.sto-log-meta-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+.sto-log-meta-value {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+.sto-log-meta-redact {
+  background: #222;
+  color: transparent;
+  padding: 0 6px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Reading — BlogReader meta strip */
+.sto-blog-meta {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+}
+.sto-blog-meta-accent {
+  color: var(--storage-soft);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   響應式
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .sto-landing-inner {
+    padding: 32px 24px 56px;
+  }
+  .sto-landing-title {
+    font-size: 38px;
+  }
+  .sto-clearing-page,
+  .sto-reading-page {
+    padding: 28px 24px 80px;
+  }
+  .sto-clearing-title,
+  .sto-reading-title {
+    font-size: 32px;
+  }
+  .sto-entry-card {
+    grid-template-columns: 30px 1fr 24px;
+  }
+  .sto-entry-card-date {
+    display: none;
+  }
+  .sto-room-floor {
+    min-height: 480px;
+  }
+  .sto-room-nodes {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    grid-template-areas: "a" "b" "c";
+    padding: 16px;
+  }
+  .sto-room-paths {
+    display: none;
+  }
+  .sto-room-node-hint {
+    display: none;
+  }
+}

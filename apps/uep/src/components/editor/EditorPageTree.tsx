@@ -43,11 +43,13 @@ const TYPE_LETTERS: Record<string, string> = {
   gallery: 'GA',
   stack: 'ST',
   type: 'TP',
+  clearing: 'CL',
+  stuff: 'SF',
 };
 
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
-const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division', 'type']); // 不可拖動排序
-const NO_CHILDREN_TYPES = new Set(['song', 'gallery', 'type']); // 不可新增子頁面
+const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division', 'type', 'clearing']); // 不可拖動排序
+const NO_CHILDREN_TYPES = new Set(['song', 'gallery', 'type', 'stuff']); // 不可新增子頁面
 
 // Flatten tree into ordered list with parent info for drag calculations
 interface FlatNode {
@@ -276,14 +278,14 @@ export default function EditorPageTree({
     const parentPath = creating.parentId || area;
     const pageSlug = `${parentPath}/${slug}`.replace(`${area}/`, '');
 
-    // Concepts 區域：stack 下的子頁面自動設定 pageType 和 stack_style
+    // 自動設定子頁面的 pageType
     let newPageType = 'section';
     let newMetadata: Record<string, unknown> = {};
-    if (area === 'concepts' && creating.parentId) {
+    if (creating.parentId) {
       const parentNode = findNode(tree, creating.parentId);
-      if (parentNode?.pageType === 'stack') {
+      // Concepts 區域：stack 下的子頁面自動設定 pageType 和 stack_style
+      if (area === 'concepts' && parentNode?.pageType === 'stack') {
         newPageType = 'type';
-        // 從已有的子頁面繼承 stack_style，或從 slug 映射
         const existingChild = (parentNode.children || []).find(
           (c) => c.metadata?.stack_style
         );
@@ -298,6 +300,10 @@ export default function EditorPageTree({
             } as Record<string, string>
           )[parentNode.slug];
         if (stackStyle) newMetadata = { stack_style: stackStyle };
+      }
+      // Storage 區域：clearing 下的子頁面自動設為 stuff
+      if (area === 'storage' && parentNode?.pageType === 'clearing') {
+        newPageType = 'stuff';
       }
     }
 

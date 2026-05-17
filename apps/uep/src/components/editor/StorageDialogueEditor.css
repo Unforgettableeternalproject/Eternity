@@ -1,0 +1,294 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Storage Dialogue Editor — 劇本式編輯器
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sto-dialogue-editor {
+  padding: 8px 0;
+}
+
+/* 統計列 */
+.sto-de-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--storage-soft, #D5B618);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--storage-soft, #D5B618);
+}
+
+/* 區段標題 */
+.sto-de-section-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.sto-de-hint {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-style: italic;
+}
+
+/* 身分標籤庫 */
+.sto-de-role-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sto-de-role-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--role-color);
+  background: transparent;
+  color: var(--role-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sto-de-role-btn:hover {
+  background: color-mix(in srgb, var(--role-color) 10%, transparent);
+}
+.sto-de-role-chip {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--role-color);
+  color: #fff;
+}
+
+/* 劇本行容器 */
+.sto-de-lines-container {
+  margin-top: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+
+/* 單行 */
+.sto-de-line {
+  display: grid;
+  grid-template-columns: 30px 90px 1fr 40px 30px 24px;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, border-left-color 0.15s;
+}
+.sto-de-line:last-child {
+  border-bottom: none;
+}
+.sto-de-line:hover {
+  background: color-mix(in srgb, var(--role-color, var(--ink-mute)) 4%, transparent);
+}
+.sto-de-line.is-selected {
+  background: color-mix(in srgb, var(--storage-soft, #D5B618) 6%, transparent);
+  border-left-color: var(--storage-soft, #D5B618);
+}
+
+/* 場景斷行 */
+.sto-de-line--break {
+  grid-template-columns: 30px 1fr auto 1fr 24px;
+  align-items: center;
+  padding: 12px 12px;
+}
+.sto-de-break-line {
+  flex: 1;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+.sto-de-break-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* 行號 */
+.sto-de-line-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  padding-top: 7px;
+}
+
+/* 角色選擇 */
+.sto-de-line-role {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 6px;
+  background: transparent;
+  border: 1px solid currentColor;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  height: 30px;
+  outline: none;
+}
+
+/* 文字區域 */
+.sto-de-line-text {
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--ink);
+  background: transparent;
+  border: 1px dashed transparent;
+  outline: none;
+  resize: vertical;
+  min-height: 32px;
+}
+.sto-de-line-text:focus {
+  border-color: var(--hairline-strong);
+}
+.sto-de-line.is-selected .sto-de-line-text {
+  border-color: var(--hairline);
+}
+
+/* UEP 方向切換 */
+.sto-de-side-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+.sto-de-side-btn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 5px;
+  cursor: pointer;
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  transition: all 0.15s;
+}
+.sto-de-side-btn.is-active {
+  background: var(--storage-soft, #D5B618);
+  color: #3a2f08;
+  border-color: var(--storage-soft, #D5B618);
+}
+.sto-de-side-spacer {
+  width: 30px;
+}
+
+/* 移動按鈕 */
+.sto-de-line-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 2px;
+}
+.sto-de-move-btn {
+  font-size: 10px;
+  padding: 2px 4px;
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  line-height: 1;
+}
+.sto-de-move-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-mute);
+}
+.sto-de-move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 刪除按鈕 */
+.sto-de-line-remove {
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+  align-self: flex-start;
+  padding-top: 4px;
+}
+.sto-de-line-remove:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+/* 底部快速新增列 */
+.sto-de-quick-add {
+  display: flex;
+  border-top: 1px dashed var(--hairline-strong);
+}
+.sto-de-quick-add-btn {
+  flex: 1;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  border-right: 1px dashed var(--hairline);
+  color: var(--role-color);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: background 0.15s;
+}
+.sto-de-quick-add-btn:last-child {
+  border-right: none;
+}
+.sto-de-quick-add-btn:hover {
+  background: color-mix(in srgb, var(--role-color) 8%, transparent);
+}
+
+/* 空狀態 */
+.sto-de-empty {
+  padding: 32px 16px;
+  text-align: center;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   響應式
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .sto-de-line {
+    grid-template-columns: 24px 70px 1fr 30px 24px;
+  }
+  .sto-de-line-actions {
+    display: none;
+  }
+  .sto-de-role-palette {
+    gap: 5px;
+  }
+  .sto-de-role-btn {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+}

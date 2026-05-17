@@ -36,7 +36,12 @@ export type PageType =
   | 'song' // Echoes 專用
   | 'homepage' // 區域首頁
   | 'division' // Visuals 專用：分館（profiles/illustrations/sketchs/pixel）
-  | 'gallery'; // Visuals 專用：畫廊頁面（含多張圖片）
+  | 'gallery' // Visuals 專用：畫廊頁面（含多張圖片）
+  | 'stack'
+  | 'type'
+  | 'context' // Concepts 專用
+  | 'clearing'
+  | 'stuff'; // Storage 專用
 
 /** 單一內容區塊 */
 export interface ContentBlock {
