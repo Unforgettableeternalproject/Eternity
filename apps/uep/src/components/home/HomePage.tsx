@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ZONES, VERSES, RECENTS, zoneTextColor } from '../../data/zones';
+import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import TopBar from '../ui/TopBar';
 import UepAvatar from '../ui/UepAvatar';
@@ -11,6 +11,20 @@ import IntroOverlay from '../ui/IntroOverlay';
 import PortalTransition from '../ui/PortalTransition';
 import { useIsMobile } from '../../utils/useIsMobile';
 import './HomePage.css';
+
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+interface RecentItem {
+  id: string;
+  area: string;
+  title: string;
+  slug: string;
+  pageType: string;
+  metadata: Record<string, unknown>;
+  updatedAt: string;
+}
 
 export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const isMobile = useIsMobile();
@@ -27,6 +41,17 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 80);
     return () => clearTimeout(t);
+  }, []);
+
+  // 最近更新
+  const [recents, setRecents] = useState<RecentItem[]>([]);
+  useEffect(() => {
+    fetch(`${API_BASE}/api/content/recent?limit=5`)
+      .then((r) => r.json())
+      .then((json: any) => {
+        if (json.ok && Array.isArray(json.data)) setRecents(json.data);
+      })
+      .catch(() => {});
   }, []);
 
   // 檢查是否已登入（透過前端可讀的指示 cookie）
@@ -634,17 +659,37 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             </div>
           </div>
           <div className="home-recents-grid">
-            {RECENTS.map((r, i) => {
-              const z = ZONES.find((z) => z.id === r.zone);
+            {recents.length === 0 && (
+              <div style={{
+                gridColumn: '1 / -1',
+                padding: '24px 18px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--ink-mute)',
+                letterSpacing: '0.12em',
+                textAlign: 'center',
+              }}>
+                — loading —
+              </div>
+            )}
+            {recents.map((r, i) => {
+              const z = ZONES.find((z) => z.id === r.area);
+              const dateStr = r.updatedAt
+                ? new Date(r.updatedAt).toLocaleDateString('zh-TW', {
+                    month: '2-digit',
+                    day: '2-digit',
+                  })
+                : '';
               return (
-                <div
-                  key={i}
+                <a
+                  key={r.id}
+                  href={`/${r.area}?page=${r.slug}`}
+                  className="home-recent-card"
                   style={{
-                    padding: '20px 18px',
-                    borderRight: i < 4 ? '1px solid var(--hairline)' : 'none',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
+                    borderRight:
+                      i < recents.length - 1
+                        ? '1px solid var(--hairline)'
+                        : 'none',
                   }}
                 >
                   <div
@@ -678,9 +723,9 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                       letterSpacing: '0.04em',
                     }}
                   >
-                    {r.note}
+                    {dateStr}
                   </div>
-                </div>
+                </a>
               );
             })}
           </div>
