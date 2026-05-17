@@ -1,0 +1,50 @@
+/* ──────────────────────────────────────────────────────────────
+   ZoneBreadcrumb — 各 zone Reader 共用麵包屑
+   ────────────────────────────────────────────────────────────── */
+
+.zone-breadcrumb {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.zone-breadcrumb-line {
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.zone-breadcrumb-sep {
+  opacity: 0.4;
+}
+
+.zone-breadcrumb button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.zone-breadcrumb button:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* History 例外：底部分隔線 */
+.zone-breadcrumb--bordered {
+  padding-bottom: 14px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}

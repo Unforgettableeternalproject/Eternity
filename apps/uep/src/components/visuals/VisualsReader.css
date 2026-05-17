@@ -245,7 +245,7 @@
 
 /* Hover 引導線 — 從中心繪製出來 */
 .visuals-road-guide {
-  stroke: #9f86c0;
+  stroke: var(--visuals-soft);
   stroke-width: 1;
   fill: none;
   /* dasharray 和 dashoffset 由 inline style 設定（= 線段長度） */
@@ -332,8 +332,8 @@
 .visuals-crossroad-card:hover {
   transform: scale(1.05);
   border-color: var(--visuals-main);
-  box-shadow: 0 8px 28px rgba(94, 84, 142, 0.18);
-  background: rgba(94, 84, 142, 0.06);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--visuals-main) 18%, transparent);
+  background: color-mix(in srgb, var(--visuals-main) 6%, transparent);
 }
 
 .visuals-crossroad-dir {
@@ -379,8 +379,8 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(94, 84, 142, 0.18) 10%,
-    rgba(94, 84, 142, 0.18) 90%,
+    color-mix(in srgb, var(--visuals-main) 18%, transparent) 10%,
+    color-mix(in srgb, var(--visuals-main) 18%, transparent) 90%,
     transparent 100%
   );
   pointer-events: none;
@@ -410,7 +410,7 @@
 .visuals-div-corridor-connector {
   flex: 1;
   height: 1px;
-  background: rgba(94, 84, 142, 0.15);
+  background: color-mix(in srgb, var(--visuals-main) 15%, transparent);
   min-width: 16px;
 }
 
@@ -446,27 +446,27 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(94, 84, 142, 0.3),
+    color-mix(in srgb, var(--visuals-main) 30%, transparent),
     transparent
   );
 }
 
 .visuals-div-corridor-door:hover {
   transform: translateY(-4px);
-  border-color: rgba(94, 84, 142, 0.4);
-  box-shadow: 0 8px 24px rgba(94, 84, 142, 0.1);
+  border-color: color-mix(in srgb, var(--visuals-main) 40%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--visuals-main) 10%, transparent);
 }
 
 .visuals-div-corridor-num {
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 700;
-  color: rgba(94, 84, 142, 0.25);
+  color: color-mix(in srgb, var(--visuals-main) 25%, transparent);
   line-height: 1;
 }
 
 .visuals-div-corridor-door:hover .visuals-div-corridor-num {
-  color: rgba(94, 84, 142, 0.5);
+  color: color-mix(in srgb, var(--visuals-main) 50%, transparent);
 }
 
 .visuals-div-corridor-title {
@@ -515,8 +515,8 @@
     0deg,
     transparent,
     transparent 40px,
-    rgba(94, 84, 142, 0.03) 40px,
-    rgba(94, 84, 142, 0.03) 41px
+    color-mix(in srgb, var(--visuals-main) 3%, transparent) 40px,
+    color-mix(in srgb, var(--visuals-main) 3%, transparent) 41px
   );
 }
 
@@ -547,8 +547,8 @@
   height: 20px;
   background: linear-gradient(
     180deg,
-    rgba(94, 84, 142, 0.1),
-    rgba(94, 84, 142, 0.25)
+    color-mix(in srgb, var(--visuals-main) 10%, transparent),
+    color-mix(in srgb, var(--visuals-main) 25%, transparent)
   );
   margin: 0 auto 0;
 }
@@ -574,7 +574,7 @@
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.08),
     inset 0 0 0 5px var(--bg-card),
-    inset 0 0 0 6px rgba(94, 84, 142, 0.12);
+    inset 0 0 0 6px color-mix(in srgb, var(--visuals-main) 12%, transparent);
   min-width: 180px;
 }
 
@@ -606,7 +606,7 @@
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.12),
     inset 0 0 0 5px var(--bg-card),
-    inset 0 0 0 6px rgba(94, 84, 142, 0.2);
+    inset 0 0 0 6px color-mix(in srgb, var(--visuals-main) 20%, transparent);
 }
 
 .visuals-div-museum-ornament {
@@ -654,7 +654,7 @@
   padding: 32px 16px;
   background: radial-gradient(
     circle at 30% 40%,
-    rgba(94, 84, 142, 0.06),
+    color-mix(in srgb, var(--visuals-main) 6%, transparent),
     transparent 60%
   );
   min-height: 200px;
@@ -722,17 +722,17 @@
       0deg,
       transparent,
       transparent 23px,
-      rgba(94, 84, 142, 0.07) 23px,
-      rgba(94, 84, 142, 0.07) 24px
+      color-mix(in srgb, var(--visuals-main) 7%, transparent) 23px,
+      color-mix(in srgb, var(--visuals-main) 7%, transparent) 24px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent 23px,
-      rgba(94, 84, 142, 0.07) 23px,
-      rgba(94, 84, 142, 0.07) 24px
+      color-mix(in srgb, var(--visuals-main) 7%, transparent) 23px,
+      color-mix(in srgb, var(--visuals-main) 7%, transparent) 24px
     );
-  border: 1px dashed rgba(94, 84, 142, 0.25);
+  border: 1px dashed color-mix(in srgb, var(--visuals-main) 25%, transparent);
   position: relative;
 }
 
@@ -747,7 +747,7 @@
   width: 200px;
   padding: 20px 16px 16px;
   background: var(--bg-card);
-  border: 1px dashed rgba(94, 84, 142, 0.3);
+  border: 1px dashed color-mix(in srgb, var(--visuals-main) 30%, transparent);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -767,14 +767,14 @@
   content: '';
   position: absolute;
   inset: 3px;
-  border: 1px solid rgba(94, 84, 142, 0.08);
+  border: 1px solid color-mix(in srgb, var(--visuals-main) 8%, transparent);
   pointer-events: none;
 }
 
 .visuals-div-gridpaper-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(94, 84, 142, 0.5);
-  box-shadow: 0 8px 24px rgba(94, 84, 142, 0.12);
+  border-color: color-mix(in srgb, var(--visuals-main) 50%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--visuals-main) 12%, transparent);
 }
 
 .visuals-div-gridpaper-icon {
@@ -805,46 +805,6 @@
   margin: 0 auto;
 }
 
-/* === Breadcrumb === */
-.visuals-breadcrumb {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--visuals-main);
-  margin-bottom: 20px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.visuals-breadcrumb button {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  padding: 0;
-  opacity: 0.7;
-}
-
-.visuals-breadcrumb button:hover {
-  opacity: 1;
-  text-decoration: underline;
-}
-
-.visuals-breadcrumb-sep {
-  opacity: 0.4;
-}
-.visuals-breadcrumb-line {
-  width: 28px;
-  height: 1px;
-  background: var(--visuals-main);
-  flex-shrink: 0;
-}
 
 /* === Division header === */
 .visuals-division-header {
@@ -955,8 +915,8 @@
 }
 
 .visuals-prose a {
-  color: #9f86c0;
-  text-decoration-color: color-mix(in srgb, #9f86c0 52%, transparent);
+  color: var(--visuals-soft);
+  text-decoration-color: color-mix(in srgb, var(--visuals-soft) 52%, transparent);
 }
 
 .visuals-prose hr {
@@ -1205,7 +1165,7 @@
   height: 68px;
   border: none;
   background: transparent;
-  color: rgba(94, 84, 142, 0.45);
+  color: color-mix(in srgb, var(--visuals-main) 45%, transparent);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1224,7 +1184,7 @@
 }
 
 .visuals-viewer-side-arrow:hover:not(:disabled) {
-  color: #3e3066;
+  color: var(--visuals-main);
   transform: translateY(-50%) scale(1.15);
 }
 
@@ -1313,7 +1273,7 @@
   height: 0;
   border-style: solid;
   border-width: 0 28px 28px 0;
-  border-color: transparent rgba(94, 84, 142, 0.08) transparent transparent;
+  border-color: transparent color-mix(in srgb, var(--visuals-main) 8%, transparent) transparent transparent;
   z-index: 2;
   pointer-events: none;
   transition: border-color 0.25s;
@@ -1322,18 +1282,18 @@
 .visuals-gallery-card:hover {
   transform: translateY(-6px);
   box-shadow:
-    0 16px 32px rgba(94, 84, 142, 0.15),
+    0 16px 32px color-mix(in srgb, var(--visuals-main) 15%, transparent),
     0 4px 8px rgba(0, 0, 0, 0.08);
   border-color: var(--visuals-main);
 }
 
 .visuals-gallery-card:hover::after {
-  border-color: rgba(94, 84, 142, 0.3);
-  box-shadow: inset 0 0 12px rgba(94, 84, 142, 0.06);
+  border-color: color-mix(in srgb, var(--visuals-main) 30%, transparent);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--visuals-main) 6%, transparent);
 }
 
 .visuals-gallery-card:hover::before {
-  border-color: transparent rgba(94, 84, 142, 0.25) transparent transparent;
+  border-color: transparent color-mix(in srgb, var(--visuals-main) 25%, transparent) transparent transparent;
 }
 
 .visuals-gallery-card-thumb {
@@ -1417,7 +1377,7 @@
 .visuals-corridor-arrow {
   width: 52px;
   height: 52px;
-  border: 1px solid rgba(94, 84, 142, 0.25);
+  border: 1px solid color-mix(in srgb, var(--visuals-main) 25%, transparent);
   background: var(--bg-card);
   color: var(--visuals-main);
   font-family: var(--font-display);
@@ -1430,14 +1390,14 @@
 }
 
 .visuals-corridor-arrow:hover {
-  background: rgba(94, 84, 142, 0.1);
+  background: color-mix(in srgb, var(--visuals-main) 10%, transparent);
 }
 
 .visuals-corridor-main {
   max-width: 520px;
   margin: 0 auto;
   padding: 10px;
-  border: 1px solid rgba(94, 84, 142, 0.25);
+  border: 1px solid color-mix(in srgb, var(--visuals-main) 25%, transparent);
   background: var(--bg-card);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
   position: relative;
@@ -1546,7 +1506,7 @@
 .visuals-gallery-hover-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(94, 84, 142, 0.12);
+  background: color-mix(in srgb, var(--visuals-main) 12%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1598,8 +1558,8 @@
     0deg,
     transparent,
     transparent 60px,
-    rgba(94, 84, 142, 0.03) 60px,
-    rgba(94, 84, 142, 0.03) 61px
+    color-mix(in srgb, var(--visuals-main) 3%, transparent) 60px,
+    color-mix(in srgb, var(--visuals-main) 3%, transparent) 61px
   );
 }
 
@@ -1650,7 +1610,7 @@
   background:
     radial-gradient(
       circle at 25% 30%,
-      rgba(94, 84, 142, 0.06),
+      color-mix(in srgb, var(--visuals-main) 6%, transparent),
       transparent 55%
     ),
     radial-gradient(
@@ -1755,21 +1715,21 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   padding: 24px;
-  border: 1px dashed rgba(94, 84, 142, 0.25);
+  border: 1px dashed color-mix(in srgb, var(--visuals-main) 25%, transparent);
   background:
     repeating-linear-gradient(
       0deg,
       transparent,
       transparent 15px,
-      rgba(94, 84, 142, 0.05) 15px,
-      rgba(94, 84, 142, 0.05) 16px
+      color-mix(in srgb, var(--visuals-main) 5%, transparent) 15px,
+      color-mix(in srgb, var(--visuals-main) 5%, transparent) 16px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent 15px,
-      rgba(94, 84, 142, 0.05) 15px,
-      rgba(94, 84, 142, 0.05) 16px
+      color-mix(in srgb, var(--visuals-main) 5%, transparent) 15px,
+      color-mix(in srgb, var(--visuals-main) 5%, transparent) 16px
     );
 }
 
@@ -1784,7 +1744,7 @@
 .visuals-pixel-cell {
   padding: 10px 10px 6px;
   background: var(--bg-card);
-  border: 1px dashed rgba(94, 84, 142, 0.2);
+  border: 1px dashed color-mix(in srgb, var(--visuals-main) 20%, transparent);
   cursor: pointer;
   position: relative;
   transition:
@@ -1796,8 +1756,8 @@
 .visuals-pixel-cell:hover {
   transform: translateY(-3px);
   z-index: 2;
-  box-shadow: 0 6px 20px rgba(94, 84, 142, 0.15);
-  border-color: rgba(94, 84, 142, 0.45);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--visuals-main) 15%, transparent);
+  border-color: color-mix(in srgb, var(--visuals-main) 45%, transparent);
 }
 
 .visuals-pixel-label {
@@ -1868,11 +1828,11 @@
 }
 
 .visuals-sprite-anim-btn:hover {
-  background: rgba(94, 84, 142, 0.06);
+  background: color-mix(in srgb, var(--visuals-main) 6%, transparent);
 }
 
 .visuals-sprite-anim-btn.is-active {
-  background: rgba(94, 84, 142, 0.1);
+  background: color-mix(in srgb, var(--visuals-main) 10%, transparent);
   border-left: 3px solid var(--visuals-main);
 }
 
@@ -1915,17 +1875,17 @@
       0deg,
       transparent,
       transparent 15px,
-      rgba(94, 84, 142, 0.04) 15px,
-      rgba(94, 84, 142, 0.04) 16px
+      color-mix(in srgb, var(--visuals-main) 4%, transparent) 15px,
+      color-mix(in srgb, var(--visuals-main) 4%, transparent) 16px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent 15px,
-      rgba(94, 84, 142, 0.04) 15px,
-      rgba(94, 84, 142, 0.04) 16px
+      color-mix(in srgb, var(--visuals-main) 4%, transparent) 15px,
+      color-mix(in srgb, var(--visuals-main) 4%, transparent) 16px
     );
-  border: 1px dashed rgba(94, 84, 142, 0.2);
+  border: 1px dashed color-mix(in srgb, var(--visuals-main) 20%, transparent);
   padding: 24px;
 }
 
@@ -1961,7 +1921,7 @@
 
 .visuals-sprite-play-btn:hover {
   border-color: var(--visuals-main);
-  background: rgba(94, 84, 142, 0.08);
+  background: color-mix(in srgb, var(--visuals-main) 8%, transparent);
 }
 
 .visuals-sprite-speed-group {
@@ -1984,11 +1944,11 @@
 }
 
 .visuals-sprite-speed-btn:hover {
-  border-color: rgba(94, 84, 142, 0.4);
+  border-color: color-mix(in srgb, var(--visuals-main) 40%, transparent);
 }
 
 .visuals-sprite-speed-btn.is-active {
-  background: rgba(94, 84, 142, 0.12);
+  background: color-mix(in srgb, var(--visuals-main) 12%, transparent);
   border-color: var(--visuals-main);
   color: var(--visuals-main);
 }
@@ -2003,7 +1963,7 @@
 /* ── 檢視原始精靈圖按鈕 ── */
 .visuals-sprite-sheet-btn {
   padding: 8px 20px;
-  border: 1px dashed rgba(94, 84, 142, 0.3);
+  border: 1px dashed color-mix(in srgb, var(--visuals-main) 30%, transparent);
   background: transparent;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -2016,8 +1976,8 @@
 }
 
 .visuals-sprite-sheet-btn:hover {
-  background: rgba(94, 84, 142, 0.06);
-  border-color: rgba(94, 84, 142, 0.5);
+  background: color-mix(in srgb, var(--visuals-main) 6%, transparent);
+  border-color: color-mix(in srgb, var(--visuals-main) 50%, transparent);
 }
 
 /* ── 小螢幕適配 ── */
@@ -2233,7 +2193,7 @@
 }
 
 .visuals-back-btn:hover {
-  background: rgba(94, 84, 142, 0.08);
+  background: color-mix(in srgb, var(--visuals-main) 8%, transparent);
 }
 
 /* === 裝飾粒子 === */
@@ -2305,7 +2265,7 @@
   inset: 0;
   background: radial-gradient(
     ellipse at 50% 40%,
-    rgba(94, 84, 142, 0.2),
+    color-mix(in srgb, var(--visuals-main) 20%, transparent),
     transparent 70%
   );
   pointer-events: none;
@@ -2604,8 +2564,7 @@
 }
 
 /* === 按鈕互動 micro-animation === */
-.visuals-back-btn,
-.visuals-breadcrumb button {
+.visuals-back-btn {
   transition:
     background 0.2s,
     transform 0.15s,
@@ -2614,10 +2573,6 @@
 
 .visuals-back-btn:active {
   transform: scale(0.96);
-}
-
-.visuals-breadcrumb button:active {
-  transform: scale(0.97);
 }
 
 /* === 十字路口卡片入場 === */

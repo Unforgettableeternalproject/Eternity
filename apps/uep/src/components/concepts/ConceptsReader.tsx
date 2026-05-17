@@ -28,6 +28,9 @@ import type {
   DiffContent,
   ConceptsVariationMeta,
 } from './types';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
 import './ConceptsReader.css';
 
 // ──────────────────────────────────────────────────────────────────
@@ -1186,20 +1189,7 @@ export default function ConceptsReader() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const hpLoaded = useRef(false);
-  const navPending = useRef(false);
-  const bootFired = useRef(false);
-  const bootMountTime = useRef(Date.now());
-  function tryBootReady() {
-    if (hpLoaded.current && !navPending.current && !bootFired.current) {
-      bootFired.current = true;
-      // 確保 CRT 開機畫面至少停留 2s（文字動畫 ~1s + 額外 1s）
-      const elapsed = Date.now() - bootMountTime.current;
-      const delay = Math.max(0, 2000 - elapsed);
-      setTimeout(() => setContentReady(true), delay);
-    }
-  }
+  const { contentReady, markContentReady, setNavPending: setBootNavPending } = useZoneBootReady({ minDisplayMs: 2000 });
 
   // === 導航狀態 ===
   type View = 'landing' | 'stack' | 'reading';
@@ -1217,6 +1207,7 @@ export default function ConceptsReader() {
   }, [readingPage?.id]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [view, activeStackId, readingPage?.id]);
 
   // === 衍生資料 ===
   const stackNodes = useMemo(() => {
@@ -1275,12 +1266,6 @@ export default function ConceptsReader() {
   }, []);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      hpLoaded.current = true;
-      navPending.current = false;
-      bootFired.current = true;
-      setContentReady(true);
-    }, 5000);
     fetch(`${API_BASE}/api/content/concepts/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -1294,9 +1279,7 @@ export default function ConceptsReader() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        hpLoaded.current = true;
-        tryBootReady();
+        markContentReady();
       });
   }, []);
 
@@ -1306,12 +1289,12 @@ export default function ConceptsReader() {
     const page = params.get('page');
     const stack = params.get('stack');
     if (page) {
-      navPending.current = true;
+      setBootNavPending(true);
       navigateToPage(page, false);
     } else if (stack) {
-      navPending.current = true;
+      setBootNavPending(true);
       navigateToStack(stack, false);
-    } else tryBootReady();
+    } else markContentReady();
   }, [treeLoading, tree]);
 
   useEffect(() => {
@@ -1369,8 +1352,17 @@ export default function ConceptsReader() {
     window.history.pushState({}, '', url.toString());
   }
 
+  // ── 滾動位置 key ────────────────────────────────────────────────
+  /** 回傳當前視圖對應的滾動記憶 key */
+  function currentScrollKey(): string {
+    if (readingPage) return `page:${readingPage.id}`;
+    if (activeStackId) return `stack:${activeStackId}`;
+    return 'landing';
+  }
+
   // ── 導航 ───────────────────────────────────────────────────────
   function navigateToLanding(push = true) {
+    saveScroll(currentScrollKey());
     setView('landing');
     setActiveStackId(null);
     setActivePageId(null);
@@ -1382,10 +1374,11 @@ export default function ConceptsReader() {
       url.search = '';
       window.history.pushState({}, '', url.toString());
     }
-    scrollRef.current?.scrollTo(0, 0);
+    restoreScroll('landing');
   }
 
   function navigateToStack(stackSlug: string, push = true) {
+    saveScroll(currentScrollKey());
     const fullId = stackSlug.startsWith('concepts/')
       ? stackSlug
       : `concepts/${stackSlug}`;
@@ -1398,15 +1391,13 @@ export default function ConceptsReader() {
       setReadingPage(null);
       setView('stack');
       setTransitionKey((k) => k + 1);
-      requestAnimationFrame(() => scrollRef.current?.scrollTo(0, 0));
-      if (navPending.current) {
-        navPending.current = false;
-        tryBootReady();
-      }
+      restoreScroll(`stack:${fullId}`);
+      setBootNavPending(false);
     });
   }
 
   function navigateToPage(pageSlug: string, push = true) {
+    saveScroll(currentScrollKey());
     const fullId = pageSlug.startsWith('concepts/')
       ? pageSlug
       : `concepts/${pageSlug}`;
@@ -1419,11 +1410,9 @@ export default function ConceptsReader() {
       setReadingPage(p);
       setView('reading');
       setTransitionKey((k) => k + 1);
-      requestAnimationFrame(() => scrollRef.current?.scrollTo(0, 0));
-      if (navPending.current) {
-        navPending.current = false;
-        tryBootReady();
-      }
+      // 頁面 id 在資料載入後才確定，直接用 fullId 作為 key
+      restoreScroll(`page:${fullId}`);
+      setBootNavPending(false);
     });
   }
 
@@ -1535,12 +1524,13 @@ export default function ConceptsReader() {
 
     return (
       <div className="conc-stack-page">
-        <div className="conc-stack-breadcrumb">
-          <span className="conc-stack-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>概念調整房</button>
-          <span>·</span>
-          <span>{stackDef.labelEn}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '概念調整房', onClick: () => navigateToLanding() },
+            { label: stackDef.labelEn },
+          ]}
+          color="var(--concepts-main)"
+        />
 
         <div className="conc-stack-title-row">
           <span className="conc-stack-icon">{stackDef.icon}</span>
@@ -1718,20 +1708,23 @@ export default function ConceptsReader() {
 
     return (
       <div className="conc-reading-page">
-        <div className="conc-stack-breadcrumb">
-          <span className="conc-stack-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>概念調整房</button>
-          {stackDef && (
-            <>
-              <span>·</span>
-              <button onClick={() => navigateToStack(stackDef.slug)}>
-                {stackDef.labelEn}
-              </button>
-            </>
-          )}
-          <span>·</span>
-          <span>{crumbs[crumbs.length - 1]?.toUpperCase()}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '概念調整房', onClick: () => navigateToLanding() },
+            ...(stackDef
+              ? [
+                  {
+                    label: stackDef.labelEn,
+                    onClick: () => navigateToStack(stackDef.slug),
+                  },
+                ]
+              : []),
+            {
+              label: crumbs[crumbs.length - 1]?.toUpperCase() || '',
+            },
+          ]}
+          color="var(--concepts-main)"
+        />
 
         {/* 子頁面標題（不帶 icon，與 echoes/visuals 一致） */}
         <div className="conc-stack-title-row" style={{ marginTop: 14 }}>

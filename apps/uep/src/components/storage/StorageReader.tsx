@@ -11,6 +11,9 @@ import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { renderIcon } from '../editor/IconLibrary';
 import StorageDust from './StorageDust';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
 import {
   type HomepageBlock,
   type ZoneHeaderData,
@@ -288,19 +291,7 @@ export default function StorageReader() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const hpLoaded = useRef(false);
-  const navPending = useRef(false);
-  const bootFired = useRef(false);
-  const bootMountTime = useRef(Date.now());
-  function tryBootReady() {
-    if (hpLoaded.current && !navPending.current && !bootFired.current) {
-      bootFired.current = true;
-      const elapsed = Date.now() - bootMountTime.current;
-      const delay = Math.max(0, 1800 - elapsed);
-      setTimeout(() => setContentReady(true), delay);
-    }
-  }
+  const { contentReady, markContentReady, setNavPending: setBootNavPending } = useZoneBootReady();
 
   // === 導航狀態 ===
   type View = 'landing' | 'clearing' | 'reading';
@@ -311,6 +302,9 @@ export default function StorageReader() {
   const [readingPage, setReadingPage] = useState<Page | null>(null);
   const [transitionKey, setTransitionKey] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [
+    view, activeClearingId, activePageId,
+  ]);
   // Changelog reading state
   const [logFilterType, setLogFilterType] = useState<string>('all');
   const [logCollapsed, setLogCollapsed] = useState<Record<string, boolean>>({});
@@ -368,12 +362,6 @@ export default function StorageReader() {
   }, []);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      hpLoaded.current = true;
-      navPending.current = false;
-      bootFired.current = true;
-      setContentReady(true);
-    }, 5000);
     fetch(`${API_BASE}/api/content/storage/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -387,9 +375,7 @@ export default function StorageReader() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        hpLoaded.current = true;
-        tryBootReady();
+        markContentReady();
       });
   }, []);
 
@@ -399,12 +385,12 @@ export default function StorageReader() {
     const page = params.get('page');
     const clearing = params.get('clearing');
     if (page) {
-      navPending.current = true;
+      setBootNavPending(true);
       navigateToPage(page, false);
     } else if (clearing) {
-      navPending.current = true;
+      setBootNavPending(true);
       navigateToClearing(clearing, false);
-    } else tryBootReady();
+    } else markContentReady();
   }, [treeLoading, tree]);
 
   useEffect(() => {
@@ -463,7 +449,14 @@ export default function StorageReader() {
   }
 
   // ── 導航 ───────────────────────────────────────────────────────
+  function currentScrollKey(): string {
+    if (view === 'reading' && activePageId) return `page:${activePageId}`;
+    if (view === 'clearing' && activeClearingId) return `clearing:${activeClearingId}`;
+    return 'landing';
+  }
+
   function navigateToLanding(push = true) {
+    saveScroll(currentScrollKey());
     setView('landing');
     setActiveClearingId(null);
     setActivePageId(null);
@@ -475,11 +468,12 @@ export default function StorageReader() {
       url.search = '';
       window.history.pushState({}, '', url.toString());
     }
-    scrollRef.current?.scrollTo(0, 0);
+    restoreScroll('landing');
     setTransitionKey((k) => k + 1);
   }
 
   async function navigateToClearing(clearingSlug: string, push = true) {
+    saveScroll(currentScrollKey());
     setActiveClearingId(clearingSlug);
     setActivePageId(null);
     setReadingPage(null);
@@ -488,15 +482,13 @@ export default function StorageReader() {
     if (page) setClearingPage(page);
     setView('clearing');
     if (push) pushUrl({ clearing: clearingSlug });
-    scrollRef.current?.scrollTo(0, 0);
+    restoreScroll(`clearing:${clearingSlug}`);
     requestAnimationFrame(() => setTransitionKey((k) => k + 1));
-    if (navPending.current) {
-      navPending.current = false;
-      tryBootReady();
-    }
+    setBootNavPending(false);
   }
 
   async function navigateToPage(pageSlug: string, push = true) {
+    saveScroll(currentScrollKey());
     setOpenSubcatId(null);
     setActivePageId(pageSlug);
     const page = await fetchPageData(pageSlug);
@@ -514,12 +506,9 @@ export default function StorageReader() {
       setView('reading');
     }
     if (push) pushUrl({ page: pageSlug });
-    scrollRef.current?.scrollTo(0, 0);
+    restoreScroll(`page:${pageSlug}`);
     requestAnimationFrame(() => setTransitionKey((k) => k + 1));
-    if (navPending.current) {
-      navPending.current = false;
-      tryBootReady();
-    }
+    setBootNavPending(false);
   }
 
   // ── 主題 ───────────────────────────────────────────────────────
@@ -730,13 +719,13 @@ export default function StorageReader() {
 
     return (
       <div className="sto-clearing-page">
-        {/* 麵包屑 */}
-        <div className="sto-breadcrumb">
-          <span className="sto-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>某人的置物空間</button>
-          <span>·</span>
-          <span>{labelEn}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '某人的置物空間', onClick: () => navigateToLanding() },
+            { label: labelEn },
+          ]}
+          color="var(--storage-soft)"
+        />
 
         {/* 標題列 */}
         <div className="sto-clearing-title-row">
@@ -1243,21 +1232,19 @@ export default function StorageReader() {
 
     return (
       <div className="sto-reading-page">
-        {/* 麵包屑 */}
-        <div className="sto-breadcrumb">
-          <span className="sto-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>某人的置物空間</button>
-          <span>·</span>
-          <button
-            onClick={() =>
-              activeClearingId && navigateToClearing(activeClearingId)
-            }
-          >
-            {labelEn}
-          </button>
-          <span>·</span>
-          <span>{readingPage.slug.split('/').pop()}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '某人的置物空間', onClick: () => navigateToLanding() },
+            {
+              label: labelEn,
+              onClick: activeClearingId
+                ? () => navigateToClearing(activeClearingId)
+                : undefined,
+            },
+            { label: readingPage.slug.split('/').pop() || '' },
+          ]}
+          color="var(--storage-soft)"
+        />
 
         {/* 標題 */}
         <h1 className="sto-reading-title">{readingPage.title}</h1>
