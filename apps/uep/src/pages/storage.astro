@@ -1,8 +1,15 @@
 ---
+export const prerender = false;
 import DesignLayout from '../layouts/DesignLayout.astro';
-import ZoneEntryPage from '../components/zone/ZoneEntryPage';
+import StorageReader from '../components/storage/StorageReader';
 ---
 
 <DesignLayout title="某人的置物空間 - 邊際世界" zone="storage">
-  <ZoneEntryPage client:load zoneId="storage" />
+  <StorageReader client:only="react" />
 </DesignLayout>
+
+<style is:global>
+  body {
+    overflow: hidden;
+  }
+</style>

@@ -20,6 +20,16 @@ interface EditorInspectorProps {
   onDescriptionChange: (v: string) => void;
   layout?: string;
   onLayoutChange?: (v: string) => void;
+  /** Storage clearing 專屬 metadata */
+  storageClearingMeta?: {
+    style: string;
+    labelEn: string;
+    intro: string;
+    uepNote: string;
+  };
+  onStorageClearingMetaChange?: (
+    meta: { style: string; labelEn: string; intro: string; uepNote: string }
+  ) => void;
   onDirty: () => void;
   accent: string;
   pageStatus: string;
@@ -52,6 +62,11 @@ const AREA_PAGE_TYPES: Record<string, { value: string; label: string }[]> = {
     { value: 'type', label: 'Type (分類)' },
     { value: 'subcategory', label: 'Subcategory (子分類)' },
     { value: 'context', label: 'Context (內容)' },
+  ],
+  storage: [
+    { value: 'clearing', label: 'Clearing (空地)' },
+    { value: 'stuff', label: 'Stuff (內容)' },
+    { value: 'subcategory', label: 'Subcategory (子分類)' },
   ],
 };
 

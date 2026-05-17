@@ -31,7 +31,9 @@ import ConceptsEditorBody, {
   serializeConceptsContent,
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
+import StorageDialogueEditor from './StorageDialogueEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
+import './StorageDialogueEditor.css';
 import './RichEditor.css';
 
 // === Color palettes ===
@@ -174,6 +176,12 @@ export default function RichEditor({
   const isConcepts = isConceptsArea && pageType === 'type';
   const conceptsStackStyle =
     (initialMetadata?.stack_style as string) || 'dossier';
+  // Storage 特殊編輯模式（dialogue 類型的 stuff 頁面用專用編輯器）
+  const isStorageArea = area === 'storage' || zoneId === 'storage';
+  const isStorageDialogue =
+    isStorageArea &&
+    pageType === 'stuff' &&
+    pageSlug.startsWith('boxes/');
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
@@ -189,6 +197,10 @@ export default function RichEditor({
   const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
     () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
   );
+  // Storage dialogue 用的 content blocks
+  const [storageDialogueBlocks, setStorageDialogueBlocks] = useState<
+    { id: string; type: string; content: string }[]
+  >(() => initialContentBlocks || []);
 
   // TipTap editor
   const editor = useEditor({
@@ -245,24 +257,26 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
-    if (!isEchoes && !isVisuals && !editor) return;
+    if (!isEchoes && !isVisuals && !isStorageDialogue && !editor) return;
     setSaveStatus('saving');
     try {
       const content =
         isEchoes || isVisuals
           ? [{ id: 'content', type: 'rich_text', content: '' }]
-          : isConcepts
-            ? [
-                { id: 'intro', type: 'rich_text', content: editor!.getHTML() },
-                ...serializeConceptsContent(conceptsData),
-              ]
-            : [
-                {
-                  id: 'content',
-                  type: 'rich_text',
-                  content: editor!.getHTML(),
-                },
-              ];
+          : isStorageDialogue
+            ? storageDialogueBlocks
+            : isConcepts
+              ? [
+                  { id: 'intro', type: 'rich_text', content: editor!.getHTML() },
+                  ...serializeConceptsContent(conceptsData),
+                ]
+              : [
+                  {
+                    id: 'content',
+                    type: 'rich_text',
+                    content: editor!.getHTML(),
+                  },
+                ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
@@ -314,12 +328,14 @@ export default function RichEditor({
     isDirty,
     isEchoes,
     isVisuals,
+    isStorageDialogue,
     isConcepts,
     isZone,
     echoesData,
     visualsData,
     conceptsData,
     conceptsStackStyle,
+    storageDialogueBlocks,
     zoneTabs,
     title,
     apiBase,
@@ -360,7 +376,7 @@ export default function RichEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  if (!editor && !isEchoes && !isVisuals) return null;
+  if (!editor && !isEchoes && !isVisuals && !isStorageDialogue) return null;
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -592,7 +608,7 @@ export default function RichEditor({
       {/* Toolbar — 入口模式隱藏 */}
       {!isEntryMode && (
         <div className="ned-toolbar" ref={dropdownRef}>
-          {!isEchoes && !isVisuals && editor && (
+          {!isEchoes && !isVisuals && !isStorageDialogue && editor && (
             <>
               {/* Heading dropdown */}
               <div className="tb-group">
@@ -1114,6 +1130,13 @@ export default function RichEditor({
                     accent={accentMain}
                     initialData={visualsData}
                     onDataChange={setVisualsData}
+                    onDirty={() => setMetaDirty(true)}
+                  />
+                ) : isStorageDialogue ? (
+                  <StorageDialogueEditor
+                    accent={accentMain}
+                    initialContentBlocks={initialContentBlocks || []}
+                    onContentChange={setStorageDialogueBlocks}
                     onDirty={() => setMetaDirty(true)}
                   />
                 ) : (
