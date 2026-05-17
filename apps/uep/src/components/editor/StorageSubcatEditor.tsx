@@ -16,11 +16,21 @@ interface Props {
   accent: string;
 }
 
-export default function StorageSubcatEditor({ subcategories, onChange, accent }: Props) {
+export default function StorageSubcatEditor({
+  subcategories,
+  onChange,
+  accent,
+}: Props) {
   function addSubcat() {
     onChange([
       ...subcategories,
-      { id: `sc-${Date.now().toString(36)}`, label: '新分類', icon: '', description: '', hidden: false },
+      {
+        id: `sc-${Date.now().toString(36)}`,
+        label: '新分類',
+        icon: '',
+        description: '',
+        hidden: false,
+      },
     ]);
   }
 
@@ -41,17 +51,27 @@ export default function StorageSubcatEditor({ subcategories, onChange, accent }:
   }
 
   return (
-    <div className="sto-sce" style={{ '--sce-accent': accent } as React.CSSProperties}>
+    <div
+      className="sto-sce"
+      style={{ '--sce-accent': accent } as React.CSSProperties}
+    >
       <div className="sto-sce-header">
         <span className="sto-sce-title">分類管理</span>
         <span className="sto-sce-count">{subcategories.length} 項</span>
-        <button className="sto-sce-add" onClick={addSubcat}>+ 新增</button>
+        <button className="sto-sce-add" onClick={addSubcat}>
+          + 新增
+        </button>
       </div>
       {subcategories.length === 0 && (
-        <div className="sto-sce-empty">尚未建立任何分類。分類會顯示在前台的條目列表中作為分群標題。</div>
+        <div className="sto-sce-empty">
+          尚未建立任何分類。分類會顯示在前台的條目列表中作為分群標題。
+        </div>
       )}
       {subcategories.map((s, i) => (
-        <div key={s.id} className={`sto-sce-row ${s.hidden ? 'is-hidden' : ''}`}>
+        <div
+          key={s.id}
+          className={`sto-sce-row ${s.hidden ? 'is-hidden' : ''}`}
+        >
           <div className="sto-sce-row-main">
             <div className="sto-sce-icon-picker">
               <IconPicker
@@ -75,9 +95,27 @@ export default function StorageSubcatEditor({ subcategories, onChange, accent }:
               隱藏
             </label>
             <div className="sto-sce-row-actions">
-              <button onClick={() => move(i, -1)} disabled={i === 0} title="上移">↑</button>
-              <button onClick={() => move(i, 1)} disabled={i === subcategories.length - 1} title="下移">↓</button>
-              <button className="sto-sce-remove-btn" onClick={() => remove(s.id)} title="刪除">×</button>
+              <button
+                onClick={() => move(i, -1)}
+                disabled={i === 0}
+                title="上移"
+              >
+                ↑
+              </button>
+              <button
+                onClick={() => move(i, 1)}
+                disabled={i === subcategories.length - 1}
+                title="下移"
+              >
+                ↓
+              </button>
+              <button
+                className="sto-sce-remove-btn"
+                onClick={() => remove(s.id)}
+                title="刪除"
+              >
+                ×
+              </button>
             </div>
           </div>
           <input

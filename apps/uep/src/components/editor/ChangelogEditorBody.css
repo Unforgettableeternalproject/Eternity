@@ -13,12 +13,12 @@
   align-items: center;
   padding: 8px 12px;
   margin-bottom: 16px;
-  border: 1px solid var(--storage-soft, #D5B618);
+  border: 1px solid var(--storage-soft, #d5b618);
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--storage-soft, #D5B618);
+  color: var(--storage-soft, #d5b618);
 }
 
 /* Metadata 面板 */
@@ -61,7 +61,7 @@
   border-bottom-color: var(--hairline-strong);
 }
 .sto-cl-meta-input:focus {
-  border-bottom-color: var(--storage-soft, #D5B618);
+  border-bottom-color: var(--storage-soft, #d5b618);
 }
 .sto-cl-meta-input::placeholder {
   color: var(--ink-mute);
@@ -151,10 +151,12 @@
   font-family: var(--font-serif-tc);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .sto-cl-filter-chip.is-active {
-  background: var(--chip-color, var(--storage-soft, #D5B618));
+  background: var(--chip-color, var(--storage-soft, #d5b618));
   color: #fff;
   font-weight: 600;
 }
@@ -184,17 +186,23 @@
   border-bottom: 1px dashed var(--hairline);
   cursor: pointer;
   border-left: 3px solid transparent;
-  transition: background 0.15s, border-left-color 0.15s;
+  transition:
+    background 0.15s,
+    border-left-color 0.15s;
 }
 .sto-cl-item:last-child {
   border-bottom: none;
 }
 .sto-cl-item:hover {
-  background: color-mix(in srgb, var(--type-color, var(--ink-mute)) 4%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--type-color, var(--ink-mute)) 4%,
+    transparent
+  );
 }
 .sto-cl-item.is-selected {
-  background: color-mix(in srgb, var(--storage-soft, #D5B618) 6%, transparent);
-  border-left-color: var(--storage-soft, #D5B618);
+  background: color-mix(in srgb, var(--storage-soft, #d5b618) 6%, transparent);
+  border-left-color: var(--storage-soft, #d5b618);
 }
 
 /* 序號 */

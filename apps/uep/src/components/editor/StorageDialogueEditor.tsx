@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // ── 型別 ─────────────────────────────────────────────────────────
@@ -69,7 +70,11 @@ export function parseStructuredHtml(html: string): DialogueLine[] {
     const text = el.textContent || '';
 
     if (el.tagName === 'HR' || role === 'break') {
-      lines.push({ id: nextLineId(), role: 'break', text: el.getAttribute('data-label') || '' });
+      lines.push({
+        id: nextLineId(),
+        role: 'break',
+        text: el.getAttribute('data-label') || '',
+      });
     } else if (role === 'uep') {
       lines.push({ id: nextLineId(), role: 'uep', text, side: side || 'left' });
     } else if (role === 'you') {
@@ -133,7 +138,9 @@ export default function StorageDialogueEditor({
     parseStructuredHtml(rawHtml)
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [collapsedScenes, setCollapsedScenes] = useState<Set<number>>(new Set());
+  const [collapsedScenes, setCollapsedScenes] = useState<Set<number>>(
+    new Set()
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const serializedRef = useRef(rawHtml);
@@ -227,15 +234,24 @@ export default function StorageDialogueEditor({
 
   // 場景索引：每段場景的起始行 index 和行數
   // 00 = 劇本開始（開場），01+ = 場景斷之後的段落
-  const scenes: { startIndex: number; lineCount: number; num: string; label: string }[] = [];
+  const scenes: {
+    startIndex: number;
+    lineCount: number;
+    num: string;
+    label: string;
+  }[] = [];
   let sceneStart = 0;
   lines.forEach((line, i) => {
     if (line.role === 'break') {
       scenes.push({
         startIndex: sceneStart,
         lineCount: i - sceneStart,
-        num: scenes.length === 0 ? '00' : String(scenes.length).padStart(2, '0'),
-        label: scenes.length === 0 ? '劇本開始' : (line.text || `場景 ${String(scenes.length).padStart(2, '0')}`),
+        num:
+          scenes.length === 0 ? '00' : String(scenes.length).padStart(2, '0'),
+        label:
+          scenes.length === 0
+            ? '劇本開始'
+            : line.text || `場景 ${String(scenes.length).padStart(2, '0')}`,
       });
       sceneStart = i + 1;
     }
@@ -244,7 +260,10 @@ export default function StorageDialogueEditor({
     startIndex: sceneStart,
     lineCount: lines.length - sceneStart,
     num: scenes.length === 0 ? '00' : String(scenes.length).padStart(2, '0'),
-    label: scenes.length === 0 ? '劇本開始' : `場景 ${String(scenes.length).padStart(2, '0')}`,
+    label:
+      scenes.length === 0
+        ? '劇本開始'
+        : `場景 ${String(scenes.length).padStart(2, '0')}`,
   });
 
   function scrollToLine(index: number) {
@@ -277,8 +296,7 @@ export default function StorageDialogueEditor({
         <span>
           {lines.length} lines · {charCount} chars
           {Object.keys(roleCounts).length > 0 && ' · '}
-          {ROLE_LIBRARY
-            .filter((r) => roleCounts[r.id])
+          {ROLE_LIBRARY.filter((r) => roleCounts[r.id])
             .map((r) => `${r.label[0]}:${roleCounts[r.id]}`)
             .join(' ')}
         </span>
@@ -296,9 +314,7 @@ export default function StorageDialogueEditor({
           <button
             key={r.id}
             className="sto-de-role-btn"
-            style={
-              { '--role-color': r.color } as React.CSSProperties
-            }
+            style={{ '--role-color': r.color } as React.CSSProperties}
             onClick={() => addLine(r.id)}
           >
             <span className="sto-de-role-chip">{r.label[0]}</span>
@@ -310,13 +326,14 @@ export default function StorageDialogueEditor({
       {/* 場景跳轉列 */}
       <div className="sto-de-section-label">
         <span>場景導航</span>
-        <span className="sto-de-hint">
-          {scenes.length} 段
-        </span>
+        <span className="sto-de-hint">{scenes.length} 段</span>
       </div>
       <div className="sto-de-scene-nav">
         {scenes.map((scene, si) => (
-          <div key={si} className={`sto-de-scene-btn ${collapsedScenes.has(si) ? 'is-collapsed' : ''}`}>
+          <div
+            key={si}
+            className={`sto-de-scene-btn ${collapsedScenes.has(si) ? 'is-collapsed' : ''}`}
+          >
             <button
               className="sto-de-scene-jump"
               onClick={() => scrollToLine(scene.startIndex)}
@@ -342,9 +359,7 @@ export default function StorageDialogueEditor({
       {/* 劇本主體 */}
       <div className="sto-de-section-label">
         <span>劇本主體</span>
-        <span className="sto-de-hint">
-          ⌘↩ 新增下一行 · ⌘↑↓ 移動行
-        </span>
+        <span className="sto-de-hint">⌘↩ 新增下一行 · ⌘↑↓ 移動行</span>
       </div>
       <div className="sto-de-lines-container">
         {/* 開場標頭 */}
@@ -450,12 +465,29 @@ function DialogueLineRow({
         />
         <span className="sto-de-break-line" />
         {selected && (
-          <div className="sto-de-line-actions" onClick={(e) => e.stopPropagation()}>
-            <button className="sto-de-move-btn" onClick={() => onMove('up')} disabled={index === 0}>▲</button>
-            <button className="sto-de-move-btn" onClick={() => onMove('down')}>▼</button>
+          <div
+            className="sto-de-line-actions"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="sto-de-move-btn"
+              onClick={() => onMove('up')}
+              disabled={index === 0}
+            >
+              ▲
+            </button>
+            <button className="sto-de-move-btn" onClick={() => onMove('down')}>
+              ▼
+            </button>
           </div>
         )}
-        <button className="sto-de-line-remove" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
+        <button
+          className="sto-de-line-remove"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+        >
           ×
         </button>
       </div>
@@ -511,7 +543,10 @@ function DialogueLineRow({
 
       {/* UEP 方向切換 */}
       {line.role === 'uep' && (
-        <div className="sto-de-side-toggle" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="sto-de-side-toggle"
+          onClick={(e) => e.stopPropagation()}
+        >
           {(['left', 'right'] as UepSide[]).map((s) => (
             <button
               key={s}
@@ -527,7 +562,10 @@ function DialogueLineRow({
 
       {/* 上下移動 + 刪除 */}
       {selected && (
-        <div className="sto-de-line-actions" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="sto-de-line-actions"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             className="sto-de-move-btn"
             onClick={() => onMove('up')}
@@ -535,10 +573,7 @@ function DialogueLineRow({
           >
             ▲
           </button>
-          <button
-            className="sto-de-move-btn"
-            onClick={() => onMove('down')}
-          >
+          <button className="sto-de-move-btn" onClick={() => onMove('down')}>
             ▼
           </button>
         </div>
@@ -547,7 +582,10 @@ function DialogueLineRow({
 
       <button
         className="sto-de-line-remove"
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
       >
         ×
       </button>

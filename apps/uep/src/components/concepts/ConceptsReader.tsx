@@ -298,7 +298,11 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                     </div>
                     {entry.content_html && (
                       <>
-                        {renderHtmlWithUep(entry.content_html, entry.name, 'conc-dossier-entry-content')}
+                        {renderHtmlWithUep(
+                          entry.content_html,
+                          entry.name,
+                          'conc-dossier-entry-content'
+                        )}
                       </>
                     )}
                   </div>
@@ -498,7 +502,11 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                         {section.label}
                       </div>
                       <>
-                        {renderHtmlWithUep(section.content_html, section.label, 'conc-enc-section-content')}
+                        {renderHtmlWithUep(
+                          section.content_html,
+                          section.label,
+                          'conc-enc-section-content'
+                        )}
                       </>
                     </div>
                   ))}
@@ -619,6 +627,14 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
   }, [rawData]);
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [chronoClosing, setChronoClosing] = useState(false);
+  function closeChronoExpanded() {
+    setChronoClosing(true);
+    setTimeout(() => {
+      setExpandedIdx(null);
+      setChronoClosing(false);
+    }, 250);
+  }
   const viewportRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const fadeLRef = useRef<HTMLDivElement>(null);
@@ -770,7 +786,8 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                   className={`conc-chrono-dot ${expandedIdx === pi ? 'active' : ''}`}
                   onClick={() => {
                     if (hasDragged.current) return;
-                    setExpandedIdx(expandedIdx === pi ? null : pi);
+                    if (expandedIdx === pi) closeChronoExpanded();
+                    else setExpandedIdx(pi);
                   }}
                 >
                   <span className="conc-chrono-dot-inner" />
@@ -826,7 +843,9 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
               );
 
           return (
-            <div className="conc-chrono-expanded">
+            <div
+              className={`conc-chrono-expanded ${chronoClosing ? 'is-closing' : ''}`}
+            >
               <div className="conc-chrono-expanded-header">
                 <span className="conc-chrono-expanded-icon">⟳</span>
                 <span className="conc-chrono-expanded-year">{ep.year}</span>
@@ -837,7 +856,7 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                 )}
                 <button
                   className="conc-chrono-expanded-close"
-                  onClick={() => setExpandedIdx(null)}
+                  onClick={closeChronoExpanded}
                 >
                   ✕
                 </button>
@@ -1542,7 +1561,11 @@ export default function ConceptsReader() {
         {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
         {stackContentHtml ? (
           <>
-            {renderHtmlWithUep(stackContentHtml, 'stack-intro', 'conc-stack-intro conc-prose')}
+            {renderHtmlWithUep(
+              stackContentHtml,
+              'stack-intro',
+              'conc-stack-intro conc-prose'
+            )}
           </>
         ) : (
           <p className="conc-stack-intro">
@@ -1735,9 +1758,7 @@ export default function ConceptsReader() {
 
         {/* 上方富文本（TipTap 內容） */}
         {!isLocked && introHtml && introHtml !== '<p></p>' && (
-          <>
-            {renderHtmlWithUep(introHtml, 'intro', 'conc-prose')}
-          </>
+          <>{renderHtmlWithUep(introHtml, 'intro', 'conc-prose')}</>
         )}
 
         {/* 分派 Reader */}

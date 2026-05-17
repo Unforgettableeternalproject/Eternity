@@ -34,9 +34,7 @@ const UepDialogueNode = Node.create<UepDialogueOptions>({
   },
 
   parseHTML() {
-    return [
-      { tag: 'div[data-role="uep"]' },
-    ];
+    return [{ tag: 'div[data-role="uep"]' }];
   },
 
   renderHTML({ HTMLAttributes }) {

@@ -166,12 +166,7 @@ export const ZONE_BLOCK_TYPES: Record<string, HomepageBlockType[]> = {
     'terminal-module-table',
     'rich-text',
   ],
-  storage: [
-    'zone-header',
-    'uep-dialogue',
-    'storage-room-map',
-    'rich-text',
-  ],
+  storage: ['zone-header', 'uep-dialogue', 'storage-room-map', 'rich-text'],
 };
 
 /** 建立空區塊 */

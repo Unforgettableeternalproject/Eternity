@@ -10,27 +10,29 @@
   gap: 10px;
   padding: 10px 16px;
   margin-bottom: 12px;
-  border: 1px dashed var(--ts-accent, #D5B618);
-  background: color-mix(in srgb, var(--ts-accent, #D5B618) 4%, transparent);
+  border: 1px dashed var(--ts-accent, #d5b618);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 4%, transparent);
   cursor: pointer;
   font: inherit;
   color: inherit;
   text-align: left;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 .ts-collapsed:hover {
-  background: color-mix(in srgb, var(--ts-accent, #D5B618) 8%, transparent);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 8%, transparent);
 }
 .ts-collapsed-icon {
   font-size: 16px;
-  color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
 }
 .ts-collapsed-label {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
 }
 .ts-collapsed-hint {
   font-family: var(--font-serif-tc);
@@ -42,15 +44,16 @@
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
   padding: 2px 8px;
-  border: 1px solid var(--ts-accent, #D5B618);
+  border: 1px solid var(--ts-accent, #d5b618);
 }
 
 /* 展開面板 */
 .ts-panel {
   margin-bottom: 16px;
-  border: 1px solid color-mix(in srgb, var(--ts-accent, #D5B618) 30%, var(--line));
+  border: 1px solid
+    color-mix(in srgb, var(--ts-accent, #d5b618) 30%, var(--line));
   background: var(--bg-card);
   overflow: hidden;
 }
@@ -61,18 +64,18 @@
   gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--ts-accent, #D5B618) 4%, transparent);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 4%, transparent);
 }
 .ts-header-icon {
   font-size: 14px;
-  color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
 }
 .ts-header-title {
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
 }
 .ts-header-hint {
   font-family: var(--font-mono);
@@ -109,14 +112,16 @@
   cursor: pointer;
   font: inherit;
   color: var(--ink-mute);
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 .ts-tab:hover {
   color: var(--ink);
 }
 .ts-tab.is-active {
-  color: var(--ts-accent, #D5B618);
-  border-bottom-color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
+  border-bottom-color: var(--ts-accent, #d5b618);
 }
 .ts-tab-num {
   width: 16px;
@@ -130,8 +135,8 @@
   flex-shrink: 0;
 }
 .ts-tab.is-active .ts-tab-num {
-  background: var(--ts-accent, #D5B618);
-  border-color: var(--ts-accent, #D5B618);
+  background: var(--ts-accent, #d5b618);
+  border-color: var(--ts-accent, #d5b618);
   color: #fff;
 }
 .ts-tab-label {
@@ -170,7 +175,7 @@
   transition: border-color 0.2s;
 }
 .ts-textarea:focus {
-  border-color: var(--ts-accent, #D5B618);
+  border-color: var(--ts-accent, #d5b618);
 }
 .ts-textarea-mono {
   font-family: var(--font-mono);
@@ -207,7 +212,9 @@
   font-size: 11px;
   letter-spacing: 0.06em;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 .ts-action-btn:hover:not(:disabled) {
   background: var(--bg-soft);
@@ -218,11 +225,11 @@
   cursor: not-allowed;
 }
 .ts-action-btn.ts-primary {
-  border-color: var(--ts-accent, #D5B618);
-  color: var(--ts-accent, #D5B618);
+  border-color: var(--ts-accent, #d5b618);
+  color: var(--ts-accent, #d5b618);
 }
 .ts-action-btn.ts-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ts-accent, #D5B618) 10%, transparent);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 10%, transparent);
 }
 
 /* ── 解析錯誤 ──────────────────────────────────────────────────── */
@@ -299,8 +306,8 @@
   line-height: 1.7;
   color: var(--ink-soft);
   padding: 8px 12px;
-  border-left: 2px solid var(--ts-accent, #D5B618);
-  background: color-mix(in srgb, var(--ts-accent, #D5B618) 3%, transparent);
+  border-left: 2px solid var(--ts-accent, #d5b618);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 3%, transparent);
 }
 
 /* ── 區段標題 ──────────────────────────────────────────────────── */
@@ -327,10 +334,10 @@
   transition: border-color 0.15s;
 }
 .ts-thread:hover {
-  border-color: color-mix(in srgb, var(--ts-accent, #D5B618) 40%, var(--line));
+  border-color: color-mix(in srgb, var(--ts-accent, #d5b618) 40%, var(--line));
 }
 .ts-thread.is-expanded {
-  border-color: var(--ts-accent, #D5B618);
+  border-color: var(--ts-accent, #d5b618);
 }
 .ts-thread-header {
   display: flex;
@@ -342,9 +349,9 @@
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.08em;
-  color: var(--ts-accent, #D5B618);
+  color: var(--ts-accent, #d5b618);
   padding: 1px 6px;
-  border: 1px solid var(--ts-accent, #D5B618);
+  border: 1px solid var(--ts-accent, #d5b618);
   flex-shrink: 0;
 }
 .ts-thread-label {
@@ -427,8 +434,9 @@
   display: flex;
   gap: 6px;
   padding: 10px 14px;
-  background: color-mix(in srgb, var(--ts-accent, #D5B618) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ts-accent, #D5B618) 15%, transparent);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 4%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--ts-accent, #d5b618) 15%, transparent);
 }
 .ts-reflection-mark {
   font-family: Georgia, serif;

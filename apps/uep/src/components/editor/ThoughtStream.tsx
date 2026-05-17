@@ -36,9 +36,21 @@ interface ThoughtAnalysis {
 // ── 步驟定義 ─────────────────────────────────────────────────────
 const STEPS: { id: Step; label: string; hint: string }[] = [
   { id: 'raw', label: '傾倒想法', hint: '把腦中的想法 raw 倒下來' },
-  { id: 'analyze_prompt', label: '分析 Prompt', hint: '複製提示詞給 LLM，取得思維結構分析' },
-  { id: 'analysis', label: '思維結構', hint: '貼回 JSON 分析結果，檢視思維脈絡' },
-  { id: 'compose', label: '成文', hint: '複製成文提示詞給 LLM，貼回產出的文章' },
+  {
+    id: 'analyze_prompt',
+    label: '分析 Prompt',
+    hint: '複製提示詞給 LLM，取得思維結構分析',
+  },
+  {
+    id: 'analysis',
+    label: '思維結構',
+    hint: '貼回 JSON 分析結果，檢視思維脈絡',
+  },
+  {
+    id: 'compose',
+    label: '成文',
+    hint: '複製成文提示詞給 LLM，貼回產出的文章',
+  },
   { id: 'final', label: '最終稿', hint: '最終成品，可推入編輯器' },
 ];
 
@@ -138,7 +150,8 @@ function tryParseAnalysis(text: string): ThoughtAnalysis | null {
     const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1] : text.trim();
     const parsed = JSON.parse(jsonStr);
-    if (parsed.core_threads && parsed.thinking_pattern) return parsed as ThoughtAnalysis;
+    if (parsed.core_threads && parsed.thinking_pattern)
+      return parsed as ThoughtAnalysis;
     return null;
   } catch {
     return null;
@@ -146,7 +159,10 @@ function tryParseAnalysis(text: string): ThoughtAnalysis | null {
 }
 
 // ── 主元件 ───────────────────────────────────────────────────────
-export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: ThoughtStreamProps) {
+export default function ThoughtStream({
+  accent = '#D5B618',
+  onPushToEditor,
+}: ThoughtStreamProps) {
   const [open, setOpen] = useState(false);
   const [activeStep, setActiveStep] = useState<Step>('raw');
   const [rawText, setRawText] = useState('');
@@ -157,19 +173,25 @@ export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: Th
   const [finalText, setFinalText] = useState('');
   const [copied, setCopied] = useState<string | false>(false);
 
-  const parsedAnalysis = useMemo(() => tryParseAnalysis(analysisText), [analysisText]);
+  const parsedAnalysis = useMemo(
+    () => tryParseAnalysis(analysisText),
+    [analysisText]
+  );
 
   const generateAnalyzePrompt = useCallback(() => {
     if (!rawText.trim()) return;
-    setAnalyzePromptText(ANALYZE_PROMPT_TEMPLATE.replace('{RAW_THOUGHT}', rawText.trim()));
+    setAnalyzePromptText(
+      ANALYZE_PROMPT_TEMPLATE.replace('{RAW_THOUGHT}', rawText.trim())
+    );
     setActiveStep('analyze_prompt');
   }, [rawText]);
 
   const getComposePrompt = useCallback(() => {
     if (!parsedAnalysis || !rawText.trim()) return '';
-    return COMPOSE_PROMPT_TEMPLATE
-      .replace('{ANALYSIS_JSON}', JSON.stringify(parsedAnalysis, null, 2))
-      .replace('{RAW_THOUGHT}', rawText.trim());
+    return COMPOSE_PROMPT_TEMPLATE.replace(
+      '{ANALYSIS_JSON}',
+      JSON.stringify(parsedAnalysis, null, 2)
+    ).replace('{RAW_THOUGHT}', rawText.trim());
   }, [parsedAnalysis, rawText]);
 
   const copyToClipboard = useCallback(async (text: string, label: string) => {
@@ -181,7 +203,9 @@ export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: Th
   const pushToEditor = useCallback(() => {
     if (!onPushToEditor || !finalText.trim()) return;
     const paragraphs = finalText.trim().split(/\n\n+/);
-    const html = paragraphs.map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    const html = paragraphs
+      .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+      .join('');
     onPushToEditor(html);
   }, [finalText, onPushToEditor]);
 
@@ -197,19 +221,28 @@ export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: Th
         <span className="ts-collapsed-icon">✎</span>
         <span className="ts-collapsed-label">ThoughtStream</span>
         <span className="ts-collapsed-hint">展開思緒整理工具</span>
-        {rawText && <span className="ts-collapsed-badge">{wordCount(rawText)} 字</span>}
+        {rawText && (
+          <span className="ts-collapsed-badge">{wordCount(rawText)} 字</span>
+        )}
       </button>
     );
   }
 
   return (
-    <div className="ts-panel" style={{ '--ts-accent': accent } as React.CSSProperties}>
+    <div
+      className="ts-panel"
+      style={{ '--ts-accent': accent } as React.CSSProperties}
+    >
       {/* 標題列 */}
       <div className="ts-header">
         <span className="ts-header-icon">✎</span>
         <span className="ts-header-title">ThoughtStream</span>
-        <span className="ts-header-hint">raw thought → structure → article</span>
-        <button className="ts-collapse-btn" onClick={() => setOpen(false)}>—</button>
+        <span className="ts-header-hint">
+          raw thought → structure → article
+        </span>
+        <button className="ts-collapse-btn" onClick={() => setOpen(false)}>
+          —
+        </button>
       </div>
 
       {/* 步驟 tab */}
@@ -228,7 +261,9 @@ export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: Th
 
       {/* 步驟內容 */}
       <div className="ts-body">
-        <div className="ts-step-hint">{STEPS.find((s) => s.id === activeStep)?.hint}</div>
+        <div className="ts-step-hint">
+          {STEPS.find((s) => s.id === activeStep)?.hint}
+        </div>
 
         {/* Step 1: Raw */}
         {activeStep === 'raw' && (
@@ -322,7 +357,9 @@ export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: Th
                 }}
                 disabled={!parsedAnalysis}
               >
-                {copied === 'compose' ? '✓ 已複製成文 Prompt' : '複製成文 Prompt'}
+                {copied === 'compose'
+                  ? '✓ 已複製成文 Prompt'
+                  : '複製成文 Prompt'}
               </button>
               <button
                 className="ts-action-btn ts-primary"
@@ -425,7 +462,13 @@ export default function ThoughtStream({ accent = '#D5B618', onPushToEditor }: Th
 }
 
 // ── 分析卡片元件 ────────────────────────────────────────────────
-function AnalysisCards({ analysis, accent }: { analysis: ThoughtAnalysis; accent: string }) {
+function AnalysisCards({
+  analysis,
+  accent,
+}: {
+  analysis: ThoughtAnalysis;
+  accent: string;
+}) {
   const [expandedThread, setExpandedThread] = useState<string | null>(null);
 
   return (
@@ -442,12 +485,16 @@ function AnalysisCards({ analysis, accent }: { analysis: ThoughtAnalysis; accent
         </div>
         <div className="ts-meta-chip" style={{ borderColor: accent }}>
           <span className="ts-meta-label">pattern</span>
-          <span className="ts-meta-value">{analysis.thinking_pattern.style}</span>
+          <span className="ts-meta-value">
+            {analysis.thinking_pattern.style}
+          </span>
         </div>
       </div>
 
       {/* 思考模式描述 */}
-      <div className="ts-pattern-desc">{analysis.thinking_pattern.description}</div>
+      <div className="ts-pattern-desc">
+        {analysis.thinking_pattern.description}
+      </div>
 
       {/* 核心思緒線索 */}
       <div className="ts-section-label">
@@ -458,7 +505,9 @@ function AnalysisCards({ analysis, accent }: { analysis: ThoughtAnalysis; accent
           <div
             key={thread.id}
             className={`ts-thread ${expandedThread === thread.id ? 'is-expanded' : ''}`}
-            onClick={() => setExpandedThread(expandedThread === thread.id ? null : thread.id)}
+            onClick={() =>
+              setExpandedThread(expandedThread === thread.id ? null : thread.id)
+            }
           >
             <div className="ts-thread-header">
               <span className="ts-thread-id">{thread.id}</span>
@@ -485,7 +534,9 @@ function AnalysisCards({ analysis, accent }: { analysis: ThoughtAnalysis; accent
         {analysis.flow_trace.map((step, i) => (
           <div key={i} className="ts-flow-step">
             <span className="ts-flow-dot" style={{ background: accent }} />
-            {i < analysis.flow_trace.length - 1 && <span className="ts-flow-line" />}
+            {i < analysis.flow_trace.length - 1 && (
+              <span className="ts-flow-line" />
+            )}
             <span className="ts-flow-text">{step}</span>
           </div>
         ))}
@@ -493,8 +544,12 @@ function AnalysisCards({ analysis, accent }: { analysis: ThoughtAnalysis; accent
 
       {/* 自我映射 */}
       <div className="ts-reflection">
-        <span className="ts-reflection-mark" style={{ color: accent }}>"</span>
-        <span className="ts-reflection-text">{analysis.identity_reflection}</span>
+        <span className="ts-reflection-mark" style={{ color: accent }}>
+          "
+        </span>
+        <span className="ts-reflection-text">
+          {analysis.identity_reflection}
+        </span>
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { uepDialog } from '../ui/UepDialog';
-import { uepToast } from '../ui/UepToast';
+
+import type { uepDialog as UepDialogType } from '../ui/UepDialog';
+import type { uepToast as UepToastType } from '../ui/UepToast';
+
 import './MediaLibrary.css';
 
 // ── 型別 ──
@@ -60,6 +62,18 @@ function encodeAssetKey(key: string): string {
     .join('/');
 }
 
+function getDialog(): typeof UepDialogType | null {
+  return typeof window !== 'undefined'
+    ? (window.__uepDialogManager ?? null)
+    : null;
+}
+
+function getToast(): typeof UepToastType | null {
+  return typeof window !== 'undefined'
+    ? (window.__uepToastManager ?? null)
+    : null;
+}
+
 // ── 元件 ──
 
 export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
@@ -72,7 +86,6 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<AssetItem | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [confirmBatch, setConfirmBatch] = useState(false);
   const [search, setSearch] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -155,9 +168,20 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
 
   // ── 刪除操作 ──
 
+  const confirmDelete = async (message: string): Promise<boolean> => {
+    const dialog = getDialog();
+    if (dialog) {
+      return dialog.confirm(message, {
+        title: '確認刪除',
+        confirmText: '刪除',
+        cancelText: '取消',
+      });
+    }
+    return window.confirm(message);
+  };
+
   const deleteSingle = async (key: string) => {
-    if (!(await uepDialog.confirm(`確定要刪除「${getFilename(key)}」嗎？`)))
-      return;
+    if (!(await confirmDelete(`確定要刪除「${getFilename(key)}」嗎？`))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/assets/${encodeAssetKey(key)}`, {
@@ -174,7 +198,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '未知錯誤';
-      uepToast.error(`刪除失敗：${msg}`);
+      getToast()?.error(`刪除失敗：${msg}`);
     } finally {
       setDeleting(false);
     }
@@ -182,8 +206,21 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
 
   const deleteBatch = async () => {
     const keys = Array.from(selected);
+    if (keys.length === 0) return;
+    const hasReferenced = keys.some(
+      (key) => items.find((i) => i.key === key)?.referenced
+    );
+    const warn = hasReferenced
+      ? '\n\n部分選取的檔案仍被頁面引用，刪除後相關頁面可能損壞。'
+      : '';
+    if (
+      !(await confirmDelete(
+        `即將刪除 ${keys.length} 個檔案，此操作無法復原。${warn}`
+      ))
+    )
+      return;
+
     setDeleting(true);
-    setConfirmBatch(false);
     try {
       const res = await fetch(`/api/assets/batch`, {
         method: 'DELETE',
@@ -197,7 +234,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
       setSelected(new Set());
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '未知錯誤';
-      uepToast.error(`批次刪除失敗：${msg}`);
+      getToast()?.error(`批次刪除失敗：${msg}`);
     } finally {
       setDeleting(false);
     }
@@ -242,7 +279,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
       setRenaming(false);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '未知錯誤';
-      uepToast.error(`改名失敗：${msg}`);
+      getToast()?.error(`改名失敗：${msg}`);
     }
   };
 
@@ -299,7 +336,7 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
             <button
               type="button"
               className="ml-btn ml-btn--danger"
-              onClick={() => setConfirmBatch(true)}
+              onClick={() => void deleteBatch()}
               disabled={deleting}
             >
               批次刪除
@@ -528,42 +565,6 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
           )}
         </div>
       </div>
-
-      {/* 批次刪除確認 */}
-      {confirmBatch && (
-        <div className="ml-overlay">
-          <div className="ml-dialog">
-            <div className="ml-dialog-title">確認批次刪除</div>
-            <div className="ml-dialog-body">
-              即將刪除 {selected.size} 個檔案，此操作無法復原。
-              {Array.from(selected).some(
-                (k) => items.find((i) => i.key === k)?.referenced
-              ) && (
-                <div className="ml-dialog-warn">
-                  &#9888; 部分選取的檔案仍被頁面引用，刪除後相關頁面可能損壞。
-                </div>
-              )}
-            </div>
-            <div className="ml-dialog-actions">
-              <button
-                type="button"
-                className="ml-btn ml-btn--danger"
-                onClick={deleteBatch}
-                disabled={deleting}
-              >
-                確認刪除
-              </button>
-              <button
-                type="button"
-                className="ml-btn"
-                onClick={() => setConfirmBatch(false)}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

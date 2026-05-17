@@ -33,9 +33,7 @@ import ConceptsEditorBody, {
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
 import StorageDialogueEditor from './StorageDialogueEditor';
-import ChangelogEditorBody, {
-  type ChangelogMeta,
-} from './ChangelogEditorBody';
+import ChangelogEditorBody, { type ChangelogMeta } from './ChangelogEditorBody';
 import ThoughtStream from './ThoughtStream';
 import StorageSubcatEditor, { type SubcatDef } from './StorageSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
@@ -75,7 +73,7 @@ const FONT_FAMILIES = [
 ];
 
 const HEADING_LEVELS = [
-  { label: '\u5167\u6587', value: 0 },
+  { label: '內文', value: 0 },
   { label: 'H1', value: 1 },
   { label: 'H2', value: 2 },
   { label: 'H3', value: 3 },
@@ -187,17 +185,11 @@ export default function RichEditor({
   // Storage 特殊編輯模式（dialogue 類型的 stuff 頁面用專用編輯器）
   const isStorageArea = area === 'storage' || zoneId === 'storage';
   const isStorageDialogue =
-    isStorageArea &&
-    pageType === 'stuff' &&
-    pageSlug.startsWith('boxes/');
+    isStorageArea && pageType === 'stuff' && pageSlug.startsWith('boxes/');
   const isStorageChangelog =
-    isStorageArea &&
-    pageType === 'stuff' &&
-    pageSlug.startsWith('changelog/');
+    isStorageArea && pageType === 'stuff' && pageSlug.startsWith('changelog/');
   const isStorageExtras =
-    isStorageArea &&
-    pageType === 'stuff' &&
-    pageSlug.startsWith('extras/');
+    isStorageArea && pageType === 'stuff' && pageSlug.startsWith('extras/');
   const isStorageClearing = isStorageArea && pageType === 'clearing';
   const needsSubcatSelector =
     isStorageArea &&
@@ -261,7 +253,7 @@ export default function RichEditor({
       FontFamily,
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Placeholder.configure({ placeholder: '\u958B\u59CB\u5BEB\u4F5C...' }),
+      Placeholder.configure({ placeholder: '開始寫作...' }),
       Image.configure({ inline: false }),
       UepDialogueNode,
     ],
@@ -298,7 +290,14 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
-    if (!isEchoes && !isVisuals && !isStorageDialogue && !isStorageChangelog && !editor) return;
+    if (
+      !isEchoes &&
+      !isVisuals &&
+      !isStorageDialogue &&
+      !isStorageChangelog &&
+      !editor
+    )
+      return;
     setSaveStatus('saving');
     try {
       const content =
@@ -309,17 +308,21 @@ export default function RichEditor({
             : isStorageChangelog
               ? changelogBlocks
               : isConcepts
-              ? [
-                  { id: 'intro', type: 'rich_text', content: editor!.getHTML() },
-                  ...serializeConceptsContent(conceptsData),
-                ]
-              : [
-                  {
-                    id: 'content',
-                    type: 'rich_text',
-                    content: editor!.getHTML(),
-                  },
-                ];
+                ? [
+                    {
+                      id: 'intro',
+                      type: 'rich_text',
+                      content: editor!.getHTML(),
+                    },
+                    ...serializeConceptsContent(conceptsData),
+                  ]
+                : [
+                    {
+                      id: 'content',
+                      type: 'rich_text',
+                      content: editor!.getHTML(),
+                    },
+                  ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
@@ -339,13 +342,18 @@ export default function RichEditor({
           : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
         ...(isVisualsDivision && layout ? { layout } : {}),
-        ...(isStorageChangelog ? {
-          version: changelogMeta.version || undefined,
-          date: changelogMeta.date || undefined,
-          author: changelogMeta.author || undefined,
-        } : {}),
+        ...(isStorageChangelog
+          ? {
+              version: changelogMeta.version || undefined,
+              date: changelogMeta.date || undefined,
+              author: changelogMeta.author || undefined,
+            }
+          : {}),
         ...(isStorageClearing
-          ? { subcategories: storageSubcats.length > 0 ? storageSubcats : undefined }
+          ? {
+              subcategories:
+                storageSubcats.length > 0 ? storageSubcats : undefined,
+            }
           : {}),
         ...(needsSubcatSelector
           ? { subcategory: storageSubcat || undefined }
@@ -452,7 +460,272 @@ export default function RichEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  if (!editor && !isEchoes && !isVisuals && !isStorageDialogue && !isStorageChangelog) return null;
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{
+    src: string;
+    pos: number;
+  } | null>(null);
+  // 圖片選擇器（媒體庫）
+  const [imgPickerOpen, setImgPickerOpen] = useState(false);
+  const [imgPickerItems, setImgPickerItems] = useState<
+    {
+      key: string;
+      size: number;
+      contentType: string;
+      originalName: string;
+      referenced: boolean;
+    }[]
+  >([]);
+  const [imgPickerLoading, setImgPickerLoading] = useState(false);
+  const [imgPickerSearch, setImgPickerSearch] = useState('');
+  // 圖片替換模式（替換時不是插入新圖，而是替換選中圖的 src）
+  const [imgReplaceMode, setImgReplaceMode] = useState(false);
+  // 圖片刪除確認
+  const [imgDeleteConfirm, setImgDeleteConfirm] = useState<{
+    src: string;
+    pos: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncSelectedImage = () => {
+      const selection = editor.state.selection as any;
+      let next: { src: string; pos: number } | null = null;
+
+      if (selection.node?.type?.name === 'image') {
+        next = {
+          src: selection.node.attrs?.src || '',
+          pos: selection.from,
+        };
+      }
+
+      setSelectedImage((current) =>
+        current?.src === next?.src && current?.pos === next?.pos
+          ? current
+          : next
+      );
+    };
+
+    syncSelectedImage();
+    editor.on('selectionUpdate', syncSelectedImage);
+    editor.on('transaction', syncSelectedImage);
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedImage);
+      editor.off('transaction', syncSelectedImage);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor || !selectedImage || imgDeleteConfirm) return;
+
+    const handleImageDeleteKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (!editor.isFocused) return;
+
+      const node = editor.state.doc.nodeAt(selectedImage.pos);
+      if (node?.type.name !== 'image') return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setImgDeleteConfirm(selectedImage);
+    };
+
+    document.addEventListener('keydown', handleImageDeleteKey, true);
+    return () =>
+      document.removeEventListener('keydown', handleImageDeleteKey, true);
+  }, [editor, selectedImage, imgDeleteConfirm]);
+
+  const selectImageBySrc = (src: string) => {
+    if (!editor) return;
+    let imagePos: number | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image' && node.attrs.src === src) {
+        imagePos = pos;
+        return false;
+      }
+      return true;
+    });
+
+    if (imagePos !== null) {
+      editor.commands.setNodeSelection(imagePos);
+      setSelectedImage({ src, pos: imagePos });
+    }
+  };
+
+  const insertOrReplaceImage = (src: string) => {
+    if (!editor) return;
+
+    if (imgReplaceMode && selectedImage) {
+      const node = editor.state.doc.nodeAt(selectedImage.pos);
+      if (node?.type.name === 'image') {
+        editor
+          .chain()
+          .focus()
+          .setNodeSelection(selectedImage.pos)
+          .updateAttributes('image', { src })
+          .run();
+        setSelectedImage({ src, pos: selectedImage.pos });
+        setMetaDirty(true);
+        return;
+      }
+    }
+
+    const insertPos = editor.state.selection.from;
+    editor.chain().focus().setImage({ src }).run();
+    requestAnimationFrame(() => {
+      const node = editor.state.doc.nodeAt(insertPos);
+      if (node?.type.name === 'image') {
+        editor.commands.setNodeSelection(insertPos);
+        setSelectedImage({ src, pos: insertPos });
+        return;
+      }
+      selectImageBySrc(src);
+    });
+    setMetaDirty(true);
+  };
+
+  const insertImage = () => {
+    setImgReplaceMode(false);
+    imageInputRef.current?.click();
+  };
+
+  const openImagePicker = async (replaceMode = false) => {
+    setImgReplaceMode(replaceMode);
+    setImgPickerOpen(true);
+    setImgPickerLoading(true);
+    setImgPickerSearch('');
+    try {
+      const res = await fetch(`${apiBase}/api/assets?prefix=images/&limit=500`);
+      if (!res.ok) {
+        setImgPickerItems([]);
+        return;
+      }
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: {
+          items: {
+            key: string;
+            size: number;
+            contentType: string;
+            originalName: string;
+            referenced: boolean;
+          }[];
+        };
+      };
+      if (!json.ok) {
+        setImgPickerItems([]);
+        return;
+      }
+      const items = json.data.items.filter(
+        (i) =>
+          i.contentType?.startsWith('image/') || i.key.startsWith('images/')
+      );
+      items.sort((a, b) => {
+        if (a.referenced === b.referenced) return 0;
+        return a.referenced ? 1 : -1;
+      });
+      setImgPickerItems(items);
+    } catch {
+      setImgPickerItems([]);
+    } finally {
+      setImgPickerLoading(false);
+    }
+  };
+
+  const selectFromLibrary = (item: { key: string }) => {
+    if (!editor) return;
+    const imgUrl = `${apiBase}/api/assets/${item.key
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
+    insertOrReplaceImage(imgUrl);
+    setImgPickerOpen(false);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+    e.target.value = '';
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${apiBase}/api/assets`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const imgUrl = `${apiBase}${json.data.url}`;
+        insertOrReplaceImage(imgUrl);
+      } else {
+        uepToast.error(`Upload failed: ${json.error}`);
+      }
+    } catch (err: any) {
+      uepToast.error(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 從 src URL 提取 R2 key
+  const extractAssetKey = (src: string): string | null => {
+    const marker = '/api/assets/';
+    const idx = src.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(src.slice(idx + marker.length));
+  };
+
+  // 刪除圖片：僅移除引用
+  const handleImageRemoveOnly = () => {
+    if (!imgDeleteConfirm || !editor) return;
+    const { pos } = imgDeleteConfirm;
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: pos, to: pos + 1 })
+      .run();
+    setMetaDirty(true);
+    setSelectedImage(null);
+    setImgDeleteConfirm(null);
+  };
+
+  // 刪除圖片：從媒體庫永久刪除
+  const handleImageDeleteFromLibrary = async () => {
+    if (!imgDeleteConfirm || !editor) return;
+    const { src, pos } = imgDeleteConfirm;
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: pos, to: pos + 1 })
+      .run();
+    setMetaDirty(true);
+    setSelectedImage(null);
+    setImgDeleteConfirm(null);
+    const key = extractAssetKey(src);
+    if (key) {
+      try {
+        const encoded = key.split('/').map(encodeURIComponent).join('/');
+        await fetch(`${apiBase}/api/assets/${encoded}`, { method: 'DELETE' });
+      } catch (err) {
+        console.error('刪除媒體庫檔案失敗:', err);
+      }
+    }
+  };
+
+  if (
+    !editor &&
+    !isEchoes &&
+    !isVisuals &&
+    !isStorageDialogue &&
+    !isStorageChangelog
+  )
+    return null;
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -567,42 +840,6 @@ export default function RichEditor({
     ));
   }
 
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const insertImage = () => {
-    imageInputRef.current?.click();
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editor) return;
-    e.target.value = '';
-
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch(`${apiBase}/api/assets`, {
-        method: 'POST',
-        body: formData,
-      });
-      const json = await res.json();
-      if (json.ok) {
-        const imgUrl = `${apiBase}${json.data.url}`;
-        editor.chain().focus().setImage({ src: imgUrl }).run();
-        setMetaDirty(true);
-      } else {
-        uepToast.error(`Upload failed: ${json.error}`);
-      }
-    } catch (err: any) {
-      uepToast.error(`Upload error: ${err.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const charCount = editor ? editor.getText().length : 0;
 
   const statusLabel = {
@@ -613,10 +850,10 @@ export default function RichEditor({
   }[saveStatus];
 
   const saveButtonLabel = {
-    idle: '\u5132\u5B58',
-    saving: '\u5132\u5B58\u4E2D...',
-    saved: '\u5DF2\u5132\u5B58',
-    error: '\u5931\u6557',
+    idle: '儲存',
+    saving: '儲存中...',
+    saved: '已儲存',
+    error: '失敗',
   }[saveStatus];
 
   return (
@@ -649,7 +886,7 @@ export default function RichEditor({
             />
             <span className="ned-header-status">
               {statusLabel ||
-                `${pageStatus} \u00b7 ${isDirty ? 'modified' : 'saved'}`}
+                `${pageStatus} | ${isDirty ? 'modified' : 'saved'}`}
             </span>
             <div className="ned-header-spacer" />
             <div className="ned-header-right">
@@ -684,482 +921,539 @@ export default function RichEditor({
       {/* Toolbar — 入口模式隱藏 */}
       {!isEntryMode && (
         <div className="ned-toolbar" ref={dropdownRef}>
-          {!isEchoes && !isVisuals && !isStorageDialogue && !isStorageChangelog && editor && (
-            <>
-              {/* Heading dropdown */}
-              <div className="tb-group">
-                <div className="tb-dropdown-wrap">
-                  <button
-                    className="tb-btn tb-dropdown-trigger"
-                    onClick={() => toggleDropdown('heading')}
-                  >
-                    {editor.isActive('heading', { level: 1 })
-                      ? 'H1'
-                      : editor.isActive('heading', { level: 2 })
-                        ? 'H2'
-                        : editor.isActive('heading', { level: 3 })
-                          ? 'H3'
-                          : '\u5167\u6587'}
-                    <span className="tb-caret">&#9662;</span>
-                  </button>
-                  {activeDropdown === 'heading' && (
-                    <div className="tb-dropdown">
-                      {HEADING_LEVELS.map((h) => (
-                        <button
-                          key={h.value}
-                          className="tb-dropdown-item"
-                          onClick={() => setHeading(h.value)}
-                        >
-                          {h.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* Basic formatting */}
-              <div className="tb-group">
-                <button
-                  className={`tb-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                  title="Bold (Ctrl+B)"
-                >
-                  <strong>B</strong>
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                  title="Italic (Ctrl+I)"
-                >
-                  <em>I</em>
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
-                  onClick={() => editor.chain().focus().toggleUnderline().run()}
-                  title="Underline (Ctrl+U)"
-                >
-                  <span style={{ textDecoration: 'underline' }}>U</span>
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
-                  onClick={() => editor.chain().focus().toggleStrike().run()}
-                  title="Strikethrough"
-                >
-                  <s>S</s>
-                </button>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* Text color */}
-              <div className="tb-group">
-                <div className="tb-dropdown-wrap">
-                  <button
-                    className="tb-btn"
-                    onClick={() => toggleDropdown('color')}
-                    title="Text color"
-                  >
-                    <span
-                      className="tb-color-preview"
-                      style={{
-                        borderBottomColor:
-                          editor.getAttributes('textStyle').color ||
-                          'var(--ink)',
-                      }}
+          {!isEchoes &&
+            !isVisuals &&
+            !isStorageDialogue &&
+            !isStorageChangelog &&
+            editor && (
+              <>
+                {/* Heading dropdown */}
+                <div className="tb-group">
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className="tb-btn tb-dropdown-trigger"
+                      onClick={() => toggleDropdown('heading')}
                     >
-                      A
-                    </span>
-                  </button>
-                  {activeDropdown === 'color' && (
-                    <div className="tb-dropdown tb-color-grid">
-                      {TEXT_COLORS.map((c) => (
-                        <button
-                          key={c.value || 'default'}
-                          className="tb-color-swatch"
-                          style={{ background: c.value || 'var(--ink)' }}
-                          onClick={() => setColor(c.value)}
-                          title={c.label}
-                        />
-                      ))}
-                    </div>
-                  )}
+                      {editor.isActive('heading', { level: 1 })
+                        ? 'H1'
+                        : editor.isActive('heading', { level: 2 })
+                          ? 'H2'
+                          : editor.isActive('heading', { level: 3 })
+                            ? 'H3'
+                            : '內文'}
+                      <span className="tb-caret">&#9662;</span>
+                    </button>
+                    {activeDropdown === 'heading' && (
+                      <div className="tb-dropdown">
+                        {HEADING_LEVELS.map((h) => (
+                          <button
+                            key={h.value}
+                            className="tb-dropdown-item"
+                            onClick={() => setHeading(h.value)}
+                          >
+                            {h.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Highlight */}
-                <div className="tb-dropdown-wrap">
+                <div className="tb-sep" />
+
+                {/* Basic formatting */}
+                <div className="tb-group">
                   <button
-                    className="tb-btn"
-                    onClick={() => toggleDropdown('highlight')}
-                    title="Highlight"
+                    className={`tb-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
+                    onClick={() => editor.chain().focus().toggleBold().run()}
+                    title="Bold (Ctrl+B)"
                   >
-                    <span
-                      className="tb-highlight-preview"
-                      style={{
-                        background:
-                          editor.getAttributes('highlight').color ||
-                          'transparent',
-                      }}
+                    <strong>B</strong>
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
+                    onClick={() => editor.chain().focus().toggleItalic().run()}
+                    title="Italic (Ctrl+I)"
+                  >
+                    <em>I</em>
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().toggleUnderline().run()
+                    }
+                    title="Underline (Ctrl+U)"
+                  >
+                    <span style={{ textDecoration: 'underline' }}>U</span>
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
+                    onClick={() => editor.chain().focus().toggleStrike().run()}
+                    title="Strikethrough"
+                  >
+                    <s>S</s>
+                  </button>
+                </div>
+
+                <div className="tb-sep" />
+
+                {/* Text color */}
+                <div className="tb-group">
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className="tb-btn"
+                      onClick={() => toggleDropdown('color')}
+                      title="Text color"
                     >
-                      H
-                    </span>
-                  </button>
-                  {activeDropdown === 'highlight' && (
-                    <div className="tb-dropdown tb-color-grid">
-                      {HIGHLIGHT_COLORS.map((c) => (
-                        <button
-                          key={c.value || 'none'}
-                          className="tb-color-swatch"
-                          style={{ background: c.value || 'var(--hairline)' }}
-                          onClick={() => setHighlight(c.value)}
-                          title={c.label}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* Font family */}
-              <div className="tb-group">
-                <div className="tb-dropdown-wrap">
-                  <button
-                    className="tb-btn tb-dropdown-trigger"
-                    onClick={() => toggleDropdown('font')}
-                    title="Font"
-                  >
-                    Font <span className="tb-caret">&#9662;</span>
-                  </button>
-                  {activeDropdown === 'font' && (
-                    <div className="tb-dropdown">
-                      {FONT_FAMILIES.map((f) => (
-                        <button
-                          key={f.value || 'default'}
-                          className="tb-dropdown-item"
-                          style={{ fontFamily: f.value || 'inherit' }}
-                          onClick={() => setFont(f.value)}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* 字型大小 */}
-              <div className="tb-group">
-                <div className="tb-dropdown-wrap">
-                  <button
-                    className="tb-btn tb-dropdown-trigger"
-                    onClick={() => toggleDropdown('fontSize')}
-                    title="字型大小"
-                  >
-                    {editor
-                      .getAttributes('textStyle')
-                      .fontSize?.replace('px', '') || '大小'}
-                    <span className="tb-caret">&#9662;</span>
-                  </button>
-                  {activeDropdown === 'fontSize' && (
-                    <div className="tb-dropdown tb-fontsize-panel">
-                      {FONT_SIZES.map((s) => (
-                        <button
-                          key={s.value || 'default'}
-                          className={`tb-dropdown-item ${
-                            (editor.getAttributes('textStyle').fontSize ||
-                              '') === s.value
-                              ? 'is-active'
-                              : ''
-                          }`}
-                          onClick={() => handleSetFontSize(s.value)}
-                        >
-                          <span style={{ fontSize: s.value || 'inherit' }}>
-                            {s.label}
-                          </span>
-                          {s.value && (
-                            <span className="tb-fontsize-hint">{s.value}</span>
-                          )}
-                        </button>
-                      ))}
-                      <div className="tb-fontsize-divider" />
-                      <div className="tb-fontsize-custom">
-                        <input
-                          type="number"
-                          min="8"
-                          max="120"
-                          placeholder="自訂 px"
-                          value={customFontSize}
-                          onChange={(e) => setCustomFontSize(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && customFontSize) {
-                              handleSetFontSize(`${customFontSize}px`);
-                              setCustomFontSize('');
-                            }
-                            if (e.key === 'Escape') setActiveDropdown(null);
-                          }}
-                          className="tb-fontsize-input"
-                        />
-                        <button
-                          className="tb-btn"
-                          disabled={!customFontSize}
-                          onClick={() => {
-                            if (customFontSize) {
-                              handleSetFontSize(`${customFontSize}px`);
-                              setCustomFontSize('');
-                            }
-                          }}
-                        >
-                          套用
-                        </button>
+                      <span
+                        className="tb-color-preview"
+                        style={{
+                          borderBottomColor:
+                            editor.getAttributes('textStyle').color ||
+                            'var(--ink)',
+                        }}
+                      >
+                        A
+                      </span>
+                    </button>
+                    {activeDropdown === 'color' && (
+                      <div className="tb-dropdown tb-color-grid">
+                        {TEXT_COLORS.map((c) => (
+                          <button
+                            key={c.value || 'default'}
+                            className="tb-color-swatch"
+                            style={{ background: c.value || 'var(--ink)' }}
+                            onClick={() => setColor(c.value)}
+                            title={c.label}
+                          />
+                        ))}
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    )}
+                  </div>
 
-              <div className="tb-sep" />
-
-              {/* Alignment */}
-              <div className="tb-group">
-                <button
-                  className={`tb-btn ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign('left').run()
-                  }
-                  title="Align left"
-                >
-                  &#8676;
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}`}
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign('center').run()
-                  }
-                  title="Align center"
-                >
-                  &#8596;
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}`}
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign('right').run()
-                  }
-                  title="Align right"
-                >
-                  &#8677;
-                </button>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* Lists, blockquote */}
-              <div className="tb-group">
-                <button
-                  className={`tb-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
-                  onClick={() =>
-                    editor.chain().focus().toggleBulletList().run()
-                  }
-                  title="Bullet list"
-                >
-                  &#8226;
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
-                  onClick={() =>
-                    editor.chain().focus().toggleOrderedList().run()
-                  }
-                  title="Ordered list"
-                >
-                  1.
-                </button>
-                <button
-                  className={`tb-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
-                  onClick={() =>
-                    editor.chain().focus().toggleBlockquote().run()
-                  }
-                  title="Blockquote"
-                >
-                  &ldquo;
-                </button>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* Insert */}
-              <div className="tb-group">
-                <button
-                  className="tb-btn"
-                  onClick={() =>
-                    editor.chain().focus().setHorizontalRule().run()
-                  }
-                  title="Horizontal rule"
-                >
-                  &mdash;
-                </button>
-                <button
-                  className="tb-btn"
-                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                  title="Code block"
-                >
-                  &lt;/&gt;
-                </button>
-                <button
-                  className="tb-btn"
-                  onClick={insertImage}
-                  title="Upload image"
-                  disabled={uploading}
-                >
-                  {uploading ? '\u23F3' : '\u25A2'}
-                </button>
-              </div>
-
-              <div className="tb-sep" />
-
-              {/* 連結 */}
-              <div className="tb-group">
-                <div className="tb-dropdown-wrap">
-                  <button
-                    className={`tb-btn ${editor.isActive('link') ? 'is-active' : ''}`}
-                    onClick={handleOpenLinkDropdown}
-                    title="插入連結"
-                  >
-                    &#128279;
-                  </button>
-                  {activeDropdown === 'link' && (
-                    <div className="tb-dropdown tb-link-panel">
-                      {/* 模式切換 */}
-                      <div className="tb-link-tabs">
-                        <button
-                          className={`tb-link-tab ${linkMode === 'url' ? 'is-active' : ''}`}
-                          onClick={() => setLinkMode('url')}
-                        >
-                          URL
-                        </button>
-                        <button
-                          className={`tb-link-tab ${linkMode === 'page' ? 'is-active' : ''}`}
-                          onClick={() => {
-                            setLinkMode('page');
-                            void loadLinkPageTree();
-                          }}
-                        >
-                          內部頁面
-                        </button>
+                  {/* Highlight */}
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className="tb-btn"
+                      onClick={() => toggleDropdown('highlight')}
+                      title="Highlight"
+                    >
+                      <span
+                        className="tb-highlight-preview"
+                        style={{
+                          background:
+                            editor.getAttributes('highlight').color ||
+                            'transparent',
+                        }}
+                      >
+                        H
+                      </span>
+                    </button>
+                    {activeDropdown === 'highlight' && (
+                      <div className="tb-dropdown tb-color-grid">
+                        {HIGHLIGHT_COLORS.map((c) => (
+                          <button
+                            key={c.value || 'none'}
+                            className="tb-color-swatch"
+                            style={{ background: c.value || 'var(--hairline)' }}
+                            onClick={() => setHighlight(c.value)}
+                            title={c.label}
+                          />
+                        ))}
                       </div>
+                    )}
+                  </div>
+                </div>
 
-                      {linkMode === 'url' ? (
-                        <>
+                <div className="tb-sep" />
+
+                {/* Font family */}
+                <div className="tb-group">
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className="tb-btn tb-dropdown-trigger"
+                      onClick={() => toggleDropdown('font')}
+                      title="Font"
+                    >
+                      Font <span className="tb-caret">&#9662;</span>
+                    </button>
+                    {activeDropdown === 'font' && (
+                      <div className="tb-dropdown">
+                        {FONT_FAMILIES.map((f) => (
+                          <button
+                            key={f.value || 'default'}
+                            className="tb-dropdown-item"
+                            style={{ fontFamily: f.value || 'inherit' }}
+                            onClick={() => setFont(f.value)}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="tb-sep" />
+
+                {/* 字型大小 */}
+                <div className="tb-group">
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className="tb-btn tb-dropdown-trigger"
+                      onClick={() => toggleDropdown('fontSize')}
+                      title="字型大小"
+                    >
+                      {editor
+                        .getAttributes('textStyle')
+                        .fontSize?.replace('px', '') || '大小'}
+                      <span className="tb-caret">&#9662;</span>
+                    </button>
+                    {activeDropdown === 'fontSize' && (
+                      <div className="tb-dropdown tb-fontsize-panel">
+                        {FONT_SIZES.map((s) => (
+                          <button
+                            key={s.value || 'default'}
+                            className={`tb-dropdown-item ${
+                              (editor.getAttributes('textStyle').fontSize ||
+                                '') === s.value
+                                ? 'is-active'
+                                : ''
+                            }`}
+                            onClick={() => handleSetFontSize(s.value)}
+                          >
+                            <span style={{ fontSize: s.value || 'inherit' }}>
+                              {s.label}
+                            </span>
+                            {s.value && (
+                              <span className="tb-fontsize-hint">
+                                {s.value}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                        <div className="tb-fontsize-divider" />
+                        <div className="tb-fontsize-custom">
                           <input
-                            className="tb-link-input"
-                            type="url"
-                            placeholder="https://..."
-                            value={linkHref}
-                            onChange={(e) => setLinkHref(e.target.value)}
+                            type="number"
+                            min="8"
+                            max="120"
+                            placeholder="自訂 px"
+                            value={customFontSize}
+                            onChange={(e) => setCustomFontSize(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') applyLink(linkHref);
+                              if (e.key === 'Enter' && customFontSize) {
+                                handleSetFontSize(`${customFontSize}px`);
+                                setCustomFontSize('');
+                              }
                               if (e.key === 'Escape') setActiveDropdown(null);
                             }}
-                            autoFocus
+                            className="tb-fontsize-input"
                           />
-                          <label className="tb-link-option">
-                            <input
-                              type="checkbox"
-                              checked={linkOpenInNew}
-                              onChange={(e) =>
-                                setLinkOpenInNew(e.target.checked)
+                          <button
+                            className="tb-btn"
+                            disabled={!customFontSize}
+                            onClick={() => {
+                              if (customFontSize) {
+                                handleSetFontSize(`${customFontSize}px`);
+                                setCustomFontSize('');
                               }
-                            />
-                            開新分頁
-                          </label>
-                          <div className="tb-link-actions">
-                            <button
-                              className="tb-link-apply"
-                              disabled={!linkHref}
-                              onClick={() => applyLink(linkHref)}
-                            >
-                              套用
-                            </button>
-                            {editor.isActive('link') && (
-                              <button
-                                className="tb-link-remove"
-                                onClick={removeLink}
-                              >
-                                移除連結
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          {linkPageTreeLoading && (
-                            <div className="tb-link-loading">載入頁面中...</div>
-                          )}
-                          {!linkPageTreeLoading && (
-                            <div className="tb-link-page-tree">
-                              {renderLinkPageTree(linkPageTree)}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
+                            }}
+                          >
+                            套用
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="tb-sep" />
+                <div className="tb-sep" />
 
-              {/* UEP 對話 */}
-              <div className="tb-group">
-                <button
-                  className={`tb-btn tb-btn-uep ${editor.isActive('uepDialogue') ? 'is-active' : ''}`}
-                  onClick={() => editor.chain().focus().toggleUepDialogue().run()}
-                  title="UEP 對話 (Ctrl+Shift+U)"
-                >
-                  <span style={{ color: '#D5B618', fontWeight: 700, fontSize: 11 }}>U.E.P</span>
-                </button>
-                {editor.isActive('uepDialogue') && (
+                {/* Alignment */}
+                <div className="tb-group">
+                  <button
+                    className={`tb-btn ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().setTextAlign('left').run()
+                    }
+                    title="Align left"
+                  >
+                    &#8676;
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().setTextAlign('center').run()
+                    }
+                    title="Align center"
+                  >
+                    &#8596;
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().setTextAlign('right').run()
+                    }
+                    title="Align right"
+                  >
+                    &#8677;
+                  </button>
+                </div>
+
+                <div className="tb-sep" />
+
+                {/* Lists, blockquote */}
+                <div className="tb-group">
+                  <button
+                    className={`tb-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().toggleBulletList().run()
+                    }
+                    title="Bullet list"
+                  >
+                    &#8226;
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().toggleOrderedList().run()
+                    }
+                    title="Ordered list"
+                  >
+                    1.
+                  </button>
+                  <button
+                    className={`tb-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().toggleBlockquote().run()
+                    }
+                    title="Blockquote"
+                  >
+                    &ldquo;
+                  </button>
+                </div>
+
+                <div className="tb-sep" />
+
+                {/* Insert */}
+                <div className="tb-group">
                   <button
                     className="tb-btn"
-                    onClick={() => {
-                      const current = editor.getAttributes('uepDialogue').side;
-                      editor.chain().focus().updateAttributes('uepDialogue', {
-                        side: current === 'left' ? 'right' : 'left',
-                      }).run();
-                    }}
-                    title="切換左右"
+                    onClick={() =>
+                      editor.chain().focus().setHorizontalRule().run()
+                    }
+                    title="Horizontal rule"
                   >
-                    {editor.getAttributes('uepDialogue').side === 'left' ? 'L' : 'R'}
+                    &mdash;
                   </button>
-                )}
-              </div>
+                  <button
+                    className="tb-btn"
+                    onClick={() =>
+                      editor.chain().focus().toggleCodeBlock().run()
+                    }
+                    title="Code block"
+                  >
+                    &lt;/&gt;
+                  </button>
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className="tb-btn"
+                      onClick={() =>
+                        setActiveDropdown(
+                          activeDropdown === 'image' ? null : 'image'
+                        )
+                      }
+                      title="插入圖片"
+                      disabled={uploading}
+                    >
+                      {uploading ? '上傳中' : '圖片'}
+                    </button>
+                    {activeDropdown === 'image' && (
+                      <div className="tb-dropdown" style={{ minWidth: 160 }}>
+                        <button
+                          className="tb-dropdown-item"
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            insertImage();
+                          }}
+                        >
+                          上傳圖片
+                        </button>
+                        <button
+                          className="tb-dropdown-item"
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            void openImagePicker(false);
+                          }}
+                        >
+                          從媒體庫選取
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-              <div className="tb-sep" />
+                <div className="tb-sep" />
 
-              {/* 清除格式 */}
-              <div className="tb-group">
-                <button
-                  className="tb-btn"
-                  onClick={() =>
-                    editor
-                      .chain()
-                      .focus()
-                      .unsetAllMarks()
-                      .clearNodes()
-                      .setParagraph()
-                      .run()
-                  }
-                  title="清除格式"
-                >
-                  ✕
-                </button>
-              </div>
-            </>
-          )}
+                {/* 連結 */}
+                <div className="tb-group">
+                  <div className="tb-dropdown-wrap">
+                    <button
+                      className={`tb-btn ${editor.isActive('link') ? 'is-active' : ''}`}
+                      onClick={handleOpenLinkDropdown}
+                      title="插入連結"
+                    >
+                      &#128279;
+                    </button>
+                    {activeDropdown === 'link' && (
+                      <div className="tb-dropdown tb-link-panel">
+                        {/* 模式切換 */}
+                        <div className="tb-link-tabs">
+                          <button
+                            className={`tb-link-tab ${linkMode === 'url' ? 'is-active' : ''}`}
+                            onClick={() => setLinkMode('url')}
+                          >
+                            URL
+                          </button>
+                          <button
+                            className={`tb-link-tab ${linkMode === 'page' ? 'is-active' : ''}`}
+                            onClick={() => {
+                              setLinkMode('page');
+                              void loadLinkPageTree();
+                            }}
+                          >
+                            內部頁面
+                          </button>
+                        </div>
+
+                        {linkMode === 'url' ? (
+                          <>
+                            <input
+                              className="tb-link-input"
+                              type="url"
+                              placeholder="https://..."
+                              value={linkHref}
+                              onChange={(e) => setLinkHref(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') applyLink(linkHref);
+                                if (e.key === 'Escape') setActiveDropdown(null);
+                              }}
+                              autoFocus
+                            />
+                            <label className="tb-link-option">
+                              <input
+                                type="checkbox"
+                                checked={linkOpenInNew}
+                                onChange={(e) =>
+                                  setLinkOpenInNew(e.target.checked)
+                                }
+                              />
+                              開新分頁
+                            </label>
+                            <div className="tb-link-actions">
+                              <button
+                                className="tb-link-apply"
+                                disabled={!linkHref}
+                                onClick={() => applyLink(linkHref)}
+                              >
+                                套用
+                              </button>
+                              {editor.isActive('link') && (
+                                <button
+                                  className="tb-link-remove"
+                                  onClick={removeLink}
+                                >
+                                  移除連結
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {linkPageTreeLoading && (
+                              <div className="tb-link-loading">
+                                載入頁面中...
+                              </div>
+                            )}
+                            {!linkPageTreeLoading && (
+                              <div className="tb-link-page-tree">
+                                {renderLinkPageTree(linkPageTree)}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="tb-sep" />
+
+                {/* UEP 對話 */}
+                <div className="tb-group">
+                  <button
+                    className={`tb-btn tb-btn-uep ${editor.isActive('uepDialogue') ? 'is-active' : ''}`}
+                    onClick={() =>
+                      editor.chain().focus().toggleUepDialogue().run()
+                    }
+                    title="UEP 對話 (Ctrl+Shift+U)"
+                  >
+                    <span
+                      style={{
+                        color: '#D5B618',
+                        fontWeight: 700,
+                        fontSize: 11,
+                      }}
+                    >
+                      U.E.P
+                    </span>
+                  </button>
+                  {editor.isActive('uepDialogue') && (
+                    <button
+                      className="tb-btn"
+                      onClick={() => {
+                        const current =
+                          editor.getAttributes('uepDialogue').side;
+                        editor
+                          .chain()
+                          .focus()
+                          .updateAttributes('uepDialogue', {
+                            side: current === 'left' ? 'right' : 'left',
+                          })
+                          .run();
+                      }}
+                      title="切換左右"
+                    >
+                      {editor.getAttributes('uepDialogue').side === 'left'
+                        ? 'L'
+                        : 'R'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="tb-sep" />
+
+                {/* 清除格式 */}
+                <div className="tb-group">
+                  <button
+                    className="tb-btn"
+                    onClick={() =>
+                      editor
+                        .chain()
+                        .focus()
+                        .unsetAllMarks()
+                        .clearNodes()
+                        .setParagraph()
+                        .run()
+                    }
+                    title="清除格式"
+                  >
+                    清除
+                  </button>
+                </div>
+              </>
+            )}
 
           <span className="ned-toolbar-right">
             {isEchoes
@@ -1171,7 +1465,7 @@ export default function RichEditor({
                   : isPageType
                     ? 'homepage mode'
                     : 'rich text'}
-            {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
+            {!isEchoes && ` | ${charCount.toLocaleString()} chars`}
           </span>
         </div>
       )}
@@ -1229,34 +1523,37 @@ export default function RichEditor({
                   />
                 ) : isStorageDialogue ? (
                   <>
-                  {needsSubcatSelector && availableSubcats.length > 0 && (
-                    <div className="ned-subcat-selector">
-                      <label className="ned-subcat-selector-label">分類</label>
-                      <select
-                        className="ned-subcat-selector-select"
-                        value={storageSubcat}
-                        onChange={(e) => {
-                          setStorageSubcat(e.target.value);
-                          setMetaDirty(true);
-                        }}
-                      >
-                        <option value="">（未分類）</option>
-                        {availableSubcats
-                          .filter((s) => !s.hidden)
-                          .map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.icon ? `${s.icon} ` : ''}{s.label}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-                  <StorageDialogueEditor
-                    accent={accentMain}
-                    initialContentBlocks={initialContentBlocks || []}
-                    onContentChange={setStorageDialogueBlocks}
-                    onDirty={() => setMetaDirty(true)}
-                  />
+                    {needsSubcatSelector && availableSubcats.length > 0 && (
+                      <div className="ned-subcat-selector">
+                        <label className="ned-subcat-selector-label">
+                          分類
+                        </label>
+                        <select
+                          className="ned-subcat-selector-select"
+                          value={storageSubcat}
+                          onChange={(e) => {
+                            setStorageSubcat(e.target.value);
+                            setMetaDirty(true);
+                          }}
+                        >
+                          <option value="">（未分類）</option>
+                          {availableSubcats
+                            .filter((s) => !s.hidden)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.icon ? `${s.icon} ` : ''}
+                                {s.label}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                    <StorageDialogueEditor
+                      accent={accentMain}
+                      initialContentBlocks={initialContentBlocks || []}
+                      onContentChange={setStorageDialogueBlocks}
+                      onDirty={() => setMetaDirty(true)}
+                    />
                   </>
                 ) : isStorageChangelog ? (
                   <ChangelogEditorBody
@@ -1282,7 +1579,9 @@ export default function RichEditor({
                     )}
                     {needsSubcatSelector && availableSubcats.length > 0 && (
                       <div className="ned-subcat-selector">
-                        <label className="ned-subcat-selector-label">分類</label>
+                        <label className="ned-subcat-selector-label">
+                          分類
+                        </label>
                         <select
                           className="ned-subcat-selector-select"
                           value={storageSubcat}
@@ -1296,7 +1595,8 @@ export default function RichEditor({
                             .filter((s) => !s.hidden)
                             .map((s) => (
                               <option key={s.id} value={s.id}>
-                                {s.icon ? `${s.icon} ` : ''}{s.label}
+                                {s.icon ? `${s.icon} ` : ''}
+                                {s.label}
                               </option>
                             ))}
                         </select>
@@ -1409,6 +1709,273 @@ export default function RichEditor({
         style={{ display: 'none' }}
         onChange={handleImageUpload}
       />
+
+      {/* 圖片浮動操作列 */}
+      {editor &&
+        selectedImage &&
+        (() => {
+          const imgSrc = selectedImage.src;
+          const pos = selectedImage.pos;
+          return (
+            <div className="ned-img-bubble" key="img-bubble">
+              <button
+                className="ned-img-bubble-btn"
+                title="替換圖片（上傳）"
+                onClick={() => {
+                  setImgReplaceMode(true);
+                  imageInputRef.current?.click();
+                }}
+              >
+                上傳替換
+              </button>
+              <button
+                className="ned-img-bubble-btn"
+                title="替換圖片（媒體庫）"
+                onClick={() => void openImagePicker(true)}
+              >
+                媒體庫替換
+              </button>
+              <button
+                className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+                title="刪除圖片"
+                onClick={() => setImgDeleteConfirm({ src: imgSrc, pos })}
+              >
+                刪除
+              </button>
+            </div>
+          );
+        })()}
+
+      {/* 圖片選擇器 Modal */}
+      {imgPickerOpen && (
+        <div
+          className="ned-modal-backdrop"
+          onClick={() => setImgPickerOpen(false)}
+        >
+          <div
+            className="ned-modal-card"
+            style={{ maxWidth: 640, maxHeight: '80vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ned-modal-header">
+              <div>
+                <strong>從媒體庫選擇圖片</strong>
+                <span
+                  style={{
+                    marginLeft: 10,
+                    fontSize: '0.85em',
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  {imgReplaceMode ? '選擇圖片以替換' : '選擇圖片以插入'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="搜尋..."
+                  value={imgPickerSearch}
+                  onChange={(e) => setImgPickerSearch(e.target.value)}
+                  style={{
+                    background: 'var(--bg-deep, #111)',
+                    border: '1px solid var(--line, #333)',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: '0.85em',
+                    color: 'var(--ink, #ccc)',
+                    width: 160,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setImgPickerOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--ink, #ccc)',
+                    fontSize: 20,
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                  }}
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+              {imgPickerLoading ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  載入中...
+                </div>
+              ) : imgPickerItems.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  媒體庫中沒有圖片
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(120px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {imgPickerItems
+                    .filter((item) => {
+                      if (!imgPickerSearch) return true;
+                      const name = (
+                        item.originalName || item.key
+                      ).toLowerCase();
+                      return name.includes(imgPickerSearch.toLowerCase());
+                    })
+                    .map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => selectFromLibrary(item)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          border: '1px solid var(--line, #333)',
+                          background: 'transparent',
+                          borderRadius: 6,
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          padding: 0,
+                          color: 'var(--ink, #ccc)',
+                        }}
+                      >
+                        <img
+                          src={`${apiBase}/api/assets/${item.key.split('/').map(encodeURIComponent).join('/')}`}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        <div
+                          style={{
+                            padding: '4px 6px',
+                            fontSize: '0.75em',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.originalName || item.key.split('/').pop()}
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 圖片刪除確認 Dialog */}
+      {imgDeleteConfirm && (
+        <div
+          className="ned-modal-backdrop"
+          onClick={() => setImgDeleteConfirm(null)}
+        >
+          <div
+            className="ned-modal-card"
+            style={{ maxWidth: 400, padding: '24px 28px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}
+            >
+              刪除圖片
+            </div>
+            <div
+              style={{
+                fontSize: '0.85em',
+                color: 'var(--ink-mute, #888)',
+                marginBottom: 16,
+                wordBreak: 'break-all',
+              }}
+            >
+              {imgDeleteConfirm.src.split('/').pop()}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={handleImageRemoveOnly}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                }}
+              >
+                僅從編輯器移除
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
+                  檔案保留在媒體庫中，可供其他頁面使用
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => void handleImageDeleteFromLibrary()}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  borderColor: 'crimson',
+                  color: 'crimson',
+                }}
+              >
+                從媒體庫永久刪除
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
+                  移除引用並從 R2 儲存空間中刪除檔案
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => setImgDeleteConfirm(null)}
+                style={{
+                  width: '100%',
+                  padding: '8px 16px',
+                  textAlign: 'center',
+                  marginTop: 4,
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -895,7 +895,13 @@ function renderStorageRoomMap(
   zone: ZoneData
 ): React.ReactNode {
   const { areas } = block.data as {
-    areas: { icon: string; name: string; label: string; hint: string; slug: string }[];
+    areas: {
+      icon: string;
+      name: string;
+      label: string;
+      hint: string;
+      slug: string;
+    }[];
   };
 
   return (

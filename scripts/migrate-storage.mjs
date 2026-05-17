@@ -74,7 +74,9 @@ function convertLines(body) {
 
     if (trimmed.startsWith('```')) {
       if (inCodeBlock) {
-        htmlParts.push(`<pre><code>${escapeHtml(codeContent.trim())}</code></pre>`);
+        htmlParts.push(
+          `<pre><code>${escapeHtml(codeContent.trim())}</code></pre>`
+        );
         codeContent = '';
         inCodeBlock = false;
       } else {
@@ -82,16 +84,27 @@ function convertLines(body) {
       }
       continue;
     }
-    if (inCodeBlock) { codeContent += line + '\n'; continue; }
+    if (inCodeBlock) {
+      codeContent += line + '\n';
+      continue;
+    }
 
     // GitBook 語法行 — 保留
-    if (trimmed.match(/^\{%\s*(hint|endhint|tabs|endtabs|tab|endtab|content-ref|endcontent-ref|stepper|endstepper|step|endstep|details|enddetails|file|endfile)/)) {
+    if (
+      trimmed.match(
+        /^\{%\s*(hint|endhint|tabs|endtabs|tab|endtab|content-ref|endcontent-ref|stepper|endstepper|step|endstep|details|enddetails|file|endfile)/
+      )
+    ) {
       htmlParts.push(line);
       continue;
     }
 
     // HTML 區塊
-    if (trimmed.startsWith('<table') || trimmed.startsWith('<div') || trimmed.startsWith('<img')) {
+    if (
+      trimmed.startsWith('<table') ||
+      trimmed.startsWith('<div') ||
+      trimmed.startsWith('<img')
+    ) {
       htmlParts.push(line);
       continue;
     }
@@ -99,8 +112,14 @@ function convertLines(body) {
     // Markdown 表格
     if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
       if (trimmed.match(/^\|[\s\-:]+\|$/)) continue;
-      if (!inTable) { inTable = true; tableRows = []; }
-      const cells = trimmed.split('|').filter(c => c !== '').map(c => c.trim());
+      if (!inTable) {
+        inTable = true;
+        tableRows = [];
+      }
+      const cells = trimmed
+        .split('|')
+        .filter((c) => c !== '')
+        .map((c) => c.trim());
       tableRows.push(cells);
       continue;
     } else if (inTable) {
@@ -118,12 +137,16 @@ function convertLines(body) {
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      htmlParts.push(`<h${level}>${processInline(headingMatch[2])}</h${level}>`);
+      htmlParts.push(
+        `<h${level}>${processInline(headingMatch[2])}</h${level}>`
+      );
       continue;
     }
 
     if (trimmed.startsWith('> ')) {
-      htmlParts.push(`<blockquote><p>${processInline(trimmed.slice(2))}</p></blockquote>`);
+      htmlParts.push(
+        `<blockquote><p>${processInline(trimmed.slice(2))}</p></blockquote>`
+      );
       continue;
     }
 
@@ -146,15 +169,20 @@ function convertLines(body) {
 
 function convertGitBookBlocks(html) {
   // content-ref → 移除（clearing 頁面的子頁面連結由 tree 管理）
-  html = html.replace(/\{%\s*content-ref\s+url="[^"]*"\s*%\}\s*\n?[\s\S]*?\n?\{%\s*endcontent-ref\s*%\}/g, '');
+  html = html.replace(
+    /\{%\s*content-ref\s+url="[^"]*"\s*%\}\s*\n?[\s\S]*?\n?\{%\s*endcontent-ref\s*%\}/g,
+    ''
+  );
   // stepper / step
   html = html.replace(/\{%\s*stepper\s*%\}\s*\n?/g, '');
   html = html.replace(/\{%\s*endstepper\s*%\}\s*\n?/g, '');
   html = html.replace(/\{%\s*step\s*%\}\s*\n?/g, '');
   html = html.replace(/\{%\s*endstep\s*%\}\s*\n?/g, '');
   // details / summary
-  html = html.replace(/<details>\s*\n?\s*<summary>([\s\S]*?)<\/summary>\s*\n?([\s\S]*?)<\/details>/g,
-    (_, summary, content) => `<div class="details"><p><strong>${summary.replace(/<\/?strong>/g, '')}</strong></p>${content.trim()}</div>`
+  html = html.replace(
+    /<details>\s*\n?\s*<summary>([\s\S]*?)<\/summary>\s*\n?([\s\S]*?)<\/details>/g,
+    (_, summary, content) =>
+      `<div class="details"><p><strong>${summary.replace(/<\/?strong>/g, '')}</strong></p>${content.trim()}</div>`
   );
   // hints
   html = html.replace(
@@ -171,8 +199,13 @@ function buildTable(rows) {
   if (!rows.length) return '';
   const header = rows[0];
   const body = rows.slice(1);
-  const ths = header.map(h => `<th>${processInline(h)}</th>`).join('');
-  const trs = body.map(row => `<tr>${row.map(c => `<td>${processInline(c)}</td>`).join('')}</tr>`).join('\n');
+  const ths = header.map((h) => `<th>${processInline(h)}</th>`).join('');
+  const trs = body
+    .map(
+      (row) =>
+        `<tr>${row.map((c) => `<td>${processInline(c)}</td>`).join('')}</tr>`
+    )
+    .join('\n');
   return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
 }
 
@@ -181,7 +214,10 @@ function processInline(text) {
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
   text = text.replace(/`(.+?)`/g, '<code>$1</code>');
-  text = text.replace(/<mark\s+style="color:([^"]+)">/g, '<mark style="color:$1">');
+  text = text.replace(
+    /<mark\s+style="color:([^"]+)">/g,
+    '<mark style="color:$1">'
+  );
   text = text.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
   text = text.replace(/!\[(.+?)\]\((.+?)\)/g, '<img src="$2" alt="$1" />');
   // 處理 GitBook 的 &#x20; (空格)
@@ -192,7 +228,10 @@ function processInline(text) {
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function parseFrontmatter(raw) {
@@ -243,8 +282,10 @@ const boxesMetadata = {
   style: 'dialogue',
   labelEn: 'PLAYGROUND',
   description: boxesMd.frontmatter.description || '',
-  intro: '從外面看起來頂多就只有四五十個箱子，沒想到一踏進入口卻是一整座完整的遊樂場。看起來在 U.E.P 的世界中甚麼都是可能的 —— 而且她有時候會在這裡晃，所以你也許可以撿到一段對話。',
-  uepNote: "哈囉! 你來這裡找我了嗎? 雖然我也不知道我自己什麼時候會在這裡 (>'-'<)",
+  intro:
+    '從外面看起來頂多就只有四五十個箱子，沒想到一踏進入口卻是一整座完整的遊樂場。看起來在 U.E.P 的世界中甚麼都是可能的 —— 而且她有時候會在這裡晃，所以你也許可以撿到一段對話。',
+  uepNote:
+    "哈囉! 你來這裡找我了嗎? 雖然我也不知道我自己什麼時候會在這裡 (>'-'<)",
   motto: 'a playground for stray dialogues. — storage/boxes',
 };
 
@@ -253,7 +294,8 @@ const changelogMetadata = {
   style: 'log',
   labelEn: 'CHANGELOG',
   description: changelogMd.frontmatter.description || '',
-  intro: '桌上的紙條都是某人的紀錄，感覺不像是 U.E.P 自己寫的。算是小小閱讀了一下，很多裡面記載的內容都跟這個世界的其他地區相關 —— 比起說是紀錄，這些文件更像是某種更新公告。',
+  intro:
+    '桌上的紙條都是某人的紀錄，感覺不像是 U.E.P 自己寫的。算是小小閱讀了一下，很多裡面記載的內容都跟這個世界的其他地區相關 —— 比起說是紀錄，這些文件更像是某種更新公告。',
   uepNote: '咦? 這些不是我寫的! 但我也看不出來是誰寫的 (・ω・ )...',
   motto: 'someone keeps leaving notes. — storage/changelog',
 };
@@ -263,8 +305,10 @@ const extrasMetadata = {
   style: 'blog',
   labelEn: 'EXTRAS',
   description: extrasMd.frontmatter.description || '',
-  intro: '不只從一扇窗傳來 —— 這裡的每一處窗戶都可以聽到一種來自異域的空靈聲。冒著精神被汙染的風險，你靠近了那些聲音的源頭，並把聽到的句子一字一句記下來。這裡放的是這些字條的整理。',
-  uepNote: '你可以靠近那扇窗看看! 不過如果聽到什麼會讓你不舒服的就趕快離開喔 (•́ω•̀ )ﾉ',
+  intro:
+    '不只從一扇窗傳來 —— 這裡的每一處窗戶都可以聽到一種來自異域的空靈聲。冒著精神被汙染的風險，你靠近了那些聲音的源頭，並把聽到的句子一字一句記下來。這裡放的是這些字條的整理。',
+  uepNote:
+    '你可以靠近那扇窗看看! 不過如果聽到什麼會讓你不舒服的就趕快離開喔 (•́ω•̀ )ﾉ',
   motto: 'voices from outside the room. — storage/extras',
 };
 
@@ -286,7 +330,9 @@ function buildHomepageBlocks(md) {
     type: 'zone-header',
     content: JSON.stringify({
       title: '某人的置物空間',
-      subtitle: md.frontmatter.description || '再次地回到這間奇怪的房間，你發現有張書桌燈還亮著',
+      subtitle:
+        md.frontmatter.description ||
+        '再次地回到這間奇怪的房間，你發現有張書桌燈還亮著',
     }),
   });
 
@@ -500,18 +546,84 @@ const pages = [
     title: '邊際世界觀測更新-??/04/??',
     slug: 'changelog/log-1',
     sortOrder: 1,
-    content: [{ id: 'items', type: 'log_items', content: JSON.stringify([
-      { id: 'li-1', type: 'zone', subject: '歷史典藏庫', text: '這裡的紀錄基本上無限多，空間也會隨著紀錄的數量擴展，為了方便管理，有關◼︎◼︎◼︎◼︎◼︎◼︎的敘述都已經被分類完畢，只是維護的部分還沒做完。', state: 'wip' },
-      { id: 'li-2', type: 'zone', subject: '三向通道', text: '歷史的分歧地點，三條路線代表著三個◼︎◼︎◼︎◼︎◼︎◼︎，每個通道之內都有多個區間，每個區間都會呈現屬於他們內部歷史的部分面貌，然而某些未歸類者也有可能穿梭在不同的區間當中，此區域當前仍然在維修階段。', state: 'wip' },
-      { id: 'li-3', type: 'zone', subject: '回音蒐藏間', text: '非常吵雜的空間，由各式回聲佔據，它們各自帶有一段「某事的記憶」，並且有著自主分群的習性，會去排斥異類並吸引同類。', state: 'ok' },
-      { id: 'li-4', type: 'zone', subject: '空白廣場', text: '回聲的主要集聚地，在這裡能夠一次觀測到每一種回聲，也可以很清楚的看見它們所形成的「簇」，主要是有對於一個地區、一名人物、一段故事的記憶，但有時也會出現某些事件的記憶，粗略估計是由主界的事件進行干涉所導致的。', state: 'ok' },
-      { id: 'li-5', type: 'zone', subject: '幻影重現室', text: '相較於其他地區，這裡更像是一個類似劇場的存在，所有在此處的幻影都是舞台中的角色，他們映照著真實存在之人的外表與內在。', state: 'ok' },
-      { id: 'li-6', type: 'zone', subject: '鏡像十字路口', text: '這裡是單行道，一定進到這個地區就無法回到原來的幻影重現室，取而代之的四個出口都會導向到不同的子區塊，分別有不同形態的幻影存在，每個區塊都有著一個特性，也就是那些區塊中的幻影都會隨機的出現與消失，難以預測。', state: 'ok' },
-      { id: 'li-7', type: 'zone', subject: '概念調整房', text: '用以存放世界上所有原質與概念的區塊，內部無時無刻不在進行複雜的運算，碰撞、分離出嶄新的概念，並將其運用在各個相依世界當中。', state: 'ok' },
-      { id: 'li-8', type: 'zone', subject: '伺服器內部', text: '顧名思義就是概念調整房的內部伺服器，同時在進行著運算、紀錄與分析，並由各個子區塊去分開負責不同種類的概念操作，也是整個邊際世界當中最為關鍵的地區，由於世界更迭的權限並沒有額外限制，安全漏洞的部分也在維護的行程中。', state: 'ok' },
-      { id: 'li-9', type: 'zone', subject: '外部基軸大廳', text: '運用修改過的基軸技術去建立的多項通道，能夠使實體在多個世界中穿梭，然而並不會實際傳輸物質，若是擁有血肉之軀的使用者僅有意識會被傳輸。傳輸所用的門以光柱形式呈現。', state: 'ok' },
-      { id: 'li-10', type: 'zone', subject: '此處', text: '純粹就只是我的房間，此處位於邊際世界的裂縫當中，因此在任何層面上都是邊際世界裡最為安全之處，我們避免提及任何的危險性存在。', state: 'sealed' },
-    ]) }],
+    content: [
+      {
+        id: 'items',
+        type: 'log_items',
+        content: JSON.stringify([
+          {
+            id: 'li-1',
+            type: 'zone',
+            subject: '歷史典藏庫',
+            text: '這裡的紀錄基本上無限多，空間也會隨著紀錄的數量擴展，為了方便管理，有關◼︎◼︎◼︎◼︎◼︎◼︎的敘述都已經被分類完畢，只是維護的部分還沒做完。',
+            state: 'wip',
+          },
+          {
+            id: 'li-2',
+            type: 'zone',
+            subject: '三向通道',
+            text: '歷史的分歧地點，三條路線代表著三個◼︎◼︎◼︎◼︎◼︎◼︎，每個通道之內都有多個區間，每個區間都會呈現屬於他們內部歷史的部分面貌，然而某些未歸類者也有可能穿梭在不同的區間當中，此區域當前仍然在維修階段。',
+            state: 'wip',
+          },
+          {
+            id: 'li-3',
+            type: 'zone',
+            subject: '回音蒐藏間',
+            text: '非常吵雜的空間，由各式回聲佔據，它們各自帶有一段「某事的記憶」，並且有著自主分群的習性，會去排斥異類並吸引同類。',
+            state: 'ok',
+          },
+          {
+            id: 'li-4',
+            type: 'zone',
+            subject: '空白廣場',
+            text: '回聲的主要集聚地，在這裡能夠一次觀測到每一種回聲，也可以很清楚的看見它們所形成的「簇」，主要是有對於一個地區、一名人物、一段故事的記憶，但有時也會出現某些事件的記憶，粗略估計是由主界的事件進行干涉所導致的。',
+            state: 'ok',
+          },
+          {
+            id: 'li-5',
+            type: 'zone',
+            subject: '幻影重現室',
+            text: '相較於其他地區，這裡更像是一個類似劇場的存在，所有在此處的幻影都是舞台中的角色，他們映照著真實存在之人的外表與內在。',
+            state: 'ok',
+          },
+          {
+            id: 'li-6',
+            type: 'zone',
+            subject: '鏡像十字路口',
+            text: '這裡是單行道，一定進到這個地區就無法回到原來的幻影重現室，取而代之的四個出口都會導向到不同的子區塊，分別有不同形態的幻影存在，每個區塊都有著一個特性，也就是那些區塊中的幻影都會隨機的出現與消失，難以預測。',
+            state: 'ok',
+          },
+          {
+            id: 'li-7',
+            type: 'zone',
+            subject: '概念調整房',
+            text: '用以存放世界上所有原質與概念的區塊，內部無時無刻不在進行複雜的運算，碰撞、分離出嶄新的概念，並將其運用在各個相依世界當中。',
+            state: 'ok',
+          },
+          {
+            id: 'li-8',
+            type: 'zone',
+            subject: '伺服器內部',
+            text: '顧名思義就是概念調整房的內部伺服器，同時在進行著運算、紀錄與分析，並由各個子區塊去分開負責不同種類的概念操作，也是整個邊際世界當中最為關鍵的地區，由於世界更迭的權限並沒有額外限制，安全漏洞的部分也在維護的行程中。',
+            state: 'ok',
+          },
+          {
+            id: 'li-9',
+            type: 'zone',
+            subject: '外部基軸大廳',
+            text: '運用修改過的基軸技術去建立的多項通道，能夠使實體在多個世界中穿梭，然而並不會實際傳輸物質，若是擁有血肉之軀的使用者僅有意識會被傳輸。傳輸所用的門以光柱形式呈現。',
+            state: 'ok',
+          },
+          {
+            id: 'li-10',
+            type: 'zone',
+            subject: '此處',
+            text: '純粹就只是我的房間，此處位於邊際世界的裂縫當中，因此在任何層面上都是邊際世界裡最為安全之處，我們避免提及任何的危險性存在。',
+            state: 'sealed',
+          },
+        ]),
+      },
+    ],
     sourceFile: 'storage/desk/changelog/log-1.md',
     contentHash: hash('log-items-v2'),
     parentId: 'storage/changelog',
@@ -617,7 +729,9 @@ async function importStorage() {
     const icon = typeIcons[p.pageType] || '·';
     const lock = p.metadata?.locked ? ' 🔒' : '';
     const contentLen = p.content?.[0]?.content?.length || 0;
-    console.log(`${indent}${icon} ${p.title} (${p.pageType})${lock} [${contentLen} chars]`);
+    console.log(
+      `${indent}${icon} ${p.title} (${p.pageType})${lock} [${contentLen} chars]`
+    );
   }
 
   console.log(`\n📤 正在逐筆匯入 ${pages.length} 筆資料至 ${API_BASE}...`);
@@ -655,7 +769,9 @@ async function importStorage() {
 
   console.log(`\n✅ 完成！成功: ${ok}, 失敗: ${fail}`);
   if (fail > 0) {
-    console.error('   請確認 content-api worker 正在運行 (pnpm --filter content-api-worker dev)');
+    console.error(
+      '   請確認 content-api worker 正在運行 (pnpm --filter content-api-worker dev)'
+    );
   }
 }
 

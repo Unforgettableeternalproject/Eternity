@@ -988,7 +988,11 @@ export default function HistoryReader() {
                           const html = (block.data as { html: string }).html;
                           return (
                             <React.Fragment key={block.id}>
-                              {renderHtmlWithUep(html, block.id, 'history-prose history-landing-prose')}
+                              {renderHtmlWithUep(
+                                html,
+                                block.id,
+                                'history-prose history-landing-prose'
+                              )}
                             </React.Fragment>
                           );
                         }
@@ -1008,7 +1012,11 @@ export default function HistoryReader() {
                       )}
                       {landingParts.before && (
                         <>
-                          {renderHtmlWithUep(landingParts.before, 'landing-before', 'history-prose history-landing-prose')}
+                          {renderHtmlWithUep(
+                            landingParts.before,
+                            'landing-before',
+                            'history-prose history-landing-prose'
+                          )}
                         </>
                       )}
                       <div className="history-arch-grid">
@@ -1035,7 +1043,11 @@ export default function HistoryReader() {
                       </div>
                       {landingParts.after && (
                         <>
-                          {renderHtmlWithUep(landingParts.after, 'landing-after', 'history-prose history-landing-prose')}
+                          {renderHtmlWithUep(
+                            landingParts.after,
+                            'landing-after',
+                            'history-prose history-landing-prose'
+                          )}
                         </>
                       )}
                       <div className="history-uep-note">
@@ -1051,7 +1063,11 @@ export default function HistoryReader() {
                           </div>
                           <h3>{notePage.title}</h3>
                           <>
-                            {renderHtmlWithUep(renderBlocks(notePage.content), 'note-page', 'history-prose history-note-prose')}
+                            {renderHtmlWithUep(
+                              renderBlocks(notePage.content),
+                              'note-page',
+                              'history-prose history-note-prose'
+                            )}
                           </>
                         </section>
                       )}
@@ -1103,10 +1119,6 @@ export default function HistoryReader() {
                   {!contentLoading && !contentError && currentPage && (
                     <>
                       <header className="history-article-head">
-                        <div className="history-kicker">
-                          {pageTypeLabel(currentPage.pageType)} /{' '}
-                          {currentPage.slug}
-                        </div>
                         <h2 className="history-article-title">
                           {renderIcon(
                             currentPage.metadata?.icon as string,
@@ -1118,12 +1130,10 @@ export default function HistoryReader() {
                         {typeof currentPage.metadata?.description ===
                           'string' && <p>{currentPage.metadata.description}</p>}
                       </header>
-                      <div
-                        ref={contentRef}
-                        onClick={onArticleClick}
-                      >
+                      <div ref={contentRef} onClick={onArticleClick}>
                         {renderHtmlWithUep(
-                          articleHtml || '<p class="empty-notice">這篇內容目前是空的。</p>',
+                          articleHtml ||
+                            '<p class="empty-notice">這篇內容目前是空的。</p>',
                           'article',
                           'history-prose'
                         )}

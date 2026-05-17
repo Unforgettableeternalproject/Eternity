@@ -1530,9 +1530,6 @@ function VisualsReaderInner() {
         </div>
 
         <div className="visuals-gallery-header">
-          <div className="visuals-landing-kicker">
-            {activeDivision?.labelEn}
-          </div>
           <h2>{galleryPage.title}</h2>
           <div className="visuals-gallery-count">{images.length} pieces</div>
         </div>

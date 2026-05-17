@@ -588,17 +588,27 @@ function StorageLinksListPreview({ data }: { data: { links: StorageLink[] } }) {
 function StorageRoomMapPreview({
   data,
 }: {
-  data: { areas: { icon: string; name: string; label: string; slug: string }[] };
+  data: {
+    areas: { icon: string; name: string; label: string; slug: string }[];
+  };
 }) {
   if (data.areas.length === 0) {
     return (
-      <div style={{ padding: '8px 12px', color: 'var(--ink-mute)', fontSize: '0.8rem' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
         （無區域）
       </div>
     );
   }
   return (
-    <div style={{ padding: '6px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div
+      style={{ padding: '6px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}
+    >
       {data.areas.map((area, i) => (
         <div
           key={i}
@@ -613,7 +623,9 @@ function StorageRoomMapPreview({
           }}
         >
           <span style={{ fontSize: '1rem' }}>{area.icon}</span>
-          <span style={{ fontWeight: 600, color: 'var(--ink-title)' }}>{area.name}</span>
+          <span style={{ fontWeight: 600, color: 'var(--ink-title)' }}>
+            {area.name}
+          </span>
           <span
             style={{
               fontFamily: 'var(--font-mono)',
