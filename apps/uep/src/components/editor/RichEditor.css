@@ -599,12 +599,6 @@
   position: relative;
 }
 
-.ned-editor--locked .ned-paper {
-  pointer-events: none;
-  opacity: 0.5;
-  user-select: none;
-}
-
 /* 空狀態 — 入口模式佔位 */
 .ned-empty-state {
   display: flex;
@@ -649,21 +643,6 @@
   color: var(--ink-mute);
 }
 
-.ned-lock-banner {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: 8px 18px;
-  background: color-mix(in srgb, var(--uep-gold) 10%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--uep-gold) 30%, transparent);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--uep-gold);
-  letter-spacing: 0.08em;
-  text-align: center;
-  margin: -40px -60px 24px;
-  padding: 10px;
-}
 
 .ned-paper {
   max-width: 720px;
@@ -3077,4 +3056,33 @@
 .ced-chrono-group-item.drag-over {
   outline: 2px dashed var(--ced-accent, var(--ink-sub));
   outline-offset: -2px;
+}
+
+/* Storage stuff — 分類選擇器 */
+.ned-subcat-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--hairline, #e0e0e0);
+  background: var(--bg-soft, #fafafa);
+}
+.ned-subcat-selector-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute, #999);
+  white-space: nowrap;
+}
+.ned-subcat-selector-select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline, #e0e0e0);
+  background: var(--bg-body, #fff);
+  font-size: 13px;
+  color: inherit;
+  max-width: 300px;
 }

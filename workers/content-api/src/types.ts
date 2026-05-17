@@ -106,6 +106,7 @@ export interface PageTreeNode {
   depth: number;
   status: PageStatus;
   metadata: Record<string, unknown>;
+  updatedAt?: string;
   children: PageTreeNode[];
 }
 

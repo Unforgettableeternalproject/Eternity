@@ -37,6 +37,7 @@ import ChangelogEditorBody, {
   type ChangelogMeta,
 } from './ChangelogEditorBody';
 import ThoughtStream from './ThoughtStream';
+import StorageSubcatEditor, { type SubcatDef } from './StorageSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './StorageDialogueEditor.css';
 import './ChangelogEditorBody.css';
@@ -197,6 +198,11 @@ export default function RichEditor({
     isStorageArea &&
     pageType === 'stuff' &&
     pageSlug.startsWith('extras/');
+  const isStorageClearing = isStorageArea && pageType === 'clearing';
+  const needsSubcatSelector =
+    isStorageArea &&
+    pageType === 'stuff' &&
+    (pageSlug.startsWith('boxes/') || pageSlug.startsWith('extras/'));
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
@@ -225,6 +231,16 @@ export default function RichEditor({
     date: (initialMetadata?.date as string) || '',
     author: (initialMetadata?.author as string) || '',
   }));
+  // Storage subcategory 狀態
+  const [storageSubcats, setStorageSubcats] = useState<SubcatDef[]>(() =>
+    Array.isArray(initialMetadata?.subcategories)
+      ? (initialMetadata.subcategories as SubcatDef[])
+      : []
+  );
+  const [storageSubcat, setStorageSubcat] = useState<string>(
+    (initialMetadata?.subcategory as string) || ''
+  );
+  const [availableSubcats, setAvailableSubcats] = useState<SubcatDef[]>([]);
 
   // TipTap editor
   const editor = useEditor({
@@ -307,10 +323,11 @@ export default function RichEditor({
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
-        ...(hidden ? { hidden: true } : {}),
-        ...(locked ? { locked: true } : {}),
-        ...(icon ? { icon } : {}),
-        ...(description ? { description } : {}),
+        ...(initialMetadata || {}),
+        ...(hidden ? { hidden: true } : { hidden: undefined }),
+        ...(locked ? { locked: true } : { locked: undefined }),
+        ...(icon ? { icon } : { icon: undefined }),
+        ...(description ? { description } : { description: undefined }),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isConcepts
@@ -327,6 +344,12 @@ export default function RichEditor({
           date: changelogMeta.date || undefined,
           author: changelogMeta.author || undefined,
         } : {}),
+        ...(isStorageClearing
+          ? { subcategories: storageSubcats.length > 0 ? storageSubcats : undefined }
+          : {}),
+        ...(needsSubcatSelector
+          ? { subcategory: storageSubcat || undefined }
+          : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -385,7 +408,25 @@ export default function RichEditor({
     description,
     layout,
     isVisualsArea,
+    isStorageClearing,
+    storageSubcats,
+    needsSubcatSelector,
+    storageSubcat,
   ]);
+
+  // 載入 clearing 的 subcategory 定義（stuff 頁面用）
+  useEffect(() => {
+    if (!needsSubcatSelector) return;
+    const clearingSlug = pageSlug.split('/')[0];
+    fetch(`${apiBase}/api/content/storage/${clearingSlug}`)
+      .then((r) => r.json())
+      .then((json: any) => {
+        if (json.ok && Array.isArray(json.data?.metadata?.subcategories)) {
+          setAvailableSubcats(json.data.metadata.subcategories as SubcatDef[]);
+        }
+      })
+      .catch(() => {});
+  }, [needsSubcatSelector, apiBase, pageSlug]);
 
   // Ctrl+S
   useEffect(() => {
@@ -1151,7 +1192,7 @@ export default function RichEditor({
         )}
 
         {/* Middle — Editor */}
-        <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
+        <main className="ned-editor">
           {isEntryMode ? (
             <div className="ned-empty-state">
               <div className="ned-empty-icon" style={{ color: accentMain }}>
@@ -1166,14 +1207,6 @@ export default function RichEditor({
             </div>
           ) : (
             <>
-              {locked && (
-                <div className="ned-lock-banner">
-                  <span>
-                    &#128274; This page is locked. Unlock from inspector to
-                    edit.
-                  </span>
-                </div>
-              )}
               <div className="ned-paper">
                 <div className="ned-breadcrumb">
                   {parentId
@@ -1195,12 +1228,36 @@ export default function RichEditor({
                     onDirty={() => setMetaDirty(true)}
                   />
                 ) : isStorageDialogue ? (
+                  <>
+                  {needsSubcatSelector && availableSubcats.length > 0 && (
+                    <div className="ned-subcat-selector">
+                      <label className="ned-subcat-selector-label">分類</label>
+                      <select
+                        className="ned-subcat-selector-select"
+                        value={storageSubcat}
+                        onChange={(e) => {
+                          setStorageSubcat(e.target.value);
+                          setMetaDirty(true);
+                        }}
+                      >
+                        <option value="">（未分類）</option>
+                        {availableSubcats
+                          .filter((s) => !s.hidden)
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.icon ? `${s.icon} ` : ''}{s.label}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                   <StorageDialogueEditor
                     accent={accentMain}
                     initialContentBlocks={initialContentBlocks || []}
                     onContentChange={setStorageDialogueBlocks}
                     onDirty={() => setMetaDirty(true)}
                   />
+                  </>
                 ) : isStorageChangelog ? (
                   <ChangelogEditorBody
                     accent={accentMain}
@@ -1223,7 +1280,39 @@ export default function RichEditor({
                         }}
                       />
                     )}
+                    {needsSubcatSelector && availableSubcats.length > 0 && (
+                      <div className="ned-subcat-selector">
+                        <label className="ned-subcat-selector-label">分類</label>
+                        <select
+                          className="ned-subcat-selector-select"
+                          value={storageSubcat}
+                          onChange={(e) => {
+                            setStorageSubcat(e.target.value);
+                            setMetaDirty(true);
+                          }}
+                        >
+                          <option value="">（未分類）</option>
+                          {availableSubcats
+                            .filter((s) => !s.hidden)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.icon ? `${s.icon} ` : ''}{s.label}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
                     <EditorContent editor={editor} />
+                    {isStorageClearing && (
+                      <StorageSubcatEditor
+                        subcategories={storageSubcats}
+                        onChange={(next) => {
+                          setStorageSubcats(next);
+                          setMetaDirty(true);
+                        }}
+                        accent={accentMain}
+                      />
+                    )}
                     {isConcepts && (
                       <ConceptsEditorBody
                         accent={accentMain}

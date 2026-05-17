@@ -8,6 +8,8 @@ import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import { renderIcon } from '../editor/IconLibrary';
+import StorageDust from './StorageDust';
 import {
   type HomepageBlock,
   type ZoneHeaderData,
@@ -122,6 +124,67 @@ const CLEARINGS: ClearingDef[] = [
 ];
 
 // ──────────────────────────────────────────────────────────────────
+// 背景飄浮 SVG 裝飾（取代 ZoneAtmosphere 的文字 glyphs）
+// ──────────────────────────────────────────────────────────────────
+const FLOATING_SVGS: { viewBox: string; path: string }[] = [
+  // 箱子
+  { viewBox: '0 0 24 24', path: 'M3 7h18v13H3zM3 7l9-4 9 4M12 3v17M3 13h18' },
+  // 鑰匙
+  { viewBox: '0 0 24 24', path: 'M7 10a5 5 0 1 1 4 4.9L8 18H6v2H4v2H1v-3l6.1-6.1A5 5 0 0 1 7 10zm5-2a1 1 0 1 0 2 0 1 1 0 0 0-2 0' },
+  // 掛鎖
+  { viewBox: '0 0 24 24', path: 'M6 10V7a6 6 0 1 1 12 0v3M4 10h16v11H4zM12 15v3' },
+  // 資料夾
+  { viewBox: '0 0 24 24', path: 'M3 6h7l2 2h9v12H3zM3 10h18' },
+  // 紙張（摺角）
+  { viewBox: '0 0 24 24', path: 'M5 3h10l4 4v14H5zM15 3v4h4M8 10h8M8 14h5' },
+  // 膠帶捲
+  { viewBox: '0 0 24 24', path: 'M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm0 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM18 12h4' },
+];
+
+const FLOAT_ITEMS = Array.from({ length: 14 }, (_, i) => {
+  const svg = FLOATING_SVGS[i % FLOATING_SVGS.length];
+  const left = (i * 53 + 17) % 100;
+  const top = (i * 37 + 11) % 90;
+  const size = 18 + (i % 4) * 4;
+  const dur = 14 + (i % 7) * 2;
+  const delay = (i * 1.1) % 8;
+  const rotate = ((i * 47) % 60) - 30;
+  return { svg, left, top, size, dur, delay, rotate };
+});
+
+function StorageFloatingDecor() {
+  return (
+    <div className="sto-floating-decor" aria-hidden="true">
+      {FLOAT_ITEMS.map((item, i) => (
+        <svg
+          key={i}
+          className="sto-float-svg"
+          viewBox={item.svg.viewBox}
+          width={item.size}
+          height={item.size}
+          style={{
+            left: `${item.left}%`,
+            top: `${item.top}%`,
+            transform: `rotate(${item.rotate}deg)`,
+            animationDuration: `${item.dur}s`,
+            animationDelay: `${item.delay}s`,
+          }}
+        >
+          <path
+            d={item.svg.path}
+            fill="none"
+            stroke="var(--storage-soft)"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
 // 視窗 SVG（用於 extras 風格 clearing 的裝飾插圖）
 // ──────────────────────────────────────────────────────────────────
 function WindowSvg() {
@@ -194,6 +257,14 @@ export default function StorageReader() {
   // Changelog reading state
   const [logFilterType, setLogFilterType] = useState<string>('all');
   const [logCollapsed, setLogCollapsed] = useState<Record<string, boolean>>({});
+  const [extrasFilter, setExtrasFilter] = useState<string>('all');
+  const [openSubcatId, setOpenSubcatId] = useState<string | null>(null);
+  const [openSubcatStyle, setOpenSubcatStyle] = useState<string>('dialogue');
+  const [subcatModalClosing, setSubcatModalClosing] = useState(false);
+  function closeSubcatModal() {
+    setSubcatModalClosing(true);
+    setTimeout(() => { setOpenSubcatId(null); setSubcatModalClosing(false); }, 250);
+  }
 
   // === 衍生資料 ===
   const clearingNodes = useMemo(() => {
@@ -338,6 +409,7 @@ export default function StorageReader() {
     setActivePageId(null);
     setReadingPage(null);
     setClearingPage(null);
+    setExtrasFilter('all');
     if (push) {
       const url = new URL(window.location.href);
       url.search = '';
@@ -348,15 +420,16 @@ export default function StorageReader() {
   }
 
   async function navigateToClearing(clearingSlug: string, push = true) {
-    setView('clearing');
     setActiveClearingId(clearingSlug);
     setActivePageId(null);
     setReadingPage(null);
+    setExtrasFilter('all');
     const page = await fetchPageData(clearingSlug);
     if (page) setClearingPage(page);
+    setView('clearing');
     if (push) pushUrl({ clearing: clearingSlug });
     scrollRef.current?.scrollTo(0, 0);
-    setTransitionKey((k) => k + 1);
+    requestAnimationFrame(() => setTransitionKey((k) => k + 1));
     if (navPending.current) {
       navPending.current = false;
       tryBootReady();
@@ -364,11 +437,11 @@ export default function StorageReader() {
   }
 
   async function navigateToPage(pageSlug: string, push = true) {
+    setOpenSubcatId(null);
     setActivePageId(pageSlug);
     const page = await fetchPageData(pageSlug);
     if (page) {
       setReadingPage(page);
-      setView('reading');
       const node = flatNodes.find((n) => n.slug === pageSlug);
       if (node) {
         const parent = flatNodes.find((n) =>
@@ -378,10 +451,11 @@ export default function StorageReader() {
           setActiveClearingId(parent.slug);
         }
       }
+      setView('reading');
     }
     if (push) pushUrl({ page: pageSlug });
     scrollRef.current?.scrollTo(0, 0);
-    setTransitionKey((k) => k + 1);
+    requestAnimationFrame(() => setTransitionKey((k) => k + 1));
     if (navPending.current) {
       navPending.current = false;
       tryBootReady();
@@ -537,8 +611,15 @@ export default function StorageReader() {
     const meta = cNode.metadata || {};
     const clearingDef = CLEARINGS.find((c) => c.slug === activeClearingId);
     const entries = (cNode.children || [])
-      .filter((c) => c.pageType === 'stuff' || c.pageType === 'subcategory')
+      .filter((c) => c.pageType === 'stuff')
       .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // 從 clearing metadata 讀取 subcategory 定義
+    interface SubcatDef { id: string; label: string; icon?: string; description?: string; hidden?: boolean }
+    const subcatDefs: SubcatDef[] = Array.isArray(meta.subcategories)
+      ? (meta.subcategories as SubcatDef[]).filter((s) => !s.hidden)
+      : [];
+    const hasSubcats = subcatDefs.length > 0;
 
     // D1 資料優先，靜態定義 fallback
     const clearingTitle = clearingPage?.title || clearingDef?.label || cNode.title;
@@ -629,9 +710,13 @@ export default function StorageReader() {
                 : '整理好的字條'} ·
           </span>
         </div>
-        {clearingStyle === 'dialogue' && renderBoxesEntries(entries)}
+        {clearingStyle === 'dialogue' && (
+          hasSubcats ? renderBoxesGrouped(subcatDefs, entries) : renderBoxesEntries(entries)
+        )}
         {clearingStyle === 'log' && renderLogEntries(entries)}
-        {clearingStyle === 'blog' && renderExtrasEntries(entries)}
+        {clearingStyle === 'blog' && (
+          hasSubcats ? renderExtrasGrouped(subcatDefs, entries) : renderExtrasEntries(entries)
+        )}
 
         {/* 底部提示 */}
         {clearingDef?.footerHint && (
@@ -640,6 +725,13 @@ export default function StorageReader() {
             {clearingDef.footerHint}
           </div>
         )}
+
+        {/* 返回按鈕 */}
+        <div className="sto-back-bar">
+          <button type="button" className="sto-back-btn" onClick={() => navigateToLanding()}>
+            ← 返回某人的置物空間
+          </button>
+        </div>
       </div>
     );
   }
@@ -696,6 +788,48 @@ export default function StorageReader() {
     );
   }
 
+  // ── Clearing 入口卡片：boxes grouped（場景入口 + 模態窗）──────────
+  function renderBoxesGrouped(
+    subcatDefs: { id: string; label: string; icon?: string; description?: string }[],
+    allEntries: PageTreeNode[]
+  ) {
+    const uncategorized = allEntries.filter(
+      (e) => !e.metadata?.subcategory || !subcatDefs.some((s) => s.id === e.metadata?.subcategory)
+    );
+    return (
+      <>
+        {/* 分類入口卡片（在上方） */}
+        {subcatDefs.length > 0 && (
+          <div className="sto-subcat-grid">
+            {subcatDefs.map((subcat) => {
+              const items = allEntries.filter((e) => e.metadata?.subcategory === subcat.id);
+              return (
+                <button
+                  key={subcat.id}
+                  className="sto-subcat-bin"
+                  onClick={() => { setOpenSubcatId(subcat.id); setOpenSubcatStyle('dialogue'); }}
+                >
+                  <div className="sto-subcat-bin-icon">{renderIcon(subcat.icon, 28) || '◰'}</div>
+                  <div className="sto-subcat-bin-label">{subcat.label}</div>
+                  {subcat.description && (
+                    <div className="sto-subcat-bin-desc">{subcat.description}</div>
+                  )}
+                  <div className="sto-subcat-bin-count">
+                    {items.filter((e) => e.metadata?.locked !== true).length}/{items.length}
+                  </div>
+                  <div className="sto-subcat-bin-hint">點擊展開</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 未分類的在下方 */}
+        {uncategorized.length > 0 && renderBoxesEntries(uncategorized)}
+      </>
+    );
+  }
+
   // ── Clearing 入口卡片：changelog（信紙風格）────────────────────────
   function renderLogEntries(entries: PageTreeNode[]) {
     return (
@@ -747,35 +881,41 @@ export default function StorageReader() {
     );
   }
 
-  // ── Clearing 入口卡片：extras（部落格風格）─────────────────────────
+  // ── Clearing 入口卡片：extras（資料夾風格）─────────────────────────
   function renderExtrasEntries(entries: PageTreeNode[]) {
+    const offsets = [-1.2, 0.6, -0.4, 1.1, -0.8];
     return (
-      <div className="sto-extras-list">
+      <div className="sto-folder-stack">
         {entries.map((entry, i) => {
           const isLocked = entry.metadata?.locked === true;
+          const tilt = offsets[i % offsets.length];
           return (
             <button
               key={entry.id}
-              className={`sto-extras-card ${isLocked ? 'locked' : ''}`}
+              className={`sto-folder-card ${isLocked ? 'locked' : ''}`}
+              style={{ '--folder-tilt': `${tilt}deg` } as React.CSSProperties}
               onClick={() => !isLocked && navigateToPage(entry.slug)}
               disabled={isLocked}
             >
-              <div>
-                <div className="sto-extras-num">#{String(i + 1).padStart(2, '0')}</div>
-                <div className="sto-extras-date">
-                  {typeof entry.metadata?.date === 'string' ? entry.metadata.date : ''}
-                </div>
+              <div className="sto-folder-tab">
+                <span className="sto-folder-tab-label">
+                  {typeof entry.metadata?.mood === 'string' ? entry.metadata.mood : `FILE ${String(i + 1).padStart(2, '0')}`}
+                </span>
               </div>
-              <div>
-                <div className="sto-extras-meta-line">
-                  · {typeof entry.metadata?.mood === 'string' ? entry.metadata.mood : 'unsorted'}
-                  {typeof entry.metadata?.wordCount === 'number' && ` · ≈ ${entry.metadata.wordCount} 字`}
+              <div className="sto-folder-body">
+                <div className="sto-folder-header">
+                  <span className="sto-folder-num">#{String(i + 1).padStart(2, '0')}</span>
+                  <span className="sto-folder-date">
+                    {typeof entry.metadata?.date === 'string' ? entry.metadata.date : ''}
+                  </span>
                 </div>
-                <div className="sto-extras-title">{entry.title}</div>
+                <div className="sto-folder-title">{entry.title}</div>
                 {typeof entry.metadata?.hint === 'string' && (
-                  <div className="sto-extras-hint">{entry.metadata.hint}</div>
+                  <div className="sto-folder-hint">{entry.metadata.hint}</div>
                 )}
-                {/* 標籤列表 */}
+                {typeof entry.metadata?.wordCount === 'number' && (
+                  <div className="sto-folder-meta">≈ {entry.metadata.wordCount} 字</div>
+                )}
                 {Array.isArray(entry.metadata?.tags) && (entry.metadata.tags as string[]).length > 0 && (
                   <div className="sto-card-tags">
                     {(entry.metadata.tags as string[]).map((t, j) => (
@@ -784,10 +924,97 @@ export default function StorageReader() {
                   </div>
                 )}
               </div>
-              {!isLocked && <span className="sto-extras-arrow">→</span>}
+              {isLocked && (
+                <div className="sto-folder-sealed">· sealed ·</div>
+              )}
             </button>
           );
         })}
+      </div>
+    );
+  }
+
+  // ── Clearing 入口卡片：extras grouped（抽屜入口 + 模態窗）─────────
+  function renderExtrasGrouped(
+    subcatDefs: { id: string; label: string; icon?: string; description?: string }[],
+    allEntries: PageTreeNode[]
+  ) {
+    const uncategorized = allEntries.filter(
+      (e) => !e.metadata?.subcategory || !subcatDefs.some((s) => s.id === e.metadata?.subcategory)
+    );
+    return (
+      <>
+        {/* 分類入口卡片（在上方） */}
+        {subcatDefs.length > 0 && (
+          <div className="sto-subcat-drawer-list">
+            {subcatDefs.map((subcat) => {
+              const items = allEntries.filter((e) => e.metadata?.subcategory === subcat.id);
+              return (
+                <button
+                  key={subcat.id}
+                  className="sto-subcat-drawer"
+                  onClick={() => { setOpenSubcatId(subcat.id); setOpenSubcatStyle('blog'); }}
+                >
+                  <div className="sto-subcat-drawer-tab">{renderIcon(subcat.icon, 22) || '◐'}</div>
+                  <div className="sto-subcat-drawer-body">
+                    <div className="sto-subcat-drawer-label">{subcat.label}</div>
+                    {subcat.description && (
+                      <div className="sto-subcat-drawer-desc">{subcat.description}</div>
+                    )}
+                  </div>
+                  <div className="sto-subcat-drawer-count">{items.length} 篇</div>
+                  <div className="sto-subcat-drawer-arrow">→</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 未分類的在下方 */}
+        {uncategorized.length > 0 && renderExtrasEntries(uncategorized)}
+      </>
+    );
+  }
+
+  // ── Subcategory 模態窗 ───────────────────────────────────────────
+  function renderSubcatModal() {
+    if (!openSubcatId) return null;
+    const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
+    if (!cNode) return null;
+    const meta = cNode.metadata || {};
+    interface SubcatDef { id: string; label: string; icon?: string; description?: string }
+    const subcatDefs: SubcatDef[] = Array.isArray(meta.subcategories)
+      ? (meta.subcategories as SubcatDef[])
+      : [];
+    const subcat = subcatDefs.find((s) => s.id === openSubcatId);
+    if (!subcat) { setOpenSubcatId(null); return null; }
+
+    const entries = (cNode.children || [])
+      .filter((c) => c.pageType === 'stuff' && c.metadata?.subcategory === openSubcatId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    return (
+      <div className={`sto-subcat-modal-backdrop ${subcatModalClosing ? 'is-closing' : ''}`} onClick={closeSubcatModal}>
+        <div className={`sto-subcat-modal sto-subcat-modal--${openSubcatStyle} ${subcatModalClosing ? 'is-closing' : ''}`} onClick={(e) => e.stopPropagation()}>
+          <div className="sto-subcat-modal-header">
+            <span className="sto-subcat-modal-icon">{renderIcon(subcat.icon, 22) || '✦'}</span>
+            <h2 className="sto-subcat-modal-title">{subcat.label}</h2>
+            <span className="sto-subcat-modal-count">{entries.length} 項</span>
+            <button className="sto-subcat-modal-close" onClick={closeSubcatModal}>×</button>
+          </div>
+          {subcat.description && (
+            <p className="sto-subcat-modal-desc">{subcat.description}</p>
+          )}
+          <div className="sto-subcat-modal-body">
+            {entries.length === 0 ? (
+              <div className="sto-scene-empty">· 這裡目前還沒有內容 ·</div>
+            ) : openSubcatStyle === 'dialogue' ? (
+              renderBoxesEntries(entries)
+            ) : (
+              renderExtrasEntries(entries)
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -872,6 +1099,17 @@ export default function StorageReader() {
             </article>
           </>
         )}
+
+        {/* 返回按鈕 */}
+        <div className="sto-back-bar">
+          <button
+            type="button"
+            className="sto-back-btn"
+            onClick={() => activeClearingId && navigateToClearing(activeClearingId)}
+          >
+            ← 返回「{cNode?.title || activeClearingId}」
+          </button>
+        </div>
       </div>
     );
   }
@@ -1212,9 +1450,18 @@ export default function StorageReader() {
   // ══════════════════════════════════════════════════════════════════
   return (
     <div className="storage-reader" data-theme={theme}>
-      {/* 入場動畫 */}
+      {/* 入場動畫 — 箱子掉落 */}
       <div className={`sto-boot ${contentReady ? 'is-ready' : ''}`}>
-        <div className="sto-boot-lamp" />
+        <div className="sto-boot-boxes">
+          <div className="sto-boot-box sto-box-1" />
+          <div className="sto-boot-box sto-box-2" />
+          <div className="sto-boot-box sto-box-3" />
+          <div className="sto-boot-box sto-box-4" />
+          <div className="sto-boot-box sto-box-5" />
+          <div className="sto-boot-box sto-box-6" />
+          <div className="sto-boot-box sto-box-7" />
+        </div>
+        <div className="sto-boot-floor" />
       </div>
 
       <TopBar
@@ -1227,7 +1474,9 @@ export default function StorageReader() {
       />
 
       <div className="sto-main">
-        <ZoneAtmosphere zone={STORAGE_ZONE} />
+        <ZoneAtmosphere zone={STORAGE_ZONE} skipGlyphs />
+        <StorageFloatingDecor />
+        <StorageDust />
         <div className="sto-content" ref={scrollRef}>
           <div key={transitionKey} className="sto-page-transition">
             {view === 'landing' && renderLanding()}
@@ -1275,6 +1524,8 @@ export default function StorageReader() {
           homeMode
         />
       )}
+
+      {renderSubcatModal()}
 
       {introZone && (
         <IntroOverlay
