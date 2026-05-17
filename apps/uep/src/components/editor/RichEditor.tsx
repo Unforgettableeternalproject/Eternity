@@ -9,6 +9,7 @@ import { Highlight } from '@tiptap/extension-highlight';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Image } from '@tiptap/extension-image';
+import UepDialogueNode from './UepDialogueNode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { uepToast } from '../ui/UepToast';
 import { ZONES } from '../../data/zones';
@@ -32,8 +33,14 @@ import ConceptsEditorBody, {
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
 import StorageDialogueEditor from './StorageDialogueEditor';
+import ChangelogEditorBody, {
+  type ChangelogMeta,
+} from './ChangelogEditorBody';
+import ThoughtStream from './ThoughtStream';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import './StorageDialogueEditor.css';
+import './ChangelogEditorBody.css';
+import './ThoughtStream.css';
 import './RichEditor.css';
 
 // === Color palettes ===
@@ -182,6 +189,14 @@ export default function RichEditor({
     isStorageArea &&
     pageType === 'stuff' &&
     pageSlug.startsWith('boxes/');
+  const isStorageChangelog =
+    isStorageArea &&
+    pageType === 'stuff' &&
+    pageSlug.startsWith('changelog/');
+  const isStorageExtras =
+    isStorageArea &&
+    pageType === 'stuff' &&
+    pageSlug.startsWith('extras/');
   const isZone = pageType === 'zone';
   const isPageType =
     !isEntryMode && (pageType === 'page' || pageType === 'homepage');
@@ -201,6 +216,15 @@ export default function RichEditor({
   const [storageDialogueBlocks, setStorageDialogueBlocks] = useState<
     { id: string; type: string; content: string }[]
   >(() => initialContentBlocks || []);
+  // Storage changelog 用的 content blocks 和 metadata
+  const [changelogBlocks, setChangelogBlocks] = useState<
+    { id: string; type: string; content: string }[]
+  >(() => initialContentBlocks || []);
+  const [changelogMeta, setChangelogMeta] = useState<ChangelogMeta>(() => ({
+    version: (initialMetadata?.version as string) || '',
+    date: (initialMetadata?.date as string) || '',
+    author: (initialMetadata?.author as string) || '',
+  }));
 
   // TipTap editor
   const editor = useEditor({
@@ -223,6 +247,7 @@ export default function RichEditor({
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder: '\u958B\u59CB\u5BEB\u4F5C...' }),
       Image.configure({ inline: false }),
+      UepDialogueNode,
     ],
     content: initialContent || '<p></p>',
     editorProps: {
@@ -257,7 +282,7 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
-    if (!isEchoes && !isVisuals && !isStorageDialogue && !editor) return;
+    if (!isEchoes && !isVisuals && !isStorageDialogue && !isStorageChangelog && !editor) return;
     setSaveStatus('saving');
     try {
       const content =
@@ -265,7 +290,9 @@ export default function RichEditor({
           ? [{ id: 'content', type: 'rich_text', content: '' }]
           : isStorageDialogue
             ? storageDialogueBlocks
-            : isConcepts
+            : isStorageChangelog
+              ? changelogBlocks
+              : isConcepts
               ? [
                   { id: 'intro', type: 'rich_text', content: editor!.getHTML() },
                   ...serializeConceptsContent(conceptsData),
@@ -295,6 +322,11 @@ export default function RichEditor({
           : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
         ...(isVisualsDivision && layout ? { layout } : {}),
+        ...(isStorageChangelog ? {
+          version: changelogMeta.version || undefined,
+          date: changelogMeta.date || undefined,
+          author: changelogMeta.author || undefined,
+        } : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -329,6 +361,7 @@ export default function RichEditor({
     isEchoes,
     isVisuals,
     isStorageDialogue,
+    isStorageChangelog,
     isConcepts,
     isZone,
     echoesData,
@@ -336,6 +369,8 @@ export default function RichEditor({
     conceptsData,
     conceptsStackStyle,
     storageDialogueBlocks,
+    changelogBlocks,
+    changelogMeta,
     zoneTabs,
     title,
     apiBase,
@@ -376,7 +411,7 @@ export default function RichEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  if (!editor && !isEchoes && !isVisuals && !isStorageDialogue) return null;
+  if (!editor && !isEchoes && !isVisuals && !isStorageDialogue && !isStorageChangelog) return null;
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -608,7 +643,7 @@ export default function RichEditor({
       {/* Toolbar — 入口模式隱藏 */}
       {!isEntryMode && (
         <div className="ned-toolbar" ref={dropdownRef}>
-          {!isEchoes && !isVisuals && !isStorageDialogue && editor && (
+          {!isEchoes && !isVisuals && !isStorageDialogue && !isStorageChangelog && editor && (
             <>
               {/* Heading dropdown */}
               <div className="tb-group">
@@ -1037,6 +1072,33 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
+              {/* UEP 對話 */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn tb-btn-uep ${editor.isActive('uepDialogue') ? 'is-active' : ''}`}
+                  onClick={() => editor.chain().focus().toggleUepDialogue().run()}
+                  title="UEP 對話 (Ctrl+Shift+U)"
+                >
+                  <span style={{ color: '#D5B618', fontWeight: 700, fontSize: 11 }}>U.E.P</span>
+                </button>
+                {editor.isActive('uepDialogue') && (
+                  <button
+                    className="tb-btn"
+                    onClick={() => {
+                      const current = editor.getAttributes('uepDialogue').side;
+                      editor.chain().focus().updateAttributes('uepDialogue', {
+                        side: current === 'left' ? 'right' : 'left',
+                      }).run();
+                    }}
+                    title="切換左右"
+                  >
+                    {editor.getAttributes('uepDialogue').side === 'left' ? 'L' : 'R'}
+                  </button>
+                )}
+              </div>
+
+              <div className="tb-sep" />
+
               {/* 清除格式 */}
               <div className="tb-group">
                 <button
@@ -1139,8 +1201,28 @@ export default function RichEditor({
                     onContentChange={setStorageDialogueBlocks}
                     onDirty={() => setMetaDirty(true)}
                   />
+                ) : isStorageChangelog ? (
+                  <ChangelogEditorBody
+                    accent={accentMain}
+                    initialContentBlocks={initialContentBlocks || []}
+                    onContentChange={setChangelogBlocks}
+                    onDirty={() => setMetaDirty(true)}
+                    meta={changelogMeta}
+                    onMetaChange={setChangelogMeta}
+                  />
                 ) : (
                   <>
+                    {isStorageExtras && (
+                      <ThoughtStream
+                        accent={accentMain}
+                        onPushToEditor={(html) => {
+                          if (editor) {
+                            editor.chain().focus().insertContent(html).run();
+                            setEditorDirty(true);
+                          }
+                        }}
+                      />
+                    )}
                     <EditorContent editor={editor} />
                     {isConcepts && (
                       <ConceptsEditorBody

@@ -952,6 +952,313 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Clearing — extras 風格兩欄介紹（視窗插圖 + 文字）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-extras-intro-grid {
+  margin: 28px 0 14px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 24px;
+  align-items: flex-start;
+}
+.sto-window-svg {
+  width: 100%;
+  height: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — 介紹段落文字（dialogue / log 首字放大、extras 直接插入）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-clearing-intro-text {
+  font-family: var(--font-serif-tc);
+  font-size: 16.5px;
+  line-height: 2;
+  color: var(--ink);
+  margin: 28px 0 0;
+}
+/* extras 兩欄格局中的文字不需要額外上邊距 */
+.sto-extras-intro-grid .sto-clearing-intro-text {
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — extras heard 語錄面板
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-heard-quote {
+  margin-top: 30px;
+  padding: 18px 22px;
+  border: 1px dashed var(--storage-soft);
+  background: color-mix(in srgb, var(--storage-soft) 3%, transparent);
+  font-family: var(--font-serif-tc);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--ink-soft);
+  position: relative;
+}
+.sto-heard-quote-label {
+  position: absolute;
+  top: -10px;
+  left: 18px;
+  padding: 2px 10px;
+  background: var(--bg-body);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  font-style: normal;
+}
+.sto-heard-quote-source {
+  float: right;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+  font-style: normal;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — 底部提示欄（左邊框 + 淡金背景）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-clearing-footer-hint {
+  margin-top: 40px;
+  padding: 14px 18px;
+  border-left: 3px solid var(--storage-soft);
+  background: color-mix(in srgb, var(--storage-soft) 4%, transparent);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.sto-footer-hint-icon {
+  color: var(--storage-soft);
+  font-family: var(--font-mono);
+  margin-right: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Card — 標籤列表（三種卡片通用，顏色依父容器調整）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-card-tags {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sto-card-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+/* boxes（crate）卡片標籤色 */
+.sto-crate-card .sto-card-tags {
+  color: #3a2f08;
+}
+[data-theme="dark"] .sto-crate-card .sto-card-tags {
+  color: #e8dfc8;
+}
+.sto-crate-card .sto-card-tag {
+  background: rgba(255, 247, 222, 0.65);
+}
+[data-theme="dark"] .sto-crate-card .sto-card-tag {
+  background: rgba(40, 35, 20, 0.65);
+}
+/* changelog（lognote）卡片標籤色 */
+.sto-lognote-card .sto-card-tag {
+  color: var(--ink-soft);
+}
+/* extras 卡片標籤色 */
+.sto-extras-card .sto-card-tag {
+  color: var(--ink-mute);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading — Changelog 結構化顯示
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-log-preamble {
+  margin-top: 20px;
+  font-family: var(--font-serif-tc);
+  font-size: 15.5px;
+  line-height: 1.95;
+  color: var(--ink-soft);
+}
+
+/* 篩選列 */
+.sto-log-filter-bar {
+  margin-top: 22px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sto-log-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sto-log-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--chip-color, var(--hairline-strong));
+  background: transparent;
+  color: var(--chip-color, var(--ink-soft));
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sto-log-filter-chip.is-active {
+  background: var(--chip-color, #D5B618);
+  color: #fff;
+  font-weight: 600;
+}
+.sto-log-chip-square {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #fff;
+}
+.sto-log-filter-chip.is-active .sto-log-chip-square {
+  background: rgba(255,255,255,0.25) !important;
+}
+.sto-log-filter-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+}
+
+/* 分群 */
+.sto-log-groups {
+  margin-top: 16px;
+}
+.sto-log-group {
+  margin-bottom: 18px;
+}
+.sto-log-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.sto-log-group-chip {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+}
+.sto-log-group-label {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-log-group-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+}
+.sto-log-group-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+/* 單項 */
+.sto-log-item {
+  display: grid;
+  grid-template-columns: 30px 1fr 56px;
+  gap: 14px;
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--hairline);
+  align-items: baseline;
+}
+.sto-log-item:last-child {
+  border-bottom: none;
+}
+.sto-log-item-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.sto-log-item-content {
+  min-width: 0;
+}
+.sto-log-item-subject {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-log-item-text {
+  margin-top: 2px;
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.sto-log-item-state {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border: 1px solid;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* EOF */
+.sto-log-eof {
+  margin-top: 36px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.sto-log-eof-line {
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+.sto-log-eof-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    響應式
    ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {

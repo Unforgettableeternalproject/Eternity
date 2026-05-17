@@ -76,6 +76,74 @@
   color: #fff;
 }
 
+/* 場景導航列 */
+.sto-de-scene-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.sto-de-scene-btn {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  transition: border-color 0.15s;
+}
+.sto-de-scene-btn:hover {
+  border-color: var(--storage-soft, #D5B618);
+}
+.sto-de-scene-btn.is-collapsed {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.sto-de-scene-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink-soft);
+  transition: background 0.15s;
+}
+.sto-de-scene-jump:hover {
+  background: color-mix(in srgb, var(--storage-soft, #D5B618) 8%, transparent);
+}
+.sto-de-scene-fold-btn {
+  padding: 0 7px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--hairline);
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--ink-mute);
+  transition: color 0.15s, background 0.15s;
+}
+.sto-de-scene-fold-btn:hover {
+  color: var(--storage-soft, #D5B618);
+  background: color-mix(in srgb, var(--storage-soft, #D5B618) 8%, transparent);
+}
+.sto-de-scene-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--storage-soft, #D5B618);
+}
+.sto-de-scene-label {
+  font-family: var(--font-serif-tc);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.sto-de-scene-info {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.06em;
+}
+
 /* 劇本行容器 */
 .sto-de-lines-container {
   margin-top: 8px;
@@ -105,12 +173,47 @@
   background: color-mix(in srgb, var(--storage-soft, #D5B618) 6%, transparent);
   border-left-color: var(--storage-soft, #D5B618);
 }
+/* 角色專屬左邊框色彩 */
+.sto-de-line[data-role="narrator"] {
+  border-left-color: color-mix(in srgb, var(--role-color) 30%, transparent);
+}
+.sto-de-line[data-role="uep"] {
+  border-left-color: #D5B618;
+  background: color-mix(in srgb, #D5B618 3%, transparent);
+}
+.sto-de-line[data-role="you"] {
+  border-left-color: #a85a2d;
+}
+.sto-de-line[data-role="sfx"] {
+  border-left-color: color-mix(in srgb, #888 25%, transparent);
+  background: color-mix(in srgb, var(--ink-mute) 2%, transparent);
+}
+
+/* 開場標頭 */
+.sto-de-line--scene-start {
+  grid-template-columns: 30px 1fr auto 1fr;
+  align-items: center;
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--hairline);
+  border-left-color: var(--storage-soft, #D5B618) !important;
+  cursor: default;
+}
+.sto-de-line--scene-start .sto-de-line-num {
+  color: var(--storage-soft, #D5B618);
+  font-weight: 700;
+}
+.sto-de-line--scene-start .sto-de-break-label {
+  color: var(--storage-soft, #D5B618);
+}
 
 /* 場景斷行 */
 .sto-de-line--break {
-  grid-template-columns: 30px 1fr auto 1fr 24px;
+  grid-template-columns: 30px 1fr auto 1fr auto 24px;
   align-items: center;
-  padding: 12px 12px;
+  padding: 16px 12px;
+  margin: 6px 0;
+  background: color-mix(in srgb, var(--ink-mute) 3%, transparent);
+  border-left-color: transparent !important;
 }
 .sto-de-break-line {
   flex: 1;
@@ -124,6 +227,32 @@
   letter-spacing: 0.22em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+.sto-de-break-input {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+  text-align: center;
+  background: transparent;
+  border: 1px dashed transparent;
+  outline: none;
+  padding: 2px 8px;
+  min-width: 80px;
+  max-width: 180px;
+  transition: border-color 0.15s;
+}
+.sto-de-break-input:hover {
+  border-color: var(--hairline-strong);
+}
+.sto-de-break-input:focus {
+  border-color: var(--storage-soft, #D5B618);
+  color: var(--ink-soft);
+}
+.sto-de-break-input::placeholder {
+  color: var(--hairline-strong);
+  font-style: italic;
+  letter-spacing: 0.06em;
 }
 
 /* 行號 */
