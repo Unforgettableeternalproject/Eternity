@@ -382,14 +382,23 @@
 
 .echoes-prose a {
   color: var(--echoes-soft);
-  text-decoration-color: color-mix(in srgb, var(--echoes-soft) 52%, transparent);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--echoes-soft) 52%,
+    transparent
+  );
 }
 
 .echoes-prose hr {
   border: 0;
   height: 1px;
   margin: 38px 0;
-  background: linear-gradient(90deg, transparent, var(--echoes-main), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--echoes-main),
+    transparent
+  );
   opacity: 0.55;
 }
 
@@ -614,7 +623,6 @@
   margin: 0 auto;
   padding: 36px 56px 100px;
 }
-
 
 .echoes-cluster-head {
   display: flex;

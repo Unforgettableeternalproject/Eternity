@@ -354,7 +354,9 @@ export default function HistoryReader() {
     if (target) {
       // 有 deep link 參數時先暫停 boot 動畫解除，等導航完成
       setNavPending(true);
-      loadPage(target).finally(() => setNavPending(false)).catch(() => {});
+      loadPage(target)
+        .finally(() => setNavPending(false))
+        .catch(() => {});
     }
   }, [tree, readablePages, currentId]);
 

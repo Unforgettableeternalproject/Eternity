@@ -10,7 +10,7 @@ import { useEffect, useRef, type RefObject } from 'react';
  */
 export function useScrollMemory(
   scrollRef: RefObject<HTMLDivElement | null>,
-  deps: unknown[],
+  deps: unknown[]
 ) {
   const memory = useRef<Map<string, number>>(new Map());
   const pendingKey = useRef<string | null>(null);

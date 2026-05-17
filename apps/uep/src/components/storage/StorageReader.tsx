@@ -291,7 +291,11 @@ export default function StorageReader() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const { contentReady, markContentReady, setNavPending: setBootNavPending } = useZoneBootReady();
+  const {
+    contentReady,
+    markContentReady,
+    setNavPending: setBootNavPending,
+  } = useZoneBootReady();
 
   // === 導航狀態 ===
   type View = 'landing' | 'clearing' | 'reading';
@@ -303,7 +307,9 @@ export default function StorageReader() {
   const [transitionKey, setTransitionKey] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [
-    view, activeClearingId, activePageId,
+    view,
+    activeClearingId,
+    activePageId,
   ]);
   // Changelog reading state
   const [logFilterType, setLogFilterType] = useState<string>('all');
@@ -451,7 +457,8 @@ export default function StorageReader() {
   // ── 導航 ───────────────────────────────────────────────────────
   function currentScrollKey(): string {
     if (view === 'reading' && activePageId) return `page:${activePageId}`;
-    if (view === 'clearing' && activeClearingId) return `clearing:${activeClearingId}`;
+    if (view === 'clearing' && activeClearingId)
+      return `clearing:${activeClearingId}`;
     return 'landing';
   }
 

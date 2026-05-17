@@ -1189,7 +1189,11 @@ export default function ConceptsReader() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const { contentReady, markContentReady, setNavPending: setBootNavPending } = useZoneBootReady({ minDisplayMs: 2000 });
+  const {
+    contentReady,
+    markContentReady,
+    setNavPending: setBootNavPending,
+  } = useZoneBootReady({ minDisplayMs: 2000 });
 
   // === 導航狀態 ===
   type View = 'landing' | 'stack' | 'reading';
@@ -1207,7 +1211,11 @@ export default function ConceptsReader() {
   }, [readingPage?.id]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [view, activeStackId, readingPage?.id]);
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [
+    view,
+    activeStackId,
+    readingPage?.id,
+  ]);
 
   // === 衍生資料 ===
   const stackNodes = useMemo(() => {

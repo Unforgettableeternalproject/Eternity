@@ -282,7 +282,12 @@ function VisualsReaderInner() {
 
   // 滾動位置記憶
   const { saveScroll: saveScrollTo, restoreScroll: restoreScrollTo } =
-    useScrollMemory(scrollRef, [view, activeDivisionId, activeSubcatId, activeGalleryId]);
+    useScrollMemory(scrollRef, [
+      view,
+      activeDivisionId,
+      activeSubcatId,
+      activeGalleryId,
+    ]);
 
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {
@@ -1488,8 +1493,7 @@ function VisualsReaderInner() {
             ...(activeSubcatId
               ? [
                   {
-                    label:
-                      findNodeById(tree, activeSubcatId)?.title || '...',
+                    label: findNodeById(tree, activeSubcatId)?.title || '...',
                     onClick: () => navigateToSubcat(activeSubcatId!),
                   },
                 ]
