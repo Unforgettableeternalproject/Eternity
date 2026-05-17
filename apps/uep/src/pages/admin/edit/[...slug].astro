@@ -77,13 +77,18 @@ const isStorageDialogueType =
   area === 'storage' &&
   page?.pageType === 'stuff' &&
   pageSlug.startsWith('boxes/');
-const needsContentBlocks = isConceptsType || isStorageDialogueType;
+// Storage changelog：content blocks 交給 ChangelogEditorBody 處理
+const isStorageChangelogType =
+  area === 'storage' &&
+  page?.pageType === 'stuff' &&
+  pageSlug.startsWith('changelog/');
+const needsContentBlocks = isConceptsType || isStorageDialogueType || isStorageChangelogType;
 const initialHtml = page
   ? isConceptsType
     ? (Array.isArray(page.content)
         ? page.content.find((b: any) => b.type === 'rich_text')?.content
         : '') || '<p></p>'
-    : isStorageDialogueType
+    : (isStorageDialogueType || isStorageChangelogType)
       ? '<p></p>'
       : blocksToHtml(page.content)
   : '<p></p>';

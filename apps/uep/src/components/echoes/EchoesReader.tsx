@@ -15,6 +15,7 @@ import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import EchoesRipple from './EchoesRipple';
 import './EchoesReader.css';
@@ -1567,11 +1568,9 @@ function EchoesReaderInner() {
                 case 'rich-text': {
                   const html = (block.data as { html: string }).html;
                   return (
-                    <div
-                      key={block.id}
-                      className="echoes-prose echoes-landing-prose"
-                      dangerouslySetInnerHTML={{ __html: html }}
-                    />
+                    <React.Fragment key={block.id}>
+                      {renderHtmlWithUep(html, block.id, 'echoes-prose echoes-landing-prose')}
+                    </React.Fragment>
                   );
                 }
                 default:
@@ -1589,10 +1588,9 @@ function EchoesReaderInner() {
                 <div className="echoes-state">正在讀取空白廣場...</div>
               )}
               {landingParts.before && (
-                <div
-                  className="echoes-prose echoes-landing-prose"
-                  dangerouslySetInnerHTML={{ __html: landingParts.before }}
-                />
+                <>
+                  {renderHtmlWithUep(landingParts.before, 'landing-before', 'echoes-prose echoes-landing-prose')}
+                </>
               )}
               <div className="echoes-cluster-grid">
                 {CLUSTERS.map((cluster) => {
@@ -1684,10 +1682,9 @@ function EchoesReaderInner() {
                 })}
               </div>
               {landingParts.after && (
-                <div
-                  className="echoes-prose echoes-landing-prose"
-                  dangerouslySetInnerHTML={{ __html: landingParts.after }}
-                />
+                <>
+                  {renderHtmlWithUep(landingParts.after, 'landing-after', 'echoes-prose echoes-landing-prose')}
+                </>
               )}
               <div className="echoes-landing-uep">
                 <UepDialogue
@@ -1699,14 +1696,13 @@ function EchoesReaderInner() {
                 <section className="echoes-photo-section">
                   <div className="echoes-kicker">Loose Note / Page</div>
                   <h3>{photoPage.title}</h3>
-                  <div
-                    className="echoes-prose echoes-photo-prose"
-                    dangerouslySetInnerHTML={{
-                      __html: photoPage.content
-                        .map((b) => b.content || '')
-                        .join('\n'),
-                    }}
-                  />
+                  <>
+                    {renderHtmlWithUep(
+                      photoPage.content.map((b) => b.content || '').join('\n'),
+                      'photo-page',
+                      'echoes-prose echoes-photo-prose'
+                    )}
+                  </>
                 </section>
               )}
             </>
@@ -1963,10 +1959,9 @@ function EchoesReaderInner() {
 
           {/* 頁面內容 (rich text) */}
           {contentHtml && (
-            <div
-              className="echoes-prose"
-              dangerouslySetInnerHTML={{ __html: contentHtml }}
-            />
+            <>
+              {renderHtmlWithUep(contentHtml, 'content', 'echoes-prose')}
+            </>
           )}
 
           {/* 子分類列表 */}

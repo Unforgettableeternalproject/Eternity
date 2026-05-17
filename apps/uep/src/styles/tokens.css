@@ -429,3 +429,44 @@ body {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ── UEP 對話區塊（全站 reader 通用）── */
+[data-role="uep"] {
+  position: relative;
+  margin: 14px 0;
+  padding: 12px 18px 12px 46px;
+  border-left: 3px solid #D5B618;
+  background: color-mix(in srgb, #D5B618 5%, transparent);
+  border-radius: 0 6px 6px 0;
+  font-style: normal;
+  color: var(--ink);
+}
+[data-role="uep"]::before {
+  content: 'U';
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #D5B618;
+  border-radius: 3px;
+}
+[data-role="uep"][data-side="right"] {
+  border-left: none;
+  border-right: 3px solid #D5B618;
+  padding: 12px 46px 12px 18px;
+  text-align: right;
+}
+[data-role="uep"][data-side="right"]::before {
+  left: auto;
+  right: 12px;
+}
+[data-theme="dark"] [data-role="uep"] {
+  background: color-mix(in srgb, #D5B618 8%, transparent);
+}

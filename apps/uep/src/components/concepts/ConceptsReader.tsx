@@ -6,6 +6,7 @@ import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import {
   type HomepageBlock,
@@ -296,10 +297,9 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                       </span>
                     </div>
                     {entry.content_html && (
-                      <div
-                        className="conc-dossier-entry-content"
-                        dangerouslySetInnerHTML={{ __html: entry.content_html }}
-                      />
+                      <>
+                        {renderHtmlWithUep(entry.content_html, entry.name, 'conc-dossier-entry-content')}
+                      </>
                     )}
                   </div>
                 ))}
@@ -497,12 +497,9 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                         <span className="conc-enc-label-icon">◈</span>{' '}
                         {section.label}
                       </div>
-                      <div
-                        className="conc-enc-section-content"
-                        dangerouslySetInnerHTML={{
-                          __html: section.content_html,
-                        }}
-                      />
+                      <>
+                        {renderHtmlWithUep(section.content_html, section.label, 'conc-enc-section-content')}
+                      </>
                     </div>
                   ))}
                 </div>
@@ -1460,11 +1457,9 @@ export default function ConceptsReader() {
 
           {/* rich-text */}
           {hpRichTexts.map((html, i) => (
-            <div
-              key={i}
-              className="conc-prose"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+            <React.Fragment key={i}>
+              {renderHtmlWithUep(html, i, 'conc-prose')}
+            </React.Fragment>
           ))}
 
           {/* terminal-module-table */}
@@ -1546,10 +1541,9 @@ export default function ConceptsReader() {
 
         {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
         {stackContentHtml ? (
-          <div
-            className="conc-stack-intro conc-prose"
-            dangerouslySetInnerHTML={{ __html: stackContentHtml }}
-          />
+          <>
+            {renderHtmlWithUep(stackContentHtml, 'stack-intro', 'conc-stack-intro conc-prose')}
+          </>
         ) : (
           <p className="conc-stack-intro">
             <span className="conc-drop-cap">{stackDef.intro[0]}</span>
@@ -1741,10 +1735,9 @@ export default function ConceptsReader() {
 
         {/* 上方富文本（TipTap 內容） */}
         {!isLocked && introHtml && introHtml !== '<p></p>' && (
-          <div
-            className="conc-prose"
-            dangerouslySetInnerHTML={{ __html: introHtml }}
-          />
+          <>
+            {renderHtmlWithUep(introHtml, 'intro', 'conc-prose')}
+          </>
         )}
 
         {/* 分派 Reader */}

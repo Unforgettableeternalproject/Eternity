@@ -7,6 +7,7 @@ import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
@@ -986,11 +987,9 @@ export default function HistoryReader() {
                         case 'rich-text': {
                           const html = (block.data as { html: string }).html;
                           return (
-                            <div
-                              key={block.id}
-                              className="history-prose history-landing-prose"
-                              dangerouslySetInnerHTML={{ __html: html }}
-                            />
+                            <React.Fragment key={block.id}>
+                              {renderHtmlWithUep(html, block.id, 'history-prose history-landing-prose')}
+                            </React.Fragment>
                           );
                         }
                         default:
@@ -1008,12 +1007,9 @@ export default function HistoryReader() {
                         <div className="history-state">正在讀取三向通道...</div>
                       )}
                       {landingParts.before && (
-                        <div
-                          className="history-prose history-landing-prose"
-                          dangerouslySetInnerHTML={{
-                            __html: landingParts.before,
-                          }}
-                        />
+                        <>
+                          {renderHtmlWithUep(landingParts.before, 'landing-before', 'history-prose history-landing-prose')}
+                        </>
                       )}
                       <div className="history-arch-grid">
                         {archNodes.map((node, index) => (
@@ -1038,12 +1034,9 @@ export default function HistoryReader() {
                         ))}
                       </div>
                       {landingParts.after && (
-                        <div
-                          className="history-prose history-landing-prose"
-                          dangerouslySetInnerHTML={{
-                            __html: landingParts.after,
-                          }}
-                        />
+                        <>
+                          {renderHtmlWithUep(landingParts.after, 'landing-after', 'history-prose history-landing-prose')}
+                        </>
                       )}
                       <div className="history-uep-note">
                         <UepDialogue
@@ -1057,12 +1050,9 @@ export default function HistoryReader() {
                             Loose Note / Page
                           </div>
                           <h3>{notePage.title}</h3>
-                          <div
-                            className="history-prose history-note-prose"
-                            dangerouslySetInnerHTML={{
-                              __html: renderBlocks(notePage.content),
-                            }}
-                          />
+                          <>
+                            {renderHtmlWithUep(renderBlocks(notePage.content), 'note-page', 'history-prose history-note-prose')}
+                          </>
                         </section>
                       )}
                     </>
@@ -1130,14 +1120,14 @@ export default function HistoryReader() {
                       </header>
                       <div
                         ref={contentRef}
-                        className="history-prose"
                         onClick={onArticleClick}
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            articleHtml ||
-                            '<p class="empty-notice">這篇內容目前是空的。</p>',
-                        }}
-                      />
+                      >
+                        {renderHtmlWithUep(
+                          articleHtml || '<p class="empty-notice">這篇內容目前是空的。</p>',
+                          'article',
+                          'history-prose'
+                        )}
+                      </div>
                     </>
                   )}
                 </article>

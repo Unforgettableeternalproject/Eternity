@@ -939,6 +939,50 @@
   text-decoration-style: dashed;
 }
 
+/* UEP 對話區塊 */
+.tiptap-content .tiptap-uep-dialogue {
+  position: relative;
+  margin: 12px 0;
+  padding: 10px 16px 10px 42px;
+  border-left: 3px solid #D5B618;
+  background: color-mix(in srgb, #D5B618 6%, transparent);
+  border-radius: 0 4px 4px 0;
+  color: #D5B618;
+  font-weight: 500;
+}
+.tiptap-content .tiptap-uep-dialogue::before {
+  content: 'U';
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #D5B618;
+  border-radius: 2px;
+}
+.tiptap-content .tiptap-uep-dialogue[data-side="right"] {
+  border-left: none;
+  border-right: 3px solid #D5B618;
+  padding: 10px 42px 10px 16px;
+  text-align: right;
+}
+.tiptap-content .tiptap-uep-dialogue[data-side="right"]::before {
+  left: auto;
+  right: 10px;
+}
+
+/* UEP toolbar 按鈕 */
+.tb-btn-uep.is-active {
+  background: color-mix(in srgb, #D5B618 15%, transparent);
+  border-color: #D5B618;
+}
+
 /* Selection */
 .tiptap-content ::selection {
   background: color-mix(in srgb, var(--ned-accent) 25%, transparent);

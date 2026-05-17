@@ -13,6 +13,7 @@ import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import IntroOverlay from '../ui/IntroOverlay';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import VisualsPhantom from './VisualsPhantom';
 import type { PhantomVariant } from './VisualsPhantom';
@@ -837,11 +838,9 @@ function VisualsReaderInner() {
               case 'rich-text': {
                 const { html } = block.data as { html: string };
                 return (
-                  <div
-                    key={block.id}
-                    className="visuals-prose"
-                    dangerouslySetInnerHTML={{ __html: html }}
-                  />
+                  <React.Fragment key={block.id}>
+                    {renderHtmlWithUep(html, block.id, 'visuals-prose')}
+                  </React.Fragment>
                 );
               }
               default:
@@ -993,10 +992,9 @@ function VisualsReaderInner() {
             {divisionPage.content
               .filter((b) => b.type === 'rich_text')
               .map((b) => (
-                <div
-                  key={b.id}
-                  dangerouslySetInnerHTML={{ __html: b.content }}
-                />
+                <React.Fragment key={b.id}>
+                  {renderHtmlWithUep(b.content, b.id, 'visuals-prose')}
+                </React.Fragment>
               ))}
           </div>
         ) : (
@@ -1289,10 +1287,9 @@ function VisualsReaderInner() {
             {subcatPage.content
               .filter((b) => b.type === 'rich_text')
               .map((b) => (
-                <div
-                  key={b.id}
-                  dangerouslySetInnerHTML={{ __html: b.content }}
-                />
+                <React.Fragment key={b.id}>
+                  {renderHtmlWithUep(b.content, b.id, 'visuals-prose')}
+                </React.Fragment>
               ))}
           </div>
         )}
