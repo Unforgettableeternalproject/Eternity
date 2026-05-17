@@ -1080,8 +1080,10 @@ function EchoesReaderInner() {
   /** 根據目前視圖狀態回傳唯一的捲軸記憶 key */
   function currentScrollKey(): string {
     if (view === 'song' && activeSongId) return `song:${activeSongId}`;
-    if (view === 'content' && activeContentId) return `content:${activeContentId}`;
-    if (view === 'cluster' && activeClusterId) return `cluster:${activeClusterId}`;
+    if (view === 'content' && activeContentId)
+      return `content:${activeContentId}`;
+    if (view === 'cluster' && activeClusterId)
+      return `cluster:${activeClusterId}`;
     return 'landing';
   }
 

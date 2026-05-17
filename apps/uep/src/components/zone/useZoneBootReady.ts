@@ -43,7 +43,7 @@ export function useZoneBootReady(opts?: UseZoneBootReadyOptions) {
       navPendingRef.current = pending;
       if (!pending) tryBootReady();
     },
-    [tryBootReady],
+    [tryBootReady]
   );
 
   useEffect(() => {
