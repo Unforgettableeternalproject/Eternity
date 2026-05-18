@@ -1,19 +1,19 @@
 /* eslint-disable no-undef */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
-import BigMapModal from '../ui/BigMapModal';
-import Minimap from '../ui/Minimap';
-import PortalTransition from '../ui/PortalTransition';
-import TopBar from '../ui/TopBar';
-import IntroOverlay from '../ui/IntroOverlay';
+import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { renderIcon } from '../editor/IconLibrary';
 import StorageDust from './StorageDust';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
+import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+import { isLocked } from '../zone/contentVisibility';
+import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import {
   type HomepageBlock,
   type ZoneHeaderData,
@@ -271,25 +271,10 @@ function WindowSvg() {
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function StorageReader() {
-  // === UI 狀態 ===
-  const [theme, setTheme] = useState(
-    () =>
-      (typeof localStorage !== 'undefined' &&
-        localStorage.getItem('uep-theme')) ||
-      'dark'
-  );
-  const [showMap, setShowMap] = useState(false);
-  const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
+  const [treeError, setTreeError] = useState<string | null>(null);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   const {
     contentReady,
@@ -363,7 +348,6 @@ export default function StorageReader() {
 
   // ── 初始化 ─────────────────────────────────────────────────────
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
     void fetchTree();
   }, []);
 
@@ -385,42 +369,29 @@ export default function StorageReader() {
       });
   }, []);
 
-  useEffect(() => {
-    if (treeLoading || !tree.length) return;
-    const params = new URLSearchParams(window.location.search);
-    const page = params.get('page');
-    const clearing = params.get('clearing');
-    if (page) {
-      setBootNavPending(true);
-      navigateToPage(page, false);
-    } else if (clearing) {
-      setBootNavPending(true);
-      navigateToClearing(clearing, false);
-    } else markContentReady();
-  }, [treeLoading, tree]);
-
-  useEffect(() => {
-    function handler() {
-      const params = new URLSearchParams(window.location.search);
-      const page = params.get('page');
-      const clearing = params.get('clearing');
-      if (page) navigateToPage(page, false);
-      else if (clearing) navigateToClearing(clearing, false);
-      else navigateToLanding(false);
-    }
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, [tree]);
+  // ── URL 路由（useZoneRouter 統一管理初始 deep link + popstate）──
+  useZoneRouter({
+    routes: [
+      { param: 'page', handler: (value) => navigateToPage(value, false) },
+      { param: 'clearing', handler: (value) => navigateToClearing(value, false) },
+    ],
+    onLanding: () => navigateToLanding(false),
+    treeReady: !treeLoading && tree.length > 0,
+    setBootNavPending: setBootNavPending,
+  });
 
   // ── 資料載入 ───────────────────────────────────────────────────
   async function fetchTree() {
     setTreeLoading(true);
+    setTreeError(null);
     try {
       const res = await fetch(`${API_BASE}/api/content/storage/tree`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      if (json.ok && json.data) setTree(json.data as PageTreeNode[]);
-    } catch {
-      /* 靜默 */
+      if (!json.ok) throw new Error(json.error || 'API returned ok=false');
+      setTree(json.data as PageTreeNode[]);
+    } catch (err) {
+      setTreeError(err instanceof Error ? err.message : String(err));
     } finally {
       setTreeLoading(false);
     }
@@ -446,14 +417,6 @@ export default function StorageReader() {
     return null;
   }
 
-  // ── URL ────────────────────────────────────────────────────────
-  function pushUrl(params: Record<string, string>) {
-    const url = new URL(window.location.href);
-    url.search = '';
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    window.history.pushState({}, '', url.toString());
-  }
-
   // ── 導航 ───────────────────────────────────────────────────────
   function currentScrollKey(): string {
     if (view === 'reading' && activePageId) return `page:${activePageId}`;
@@ -470,11 +433,7 @@ export default function StorageReader() {
     setReadingPage(null);
     setClearingPage(null);
     setExtrasFilter('all');
-    if (push) {
-      const url = new URL(window.location.href);
-      url.search = '';
-      window.history.pushState({}, '', url.toString());
-    }
+    if (push) clearUrl();
     restoreScroll('landing');
     setTransitionKey((k) => k + 1);
   }
@@ -516,23 +475,6 @@ export default function StorageReader() {
     restoreScroll(`page:${pageSlug}`);
     requestAnimationFrame(() => setTransitionKey((k) => k + 1));
     setBootNavPending(false);
-  }
-
-  // ── 主題 ───────────────────────────────────────────────────────
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    document.documentElement.setAttribute('data-theme', next);
-    if (typeof localStorage !== 'undefined')
-      localStorage.setItem('uep-theme', next);
-  }
-
-  // ── 地圖 ──────────────────────────────────────────────────────
-  function handlePickZone(zoneId: string) {
-    setShowMap(false);
-    if (zoneId === 'storage') return;
-    const z = ZONES.find((zone) => zone.id === zoneId);
-    if (z) setPortalZone(z);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -642,8 +584,7 @@ export default function StorageReader() {
                     : 0;
                   const openCount = cNode
                     ? (cNode.children || []).filter(
-                        (c) =>
-                          c.pageType === 'stuff' && c.metadata?.locked !== true
+                        (c) => c.pageType === 'stuff' && !isLocked(c)
                       ).length
                     : 0;
                   return (
@@ -679,6 +620,16 @@ export default function StorageReader() {
       <section className="sto-landing">
         <div className="sto-landing-inner">
           {homepageBlocks.map((block, i) => renderHomepageBlock(block, i))}
+          {treeLoading && (
+            <ZoneStateDisplay kind="loading" message="正在讀取目錄..." />
+          )}
+          {treeError && (
+            <ZoneStateDisplay
+              kind="error"
+              message={`目錄讀取失敗：${treeError}`}
+              onRetry={() => void fetchTree()}
+            />
+          )}
         </div>
       </section>
     );
@@ -689,7 +640,7 @@ export default function StorageReader() {
   // ══════════════════════════════════════════════════════════════════
   function renderClearing() {
     const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
-    if (!cNode) return null;
+    if (!cNode) return <ZoneStateDisplay kind="not-found" message="找不到此區域" large />;
     const meta = cNode.metadata || {};
     const clearingDef = CLEARINGS.find((c) => c.slug === activeClearingId);
     const entries = (cNode.children || [])
@@ -743,7 +694,7 @@ export default function StorageReader() {
         {/* 統計 */}
         <div className="sto-clearing-stats">
           {labelEn.toLowerCase()} ·{' '}
-          {entries.filter((e) => e.metadata?.locked !== true).length}/
+          {entries.filter((e) => !isLocked(e)).length}/
           {entries.length} entries
         </div>
 
@@ -852,21 +803,21 @@ export default function StorageReader() {
     return (
       <div className="sto-crate-grid">
         {entries.map((entry, i) => {
-          const isLocked = entry.metadata?.locked === true;
+          const locked = isLocked(entry);
           const tilt = [-1.3, 0.8, -0.6, 1.4][i % 4];
           return (
             <button
               key={entry.id}
-              className={`sto-crate-card ${isLocked ? 'locked' : ''}`}
+              className={`sto-crate-card ${locked ? 'locked' : ''}`}
               style={{ transform: `rotate(${tilt}deg)` }}
-              onClick={() => !isLocked && navigateToPage(entry.slug)}
-              disabled={isLocked}
+              onClick={() => !locked && navigateToPage(entry.slug)}
+              disabled={locked}
             >
               <div
                 className="sto-crate-tape"
                 style={{ top: -10, left: 24, transform: 'rotate(-2deg)' }}
               />
-              {!isLocked && (
+              {!locked && (
                 <div className="sto-crate-label">
                   EP · {String(i + 1).padStart(2, '0')}
                 </div>
@@ -893,7 +844,7 @@ export default function StorageReader() {
                     ))}
                   </div>
                 )}
-              {isLocked && (
+              {locked && (
                 <div
                   style={{
                     marginTop: 12,
@@ -957,7 +908,7 @@ export default function StorageReader() {
                     </div>
                   )}
                   <div className="sto-subcat-bin-count">
-                    {items.filter((e) => e.metadata?.locked !== true).length}/
+                    {items.filter((e) => !isLocked(e)).length}/
                     {items.length}
                   </div>
                   <div className="sto-subcat-bin-hint">點擊展開</div>
@@ -978,15 +929,15 @@ export default function StorageReader() {
     return (
       <div className="sto-lognote-list">
         {entries.map((entry) => {
-          const isLocked = entry.metadata?.locked === true;
+          const locked = isLocked(entry);
           return (
             <button
               key={entry.id}
-              className={`sto-lognote-card ${isLocked ? 'locked' : ''}`}
-              onClick={() => !isLocked && navigateToPage(entry.slug)}
-              disabled={isLocked}
+              className={`sto-lognote-card ${locked ? 'locked' : ''}`}
+              onClick={() => !locked && navigateToPage(entry.slug)}
+              disabled={locked}
             >
-              {!isLocked && (
+              {!locked && (
                 <>
                   <div className="sto-lognote-holes">
                     {[0, 1, 2, 3].map((j) => (
@@ -1039,15 +990,15 @@ export default function StorageReader() {
     return (
       <div className="sto-folder-stack">
         {entries.map((entry, i) => {
-          const isLocked = entry.metadata?.locked === true;
+          const locked = isLocked(entry);
           const tilt = offsets[i % offsets.length];
           return (
             <button
               key={entry.id}
-              className={`sto-folder-card ${isLocked ? 'locked' : ''}`}
+              className={`sto-folder-card ${locked ? 'locked' : ''}`}
               style={{ '--folder-tilt': `${tilt}deg` } as React.CSSProperties}
-              onClick={() => !isLocked && navigateToPage(entry.slug)}
-              disabled={isLocked}
+              onClick={() => !locked && navigateToPage(entry.slug)}
+              disabled={locked}
             >
               <div className="sto-folder-tab">
                 <span className="sto-folder-tab-label">
@@ -1087,7 +1038,7 @@ export default function StorageReader() {
                     </div>
                   )}
               </div>
-              {isLocked && <div className="sto-folder-sealed">· sealed ·</div>}
+              {locked && <div className="sto-folder-sealed">· sealed ·</div>}
             </button>
           );
         })}
@@ -1228,7 +1179,7 @@ export default function StorageReader() {
   // Reading 閱讀頁
   // ══════════════════════════════════════════════════════════════════
   function renderReading() {
-    if (!readingPage) return null;
+    if (!readingPage) return <ZoneStateDisplay kind="not-found" large />;
     const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
     const meta = cNode?.metadata || {};
     const labelEn =
@@ -1236,6 +1187,22 @@ export default function StorageReader() {
         ? meta.labelEn
         : activeClearingId?.toUpperCase() || '';
     const clearingStyle = typeof meta.style === 'string' ? meta.style : 'blog';
+
+    // 計算同一 clearing 下的 prev / next stuff 頁面（排除 locked）
+    const siblingStuffs = cNode
+      ? (cNode.children || [])
+          .filter((c) => c.pageType === 'stuff' && !isLocked(c))
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      : [];
+    const currentStuffIdx = siblingStuffs.findIndex(
+      (c) => c.slug === activePageId || c.slug === readingPage.slug
+    );
+    const prevStuff =
+      currentStuffIdx > 0 ? siblingStuffs[currentStuffIdx - 1] : null;
+    const nextStuff =
+      currentStuffIdx >= 0 && currentStuffIdx < siblingStuffs.length - 1
+        ? siblingStuffs[currentStuffIdx + 1]
+        : null;
 
     return (
       <div className="sto-reading-page">
@@ -1319,6 +1286,26 @@ export default function StorageReader() {
               </article>
             </>
           )}
+
+        <ZonePrevNext
+          prev={
+            prevStuff
+              ? {
+                  title: prevStuff.title,
+                  onClick: () => navigateToPage(prevStuff.slug),
+                }
+              : null
+          }
+          next={
+            nextStuff
+              ? {
+                  title: nextStuff.title,
+                  onClick: () => navigateToPage(nextStuff.slug),
+                }
+              : null
+          }
+          accentColor="var(--storage-soft)"
+        />
 
         {/* 返回按鈕 */}
         <div className="sto-back-bar">
@@ -1718,7 +1705,7 @@ export default function StorageReader() {
   // Render
   // ══════════════════════════════════════════════════════════════════
   return (
-    <div className="storage-reader" data-theme={theme}>
+    <ReaderShell zoneId="storage" className="storage-reader">
       {/* 入場動畫 — 箱子掉落 */}
       <div className={`sto-boot ${contentReady ? 'is-ready' : ''}`}>
         <div className="sto-boot-boxes">
@@ -1733,17 +1720,6 @@ export default function StorageReader() {
         <div className="sto-boot-floor" />
       </div>
 
-      <TopBar
-        dark={theme === 'dark'}
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={() => {
-          setHomePortal(true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1100);
-        }}
-      />
-
       <div className="sto-main">
         <ZoneAtmosphere zone={STORAGE_ZONE} skipGlyphs />
         <StorageFloatingDecor />
@@ -1757,60 +1733,7 @@ export default function StorageReader() {
         </div>
       </div>
 
-      <Minimap
-        zones={ZONES}
-        currentId="storage"
-        onExpand={() => setShowMap(true)}
-        onPickZone={handlePickZone}
-        position="bottom-left"
-      />
-
-      {showMap && (
-        <BigMapModal
-          zones={ZONES}
-          onClose={() => setShowMap(false)}
-          onPick={(zone) => {
-            setShowMap(false);
-            handlePickZone(zone.id);
-          }}
-          onCenterClick={() => {
-            setShowMap(false);
-            setHomePortal(true);
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 1100);
-          }}
-        />
-      )}
-
-      {portalZone && (
-        <PortalTransition
-          zone={portalZone}
-          onDone={() => {
-            window.location.href = `/${portalZone.slug}`;
-          }}
-        />
-      )}
-
-      {homePortal && (
-        <PortalTransition
-          zone={null}
-          onDone={() => {
-            window.location.href = '/';
-          }}
-          homeMode
-        />
-      )}
-
       {renderSubcatModal()}
-
-      {introZone && (
-        <IntroOverlay
-          zone={introZone}
-          onClose={() => setIntroZone(null)}
-          onEnter={() => setIntroZone(null)}
-        />
-      )}
-    </div>
+    </ReaderShell>
   );
 }
