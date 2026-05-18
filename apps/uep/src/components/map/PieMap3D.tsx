@@ -37,22 +37,43 @@ export default function PieMap3D({
     y: number;
     yaw: number;
     tilt: number;
+    angle: number;
   } | null>(null);
 
+  function getPointerAngle(e: React.PointerEvent) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
+  }
+
+  function normalizeAngleDelta(delta: number) {
+    return ((((delta + 180) % 360) + 360) % 360) - 180;
+  }
+
   function onPointerDown(e: React.PointerEvent) {
-    setDrag({ x: e.clientX, y: e.clientY, yaw, tilt });
+    setDrag({
+      x: e.clientX,
+      y: e.clientY,
+      yaw,
+      tilt,
+      angle: getPointerAngle(e),
+    });
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function onPointerMove(e: React.PointerEvent) {
     if (!drag) return;
-    const dx = e.clientX - drag.x,
-      dy = e.clientY - drag.y;
-    setYaw(drag.yaw + dx * 0.4);
+    const angleDelta = normalizeAngleDelta(getPointerAngle(e) - drag.angle);
+    const dy = e.clientY - drag.y;
+    setYaw(drag.yaw + angleDelta);
     setTilt(Math.max(38, Math.min(62, drag.tilt + dy * 0.18)));
   }
 
-  function onPointerUp() {
+  function onPointerUp(e: React.PointerEvent) {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     setDrag(null);
   }
 

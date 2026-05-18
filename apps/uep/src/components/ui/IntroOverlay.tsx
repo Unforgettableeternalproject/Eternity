@@ -2,6 +2,7 @@ import React from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 import UepDialogue from './UepDialogue';
+import './IntroOverlay.css';
 
 interface IntroOverlayProps {
   zone: ZoneData | null;
@@ -22,6 +23,7 @@ export default function IntroOverlay({
 
   return (
     <div
+      className="intro-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -35,6 +37,7 @@ export default function IntroOverlay({
       onClick={onClose}
     >
       <div
+        className="intro-overlay__card"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 'min(640px, 86%)',
@@ -104,7 +107,7 @@ export default function IntroOverlay({
 
         <hr className="hairline" />
 
-        <div style={{ paddingTop: 8 }}>
+        <div className="intro-overlay__dialogues" style={{ paddingTop: 8 }}>
           <UepDialogue
             side="left"
             text={zone.uep[0]}
@@ -121,6 +124,7 @@ export default function IntroOverlay({
         </div>
 
         <div
+          className="intro-overlay__footer"
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -142,7 +146,10 @@ export default function IntroOverlay({
             {zone.atmos}
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div
+            className="intro-overlay__actions"
+            style={{ display: 'flex', gap: 10 }}
+          >
             <button className="btn-outline" onClick={onClose}>
               返回地圖
             </button>
