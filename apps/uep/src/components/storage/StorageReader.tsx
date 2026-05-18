@@ -373,7 +373,10 @@ export default function StorageReader() {
   useZoneRouter({
     routes: [
       { param: 'page', handler: (value) => navigateToPage(value, false) },
-      { param: 'clearing', handler: (value) => navigateToClearing(value, false) },
+      {
+        param: 'clearing',
+        handler: (value) => navigateToClearing(value, false),
+      },
     ],
     onLanding: () => navigateToLanding(false),
     treeReady: !treeLoading && tree.length > 0,
@@ -640,7 +643,8 @@ export default function StorageReader() {
   // ══════════════════════════════════════════════════════════════════
   function renderClearing() {
     const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
-    if (!cNode) return <ZoneStateDisplay kind="not-found" message="找不到此區域" large />;
+    if (!cNode)
+      return <ZoneStateDisplay kind="not-found" message="找不到此區域" large />;
     const meta = cNode.metadata || {};
     const clearingDef = CLEARINGS.find((c) => c.slug === activeClearingId);
     const entries = (cNode.children || [])
@@ -693,9 +697,8 @@ export default function StorageReader() {
 
         {/* 統計 */}
         <div className="sto-clearing-stats">
-          {labelEn.toLowerCase()} ·{' '}
-          {entries.filter((e) => !isLocked(e)).length}/
-          {entries.length} entries
+          {labelEn.toLowerCase()} · {entries.filter((e) => !isLocked(e)).length}
+          /{entries.length} entries
         </div>
 
         <div className="sto-gradient-line" />
@@ -908,8 +911,7 @@ export default function StorageReader() {
                     </div>
                   )}
                   <div className="sto-subcat-bin-count">
-                    {items.filter((e) => !isLocked(e)).length}/
-                    {items.length}
+                    {items.filter((e) => !isLocked(e)).length}/{items.length}
                   </div>
                   <div className="sto-subcat-bin-hint">點擊展開</div>
                 </button>

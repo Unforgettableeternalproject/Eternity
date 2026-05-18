@@ -11,49 +11,13 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-// 透過 window 全域橋接取得 dialog manager（跨 React island）
-function getDialog() {
-  return (window as any)
-    .__uepDialogManager as typeof import('../ui/UepDialog').uepDialog;
-}
-
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
-
-function buildImageUrl(key: string): string {
-  if (key.startsWith('/api/assets/')) {
-    const path = key.slice('/api/assets/'.length);
-    return `${API_BASE}/api/assets/${path.split('/').map(encodeURIComponent).join('/')}`;
-  }
-  return `${API_BASE}/api/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
-}
-
-/** 將裸 R2 key 轉為統一的 /api/assets/ 路徑 */
-function toAssetPath(key: string): string {
-  return key.startsWith('/api/assets/') ? key : `/api/assets/${key}`;
-}
-
-async function uploadAsset(
-  file: File
-): Promise<{ key: string; url: string } | null> {
-  const formData = new FormData();
-  formData.append('file', file);
-  try {
-    const res = await fetch(`${API_BASE}/api/assets`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: { key: string; url: string };
-    };
-    return json.ok ? json.data : null;
-  } catch {
-    return null;
-  }
-}
+import {
+  API_BASE,
+  getDialog,
+  buildAssetUrl as buildImageUrl,
+  toAssetPath,
+  uploadAsset,
+} from './editorHelpers';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';

@@ -1185,8 +1185,18 @@ function EchoesReaderInner() {
   // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
   useZoneRouter({
     routes: [
-      { param: 'song', handler: (value) => { void navigateToSong(value, false); } },
-      { param: 'page', handler: (value) => { void navigateToContent(value, false); } },
+      {
+        param: 'song',
+        handler: (value) => {
+          void navigateToSong(value, false);
+        },
+      },
+      {
+        param: 'page',
+        handler: (value) => {
+          void navigateToContent(value, false);
+        },
+      },
       { param: 'cluster', handler: (value) => navigateToCluster(value, false) },
     ],
     onLanding: () => navigateToLanding(false),
@@ -1290,7 +1300,8 @@ function EchoesReaderInner() {
       setTransitionKey((k) => k + 1);
       setNavPending(false);
     }
-    if (pushState) pushUrl({ page: pageId, ...(clusterId ? { cluster: clusterId } : {}) });
+    if (pushState)
+      pushUrl({ page: pageId, ...(clusterId ? { cluster: clusterId } : {}) });
   }
 
   async function navigateToSong(songId: string, pushState = true) {
@@ -1308,7 +1319,8 @@ function EchoesReaderInner() {
     await fetchSong(songId);
     setTransitionKey((k) => k + 1);
     setNavPending(false);
-    if (pushState) pushUrl({ song: songId, ...(clusterId ? { cluster: clusterId } : {}) });
+    if (pushState)
+      pushUrl({ song: songId, ...(clusterId ? { cluster: clusterId } : {}) });
   }
 
   function isSongUnlocked(songId: string) {
@@ -1525,7 +1537,10 @@ function EchoesReaderInner() {
                 {plazaPage?.title || plazaNode?.title || '空白廣場'}
               </h2>
               {(treeLoading || landingLoading) && !plazaPage && (
-                <ZoneStateDisplay kind="loading" message="正在讀取空白廣場..." />
+                <ZoneStateDisplay
+                  kind="loading"
+                  message="正在讀取空白廣場..."
+                />
               )}
               {treeError && (
                 <ZoneStateDisplay
@@ -1689,15 +1704,13 @@ function EchoesReaderInner() {
   // ────────────────────────────────────────────────────────────────
   function renderCluster() {
     const cluster = getClusterDef(activeClusterId || '');
-    if (!cluster) return <ZoneStateDisplay kind="not-found" message="找不到此集群" large />;
+    if (!cluster)
+      return <ZoneStateDisplay kind="not-found" message="找不到此集群" large />;
 
     // 從 tree 中取得實際的 subcategory 節點（hidden 完全隱藏）
     const clusterNode = findClusterNode(tree, cluster.id);
     const subcatNodes = (clusterNode?.children || []).filter(
-      (n) =>
-        n.pageType !== 'song' &&
-        n.pageType !== 'page' &&
-        !isHidden(n)
+      (n) => n.pageType !== 'song' && n.pageType !== 'page' && !isHidden(n)
     );
     const totalSongs = clusterNode ? countSongs(clusterNode) : 0;
 
@@ -1850,7 +1863,9 @@ function EchoesReaderInner() {
   // ────────────────────────────────────────────────────────────────
   function renderContent() {
     if (contentLoading) {
-      return <ZoneStateDisplay kind="loading" message="正在讀取頁面..." large />;
+      return (
+        <ZoneStateDisplay kind="loading" message="正在讀取頁面..." large />
+      );
     }
     if (!currentContentPage) return null;
 
@@ -1864,10 +1879,7 @@ function EchoesReaderInner() {
     const contentNode = flatPages.find((p) => p.id === currentContentPage.id);
     const allChildren = contentNode?.children || [];
     const childSubcats = allChildren.filter(
-      (c) =>
-        c.pageType !== 'song' &&
-        c.pageType !== 'page' &&
-        !isHidden(c)
+      (c) => c.pageType !== 'song' && c.pageType !== 'page' && !isHidden(c)
     );
     const directSongs = allChildren.filter(
       (c) => c.pageType === 'song' && !isHidden(c)
@@ -2071,14 +2083,18 @@ function EchoesReaderInner() {
   // ────────────────────────────────────────────────────────────────
   function renderSong() {
     if (songLoading) {
-      return <ZoneStateDisplay kind="loading" message="正在讀取曲目..." large />;
+      return (
+        <ZoneStateDisplay kind="loading" message="正在讀取曲目..." large />
+      );
     }
     if (songError) {
       return (
         <ZoneStateDisplay
           kind="error"
           message={`曲目讀取失敗：${songError}`}
-          onRetry={activeSongId ? () => void navigateToSong(activeSongId) : undefined}
+          onRetry={
+            activeSongId ? () => void navigateToSong(activeSongId) : undefined
+          }
           large
         />
       );
@@ -2318,22 +2334,46 @@ function EchoesReaderInner() {
 
           {/* Prev/Next */}
           <ZonePrevNext
-            prev={prevSong ? {
-              title: (() => {
-                const pSp = getSpoilerLevel(prevSong);
-                const pUnlocked = pSp === 0 || isSongUnlocked(prevSong.id);
-                return <SpoilerTitle text={prevSong.title} level={pSp} unlocked={pUnlocked && pSp <= 2} size={14} />;
-              })(),
-              onClick: () => void navigateToSong(prevSong.id),
-            } : null}
-            next={nextSong ? {
-              title: (() => {
-                const nSp = getSpoilerLevel(nextSong);
-                const nUnlocked = nSp === 0 || isSongUnlocked(nextSong.id);
-                return <SpoilerTitle text={nextSong.title} level={nSp} unlocked={nUnlocked && nSp <= 2} size={14} />;
-              })(),
-              onClick: () => void navigateToSong(nextSong.id),
-            } : null}
+            prev={
+              prevSong
+                ? {
+                    title: (() => {
+                      const pSp = getSpoilerLevel(prevSong);
+                      const pUnlocked =
+                        pSp === 0 || isSongUnlocked(prevSong.id);
+                      return (
+                        <SpoilerTitle
+                          text={prevSong.title}
+                          level={pSp}
+                          unlocked={pUnlocked && pSp <= 2}
+                          size={14}
+                        />
+                      );
+                    })(),
+                    onClick: () => void navigateToSong(prevSong.id),
+                  }
+                : null
+            }
+            next={
+              nextSong
+                ? {
+                    title: (() => {
+                      const nSp = getSpoilerLevel(nextSong);
+                      const nUnlocked =
+                        nSp === 0 || isSongUnlocked(nextSong.id);
+                      return (
+                        <SpoilerTitle
+                          text={nextSong.title}
+                          level={nSp}
+                          unlocked={nUnlocked && nSp <= 2}
+                          size={14}
+                        />
+                      );
+                    })(),
+                    onClick: () => void navigateToSong(nextSong.id),
+                  }
+                : null
+            }
             prevLabel="← PREV"
             nextLabel="NEXT →"
             prevEmpty="沒有上一首"

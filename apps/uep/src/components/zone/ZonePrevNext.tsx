@@ -30,21 +30,17 @@ export function ZonePrevNext({
   return (
     <div
       className={`zone-prev-next ${className}`}
-      style={accentColor ? ({ '--zpn-accent': accentColor } as React.CSSProperties) : undefined}
+      style={
+        accentColor
+          ? ({ '--zpn-accent': accentColor } as React.CSSProperties)
+          : undefined
+      }
     >
-      <button
-        type="button"
-        disabled={!prev}
-        onClick={() => prev?.onClick()}
-      >
+      <button type="button" disabled={!prev} onClick={() => prev?.onClick()}>
         <span>{prevLabel}</span>
         <strong>{prev ? prev.title : prevEmpty}</strong>
       </button>
-      <button
-        type="button"
-        disabled={!next}
-        onClick={() => next?.onClick()}
-      >
+      <button type="button" disabled={!next} onClick={() => next?.onClick()}>
         <span>{nextLabel}</span>
         <strong>{next ? next.title : nextEmpty}</strong>
       </button>

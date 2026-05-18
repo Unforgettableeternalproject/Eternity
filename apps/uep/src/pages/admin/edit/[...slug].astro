@@ -70,29 +70,7 @@ function blocksToHtml(blocks: any[]): string {
     .join('');
 }
 
-// Concepts type 頁面：TipTap 只取 rich_text block 的 HTML，結構化 block 由 ConceptsEditorBody 處理
-const isConceptsType = area === 'concepts' && page?.pageType === 'type';
-// Storage dialogue：content blocks 直接交給 StorageDialogueEditor 處理
-const isStorageDialogueType =
-  area === 'storage' &&
-  page?.pageType === 'stuff' &&
-  pageSlug.startsWith('boxes/');
-// Storage changelog：content blocks 交給 ChangelogEditorBody 處理
-const isStorageChangelogType =
-  area === 'storage' &&
-  page?.pageType === 'stuff' &&
-  pageSlug.startsWith('changelog/');
-const needsContentBlocks =
-  isConceptsType || isStorageDialogueType || isStorageChangelogType;
-const initialHtml = page
-  ? isConceptsType
-    ? (Array.isArray(page.content)
-        ? page.content.find((b: any) => b.type === 'rich_text')?.content
-        : '') || '<p></p>'
-    : isStorageDialogueType || isStorageChangelogType
-      ? '<p></p>'
-      : blocksToHtml(page.content)
-  : '<p></p>';
+const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
 ---
 
 <DesignLayout title={`Edit - ${page?.title || area}`} zone={area}>
@@ -119,7 +97,7 @@ const initialHtml = page
         initialPageType={page?.pageType}
         initialDepth={page?.depth}
         initialMetadata={page?.metadata}
-        initialContentBlocks={needsContentBlocks ? page?.content : undefined}
+        initialContentBlocks={page?.content ?? []}
         createdAt={page?.createdAt}
         updatedAt={page?.updatedAt}
       />

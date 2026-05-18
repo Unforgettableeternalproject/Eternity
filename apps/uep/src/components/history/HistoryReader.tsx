@@ -10,7 +10,11 @@ import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
-import { useZoneRouter, pushUrl as zonePushUrl, clearUrl } from '../zone/useZoneRouter';
+import {
+  useZoneRouter,
+  pushUrl as zonePushUrl,
+  clearUrl,
+} from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
@@ -272,10 +276,7 @@ export default function HistoryReader() {
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
   const readablePages = useMemo(
     () =>
-      flatPages.filter(
-        (page) =>
-          page.pageType !== 'page' && !isLocked(page)
-      ),
+      flatPages.filter((page) => page.pageType !== 'page' && !isLocked(page)),
     [flatPages]
   );
   const pageLevelNodes = useMemo(
@@ -1038,7 +1039,11 @@ export default function HistoryReader() {
 
                 <article className="history-article">
                   {contentLoading && (
-                    <ZoneStateDisplay kind="loading" message="正在讀取內容..." large />
+                    <ZoneStateDisplay
+                      kind="loading"
+                      message="正在讀取內容..."
+                      large
+                    />
                   )}
                   {contentError && (
                     <ZoneStateDisplay
@@ -1128,8 +1133,22 @@ export default function HistoryReader() {
                 )}
 
                 <ZonePrevNext
-                  prev={prevPage ? { title: prevPage.title, onClick: () => void loadPage(prevPage) } : null}
-                  next={nextPage ? { title: nextPage.title, onClick: () => void loadPage(nextPage) } : null}
+                  prev={
+                    prevPage
+                      ? {
+                          title: prevPage.title,
+                          onClick: () => void loadPage(prevPage),
+                        }
+                      : null
+                  }
+                  next={
+                    nextPage
+                      ? {
+                          title: nextPage.title,
+                          onClick: () => void loadPage(nextPage),
+                        }
+                      : null
+                  }
                   accentColor="var(--history-main)"
                 />
               </section>

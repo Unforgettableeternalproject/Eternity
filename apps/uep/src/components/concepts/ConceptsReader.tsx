@@ -1169,7 +1169,6 @@ function ReaderDiff({ data }: { data: DiffContent }) {
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function ConceptsReader() {
-
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -1382,7 +1381,6 @@ export default function ConceptsReader() {
     });
   }
 
-
   // ══════════════════════════════════════════════════════════════
   // Landing
   // ══════════════════════════════════════════════════════════════
@@ -1492,8 +1490,7 @@ export default function ConceptsReader() {
           <h1 className="conc-stack-title">{stackTitle}</h1>
           <div className="conc-stack-sync-badge">
             <span className="conc-mod-dot sync" />
-            {children.filter((c) => !isHidden(c)).length} types ·
-            sync ok
+            {children.filter((c) => !isHidden(c)).length} types · sync ok
           </div>
         </div>
         <div className="conc-stack-path">
@@ -1531,10 +1528,7 @@ export default function ConceptsReader() {
         <div className="conc-dir-listing">
           <div className="conc-dir-bar">
             <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
-            <span>
-              {children.filter((c) => !isHidden(c)).length}{' '}
-              entries
-            </span>
+            <span>{children.filter((c) => !isHidden(c)).length} entries</span>
           </div>
           <div className="conc-dir-header-row">
             <span>#</span>
@@ -1575,9 +1569,7 @@ export default function ConceptsReader() {
                     <span className="conc-mod-dot" />
                     {locked ? 'sealed' : 'sync'}
                   </span>
-                  <span className="conc-dir-arrow">
-                    {locked ? '🔒' : '›'}
-                  </span>
+                  <span className="conc-dir-arrow">{locked ? '🔒' : '›'}</span>
                 </button>
               );
             })}
@@ -1667,9 +1659,11 @@ export default function ConceptsReader() {
           .sort((a, b) => a.sortOrder - b.sortOrder)
       : [];
     const currentTypeIdx = siblingTypes.findIndex(
-      (c) => c.slug === readingPage.slug || `concepts/${c.slug}` === activePageId
+      (c) =>
+        c.slug === readingPage.slug || `concepts/${c.slug}` === activePageId
     );
-    const prevType = currentTypeIdx > 0 ? siblingTypes[currentTypeIdx - 1] : null;
+    const prevType =
+      currentTypeIdx > 0 ? siblingTypes[currentTypeIdx - 1] : null;
     const nextType =
       currentTypeIdx >= 0 && currentTypeIdx < siblingTypes.length - 1
         ? siblingTypes[currentTypeIdx + 1]
@@ -1870,7 +1864,6 @@ export default function ConceptsReader() {
           </div>
         </div>
       </div>
-
     </ReaderShell>
   );
 }
