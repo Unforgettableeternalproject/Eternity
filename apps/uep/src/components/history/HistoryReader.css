@@ -495,6 +495,94 @@
   z-index: 1;
 }
 
+/* === 滾動軸「上次閱讀位置」標記 === */
+.history-scroll-marker {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translateY(-50%);
+  animation: scrollMarkerIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.history-scroll-marker.is-leaving {
+  animation: scrollMarkerOut 0.35s ease-in both;
+  pointer-events: none;
+}
+
+@keyframes scrollMarkerIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(24px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+@keyframes scrollMarkerOut {
+  from {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-50%) translateX(20px);
+  }
+}
+
+.history-scroll-marker-line {
+  display: block;
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--history-main));
+  opacity: 0.7;
+  transition:
+    opacity 0.2s,
+    width 0.2s;
+}
+
+.history-scroll-marker-label {
+  display: block;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--history-main);
+  padding: 5px 12px;
+  background: color-mix(in srgb, var(--history-main) 10%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--history-main) 30%, transparent);
+  opacity: 0.85;
+  transition:
+    opacity 0.2s,
+    background 0.2s,
+    transform 0.2s;
+}
+
+.history-scroll-marker:hover .history-scroll-marker-line {
+  opacity: 1;
+  width: 64px;
+}
+
+.history-scroll-marker:hover .history-scroll-marker-label {
+  opacity: 1;
+  background: color-mix(in srgb, var(--history-main) 22%, var(--bg-card));
+  transform: translateX(-4px);
+}
+
 /* === 頁面轉場 — 卷軸展開 === */
 .history-page-transition {
   position: relative;

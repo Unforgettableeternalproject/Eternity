@@ -41,5 +41,16 @@ export function useScrollMemory(
     pendingKey.current = key;
   }
 
-  return { saveScroll, restoreScroll };
+  /** 取得某 key 已儲存的滾動位置（不觸發恢復），用於提示 UI */
+  function getSavedPosition(key: string): number | null {
+    const v = memory.current.get(key);
+    return v != null && v > 0 ? v : null;
+  }
+
+  /** 清除某 key 的已儲存位置 */
+  function clearSavedPosition(key: string) {
+    memory.current.delete(key);
+  }
+
+  return { saveScroll, restoreScroll, getSavedPosition, clearSavedPosition };
 }

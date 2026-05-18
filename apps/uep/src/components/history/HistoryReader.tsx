@@ -270,7 +270,16 @@ export default function HistoryReader() {
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // 跨頁面導航的滾動位置記憶
-  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [currentId]);
+  const { saveScroll, getSavedPosition, clearSavedPosition } = useScrollMemory(
+    scrollRef,
+    [currentId]
+  );
+  // 「回到上次閱讀位置」滾動軸標記
+  const [scrollHint, setScrollHint] = useState<{
+    targetTop: number;
+    pct: number; // 0~100，標記在滾動軸上的百分比位置
+    leaving?: boolean; // 消失動畫中
+  } | null>(null);
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
@@ -489,13 +498,15 @@ export default function HistoryReader() {
   async function loadPage(node: PageTreeNode, pushState = true) {
     // 導航前先儲存當前頁面的滾動位置
     saveScroll(currentId || 'landing');
+    setScrollHint(null);
 
     if (node.pageType === 'page') {
       setCurrentId(null);
       setCurrentPage(null);
       setArticleHtml('');
       clearUrl();
-      restoreScroll('landing');
+      // landing 頁不做滾動恢復提示，直接回頂
+      scrollRef.current?.scrollTo({ top: 0 });
       if (node.children.length) {
         setExpanded((prev) => new Set([...prev, node.id]));
       }
@@ -518,8 +529,21 @@ export default function HistoryReader() {
       const page = await fetchPageById(node.id);
       setCurrentPage(page);
       setArticleHtml(renderBlocks(page.content));
-      // 恢復目標頁面的滾動位置（若首次造訪則回到頂部）
-      restoreScroll(node.id);
+      // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記
+      scrollRef.current?.scrollTo({ top: 0 });
+      const saved = getSavedPosition(node.id);
+      if (saved) {
+        // 等 DOM 更新後計算百分比位置
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = scrollRef.current;
+            if (!el) return;
+            const scrollable = el.scrollHeight - el.clientHeight;
+            const pct = scrollable > 0 ? (saved / scrollable) * 100 : 0;
+            setScrollHint({ targetTop: saved, pct: Math.min(pct, 95) });
+          });
+        });
+      }
 
       if (pushState) zonePushUrl({ page: node.id });
     } catch (err) {
@@ -597,15 +621,14 @@ export default function HistoryReader() {
   }
 
   function returnToLanding() {
-    // 導航回首頁前先儲存當前頁面的滾動位置
     saveScroll(currentId || 'landing');
+    setScrollHint(null);
     setCurrentId(null);
     setCurrentPage(null);
     setArticleHtml('');
     setTransitionKey((k) => k + 1);
     clearUrl();
-    // 恢復首頁的滾動位置
-    restoreScroll('landing');
+    scrollRef.current?.scrollTo({ top: 0 });
   }
 
   function isNodeVisible(node: PageTreeNode) {
@@ -825,6 +848,31 @@ export default function HistoryReader() {
         )}
 
         <div className="history-content" ref={scrollRef}>
+          {/* 滾動軸旁的「上次閱讀位置」標記 */}
+          {scrollHint && (
+            <button
+              type="button"
+              className={`history-scroll-marker${scrollHint.leaving ? ' is-leaving' : ''}`}
+              style={{ top: `${scrollHint.pct}%` }}
+              title="回到上次閱讀位置"
+              onClick={() => {
+                if (scrollHint.leaving) return;
+                scrollRef.current?.scrollTo({
+                  top: scrollHint.targetTop,
+                  behavior: 'smooth',
+                });
+                if (currentId) clearSavedPosition(currentId);
+                // 播放消失動畫後移除
+                setScrollHint((prev) =>
+                  prev ? { ...prev, leaving: true } : null
+                );
+                setTimeout(() => setScrollHint(null), 350);
+              }}
+            >
+              <span className="history-scroll-marker-line" />
+              <span className="history-scroll-marker-label">上次位置 ▸</span>
+            </button>
+          )}
           <div key={transitionKey} className="history-page-transition">
             {!currentId ? (
               <section className="history-landing">
