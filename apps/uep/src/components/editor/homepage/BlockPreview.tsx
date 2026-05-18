@@ -584,6 +584,64 @@ function StorageLinksListPreview({ data }: { data: { links: StorageLink[] } }) {
   );
 }
 
+/** 置物空間地圖預覽 */
+function StorageRoomMapPreview({
+  data,
+}: {
+  data: {
+    areas: { icon: string; name: string; label: string; slug: string }[];
+  };
+}) {
+  if (data.areas.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '8px 12px',
+          color: 'var(--ink-mute)',
+          fontSize: '0.8rem',
+        }}
+      >
+        （無區域）
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{ padding: '6px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}
+    >
+      {data.areas.map((area, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 10px',
+            border: '1px solid var(--hairline)',
+            borderLeft: '2px solid var(--uep-gold)',
+            fontSize: '0.8rem',
+          }}
+        >
+          <span style={{ fontSize: '1rem' }}>{area.icon}</span>
+          <span style={{ fontWeight: 600, color: 'var(--ink-title)' }}>
+            {area.name}
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.65rem',
+              color: 'var(--ink-mute)',
+              letterSpacing: '0.1em',
+            }}
+          >
+            {area.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** 富文本預覽 */
 function RichTextPreview({ data }: { data: { html: string } }) {
   return (
@@ -640,6 +698,8 @@ function BlockBody({
       return <StorageStickyNotePreview data={data} />;
     case 'storage-links-list':
       return <StorageLinksListPreview data={data} />;
+    case 'storage-room-map':
+      return <StorageRoomMapPreview data={data} />;
     case 'rich-text':
       return <RichTextPreview data={data} />;
     default:

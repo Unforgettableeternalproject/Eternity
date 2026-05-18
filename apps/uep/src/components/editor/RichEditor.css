@@ -599,12 +599,6 @@
   position: relative;
 }
 
-.ned-editor--locked .ned-paper {
-  pointer-events: none;
-  opacity: 0.5;
-  user-select: none;
-}
-
 /* 空狀態 — 入口模式佔位 */
 .ned-empty-state {
   display: flex;
@@ -647,22 +641,6 @@
   font-size: 14px;
   line-height: 1.8;
   color: var(--ink-mute);
-}
-
-.ned-lock-banner {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: 8px 18px;
-  background: color-mix(in srgb, var(--uep-gold) 10%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--uep-gold) 30%, transparent);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--uep-gold);
-  letter-spacing: 0.08em;
-  text-align: center;
-  margin: -40px -60px 24px;
-  padding: 10px;
 }
 
 .ned-paper {
@@ -905,6 +883,79 @@
 .tiptap-content img {
   max-width: 100%;
   margin: 0.75em 0;
+  border-radius: 4px;
+  transition: outline 0.15s;
+}
+.tiptap-content img.ProseMirror-selectednode {
+  outline: 2px solid var(--ned-accent, #888);
+  outline-offset: 2px;
+}
+
+/* 圖片浮動操作列 */
+.ned-img-bubble {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9990;
+  display: flex;
+  gap: 4px;
+  background: var(--bg-card, #1a1a22);
+  border: 1px solid var(--line, #333);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+.ned-img-bubble-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--ink, #ccc);
+  font-size: 0.82em;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.ned-img-bubble-btn:hover {
+  background: color-mix(in srgb, var(--ned-accent, #888) 12%, transparent);
+  border-color: var(--line, #333);
+}
+.ned-img-bubble-btn--danger:hover {
+  background: color-mix(in srgb, crimson 12%, transparent);
+  border-color: crimson;
+  color: crimson;
+}
+
+/* Modal 通用樣式 */
+.ned-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ned-modal-card {
+  background: var(--bg-card, #1a1a22);
+  border: 1px solid var(--line, #333);
+  border-radius: 12px;
+  padding: 0;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ned-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line, #333);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* Inline formatting */
@@ -937,6 +988,50 @@
 }
 .tiptap-content a[href^='@page:'] {
   text-decoration-style: dashed;
+}
+
+/* UEP 對話區塊 */
+.tiptap-content .tiptap-uep-dialogue {
+  position: relative;
+  margin: 12px 0;
+  padding: 10px 16px 10px 42px;
+  border-left: 3px solid #d5b618;
+  background: color-mix(in srgb, #d5b618 6%, transparent);
+  border-radius: 0 4px 4px 0;
+  color: #d5b618;
+  font-weight: 500;
+}
+.tiptap-content .tiptap-uep-dialogue::before {
+  content: 'U';
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #d5b618;
+  border-radius: 2px;
+}
+.tiptap-content .tiptap-uep-dialogue[data-side='right'] {
+  border-left: none;
+  border-right: 3px solid #d5b618;
+  padding: 10px 42px 10px 16px;
+  text-align: right;
+}
+.tiptap-content .tiptap-uep-dialogue[data-side='right']::before {
+  left: auto;
+  right: 10px;
+}
+
+/* UEP toolbar 按鈕 */
+.tb-btn-uep.is-active {
+  background: color-mix(in srgb, #d5b618 15%, transparent);
+  border-color: #d5b618;
 }
 
 /* Selection */
@@ -3033,4 +3128,33 @@
 .ced-chrono-group-item.drag-over {
   outline: 2px dashed var(--ced-accent, var(--ink-sub));
   outline-offset: -2px;
+}
+
+/* Storage stuff — 分類選擇器 */
+.ned-subcat-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--hairline, #e0e0e0);
+  background: var(--bg-soft, #fafafa);
+}
+.ned-subcat-selector-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute, #999);
+  white-space: nowrap;
+}
+.ned-subcat-selector-select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline, #e0e0e0);
+  background: var(--bg-body, #fff);
+  font-size: 13px;
+  color: inherit;
+  max-width: 300px;
 }

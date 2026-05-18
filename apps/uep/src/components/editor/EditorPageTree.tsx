@@ -1,14 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { uepDialog as UepDialogType } from '../ui/UepDialog';
-import type { uepToast as UepToastType } from '../ui/UepToast';
-
-// 跨 React island 取得全域 manager（避免 module instance 不同步）
-function getDialog(): typeof UepDialogType {
-  return (window as any).__uepDialogManager;
-}
-function getToast(): typeof UepToastType {
-  return (window as any).__uepToastManager;
-}
+import { getDialog, getToast } from './editorHelpers';
+import {
+  TYPE_LETTERS,
+  NO_DRAG_TYPES,
+  NO_CHILDREN_TYPES,
+  TREE_HIDDEN_TYPES,
+  NO_INSERT_ZONE_AREAS,
+  getDefaultChildPageType,
+} from './editorModeRegistry';
 import { renderIcon } from './IconLibrary';
 
 interface PageTreeNode {
@@ -30,24 +29,7 @@ interface EditorPageTreeProps {
   refreshKey?: number;
 }
 
-const TYPE_LETTERS: Record<string, string> = {
-  zone: 'Z',
-  chapter: 'C',
-  arc: 'A',
-  section: 'S',
-  page: 'P',
-  cluster: 'CL',
-  subcategory: 'SC',
-  song: '♪',
-  division: 'DV',
-  gallery: 'GA',
-  stack: 'ST',
-  type: 'TP',
-};
-
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
-const NO_DRAG_TYPES = new Set(['page', 'zone', 'cluster', 'division', 'type']); // 不可拖動排序
-const NO_CHILDREN_TYPES = new Set(['song', 'gallery', 'type']); // 不可新增子頁面
 
 // Flatten tree into ordered list with parent info for drag calculations
 interface FlatNode {
@@ -276,28 +258,29 @@ export default function EditorPageTree({
     const parentPath = creating.parentId || area;
     const pageSlug = `${parentPath}/${slug}`.replace(`${area}/`, '');
 
-    // Concepts 區域：stack 下的子頁面自動設定 pageType 和 stack_style
     let newPageType = 'section';
     let newMetadata: Record<string, unknown> = {};
-    if (area === 'concepts' && creating.parentId) {
+    if (creating.parentId) {
       const parentNode = findNode(tree, creating.parentId);
-      if (parentNode?.pageType === 'stack') {
-        newPageType = 'type';
-        // 從已有的子頁面繼承 stack_style，或從 slug 映射
-        const existingChild = (parentNode.children || []).find(
-          (c) => c.metadata?.stack_style
-        );
-        const stackStyle =
-          existingChild?.metadata?.stack_style ||
-          (
-            {
-              'server/records': 'dossier',
-              'server/browser': 'browser',
-              'server/time_logs': 'chrono',
-              'server/translation': 'diff',
-            } as Record<string, string>
-          )[parentNode.slug];
-        if (stackStyle) newMetadata = { stack_style: stackStyle };
+      if (parentNode) {
+        newPageType = getDefaultChildPageType(area, parentNode.pageType);
+        // Concepts stack → type：繼承 stack_style
+        if (area === 'concepts' && parentNode.pageType === 'stack') {
+          const existingChild = (parentNode.children || []).find(
+            (c) => c.metadata?.stack_style
+          );
+          const stackStyle =
+            existingChild?.metadata?.stack_style ||
+            (
+              {
+                'server/records': 'dossier',
+                'server/browser': 'browser',
+                'server/time_logs': 'chrono',
+                'server/translation': 'diff',
+              } as Record<string, string>
+            )[parentNode.slug];
+          if (stackStyle) newMetadata = { stack_style: stackStyle };
+        }
       }
     }
 
@@ -440,8 +423,7 @@ export default function EditorPageTree({
   ) => {
     const result: React.ReactNode[] = [];
 
-    // Echoes 區域：不顯示 hover insert zones，改由 context menu / subcategory editor 管理
-    const showInsertZones = area !== 'echoes' && area !== 'visuals';
+    const showInsertZones = !NO_INSERT_ZONE_AREAS.has(area);
 
     for (let i = 0; i <= nodes.length; i++) {
       const isCreatingHere =
@@ -481,23 +463,15 @@ export default function EditorPageTree({
         </React.Fragment>
       );
     }
-    // Echoes 區域：song 節點不顯示在樹中（從 subcategory 編輯器管理）
-    if (area === 'echoes' && node.pageType === 'song') return null;
-    // Visuals 區域：gallery 節點不顯示在樹中（從 subcategory 編輯器管理）
-    if (area === 'visuals' && node.pageType === 'gallery') return null;
+    if (TREE_HIDDEN_TYPES[area]?.has(node.pageType)) return null;
 
     const isActive = node.id === `${area}/${currentSlug}`;
-    // Echoes/Visuals 區域：不計算 song/gallery children 為 tree children
-    const visibleChildren =
-      area === 'echoes'
-        ? (node.children || []).filter(
-            (c: PageTreeNode) => c.pageType !== 'song'
-          )
-        : area === 'visuals'
-          ? (node.children || []).filter(
-              (c: PageTreeNode) => c.pageType !== 'gallery'
-            )
-          : node.children || [];
+    const hiddenSet = TREE_HIDDEN_TYPES[area];
+    const visibleChildren = hiddenSet
+      ? (node.children || []).filter(
+          (c: PageTreeNode) => !hiddenSet.has(c.pageType)
+        )
+      : node.children || [];
     const hasChildren = visibleChildren.length > 0;
     const isCollapsed = collapsed.has(node.id);
     const noEdit = NO_EDIT_TYPES.has(node.pageType);

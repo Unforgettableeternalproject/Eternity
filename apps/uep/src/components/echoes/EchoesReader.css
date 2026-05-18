@@ -364,7 +364,7 @@
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #355c7d;
+  color: var(--echoes-main);
   margin: 2em 0 0.65em;
   scroll-margin-top: 24px;
 }
@@ -372,8 +372,8 @@
 .echoes-prose blockquote {
   margin: 28px 0;
   padding: 4px 0 4px 18px;
-  border-left: 3px solid #355c7d;
-  color: #355c7d;
+  border-left: 3px solid var(--echoes-main);
+  color: var(--echoes-main);
   font-family: var(--font-display);
   font-style: italic;
   font-size: 19px;
@@ -381,15 +381,24 @@
 }
 
 .echoes-prose a {
-  color: #6c5b7b;
-  text-decoration-color: color-mix(in srgb, #6c5b7b 52%, transparent);
+  color: var(--echoes-soft);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--echoes-soft) 52%,
+    transparent
+  );
 }
 
 .echoes-prose hr {
   border: 0;
   height: 1px;
   margin: 38px 0;
-  background: linear-gradient(90deg, transparent, #355c7d, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--echoes-main),
+    transparent
+  );
   opacity: 0.55;
 }
 
@@ -426,7 +435,7 @@
 }
 
 .echoes-prose th {
-  color: #355c7d;
+  color: var(--echoes-main);
   background: var(--echoes-tint);
 }
 
@@ -613,37 +622,6 @@
   max-width: 920px;
   margin: 0 auto;
   padding: 36px 56px 100px;
-}
-
-.echoes-breadcrumb {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.echoes-breadcrumb-line {
-  width: 28px;
-  height: 1px;
-  background: currentColor;
-  flex-shrink: 0;
-}
-
-.echoes-breadcrumb button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-
-.echoes-breadcrumb button:hover {
-  text-decoration: underline;
 }
 
 .echoes-cluster-head {

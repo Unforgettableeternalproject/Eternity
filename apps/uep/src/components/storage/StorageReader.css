@@ -1,0 +1,1989 @@
+/* ═══════════════════════════════════════════════════════════════════
+   StorageReader — 某人的置物空間
+   ═══════════════════════════════════════════════════════════════════ */
+
+.storage-reader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-body);
+  color: var(--ink-body);
+  overflow: hidden;
+}
+.sto-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.sto-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   灰塵粒子 Canvas
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-dust-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   背景飄浮 SVG 裝飾
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-floating-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.sto-float-svg {
+  position: absolute;
+  opacity: 0;
+  animation: sto-svg-drift linear infinite both;
+}
+@keyframes sto-svg-drift {
+  0% {
+    opacity: 0;
+    transform: translateY(0) rotate(var(--r, 0deg));
+  }
+  15% {
+    opacity: 0.12;
+  }
+  50% {
+    opacity: 0.18;
+    transform: translateY(-40px) rotate(var(--r, 0deg));
+  }
+  85% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-80px) rotate(var(--r, 0deg));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   轉場動畫 — 灰塵飄散風格
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-page-transition {
+  position: relative;
+  will-change: transform, opacity, filter;
+  animation: sto-dust-enter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes sto-dust-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(2px, 12px, 0) scale(0.995);
+    filter: blur(3px);
+  }
+  15% {
+    transform: translate3d(-1px, 8px, 0) scale(0.998);
+  }
+  40% {
+    opacity: 0.85;
+    filter: blur(0.8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+.sto-page-transition::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(213, 182, 24, 0.06) 0%,
+    transparent 80%
+  );
+  animation: sto-dust-glow 0.7s ease-out both;
+}
+@keyframes sto-dust-glow {
+  0% {
+    opacity: 1;
+    transform: scaleY(1.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   入場動畫 — 箱子掉落
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: #0d0c0a;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition:
+    opacity 0.8s ease,
+    filter 0.8s ease;
+}
+.sto-boot.is-ready {
+  opacity: 0;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.sto-boot-boxes {
+  position: absolute;
+  bottom: 32%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 480px;
+  height: 260px;
+}
+
+.sto-boot-floor {
+  position: absolute;
+  bottom: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(213, 182, 24, 0.3),
+    transparent
+  );
+}
+
+.sto-boot-box {
+  position: absolute;
+  background: repeating-linear-gradient(
+    135deg,
+    #3d3520 0 8px,
+    #352e1c 8px 16px
+  );
+  border: 1px solid rgba(213, 182, 24, 0.2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 底層箱子（大） */
+.sto-box-1 {
+  width: 110px;
+  height: 90px;
+  bottom: 0;
+  left: 50%;
+  margin-left: -55px;
+  animation: sto-box-fall 0.5s 0.1s both;
+  --box-land-rot: -2deg;
+}
+.sto-box-2 {
+  width: 95px;
+  height: 80px;
+  bottom: 0;
+  left: 12%;
+  animation: sto-box-fall 0.5s 0.25s both;
+  --box-land-rot: 1.5deg;
+}
+.sto-box-3 {
+  width: 105px;
+  height: 85px;
+  bottom: 0;
+  right: 10%;
+  animation: sto-box-fall 0.5s 0.4s both;
+  --box-land-rot: -1.2deg;
+}
+/* 中層箱子 */
+.sto-box-4 {
+  width: 80px;
+  height: 68px;
+  bottom: 85px;
+  left: 30%;
+  animation: sto-box-fall 0.5s 0.6s both;
+  --box-land-rot: 2.5deg;
+}
+.sto-box-5 {
+  width: 88px;
+  height: 72px;
+  bottom: 78px;
+  right: 22%;
+  animation: sto-box-fall 0.5s 0.75s both;
+  --box-land-rot: -2.8deg;
+}
+/* 頂層箱子（小） */
+.sto-box-6 {
+  width: 65px;
+  height: 55px;
+  bottom: 155px;
+  left: 44%;
+  animation: sto-box-fall 0.5s 0.92s both;
+  --box-land-rot: 3.2deg;
+}
+.sto-box-7 {
+  width: 58px;
+  height: 50px;
+  bottom: 148px;
+  right: 32%;
+  animation: sto-box-fall 0.5s 1.05s both;
+  --box-land-rot: -1.8deg;
+}
+
+@keyframes sto-box-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-400px) rotate(0deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(10px) rotate(var(--box-land-rot, -1deg));
+  }
+  75% {
+    transform: translateY(-5px) rotate(var(--box-land-rot, -1deg));
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--box-land-rot, -1deg));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   共用元素：Kicker / Breadcrumb / Divider / Prose
+   （數值對齊 Concepts/Echoes/Visuals 標準）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.sto-kicker::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--storage-soft);
+}
+
+.sto-gradient-line {
+  margin-top: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--storage-soft), transparent);
+  opacity: 0.5;
+}
+
+.sto-prose {
+  font-family: var(--font-serif-tc);
+  font-size: 17px;
+  line-height: 2.08;
+  color: var(--ink);
+  margin: 24px 0;
+}
+.sto-prose p {
+  margin: 0 0 1.3em;
+}
+.sto-prose hr {
+  border: none;
+  height: 1px;
+  background: var(--hairline);
+  margin: 24px 0;
+}
+.sto-drop-cap {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 600;
+  float: left;
+  line-height: 0.85;
+  padding-top: 6px;
+  padding-right: 8px;
+  color: var(--storage-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Landing 首頁
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-landing {
+  min-height: 100%;
+}
+.sto-landing-inner {
+  max-width: 920px;
+  padding: 48px 56px 72px;
+  margin: 0 auto;
+}
+.sto-landing-title {
+  font-family: var(--font-display);
+  font-size: 58px;
+  font-weight: 500;
+  color: var(--ink-heading);
+  margin: 14px 0 0;
+}
+.sto-landing-subtitle {
+  font-family: var(--font-serif-tc);
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--ink-sub);
+  max-width: 600px;
+  margin-top: 24px;
+  font-style: italic;
+}
+.sto-landing-uep {
+  margin: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Storage Room Map — 置物空間節點地圖
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-room-map {
+  margin-top: 40px;
+}
+.sto-room-map-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.sto-room-map-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--storage-soft),
+    transparent
+  );
+  opacity: 0.35;
+}
+
+/* 房間地板 — 節點空間 */
+.sto-room-floor {
+  position: relative;
+  min-height: 440px;
+  border: 1px solid color-mix(in srgb, var(--storage-soft) 15%, transparent);
+  background:
+    radial-gradient(
+      circle at 50% 40%,
+      color-mix(in srgb, var(--storage-soft) 3%, transparent) 0%,
+      transparent 60%
+    ),
+    var(--bg-card);
+  overflow: hidden;
+}
+
+/* 連接線 */
+.sto-room-paths {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sto-room-path {
+  stroke: var(--storage-soft);
+  stroke-width: 0.3;
+  stroke-dasharray: 2 3;
+  opacity: 0.35;
+}
+.sto-room-center-dot {
+  fill: var(--storage-soft);
+  opacity: 0.25;
+}
+
+/* 節點容器 — CSS grid 三角佈局 */
+.sto-room-nodes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas:
+    'a b'
+    'c c';
+  gap: 0;
+  padding: 24px;
+}
+
+/* 單一節點 */
+.sto-room-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  position: relative;
+  transition: transform 0.3s ease;
+}
+.sto-room-node:hover {
+  transform: scale(1.05);
+}
+
+/* 節點信標 — 呼吸光暈 */
+.sto-room-node-beacon {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--storage-soft) 12%, transparent),
+    transparent 70%
+  );
+  opacity: 0.6;
+  animation: sto-beacon-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+.sto-room-node:nth-child(2) .sto-room-node-beacon {
+  animation-delay: -1s;
+}
+.sto-room-node:nth-child(3) .sto-room-node-beacon {
+  animation-delay: -2s;
+}
+@keyframes sto-beacon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.7;
+  }
+}
+
+/* 節點圖示 */
+.sto-room-node-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  color: var(--storage-soft);
+  border: 1.5px solid color-mix(in srgb, var(--storage-soft) 40%, transparent);
+  background: var(--bg-body);
+  position: relative;
+  z-index: 1;
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+.sto-room-node:hover .sto-room-node-icon {
+  border-color: var(--storage-soft);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--storage-soft) 20%, transparent);
+}
+
+.sto-room-node-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink-title);
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.sto-room-node-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  position: relative;
+  z-index: 1;
+}
+.sto-room-node-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  font-style: italic;
+  text-align: center;
+  max-width: 180px;
+  position: relative;
+  z-index: 1;
+}
+.sto-room-node-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--storage-soft);
+  opacity: 0.7;
+  letter-spacing: 0.08em;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 子頁面
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-clearing-page {
+  max-width: 920px;
+  padding: 36px 56px 100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+.sto-clearing-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 14px;
+}
+.sto-clearing-title-icon {
+  font-size: 38px;
+  color: var(--storage-soft);
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.sto-clearing-title {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.sto-clearing-stats {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  letter-spacing: 0.06em;
+  margin-top: 6px;
+}
+.sto-clearing-uep {
+  margin: 24px 0 32px;
+}
+
+/* Entry 卡片列表 — 對齊 echoes-subcat-card 模式 */
+.sto-entries-header {
+  margin-top: 32px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--storage-soft);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.sto-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sto-entry-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 30px 1fr 80px 24px;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--storage-soft);
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.sto-entry-card:hover:not(.locked) {
+  background: var(--bg-soft);
+  transform: translateX(4px);
+}
+.sto-entry-card.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-left-color: var(--ink-mute);
+}
+.sto-entry-card-idx {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--storage-soft);
+  letter-spacing: 0.12em;
+}
+.sto-entry-card.locked .sto-entry-card-idx {
+  color: var(--ink-mute);
+}
+.sto-entry-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sto-entry-card-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-entry-card-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sto-entry-card-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+  text-align: right;
+}
+.sto-entry-card-lock {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+}
+.sto-entry-card-arrow {
+  font-size: 16px;
+  color: var(--storage-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading 閱讀頁
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-reading-page {
+  max-width: 920px;
+  padding: 36px 56px 100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+.sto-reading-title {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 14px 0 0;
+  letter-spacing: -0.01em;
+}
+.sto-reading-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.14em;
+}
+.sto-reading-body {
+  margin-top: 28px;
+}
+
+/* 劇本角色樣式 */
+.sto-script-narrator {
+  font-family: var(--font-serif-tc);
+  font-size: 17px;
+  line-height: 2.08;
+  color: var(--ink);
+  margin: 0 0 18px;
+}
+.sto-script-sfx {
+  margin: 16px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--ink-mute);
+  text-align: center;
+}
+.sto-script-you {
+  margin: 16px 0 18px;
+  padding: 8px 16px 8px 18px;
+  border-left: 3px solid var(--storage-soft);
+  background: color-mix(in srgb, var(--storage-soft) 4%, transparent);
+  font-family: var(--font-serif-tc);
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--ink);
+  font-style: italic;
+  position: relative;
+}
+.sto-script-you-label {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 1px 8px;
+  background: var(--bg-body);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  font-style: normal;
+}
+.sto-script-break {
+  margin: 34px 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sto-script-break-line {
+  flex: 1;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+.sto-script-break-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+
+/* 遮蔽墨水 */
+.sto-redact {
+  background: #222;
+  color: #222;
+  padding: 0 4px;
+  border-radius: 2px;
+  letter-spacing: -0.1em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 入口卡片 — boxes（紙箱風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-crate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px;
+  margin-top: 14px;
+}
+.sto-crate-card {
+  position: relative;
+  padding: 24px 22px 22px;
+  background: repeating-linear-gradient(
+    135deg,
+    #e7d4a4 0 8px,
+    #ddc998 8px 16px
+  );
+  min-height: 200px;
+  color: #3a2f08;
+  cursor: pointer;
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s;
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  border: none;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+[data-theme='dark'] .sto-crate-card {
+  background: repeating-linear-gradient(
+    135deg,
+    #3d3520 0 8px,
+    #352e1c 8px 16px
+  );
+  color: #e8dfc8;
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.sto-crate-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 18px 30px rgba(0, 0, 0, 0.16),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.sto-crate-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: repeating-linear-gradient(
+    135deg,
+    #d8c9a0 0 8px,
+    #ccbf95 8px 16px
+  );
+}
+.sto-crate-card.locked:hover {
+  transform: none;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.12);
+}
+.sto-crate-tape {
+  position: absolute;
+  width: 64px;
+  height: 18px;
+  background: rgba(231, 220, 178, 0.85);
+  border-left: 1px dashed rgba(0, 0, 0, 0.1);
+  border-right: 1px dashed rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+[data-theme='dark'] .sto-crate-tape {
+  background: rgba(80, 70, 45, 0.85);
+}
+.sto-crate-label {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  padding: 4px 10px;
+  background: rgba(255, 247, 222, 0.88);
+  border: 1px solid rgba(58, 47, 8, 0.3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+[data-theme='dark'] .sto-crate-label {
+  background: rgba(60, 50, 30, 0.88);
+  border-color: rgba(213, 182, 24, 0.3);
+  color: var(--storage-soft);
+}
+.sto-crate-date {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+.sto-crate-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.sto-crate-hint {
+  margin-top: 12px;
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 1.7;
+  font-style: italic;
+  padding: 8px 10px;
+  background: rgba(255, 247, 222, 0.55);
+}
+[data-theme='dark'] .sto-crate-hint {
+  background: rgba(40, 35, 20, 0.55);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 入口卡片 — changelog（信紙風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-lognote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+.sto-lognote-card {
+  position: relative;
+  padding: 24px 28px 26px;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 31px,
+      rgba(58, 58, 58, 0.07) 31px 32px
+    ),
+    var(--bg-card);
+  border-top: 1px solid var(--hairline-strong);
+  border-bottom: 1px solid var(--hairline-strong);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  border-left: none;
+  border-right: none;
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s;
+}
+.sto-lognote-card:hover:not(.locked) {
+  transform: translateX(2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+.sto-lognote-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.sto-lognote-holes {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  padding: 18px 0;
+}
+.sto-lognote-hole {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-soft);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+.sto-lognote-tab {
+  position: absolute;
+  top: -8px;
+  right: 26px;
+  padding: 4px 10px;
+  background: #fbe782;
+  color: #3a2f08;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+[data-theme='dark'] .sto-lognote-tab {
+  background: #5c4f1a;
+  color: #fbe782;
+}
+.sto-lognote-body {
+  margin-left: 26px;
+}
+.sto-lognote-date {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  margin-bottom: 4px;
+}
+.sto-lognote-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink-title);
+  letter-spacing: -0.005em;
+}
+.sto-lognote-author {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing 入口卡片 — extras（資料夾風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-folder-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 14px;
+}
+.sto-folder-card {
+  position: relative;
+  padding: 0;
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--storage-soft) 25%, var(--hairline));
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  transform: rotate(var(--folder-tilt, 0deg));
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s;
+  box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.08);
+}
+.sto-folder-card:hover:not(.locked) {
+  transform: rotate(0deg) translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+.sto-folder-card.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.sto-folder-card.locked:hover {
+  transform: rotate(var(--folder-tilt, 0deg));
+  box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* 資料夾標籤頁 */
+.sto-folder-tab {
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  height: 14px;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--storage-soft) 15%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--storage-soft) 25%, var(--hairline));
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  display: flex;
+  align-items: center;
+}
+.sto-folder-tab-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+}
+
+/* 資料夾主體 */
+.sto-folder-body {
+  padding: 20px 24px 22px;
+}
+.sto-folder-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.sto-folder-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--storage-soft);
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+.sto-folder-date {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+}
+.sto-folder-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-title);
+  letter-spacing: -0.005em;
+}
+.sto-folder-hint {
+  margin-top: 8px;
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.sto-folder-meta {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+}
+.sto-folder-sealed {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  opacity: 0.7;
+}
+
+/* extras 卡片標籤色（覆蓋通用 sto-card-tag） */
+.sto-folder-card .sto-card-tag {
+  color: var(--ink-mute);
+  border-color: color-mix(in srgb, var(--storage-soft) 30%, var(--ink-mute));
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading — ScriptReader 場景面板
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-script-cast-panel {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px dashed var(--hairline-strong);
+  background: var(--bg-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.sto-script-cast-label {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+.sto-script-cast-value {
+  margin-top: 4px;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading — LogReader metadata 面板
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-log-meta-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border: 1px solid var(--hairline-strong);
+}
+.sto-log-meta-cell {
+  padding: 12px 16px;
+  border-right: 1px solid var(--hairline-strong);
+}
+.sto-log-meta-cell:last-child {
+  border-right: none;
+}
+.sto-log-meta-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+.sto-log-meta-value {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+.sto-log-meta-redact {
+  background: #222;
+  color: transparent;
+  padding: 0 6px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Reading — BlogReader meta strip */
+.sto-blog-meta {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+}
+.sto-blog-meta-accent {
+  color: var(--storage-soft);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — extras 風格兩欄介紹（視窗插圖 + 文字）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-extras-intro-grid {
+  margin: 28px 0 14px;
+}
+.sto-window-svg {
+  float: left;
+  width: 160px;
+  height: auto;
+  margin: 4px 22px 12px 0;
+  shape-outside: margin-box;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — 介紹段落文字（dialogue / log 首字放大、extras 直接插入）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-clearing-intro-text {
+  font-family: var(--font-serif-tc);
+  font-size: 16.5px;
+  line-height: 2;
+  color: var(--ink);
+  margin: 28px 0 0;
+}
+/* extras 兩欄格局中的文字不需要額外上邊距 */
+.sto-extras-intro-grid::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+.sto-extras-intro-grid .sto-clearing-intro-text {
+  margin: 0;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — extras heard 語錄面板
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-heard-quote {
+  margin-top: 30px;
+  padding: 18px 22px;
+  border: 1px dashed var(--storage-soft);
+  background: color-mix(in srgb, var(--storage-soft) 3%, transparent);
+  font-family: var(--font-serif-tc);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--ink-soft);
+  position: relative;
+}
+.sto-heard-quote-label {
+  position: absolute;
+  top: -10px;
+  left: 18px;
+  padding: 2px 10px;
+  background: var(--bg-body);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--storage-soft);
+  font-style: normal;
+}
+.sto-heard-quote-source {
+  float: right;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.16em;
+  font-style: normal;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clearing — 底部提示欄（左邊框 + 淡金背景）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-clearing-footer-hint {
+  margin-top: 40px;
+  padding: 14px 18px;
+  border-left: 3px solid var(--storage-soft);
+  background: color-mix(in srgb, var(--storage-soft) 4%, transparent);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.sto-footer-hint-icon {
+  color: var(--storage-soft);
+  font-family: var(--font-mono);
+  margin-right: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Card — 標籤列表（三種卡片通用，顏色依父容器調整）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-card-tags {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sto-card-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+/* boxes（crate）卡片標籤色 */
+.sto-crate-card .sto-card-tags {
+  color: #3a2f08;
+}
+[data-theme='dark'] .sto-crate-card .sto-card-tags {
+  color: #e8dfc8;
+}
+.sto-crate-card .sto-card-tag {
+  background: rgba(255, 247, 222, 0.65);
+}
+[data-theme='dark'] .sto-crate-card .sto-card-tag {
+  background: rgba(40, 35, 20, 0.65);
+}
+/* changelog（lognote）卡片標籤色 */
+.sto-lognote-card .sto-card-tag {
+  color: var(--ink-soft);
+}
+/* extras 卡片標籤色 */
+.sto-extras-card .sto-card-tag {
+  color: var(--ink-mute);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reading — Changelog 結構化顯示
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-log-preamble {
+  margin-top: 20px;
+  font-family: var(--font-serif-tc);
+  font-size: 15.5px;
+  line-height: 1.95;
+  color: var(--ink-soft);
+}
+
+/* 篩選列 */
+.sto-log-filter-bar {
+  margin-top: 22px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sto-log-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sto-log-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--chip-color, var(--hairline-strong));
+  background: transparent;
+  color: var(--chip-color, var(--ink-soft));
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.sto-log-filter-chip.is-active {
+  background: var(--chip-color, #d5b618);
+  color: #fff;
+  font-weight: 600;
+}
+.sto-log-chip-square {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #fff;
+}
+.sto-log-filter-chip.is-active .sto-log-chip-square {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+.sto-log-filter-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+}
+
+/* 分群 */
+.sto-log-groups {
+  margin-top: 16px;
+}
+.sto-log-group {
+  margin-bottom: 18px;
+}
+.sto-log-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.sto-log-group-chip {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+}
+.sto-log-group-label {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-log-group-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+}
+.sto-log-group-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+/* 單項 */
+.sto-log-item {
+  display: grid;
+  grid-template-columns: 30px 1fr 56px;
+  gap: 14px;
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--hairline);
+  align-items: baseline;
+}
+.sto-log-item:last-child {
+  border-bottom: none;
+}
+.sto-log-item-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.sto-log-item-content {
+  min-width: 0;
+}
+.sto-log-item-subject {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-log-item-text {
+  margin-top: 2px;
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.sto-log-item-state {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border: 1px solid;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* EOF */
+.sto-log-eof {
+  margin-top: 36px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.sto-log-eof-line {
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+.sto-log-eof-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Subcategory — boxes 入口卡片（收納箱風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-subcat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.sto-subcat-bin {
+  position: relative;
+  padding: 20px 18px 16px;
+  background: repeating-linear-gradient(
+    135deg,
+    #e0d4a0 0 6px,
+    #d8cc96 6px 12px
+  );
+  border: 2px solid rgba(196, 160, 14, 0.3);
+  color: #3a2f08;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s,
+    border-color 0.25s;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+[data-theme='dark'] .sto-subcat-bin {
+  background: repeating-linear-gradient(
+    135deg,
+    #2e2918 0 6px,
+    #282314 6px 12px
+  );
+  color: #e8dfc8;
+  border-color: rgba(213, 182, 24, 0.25);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+.sto-subcat-bin:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
+  border-color: var(--storage-soft);
+}
+.sto-subcat-bin-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+.sto-subcat-bin-label {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.sto-subcat-bin-desc {
+  margin-top: 6px;
+  font-family: var(--font-serif-tc);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: inherit;
+  opacity: 0.7;
+}
+.sto-subcat-bin-count {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  opacity: 0.6;
+}
+.sto-subcat-bin-hint {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Subcategory — extras 入口卡片（抽屜風格）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-subcat-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.sto-subcat-drawer {
+  display: grid;
+  grid-template-columns: 40px 1fr auto 24px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--storage-soft) 25%, var(--hairline));
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition:
+    background 0.2s,
+    transform 0.2s,
+    border-color 0.2s;
+}
+.sto-subcat-drawer:hover {
+  background: var(--bg-soft);
+  transform: translateX(4px);
+  border-color: var(--storage-soft);
+}
+.sto-subcat-drawer-tab {
+  font-size: 22px;
+  text-align: center;
+}
+.sto-subcat-drawer-body {
+  min-width: 0;
+}
+.sto-subcat-drawer-label {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+.sto-subcat-drawer-desc {
+  margin-top: 2px;
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sto-subcat-drawer-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--storage-soft);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.sto-subcat-drawer-arrow {
+  font-size: 16px;
+  color: var(--storage-soft);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.sto-subcat-drawer:hover .sto-subcat-drawer-arrow {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Subcategory — 模態窗
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-subcat-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: sto-modal-fade-in 0.25s ease both;
+}
+[data-theme='light'] .sto-subcat-modal-backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+@keyframes sto-modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.sto-subcat-modal-backdrop.is-closing {
+  animation: sto-modal-fade-out 0.25s ease both;
+}
+@keyframes sto-modal-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+/* 模態窗共用基底 */
+.sto-subcat-modal {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
+  max-height: 80vh;
+  min-height: 200px;
+  overflow-y: auto;
+  animation: sto-modal-slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── dialogue 模態窗：紙箱風格 ── */
+.sto-subcat-modal--dialogue {
+  background: repeating-linear-gradient(
+    135deg,
+    #e7d4a4 0 8px,
+    #ddc998 8px 16px
+  );
+  border: 2px solid rgba(196, 160, 14, 0.5);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+[data-theme='dark'] .sto-subcat-modal--dialogue {
+  background: repeating-linear-gradient(
+    135deg,
+    #3d3520 0 8px,
+    #352e1c 8px 16px
+  );
+  border-color: rgba(213, 182, 24, 0.35);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ── blog 模態窗：資料夾/抽屜風格 ── */
+.sto-subcat-modal--blog {
+  background: var(--bg-card, #fff);
+  border: 1px solid color-mix(in srgb, var(--storage-soft) 30%, var(--hairline));
+  border-top: 3px solid var(--storage-soft);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+[data-theme='dark'] .sto-subcat-modal--blog {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+@keyframes sto-modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.sto-subcat-modal.is-closing {
+  animation: sto-modal-slide-down 0.25s ease both;
+}
+@keyframes sto-modal-slide-down {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+}
+
+/* header 共用 */
+.sto-subcat-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 22px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* dialogue header：箱蓋 + 膠帶 */
+.sto-subcat-modal--dialogue .sto-subcat-modal-header {
+  border-bottom: 2px dashed rgba(58, 47, 8, 0.2);
+  background: rgba(231, 220, 178, 0.92);
+  color: #3a2f08;
+}
+[data-theme='dark'] .sto-subcat-modal--dialogue .sto-subcat-modal-header {
+  background: rgba(50, 43, 25, 0.92);
+  border-bottom-color: rgba(213, 182, 24, 0.2);
+  color: #e8dfc8;
+}
+.sto-subcat-modal--dialogue .sto-subcat-modal-header::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 32px;
+  width: 64px;
+  height: 14px;
+  background: rgba(231, 220, 178, 0.8);
+  border-left: 1px dashed rgba(0, 0, 0, 0.08);
+  border-right: 1px dashed rgba(0, 0, 0, 0.08);
+  transform: rotate(-1.5deg);
+}
+[data-theme='dark']
+  .sto-subcat-modal--dialogue
+  .sto-subcat-modal-header::before {
+  background: rgba(80, 70, 45, 0.8);
+}
+
+/* blog header：資料夾標籤頁 */
+.sto-subcat-modal--blog .sto-subcat-modal-header {
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--storage-soft) 8%, var(--bg-card));
+  color: var(--ink-title);
+}
+.sto-subcat-modal--blog .sto-subcat-modal-header::before {
+  content: none;
+}
+.sto-subcat-modal-icon {
+  font-size: 22px;
+}
+.sto-subcat-modal-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+.sto-subcat-modal-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  opacity: 0.6;
+}
+.sto-subcat-modal-close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(58, 47, 8, 0.25);
+  background: transparent;
+  color: #3a2f08;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+[data-theme='dark'] .sto-subcat-modal-close {
+  border-color: rgba(213, 182, 24, 0.25);
+  color: #e8dfc8;
+}
+.sto-subcat-modal-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* 箱子內部說明 */
+.sto-subcat-modal-desc {
+  margin: 0;
+  padding: 12px 22px 0;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  line-height: 1.7;
+  color: #3a2f08;
+  opacity: 0.7;
+  font-style: italic;
+}
+[data-theme='dark'] .sto-subcat-modal-desc {
+  color: #e8dfc8;
+}
+
+/* 箱子內容區 */
+.sto-subcat-modal-body {
+  padding: 18px 22px 26px;
+}
+/* 模態窗內的 crate-grid 改成單欄，避免太擠 */
+.sto-subcat-modal-body .sto-crate-grid {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+/* 模態窗內的 crate-card：白底凸顯、取消旋轉 */
+.sto-subcat-modal-body .sto-crate-card {
+  transform: none !important;
+  background: rgba(255, 252, 240, 0.92);
+  border: 1px solid rgba(58, 47, 8, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+[data-theme='dark'] .sto-subcat-modal-body .sto-crate-card {
+  background: rgba(20, 18, 12, 0.75);
+  border-color: rgba(213, 182, 24, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.sto-subcat-modal-body .sto-crate-card:hover {
+  transform: translateY(-3px) !important;
+}
+/* 模態窗內的 folder-card 同理 */
+.sto-subcat-modal-body .sto-folder-card {
+  transform: none !important;
+  border-color: rgba(58, 47, 8, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.sto-subcat-modal-body .sto-folder-card:hover:not(.locked) {
+  transform: translateY(-3px) !important;
+}
+
+/* 場景空狀態 */
+.sto-scene-empty {
+  padding: 24px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--ink-mute);
+  border: 1px dashed var(--hairline);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   返回按鈕
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-back-bar {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--hairline);
+  text-align: center;
+}
+.sto-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border: 1px solid var(--storage-main);
+  background: transparent;
+  color: var(--storage-main);
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.sto-back-btn:hover {
+  background: var(--storage-main);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   響應式
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .sto-landing-inner {
+    padding: 32px 24px 56px;
+  }
+  .sto-landing-title {
+    font-size: 38px;
+  }
+  .sto-clearing-page,
+  .sto-reading-page {
+    padding: 28px 24px 80px;
+  }
+  .sto-clearing-title,
+  .sto-reading-title {
+    font-size: 32px;
+  }
+  .sto-entry-card {
+    grid-template-columns: 30px 1fr 24px;
+  }
+  .sto-entry-card-date {
+    display: none;
+  }
+  .sto-room-floor {
+    min-height: 480px;
+  }
+  .sto-room-nodes {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    grid-template-areas: 'a' 'b' 'c';
+    padding: 16px;
+  }
+  .sto-room-paths {
+    display: none;
+  }
+  .sto-room-node-hint {
+    display: none;
+  }
+}

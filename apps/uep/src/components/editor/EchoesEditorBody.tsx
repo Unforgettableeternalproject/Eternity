@@ -1,8 +1,5 @@
 import React, { useRef, useState } from 'react';
-
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
 
 interface EchoesEditorBodyProps {
   accent: string;
@@ -231,29 +228,7 @@ async function readAudioMeta(file: File): Promise<Partial<AudioMeta>> {
   };
 }
 
-/** 上傳檔案到 R2 */
-async function uploadAsset(
-  file: File
-): Promise<{ key: string; url: string; size: number } | null> {
-  const formData = new FormData();
-  formData.append('file', file);
-  try {
-    const res = await fetch(`${API_BASE}/api/assets`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: { key: string; url: string; size: number };
-    };
-    if (!json.ok) throw new Error('Upload returned ok=false');
-    return json.data;
-  } catch (err) {
-    console.error('Upload error:', err);
-    return null;
-  }
-}
+// uploadAsset, deleteAsset 已移至 editorHelpers.ts
 
 /** 格式化時長 */
 function fmtDuration(sec: number): string {
@@ -434,8 +409,7 @@ export default function EchoesEditorBody({
     setDeleteConfirm(null);
     // 再從 R2 刪除
     try {
-      const encoded = key.split('/').map(encodeURIComponent).join('/');
-      await fetch(`${API_BASE}/api/assets/${encoded}`, { method: 'DELETE' });
+      await deleteAsset(key);
     } catch (err) {
       console.error('刪除媒體庫檔案失敗:', err);
     }

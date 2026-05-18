@@ -1,0 +1,144 @@
+/* StorageSubcatEditor — clearing 分類管理面板 */
+
+.sto-sce {
+  margin-top: 24px;
+  margin-bottom: 120px;
+  border: 1px solid var(--sce-accent, #d5b618);
+  border-radius: 4px;
+  background: var(--bg-card, #fff);
+}
+.sto-sce-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline, #e0e0e0);
+  background: var(--bg-soft, #fafafa);
+}
+.sto-sce-title {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sce-accent, #d5b618);
+}
+.sto-sce-count {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: var(--ink-mute, #999);
+}
+.sto-sce-add {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--sce-accent, #d5b618);
+  background: transparent;
+  color: var(--sce-accent, #d5b618);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sto-sce-add:hover {
+  background: color-mix(in srgb, var(--sce-accent, #d5b618) 12%, transparent);
+}
+
+.sto-sce-empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-mute, #999);
+}
+
+.sto-sce-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline, #e0e0e0);
+}
+.sto-sce-row:last-child {
+  border-bottom: none;
+}
+.sto-sce-row.is-hidden {
+  opacity: 0.5;
+}
+.sto-sce-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sto-sce-icon-picker {
+  flex-shrink: 0;
+  position: relative;
+}
+.sto-sce-icon-picker .ned-icon-picker {
+  position: static;
+}
+.sto-sce-icon-picker .ned-icon-picker-trigger {
+  padding: 4px 8px;
+  min-width: unset;
+  gap: 4px;
+}
+.sto-sce-icon-picker .ned-icon-picker-label,
+.sto-sce-icon-picker .ned-icon-picker-caret {
+  display: none;
+}
+.sto-sce-icon-picker .ned-icon-picker-dropdown {
+  left: 0;
+  min-width: 260px;
+  max-height: 280px;
+}
+.sto-sce-label-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline, #e0e0e0);
+  background: var(--bg-body, #fff);
+  font-size: 13px;
+  color: inherit;
+}
+.sto-sce-hidden-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-mute, #999);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sto-sce-row-actions {
+  display: flex;
+  gap: 2px;
+}
+.sto-sce-row-actions button {
+  padding: 2px 6px;
+  border: 1px solid var(--hairline, #e0e0e0);
+  background: transparent;
+  color: var(--ink-soft, #666);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sto-sce-row-actions button:hover:not(:disabled) {
+  background: var(--bg-soft, #fafafa);
+}
+.sto-sce-row-actions button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.sto-sce-remove-btn {
+  color: #c44 !important;
+}
+.sto-sce-desc-input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border: 1px dashed var(--hairline, #e0e0e0);
+  background: transparent;
+  font-size: 12px;
+  color: var(--ink-soft, #666);
+}
+.sto-sce-id-hint {
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  color: var(--ink-mute, #999);
+  letter-spacing: 0.08em;
+}

@@ -44,6 +44,18 @@
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
 }
+.home-recent-card {
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.2s;
+}
+.home-recent-card:hover {
+  background: var(--bg-soft);
+}
 
 @media (max-width: 760px) {
   .home-hero {

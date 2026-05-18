@@ -24,6 +24,7 @@ import type {
   CrossRoad,
   TerminalModule,
   StorageLink,
+  StorageRoomArea,
 } from './types';
 import { BLOCK_TYPE_LABELS } from './types';
 
@@ -727,7 +728,94 @@ function StorageLinksListForm({ links, onChange }: StorageLinksListFormProps) {
   );
 }
 
-// 10. rich-text（TipTap 富文本編輯）
+// 10. storage-room-map
+interface StorageRoomMapFormProps {
+  areas: StorageRoomArea[];
+  onChange: (areas: StorageRoomArea[]) => void;
+}
+function StorageRoomMapForm({ areas, onChange }: StorageRoomMapFormProps) {
+  const update = (i: number, patch: Partial<StorageRoomArea>) => {
+    onChange(areas.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
+  };
+  const remove = (i: number) => onChange(areas.filter((_, idx) => idx !== i));
+  const add = () =>
+    onChange([
+      ...areas,
+      { icon: '·', name: '', label: '', hint: '', slug: '' },
+    ]);
+
+  return (
+    <>
+      {areas.map((area, i) => (
+        <div key={i} style={itemCardStyle}>
+          <button
+            style={deleteButtonStyle}
+            onClick={() => remove(i)}
+            type="button"
+          >
+            ×
+          </button>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '60px 1fr 1fr',
+              gap: '8px',
+            }}
+          >
+            <Field label="Icon">
+              <input
+                style={inputStyle}
+                value={area.icon}
+                onChange={(e) => update(i, { icon: e.target.value })}
+              />
+            </Field>
+            <Field label="名稱">
+              <input
+                style={inputStyle}
+                value={area.name}
+                onChange={(e) => update(i, { name: e.target.value })}
+              />
+            </Field>
+            <Field label="標籤 Label">
+              <input
+                style={inputStyle}
+                value={area.label}
+                onChange={(e) => update(i, { label: e.target.value })}
+              />
+            </Field>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+            }}
+          >
+            <Field label="Slug（clearing slug）">
+              <input
+                style={inputStyle}
+                value={area.slug}
+                onChange={(e) => update(i, { slug: e.target.value })}
+              />
+            </Field>
+            <Field label="提示文字">
+              <input
+                style={inputStyle}
+                value={area.hint}
+                onChange={(e) => update(i, { hint: e.target.value })}
+              />
+            </Field>
+          </div>
+        </div>
+      ))}
+      <button style={addButtonStyle} type="button" onClick={add}>
+        ＋ 新增區域
+      </button>
+    </>
+  );
+}
+
+// 11. rich-text（TipTap 富文本編輯）
 interface RichTextFormProps {
   html: string;
   onChange: (html: string) => void;
@@ -1145,6 +1233,14 @@ export default function BlockEditor({
           <StorageLinksListForm
             links={(localData as { links: StorageLink[] }).links}
             onChange={(links) => setData({ links })}
+          />
+        );
+
+      case 'storage-room-map':
+        return (
+          <StorageRoomMapForm
+            areas={(localData as { areas: StorageRoomArea[] }).areas || []}
+            onChange={(areas) => setData({ areas })}
           />
         );
 

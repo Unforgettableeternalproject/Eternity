@@ -1,13 +1,21 @@
-/* global HTMLAnchorElement, PopStateEvent */
+/* global HTMLAnchorElement */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
-import BigMapModal from '../ui/BigMapModal';
-import Minimap from '../ui/Minimap';
-import PortalTransition from '../ui/PortalTransition';
-import TopBar from '../ui/TopBar';
-import IntroOverlay from '../ui/IntroOverlay';
+import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { ZonePrevNext } from '../zone/ZonePrevNext';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
+import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import {
+  useZoneRouter,
+  pushUrl as zonePushUrl,
+  clearUrl,
+} from '../zone/useZoneRouter';
+import { isHidden, isLocked } from '../zone/contentVisibility';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import type {
@@ -73,10 +81,6 @@ const HISTORY_ZONE = {
   soft: '#C8A46A',
   tint: 'var(--history-tint)',
 };
-
-function isHidden(node: PageTreeNode) {
-  return node.metadata?.hidden === true;
-}
 
 function flattenTree(nodes: PageTreeNode[], acc: PageTreeNode[] = []) {
   for (const node of nodes) {
@@ -241,15 +245,6 @@ function resolveInternalLink(
 }
 
 export default function HistoryReader() {
-  const [theme, setTheme] = useState('dark');
-  const [showMap, setShowMap] = useState(false);
-  const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [treeLoading, setTreeLoading] = useState(true);
@@ -269,16 +264,28 @@ export default function HistoryReader() {
 
   // 首頁區塊資料（從 D1 homepage 頁面載入）
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const bootMountTime = useRef(Date.now());
+  // boot 動畫解除狀態由統一 hook 管理
+  const { contentReady, markContentReady, setNavPending } = useZoneBootReady();
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 跨頁面導航的滾動位置記憶
+  const { saveScroll, getSavedPosition, clearSavedPosition } = useScrollMemory(
+    scrollRef,
+    [currentId]
+  );
+  // 「回到上次閱讀位置」滾動軸標記
+  const [scrollHint, setScrollHint] = useState<{
+    targetTop: number;
+    pct: number; // 0~100，標記在滾動軸上的百分比位置
+    leaving?: boolean; // 消失動畫中
+  } | null>(null);
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
   const readablePages = useMemo(
-    () => flatPages.filter((page) => page.pageType !== 'page'),
+    () =>
+      flatPages.filter((page) => page.pageType !== 'page' && !isLocked(page)),
     [flatPages]
   );
   const pageLevelNodes = useMemo(
@@ -319,13 +326,6 @@ export default function HistoryReader() {
   );
 
   useEffect(() => {
-    const storedTheme =
-      localStorage.getItem('uep-theme') ||
-      document.documentElement.getAttribute('data-theme') ||
-      'dark';
-    setTheme(storedTheme);
-    document.documentElement.setAttribute('data-theme', storedTheme);
-
     // 手機上預設收合側邊欄；桌面尊重 localStorage
     const isMobileNow = window.matchMedia('(max-width: 760px)').matches;
     if (isMobileNow) {
@@ -338,24 +338,33 @@ export default function HistoryReader() {
     void fetchTree();
   }, []);
 
-  useEffect(() => {
-    if (!tree.length || currentId) return;
-    const params = new URLSearchParams(window.location.search);
-    const pageId = params.get('page');
-    const target = pageId
-      ? readablePages.find((page) => page.id === pageId)
-      : null;
-    if (target) void loadPage(target);
-  }, [tree, readablePages, currentId]);
+  // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
+  useZoneRouter({
+    routes: [
+      {
+        param: 'page',
+        handler: (value) => {
+          const target = readablePages.find((p) => p.id === value);
+          if (target) void loadPage(target, false);
+        },
+      },
+    ],
+    onLanding: () => {
+      setCurrentId(null);
+      setCurrentPage(null);
+      setArticleHtml('');
+    },
+    treeReady: tree.length > 0 && readablePages.length > 0,
+    setBootNavPending: setNavPending,
+  });
 
   useEffect(() => {
     if (!pageLevelNodes.length) return;
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
 
-  // 載入首頁區塊資料
+  // 載入首頁區塊資料，完成後通知 boot hook 解除動畫
   useEffect(() => {
-    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/history/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -370,12 +379,10 @@ export default function HistoryReader() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        const elapsed = Date.now() - bootMountTime.current;
-        const delay = Math.max(0, 1800 - elapsed);
-        setTimeout(() => setContentReady(true), delay);
+        // 通知 hook homepage 資料已就緒（安全超時由 hook 內部處理）
+        markContentReady();
       });
-  }, []);
+  }, [markContentReady]);
 
   // 從首頁區塊中提取特定類型的資料
   const hpHeader = useMemo(() => {
@@ -489,14 +496,17 @@ export default function HistoryReader() {
   }
 
   async function loadPage(node: PageTreeNode, pushState = true) {
+    // 導航前先儲存當前頁面的滾動位置
+    saveScroll(currentId || 'landing');
+    setScrollHint(null);
+
     if (node.pageType === 'page') {
       setCurrentId(null);
       setCurrentPage(null);
       setArticleHtml('');
-      const url = new URL(window.location.href);
-      url.searchParams.delete('page');
-      window.history.pushState({}, '', url);
-      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      clearUrl();
+      // landing 頁不做滾動恢復提示，直接回頂
+      scrollRef.current?.scrollTo({ top: 0 });
       if (node.children.length) {
         setExpanded((prev) => new Set([...prev, node.id]));
       }
@@ -519,38 +529,31 @@ export default function HistoryReader() {
       const page = await fetchPageById(node.id);
       setCurrentPage(page);
       setArticleHtml(renderBlocks(page.content));
-      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-
-      if (pushState) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('page', node.id);
-        window.history.pushState({ pageId: node.id }, '', url);
+      // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記
+      scrollRef.current?.scrollTo({ top: 0 });
+      const saved = getSavedPosition(node.id);
+      if (saved) {
+        // 等 DOM 更新後計算百分比位置
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = scrollRef.current;
+            if (!el) return;
+            const scrollable = el.scrollHeight - el.clientHeight;
+            const pct = scrollable > 0 ? (saved / scrollable) * 100 : 0;
+            setScrollHint({ targetTop: saved, pct: Math.min(pct, 95) });
+          });
+        });
       }
+
+      if (pushState) zonePushUrl({ page: node.id });
     } catch (err) {
       setContentError(err instanceof Error ? err.message : String(err));
     } finally {
       setContentLoading(false);
       setTransitionKey((k) => k + 1);
+      setNavPending(false);
     }
   }
-
-  useEffect(() => {
-    function onPopState(event: PopStateEvent) {
-      const pageId =
-        event.state?.pageId ||
-        new URLSearchParams(window.location.search).get('page');
-      const target = readablePages.find((page) => page.id === pageId);
-      if (target) void loadPage(target, false);
-      else {
-        setCurrentId(null);
-        setCurrentPage(null);
-        setArticleHtml('');
-      }
-    }
-
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [readablePages]);
 
   function toggleSidebar() {
     setSidebarOpen((prev) => {
@@ -617,32 +620,15 @@ export default function HistoryReader() {
     });
   }
 
-  function enterZoneFromMap(zoneId: string) {
-    const target = ZONES.find((zone) => zone.id === zoneId);
-    if (!target) return;
-    setShowMap(false);
-    if (target.id === 'history') return;
-
-    setPortalZone(target);
-    window.setTimeout(() => {
-      window.location.href = `/${target.slug}`;
-    }, 1100);
-  }
-
-  function showZoneIntro(zone: (typeof ZONES)[number]) {
-    setShowMap(false);
-    setIntroZone(zone);
-  }
-
   function returnToLanding() {
+    saveScroll(currentId || 'landing');
+    setScrollHint(null);
     setCurrentId(null);
     setCurrentPage(null);
     setArticleHtml('');
     setTransitionKey((k) => k + 1);
-    const url = new URL(window.location.href);
-    url.searchParams.delete('page');
-    window.history.pushState({}, '', url);
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    clearUrl();
+    scrollRef.current?.scrollTo({ top: 0 });
   }
 
   function isNodeVisible(node: PageTreeNode) {
@@ -669,7 +655,7 @@ export default function HistoryReader() {
         const hasChildren = children.length > 0;
         const isExpanded = expanded.has(node.id) || Boolean(query.trim());
         const isCurrent = node.id === currentId;
-        const isLocked = node.metadata?.locked === true;
+        const nodeLocked = isLocked(node);
 
         return (
           <div className="history-tree-item" data-depth={depth} key={node.id}>
@@ -692,15 +678,15 @@ export default function HistoryReader() {
                 className={`history-tree-link ${isCurrent ? 'is-current' : ''}`}
                 style={{
                   paddingLeft: `${Math.min(depth, 5) * 10 + 8}px`,
-                  opacity: isLocked ? 0.45 : undefined,
-                  cursor: isLocked ? 'not-allowed' : undefined,
+                  opacity: nodeLocked ? 0.45 : undefined,
+                  cursor: nodeLocked ? 'not-allowed' : undefined,
                 }}
                 onClick={() => {
-                  if (!isLocked) void loadPage(node);
+                  if (!nodeLocked) void loadPage(node);
                 }}
-                disabled={isLocked}
+                disabled={nodeLocked}
               >
-                {isLocked ? (
+                {nodeLocked ? (
                   <span className="history-tree-kind" style={{ opacity: 0.6 }}>
                     🔒
                   </span>
@@ -763,7 +749,7 @@ export default function HistoryReader() {
   }, [activeZoneTabIdx, zoneTabsData, flatPages]);
 
   return (
-    <div className="history-reader">
+    <ReaderShell zoneId="history" className="history-reader">
       {/* 入場動畫 — 墨韻暈染 */}
       <div
         aria-hidden="true"
@@ -777,16 +763,6 @@ export default function HistoryReader() {
         <div className="hist-boot-drip hist-boot-drip--2" />
         <div className="hist-boot-stroke" />
       </div>
-      <TopBar
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={() => {
-          setHomePortal(true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1100);
-        }}
-        dark={theme === 'dark'}
-      />
 
       <div className="history-main">
         <ZoneAtmosphere zone={historyZone} intensity="subtle" />
@@ -839,15 +815,14 @@ export default function HistoryReader() {
 
           <nav className="history-tree" aria-label="歷史典藏庫目錄">
             {treeLoading && (
-              <div className="history-state">正在讀取目錄...</div>
+              <ZoneStateDisplay kind="loading" message="正在讀取目錄..." />
             )}
             {treeError && (
-              <div className="history-state history-state-error">
-                <span>目錄讀取失敗：{treeError}</span>
-                <button type="button" onClick={() => void fetchTree()}>
-                  重試
-                </button>
-              </div>
+              <ZoneStateDisplay
+                kind="error"
+                message={`目錄讀取失敗：${treeError}`}
+                onRetry={() => void fetchTree()}
+              />
             )}
             {!treeLoading && !treeError && renderTree(tree)}
           </nav>
@@ -873,6 +848,31 @@ export default function HistoryReader() {
         )}
 
         <div className="history-content" ref={scrollRef}>
+          {/* 滾動軸旁的「上次閱讀位置」標記 */}
+          {scrollHint && (
+            <button
+              type="button"
+              className={`history-scroll-marker${scrollHint.leaving ? ' is-leaving' : ''}`}
+              style={{ top: `${scrollHint.pct}%` }}
+              title="回到上次閱讀位置"
+              onClick={() => {
+                if (scrollHint.leaving) return;
+                scrollRef.current?.scrollTo({
+                  top: scrollHint.targetTop,
+                  behavior: 'smooth',
+                });
+                if (currentId) clearSavedPosition(currentId);
+                // 播放消失動畫後移除
+                setScrollHint((prev) =>
+                  prev ? { ...prev, leaving: true } : null
+                );
+                setTimeout(() => setScrollHint(null), 350);
+              }}
+            >
+              <span className="history-scroll-marker-line" />
+              <span className="history-scroll-marker-label">上次位置 ▸</span>
+            </button>
+          )}
           <div key={transitionKey} className="history-page-transition">
             {!currentId ? (
               <section className="history-landing">
@@ -986,11 +986,13 @@ export default function HistoryReader() {
                         case 'rich-text': {
                           const html = (block.data as { html: string }).html;
                           return (
-                            <div
-                              key={block.id}
-                              className="history-prose history-landing-prose"
-                              dangerouslySetInnerHTML={{ __html: html }}
-                            />
+                            <React.Fragment key={block.id}>
+                              {renderHtmlWithUep(
+                                html,
+                                block.id,
+                                'history-prose history-landing-prose'
+                              )}
+                            </React.Fragment>
                           );
                         }
                         default:
@@ -1008,12 +1010,13 @@ export default function HistoryReader() {
                         <div className="history-state">正在讀取三向通道...</div>
                       )}
                       {landingParts.before && (
-                        <div
-                          className="history-prose history-landing-prose"
-                          dangerouslySetInnerHTML={{
-                            __html: landingParts.before,
-                          }}
-                        />
+                        <>
+                          {renderHtmlWithUep(
+                            landingParts.before,
+                            'landing-before',
+                            'history-prose history-landing-prose'
+                          )}
+                        </>
                       )}
                       <div className="history-arch-grid">
                         {archNodes.map((node, index) => (
@@ -1038,12 +1041,13 @@ export default function HistoryReader() {
                         ))}
                       </div>
                       {landingParts.after && (
-                        <div
-                          className="history-prose history-landing-prose"
-                          dangerouslySetInnerHTML={{
-                            __html: landingParts.after,
-                          }}
-                        />
+                        <>
+                          {renderHtmlWithUep(
+                            landingParts.after,
+                            'landing-after',
+                            'history-prose history-landing-prose'
+                          )}
+                        </>
                       )}
                       <div className="history-uep-note">
                         <UepDialogue
@@ -1057,12 +1061,13 @@ export default function HistoryReader() {
                             Loose Note / Page
                           </div>
                           <h3>{notePage.title}</h3>
-                          <div
-                            className="history-prose history-note-prose"
-                            dangerouslySetInnerHTML={{
-                              __html: renderBlocks(notePage.content),
-                            }}
-                          />
+                          <>
+                            {renderHtmlWithUep(
+                              renderBlocks(notePage.content),
+                              'note-page',
+                              'history-prose history-note-prose'
+                            )}
+                          </>
                         </section>
                       )}
                     </>
@@ -1071,52 +1076,43 @@ export default function HistoryReader() {
               </section>
             ) : (
               <section className="history-reading">
-                <div className="history-breadcrumb">
-                  <span className="history-breadcrumb-line" />
-                  {crumbs.map((crumb, index) => (
-                    <React.Fragment key={crumb.id}>
-                      <button
-                        type="button"
-                        onClick={() => void loadPage(crumb)}
-                      >
-                        {crumb.title}
-                      </button>
-                      {index < crumbs.length - 1 && <span>·</span>}
-                    </React.Fragment>
-                  ))}
-                </div>
+                <ZoneBreadcrumb
+                  segments={crumbs.map((crumb) => ({
+                    label: crumb.title,
+                    onClick: () => void loadPage(crumb),
+                  }))}
+                  color="var(--history-main)"
+                  bordered
+                />
 
                 <article className="history-article">
                   {contentLoading && (
-                    <div className="history-state history-state-large">
-                      正在讀取內容...
-                    </div>
+                    <ZoneStateDisplay
+                      kind="loading"
+                      message="正在讀取內容..."
+                      large
+                    />
                   )}
                   {contentError && (
-                    <div className="history-state history-state-error history-state-large">
-                      <span>內容讀取失敗：{contentError}</span>
-                      {currentId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const node = flatPages.find(
-                              (page) => page.id === currentId
-                            );
-                            if (node) void loadPage(node);
-                          }}
-                        >
-                          重試
-                        </button>
-                      )}
-                    </div>
+                    <ZoneStateDisplay
+                      kind="error"
+                      message={`內容讀取失敗：${contentError}`}
+                      onRetry={
+                        currentId
+                          ? () => {
+                              const node = flatPages.find(
+                                (page) => page.id === currentId
+                              );
+                              if (node) void loadPage(node);
+                            }
+                          : undefined
+                      }
+                      large
+                    />
                   )}
                   {!contentLoading && !contentError && currentPage && (
                     <>
                       <header className="history-article-head">
-                        <div className="history-kicker">
-                          {pageTypeLabel(currentPage.pageType)} /{' '}
-                          {currentPage.slug}
-                        </div>
                         <h2 className="history-article-title">
                           {renderIcon(
                             currentPage.metadata?.icon as string,
@@ -1128,16 +1124,14 @@ export default function HistoryReader() {
                         {typeof currentPage.metadata?.description ===
                           'string' && <p>{currentPage.metadata.description}</p>}
                       </header>
-                      <div
-                        ref={contentRef}
-                        className="history-prose"
-                        onClick={onArticleClick}
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            articleHtml ||
+                      <div ref={contentRef} onClick={onArticleClick}>
+                        {renderHtmlWithUep(
+                          articleHtml ||
                             '<p class="empty-notice">這篇內容目前是空的。</p>',
-                        }}
-                      />
+                          'article',
+                          'history-prose'
+                        )}
+                      </div>
                     </>
                   )}
                 </article>
@@ -1186,68 +1180,30 @@ export default function HistoryReader() {
                   </div>
                 )}
 
-                <div className="history-page-nav">
-                  <button
-                    type="button"
-                    disabled={!prevPage}
-                    onClick={() => prevPage && void loadPage(prevPage)}
-                  >
-                    <span>PREV</span>
-                    <strong>{prevPage?.title || '沒有上一篇'}</strong>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!nextPage}
-                    onClick={() => nextPage && void loadPage(nextPage)}
-                  >
-                    <span>NEXT</span>
-                    <strong>{nextPage?.title || '沒有下一篇'}</strong>
-                  </button>
-                </div>
+                <ZonePrevNext
+                  prev={
+                    prevPage
+                      ? {
+                          title: prevPage.title,
+                          onClick: () => void loadPage(prevPage),
+                        }
+                      : null
+                  }
+                  next={
+                    nextPage
+                      ? {
+                          title: nextPage.title,
+                          onClick: () => void loadPage(nextPage),
+                        }
+                      : null
+                  }
+                  accentColor="var(--history-main)"
+                />
               </section>
             )}
           </div>
         </div>
       </div>
-
-      <Minimap
-        zones={ZONES}
-        currentId="history"
-        onExpand={() => setShowMap(true)}
-        onPickZone={enterZoneFromMap}
-        position="bottom-left"
-      />
-
-      {showMap && (
-        <BigMapModal
-          zones={ZONES}
-          onClose={() => setShowMap(false)}
-          onPick={showZoneIntro}
-          onCenterClick={() => {
-            setShowMap(false);
-            setHomePortal(true);
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 1100);
-          }}
-        />
-      )}
-
-      <IntroOverlay
-        zone={introZone}
-        onClose={() => setIntroZone(null)}
-        onEnter={() => {
-          if (!introZone) return;
-          enterZoneFromMap(introZone.id);
-          setIntroZone(null);
-        }}
-      />
-      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition
-        zone={null}
-        homeMode={homePortal}
-        onDone={() => setHomePortal(false)}
-      />
-    </div>
+    </ReaderShell>
   );
 }

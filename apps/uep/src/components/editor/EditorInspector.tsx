@@ -1,6 +1,6 @@
 import React from 'react';
 import IconPicker from './IconLibrary';
-import { LAYOUT_OPTIONS } from './VisualsEditorBody';
+import { AREA_PAGE_TYPES, DEFAULT_PAGE_TYPES } from './editorModeRegistry';
 
 interface EditorInspectorProps {
   area: string;
@@ -18,50 +18,14 @@ interface EditorInspectorProps {
   onIconChange: (v: string) => void;
   description: string;
   onDescriptionChange: (v: string) => void;
-  layout?: string;
-  onLayoutChange?: (v: string) => void;
   onDirty: () => void;
   accent: string;
   pageStatus: string;
   createdAt?: string;
   updatedAt?: string;
+  /** mode-specific 欄位，由 RichEditor 根據 registry 傳入 */
+  modeFields?: React.ReactNode;
 }
-
-/** 各區域可用的頁面類型 */
-const AREA_PAGE_TYPES: Record<string, { value: string; label: string }[]> = {
-  history: [
-    { value: 'page', label: 'Page' },
-    { value: 'zone', label: 'Zone' },
-    { value: 'chapter', label: 'Chapter' },
-    { value: 'arc', label: 'Arc' },
-    { value: 'section', label: 'Section' },
-  ],
-  echoes: [
-    { value: 'page', label: 'Page' },
-    { value: 'cluster', label: 'Cluster (集群)' },
-    { value: 'subcategory', label: 'Subcategory (子分類)' },
-    { value: 'song', label: 'Song (歌曲)' },
-  ],
-  visuals: [
-    { value: 'division', label: 'Division (分館)' },
-    { value: 'subcategory', label: 'Subcategory (子分類)' },
-    { value: 'gallery', label: 'Gallery (畫廊)' },
-  ],
-  concepts: [
-    { value: 'stack', label: 'Stack (模組)' },
-    { value: 'type', label: 'Type (分類)' },
-    { value: 'subcategory', label: 'Subcategory (子分類)' },
-    { value: 'context', label: 'Context (內容)' },
-  ],
-};
-
-/** 通用 fallback */
-const DEFAULT_PAGE_TYPES = [
-  { value: 'page', label: 'Page' },
-  { value: 'zone', label: 'Zone' },
-  { value: 'chapter', label: 'Chapter' },
-  { value: 'section', label: 'Section' },
-];
 
 const STATUS_LABELS: Record<string, string> = {
   synced: 'synced',
@@ -85,13 +49,12 @@ export default function EditorInspector({
   onIconChange,
   description,
   onDescriptionChange,
-  layout,
-  onLayoutChange,
   onDirty,
   accent,
   pageStatus,
   createdAt,
   updatedAt,
+  modeFields,
 }: EditorInspectorProps) {
   const handleChange =
     <T,>(setter: (v: T) => void) =>
@@ -158,22 +121,8 @@ export default function EditorInspector({
         />
       </Section>
 
-      {/* Visuals division 預設展示風格 */}
-      {area === 'visuals' && pageType === 'division' && onLayoutChange && (
-        <Section label="default layout">
-          <select
-            className="ned-field"
-            value={layout || ''}
-            onChange={(e) => handleChange(onLayoutChange)(e.target.value)}
-          >
-            {LAYOUT_OPTIONS.filter((o) => o.value !== '').map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </Section>
-      )}
+      {/* mode-specific 欄位由 registry 注入 */}
+      {modeFields}
 
       <div className="ned-inspector-sep" />
 
@@ -218,7 +167,7 @@ export default function EditorInspector({
   );
 }
 
-function Section({
+export function Section({
   label,
   children,
 }: {

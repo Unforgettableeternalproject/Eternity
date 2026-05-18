@@ -106,7 +106,7 @@ export const ZONES: ZoneData[] = [
     atmos: '個人筆記、後台、Meta',
     icon: 'S',
     glyphs: ['記', '雜', '稿', 'Σ'],
-    main: '#6E6E6E',
+    main: '#C4A00E',
     soft: '#D5B618',
     tint: 'var(--storage-tint)',
     uep: [
@@ -162,12 +162,4 @@ export const VERSES: string[] = [
   '創世 和 毀滅 本為同根',
   '輪迴 與 置換 相互平衡',
   '而萬物的終焉將歸約於 — 虛無',
-];
-
-export const RECENTS = [
-  { zone: 'history', title: '01-05 六月十九日叛逃事件', note: '新增 1.4k 字' },
-  { zone: 'echoes', title: '尼爾賽納大陸: 主要區域', note: '更新音軌標籤' },
-  { zone: 'concepts', title: '魔能學紀錄', note: '重整四個子節' },
-  { zone: 'storage', title: '邊際世界觀測更新-??/04/??', note: '新公告' },
-  { zone: 'visuals', title: '鏡向十字路口 / 抽象萃取室', note: '上傳 6 張' },
 ];

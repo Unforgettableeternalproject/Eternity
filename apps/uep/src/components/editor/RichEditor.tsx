@@ -9,11 +9,16 @@ import { Highlight } from '@tiptap/extension-highlight';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Image } from '@tiptap/extension-image';
+import UepDialogueNode from './UepDialogueNode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { uepToast } from '../ui/UepToast';
+import { getToast, extractAssetKey, deleteAsset } from './editorHelpers';
+import { resolveEditorMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
 import EditorPageTree from './EditorPageTree';
-import EditorInspector from './EditorInspector';
+import EditorInspector, {
+  Section as InspectorSection,
+} from './EditorInspector';
+import { LAYOUT_OPTIONS } from './VisualsEditorBody';
 import EchoesEditorBody, {
   parseEchoesData,
   serializeEchoesData,
@@ -31,7 +36,14 @@ import ConceptsEditorBody, {
   serializeConceptsContent,
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
+import StorageDialogueEditor from './StorageDialogueEditor';
+import ChangelogEditorBody, { type ChangelogMeta } from './ChangelogEditorBody';
+import ThoughtStream from './ThoughtStream';
+import StorageSubcatEditor, { type SubcatDef } from './StorageSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
+import './StorageDialogueEditor.css';
+import './ChangelogEditorBody.css';
+import './ThoughtStream.css';
 import './RichEditor.css';
 
 // === Color palettes ===
@@ -65,7 +77,7 @@ const FONT_FAMILIES = [
 ];
 
 const HEADING_LEVELS = [
-  { label: '\u5167\u6587', value: 0 },
+  { label: '內文', value: 0 },
   { label: 'H1', value: 1 },
   { label: 'H2', value: 2 },
   { label: 'H3', value: 3 },
@@ -122,17 +134,25 @@ export default function RichEditor({
   // State — dirty 由多來源聯合判斷
   const initialContentRef = useRef(initialContent || '<p></p>');
   const initialTitleRef = useRef(initialTitle);
-  // 各來源 dirty 標記
-  const [editorDirty, setEditorDirty] = useState(false);
-  const [metaDirty, setMetaDirty] = useState(false);
-  const [conceptsDirty, setConceptsDirty] = useState(false);
-  const isDirty = editorDirty || metaDirty || conceptsDirty;
-  // 重置所有 dirty（儲存後呼叫）
+
+  // 語意化 dirty sources
+  const [dirtyTitle, setDirtyTitle] = useState(false);
+  const [dirtyTiptap, setDirtyTiptap] = useState(false);
+  const [dirtyMetadata, setDirtyMetadata] = useState(false);
+  const [dirtyStructured, setDirtyStructured] = useState(false);
+  const isDirty = dirtyTitle || dirtyTiptap || dirtyMetadata || dirtyStructured;
+
   function resetDirty() {
-    setEditorDirty(false);
-    setMetaDirty(false);
-    setConceptsDirty(false);
+    setDirtyTitle(false);
+    setDirtyTiptap(false);
+    setDirtyMetadata(false);
+    setDirtyStructured(false);
   }
+
+  // 相容 shorthand
+  const setEditorDirty = setDirtyTiptap;
+  const setMetaDirty = setDirtyMetadata;
+  const setConceptsDirty = setDirtyStructured;
   const [title, setTitle] = useState(initialTitle);
   const [parentId, setParentId] = useState(initialParentId || '');
   const [pageType, setPageType] = useState(initialPageType || 'section');
@@ -161,22 +181,26 @@ export default function RichEditor({
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
-  // Echoes 特殊編輯模式
-  const isEchoesArea = area === 'echoes' || zoneId === 'echoes';
-  const isEchoes = isEchoesArea && pageType === 'song';
-  const isEchoesSubcat = isEchoesArea && pageType === 'subcategory';
-  // Visuals 特殊編輯模式
-  const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
-  const isVisuals = isVisualsArea && pageType === 'gallery';
-  const isVisualsSubcat = isVisualsArea && pageType === 'subcategory';
-  // Concepts 特殊編輯模式
-  const isConceptsArea = area === 'concepts' || zoneId === 'concepts';
-  const isConcepts = isConceptsArea && pageType === 'type';
+  // 從 registry 解析 mode
+  const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
+  const modeId = editorMode.id;
+
+  // 相容用 shorthand（供渲染判斷使用）
+  const isEchoes = modeId === 'echoes.song';
+  const isEchoesSubcat = modeId === 'echoes.subcategory';
+  const isVisuals = modeId === 'visuals.gallery';
+  const isVisualsSubcat = modeId === 'visuals.subcategory';
+  const isConcepts = modeId === 'concepts.type';
   const conceptsStackStyle =
     (initialMetadata?.stack_style as string) || 'dossier';
-  const isZone = pageType === 'zone';
-  const isPageType =
-    !isEntryMode && (pageType === 'page' || pageType === 'homepage');
+  const isStorageDialogue = modeId === 'storage.dialogue';
+  const isStorageChangelog = modeId === 'storage.changelog';
+  const isStorageExtras = modeId === 'storage.extras';
+  const isStorageClearing = modeId === 'storage.clearing';
+  const needsSubcatSelector = editorMode.needsSubcatSelector === true;
+  const isZone = modeId === 'zone';
+  const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
+  const isPageType = modeId === 'homepage' && !isEntryMode;
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
     parseEchoesData(initialMetadata || {})
   );
@@ -189,6 +213,29 @@ export default function RichEditor({
   const [zoneTabs, setZoneTabs] = useState<ZoneTab[]>(
     () => (initialMetadata?.zoneTabs as ZoneTab[]) || []
   );
+  // Storage dialogue 用的 content blocks
+  const [storageDialogueBlocks, setStorageDialogueBlocks] = useState<
+    { id: string; type: string; content: string }[]
+  >(() => initialContentBlocks || []);
+  // Storage changelog 用的 content blocks 和 metadata
+  const [changelogBlocks, setChangelogBlocks] = useState<
+    { id: string; type: string; content: string }[]
+  >(() => initialContentBlocks || []);
+  const [changelogMeta, setChangelogMeta] = useState<ChangelogMeta>(() => ({
+    version: (initialMetadata?.version as string) || '',
+    date: (initialMetadata?.date as string) || '',
+    author: (initialMetadata?.author as string) || '',
+  }));
+  // Storage subcategory 狀態
+  const [storageSubcats, setStorageSubcats] = useState<SubcatDef[]>(() =>
+    Array.isArray(initialMetadata?.subcategories)
+      ? (initialMetadata.subcategories as SubcatDef[])
+      : []
+  );
+  const [storageSubcat, setStorageSubcat] = useState<string>(
+    (initialMetadata?.subcategory as string) || ''
+  );
+  const [availableSubcats, setAvailableSubcats] = useState<SubcatDef[]>([]);
 
   // TipTap editor
   const editor = useEditor({
@@ -209,10 +256,16 @@ export default function RichEditor({
       FontFamily,
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Placeholder.configure({ placeholder: '\u958B\u59CB\u5BEB\u4F5C...' }),
+      Placeholder.configure({ placeholder: '開始寫作...' }),
       Image.configure({ inline: false }),
+      UepDialogueNode,
     ],
-    content: initialContent || '<p></p>',
+    content: isConcepts
+      ? initialContentBlocks?.find((b) => b.type === 'rich_text')?.content ||
+        '<p></p>'
+      : !editorMode.needsTipTap
+        ? '<p></p>'
+        : initialContent || '<p></p>',
     editorProps: {
       attributes: {
         class: 'tiptap-content',
@@ -245,31 +298,40 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
-    if (!isEchoes && !isVisuals && !editor) return;
+    if (editorMode.needsTipTap && !editor) return;
     setSaveStatus('saving');
     try {
       const content =
         isEchoes || isVisuals
           ? [{ id: 'content', type: 'rich_text', content: '' }]
-          : isConcepts
-            ? [
-                { id: 'intro', type: 'rich_text', content: editor!.getHTML() },
-                ...serializeConceptsContent(conceptsData),
-              ]
-            : [
-                {
-                  id: 'content',
-                  type: 'rich_text',
-                  content: editor!.getHTML(),
-                },
-              ];
+          : isStorageDialogue
+            ? storageDialogueBlocks
+            : isStorageChangelog
+              ? changelogBlocks
+              : isConcepts
+                ? [
+                    {
+                      id: 'intro',
+                      type: 'rich_text',
+                      content: editor!.getHTML(),
+                    },
+                    ...serializeConceptsContent(conceptsData),
+                  ]
+                : [
+                    {
+                      id: 'content',
+                      type: 'rich_text',
+                      content: editor!.getHTML(),
+                    },
+                  ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
       const metadata: Record<string, any> = {
-        ...(hidden ? { hidden: true } : {}),
-        ...(locked ? { locked: true } : {}),
-        ...(icon ? { icon } : {}),
-        ...(description ? { description } : {}),
+        ...(initialMetadata || {}),
+        ...(hidden ? { hidden: true } : { hidden: undefined }),
+        ...(locked ? { locked: true } : { locked: undefined }),
+        ...(icon ? { icon } : { icon: undefined }),
+        ...(description ? { description } : { description: undefined }),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isConcepts
@@ -281,6 +343,22 @@ export default function RichEditor({
           : {}),
         ...(isZone && zoneTabs.length > 0 ? { zoneTabs } : {}),
         ...(isVisualsDivision && layout ? { layout } : {}),
+        ...(isStorageChangelog
+          ? {
+              version: changelogMeta.version || undefined,
+              date: changelogMeta.date || undefined,
+              author: changelogMeta.author || undefined,
+            }
+          : {}),
+        ...(isStorageClearing
+          ? {
+              subcategories:
+                storageSubcats.length > 0 ? storageSubcats : undefined,
+            }
+          : {}),
+        ...(needsSubcatSelector
+          ? { subcategory: storageSubcat || undefined }
+          : {}),
       };
 
       const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`, {
@@ -312,14 +390,14 @@ export default function RichEditor({
   }, [
     editor,
     isDirty,
-    isEchoes,
-    isVisuals,
-    isConcepts,
-    isZone,
+    modeId,
     echoesData,
     visualsData,
     conceptsData,
     conceptsStackStyle,
+    storageDialogueBlocks,
+    changelogBlocks,
+    changelogMeta,
     zoneTabs,
     title,
     apiBase,
@@ -334,7 +412,24 @@ export default function RichEditor({
     description,
     layout,
     isVisualsArea,
+    storageSubcats,
+    needsSubcatSelector,
+    storageSubcat,
   ]);
+
+  // 載入 clearing 的 subcategory 定義（stuff 頁面用）
+  useEffect(() => {
+    if (!needsSubcatSelector) return;
+    const clearingSlug = pageSlug.split('/')[0];
+    fetch(`${apiBase}/api/content/storage/${clearingSlug}`)
+      .then((r) => r.json())
+      .then((json: any) => {
+        if (json.ok && Array.isArray(json.data?.metadata?.subcategories)) {
+          setAvailableSubcats(json.data.metadata.subcategories as SubcatDef[]);
+        }
+      })
+      .catch(() => {});
+  }, [needsSubcatSelector, apiBase, pageSlug]);
 
   // Ctrl+S
   useEffect(() => {
@@ -360,7 +455,256 @@ export default function RichEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  if (!editor && !isEchoes && !isVisuals) return null;
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{
+    src: string;
+    pos: number;
+  } | null>(null);
+  // 圖片選擇器（媒體庫）
+  const [imgPickerOpen, setImgPickerOpen] = useState(false);
+  const [imgPickerItems, setImgPickerItems] = useState<
+    {
+      key: string;
+      size: number;
+      contentType: string;
+      originalName: string;
+      referenced: boolean;
+    }[]
+  >([]);
+  const [imgPickerLoading, setImgPickerLoading] = useState(false);
+  const [imgPickerSearch, setImgPickerSearch] = useState('');
+  // 圖片替換模式（替換時不是插入新圖，而是替換選中圖的 src）
+  const [imgReplaceMode, setImgReplaceMode] = useState(false);
+  // 圖片刪除確認
+  const [imgDeleteConfirm, setImgDeleteConfirm] = useState<{
+    src: string;
+    pos: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncSelectedImage = () => {
+      const selection = editor.state.selection as any;
+      let next: { src: string; pos: number } | null = null;
+
+      if (selection.node?.type?.name === 'image') {
+        next = {
+          src: selection.node.attrs?.src || '',
+          pos: selection.from,
+        };
+      }
+
+      setSelectedImage((current) =>
+        current?.src === next?.src && current?.pos === next?.pos
+          ? current
+          : next
+      );
+    };
+
+    syncSelectedImage();
+    editor.on('selectionUpdate', syncSelectedImage);
+    editor.on('transaction', syncSelectedImage);
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedImage);
+      editor.off('transaction', syncSelectedImage);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor || !selectedImage || imgDeleteConfirm) return;
+
+    const handleImageDeleteKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (!editor.isFocused) return;
+
+      const node = editor.state.doc.nodeAt(selectedImage.pos);
+      if (node?.type.name !== 'image') return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setImgDeleteConfirm(selectedImage);
+    };
+
+    document.addEventListener('keydown', handleImageDeleteKey, true);
+    return () =>
+      document.removeEventListener('keydown', handleImageDeleteKey, true);
+  }, [editor, selectedImage, imgDeleteConfirm]);
+
+  const selectImageBySrc = (src: string) => {
+    if (!editor) return;
+    let imagePos: number | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image' && node.attrs.src === src) {
+        imagePos = pos;
+        return false;
+      }
+      return true;
+    });
+
+    if (imagePos !== null) {
+      editor.commands.setNodeSelection(imagePos);
+      setSelectedImage({ src, pos: imagePos });
+    }
+  };
+
+  const insertOrReplaceImage = (src: string) => {
+    if (!editor) return;
+
+    if (imgReplaceMode && selectedImage) {
+      const node = editor.state.doc.nodeAt(selectedImage.pos);
+      if (node?.type.name === 'image') {
+        editor
+          .chain()
+          .focus()
+          .setNodeSelection(selectedImage.pos)
+          .updateAttributes('image', { src })
+          .run();
+        setSelectedImage({ src, pos: selectedImage.pos });
+        setMetaDirty(true);
+        return;
+      }
+    }
+
+    const insertPos = editor.state.selection.from;
+    editor.chain().focus().setImage({ src }).run();
+    requestAnimationFrame(() => {
+      const node = editor.state.doc.nodeAt(insertPos);
+      if (node?.type.name === 'image') {
+        editor.commands.setNodeSelection(insertPos);
+        setSelectedImage({ src, pos: insertPos });
+        return;
+      }
+      selectImageBySrc(src);
+    });
+    setMetaDirty(true);
+  };
+
+  const insertImage = () => {
+    setImgReplaceMode(false);
+    imageInputRef.current?.click();
+  };
+
+  const openImagePicker = async (replaceMode = false) => {
+    setImgReplaceMode(replaceMode);
+    setImgPickerOpen(true);
+    setImgPickerLoading(true);
+    setImgPickerSearch('');
+    try {
+      const res = await fetch(`${apiBase}/api/assets?prefix=images/&limit=500`);
+      if (!res.ok) {
+        setImgPickerItems([]);
+        return;
+      }
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: {
+          items: {
+            key: string;
+            size: number;
+            contentType: string;
+            originalName: string;
+            referenced: boolean;
+          }[];
+        };
+      };
+      if (!json.ok) {
+        setImgPickerItems([]);
+        return;
+      }
+      const items = json.data.items.filter(
+        (i) =>
+          i.contentType?.startsWith('image/') || i.key.startsWith('images/')
+      );
+      items.sort((a, b) => {
+        if (a.referenced === b.referenced) return 0;
+        return a.referenced ? 1 : -1;
+      });
+      setImgPickerItems(items);
+    } catch {
+      setImgPickerItems([]);
+    } finally {
+      setImgPickerLoading(false);
+    }
+  };
+
+  const selectFromLibrary = (item: { key: string }) => {
+    if (!editor) return;
+    const imgUrl = `${apiBase}/api/assets/${item.key
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
+    insertOrReplaceImage(imgUrl);
+    setImgPickerOpen(false);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+    e.target.value = '';
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${apiBase}/api/assets`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const imgUrl = `${apiBase}${json.data.url}`;
+        insertOrReplaceImage(imgUrl);
+      } else {
+        getToast().error(`Upload failed: ${json.error}`);
+      }
+    } catch (err: any) {
+      getToast().error(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 刪除圖片：僅移除引用
+  const handleImageRemoveOnly = () => {
+    if (!imgDeleteConfirm || !editor) return;
+    const { pos } = imgDeleteConfirm;
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: pos, to: pos + 1 })
+      .run();
+    setMetaDirty(true);
+    setSelectedImage(null);
+    setImgDeleteConfirm(null);
+  };
+
+  // 刪除圖片：從媒體庫永久刪除
+  const handleImageDeleteFromLibrary = async () => {
+    if (!imgDeleteConfirm || !editor) return;
+    const { src, pos } = imgDeleteConfirm;
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: pos, to: pos + 1 })
+      .run();
+    setMetaDirty(true);
+    setSelectedImage(null);
+    setImgDeleteConfirm(null);
+    const key = extractAssetKey(src);
+    if (key) {
+      try {
+        await deleteAsset(key);
+      } catch (err) {
+        console.error('刪除媒體庫檔案失敗:', err);
+      }
+    }
+  };
+
+  if (editorMode.needsTipTap && !editor) return null;
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -475,42 +819,6 @@ export default function RichEditor({
     ));
   }
 
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const insertImage = () => {
-    imageInputRef.current?.click();
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editor) return;
-    e.target.value = '';
-
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch(`${apiBase}/api/assets`, {
-        method: 'POST',
-        body: formData,
-      });
-      const json = await res.json();
-      if (json.ok) {
-        const imgUrl = `${apiBase}${json.data.url}`;
-        editor.chain().focus().setImage({ src: imgUrl }).run();
-        setMetaDirty(true);
-      } else {
-        uepToast.error(`Upload failed: ${json.error}`);
-      }
-    } catch (err: any) {
-      uepToast.error(`Upload error: ${err.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const charCount = editor ? editor.getText().length : 0;
 
   const statusLabel = {
@@ -521,10 +829,10 @@ export default function RichEditor({
   }[saveStatus];
 
   const saveButtonLabel = {
-    idle: '\u5132\u5B58',
-    saving: '\u5132\u5B58\u4E2D...',
-    saved: '\u5DF2\u5132\u5B58',
-    error: '\u5931\u6557',
+    idle: '儲存',
+    saving: '儲存中...',
+    saved: '已儲存',
+    error: '失敗',
   }[saveStatus];
 
   return (
@@ -551,13 +859,13 @@ export default function RichEditor({
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
-                setMetaDirty(e.target.value !== initialTitleRef.current);
+                setDirtyTitle(e.target.value !== initialTitleRef.current);
               }}
               placeholder="Page title..."
             />
             <span className="ned-header-status">
               {statusLabel ||
-                `${pageStatus} \u00b7 ${isDirty ? 'modified' : 'saved'}`}
+                `${pageStatus} | ${isDirty ? 'modified' : 'saved'}`}
             </span>
             <div className="ned-header-spacer" />
             <div className="ned-header-right">
@@ -592,7 +900,7 @@ export default function RichEditor({
       {/* Toolbar — 入口模式隱藏 */}
       {!isEntryMode && (
         <div className="ned-toolbar" ref={dropdownRef}>
-          {!isEchoes && !isVisuals && editor && (
+          {editorMode.needsTipTap && editor && (
             <>
               {/* Heading dropdown */}
               <div className="tb-group">
@@ -607,7 +915,7 @@ export default function RichEditor({
                         ? 'H2'
                         : editor.isActive('heading', { level: 3 })
                           ? 'H3'
-                          : '\u5167\u6587'}
+                          : '內文'}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'heading' && (
@@ -917,14 +1225,42 @@ export default function RichEditor({
                 >
                   &lt;/&gt;
                 </button>
-                <button
-                  className="tb-btn"
-                  onClick={insertImage}
-                  title="Upload image"
-                  disabled={uploading}
-                >
-                  {uploading ? '\u23F3' : '\u25A2'}
-                </button>
+                <div className="tb-dropdown-wrap">
+                  <button
+                    className="tb-btn"
+                    onClick={() =>
+                      setActiveDropdown(
+                        activeDropdown === 'image' ? null : 'image'
+                      )
+                    }
+                    title="插入圖片"
+                    disabled={uploading}
+                  >
+                    {uploading ? '上傳中' : '圖片'}
+                  </button>
+                  {activeDropdown === 'image' && (
+                    <div className="tb-dropdown" style={{ minWidth: 160 }}>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          insertImage();
+                        }}
+                      >
+                        上傳圖片
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          void openImagePicker(false);
+                        }}
+                      >
+                        從媒體庫選取
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="tb-sep" />
@@ -1021,6 +1357,49 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
+              {/* UEP 對話 */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn tb-btn-uep ${editor.isActive('uepDialogue') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().toggleUepDialogue().run()
+                  }
+                  title="UEP 對話 (Ctrl+Shift+U)"
+                >
+                  <span
+                    style={{
+                      color: '#D5B618',
+                      fontWeight: 700,
+                      fontSize: 11,
+                    }}
+                  >
+                    U.E.P
+                  </span>
+                </button>
+                {editor.isActive('uepDialogue') && (
+                  <button
+                    className="tb-btn"
+                    onClick={() => {
+                      const current = editor.getAttributes('uepDialogue').side;
+                      editor
+                        .chain()
+                        .focus()
+                        .updateAttributes('uepDialogue', {
+                          side: current === 'left' ? 'right' : 'left',
+                        })
+                        .run();
+                    }}
+                    title="切換左右"
+                  >
+                    {editor.getAttributes('uepDialogue').side === 'left'
+                      ? 'L'
+                      : 'R'}
+                  </button>
+                )}
+              </div>
+
+              <div className="tb-sep" />
+
               {/* 清除格式 */}
               <div className="tb-group">
                 <button
@@ -1036,23 +1415,15 @@ export default function RichEditor({
                   }
                   title="清除格式"
                 >
-                  ✕
+                  清除
                 </button>
               </div>
             </>
           )}
 
           <span className="ned-toolbar-right">
-            {isEchoes
-              ? 'song mode'
-              : isEchoesSubcat
-                ? 'playlist mode'
-                : isZone
-                  ? 'zone mode'
-                  : isPageType
-                    ? 'homepage mode'
-                    : 'rich text'}
-            {!isEchoes && ` · ${charCount.toLocaleString()} chars`}
+            {editorMode.toolbarLabel}
+            {editorMode.needsTipTap && ` | ${charCount.toLocaleString()} chars`}
           </span>
         </div>
       )}
@@ -1073,7 +1444,7 @@ export default function RichEditor({
         )}
 
         {/* Middle — Editor */}
-        <main className={`ned-editor ${locked ? 'ned-editor--locked' : ''}`}>
+        <main className="ned-editor">
           {isEntryMode ? (
             <div className="ned-empty-state">
               <div className="ned-empty-icon" style={{ color: accentMain }}>
@@ -1088,14 +1459,6 @@ export default function RichEditor({
             </div>
           ) : (
             <>
-              {locked && (
-                <div className="ned-lock-banner">
-                  <span>
-                    &#128274; This page is locked. Unlock from inspector to
-                    edit.
-                  </span>
-                </div>
-              )}
               <div className="ned-paper">
                 <div className="ned-breadcrumb">
                   {parentId
@@ -1116,9 +1479,98 @@ export default function RichEditor({
                     onDataChange={setVisualsData}
                     onDirty={() => setMetaDirty(true)}
                   />
+                ) : isStorageDialogue ? (
+                  <>
+                    {needsSubcatSelector && availableSubcats.length > 0 && (
+                      <div className="ned-subcat-selector">
+                        <label className="ned-subcat-selector-label">
+                          分類
+                        </label>
+                        <select
+                          className="ned-subcat-selector-select"
+                          value={storageSubcat}
+                          onChange={(e) => {
+                            setStorageSubcat(e.target.value);
+                            setMetaDirty(true);
+                          }}
+                        >
+                          <option value="">（未分類）</option>
+                          {availableSubcats
+                            .filter((s) => !s.hidden)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.icon ? `${s.icon} ` : ''}
+                                {s.label}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                    <StorageDialogueEditor
+                      accent={accentMain}
+                      initialContentBlocks={initialContentBlocks || []}
+                      onContentChange={setStorageDialogueBlocks}
+                      onDirty={() => setDirtyStructured(true)}
+                    />
+                  </>
+                ) : isStorageChangelog ? (
+                  <ChangelogEditorBody
+                    accent={accentMain}
+                    initialContentBlocks={initialContentBlocks || []}
+                    onContentChange={setChangelogBlocks}
+                    onDirty={() => setDirtyStructured(true)}
+                    meta={changelogMeta}
+                    onMetaChange={setChangelogMeta}
+                  />
                 ) : (
                   <>
+                    {isStorageExtras && (
+                      <ThoughtStream
+                        accent={accentMain}
+                        onPushToEditor={(html) => {
+                          if (editor) {
+                            editor.chain().focus().insertContent(html).run();
+                            setEditorDirty(true);
+                          }
+                        }}
+                      />
+                    )}
+                    {needsSubcatSelector && availableSubcats.length > 0 && (
+                      <div className="ned-subcat-selector">
+                        <label className="ned-subcat-selector-label">
+                          分類
+                        </label>
+                        <select
+                          className="ned-subcat-selector-select"
+                          value={storageSubcat}
+                          onChange={(e) => {
+                            setStorageSubcat(e.target.value);
+                            setMetaDirty(true);
+                          }}
+                        >
+                          <option value="">（未分類）</option>
+                          {availableSubcats
+                            .filter((s) => !s.hidden)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.icon ? `${s.icon} ` : ''}
+                                {s.label}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
                     <EditorContent editor={editor} />
+                    {isStorageClearing && (
+                      <StorageSubcatEditor
+                        subcategories={storageSubcats}
+                        onChange={(next) => {
+                          setStorageSubcats(next);
+                          setMetaDirty(true);
+                        }}
+                        accent={accentMain}
+                      />
+                    )}
                     {isConcepts && (
                       <ConceptsEditorBody
                         accent={accentMain}
@@ -1196,13 +1648,35 @@ export default function RichEditor({
               onIconChange={setIcon}
               description={description}
               onDescriptionChange={setDescription}
-              layout={layout}
-              onLayoutChange={setLayout}
-              onDirty={() => setMetaDirty(true)}
+              onDirty={() => setDirtyMetadata(true)}
               accent={accentMain}
               pageStatus={pageStatus}
               createdAt={createdAt}
               updatedAt={updatedAt}
+              modeFields={
+                <>
+                  {modeId === 'visuals.division' && (
+                    <InspectorSection label="default layout">
+                      <select
+                        className="ned-field"
+                        value={layout || ''}
+                        onChange={(e) => {
+                          setLayout(e.target.value);
+                          setDirtyMetadata(true);
+                        }}
+                      >
+                        {LAYOUT_OPTIONS.filter((o) => o.value !== '').map(
+                          (o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </InspectorSection>
+                  )}
+                </>
+              }
             />
           </aside>
         )}
@@ -1215,6 +1689,273 @@ export default function RichEditor({
         style={{ display: 'none' }}
         onChange={handleImageUpload}
       />
+
+      {/* 圖片浮動操作列 */}
+      {editor &&
+        selectedImage &&
+        (() => {
+          const imgSrc = selectedImage.src;
+          const pos = selectedImage.pos;
+          return (
+            <div className="ned-img-bubble" key="img-bubble">
+              <button
+                className="ned-img-bubble-btn"
+                title="替換圖片（上傳）"
+                onClick={() => {
+                  setImgReplaceMode(true);
+                  imageInputRef.current?.click();
+                }}
+              >
+                上傳替換
+              </button>
+              <button
+                className="ned-img-bubble-btn"
+                title="替換圖片（媒體庫）"
+                onClick={() => void openImagePicker(true)}
+              >
+                媒體庫替換
+              </button>
+              <button
+                className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+                title="刪除圖片"
+                onClick={() => setImgDeleteConfirm({ src: imgSrc, pos })}
+              >
+                刪除
+              </button>
+            </div>
+          );
+        })()}
+
+      {/* 圖片選擇器 Modal */}
+      {imgPickerOpen && (
+        <div
+          className="ned-modal-backdrop"
+          onClick={() => setImgPickerOpen(false)}
+        >
+          <div
+            className="ned-modal-card"
+            style={{ maxWidth: 640, maxHeight: '80vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ned-modal-header">
+              <div>
+                <strong>從媒體庫選擇圖片</strong>
+                <span
+                  style={{
+                    marginLeft: 10,
+                    fontSize: '0.85em',
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  {imgReplaceMode ? '選擇圖片以替換' : '選擇圖片以插入'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="搜尋..."
+                  value={imgPickerSearch}
+                  onChange={(e) => setImgPickerSearch(e.target.value)}
+                  style={{
+                    background: 'var(--bg-deep, #111)',
+                    border: '1px solid var(--line, #333)',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: '0.85em',
+                    color: 'var(--ink, #ccc)',
+                    width: 160,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setImgPickerOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--ink, #ccc)',
+                    fontSize: 20,
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                  }}
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+              {imgPickerLoading ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  載入中...
+                </div>
+              ) : imgPickerItems.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  媒體庫中沒有圖片
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(120px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {imgPickerItems
+                    .filter((item) => {
+                      if (!imgPickerSearch) return true;
+                      const name = (
+                        item.originalName || item.key
+                      ).toLowerCase();
+                      return name.includes(imgPickerSearch.toLowerCase());
+                    })
+                    .map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => selectFromLibrary(item)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          border: '1px solid var(--line, #333)',
+                          background: 'transparent',
+                          borderRadius: 6,
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          padding: 0,
+                          color: 'var(--ink, #ccc)',
+                        }}
+                      >
+                        <img
+                          src={`${apiBase}/api/assets/${item.key.split('/').map(encodeURIComponent).join('/')}`}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        <div
+                          style={{
+                            padding: '4px 6px',
+                            fontSize: '0.75em',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.originalName || item.key.split('/').pop()}
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 圖片刪除確認 Dialog */}
+      {imgDeleteConfirm && (
+        <div
+          className="ned-modal-backdrop"
+          onClick={() => setImgDeleteConfirm(null)}
+        >
+          <div
+            className="ned-modal-card"
+            style={{ maxWidth: 400, padding: '24px 28px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{ fontWeight: 600, marginBottom: 8, fontSize: '1.05em' }}
+            >
+              刪除圖片
+            </div>
+            <div
+              style={{
+                fontSize: '0.85em',
+                color: 'var(--ink-mute, #888)',
+                marginBottom: 16,
+                wordBreak: 'break-all',
+              }}
+            >
+              {imgDeleteConfirm.src.split('/').pop()}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={handleImageRemoveOnly}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                }}
+              >
+                僅從編輯器移除
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
+                  檔案保留在媒體庫中，可供其他頁面使用
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => void handleImageDeleteFromLibrary()}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  borderColor: 'crimson',
+                  color: 'crimson',
+                }}
+              >
+                從媒體庫永久刪除
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.8em',
+                    color: 'var(--ink-mute, #888)',
+                    marginTop: 2,
+                  }}
+                >
+                  移除引用並從 R2 儲存空間中刪除檔案
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ned-btn-ghost"
+                onClick={() => setImgDeleteConfirm(null)}
+                style={{
+                  width: '100%',
+                  padding: '8px 16px',
+                  textAlign: 'center',
+                  marginTop: 4,
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

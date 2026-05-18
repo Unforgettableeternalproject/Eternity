@@ -1,0 +1,454 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ThoughtStream — 思緒整理輔助面板
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 收合狀態 */
+.ts-collapsed {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  border: 1px dashed var(--ts-accent, #d5b618);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 4%, transparent);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.ts-collapsed:hover {
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 8%, transparent);
+}
+.ts-collapsed-icon {
+  font-size: 16px;
+  color: var(--ts-accent, #d5b618);
+}
+.ts-collapsed-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ts-accent, #d5b618);
+}
+.ts-collapsed-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+.ts-collapsed-badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ts-accent, #d5b618);
+  padding: 2px 8px;
+  border: 1px solid var(--ts-accent, #d5b618);
+}
+
+/* 展開面板 */
+.ts-panel {
+  margin-bottom: 16px;
+  border: 1px solid
+    color-mix(in srgb, var(--ts-accent, #d5b618) 30%, var(--line));
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.ts-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 4%, transparent);
+}
+.ts-header-icon {
+  font-size: 14px;
+  color: var(--ts-accent, #d5b618);
+}
+.ts-header-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ts-accent, #d5b618);
+}
+.ts-header-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.06em;
+}
+.ts-collapse-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* 步驟 tab */
+.ts-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+.ts-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink-mute);
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+.ts-tab:hover {
+  color: var(--ink);
+}
+.ts-tab.is-active {
+  color: var(--ts-accent, #d5b618);
+  border-bottom-color: var(--ts-accent, #d5b618);
+}
+.ts-tab-num {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  flex-shrink: 0;
+}
+.ts-tab.is-active .ts-tab-num {
+  background: var(--ts-accent, #d5b618);
+  border-color: var(--ts-accent, #d5b618);
+  color: #fff;
+}
+.ts-tab-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 步驟內容 */
+.ts-body {
+  padding: 14px 16px 16px;
+}
+.ts-step-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+  margin-bottom: 10px;
+}
+
+.ts-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--ink);
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  line-height: 1.85;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.ts-textarea:focus {
+  border-color: var(--ts-accent, #d5b618);
+}
+.ts-textarea-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.ts-textarea-sm {
+  min-height: 60px;
+}
+.ts-textarea::placeholder {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+.ts-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ts-word-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  margin-right: auto;
+}
+.ts-action-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.ts-action-btn:hover:not(:disabled) {
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+.ts-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ts-action-btn.ts-primary {
+  border-color: var(--ts-accent, #d5b618);
+  color: var(--ts-accent, #d5b618);
+}
+.ts-action-btn.ts-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 10%, transparent);
+}
+
+/* ── 解析錯誤 ──────────────────────────────────────────────────── */
+.ts-parse-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #c47a2d;
+  background: color-mix(in srgb, #c47a2d 6%, transparent);
+  border: 1px solid color-mix(in srgb, #c47a2d 20%, transparent);
+}
+
+/* ── 成文區段 ──────────────────────────────────────────────────── */
+.ts-compose-section {
+  margin-bottom: 12px;
+}
+.ts-compose-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ts-compose-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   分析結果卡片
+   ═══════════════════════════════════════════════════════════════════ */
+.ts-analysis {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── 狀態 / 模式 晶片列 ──────────────────────────────────────── */
+.ts-analysis-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ts-meta-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.ts-meta-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.ts-meta-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── 思考模式描述 ──────────────────────────────────────────────── */
+.ts-pattern-desc {
+  font-family: var(--font-serif-tc);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  padding: 8px 12px;
+  border-left: 2px solid var(--ts-accent, #d5b618);
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 3%, transparent);
+}
+
+/* ── 區段標題 ──────────────────────────────────────────────────── */
+.ts-section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── 思緒線索卡片 ────────────────────────────────────────────── */
+.ts-threads {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ts-thread {
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ts-thread:hover {
+  border-color: color-mix(in srgb, var(--ts-accent, #d5b618) 40%, var(--line));
+}
+.ts-thread.is-expanded {
+  border-color: var(--ts-accent, #d5b618);
+}
+.ts-thread-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.ts-thread-id {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ts-accent, #d5b618);
+  padding: 1px 6px;
+  border: 1px solid var(--ts-accent, #d5b618);
+  flex-shrink: 0;
+}
+.ts-thread-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ts-thread-conn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.ts-thread-toggle {
+  font-size: 10px;
+  color: var(--ink-mute);
+  flex-shrink: 0;
+}
+.ts-thread-content {
+  padding: 0 12px 10px;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 0;
+  white-space: pre-wrap;
+}
+
+/* ── 思維軌跡時間線 ──────────────────────────────────────────── */
+.ts-flow {
+  display: flex;
+  flex-direction: column;
+  padding-left: 8px;
+}
+.ts-flow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 8px;
+}
+.ts-flow-step:last-child {
+  padding-bottom: 0;
+}
+.ts-flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  position: relative;
+  z-index: 1;
+}
+.ts-flow-line {
+  position: absolute;
+  left: 11px;
+  top: 12px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.ts-flow-text {
+  font-family: var(--font-serif-tc);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* ── 自我映射引言 ────────────────────────────────────────────── */
+.ts-reflection {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--ts-accent, #d5b618) 4%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--ts-accent, #d5b618) 15%, transparent);
+}
+.ts-reflection-mark {
+  font-family: Georgia, serif;
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: -4px;
+}
+.ts-reflection-text {
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  font-style: italic;
+}

@@ -9,14 +9,18 @@ import React, {
   useState,
 } from 'react';
 import { ZONES } from '../../data/zones';
-import BigMapModal from '../ui/BigMapModal';
-import Minimap from '../ui/Minimap';
-import PortalTransition from '../ui/PortalTransition';
-import TopBar from '../ui/TopBar';
-import IntroOverlay from '../ui/IntroOverlay';
+import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import EchoesRipple from './EchoesRipple';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { ZonePrevNext } from '../zone/ZonePrevNext';
+import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
+import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -896,11 +900,12 @@ function EchoesAudioPlayer({
 // 工具函式（遞迴遍歷，支援任意深度巢狀）
 // ──────────────────────────────────────────────────────────────────
 
-/** 遞迴收集節點下所有 song（排除 hidden） */
+/** 遞迴收集節點下所有 song（排除 hidden 與 locked） */
 function collectSongs(node: PageTreeNode): PageTreeNode[] {
   const songs: PageTreeNode[] = [];
   for (const child of node.children || []) {
-    if (child.metadata?.hidden === true) continue;
+    if (isHidden(child)) continue;
+    if (isLocked(child)) continue;
     if (child.pageType === 'song') songs.push(child);
     else songs.push(...collectSongs(child));
   }
@@ -911,7 +916,7 @@ function collectSongs(node: PageTreeNode): PageTreeNode[] {
 function countSongs(node: PageTreeNode): number {
   let count = 0;
   for (const child of node.children || []) {
-    if (child.metadata?.hidden === true) continue;
+    if (isHidden(child)) continue;
     if (child.pageType === 'song') count++;
     else count += countSongs(child);
   }
@@ -1020,17 +1025,6 @@ function buildAudioUrl(audioFile: string | null): string | null {
 function EchoesReaderInner() {
   const echoesZone = ZONES.find((z) => z.id === 'echoes') || ZONES[0];
 
-  // === 共用 UI 狀態 ===
-  const [theme, setTheme] = useState('dark');
-  const [showMap, setShowMap] = useState(false);
-  const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -1065,15 +1059,26 @@ function EchoesReaderInner() {
   // === UI ===
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // === 滾動位置記憶 ===
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [
+    view,
+    activeClusterId,
+    activeContentId,
+    activeSongId,
+  ]);
+
+  /** 根據目前視圖狀態回傳唯一的捲軸記憶 key */
+  function currentScrollKey(): string {
+    if (view === 'song' && activeSongId) return `song:${activeSongId}`;
+    if (view === 'content' && activeContentId)
+      return `content:${activeContentId}`;
+    if (view === 'cluster' && activeClusterId)
+      return `cluster:${activeClusterId}`;
+    return 'landing';
+  }
+
   // === 初始化 ===
   useEffect(() => {
-    const storedTheme =
-      localStorage.getItem('uep-theme') ||
-      document.documentElement.getAttribute('data-theme') ||
-      'dark';
-    setTheme(storedTheme);
-    document.documentElement.setAttribute('data-theme', storedTheme);
-
     void fetchTree();
   }, []);
 
@@ -1102,8 +1107,8 @@ function EchoesReaderInner() {
 
   // 首頁區塊資料
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const bootMountTime = useRef(Date.now());
+  // 使用統一的 boot ready hook 管理開機動畫解除時機
+  const { contentReady, markContentReady, setNavPending } = useZoneBootReady();
 
   // === 載入 landing 頁面內容 ===
   useEffect(() => {
@@ -1111,9 +1116,8 @@ function EchoesReaderInner() {
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
 
-  // 載入首頁區塊資料
+  // 載入首頁區塊資料；完成後交由 hook 計算最短顯示時間與安全超時
   useEffect(() => {
-    const timeout = setTimeout(() => setContentReady(true), 5000);
     fetch(`${API_BASE}/api/content/echoes/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -1128,12 +1132,10 @@ function EchoesReaderInner() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        const elapsed = Date.now() - bootMountTime.current;
-        const delay = Math.max(0, 1800 - elapsed);
-        setTimeout(() => setContentReady(true), delay);
+        // 通知 hook 首頁資料已就緒，由 hook 統一管理延遲與超時
+        markContentReady();
       });
-  }, []);
+  }, [markContentReady]);
 
   const hpHeader = useMemo(() => {
     const b = homepageBlocks.find((b) => b.type === 'zone-header');
@@ -1180,50 +1182,27 @@ function EchoesReaderInner() {
     }
   }
 
-  // === URL 初始導航 ===
-  useEffect(() => {
-    if (!tree.length) return;
-    const params = new URLSearchParams(window.location.search);
-    const songParam = params.get('song');
-    const pageParam = params.get('page');
-    const clusterParam = params.get('cluster');
-
-    if (songParam) {
-      void navigateToSong(songParam, false);
-    } else if (pageParam) {
-      void navigateToContent(pageParam, false);
-    } else if (clusterParam) {
-      navigateToCluster(clusterParam, false);
-    }
-  }, [tree]);
-
-  // === popstate 處理 ===
-  useEffect(() => {
-    function onPopState() {
-      const params = new URLSearchParams(window.location.search);
-      const songParam = params.get('song');
-      const pageParam = params.get('page');
-      const clusterParam = params.get('cluster');
-
-      if (songParam) {
-        void navigateToSong(songParam, false);
-      } else if (pageParam) {
-        void navigateToContent(pageParam, false);
-      } else if (clusterParam) {
-        navigateToCluster(clusterParam, false);
-      } else {
-        setView('landing');
-        setActiveClusterId(null);
-        setActiveSongId(null);
-        setActiveContentId(null);
-        setCurrentSongPage(null);
-        setCurrentContentPage(null);
-      }
-    }
-
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [tree]);
+  // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
+  useZoneRouter({
+    routes: [
+      {
+        param: 'song',
+        handler: (value) => {
+          void navigateToSong(value, false);
+        },
+      },
+      {
+        param: 'page',
+        handler: (value) => {
+          void navigateToContent(value, false);
+        },
+      },
+      { param: 'cluster', handler: (value) => navigateToCluster(value, false) },
+    ],
+    onLanding: () => navigateToLanding(false),
+    treeReady: tree.length > 0,
+    setBootNavPending: setNavPending,
+  });
 
   // === API 呼叫 ===
   async function fetchTree() {
@@ -1268,22 +1247,19 @@ function EchoesReaderInner() {
 
   // === 導航函式 ===
   function navigateToLanding(pushState = true) {
+    saveScroll(currentScrollKey());
     audio.pause();
     setView('landing');
     setActiveClusterId(null);
     setActiveSongId(null);
     setCurrentSongPage(null);
     setTransitionKey((k) => k + 1);
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    if (pushState) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('cluster');
-      url.searchParams.delete('song');
-      window.history.pushState({}, '', url);
-    }
+    restoreScroll('landing');
+    if (pushState) clearUrl();
   }
 
   function navigateToCluster(clusterId: string, pushState = true) {
+    saveScroll(currentScrollKey());
     audio.pause();
     setView('cluster');
     setActiveClusterId(clusterId);
@@ -1292,18 +1268,14 @@ function EchoesReaderInner() {
     setCurrentSongPage(null);
     setCurrentContentPage(null);
     setTransitionKey((k) => k + 1);
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    if (pushState) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('cluster', clusterId);
-      url.searchParams.delete('song');
-      url.searchParams.delete('page');
-      window.history.pushState({ cluster: clusterId }, '', url);
-    }
+    restoreScroll(`cluster:${clusterId}`);
+    if (pushState) pushUrl({ cluster: clusterId });
+    setNavPending(false);
   }
 
   /** 導航到非 song 的內容頁面（subcategory 等），比照 History 的閱讀視圖 */
   async function navigateToContent(pageId: string, pushState = true) {
+    saveScroll(currentScrollKey());
     audio.pause();
     setView('content');
     setActiveContentId(pageId);
@@ -1314,7 +1286,7 @@ function EchoesReaderInner() {
     if (clusterId) {
       setActiveClusterId(clusterId);
     }
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    restoreScroll(`content:${pageId}`);
     setContentLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/content/${pageId}`);
@@ -1326,17 +1298,14 @@ function EchoesReaderInner() {
     } finally {
       setContentLoading(false);
       setTransitionKey((k) => k + 1);
+      setNavPending(false);
     }
-    if (pushState) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('page', pageId);
-      url.searchParams.delete('song');
-      if (clusterId) url.searchParams.set('cluster', clusterId);
-      window.history.pushState({ page: pageId }, '', url);
-    }
+    if (pushState)
+      pushUrl({ page: pageId, ...(clusterId ? { cluster: clusterId } : {}) });
   }
 
   async function navigateToSong(songId: string, pushState = true) {
+    saveScroll(currentScrollKey());
     // 切換歌曲頁面時停止當前播放
     audio.pause();
     setView('song');
@@ -1346,32 +1315,12 @@ function EchoesReaderInner() {
     if (clusterId) {
       setActiveClusterId(clusterId);
     }
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    restoreScroll(`song:${songId}`);
     await fetchSong(songId);
     setTransitionKey((k) => k + 1);
-    if (pushState) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('song', songId);
-      if (clusterId) url.searchParams.set('cluster', clusterId);
-      window.history.pushState({ song: songId }, '', url);
-    }
-  }
-
-  // === UI 函式 ===
-  function enterZoneFromMap(zoneId: string) {
-    const target = ZONES.find((z) => z.id === zoneId);
-    if (!target) return;
-    setShowMap(false);
-    if (target.id === 'echoes') return;
-    setPortalZone(target);
-    window.setTimeout(() => {
-      window.location.href = `/${target.slug}`;
-    }, 1100);
-  }
-
-  function showZoneIntro(zone: (typeof ZONES)[number]) {
-    setShowMap(false);
-    setIntroZone(zone);
+    setNavPending(false);
+    if (pushState)
+      pushUrl({ song: songId, ...(clusterId ? { cluster: clusterId } : {}) });
   }
 
   function isSongUnlocked(songId: string) {
@@ -1567,11 +1516,13 @@ function EchoesReaderInner() {
                 case 'rich-text': {
                   const html = (block.data as { html: string }).html;
                   return (
-                    <div
-                      key={block.id}
-                      className="echoes-prose echoes-landing-prose"
-                      dangerouslySetInnerHTML={{ __html: html }}
-                    />
+                    <React.Fragment key={block.id}>
+                      {renderHtmlWithUep(
+                        html,
+                        block.id,
+                        'echoes-prose echoes-landing-prose'
+                      )}
+                    </React.Fragment>
                   );
                 }
                 default:
@@ -1586,13 +1537,26 @@ function EchoesReaderInner() {
                 {plazaPage?.title || plazaNode?.title || '空白廣場'}
               </h2>
               {(treeLoading || landingLoading) && !plazaPage && (
-                <div className="echoes-state">正在讀取空白廣場...</div>
+                <ZoneStateDisplay
+                  kind="loading"
+                  message="正在讀取空白廣場..."
+                />
+              )}
+              {treeError && (
+                <ZoneStateDisplay
+                  kind="error"
+                  message={`目錄讀取失敗：${treeError}`}
+                  onRetry={() => void fetchTree()}
+                />
               )}
               {landingParts.before && (
-                <div
-                  className="echoes-prose echoes-landing-prose"
-                  dangerouslySetInnerHTML={{ __html: landingParts.before }}
-                />
+                <>
+                  {renderHtmlWithUep(
+                    landingParts.before,
+                    'landing-before',
+                    'echoes-prose echoes-landing-prose'
+                  )}
+                </>
               )}
               <div className="echoes-cluster-grid">
                 {CLUSTERS.map((cluster) => {
@@ -1684,10 +1648,13 @@ function EchoesReaderInner() {
                 })}
               </div>
               {landingParts.after && (
-                <div
-                  className="echoes-prose echoes-landing-prose"
-                  dangerouslySetInnerHTML={{ __html: landingParts.after }}
-                />
+                <>
+                  {renderHtmlWithUep(
+                    landingParts.after,
+                    'landing-after',
+                    'echoes-prose echoes-landing-prose'
+                  )}
+                </>
               )}
               <div className="echoes-landing-uep">
                 <UepDialogue
@@ -1699,14 +1666,13 @@ function EchoesReaderInner() {
                 <section className="echoes-photo-section">
                   <div className="echoes-kicker">Loose Note / Page</div>
                   <h3>{photoPage.title}</h3>
-                  <div
-                    className="echoes-prose echoes-photo-prose"
-                    dangerouslySetInnerHTML={{
-                      __html: photoPage.content
-                        .map((b) => b.content || '')
-                        .join('\n'),
-                    }}
-                  />
+                  <>
+                    {renderHtmlWithUep(
+                      photoPage.content.map((b) => b.content || '').join('\n'),
+                      'photo-page',
+                      'echoes-prose echoes-photo-prose'
+                    )}
+                  </>
                 </section>
               )}
             </>
@@ -1738,30 +1704,26 @@ function EchoesReaderInner() {
   // ────────────────────────────────────────────────────────────────
   function renderCluster() {
     const cluster = getClusterDef(activeClusterId || '');
-    if (!cluster) return <div className="echoes-state">找不到此集群</div>;
+    if (!cluster)
+      return <ZoneStateDisplay kind="not-found" message="找不到此集群" large />;
 
     // 從 tree 中取得實際的 subcategory 節點（hidden 完全隱藏）
     const clusterNode = findClusterNode(tree, cluster.id);
     const subcatNodes = (clusterNode?.children || []).filter(
-      (n) =>
-        n.pageType !== 'song' &&
-        n.pageType !== 'page' &&
-        n.metadata?.hidden !== true
+      (n) => n.pageType !== 'song' && n.pageType !== 'page' && !isHidden(n)
     );
     const totalSongs = clusterNode ? countSongs(clusterNode) : 0;
 
     return (
       <section className="echoes-cluster-page">
         <div className="echoes-cluster-inner">
-          {/* 麵包屑 */}
-          <div className="echoes-breadcrumb" style={{ color: cluster.color }}>
-            <span className="echoes-breadcrumb-line" />
-            <button type="button" onClick={() => navigateToLanding()}>
-              回音蒐藏間
-            </button>
-            <span>·</span>
-            <span>{cluster.labelEn}</span>
-          </div>
+          <ZoneBreadcrumb
+            segments={[
+              { label: '回音蒐藏間', onClick: () => navigateToLanding() },
+              { label: cluster.labelEn },
+            ]}
+            color={cluster.color}
+          />
 
           {/* 標題 */}
           <div className="echoes-cluster-head">
@@ -1806,9 +1768,9 @@ function EchoesReaderInner() {
           <div className="echoes-subcat-list">
             {subcatNodes.map((subcatNode, i) => {
               const songCount = countSongs(subcatNode);
-              const isHidden = subcatNode.metadata?.hidden === true;
-              const isLocked = subcatNode.metadata?.locked === true;
-              const inaccessible = isHidden || isLocked;
+              const subcatHidden = isHidden(subcatNode);
+              const subcatLocked = isLocked(subcatNode);
+              const inaccessible = subcatHidden || subcatLocked;
               const songs = collectSongs(subcatNode);
               return (
                 <button
@@ -1843,9 +1805,9 @@ function EchoesReaderInner() {
                     )}
                   </div>
                   <span className="echoes-subcat-count">
-                    {isHidden
+                    {subcatHidden
                       ? '— sealed —'
-                      : isLocked
+                      : subcatLocked
                         ? '🔒 locked'
                         : `${songCount} echoes`}
                   </span>
@@ -1902,7 +1864,7 @@ function EchoesReaderInner() {
   function renderContent() {
     if (contentLoading) {
       return (
-        <div className="echoes-state echoes-state-large">正在讀取頁面...</div>
+        <ZoneStateDisplay kind="loading" message="正在讀取頁面..." large />
       );
     }
     if (!currentContentPage) return null;
@@ -1917,38 +1879,30 @@ function EchoesReaderInner() {
     const contentNode = flatPages.find((p) => p.id === currentContentPage.id);
     const allChildren = contentNode?.children || [];
     const childSubcats = allChildren.filter(
-      (c) =>
-        c.pageType !== 'song' &&
-        c.pageType !== 'page' &&
-        c.metadata?.hidden !== true
+      (c) => c.pageType !== 'song' && c.pageType !== 'page' && !isHidden(c)
     );
     const directSongs = allChildren.filter(
-      (c) => c.pageType === 'song' && c.metadata?.hidden !== true
+      (c) => c.pageType === 'song' && !isHidden(c)
     );
 
     return (
       <section className="echoes-content-page">
         <div className="echoes-content-inner">
-          {/* 麵包屑導航 */}
-          <div className="echoes-breadcrumb" style={{ color }}>
-            <span className="echoes-breadcrumb-line" />
-            <button type="button" onClick={() => navigateToLanding()}>
-              回音蒐藏間
-            </button>
-            {cluster && (
-              <>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => navigateToCluster(cluster.id)}
-                >
-                  {cluster.label}
-                </button>
-              </>
-            )}
-            <span>·</span>
-            <span>{currentContentPage.title}</span>
-          </div>
+          <ZoneBreadcrumb
+            segments={[
+              { label: '回音蒐藏間', onClick: () => navigateToLanding() },
+              ...(cluster
+                ? [
+                    {
+                      label: cluster.label,
+                      onClick: () => navigateToCluster(cluster.id),
+                    },
+                  ]
+                : []),
+              { label: currentContentPage.title },
+            ]}
+            color={color}
+          />
 
           <header className="echoes-content-head">
             <h2 className="echoes-content-title" style={{ color }}>
@@ -1963,10 +1917,7 @@ function EchoesReaderInner() {
 
           {/* 頁面內容 (rich text) */}
           {contentHtml && (
-            <div
-              className="echoes-prose"
-              dangerouslySetInnerHTML={{ __html: contentHtml }}
-            />
+            <>{renderHtmlWithUep(contentHtml, 'content', 'echoes-prose')}</>
           )}
 
           {/* 子分類列表 */}
@@ -2007,9 +1958,9 @@ function EchoesReaderInner() {
               </div>
               {directSongs.map((song, i) => {
                 const meta = song.metadata as Record<string, unknown>;
-                const sp = (meta?.spoilerLevel as number) || 0;
+                const sp = getSpoilerLevel(song);
                 const subtitle = (meta?.subtitle as string) || '';
-                const isPageLocked = meta?.locked === true;
+                const isPageLocked = isLocked(song);
                 // 分級解鎖：解鎖後仍根據等級決定可見範圍
                 const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
                 const songCanSeeTitle = songHasUnlocked && sp <= 2;
@@ -2133,22 +2084,19 @@ function EchoesReaderInner() {
   function renderSong() {
     if (songLoading) {
       return (
-        <div className="echoes-state echoes-state-large">正在讀取曲目...</div>
+        <ZoneStateDisplay kind="loading" message="正在讀取曲目..." large />
       );
     }
     if (songError) {
       return (
-        <div className="echoes-state echoes-state-error echoes-state-large">
-          <span>曲目讀取失敗：{songError}</span>
-          {activeSongId && (
-            <button
-              type="button"
-              onClick={() => void navigateToSong(activeSongId)}
-            >
-              重試
-            </button>
-          )}
-        </div>
+        <ZoneStateDisplay
+          kind="error"
+          message={`曲目讀取失敗：${songError}`}
+          onRetry={
+            activeSongId ? () => void navigateToSong(activeSongId) : undefined
+          }
+          large
+        />
       );
     }
     if (!currentSongPage || !songData) return null;
@@ -2208,35 +2156,28 @@ function EchoesReaderInner() {
     return (
       <section className="echoes-song-page">
         <div className="echoes-song-inner">
-          {/* 麵包屑（每層可點擊返回）*/}
-          <div className="echoes-breadcrumb" style={{ color }}>
-            <span className="echoes-breadcrumb-line" />
-            <button type="button" onClick={() => navigateToLanding()}>
-              回音蒐藏間
-            </button>
-            {cluster && (
-              <>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => navigateToCluster(cluster.id)}
-                >
-                  {cluster.label}
-                </button>
-              </>
-            )}
-            {parentNode && (
-              <>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => void navigateToContent(parentNode.id)}
-                >
-                  {parentNode.title}
-                </button>
-              </>
-            )}
-          </div>
+          <ZoneBreadcrumb
+            segments={[
+              { label: '回音蒐藏間', onClick: () => navigateToLanding() },
+              ...(cluster
+                ? [
+                    {
+                      label: cluster.label,
+                      onClick: () => navigateToCluster(cluster.id),
+                    },
+                  ]
+                : []),
+              ...(parentNode
+                ? [
+                    {
+                      label: parentNode.title,
+                      onClick: () => void navigateToContent(parentNode.id),
+                    },
+                  ]
+                : []),
+            ]}
+            color={color}
+          />
 
           {/* Meta 資訊行 */}
           <div className="echoes-song-meta-line">
@@ -2392,18 +2333,12 @@ function EchoesReaderInner() {
           </div>
 
           {/* Prev/Next */}
-          <div className="echoes-page-nav">
-            <button
-              type="button"
-              disabled={!prevSong}
-              onClick={() => prevSong && void navigateToSong(prevSong.id)}
-            >
-              <span>← PREV</span>
-              <strong>
-                {prevSong
-                  ? (() => {
-                      const pSp =
-                        (prevSong.metadata?.spoilerLevel as number) || 0;
+          <ZonePrevNext
+            prev={
+              prevSong
+                ? {
+                    title: (() => {
+                      const pSp = getSpoilerLevel(prevSong);
                       const pUnlocked =
                         pSp === 0 || isSongUnlocked(prevSong.id);
                       return (
@@ -2414,21 +2349,16 @@ function EchoesReaderInner() {
                           size={14}
                         />
                       );
-                    })()
-                  : '沒有上一首'}
-              </strong>
-            </button>
-            <button
-              type="button"
-              disabled={!nextSong}
-              onClick={() => nextSong && void navigateToSong(nextSong.id)}
-            >
-              <span style={{ color }}>NEXT →</span>
-              <strong>
-                {nextSong
-                  ? (() => {
-                      const nSp =
-                        (nextSong.metadata?.spoilerLevel as number) || 0;
+                    })(),
+                    onClick: () => void navigateToSong(prevSong.id),
+                  }
+                : null
+            }
+            next={
+              nextSong
+                ? {
+                    title: (() => {
+                      const nSp = getSpoilerLevel(nextSong);
                       const nUnlocked =
                         nSp === 0 || isSongUnlocked(nextSong.id);
                       return (
@@ -2439,11 +2369,17 @@ function EchoesReaderInner() {
                           size={14}
                         />
                       );
-                    })()
-                  : '沒有下一首'}
-              </strong>
-            </button>
-          </div>
+                    })(),
+                    onClick: () => void navigateToSong(nextSong.id),
+                  }
+                : null
+            }
+            prevLabel="← PREV"
+            nextLabel="NEXT →"
+            prevEmpty="沒有上一首"
+            nextEmpty="沒有下一首"
+            accentColor={color}
+          />
 
           {/* 返回曲目清單 */}
           {parentNode && (
@@ -2467,7 +2403,7 @@ function EchoesReaderInner() {
   // Render
   // ────────────────────────────────────────────────────────────────
   return (
-    <div className="echoes-reader">
+    <ReaderShell zoneId="echoes" className="echoes-reader">
       {/* 入場動畫 — 漣漪擴散 */}
       <div
         aria-hidden="true"
@@ -2478,16 +2414,6 @@ function EchoesReaderInner() {
         <div className="echo-boot-wave" />
         <div className="echo-boot-wave" />
       </div>
-      <TopBar
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={() => {
-          setHomePortal(true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1100);
-        }}
-        dark={theme === 'dark'}
-      />
 
       <div className="echoes-main">
         <ZoneAtmosphere zone={echoesZone} intensity="subtle" skipGlyphs />
@@ -2556,46 +2482,7 @@ function EchoesReaderInner() {
           </div>
         </div>
       )}
-
-      <Minimap
-        zones={ZONES}
-        currentId="echoes"
-        onExpand={() => setShowMap(true)}
-        onPickZone={enterZoneFromMap}
-        position="bottom-left"
-      />
-
-      {showMap && (
-        <BigMapModal
-          zones={ZONES}
-          onClose={() => setShowMap(false)}
-          onPick={showZoneIntro}
-          onCenterClick={() => {
-            setShowMap(false);
-            setHomePortal(true);
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 1100);
-          }}
-        />
-      )}
-
-      <IntroOverlay
-        zone={introZone}
-        onClose={() => setIntroZone(null)}
-        onEnter={() => {
-          if (!introZone) return;
-          enterZoneFromMap(introZone.id);
-          setIntroZone(null);
-        }}
-      />
-      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition
-        zone={null}
-        homeMode={homePortal}
-        onDone={() => setHomePortal(false)}
-      />
-    </div>
+    </ReaderShell>
   );
 }
 

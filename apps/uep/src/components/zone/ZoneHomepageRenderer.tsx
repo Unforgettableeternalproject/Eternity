@@ -889,7 +889,106 @@ function renderStorageLinksList(
   );
 }
 
-/** 10. rich-text — 純 HTML 富文本 */
+/** 10. storage-room-map — 置物空間導航地圖（Storage 區用） */
+function renderStorageRoomMap(
+  block: HomepageBlock,
+  zone: ZoneData
+): React.ReactNode {
+  const { areas } = block.data as {
+    areas: {
+      icon: string;
+      name: string;
+      label: string;
+      hint: string;
+      slug: string;
+    }[];
+  };
+
+  return (
+    <div
+      key={block.id}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        margin: '18px 0 24px',
+      }}
+    >
+      {areas.map((area) => (
+        <a
+          key={area.slug}
+          href={`?clearing=${area.slug}`}
+          style={{
+            textDecoration: 'none',
+            display: 'grid',
+            gridTemplateColumns: '48px 1fr 24px',
+            alignItems: 'center',
+            gap: 16,
+            padding: '18px 20px',
+            border: '1px solid var(--hairline)',
+            borderLeft: `3px solid ${zone.main || '#D5B618'}`,
+            background: 'var(--bg-card)',
+            color: 'inherit',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+        >
+          <span
+            style={{
+              width: 42,
+              height: 42,
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 20,
+              color: zone.main || '#D5B618',
+              border: `1px solid color-mix(in srgb, ${zone.main || '#D5B618'} 30%, transparent)`,
+            }}
+          >
+            {area.icon}
+          </span>
+          <div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase' as const,
+                color: zone.main || '#D5B618',
+              }}
+            >
+              {area.label}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 18,
+                fontWeight: 600,
+                color: 'var(--ink-title)',
+              }}
+            >
+              {area.name}
+            </div>
+            {area.hint && (
+              <div
+                style={{
+                  fontFamily: 'var(--font-serif-tc)',
+                  fontSize: 12,
+                  color: 'var(--ink-soft)',
+                  fontStyle: 'italic',
+                  marginTop: 2,
+                }}
+              >
+                {area.hint}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 16, color: zone.main || '#D5B618' }}>→</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** 11. rich-text — 純 HTML 富文本 */
 function renderRichText(block: HomepageBlock): React.ReactNode {
   const { html } = block.data as { html: string };
 
@@ -985,6 +1084,8 @@ function renderSingleBlock(
       return renderStorageStickyNote(block);
     case 'storage-links-list':
       return renderStorageLinksList(block, zone);
+    case 'storage-room-map':
+      return renderStorageRoomMap(block, zone);
     case 'rich-text':
       return renderRichText(block);
     default:

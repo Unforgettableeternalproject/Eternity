@@ -77,6 +77,7 @@ function buildTree(
       depth: item.depth,
       status: item.status,
       metadata: item.metadata || {},
+      updatedAt: item.updatedAt,
       children: [],
     });
   }
@@ -1206,6 +1207,42 @@ export default {
 
     if (path === '/api/content/sync/status' && request.method === 'GET') {
       return getSyncStatus(env.CONTENT_DB, cors);
+    }
+
+    // ---- 最近更新路由（僅葉子頁面）----
+    if (path === '/api/content/recent' && request.method === 'GET') {
+      const limit = Math.min(
+        parseInt(url.searchParams.get('limit') || '5', 10) || 5,
+        20
+      );
+      const leafTypes = ['page', 'song', 'gallery', 'stuff'];
+      const placeholders = leafTypes.map(() => '?').join(',');
+      const rows =
+        (
+          await env.CONTENT_DB.prepare(
+            `SELECT id, area, title, slug, page_type, metadata, updated_at
+           FROM pages
+           WHERE page_type IN (${placeholders})
+             AND deleted_at IS NULL
+             AND status != 'draft'
+             AND COALESCE(json_extract(metadata, '$.locked'), 0) != 1
+             AND COALESCE(json_extract(metadata, '$.hidden'), 0) != 1
+           ORDER BY updated_at DESC
+           LIMIT ?`
+          )
+            .bind(...leafTypes, limit)
+            .all<PageRow>()
+        ).results || [];
+      const items = rows.map((r) => ({
+        id: r.id,
+        area: r.area,
+        title: r.title,
+        slug: r.slug,
+        pageType: r.page_type,
+        metadata: JSON.parse(r.metadata || '{}'),
+        updatedAt: r.updated_at,
+      }));
+      return jsonResponse({ ok: true, data: items }, 200, cors);
     }
 
     // ---- 樹狀結構路由 ----

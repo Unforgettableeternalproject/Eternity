@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
-import BigMapModal from '../ui/BigMapModal';
-import Minimap from '../ui/Minimap';
-import PortalTransition from '../ui/PortalTransition';
-import TopBar from '../ui/TopBar';
-import IntroOverlay from '../ui/IntroOverlay';
+import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import {
   type HomepageBlock,
@@ -27,6 +24,13 @@ import type {
   DiffContent,
   ConceptsVariationMeta,
 } from './types';
+import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZonePrevNext } from '../zone/ZonePrevNext';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
+import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+import { isHidden, isLocked } from '../zone/contentVisibility';
 import './ConceptsReader.css';
 
 // ──────────────────────────────────────────────────────────────────
@@ -296,10 +300,13 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                       </span>
                     </div>
                     {entry.content_html && (
-                      <div
-                        className="conc-dossier-entry-content"
-                        dangerouslySetInnerHTML={{ __html: entry.content_html }}
-                      />
+                      <>
+                        {renderHtmlWithUep(
+                          entry.content_html,
+                          entry.name,
+                          'conc-dossier-entry-content'
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
@@ -497,12 +504,13 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                         <span className="conc-enc-label-icon">◈</span>{' '}
                         {section.label}
                       </div>
-                      <div
-                        className="conc-enc-section-content"
-                        dangerouslySetInnerHTML={{
-                          __html: section.content_html,
-                        }}
-                      />
+                      <>
+                        {renderHtmlWithUep(
+                          section.content_html,
+                          section.label,
+                          'conc-enc-section-content'
+                        )}
+                      </>
                     </div>
                   ))}
                 </div>
@@ -622,6 +630,14 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
   }, [rawData]);
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [chronoClosing, setChronoClosing] = useState(false);
+  function closeChronoExpanded() {
+    setChronoClosing(true);
+    setTimeout(() => {
+      setExpandedIdx(null);
+      setChronoClosing(false);
+    }, 250);
+  }
   const viewportRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const fadeLRef = useRef<HTMLDivElement>(null);
@@ -773,7 +789,8 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                   className={`conc-chrono-dot ${expandedIdx === pi ? 'active' : ''}`}
                   onClick={() => {
                     if (hasDragged.current) return;
-                    setExpandedIdx(expandedIdx === pi ? null : pi);
+                    if (expandedIdx === pi) closeChronoExpanded();
+                    else setExpandedIdx(pi);
                   }}
                 >
                   <span className="conc-chrono-dot-inner" />
@@ -829,7 +846,9 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
               );
 
           return (
-            <div className="conc-chrono-expanded">
+            <div
+              className={`conc-chrono-expanded ${chronoClosing ? 'is-closing' : ''}`}
+            >
               <div className="conc-chrono-expanded-header">
                 <span className="conc-chrono-expanded-icon">⟳</span>
                 <span className="conc-chrono-expanded-year">{ep.year}</span>
@@ -840,7 +859,7 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                 )}
                 <button
                   className="conc-chrono-expanded-close"
-                  onClick={() => setExpandedIdx(null)}
+                  onClick={closeChronoExpanded}
                 >
                   ✕
                 </button>
@@ -1150,40 +1169,16 @@ function ReaderDiff({ data }: { data: DiffContent }) {
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function ConceptsReader() {
-  // === UI 狀態 ===
-  const [theme, setTheme] = useState(
-    () =>
-      (typeof localStorage !== 'undefined' &&
-        localStorage.getItem('uep-theme')) ||
-      'dark'
-  );
-  const [showMap, setShowMap] = useState(false);
-  const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-  const [introZone, setIntroZone] = useState<(typeof ZONES)[number] | null>(
-    null
-  );
-
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
+  const [treeError, setTreeError] = useState<string | null>(null);
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const [contentReady, setContentReady] = useState(false);
-  const hpLoaded = useRef(false);
-  const navPending = useRef(false);
-  const bootFired = useRef(false);
-  const bootMountTime = useRef(Date.now());
-  function tryBootReady() {
-    if (hpLoaded.current && !navPending.current && !bootFired.current) {
-      bootFired.current = true;
-      // 確保 CRT 開機畫面至少停留 2s（文字動畫 ~1s + 額外 1s）
-      const elapsed = Date.now() - bootMountTime.current;
-      const delay = Math.max(0, 2000 - elapsed);
-      setTimeout(() => setContentReady(true), delay);
-    }
-  }
+  const {
+    contentReady,
+    markContentReady,
+    setNavPending: setBootNavPending,
+  } = useZoneBootReady({ minDisplayMs: 2000 });
 
   // === 導航狀態 ===
   type View = 'landing' | 'stack' | 'reading';
@@ -1201,6 +1196,11 @@ export default function ConceptsReader() {
   }, [readingPage?.id]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { saveScroll, restoreScroll } = useScrollMemory(scrollRef, [
+    view,
+    activeStackId,
+    readingPage?.id,
+  ]);
 
   // === 衍生資料 ===
   const stackNodes = useMemo(() => {
@@ -1254,17 +1254,10 @@ export default function ConceptsReader() {
 
   // ── 初始化 ─────────────────────────────────────────────────────
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
     void fetchTree();
   }, []);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      hpLoaded.current = true;
-      navPending.current = false;
-      bootFired.current = true;
-      setContentReady(true);
-    }, 5000);
     fetch(`${API_BASE}/api/content/concepts/homepage`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: any) => {
@@ -1278,48 +1271,31 @@ export default function ConceptsReader() {
       })
       .catch(() => {})
       .finally(() => {
-        clearTimeout(timeout);
-        hpLoaded.current = true;
-        tryBootReady();
+        markContentReady();
       });
   }, []);
 
-  useEffect(() => {
-    if (treeLoading || !tree.length) return;
-    const params = new URLSearchParams(window.location.search);
-    const page = params.get('page');
-    const stack = params.get('stack');
-    if (page) {
-      navPending.current = true;
-      navigateToPage(page, false);
-    } else if (stack) {
-      navPending.current = true;
-      navigateToStack(stack, false);
-    } else tryBootReady();
-  }, [treeLoading, tree]);
-
-  useEffect(() => {
-    function handler() {
-      const params = new URLSearchParams(window.location.search);
-      const page = params.get('page');
-      const stack = params.get('stack');
-      if (page) navigateToPage(page, false);
-      else if (stack) navigateToStack(stack, false);
-      else navigateToLanding(false);
-    }
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, [tree]);
+  // ── URL 路由（useZoneRouter 統一管理初始 deep link + popstate）──
+  useZoneRouter({
+    routes: [
+      { param: 'page', handler: (value) => navigateToPage(value, false) },
+      { param: 'stack', handler: (value) => navigateToStack(value, false) },
+    ],
+    onLanding: () => navigateToLanding(false),
+    treeReady: !treeLoading && tree.length > 0,
+    setBootNavPending: setBootNavPending,
+  });
 
   // ── 資料載入 ───────────────────────────────────────────────────
   async function fetchTree() {
     setTreeLoading(true);
+    setTreeError(null);
     try {
       const res = await fetch(`${API_BASE}/api/content/concepts/tree`);
       const json = await res.json();
       if (json.ok && json.data) setTree(json.data as PageTreeNode[]);
-    } catch {
-      /* 靜默 */
+    } catch (err) {
+      setTreeError(err instanceof Error ? err.message : String(err));
     } finally {
       setTreeLoading(false);
     }
@@ -1345,31 +1321,29 @@ export default function ConceptsReader() {
     return null;
   }
 
-  // ── URL 輔助 ───────────────────────────────────────────────────
-  function pushUrl(params: Record<string, string>) {
-    const url = new URL(window.location.href);
-    url.search = '';
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    window.history.pushState({}, '', url.toString());
+  // ── 滾動位置 key ────────────────────────────────────────────────
+  /** 回傳當前視圖對應的滾動記憶 key */
+  function currentScrollKey(): string {
+    if (readingPage) return `page:${readingPage.id}`;
+    if (activeStackId) return `stack:${activeStackId}`;
+    return 'landing';
   }
 
   // ── 導航 ───────────────────────────────────────────────────────
   function navigateToLanding(push = true) {
+    saveScroll(currentScrollKey());
     setView('landing');
     setActiveStackId(null);
     setActivePageId(null);
     setStackPage(null);
     setReadingPage(null);
     setTransitionKey((k) => k + 1);
-    if (push) {
-      const url = new URL(window.location.href);
-      url.search = '';
-      window.history.pushState({}, '', url.toString());
-    }
-    scrollRef.current?.scrollTo(0, 0);
+    if (push) clearUrl();
+    restoreScroll('landing');
   }
 
   function navigateToStack(stackSlug: string, push = true) {
+    saveScroll(currentScrollKey());
     const fullId = stackSlug.startsWith('concepts/')
       ? stackSlug
       : `concepts/${stackSlug}`;
@@ -1382,15 +1356,13 @@ export default function ConceptsReader() {
       setReadingPage(null);
       setView('stack');
       setTransitionKey((k) => k + 1);
-      requestAnimationFrame(() => scrollRef.current?.scrollTo(0, 0));
-      if (navPending.current) {
-        navPending.current = false;
-        tryBootReady();
-      }
+      restoreScroll(`stack:${fullId}`);
+      setBootNavPending(false);
     });
   }
 
   function navigateToPage(pageSlug: string, push = true) {
+    saveScroll(currentScrollKey());
     const fullId = pageSlug.startsWith('concepts/')
       ? pageSlug
       : `concepts/${pageSlug}`;
@@ -1403,24 +1375,10 @@ export default function ConceptsReader() {
       setReadingPage(p);
       setView('reading');
       setTransitionKey((k) => k + 1);
-      requestAnimationFrame(() => scrollRef.current?.scrollTo(0, 0));
-      if (navPending.current) {
-        navPending.current = false;
-        tryBootReady();
-      }
+      // 頁面 id 在資料載入後才確定，直接用 fullId 作為 key
+      restoreScroll(`page:${fullId}`);
+      setBootNavPending(false);
     });
-  }
-
-  // ── Zone 切換 ──────────────────────────────────────────────────
-  function handlePickZone(zoneId: string) {
-    if (zoneId === 'concepts') return;
-    const z = ZONES.find((zz) => zz.id === zoneId);
-    if (z) {
-      setPortalZone(z);
-      setTimeout(() => {
-        window.location.href = `/${z.slug}`;
-      }, 1100);
-    }
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1460,11 +1418,9 @@ export default function ConceptsReader() {
 
           {/* rich-text */}
           {hpRichTexts.map((html, i) => (
-            <div
-              key={i}
-              className="conc-prose"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+            <React.Fragment key={i}>
+              {renderHtmlWithUep(html, i, 'conc-prose')}
+            </React.Fragment>
           ))}
 
           {/* terminal-module-table */}
@@ -1521,20 +1477,20 @@ export default function ConceptsReader() {
 
     return (
       <div className="conc-stack-page">
-        <div className="conc-stack-breadcrumb">
-          <span className="conc-stack-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>概念調整房</button>
-          <span>·</span>
-          <span>{stackDef.labelEn}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '概念調整房', onClick: () => navigateToLanding() },
+            { label: stackDef.labelEn },
+          ]}
+          color="var(--concepts-main)"
+        />
 
         <div className="conc-stack-title-row">
           <span className="conc-stack-icon">{stackDef.icon}</span>
           <h1 className="conc-stack-title">{stackTitle}</h1>
           <div className="conc-stack-sync-badge">
             <span className="conc-mod-dot sync" />
-            {children.filter((c) => c.metadata?.hidden !== true).length} types ·
-            sync ok
+            {children.filter((c) => !isHidden(c)).length} types · sync ok
           </div>
         </div>
         <div className="conc-stack-path">
@@ -1546,10 +1502,13 @@ export default function ConceptsReader() {
 
         {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
         {stackContentHtml ? (
-          <div
-            className="conc-stack-intro conc-prose"
-            dangerouslySetInnerHTML={{ __html: stackContentHtml }}
-          />
+          <>
+            {renderHtmlWithUep(
+              stackContentHtml,
+              'stack-intro',
+              'conc-stack-intro conc-prose'
+            )}
+          </>
         ) : (
           <p className="conc-stack-intro">
             <span className="conc-drop-cap">{stackDef.intro[0]}</span>
@@ -1569,10 +1528,7 @@ export default function ConceptsReader() {
         <div className="conc-dir-listing">
           <div className="conc-dir-bar">
             <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
-            <span>
-              {children.filter((c) => c.metadata?.hidden !== true).length}{' '}
-              entries
-            </span>
+            <span>{children.filter((c) => !isHidden(c)).length} entries</span>
           </div>
           <div className="conc-dir-header-row">
             <span>#</span>
@@ -1582,14 +1538,14 @@ export default function ConceptsReader() {
             <span />
           </div>
           {children
-            .filter((child) => child.metadata?.hidden !== true)
+            .filter((child) => !isHidden(child))
             .map((child, i) => {
-              const isLocked = child.metadata?.locked === true;
+              const locked = isLocked(child);
               return (
                 <button
                   key={child.id}
-                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${isLocked ? 'locked' : ''}`}
-                  onClick={() => !isLocked && navigateToPage(child.slug)}
+                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
+                  onClick={() => !locked && navigateToPage(child.slug)}
                 >
                   <span className="conc-dir-num">
                     {String(i + 1).padStart(2, '0')}
@@ -1597,7 +1553,7 @@ export default function ConceptsReader() {
                   <div className="conc-dir-name-cell">
                     <div className="conc-dir-name">{child.title}</div>
                     <div className="conc-dir-hint">
-                      {isLocked
+                      {locked
                         ? ''
                         : typeof child.metadata?.description === 'string'
                           ? (child.metadata.description as string).slice(0, 50)
@@ -1605,17 +1561,15 @@ export default function ConceptsReader() {
                     </div>
                   </div>
                   <span className="conc-dir-en">
-                    {isLocked ? '—' : child.slug.split('/').pop()}
+                    {locked ? '—' : child.slug.split('/').pop()}
                   </span>
                   <span
-                    className={`conc-dir-state ${isLocked ? 'sealed' : 'sync'}`}
+                    className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
                   >
                     <span className="conc-mod-dot" />
-                    {isLocked ? 'sealed' : 'sync'}
+                    {locked ? 'sealed' : 'sync'}
                   </span>
-                  <span className="conc-dir-arrow">
-                    {isLocked ? '🔒' : '›'}
-                  </span>
+                  <span className="conc-dir-arrow">{locked ? '🔒' : '›'}</span>
                 </button>
               );
             })}
@@ -1642,11 +1596,10 @@ export default function ConceptsReader() {
   // Reading 頁面 — 分派四種 Reader
   // ══════════════════════════════════════════════════════════════
   function renderReading() {
-    if (!readingPage)
-      return <div className="conc-page-loading">找不到頁面</div>;
+    if (!readingPage) return <ZoneStateDisplay kind="not-found" large />;
 
     const meta = readingPage.metadata as Partial<ConceptsVariationMeta>;
-    const isLocked = readingPage.metadata?.locked === true;
+    const locked = isLocked(readingPage);
     const stackDef = STACKS.find((s) => readingPage.slug.startsWith(s.slug));
     const style = meta.stack_style || stackDef?.style || 'dossier';
 
@@ -1665,7 +1618,7 @@ export default function ConceptsReader() {
       | ChronoContent
       | DiffContent
       | null = null;
-    if (!isLocked && structBlock?.content && structBlock.type !== 'rich_text') {
+    if (!locked && structBlock?.content && structBlock.type !== 'rich_text') {
       try {
         parsed = JSON.parse(structBlock.content);
       } catch {
@@ -1696,25 +1649,48 @@ export default function ConceptsReader() {
       setDossierVariantIdx((i) => (i + 1) % dossierVariants.length);
     }
 
+    // 計算同一 stack 下的 prev / next type 頁面
+    const parentStackNode = stackDef
+      ? stackNodes.find((n) => n.id === `concepts/${stackDef.slug}`)
+      : null;
+    const siblingTypes = parentStackNode
+      ? (parentStackNode.children || [])
+          .filter((c) => !isHidden(c) && !isLocked(c))
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      : [];
+    const currentTypeIdx = siblingTypes.findIndex(
+      (c) =>
+        c.slug === readingPage.slug || `concepts/${c.slug}` === activePageId
+    );
+    const prevType =
+      currentTypeIdx > 0 ? siblingTypes[currentTypeIdx - 1] : null;
+    const nextType =
+      currentTypeIdx >= 0 && currentTypeIdx < siblingTypes.length - 1
+        ? siblingTypes[currentTypeIdx + 1]
+        : null;
+
     // 麵包屑
     const crumbs = readingPage.slug.split('/').filter(Boolean);
 
     return (
       <div className="conc-reading-page">
-        <div className="conc-stack-breadcrumb">
-          <span className="conc-stack-breadcrumb-line" />
-          <button onClick={() => navigateToLanding()}>概念調整房</button>
-          {stackDef && (
-            <>
-              <span>·</span>
-              <button onClick={() => navigateToStack(stackDef.slug)}>
-                {stackDef.labelEn}
-              </button>
-            </>
-          )}
-          <span>·</span>
-          <span>{crumbs[crumbs.length - 1]?.toUpperCase()}</span>
-        </div>
+        <ZoneBreadcrumb
+          segments={[
+            { label: '概念調整房', onClick: () => navigateToLanding() },
+            ...(stackDef
+              ? [
+                  {
+                    label: stackDef.labelEn,
+                    onClick: () => navigateToStack(stackDef.slug),
+                  },
+                ]
+              : []),
+            {
+              label: crumbs[crumbs.length - 1]?.toUpperCase() || '',
+            },
+          ]}
+          color="var(--concepts-main)"
+        />
 
         {/* 子頁面標題（不帶 icon，與 echoes/visuals 一致） */}
         <div className="conc-stack-title-row" style={{ marginTop: 14 }}>
@@ -1732,7 +1708,7 @@ export default function ConceptsReader() {
             </button>
           )}
         </div>
-        {!isLocked && typeof readingPage.metadata?.description === 'string' && (
+        {!locked && typeof readingPage.metadata?.description === 'string' && (
           <p className="conc-reading-desc">
             {readingPage.metadata.description as string}
           </p>
@@ -1740,16 +1716,13 @@ export default function ConceptsReader() {
         <div className="conc-gradient-line" />
 
         {/* 上方富文本（TipTap 內容） */}
-        {!isLocked && introHtml && introHtml !== '<p></p>' && (
-          <div
-            className="conc-prose"
-            dangerouslySetInnerHTML={{ __html: introHtml }}
-          />
+        {!locked && introHtml && introHtml !== '<p></p>' && (
+          <>{renderHtmlWithUep(introHtml, 'intro', 'conc-prose')}</>
         )}
 
         {/* 分派 Reader */}
         <div className="conc-reader-body">
-          {isLocked ? (
+          {locked ? (
             <div className="conc-locked-notice">
               <div className="conc-locked-notice-icon">🔒</div>
               <div className="conc-locked-notice-title">ACCESS RESTRICTED</div>
@@ -1777,6 +1750,26 @@ export default function ConceptsReader() {
           )}
         </div>
 
+        <ZonePrevNext
+          prev={
+            prevType
+              ? {
+                  title: prevType.title,
+                  onClick: () => navigateToPage(prevType.slug),
+                }
+              : null
+          }
+          next={
+            nextType
+              ? {
+                  title: nextType.title,
+                  onClick: () => navigateToPage(nextType.slug),
+                }
+              : null
+          }
+          accentColor="var(--concepts-main)"
+        />
+
         <div className="conc-back-bar">
           {stackDef ? (
             <button
@@ -1802,7 +1795,7 @@ export default function ConceptsReader() {
   // 主渲染
   // ══════════════════════════════════════════════════════════════
   return (
-    <div className="concepts-reader">
+    <ReaderShell zoneId="concepts" className="concepts-reader">
       {/* CRT 開機入場動畫 — 黑底 + scanline 紋理 + 終端文字 + 一道掃描線；contentReady 後淡出 */}
       <div
         aria-hidden="true"
@@ -1823,17 +1816,6 @@ export default function ConceptsReader() {
           </div>
         </div>
       </div>
-
-      <TopBar
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={() => {
-          setHomePortal(true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1100);
-        }}
-        dark={theme === 'dark'}
-      />
 
       <div className="conc-main">
         <ZoneAtmosphere zone={CONCEPTS_ZONE} intensity="subtle" skipGlyphs />
@@ -1868,48 +1850,20 @@ export default function ConceptsReader() {
         <div className="conc-content" ref={scrollRef}>
           {/* 頁面轉場 — transitionKey 在資料就緒後才遞增，動畫不會卡在 loading 態 */}
           <div key={transitionKey} className="conc-page-transition">
-            {view === 'landing' && renderLanding()}
+            {treeError && view === 'landing' && (
+              <ZoneStateDisplay
+                kind="error"
+                message={treeError}
+                onRetry={() => void fetchTree()}
+                large
+              />
+            )}
+            {!treeError && view === 'landing' && renderLanding()}
             {view === 'stack' && renderStack()}
             {view === 'reading' && renderReading()}
           </div>
         </div>
       </div>
-
-      <Minimap
-        zones={ZONES}
-        currentId="concepts"
-        onExpand={() => setShowMap(true)}
-        onPickZone={handlePickZone}
-        position="bottom-left"
-      />
-      {showMap && (
-        <BigMapModal
-          zones={ZONES}
-          onClose={() => setShowMap(false)}
-          onPick={(zone) => {
-            setShowMap(false);
-            handlePickZone(zone.id);
-          }}
-          onCenterClick={() => {
-            setShowMap(false);
-            setHomePortal(true);
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 1100);
-          }}
-        />
-      )}
-      <IntroOverlay
-        zone={introZone}
-        onEnter={() => setIntroZone(null)}
-        onClose={() => setIntroZone(null)}
-      />
-      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition
-        zone={null}
-        homeMode={homePortal}
-        onDone={() => setHomePortal(false)}
-      />
-    </div>
+    </ReaderShell>
   );
 }

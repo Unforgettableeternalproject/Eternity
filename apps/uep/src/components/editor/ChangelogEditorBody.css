@@ -1,0 +1,391 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Changelog Editor — 結構化紀錄編輯器
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sto-cl-editor {
+  padding: 8px 0;
+}
+
+/* 統計列 */
+.sto-cl-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--storage-soft, #d5b618);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--storage-soft, #d5b618);
+}
+
+/* Metadata 面板 */
+.sto-cl-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--hairline-strong);
+  margin-bottom: 20px;
+}
+.sto-cl-meta-cell {
+  padding: 10px 14px;
+  border-right: 1px solid var(--hairline-strong);
+}
+.sto-cl-meta-cell:last-child {
+  border-right: none;
+}
+.sto-cl-meta-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.sto-cl-meta-input {
+  width: 100%;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sto-cl-meta-input:hover {
+  border-bottom-color: var(--hairline-strong);
+}
+.sto-cl-meta-input:focus {
+  border-bottom-color: var(--storage-soft, #d5b618);
+}
+.sto-cl-meta-input::placeholder {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* 區段標題 */
+.sto-cl-section-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.sto-cl-hint {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-style: italic;
+}
+
+/* 類型標籤庫 */
+.sto-cl-type-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sto-cl-type-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--type-color);
+  background: transparent;
+  color: var(--type-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sto-cl-type-btn:hover {
+  background: color-mix(in srgb, var(--type-color) 10%, transparent);
+}
+.sto-cl-type-chip {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  background: var(--type-color);
+  color: #fff;
+  letter-spacing: 0;
+}
+.sto-cl-type-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* 篩選列 */
+.sto-cl-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-soft);
+  margin-bottom: 0;
+}
+.sto-cl-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--chip-color, var(--hairline-strong));
+  background: transparent;
+  color: var(--chip-color, var(--ink-soft));
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.sto-cl-filter-chip.is-active {
+  background: var(--chip-color, var(--storage-soft, #d5b618));
+  color: #fff;
+  font-weight: 600;
+}
+.sto-cl-filter-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+}
+.sto-cl-filter-chip.is-active .sto-cl-filter-chip-dot {
+  background: #fff !important;
+}
+
+/* 紀錄列表容器 */
+.sto-cl-items-container {
+  border: 1px solid var(--hairline);
+  border-top: none;
+  background: var(--bg-card);
+}
+
+/* 單項 */
+.sto-cl-item {
+  display: grid;
+  grid-template-columns: 30px 100px 1fr 62px 30px 24px;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--hairline);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition:
+    background 0.15s,
+    border-left-color 0.15s;
+}
+.sto-cl-item:last-child {
+  border-bottom: none;
+}
+.sto-cl-item:hover {
+  background: color-mix(
+    in srgb,
+    var(--type-color, var(--ink-mute)) 4%,
+    transparent
+  );
+}
+.sto-cl-item.is-selected {
+  background: color-mix(in srgb, var(--storage-soft, #d5b618) 6%, transparent);
+  border-left-color: var(--storage-soft, #d5b618);
+}
+
+/* 序號 */
+.sto-cl-item-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  padding-top: 7px;
+}
+
+/* 類型選擇 */
+.sto-cl-item-type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 5px 6px;
+  background: transparent;
+  border: 1px solid currentColor;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  height: 30px;
+  outline: none;
+}
+
+/* 內容區 */
+.sto-cl-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sto-cl-item-subject {
+  width: 100%;
+  padding: 4px 8px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-title);
+  background: transparent;
+  border: 1px dashed transparent;
+  outline: none;
+}
+.sto-cl-item-subject:focus {
+  border-color: var(--hairline-strong);
+}
+.sto-cl-item-subject::placeholder {
+  color: var(--ink-mute);
+  font-weight: 400;
+  font-style: italic;
+}
+.sto-cl-item-text {
+  width: 100%;
+  padding: 4px 8px;
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px dashed transparent;
+  outline: none;
+  resize: vertical;
+  min-height: 28px;
+}
+.sto-cl-item-text:focus {
+  border-color: var(--hairline);
+}
+.sto-cl-item-text::placeholder {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* 狀態選擇 */
+.sto-cl-item-state {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  padding: 3px 4px;
+  background: transparent;
+  border: 1px solid currentColor;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  height: 24px;
+  outline: none;
+  margin-top: 3px;
+}
+
+/* 移動按鈕 */
+.sto-cl-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 2px;
+}
+.sto-cl-move-btn {
+  font-size: 10px;
+  padding: 2px 4px;
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  line-height: 1;
+}
+.sto-cl-move-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-mute);
+}
+.sto-cl-move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.sto-cl-spacer {
+  width: 24px;
+}
+
+/* 刪除按鈕 */
+.sto-cl-item-remove {
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+  align-self: flex-start;
+  padding-top: 4px;
+}
+.sto-cl-item-remove:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+/* 底部快速新增列 */
+.sto-cl-quick-add {
+  display: flex;
+  border-top: 1px dashed var(--hairline-strong);
+}
+.sto-cl-quick-add-btn {
+  flex: 1;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  border-right: 1px dashed var(--hairline);
+  color: var(--type-color);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: background 0.15s;
+}
+.sto-cl-quick-add-btn:last-child {
+  border-right: none;
+}
+.sto-cl-quick-add-btn:hover {
+  background: color-mix(in srgb, var(--type-color) 8%, transparent);
+}
+
+/* 空狀態 */
+.sto-cl-empty {
+  padding: 32px 16px;
+  text-align: center;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   響應式
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .sto-cl-item {
+    grid-template-columns: 24px 80px 1fr 50px 24px;
+  }
+  .sto-cl-item-actions {
+    display: none;
+  }
+  .sto-cl-type-palette {
+    gap: 5px;
+  }
+  .sto-cl-type-btn {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+}

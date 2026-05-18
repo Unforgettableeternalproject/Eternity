@@ -11,6 +11,7 @@ export type HomepageBlockType =
   | 'terminal-module-table'
   | 'storage-sticky-note'
   | 'storage-links-list'
+  | 'storage-room-map'
   | 'rich-text';
 
 // ─── 各區塊資料結構 ─────────────────────────────────────────────────────────
@@ -63,6 +64,15 @@ export interface StorageLink {
   href: string;
 }
 
+export interface StorageRoomArea {
+  icon: string;
+  name: string;
+  label: string;
+  hint: string;
+  slug: string;
+  count?: number;
+}
+
 // ─── 區塊聯合型別 ───────────────────────────────────────────────────────────
 
 export type HomepageBlockData =
@@ -78,6 +88,7 @@ export type HomepageBlockData =
     }
   | { type: 'storage-sticky-note'; data: { text: string; attribution: string } }
   | { type: 'storage-links-list'; data: { links: StorageLink[] } }
+  | { type: 'storage-room-map'; data: { areas: StorageRoomArea[] } }
   | { type: 'rich-text'; data: { html: string } };
 
 /** 完整的區塊（含 id） */
@@ -134,6 +145,7 @@ export const BLOCK_TYPE_LABELS: Record<HomepageBlockType, string> = {
   'terminal-module-table': '終端模組表',
   'storage-sticky-note': '便條紙',
   'storage-links-list': '儲藏連結列表',
+  'storage-room-map': '置物空間地圖',
   'rich-text': '富文本',
 };
 
@@ -154,13 +166,7 @@ export const ZONE_BLOCK_TYPES: Record<string, HomepageBlockType[]> = {
     'terminal-module-table',
     'rich-text',
   ],
-  storage: [
-    'zone-header',
-    'uep-dialogue',
-    'storage-sticky-note',
-    'storage-links-list',
-    'rich-text',
-  ],
+  storage: ['zone-header', 'uep-dialogue', 'storage-room-map', 'rich-text'],
 };
 
 /** 建立空區塊 */
@@ -176,6 +182,7 @@ export function createEmptyBlock(type: HomepageBlockType): HomepageBlock {
     'terminal-module-table': { headerLabel: '', modules: [] },
     'storage-sticky-note': { text: '', attribution: '' },
     'storage-links-list': { links: [] },
+    'storage-room-map': { areas: [] },
     'rich-text': { html: '' },
   };
   return { id, type, data: defaults[type] };

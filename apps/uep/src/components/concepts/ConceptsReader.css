@@ -556,34 +556,6 @@
   position: relative;
   z-index: 1;
 }
-.conc-stack-breadcrumb {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--concepts-main);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.conc-stack-breadcrumb button {
-  background: none;
-  border: none;
-  color: var(--concepts-main);
-  font: inherit;
-  letter-spacing: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.conc-stack-breadcrumb button:hover {
-  text-decoration: underline;
-}
-.conc-stack-breadcrumb-line {
-  width: 28px;
-  height: 1px;
-  background: var(--concepts-main);
-}
 .conc-stack-title-row {
   display: flex;
   align-items: center;
@@ -1904,7 +1876,6 @@
 /* 時間軸舞台 — 時鐘只相對於此區域置中，不被下方展開卡片影響 */
 .conc-chrono-stage {
   position: relative;
-  min-height: 360px;
 }
 
 /* 背景時鐘 */
@@ -2077,7 +2048,7 @@
   color: var(--ink-mute);
   letter-spacing: 0.08em;
   opacity: 0.6;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 
 /* 展開的內容卡片 */
@@ -2095,6 +2066,19 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+.conc-chrono-expanded.is-closing {
+  animation: chrono-collapse 0.25s ease both;
+}
+@keyframes chrono-collapse {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 }
 .conc-chrono-expanded-header {
