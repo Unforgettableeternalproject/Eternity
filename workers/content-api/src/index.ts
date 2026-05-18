@@ -16,6 +16,7 @@ import type {
   BatchDeleteRequest,
 } from './types';
 import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
+import { extractAssetKeysFromContentBlock } from './assets';
 
 // ===== 工具函式 =====
 
@@ -813,65 +814,11 @@ async function listAssets(
     .prepare('SELECT id, content FROM pages')
     .all<{ id: string; content: string }>();
 
-  const assetUrlRegex = /\/api\/assets\/((?:images|audio|files)\/[^\s"'<>]+)/g;
-  // 裸 R2 key 格式（用於 JSON 結構化資料中直接儲存的 key）
-  const bareKeyRegex = /^(images|audio|files)\//;
-
   for (const row of contentRows.results || []) {
     try {
       const blocks = JSON.parse(row.content || '[]');
       for (const block of blocks) {
-        if (typeof block.content !== 'string') continue;
-
-        // 結構化區塊：掃描 JSON 中的裸 R2 key
-        // browser_profile → profiles[].avatar
-        // visuals-audio-block → audioKey
-        // 以及其他可能包含裸 key 的區塊
-        if (
-          block.type === 'browser_profile' ||
-          block.type === 'visuals-audio-block'
-        ) {
-          try {
-            const data = JSON.parse(block.content);
-
-            // browser_profile: profiles[].avatar
-            if (block.type === 'browser_profile') {
-              const profiles = Array.isArray(data.profiles)
-                ? data.profiles
-                : [];
-              for (const profile of profiles) {
-                if (
-                  typeof profile.avatar === 'string' &&
-                  bareKeyRegex.test(profile.avatar)
-                ) {
-                  if (!referenceMap.has(profile.avatar))
-                    referenceMap.set(profile.avatar, []);
-                  const refs = referenceMap.get(profile.avatar)!;
-                  if (!refs.includes(row.id)) refs.push(row.id);
-                }
-              }
-            }
-
-            // visuals-audio-block: audioKey
-            if (
-              typeof data.audioKey === 'string' &&
-              bareKeyRegex.test(data.audioKey)
-            ) {
-              if (!referenceMap.has(data.audioKey))
-                referenceMap.set(data.audioKey, []);
-              const refs = referenceMap.get(data.audioKey)!;
-              if (!refs.includes(row.id)) refs.push(row.id);
-            }
-          } catch {
-            // 略過格式錯誤的結構化區塊
-          }
-        }
-
-        // HTML 內容：掃描 /api/assets/ URL 引用
-        assetUrlRegex.lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = assetUrlRegex.exec(block.content)) !== null) {
-          const key = match[1];
+        for (const key of extractAssetKeysFromContentBlock(block)) {
           if (!referenceMap.has(key)) referenceMap.set(key, []);
           const refs = referenceMap.get(key)!;
           if (!refs.includes(row.id)) refs.push(row.id);
@@ -1495,7 +1442,10 @@ export default {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const sectionId = homepageMatch[1];
-      const body = (await request.json()) as { content: unknown };
+      const body = (await request.json()) as {
+        content: unknown;
+        updatedAt?: string;
+      };
       if (!body.content) {
         return jsonResponse(
           { ok: false, error: 'content is required' },
@@ -1503,7 +1453,7 @@ export default {
           cors
         );
       }
-      const now = new Date().toISOString();
+      const now = body.updatedAt || new Date().toISOString();
       await env.CONTENT_DB.prepare(
         `INSERT INTO site_homepage (section_id, content, updated_at)
          VALUES (?, ?, ?)

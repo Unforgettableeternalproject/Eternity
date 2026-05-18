@@ -156,6 +156,7 @@ export default function SpriteViewer({
   const bgY = -(row * viewH);
 
   // ── Zoom（滾輪）──
+  // eslint-disable-next-line no-undef
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.15 : 0.15;

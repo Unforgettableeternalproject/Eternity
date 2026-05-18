@@ -78,7 +78,7 @@ export default function StorageDust() {
 
     // 讀取主題色
     function updateColor() {
-      const style = getComputedStyle(document.documentElement);
+      const style = window.getComputedStyle(document.documentElement);
       const colorStr = style.getPropertyValue('--storage-main').trim();
       const match = colorStr.match(
         /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i

@@ -74,6 +74,8 @@ export interface VerseContent {
   inscription: string;
   /** 詩句（TipTap HTML，含富文本格式：粗體、斜體、金色關鍵字、分隔線） */
   body: string;
+  /** 每個詩節的可見度（對應 body 中以 &lt;hr&gt; 分隔的區塊，未設定時預設全部可見） */
+  stanzaVisibility?: boolean[];
 }
 
 // ── 全部首頁資料 ──
@@ -109,4 +111,13 @@ export function extractHomepageData(
     }
   }
   return result;
+}
+
+/** 將永恆之詩的 body HTML 按 &lt;hr&gt; 分割成詩節陣列 */
+export function parseVerseStanzas(body: string): string[] {
+  if (!body) return [];
+  return body
+    .split(/<hr\s*\/?>/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }

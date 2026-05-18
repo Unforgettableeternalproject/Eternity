@@ -20,12 +20,13 @@ import { Placeholder } from '@tiptap/extension-placeholder';
 
 import UepDialogueNode from './UepDialogueNode';
 
-import type {
-  HeroContent,
-  AtlasContent,
-  JourneyContent,
-  ZoneSectionContent,
-  VerseContent,
+import {
+  parseVerseStanzas,
+  type HeroContent,
+  type AtlasContent,
+  type JourneyContent,
+  type ZoneSectionContent,
+  type VerseContent,
 } from '../../data/homepage-types';
 
 import './SiteHomepageEditor.css';
@@ -128,7 +129,7 @@ function MiniEditor({ content, onChange, placeholder }: MiniEditorProps) {
     if (editor && content !== editor.getHTML()) {
       editor.commands.setContent(content);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [content]);
 
   if (!editor) return null;
@@ -838,6 +839,18 @@ function VerseForm({
     }
   };
 
+  // 從 body 解析出詩節
+  const stanzas = parseVerseStanzas(data.body);
+  const currentVis = data.stanzaVisibility ?? [];
+  // 確保可見度陣列長度與詩節數一致（新增的預設可見）
+  const adjustedVis = stanzas.map((_, i) => currentVis[i] ?? true);
+
+  const toggleStanzaVis = (idx: number) => {
+    const next = [...adjustedVis];
+    next[idx] = !next[idx];
+    set('stanzaVisibility', next);
+  };
+
   return (
     <SectionForm
       sectionId="verse"
@@ -867,6 +880,45 @@ function VerseForm({
         onChange={(v) => set('body', v)}
         placeholder="輸入詩句，用 — 插入分隔線，或用金色 A 標記關鍵字…"
       />
+
+      {/* 詩節可見度面板 */}
+      {stanzas.length > 0 && (
+        <div className="she-field">
+          <label className="she-label">
+            詩節可見度（以分隔線分區，共 {stanzas.length} 節）
+          </label>
+          <div className="she-stanza-panel">
+            {stanzas.map((stanza, idx) => {
+              const isVisible = adjustedVis[idx];
+              // 取前 60 字元作為預覽（去除 HTML 標籤）
+              const preview = stanza.replace(/<[^>]+>/g, '').trim();
+              const previewText =
+                preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
+              return (
+                <div
+                  key={idx}
+                  className={`she-stanza-row${isVisible ? '' : ' is-hidden'}`}
+                >
+                  <button
+                    type="button"
+                    className={`she-stanza-toggle${isVisible ? ' is-visible' : ''}`}
+                    onClick={() => toggleStanzaVis(idx)}
+                    title={isVisible ? '點擊隱藏此詩節' : '點擊顯示此詩節'}
+                  >
+                    {isVisible ? '◉' : '○'}
+                  </button>
+                  <div className="she-stanza-info">
+                    <span className="she-stanza-idx">第 {idx + 1} 節</span>
+                    <span className="she-stanza-preview">
+                      {previewText || '（空白詩節）'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </SectionForm>
   );
 }

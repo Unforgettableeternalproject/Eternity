@@ -13,6 +13,7 @@
  *   node scripts/sync-content.mjs --pull --area history # 可組合使用
  *   node scripts/sync-content.mjs --purge               # 清除兩端超過 30 天的軟刪除記錄
  *   node scripts/sync-content.mjs --purge 7             # 清除超過 7 天的軟刪除記錄
+ *   node scripts/sync-content.mjs --skip-homepage       # 跳過首頁同步
  */
 
 import { createInterface } from 'readline';
@@ -39,6 +40,7 @@ const DIRECTION = args.includes('--pull')
   : args.includes('--push')
     ? 'push'
     : null; // null = 互動模式
+const SKIP_HOMEPAGE = args.includes('--skip-homepage');
 const AREA_FLAG = args.indexOf('--area');
 const TARGET_AREAS =
   AREA_FLAG !== -1 && args[AREA_FLAG + 1] ? [args[AREA_FLAG + 1]] : ALL_AREAS;
@@ -703,6 +705,11 @@ async function main() {
   // === R2 資產同步 ===
   await syncAssets();
 
+  // === 首頁同步 ===
+  if (!SKIP_HOMEPAGE) {
+    await syncHomepage();
+  }
+
   // 總結
   console.log('─'.repeat(40));
   console.log(
@@ -955,6 +962,169 @@ async function syncAssets() {
       }
       const ok = await deleteAsset(LOCAL_API, key);
       console.log(ok ? `  🗑 本地 ${key}` : `  ✗ 刪除失敗 ${key}`);
+    }
+  }
+
+  console.log();
+}
+
+// === 首頁同步 ===
+
+/** 從 API 取得首頁全部 section 資料 */
+async function fetchHomepage(apiBase) {
+  try {
+    const res = await fetch(`${apiBase}/api/homepage`);
+    if (!res.ok) return {};
+    const json = await safeJson(res);
+    return json?.ok ? json.data || {} : {};
+  } catch {
+    return {};
+  }
+}
+
+/** 寫入單一首頁 section（保留來源時間戳） */
+async function putHomepageSection(apiBase, sectionId, content, updatedAt) {
+  try {
+    const res = await fetch(`${apiBase}/api/homepage/${sectionId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(apiBase),
+      },
+      body: JSON.stringify({ content, updatedAt }),
+    });
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncHomepage() {
+  const [localData, remoteData] = await Promise.all([
+    fetchHomepage(LOCAL_API),
+    fetchHomepage(REMOTE_API),
+  ]);
+
+  const allSections = new Set([
+    ...Object.keys(localData),
+    ...Object.keys(remoteData),
+  ]);
+
+  if (allSections.size === 0) return;
+
+  const toPush = []; // 本地較新或僅本地
+  const toPull = []; // 遠端較新或僅遠端
+  const inSync = [];
+
+  for (const sid of allSections) {
+    const local = localData[sid];
+    const remote = remoteData[sid];
+
+    if (local && !remote) {
+      toPush.push({ sid, reason: '僅存在本地', local });
+    } else if (!local && remote) {
+      toPull.push({ sid, reason: '僅存在遠端', remote });
+    } else {
+      const winner = compareTimestamps(local.updatedAt, remote.updatedAt);
+      if (winner === 'local') {
+        toPush.push({
+          sid,
+          reason: `本地較新 (${fmtTime(local.updatedAt)} > ${fmtTime(remote.updatedAt)})`,
+          local,
+        });
+      } else if (winner === 'remote') {
+        toPull.push({
+          sid,
+          reason: `遠端較新 (${fmtTime(remote.updatedAt)} > ${fmtTime(local.updatedAt)})`,
+          remote,
+        });
+      } else {
+        inSync.push(sid);
+      }
+    }
+  }
+
+  const hasChanges = toPush.length > 0 || toPull.length > 0;
+
+  console.log(
+    `\n🏠 首頁  (本地: ${Object.keys(localData).length} sections / 遠端: ${Object.keys(remoteData).length} sections)`
+  );
+
+  if (!hasChanges) {
+    console.log(`   ✓ 完全同步 (${inSync.length} sections)\n`);
+    return;
+  }
+
+  if (toPush.length > 0) {
+    console.log(`\n   ↑ 本地較新 / 僅本地 (${toPush.length} sections):`);
+    for (const p of toPush) console.log(`     ${p.sid}  — ${p.reason}`);
+  }
+  if (toPull.length > 0) {
+    console.log(`\n   ↓ 遠端較新 / 僅遠端 (${toPull.length} sections):`);
+    for (const p of toPull) console.log(`     ${p.sid}  — ${p.reason}`);
+  }
+  if (inSync.length > 0) {
+    console.log(`\n   = 已同步: ${inSync.length} sections`);
+  }
+  console.log();
+
+  // 決定方向
+  let doPush = toPush;
+  let doPull = toPull;
+
+  if (DIRECTION === 'pull') {
+    doPush = [];
+  } else if (DIRECTION === 'push') {
+    doPull = [];
+  } else if (!DRY_RUN && hasChanges) {
+    const answer = await ask(
+      `   同步首頁？ [y] 全部 / [push] 只推送 / [pull] 只拉取 / [n] 跳過: `
+    );
+    if (answer === 'n' || answer === 'no') {
+      console.log('   ⏭ 跳過\n');
+      return;
+    }
+    if (answer === 'push') doPull = [];
+    if (answer === 'pull') doPush = [];
+  }
+
+  // 推送
+  if (doPush.length > 0) {
+    console.log(`   推送 ${doPush.length} sections 到遠端...`);
+    for (const entry of doPush) {
+      const src = entry.local || localData[entry.sid];
+      if (DRY_RUN) {
+        console.log(`  → [dry-run] 會推送 ${entry.sid}`);
+        continue;
+      }
+      const ok = await putHomepageSection(
+        REMOTE_API,
+        entry.sid,
+        src.content,
+        src.updatedAt
+      );
+      console.log(ok ? `  ↑ ${entry.sid}` : `  ✗ 推送失敗 ${entry.sid}`);
+    }
+  }
+
+  // 拉取
+  if (doPull.length > 0) {
+    console.log(`   拉取 ${doPull.length} sections 到本地...`);
+    for (const entry of doPull) {
+      const src = entry.remote || remoteData[entry.sid];
+      if (DRY_RUN) {
+        console.log(`  ← [dry-run] 會拉取 ${entry.sid}`);
+        continue;
+      }
+      const ok = await putHomepageSection(
+        LOCAL_API,
+        entry.sid,
+        src.content,
+        src.updatedAt
+      );
+      console.log(ok ? `  ↓ ${entry.sid}` : `  ✗ 拉取失敗 ${entry.sid}`);
     }
   }
 
