@@ -4,11 +4,14 @@ import type { JourneyNarrative } from '../../data/journey';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import UepDialogue from '../ui/UepDialogue';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import './JourneyScene.css';
 
 interface JourneySceneProps {
   zone: ZoneData;
   narrative: JourneyNarrative;
+  /** 從 D1 取得的 TipTap HTML 敘事內容（有值時取代靜態 narrative） */
+  bodyHtml?: string;
   index: number;
   total: number;
   onEnterZone: () => void;
@@ -18,6 +21,7 @@ interface JourneySceneProps {
 export default function JourneyScene({
   zone,
   narrative,
+  bodyHtml,
   index,
   total,
   onEnterZone,
@@ -89,37 +93,49 @@ export default function JourneyScene({
           </button>
         </div>
 
-        <div
-          className="journey-scene__narrative"
-          onWheel={handleNarrativeWheel}
-        >
-          {narrative.narration.map((para, i) => (
-            <p
-              key={`n-${i}`}
-              className="journey-narration reveal-up"
-              style={{ '--delay': `${i * 120}ms` } as React.CSSProperties}
-            >
-              {para}
-            </p>
-          ))}
-          {uepLines.map((line, i) => (
-            <div
-              key={`u-${i}`}
-              className="journey-uep-block reveal-up"
-              style={
-                {
-                  '--delay': `${(narrationCount + i) * 150 + 100}ms`,
-                } as React.CSSProperties
-              }
-            >
-              <UepDialogue
-                side={i % 2 === 0 ? 'left' : 'right'}
-                text={line}
-                effects={['shimmer', 'halo']}
-              />
-            </div>
-          ))}
-        </div>
+        {/* 有 D1 HTML 時用 renderHtmlWithUep 渲染；否則 fallback 靜態敘事 */}
+        {bodyHtml ? (
+          <div
+            className="journey-scene__body"
+            data-reading-scroll="true"
+            onWheel={handleNarrativeWheel}
+          >
+            {renderHtmlWithUep(bodyHtml, `zone-${zone.id}`, 'journey-prose')}
+          </div>
+        ) : (
+          <div
+            className="journey-scene__narrative"
+            data-reading-scroll="true"
+            onWheel={handleNarrativeWheel}
+          >
+            {narrative.narration.map((para, i) => (
+              <p
+                key={`n-${i}`}
+                className="journey-narration reveal-up"
+                style={{ '--delay': `${i * 120}ms` } as React.CSSProperties}
+              >
+                {para}
+              </p>
+            ))}
+            {uepLines.map((line, i) => (
+              <div
+                key={`u-${i}`}
+                className="journey-uep-block reveal-up"
+                style={
+                  {
+                    '--delay': `${(narrationCount + i) * 150 + 100}ms`,
+                  } as React.CSSProperties
+                }
+              >
+                <UepDialogue
+                  side={i % 2 === 0 ? 'left' : 'right'}
+                  text={line}
+                  effects={['shimmer', 'halo']}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div

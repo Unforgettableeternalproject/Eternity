@@ -186,6 +186,198 @@
   gap: 14px;
 }
 
+/* === Visuals Monologue Player === */
+.visuals-landing-audio {
+  margin: 28px 0;
+}
+
+.visuals-mono-player {
+  background: rgba(94, 84, 142, 0.08);
+  border: 1px solid rgba(159, 134, 192, 0.3);
+  border-radius: 14px;
+  padding: 20px 24px;
+  backdrop-filter: blur(12px);
+  max-width: 560px;
+  transition: border-color 0.25s;
+}
+.visuals-mono-player:hover {
+  border-color: rgba(159, 134, 192, 0.55);
+}
+
+.visuals-mono-player-meta {
+  margin-bottom: 14px;
+}
+.visuals-mono-player-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--visuals-soft, #9f86c0);
+  letter-spacing: 0.04em;
+}
+.visuals-mono-player-sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-top: 3px;
+}
+
+.visuals-mono-player-controls {
+  display: grid;
+  grid-template-columns: 36px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+}
+
+.visuals-mono-player-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--visuals-soft, #9f86c0);
+  background: transparent;
+  color: var(--visuals-soft, #9f86c0);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.18s,
+    color 0.18s;
+  flex-shrink: 0;
+}
+.visuals-mono-player-btn:hover {
+  background: rgba(159, 134, 192, 0.18);
+}
+.visuals-mono-player-btn.is-playing {
+  background: rgba(159, 134, 192, 0.15);
+}
+
+/* Play/Pause icon — CSS shapes */
+.vmono-icon-play {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid currentColor;
+  margin-left: 2px;
+}
+.vmono-icon-pause {
+  display: inline-flex;
+  gap: 3px;
+}
+.vmono-icon-pause::before,
+.vmono-icon-pause::after {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 12px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+.visuals-mono-player-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.visuals-mono-player-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(159, 134, 192, 0.2);
+}
+.visuals-mono-player-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--visuals-soft, #9f86c0);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+.visuals-mono-player-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--visuals-tint, #e0b1cb);
+  box-shadow: 0 0 6px rgba(224, 177, 203, 0.5);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.visuals-mono-player:hover .visuals-mono-player-thumb {
+  opacity: 1;
+}
+.visuals-mono-player-seek {
+  position: absolute;
+  inset: -6px 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  margin: 0;
+  z-index: 1;
+}
+.visuals-mono-player-times {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.visuals-mono-player-vol {
+  display: flex;
+  align-items: center;
+}
+.visuals-mono-player-vol-slider {
+  width: 56px;
+  height: 3px;
+  border-radius: 2px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(159, 134, 192, 0.25);
+  outline: none;
+  cursor: pointer;
+}
+.visuals-mono-player-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--visuals-soft, #9f86c0);
+  cursor: pointer;
+}
+.visuals-mono-player-vol-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--visuals-soft, #9f86c0);
+  cursor: pointer;
+  border: none;
+}
+
+@media (max-width: 760px) {
+  .visuals-mono-player {
+    padding: 16px 18px;
+  }
+  .visuals-mono-player-controls {
+    grid-template-columns: 34px 1fr;
+    gap: 10px;
+  }
+  .visuals-mono-player-vol {
+    display: none;
+  }
+}
+
 /* === 十字路口佈局 (Landing) === */
 .visuals-crossroad {
   position: relative;
@@ -2154,6 +2346,14 @@
   animation: lightboxIn 0.3s var(--ease, ease) both;
 }
 
+.visuals-lightbox.is-closing {
+  animation: lightboxOut 0.25s var(--ease, ease) both;
+}
+
+.visuals-lightbox.is-closing .visuals-lightbox-inner {
+  animation: lightboxImgOut 0.22s var(--ease, ease) both;
+}
+
 .visuals-lightbox-inner {
   position: relative;
   max-width: 90vw;
@@ -2689,6 +2889,28 @@
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes lightboxOut {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes lightboxImgOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92);
   }
 }
 

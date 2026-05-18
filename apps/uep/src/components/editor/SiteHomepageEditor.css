@@ -1,0 +1,637 @@
+/* ═══════════════════════════════════════════════════════════════
+   SiteHomepageEditor — 網站首頁文字內容編輯器
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 根容器 ── */
+.she-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* ── 主體（左右雙欄） ── */
+.she-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ══════════════════════════════════════════════
+   左側 Tab 列
+   ══════════════════════════════════════════════ */
+
+.she-tabs {
+  background: var(--bg-soft);
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.she-tab {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 16px 14px 18px;
+  border-bottom: 1px solid var(--hairline);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.she-tab:last-child {
+  border-bottom: none;
+}
+
+.she-tab:hover {
+  background: var(--bg-card);
+}
+
+.she-tab.active {
+  border-left-color: var(--uep-gold);
+  background: var(--bg-card);
+}
+
+.she-tab-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-title);
+  line-height: 1.3;
+}
+
+.she-tab-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════
+   右側表單面板
+   ══════════════════════════════════════════════ */
+
+.she-panel {
+  overflow-y: auto;
+  padding: 28px 36px 48px;
+}
+
+/* ── Section 容器 ── */
+
+.she-section {
+  max-width: 760px;
+}
+
+/* ── Section 標頭 ── */
+
+.she-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.she-section-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 0 0 4px;
+}
+
+.she-section-id {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* ── 儲存按鈕區 ── */
+
+.she-save-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.she-save-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 8px 20px;
+  background: var(--uep-gold);
+  border: 1px solid var(--uep-gold);
+  border-radius: 3px;
+  color: #000;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.she-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.she-save-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.she-save-status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.she-save-status--saving {
+  color: var(--ink-soft);
+}
+
+.she-save-status--saved {
+  color: #4caf50;
+}
+
+.she-save-status--error {
+  color: #ef4444;
+}
+
+/* ── 表單欄位群組 ── */
+
+.she-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── 單一欄位 ── */
+
+.she-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.she-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.she-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  transition: border-color 0.12s;
+  outline: none;
+}
+
+.she-input:focus {
+  border-color: var(--uep-gold);
+}
+
+/* ── 欄位小組（並排） ── */
+
+.she-field-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+/* ══════════════════════════════════════════════
+   MiniEditor — TipTap 輕量富文本編輯器
+   ══════════════════════════════════════════════ */
+
+.she-mini-editor {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  background: var(--bg-soft);
+  overflow: hidden;
+  transition: border-color 0.12s;
+}
+
+.she-mini-editor:focus-within {
+  border-color: var(--uep-gold);
+}
+
+/* 工具列 */
+.she-mini-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--hairline);
+  flex-wrap: wrap;
+}
+
+/* 工具列按鈕 */
+.she-mini-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s,
+    border-color 0.1s;
+  user-select: none;
+}
+
+.she-mini-btn:hover {
+  background: var(--bg-soft);
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+
+.she-mini-btn.is-active {
+  background: color-mix(in srgb, var(--uep-gold) 15%, transparent);
+  border-color: var(--uep-gold);
+  color: var(--uep-gold);
+}
+
+/* 工具列分隔線 */
+.she-mini-sep {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: var(--hairline-strong);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* 編輯區域 */
+.she-mini-content {
+  padding: 12px 14px;
+  min-height: 120px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+/* ProseMirror 編輯器本體 */
+.she-mini-content .ProseMirror {
+  outline: none;
+  min-height: 120px;
+}
+
+/* Placeholder */
+.she-mini-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--ink-mute);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+/* 基本段落間距 */
+.she-mini-content .ProseMirror p {
+  margin: 0 0 8px;
+}
+
+.she-mini-content .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* 水平分隔線 */
+.she-mini-content .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--hairline-strong);
+  margin: 12px 0;
+}
+
+/* UEP 對話區塊（參考 RichEditor.css 的 .tiptap-uep-dialogue） */
+.she-mini-content .ProseMirror .tiptap-uep-dialogue {
+  position: relative;
+  margin: 12px 0;
+  padding: 10px 16px 10px 42px;
+  border-left: 3px solid #d5b618;
+  background: color-mix(in srgb, #d5b618 6%, transparent);
+  border-radius: 0 4px 4px 0;
+  color: #d5b618;
+  font-weight: 500;
+}
+
+.she-mini-content .ProseMirror .tiptap-uep-dialogue::before {
+  content: 'U';
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #d5b618;
+  border-radius: 2px;
+}
+
+.she-mini-content .ProseMirror .tiptap-uep-dialogue[data-side='right'] {
+  border-left: none;
+  border-right: 3px solid #d5b618;
+  padding: 10px 42px 10px 16px;
+  text-align: right;
+}
+
+.she-mini-content .ProseMirror .tiptap-uep-dialogue[data-side='right']::before {
+  left: auto;
+  right: 10px;
+}
+
+/* ══════════════════════════════════════════════
+   StringArrayEditor — 字串陣列編輯器
+   ══════════════════════════════════════════════ */
+
+.she-arr {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.she-arr-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.she-arr-input {
+  flex: 1;
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 36px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.she-arr-input:focus {
+  border-color: var(--uep-gold);
+}
+
+.she-arr-del {
+  flex-shrink: 0;
+  width: 28px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink-mute);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.1s,
+    color 0.1s,
+    border-color 0.1s;
+}
+
+.she-arr-del:hover {
+  background: #450a0a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+.she-arr-add {
+  align-self: flex-start;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.she-arr-add:hover {
+  color: var(--uep-gold);
+  border-color: var(--uep-gold);
+}
+
+/* ══════════════════════════════════════════════
+   StatsEditor — key-value 統計編輯器
+   ══════════════════════════════════════════════ */
+
+.she-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.she-stats-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.she-stats-key {
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.she-stats-key:focus {
+  border-color: var(--uep-gold);
+}
+
+.she-stats-val {
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--uep-gold);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.she-stats-val:focus {
+  border-color: var(--uep-gold);
+}
+
+.she-stats-del {
+  width: 28px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink-mute);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.1s,
+    color 0.1s,
+    border-color 0.1s;
+}
+
+.she-stats-del:hover {
+  background: #450a0a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+.she-stats-add {
+  align-self: flex-start;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.she-stats-add:hover {
+  color: var(--uep-gold);
+  border-color: var(--uep-gold);
+}
+
+/* ══════════════════════════════════════════════
+   小節標題（表單內的子區段分隔線）
+   ══════════════════════════════════════════════ */
+
+.she-sub-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  padding-top: 12px;
+  padding-bottom: 6px;
+  border-top: 1px dashed var(--hairline);
+  margin-top: 6px;
+}
+
+/* ══════════════════════════════════════════════
+   載入 / 錯誤狀態
+   ══════════════════════════════════════════════ */
+
+.she-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+}
+
+.she-error {
+  padding: 24px 36px;
+}
+
+.she-error-card {
+  max-width: 480px;
+  padding: 24px;
+  background: var(--bg-card);
+  border: 1px solid #7f1d1d;
+  border-radius: 4px;
+}
+
+.she-error-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #ef4444;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.she-error-msg {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.she-retry-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 7px 16px;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.she-retry-btn:hover {
+  color: var(--uep-gold);
+  border-color: var(--uep-gold);
+}

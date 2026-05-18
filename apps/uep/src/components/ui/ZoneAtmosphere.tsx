@@ -30,14 +30,16 @@ export default function ZoneAtmosphere({
       <div className="zone-atmosphere__ring zone-atmosphere__ring--primary" />
       <div className="zone-atmosphere__ring zone-atmosphere__ring--secondary" />
 
-      {/* 漂浮粒子與少量字元 */}
+      {/* 漂浮粒子與少量字元 — 用 zone id 偏移讓每區分佈不同 */}
       {[...Array(count)].map((_, i) => {
         const isGlyph = !skipGlyphs && i % 5 === 0 && zone.glyphs;
-        const dur = 20 + (i % 13);
-        const delay = (i * 1.1) % 14;
-        const left = (i * 53) % 100;
-        const top = (i * 37) % 100;
-        const dy = -(40 + (i % 4) * 30);
+        // 從 zone id 各字元碼值加總得到偏移種子
+        const zs = zone.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+        const dur = 20 + ((i + zs) % 13);
+        const delay = ((i + zs * 0.7) * 1.1) % 14;
+        const left = (i * 53 + zs * 17) % 100;
+        const top = (i * 37 + zs * 23) % 100;
+        const dy = -(40 + ((i + zs) % 4) * 30);
         // 每個粒子一個偽隨機 opacity 偏移量（-0.06 ~ +0.08）
         const opacityOffset = (((i * 7 + 3) % 15) - 6) / 100;
         return isGlyph ? (

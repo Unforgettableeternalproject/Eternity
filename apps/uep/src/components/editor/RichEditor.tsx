@@ -9,7 +9,12 @@ import { Highlight } from '@tiptap/extension-highlight';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Image } from '@tiptap/extension-image';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
 import UepDialogueNode from './UepDialogueNode';
+import InlineAudioNode from './InlineAudioNode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getToast, extractAssetKey, deleteAsset } from './editorHelpers';
 import { resolveEditorMode } from './editorModeRegistry';
@@ -258,7 +263,12 @@ export default function RichEditor({
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder: '開始寫作...' }),
       Image.configure({ inline: false }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       UepDialogueNode,
+      InlineAudioNode,
     ],
     content: isConcepts
       ? initialContentBlocks?.find((b) => b.type === 'rich_text')?.content ||
@@ -482,6 +492,26 @@ export default function RichEditor({
     pos: number;
   } | null>(null);
 
+  // 音訊 node 選取與選擇器
+  const [selectedAudio, setSelectedAudio] = useState<{
+    src: string;
+    label: string;
+    pos: number;
+  } | null>(null);
+  const [audioPickerOpen, setAudioPickerOpen] = useState(false);
+  const [audioPickerItems, setAudioPickerItems] = useState<
+    {
+      key: string;
+      size: number;
+      contentType: string;
+      originalName: string;
+      referenced: boolean;
+    }[]
+  >([]);
+  const [audioPickerLoading, setAudioPickerLoading] = useState(false);
+  const [audioPickerSearch, setAudioPickerSearch] = useState('');
+  const [audioReplaceMode, setAudioReplaceMode] = useState(false);
+
   useEffect(() => {
     if (!editor) return;
 
@@ -532,6 +562,68 @@ export default function RichEditor({
     return () =>
       document.removeEventListener('keydown', handleImageDeleteKey, true);
   }, [editor, selectedImage, imgDeleteConfirm]);
+
+  // 音訊 node 選取追蹤
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncSelectedAudio = () => {
+      const selection = editor.state.selection as any;
+      let next: { src: string; label: string; pos: number } | null = null;
+
+      if (selection.node?.type?.name === 'inlineAudio') {
+        next = {
+          src: selection.node.attrs?.src || '',
+          label: selection.node.attrs?.label || '',
+          pos: selection.from,
+        };
+      }
+
+      setSelectedAudio((current) =>
+        current?.src === next?.src && current?.pos === next?.pos
+          ? current
+          : next
+      );
+    };
+
+    syncSelectedAudio();
+    editor.on('selectionUpdate', syncSelectedAudio);
+    editor.on('transaction', syncSelectedAudio);
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedAudio);
+      editor.off('transaction', syncSelectedAudio);
+    };
+  }, [editor]);
+
+  // 音訊 node Delete/Backspace 攔截
+  useEffect(() => {
+    if (!editor || !selectedAudio) return;
+
+    const handleAudioDeleteKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (!editor.isFocused) return;
+
+      const node = editor.state.doc.nodeAt(selectedAudio.pos);
+      if (node?.type.name !== 'inlineAudio') return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      editor
+        .chain()
+        .focus()
+        .deleteRange({
+          from: selectedAudio.pos,
+          to: selectedAudio.pos + node.nodeSize,
+        })
+        .run();
+      setSelectedAudio(null);
+    };
+
+    document.addEventListener('keydown', handleAudioDeleteKey, true);
+    return () =>
+      document.removeEventListener('keydown', handleAudioDeleteKey, true);
+  }, [editor, selectedAudio]);
 
   const selectImageBySrc = (src: string) => {
     if (!editor) return;
@@ -666,6 +758,79 @@ export default function RichEditor({
     } finally {
       setUploading(false);
     }
+  };
+
+  // === 音訊選擇器 ===
+  const openAudioPicker = async (replaceMode = false) => {
+    setAudioReplaceMode(replaceMode);
+    setAudioPickerOpen(true);
+    setAudioPickerLoading(true);
+    setAudioPickerSearch('');
+    try {
+      const res = await fetch(`${apiBase}/api/assets?prefix=audio/&limit=500`);
+      if (!res.ok) {
+        setAudioPickerItems([]);
+        return;
+      }
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: {
+          items: {
+            key: string;
+            size: number;
+            contentType: string;
+            originalName: string;
+            referenced: boolean;
+          }[];
+        };
+      };
+      if (!json.ok) {
+        setAudioPickerItems([]);
+        return;
+      }
+      const items = json.data.items.filter(
+        (i) => i.contentType?.startsWith('audio/') || i.key.startsWith('audio/')
+      );
+      items.sort((a, b) => {
+        if (a.referenced === b.referenced) return 0;
+        return a.referenced ? 1 : -1;
+      });
+      setAudioPickerItems(items);
+    } catch {
+      setAudioPickerItems([]);
+    } finally {
+      setAudioPickerLoading(false);
+    }
+  };
+
+  const insertOrReplaceAudio = (item: {
+    key: string;
+    originalName?: string;
+  }) => {
+    if (!editor) return;
+    const src = `${apiBase}/api/assets/${item.key
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
+    const label = item.originalName || item.key.split('/').pop() || '';
+
+    if (audioReplaceMode && selectedAudio) {
+      const node = editor.state.doc.nodeAt(selectedAudio.pos);
+      if (node?.type.name === 'inlineAudio') {
+        editor
+          .chain()
+          .focus()
+          .deleteRange({
+            from: selectedAudio.pos,
+            to: selectedAudio.pos + node.nodeSize,
+          })
+          .setInlineAudio({ src, label })
+          .run();
+      }
+    } else {
+      editor.chain().focus().setInlineAudio({ src, label }).run();
+    }
+    setAudioPickerOpen(false);
   };
 
   // 刪除圖片：僅移除引用
@@ -1261,6 +1426,121 @@ export default function RichEditor({
                     </div>
                   )}
                 </div>
+                {/* 表格 */}
+                <div className="tb-dropdown-wrap">
+                  <button
+                    className={`tb-btn ${editor.isActive('table') ? 'is-active' : ''}`}
+                    onClick={() =>
+                      setActiveDropdown(
+                        activeDropdown === 'table' ? null : 'table'
+                      )
+                    }
+                    title="表格"
+                  >
+                    表格
+                  </button>
+                  {activeDropdown === 'table' && (
+                    <div className="tb-dropdown" style={{ minWidth: 180 }}>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor
+                            .chain()
+                            .focus()
+                            .insertTable({
+                              rows: 3,
+                              cols: 3,
+                              withHeaderRow: true,
+                            })
+                            .run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        插入表格 3×3
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().addColumnAfter().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        向右插入欄
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().addRowAfter().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        向下插入列
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().deleteColumn().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        刪除此欄
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().deleteRow().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        刪除此列
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().deleteTable().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        刪除表格
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().mergeCells().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        合併儲存格
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().splitCell().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        分割儲存格
+                      </button>
+                      <button
+                        className="tb-dropdown-item"
+                        onClick={() => {
+                          editor.chain().focus().toggleHeaderRow().run();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        切換標題列
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {/* 音訊 */}
+                <button
+                  className="tb-btn"
+                  onClick={() => void openAudioPicker(false)}
+                  title="插入音訊"
+                >
+                  音訊
+                </button>
               </div>
 
               <div className="tb-sep" />
@@ -1952,6 +2232,191 @@ export default function RichEditor({
               >
                 取消
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 音訊 bubble menu */}
+      {editor &&
+        selectedAudio &&
+        (() => {
+          return (
+            <div className="ned-audio-bubble" key="audio-bubble">
+              <span
+                className="ned-audio-bubble-label"
+                title={selectedAudio.src}
+              >
+                ♪ {selectedAudio.label || '音訊節點'}
+              </span>
+              <button
+                className="ned-img-bubble-btn"
+                title="替換音訊"
+                onClick={() => void openAudioPicker(true)}
+              >
+                替換
+              </button>
+              <button
+                className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+                title="刪除音訊"
+                onClick={() => {
+                  const node = editor.state.doc.nodeAt(selectedAudio.pos);
+                  if (node?.type.name === 'inlineAudio') {
+                    editor
+                      .chain()
+                      .focus()
+                      .deleteRange({
+                        from: selectedAudio.pos,
+                        to: selectedAudio.pos + node.nodeSize,
+                      })
+                      .run();
+                  }
+                  setSelectedAudio(null);
+                }}
+              >
+                刪除
+              </button>
+            </div>
+          );
+        })()}
+
+      {/* 音訊選擇器 Modal */}
+      {audioPickerOpen && (
+        <div
+          className="ned-modal-backdrop"
+          onClick={() => setAudioPickerOpen(false)}
+        >
+          <div
+            className="ned-modal-card"
+            style={{ maxWidth: 560, maxHeight: '70vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ned-modal-header">
+              <div>
+                <strong>{audioReplaceMode ? '替換音訊' : '插入音訊'}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="搜尋..."
+                  value={audioPickerSearch}
+                  onChange={(e) => setAudioPickerSearch(e.target.value)}
+                  style={{
+                    background: 'var(--bg-deep, #111)',
+                    border: '1px solid var(--line, #333)',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: '0.85em',
+                    color: 'var(--ink, #ccc)',
+                    width: 160,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setAudioPickerOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--ink, #ccc)',
+                    fontSize: 20,
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                  }}
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+              {audioPickerLoading ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  載入中...
+                </div>
+              ) : audioPickerItems.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 32,
+                    color: 'var(--ink-mute, #888)',
+                  }}
+                >
+                  媒體庫中沒有音訊檔案
+                </div>
+              ) : (
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+                >
+                  {audioPickerItems
+                    .filter((item) => {
+                      if (!audioPickerSearch) return true;
+                      const name = (
+                        item.originalName || item.key
+                      ).toLowerCase();
+                      return name.includes(audioPickerSearch.toLowerCase());
+                    })
+                    .map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => insertOrReplaceAudio(item)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'none',
+                          border: '1px solid transparent',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          color: 'var(--ink, #ccc)',
+                          textAlign: 'left',
+                          transition: 'background 0.12s, border-color 0.12s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            'rgba(255,255,255,0.04)';
+                          e.currentTarget.style.borderColor =
+                            'var(--line, #333)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'none';
+                          e.currentTarget.style.borderColor = 'transparent';
+                        }}
+                      >
+                        <span style={{ fontSize: 20, flexShrink: 0 }}>♪</span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {item.originalName || item.key.split('/').pop()}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.8em',
+                              color: 'var(--ink-mute, #888)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {item.key}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

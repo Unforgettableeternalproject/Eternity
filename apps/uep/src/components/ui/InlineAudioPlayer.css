@@ -1,0 +1,171 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Inline Audio Player — Reader 側 plain 版播放器
+   用於 renderHtmlWithUep 渲染 data-role="audio-player" 節點
+   ═══════════════════════════════════════════════════════════════════ */
+
+.inline-audio-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  margin: 0.75em 0;
+  max-width: 480px;
+  transition: border-color 0.2s;
+}
+.inline-audio-player:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* 播放按鈕 */
+.iap-play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.iap-play-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Play/Pause icons — CSS shapes */
+.iap-icon-play {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid currentColor;
+  margin-left: 2px;
+}
+.iap-icon-pause {
+  display: inline-flex;
+  gap: 3px;
+}
+.iap-icon-pause::before,
+.iap-icon-pause::after {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 12px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+/* 進度條區域 */
+.iap-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  position: relative;
+}
+.iap-track {
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.iap-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+.iap-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.inline-audio-player:hover .iap-thumb {
+  opacity: 1;
+}
+.iap-seek {
+  position: absolute;
+  inset: -8px 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  margin: 0;
+  z-index: 1;
+}
+.iap-times {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+
+/* 標籤 */
+.iap-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  flex-shrink: 0;
+}
+
+/* 亮色主題 */
+[data-theme='light'] .inline-audio-player {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.03);
+}
+[data-theme='light'] .inline-audio-player:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+}
+[data-theme='light'] .iap-play-btn {
+  border-color: rgba(0, 0, 0, 0.2);
+  color: rgba(0, 0, 0, 0.6);
+}
+[data-theme='light'] .iap-play-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.3);
+}
+[data-theme='light'] .iap-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+[data-theme='light'] .iap-fill {
+  background: rgba(0, 0, 0, 0.35);
+}
+[data-theme='light'] .iap-thumb {
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.15);
+}
+[data-theme='light'] .iap-times {
+  color: rgba(0, 0, 0, 0.35);
+}
+[data-theme='light'] .iap-label {
+  color: rgba(0, 0, 0, 0.4);
+}

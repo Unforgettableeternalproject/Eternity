@@ -46,8 +46,11 @@
 
 .home-atlas {
   box-sizing: border-box;
-  padding: 52px 64px 0;
-  min-height: auto;
+  padding: 32px 64px 24px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   scroll-snap-align: start;
   background: var(--bg);
 }
@@ -102,6 +105,9 @@
   text-decoration: none;
   color: inherit;
   transition: background 0.2s;
+}
+.home-recent-card--bordered {
+  border-right: 1px solid var(--hairline);
 }
 .home-recent-card:hover {
   background: var(--bg-soft);
@@ -891,7 +897,19 @@
   }
 
   .home-recents-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .home-recent-card--bordered {
+    border-right: none;
+  }
+  .home-recent-card {
+    border-bottom: 1px solid var(--hairline);
+    padding: 16px 14px;
+  }
+  .home-recent-card:last-child,
+  .home-recent-card:nth-last-child(2):nth-child(odd) {
+    border-bottom: none;
   }
 
   .home-global-veil__glyphs {

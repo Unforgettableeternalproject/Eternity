@@ -1,0 +1,102 @@
+---
+import DesignLayout from '../../layouts/DesignLayout.astro';
+import SiteHomepageEditor from '../../components/editor/SiteHomepageEditor';
+
+export const prerender = false;
+
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+---
+
+<DesignLayout title="網站首頁編輯 · Admin">
+  <div class="adm">
+    <header class="adm-header">
+      <div class="adm-header-brand">
+        <span class="adm-header-logo">U</span>
+        U.E.P · ADMIN
+      </div>
+      <div class="adm-header-spacer"></div>
+      <span class="adm-header-version">SITE HOMEPAGE</span>
+      <a href="/admin" class="adm-header-home">← 返回管理首頁</a>
+    </header>
+    <main class="adm-main">
+      <SiteHomepageEditor client:only="react" apiBase={apiBase} />
+    </main>
+  </div>
+</DesignLayout>
+
+<style is:global>
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .adm {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: var(--font-sans);
+  }
+
+  .adm-header {
+    height: 56px;
+    flex: 0 0 56px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 26px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--bg-soft);
+  }
+
+  .adm-header-brand {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-title);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .adm-header-logo {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1.5px solid var(--ink-title);
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+
+  .adm-header-spacer {
+    flex: 1;
+  }
+
+  .adm-header-version {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.18em;
+  }
+
+  .adm-header-home {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .adm-header-home:hover {
+    color: var(--uep-gold);
+  }
+
+  .adm-main {
+    flex: 1;
+    overflow: hidden;
+  }
+</style>

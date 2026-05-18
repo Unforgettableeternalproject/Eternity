@@ -11,8 +11,13 @@ import PortalTransition from '../ui/PortalTransition';
 import JourneyScene from './JourneyScene';
 import JourneyNav from './JourneyNav';
 import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
+import type {
+  HomepageData,
+  ZoneSectionContent,
+} from '../../data/homepage-types';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useIsMobile } from '../../utils/useIsMobile';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import './HomePage.css';
 
 const API_BASE =
@@ -30,6 +35,7 @@ const MOBILE_UP_GATE_MIN = -0.08;
 const MOBILE_UP_GATE_MAX = 0.42;
 /** wheel delta 累積到此值時觸發全黑 → 播放動畫 */
 const FADE_THRESHOLD = 600;
+const ATLAS_SCENE_INDEX = -3;
 
 function isWithinViewportBand(
   value: number,
@@ -38,6 +44,10 @@ function isWithinViewportBand(
   maxRatio: number
 ) {
   return value >= vh * minRatio && value <= vh * maxRatio;
+}
+
+function isSettledAtElement(element: HTMLElement, scrollTop: number, vh: number) {
+  return Math.abs(element.offsetTop - scrollTop) <= vh * 0.08;
 }
 
 interface RecentItem {
@@ -52,6 +62,51 @@ interface RecentItem {
 
 export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const isMobile = useIsMobile();
+
+  // ── 從 SSR 注入的 window.__HOMEPAGE_DATA__ 讀取可編輯內容 ──
+  const homepageData: HomepageData | undefined =
+    typeof window !== 'undefined'
+      ? (((window as unknown as Record<string, unknown>)
+          .__HOMEPAGE_DATA__ as HomepageData | null) ?? undefined)
+      : undefined;
+
+  // ── 合併 D1 資料與靜態 fallback ──
+
+  // Hero 區塊
+  const hero = homepageData?.hero;
+
+  // Atlas 區塊
+  const atlas = homepageData?.atlas;
+
+  // Journey Transition（body 為 TipTap HTML，有值時直接渲染，沒有就用靜態 fallback）
+  const journey = homepageData?.journey;
+  const mergedTransition = JOURNEY_TRANSITION;
+
+  // Verse 區塊
+  const verse = homepageData?.verse;
+  const mergedVerses = VERSES;
+
+  // Zone 資料：用 D1 的 meta 覆蓋靜態 ZONES
+  const mergedZones = ZONES.map((zone) => {
+    const db = homepageData?.[`zone-${zone.id}` as keyof HomepageData] as
+      | ZoneSectionContent
+      | undefined;
+    if (!db?.meta) return zone;
+    return {
+      ...zone,
+      label: db.meta.label ?? zone.label,
+      en: db.meta.en ?? zone.en,
+      kicker: db.meta.kicker ?? zone.kicker,
+      blurb: db.meta.blurb ?? zone.blurb,
+      atmos: db.meta.atmos ?? zone.atmos,
+      glyphs: db.meta.glyphs ?? zone.glyphs,
+      uep: db.meta.uepShort ?? zone.uep,
+      stats: db.meta.stats ?? zone.stats,
+    };
+  });
+
+  // Journey narratives：靜態資料作為 fallback（有 body HTML 時優先使用 HTML）
+  const mergedNarratives = ZONE_NARRATIVES;
   const [hover, setHover] = useState<string | null>(null);
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
@@ -71,6 +126,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const fadeTargetRef = useRef(-2);
   const fadeOverlayRef = useRef<HTMLDivElement>(null);
   const fadingRef = useRef(false);
+  const thresholdSettledRef = useRef(false);
   const lastScrollTopRef = useRef(0);
   const alignTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alignRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,11 +226,22 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     threshold: 0.3,
   });
 
-  // 建構場景列表：5 zones
-  const journeyScenes = ZONES.map((zone) => ({
-    zone,
-    narrative: ZONE_NARRATIVES.find((n) => n.zoneId === zone.id)!,
-  }));
+  // 建構場景列表：5 zones（使用合併後的 D1 + 靜態資料）
+  // bodyHtml 有值時，JourneyScene 會改用 renderHtmlWithUep 渲染
+  const journeyScenes = mergedZones.map((zone) => {
+    const zoneData = homepageData?.[`zone-${zone.id}` as keyof HomepageData] as
+      | ZoneSectionContent
+      | undefined;
+    return {
+      zone,
+      narrative: mergedNarratives.find((n) => n.zoneId === zone.id)!,
+      bodyHtml: zoneData?.body,
+    };
+  });
+
+  // 用 ref 讓 scroll/wheel useEffect 能取得最新的 mergedZones（避免閉包陷阱）
+  const mergedZonesRef = useRef(mergedZones);
+  mergedZonesRef.current = mergedZones;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -224,6 +291,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         container.scrollTo({ top: targetTop, behavior: 'auto' });
         container.scrollTop = targetTop;
         lastScrollTopRef.current = targetTop;
+        thresholdSettledRef.current = false;
         setActiveScene(targetIndex);
         previousSceneRef.current = targetIndex;
       };
@@ -256,18 +324,37 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
   }, []);
 
+  const alignToAtlas = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const atlas = container?.querySelector<HTMLElement>('#atlas');
+    if (!container || !atlas) return;
+
+    const targetTop = atlas.offsetTop;
+    thresholdSettledRef.current = false;
+    container.scrollTo({ top: targetTop, behavior: 'auto' });
+    container.scrollTop = targetTop;
+    lastScrollTopRef.current = targetTop;
+    previousSceneRef.current = ATLAS_SCENE_INDEX;
+    setActiveScene(ATLAS_SCENE_INDEX);
+  }, []);
+
   const startSectionTransition = useCallback(
     (
       target: HTMLElement,
       targetIndex: -1 | 5,
       variant: 'plain' | 'threshold' | 'verse',
-      direction: 'down' | 'up'
+      direction: 'down' | 'up',
+      options?: {
+        preserveFade?: boolean;
+      }
     ) => {
       const container = scrollContainerRef.current;
       if (!container) return;
 
       clearZoneTransitionTimers();
-      resetFadeIntent();
+      if (!options?.preserveFade) {
+        resetFadeIntent();
+      }
 
       const previousBehavior = container.style.scrollBehavior;
       const previousSnapType = container.style.scrollSnapType;
@@ -299,6 +386,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         container.scrollTop = targetTop;
         lastScrollTopRef.current = targetTop;
         previousSceneRef.current = targetIndex;
+        thresholdSettledRef.current = targetIndex === -1;
         setActiveScene(targetIndex);
       };
 
@@ -336,9 +424,34 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       lastScrollTopRef.current = scrollTop;
       const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
       const trans = container.querySelector<HTMLElement>('#journey-start');
+      const atlas = container.querySelector<HTMLElement>('#atlas');
+      if (trans && isSettledAtElement(trans, scrollTop, vh)) {
+        thresholdSettledRef.current = true;
+        if (previousSceneRef.current === ATLAS_SCENE_INDEX) {
+          previousSceneRef.current = -1;
+          setActiveScene(-1);
+        }
+      }
 
       if (direction === 'down') {
         const current = previousSceneRef.current;
+
+        if (isMobile && current === -2 && trans && atlas) {
+          const thresholdTop = trans.offsetTop - scrollTop;
+          const atlasBottom = atlas.offsetTop + atlas.offsetHeight - scrollTop;
+          const hasClearedAtlas = atlasBottom <= vh * 0.28;
+          const shouldEnterThreshold = isWithinViewportBand(
+            thresholdTop,
+            vh,
+            MOBILE_DOWN_GATE_MIN,
+            MOBILE_DOWN_GATE_MAX
+          );
+
+          if (hasClearedAtlas && shouldEnterThreshold) {
+            startSectionTransition(trans, -1, 'threshold', 'down');
+            return;
+          }
+        }
 
         if (isMobile) {
           if (current === -1) {
@@ -352,7 +465,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 MOBILE_DOWN_GATE_MAX
               )
             ) {
-              startZoneTransition(0, ZONES[0], 'down');
+              startZoneTransition(0, mergedZonesRef.current[0], 'down');
               return;
             }
           } else if (current >= 0 && current < ZONES.length - 1) {
@@ -367,7 +480,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 MOBILE_DOWN_GATE_MAX
               )
             ) {
-              startZoneTransition(nextIndex, ZONES[nextIndex], 'down');
+              startZoneTransition(
+                nextIndex,
+                mergedZonesRef.current[nextIndex],
+                'down'
+              );
               return;
             }
           } else if (current === ZONES.length - 1) {
@@ -382,8 +499,81 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 MOBILE_DOWN_GATE_MAX
               )
             ) {
-              startSectionTransition(verseEl, 5, 'verse', 'down');
+              startSectionTransition(verseEl, 5, 'plain', 'down');
               return;
+            }
+          }
+        }
+
+        if (!isMobile) {
+          if (current === ATLAS_SCENE_INDEX) {
+            return;
+          }
+
+          if (current === -1) {
+            if (!thresholdSettledRef.current) return;
+            const firstScene = scenes[0];
+            if (firstScene) {
+              const firstTop = firstScene.offsetTop - scrollTop;
+
+              // 桌面快速滾動可能直接跨過 gate，這裡補一次安全觸發。
+              if (
+                firstTop <= vh * DESKTOP_DOWN_GATE_MAX &&
+                firstTop >= -vh * 0.18
+              ) {
+                startZoneTransition(0, mergedZonesRef.current[0], 'down');
+                return;
+              }
+
+              // 若已經明顯進入 History，至少同步狀態避免卡在 -1。
+              if (firstTop < -vh * 0.18) {
+                previousSceneRef.current = 0;
+                setActiveScene(0);
+              }
+            }
+          } else if (current >= 0 && current < ZONES.length - 1) {
+            const currentScene = scenes[current];
+            if (currentScene) {
+              const boundaryBottom =
+                currentScene.offsetTop + currentScene.offsetHeight - scrollTop;
+              const nextIndex = current + 1;
+
+              if (
+                boundaryBottom <= vh * DESKTOP_DOWN_GATE_MAX &&
+                boundaryBottom >= -vh * 0.18
+              ) {
+                startZoneTransition(
+                  nextIndex,
+                  mergedZonesRef.current[nextIndex],
+                  'down'
+                );
+                return;
+              }
+
+              if (boundaryBottom < -vh * 0.18) {
+                previousSceneRef.current = nextIndex;
+                setActiveScene(nextIndex);
+              }
+            }
+          } else if (current === ZONES.length - 1) {
+            // Storage → Verse：桌面滾動保底（與 zone-to-zone 同模式）
+            const currentScene = scenes[current];
+            const verseEl =
+              container.querySelector<HTMLElement>('#verse-section');
+            if (currentScene && verseEl) {
+              const boundaryBottom =
+                currentScene.offsetTop + currentScene.offsetHeight - scrollTop;
+              if (
+                boundaryBottom <= vh * DESKTOP_DOWN_GATE_MAX &&
+                boundaryBottom >= -vh * 0.18
+              ) {
+                startSectionTransition(verseEl, 5, 'plain', 'down');
+                return;
+              }
+              if (boundaryBottom < -vh * 0.18) {
+                previousSceneRef.current = 5;
+                setActiveScene(5);
+              }
             }
           }
         }
@@ -418,10 +608,79 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
       const current = previousSceneRef.current;
 
+      // 位置矯正：previousSceneRef 卡在 Storage(4) 但實際已滑到 Verse 附近
+      if (current === ZONES.length - 1) {
+        const verseEl = container.querySelector<HTMLElement>('#verse-section');
+        if (verseEl) {
+          const verseTop = verseEl.offsetTop - scrollTop;
+          if (verseTop >= -vh * 0.1 && verseTop <= vh * 0.16) {
+            previousSceneRef.current = 5;
+            setActiveScene(5);
+            return;
+          }
+        }
+      }
+
       // Verse → Storage
       if (current === 5) {
         const verseEl = container.querySelector<HTMLElement>('#verse-section');
         if (verseEl && verseEl.offsetTop - scrollTop > vh * 0.16) {
+          const verseTop = verseEl.offsetTop - scrollTop;
+
+          // 輔助：從 Verse 深處快速滾回時 fade 來不及累積，
+          // 先強制全黑再播轉場，避免 boot overlay 閃現。
+          const ensureFade = () => {
+            if (fadeAccumRef.current < FADE_THRESHOLD * 0.5) {
+              fadeOverlayRef.current?.style.setProperty('--fade-progress', '1');
+              setTimeout(() => resetFadeIntent(), 300);
+            }
+          };
+
+          if (isMobile) {
+            if (
+              isWithinViewportBand(
+                verseTop,
+                vh,
+                MOBILE_UP_GATE_MIN,
+                MOBILE_UP_GATE_MAX
+              )
+            ) {
+              ensureFade();
+              startZoneTransition(4, mergedZonesRef.current[4], 'up');
+              return;
+            }
+            // mobile 越過 gate band 的保底
+            if (verseTop > vh * MOBILE_UP_GATE_MAX && verseTop <= vh * 0.82) {
+              ensureFade();
+              startZoneTransition(4, mergedZonesRef.current[4], 'up');
+              return;
+            }
+          }
+
+          if (!isMobile) {
+            // 桌面快速回拉可能直接跨過 up gate，補一層保底觸發。
+            if (
+              verseTop <= vh * DESKTOP_UP_GATE_MAX &&
+              verseTop >= -vh * 0.12
+            ) {
+              ensureFade();
+              startZoneTransition(4, mergedZonesRef.current[4], 'up');
+              return;
+            }
+
+            if (verseTop > vh * DESKTOP_UP_GATE_MAX && verseTop <= vh * 0.82) {
+              ensureFade();
+              startZoneTransition(4, mergedZonesRef.current[4], 'up');
+              return;
+            }
+
+            if (verseTop > vh * 0.82) {
+              previousSceneRef.current = 4;
+            }
+          }
+
+          // 只要已判定離開 Verse，就同步到 Storage 狀態，避免下一次下滑仍卡在 scene=5。
+          previousSceneRef.current = 4;
           setActiveScene(4);
         }
         return;
@@ -440,7 +699,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             )
           ) {
             const targetIndex = current - 1;
-            startZoneTransition(targetIndex, ZONES[targetIndex], 'up');
+            startZoneTransition(
+              targetIndex,
+              mergedZonesRef.current[targetIndex],
+              'up'
+            );
             return;
           }
           setActiveScene(current - 1);
@@ -489,6 +752,35 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     if (!container) return;
 
     const handleWheel = (e: globalThis.WheelEvent) => {
+      const wheelTarget = e.target;
+      const readingScroller =
+        wheelTarget instanceof Element
+          ? wheelTarget.closest<HTMLElement>('[data-reading-scroll="true"]')
+          : null;
+
+      if (readingScroller) {
+        const canScroll =
+          readingScroller.scrollHeight > readingScroller.clientHeight + 1;
+
+        if (!canScroll) {
+          e.preventDefault();
+        } else {
+          const atTop = readingScroller.scrollTop <= 0;
+          const atBottom =
+            readingScroller.scrollTop + readingScroller.clientHeight >=
+            readingScroller.scrollHeight - 1;
+          const scrollingUp = e.deltaY < 0;
+          const scrollingDown = e.deltaY > 0;
+
+          if ((scrollingUp && atTop) || (scrollingDown && atBottom)) {
+            e.preventDefault();
+          }
+        }
+
+        resetFadeIntent();
+        return;
+      }
+
       // 不在轉場中、不在 fading 中，且目前在 zone scene 內
       if (zoneTransitionRef.current) return;
       const current = previousSceneRef.current;
@@ -502,10 +794,62 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
       const thresholdEl =
         container.querySelector<HTMLElement>('#journey-start');
+      const atlasEl = container.querySelector<HTMLElement>('#atlas');
+      const vh = window.innerHeight;
+      const thresholdSettled =
+        thresholdEl !== null &&
+        isSettledAtElement(thresholdEl, container.scrollTop, vh);
+
+      if (thresholdSettled) {
+        thresholdSettledRef.current = true;
+        if (current === ATLAS_SCENE_INDEX) {
+          previousSceneRef.current = -1;
+          setActiveScene(-1);
+        }
+      }
+
+      if (direction === 'down' && current === -2 && atlasEl) {
+        const atlasTop = atlasEl.offsetTop - container.scrollTop;
+        const projectedAtlasTop = atlasTop - e.deltaY;
+
+        if (
+          atlasTop <= vh * DESKTOP_DOWN_GATE_MAX ||
+          projectedAtlasTop <= vh * DESKTOP_DOWN_GATE_MAX
+        ) {
+          e.preventDefault();
+          resetFadeIntent();
+          alignToAtlas();
+          return;
+        }
+      }
 
       if (direction === 'down') {
+        // Atlas 是獨立空間；只有接近 Atlas 底部時才開始 fade 進入口。
+        if (current === ATLAS_SCENE_INDEX && thresholdEl && atlasEl) {
+          const vh = window.innerHeight;
+          const atlasBottom =
+            atlasEl.offsetTop + atlasEl.offsetHeight - container.scrollTop;
+          const projectedAtlasBottom = atlasBottom - e.deltaY;
+
+          if (atlasBottom <= vh * 0.32 || projectedAtlasBottom <= vh * 0.32) {
+            targetIndex = -1;
+            sectionTarget = thresholdEl;
+          }
+        } else if (
+          current === -1 &&
+          !thresholdSettledRef.current &&
+          !thresholdSettled &&
+          thresholdEl
+        ) {
+          targetIndex = -1;
+          sectionTarget = thresholdEl;
+        }
         // 從 transition section 進入第一個 zone (History)
-        if (current === -1) {
+        else if (current === -1) {
+          if (!thresholdSettledRef.current) {
+            resetFadeIntent();
+            return;
+          }
           const firstScene = scenes[0];
           if (firstScene) {
             const dist = firstScene.offsetTop - container.scrollTop;
@@ -541,13 +885,18 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             }
           }
         } else if (current === ZONES.length - 1) {
+          // Storage → Verse：用 Storage 底邊偵測，避免 bridge 偏移讓 Verse top 落在 gate band 外
+          const currentScene = scenes[current];
           const verseEl =
             container.querySelector<HTMLElement>('#verse-section');
-          if (verseEl) {
-            const top = verseEl.offsetTop - container.scrollTop;
+          if (currentScene && verseEl) {
+            const bottom =
+              currentScene.offsetTop +
+              currentScene.offsetHeight -
+              container.scrollTop;
             if (
               isWithinViewportBand(
-                top,
+                bottom,
                 window.innerHeight,
                 DESKTOP_DOWN_GATE_MIN,
                 DESKTOP_DOWN_GATE_MAX
@@ -656,7 +1005,15 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       if (progress >= 1 && !fadingRef.current) {
         fadingRef.current = true;
         if (sectionTarget && targetIndex === -1) {
-          startSectionTransition(sectionTarget, -1, 'plain', 'up');
+          startSectionTransition(
+            sectionTarget,
+            -1,
+            direction === 'down' ? 'threshold' : 'plain',
+            direction,
+            {
+              preserveFade: true,
+            }
+          );
           setTimeout(() => {
             resetFadeIntent();
             fadingRef.current = false;
@@ -665,7 +1022,9 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         }
 
         if (sectionTarget && targetIndex === 5) {
-          startSectionTransition(sectionTarget, 5, 'verse', 'down');
+          startSectionTransition(sectionTarget, 5, 'plain', 'down', {
+            preserveFade: true,
+          });
           setTimeout(() => {
             resetFadeIntent();
             fadingRef.current = false;
@@ -673,7 +1032,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           return;
         }
 
-        const nextZone = ZONES[targetIndex];
+        const nextZone = mergedZonesRef.current[targetIndex];
         if (nextZone) {
           startZoneTransition(
             targetIndex,
@@ -691,12 +1050,29 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [resetFadeIntent, startSectionTransition, startZoneTransition]);
+  }, [
+    alignToAtlas,
+    resetFadeIntent,
+    startSectionTransition,
+    startZoneTransition,
+  ]);
 
   // activeScene 可被 scroll reveal 提前更新；previousSceneRef 只記錄已落位的空間。
+  // 負值（hero/threshold）直接同步；Verse(5) 只在沒有進行中的 fade/transition 時才同步，
+  // 避免中斷正在累積的 wheel fade。
   useEffect(() => {
-    if (activeScene < 0 || activeScene === 5) {
+    if (activeScene < 0) {
       previousSceneRef.current = activeScene;
+      if (activeScene !== -1) {
+        thresholdSettledRef.current = false;
+      }
+    }
+    if (
+      activeScene === 5 &&
+      fadeAccumRef.current === 0 &&
+      !zoneTransitionRef.current
+    ) {
+      previousSceneRef.current = 5;
     }
   }, [activeScene]);
 
@@ -720,9 +1096,9 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         const target = container.querySelector<HTMLElement>('#verse-section');
         if (!target) return;
         const direction = previousSceneRef.current > 5 ? 'up' : 'down';
-        startSectionTransition(target, 5, 'verse', direction);
+        startSectionTransition(target, 5, 'plain', direction);
       } else {
-        const zone = ZONES[index];
+        const zone = mergedZonesRef.current[index];
         if (zone) {
           const direction = index >= previousSceneRef.current ? 'down' : 'up';
           startZoneTransition(index, zone, direction);
@@ -862,7 +1238,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
       {/* 右側場景導航 */}
       <JourneyNav
-        zones={ZONES}
+        zones={mergedZones}
         activeIndex={activeScene}
         onNavigate={handleJourneyNav}
       />
@@ -918,7 +1294,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               <span
                 style={{ width: 32, height: 1, background: 'var(--uep-gold)' }}
               />
-              U.E.P · Imaginary Space
+              {hero?.kicker ?? 'U.E.P · Imaginary Space'}
             </div>
 
             <h1
@@ -932,8 +1308,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 letterSpacing: '-0.02em',
               }}
             >
-              世界的
-              <span style={{ fontStyle: 'italic', fontWeight: 400 }}>邊際</span>
+              {hero?.titleMain ?? '世界的'}
+              <span style={{ fontStyle: 'italic', fontWeight: 400 }}>
+                {hero?.titleAccent ?? '邊際'}
+              </span>
               <br />
               <span
                 style={{
@@ -946,49 +1324,67 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                   marginTop: 12,
                 }}
               >
-                edge · world · observed
+                {hero?.subtitleEn ?? 'edge · world · observed'}
               </span>
             </h1>
 
-            <p
-              style={{
-                fontFamily: 'var(--font-serif-tc)',
-                fontSize: 16,
-                lineHeight: 2,
-                color: 'var(--ink-soft)',
-                maxWidth: 440,
-                marginTop: 28,
-                fontWeight: 400,
-              }}
-            >
-              你掉到了一個空白的空間，
-              <br />
-              周圍甚麼都沒有 ——
-              <br />
-              一名有著金色頭髮的少女從虛無當中顯現。
-            </p>
-
-            <div style={{ marginTop: 28, maxWidth: 460 }}>
-              <UepDialogue
-                side="left"
-                effects={['shimmer', 'halo']}
-                text="你好啊! ╰(*°▽°*)╯ 我的名字叫U.E.P，跟我來，我來跟你介紹一下這裡!"
-              />
-            </div>
+            {/* Hero 描述 + UEP 對話：有 body HTML 時用 renderHtmlWithUep，否則顯示靜態 fallback */}
+            {hero?.body ? (
+              <div
+                className="home-hero-body"
+                style={{
+                  fontFamily: 'var(--font-serif-tc)',
+                  fontSize: 16,
+                  lineHeight: 2,
+                  color: 'var(--ink-soft)',
+                  maxWidth: 440,
+                  marginTop: 28,
+                }}
+              >
+                {renderHtmlWithUep(hero.body, 'hero-body', 'home-prose')}
+              </div>
+            ) : (
+              <>
+                <p
+                  style={{
+                    fontFamily: 'var(--font-serif-tc)',
+                    fontSize: 16,
+                    lineHeight: 2,
+                    color: 'var(--ink-soft)',
+                    maxWidth: 440,
+                    marginTop: 28,
+                    fontWeight: 400,
+                  }}
+                >
+                  你掉到了一個空白的空間，
+                  <br />
+                  周圍甚麼都沒有 ——
+                  <br />
+                  一名有著金色頭髮的少女從虛無當中顯現。
+                </p>
+                <div style={{ marginTop: 28, maxWidth: 460 }}>
+                  <UepDialogue
+                    side="left"
+                    effects={['shimmer', 'halo']}
+                    text="你好啊! ╰(*°▽°*)╯ 我的名字叫U.E.P，跟我來，我來跟你介紹一下這裡!"
+                  />
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
               <button
                 className="btn-outline btn-outline--gold"
                 onClick={() => setShowMap(true)}
               >
-                ✦ 開啟大地圖
+                {hero?.buttons?.openMap ?? '✦ 開啟大地圖'}
               </button>
               <a
                 href="#journey-start"
                 className="btn-outline"
                 style={{ textDecoration: 'none' }}
               >
-                ↓ 開始遊歷
+                {hero?.buttons?.startJourney ?? '↓ 開始遊歷'}
               </a>
               {(isDev || isLoggedIn) && (
                 <a
@@ -996,7 +1392,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                   className="btn-outline"
                   style={{ textDecoration: 'none', opacity: 0.7 }}
                 >
-                  ⚙ 後台管理
+                  {hero?.buttons?.admin ?? '⚙ 後台管理'}
                 </a>
               )}
             </div>
@@ -1142,7 +1538,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               <span
                 style={{ width: 28, height: 1, background: 'var(--uep-gold)' }}
               />
-              the atlas
+              {atlas?.kicker ?? 'the atlas'}
               <span
                 style={{ width: 28, height: 1, background: 'var(--uep-gold)' }}
               />
@@ -1157,7 +1553,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 color: 'var(--ink-title)',
               }}
             >
-              邊際世界
+              {atlas?.title ?? '邊際世界'}
             </h2>
             <div
               style={{
@@ -1168,7 +1564,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 fontStyle: 'italic',
               }}
             >
-              地圖即導航 · 拖曳旋轉 · 上下傾斜 · 點擊區塊進入
+              {atlas?.hint ?? '地圖即導航 · 拖曳旋轉 · 上下傾斜 · 點擊區塊進入'}
             </div>
           </div>
 
@@ -1181,7 +1577,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             }}
           >
             <PieMap3D
-              zones={ZONES}
+              zones={mergedZones}
               size={isMobile ? 280 : 420}
               hoveredId={hover}
               onHover={setHover}
@@ -1192,7 +1588,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
           {/* legend */}
           <div className="home-legend-grid">
-            {ZONES.map((z, idx) => (
+            {mergedZones.map((z, idx) => (
               <div
                 key={z.id}
                 onMouseEnter={() => setHover(z.id)}
@@ -1263,47 +1659,62 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         >
           <div className="journey-transition__content">
             <div className="journey-transition__kicker reveal-up">
-              — 邊際世界遊歷 —
+              {journey?.kicker ?? '— 邊際世界遊歷 —'}
             </div>
             <h2
               className="journey-transition__title reveal-up"
               style={{ '--delay': '80ms' } as React.CSSProperties}
             >
-              跟我來吧
+              {journey?.title ?? '跟我來吧'}
             </h2>
             <div
               className="journey-transition__divider reveal-scale"
               style={{ '--delay': '160ms' } as React.CSSProperties}
             />
-            {JOURNEY_TRANSITION.narration.map((para, i) => (
-              <p
-                key={i}
-                className="journey-transition__narration reveal-up"
-                style={
-                  { '--delay': `${200 + i * 120}ms` } as React.CSSProperties
-                }
-              >
-                {para}
-              </p>
-            ))}
-            {JOURNEY_TRANSITION.uepLines.map((line, i) => (
-              <div
-                key={`u-${i}`}
-                className="reveal-up"
-                style={
-                  {
-                    '--delay': `${500 + i * 150}ms`,
-                    marginTop: 12,
-                  } as React.CSSProperties
-                }
-              >
-                <UepDialogue
-                  side="left"
-                  text={line}
-                  effects={['shimmer', 'halo']}
-                />
+            {/* Journey 旁白 + UEP 台詞：有 body HTML 時用 renderHtmlWithUep，否則顯示靜態 fallback */}
+            {journey?.body ? (
+              <div className="journey-transition__body">
+                {renderHtmlWithUep(
+                  journey.body,
+                  'journey-body',
+                  'journey-prose'
+                )}
               </div>
-            ))}
+            ) : (
+              <>
+                {JOURNEY_TRANSITION.narration.map((para, i) => (
+                  <p
+                    key={i}
+                    className="journey-transition__narration reveal-up"
+                    style={
+                      {
+                        '--delay': `${200 + i * 120}ms`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    {para}
+                  </p>
+                ))}
+                {JOURNEY_TRANSITION.uepLines.map((line, i) => (
+                  <div
+                    key={`u-${i}`}
+                    className="reveal-up"
+                    style={
+                      {
+                        '--delay': `${500 + i * 150}ms`,
+                        marginTop: 12,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <UepDialogue
+                      side="left"
+                      text={line}
+                      effects={['shimmer', 'halo']}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </section>
 
@@ -1313,6 +1724,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             key={item.zone.id}
             zone={item.zone}
             narrative={item.narrative}
+            bodyHtml={item.bodyHtml}
             index={i}
             total={journeyScenes.length}
             onEnterZone={() => handleJourneyEnter(item.zone)}
@@ -1351,7 +1763,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                   color: 'var(--uep-gold)',
                 }}
               >
-                · The Eternal Verse ·
+                {verse?.kicker ?? '· The Eternal Verse ·'}
               </div>
               <h2
                 style={{
@@ -1363,7 +1775,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                   letterSpacing: '-0.01em',
                 }}
               >
-                永恆的意義
+                {verse?.title ?? '永恆的意義'}
               </h2>
               <div
                 style={{
@@ -1376,47 +1788,65 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               />
             </div>
 
-            <div
-              style={{
-                fontFamily: 'var(--font-serif-tc)',
-                fontSize: 18,
-                lineHeight: 2.4,
-                color: 'var(--ink)',
-                textAlign: 'center',
-                position: 'relative',
-                padding: '0 30px',
-              }}
-            >
-              {VERSES.map((v, i) =>
-                v === '—' ? (
-                  <div
-                    key={i}
-                    style={{
-                      width: 32,
-                      height: 1,
-                      margin: '20px auto',
-                      background: 'var(--uep-gold)',
-                      opacity: 0.5,
-                    }}
-                  />
-                ) : (
-                  <div
-                    key={i}
-                    style={
-                      /輪迴|創世|毀滅|聚合|反饋|置換|虛無/.test(v)
-                        ? {
-                            fontWeight: 600,
-                            color: 'var(--uep-gold)',
-                            fontStyle: 'italic',
-                          }
-                        : undefined
-                    }
-                  >
-                    {v}
-                  </div>
-                )
-              )}
-            </div>
+            {/* 詩句：有 body HTML 時用 renderHtmlWithUep，否則顯示靜態 fallback */}
+            {verse?.body ? (
+              <div
+                className="home-verse-body"
+                style={{
+                  fontFamily: 'var(--font-serif-tc)',
+                  fontSize: 18,
+                  lineHeight: 2.4,
+                  color: 'var(--ink)',
+                  textAlign: 'center',
+                  position: 'relative',
+                  padding: '0 30px',
+                }}
+              >
+                {renderHtmlWithUep(verse.body, 'verse-body', 'verse-prose')}
+              </div>
+            ) : (
+              <div
+                style={{
+                  fontFamily: 'var(--font-serif-tc)',
+                  fontSize: 18,
+                  lineHeight: 2.4,
+                  color: 'var(--ink)',
+                  textAlign: 'center',
+                  position: 'relative',
+                  padding: '0 30px',
+                }}
+              >
+                {VERSES.map((v, i) =>
+                  v === '—' ? (
+                    <div
+                      key={i}
+                      style={{
+                        width: 32,
+                        height: 1,
+                        margin: '20px auto',
+                        background: 'var(--uep-gold)',
+                        opacity: 0.5,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      key={i}
+                      style={
+                        /輪迴|創世|毀滅|聚合|反饋|置換|虛無/.test(v)
+                          ? {
+                              fontWeight: 600,
+                              color: 'var(--uep-gold)',
+                              fontStyle: 'italic',
+                            }
+                          : undefined
+                      }
+                    >
+                      {v}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
             <div
               style={{
@@ -1429,7 +1859,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 textTransform: 'uppercase' as const,
               }}
             >
-              —— inscribed on the wall ——
+              {verse?.inscription ?? '—— inscribed on the wall ——'}
             </div>
           </div>
 
@@ -1492,7 +1922,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 </div>
               )}
               {recents.map((r, i) => {
-                const z = ZONES.find((z) => z.id === r.area);
+                const z = mergedZones.find((z) => z.id === r.area);
                 const dateStr = r.updatedAt
                   ? new Date(r.updatedAt).toLocaleDateString('zh-TW', {
                       month: '2-digit',
@@ -1503,13 +1933,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                   <a
                     key={r.id}
                     href={`/${r.area}?page=${r.slug}`}
-                    className="home-recent-card"
-                    style={{
-                      borderRight:
-                        i < recents.length - 1
-                          ? '1px solid var(--hairline)'
-                          : 'none',
-                    }}
+                    className={`home-recent-card${i < recents.length - 1 ? ' home-recent-card--bordered' : ''}`}
                   >
                     <div
                       style={{
@@ -1554,17 +1978,19 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
       {/* minimap */}
       <Minimap
-        zones={ZONES}
+        zones={mergedZones}
         currentId={hover}
         onExpand={() => setShowMap(true)}
-        onPickZone={(zid) => setIntro(ZONES.find((z) => z.id === zid) || null)}
+        onPickZone={(zid) =>
+          setIntro(mergedZones.find((z) => z.id === zid) || null)
+        }
         position="bottom-right"
       />
 
       {/* modals */}
       {showMap && (
         <BigMapModal
-          zones={ZONES}
+          zones={mergedZones}
           tone="dark"
           onClose={() => setShowMap(false)}
           onPick={(z) => {
