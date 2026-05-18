@@ -7,11 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { ZONES } from '../../data/zones';
-import BigMapModal from '../ui/BigMapModal';
-import Minimap from '../ui/Minimap';
-import PortalTransition from '../ui/PortalTransition';
-import TopBar from '../ui/TopBar';
-import IntroOverlay from '../ui/IntroOverlay';
+import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
@@ -30,6 +26,9 @@ import SpriteViewer from './SpriteViewer';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
+import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import './VisualsReader.css';
 
 // ──────────────────────────────────────────────────────────────
@@ -188,7 +187,7 @@ function findParentDivision(
 
 function countGalleries(node: PageTreeNode): number {
   let count = 0;
-  if (node.pageType === 'gallery' && !node.metadata?.hidden) count++;
+  if (node.pageType === 'gallery' && !isHidden(node)) count++;
   for (const c of node.children || []) count += countGalleries(c);
   return count;
 }
@@ -196,7 +195,7 @@ function countGalleries(node: PageTreeNode): number {
 /** 從 subcategory 中找到第一張可用的縮圖 URL */
 function findFirstThumb(node: PageTreeNode): string | null {
   for (const child of node.children || []) {
-    if (child.pageType === 'gallery' && !child.metadata?.hidden) {
+    if (child.pageType === 'gallery' && !isHidden(child)) {
       const images = Array.isArray(child.metadata?.images)
         ? (child.metadata.images as { file: string }[])
         : [];
@@ -212,9 +211,9 @@ function findFirstThumb(node: PageTreeNode): string | null {
 }
 
 function spoilerFilter(level: number): string {
-  if (level === 1) return 'blur(4px)';
-  if (level === 2) return 'blur(10px)';
-  if (level === 3) return 'blur(18px) saturate(0.4)';
+  if (level === 1) return 'blur(8px)';
+  if (level === 2) return 'blur(14px) grayscale(1) contrast(0.3) brightness(0.5)';
+  if (level === 3) return 'blur(24px) saturate(0) brightness(0.12)';
   return 'none';
 }
 
@@ -241,10 +240,15 @@ function VisualsReaderInner() {
   // Tree
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
+  const [treeError, setTreeError] = useState<string | null>(null);
 
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
-  const { contentReady, markContentReady } = useZoneBootReady();
+  const {
+    contentReady,
+    markContentReady,
+    setNavPending: setBootNavPending,
+  } = useZoneBootReady();
 
   // Spoiler
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -261,17 +265,6 @@ function VisualsReaderInner() {
   const [lbZoom, setLbZoom] = useState(1);
   const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
 
-  // UI chrome
-  const [showMap, setShowMap] = useState(false);
-  const [homePortal, setHomePortal] = useState(false);
-  const [portalZone, setPortalZone] = useState<any>(null);
-  const [introZone, setIntroZone] = useState<any>(null);
-  const [theme, setTheme] = useState(
-    () =>
-      (typeof localStorage !== 'undefined' &&
-        localStorage.getItem('uep-theme')) ||
-      'dark'
-  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 十字路口 hover 追蹤
@@ -292,13 +285,18 @@ function VisualsReaderInner() {
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {
     setTreeLoading(true);
+    setTreeError(null);
     try {
       const res = await fetch(`${API_BASE}/api/content/visuals/tree`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setTreeError(`伺服器回應異常 (${res.status})`);
+        return;
+      }
       const json = await res.json();
       if (json.ok) setTree(json.data || []);
     } catch (err) {
       console.error('fetchTree error:', err);
+      setTreeError(err instanceof Error ? err.message : String(err));
     } finally {
       setTreeLoading(false);
     }
@@ -333,54 +331,25 @@ function VisualsReaderInner() {
     }
   }, [treeLoading, markContentReady]);
 
-  // === URL state ===
-  useEffect(() => {
-    if (treeLoading || tree.length === 0) return;
-    const params = new URLSearchParams(window.location.search);
-    const page = params.get('page');
-    const subcat = params.get('subcat');
-    const division = params.get('division');
-    const group = params.get('group');
-
-    if (page) {
-      navigateToGallery(page, false);
-    } else if (subcat) {
-      navigateToSubcat(subcat, group ? parseInt(group) : 0, false);
-    } else if (division) {
-      navigateToDivision(division, false);
-    }
-  }, [treeLoading, tree]);
-
-  useEffect(() => {
-    const handler = () => {
-      const params = new URLSearchParams(window.location.search);
-      const page = params.get('page');
-      const subcat = params.get('subcat');
-      const division = params.get('division');
-      const group = params.get('group');
-
-      if (page) {
-        navigateToGallery(page, false);
-      } else if (subcat) {
-        navigateToSubcat(subcat, group ? parseInt(group) : 0, false);
-      } else if (division) {
-        navigateToDivision(division, false);
-      } else {
-        navigateToLanding(false);
-      }
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, [tree]);
+  // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
+  useZoneRouter({
+    routes: [
+      { param: 'page', handler: (value) => navigateToGallery(value, false) },
+      {
+        param: 'subcat',
+        handler: (value) => {
+          const group = new URLSearchParams(window.location.search).get('group');
+          navigateToSubcat(value, group ? parseInt(group, 10) : 0, false);
+        },
+      },
+      { param: 'division', handler: (value) => navigateToDivision(value, false) },
+    ],
+    onLanding: () => navigateToLanding(false),
+    treeReady: !treeLoading && tree.length > 0,
+    setBootNavPending: setBootNavPending,
+  });
 
   // === Navigation ===
-  function pushUrl(params: Record<string, string>) {
-    const url = new URL(window.location.href);
-    url.search = '';
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    window.history.pushState({}, '', url.toString());
-  }
-
   function currentScrollKey(): string {
     if (view === 'gallery' && activeGalleryId)
       return `gallery:${activeGalleryId}`;
@@ -408,11 +377,7 @@ function VisualsReaderInner() {
     setDivisionPage(null);
     setSubcatPage(null);
     restoreScroll('landing');
-    if (push) {
-      const url = new URL(window.location.href);
-      url.search = '';
-      window.history.pushState({}, '', url.toString());
-    }
+    if (push) clearUrl();
   }
 
   async function navigateToDivision(divId: string, push = true) {
@@ -440,6 +405,7 @@ function VisualsReaderInner() {
         /* ignore */
       }
     }
+    setBootNavPending(false);
   }
 
   async function navigateToSubcat(subcatId: string, groupIdx = 0, push = true) {
@@ -471,6 +437,7 @@ function VisualsReaderInner() {
         }
       }
     }
+    setBootNavPending(false);
   }
 
   async function navigateToGallery(pageId: string, push = true) {
@@ -486,11 +453,14 @@ function VisualsReaderInner() {
     try {
       const slug = pageId.replace('visuals/', '');
       const res = await fetch(`${API_BASE}/api/content/visuals/${slug}`);
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.ok) setGalleryPage(json.data);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok) setGalleryPage(json.data);
+      }
     } catch {
       /* ignore */
+    } finally {
+      setBootNavPending(false);
     }
   }
 
@@ -687,6 +657,20 @@ function VisualsReaderInner() {
 
   // ─── RENDER: Landing ───
   function renderLanding() {
+    // Tree 載入失敗時顯示錯誤
+    if (treeError) {
+      return (
+        <div className="visuals-landing-page">
+          <ZoneStateDisplay
+            kind="error"
+            message={treeError}
+            onRetry={() => void fetchTree()}
+            large
+          />
+        </div>
+      );
+    }
+
     // 資料驅動模式：有 homepage blocks 時使用
     if (homepageBlocks.length > 0) {
       return (
@@ -935,7 +919,7 @@ function VisualsReaderInner() {
     if (!activeDivision) return null;
     const divNode = findDivisionNode(tree, activeDivision.id);
     const subcats = (divNode?.children || [])
-      .filter((c) => c.pageType === 'subcategory' && !c.metadata?.hidden)
+      .filter((c) => c.pageType === 'subcategory' && !isHidden(c))
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
     // 展示風格：API metadata > DIVISIONS 硬編碼 > fallback
@@ -1020,7 +1004,7 @@ function VisualsReaderInner() {
             <div className="visuals-div-corridor-axis" />
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
-              const locked = sc.metadata?.locked === true;
+              const locked = isLocked(sc);
               const side = i % 2 === 0 ? 'left' : 'right';
               return (
                 <div
@@ -1057,7 +1041,7 @@ function VisualsReaderInner() {
           <div className="visuals-div-museum">
             {subcats.map((sc) => {
               const count = countGalleries(sc);
-              const locked = sc.metadata?.locked === true;
+              const locked = isLocked(sc);
               return (
                 <button
                   key={sc.id}
@@ -1091,7 +1075,7 @@ function VisualsReaderInner() {
           <div className="visuals-div-pinboard">
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
-              const locked = sc.metadata?.locked === true;
+              const locked = isLocked(sc);
               // 用 sin/cos 產生自然的隨機傾斜與偏移（同 gallery pinboard）
               const rot = Math.sin(i * 2.34 + 0.7) * 6;
               const yOff = Math.cos(i * 1.87 + 0.3) * 6;
@@ -1131,7 +1115,7 @@ function VisualsReaderInner() {
             <div className="visuals-div-gridpaper-cards">
               {subcats.map((sc) => {
                 const count = countGalleries(sc);
-                const locked = sc.metadata?.locked === true;
+                const locked = isLocked(sc);
                 return (
                   <button
                     key={sc.id}
@@ -1213,10 +1197,10 @@ function VisualsReaderInner() {
   function renderSubcat() {
     if (!activeSubcatId) return null;
     const subcatNode = findNodeById(tree, activeSubcatId);
-    if (!subcatNode) return <div className="visuals-empty">載入中...</div>;
+    if (!subcatNode) return <ZoneStateDisplay kind="loading" />;
 
     const galleries = (subcatNode.children || [])
-      .filter((c) => c.pageType === 'gallery' && !c.metadata?.hidden)
+      .filter((c) => c.pageType === 'gallery' && !isHidden(c))
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
     // Build group list
@@ -1319,14 +1303,14 @@ function VisualsReaderInner() {
                   const images = Array.isArray(g.metadata?.images)
                     ? (g.metadata.images as ImageItem[])
                     : [];
-                  const spoiler = (g.metadata?.spoilerLevel as number) || 0;
+                  const spoiler = getSpoilerLevel(g);
                   const gate = (g.metadata?.gate as string) || '';
                   const firstImg = images.length > 0 ? images[0] : null;
                   const thumbUrl = firstImg ? buildImageUrl(firstImg.file) : '';
-                  const isLocked = spoiler > 0 && !isUnlocked(g.id);
+                  const spoilerLocked = spoiler > 0 && !isUnlocked(g.id);
 
                   const handleClick = () => {
-                    if (isLocked) {
+                    if (spoilerLocked) {
                       requestUnlock(g.id, spoiler, gate, () => {
                         void navigateToGallery(g.id);
                       });
@@ -1345,7 +1329,7 @@ function VisualsReaderInner() {
                   return (
                     <button
                       key={g.id}
-                      className="visuals-gallery-card"
+                      className={`visuals-gallery-card${spoilerLocked && spoiler >= 3 ? ' vis-spoiler-corrupt' : spoilerLocked && spoiler >= 2 ? ' vis-spoiler-silhouette' : ''}`}
                       onClick={handleClick}
                     >
                       {thumbUrl && isSpriteThumb ? (
@@ -1377,7 +1361,7 @@ function VisualsReaderInner() {
                                 backgroundPosition: `${bgPosX}% ${bgPosY}%`,
                                 backgroundRepeat: 'no-repeat',
                                 imageRendering: 'pixelated',
-                                filter: isLocked
+                                filter: spoilerLocked
                                   ? spoilerFilter(spoiler)
                                   : 'none',
                               }}
@@ -1390,7 +1374,7 @@ function VisualsReaderInner() {
                           src={thumbUrl}
                           alt={g.title}
                           style={{
-                            filter: isLocked ? spoilerFilter(spoiler) : 'none',
+                            filter: spoilerLocked ? spoilerFilter(spoiler) : 'none',
                           }}
                         />
                       ) : (
@@ -1466,7 +1450,7 @@ function VisualsReaderInner() {
 
   // ─── RENDER: Gallery ───
   function renderGallery() {
-    if (!galleryPage) return <div className="visuals-empty">載入中...</div>;
+    if (!galleryPage) return <ZoneStateDisplay kind="loading" />;
 
     const meta = galleryPage.metadata || {};
     const images: ImageItem[] = Array.isArray(meta.images)
@@ -1823,7 +1807,7 @@ function VisualsReaderInner() {
 
   // === Main render ===
   return (
-    <div className="visuals-reader">
+    <ReaderShell zoneId="visuals" className="visuals-reader">
       {/* 入場動畫 — 幻影閃現 */}
       <div
         className={`vis-boot ${contentReady ? 'is-ready' : ''}`}
@@ -1835,17 +1819,6 @@ function VisualsReaderInner() {
         <div className="vis-boot-flash vis-boot-flash--r2" />
         <div className="vis-boot-grain" />
       </div>
-
-      <TopBar
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={() => {
-          setHomePortal(true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1100);
-        }}
-        dark={theme === 'dark'}
-      />
 
       <div className="visuals-main">
         <ZoneAtmosphere zone={VISUALS_ZONE} intensity="subtle" skipGlyphs />
@@ -1871,58 +1844,6 @@ function VisualsReaderInner() {
 
       {renderLightbox()}
       {renderSpoilerDialog()}
-
-      <Minimap
-        zones={ZONES}
-        currentId="visuals"
-        onExpand={() => setShowMap(true)}
-        onPickZone={(zoneId) => {
-          if (zoneId === 'visuals') return;
-          const z = ZONES.find((zz) => zz.id === zoneId);
-          if (z) {
-            setPortalZone(z);
-            setTimeout(() => {
-              window.location.href = `/${z.slug}`;
-            }, 1100);
-          }
-        }}
-        position="bottom-left"
-      />
-
-      {showMap && (
-        <BigMapModal
-          zones={ZONES}
-          onClose={() => setShowMap(false)}
-          onPick={(zone) => {
-            setShowMap(false);
-            if (zone.id === 'visuals') return;
-            setPortalZone(zone);
-            setTimeout(() => {
-              window.location.href = `/${zone.slug}`;
-            }, 1100);
-          }}
-          onCenterClick={() => {
-            setShowMap(false);
-            setHomePortal(true);
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 1100);
-          }}
-        />
-      )}
-
-      <IntroOverlay
-        zone={introZone}
-        onEnter={() => setIntroZone(null)}
-        onClose={() => setIntroZone(null)}
-      />
-
-      <PortalTransition zone={portalZone} onDone={() => setPortalZone(null)} />
-      <PortalTransition
-        zone={null}
-        homeMode={homePortal}
-        onDone={() => setHomePortal(false)}
-      />
-    </div>
+    </ReaderShell>
   );
 }

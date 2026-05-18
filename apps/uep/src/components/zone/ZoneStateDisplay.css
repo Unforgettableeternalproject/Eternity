@@ -1,0 +1,41 @@
+/* ──────────────────────────────────────────────────────────────
+   ZoneStateDisplay — 各 zone Reader 共用的載入/錯誤/空白狀態
+   ────────────────────────────────────────────────────────────── */
+
+.zone-state {
+  display: block;
+  padding: 18px;
+  color: var(--ink-mute);
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.zone-state--error {
+  color: #b86060;
+}
+
+.zone-state button {
+  display: block;
+  margin-top: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-card);
+  color: var(--ink);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  transition: background 0.2s;
+}
+
+.zone-state button:hover {
+  background: var(--line-strong);
+}
+
+.zone-state--large {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
