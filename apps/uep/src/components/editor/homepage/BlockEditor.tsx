@@ -7,6 +7,10 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
 import { Image } from '@tiptap/extension-image';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -816,7 +820,109 @@ function StorageRoomMapForm({ areas, onChange }: StorageRoomMapFormProps) {
   );
 }
 
-// 11. rich-text（TipTap 富文本編輯）
+// 11a. visuals-audio-block（音訊上傳 + 標題）
+function VisualsAudioForm({
+  data,
+  onChange,
+}: {
+  data: VisualsAudioData;
+  onChange: (d: VisualsAudioData) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${RT_API_BASE}/api/assets`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.ok && json.data?.key) {
+        onChange({ ...data, audioKey: json.data.key });
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <>
+      <label style={labelStyle}>音訊檔案</label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          style={{
+            ...inputStyle,
+            cursor: 'pointer',
+            textAlign: 'center',
+            flex: '0 0 auto',
+            padding: '6px 16px',
+          }}
+        >
+          {uploading ? '上傳中...' : data.audioKey ? '重新上傳' : '上傳音訊'}
+        </button>
+        {data.audioKey && (
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8em',
+              color: 'var(--ink-mute)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {data.audioKey}
+          </span>
+        )}
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/*"
+        style={{ display: 'none' }}
+        onChange={handleUpload}
+      />
+      <label style={labelStyle}>標題</label>
+      <input
+        style={inputStyle}
+        placeholder="U.E.P 獨白"
+        value={data.title || ''}
+        onChange={(e) => onChange({ ...data, title: e.target.value })}
+      />
+      <label style={labelStyle}>副標</label>
+      <input
+        style={inputStyle}
+        placeholder="monologue"
+        value={data.subtitle || ''}
+        onChange={(e) => onChange({ ...data, subtitle: e.target.value })}
+      />
+      {data.audioKey && (
+        <div style={{ marginTop: 8 }}>
+          <label style={labelStyle}>預覽</label>
+          <audio
+            controls
+            src={`${RT_API_BASE}/api/assets/${data.audioKey.split('/').map(encodeURIComponent).join('/')}`}
+            style={{ width: '100%', maxWidth: 400, height: 36 }}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+// 11b. rich-text（TipTap 富文本編輯）
 interface RichTextFormProps {
   html: string;
   onChange: (html: string) => void;
@@ -836,6 +942,10 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
       TextStyle,
       Color,
       Image.configure({ inline: false }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
     ],
     content: html,
@@ -1039,6 +1149,52 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
           '分隔線'
         )}
         {tbBtn('🖼', () => imageInputRef.current?.click(), false, '插入圖片')}
+        {!editor.isActive('table') ? (
+          tbBtn(
+            '表格',
+            () =>
+              editor
+                .chain()
+                .focus()
+                .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                .run(),
+            false,
+            '插入表格 3×3'
+          )
+        ) : (
+          <>
+            {tbBtn(
+              '+欄',
+              () => editor.chain().focus().addColumnAfter().run(),
+              false,
+              '向右插入欄'
+            )}
+            {tbBtn(
+              '+列',
+              () => editor.chain().focus().addRowAfter().run(),
+              false,
+              '向下插入列'
+            )}
+            {tbBtn(
+              '-欄',
+              () => editor.chain().focus().deleteColumn().run(),
+              false,
+              '刪除此欄'
+            )}
+            {tbBtn(
+              '-列',
+              () => editor.chain().focus().deleteRow().run(),
+              false,
+              '刪除此列'
+            )}
+            {tbBtn(
+              '×表',
+              () => editor.chain().focus().deleteTable().run(),
+              false,
+              '刪除表格'
+            )}
+          </>
+        )}
         {tbBtn(
           '🔗',
           () => {
@@ -1255,31 +1411,7 @@ export default function BlockEditor({
 
       case 'visuals-audio-block': {
         const ad = localData as VisualsAudioData;
-        return (
-          <>
-            <label style={labelStyle}>Audio R2 Key</label>
-            <input
-              style={inputStyle}
-              placeholder="audio/uep-monologue.mp3"
-              value={ad.audioKey || ''}
-              onChange={(e) => setData({ ...ad, audioKey: e.target.value })}
-            />
-            <label style={labelStyle}>標題</label>
-            <input
-              style={inputStyle}
-              placeholder="U.E.P 獨白"
-              value={ad.title || ''}
-              onChange={(e) => setData({ ...ad, title: e.target.value })}
-            />
-            <label style={labelStyle}>副標</label>
-            <input
-              style={inputStyle}
-              placeholder="monologue"
-              value={ad.subtitle || ''}
-              onChange={(e) => setData({ ...ad, subtitle: e.target.value })}
-            />
-          </>
-        );
+        return <VisualsAudioForm data={ad} onChange={(d) => setData(d)} />;
       }
 
       default: {

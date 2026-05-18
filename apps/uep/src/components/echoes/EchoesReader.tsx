@@ -1399,6 +1399,7 @@ function EchoesReaderInner() {
           {homepageBlocks.length > 0 ? (
             /* ── 資料驅動：按區塊順序渲染 ── */
             homepageBlocks.map((block) => {
+              if (block.hidden) return null;
               switch (block.type) {
                 case 'zone-header': {
                   const d = block.data as ZoneHeaderData;

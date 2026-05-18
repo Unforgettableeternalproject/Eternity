@@ -823,24 +823,47 @@ async function listAssets(
       for (const block of blocks) {
         if (typeof block.content !== 'string') continue;
 
-        // browser_profile 區塊：掃描 profiles[].avatar 裸 R2 key
-        if (block.type === 'browser_profile') {
+        // 結構化區塊：掃描 JSON 中的裸 R2 key
+        // browser_profile → profiles[].avatar
+        // visuals-audio-block → audioKey
+        // 以及其他可能包含裸 key 的區塊
+        if (
+          block.type === 'browser_profile' ||
+          block.type === 'visuals-audio-block'
+        ) {
           try {
             const data = JSON.parse(block.content);
-            const profiles = Array.isArray(data.profiles) ? data.profiles : [];
-            for (const profile of profiles) {
-              if (
-                typeof profile.avatar === 'string' &&
-                bareKeyRegex.test(profile.avatar)
-              ) {
-                if (!referenceMap.has(profile.avatar))
-                  referenceMap.set(profile.avatar, []);
-                const refs = referenceMap.get(profile.avatar)!;
-                if (!refs.includes(row.id)) refs.push(row.id);
+
+            // browser_profile: profiles[].avatar
+            if (block.type === 'browser_profile') {
+              const profiles = Array.isArray(data.profiles)
+                ? data.profiles
+                : [];
+              for (const profile of profiles) {
+                if (
+                  typeof profile.avatar === 'string' &&
+                  bareKeyRegex.test(profile.avatar)
+                ) {
+                  if (!referenceMap.has(profile.avatar))
+                    referenceMap.set(profile.avatar, []);
+                  const refs = referenceMap.get(profile.avatar)!;
+                  if (!refs.includes(row.id)) refs.push(row.id);
+                }
               }
             }
+
+            // visuals-audio-block: audioKey
+            if (
+              typeof data.audioKey === 'string' &&
+              bareKeyRegex.test(data.audioKey)
+            ) {
+              if (!referenceMap.has(data.audioKey))
+                referenceMap.set(data.audioKey, []);
+              const refs = referenceMap.get(data.audioKey)!;
+              if (!refs.includes(row.id)) refs.push(row.id);
+            }
           } catch {
-            // 略過格式錯誤的 browser_profile
+            // 略過格式錯誤的結構化區塊
           }
         }
 

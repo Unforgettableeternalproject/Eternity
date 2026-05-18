@@ -154,6 +154,13 @@ export default function HomepageEditor({
     setBlocks((prev) => prev.filter((b) => b.id !== id));
   }, []);
 
+  /** 切換區塊隱藏狀態 */
+  const toggleBlockHidden = useCallback((id: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, hidden: !b.hidden } : b))
+    );
+  }, []);
+
   /** 上移區塊 */
   const moveUp = useCallback((index: number) => {
     if (index === 0) return;
@@ -402,6 +409,7 @@ export default function HomepageEditor({
                       zoneColor={zoneColor}
                       onEdit={() => setEditingBlockId(block.id)}
                       onDelete={() => deleteBlock(block.id)}
+                      onToggleHidden={() => toggleBlockHidden(block.id)}
                       onMoveUp={index > 0 ? () => moveUp(index) : undefined}
                       onMoveDown={
                         index < blocks.length - 1
