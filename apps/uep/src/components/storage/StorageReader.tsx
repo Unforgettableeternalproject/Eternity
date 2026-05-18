@@ -1723,7 +1723,50 @@ export default function StorageReader() {
       </div>
 
       <div className="sto-main">
-        <ZoneAtmosphere zone={STORAGE_ZONE} skipGlyphs />
+        <ZoneAtmosphere zone={STORAGE_ZONE} intensity="subtle" />
+
+        {/* Storage 專屬 outline rings（金色在淺色背景對比度不足，額外補強） */}
+        <div className="sto-outline-rings" aria-hidden="true">
+          <div className="sto-ring-1" />
+          <div className="sto-ring-2" />
+        </div>
+
+        {/* 蛛絲裝飾 — 左上角 */}
+        <div className="sto-cobweb sto-cobweb-tl" aria-hidden="true">
+          <svg viewBox="0 0 200 200">
+            {/* 角落出發的架構線 */}
+            <path className="sto-cobweb-frame" d="M0,0 Q40,80 20,200" />
+            <path className="sto-cobweb-frame" d="M0,0 Q80,40 200,20" />
+            <path className="sto-cobweb-frame" d="M0,0 L140,140" />
+            <path className="sto-cobweb-frame" d="M0,0 Q60,20 180,60" />
+            <path className="sto-cobweb-frame" d="M0,0 Q20,60 60,180" />
+            {/* 橫向蛛絲（弧形連接） */}
+            <path className="sto-cobweb-thread" d="M8,40 Q30,32 60,28" />
+            <path className="sto-cobweb-thread" d="M15,70 Q45,55 90,48" />
+            <path className="sto-cobweb-thread" d="M22,100 Q58,80 120,68" />
+            <path className="sto-cobweb-thread" d="M30,130 Q72,108 140,90" />
+            <path className="sto-cobweb-thread" d="M40,160 Q88,130 160,110" />
+            {/* 末端垂絲 */}
+            <path className="sto-cobweb-thread" d="M60,180 Q58,192 62,200" />
+            <path className="sto-cobweb-thread" d="M180,60 Q192,58 200,62" />
+          </svg>
+        </div>
+
+        {/* 蛛絲裝飾 — 右下角 */}
+        <div className="sto-cobweb sto-cobweb-br" aria-hidden="true">
+          <svg viewBox="0 0 200 200">
+            <path className="sto-cobweb-frame" d="M0,0 Q40,80 20,200" />
+            <path className="sto-cobweb-frame" d="M0,0 Q80,40 200,20" />
+            <path className="sto-cobweb-frame" d="M0,0 L130,130" />
+            <path className="sto-cobweb-frame" d="M0,0 Q55,18 170,55" />
+            <path className="sto-cobweb-frame" d="M0,0 Q18,55 55,170" />
+            <path className="sto-cobweb-thread" d="M7,35 Q28,28 52,24" />
+            <path className="sto-cobweb-thread" d="M12,60 Q40,48 80,42" />
+            <path className="sto-cobweb-thread" d="M20,90 Q52,72 110,60" />
+            <path className="sto-cobweb-thread" d="M28,118 Q65,96 130,82" />
+          </svg>
+        </div>
+
         <StorageFloatingDecor />
         <StorageDust />
         <div className="sto-content" ref={scrollRef}>

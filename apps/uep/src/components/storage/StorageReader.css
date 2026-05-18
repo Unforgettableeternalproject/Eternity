@@ -74,6 +74,122 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   蛛絲裝飾 — 左上角 + 右下角
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-cobweb {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  animation: sto-cobweb-in 1.8s 0.6s ease-out forwards;
+}
+.sto-cobweb-tl {
+  top: 0;
+  left: 0;
+  width: 220px;
+  height: 220px;
+}
+.sto-cobweb-br {
+  bottom: 0;
+  right: 0;
+  width: 180px;
+  height: 180px;
+  transform: rotate(180deg);
+}
+.sto-cobweb svg {
+  width: 100%;
+  height: 100%;
+}
+.sto-cobweb-thread {
+  fill: none;
+  stroke: var(--storage-soft);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+/* 主架構線較明顯 */
+.sto-cobweb-frame {
+  fill: none;
+  stroke: var(--storage-soft);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+/* 微微搖曳 */
+@keyframes sto-cobweb-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.12;
+  }
+}
+@keyframes sto-cobweb-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(0.4deg);
+  }
+}
+.sto-cobweb-tl svg {
+  animation: sto-cobweb-sway 20s ease-in-out infinite;
+  transform-origin: 0 0;
+}
+.sto-cobweb-br svg {
+  animation: sto-cobweb-sway 24s 3s ease-in-out infinite;
+  transform-origin: 100% 100%;
+}
+[data-theme='light'] .sto-cobweb {
+  animation-name: sto-cobweb-in-light;
+}
+@keyframes sto-cobweb-in-light {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.08;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Outline rings 補強（Storage 金色在淺色背景對比度不足）
+   ═══════════════════════════════════════════════════════════════════ */
+.sto-outline-rings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.sto-ring-1 {
+  position: absolute;
+  left: -20%;
+  top: -30%;
+  width: 120%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--storage-main);
+  opacity: 0.12;
+}
+.sto-ring-2 {
+  position: absolute;
+  right: -30%;
+  bottom: -40%;
+  width: 90%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px dashed var(--storage-main);
+  opacity: 0.14;
+}
+[data-theme='dark'] .sto-ring-1 {
+  opacity: 0.07;
+}
+[data-theme='dark'] .sto-ring-2 {
+  opacity: 0.09;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    轉場動畫 — 灰塵飄散風格
    ═══════════════════════════════════════════════════════════════════ */
 .sto-page-transition {
