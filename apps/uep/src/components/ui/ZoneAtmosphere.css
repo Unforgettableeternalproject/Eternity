@@ -1,0 +1,66 @@
+.zone-atmosphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--zone-atmosphere-color);
+  --zone-atmosphere-active-color: var(--zone-atmosphere-color);
+  --zone-atmosphere-ring-primary-opacity: 0.06;
+  --zone-atmosphere-ring-secondary-opacity: 0.08;
+  --zone-atmosphere-glyph-opacity: 0.25;
+  --zone-atmosphere-dot-opacity: 0.5;
+}
+
+[data-theme='dark'] .zone-atmosphere {
+  --zone-atmosphere-ring-primary-opacity: 0.12;
+  --zone-atmosphere-ring-secondary-opacity: 0.14;
+  --zone-atmosphere-glyph-opacity: 0.4;
+  --zone-atmosphere-dot-opacity: 0.65;
+}
+
+.zone-atmosphere__ring {
+  position: absolute;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border-color: var(--zone-atmosphere-active-color);
+}
+
+.zone-atmosphere__ring--primary {
+  left: -20%;
+  top: -30%;
+  width: 120%;
+  border-style: solid;
+  border-width: 1px;
+  opacity: var(--zone-atmosphere-ring-primary-opacity);
+}
+
+.zone-atmosphere__ring--secondary {
+  right: -30%;
+  bottom: -40%;
+  width: 90%;
+  border-style: dashed;
+  border-width: 1px;
+  opacity: var(--zone-atmosphere-ring-secondary-opacity);
+}
+
+.zone-atmosphere__glyph {
+  position: absolute;
+  font-family: var(--font-display);
+  color: var(--zone-atmosphere-active-color);
+  opacity: 0;
+  --drift-opacity: calc(
+    var(--zone-atmosphere-glyph-opacity) + var(--opacity-offset, 0)
+  );
+}
+
+.zone-atmosphere__dot {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: var(--zone-atmosphere-active-color);
+  border-radius: 50%;
+  opacity: 0;
+  --drift-opacity: calc(
+    var(--zone-atmosphere-dot-opacity) + var(--opacity-offset, 0)
+  );
+}

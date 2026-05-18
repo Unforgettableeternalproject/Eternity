@@ -61,7 +61,6 @@ export function useScrollReveal(
     return () => {
       observerRef.current?.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, threshold, rootMargin, once, triggered]);
 
   return { visible, triggered };

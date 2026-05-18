@@ -23,6 +23,7 @@ export default function StorageDust() {
   const particles = useRef<Particle[]>([]);
   const mouse = useRef({ x: -999, y: -999 });
   const raf = useRef(0);
+  const colorRef = useRef({ r: 213, g: 182, b: 24 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,6 +76,23 @@ export default function StorageDust() {
       createParticles(getParticleCount());
     }
 
+    // 讀取主題色
+    function updateColor() {
+      const style = getComputedStyle(document.documentElement);
+      const colorStr = style.getPropertyValue('--storage-main').trim();
+      const match = colorStr.match(
+        /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i
+      );
+      if (match) {
+        colorRef.current = {
+          r: parseInt(match[1], 16),
+          g: parseInt(match[2], 16),
+          b: parseInt(match[3], 16),
+        };
+      }
+    }
+    updateColor();
+
     function handleMouse(e: MouseEvent) {
       const rect = canvas!.getBoundingClientRect();
       const dpr = window.devicePixelRatio;
@@ -126,7 +144,8 @@ export default function StorageDust() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * dpr, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(213, 182, 24, ${p.opacity})`;
+        const { r, g, b } = colorRef.current;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${p.opacity})`;
         ctx.fill();
       }
 
