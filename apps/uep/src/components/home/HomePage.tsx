@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 
-import type {
-  HomepageData,
-  ZoneSectionContent,
+import {
+  parseVerseStanzas,
+  type HomepageData,
+  type ZoneSectionContent,
 } from '../../data/homepage-types';
 import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
 import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
@@ -383,8 +384,16 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     const thresholdEl = container?.querySelector<HTMLElement>('#journey-start');
     if (!container || !thresholdEl) return;
 
-    const prevOverflowY = container.style.overflowY;
-    const prevTouchAction = container.style.touchAction;
+    // 只在沒有備份時保存（防止覆蓋 zone transition 的備份）
+    const hadBackup = !!containerStyleBackupRef.current;
+    if (!hadBackup) {
+      containerStyleBackupRef.current = {
+        scrollBehavior: container.style.scrollBehavior,
+        scrollSnapType: container.style.scrollSnapType,
+        overflowY: container.style.overflowY,
+        touchAction: container.style.touchAction,
+      };
+    }
     container.style.overflowY = 'hidden';
     container.style.touchAction = 'none';
 
@@ -399,8 +408,14 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     requestAnimationFrame(() => {
       container.scrollTop = targetTop;
       setTimeout(() => {
-        container.style.overflowY = prevOverflowY;
-        container.style.touchAction = prevTouchAction;
+        // 如果 zone/section 轉場已經接手，不要干擾
+        if (zoneTransitionRef.current) return;
+        const saved = containerStyleBackupRef.current;
+        if (saved) {
+          container.style.overflowY = saved.overflowY;
+          container.style.touchAction = saved.touchAction;
+        }
+        containerStyleBackupRef.current = null;
       }, 120);
     });
   }, []);
@@ -423,10 +438,16 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         resetFadeIntent();
       }
 
-      const previousBehavior = container.style.scrollBehavior;
-      const previousSnapType = container.style.scrollSnapType;
-      const previousOverflowY = container.style.overflowY;
-      const previousTouchAction = container.style.touchAction;
+      // 只在首次鎖定時備份原始樣式，連續轉場不覆蓋
+      if (!containerStyleBackupRef.current) {
+        containerStyleBackupRef.current = {
+          scrollBehavior: container.style.scrollBehavior,
+          scrollSnapType: container.style.scrollSnapType,
+          overflowY: container.style.overflowY,
+          touchAction: container.style.touchAction,
+        };
+      }
+      const savedStyles = containerStyleBackupRef.current;
 
       zoneTransitionRef.current = true;
       container.classList.add('journey-scroll--locked');
@@ -468,18 +489,19 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         forceAlignToTarget();
         zoneTransitionRef.current = false;
         container.classList.remove('journey-scroll--locked');
-        container.style.scrollBehavior = previousBehavior;
-        container.style.overflowY = previousOverflowY;
-        container.style.touchAction = previousTouchAction;
+        container.style.scrollBehavior = savedStyles.scrollBehavior;
+        container.style.overflowY = savedStyles.overflowY;
+        container.style.touchAction = savedStyles.touchAction;
         setSectionVeil(null);
 
         // Verse 內容超過一屏，保持 snap 關閉以允許自由滾動
         if (targetIndex === 5) {
-          originalSnapTypeRef.current = previousSnapType;
+          originalSnapTypeRef.current = savedStyles.scrollSnapType;
           container.style.scrollSnapType = 'none';
         } else {
-          container.style.scrollSnapType = previousSnapType;
+          container.style.scrollSnapType = savedStyles.scrollSnapType;
         }
+        containerStyleBackupRef.current = null;
       }, ZONE_VEIL_DURATION_MS);
     },
     [clearZoneTransitionTimers, resetFadeIntent]
@@ -505,6 +527,25 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           previousSceneRef.current = -1;
           setActiveScene(-1);
           return; // 從 Atlas 抵達入口，不允許同一 tick 穿透到 History
+        }
+      }
+
+      // ── 位置矯正：Hero / Atlas 防脫節 ──
+      // 當 scroll snap 把位置拉回但 previousSceneRef 沒跟上時修正
+      if (!zoneTransitionRef.current && fadeAccumRef.current === 0 && atlas) {
+        const cur = previousSceneRef.current;
+        // 明顯在 Hero 範圍但 previousScene 卡在 Atlas
+        if (scrollTop < atlas.offsetTop * 0.3 && cur === ATLAS_SCENE_INDEX) {
+          previousSceneRef.current = -2;
+          thresholdSettledRef.current = false;
+          setActiveScene(-2);
+          return;
+        }
+        // 明顯在 Atlas 範圍但 previousScene 卡在 Hero
+        if (isSettledAtElement(atlas, scrollTop, vh) && cur === -2) {
+          previousSceneRef.current = ATLAS_SCENE_INDEX;
+          setActiveScene(ATLAS_SCENE_INDEX);
+          return;
         }
       }
 
@@ -779,6 +820,24 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       }
 
       if (current === -1 && trans && trans.offsetTop - scrollTop > vh * 0.16) {
+        // 如果 Atlas 在可視範圍內，先到 Atlas 而非直接跳 Hero
+        if (atlas && isSettledAtElement(atlas, scrollTop, vh)) {
+          previousSceneRef.current = ATLAS_SCENE_INDEX;
+          setActiveScene(ATLAS_SCENE_INDEX);
+        } else {
+          setActiveScene(-2);
+        }
+        return;
+      }
+
+      // Atlas→Hero：scroll snap 把位置拉回 hero 時更新狀態
+      if (
+        current === ATLAS_SCENE_INDEX &&
+        atlas &&
+        atlas.offsetTop - scrollTop > vh * 0.16
+      ) {
+        previousSceneRef.current = -2;
+        thresholdSettledRef.current = false;
         setActiveScene(-2);
         return;
       }
@@ -1043,6 +1102,17 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           resetFadeIntent();
           alignToAtlas();
           return;
+        } else if (current === ATLAS_SCENE_INDEX) {
+          // Atlas→Hero：無動畫直接對齊回 Hero
+          e.preventDefault();
+          resetFadeIntent();
+          container.scrollTo({ top: 0, behavior: 'auto' });
+          container.scrollTop = 0;
+          lastScrollTopRef.current = 0;
+          previousSceneRef.current = -2;
+          thresholdSettledRef.current = false;
+          setActiveScene(-2);
+          return;
         }
       }
 
@@ -1146,20 +1216,16 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   ]);
 
   // activeScene 可被 scroll reveal 提前更新；previousSceneRef 只記錄已落位的空間。
-  // 負值（hero/threshold）直接同步；Verse(5) 只在沒有進行中的 fade/transition 時才同步，
-  // 避免中斷正在累積的 wheel fade。
+  // 轉場 / fade 累積期間不同步，避免覆蓋正確的落位狀態。
   useEffect(() => {
+    if (zoneTransitionRef.current || fadeAccumRef.current > 0) return;
     if (activeScene < 0) {
       previousSceneRef.current = activeScene;
       if (activeScene !== -1) {
         thresholdSettledRef.current = false;
       }
     }
-    if (
-      activeScene === 5 &&
-      fadeAccumRef.current === 0 &&
-      !zoneTransitionRef.current
-    ) {
+    if (activeScene === 5) {
       previousSceneRef.current = 5;
     }
   }, [activeScene]);
@@ -1879,11 +1945,63 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               />
             </div>
 
-            {/* 詩句：有 body HTML 時用 renderHtmlWithUep，否則顯示靜態 fallback */}
+            {/* 詩句：有 body HTML 時按詩節分割、根據可見度渲染，否則顯示靜態 fallback */}
             {verse?.body ? (
-              <div className="home-verse-text home-verse-body">
-                {renderHtmlWithUep(verse.body, 'verse-body', 'verse-prose')}
-              </div>
+              (() => {
+                const stanzas = parseVerseStanzas(verse.body);
+                const vis = verse.stanzaVisibility ?? stanzas.map(() => true);
+                const visibleStanzas = stanzas.filter((_, i) => vis[i] ?? true);
+                // 檢查最後一個可見詩節之後是否還有被隱藏的內容
+                const lastVisIdx = vis.reduce<number>(
+                  (acc, v, i) => (v && i < stanzas.length ? i : acc),
+                  -1
+                );
+                const hasTorn =
+                  lastVisIdx >= 0 && lastVisIdx < stanzas.length - 1;
+                const visibleHtml = visibleStanzas.join('\n<hr>\n');
+
+                return (
+                  <>
+                    <div className="home-verse-text home-verse-body">
+                      {renderHtmlWithUep(
+                        visibleHtml,
+                        'verse-body',
+                        'verse-prose'
+                      )}
+                    </div>
+                    {hasTorn && (
+                      <div className="verse-torn" aria-hidden>
+                        <div className="verse-torn__fade" />
+                        <div className="verse-torn__crack">
+                          <svg
+                            viewBox="0 0 400 12"
+                            preserveAspectRatio="none"
+                            className="verse-torn__svg"
+                          >
+                            <path
+                              d="M0,6 L18,4 L32,8 L55,3 L72,7 L98,2 L115,9 L140,4 L158,7 L180,2 L205,8 L228,3 L250,7 L275,4 L298,9 L320,3 L342,6 L365,2 L385,8 L400,5"
+                              fill="none"
+                              stroke="var(--uep-gold)"
+                              strokeWidth="1"
+                              opacity="0.45"
+                            />
+                          </svg>
+                        </div>
+                        <div className="verse-torn__fragments">
+                          {[0, 1, 2, 3, 4].map((i) => (
+                            <span
+                              key={i}
+                              className="verse-torn__shard"
+                              style={{ animationDelay: `${i * 0.6}s` }}
+                            />
+                          ))}
+                        </div>
+                        <div className="verse-torn__hint">⋯</div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()
             ) : (
               <div className="home-verse-text">
                 {VERSES.map((v, i) =>

@@ -275,7 +275,7 @@ function VisualsMonoPlayer({
       a.pause();
       a.src = '';
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [audioUrl]);
 
   const updateProgress = useCallback(() => {

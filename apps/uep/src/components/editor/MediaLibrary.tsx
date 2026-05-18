@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { uepDialog as UepDialogType } from '../ui/UepDialog';
 import type { uepToast as UepToastType } from '../ui/UepToast';
@@ -89,6 +89,8 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
   const [search, setSearch] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── 載入資產 ──
 
@@ -124,6 +126,60 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
   useEffect(() => {
     fetchAssets();
   }, [fetchAssets]);
+
+  // ── 上傳檔案 ──
+
+  const handleUpload = useCallback(
+    async (files: globalThis.FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      // 驗證檔案類型：只允許圖片和音檔
+      const allowed = Array.from(files).filter(
+        (f) => f.type.startsWith('image/') || f.type.startsWith('audio/')
+      );
+      if (allowed.length === 0) {
+        getToast()?.error('只能上傳圖片或音檔');
+        return;
+      }
+      if (allowed.length < files.length) {
+        getToast()?.info(
+          `已忽略 ${files.length - allowed.length} 個不支援的檔案`
+        );
+      }
+
+      setUploading(true);
+      let successCount = 0;
+      for (const file of allowed) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const res = await fetch(`/api/assets`, {
+            method: 'POST',
+            body: formData,
+          });
+          const json = (await res.json()) as {
+            ok: boolean;
+            data?: { key: string; size: number; type: string; name: string };
+            error?: string;
+          };
+          if (!json.ok) throw new Error(json.error || '上傳失敗');
+          successCount++;
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : '未知錯誤';
+          getToast()?.error(`上傳「${file.name}」失敗：${msg}`);
+        }
+      }
+      setUploading(false);
+
+      if (successCount > 0) {
+        getToast()?.success(`已上傳 ${successCount} 個檔案`);
+        fetchAssets();
+      }
+
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+    [fetchAssets]
+  );
 
   // ── 衍生狀態 ──
 
@@ -330,6 +386,16 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
           onChange={(e) => setSearch(e.target.value)}
         />
 
+        {/* 隱藏的 file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,audio/*"
+          className="ml-file-input"
+          onChange={(e) => void handleUpload(e.target.files)}
+        />
+
         {selected.size > 0 ? (
           <div className="ml-actions">
             <span className="ml-sel-count">已選 {selected.size} 個</span>
@@ -347,6 +413,14 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
           </div>
         ) : (
           <div className="ml-actions">
+            <button
+              type="button"
+              className="ml-btn ml-btn--upload"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? '上傳中…' : '＋ 上傳檔案'}
+            </button>
             <button type="button" className="ml-btn" onClick={selectOrphans}>
               選取孤兒
             </button>
@@ -442,10 +516,18 @@ export default function MediaLibrary({ apiBase }: MediaLibraryProps) {
           )}
         </div>
 
-        {/* 詳情面板（常駐） */}
-        <div className="ml-detail">
+        {/* 詳情面板（手機版：只在選中時顯示） */}
+        <div className={`ml-detail${detail ? ' ml-detail--has-item' : ''}`}>
           {detail ? (
             <>
+              {/* 手機版：關閉按鈕 */}
+              <button
+                type="button"
+                className="ml-detail-close"
+                onClick={() => setDetail(null)}
+              >
+                ✕ 關閉
+              </button>
               <div className="ml-detail-preview">
                 {isImage(detail) ? (
                   <img

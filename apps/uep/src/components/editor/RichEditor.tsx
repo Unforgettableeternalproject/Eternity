@@ -173,6 +173,8 @@ export default function RichEditor({
     'idle' | 'saving' | 'saved' | 'error'
   >('idle');
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -1007,13 +1009,28 @@ export default function RichEditor({
     >
       {/* Header */}
       <header className="ned-header">
+        {/* 手機版：頁面樹 toggle 按鈕 */}
+        {!isPageType && (
+          <button
+            className={`ned-mobile-toggle ned-mobile-toggle--tree${mobileTreeOpen ? ' is-active' : ''}`}
+            onClick={() => {
+              setMobileTreeOpen((v) => !v);
+              setMobileInspectorOpen(false);
+            }}
+            title="頁面樹"
+          >
+            ☰
+          </button>
+        )}
         <a href="/admin" className="ned-header-area">
           $ admin / {area}
         </a>
         {isEntryMode ? (
           <>
             <div className="ned-header-spacer" />
-            <span className="ned-header-status">選擇頁面以開始編輯</span>
+            <span className="ned-header-status ned-header-status--entry">
+              選擇頁面以開始編輯
+            </span>
           </>
         ) : (
           <>
@@ -1034,6 +1051,19 @@ export default function RichEditor({
             </span>
             <div className="ned-header-spacer" />
             <div className="ned-header-right">
+              {/* 手機版：Inspector toggle */}
+              {!isEntryMode && (
+                <button
+                  className={`ned-mobile-toggle ned-mobile-toggle--inspector${mobileInspectorOpen ? ' is-active' : ''}`}
+                  onClick={() => {
+                    setMobileInspectorOpen((v) => !v);
+                    setMobileTreeOpen(false);
+                  }}
+                  title="頁面設定"
+                >
+                  ⚙
+                </button>
+              )}
               <span className="ned-shortcut-hint">Ctrl+S</span>
               <a
                 href={
@@ -1708,11 +1738,24 @@ export default function RichEditor({
         </div>
       )}
 
+      {/* 手機版抽屜遮罩 */}
+      {(mobileTreeOpen || mobileInspectorOpen) && (
+        <div
+          className="ned-mobile-backdrop"
+          onClick={() => {
+            setMobileTreeOpen(false);
+            setMobileInspectorOpen(false);
+          }}
+        />
+      )}
+
       {/* Body — 3 columns (or 2 in homepage mode) */}
       <div className={`ned-body ${isPageType ? 'ned-body--no-tree' : ''}`}>
         {/* Left — Page Tree (hidden in homepage mode) */}
         {!isPageType && (
-          <aside className="ned-panel--tree">
+          <aside
+            className={`ned-panel--tree${mobileTreeOpen ? ' ned-panel--mobile-open' : ''}`}
+          >
             <EditorPageTree
               area={area}
               apiBase={apiBase}
@@ -1731,11 +1774,25 @@ export default function RichEditor({
                 &#9998;
               </div>
               <div className="ned-empty-title">選擇一個項目開始編輯</div>
-              <div className="ned-empty-desc">
+              <div className="ned-empty-desc ned-empty-desc--desktop">
                 從左側的頁面樹點選要編輯的章節或段落，
                 <br />
                 或在項目之間 hover 來新增頁面。
               </div>
+              <div className="ned-empty-desc ned-empty-desc--mobile">
+                點選左上角 ☰ 開啟頁面樹，
+                <br />
+                選擇要編輯的章節或段落。
+              </div>
+              {!isPageType && (
+                <button
+                  className="ned-empty-open-tree"
+                  onClick={() => setMobileTreeOpen(true)}
+                  style={{ borderColor: accentMain, color: accentMain }}
+                >
+                  ☰ 開啟頁面樹
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -1911,7 +1968,9 @@ export default function RichEditor({
 
         {/* Right — Inspector（入口模式隱藏） */}
         {!isEntryMode && (
-          <aside className="ned-panel--inspector">
+          <aside
+            className={`ned-panel--inspector${mobileInspectorOpen ? ' ned-panel--mobile-open' : ''}`}
+          >
             <EditorInspector
               area={area}
               pageType={pageType}

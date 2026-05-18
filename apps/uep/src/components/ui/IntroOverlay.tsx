@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 import UepDialogue from './UepDialogue';
@@ -15,6 +15,31 @@ export default function IntroOverlay({
   onClose,
   onEnter,
 }: IntroOverlayProps) {
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
+
+  // 重置 closing 狀態：zone 從 null 變成有值時
+  useEffect(() => {
+    if (zone) {
+      closingRef.current = false;
+      setClosing(false);
+    }
+  }, [zone]);
+
+  const handleClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    setTimeout(() => onClose(), 280);
+  }, [onClose]);
+
+  const handleEnter = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    setTimeout(() => onEnter(), 280);
+  }, [onEnter]);
+
   if (!zone) return null;
 
   const isDark =
@@ -23,30 +48,22 @@ export default function IntroOverlay({
 
   return (
     <div
-      className="intro-overlay"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 500,
-        background: 'rgba(10,10,14,0.62)',
-        backdropFilter: 'blur(10px)',
-        display: 'grid',
-        placeItems: 'center',
-        animation: 'fadeIn 0.35s var(--ease)',
-      }}
-      onClick={onClose}
+      className={`intro-overlay${closing ? ' intro-overlay--closing' : ''}`}
+      onClick={handleClose}
     >
       <div
         className="intro-overlay__card"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 'min(640px, 86%)',
-          background: 'var(--bg-card)',
-          border: `1px solid ${zone.main}`,
-          borderRadius: 2,
-          position: 'relative',
-          padding: '36px 36px 28px',
-        }}
+        style={
+          {
+            width: 'min(640px, 86%)',
+            background: 'var(--bg-card)',
+            border: `1px solid ${zone.main}`,
+            borderRadius: 2,
+            position: 'relative',
+            padding: '36px 36px 28px',
+          } as React.CSSProperties
+        }
       >
         {/* corner accents */}
         {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
@@ -150,13 +167,13 @@ export default function IntroOverlay({
             className="intro-overlay__actions"
             style={{ display: 'flex', gap: 10 }}
           >
-            <button className="btn-outline" onClick={onClose}>
+            <button className="btn-outline" onClick={handleClose}>
               返回地圖
             </button>
             <button
               className="btn-outline btn-outline--gold"
               style={{ borderColor: zone.main, color: zone.main }}
-              onClick={onEnter}
+              onClick={handleEnter}
             >
               進入 →
             </button>

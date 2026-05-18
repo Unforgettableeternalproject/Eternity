@@ -1,6 +1,20 @@
+/* === IntroOverlay 基礎 === */
 .intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(10, 10, 14, 0.62);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
   padding: max(16px, env(safe-area-inset-top)) 16px
     max(16px, env(safe-area-inset-bottom));
+  animation: introOverlayIn 0.35s var(--ease, ease) both;
+}
+
+/* === 關閉動畫 === */
+.intro-overlay--closing {
+  animation: introOverlayOut 0.28s var(--ease, ease) both;
 }
 
 .intro-overlay__card {
@@ -9,6 +23,56 @@
   );
   overflow-y: auto;
   overscroll-behavior: contain;
+  animation: introCardIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.intro-overlay--closing .intro-overlay__card {
+  animation: introCardOut 0.26s var(--ease, ease) both;
+}
+
+/* === Keyframes === */
+@keyframes introOverlayIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(10px);
+  }
+}
+
+@keyframes introOverlayOut {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(10px);
+  }
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes introCardIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes introCardOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
 }
 
 .intro-overlay__dialogues > div {

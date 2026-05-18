@@ -635,3 +635,177 @@
   color: var(--uep-gold);
   border-color: var(--uep-gold);
 }
+
+/* ══════════════════════════════════════════════
+   詩節可見度面板（VerseForm 專用）
+   ══════════════════════════════════════════════ */
+
+.she-stanza-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.she-stanza-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  transition:
+    background 0.12s,
+    opacity 0.2s;
+}
+
+.she-stanza-row:not(:last-child) {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.she-stanza-row.is-hidden {
+  opacity: 0.4;
+  background: var(--bg);
+}
+
+.she-stanza-toggle {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  border: 1px solid var(--hairline-strong);
+  font-size: 14px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.she-stanza-toggle:hover {
+  background: var(--bg-card);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.she-stanza-toggle.is-visible {
+  color: var(--uep-gold);
+  border-color: var(--uep-gold);
+  background: color-mix(in srgb, var(--uep-gold) 10%, transparent);
+}
+
+.she-stanza-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.she-stanza-idx {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.she-stanza-preview {
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.she-stanza-row.is-hidden .she-stanza-preview {
+  text-decoration: line-through;
+  color: var(--ink-mute);
+}
+
+/* ══════════════════════════════════════════════
+   響應式 — 平板 & 手機
+   ══════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* 雙欄 → 單欄直排 */
+  .she-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  /* Tab 列 → 頂部水平捲動列 */
+  .she-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    min-height: auto;
+  }
+  .she-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .she-tab {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    border-bottom: none;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    text-align: center;
+    align-items: center;
+    min-width: max-content;
+  }
+  .she-tab:last-child {
+    border-bottom: 2px solid transparent;
+  }
+  .she-tab.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--uep-gold);
+  }
+
+  .she-tab-name {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .she-tab-sub {
+    font-size: 8px;
+    white-space: nowrap;
+  }
+
+  /* 右側面板 */
+  .she-panel {
+    padding: 18px 16px 48px;
+  }
+
+  /* Section header 改為上下排列 */
+  .she-section-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .she-section-title {
+    font-size: 18px;
+  }
+
+  /* 並排欄位改為 2 欄 */
+  .she-field-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 統計列改 2 欄 */
+  .she-stats-row {
+    grid-template-columns: 1fr 80px 28px;
+  }
+}

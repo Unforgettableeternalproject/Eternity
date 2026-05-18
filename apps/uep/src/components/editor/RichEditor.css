@@ -1913,20 +1913,133 @@
   font-style: italic;
 }
 
+/* === 手機版 toggle 按鈕（桌面隱藏） === */
+.ned-mobile-toggle {
+  display: none;
+}
+
+/* === 手機版抽屜遮罩（桌面隱藏） === */
+.ned-mobile-backdrop {
+  display: none;
+}
+
+/* === 手機版提示（桌面隱藏） === */
+.ned-empty-desc--mobile {
+  display: none;
+}
+.ned-empty-open-tree {
+  display: none;
+}
+
 /* === Responsive === */
 @media (max-width: 1024px) {
   .ned-body {
     grid-template-columns: 1fr;
+    position: relative;
   }
   .ned-body--no-tree {
     grid-template-columns: 1fr;
   }
+
+  /* 手機版 toggle 按鈕 */
+  .ned-mobile-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--hairline-strong);
+    background: transparent;
+    color: var(--ink-mute);
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition:
+      color 0.15s,
+      border-color 0.15s,
+      background 0.15s;
+  }
+  .ned-mobile-toggle:hover,
+  .ned-mobile-toggle.is-active {
+    color: var(--ned-accent);
+    border-color: var(--ned-accent);
+    background: color-mix(in srgb, var(--ned-accent) 8%, transparent);
+  }
+
+  /* 手機版抽屜遮罩 */
+  .ned-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 89;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(2px);
+    animation: fadeIn 0.2s ease;
+  }
+
+  /* 面板 — 預設隱藏，透過 slide drawer 顯示 */
   .ned-panel--tree,
   .ned-panel--inspector {
-    display: none;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 90;
+    width: min(300px, 80vw);
+    background: var(--bg-soft);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-y: auto;
   }
+
+  .ned-panel--tree {
+    left: 0;
+    transform: translateX(-100%);
+  }
+  .ned-panel--tree.ned-panel--mobile-open {
+    transform: translateX(0);
+  }
+
+  .ned-panel--inspector {
+    right: 0;
+    left: auto;
+    transform: translateX(100%);
+    border-left: 1px solid var(--hairline);
+  }
+  .ned-panel--inspector.ned-panel--mobile-open {
+    transform: translateX(0);
+  }
+
   .ned-editor {
     padding: 24px 20px 60px;
+  }
+
+  /* 提示文字切換 */
+  .ned-empty-desc--desktop {
+    display: none;
+  }
+  .ned-empty-desc--mobile {
+    display: block;
+  }
+  .ned-empty-open-tree {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 10px 20px;
+    border: 1px solid var(--hairline-strong);
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    border-radius: 4px;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+  .ned-empty-open-tree:hover {
+    background: color-mix(in srgb, var(--ned-accent) 8%, transparent);
   }
 }
 
