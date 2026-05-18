@@ -472,7 +472,7 @@
 }
 .conc-module-row {
   display: grid;
-  grid-template-columns: 40px 1fr 1fr 100px 80px 24px;
+  grid-template-columns: 40px 1.15fr 1fr 100px 24px;
   gap: 16px;
   align-items: center;
   padding: 18px;
@@ -535,10 +535,6 @@
 }
 .conc-mod-state.idle .conc-mod-dot {
   background: var(--ink-mute);
-}
-.conc-mod-rec {
-  font-size: 11px;
-  color: var(--ink-sub);
 }
 .conc-mod-arrow {
   color: var(--concepts-main);
@@ -786,7 +782,9 @@
 }
 .conc-dir-arrow {
   color: var(--concepts-main);
-  font-size: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
 }
 .conc-dir-tip {
   padding: 9px 14px;
@@ -916,7 +914,9 @@
   padding: 60px 20px;
 }
 .conc-locked-notice-icon {
-  font-size: 48px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
   margin-bottom: 16px;
   opacity: 0.5;
 }
@@ -1441,7 +1441,16 @@
   border-color: var(--concepts-main);
 }
 .conc-enc-folder-icon {
-  font-size: 24px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--concepts-main) 45%, transparent);
+  border-top-width: 5px;
+  color: var(--concepts-main);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
   flex-shrink: 0;
 }
 .conc-enc-folder-info {
@@ -1921,6 +1930,7 @@
   overflow: hidden;
   cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 .conc-chrono-track {
   display: inline-flex;
@@ -2510,4 +2520,149 @@
 /* Stack 頁面終端徽章 — 明亮模式 */
 [data-theme='light'] .conc-terminal-badge {
   background: color-mix(in srgb, var(--concepts-main) 6%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Mobile
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 760px) {
+  .conc-landing-page,
+  .conc-stack-page,
+  .conc-reading-page {
+    padding: 28px 18px 96px;
+  }
+
+  .conc-landing-title {
+    font-size: 42px;
+    line-height: 1.12;
+  }
+
+  .conc-stack-title {
+    font-size: 34px;
+    line-height: 1.18;
+  }
+
+  .conc-stack-sync-badge {
+    margin-left: 0;
+  }
+
+  .conc-module-table-bar,
+  .conc-dir-bar {
+    gap: 14px;
+    line-height: 1.6;
+  }
+
+  .conc-module-row {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 10px 12px;
+    padding: 16px 14px;
+  }
+
+  .conc-mod-name {
+    font-size: 18px;
+    line-height: 1.35;
+  }
+
+  .conc-mod-en {
+    grid-column: 2 / 4;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .conc-mod-state {
+    grid-column: 2 / 3;
+  }
+
+  .conc-mod-arrow {
+    grid-column: 3 / 4;
+    grid-row: 1 / 2;
+  }
+
+  .conc-dir-header-row {
+    display: none;
+  }
+
+  .conc-dir-row {
+    grid-template-columns: 34px minmax(0, 1fr) auto 20px;
+    gap: 8px 10px;
+    padding: 16px 12px;
+  }
+
+  .conc-dir-name {
+    font-size: 18px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .conc-dir-en {
+    grid-column: 2 / 5;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .conc-dir-state {
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+
+  .conc-dir-arrow {
+    font-size: 11px;
+  }
+
+  .conc-dossier-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .conc-dossier-entry-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .conc-dossier-entry-ability {
+    width: 100%;
+    padding-left: 36px;
+    white-space: normal;
+  }
+
+  .conc-enc-detail-view {
+    padding: 0 14px 20px;
+  }
+
+  .conc-enc-profile-header {
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .conc-enc-sigil-box {
+    width: 64px;
+    height: 76px;
+  }
+
+  .conc-enc-profile-name {
+    font-size: 30px;
+  }
+
+  .conc-enc-basic-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .conc-enc-basic-row,
+  .conc-enc-kv {
+    display: grid;
+    grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+
+  .conc-enc-basic-key,
+  .conc-enc-kv-key {
+    min-width: 0;
+  }
+
+  .conc-enc-basic-val,
+  .conc-enc-kv-val {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.7;
+  }
 }

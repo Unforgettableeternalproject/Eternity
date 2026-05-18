@@ -26,7 +26,6 @@ import type {
 } from './types';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
-import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
@@ -527,7 +526,9 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                       className="conc-enc-folder-card"
                       onClick={() => setNavPath((prev) => [...prev, cat])}
                     >
-                      <div className="conc-enc-folder-icon">📁</div>
+                      <div className="conc-enc-folder-icon" aria-hidden="true">
+                        DIR
+                      </div>
                       <div className="conc-enc-folder-info">
                         <div className="conc-enc-folder-name">{cat}</div>
                         <div className="conc-enc-folder-count">
@@ -579,7 +580,7 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                         )}
                       </div>
                       <span className="conc-enc-entry-arrow">
-                        {p.placeholder ? '🔒' : '›'}
+                        {p.placeholder ? 'LOCK' : '›'}
                       </span>
                     </button>
                   ))}
@@ -664,32 +665,32 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
     fadeRRef.current?.classList.toggle('hit', clamped <= minX);
   }
 
-  // mousedown 從 React 事件觸發，mousemove/mouseup 掛到 document
-  function handleDragStart(e: React.MouseEvent) {
+  // pointer 事件同時支援滑鼠與手機觸控。
+  function handleDragStart(e: React.PointerEvent<HTMLDivElement>) {
     dragging.current = true;
     hasDragged.current = false;
     dragStartX.current = e.clientX;
     offsetStart.current = offsetX.current;
     if (viewportRef.current) viewportRef.current.style.cursor = 'grabbing';
+    e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
+  }
 
-    function onMouseMove(ev: MouseEvent) {
-      if (!dragging.current) return;
-      const dx = ev.clientX - dragStartX.current;
-      if (Math.abs(dx) > 5) hasDragged.current = true;
-      applyTransform(offsetStart.current + dx);
-    }
-    function onMouseUp() {
-      dragging.current = false;
-      if (viewportRef.current) viewportRef.current.style.cursor = 'grab';
-      fadeLRef.current?.classList.remove('hit');
-      fadeRRef.current?.classList.remove('hit');
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    }
+  function handleDragMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging.current) return;
+    const dx = e.clientX - dragStartX.current;
+    if (Math.abs(dx) > 5) hasDragged.current = true;
+    applyTransform(offsetStart.current + dx);
+  }
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  function handleDragEnd(e: React.PointerEvent<HTMLDivElement>) {
+    dragging.current = false;
+    if (viewportRef.current) viewportRef.current.style.cursor = 'grab';
+    fadeLRef.current?.classList.remove('hit');
+    fadeRRef.current?.classList.remove('hit');
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   }
 
   return (
@@ -773,7 +774,10 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
         <div
           className="conc-chrono-viewport"
           ref={viewportRef}
-          onMouseDown={handleDragStart}
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
         >
           {/* 軌道線——固定在 viewport，不隨拖曳移動 */}
           <div className="conc-chrono-rail" />
@@ -1246,7 +1250,6 @@ export default function ConceptsReader() {
             name: string;
             en: string;
             state: string;
-            records: number;
           }[];
         })
       : null;
@@ -1446,7 +1449,6 @@ export default function ConceptsReader() {
                     <span className="conc-mod-dot" />
                     {mod.state}
                   </span>
-                  <span className="conc-mod-rec">{mod.records} rec</span>
                   <span className="conc-mod-arrow">›</span>
                 </button>
               ))}
@@ -1569,7 +1571,9 @@ export default function ConceptsReader() {
                     <span className="conc-mod-dot" />
                     {locked ? 'sealed' : 'sync'}
                   </span>
-                  <span className="conc-dir-arrow">{locked ? '🔒' : '›'}</span>
+                  <span className="conc-dir-arrow">
+                    {locked ? 'LOCK' : '›'}
+                  </span>
                 </button>
               );
             })}
@@ -1649,26 +1653,6 @@ export default function ConceptsReader() {
       setDossierVariantIdx((i) => (i + 1) % dossierVariants.length);
     }
 
-    // 計算同一 stack 下的 prev / next type 頁面
-    const parentStackNode = stackDef
-      ? stackNodes.find((n) => n.id === `concepts/${stackDef.slug}`)
-      : null;
-    const siblingTypes = parentStackNode
-      ? (parentStackNode.children || [])
-          .filter((c) => !isHidden(c) && !isLocked(c))
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-      : [];
-    const currentTypeIdx = siblingTypes.findIndex(
-      (c) =>
-        c.slug === readingPage.slug || `concepts/${c.slug}` === activePageId
-    );
-    const prevType =
-      currentTypeIdx > 0 ? siblingTypes[currentTypeIdx - 1] : null;
-    const nextType =
-      currentTypeIdx >= 0 && currentTypeIdx < siblingTypes.length - 1
-        ? siblingTypes[currentTypeIdx + 1]
-        : null;
-
     // 麵包屑
     const crumbs = readingPage.slug.split('/').filter(Boolean);
 
@@ -1724,7 +1708,7 @@ export default function ConceptsReader() {
         <div className="conc-reader-body">
           {locked ? (
             <div className="conc-locked-notice">
-              <div className="conc-locked-notice-icon">🔒</div>
+              <div className="conc-locked-notice-icon">LOCK</div>
               <div className="conc-locked-notice-title">ACCESS RESTRICTED</div>
               <div className="conc-locked-notice-text">
                 此內容尚未在故事中揭露，隨著劇情推進將自動解鎖。
@@ -1749,26 +1733,6 @@ export default function ConceptsReader() {
             <div className="conc-page-loading">此頁面尚無結構化內容</div>
           )}
         </div>
-
-        <ZonePrevNext
-          prev={
-            prevType
-              ? {
-                  title: prevType.title,
-                  onClick: () => navigateToPage(prevType.slug),
-                }
-              : null
-          }
-          next={
-            nextType
-              ? {
-                  title: nextType.title,
-                  onClick: () => navigateToPage(nextType.slug),
-                }
-              : null
-          }
-          accentColor="var(--concepts-main)"
-        />
 
         <div className="conc-back-bar">
           {stackDef ? (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ZoneData } from '../../data/zones';
 import PieMap3D from '../map/PieMap3D';
+import './BigMapModal.css';
 
 interface BigMapModalProps {
   zones: ZoneData[];
@@ -18,6 +19,7 @@ export default function BigMapModal({
   tone = 'dark',
 }: BigMapModalProps) {
   const [hover, setHover] = useState<string | null>(null);
+  const [mapSize, setMapSize] = useState(520);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -27,10 +29,22 @@ export default function BigMapModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    function syncMapSize() {
+      const maxByWidth = window.innerWidth - 36;
+      const maxByHeight = window.innerHeight - 170;
+      setMapSize(Math.max(260, Math.min(520, maxByWidth, maxByHeight)));
+    }
+    syncMapSize();
+    window.addEventListener('resize', syncMapSize);
+    return () => window.removeEventListener('resize', syncMapSize);
+  }, []);
+
   const isDark = tone === 'dark';
 
   return (
     <div
+      className="big-map-modal"
       onClick={onClose}
       data-theme={isDark ? 'dark' : 'light'}
       style={{
@@ -47,10 +61,12 @@ export default function BigMapModal({
       }}
     >
       <div
+        className="big-map-modal__panel"
         onClick={(e) => e.stopPropagation()}
         style={{ position: 'relative', textAlign: 'center' }}
       >
         <div
+          className="big-map-modal__kicker"
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
@@ -63,6 +79,7 @@ export default function BigMapModal({
           · The Atlas ·
         </div>
         <h2
+          className="big-map-modal__title"
           style={{
             fontFamily: 'var(--font-display)',
             fontSize: 38,
@@ -77,7 +94,7 @@ export default function BigMapModal({
 
         <PieMap3D
           zones={zones}
-          size={520}
+          size={mapSize}
           hoveredId={hover}
           onHover={setHover}
           baseTone={tone}
@@ -88,7 +105,7 @@ export default function BigMapModal({
 
         <button
           onClick={onClose}
-          className="btn-outline"
+          className="btn-outline big-map-modal__close"
           style={{
             position: 'absolute',
             top: -10,

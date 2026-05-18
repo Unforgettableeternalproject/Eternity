@@ -625,7 +625,7 @@ function VinylDisc({
       </div>
       {isLocked && (
         <div className="echoes-vinyl-lock">
-          <span>🔒 SEALED</span>
+          <span>SEALED</span>
         </div>
       )}
     </div>
@@ -800,7 +800,12 @@ function EchoesAudioPlayer({
         }}
         type="button"
       >
-        {playing ? '❚❚' : '▶'}
+        <span
+          className={`echoes-player-icon ${
+            playing ? 'echoes-player-icon-pause' : 'echoes-player-icon-play'
+          }`}
+          aria-hidden="true"
+        />
       </button>
 
       <div className="echoes-player-bar">
@@ -868,9 +873,19 @@ function EchoesAudioPlayer({
           type="button"
           className="echoes-player-vol-btn"
           onClick={() => (volMounted ? closeVol() : openVol())}
+          aria-label={`音量 ${Math.round(a.volume * 100)}%`}
           title={`音量 ${Math.round(a.volume * 100)}%`}
         >
-          {a.volume === 0 ? '🔇' : a.volume < 0.4 ? '🔉' : '🔊'}
+          <span
+            className={`echoes-volume-glyph ${
+              a.volume === 0
+                ? 'is-muted'
+                : a.volume < 0.4
+                  ? 'is-low'
+                  : 'is-high'
+            }`}
+            aria-hidden="true"
+          />
         </button>
       </div>
 
@@ -881,12 +896,12 @@ function EchoesAudioPlayer({
         }}
       >
         {locked
-          ? '🔒 LOCKED'
+          ? 'LOCKED'
           : previewEnded
-            ? '⏸ 預覽結束 · 目前你還無法接觸到後續的內容'
+            ? 'PREVIEW ENDED · 目前你還無法接觸到後續的內容'
             : isPreview
               ? playing
-                ? `♪ PREVIEW · ${fmtTime(previewLimit)}`
+                ? `PREVIEW · ${fmtTime(previewLimit)}`
                 : `PREVIEW · ${fmtTime(previewLimit)}`
               : playing
                 ? 'NOW PLAYING'
@@ -1808,7 +1823,7 @@ function EchoesReaderInner() {
                     {subcatHidden
                       ? '— sealed —'
                       : subcatLocked
-                        ? '🔒 locked'
+                        ? 'locked'
                         : `${songCount} echoes`}
                   </span>
                   <span
@@ -1817,7 +1832,7 @@ function EchoesReaderInner() {
                       color: inaccessible ? 'var(--ink-mute)' : cluster.color,
                     }}
                   >
-                    {inaccessible ? '🔒' : '→'}
+                    {inaccessible ? 'LOCK' : '→'}
                   </span>
                 </button>
               );
@@ -2031,7 +2046,7 @@ function EchoesReaderInner() {
                           border: '1px solid var(--ink-mute)',
                         }}
                       >
-                        🔒
+                        LOCK
                       </span>
                     )}
                     {sp > 0 && !songHasUnlocked && (
@@ -2052,7 +2067,7 @@ function EchoesReaderInner() {
                       </span>
                     )}
                     <span className="echoes-subcat-arrow" style={{ color }}>
-                      {isPageLocked ? '🔒' : '→'}
+                      {isPageLocked ? 'LOCK' : '→'}
                     </span>
                   </button>
                 );

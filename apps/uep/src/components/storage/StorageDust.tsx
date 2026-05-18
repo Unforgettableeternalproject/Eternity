@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
-const PARTICLE_COUNT = 100;
+const DESKTOP_PARTICLE_COUNT = 100;
+const MOBILE_PARTICLE_COUNT = 34;
 const SCATTER_RADIUS = 120;
 const SCATTER_FORCE = 2.8;
 const FRICTION = 0.96;
@@ -29,29 +30,50 @@ export default function StorageDust() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    function getParticleCount() {
+      return window.innerWidth <= 760
+        ? MOBILE_PARTICLE_COUNT
+        : DESKTOP_PARTICLE_COUNT;
+    }
+
+    function createParticles(count: number) {
+      const w = canvas!.width;
+      const h = canvas!.height;
+      const mobile = count === MOBILE_PARTICLE_COUNT;
+      particles.current = Array.from({ length: count }, () => {
+        const baseOpacity = mobile
+          ? 0.08 + Math.random() * 0.1
+          : 0.15 + Math.random() * 0.25;
+        return {
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: 0,
+          vy: 0,
+          size: mobile ? 0.8 + Math.random() * 1.6 : 1 + Math.random() * 2.5,
+          opacity: baseOpacity,
+          baseOpacity,
+          driftX: (Math.random() - 0.5) * 0.3,
+          driftY: -0.1 - Math.random() * 0.2,
+        };
+      });
+    }
+
     function resize() {
       if (!canvas) return;
       canvas.width = canvas.offsetWidth * window.devicePixelRatio;
       canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+      const count = getParticleCount();
+      if (particles.current.length !== count) {
+        createParticles(count);
+      }
     }
     resize();
     window.addEventListener('resize', resize);
 
     // 初始化飄浮粒子
-    const w = () => canvas!.width;
-    const h = () => canvas!.height;
-
-    particles.current = Array.from({ length: PARTICLE_COUNT }, () => ({
-      x: Math.random() * w(),
-      y: Math.random() * h(),
-      vx: 0,
-      vy: 0,
-      size: 1 + Math.random() * 2.5,
-      opacity: 0.15 + Math.random() * 0.25,
-      baseOpacity: 0.15 + Math.random() * 0.25,
-      driftX: (Math.random() - 0.5) * 0.3,
-      driftY: -0.1 - Math.random() * 0.2,
-    }));
+    if (particles.current.length === 0) {
+      createParticles(getParticleCount());
+    }
 
     function handleMouse(e: MouseEvent) {
       const rect = canvas!.getBoundingClientRect();

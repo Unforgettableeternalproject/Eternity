@@ -20,6 +20,31 @@ const SPEED_OPTIONS = [0.25, 0.5, 1, 2] as const;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 8;
 
+type Point = { x: number; y: number };
+
+function clampZoom(value: number) {
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
+}
+
+function getDistance(a: Point, b: Point) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function getMidpoint(a: Point, b: Point): Point {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
+}
+
+function getRelativeToCenter(point: Point, el: HTMLElement): Point {
+  const rect = el.getBoundingClientRect();
+  return {
+    x: point.x - (rect.left + rect.width / 2),
+    y: point.y - (rect.top + rect.height / 2),
+  };
+}
+
 // ──────────────────────────────────────────────────────────────
 // 元件
 // ──────────────────────────────────────────────────────────────
@@ -54,12 +79,29 @@ export default function SpriteViewer({
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const panOriginRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  const pointersRef = useRef<Map<number, Point>>(new Map());
+  const pinchRef = useRef<{
+    startDistance: number;
+    startMidRel: Point;
+    startZoom: number;
+    startPan: Point;
+  } | null>(null);
 
   // refs
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef(0);
   const frameRef = useRef(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
 
   // 當前動畫的幀範圍
   const [rangeStart, rangeEnd] =
@@ -114,28 +156,88 @@ export default function SpriteViewer({
   const bgY = -(row * viewH);
 
   // ── Zoom（滾輪）──
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.15 : 0.15;
-    setZoom((z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z + delta * z)));
+    setZoom((z) => clampZoom(z + delta * z));
   }, []);
 
-  // ── Pan（拖曳）──
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      isPanningRef.current = true;
-      panStartRef.current = { x: e.clientX, y: e.clientY };
-      panOriginRef.current = { ...pan };
-      // 在 wrap 元素上設定 pointer capture，確保拖曳不中斷
-      wrapRef.current?.setPointerCapture(e.pointerId);
-    },
-    [pan]
-  );
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    wrap.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      wrap.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
+
+  function beginPinch(points: Point[]) {
+    const wrap = wrapRef.current;
+    if (!wrap || points.length < 2) return;
+    const [a, b] = points;
+    const mid = getMidpoint(a, b);
+    pinchRef.current = {
+      startDistance: Math.max(getDistance(a, b), 1),
+      startMidRel: getRelativeToCenter(mid, wrap),
+      startZoom: zoomRef.current,
+      startPan: panRef.current,
+    };
+    isPanningRef.current = false;
+  }
+
+  // ── Pan / Pinch（拖曳與雙指縮放）──
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const point = { x: e.clientX, y: e.clientY };
+    pointersRef.current.set(e.pointerId, point);
+
+    // 在 wrap 元素上設定 pointer capture，確保拖曳不中斷
+    wrapRef.current?.setPointerCapture(e.pointerId);
+
+    const points = Array.from(pointersRef.current.values());
+    if (points.length >= 2) {
+      beginPinch(points);
+      return;
+    }
+
+    pinchRef.current = null;
+    isPanningRef.current = true;
+    panStartRef.current = point;
+    panOriginRef.current = { ...panRef.current };
+  }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isPanningRef.current) return;
+    if (!pointersRef.current.has(e.pointerId)) return;
     e.preventDefault();
+
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const points = Array.from(pointersRef.current.values());
+
+    if (points.length >= 2) {
+      const wrap = wrapRef.current;
+      if (!wrap) return;
+      if (!pinchRef.current) beginPinch(points);
+      const pinch = pinchRef.current;
+      if (!pinch) return;
+
+      const [a, b] = points;
+      const distance = Math.max(getDistance(a, b), 1);
+      const midRel = getRelativeToCenter(getMidpoint(a, b), wrap);
+      const nextZoom = clampZoom(
+        pinch.startZoom * (distance / pinch.startDistance)
+      );
+      const zoomRatio = nextZoom / pinch.startZoom;
+
+      setZoom(nextZoom);
+      setPan({
+        x: midRel.x - (pinch.startMidRel.x - pinch.startPan.x) * zoomRatio,
+        y: midRel.y - (pinch.startMidRel.y - pinch.startPan.y) * zoomRatio,
+      });
+      return;
+    }
+
+    if (!isPanningRef.current) return;
     setPan({
       x: panOriginRef.current.x + (e.clientX - panStartRef.current.x),
       y: panOriginRef.current.y + (e.clientY - panStartRef.current.y),
@@ -143,9 +245,22 @@ export default function SpriteViewer({
   }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!isPanningRef.current) return;
+    pointersRef.current.delete(e.pointerId);
+    if (wrapRef.current?.hasPointerCapture(e.pointerId)) {
+      wrapRef.current.releasePointerCapture(e.pointerId);
+    }
+
+    const points = Array.from(pointersRef.current.values());
+    pinchRef.current = null;
+
+    if (points.length === 1) {
+      isPanningRef.current = true;
+      panStartRef.current = points[0];
+      panOriginRef.current = { ...panRef.current };
+      return;
+    }
+
     isPanningRef.current = false;
-    wrapRef.current?.releasePointerCapture(e.pointerId);
   }, []);
 
   // ── 復原 ──
@@ -200,7 +315,6 @@ export default function SpriteViewer({
         <div
           ref={wrapRef}
           className="visuals-sprite-viewport-wrap"
-          onWheel={handleWheel}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
