@@ -158,6 +158,22 @@
   padding-top: 14px;
 }
 
+/* ── Hero U.E.P 漂浮動畫 ── */
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.home-hero-portrait {
+  animation: hero-float 5s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* ── Verse 進場動畫 ── */
 .verse-hidden {
   opacity: 0;
@@ -170,6 +186,27 @@
   transition:
     opacity 0.8s var(--ease-out),
     transform 0.8s var(--ease-out);
+}
+
+/* ── Verse 詩句排版（參照 History prose） ── */
+.home-verse-text {
+  font-family: var(--font-serif-tc);
+  font-size: 17px;
+  line-height: 2.08;
+  color: var(--ink);
+  text-align: center;
+  position: relative;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.home-verse-text hr {
+  border: 0;
+  height: 1px;
+  margin: 38px auto;
+  max-width: 280px;
+  background: linear-gradient(90deg, transparent, var(--uep-gold), transparent);
+  opacity: 0.55;
 }
 
 /* ── Scroll-driven 暗幕（wheel 驅動漸入黑畫面） ── */

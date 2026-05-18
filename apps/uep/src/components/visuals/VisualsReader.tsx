@@ -866,6 +866,7 @@ function VisualsReaderInner() {
       return (
         <div className="visuals-landing-page">
           {homepageBlocks.map((block) => {
+            if (block.hidden) return null;
             switch (block.type) {
               case 'zone-header': {
                 const d = block.data as ZoneHeaderData;

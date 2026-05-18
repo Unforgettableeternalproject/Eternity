@@ -25,6 +25,7 @@ interface BlockPreviewProps {
   onDelete: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onToggleHidden?: () => void;
 }
 
 // ─── 個別類型預覽元件 ────────────────────────────────────────────────────────
@@ -702,6 +703,35 @@ function BlockBody({
       return <StorageRoomMapPreview data={data} />;
     case 'rich-text':
       return <RichTextPreview data={data} />;
+    case 'visuals-audio-block': {
+      const ad = data as { audioKey?: string; title?: string };
+      return (
+        <div
+          style={{
+            padding: '8px 12px',
+            fontSize: '0.85rem',
+            color: 'var(--ink-soft)',
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <span style={{ fontSize: '1.1em' }}>♪</span>
+          <span>{ad.title || '音訊播放器'}</span>
+          {ad.audioKey && (
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.75em',
+                color: 'var(--ink-mute)',
+              }}
+            >
+              {ad.audioKey}
+            </span>
+          )}
+        </div>
+      );
+    }
     default:
       return (
         <div
@@ -726,8 +756,10 @@ export function BlockPreview({
   onDelete,
   onMoveUp,
   onMoveDown,
+  onToggleHidden,
 }: BlockPreviewProps) {
   const label = BLOCK_TYPE_LABELS[block.type] ?? block.type;
+  const isHidden = !!block.hidden;
 
   return (
     <div
@@ -736,7 +768,8 @@ export function BlockPreview({
         border: '1px solid var(--hairline)',
         borderRadius: 6,
         overflow: 'hidden',
-        transition: `box-shadow var(--ease, 0.2s ease)`,
+        transition: `box-shadow var(--ease, 0.2s ease), opacity 0.2s`,
+        opacity: isHidden ? 0.45 : 1,
       }}
     >
       {/* 頂部工具列 */}
@@ -764,7 +797,51 @@ export function BlockPreview({
           }}
         >
           {label}
+          {isHidden && (
+            <span style={{ marginLeft: 6, opacity: 0.7 }}>（隱藏中）</span>
+          )}
         </span>
+
+        {/* 顯示/隱藏按鈕 */}
+        {onToggleHidden && (
+          <button
+            onClick={onToggleHidden}
+            title={isHidden ? '顯示此區塊' : '隱藏此區塊'}
+            style={iconButtonStyle}
+            aria-label={isHidden ? '顯示區塊' : '隱藏區塊'}
+          >
+            {isHidden ? (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            )}
+          </button>
+        )}
 
         {/* 上移按鈕 */}
         {onMoveUp && (

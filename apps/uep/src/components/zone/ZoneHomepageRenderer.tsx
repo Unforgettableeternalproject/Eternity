@@ -1065,6 +1065,7 @@ function renderSingleBlock(
   block: HomepageBlock,
   zone: ZoneData
 ): React.ReactNode {
+  if (block.hidden) return null;
   switch (block.type) {
     case 'zone-header':
       return renderZoneHeader(block, zone);

@@ -104,6 +104,7 @@ export interface HomepageBlock {
   id: string;
   type: HomepageBlockType;
   data: HomepageBlockData['data'];
+  hidden?: boolean;
 }
 
 // ─── D1 ContentBlock ↔ HomepageBlock 轉換 ───────────────────────────────────
@@ -123,7 +124,13 @@ export function fromContentBlock(cb: ContentBlock): HomepageBlock {
   } catch {
     data = { html: cb.content } as { html: string };
   }
-  return { id: cb.id, type: cb.type as HomepageBlockType, data };
+  const block: HomepageBlock = {
+    id: cb.id,
+    type: cb.type as HomepageBlockType,
+    data,
+  };
+  if (cb.attrs?.hidden) block.hidden = true;
+  return block;
 }
 
 /** HomepageBlock → D1 ContentBlock */
@@ -132,7 +139,7 @@ export function toContentBlock(block: HomepageBlock): ContentBlock {
     id: block.id,
     type: block.type,
     content: JSON.stringify(block.data),
-    attrs: {},
+    attrs: block.hidden ? { hidden: true } : {},
   };
 }
 

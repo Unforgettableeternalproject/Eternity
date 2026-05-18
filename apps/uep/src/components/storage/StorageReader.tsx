@@ -484,6 +484,7 @@ export default function StorageReader() {
   // Landing 首頁（block loop 渲染，與其他 zone 一致）
   // ══════════════════════════════════════════════════════════════════
   function renderHomepageBlock(block: HomepageBlock, idx: number) {
+    if (block.hidden) return null;
     switch (block.type) {
       case 'zone-header': {
         const d = block.data as ZoneHeaderData;

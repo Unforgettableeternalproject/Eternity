@@ -1,23 +1,25 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
-import type { ZoneData } from '../../data/zones';
-import TopBar from '../ui/TopBar';
-import UepDialogue from '../ui/UepDialogue';
-import PieMap3D from '../map/PieMap3D';
-import Minimap from '../ui/Minimap';
-import BigMapModal from '../ui/BigMapModal';
-import IntroOverlay from '../ui/IntroOverlay';
-import PortalTransition from '../ui/PortalTransition';
-import JourneyScene from './JourneyScene';
-import JourneyNav from './JourneyNav';
-import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
+
 import type {
   HomepageData,
   ZoneSectionContent,
 } from '../../data/homepage-types';
+import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
+import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
+import type { ZoneData } from '../../data/zones';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useIsMobile } from '../../utils/useIsMobile';
+import PieMap3D from '../map/PieMap3D';
+import BigMapModal from '../ui/BigMapModal';
+import IntroOverlay from '../ui/IntroOverlay';
+import Minimap from '../ui/Minimap';
+import PortalTransition from '../ui/PortalTransition';
+import TopBar from '../ui/TopBar';
+import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+
+import JourneyNav from './JourneyNav';
+import JourneyScene from './JourneyScene';
 import './HomePage.css';
 
 const API_BASE =
@@ -46,7 +48,11 @@ function isWithinViewportBand(
   return value >= vh * minRatio && value <= vh * maxRatio;
 }
 
-function isSettledAtElement(element: HTMLElement, scrollTop: number, vh: number) {
+function isSettledAtElement(
+  element: HTMLElement,
+  scrollTop: number,
+  vh: number
+) {
   return Math.abs(element.offsetTop - scrollTop) <= vh * 0.08;
 }
 
@@ -80,11 +86,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
   // Journey Transition（body 為 TipTap HTML，有值時直接渲染，沒有就用靜態 fallback）
   const journey = homepageData?.journey;
-  const mergedTransition = JOURNEY_TRANSITION;
+  const _mergedTransition = JOURNEY_TRANSITION;
 
   // Verse 區塊
   const verse = homepageData?.verse;
-  const mergedVerses = VERSES;
+  const _mergedVerses = VERSES;
 
   // Zone 資料：用 D1 的 meta 覆蓋靜態 ZONES
   const mergedZones = ZONES.map((zone) => {
@@ -128,10 +134,19 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const fadingRef = useRef(false);
   const thresholdSettledRef = useRef(false);
   const lastScrollTopRef = useRef(0);
+  /** 記錄容器鎖定前的原始樣式，防止連續轉場互相覆蓋 */
+  const containerStyleBackupRef = useRef<{
+    scrollBehavior: string;
+    scrollSnapType: string;
+    overflowY: string;
+    touchAction: string;
+  } | null>(null);
   const alignTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alignRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alignFinalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Verse 內部自由滾動期間，記錄進入前的 snap type 以便離開時恢復 */
+  const originalSnapTypeRef = useRef('');
   const isDark =
     typeof document !== 'undefined' &&
     document.documentElement.dataset.theme === 'dark';
@@ -142,12 +157,22 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     return () => clearTimeout(t);
   }, []);
 
+  // 測量 TopBar 高度，設定 --topbar-h 供 section 高度計算
+  useEffect(() => {
+    const topbar = document.querySelector('.uep-topbar');
+    const container = scrollContainerRef.current;
+    if (topbar && container) {
+      const h = topbar.getBoundingClientRect().height;
+      container.style.setProperty('--topbar-h', `${h}px`);
+    }
+  }, []);
+
   // 最近更新
   const [recents, setRecents] = useState<RecentItem[]>([]);
   useEffect(() => {
     fetch(`${API_BASE}/api/content/recent?limit=5`)
       .then((r) => r.json())
-      .then((json: any) => {
+      .then((json: { ok?: boolean; data?: unknown }) => {
         if (json.ok && Array.isArray(json.data)) setRecents(json.data);
       })
       .catch(() => {});
@@ -271,10 +296,16 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       if (!container || !target) return;
 
       clearZoneTransitionTimers();
-      const previousBehavior = container.style.scrollBehavior;
-      const previousSnapType = container.style.scrollSnapType;
-      const previousOverflowY = container.style.overflowY;
-      const previousTouchAction = container.style.touchAction;
+      // 只在首次鎖定時備份原始樣式，連續轉場不覆蓋
+      if (!containerStyleBackupRef.current) {
+        containerStyleBackupRef.current = {
+          scrollBehavior: container.style.scrollBehavior,
+          scrollSnapType: container.style.scrollSnapType,
+          overflowY: container.style.overflowY,
+          touchAction: container.style.touchAction,
+        };
+      }
+      const savedStyles = containerStyleBackupRef.current;
       zoneTransitionRef.current = true;
       container.classList.add('journey-scroll--locked');
       container.style.scrollBehavior = 'auto';
@@ -307,11 +338,19 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         forceAlignToTarget();
         zoneTransitionRef.current = false;
         container.classList.remove('journey-scroll--locked');
-        container.style.scrollBehavior = previousBehavior;
-        container.style.scrollSnapType = previousSnapType;
-        container.style.overflowY = previousOverflowY;
-        container.style.touchAction = previousTouchAction;
+        container.style.scrollBehavior = savedStyles.scrollBehavior;
+        container.style.overflowY = savedStyles.overflowY;
+        container.style.touchAction = savedStyles.touchAction;
         setVeilZone(null);
+
+        // 離開 Verse 時恢復原始 snap；否則直接還原
+        if (originalSnapTypeRef.current) {
+          container.style.scrollSnapType = originalSnapTypeRef.current;
+          originalSnapTypeRef.current = '';
+        } else {
+          container.style.scrollSnapType = savedStyles.scrollSnapType;
+        }
+        containerStyleBackupRef.current = null;
       }, ZONE_VEIL_DURATION_MS);
     },
     [clearZoneTransitionTimers]
@@ -336,6 +375,34 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     lastScrollTopRef.current = targetTop;
     previousSceneRef.current = ATLAS_SCENE_INDEX;
     setActiveScene(ATLAS_SCENE_INDEX);
+  }, []);
+
+  // Atlas→入口：無動畫直接對齊（暫時鎖定滾動防止慣性覆蓋）
+  const alignToThreshold = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const thresholdEl = container?.querySelector<HTMLElement>('#journey-start');
+    if (!container || !thresholdEl) return;
+
+    const prevOverflowY = container.style.overflowY;
+    const prevTouchAction = container.style.touchAction;
+    container.style.overflowY = 'hidden';
+    container.style.touchAction = 'none';
+
+    const targetTop = thresholdEl.offsetTop;
+    container.scrollTo({ top: targetTop, behavior: 'auto' });
+    container.scrollTop = targetTop;
+    lastScrollTopRef.current = targetTop;
+    previousSceneRef.current = -1;
+    thresholdSettledRef.current = true;
+    setActiveScene(-1);
+
+    requestAnimationFrame(() => {
+      container.scrollTop = targetTop;
+      setTimeout(() => {
+        container.style.overflowY = prevOverflowY;
+        container.style.touchAction = prevTouchAction;
+      }, 120);
+    });
   }, []);
 
   const startSectionTransition = useCallback(
@@ -402,10 +469,17 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         zoneTransitionRef.current = false;
         container.classList.remove('journey-scroll--locked');
         container.style.scrollBehavior = previousBehavior;
-        container.style.scrollSnapType = previousSnapType;
         container.style.overflowY = previousOverflowY;
         container.style.touchAction = previousTouchAction;
         setSectionVeil(null);
+
+        // Verse 內容超過一屏，保持 snap 關閉以允許自由滾動
+        if (targetIndex === 5) {
+          originalSnapTypeRef.current = previousSnapType;
+          container.style.scrollSnapType = 'none';
+        } else {
+          container.style.scrollSnapType = previousSnapType;
+        }
       }, ZONE_VEIL_DURATION_MS);
     },
     [clearZoneTransitionTimers, resetFadeIntent]
@@ -430,6 +504,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         if (previousSceneRef.current === ATLAS_SCENE_INDEX) {
           previousSceneRef.current = -1;
           setActiveScene(-1);
+          return; // 從 Atlas 抵達入口，不允許同一 tick 穿透到 History
         }
       }
 
@@ -448,7 +523,8 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           );
 
           if (hasClearedAtlas && shouldEnterThreshold) {
-            startSectionTransition(trans, -1, 'threshold', 'down');
+            // Atlas→入口：不需要動畫，直接對齊
+            alignToThreshold();
             return;
           }
         }
@@ -511,21 +587,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           }
 
           if (current === -1) {
+            // 桌面入口→History 必須經由 wheel fade，scroll handler 只做 overshoot 同步
             if (!thresholdSettledRef.current) return;
             const firstScene = scenes[0];
             if (firstScene) {
               const firstTop = firstScene.offsetTop - scrollTop;
-
-              // 桌面快速滾動可能直接跨過 gate，這裡補一次安全觸發。
-              if (
-                firstTop <= vh * DESKTOP_DOWN_GATE_MAX &&
-                firstTop >= -vh * 0.18
-              ) {
-                startZoneTransition(0, mergedZonesRef.current[0], 'down');
-                return;
-              }
-
-              // 若已經明顯進入 History，至少同步狀態避免卡在 -1。
               if (firstTop < -vh * 0.18) {
                 previousSceneRef.current = 0;
                 setActiveScene(0);
@@ -689,24 +755,13 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       if (current >= 1) {
         const currentScene = scenes[current];
         if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
-          if (
-            isMobile &&
-            isWithinViewportBand(
-              currentScene.offsetTop - scrollTop,
-              vh,
-              MOBILE_UP_GATE_MIN,
-              MOBILE_UP_GATE_MAX
-            )
-          ) {
-            const targetIndex = current - 1;
-            startZoneTransition(
-              targetIndex,
-              mergedZonesRef.current[targetIndex],
-              'up'
-            );
-            return;
-          }
-          setActiveScene(current - 1);
+          // mobile / 桌面都觸發轉場，鎖住容器以攔截中鍵自動滾動等快速捲動
+          const targetIndex = current - 1;
+          startZoneTransition(
+            targetIndex,
+            mergedZonesRef.current[targetIndex],
+            'up'
+          );
         }
         return;
       }
@@ -714,23 +769,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       if (current === 0) {
         const currentScene = scenes[0];
         if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
-          if (
-            isMobile &&
-            isWithinViewportBand(
-              currentScene.offsetTop - scrollTop,
-              vh,
-              MOBILE_UP_GATE_MIN,
-              MOBILE_UP_GATE_MAX
-            )
-          ) {
-            const thresholdEl =
-              container.querySelector<HTMLElement>('#journey-start');
-            if (thresholdEl) {
-              startSectionTransition(thresholdEl, -1, 'plain', 'up');
-              return;
-            }
+          const thresholdEl =
+            container.querySelector<HTMLElement>('#journey-start');
+          if (thresholdEl) {
+            startSectionTransition(thresholdEl, -1, 'plain', 'up');
           }
-          setActiveScene(-1);
         }
         return;
       }
@@ -744,7 +787,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     container.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isMobile, startSectionTransition, startZoneTransition]);
+  }, [isMobile, alignToThreshold, startSectionTransition, startZoneTransition]);
 
   // ── Wheel-driven fade：捲動時漸入黑畫面，到閾值後觸發轉場 ──
   useEffect(() => {
@@ -823,8 +866,44 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         }
       }
 
+      // Verse 內部自由滾動（內容超過一屏）
+      if (current === 5) {
+        const verseEl = container.querySelector<HTMLElement>('#verse-section');
+        if (verseEl) {
+          const verseTop = verseEl.offsetTop;
+          const maxScroll = verseTop + verseEl.offsetHeight - vh;
+
+          if (direction === 'down' && container.scrollTop < maxScroll - 2) {
+            // 還沒到 Verse 底部，手動推進滾動
+            e.preventDefault();
+            container.style.scrollSnapType = 'none';
+            container.scrollTop = Math.min(
+              maxScroll,
+              container.scrollTop + e.deltaY
+            );
+            lastScrollTopRef.current = container.scrollTop;
+            resetFadeIntent();
+            return;
+          }
+
+          if (direction === 'up' && container.scrollTop > verseTop + 2) {
+            // 在 Verse 內部向上滾動（還沒到頂部）
+            e.preventDefault();
+            container.style.scrollSnapType = 'none';
+            container.scrollTop = Math.max(
+              verseTop,
+              container.scrollTop + e.deltaY
+            );
+            lastScrollTopRef.current = container.scrollTop;
+            resetFadeIntent();
+            return;
+          }
+          // 已到 Verse 頂部或底部，走正常邊界判斷（up 走 Verse→Storage fade）
+        }
+      }
+
       if (direction === 'down') {
-        // Atlas 是獨立空間；只有接近 Atlas 底部時才開始 fade 進入口。
+        // Atlas→入口：不需要 fade / 遮罩動畫，直接對齊到入口
         if (current === ATLAS_SCENE_INDEX && thresholdEl && atlasEl) {
           const vh = window.innerHeight;
           const atlasBottom =
@@ -832,8 +911,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           const projectedAtlasBottom = atlasBottom - e.deltaY;
 
           if (atlasBottom <= vh * 0.32 || projectedAtlasBottom <= vh * 0.32) {
-            targetIndex = -1;
-            sectionTarget = thresholdEl;
+            e.preventDefault();
+            resetFadeIntent();
+            alignToThreshold();
+            return;
           }
         } else if (
           current === -1 &&
@@ -956,6 +1037,12 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               sectionTarget = thresholdEl;
             }
           }
+        } else if (current === -1) {
+          // Threshold→Atlas：無動畫直接對齊回 Atlas
+          e.preventDefault();
+          resetFadeIntent();
+          alignToAtlas();
+          return;
         }
       }
 
@@ -1052,6 +1139,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     return () => container.removeEventListener('wheel', handleWheel);
   }, [
     alignToAtlas,
+    alignToThreshold,
     resetFadeIntent,
     startSectionTransition,
     startZoneTransition,
@@ -1451,6 +1539,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             <img
               src="/uep/Big UEP.png"
               alt="U.E.P"
+              className="home-hero-portrait"
               style={{
                 width: 340,
                 height: 'auto',
@@ -1777,57 +1866,29 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               >
                 {verse?.title ?? '永恆的意義'}
               </h2>
-              <div
+              <hr
                 style={{
-                  width: 1,
-                  height: 50,
-                  background: 'var(--uep-gold)',
-                  margin: '18px auto 36px',
-                  opacity: 0.4,
+                  border: 0,
+                  height: 1,
+                  maxWidth: 280,
+                  margin: '24px auto 36px',
+                  background:
+                    'linear-gradient(90deg, transparent, var(--uep-gold), transparent)',
+                  opacity: 0.55,
                 }}
               />
             </div>
 
             {/* 詩句：有 body HTML 時用 renderHtmlWithUep，否則顯示靜態 fallback */}
             {verse?.body ? (
-              <div
-                className="home-verse-body"
-                style={{
-                  fontFamily: 'var(--font-serif-tc)',
-                  fontSize: 18,
-                  lineHeight: 2.4,
-                  color: 'var(--ink)',
-                  textAlign: 'center',
-                  position: 'relative',
-                  padding: '0 30px',
-                }}
-              >
+              <div className="home-verse-text home-verse-body">
                 {renderHtmlWithUep(verse.body, 'verse-body', 'verse-prose')}
               </div>
             ) : (
-              <div
-                style={{
-                  fontFamily: 'var(--font-serif-tc)',
-                  fontSize: 18,
-                  lineHeight: 2.4,
-                  color: 'var(--ink)',
-                  textAlign: 'center',
-                  position: 'relative',
-                  padding: '0 30px',
-                }}
-              >
+              <div className="home-verse-text">
                 {VERSES.map((v, i) =>
                   v === '—' ? (
-                    <div
-                      key={i}
-                      style={{
-                        width: 32,
-                        height: 1,
-                        margin: '20px auto',
-                        background: 'var(--uep-gold)',
-                        opacity: 0.5,
-                      }}
-                    />
+                    <hr key={i} />
                   ) : (
                     <div
                       key={i}
