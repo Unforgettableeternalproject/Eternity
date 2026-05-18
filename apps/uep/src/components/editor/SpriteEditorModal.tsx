@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { uepToast } from '../ui/UepToast';
 import type { ImageItem, SpriteAnimations } from './VisualsEditorBody';
-
-// ──────────────────────────────────────────────────────────────
-// 常數 & 工具
-// ──────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+import { API_BASE, getToast } from './editorHelpers';
 
 type Phase = 'select-method' | 'configure' | 'define-anims';
 type Method = 'multi' | 'grid';
@@ -413,7 +406,7 @@ export default function SpriteEditorModal({
       setPhase('define-anims');
     } catch (err) {
       console.error('合成失敗:', err);
-      uepToast.error('精靈圖合成失敗，請重試');
+      getToast().error('精靈圖合成失敗，請重試');
     } finally {
       setUploading(false);
     }
@@ -440,7 +433,7 @@ export default function SpriteEditorModal({
       setPhase('define-anims');
     } catch (err) {
       console.error('上傳失敗:', err);
-      uepToast.error('上傳失敗，請重試');
+      getToast().error('上傳失敗，請重試');
     } finally {
       setUploading(false);
     }

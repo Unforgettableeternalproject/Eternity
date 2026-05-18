@@ -46,10 +46,7 @@ export function ReaderShell({ zoneId, className, children }: ReaderShellProps) {
 
   return (
     <div className={className}>
-      <TopBar
-        onOpenMap={() => setShowMap(true)}
-        onGoHome={goHome}
-      />
+      <TopBar onOpenMap={() => setShowMap(true)} onGoHome={goHome} />
 
       {children}
 

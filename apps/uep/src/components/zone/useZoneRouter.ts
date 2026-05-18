@@ -36,20 +36,17 @@ export function useZoneRouter({
   routesRef.current = routes;
   onLandingRef.current = onLanding;
 
-  const dispatch = useCallback(
-    (push: boolean) => {
-      const params = new URLSearchParams(window.location.search);
-      for (const route of routesRef.current) {
-        const value = params.get(route.param);
-        if (value) {
-          route.handler(value);
-          return;
-        }
+  const dispatch = useCallback((push: boolean) => {
+    const params = new URLSearchParams(window.location.search);
+    for (const route of routesRef.current) {
+      const value = params.get(route.param);
+      if (value) {
+        route.handler(value);
+        return;
       }
-      if (push) onLandingRef.current();
-    },
-    []
-  );
+    }
+    if (push) onLandingRef.current();
+  }, []);
 
   useEffect(() => {
     if (!treeReady) return;

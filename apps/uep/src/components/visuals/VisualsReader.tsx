@@ -212,7 +212,8 @@ function findFirstThumb(node: PageTreeNode): string | null {
 
 function spoilerFilter(level: number): string {
   if (level === 1) return 'blur(8px)';
-  if (level === 2) return 'blur(14px) grayscale(1) contrast(0.3) brightness(0.5)';
+  if (level === 2)
+    return 'blur(14px) grayscale(1) contrast(0.3) brightness(0.5)';
   if (level === 3) return 'blur(24px) saturate(0) brightness(0.12)';
   return 'none';
 }
@@ -338,11 +339,16 @@ function VisualsReaderInner() {
       {
         param: 'subcat',
         handler: (value) => {
-          const group = new URLSearchParams(window.location.search).get('group');
+          const group = new URLSearchParams(window.location.search).get(
+            'group'
+          );
           navigateToSubcat(value, group ? parseInt(group, 10) : 0, false);
         },
       },
-      { param: 'division', handler: (value) => navigateToDivision(value, false) },
+      {
+        param: 'division',
+        handler: (value) => navigateToDivision(value, false),
+      },
     ],
     onLanding: () => navigateToLanding(false),
     treeReady: !treeLoading && tree.length > 0,
@@ -1374,7 +1380,9 @@ function VisualsReaderInner() {
                           src={thumbUrl}
                           alt={g.title}
                           style={{
-                            filter: spoilerLocked ? spoilerFilter(spoiler) : 'none',
+                            filter: spoilerLocked
+                              ? spoilerFilter(spoiler)
+                              : 'none',
                           }}
                         />
                       ) : (

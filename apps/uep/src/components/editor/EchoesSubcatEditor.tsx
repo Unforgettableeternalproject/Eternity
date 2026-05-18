@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { uepDialog } from '../ui/UepDialog';
-import { uepToast } from '../ui/UepToast';
+import { getDialog, getToast } from './editorHelpers';
 
 interface SongItem {
   id: string;
@@ -122,10 +121,10 @@ export default function EchoesSubcatEditor({
         setShowAdd(false);
         await fetchSongs();
       } else {
-        uepToast.error(`新增失敗: ${json.error}`);
+        getToast().error(`新增失敗: ${json.error}`);
       }
     } catch (e: any) {
-      uepToast.error(`錯誤: ${e.message}`);
+      getToast().error(`錯誤: ${e.message}`);
     } finally {
       setCreating(false);
     }
@@ -170,7 +169,7 @@ export default function EchoesSubcatEditor({
 
   // 刪除歌曲
   const handleDeleteSong = async (song: SongItem) => {
-    if (!(await uepDialog.confirm(`確定刪除「${song.title}」?`))) return;
+    if (!(await getDialog().confirm(`確定刪除「${song.title}」?`))) return;
     const songSlug = song.id.replace(`${area}/`, '');
     try {
       await fetch(`${apiBase}/api/content/${area}/${songSlug}`, {
@@ -178,7 +177,7 @@ export default function EchoesSubcatEditor({
       });
       await fetchSongs();
     } catch (e: any) {
-      uepToast.error(`刪除失敗: ${e.message}`);
+      getToast().error(`刪除失敗: ${e.message}`);
     }
   };
 

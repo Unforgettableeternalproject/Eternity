@@ -1,10 +1,13 @@
 import React, { useRef, useState } from 'react';
-import { uepDialog } from '../ui/UepDialog';
 import SpriteEditorModal from './SpriteEditorModal';
-
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+import {
+  getDialog,
+  buildAssetUrl as buildImageUrl,
+  uploadAsset,
+  deleteAsset,
+  fetchImageAssets,
+  type AssetItem as ImagePickerItem,
+} from './editorHelpers';
 
 // ──────────────────────────────────────────────────────────────
 //  型別定義
@@ -96,68 +99,7 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-/** 上傳檔案到 R2 */
-async function uploadAsset(
-  file: File
-): Promise<{ key: string; url: string; size: number } | null> {
-  const formData = new FormData();
-  formData.append('file', file);
-  try {
-    const res = await fetch(`${API_BASE}/api/assets`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: { key: string; url: string; size: number };
-    };
-    if (!json.ok) throw new Error('Upload returned ok=false');
-    return json.data;
-  } catch (err) {
-    console.error('Upload error:', err);
-    return null;
-  }
-}
-
-/** 從 content-api 取得圖片列表（孤兒排前面）*/
-interface ImagePickerItem {
-  key: string;
-  size: number;
-  contentType: string;
-  originalName: string;
-  referenced: boolean;
-  referencedBy: string[];
-}
-
-async function fetchImageAssets(): Promise<ImagePickerItem[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/assets?prefix=images/&limit=500`);
-    if (!res.ok) return [];
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: { items: ImagePickerItem[] };
-    };
-    if (!json.ok) return [];
-    const items = json.data.items.filter(
-      (i) => i.contentType?.startsWith('image/') || i.key.startsWith('images/')
-    );
-    items.sort((a, b) => {
-      if (a.referenced === b.referenced) return 0;
-      return a.referenced ? 1 : -1;
-    });
-    return items;
-  } catch {
-    return [];
-  }
-}
-
-function buildImageUrl(key: string): string {
-  return `${API_BASE}/api/assets/${key
-    .split('/')
-    .map((s) => encodeURIComponent(s))
-    .join('/')}`;
-}
+// uploadAsset, fetchImageAssets, buildImageUrl, deleteAsset 已移至 editorHelpers.ts
 
 const SPOILER_LEVELS = [
   { l: 0, n: '無' },
@@ -298,10 +240,7 @@ export default function VisualsEditorBody({
     removeImage(deleteConfirm.imageId);
     setDeleteConfirm(null);
     try {
-      const encoded = file.split('/').map(encodeURIComponent).join('/');
-      await fetch(`${API_BASE}/api/assets/${encoded}`, {
-        method: 'DELETE',
-      });
+      await deleteAsset(file);
     } catch (err) {
       console.error('刪除媒體庫檔案失敗:', err);
     }
@@ -334,7 +273,7 @@ export default function VisualsEditorBody({
     if (mode === editorMode) return;
     if (
       data.images.length > 0 &&
-      !(await uepDialog.confirm(
+      !(await getDialog().confirm(
         mode === 'sprite'
           ? '切換到精靈圖模式會清除目前的圖片，確定嗎？'
           : '切換到普通圖片模式會清除目前的精靈圖，確定嗎？'
@@ -544,13 +483,7 @@ export default function VisualsEditorBody({
                   update({ images: [], layout: '' });
                   setSpriteDeleteOpen(false);
                   try {
-                    const encoded = file
-                      .split('/')
-                      .map(encodeURIComponent)
-                      .join('/');
-                    await fetch(`${API_BASE}/api/assets/${encoded}`, {
-                      method: 'DELETE',
-                    });
+                    await deleteAsset(file);
                   } catch (err) {
                     console.error('刪除媒體庫檔案失敗:', err);
                   }
