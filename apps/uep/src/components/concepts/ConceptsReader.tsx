@@ -791,16 +791,24 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                 {/* 時間點 */}
                 <button
                   className={`conc-chrono-dot ${expandedIdx === pi ? 'active' : ''}`}
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => {
-                    if (hasDragged.current) return;
                     if (expandedIdx === pi) closeChronoExpanded();
                     else setExpandedIdx(pi);
                   }}
                 >
                   <span className="conc-chrono-dot-inner" />
                 </button>
-                {/* 年份標籤 */}
-                <div className="conc-chrono-year-label">
+                {/* 年份標籤——也可點擊展開 */}
+                <div
+                  className="conc-chrono-year-label"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    if (expandedIdx === pi) closeChronoExpanded();
+                    else setExpandedIdx(pi);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <span className="conc-chrono-year">{period.year}</span>
                   {(period.title || (period as any).subtitle) && (
                     <span className="conc-chrono-subtitle">

@@ -12,7 +12,8 @@ export type HomepageBlockType =
   | 'storage-sticky-note'
   | 'storage-links-list'
   | 'storage-room-map'
-  | 'rich-text';
+  | 'rich-text'
+  | 'visuals-audio-block';
 
 // ─── 各區塊資料結構 ─────────────────────────────────────────────────────────
 
@@ -73,6 +74,12 @@ export interface StorageRoomArea {
   count?: number;
 }
 
+export interface VisualsAudioData {
+  audioKey: string; // R2 key，如 audio/uep-monologue.mp3
+  title?: string;
+  subtitle?: string;
+}
+
 // ─── 區塊聯合型別 ───────────────────────────────────────────────────────────
 
 export type HomepageBlockData =
@@ -89,7 +96,8 @@ export type HomepageBlockData =
   | { type: 'storage-sticky-note'; data: { text: string; attribution: string } }
   | { type: 'storage-links-list'; data: { links: StorageLink[] } }
   | { type: 'storage-room-map'; data: { areas: StorageRoomArea[] } }
-  | { type: 'rich-text'; data: { html: string } };
+  | { type: 'rich-text'; data: { html: string } }
+  | { type: 'visuals-audio-block'; data: VisualsAudioData };
 
 /** 完整的區塊（含 id） */
 export interface HomepageBlock {
@@ -147,6 +155,7 @@ export const BLOCK_TYPE_LABELS: Record<HomepageBlockType, string> = {
   'storage-links-list': '儲藏連結列表',
   'storage-room-map': '置物空間地圖',
   'rich-text': '富文本',
+  'visuals-audio-block': 'UEP 獨白播放器',
 };
 
 /** 各區域可用的區塊類型 */
@@ -159,7 +168,13 @@ export const ZONE_BLOCK_TYPES: Record<string, HomepageBlockType[]> = {
     'rich-text',
   ],
   echoes: ['zone-header', 'uep-dialogue', 'orb-cluster-grid', 'rich-text'],
-  visuals: ['zone-header', 'uep-dialogue', 'cross-road-grid', 'rich-text'],
+  visuals: [
+    'zone-header',
+    'uep-dialogue',
+    'cross-road-grid',
+    'visuals-audio-block',
+    'rich-text',
+  ],
   concepts: [
     'zone-header',
     'uep-dialogue',
@@ -184,6 +199,7 @@ export function createEmptyBlock(type: HomepageBlockType): HomepageBlock {
     'storage-links-list': { links: [] },
     'storage-room-map': { areas: [] },
     'rich-text': { html: '' },
+    'visuals-audio-block': { audioKey: '', title: 'U.E.P 獨白', subtitle: '' },
   };
   return { id, type, data: defaults[type] };
 }

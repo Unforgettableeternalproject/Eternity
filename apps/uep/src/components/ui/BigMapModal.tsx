@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import PieMap3D from '../map/PieMap3D';
 import './BigMapModal.css';
@@ -20,14 +20,23 @@ export default function BigMapModal({
 }: BigMapModalProps) {
   const [hover, setHover] = useState<string | null>(null);
   const [mapSize, setMapSize] = useState(520);
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
+
+  const handleClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    setTimeout(() => onClose(), 280);
+  }, [onClose]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [handleClose]);
 
   useEffect(() => {
     function syncMapSize() {
@@ -44,8 +53,8 @@ export default function BigMapModal({
 
   return (
     <div
-      className="big-map-modal"
-      onClick={onClose}
+      className={`big-map-modal${closing ? ' is-closing' : ''}`}
+      onClick={handleClose}
       data-theme={isDark ? 'dark' : 'light'}
       style={{
         position: 'fixed',
@@ -57,7 +66,6 @@ export default function BigMapModal({
         backdropFilter: 'blur(12px)',
         display: 'grid',
         placeItems: 'center',
-        animation: 'fadeIn 0.35s var(--ease)',
       }}
     >
       <div
@@ -92,24 +100,23 @@ export default function BigMapModal({
           選擇一個世界
         </h2>
 
-        <PieMap3D
-          zones={zones}
-          size={mapSize}
-          hoveredId={hover}
-          onHover={setHover}
-          baseTone={tone}
-          onPickIntro={(z) => onPick?.(z)}
-          onCenterClick={onCenterClick}
-          showHints={false}
-        />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <PieMap3D
+            zones={zones}
+            size={mapSize}
+            hoveredId={hover}
+            onHover={setHover}
+            baseTone={tone}
+            onPickIntro={(z) => onPick?.(z)}
+            onCenterClick={onCenterClick}
+            showHints={false}
+          />
+        </div>
 
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="btn-outline big-map-modal__close"
           style={{
-            position: 'absolute',
-            top: -10,
-            right: -10,
             color: isDark ? '#fff' : 'var(--ink)',
             borderColor: isDark
               ? 'rgba(255,255,255,0.4)'

@@ -2629,6 +2629,35 @@
     white-space: normal;
   }
 
+  /* Subcat / Diff tab bar — 手機水平捲動 */
+  .conc-subcat-options {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .conc-subcat-options::-webkit-scrollbar {
+    display: none;
+  }
+  .conc-subcat-option {
+    flex: none;
+    min-width: unset;
+    white-space: nowrap;
+  }
+
+  .conc-diff-tabbar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .conc-diff-tabbar::-webkit-scrollbar {
+    display: none;
+  }
+  .conc-diff-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
   .conc-enc-detail-view {
     padding: 0 14px 20px;
   }

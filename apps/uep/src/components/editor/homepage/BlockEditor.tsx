@@ -25,6 +25,7 @@ import type {
   TerminalModule,
   StorageLink,
   StorageRoomArea,
+  VisualsAudioData,
 } from './types';
 import { BLOCK_TYPE_LABELS } from './types';
 
@@ -1251,6 +1252,35 @@ export default function BlockEditor({
             onChange={(html) => setData({ html })}
           />
         );
+
+      case 'visuals-audio-block': {
+        const ad = localData as VisualsAudioData;
+        return (
+          <>
+            <label style={labelStyle}>Audio R2 Key</label>
+            <input
+              style={inputStyle}
+              placeholder="audio/uep-monologue.mp3"
+              value={ad.audioKey || ''}
+              onChange={(e) => setData({ ...ad, audioKey: e.target.value })}
+            />
+            <label style={labelStyle}>標題</label>
+            <input
+              style={inputStyle}
+              placeholder="U.E.P 獨白"
+              value={ad.title || ''}
+              onChange={(e) => setData({ ...ad, title: e.target.value })}
+            />
+            <label style={labelStyle}>副標</label>
+            <input
+              style={inputStyle}
+              placeholder="monologue"
+              value={ad.subtitle || ''}
+              onChange={(e) => setData({ ...ad, subtitle: e.target.value })}
+            />
+          </>
+        );
+      }
 
       default: {
         // 理論上不應到達此處，但提供後備提示

@@ -1444,6 +1444,61 @@ export default {
       }
     }
 
+    // ---- 網站首頁內容路由 ----
+
+    if (path === '/api/homepage' && request.method === 'GET') {
+      const rows = await env.CONTENT_DB.prepare(
+        'SELECT section_id, content, updated_at FROM site_homepage'
+      ).all<{ section_id: string; content: string; updated_at: string }>();
+
+      const data: Record<string, { content: unknown; updatedAt: string }> = {};
+      for (const row of rows.results || []) {
+        try {
+          data[row.section_id] = {
+            content: JSON.parse(row.content),
+            updatedAt: row.updated_at,
+          };
+        } catch {
+          data[row.section_id] = { content: {}, updatedAt: row.updated_at };
+        }
+      }
+      return jsonResponse({ ok: true, data }, 200, cors);
+    }
+
+    const homepageMatch = path.match(/^\/api\/homepage\/([a-z][a-z0-9-]*)$/);
+    if (homepageMatch && request.method === 'PUT') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const sectionId = homepageMatch[1];
+      const body = (await request.json()) as { content: unknown };
+      if (!body.content) {
+        return jsonResponse(
+          { ok: false, error: 'content is required' },
+          400,
+          cors
+        );
+      }
+      const now = new Date().toISOString();
+      await env.CONTENT_DB.prepare(
+        `INSERT INTO site_homepage (section_id, content, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(section_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`
+      )
+        .bind(sectionId, JSON.stringify(body.content), now)
+        .run();
+
+      return jsonResponse(
+        {
+          ok: true,
+          data: { sectionId, content: body.content, updatedAt: now },
+        },
+        200,
+        cors
+      );
+    }
+
     // 健康檢查
     if (path === '/api/health') {
       return jsonResponse(

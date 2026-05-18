@@ -2,6 +2,11 @@
   padding: max(18px, env(safe-area-inset-top)) 18px
     max(18px, env(safe-area-inset-bottom));
   overflow: hidden;
+  animation: bigMapIn 0.32s var(--ease, ease) both;
+}
+
+.big-map-modal.is-closing {
+  animation: bigMapOut 0.28s var(--ease, ease) both;
 }
 
 .big-map-modal__panel {
@@ -9,6 +14,62 @@
   max-height: calc(
     100dvh - max(36px, env(safe-area-inset-top) + env(safe-area-inset-bottom))
   );
+  animation: bigMapPanelIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.big-map-modal.is-closing .big-map-modal__panel {
+  animation: bigMapPanelOut 0.26s var(--ease, ease) both;
+}
+
+@keyframes bigMapIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes bigMapOut {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes bigMapPanelIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bigMapPanelOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+}
+
+/* 桌面：關閉按鈕固定右上角 */
+.big-map-modal__close {
+  position: absolute;
+  top: 6px;
+  right: -10px;
 }
 
 @media (max-width: 760px) {
@@ -19,6 +80,9 @@
 
   .big-map-modal__panel {
     padding-top: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   .big-map-modal__kicker {
@@ -33,7 +97,9 @@
   }
 
   .big-map-modal__close {
-    top: 0 !important;
-    right: 0 !important;
+    position: static;
+    margin-top: 16px;
+    width: auto;
+    padding: 10px 32px;
   }
 }

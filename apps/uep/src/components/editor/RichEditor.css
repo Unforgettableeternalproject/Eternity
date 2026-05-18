@@ -6,7 +6,7 @@
 .ned-app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -877,6 +877,114 @@
     transparent
   );
   opacity: 0.55;
+}
+
+/* Tables */
+.tiptap-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  table-layout: fixed;
+  overflow: hidden;
+}
+.tiptap-content th,
+.tiptap-content td {
+  border: 1px solid var(--hairline, #333);
+  padding: 6px 10px;
+  vertical-align: top;
+  font-size: 0.9em;
+  line-height: 1.5;
+  min-width: 80px;
+  position: relative;
+  box-sizing: border-box;
+}
+.tiptap-content th {
+  background: color-mix(in srgb, var(--ned-accent, #888) 10%, transparent);
+  font-weight: 600;
+  text-align: left;
+}
+.tiptap-content .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ned-accent, #888) 16%, transparent);
+  z-index: 2;
+}
+.tiptap-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background: var(--ned-accent, #888);
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0.5;
+}
+.tiptap-content .tableWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Inline Audio Node — editor placeholder */
+.tiptap-content .tiptap-inline-audio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--hairline, #333);
+  border-radius: 8px;
+  background: var(--bg-card, #1a1a22);
+  margin: 0.75em 0;
+  cursor: default;
+  user-select: none;
+  transition: outline 0.15s;
+}
+.tiptap-content .tiptap-inline-audio::before {
+  content: '♪';
+  font-size: 18px;
+  color: var(--ned-accent, #888);
+  flex-shrink: 0;
+}
+.tiptap-content .tiptap-inline-audio::after {
+  content: attr(data-label);
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tiptap-content .tiptap-inline-audio.ProseMirror-selectednode {
+  outline: 2px solid var(--ned-accent, #888);
+  outline-offset: 2px;
+}
+
+/* 音訊浮動操作列 */
+.ned-audio-bubble {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9990;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-card, #1a1a22);
+  border: 1px solid var(--line, #333);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+.ned-audio-bubble-label {
+  font-size: 0.78em;
+  color: var(--ink-mute);
+  padding: 0 6px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Images */
@@ -1810,6 +1918,9 @@
   .ned-body {
     grid-template-columns: 1fr;
   }
+  .ned-body--no-tree {
+    grid-template-columns: 1fr;
+  }
   .ned-panel--tree,
   .ned-panel--inspector {
     display: none;
@@ -1820,19 +1931,108 @@
 }
 
 @media (max-width: 768px) {
-  .ned-toolbar {
+  /* App shell */
+  .ned-app {
+    height: 100dvh;
+  }
+
+  /* Header */
+  .ned-header {
+    height: 46px;
+    flex: 0 0 46px;
     padding: 0 12px;
+    gap: 8px;
+  }
+  .ned-header-area {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+  }
+  .ned-header-sep {
+    display: none;
+  }
+  .ned-header-title {
+    width: 0;
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+  }
+  .ned-header-status {
+    display: none;
+  }
+  .ned-shortcut-hint {
+    display: none;
+  }
+  .ned-header-right {
+    gap: 6px;
+  }
+  .ned-btn-ghost {
+    padding: 5px 10px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+  .ned-btn-save {
+    padding: 5px 12px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  /* Toolbar */
+  .ned-toolbar {
+    padding: 0 8px;
     height: 40px;
     flex: 0 0 40px;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-  .ned-header {
-    padding: 0 14px;
-    gap: 10px;
+  .ned-toolbar::-webkit-scrollbar {
+    display: none;
   }
-  .ned-header-title {
-    width: 180px;
-    font-size: 15px;
+  .tb-group {
+    flex-shrink: 0;
+  }
+  .tb-btn {
+    flex-shrink: 0;
+  }
+
+  /* Editor surface */
+  .ned-editor {
+    padding: 16px 14px 60px;
+  }
+  .ned-paper {
+    max-width: 100%;
+  }
+
+  /* ConceptsEditorBody — 左右分欄改為單欄 */
+  .ced-browser-split {
+    grid-template-columns: 1fr;
+  }
+  .ced-browser-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    max-height: 200px;
+  }
+  .ced-browser-detail {
+    max-height: unset;
+  }
+
+  /* Variant tab bar 水平捲動 */
+  .ced-variant-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+  .ced-variant-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .ced-variant-tab {
+    flex-shrink: 0;
+  }
+
+  /* 圖片選取器 */
+  .ced-picker-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
 }
 

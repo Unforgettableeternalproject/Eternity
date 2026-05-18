@@ -219,6 +219,181 @@ function spoilerFilter(level: number): string {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Visuals Monologue Player — 獨白播放器（獨立元件，不依賴 AudioProvider）
+// ──────────────────────────────────────────────────────────────
+const VMONO_API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+function VisualsMonoPlayer({
+  audioKey,
+  title,
+  subtitle,
+}: {
+  audioKey: string;
+  title?: string;
+  subtitle?: string;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rafRef = useRef<number>(0);
+  const isSeekingRef = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [seekProg, setSeekProg] = useState<number | null>(null);
+  const [volume, setVolumeState] = useState(() =>
+    typeof window !== 'undefined'
+      ? parseFloat(localStorage.getItem('uep-player-volume') ?? '0.6')
+      : 0.6
+  );
+
+  const audioUrl = `${VMONO_API_BASE}/api/assets/${audioKey
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}`;
+
+  useEffect(() => {
+    const a = new Audio(audioUrl);
+    a.preload = 'metadata';
+    a.volume = volume;
+    audioRef.current = a;
+
+    const onMeta = () => setDuration(a.duration || 0);
+    const onEnd = () => {
+      setIsPlaying(false);
+      setProgress(1);
+      cancelAnimationFrame(rafRef.current);
+    };
+    a.addEventListener('loadedmetadata', onMeta);
+    a.addEventListener('ended', onEnd);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('ended', onEnd);
+      a.pause();
+      a.src = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioUrl]);
+
+  const updateProgress = useCallback(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (!isSeekingRef.current) {
+      setCurrentTime(a.currentTime);
+      setProgress(a.duration > 0 ? a.currentTime / a.duration : 0);
+    }
+    if (!a.paused) {
+      rafRef.current = requestAnimationFrame(updateProgress);
+    }
+  }, []);
+
+  const handlePlay = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (isPlaying) {
+      a.pause();
+      cancelAnimationFrame(rafRef.current);
+      setIsPlaying(false);
+    } else {
+      a.play()
+        .then(() => {
+          setIsPlaying(true);
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = requestAnimationFrame(updateProgress);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  };
+
+  const displayProg = seekProg ?? progress;
+
+  return (
+    <div className="visuals-mono-player">
+      <div className="visuals-mono-player-meta">
+        {title && <div className="visuals-mono-player-title">{title}</div>}
+        {subtitle && <div className="visuals-mono-player-sub">{subtitle}</div>}
+      </div>
+      <div className="visuals-mono-player-controls">
+        <button
+          className={`visuals-mono-player-btn${isPlaying ? ' is-playing' : ''}`}
+          onClick={handlePlay}
+          type="button"
+        >
+          <span
+            className={isPlaying ? 'vmono-icon-pause' : 'vmono-icon-play'}
+          />
+        </button>
+        <div className="visuals-mono-player-bar">
+          <div className="visuals-mono-player-track">
+            <div
+              className="visuals-mono-player-fill"
+              style={{ width: `${displayProg * 100}%` }}
+            />
+            <div
+              className="visuals-mono-player-thumb"
+              style={{ left: `${displayProg * 100}%` }}
+            />
+          </div>
+          <input
+            type="range"
+            className="visuals-mono-player-seek"
+            min={0}
+            max={1}
+            step={0.001}
+            value={displayProg}
+            onPointerDown={() => {
+              isSeekingRef.current = true;
+              setSeekProg(displayProg);
+            }}
+            onChange={(e) => setSeekProg(parseFloat(e.target.value))}
+            onPointerUp={(e) => {
+              const val = parseFloat((e.target as HTMLInputElement).value);
+              isSeekingRef.current = false;
+              setSeekProg(null);
+              const a = audioRef.current;
+              if (a?.duration) {
+                a.currentTime = val * a.duration;
+                setProgress(val);
+                setCurrentTime(val * a.duration);
+              }
+            }}
+          />
+          <div className="visuals-mono-player-times">
+            <span>{fmtTime(currentTime)}</span>
+            <span>{duration > 0 ? fmtTime(duration) : '--:--'}</span>
+          </div>
+        </div>
+        <div className="visuals-mono-player-vol">
+          <input
+            type="range"
+            className="visuals-mono-player-vol-slider"
+            min={0}
+            max={1}
+            step={0.05}
+            value={volume}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              if (audioRef.current) audioRef.current.volume = v;
+              localStorage.setItem('uep-player-volume', String(v));
+              setVolumeState(v);
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // 主元件
 // ──────────────────────────────────────────────────────────────
 type View = 'landing' | 'division' | 'subcat' | 'gallery';
@@ -265,6 +440,8 @@ function VisualsReaderInner() {
   const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
   const [lbZoom, setLbZoom] = useState(1);
   const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
+  const [lbClosing, setLbClosing] = useState(false);
+  const lbClosingRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -500,8 +677,15 @@ function VisualsReaderInner() {
   }
 
   function closeLightbox() {
-    setLightboxIdx(null);
-    setLightboxImages([]);
+    if (lbClosingRef.current) return;
+    lbClosingRef.current = true;
+    setLbClosing(true);
+    setTimeout(() => {
+      setLightboxIdx(null);
+      setLightboxImages([]);
+      setLbClosing(false);
+      lbClosingRef.current = false;
+    }, 250);
   }
 
   useEffect(() => {
@@ -809,6 +993,23 @@ function VisualsReaderInner() {
                   <React.Fragment key={block.id}>
                     {renderHtmlWithUep(html, block.id, 'visuals-prose')}
                   </React.Fragment>
+                );
+              }
+              case 'visuals-audio-block': {
+                const ad = block.data as {
+                  audioKey: string;
+                  title?: string;
+                  subtitle?: string;
+                };
+                if (!ad.audioKey) return null;
+                return (
+                  <div key={block.id} className="visuals-landing-audio">
+                    <VisualsMonoPlayer
+                      audioKey={ad.audioKey}
+                      title={ad.title}
+                      subtitle={ad.subtitle}
+                    />
+                  </div>
                 );
               }
               default:
@@ -1725,7 +1926,10 @@ function VisualsReaderInner() {
     };
 
     return (
-      <div className="visuals-lightbox" onClick={closeLightbox}>
+      <div
+        className={`visuals-lightbox${lbClosing ? ' is-closing' : ''}`}
+        onClick={closeLightbox}
+      >
         <div
           className="visuals-lightbox-inner"
           onClick={(e) => e.stopPropagation()}

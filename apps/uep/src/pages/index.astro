@@ -1,8 +1,31 @@
 ---
 import DesignLayout from '../layouts/DesignLayout.astro';
 import HomePage from '../components/home/HomePage';
+import { extractHomepageData } from '../data/homepage-types';
+import type { HomepageApiResponse } from '../data/homepage-types';
+
+// 從 content-api 取得首頁可編輯內容
+const API_BASE =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+let homepageData = null;
+try {
+  const res = await fetch(`${API_BASE}/api/homepage`);
+  if (res.ok) {
+    const json = await res.json();
+    if (json.ok) {
+      homepageData = extractHomepageData(
+        json.data as Partial<HomepageApiResponse>
+      );
+    }
+  }
+} catch {
+  // API 不可用時使用 fallback（靜態常數）
+}
 ---
 
 <DesignLayout title="世界的軸心 - U.E.P's Imaginary Space">
+  <script define:vars={{ homepageData }}>
+    window.__HOMEPAGE_DATA__ = homepageData;
+  </script>
   <HomePage client:load isDev={import.meta.env.DEV} />
 </DesignLayout>
