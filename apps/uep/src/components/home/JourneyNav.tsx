@@ -6,13 +6,11 @@ import './JourneyNav.css';
 interface JourneyNavProps {
   /** 所有場景的 zone（按順序） */
   zones: ZoneData[];
-  /** 目前可見的場景 index（-1 = 過渡場景之前） */
+  /** 目前可見的場景 index（-1 = 過渡場景之前, 5 = verse） */
   activeIndex: number;
   /** 點擊導航點時捲動到對應場景 */
   onNavigate: (index: number) => void;
 }
-
-const LABELS = ['開場', '遊歷'];
 
 export default function JourneyNav({
   zones,
@@ -31,11 +29,11 @@ export default function JourneyNav({
       className={`journey-nav ${visible ? 'journey-nav--visible' : ''}`}
       aria-label="場景導航"
     >
-      {/* 頂部：Hero + Transition */}
+      {/* 頂部：旅程入口 */}
       <button
-        className={`journey-nav__dot ${activeIndex <= 0 ? 'is-active' : ''}`}
+        className={`journey-nav__dot ${activeIndex === -1 ? 'is-active' : ''}`}
         onClick={() => onNavigate(-1)}
-        title="開場"
+        title="遊歷入口"
         type="button"
       >
         <span className="journey-nav__pip" />
@@ -63,6 +61,27 @@ export default function JourneyNav({
           {i < zones.length - 1 && <div className="journey-nav__line" />}
         </React.Fragment>
       ))}
+
+      {/* Verse 導航點（離開 Storage 後出現，與其他點不連接） */}
+      {activeIndex >= 5 && (
+        <>
+          <div className="journey-nav__gap" />
+          <button
+            className={`journey-nav__dot ${activeIndex === 5 ? 'is-active' : ''}`}
+            onClick={() => onNavigate(5)}
+            title="???"
+            type="button"
+            style={
+              {
+                '--dot-color': 'var(--uep-gold)',
+              } as React.CSSProperties
+            }
+          >
+            <span className="journey-nav__pip" />
+            <span className="journey-nav__label">???</span>
+          </button>
+        </>
+      )}
     </nav>
   );
 }

@@ -1,82 +1,115 @@
-/* ══════════════════════════════════════════════
-   JourneyScene — Scroll-driven 轉場式場景面板
-   每個場景 200vh：前半看內容，後半驅動轉場動畫
-   ══════════════════════════════════════════════ */
+/* ══════════════════════════════════════
+   JourneyScene — 全螢幕獨立場景
+   真正的切場遮罩由 HomePage 的 fixed overlay 負責。
+   ══════════════════════════════════════ */
 
-/* ── 滾動容器 ── */
 .journey-scroll {
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
+}
+
+.journey-scroll--locked {
+  overflow-y: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .snap-section {
   scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
-
-/* ══ 場景面板 ══ */
 
 .journey-scene {
   position: relative;
-  height: 200vh; /* 前 100vh = 轉場揭開，後 100vh = 內容閱讀 */
-  /* 不設 scroll-snap：靠轉場遮罩隱藏邊界，而非靠 snap 卡住 */
-}
-
-/* Sticky 內容層：釘住在視窗中，滾動時不動 */
-.journey-scene__sticky {
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
   padding: 80px 64px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  background: var(--bg);
 }
 
-/* ── 場景背景 ── */
-.journey-scene__bg {
+.journey-scene::before {
+  content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   background:
     radial-gradient(
-      ellipse 120% 80% at 10% 40%,
-      color-mix(in srgb, var(--zone-main) 12%, transparent),
-      transparent 60%
+      ellipse 120% 90% at 8% 44%,
+      color-mix(in srgb, var(--zone-main) 16%, transparent),
+      transparent 62%
     ),
     radial-gradient(
-      ellipse 100% 120% at 90% 60%,
-      color-mix(in srgb, var(--zone-soft) 8%, transparent),
-      transparent 50%
+      ellipse 105% 110% at 92% 58%,
+      color-mix(in srgb, var(--zone-soft) 11%, transparent),
+      transparent 56%
     ),
-    radial-gradient(
-      circle at 50% 120%,
-      color-mix(in srgb, var(--zone-main) 6%, transparent),
-      transparent 50%
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--zone-main) 4%, var(--bg)) 0%,
+      var(--bg) 46%,
+      color-mix(in srgb, var(--zone-soft) 5%, var(--bg)) 100%
     );
 }
 
-/* 奇偶底色微差 */
-.journey-scene:nth-child(even of .journey-scene) .journey-scene__sticky {
-  background: color-mix(in srgb, var(--bg-soft) 50%, var(--bg));
+.journey-scene__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--zone-main) 10%, transparent),
+      transparent 28%,
+      transparent 72%,
+      color-mix(in srgb, var(--zone-soft) 8%, transparent)
+    ),
+    radial-gradient(
+      circle at 50% 112%,
+      color-mix(in srgb, var(--zone-main) 10%, transparent),
+      transparent 38%
+    );
+  opacity: 0.9;
 }
 
-/* ── 場景佈局 ── */
+.journey-scene:nth-child(even of .journey-scene)::before {
+  background:
+    radial-gradient(
+      ellipse 120% 80% at 88% 46%,
+      color-mix(in srgb, var(--zone-main) 14%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 100% 100% at 12% 58%,
+      color-mix(in srgb, var(--zone-soft) 10%, transparent),
+      transparent 54%
+    ),
+    linear-gradient(
+      225deg,
+      color-mix(in srgb, var(--zone-main) 5%, var(--bg)) 0%,
+      var(--bg) 52%,
+      color-mix(in srgb, var(--zone-soft) 5%, var(--bg)) 100%
+    );
+}
 
 .journey-scene__inner {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 56px;
   max-width: 1100px;
   margin: 0 auto;
   width: 100%;
   align-items: center;
 }
-
-/* ── 左側：區域標題 ── */
 
 .journey-scene__label {
   display: flex;
@@ -98,7 +131,6 @@
   font-weight: 500;
   color: var(--ink-title);
   margin: 0 0 16px;
-  letter-spacing: -0.02em;
   line-height: 1.1;
 }
 
@@ -144,7 +176,6 @@
     background 0.3s var(--ease),
     color 0.3s var(--ease),
     border-color 0.3s var(--ease);
-  text-decoration: none;
 }
 
 .journey-enter-btn:hover {
@@ -153,14 +184,13 @@
   color: var(--bg);
 }
 
-/* ── 右側：敘事文字 ── */
-
 .journey-scene__narrative {
   display: flex;
   flex-direction: column;
   gap: 18px;
   max-height: 65vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 8px;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--zone-main) 30%, transparent)
@@ -190,8 +220,6 @@
   margin-top: 4px;
 }
 
-/* ── 底部場景編號 ── */
-
 .journey-scene__footer {
   position: absolute;
   bottom: 28px;
@@ -218,176 +246,6 @@
   opacity: 0.25;
   margin: 0;
 }
-
-/* ══════════════════════════════════════════════
-   Zone Veil — 滾動驅動的轉場遮罩
-   由 JS 設定 --veil-progress (0-1) 和 --veil-opacity (0-1)
-   ══════════════════════════════════════════════ */
-
-.zone-veil {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  pointer-events: none;
-  opacity: var(--veil-opacity, 0);
-  /* 全屏底色：zone 主色 */
-  background: color-mix(in srgb, var(--zone-main) 60%, var(--bg));
-}
-
-/* ── History: 墨暈擴散 ── */
-
-.veil-ink-blot {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, #6b3f2a 30%, var(--bg)),
-    transparent 70%
-  );
-}
-
-.veil-ink-blot--1 {
-  width: 140vmax;
-  height: 140vmax;
-  top: -30%;
-  left: -30%;
-  transform: scale(var(--veil-progress, 0));
-}
-
-.veil-ink-blot--2 {
-  width: 120vmax;
-  height: 120vmax;
-  bottom: -40%;
-  right: -20%;
-  transform: scale(calc(var(--veil-progress, 0) * 0.8));
-}
-
-.veil-brush-stroke {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    #c8a46a 20%,
-    #c8a46a 80%,
-    transparent
-  );
-  transform: scaleX(var(--veil-progress, 0));
-  transform-origin: center;
-  opacity: 0.8;
-}
-
-/* ── Echoes: 漣漪環擴散 ── */
-
-.veil-ripple {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
-  border-radius: 50%;
-  border: 1.5px solid #7badc9;
-}
-
-.veil-ripple--1 {
-  transform: scale(calc(var(--veil-progress, 0) * 80));
-  opacity: calc(1 - var(--veil-progress, 0));
-}
-
-.veil-ripple--2 {
-  transform: scale(calc(var(--veil-progress, 0) * 60));
-  opacity: calc(0.8 - var(--veil-progress, 0) * 0.8);
-}
-
-.veil-ripple--3 {
-  transform: scale(calc(var(--veil-progress, 0) * 40));
-  opacity: calc(0.6 - var(--veil-progress, 0) * 0.6);
-}
-
-/* ── Visuals: 光流閃現 ── */
-
-.veil-flash {
-  position: absolute;
-  inset: 0;
-}
-
-.veil-flash--1 {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, #9f86c0 25%, transparent) 40%,
-    color-mix(in srgb, #e0b1cb 20%, transparent) 60%,
-    transparent
-  );
-  transform: translateX(calc((var(--veil-progress, 0) - 0.5) * 200%));
-  opacity: calc(1 - abs(var(--veil-progress, 0) - 0.3) * 3);
-}
-
-.veil-flash--2 {
-  background: linear-gradient(
-    270deg,
-    transparent,
-    color-mix(in srgb, #e0b1cb 25%, transparent) 40%,
-    color-mix(in srgb, #9f86c0 20%, transparent) 60%,
-    transparent
-  );
-  transform: translateX(calc((0.5 - var(--veil-progress, 0)) * 200%));
-  opacity: calc(1 - abs(var(--veil-progress, 0) - 0.6) * 3);
-}
-
-.veil-grain {
-  position: absolute;
-  inset: 0;
-  opacity: calc(var(--veil-progress, 0) * 0.15);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
-}
-
-/* ── Concepts: CRT 掃描線 ── */
-
-.veil-scanlines {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 2px,
-    rgba(116, 198, 157, 0.06) 2px,
-    rgba(116, 198, 157, 0.06) 4px
-  );
-  opacity: calc(var(--veil-progress, 0) * 0.8);
-}
-
-.veil-sweep {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 6px;
-  background: linear-gradient(to bottom, transparent, #74c69d, transparent);
-  opacity: 0.8;
-  /* 掃描線從上到下，由 veil-progress 驅動 */
-  top: calc(var(--veil-progress, 0) * 100%);
-}
-
-/* ── Storage: 塵埃沉降 ── */
-
-.veil-dust-settle {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 120% 80% at 50% 0%,
-    color-mix(in srgb, #d5b618 15%, var(--bg)),
-    transparent 60%
-  );
-  /* 從上方沉降 */
-  transform: translateY(calc((var(--veil-progress, 0) - 1) * 40%));
-  filter: blur(calc((1 - var(--veil-progress, 0)) * 12px));
-}
-
-/* ══ Scroll Reveal 動畫（內容進場用） ══ */
 
 .reveal-up {
   opacity: 0;
@@ -421,11 +279,10 @@
   transition-delay: var(--delay, 0ms);
 }
 
-/* ══ 過渡場景（邊際世界遊歷入口） ══ */
-
 .journey-transition {
   position: relative;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -434,17 +291,25 @@
   padding: 80px 40px;
   overflow: hidden;
   scroll-snap-align: start;
+  scroll-snap-stop: always;
+  background: var(--bg);
 }
 
 .journey-transition::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse 70% 50% at 50% 50%,
-    color-mix(in srgb, var(--uep-gold) 6%, transparent),
-    transparent 70%
-  );
+  background:
+    radial-gradient(
+      ellipse 70% 50% at 50% 50%,
+      color-mix(in srgb, var(--uep-gold) 8%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 100% 60% at 50% 100%,
+      color-mix(in srgb, var(--uep-gold) 5%, transparent),
+      transparent 62%
+    );
   pointer-events: none;
 }
 
@@ -469,7 +334,6 @@
   font-weight: 500;
   color: var(--ink-title);
   margin: 0 0 12px;
-  letter-spacing: -0.01em;
 }
 
 .journey-transition__narration {
@@ -488,23 +352,15 @@
   margin: 28px auto;
 }
 
-/* ══ RWD ══ */
-
 @media (max-width: 760px) {
   .journey-scroll {
     scroll-snap-type: none;
   }
 
   .journey-scene {
-    height: auto;
-    min-height: 100dvh;
-  }
-
-  .journey-scene__sticky {
-    position: relative; /* 手機不用 sticky */
-    height: auto;
     min-height: 100dvh;
     padding: 60px 20px 48px;
+    scroll-snap-align: none;
   }
 
   .journey-scene__inner {
@@ -545,7 +401,6 @@
   }
 
   .journey-transition {
-    height: auto;
     min-height: 80dvh;
     padding: 60px 20px;
     scroll-snap-align: none;
@@ -561,10 +416,5 @@
     left: auto;
     right: auto;
     margin-top: 36px;
-  }
-
-  /* 手機版隱藏轉場遮罩 */
-  .zone-veil {
-    display: none;
   }
 }

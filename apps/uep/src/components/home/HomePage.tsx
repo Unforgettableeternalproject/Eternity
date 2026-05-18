@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import TopBar from '../ui/TopBar';
-import UepAvatar from '../ui/UepAvatar';
 import UepDialogue from '../ui/UepDialogue';
 import PieMap3D from '../map/PieMap3D';
 import Minimap from '../ui/Minimap';
@@ -19,6 +18,27 @@ import './HomePage.css';
 const API_BASE =
   (import.meta as unknown as { env?: Record<string, string> }).env
     ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const ZONE_VEIL_DURATION_MS = 1800;
+const ZONE_VEIL_ALIGN_DELAY_MS = 100;
+const DESKTOP_DOWN_GATE_MIN = 0.66;
+const DESKTOP_DOWN_GATE_MAX = 1.1;
+const DESKTOP_UP_GATE_MIN = -0.08;
+const DESKTOP_UP_GATE_MAX = 0.36;
+const MOBILE_DOWN_GATE_MIN = 0.42;
+const MOBILE_DOWN_GATE_MAX = 0.9;
+const MOBILE_UP_GATE_MIN = -0.08;
+const MOBILE_UP_GATE_MAX = 0.42;
+/** wheel delta 累積到此值時觸發全黑 → 播放動畫 */
+const FADE_THRESHOLD = 600;
+
+function isWithinViewportBand(
+  value: number,
+  vh: number,
+  minRatio: number,
+  maxRatio: number
+) {
+  return value >= vh * minRatio && value <= vh * maxRatio;
+}
 
 interface RecentItem {
   id: string;
@@ -37,6 +57,25 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [ready, setReady] = useState(false);
+  const [veilZone, setVeilZone] = useState<ZoneData | null>(null);
+  const [sectionVeil, setSectionVeil] = useState<{
+    id: 'plain' | 'threshold' | 'verse';
+    label: string;
+  } | null>(null);
+  const [veilDirection, setVeilDirection] = useState<'down' | 'up'>('down');
+  const [veilKey, setVeilKey] = useState(0);
+  const previousSceneRef = useRef(-2);
+  const zoneTransitionRef = useRef(false);
+  const fadeAccumRef = useRef(0);
+  const fadeDirectionRef = useRef<'down' | 'up' | null>(null);
+  const fadeTargetRef = useRef(-2);
+  const fadeOverlayRef = useRef<HTMLDivElement>(null);
+  const fadingRef = useRef(false);
+  const lastScrollTopRef = useRef(0);
+  const alignTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alignRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alignFinalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDark =
     typeof document !== 'undefined' &&
     document.documentElement.dataset.theme === 'dark';
@@ -67,7 +106,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   // 隱藏入口：四角字符點擊序列
   // 境(1) 際(2) / 觀(3) 測(4) — 密碼 2214134
   const GLYPH_SEQ = [2, 2, 1, 4, 1, 3, 4];
-  const [glyphInput, setGlyphInput] = useState<number[]>([]);
+  const [, setGlyphInput] = useState<number[]>([]);
   const [hoveredGlyph, setHoveredGlyph] = useState<number | null>(null);
   const glyphTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -118,6 +157,18 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const { triggered: transTriggered } = useScrollReveal(transitionRef, {
     threshold: 0.15,
   });
+  const verseRef = useRef<HTMLElement>(null);
+  const { triggered: verseTriggered } = useScrollReveal(verseRef, {
+    threshold: 0.15,
+  });
+  const bridgeAtlasRef = useRef<HTMLDivElement>(null);
+  const { triggered: bridgeAtlasTriggered } = useScrollReveal(bridgeAtlasRef, {
+    threshold: 0.3,
+  });
+  const bridgeVerseRef = useRef<HTMLDivElement>(null);
+  const { triggered: bridgeVerseTriggered } = useScrollReveal(bridgeVerseRef, {
+    threshold: 0.3,
+  });
 
   // 建構場景列表：5 zones
   const journeyScenes = ZONES.map((zone) => ({
@@ -130,49 +181,651 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   // 追蹤目前可見的場景 index（-2=hero, -1=transition, 0~4=zones）
   const [activeScene, setActiveScene] = useState(-2);
 
+  const clearZoneTransitionTimers = useCallback(() => {
+    if (alignTimerRef.current) clearTimeout(alignTimerRef.current);
+    if (alignRetryTimerRef.current) clearTimeout(alignRetryTimerRef.current);
+    if (alignFinalTimerRef.current) clearTimeout(alignFinalTimerRef.current);
+    if (releaseTimerRef.current) clearTimeout(releaseTimerRef.current);
+    alignTimerRef.current = null;
+    alignRetryTimerRef.current = null;
+    alignFinalTimerRef.current = null;
+    releaseTimerRef.current = null;
+  }, []);
+
+  const startZoneTransition = useCallback(
+    (
+      targetIndex: number,
+      nextZone: ZoneData,
+      direction: 'down' | 'up' = 'down'
+    ) => {
+      const container = scrollContainerRef.current;
+      const target =
+        container?.querySelectorAll<HTMLElement>('[data-zone-id]')[targetIndex];
+      if (!container || !target) return;
+
+      clearZoneTransitionTimers();
+      const previousBehavior = container.style.scrollBehavior;
+      const previousSnapType = container.style.scrollSnapType;
+      const previousOverflowY = container.style.overflowY;
+      const previousTouchAction = container.style.touchAction;
+      zoneTransitionRef.current = true;
+      container.classList.add('journey-scroll--locked');
+      container.style.scrollBehavior = 'auto';
+      container.style.scrollSnapType = 'none';
+      container.style.overflowY = 'hidden';
+      container.style.touchAction = 'none';
+      setVeilZone(nextZone);
+      setSectionVeil(null);
+      setVeilDirection(direction);
+      setVeilKey((v) => v + 1);
+
+      const forceAlignToTarget = () => {
+        const targetTop = target.offsetTop;
+        container.scrollTo({ top: targetTop, behavior: 'auto' });
+        container.scrollTop = targetTop;
+        lastScrollTopRef.current = targetTop;
+        setActiveScene(targetIndex);
+        previousSceneRef.current = targetIndex;
+      };
+
+      alignTimerRef.current = setTimeout(() => {
+        forceAlignToTarget();
+        requestAnimationFrame(forceAlignToTarget);
+        alignRetryTimerRef.current = setTimeout(forceAlignToTarget, 120);
+        alignFinalTimerRef.current = setTimeout(forceAlignToTarget, 320);
+      }, ZONE_VEIL_ALIGN_DELAY_MS);
+
+      releaseTimerRef.current = setTimeout(() => {
+        forceAlignToTarget();
+        zoneTransitionRef.current = false;
+        container.classList.remove('journey-scroll--locked');
+        container.style.scrollBehavior = previousBehavior;
+        container.style.scrollSnapType = previousSnapType;
+        container.style.overflowY = previousOverflowY;
+        container.style.touchAction = previousTouchAction;
+        setVeilZone(null);
+      }, ZONE_VEIL_DURATION_MS);
+    },
+    [clearZoneTransitionTimers]
+  );
+
+  const resetFadeIntent = useCallback(() => {
+    fadeAccumRef.current = 0;
+    fadeDirectionRef.current = null;
+    fadeTargetRef.current = -2;
+    fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+  }, []);
+
+  const startSectionTransition = useCallback(
+    (
+      target: HTMLElement,
+      targetIndex: -1 | 5,
+      variant: 'plain' | 'threshold' | 'verse',
+      direction: 'down' | 'up'
+    ) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      clearZoneTransitionTimers();
+      resetFadeIntent();
+
+      const previousBehavior = container.style.scrollBehavior;
+      const previousSnapType = container.style.scrollSnapType;
+      const previousOverflowY = container.style.overflowY;
+      const previousTouchAction = container.style.touchAction;
+
+      zoneTransitionRef.current = true;
+      container.classList.add('journey-scroll--locked');
+      container.style.scrollBehavior = 'auto';
+      container.style.scrollSnapType = 'none';
+      container.style.overflowY = 'hidden';
+      container.style.touchAction = 'none';
+      setVeilZone(null);
+      setSectionVeil({
+        id: variant,
+        label:
+          variant === 'threshold'
+            ? '邊際世界遊歷'
+            : variant === 'verse'
+              ? '永恆的意義'
+              : '',
+      });
+      setVeilDirection(direction);
+      setVeilKey((v) => v + 1);
+
+      const forceAlignToTarget = () => {
+        const targetTop = target.offsetTop;
+        container.scrollTo({ top: targetTop, behavior: 'auto' });
+        container.scrollTop = targetTop;
+        lastScrollTopRef.current = targetTop;
+        previousSceneRef.current = targetIndex;
+        setActiveScene(targetIndex);
+      };
+
+      alignTimerRef.current = setTimeout(() => {
+        forceAlignToTarget();
+        requestAnimationFrame(forceAlignToTarget);
+        alignRetryTimerRef.current = setTimeout(forceAlignToTarget, 120);
+        alignFinalTimerRef.current = setTimeout(forceAlignToTarget, 320);
+      }, ZONE_VEIL_ALIGN_DELAY_MS);
+
+      releaseTimerRef.current = setTimeout(() => {
+        forceAlignToTarget();
+        zoneTransitionRef.current = false;
+        container.classList.remove('journey-scroll--locked');
+        container.style.scrollBehavior = previousBehavior;
+        container.style.scrollSnapType = previousSnapType;
+        container.style.overflowY = previousOverflowY;
+        container.style.touchAction = previousTouchAction;
+        setSectionVeil(null);
+      }, ZONE_VEIL_DURATION_MS);
+    },
+    [clearZoneTransitionTimers, resetFadeIntent]
+  );
+
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
+      if (zoneTransitionRef.current) return;
+
       const vh = window.innerHeight;
-      // 從 data-zone-id 查找場景 section
+      const scrollTop = container.scrollTop;
+      const direction = scrollTop >= lastScrollTopRef.current ? 'down' : 'up';
+      lastScrollTopRef.current = scrollTop;
       const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
-      for (let i = scenes.length - 1; i >= 0; i--) {
-        if (scenes[i].offsetTop - container.scrollTop < vh * 0.6) {
-          setActiveScene(i);
+      const trans = container.querySelector<HTMLElement>('#journey-start');
+
+      if (direction === 'down') {
+        const current = previousSceneRef.current;
+
+        if (isMobile) {
+          if (current === -1) {
+            const firstScene = scenes[0];
+            if (
+              firstScene &&
+              isWithinViewportBand(
+                firstScene.offsetTop - scrollTop,
+                vh,
+                MOBILE_DOWN_GATE_MIN,
+                MOBILE_DOWN_GATE_MAX
+              )
+            ) {
+              startZoneTransition(0, ZONES[0], 'down');
+              return;
+            }
+          } else if (current >= 0 && current < ZONES.length - 1) {
+            const nextIndex = current + 1;
+            const nextScene = scenes[nextIndex];
+            if (
+              nextScene &&
+              isWithinViewportBand(
+                nextScene.offsetTop - scrollTop,
+                vh,
+                MOBILE_DOWN_GATE_MIN,
+                MOBILE_DOWN_GATE_MAX
+              )
+            ) {
+              startZoneTransition(nextIndex, ZONES[nextIndex], 'down');
+              return;
+            }
+          } else if (current === ZONES.length - 1) {
+            const verseEl =
+              container.querySelector<HTMLElement>('#verse-section');
+            if (
+              verseEl &&
+              isWithinViewportBand(
+                verseEl.offsetTop - scrollTop,
+                vh,
+                MOBILE_DOWN_GATE_MIN,
+                MOBILE_DOWN_GATE_MAX
+              )
+            ) {
+              startSectionTransition(verseEl, 5, 'verse', 'down');
+              return;
+            }
+          }
+        }
+
+        if (
+          current === -2 &&
+          trans &&
+          trans.offsetTop - scrollTop < vh * 0.84
+        ) {
+          setActiveScene(-1);
           return;
         }
-      }
-      // 檢查 transition
-      const trans = container.querySelector<HTMLElement>('#journey-start');
-      if (trans && trans.offsetTop - container.scrollTop < vh * 0.6) {
-        setActiveScene(-1);
+
+        const nextIndex = current < 0 ? 0 : current + 1;
+        const nextScene = scenes[nextIndex];
+        if (nextScene && nextScene.offsetTop - scrollTop < vh * 0.84) {
+          setActiveScene(nextIndex);
+          return;
+        }
+
+        // 偵測進入 Verse 區塊
+        const verseEl = container.querySelector<HTMLElement>('#verse-section');
+        if (
+          current === 4 &&
+          verseEl &&
+          verseEl.offsetTop - scrollTop < vh * 0.84
+        ) {
+          setActiveScene(5);
+        }
         return;
       }
-      setActiveScene(-2);
+
+      const current = previousSceneRef.current;
+
+      // Verse → Storage
+      if (current === 5) {
+        const verseEl = container.querySelector<HTMLElement>('#verse-section');
+        if (verseEl && verseEl.offsetTop - scrollTop > vh * 0.16) {
+          setActiveScene(4);
+        }
+        return;
+      }
+
+      if (current >= 1) {
+        const currentScene = scenes[current];
+        if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
+          if (
+            isMobile &&
+            isWithinViewportBand(
+              currentScene.offsetTop - scrollTop,
+              vh,
+              MOBILE_UP_GATE_MIN,
+              MOBILE_UP_GATE_MAX
+            )
+          ) {
+            const targetIndex = current - 1;
+            startZoneTransition(targetIndex, ZONES[targetIndex], 'up');
+            return;
+          }
+          setActiveScene(current - 1);
+        }
+        return;
+      }
+
+      if (current === 0) {
+        const currentScene = scenes[0];
+        if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
+          if (
+            isMobile &&
+            isWithinViewportBand(
+              currentScene.offsetTop - scrollTop,
+              vh,
+              MOBILE_UP_GATE_MIN,
+              MOBILE_UP_GATE_MAX
+            )
+          ) {
+            const thresholdEl =
+              container.querySelector<HTMLElement>('#journey-start');
+            if (thresholdEl) {
+              startSectionTransition(thresholdEl, -1, 'plain', 'up');
+              return;
+            }
+          }
+          setActiveScene(-1);
+        }
+        return;
+      }
+
+      if (current === -1 && trans && trans.offsetTop - scrollTop > vh * 0.16) {
+        setActiveScene(-2);
+        return;
+      }
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isMobile, startSectionTransition, startZoneTransition]);
 
-  const handleJourneyNav = useCallback((index: number) => {
+  // ── Wheel-driven fade：捲動時漸入黑畫面，到閾值後觸發轉場 ──
+  useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    if (index === -1) {
-      container
-        .querySelector('#journey-start')
-        ?.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      const scenes = container.querySelectorAll('[data-zone-id]');
-      scenes[index]?.scrollIntoView({ behavior: 'smooth' });
+
+    const handleWheel = (e: globalThis.WheelEvent) => {
+      // 不在轉場中、不在 fading 中，且目前在 zone scene 內
+      if (zoneTransitionRef.current) return;
+      const current = previousSceneRef.current;
+
+      const delta = Math.abs(e.deltaY);
+      const direction = e.deltaY > 0 ? 'down' : 'up';
+
+      // 判斷是否在 zone 邊界
+      let targetIndex = -2;
+      let sectionTarget: HTMLElement | null = null;
+      const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
+      const thresholdEl =
+        container.querySelector<HTMLElement>('#journey-start');
+
+      if (direction === 'down') {
+        // 從 transition section 進入第一個 zone (History)
+        if (current === -1) {
+          const firstScene = scenes[0];
+          if (firstScene) {
+            const dist = firstScene.offsetTop - container.scrollTop;
+            if (
+              isWithinViewportBand(
+                dist,
+                window.innerHeight,
+                DESKTOP_DOWN_GATE_MIN,
+                DESKTOP_DOWN_GATE_MAX
+              )
+            ) {
+              targetIndex = 0;
+            }
+          }
+        }
+        // 從目前 zone 進入下一個 zone
+        else if (current >= 0 && current < ZONES.length - 1) {
+          const currentScene = scenes[current];
+          if (currentScene) {
+            const bottom =
+              currentScene.offsetTop +
+              currentScene.offsetHeight -
+              container.scrollTop;
+            if (
+              isWithinViewportBand(
+                bottom,
+                window.innerHeight,
+                DESKTOP_DOWN_GATE_MIN,
+                DESKTOP_DOWN_GATE_MAX
+              )
+            ) {
+              targetIndex = current + 1;
+            }
+          }
+        } else if (current === ZONES.length - 1) {
+          const verseEl =
+            container.querySelector<HTMLElement>('#verse-section');
+          if (verseEl) {
+            const top = verseEl.offsetTop - container.scrollTop;
+            if (
+              isWithinViewportBand(
+                top,
+                window.innerHeight,
+                DESKTOP_DOWN_GATE_MIN,
+                DESKTOP_DOWN_GATE_MAX
+              )
+            ) {
+              targetIndex = 5;
+              sectionTarget = verseEl;
+            }
+          }
+        }
+      } else if (direction === 'up') {
+        if (current === 5) {
+          // Verse → Storage：觸發 Storage boot 動畫
+          const verseEl =
+            container.querySelector<HTMLElement>('#verse-section');
+          if (verseEl) {
+            const top = verseEl.offsetTop - container.scrollTop;
+            if (
+              isWithinViewportBand(
+                top,
+                window.innerHeight,
+                DESKTOP_UP_GATE_MIN,
+                DESKTOP_UP_GATE_MAX
+              )
+            ) {
+              targetIndex = 4;
+            }
+          }
+        } else if (current >= 1) {
+          const currentScene = scenes[current];
+          if (currentScene) {
+            const top = currentScene.offsetTop - container.scrollTop;
+            if (
+              isWithinViewportBand(
+                top,
+                window.innerHeight,
+                DESKTOP_UP_GATE_MIN,
+                DESKTOP_UP_GATE_MAX
+              )
+            ) {
+              targetIndex = current - 1;
+            }
+          }
+        } else if (current === 0) {
+          const currentScene = scenes[0];
+          if (currentScene && thresholdEl) {
+            const top = currentScene.offsetTop - container.scrollTop;
+            if (
+              isWithinViewportBand(
+                top,
+                window.innerHeight,
+                DESKTOP_UP_GATE_MIN,
+                DESKTOP_UP_GATE_MAX
+              )
+            ) {
+              targetIndex = -1;
+              sectionTarget = thresholdEl;
+            }
+          }
+        }
+      }
+
+      if (targetIndex === -2) {
+        // 不在邊界，讓正常滾動繼續
+        resetFadeIntent();
+        return;
+      }
+
+      e.preventDefault();
+
+      if (
+        fadeDirectionRef.current &&
+        (fadeDirectionRef.current !== direction ||
+          fadeTargetRef.current !== targetIndex)
+      ) {
+        fadeAccumRef.current = Math.max(0, fadeAccumRef.current - delta);
+        if (fadeAccumRef.current === 0) {
+          fadeDirectionRef.current = null;
+          fadeTargetRef.current = -2;
+        }
+        fadeOverlayRef.current?.style.setProperty(
+          '--fade-progress',
+          String(fadeAccumRef.current / FADE_THRESHOLD)
+        );
+        return;
+      }
+
+      fadeDirectionRef.current = direction;
+      fadeTargetRef.current = targetIndex;
+
+      // 攔截滾動，累積 fade
+      fadeAccumRef.current = Math.min(
+        FADE_THRESHOLD,
+        fadeAccumRef.current + delta
+      );
+      const progress = fadeAccumRef.current / FADE_THRESHOLD;
+
+      if (fadeOverlayRef.current) {
+        fadeOverlayRef.current.style.setProperty(
+          '--fade-progress',
+          String(progress)
+        );
+      }
+
+      // 達到閾值 → 觸發轉場
+      if (progress >= 1 && !fadingRef.current) {
+        fadingRef.current = true;
+        if (sectionTarget && targetIndex === -1) {
+          startSectionTransition(sectionTarget, -1, 'plain', 'up');
+          setTimeout(() => {
+            resetFadeIntent();
+            fadingRef.current = false;
+          }, 300);
+          return;
+        }
+
+        if (sectionTarget && targetIndex === 5) {
+          startSectionTransition(sectionTarget, 5, 'verse', 'down');
+          setTimeout(() => {
+            resetFadeIntent();
+            fadingRef.current = false;
+          }, 300);
+          return;
+        }
+
+        const nextZone = ZONES[targetIndex];
+        if (nextZone) {
+          startZoneTransition(
+            targetIndex,
+            nextZone,
+            direction === 'down' ? 'down' : 'up'
+          );
+          // 延遲重置 fade overlay（等 boot 動畫蓋住後）
+          setTimeout(() => {
+            resetFadeIntent();
+            fadingRef.current = false;
+          }, 300);
+        }
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [resetFadeIntent, startSectionTransition, startZoneTransition]);
+
+  // activeScene 可被 scroll reveal 提前更新；previousSceneRef 只記錄已落位的空間。
+  useEffect(() => {
+    if (activeScene < 0 || activeScene === 5) {
+      previousSceneRef.current = activeScene;
     }
-  }, []);
+  }, [activeScene]);
+
+  useEffect(() => {
+    return () => {
+      clearZoneTransitionTimers();
+      scrollContainerRef.current?.classList.remove('journey-scroll--locked');
+    };
+  }, [clearZoneTransitionTimers]);
+
+  const handleJourneyNav = useCallback(
+    (index: number) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      if (index === -1) {
+        const target = container.querySelector<HTMLElement>('#journey-start');
+        if (!target) return;
+        const direction = previousSceneRef.current > -1 ? 'up' : 'down';
+        startSectionTransition(target, -1, 'threshold', direction);
+      } else if (index === 5) {
+        const target = container.querySelector<HTMLElement>('#verse-section');
+        if (!target) return;
+        const direction = previousSceneRef.current > 5 ? 'up' : 'down';
+        startSectionTransition(target, 5, 'verse', direction);
+      } else {
+        const zone = ZONES[index];
+        if (zone) {
+          const direction = index >= previousSceneRef.current ? 'down' : 'up';
+          startZoneTransition(index, zone, direction);
+        }
+      }
+    },
+    [startSectionTransition, startZoneTransition]
+  );
 
   const handleJourneyEnter = useCallback((zone: ZoneData) => {
     setIntro(zone);
   }, []);
+
+  const renderGlobalVeil = () => {
+    if (!veilZone && !sectionVeil) return null;
+    const zid = veilZone?.id ?? sectionVeil?.id;
+    if (!zid) return null;
+
+    return (
+      <div
+        key={veilKey}
+        className={`home-global-veil home-global-veil--${zid} home-global-veil--${veilDirection}`}
+        aria-hidden
+      >
+        {sectionVeil && sectionVeil.id !== 'plain' && (
+          <>
+            <div className="hv-threshold-ring hv-threshold-ring--1" />
+            <div className="hv-threshold-ring hv-threshold-ring--2" />
+            <div className="hv-threshold-line" />
+            <div className="hv-threshold-label">{sectionVeil.label}</div>
+          </>
+        )}
+
+        {/* ── History: 墨暈擴散 ── */}
+        {zid === 'history' && (
+          <>
+            <div className="hv-ink hv-ink--1" />
+            <div className="hv-ink hv-ink--2" />
+            <div className="hv-ink hv-ink--3" />
+            <div className="hv-ink hv-ink--4" />
+            <div className="hv-drip hv-drip--1" />
+            <div className="hv-drip hv-drip--2" />
+            <div className="hv-stroke" />
+          </>
+        )}
+
+        {/* ── Echoes: 漣漪擴散 ── */}
+        {zid === 'echoes' && (
+          <>
+            <div className="hv-pulse" />
+            <div className="hv-wave hv-wave--1" />
+            <div className="hv-wave hv-wave--2" />
+            <div className="hv-wave hv-wave--3" />
+          </>
+        )}
+
+        {/* ── Visuals: 幻影閃現 ── */}
+        {zid === 'visuals' && (
+          <>
+            <div className="hv-flash hv-flash--l" />
+            <div className="hv-flash hv-flash--r" />
+            <div className="hv-flash hv-flash--l2" />
+            <div className="hv-flash hv-flash--r2" />
+            <div className="hv-grain" />
+          </>
+        )}
+
+        {/* ── Concepts: CRT 開機 ── */}
+        {zid === 'concepts' && (
+          <>
+            <div className="hv-scanlines" />
+            <div className="hv-sweep" />
+            <div className="hv-terminal">
+              <div className="hv-term-line">
+                {'> LOADING CONCEPTS_MODULE...'}
+              </div>
+              <div className="hv-term-line">{'> ESSENCE_FRAMEWORK [OK]'}</div>
+              <div className="hv-term-line">
+                {'> READY'}
+                <span className="hv-cursor" />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Storage: 箱子掉落 ── */}
+        {zid === 'storage' && (
+          <>
+            <div className="hv-floor" />
+            <div className="hv-boxes">
+              <div className="hv-box hv-box--1" />
+              <div className="hv-box hv-box--2" />
+              <div className="hv-box hv-box--3" />
+              <div className="hv-box hv-box--4" />
+              <div className="hv-box hv-box--5" />
+              <div className="hv-box hv-box--6" />
+              <div className="hv-box hv-box--7" />
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -201,6 +854,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       />
 
       <TopBar onOpenMap={() => setShowMap(true)} />
+
+      {/* Scroll-driven 暗幕：wheel 累積驅動漸暗 */}
+      <div ref={fadeOverlayRef} className="home-fade-overlay" aria-hidden />
+
+      {renderGlobalVeil()}
 
       {/* 右側場景導航 */}
       <JourneyNav
@@ -475,7 +1133,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 letterSpacing: '0.32em',
                 textTransform: 'uppercase' as const,
                 color: 'var(--uep-gold)',
-                marginBottom: 14,
+                marginBottom: 10,
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 12,
@@ -492,9 +1150,9 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             <h2
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 56,
+                fontSize: isMobile ? 40 : 44,
                 fontWeight: 500,
-                margin: '0 0 8px',
+                margin: '0 0 6px',
                 letterSpacing: '-0.02em',
                 color: 'var(--ink-title)',
               }}
@@ -506,7 +1164,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 fontFamily: 'var(--font-serif-tc)',
                 fontSize: 13.5,
                 color: 'var(--ink-mute)',
-                marginBottom: 56,
+                marginBottom: isMobile ? 12 : 8,
                 fontStyle: 'italic',
               }}
             >
@@ -519,12 +1177,12 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               display: 'grid',
               placeItems: 'center',
               position: 'relative',
-              minHeight: isMobile ? 340 : 600,
+              minHeight: isMobile ? 300 : 340,
             }}
           >
             <PieMap3D
               zones={ZONES}
-              size={isMobile ? 320 : 580}
+              size={isMobile ? 280 : 420}
               hoveredId={hover}
               onHover={setHover}
               baseTone="light"
@@ -541,7 +1199,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 onMouseLeave={() => setHover(null)}
                 onClick={() => setIntro(z)}
                 style={{
-                  padding: '18px 14px',
+                  padding: isMobile ? '12px 10px' : '10px 12px',
                   borderRight: idx < 4 ? '1px solid var(--hairline)' : 'none',
                   cursor: 'pointer',
                   background: hover === z.id ? 'var(--bg-soft)' : 'transparent',
@@ -562,10 +1220,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 <div
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontSize: 17,
+                    fontSize: isMobile ? 15 : 15.5,
                     fontWeight: 600,
                     color: 'var(--ink-title)',
-                    marginTop: 4,
+                    marginTop: 3,
                   }}
                 >
                   {z.label}
@@ -573,10 +1231,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 <div
                   style={{
                     fontFamily: 'var(--font-serif-tc)',
-                    fontSize: 12,
+                    fontSize: isMobile ? 12 : 11.5,
                     color: 'var(--ink-mute)',
-                    marginTop: 4,
-                    lineHeight: 1.5,
+                    marginTop: 2,
+                    lineHeight: 1.45,
                   }}
                 >
                   {z.atmos}
@@ -585,6 +1243,17 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             ))}
           </div>
         </section>
+
+        {/* ── BRIDGE: Atlas → Guide ── */}
+        <div
+          ref={bridgeAtlasRef}
+          className={`section-bridge ${bridgeAtlasTriggered ? 'is-visible' : ''}`}
+          aria-hidden
+        >
+          <div className="section-bridge__dot" />
+          <div className="section-bridge__line" />
+          <div className="section-bridge__dot" />
+        </div>
 
         {/* ── JOURNEY TRANSITION ── */}
         <section
@@ -651,129 +1320,24 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           />
         ))}
 
-        <hr className="hairline" />
-
-        {/* ── RECENTS ── */}
-        <section
-          className="home-recents"
-          style={{
-            maxWidth: 1400,
-            margin: '0 auto',
-          }}
+        {/* ── BRIDGE: Storage → Verse ── */}
+        <div
+          ref={bridgeVerseRef}
+          className={`section-bridge ${bridgeVerseTriggered ? 'is-visible' : ''}`}
+          aria-hidden
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              marginBottom: 26,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  color: 'var(--uep-gold)',
-                  letterSpacing: '0.24em',
-                  textTransform: 'uppercase' as const,
-                  marginBottom: 4,
-                }}
-              >
-                · Recent ·
-              </div>
-              <h3
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 28,
-                  fontWeight: 600,
-                  color: 'var(--ink-title)',
-                  margin: 0,
-                }}
-              >
-                最近的觀測
-              </h3>
-            </div>
-          </div>
-          <div className="home-recents-grid">
-            {recents.length === 0 && (
-              <div
-                style={{
-                  gridColumn: '1 / -1',
-                  padding: '24px 18px',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  color: 'var(--ink-mute)',
-                  letterSpacing: '0.12em',
-                  textAlign: 'center',
-                }}
-              >
-                — loading —
-              </div>
-            )}
-            {recents.map((r, i) => {
-              const z = ZONES.find((z) => z.id === r.area);
-              const dateStr = r.updatedAt
-                ? new Date(r.updatedAt).toLocaleDateString('zh-TW', {
-                    month: '2-digit',
-                    day: '2-digit',
-                  })
-                : '';
-              return (
-                <a
-                  key={r.id}
-                  href={`/${r.area}?page=${r.slug}`}
-                  className="home-recent-card"
-                  style={{
-                    borderRight:
-                      i < recents.length - 1
-                        ? '1px solid var(--hairline)'
-                        : 'none',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      color: zoneTextColor(z?.main ?? '', isDark),
-                      letterSpacing: '0.16em',
-                      textTransform: 'uppercase' as const,
-                    }}
-                  >
-                    · {z?.en}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-serif-tc)',
-                      fontSize: 14,
-                      color: 'var(--ink-title)',
-                      lineHeight: 1.4,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {r.title}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      color: 'var(--ink-mute)',
-                      marginTop: 'auto',
-                      letterSpacing: '0.04em',
-                    }}
-                  >
-                    {dateStr}
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        </section>
-
-        <hr className="hairline-thick" />
+          <div className="section-bridge__dot" />
+          <div className="section-bridge__line" />
+          <div className="section-bridge__dot" />
+        </div>
 
         {/* ── ETERNAL VERSE ── */}
-        <section className="home-verse" style={{ position: 'relative' }}>
+        <section
+          id="verse-section"
+          ref={verseRef}
+          className={`home-verse snap-section ${verseTriggered ? 'verse-revealed' : 'verse-hidden'}`}
+          style={{ position: 'relative' }}
+        >
           <div
             style={{ maxWidth: 720, margin: '0 auto', position: 'relative' }}
           >
@@ -866,6 +1430,123 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
               }}
             >
               —— inscribed on the wall ——
+            </div>
+          </div>
+
+          {/* ── RECENTS（併入 Verse 區塊） ── */}
+          <div
+            className="home-recents"
+            style={{
+              maxWidth: 1400,
+              margin: '0 auto',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                marginBottom: 26,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'var(--uep-gold)',
+                    letterSpacing: '0.24em',
+                    textTransform: 'uppercase' as const,
+                    marginBottom: 4,
+                  }}
+                >
+                  · Recent ·
+                </div>
+                <h3
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 28,
+                    fontWeight: 600,
+                    color: 'var(--ink-title)',
+                    margin: 0,
+                  }}
+                >
+                  最近的觀測
+                </h3>
+              </div>
+            </div>
+            <div className="home-recents-grid">
+              {recents.length === 0 && (
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                    padding: '24px 18px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    color: 'var(--ink-mute)',
+                    letterSpacing: '0.12em',
+                    textAlign: 'center',
+                  }}
+                >
+                  — loading —
+                </div>
+              )}
+              {recents.map((r, i) => {
+                const z = ZONES.find((z) => z.id === r.area);
+                const dateStr = r.updatedAt
+                  ? new Date(r.updatedAt).toLocaleDateString('zh-TW', {
+                      month: '2-digit',
+                      day: '2-digit',
+                    })
+                  : '';
+                return (
+                  <a
+                    key={r.id}
+                    href={`/${r.area}?page=${r.slug}`}
+                    className="home-recent-card"
+                    style={{
+                      borderRight:
+                        i < recents.length - 1
+                          ? '1px solid var(--hairline)'
+                          : 'none',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        color: zoneTextColor(z?.main ?? '', isDark),
+                        letterSpacing: '0.16em',
+                        textTransform: 'uppercase' as const,
+                      }}
+                    >
+                      · {z?.en}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-serif-tc)',
+                        fontSize: 14,
+                        color: 'var(--ink-title)',
+                        lineHeight: 1.4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {r.title}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        color: 'var(--ink-mute)',
+                        marginTop: 'auto',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {dateStr}
+                    </div>
+                  </a>
+                );
+              })}
             </div>
           </div>
         </section>

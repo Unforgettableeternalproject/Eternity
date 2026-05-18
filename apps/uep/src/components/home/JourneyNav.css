@@ -103,6 +103,11 @@
   background: var(--hairline);
 }
 
+/* Verse 導航點與其他點之間的間距（不連接） */
+.journey-nav__gap {
+  height: 24px;
+}
+
 /* 手機隱藏 */
 @media (max-width: 760px) {
   .journey-nav {
