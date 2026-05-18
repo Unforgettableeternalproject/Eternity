@@ -9,6 +9,10 @@ import Minimap from '../ui/Minimap';
 import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import PortalTransition from '../ui/PortalTransition';
+import JourneyScene from './JourneyScene';
+import JourneyNav from './JourneyNav';
+import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
+import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useIsMobile } from '../../utils/useIsMobile';
 import './HomePage.css';
 
@@ -109,6 +113,67 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     setPortal(null);
   }, []);
 
+  // ── Journey：場景旅程 ──
+  const transitionRef = useRef<HTMLElement>(null);
+  const { triggered: transTriggered } = useScrollReveal(transitionRef, {
+    threshold: 0.15,
+  });
+
+  // 建構場景列表：5 zones
+  const journeyScenes = ZONES.map((zone) => ({
+    zone,
+    narrative: ZONE_NARRATIVES.find((n) => n.zoneId === zone.id)!,
+  }));
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // 追蹤目前可見的場景 index（-2=hero, -1=transition, 0~4=zones）
+  const [activeScene, setActiveScene] = useState(-2);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const vh = window.innerHeight;
+      // 從 data-zone-id 查找場景 section
+      const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
+      for (let i = scenes.length - 1; i >= 0; i--) {
+        if (scenes[i].offsetTop - container.scrollTop < vh * 0.6) {
+          setActiveScene(i);
+          return;
+        }
+      }
+      // 檢查 transition
+      const trans = container.querySelector<HTMLElement>('#journey-start');
+      if (trans && trans.offsetTop - container.scrollTop < vh * 0.6) {
+        setActiveScene(-1);
+        return;
+      }
+      setActiveScene(-2);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleJourneyNav = useCallback((index: number) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (index === -1) {
+      container
+        .querySelector('#journey-start')
+        ?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      const scenes = container.querySelectorAll('[data-zone-id]');
+      scenes[index]?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
+  const handleJourneyEnter = useCallback((zone: ZoneData) => {
+    setIntro(zone);
+  }, []);
+
   return (
     <div
       style={{
@@ -137,7 +202,16 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
       <TopBar onOpenMap={() => setShowMap(true)} />
 
+      {/* 右側場景導航 */}
+      <JourneyNav
+        zones={ZONES}
+        activeIndex={activeScene}
+        onNavigate={handleJourneyNav}
+      />
+
       <div
+        ref={scrollContainerRef}
+        className="journey-scroll"
         style={{
           flex: '1 1 0%',
           minHeight: 0,
@@ -146,7 +220,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         }}
       >
         {/* ── HERO ── */}
-        <section className="home-hero">
+        <section className="home-hero snap-section">
           {/* dust particles */}
           <div
             className="dust-field"
@@ -252,11 +326,11 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 ✦ 開啟大地圖
               </button>
               <a
-                href="#atlas"
+                href="#journey-start"
                 className="btn-outline"
                 style={{ textDecoration: 'none' }}
               >
-                ↓ 沿著卷軸走
+                ↓ 開始遊歷
               </a>
               {(isDev || isLoggedIn) && (
                 <a
@@ -363,12 +437,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           </div>
         </section>
 
-        <hr className="hairline" />
-
-        {/* ── ATLAS ── */}
+        {/* ── ATLAS（世界軸心 Hub） ── */}
         <section
           id="atlas"
-          className="home-atlas"
+          className="home-atlas snap-section"
           style={{
             position: 'relative',
             overflow: 'hidden',
@@ -514,105 +586,70 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
           </div>
         </section>
 
-        <hr className="hairline-thick" />
-
-        {/* ── ETERNAL VERSE ── */}
-        <section className="home-verse" style={{ position: 'relative' }}>
-          <div
-            style={{ maxWidth: 720, margin: '0 auto', position: 'relative' }}
-          >
-            <div style={{ textAlign: 'center' }}>
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  letterSpacing: '0.32em',
-                  textTransform: 'uppercase' as const,
-                  color: 'var(--uep-gold)',
-                }}
+        {/* ── JOURNEY TRANSITION ── */}
+        <section
+          id="journey-start"
+          ref={transitionRef}
+          className={`journey-transition ${transTriggered ? 'is-visible' : ''}`}
+        >
+          <div className="journey-transition__content">
+            <div className="journey-transition__kicker reveal-up">
+              — 邊際世界遊歷 —
+            </div>
+            <h2
+              className="journey-transition__title reveal-up"
+              style={{ '--delay': '80ms' } as React.CSSProperties}
+            >
+              跟我來吧
+            </h2>
+            <div
+              className="journey-transition__divider reveal-scale"
+              style={{ '--delay': '160ms' } as React.CSSProperties}
+            />
+            {JOURNEY_TRANSITION.narration.map((para, i) => (
+              <p
+                key={i}
+                className="journey-transition__narration reveal-up"
+                style={
+                  { '--delay': `${200 + i * 120}ms` } as React.CSSProperties
+                }
               >
-                · The Eternal Verse ·
+                {para}
+              </p>
+            ))}
+            {JOURNEY_TRANSITION.uepLines.map((line, i) => (
+              <div
+                key={`u-${i}`}
+                className="reveal-up"
+                style={
+                  {
+                    '--delay': `${500 + i * 150}ms`,
+                    marginTop: 12,
+                  } as React.CSSProperties
+                }
+              >
+                <UepDialogue
+                  side="left"
+                  text={line}
+                  effects={['shimmer', 'halo']}
+                />
               </div>
-              <h2
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 36,
-                  fontWeight: 500,
-                  color: 'var(--ink-title)',
-                  margin: '14px 0 6px',
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                永恆的意義
-              </h2>
-              <div
-                style={{
-                  width: 1,
-                  height: 50,
-                  background: 'var(--uep-gold)',
-                  margin: '18px auto 36px',
-                  opacity: 0.4,
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                fontFamily: 'var(--font-serif-tc)',
-                fontSize: 18,
-                lineHeight: 2.4,
-                color: 'var(--ink)',
-                textAlign: 'center',
-                position: 'relative',
-                padding: '0 30px',
-              }}
-            >
-              {VERSES.map((v, i) =>
-                v === '—' ? (
-                  <div
-                    key={i}
-                    style={{
-                      width: 32,
-                      height: 1,
-                      margin: '20px auto',
-                      background: 'var(--uep-gold)',
-                      opacity: 0.5,
-                    }}
-                  />
-                ) : (
-                  <div
-                    key={i}
-                    style={
-                      /輪迴|創世|毀滅|聚合|反饋|置換|虛無/.test(v)
-                        ? {
-                            fontWeight: 600,
-                            color: 'var(--uep-gold)',
-                            fontStyle: 'italic',
-                          }
-                        : undefined
-                    }
-                  >
-                    {v}
-                  </div>
-                )
-              )}
-            </div>
-
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'var(--ink-mute)',
-                textAlign: 'center',
-                marginTop: 32,
-                letterSpacing: '0.22em',
-                textTransform: 'uppercase' as const,
-              }}
-            >
-              —— inscribed on the wall ——
-            </div>
+            ))}
           </div>
         </section>
+
+        {/* ── ZONE SCENES ── */}
+        {journeyScenes.map((item, i) => (
+          <JourneyScene
+            key={item.zone.id}
+            zone={item.zone}
+            narrative={item.narrative}
+            index={i}
+            total={journeyScenes.length}
+            onEnterZone={() => handleJourneyEnter(item.zone)}
+            isMobile={isMobile}
+          />
+        ))}
 
         <hr className="hairline" />
 
@@ -730,6 +767,106 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
                 </a>
               );
             })}
+          </div>
+        </section>
+
+        <hr className="hairline-thick" />
+
+        {/* ── ETERNAL VERSE ── */}
+        <section className="home-verse" style={{ position: 'relative' }}>
+          <div
+            style={{ maxWidth: 720, margin: '0 auto', position: 'relative' }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  letterSpacing: '0.32em',
+                  textTransform: 'uppercase' as const,
+                  color: 'var(--uep-gold)',
+                }}
+              >
+                · The Eternal Verse ·
+              </div>
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 36,
+                  fontWeight: 500,
+                  color: 'var(--ink-title)',
+                  margin: '14px 0 6px',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                永恆的意義
+              </h2>
+              <div
+                style={{
+                  width: 1,
+                  height: 50,
+                  background: 'var(--uep-gold)',
+                  margin: '18px auto 36px',
+                  opacity: 0.4,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                fontFamily: 'var(--font-serif-tc)',
+                fontSize: 18,
+                lineHeight: 2.4,
+                color: 'var(--ink)',
+                textAlign: 'center',
+                position: 'relative',
+                padding: '0 30px',
+              }}
+            >
+              {VERSES.map((v, i) =>
+                v === '—' ? (
+                  <div
+                    key={i}
+                    style={{
+                      width: 32,
+                      height: 1,
+                      margin: '20px auto',
+                      background: 'var(--uep-gold)',
+                      opacity: 0.5,
+                    }}
+                  />
+                ) : (
+                  <div
+                    key={i}
+                    style={
+                      /輪迴|創世|毀滅|聚合|反饋|置換|虛無/.test(v)
+                        ? {
+                            fontWeight: 600,
+                            color: 'var(--uep-gold)',
+                            fontStyle: 'italic',
+                          }
+                        : undefined
+                    }
+                  >
+                    {v}
+                  </div>
+                )
+              )}
+            </div>
+
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'var(--ink-mute)',
+                textAlign: 'center',
+                marginTop: 32,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase' as const,
+              }}
+            >
+              —— inscribed on the wall ——
+            </div>
           </div>
         </section>
       </div>

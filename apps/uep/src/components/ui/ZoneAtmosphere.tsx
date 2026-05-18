@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ZoneData } from '../../data/zones';
+import './ZoneAtmosphere.css';
 
 interface ZoneAtmosphereProps {
   zone: ZoneData;
@@ -17,65 +18,41 @@ export default function ZoneAtmosphere({
 
   return (
     <div
+      className="zone-atmosphere"
       aria-hidden="true"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        color: zone.main,
-      }}
+      style={
+        {
+          '--zone-atmosphere-color': `var(--${zone.id}-atmo)`,
+        } as React.CSSProperties
+      }
     >
-      {/* outline rings */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '-20%',
-          top: '-30%',
-          width: '120%',
-          aspectRatio: '1',
-          borderRadius: '50%',
-          border: `1px solid ${zone.main}`,
-          opacity: 0.06,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          right: '-30%',
-          bottom: '-40%',
-          width: '90%',
-          aspectRatio: '1',
-          borderRadius: '50%',
-          border: `1px dashed ${zone.main}`,
-          opacity: 0.08,
-        }}
-      />
+      {/* 外圈線條 */}
+      <div className="zone-atmosphere__ring zone-atmosphere__ring--primary" />
+      <div className="zone-atmosphere__ring zone-atmosphere__ring--secondary" />
 
-      {/* drift particles + occasional glyphs */}
+      {/* 漂浮粒子與少量字元 */}
       {[...Array(count)].map((_, i) => {
         const isGlyph = !skipGlyphs && i % 5 === 0 && zone.glyphs;
-        const dur = 12 + (i % 9);
-        const delay = (i * 0.7) % 10;
+        const dur = 20 + (i % 13);
+        const delay = (i * 1.1) % 14;
         const left = (i * 53) % 100;
         const top = (i * 37) % 100;
         const dy = -(40 + (i % 4) * 30);
+        // 每個粒子一個偽隨機 opacity 偏移量（-0.06 ~ +0.08）
+        const opacityOffset = (((i * 7 + 3) % 15) - 6) / 100;
         return isGlyph ? (
           <span
+            className="zone-atmosphere__glyph"
             key={i}
             style={
               {
-                position: 'absolute',
                 left: `${left}%`,
                 top: `${top}%`,
-                fontFamily: 'var(--font-display)',
                 fontSize: 14 + (i % 4) * 6,
-                color: zone.main,
-                opacity: 0,
                 animation: `drift ${dur}s ${delay}s linear infinite`,
                 '--drift-x': '10px',
                 '--drift-y': `${dy}px`,
-                '--drift-opacity': '0.25',
+                '--opacity-offset': opacityOffset,
               } as React.CSSProperties
             }
           >
@@ -83,21 +60,16 @@ export default function ZoneAtmosphere({
           </span>
         ) : (
           <i
+            className="zone-atmosphere__dot"
             key={i}
             style={
               {
-                position: 'absolute',
-                width: 2,
-                height: 2,
-                background: 'currentColor',
-                borderRadius: '50%',
                 left: `${left}%`,
                 top: `${top}%`,
-                opacity: 0,
                 animation: `drift ${dur}s ${delay}s linear infinite`,
                 '--drift-x': '6px',
                 '--drift-y': `${dy}px`,
-                '--drift-opacity': '0.5',
+                '--opacity-offset': opacityOffset,
               } as React.CSSProperties
             }
           />

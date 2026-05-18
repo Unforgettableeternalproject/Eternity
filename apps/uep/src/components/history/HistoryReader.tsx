@@ -767,19 +767,26 @@ export default function HistoryReader() {
       <div className="history-main">
         <ZoneAtmosphere zone={historyZone} intensity="subtle" />
         <div className="history-atmosphere" aria-hidden="true">
-          {Array.from({ length: 22 }, (_, index) => (
-            <span
-              key={index}
-              style={{
-                left: `${(index * 47) % 100}%`,
-                top: `${(index * 31) % 100}%`,
-                animationDelay: `${(index * 0.45) % 8}s`,
-                animationDuration: `${14 + (index % 7)}s`,
-              }}
-            >
-              {['史', '錄', '門', '章', '頁'][index % 5]}
-            </span>
-          ))}
+          {Array.from({ length: 22 }, (_, index) => {
+            // 每個字一個固定但不同的 peak opacity（0.18–0.32）
+            const peak = 0.18 + ((index * 7 + 3) % 15) / 100;
+            return (
+              <span
+                key={index}
+                style={
+                  {
+                    left: `${(index * 47) % 100}%`,
+                    top: `${(index * 31) % 100}%`,
+                    animationDelay: `${(index * 0.7) % 12}s`,
+                    animationDuration: `${22 + (index % 9)}s`,
+                    '--peak': peak,
+                  } as React.CSSProperties
+                }
+              >
+                {['史', '錄', '門', '章', '頁'][index % 5]}
+              </span>
+            );
+          })}
         </div>
 
         <aside className={`history-sidebar ${sidebarOpen ? '' : 'is-closed'}`}>

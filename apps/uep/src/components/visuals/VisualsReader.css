@@ -2337,6 +2337,11 @@
   animation: visuals-particle-float 30s linear infinite;
 }
 
+[data-theme='dark'] .visuals-particle {
+  color: color-mix(in srgb, var(--visuals-main) 70%, white);
+  opacity: 0.2;
+}
+
 @keyframes visuals-particle-float {
   0% {
     transform: translateY(0) rotate(0deg);

@@ -150,8 +150,8 @@ const SYMBOL_ITEMS = ESSENCE_SYMBOLS.flatMap((s, i) =>
         left: `${(idx * 37) % 96}%`,
         top: `${(idx * 23) % 92}%`,
         fontSize: 12 + (idx % 4) * 5,
-        animationDuration: `${16 + (idx % 5)}s`,
-        animationDelay: `${(idx * 0.35) % 9}s`,
+        animationDuration: `${24 + (idx % 7)}s`,
+        animationDelay: `${(idx * 0.55) % 14}s`,
       },
     };
   })
@@ -168,8 +168,8 @@ const RAIN_COLUMNS = Array.from({ length: 14 }, (_, i) => {
     style: {
       left: `${(seed * 7) % 98}%`,
       fontSize: `${11 + (seed % 4)}px`,
-      animationDuration: `${16 + ((seed * 3) % 10)}s`,
-      animationDelay: `${((seed * 0.6) % 12) - 6}s`,
+      animationDuration: `${24 + ((seed * 3) % 10)}s`,
+      animationDelay: `${((seed * 0.6) % 14) - 6}s`,
     },
     chars: Array.from({ length: len }, (_, j) => ({
       char: RAIN_GLYPHS[(seed + j * 5) % RAIN_GLYPHS.length],

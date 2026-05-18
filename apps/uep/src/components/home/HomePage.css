@@ -1,6 +1,7 @@
 /* ── HomePage 佈局 ── */
 
 .home-hero {
+  scroll-snap-align: start;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 56px;

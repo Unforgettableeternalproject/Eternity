@@ -1723,7 +1723,7 @@ export default function StorageReader() {
       </div>
 
       <div className="sto-main">
-        <ZoneAtmosphere zone={STORAGE_ZONE} intensity="subtle" />
+        <ZoneAtmosphere zone={STORAGE_ZONE} intensity="subtle" skipGlyphs />
 
         {/* Storage 專屬 outline rings（金色在淺色背景對比度不足，額外補強） */}
         <div className="sto-outline-rings" aria-hidden="true">

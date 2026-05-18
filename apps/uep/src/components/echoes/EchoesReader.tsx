@@ -2441,19 +2441,25 @@ function EchoesReaderInner() {
 
         {/* 氛圍裝飾環 */}
         <div className="echoes-atmosphere" aria-hidden="true">
-          {Array.from({ length: 18 }, (_, i) => (
-            <span
-              key={i}
-              style={{
-                left: `${(i * 53) % 100}%`,
-                top: `${(i * 37) % 100}%`,
-                animationDelay: `${(i * 0.5) % 10}s`,
-                animationDuration: `${12 + (i % 6)}s`,
-              }}
-            >
-              {MUSIC_NOTES[i % MUSIC_NOTES.length]}
-            </span>
-          ))}
+          {Array.from({ length: 18 }, (_, i) => {
+            const peak = 0.16 + ((i * 7 + 5) % 14) / 100;
+            return (
+              <span
+                key={i}
+                style={
+                  {
+                    left: `${(i * 53) % 100}%`,
+                    top: `${(i * 37) % 100}%`,
+                    animationDelay: `${(i * 0.8) % 12}s`,
+                    animationDuration: `${20 + (i % 8)}s`,
+                    '--peak': peak,
+                  } as React.CSSProperties
+                }
+              >
+                {MUSIC_NOTES[i % MUSIC_NOTES.length]}
+              </span>
+            );
+          })}
         </div>
 
         <div className="echoes-content" ref={scrollRef}>

@@ -71,6 +71,13 @@
   --visuals-stroke: rgba(94, 84, 142, 0.85);
   --concepts-stroke: rgba(45, 106, 79, 0.85);
   --storage-stroke: rgba(196, 160, 14, 0.7);
+
+  /* ── Zone atmosphere colors（彩度≥60%，供漂浮文字/粒子使用）── */
+  --history-atmo: #b85a24; /* hsl(20, 68%, 43%) 暖橘棕 */
+  --echoes-atmo: #3876a8; /* hsl(207, 50%, 44%) 沉穩藍 */
+  --visuals-atmo: #7840c8; /* hsl(268, 62%, 52%) 鮮紫 */
+  --concepts-atmo: #1da85e; /* hsl(152, 68%, 39%) 翠綠 */
+  --storage-atmo: #d4a810; /* hsl(47, 86%, 45%) 金黃 */
 }
 
 /* ── Dark theme ── */
@@ -86,11 +93,11 @@
   --ink-mute: #7a7669;
   --ink-title: #ffffff;
 
-  --history-tint: rgba(200, 164, 106, 0.1);
-  --echoes-tint: rgba(248, 177, 149, 0.1);
-  --visuals-tint: rgba(224, 177, 203, 0.1);
-  --concepts-tint: rgba(116, 198, 157, 0.1);
-  --storage-tint: rgba(213, 182, 24, 0.1);
+  --history-tint: rgba(200, 164, 106, 0.25);
+  --echoes-tint: rgba(248, 177, 149, 0.25);
+  --visuals-tint: rgba(224, 177, 203, 0.25);
+  --concepts-tint: rgba(116, 198, 157, 0.25);
+  --storage-tint: rgba(213, 182, 24, 0.25);
 
   --hairline: rgba(255, 255, 255, 0.1);
   --hairline-strong: rgba(255, 255, 255, 0.22);
@@ -102,6 +109,13 @@
   --visuals-stroke: rgba(159, 134, 192, 0.8);
   --concepts-stroke: rgba(116, 198, 157, 0.75);
   --storage-stroke: rgba(213, 182, 24, 0.65);
+
+  /* ── Zone atmosphere（暗色：更亮，彩度≥60%）── */
+  --history-atmo: #d98a3a; /* hsl(28, 68%, 54%) */
+  --echoes-atmo: #5a98cc; /* hsl(210, 50%, 57%) */
+  --visuals-atmo: #9b6de0; /* hsl(266, 65%, 65%) */
+  --concepts-atmo: #3dcc82; /* hsl(152, 60%, 52%) */
+  --storage-atmo: #ecc020; /* hsl(48, 85%, 53%) */
 }
 
 /* ── Reset ── */

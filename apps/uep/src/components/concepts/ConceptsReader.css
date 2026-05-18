@@ -222,11 +222,15 @@
 .conc-symbol {
   position: absolute;
   font-family: var(--font-display);
-  color: var(--concepts-main);
+  color: var(--concepts-atmo);
   opacity: 0;
   animation: drift linear infinite;
   --drift-y: -60px;
   --drift-opacity: 0.22;
+}
+
+[data-theme='dark'] .conc-symbol {
+  --drift-opacity: 0.34;
 }
 
 /* ─── 背景網格 ─── */
@@ -322,7 +326,7 @@
   flex-direction: column;
   gap: 4px;
   font-family: var(--font-mono);
-  color: var(--concepts-soft);
+  color: var(--concepts-atmo);
   animation: conc-rain-fall linear infinite;
   white-space: nowrap;
 }
@@ -352,14 +356,14 @@
 @keyframes conc-rain-glow {
   0%,
   100% {
-    opacity: 0.04;
+    opacity: 0.07;
   }
   50% {
-    opacity: 0.18;
+    opacity: 0.26;
   }
 }
 [data-theme='light'] .conc-rain-col {
-  color: var(--concepts-main);
+  color: var(--concepts-atmo);
 }
 [data-theme='light'] .conc-rain-char {
   animation-name: conc-rain-glow-light;
