@@ -17,6 +17,11 @@ migrations_dir = "migrations"
 binding = "ASSETS_BUCKET"
 bucket_name = "eternity-assets"
 
+# 定期維護排程（Cron Triggers）
+# - 每天 UTC 04:00（台灣中午 12:00）重排 sort_order + 清理軟刪除
+[triggers]
+crons = ["0 4 * * *"]
+
 # 環境變數
 [vars]
 ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321"

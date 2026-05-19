@@ -256,10 +256,18 @@ async function upsertPage(
   // 檢查是否已存在（包含已軟刪除的記錄）
   const existing = await db
     .prepare(
-      'SELECT id, source_file, status, deleted_at FROM pages WHERE id = ?'
+      'SELECT id, source_file, status, deleted_at, parent_id FROM pages WHERE id = ?'
     )
     .bind(id)
-    .first<Pick<PageRow, 'id' | 'source_file' | 'status' | 'deleted_at'>>();
+    .first<
+      Pick<
+        PageRow,
+        'id' | 'source_file' | 'status' | 'deleted_at' | 'parent_id'
+      >
+    >();
+
+  // 記住舊 parent_id，拖拽換 parent 時需要重排舊 parent 的兄弟
+  const oldParentId = existing?.parent_id ?? undefined;
 
   if (existing) {
     // 更新現有頁面
@@ -341,6 +349,50 @@ async function upsertPage(
         now
       )
       .run();
+  }
+
+  // sort_order 或 parent_id 有變動時，重排同層兄弟的 sort_order（歸一化為 0, 1, 2...）
+  if (body.sortOrder !== undefined || body.parentId !== undefined) {
+    /** 重排指定 parent 底下所有子節點的 sort_order 為 0, 1, 2... */
+    const reindexChildren = async (
+      targetArea: string,
+      parentId: string | null
+    ) => {
+      const q = parentId
+        ? 'SELECT id FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+        : 'SELECT id FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
+      const result = parentId
+        ? await db.prepare(q).bind(targetArea, parentId).all<{ id: string }>()
+        : await db.prepare(q).bind(targetArea).all<{ id: string }>();
+      const rows = result.results || [];
+      if (rows.length > 1) {
+        const batch = rows.map((row, i) =>
+          db
+            .prepare('UPDATE pages SET sort_order = ? WHERE id = ?')
+            .bind(i, row.id)
+        );
+        await db.batch(batch);
+      }
+    };
+
+    const page = await db
+      .prepare('SELECT parent_id, area FROM pages WHERE id = ?')
+      .bind(id)
+      .first<{ parent_id: string | null; area: string }>();
+    if (page) {
+      // 重排新 parent 的子節點
+      await reindexChildren(page.area, page.parent_id);
+
+      // 若 parent 有變（拖拽換層），也重排舊 parent 的子節點
+      if (
+        existing &&
+        body.parentId !== undefined &&
+        oldParentId !== undefined &&
+        oldParentId !== page.parent_id
+      ) {
+        await reindexChildren(area, oldParentId);
+      }
+    }
   }
 
   // 回傳更新後的頁面
@@ -995,6 +1047,111 @@ async function renameAsset(
   return jsonResponse({ ok: true, data: { key: newKey } }, 200, cors);
 }
 
+// ===== 定期維護邏輯 =====
+
+const MAINTENANCE_AREAS = [
+  'history',
+  'echoes',
+  'visuals',
+  'concepts',
+  'storage',
+  'portal',
+];
+
+/** 每日定期維護：重排 sort_order + 清理過期軟刪除 */
+async function runScheduledMaintenance(env: Env): Promise<void> {
+  const db = env.CONTENT_DB;
+  const log: string[] = [];
+
+  // ── 1. 全區域 sort_order 歸一化 ──
+  for (const area of MAINTENANCE_AREAS) {
+    // 取得該區域所有 distinct parent_id
+    const parents = await db
+      .prepare(
+        `SELECT DISTINCT parent_id FROM pages WHERE area = ? AND deleted_at IS NULL`
+      )
+      .bind(area)
+      .all<{ parent_id: string | null }>();
+
+    const parentIds = (parents.results || []).map((r) => r.parent_id);
+    // 額外加入 null（根層級）
+    const uniqueParents = [...new Set([null, ...parentIds])];
+
+    let reindexed = 0;
+    for (const pid of uniqueParents) {
+      const query = pid
+        ? 'SELECT id FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+        : 'SELECT id FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
+      const result = pid
+        ? await db.prepare(query).bind(area, pid).all<{ id: string }>()
+        : await db.prepare(query).bind(area).all<{ id: string }>();
+      const rows = result.results || [];
+      if (rows.length <= 1) continue;
+
+      // 檢查是否已經是連續的 0, 1, 2...（避免無意義的寫入）
+      const checkQuery = pid
+        ? 'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+        : 'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
+      const checkResult = pid
+        ? await db
+            .prepare(checkQuery)
+            .bind(area, pid)
+            .all<{ id: string; sort_order: number }>()
+        : await db
+            .prepare(checkQuery)
+            .bind(area)
+            .all<{ id: string; sort_order: number }>();
+      const checkRows = checkResult.results || [];
+      const needsReindex = checkRows.some((r, i) => r.sort_order !== i);
+      if (!needsReindex) continue;
+
+      const batch = rows.map((row, i) =>
+        db
+          .prepare('UPDATE pages SET sort_order = ? WHERE id = ?')
+          .bind(i, row.id)
+      );
+      await db.batch(batch);
+      reindexed++;
+    }
+    if (reindexed > 0) {
+      log.push(`[${area}] 重排 ${reindexed} 組 sort_order`);
+    }
+  }
+
+  // ── 2. 清理超過 30 天的軟刪除記錄 ──
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const purgeResult = await db
+    .prepare(
+      'DELETE FROM pages WHERE deleted_at IS NOT NULL AND deleted_at < ?'
+    )
+    .bind(cutoff)
+    .run();
+  const purged = purgeResult.meta?.changes ?? 0;
+  if (purged > 0) {
+    log.push(`清理 ${purged} 筆過期軟刪除`);
+  }
+
+  // ── 3. 清理過期的 R2 資產刪除紀錄 ──
+  try {
+    const assetPurge = await db
+      .prepare('DELETE FROM asset_deletions WHERE deleted_at < ?')
+      .bind(cutoff)
+      .run();
+    const assetPurged = assetPurge.meta?.changes ?? 0;
+    if (assetPurged > 0) {
+      log.push(`清理 ${assetPurged} 筆過期 R2 刪除紀錄`);
+    }
+  } catch {
+    // asset_deletions 表不存在則忽略
+  }
+
+  if (log.length > 0) {
+    console.log(`[cron] 維護完成: ${log.join('; ')}`);
+  } else {
+    console.log('[cron] 維護完成: 無需變更');
+  }
+}
+
 // ===== Worker 入口 =====
 
 export default {
@@ -1481,5 +1638,14 @@ export default {
     }
 
     return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+  },
+
+  // ===== 定期維護排程（Cron Trigger） =====
+  async scheduled(
+    _event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    ctx.waitUntil(runScheduledMaintenance(env));
   },
 };
