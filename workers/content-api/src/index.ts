@@ -256,10 +256,18 @@ async function upsertPage(
   // 檢查是否已存在（包含已軟刪除的記錄）
   const existing = await db
     .prepare(
-      'SELECT id, source_file, status, deleted_at FROM pages WHERE id = ?'
+      'SELECT id, source_file, status, deleted_at, parent_id FROM pages WHERE id = ?'
     )
     .bind(id)
-    .first<Pick<PageRow, 'id' | 'source_file' | 'status' | 'deleted_at'>>();
+    .first<
+      Pick<
+        PageRow,
+        'id' | 'source_file' | 'status' | 'deleted_at' | 'parent_id'
+      >
+    >();
+
+  // 記住舊 parent_id，拖拽換 parent 時需要重排舊 parent 的兄弟
+  const oldParentId = existing?.parent_id ?? undefined;
 
   if (existing) {
     // 更新現有頁面
@@ -341,6 +349,50 @@ async function upsertPage(
         now
       )
       .run();
+  }
+
+  // sort_order 或 parent_id 有變動時，重排同層兄弟的 sort_order（歸一化為 0, 1, 2...）
+  if (body.sortOrder !== undefined || body.parentId !== undefined) {
+    /** 重排指定 parent 底下所有子節點的 sort_order 為 0, 1, 2... */
+    const reindexChildren = async (
+      targetArea: string,
+      parentId: string | null
+    ) => {
+      const q = parentId
+        ? 'SELECT id FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+        : 'SELECT id FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
+      const result = parentId
+        ? await db.prepare(q).bind(targetArea, parentId).all<{ id: string }>()
+        : await db.prepare(q).bind(targetArea).all<{ id: string }>();
+      const rows = result.results || [];
+      if (rows.length > 1) {
+        const batch = rows.map((row, i) =>
+          db
+            .prepare('UPDATE pages SET sort_order = ? WHERE id = ?')
+            .bind(i, row.id)
+        );
+        await db.batch(batch);
+      }
+    };
+
+    const page = await db
+      .prepare('SELECT parent_id, area FROM pages WHERE id = ?')
+      .bind(id)
+      .first<{ parent_id: string | null; area: string }>();
+    if (page) {
+      // 重排新 parent 的子節點
+      await reindexChildren(page.area, page.parent_id);
+
+      // 若 parent 有變（拖拽換層），也重排舊 parent 的子節點
+      if (
+        existing &&
+        body.parentId !== undefined &&
+        oldParentId !== undefined &&
+        oldParentId !== page.parent_id
+      ) {
+        await reindexChildren(area, oldParentId);
+      }
+    }
   }
 
   // 回傳更新後的頁面

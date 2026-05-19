@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# 以下為站點意圖聲明（非標準 robots 指令，僅供人類閱讀）
+# Content-Signal: search=yes, ai-train=no
+
+Sitemap: https://uep.unforgettableeternalproject.com/sitemap.xml

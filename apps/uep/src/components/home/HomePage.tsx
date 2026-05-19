@@ -1872,10 +1872,14 @@ export default function HomePage({
               }}
             />
 
+            {/* LCP 主視覺圖：使用 WebP 格式（680×962 @ 2x），fetchpriority 優先載入 */}
             <img
-              src="/uep/Big UEP.png"
+              src="/uep/Big-UEP.webp"
               alt="U.E.P"
               className="home-hero-portrait"
+              width={340}
+              height={481}
+              fetchPriority="high"
               style={{
                 width: 340,
                 height: 'auto',

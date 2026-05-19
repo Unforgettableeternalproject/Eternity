@@ -128,6 +128,37 @@ export default function EditorPageTree({
     });
   };
 
+  // --- 輔助：從真實 sortOrder 計算插入值 ---
+
+  /** 取得某個 parent 底下的所有子節點（已按 sortOrder 排序） */
+  function getChildrenOf(parentId: string | null): PageTreeNode[] {
+    if (!parentId) return tree;
+    const parent = findNode(tree, parentId);
+    return parent?.children || [];
+  }
+
+  /**
+   * 依照插入位置計算合適的 sortOrder。
+   * 使用真實的 sortOrder 值（而非視覺索引），確保後端排序正確。
+   */
+  function calcSortOrder(
+    siblings: PageTreeNode[],
+    insertIndex: number
+  ): number {
+    if (siblings.length === 0) return 0;
+    if (insertIndex <= 0) {
+      return (siblings[0].sortOrder ?? 0) - 1;
+    }
+    if (insertIndex >= siblings.length) {
+      return (siblings[siblings.length - 1].sortOrder ?? 0) + 1;
+    }
+    // 插在 idx-1 與 idx 之間
+    const prev = siblings[insertIndex - 1].sortOrder ?? 0;
+    const next = siblings[insertIndex].sortOrder ?? 0;
+    if (next > prev + 1) return Math.floor((prev + next) / 2);
+    return prev + 1;
+  }
+
   // --- Drag & Drop ---
 
   const handleDragStart = (e: React.DragEvent, nodeId: string) => {
@@ -171,17 +202,24 @@ export default function EditorPageTree({
     let newSortOrder: number;
 
     if (dropTarget.pos === 'child') {
+      // 成為目標節點的子節點 — 放到最後
       newParentId = targetFlat.node.id;
-      newDepth = targetFlat.depth + 1;
-      newSortOrder = targetFlat.node.children?.length ?? 0;
+      newDepth = targetFlat.node.depth + 1;
+      const children = targetFlat.node.children || [];
+      newSortOrder =
+        children.length > 0
+          ? Math.max(...children.map((c) => c.sortOrder ?? 0)) + 1
+          : 0;
     } else if (dropTarget.pos === 'before') {
+      // 放到目標前面 — 同層
       newParentId = targetFlat.parentId;
-      newDepth = targetFlat.depth;
-      newSortOrder = Math.max(0, targetFlat.index);
+      newDepth = targetFlat.node.depth;
+      newSortOrder = (targetFlat.node.sortOrder ?? 0) - 1;
     } else {
+      // 放到目標後面 — 同層
       newParentId = targetFlat.parentId;
-      newDepth = targetFlat.depth;
-      newSortOrder = targetFlat.index + 1;
+      newDepth = targetFlat.node.depth;
+      newSortOrder = (targetFlat.node.sortOrder ?? 0) + 1;
     }
 
     setDragId(null);
@@ -284,6 +322,10 @@ export default function EditorPageTree({
       }
     }
 
+    // 用真實 sortOrder 值計算正確的排序位置
+    const siblings = getChildrenOf(creating.parentId);
+    const sortOrder = calcSortOrder(siblings, creating.insertIndex);
+
     setCreateLoading(true);
     setCreateError(null);
 
@@ -297,7 +339,7 @@ export default function EditorPageTree({
           parentId: creating.parentId || null,
           depth: creating.parentDepth + 1,
           pageType: newPageType,
-          sortOrder: creating.insertIndex,
+          sortOrder,
           metadata: newMetadata,
         }),
       });
@@ -601,7 +643,7 @@ export default function EditorPageTree({
         </div>
         {hasChildren && !isCollapsed && (
           <div>
-            {renderNodeList(visibleChildren, depth + 1, node.id, depth)}
+            {renderNodeList(visibleChildren, depth + 1, node.id, node.depth)}
           </div>
         )}
         {/* 無子節點但正在建立子頁面時，顯示 inline 表單 */}
