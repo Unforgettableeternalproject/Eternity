@@ -118,22 +118,46 @@ async function putPage(apiBase, page) {
   }
 }
 
+/**
+ * 正規化時間戳為 UTC ISO 格式。
+ * SQLite 的 datetime('now') 輸出 'YYYY-MM-DD HH:MM:SS'（無 Z），
+ * 在非 UTC 系統上 new Date() 會誤判為本地時間，必須先補上 Z。
+ */
+function normalizeTimestamp(ts) {
+  if (!ts) return ts;
+  // 已有 Z 或時區偏移 → 不處理
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(ts)) return ts;
+  // SQLite 格式 'YYYY-MM-DD HH:MM:SS' → 加上 T 和 Z
+  return ts.replace(' ', 'T') + 'Z';
+}
+
 /** 比較兩個時間戳，回傳較新的一方（截斷到秒，忽略毫秒差異） */
 function compareTimestamps(localTime, remoteTime) {
-  const l = Math.floor(new Date(localTime).getTime() / 1000);
-  const r = Math.floor(new Date(remoteTime).getTime() / 1000);
+  const l = Math.floor(
+    new Date(normalizeTimestamp(localTime)).getTime() / 1000
+  );
+  const r = Math.floor(
+    new Date(normalizeTimestamp(remoteTime)).getTime() / 1000
+  );
   if (l > r) return 'local';
   if (r > l) return 'remote';
   return 'same';
 }
 
-/** 格式化時間戳為易讀格式 */
+/** 格式化時間戳為 UTC+8 易讀格式 */
 function fmtTime(ts) {
   if (!ts) return '(無)';
-  return ts
-    .replace('T', ' ')
-    .replace(/\.\d+Z$/, '')
-    .slice(0, 19);
+  const d = new Date(normalizeTimestamp(ts));
+  if (isNaN(d.getTime())) return ts;
+  // 轉換為 UTC+8
+  const utc8 = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+  const yyyy = utc8.getUTCFullYear();
+  const mm = String(utc8.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(utc8.getUTCDate()).padStart(2, '0');
+  const hh = String(utc8.getUTCHours()).padStart(2, '0');
+  const mi = String(utc8.getUTCMinutes()).padStart(2, '0');
+  const ss = String(utc8.getUTCSeconds()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 }
 
 /** 互動式提問 */

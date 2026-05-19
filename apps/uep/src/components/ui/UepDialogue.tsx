@@ -43,7 +43,7 @@ export default function UepDialogue({
       style={{
         display: 'inline-flex',
         flexDirection: isRight ? 'row-reverse' : 'row',
-        gap: 14,
+        gap: 20,
         alignItems: 'flex-start',
         maxWidth: 640,
         margin: isRight ? '14px 0 14px auto' : '14px 0',
@@ -69,7 +69,7 @@ export default function UepDialogue({
           style={{
             position: 'absolute',
             top: 16,
-            [isRight ? 'right' : 'left']: -8,
+            [isRight ? 'right' : 'left']: -14,
             width: 10,
             height: 14,
             clipPath: isRight
