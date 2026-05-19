@@ -6,17 +6,20 @@ interface Props {
   title: string;
   description?: string;
   zone?: string;
+  /** 首頁大廳動畫：在 head 注入遮罩，防止內容閃現 */
+  lobbyBlock?: boolean;
 }
 
 const {
   title,
   description = 'U.E.P · Imaginary Space — 邊際世界 · 觀測誌',
   zone,
+  lobbyBlock = false,
 } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-TW" data-lobby={lobbyBlock ? '' : undefined}>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
@@ -36,11 +39,21 @@ const {
       rel="stylesheet"
     />
 
-    <!-- Theme init (no flash) -->
+    <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {
         var t = localStorage.getItem('uep-theme') || 'dark';
         document.documentElement.setAttribute('data-theme', t);
+        if (document.documentElement.hasAttribute('data-lobby')) {
+          var bg = t === 'dark' ? '#14151a' : '#fafaf7';
+          var s = document.createElement('style');
+          s.id = 'lobby-block-style';
+          s.textContent =
+            'body::before{content:"";position:fixed;inset:0;z-index:9999;background:' +
+            bg +
+            ';pointer-events:none}';
+          document.head.appendChild(s);
+        }
       })();
     </script>
   </head>

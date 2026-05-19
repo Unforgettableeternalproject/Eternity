@@ -140,22 +140,17 @@ const ESSENCE_SYMBOLS = [
   'θ',
 ];
 
-const SYMBOL_ITEMS = ESSENCE_SYMBOLS.flatMap((s, i) =>
-  [0, 1].map((k) => {
-    const idx = i * 2 + k;
-    return {
-      char: s,
-      idx,
-      style: {
-        left: `${(idx * 37) % 96}%`,
-        top: `${(idx * 23) % 92}%`,
-        fontSize: 12 + (idx % 4) * 5,
-        animationDuration: `${24 + (idx % 7)}s`,
-        animationDelay: `${(idx * 0.55) % 14}s`,
-      },
-    };
-  })
-);
+const SYMBOL_ITEMS = ESSENCE_SYMBOLS.map((s, i) => ({
+  char: s,
+  idx: i,
+  style: {
+    left: `${(i * 37) % 96}%`,
+    top: `${(i * 23) % 92}%`,
+    fontSize: 12 + (i % 4) * 5,
+    animationDuration: `${24 + (i % 7)}s`,
+    animationDelay: `${(i * 0.55) % 14}s`,
+  },
+}));
 
 // 駭客風飄落字元池（混入二進位、十六進位、特殊符號，盡量看起來像資料流）
 const RAIN_GLYPHS = '01010110ABCDEF{}[]<>/\\|+-*=#$%@?!~';
