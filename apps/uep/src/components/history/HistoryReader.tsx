@@ -767,7 +767,7 @@ export default function HistoryReader() {
       <div className="history-main">
         <ZoneAtmosphere zone={historyZone} intensity="subtle" />
         <div className="history-atmosphere" aria-hidden="true">
-          {Array.from({ length: 22 }, (_, index) => {
+          {Array.from({ length: 12 }, (_, index) => {
             // 每個字一個固定但不同的 peak opacity（0.18–0.32）
             const peak = 0.18 + ((index * 7 + 3) % 15) / 100;
             return (

@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState, useRef } from 'react';
+import React, { useLayoutEffect, useState, useRef, useEffect } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 
@@ -11,9 +11,16 @@ interface MinimapProps {
 }
 
 const MINIMAP_POSITION_KEY = 'uep-minimap-position';
+const MINIMAP_WIDTH = 120;
+const MINIMAP_HEIGHT_APPROX = 140;
 
 // 永遠只用 left/top，不使用 right/bottom，避免四值同時存在時被合併為 inset
 type MinimapPosition = { left: number; top: number };
+
+/** 小地圖在視窗中的比例位置，用於 resize 時等比移動 */
+type PositionRatio = { lr: number; tr: number };
+
+/* ────────────────────────── helpers ────────────────────────── */
 
 function clampPosition(
   left: number,
@@ -25,6 +32,29 @@ function clampPosition(
     left: Math.max(8, Math.min(window.innerWidth - width - 8, left)),
     top: Math.max(8, Math.min(window.innerHeight - height - 8, top)),
   };
+}
+
+/** 從絕對座標算出比例 */
+function toRatio(left: number, top: number): PositionRatio {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  return {
+    lr: vw > 0 ? left / vw : 0,
+    tr: vh > 0 ? top / vh : 0,
+  };
+}
+
+/** 從比例還原為絕對座標（再 clamp） */
+function fromRatio(
+  ratio: PositionRatio,
+  width: number,
+  height: number
+): MinimapPosition {
+  const raw = {
+    left: ratio.lr * window.innerWidth,
+    top: ratio.tr * window.innerHeight,
+  };
+  return clampPosition(raw.left, raw.top, width, height);
 }
 
 function readStoredPosition(): MinimapPosition | null {
@@ -57,6 +87,8 @@ function resolveDefaultPosition(
   }[position];
 }
 
+/* ══════════════════════════ Component ══════════════════════════ */
+
 export default function Minimap({
   zones,
   currentId,
@@ -70,26 +102,54 @@ export default function Minimap({
   const [drag, setDrag] = useState<{ offX: number; offY: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const posRef = useRef<MinimapPosition>(pos);
+  /** 記錄使用者設定位置時的比例，resize 時以此等比移動 */
+  const ratioRef = useRef<PositionRatio>({ lr: 0, tr: 0 });
 
   function updatePos(next: MinimapPosition) {
     posRef.current = next;
     setPos(next);
   }
 
-  // mount 時立即將位置設為 left/top pixel，避免任何 right/bottom 殘留
+  /** 設定位置並同步更新比例快照 */
+  function setPositionWithRatio(next: MinimapPosition) {
+    updatePos(next);
+    ratioRef.current = toRatio(next.left, next.top);
+  }
+
+  /* ---------- mount：讀取存儲位置 ---------- */
   useLayoutEffect(() => {
     if (!ref.current) return;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
     const stored = readStoredPosition();
+
+    let initial: MinimapPosition;
     if (stored) {
-      updatePos(clampPosition(stored.left, stored.top, w, h));
+      initial = clampPosition(stored.left, stored.top, w, h);
     } else {
-      updatePos(resolveDefaultPosition(position, w, h));
+      initial = resolveDefaultPosition(position, w, h);
     }
+    setPositionWithRatio(initial);
     setReady(true);
   }, []);
 
+  /* ---------- resize：用比例等比移動 + clamp ---------- */
+  useEffect(() => {
+    function onResize() {
+      const w = ref.current?.offsetWidth || MINIMAP_WIDTH;
+      const h = ref.current?.offsetHeight || MINIMAP_HEIGHT_APPROX;
+      // 用 mount / drag 時記下的比例換算新座標，再 clamp
+      const next = fromRatio(ratioRef.current, w, h);
+      updatePos(next);
+      // 注意：這裡不更新 ratioRef，保持原始比例
+      // 這樣放大回去時小地圖會回到原位而不是被逼到中間
+    }
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  /* ---------- drag handlers ---------- */
   function startDrag(e: React.PointerEvent) {
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
@@ -110,6 +170,8 @@ export default function Minimap({
   function endDrag() {
     setDrag(null);
     const { left, top } = posRef.current;
+    // 拖曳結束：更新比例快照 + 存 localStorage
+    ratioRef.current = toRatio(left, top);
     localStorage.setItem(MINIMAP_POSITION_KEY, JSON.stringify({ left, top }));
   }
 
@@ -126,7 +188,7 @@ export default function Minimap({
         position: 'fixed',
         left: pos.left,
         top: pos.top,
-        width: 120,
+        width: MINIMAP_WIDTH,
         background: 'var(--bg-card)',
         border: '1px solid var(--hairline-strong)',
         borderRadius: 2,

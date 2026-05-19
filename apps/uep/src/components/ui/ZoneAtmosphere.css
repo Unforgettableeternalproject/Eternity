@@ -18,6 +18,35 @@
   --zone-atmosphere-dot-opacity: 0.65;
 }
 
+/* ── 環形裝飾容器 ── */
+.zone-atmosphere__rings {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* 遮罩模式：中央內容欄淡出，環線只在兩側邊距可見 */
+.zone-atmosphere__rings--masked {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black 0%,
+    black 16%,
+    transparent 28%,
+    transparent 72%,
+    black 84%,
+    black 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    black 0%,
+    black 16%,
+    transparent 28%,
+    transparent 72%,
+    black 84%,
+    black 100%
+  );
+}
+
 .zone-atmosphere__ring {
   position: absolute;
   aspect-ratio: 1;

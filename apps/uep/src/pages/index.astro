@@ -24,8 +24,9 @@ try {
 ---
 
 <DesignLayout title="世界的軸心 - U.E.P's Imaginary Space">
-  <script define:vars={{ homepageData }}>
-    window.__HOMEPAGE_DATA__ = homepageData;
-  </script>
-  <HomePage client:load isDev={import.meta.env.DEV} />
+  <HomePage
+    client:load
+    isDev={import.meta.env.DEV}
+    homepageData={homepageData}
+  />
 </DesignLayout>
