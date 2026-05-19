@@ -330,6 +330,23 @@ export default function HomePage({
     }
   }, []);
 
+  // 安全閥：lobby 動畫 6 秒後強制結束（防止 CSS animationName 比對失敗導致白屏）
+  useEffect(() => {
+    if (lobbyPhase !== 'playing') return;
+    const timer = setTimeout(() => {
+      setLobbyPhase((prev) => {
+        if (prev !== 'playing') return prev;
+        try {
+          sessionStorage.setItem('uep-lobby-seen', '1');
+        } catch {
+          /* ignore */
+        }
+        return 'done';
+      });
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [lobbyPhase]);
+
   // ── Journey：場景旅程 ──
   const transitionRef = useRef<HTMLElement>(null);
   const { triggered: transTriggered } = useScrollReveal(transitionRef, {
