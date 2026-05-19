@@ -34,9 +34,18 @@
       "Bash(gh:*)",
       "Bash(python:*)",
       "Bash(sort:*)",
+      "Bash(git:*)",
+      "WebSearch",
+      "WebFetch",
       "mcp__fff__*",
       "mcp__open-notebook__*",
       "mcp__claude_ai_Cloudflare_Developer_Platform__*",
+      "mcp__claude_ai_Postman__*",
+      "mcp__claude_ai_Atlassian_Rovo__*",
+      "mcp__claude_ai_Hugging_Face__*",
+      "mcp__claude-in-chrome__*",
+      "mcp__context7__*",
+      "mcp__mempal__mempal_cowork_push",
       "Skill(pm)"
     ]
   }

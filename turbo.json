@@ -24,6 +24,11 @@
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false
+    },
     "format": {
       "outputs": []
     },
