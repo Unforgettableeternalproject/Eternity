@@ -1,6 +1,6 @@
 {
   "name": "eternity-monorepo",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "description": "Bernie's personal website monorepo with Astro",
   "packageManager": "pnpm@9.15.0",
@@ -18,17 +18,30 @@
     "sync": "node scripts/sync-content.mjs",
     "sync:push": "node scripts/sync-content.mjs --push",
     "sync:pull": "node scripts/sync-content.mjs --pull",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:workers": "pnpm --filter content-api-worker test && pnpm --filter visitor-counter-worker test",
+    "test:all": "pnpm test && pnpm test:workers",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
     "deploy:content-api": "pnpm --filter content-api-worker ship",
     "deploy:visitor": "pnpm --filter visitor-counter-worker ship"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.10.2",
     "@uep/config": "workspace:*",
     "eslint": "^9.17.0",
+    "jsdom": "^29.1.1",
     "prettier": "^3.4.2",
     "prettier-plugin-astro": "^0.14.1",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.0"
   }
 }

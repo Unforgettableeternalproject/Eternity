@@ -35,9 +35,11 @@ out/
 .temp/
 .tmp/
 
-# Logs
+# Logs and test files
 logs/
 *.log
+playwright-report/
+test-results/
 
 # Environment variables
 .env

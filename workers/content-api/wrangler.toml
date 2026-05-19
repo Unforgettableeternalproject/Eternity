@@ -10,6 +10,7 @@ port = 8788
 binding = "CONTENT_DB"
 database_name = "eternity-content"
 database_id = "1f31587a-6cc7-441b-bbfb-eb99cba8a51b"
+migrations_dir = "migrations"
 
 # R2 圖片儲存
 [[r2_buckets]]
