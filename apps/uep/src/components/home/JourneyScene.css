@@ -14,6 +14,12 @@
   touch-action: none;
 }
 
+/* 冷卻期：只鎖 touch，不鎖 overflow（讓 snap 正常運作） */
+.journey-scroll--cooldown {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
 .snap-section {
   scroll-snap-align: start;
   scroll-snap-stop: always;
