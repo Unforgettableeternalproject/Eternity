@@ -1024,9 +1024,7 @@ export default function HomePage({
         const canScroll =
           readingScroller.scrollHeight > readingScroller.clientHeight + 1;
 
-        if (!canScroll) {
-          e.preventDefault();
-        } else {
+        if (canScroll) {
           const atTop = readingScroller.scrollTop <= 0;
           const atBottom =
             readingScroller.scrollTop + readingScroller.clientHeight >=
@@ -1034,18 +1032,24 @@ export default function HomePage({
           const scrollingUp = e.deltaY < 0;
           const scrollingDown = e.deltaY > 0;
 
-          if ((scrollingUp && atTop) || (scrollingDown && atBottom)) {
-            e.preventDefault();
+          // 內容可滾動且未到邊界 → 讓 reading scroller 自行處理
+          if (!(scrollingUp && atTop) && !(scrollingDown && atBottom)) {
+            resetFadeIntent();
+            return;
           }
         }
-
-        resetFadeIntent();
-        return;
+        // 不可滾動 or 已到邊界 → 繼續走外層的 fade 邏輯
       }
 
       // 不在轉場中、不在 fading 中，且目前在 zone scene 內
-      if (zoneTransitionRef.current) return;
-      if (transitionCooldownRef.current) return;
+      if (zoneTransitionRef.current) {
+        e.preventDefault();
+        return;
+      }
+      if (transitionCooldownRef.current) {
+        e.preventDefault();
+        return;
+      }
       const current = previousSceneRef.current;
 
       const delta = Math.abs(e.deltaY);
