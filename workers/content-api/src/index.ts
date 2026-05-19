@@ -616,6 +616,8 @@ async function handleLogin(
 
   const valid = await verifyPassword(body.password, row.password_hash);
   if (!valid) {
+    // 與使用者不存在的回應時間一致，防止 timing 攻擊
+    await new Promise((r) => setTimeout(r, 200));
     return jsonResponse({ ok: false, error: '憑證錯誤' }, 401, cors);
   }
 
@@ -1305,18 +1307,15 @@ export default {
         return new Response(null, { headers });
       }
 
-      if (request.method === 'DELETE') {
-        await env.ASSETS_BUCKET.delete(key);
-        await env.CONTENT_DB.prepare(
-          "INSERT OR REPLACE INTO deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
-        )
-          .bind(key)
-          .run();
-        return jsonResponse({ ok: true }, 200, cors);
-      }
+      // DELETE 已由上方 assetDeleteMatch（帶 JWT 驗證）處理，這裡不重複
     }
 
     if (path === '/api/assets' && request.method === 'POST') {
+      // JWT 驗證：上傳檔案需要管理員權限
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
       const formData = await request.formData();
       const file = formData.get('file') as File | null;
       if (!file) {

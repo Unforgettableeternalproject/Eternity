@@ -1,5 +1,11 @@
 /* eslint-disable no-undef */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ZONES } from '../../data/zones';
 import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
@@ -346,9 +352,18 @@ export default function StorageReader() {
     [homepageBlocks]
   );
 
-  // ── 初始化 ─────────────────────────────────────────────────────
+  // ── 初始化（tree + homepage 並行載入，兩者都完成後才 markContentReady）──
+  const homepageDoneRef = useRef(false);
+  const treeDoneRef = useRef(false);
+  const tryMarkReady = useCallback(() => {
+    if (homepageDoneRef.current && treeDoneRef.current) markContentReady();
+  }, [markContentReady]);
+
   useEffect(() => {
-    void fetchTree();
+    void fetchTree().finally(() => {
+      treeDoneRef.current = true;
+      tryMarkReady();
+    });
   }, []);
 
   useEffect(() => {
@@ -365,7 +380,8 @@ export default function StorageReader() {
       })
       .catch(() => {})
       .finally(() => {
-        markContentReady();
+        homepageDoneRef.current = true;
+        tryMarkReady();
       });
   }, []);
 

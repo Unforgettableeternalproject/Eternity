@@ -510,6 +510,8 @@ export default function HistoryReader() {
       if (node.children.length) {
         setExpanded((prev) => new Set([...prev, node.id]));
       }
+      // deep link 進入 landing 頁時也要解除 boot pending
+      setNavPending(false);
       return;
     }
 
