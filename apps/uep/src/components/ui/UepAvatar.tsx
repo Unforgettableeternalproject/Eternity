@@ -31,12 +31,9 @@ export default function UepAvatar({
         ...style,
       }}
     >
-      {/* 頭像圖片：使用 WebP 格式，尺寸 240×240（4x 顯示解析度）以降低傳輸量 */}
       <img
         src={src}
         alt="U.E.P"
-        width={240}
-        height={240}
         draggable={false}
         style={{
           width: '120%',
