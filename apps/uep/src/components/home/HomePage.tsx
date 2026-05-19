@@ -40,6 +40,70 @@ const MOBILE_UP_GATE_MAX = 0.42;
 const FADE_THRESHOLD = 600;
 const ATLAS_SCENE_INDEX = -3;
 
+/** 大廳動畫 — 墜落速度線 */
+const LOBBY_STREAKS: {
+  left: string;
+  delay: number;
+  h: string;
+  opacity: number;
+}[] = [
+  { left: '10%', delay: 0, h: '28vh', opacity: 0.35 },
+  { left: '22%', delay: 0.08, h: '36vh', opacity: 0.5 },
+  { left: '35%', delay: 0.04, h: '24vh', opacity: 0.3 },
+  { left: '44%', delay: 0.14, h: '42vh', opacity: 0.55 },
+  { left: '50%', delay: 0.02, h: '48vh', opacity: 0.6 },
+  { left: '56%', delay: 0.1, h: '40vh', opacity: 0.5 },
+  { left: '65%', delay: 0.06, h: '30vh', opacity: 0.4 },
+  { left: '78%', delay: 0.12, h: '34vh', opacity: 0.45 },
+  { left: '90%', delay: 0.16, h: '26vh', opacity: 0.3 },
+];
+
+/** 大廳動畫 — 亮色限定：上升速度線（從底部往上衝，暗色 CSS 隱藏） */
+const LOBBY_RISES: {
+  left: string;
+  delay: number;
+  h: string;
+  opacity: number;
+}[] = [
+  { left: '14%', delay: 0.1, h: '24vh', opacity: 0.45 },
+  { left: '28%', delay: 0.2, h: '32vh', opacity: 0.55 },
+  { left: '40%', delay: 0.06, h: '28vh', opacity: 0.5 },
+  { left: '48%', delay: 0.24, h: '38vh', opacity: 0.6 },
+  { left: '55%', delay: 0.14, h: '34vh', opacity: 0.55 },
+  { left: '66%', delay: 0.08, h: '26vh', opacity: 0.45 },
+  { left: '80%', delay: 0.18, h: '30vh', opacity: 0.5 },
+];
+
+/** 大廳動畫 — 菱形著陸衝擊火花（12 顆，30° 間隔，亮色限定） */
+const LOBBY_SPARKS: { x: number; y: number; size: number }[] = [
+  { x: 150, y: 0, size: 3 },
+  { x: 120, y: 68, size: 2.5 },
+  { x: 62, y: 128, size: 2 },
+  { x: 0, y: 145, size: 3 },
+  { x: -68, y: 122, size: 2 },
+  { x: -128, y: 60, size: 2.5 },
+  { x: -155, y: 0, size: 3 },
+  { x: -118, y: -70, size: 2 },
+  { x: -60, y: -130, size: 2.5 },
+  { x: 0, y: -150, size: 3 },
+  { x: 72, y: -118, size: 2 },
+  { x: 125, y: -65, size: 2.5 },
+];
+
+/** 大廳動畫 — 微粒位置（延遲已對齊墜落結束後） */
+const LOBBY_MOTES: { top: string; left: string; delay: number }[] = [
+  { top: '38%', left: '42%', delay: 1.3 },
+  { top: '35%', left: '58%', delay: 1.4 },
+  { top: '62%', left: '40%', delay: 1.35 },
+  { top: '60%', left: '60%', delay: 1.5 },
+  { top: '30%', left: '50%', delay: 1.55 },
+  { top: '70%', left: '48%', delay: 1.6 },
+  { top: '50%', left: '32%', delay: 1.45 },
+  { top: '50%', left: '68%', delay: 1.65 },
+];
+
+type LobbyPhase = 'idle' | 'waiting' | 'playing' | 'done';
+
 function isWithinViewportBand(
   value: number,
   vh: number,
@@ -126,7 +190,9 @@ export default function HomePage({
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
-  const [ready, setReady] = useState(false);
+  // TODO: 恢復 session 檢查時需復原 ready state
+  // const [ready, setReady] = useState(false);
+  const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
   const [veilZone, setVeilZone] = useState<ZoneData | null>(null);
   const [sectionVeil, setSectionVeil] = useState<{
     id: 'plain' | 'threshold' | 'verse';
@@ -159,11 +225,22 @@ export default function HomePage({
   // SSR-safe：初始值 false（匹配 server 端），hydrate 後讀取實際 theme
   const [isDark, setIsDark] = useState(false);
 
-  // 進場淡入 + theme 偵測
+  // 進場淡入 + theme 偵測 + 大廳動畫
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 80);
     setIsDark(document.documentElement.dataset.theme === 'dark');
-    return () => clearTimeout(t);
+
+    // TODO: 測試結束後恢復 session 檢查（取消下方註解）
+    // let seen = false;
+    // try { seen = sessionStorage.getItem('uep-lobby-seen') === '1'; } catch {}
+    // if (seen) {
+    //   const t = setTimeout(() => setReady(true), 80);
+    //   return () => clearTimeout(t);
+    // }
+
+    // ── 啟用大廳動畫（直接播放，4.2s 足夠讓資源載完） ──
+    setLobbyPhase('playing');
+    // lobby overlay 已在本次 commit 掛載（z:250），移除 head 注入的遮罩樣式
+    document.getElementById('lobby-block-style')?.remove();
   }, []);
 
   // 測量 TopBar 高度，設定 --topbar-h 供 section 高度計算
@@ -240,6 +317,17 @@ export default function HomePage({
 
   const handlePortalDone = useCallback(() => {
     setPortal(null);
+  }, []);
+
+  // 大廳動畫結束
+  const handleLobbyAnimEnd = useCallback((e: React.AnimationEvent) => {
+    if (e.animationName !== 'lobby-shell') return;
+    setLobbyPhase('done');
+    try {
+      sessionStorage.setItem('uep-lobby-seen', '1');
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   // ── Journey：場景旅程 ──
@@ -1423,22 +1511,99 @@ export default function HomePage({
         overflow: 'hidden',
       }}
     >
-      {/* 進場霧化淡入 */}
-      <div
-        aria-hidden
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 50,
-          pointerEvents: 'none',
-          ...(ready
-            ? { animation: 'zone-arrival 0.8s var(--ease-out) forwards' }
-            : {
-                backdropFilter: 'blur(18px)',
-                background: 'rgba(10,10,14,0.5)',
-              }),
-        }}
-      />
+      {/* 大廳進入動畫 — 虛無初識 */}
+      {lobbyPhase === 'playing' && (
+        <div
+          className="lobby-overlay lobby-overlay--playing"
+          aria-hidden
+          onAnimationEnd={handleLobbyAnimEnd}
+        >
+          <>
+            {/* Phase 1 — 墜落速度線 */}
+            {LOBBY_STREAKS.map((s, i) => (
+              <div
+                key={`s${i}`}
+                className="lobby-streak"
+                style={
+                  {
+                    left: s.left,
+                    height: s.h,
+                    '--streak-delay': `${s.delay}s`,
+                    '--streak-opacity': s.opacity,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+            {/* 亮色限定 — 上升速度線（暗色 CSS 隱藏） */}
+            {LOBBY_RISES.map((r, i) => (
+              <div
+                key={`r${i}`}
+                className="lobby-rise"
+                style={
+                  {
+                    left: r.left,
+                    height: r.h,
+                    '--rise-delay': `${r.delay}s`,
+                    '--rise-opacity': r.opacity,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+            {/* Phase 2 — 著陸定位 */}
+            <div className="lobby-diamond" />
+            {/* 衝擊火花 — 菱形著陸瞬間爆射 */}
+            {LOBBY_SPARKS.map((sp, i) => (
+              <div
+                key={`sp${i}`}
+                className="lobby-spark"
+                style={
+                  {
+                    width: sp.size,
+                    height: sp.size,
+                    '--spark-x': `${sp.x}px`,
+                    '--spark-y': `${sp.y}px`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+            <div className="lobby-ray lobby-ray--n" />
+            <div className="lobby-ray lobby-ray--s" />
+            <div className="lobby-ray lobby-ray--e" />
+            <div className="lobby-ray lobby-ray--w" />
+            <div className="lobby-ring" />
+            {/* Phase 2c — 邊際世界 衝擊文字 */}
+            <div className="lobby-title">
+              {['邊', '際', '世', '界'].map((char, i) => (
+                <span
+                  key={char}
+                  className="lobby-char"
+                  style={
+                    {
+                      '--char-delay': `${1.6 + i * 0.2}s`,
+                    } as React.CSSProperties
+                  }
+                >
+                  {char}
+                </span>
+              ))}
+            </div>
+            {/* Phase 3 — 微粒 */}
+            {LOBBY_MOTES.map((m, i) => (
+              <div
+                key={i}
+                className="lobby-mote"
+                style={
+                  {
+                    top: m.top,
+                    left: m.left,
+                    '--mote-delay': `${m.delay}s`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </>
+        </div>
+      )}
 
       <TopBar onOpenMap={() => setShowMap(true)} />
 
