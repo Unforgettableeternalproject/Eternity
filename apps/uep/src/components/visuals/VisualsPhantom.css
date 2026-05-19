@@ -66,7 +66,7 @@
 
 /* 光痕本體：不對稱漸層，亮頭 + 淡尾
    --ray-hue / --ray-bright 由 JS 設定，讓伴隨射線有色彩偏移
-   移除 blur()：blur 在無限迴圈動畫中持續觸發 GPU repaint，改用漸層邊緣模擬柔化感 */
+   保留 hue-rotate + brightness（便宜的 filter），只移除 blur（昂貴的 GPU repaint） */
 .vp-ray-streak {
   height: 2px;
   background: linear-gradient(
@@ -79,6 +79,7 @@
     rgba(255, 255, 255, 0.18) 93%,
     transparent 100%
   );
+  filter: hue-rotate(var(--ray-hue, 0deg)) brightness(var(--ray-bright, 1));
   opacity: 0;
   animation: vp-streak-move linear forwards;
   will-change: transform, opacity;

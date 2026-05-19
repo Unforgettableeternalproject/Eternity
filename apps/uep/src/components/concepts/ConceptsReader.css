@@ -99,10 +99,10 @@
     filter 0.8s ease;
 }
 .conc-boot.is-ready {
-  /* 移除 filter: blur(20px)，全螢幕 blur 退場在低階裝置代價極高 */
-  /* 視覺效果等效：opacity 0 已足夠，scale 微縮提供空間感 */
+  /* CRT boot 退場：模糊溶解 + 淡出。
+     一次性 transition（0.8s），非無限迴圈，效能影響可忽略。 */
   opacity: 0;
-  transform: scale(1.04);
+  filter: blur(20px);
 }
 
 /* scanline 紋理 */

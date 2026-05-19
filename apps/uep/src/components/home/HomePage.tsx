@@ -466,11 +466,15 @@ export default function HomePage({
       releaseTimerRef.current = setTimeout(() => {
         forceAlignToTarget();
         zoneTransitionRef.current = false;
-        // 冷卻期：防止 snap 恢復時的 subpixel drift 觸發 handleScroll 再次轉場
+        // 冷卻期：防止 snap 恢復時的 subpixel drift 觸發再次轉場
+        // 50ms 足夠防 subpixel drift（1-2 frame），不影響使用者操作
+        // CSS class 鎖住 touch-action 保護手機端
         transitionCooldownRef.current = true;
+        container.classList.add('journey-scroll--cooldown');
         setTimeout(() => {
           transitionCooldownRef.current = false;
-        }, 300);
+          container.classList.remove('journey-scroll--cooldown');
+        }, 50);
         container.classList.remove('journey-scroll--locked');
         container.style.scrollBehavior = savedStyles.scrollBehavior;
         container.style.overflowY = savedStyles.overflowY;
@@ -624,11 +628,15 @@ export default function HomePage({
       releaseTimerRef.current = setTimeout(() => {
         forceAlignToTarget();
         zoneTransitionRef.current = false;
-        // 冷卻期：防止 snap 恢復時的 subpixel drift 觸發 handleScroll 再次轉場
+        // 冷卻期：防止 snap 恢復時的 subpixel drift 觸發再次轉場
+        // 50ms 足夠防 subpixel drift（1-2 frame），不影響使用者操作
+        // CSS class 鎖住 touch-action 保護手機端
         transitionCooldownRef.current = true;
+        container.classList.add('journey-scroll--cooldown');
         setTimeout(() => {
           transitionCooldownRef.current = false;
-        }, 300);
+          container.classList.remove('journey-scroll--cooldown');
+        }, 50);
         container.classList.remove('journey-scroll--locked');
         container.style.scrollBehavior = savedStyles.scrollBehavior;
         container.style.overflowY = savedStyles.overflowY;
@@ -1038,7 +1046,9 @@ export default function HomePage({
             return;
           }
         }
-        // 不可滾動 or 已到邊界 → 繼續走外層的 fade 邏輯
+        // 不可滾動 or 已到邊界 → 防止 reading scroller 與外層同時滾動，
+        // 然後繼續走外層的 fade 邏輯
+        e.preventDefault();
       }
 
       // 不在轉場中、不在 fading 中，且目前在 zone scene 內

@@ -396,18 +396,19 @@ body {
   }
 }
 
-/* blur 改為靜態值，只動畫 opacity：避免 GPU 每幀重新計算 backdrop-filter */
+/* zone 入場覆蓋層淡出：背景逐漸對焦 + 遮罩消失。
+   backdrop-filter 動畫只播一次（0.8s），不是無限迴圈，效能影響可忽略。 */
 @keyframes zone-arrival {
   0% {
-    opacity: 1;
+    backdrop-filter: blur(18px);
     background: rgba(10, 10, 14, 0.5);
   }
   60% {
-    opacity: 0.5;
+    backdrop-filter: blur(4px);
     background: rgba(10, 10, 14, 0.12);
   }
   100% {
-    opacity: 0;
+    backdrop-filter: blur(0px);
     background: transparent;
   }
 }
