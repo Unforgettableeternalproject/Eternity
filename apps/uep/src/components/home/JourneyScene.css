@@ -184,7 +184,8 @@
   color: var(--bg);
 }
 
-.journey-scene__narrative {
+.journey-scene__narrative,
+.journey-scene__body {
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -391,7 +392,8 @@
     width: 100%;
   }
 
-  .journey-scene__narrative {
+  .journey-scene__narrative,
+  .journey-scene__body {
     max-height: none;
     overflow-y: visible;
   }

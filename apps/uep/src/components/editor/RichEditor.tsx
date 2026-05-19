@@ -1409,16 +1409,38 @@ export default function RichEditor({
                   onClick={() =>
                     editor.chain().focus().setHorizontalRule().run()
                   }
-                  title="Horizontal rule"
+                  title="分隔線"
                 >
-                  &mdash;
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                  </svg>
                 </button>
                 <button
                   className="tb-btn"
                   onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                  title="Code block"
+                  title="程式碼區塊"
                 >
-                  &lt;/&gt;
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
                 </button>
                 <div className="tb-dropdown-wrap">
                   <button
@@ -1431,7 +1453,24 @@ export default function RichEditor({
                     title="插入圖片"
                     disabled={uploading}
                   >
-                    {uploading ? '上傳中' : '圖片'}
+                    {uploading ? (
+                      '⏳'
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <path d="m21 15-5-5L5 21" />
+                      </svg>
+                    )}
                   </button>
                   {activeDropdown === 'image' && (
                     <div className="tb-dropdown" style={{ minWidth: 160 }}>
@@ -1467,7 +1506,22 @@ export default function RichEditor({
                     }
                     title="表格"
                   >
-                    表格
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="3" y1="9" x2="21" y2="9" />
+                      <line x1="3" y1="15" x2="21" y2="15" />
+                      <line x1="9" y1="3" x2="9" y2="21" />
+                      <line x1="15" y1="3" x2="15" y2="21" />
+                    </svg>
                   </button>
                   {activeDropdown === 'table' && (
                     <div className="tb-dropdown" style={{ minWidth: 180 }}>
@@ -1569,7 +1623,20 @@ export default function RichEditor({
                   onClick={() => void openAudioPicker(false)}
                   title="插入音訊"
                 >
-                  音訊
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  </svg>
                 </button>
               </div>
 
@@ -1725,7 +1792,20 @@ export default function RichEditor({
                   }
                   title="清除格式"
                 >
-                  清除
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+                    <path d="M22 21H7" />
+                    <path d="m5 11 9 9" />
+                  </svg>
                 </button>
               </div>
             </>

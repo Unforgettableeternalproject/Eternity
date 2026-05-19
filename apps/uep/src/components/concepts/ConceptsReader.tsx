@@ -161,7 +161,7 @@ const SYMBOL_ITEMS = ESSENCE_SYMBOLS.flatMap((s, i) =>
 const RAIN_GLYPHS = '01010110ABCDEF{}[]<>/\\|+-*=#$%@?!~';
 
 /** 數位雨欄位定義 — 模組層級常數，避免每次 render 重建物件觸發多餘 diff */
-const RAIN_COLUMNS = Array.from({ length: 14 }, (_, i) => {
+const RAIN_COLUMNS = Array.from({ length: 8 }, (_, i) => {
   const seed = i * 37 + 13;
   const len = 6 + (seed % 6);
   return {

@@ -7,14 +7,17 @@ interface ZoneAtmosphereProps {
   intensity?: 'subtle' | 'normal' | 'rich';
   /** 是否跳過中文字元粒子，只保留圓點粒子 */
   skipGlyphs?: boolean;
+  /** 環形裝飾是否避開中央內容區域（預設 true） */
+  avoidContent?: boolean;
 }
 
 export default function ZoneAtmosphere({
   zone,
   intensity = 'normal',
   skipGlyphs = false,
+  avoidContent = false,
 }: ZoneAtmosphereProps) {
-  const count = { subtle: 14, normal: 26, rich: 40 }[intensity] || 26;
+  const count = { subtle: 8, normal: 16, rich: 24 }[intensity] || 16;
 
   return (
     <div
@@ -26,9 +29,13 @@ export default function ZoneAtmosphere({
         } as React.CSSProperties
       }
     >
-      {/* 外圈線條 */}
-      <div className="zone-atmosphere__ring zone-atmosphere__ring--primary" />
-      <div className="zone-atmosphere__ring zone-atmosphere__ring--secondary" />
+      {/* 外圈線條 — 用 wrapper 遮罩避免環線穿過內容文字 */}
+      <div
+        className={`zone-atmosphere__rings${avoidContent ? ' zone-atmosphere__rings--masked' : ''}`}
+      >
+        <div className="zone-atmosphere__ring zone-atmosphere__ring--primary" />
+        <div className="zone-atmosphere__ring zone-atmosphere__ring--secondary" />
+      </div>
 
       {/* 漂浮粒子與少量字元 — 用 zone id 偏移讓每區分佈不同 */}
       {[...Array(count)].map((_, i) => {

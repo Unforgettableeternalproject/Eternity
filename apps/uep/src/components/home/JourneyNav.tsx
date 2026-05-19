@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 import './JourneyNav.css';
@@ -17,9 +18,11 @@ export default function JourneyNav({
   activeIndex,
   onNavigate,
 }: JourneyNavProps) {
-  const isDark =
-    typeof document !== 'undefined' &&
-    document.documentElement.dataset.theme === 'dark';
+  // SSR-safe：初始值 false（匹配 server 端），hydrate 後讀取實際 theme
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    setIsDark(document.documentElement.dataset.theme === 'dark');
+  }, []);
 
   // 只在旅程進行中顯示（activeIndex >= -1 表示 hero 之後）
   const visible = activeIndex >= -1;

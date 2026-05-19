@@ -67,15 +67,23 @@ interface RecentItem {
   updatedAt: string;
 }
 
-export default function HomePage({ isDev = false }: { isDev?: boolean }) {
+export default function HomePage({
+  isDev = false,
+  homepageData: initialData,
+}: {
+  isDev?: boolean;
+  homepageData?: HomepageData | null;
+}) {
   const isMobile = useIsMobile();
 
-  // ── 從 SSR 注入的 window.__HOMEPAGE_DATA__ 讀取可編輯內容 ──
-  const homepageData: HomepageData | undefined =
-    typeof window !== 'undefined'
-      ? (((window as unknown as Record<string, unknown>)
-          .__HOMEPAGE_DATA__ as HomepageData | null) ?? undefined)
-      : undefined;
+  // 延遲到 mount 後才使用 homepageData，避免 SSR 呼叫 DOMParser (renderHtmlWithUep)
+  // SSR 與初次 client render 都是 undefined → 用 fallback → hydration 一致
+  const [homepageData, setHomepageData] = useState<HomepageData | undefined>(
+    undefined
+  );
+  useEffect(() => {
+    if (initialData) setHomepageData(initialData);
+  }, [initialData]);
 
   // ── 合併 D1 資料與靜態 fallback ──
 
@@ -148,13 +156,13 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Verse 內部自由滾動期間，記錄進入前的 snap type 以便離開時恢復 */
   const originalSnapTypeRef = useRef('');
-  const isDark =
-    typeof document !== 'undefined' &&
-    document.documentElement.dataset.theme === 'dark';
+  // SSR-safe：初始值 false（匹配 server 端），hydrate 後讀取實際 theme
+  const [isDark, setIsDark] = useState(false);
 
-  // 進場淡入：mount 後一小段延遲啟動 zone-arrival 動畫
+  // 進場淡入 + theme 偵測
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 80);
+    setIsDark(document.documentElement.dataset.theme === 'dark');
     return () => clearTimeout(t);
   }, []);
 
@@ -313,6 +321,17 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       container.style.scrollSnapType = 'none';
       container.style.overflowY = 'hidden';
       container.style.touchAction = 'none';
+
+      // 手機預暗化：用 fade overlay 蓋住畫面，防止位置校正時看到跳動
+      // 桌面版有 wheel-driven fade 提供預暗化，手機版沒有，所以需要手動補上
+      if (isMobile && fadeOverlayRef.current) {
+        fadeOverlayRef.current.style.setProperty('--fade-progress', '1');
+        // veil 動畫 ~144ms 後完全不透明，此時可安全清除 overlay
+        setTimeout(() => {
+          fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+        }, 250);
+      }
+
       setVeilZone(nextZone);
       setSectionVeil(null);
       setVeilDirection(direction);
@@ -354,7 +373,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         containerStyleBackupRef.current = null;
       }, ZONE_VEIL_DURATION_MS);
     },
-    [clearZoneTransitionTimers]
+    [clearZoneTransitionTimers, isMobile]
   );
 
   const resetFadeIntent = useCallback(() => {
@@ -384,16 +403,13 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
     const thresholdEl = container?.querySelector<HTMLElement>('#journey-start');
     if (!container || !thresholdEl) return;
 
-    // 只在沒有備份時保存（防止覆蓋 zone transition 的備份）
-    const hadBackup = !!containerStyleBackupRef.current;
-    if (!hadBackup) {
-      containerStyleBackupRef.current = {
-        scrollBehavior: container.style.scrollBehavior,
-        scrollSnapType: container.style.scrollSnapType,
-        overflowY: container.style.overflowY,
-        touchAction: container.style.touchAction,
-      };
-    }
+    // 如果 zone/section 轉場正在進行，不干擾
+    if (zoneTransitionRef.current) return;
+
+    // 用閉包捕捉當前值，解鎖時不依賴 containerStyleBackupRef（避免競爭條件）
+    const prevOverflowY = container.style.overflowY;
+    const prevTouchAction = container.style.touchAction;
+
     container.style.overflowY = 'hidden';
     container.style.touchAction = 'none';
 
@@ -410,12 +426,9 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       setTimeout(() => {
         // 如果 zone/section 轉場已經接手，不要干擾
         if (zoneTransitionRef.current) return;
-        const saved = containerStyleBackupRef.current;
-        if (saved) {
-          container.style.overflowY = saved.overflowY;
-          container.style.touchAction = saved.touchAction;
-        }
-        containerStyleBackupRef.current = null;
+        // 用閉包值還原，不依賴 ref（避免被其他轉場清空導致永久鎖住）
+        container.style.overflowY = prevOverflowY;
+        container.style.touchAction = prevTouchAction;
       }, 120);
     });
   }, []);
@@ -455,6 +468,15 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       container.style.scrollSnapType = 'none';
       container.style.overflowY = 'hidden';
       container.style.touchAction = 'none';
+
+      // 手機預暗化：與 startZoneTransition 相同邏輯
+      if (isMobile && fadeOverlayRef.current) {
+        fadeOverlayRef.current.style.setProperty('--fade-progress', '1');
+        setTimeout(() => {
+          fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+        }, 250);
+      }
+
       setVeilZone(null);
       setSectionVeil({
         id: variant,
@@ -504,7 +526,7 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
         containerStyleBackupRef.current = null;
       }, ZONE_VEIL_DURATION_MS);
     },
-    [clearZoneTransitionTimers, resetFadeIntent]
+    [clearZoneTransitionTimers, resetFadeIntent, isMobile]
   );
 
   useEffect(() => {
@@ -845,7 +867,25 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
-    return () => container.removeEventListener('scroll', handleScroll);
+
+    // 安全閥：每 600ms 檢查一次，防止 overflowY 被永久鎖住
+    // 如果不在轉場中但容器仍被鎖定，強制解鎖
+    const safetyInterval = setInterval(() => {
+      if (
+        !zoneTransitionRef.current &&
+        !fadingRef.current &&
+        container.style.overflowY === 'hidden'
+      ) {
+        container.style.overflowY = 'auto';
+        container.style.touchAction = '';
+        containerStyleBackupRef.current = null;
+      }
+    }, 600);
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearInterval(safetyInterval);
+    };
   }, [isMobile, alignToThreshold, startSectionTransition, startZoneTransition]);
 
   // ── Wheel-driven fade：捲動時漸入黑畫面，到閾值後觸發轉場 ──
@@ -1201,6 +1241,10 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
             resetFadeIntent();
             fadingRef.current = false;
           }, 300);
+        } else {
+          // nextZone 不存在（資料未載入或索引超界）：立即重置，避免 fadingRef 永久鎖死
+          resetFadeIntent();
+          fadingRef.current = false;
         }
       }
     };
@@ -1223,6 +1267,19 @@ export default function HomePage({ isDev = false }: { isDev?: boolean }) {
       previousSceneRef.current = activeScene;
       if (activeScene !== -1) {
         thresholdSettledRef.current = false;
+      } else {
+        // activeScene 被設為 -1（Threshold）時，需要驗證是否真的落位
+        // 避免「以為在 Threshold 但 settled 是 false」的永久卡死
+        const container = scrollContainerRef.current;
+        const thresholdEl =
+          container?.querySelector<HTMLElement>('#journey-start');
+        if (container && thresholdEl) {
+          thresholdSettledRef.current = isSettledAtElement(
+            thresholdEl,
+            container.scrollTop,
+            window.innerHeight
+          );
+        }
       }
     }
     if (activeScene === 5) {

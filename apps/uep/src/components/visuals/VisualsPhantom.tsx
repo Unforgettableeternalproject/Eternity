@@ -48,7 +48,7 @@ interface Cfg {
 const CFG: Record<PhantomVariant, Cfg> = {
   // 十字路口：混合框架比例
   landing: {
-    n: 14,
+    n: 8,
     w: [50, 130],
     ar: [0.7, 1.4],
     dur: [7, 13],
@@ -58,7 +58,7 @@ const CFG: Record<PhantomVariant, Cfg> = {
   },
   // 陳列走廊：直立肖像比例
   profiles: {
-    n: 16,
+    n: 10,
     w: [40, 90],
     ar: [1.2, 1.8],
     dur: [8, 15],
@@ -68,7 +68,7 @@ const CFG: Record<PhantomVariant, Cfg> = {
   },
   // 鑲框室：橫幅畫作比例
   illustrations: {
-    n: 12,
+    n: 8,
     w: [70, 150],
     ar: [0.5, 0.8],
     dur: [8, 14],
@@ -78,7 +78,7 @@ const CFG: Record<PhantomVariant, Cfg> = {
   },
   // 抽象萃取間：小框、有旋轉
   sketchs: {
-    n: 18,
+    n: 12,
     w: [30, 75],
     ar: [0.8, 1.3],
     dur: [5, 11],
@@ -88,7 +88,7 @@ const CFG: Record<PhantomVariant, Cfg> = {
   },
   // 基底實驗室：方形框、網格對齊
   pixel: {
-    n: 12,
+    n: 8,
     w: [32, 68],
     ar: [0.92, 1.08],
     dur: [6, 12],
@@ -208,7 +208,7 @@ export default function VisualsPhantom({ variant = 'landing' }: Props) {
   /* ── 確定性 SVG 漂浮粒子 ── */
   const svgParticles = useMemo(() => {
     const r = seeded(variant.charCodeAt(0) * 73 + 99);
-    return Array.from({ length: 10 }, (_, i) => ({
+    return Array.from({ length: 6 }, (_, i) => ({
       icon: i % SVG_ICONS.length,
       left: 5 + r() * 90,
       top: 5 + r() * 90,

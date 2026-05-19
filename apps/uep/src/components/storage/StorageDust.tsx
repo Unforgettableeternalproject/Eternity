@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
-const DESKTOP_PARTICLE_COUNT = 100;
-const MOBILE_PARTICLE_COUNT = 34;
+const DESKTOP_PARTICLE_COUNT = 60;
+const MOBILE_PARTICLE_COUNT = 18;
 const SCATTER_RADIUS = 120;
 const SCATTER_FORCE = 2.8;
 const FRICTION = 0.96;

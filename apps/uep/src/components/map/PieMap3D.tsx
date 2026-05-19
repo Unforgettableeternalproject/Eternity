@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 import './PieMap3D.css';
@@ -16,6 +16,9 @@ interface PieMap3DProps {
   depth?: number;
   baseTone?: 'auto' | 'light' | 'dark';
 }
+
+/** 拖曳距離低於此閾值視為點擊（px） */
+const CLICK_THRESHOLD = 6;
 
 export default function PieMap3D({
   zones,
@@ -40,6 +43,30 @@ export default function PieMap3D({
     angle: number;
   } | null>(null);
 
+  /** 追蹤拖曳距離，用於區分點擊與拖曳 */
+  const dragDistRef = useRef(0);
+  /** 記錄 pointerDown 時的目標（zone id 或 '__center__'） */
+  const downTargetRef = useRef<string | null>(null);
+  /** 容器 DOM 參考，用於掛載原生觸控事件 */
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  /* ── 行動裝置觸控修復 ──
+   * iOS Safari 等瀏覽器可能在 pointer events 之前攔截 touch 事件做滾動，
+   * 必須用 { passive: false } 的原生 listener 來 preventDefault。 */
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    function preventTouch(e: TouchEvent) {
+      if (e.touches.length === 1) e.preventDefault();
+    }
+    el.addEventListener('touchstart', preventTouch, { passive: false });
+    el.addEventListener('touchmove', preventTouch, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', preventTouch);
+      el.removeEventListener('touchmove', preventTouch);
+    };
+  }, []);
+
   function getPointerAngle(e: React.PointerEvent) {
     const rect = e.currentTarget.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
@@ -52,6 +79,8 @@ export default function PieMap3D({
   }
 
   function onPointerDown(e: React.PointerEvent) {
+    // downTargetRef 已由子元素的 pointerDown 在冒泡前設定
+    dragDistRef.current = 0;
     setDrag({
       x: e.clientX,
       y: e.clientY,
@@ -64,17 +93,42 @@ export default function PieMap3D({
 
   function onPointerMove(e: React.PointerEvent) {
     if (!drag) return;
-    const angleDelta = normalizeAngleDelta(getPointerAngle(e) - drag.angle);
+    const dx = e.clientX - drag.x;
     const dy = e.clientY - drag.y;
+    dragDistRef.current = Math.max(
+      dragDistRef.current,
+      Math.abs(dx) + Math.abs(dy)
+    );
+    const angleDelta = normalizeAngleDelta(getPointerAngle(e) - drag.angle);
     setYaw(drag.yaw + angleDelta);
-    setTilt(Math.max(38, Math.min(62, drag.tilt + dy * 0.18)));
+    // 修正：往下拖（dy > 0）應降低 tilt（更正面），所以用減法
+    setTilt(Math.max(38, Math.min(62, drag.tilt - dy * 0.18)));
   }
 
   function onPointerUp(e: React.PointerEvent) {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
+    // 距離小於閾值視為點擊，觸發對應 zone/center 行為
+    if (dragDistRef.current <= CLICK_THRESHOLD) {
+      const target = downTargetRef.current;
+      if (target === '__center__') {
+        onCenterClick?.();
+      } else if (target) {
+        const zone = zones.find((z) => z.id === target);
+        if (zone) onPickIntro?.(zone);
+      }
+    }
     setDrag(null);
+    downTargetRef.current = null;
+  }
+
+  function onPointerCancel(e: React.PointerEvent) {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDrag(null);
+    downTargetRef.current = null;
   }
 
   const slices = useMemo(
@@ -130,17 +184,15 @@ export default function PieMap3D({
             }}
             onPointerEnter={mode === 'top' ? () => onHover?.(z.id) : undefined}
             onPointerLeave={mode === 'top' ? () => onHover?.(null) : undefined}
+            /* 不再 stopPropagation，改為標記點擊目標，讓事件冒泡到容器啟動拖曳 */
             onPointerDown={
-              mode === 'top' ? (e) => e.stopPropagation() : undefined
-            }
-            onClick={
               mode === 'top'
-                ? (e) => {
-                    e.stopPropagation();
-                    onPickIntro?.(z);
+                ? () => {
+                    downTargetRef.current = z.id;
                   }
                 : undefined
             }
+            /* onClick 已移至容器的 onPointerUp 統一處理 */
           >
             <path
               d={`M0 0 L${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1} Z`}
@@ -210,10 +262,9 @@ export default function PieMap3D({
           })}
           <g
             className="pie-center"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCenterClick?.();
+            /* 不再 stopPropagation，改為標記中心點擊 */
+            onPointerDown={() => {
+              downTargetRef.current = '__center__';
             }}
             style={{ cursor: onCenterClick ? 'pointer' : 'default' }}
           >
@@ -299,6 +350,7 @@ export default function PieMap3D({
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'relative',
         width: size,
@@ -312,7 +364,7 @@ export default function PieMap3D({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
       {/* shadow oval */}
       <div
@@ -472,107 +524,156 @@ export default function PieMap3D({
         </div>
       </div>
 
-      {/* hover atmosphere card */}
-      {cardZone && (
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: `translate(${
-              Math.cos(
-                (((cardIndex / 5) * 360 - 90 + 36 + yaw) * Math.PI) / 180
-              ) *
-                size *
-                0.46 -
-              110
-            }px, ${
-              Math.sin(
-                (((cardIndex / 5) * 360 - 90 + 36 + yaw) * Math.PI) / 180
-              ) *
-                size *
-                0.46 *
-                Math.cos((tilt * Math.PI) / 180) -
-              70
-            }px)`,
-            width: 220,
-            padding: '14px 16px',
-            background: 'var(--bg-card)',
-            border: `1px solid ${cardZone.main}`,
-            borderRadius: 2,
-            fontFamily: 'var(--font-sans)',
-            pointerEvents: 'none',
-            zIndex: 5,
-            transition: 'transform 0.25s var(--ease)',
-          }}
-        >
-          {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
-            <span
-              key={c}
-              style={{
-                position: 'absolute',
-                width: 8,
-                height: 8,
-                borderColor: cardZone.main,
-                borderStyle: 'solid',
-                borderWidth: 0,
-                ...(c[0] === 't'
-                  ? { top: -1, borderTopWidth: 1 }
-                  : { bottom: -1, borderBottomWidth: 1 }),
-                ...(c[1] === 'l'
-                  ? { left: -1, borderLeftWidth: 1 }
-                  : { right: -1, borderRightWidth: 1 }),
-              }}
-            />
-          ))}
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: zoneTextColor(cardZone.main, isDark),
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase' as const,
-            }}
-          >
-            {cardZone.kicker} · {cardZone.en}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 20,
-              color: 'var(--ink-title)',
-              fontWeight: 600,
-              marginTop: 2,
-            }}
-          >
-            {cardZone.label}
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: 'var(--ink-soft)',
-              marginTop: 6,
-              lineHeight: 1.55,
-              fontFamily: 'var(--font-serif-tc)',
-            }}
-          >
-            {cardZone.blurb}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'var(--ink-mute)',
-              marginTop: 10,
-              paddingTop: 8,
-              borderTop: '1px solid var(--hairline)',
-              letterSpacing: '0.06em',
-            }}
-          >
-            {cardZone.atmos}
-          </div>
-        </div>
-      )}
+      {/* hover atmosphere card — 放在圓盤外側，附連接線 */}
+      {cardZone &&
+        size >= 380 &&
+        (() => {
+          const midAngleRad =
+            ((cardIndex / 5) * 360 - 90 + 36 + yaw) * (Math.PI / 180);
+          const cosA = Math.cos(midAngleRad);
+          const sinA = Math.sin(midAngleRad);
+          const tiltCos = Math.cos((tilt * Math.PI) / 180);
+
+          const discR = size * 0.46;
+          const isRight = cosA >= 0;
+          const cardW = Math.min(200, size * 0.38);
+          const gap = 18;
+
+          /* 圓盤邊緣錨點（相對中心，像素） */
+          const anchorX = cosA * discR;
+          const anchorY = sinA * discR * tiltCos;
+
+          /* 卡片定位（相對中心） */
+          const cX = isRight ? discR + gap : -(discR + gap + cardW);
+          const cY = Math.max(-size * 0.3, Math.min(size * 0.3, anchorY)) - 56;
+          const cardCenterY = cY + 60;
+
+          /* 連線終點（卡片靠近圓盤的那一邊） */
+          const lineEndX = isRight ? cX - 2 : cX + cardW + 2;
+
+          return (
+            <>
+              {/* 連接線 SVG */}
+              <svg
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: size,
+                  height: size,
+                  overflow: 'visible',
+                  pointerEvents: 'none',
+                  zIndex: 4,
+                }}
+              >
+                <line
+                  x1={size / 2 + anchorX}
+                  y1={size / 2 + anchorY}
+                  x2={size / 2 + lineEndX}
+                  y2={size / 2 + cardCenterY}
+                  stroke={cardZone.main}
+                  strokeWidth="0.8"
+                  strokeOpacity="0.4"
+                  strokeDasharray="3 2.5"
+                />
+                {/* 圓盤端小圓點 */}
+                <circle
+                  cx={size / 2 + anchorX}
+                  cy={size / 2 + anchorY}
+                  r="2.5"
+                  fill={cardZone.main}
+                  fillOpacity="0.65"
+                />
+              </svg>
+
+              {/* 資訊卡 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  transform: `translate(${cX}px, ${cY}px)`,
+                  width: cardW,
+                  padding: '12px 14px',
+                  background: 'var(--bg-card)',
+                  border: `1px solid ${cardZone.main}`,
+                  borderRadius: 2,
+                  fontFamily: 'var(--font-sans)',
+                  pointerEvents: 'none',
+                  zIndex: 5,
+                  transition:
+                    'transform 0.25s var(--ease), opacity 0.2s var(--ease)',
+                }}
+              >
+                {/* 四角裝飾 */}
+                {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
+                  <span
+                    key={c}
+                    style={{
+                      position: 'absolute',
+                      width: 7,
+                      height: 7,
+                      borderColor: cardZone.main,
+                      borderStyle: 'solid',
+                      borderWidth: 0,
+                      ...(c[0] === 't'
+                        ? { top: -1, borderTopWidth: 1 }
+                        : { bottom: -1, borderBottomWidth: 1 }),
+                      ...(c[1] === 'l'
+                        ? { left: -1, borderLeftWidth: 1 }
+                        : { right: -1, borderRightWidth: 1 }),
+                    }}
+                  />
+                ))}
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    color: zoneTextColor(cardZone.main, isDark),
+                    letterSpacing: '0.18em',
+                    textTransform: 'uppercase' as const,
+                  }}
+                >
+                  {cardZone.kicker} · {cardZone.en}
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 18,
+                    color: 'var(--ink-title)',
+                    fontWeight: 600,
+                    marginTop: 2,
+                  }}
+                >
+                  {cardZone.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--ink-soft)',
+                    marginTop: 5,
+                    lineHeight: 1.5,
+                    fontFamily: 'var(--font-serif-tc)',
+                  }}
+                >
+                  {cardZone.blurb}
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    color: 'var(--ink-mute)',
+                    marginTop: 8,
+                    paddingTop: 6,
+                    borderTop: '1px solid var(--hairline)',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {cardZone.atmos}
+                </div>
+              </div>
+            </>
+          );
+        })()}
 
       {/* hint badges */}
       {showHints && !drag && (

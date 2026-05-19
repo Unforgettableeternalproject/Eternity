@@ -4,7 +4,7 @@
 .hist-boot {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 350;
   pointer-events: none;
   background: #16100c;
   overflow: hidden;
@@ -1257,4 +1257,14 @@
   .history-arch-card {
     min-height: 220px;
   }
+}
+
+/* ── 環形裝飾遮罩（使用者偏好開關） ──
+ * 在 <html data-ring-mask> 時啟用，
+ * 內容區塊加上與頁面同色的背景，擋住背後的環形裝飾線。
+ * 預設關閉；未來可透過設定頁讓使用者自行切換。 */
+[data-ring-mask] .history-landing-inner,
+[data-ring-mask] .history-reading {
+  background: var(--bg);
+  position: relative;
 }
