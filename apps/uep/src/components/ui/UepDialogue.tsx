@@ -64,20 +64,18 @@ export default function UepDialogue({
           textAlign: isRight ? 'right' : 'left',
         }}
       >
-        {/* speech tail */}
+        {/* speech tail — clip-path 三角形，避免旋轉方塊邊框問題 */}
         <div
           style={{
             position: 'absolute',
-            top: 18,
-            [isRight ? 'right' : 'left']: -7,
-            width: 12,
-            height: 12,
-            transform: 'rotate(45deg)',
-            background: 'inherit',
-            borderTop: '1px solid rgba(213,182,24,0.30)',
-            borderLeft: isRight ? 'none' : '1px solid rgba(213,182,24,0.30)',
-            borderRight: isRight ? '1px solid rgba(213,182,24,0.30)' : 'none',
-            borderBottom: 'none',
+            top: 16,
+            [isRight ? 'right' : 'left']: -8,
+            width: 10,
+            height: 14,
+            clipPath: isRight
+              ? 'polygon(0 0, 100% 50%, 0 100%)'
+              : 'polygon(100% 0, 0 50%, 100% 100%)',
+            background: 'rgba(213,182,24,0.30)',
           }}
         />
         <div className={voiceClass}>{text}</div>
