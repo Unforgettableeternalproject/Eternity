@@ -222,6 +222,8 @@ export default function HomePage({
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Verse 內部自由滾動期間，記錄進入前的 snap type 以便離開時恢復 */
   const originalSnapTypeRef = useRef('');
+  /** 轉場結束後的冷卻期，防止 subpixel scroll event 立刻再觸發轉場 */
+  const transitionCooldownRef = useRef(false);
   // SSR-safe：初始值 false（匹配 server 端），hydrate 後讀取實際 theme
   const [isDark, setIsDark] = useState(false);
 
@@ -396,6 +398,8 @@ export default function HomePage({
     alignRetryTimerRef.current = null;
     alignFinalTimerRef.current = null;
     releaseTimerRef.current = null;
+    // 新轉場開始時清除冷卻期，避免殘留的 cooldown 擋住新轉場後的正常操作
+    transitionCooldownRef.current = false;
   }, []);
 
   const startZoneTransition = useCallback(
@@ -462,6 +466,11 @@ export default function HomePage({
       releaseTimerRef.current = setTimeout(() => {
         forceAlignToTarget();
         zoneTransitionRef.current = false;
+        // 冷卻期：防止 snap 恢復時的 subpixel drift 觸發 handleScroll 再次轉場
+        transitionCooldownRef.current = true;
+        setTimeout(() => {
+          transitionCooldownRef.current = false;
+        }, 300);
         container.classList.remove('journey-scroll--locked');
         container.style.scrollBehavior = savedStyles.scrollBehavior;
         container.style.overflowY = savedStyles.overflowY;
@@ -615,6 +624,11 @@ export default function HomePage({
       releaseTimerRef.current = setTimeout(() => {
         forceAlignToTarget();
         zoneTransitionRef.current = false;
+        // 冷卻期：防止 snap 恢復時的 subpixel drift 觸發 handleScroll 再次轉場
+        transitionCooldownRef.current = true;
+        setTimeout(() => {
+          transitionCooldownRef.current = false;
+        }, 300);
         container.classList.remove('journey-scroll--locked');
         container.style.scrollBehavior = savedStyles.scrollBehavior;
         container.style.overflowY = savedStyles.overflowY;
@@ -640,6 +654,7 @@ export default function HomePage({
 
     const handleScroll = () => {
       if (zoneTransitionRef.current) return;
+      if (transitionCooldownRef.current) return;
 
       const vh = window.innerHeight;
       const scrollTop = container.scrollTop;
@@ -1030,6 +1045,7 @@ export default function HomePage({
 
       // 不在轉場中、不在 fading 中，且目前在 zone scene 內
       if (zoneTransitionRef.current) return;
+      if (transitionCooldownRef.current) return;
       const current = previousSceneRef.current;
 
       const delta = Math.abs(e.deltaY);

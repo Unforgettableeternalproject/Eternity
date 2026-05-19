@@ -206,3 +206,10 @@
 [data-theme='dark'] .echoes-ripple.is-playing .er-orb-ring {
   border-color: rgba(var(--er-r), var(--er-g), var(--er-b), 0.35);
 }
+
+/* ── 減少動態偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  .echoes-ripple {
+    display: none;
+  }
+}

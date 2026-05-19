@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 import UepDialogue from './UepDialogue';
@@ -17,14 +17,15 @@ export default function IntroOverlay({
 }: IntroOverlayProps) {
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
+  const prevZoneRef = useRef<ZoneData | null>(null);
 
-  // 重置 closing 狀態：zone 從 null 變成有值時
-  useEffect(() => {
-    if (zone) {
-      closingRef.current = false;
-      setClosing(false);
-    }
-  }, [zone]);
+  // 只在 zone 從 null → 非 null（重新開啟）時同步重置殘留的 closing 狀態
+  // 正在退場時 prevZoneRef 仍為非 null，不會被這裡攔截
+  if (zone && !prevZoneRef.current && closing) {
+    closingRef.current = false;
+    setClosing(false);
+  }
+  prevZoneRef.current = zone;
 
   const handleClose = useCallback(() => {
     if (closingRef.current) return;

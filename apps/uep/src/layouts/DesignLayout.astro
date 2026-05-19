@@ -39,6 +39,12 @@ const {
       rel="stylesheet"
     />
 
+    <!-- 閒置感知系統 -->
+    <script>
+      import { initIdleAwareness } from '../scripts/idle-awareness';
+      initIdleAwareness();
+    </script>
+
     <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {

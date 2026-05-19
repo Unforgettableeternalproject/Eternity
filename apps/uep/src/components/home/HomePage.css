@@ -605,6 +605,8 @@
   background: var(--bg);
 }
 
+/* hv-pulse：核心點 + 兩層發光偽元素
+   改用偽元素 + opacity 動畫，避免 box-shadow 尺寸改變觸發 layout/paint */
 .hv-pulse {
   position: absolute;
   top: 50%;
@@ -614,10 +616,35 @@
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: #355c7d;
-  box-shadow:
-    0 0 24px 6px rgba(53, 92, 125, 0.7),
-    0 0 70px 12px rgba(53, 92, 125, 0.4);
+}
+/* 內層光暈：固定尺寸，只動畫 opacity */
+.hv-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(123, 173, 201, 0.7) 0%,
+    rgba(53, 92, 125, 0.3) 50%,
+    transparent 100%
+  );
   animation: hv-pulse-glow 1.4s ease-in-out infinite alternate;
+}
+/* 外層柔光：更大範圍，只動畫 opacity */
+.hv-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -35px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(53, 92, 125, 0.4) 0%,
+    rgba(53, 92, 125, 0.15) 40%,
+    transparent 100%
+  );
+  animation: hv-pulse-glow 1.4s ease-in-out infinite alternate;
+  animation-delay: 0.1s;
 }
 
 .hv-wave {
@@ -643,16 +670,13 @@
   animation-delay: 1.4s;
 }
 
+/* 只動畫 opacity，不改變 box-shadow 尺寸，避免觸發 paint */
 @keyframes hv-pulse-glow {
   0% {
-    box-shadow:
-      0 0 16px 3px rgba(123, 173, 201, 0.5),
-      0 0 50px 6px rgba(53, 92, 125, 0.2);
+    opacity: 0.55;
   }
   100% {
-    box-shadow:
-      0 0 24px 6px rgba(123, 173, 201, 0.7),
-      0 0 70px 12px rgba(53, 92, 125, 0.4);
+    opacity: 1;
   }
 }
 @keyframes hv-wave-expand {

@@ -368,6 +368,16 @@ body {
   }
 }
 
+/* 使用者偏好降低動態時：停止 drift 粒子動畫，直接隱藏 */
+@media (prefers-reduced-motion: reduce) {
+  .zone-atmosphere__glyph,
+  .zone-atmosphere__dot,
+  .dust-field i {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
 @keyframes slow-rotate {
   from {
     transform: rotate(0deg);
@@ -386,17 +396,18 @@ body {
   }
 }
 
+/* blur 改為靜態值，只動畫 opacity：避免 GPU 每幀重新計算 backdrop-filter */
 @keyframes zone-arrival {
   0% {
-    backdrop-filter: blur(18px);
+    opacity: 1;
     background: rgba(10, 10, 14, 0.5);
   }
   60% {
-    backdrop-filter: blur(4px);
+    opacity: 0.5;
     background: rgba(10, 10, 14, 0.12);
   }
   100% {
-    backdrop-filter: blur(0px);
+    opacity: 0;
     background: transparent;
   }
 }
@@ -531,4 +542,57 @@ body {
 .ProseMirror .tableWrapper {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ── 頁面閒置時暫停所有裝飾性粒子動畫 ──
+   由外部閒置管理模組（待實作）在 <html> 上設定 data-idle attribute。
+   Canvas/RAF 類（StorageDust）和 interval 類（EchoesRipple）在各自元件的 JS 層處理。
+   只覆蓋純 CSS 動畫的裝飾性元素；UI 互動動畫（轉場、一次性入場）不在此列。 */
+[data-idle] .zone-atmosphere__glyph,
+[data-idle] .zone-atmosphere__dot,
+[data-idle] .history-atmosphere span,
+[data-idle] .echoes-atmosphere span,
+[data-idle] .conc-symbol,
+[data-idle] .conc-rain-col,
+[data-idle] .conc-rain-char,
+[data-idle] .conc-grid-bg,
+[data-idle] .conc-grid-flash,
+[data-idle] .vp-svg-particle,
+[data-idle] .vp-frame,
+[data-idle] .sto-float-svg,
+[data-idle] .sto-cobweb-tl svg,
+[data-idle] .sto-cobweb-br svg,
+[data-idle] .dust-field i {
+  animation-play-state: paused !important;
+}
+
+/* ── 全域動態偏好支援 ──
+   覆蓋所有無限迴圈的裝飾性動畫，不影響 UI 互動反饋。
+   各 zone 的 boot 入場動畫不在此列（一次性，不影響持續效能）。 */
+@media (prefers-reduced-motion: reduce) {
+  /* 所有無限迴圈裝飾動畫 */
+  .conc-boot-scanlines,
+  .conc-rain-col,
+  .conc-rain-char,
+  .conc-grid-bg,
+  .conc-grid-flash,
+  .conc-symbol,
+  .sto-float-svg,
+  .sto-cobweb-tl svg,
+  .sto-cobweb-br svg,
+  .home-hero-portrait,
+  .verse-torn__shard,
+  .er-orb-core,
+  .hv-pulse,
+  .hv-wave,
+  .hv-scanlines,
+  .hv-grain {
+    animation: none !important;
+  }
+
+  /* Boot 入場 — 縮短為立即顯示，不卡住頁面 */
+  .conc-boot,
+  .sto-boot {
+    transition: none !important;
+  }
 }

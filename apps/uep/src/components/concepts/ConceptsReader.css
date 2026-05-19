@@ -99,8 +99,10 @@
     filter 0.8s ease;
 }
 .conc-boot.is-ready {
+  /* 移除 filter: blur(20px)，全螢幕 blur 退場在低階裝置代價極高 */
+  /* 視覺效果等效：opacity 0 已足夠，scale 微縮提供空間感 */
   opacity: 0;
-  filter: blur(20px);
+  transform: scale(1.04);
 }
 
 /* scanline 紋理 */
@@ -269,6 +271,8 @@
 }
 .conc-grid-flash {
   position: absolute;
+  /* top 固定在 0，用 transform: translateY 做掃描動畫，避免觸發 layout */
+  top: 0;
   left: 0;
   right: 0;
   height: 2px;
@@ -293,7 +297,7 @@
 @keyframes conc-grid-flash {
   0%,
   92% {
-    top: -4px;
+    transform: translateY(-4px);
     opacity: 0;
   }
   93% {
@@ -303,7 +307,8 @@
     opacity: 0.35;
   }
   100% {
-    top: 100%;
+    /* 100vh 近似值；實際上動畫結束後 opacity 已歸零，視覺等效 */
+    transform: translateY(100vh);
     opacity: 0;
   }
 }

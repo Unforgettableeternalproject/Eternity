@@ -225,7 +225,11 @@ export default function Minimap({
       </div>
 
       <button
-        onClick={onExpand}
+        onClick={(e) => {
+          // 點擊扇形 sector 時不展開大地圖（由 path onClick 處理）
+          if ((e.target as Element).tagName === 'path') return;
+          onExpand?.();
+        }}
         title="展開大地圖"
         style={{
           all: 'unset',

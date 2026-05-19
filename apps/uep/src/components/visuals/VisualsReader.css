@@ -2870,15 +2870,15 @@
   animation-delay: 0.26s;
 }
 
-/* === Lightbox 改進動畫 === */
+/* === Lightbox 改進動畫 ===
+   backdrop-filter 移出 keyframe：blur 只作為靜態屬性宣告在 .visuals-lightbox，
+   keyframe 只動畫 opacity，避免每幀重新計算 backdrop-filter */
 @keyframes lightboxIn {
   0% {
     opacity: 0;
-    backdrop-filter: blur(0px);
   }
   100% {
     opacity: 1;
-    backdrop-filter: blur(8px);
   }
 }
 
@@ -2896,11 +2896,9 @@
 @keyframes lightboxOut {
   from {
     opacity: 1;
-    backdrop-filter: blur(8px);
   }
   to {
     opacity: 0;
-    backdrop-filter: blur(0px);
   }
 }
 

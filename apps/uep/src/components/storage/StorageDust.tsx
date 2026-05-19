@@ -100,7 +100,8 @@ export default function StorageDust() {
       mouse.current.y = (e.clientY - rect.top) * dpr;
     }
 
-    window.addEventListener('mousemove', handleMouse);
+    // passive: true 讓瀏覽器不必等待 preventDefault，提升捲動效能
+    window.addEventListener('mousemove', handleMouse, { passive: true });
 
     function animate() {
       if (!ctx || !canvas) return;
@@ -151,12 +152,27 @@ export default function StorageDust() {
 
       raf.current = requestAnimationFrame(animate);
     }
+
+    // 頁面隱藏時暫停 RAF，避免背景分頁持續消耗 GPU
+    function handleVisibility() {
+      if (document.hidden) {
+        cancelAnimationFrame(raf.current);
+        raf.current = 0;
+      } else {
+        if (raf.current === 0) {
+          raf.current = requestAnimationFrame(animate);
+        }
+      }
+    }
+
     raf.current = requestAnimationFrame(animate);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       cancelAnimationFrame(raf.current);
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', handleMouse);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
