@@ -1626,6 +1626,7 @@ export default function HomePage({
           flex: '1 1 0%',
           minHeight: 0,
           overflowY: 'auto',
+          overflowX: 'hidden',
           position: 'relative',
         }}
       >

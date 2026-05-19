@@ -15,7 +15,10 @@ const currentPath = Astro.url.pathname;
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
-    <meta name="viewport" content="width=device-width" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
@@ -125,6 +128,7 @@ const currentPath = Astro.url.pathname;
       line-height: 1.6;
       min-height: 100vh;
       scroll-behavior: smooth;
+      overflow-x: hidden;
     }
 
     body {
