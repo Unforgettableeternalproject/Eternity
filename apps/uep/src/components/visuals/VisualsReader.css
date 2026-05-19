@@ -131,7 +131,8 @@
 .visuals-content {
   flex: 1;
   min-width: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   z-index: 1;
 }

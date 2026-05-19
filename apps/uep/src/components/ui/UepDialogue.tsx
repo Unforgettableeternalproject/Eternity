@@ -41,7 +41,7 @@ export default function UepDialogue({
   return (
     <div
       style={{
-        display: 'inline-flex',
+        display: 'flex',
         flexDirection: isRight ? 'row-reverse' : 'row',
         gap: 20,
         alignItems: 'flex-start',
