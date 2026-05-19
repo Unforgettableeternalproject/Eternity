@@ -31,25 +31,24 @@
 }
 
 /* === Keyframes === */
+/* 移除 keyframe 內的 backdrop-filter 動畫：每幀重新模糊背景代價極高。
+   backdrop-filter 設在 .intro-overlay 基礎樣式即可（靜態值），
+   視覺上 opacity 淡入已足夠表達「出現」，看不出 blur 漸入的差異。 */
 @keyframes introOverlayIn {
   from {
     opacity: 0;
-    backdrop-filter: blur(0px);
   }
   to {
     opacity: 1;
-    backdrop-filter: blur(10px);
   }
 }
 
 @keyframes introOverlayOut {
   from {
     opacity: 1;
-    backdrop-filter: blur(10px);
   }
   to {
     opacity: 0;
-    backdrop-filter: blur(0px);
   }
 }
 

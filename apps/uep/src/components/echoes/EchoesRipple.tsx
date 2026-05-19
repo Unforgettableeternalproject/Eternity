@@ -26,6 +26,8 @@ interface Orb {
 
 /** 最小生成距離（百分比單位） */
 const MIN_DIST = 25;
+/** 同時存在的 orb 上限：避免低階裝置同時跑太多 CSS 動畫 */
+const MAX_ORBS = 4;
 
 function isFarEnough(
   x: number,
@@ -82,6 +84,11 @@ export default function EchoesRipple({ isPlaying = false, color }: Props) {
 
   spawnRef.current = () => {
     if (!activeRef.current) return;
+    // 達到上限時跳過，等舊 orb 自然消亡後再生成
+    if (orbsRef.current.length >= MAX_ORBS) {
+      scheduleRef.current?.();
+      return;
+    }
     const playing = isPlayingRef.current;
 
     let x = 10 + Math.random() * 80;
@@ -121,9 +128,27 @@ export default function EchoesRipple({ isPlaying = false, color }: Props) {
   useEffect(() => {
     activeRef.current = true;
     tidRef.current = setTimeout(() => spawnRef.current?.(), 800);
+
+    // 頁面隱藏時清除 timeout，避免背景分頁持續生成新 orb
+    function handleVisibility() {
+      if (document.hidden) {
+        if (tidRef.current) {
+          clearTimeout(tidRef.current);
+          tidRef.current = null;
+        }
+      } else {
+        // 頁面重新顯示時，若沒有排程中的 timeout 就重新啟動
+        if (!tidRef.current && activeRef.current) {
+          scheduleRef.current?.();
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       activeRef.current = false;
       if (tidRef.current) clearTimeout(tidRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

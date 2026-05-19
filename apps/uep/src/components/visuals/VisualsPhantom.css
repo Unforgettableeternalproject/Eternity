@@ -65,20 +65,20 @@
 }
 
 /* 光痕本體：不對稱漸層，亮頭 + 淡尾
-   --ray-hue / --ray-bright 由 JS 設定，讓伴隨射線有色彩偏移 */
+   --ray-hue / --ray-bright 由 JS 設定，讓伴隨射線有色彩偏移
+   移除 blur()：blur 在無限迴圈動畫中持續觸發 GPU repaint，改用漸層邊緣模擬柔化感 */
 .vp-ray-streak {
   height: 2px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--visuals-main) 8%, transparent) 20%,
-    color-mix(in srgb, var(--visuals-soft) 35%, transparent) 50%,
-    color-mix(in srgb, var(--visuals-tint) 65%, transparent) 78%,
-    rgba(255, 255, 255, 0.2) 95%,
+    color-mix(in srgb, var(--visuals-main) 4%, transparent) 15%,
+    color-mix(in srgb, var(--visuals-soft) 30%, transparent) 40%,
+    color-mix(in srgb, var(--visuals-tint) 55%, transparent) 68%,
+    color-mix(in srgb, var(--visuals-tint) 70%, transparent) 80%,
+    rgba(255, 255, 255, 0.18) 93%,
     transparent 100%
   );
-  filter: blur(4px) hue-rotate(var(--ray-hue, 0deg))
-    brightness(var(--ray-bright, 1));
   opacity: 0;
   animation: vp-streak-move linear forwards;
   will-change: transform, opacity;
@@ -101,19 +101,18 @@
   }
 }
 
-/* 暗色模式：更亮的薰衣草色 */
+/* 暗色模式：更亮的薰衣草色，同樣不使用 blur() */
 [data-theme='dark'] .vp-ray-streak {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--visuals-soft) 10%, transparent) 20%,
-    color-mix(in srgb, var(--visuals-soft) 45%, transparent) 50%,
-    color-mix(in srgb, var(--visuals-tint) 75%, transparent) 78%,
-    rgba(255, 255, 255, 0.25) 95%,
+    color-mix(in srgb, var(--visuals-soft) 6%, transparent) 15%,
+    color-mix(in srgb, var(--visuals-soft) 38%, transparent) 40%,
+    color-mix(in srgb, var(--visuals-tint) 65%, transparent) 68%,
+    color-mix(in srgb, var(--visuals-tint) 78%, transparent) 80%,
+    rgba(255, 255, 255, 0.22) 93%,
     transparent 100%
   );
-  filter: blur(4px) hue-rotate(var(--ray-hue, 0deg))
-    brightness(var(--ray-bright, 1));
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -205,10 +204,10 @@
   );
 }
 
+/* 陳列走廊 variant：加高射線即可，不使用 blur() */
 .visuals-phantom--profiles .vp-ray-streak {
-  filter: blur(6px) hue-rotate(var(--ray-hue, 0deg))
-    brightness(var(--ray-bright, 1));
   height: 3px;
+  opacity: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -264,10 +263,10 @@
   );
 }
 
+/* 鑲框室 variant：加高射線即可，不使用 blur() */
 .visuals-phantom--illustrations .vp-ray-streak {
-  filter: blur(3px) hue-rotate(var(--ray-hue, 0deg))
-    brightness(var(--ray-bright, 1));
   height: 3px;
+  opacity: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -298,9 +297,17 @@
   border-color: rgba(159, 134, 192, 0.28);
 }
 
+/* 抽象萃取間 variant：用更低起始透明度模擬霧化感，不使用 blur() */
 .visuals-phantom--sketchs .vp-ray-streak {
-  filter: blur(8px) hue-rotate(var(--ray-hue, 0deg))
-    brightness(var(--ray-bright, 1));
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--visuals-main) 3%, transparent) 20%,
+    color-mix(in srgb, var(--visuals-soft) 22%, transparent) 50%,
+    color-mix(in srgb, var(--visuals-tint) 42%, transparent) 78%,
+    rgba(255, 255, 255, 0.12) 95%,
+    transparent 100%
+  );
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -350,10 +357,17 @@
   }
 }
 
+/* 基底實驗室 variant：像素風格，細線、不使用 blur() */
 .visuals-phantom--pixel .vp-ray-streak {
-  filter: blur(1px) hue-rotate(var(--ray-hue, 0deg))
-    brightness(var(--ray-bright, 1));
   height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--visuals-soft) 50%, transparent) 40%,
+    color-mix(in srgb, var(--visuals-tint) 80%, transparent) 75%,
+    rgba(255, 255, 255, 0.3) 95%,
+    transparent 100%
+  );
 }
 
 .visuals-phantom--pixel .vp-blob {

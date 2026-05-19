@@ -1538,7 +1538,11 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
         zones={ZONES}
         currentId={zoneId}
         onExpand={() => setShowMap(true)}
-        onPickZone={sharedRest.onPickZone}
+        onPickZone={(targetId) => {
+          const target = ZONES.find((z) => z.id === targetId);
+          if (!target || target.id === zoneId) return;
+          setIntroZone(target);
+        }}
         position="bottom-left"
       />
 

@@ -2,6 +2,7 @@
 // 每種區塊類型各自渲染專屬的表單欄位。
 // 使用者點擊「套用」後才呼叫 onSave，中途編輯只維持本地狀態。
 
+import type { CSSProperties, ChangeEvent, ReactNode } from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
@@ -45,7 +46,7 @@ interface BlockEditorProps {
 // ─── 共用樣式輔助 ─────────────────────────────────────────────────────────────
 
 /** 標籤文字樣式（全大寫 mono） */
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: 'block',
   fontFamily: 'var(--font-mono)',
   fontSize: '10px',
@@ -56,7 +57,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 /** 單行輸入框 */
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
   border: '1px solid var(--hairline-strong)',
@@ -70,7 +71,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 /** 多行文字區域 */
-const textareaStyle: React.CSSProperties = {
+const textareaStyle: CSSProperties = {
   ...inputStyle,
   resize: 'vertical',
   minHeight: '80px',
@@ -78,13 +79,13 @@ const textareaStyle: React.CSSProperties = {
 };
 
 /** select 下拉 */
-const selectStyle: React.CSSProperties = {
+const selectStyle: CSSProperties = {
   ...inputStyle,
   cursor: 'pointer',
 };
 
 /** 陣列子項卡片 */
-const itemCardStyle: React.CSSProperties = {
+const itemCardStyle: CSSProperties = {
   position: 'relative',
   border: '1px solid var(--hairline)',
   background: 'var(--bg-sunken)',
@@ -94,7 +95,7 @@ const itemCardStyle: React.CSSProperties = {
 };
 
 /** [×] 刪除按鈕 */
-const deleteButtonStyle: React.CSSProperties = {
+const deleteButtonStyle: CSSProperties = {
   position: 'absolute',
   top: '8px',
   right: '8px',
@@ -109,7 +110,7 @@ const deleteButtonStyle: React.CSSProperties = {
 };
 
 /** [+新增] 虛線按鈕 */
-const addButtonStyle: React.CSSProperties = {
+const addButtonStyle: CSSProperties = {
   display: 'block',
   width: '100%',
   boxSizing: 'border-box',
@@ -127,13 +128,13 @@ const addButtonStyle: React.CSSProperties = {
 };
 
 /** 表單欄位包裝間距 */
-const fieldWrap: React.CSSProperties = { marginBottom: '12px' };
+const fieldWrap: CSSProperties = { marginBottom: '12px' };
 
 // ─── 通用欄位元件 ─────────────────────────────────────────────────────────────
 
 interface FieldProps {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 function Field({ label, children }: FieldProps) {
   return (
@@ -831,7 +832,7 @@ function VisualsAudioForm({
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
@@ -1005,7 +1006,7 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
     />
   );
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const formData = new FormData();
@@ -1275,7 +1276,7 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
   );
 }
 
-const tbBtnBase: React.CSSProperties = {
+const tbBtnBase: CSSProperties = {
   all: 'unset',
   cursor: 'pointer',
   padding: '4px 8px',
@@ -1433,7 +1434,7 @@ export default function BlockEditor({
   };
 
   // ── 浮層樣式 ──
-  const overlayStyle: React.CSSProperties = {
+  const overlayStyle: CSSProperties = {
     position: 'fixed',
     inset: 0,
     background: 'rgba(0,0,0,0.55)',
@@ -1445,7 +1446,7 @@ export default function BlockEditor({
     // 點擊背景不關閉，讓使用者明確選擇取消
   };
 
-  const panelStyle: React.CSSProperties = {
+  const panelStyle: CSSProperties = {
     background: 'var(--bg-card)',
     border: '1px solid var(--hairline-strong)',
     borderRadius: '4px',
@@ -1458,7 +1459,7 @@ export default function BlockEditor({
     overflow: 'hidden',
   };
 
-  const headerStyle: React.CSSProperties = {
+  const headerStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1468,7 +1469,7 @@ export default function BlockEditor({
     background: 'var(--bg-sunken)',
   };
 
-  const titleStyle: React.CSSProperties = {
+  const titleStyle: CSSProperties = {
     fontFamily: 'var(--font-mono)',
     fontSize: '12px',
     letterSpacing: '0.08em',
@@ -1477,19 +1478,19 @@ export default function BlockEditor({
     color: zoneColor || 'var(--uep-gold)',
   };
 
-  const bodyStyle: React.CSSProperties = {
+  const bodyStyle: CSSProperties = {
     padding: '16px',
     overflowY: 'auto',
     flex: 1,
   };
 
-  const buttonRowStyle: React.CSSProperties = {
+  const buttonRowStyle: CSSProperties = {
     display: 'flex',
     gap: '8px',
   };
 
   // 取消按鈕
-  const cancelBtnStyle: React.CSSProperties = {
+  const cancelBtnStyle: CSSProperties = {
     fontFamily: 'var(--font-mono)',
     fontSize: '11px',
     letterSpacing: '0.06em',
@@ -1503,7 +1504,7 @@ export default function BlockEditor({
   };
 
   // 套用按鈕
-  const applyBtnStyle: React.CSSProperties = {
+  const applyBtnStyle: CSSProperties = {
     fontFamily: 'var(--font-mono)',
     fontSize: '11px',
     letterSpacing: '0.06em',
