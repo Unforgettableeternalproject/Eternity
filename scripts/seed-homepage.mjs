@@ -343,7 +343,7 @@ async function main() {
     // 組合 INSERT OR REPLACE 語句
     const sql =
       `INSERT OR REPLACE INTO site_homepage (section_id, content, updated_at) ` +
-      `VALUES ('${section_id}', '${escapedJson}', datetime('now'))`;
+      `VALUES ('${section_id}', '${escapedJson}', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`;
 
     try {
       runWrangler(sql, USE_REMOTE);
