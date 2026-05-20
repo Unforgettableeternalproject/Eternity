@@ -1,0 +1,925 @@
+/**
+ * 主站（apps/root）API 路由
+ * 掛載在 /api/root/* 下
+ */
+import type { Env, ApiResponse, JwtPayload } from './types';
+import type {
+  RootProjectRow,
+  RootProject,
+  UpsertRootProjectRequest,
+  RootLinkRow,
+  RootLink,
+  UpsertRootLinkRequest,
+  RootUpdateRow,
+  RootUpdate,
+  UpsertRootUpdateRequest,
+  RootSingletonRow,
+  RootSingleton,
+  RootCardRow,
+  RootCard,
+} from './root-types';
+
+// ===== Row → API 轉換 =====
+
+function projectRowToApi(row: RootProjectRow): RootProject {
+  return {
+    id: row.id,
+    titleZh: row.title_zh,
+    titleEn: row.title_en,
+    descZh: row.desc_zh,
+    descEn: row.desc_en,
+    contentZh: row.content_zh,
+    contentEn: row.content_en,
+    tags: JSON.parse(row.tags),
+    featured: row.featured === 1,
+    sortOrder: row.sort_order,
+    status: row.status,
+    image: row.image,
+    links: {
+      demo: row.link_demo,
+      github: row.link_github,
+      website: row.link_website,
+    },
+    startDate: row.start_date,
+    endDate: row.end_date,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  };
+}
+
+function linkRowToApi(row: RootLinkRow): RootLink {
+  return {
+    id: row.id,
+    titleZh: row.title_zh,
+    titleEn: row.title_en,
+    descZh: row.desc_zh,
+    descEn: row.desc_en,
+    url: row.url,
+    category: row.category,
+    status: row.status,
+    icon: row.icon,
+    featured: row.featured === 1,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  };
+}
+
+function updateRowToApi(row: RootUpdateRow): RootUpdate {
+  return {
+    id: row.id,
+    titleZh: row.title_zh,
+    titleEn: row.title_en,
+    descZh: row.desc_zh,
+    descEn: row.desc_en,
+    contentZh: row.content_zh,
+    contentEn: row.content_en,
+    date: row.date,
+    category: row.category,
+    featured: row.featured === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  };
+}
+
+function singletonRowToApi(row: RootSingletonRow): RootSingleton {
+  return {
+    sectionId: row.section_id,
+    content: JSON.parse(row.content),
+    updatedAt: row.updated_at,
+  };
+}
+
+function cardRowToApi(row: RootCardRow): RootCard {
+  return {
+    sectionId: row.section_id,
+    content: JSON.parse(row.content),
+    updatedAt: row.updated_at,
+  };
+}
+
+// ===== 工具函式 =====
+
+function json<T>(
+  data: ApiResponse<T>,
+  status = 200,
+  cors: Record<string, string> = {}
+): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...cors, 'Content-Type': 'application/json' },
+  });
+}
+
+// ===== 主路由處理器 =====
+
+export async function handleRootRoutes(
+  path: string,
+  method: string,
+  request: Request,
+  url: URL,
+  env: Env,
+  cors: Record<string, string>,
+  requireJwt: (req: Request, env: Env) => Promise<JwtPayload | null>
+): Promise<Response | null> {
+  // /api/root/projects
+  const projectsListMatch = path === '/api/root/projects';
+  if (projectsListMatch && method === 'GET') {
+    return listProjects(url, env.CONTENT_DB, cors);
+  }
+
+  // /api/root/projects/:id
+  const projectMatch = path.match(
+    /^\/api\/root\/projects\/([a-z0-9][a-z0-9_-]*)$/
+  );
+  if (projectMatch) {
+    const id = projectMatch[1];
+    if (method === 'GET') return getProject(id, env.CONTENT_DB, cors);
+    if (method === 'PUT') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      const body = (await request.json()) as UpsertRootProjectRequest;
+      return upsertProject(id, body, env.CONTENT_DB, cors);
+    }
+    if (method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      return softDeleteProject(id, env.CONTENT_DB, cors);
+    }
+  }
+
+  // /api/root/links
+  const linksListMatch = path === '/api/root/links';
+  if (linksListMatch && method === 'GET') {
+    return listLinks(url, env.CONTENT_DB, cors);
+  }
+
+  // /api/root/links/:id
+  const linkMatch = path.match(/^\/api\/root\/links\/([a-z0-9][a-z0-9_-]*)$/);
+  if (linkMatch) {
+    const id = linkMatch[1];
+    if (method === 'GET') return getLink(id, env.CONTENT_DB, cors);
+    if (method === 'PUT') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      const body = (await request.json()) as UpsertRootLinkRequest;
+      return upsertLink(id, body, env.CONTENT_DB, cors);
+    }
+    if (method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      return softDeleteLink(id, env.CONTENT_DB, cors);
+    }
+  }
+
+  // /api/root/updates
+  const updatesListMatch = path === '/api/root/updates';
+  if (updatesListMatch && method === 'GET') {
+    return listUpdates(url, env.CONTENT_DB, cors);
+  }
+
+  // /api/root/updates/:id
+  const updateMatch = path.match(
+    /^\/api\/root\/updates\/([a-z0-9][a-z0-9_-]*)$/
+  );
+  if (updateMatch) {
+    const id = updateMatch[1];
+    if (method === 'GET') return getUpdate(id, env.CONTENT_DB, cors);
+    if (method === 'PUT') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      const body = (await request.json()) as UpsertRootUpdateRequest;
+      return upsertUpdate(id, body, env.CONTENT_DB, cors);
+    }
+    if (method === 'DELETE') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      return softDeleteUpdate(id, env.CONTENT_DB, cors);
+    }
+  }
+
+  // /api/root/singletons/:key
+  const singletonMatch = path.match(
+    /^\/api\/root\/singletons\/([a-z][a-z0-9-]*)$/
+  );
+  if (singletonMatch) {
+    const key = singletonMatch[1];
+    if (method === 'GET') return getSingleton(key, env.CONTENT_DB, cors);
+    if (method === 'PUT') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      const body = (await request.json()) as {
+        content: unknown;
+        updatedAt?: string;
+      };
+      return upsertSingleton(key, body, env.CONTENT_DB, cors);
+    }
+  }
+
+  // /api/root/cards (list all)
+  if (path === '/api/root/cards' && method === 'GET') {
+    return listCards(env.CONTENT_DB, cors);
+  }
+
+  // /api/root/cards/:key
+  const cardMatch = path.match(/^\/api\/root\/cards\/([a-z][a-z0-9-]*)$/);
+  if (cardMatch) {
+    const key = cardMatch[1];
+    if (method === 'GET') return getCard(key, env.CONTENT_DB, cors);
+    if (method === 'PUT') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+      const body = (await request.json()) as {
+        content: unknown;
+        updatedAt?: string;
+      };
+      return upsertCard(key, body, env.CONTENT_DB, cors);
+    }
+  }
+
+  // 不匹配任何主站路由
+  return null;
+}
+
+// ===== Projects 處理器 =====
+
+async function listProjects(
+  url: URL,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const conditions = ['deleted_at IS NULL'];
+  const binds: (string | number)[] = [];
+
+  const featured = url.searchParams.get('featured');
+  if (featured === 'true') {
+    conditions.push('featured = 1');
+  }
+
+  const status = url.searchParams.get('status');
+  if (status) {
+    conditions.push('status = ?');
+    binds.push(status);
+  }
+
+  const includeDeleted = url.searchParams.get('include_deleted') === 'true';
+  if (includeDeleted) {
+    conditions.shift(); // 移除 deleted_at IS NULL
+  }
+
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const query = `SELECT * FROM root_projects ${where} ORDER BY sort_order ASC, created_at DESC`;
+  const stmt = db.prepare(query);
+  const result =
+    binds.length > 0
+      ? await stmt.bind(...binds).all<RootProjectRow>()
+      : await stmt.all<RootProjectRow>();
+
+  return json(
+    { ok: true, data: (result.results || []).map(projectRowToApi) },
+    200,
+    cors
+  );
+}
+
+async function getProject(
+  id: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT * FROM root_projects WHERE id = ? AND deleted_at IS NULL')
+    .bind(id)
+    .first<RootProjectRow>();
+
+  if (!row) {
+    return json({ ok: false, error: 'Project not found' }, 404, cors);
+  }
+  return json({ ok: true, data: projectRowToApi(row) }, 200, cors);
+}
+
+async function upsertProject(
+  id: string,
+  body: UpsertRootProjectRequest,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const existing = await db
+    .prepare('SELECT id FROM root_projects WHERE id = ?')
+    .bind(id)
+    .first<{ id: string }>();
+
+  if (existing) {
+    // UPDATE
+    const sets: string[] = ['updated_at = ?'];
+    const binds: (string | number | null)[] = [now];
+
+    if (body.titleZh !== undefined) {
+      sets.push('title_zh = ?');
+      binds.push(body.titleZh);
+    }
+    if (body.titleEn !== undefined) {
+      sets.push('title_en = ?');
+      binds.push(body.titleEn);
+    }
+    if (body.descZh !== undefined) {
+      sets.push('desc_zh = ?');
+      binds.push(body.descZh);
+    }
+    if (body.descEn !== undefined) {
+      sets.push('desc_en = ?');
+      binds.push(body.descEn);
+    }
+    if (body.contentZh !== undefined) {
+      sets.push('content_zh = ?');
+      binds.push(body.contentZh);
+    }
+    if (body.contentEn !== undefined) {
+      sets.push('content_en = ?');
+      binds.push(body.contentEn);
+    }
+    if (body.tags !== undefined) {
+      sets.push('tags = ?');
+      binds.push(JSON.stringify(body.tags));
+    }
+    if (body.featured !== undefined) {
+      sets.push('featured = ?');
+      binds.push(body.featured ? 1 : 0);
+    }
+    if (body.sortOrder !== undefined) {
+      sets.push('sort_order = ?');
+      binds.push(body.sortOrder);
+    }
+    if (body.status !== undefined) {
+      sets.push('status = ?');
+      binds.push(body.status);
+    }
+    if (body.image !== undefined) {
+      sets.push('image = ?');
+      binds.push(body.image);
+    }
+    if (body.links?.demo !== undefined) {
+      sets.push('link_demo = ?');
+      binds.push(body.links.demo);
+    }
+    if (body.links?.github !== undefined) {
+      sets.push('link_github = ?');
+      binds.push(body.links.github);
+    }
+    if (body.links?.website !== undefined) {
+      sets.push('link_website = ?');
+      binds.push(body.links.website);
+    }
+    if (body.startDate !== undefined) {
+      sets.push('start_date = ?');
+      binds.push(body.startDate);
+    }
+    if (body.endDate !== undefined) {
+      sets.push('end_date = ?');
+      binds.push(body.endDate);
+    }
+
+    // 恢復軟刪除
+    sets.push('deleted_at = NULL');
+
+    binds.push(id);
+    await db
+      .prepare(`UPDATE root_projects SET ${sets.join(', ')} WHERE id = ?`)
+      .bind(...binds)
+      .run();
+  } else {
+    // INSERT
+    await db
+      .prepare(
+        `INSERT INTO root_projects
+         (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
+          tags, featured, sort_order, status, image,
+          link_demo, link_github, link_website, start_date, end_date,
+          created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        body.titleZh ?? '',
+        body.titleEn ?? '',
+        body.descZh ?? '',
+        body.descEn ?? '',
+        body.contentZh ?? '',
+        body.contentEn ?? '',
+        JSON.stringify(body.tags ?? []),
+        body.featured ? 1 : 0,
+        body.sortOrder ?? 0,
+        body.status ?? 'active',
+        body.image ?? null,
+        body.links?.demo ?? null,
+        body.links?.github ?? null,
+        body.links?.website ?? null,
+        body.startDate ?? null,
+        body.endDate ?? null,
+        now,
+        now
+      )
+      .run();
+  }
+
+  // 回傳最新資料
+  const row = await db
+    .prepare('SELECT * FROM root_projects WHERE id = ?')
+    .bind(id)
+    .first<RootProjectRow>();
+
+  return json(
+    { ok: true, data: row ? projectRowToApi(row) : null },
+    existing ? 200 : 201,
+    cors
+  );
+}
+
+async function softDeleteProject(
+  id: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const result = await db
+    .prepare(
+      'UPDATE root_projects SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+    )
+    .bind(now, now, id)
+    .run();
+
+  if (!result.meta.changes || result.meta.changes === 0) {
+    return json({ ok: false, error: 'Project not found' }, 404, cors);
+  }
+  return json({ ok: true, data: { id, deletedAt: now } }, 200, cors);
+}
+
+// ===== Links 處理器 =====
+
+async function listLinks(
+  url: URL,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const conditions = ['deleted_at IS NULL'];
+  const binds: string[] = [];
+
+  const featured = url.searchParams.get('featured');
+  if (featured === 'true') conditions.push('featured = 1');
+
+  const category = url.searchParams.get('category');
+  if (category) {
+    conditions.push('category = ?');
+    binds.push(category);
+  }
+
+  const includeDeleted = url.searchParams.get('include_deleted') === 'true';
+  if (includeDeleted) conditions.shift();
+
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const query = `SELECT * FROM root_links ${where} ORDER BY sort_order ASC, created_at DESC`;
+  const stmt = db.prepare(query);
+  const result =
+    binds.length > 0
+      ? await stmt.bind(...binds).all<RootLinkRow>()
+      : await stmt.all<RootLinkRow>();
+
+  return json(
+    { ok: true, data: (result.results || []).map(linkRowToApi) },
+    200,
+    cors
+  );
+}
+
+async function getLink(
+  id: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT * FROM root_links WHERE id = ? AND deleted_at IS NULL')
+    .bind(id)
+    .first<RootLinkRow>();
+
+  if (!row) return json({ ok: false, error: 'Link not found' }, 404, cors);
+  return json({ ok: true, data: linkRowToApi(row) }, 200, cors);
+}
+
+async function upsertLink(
+  id: string,
+  body: UpsertRootLinkRequest,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const existing = await db
+    .prepare('SELECT id FROM root_links WHERE id = ?')
+    .bind(id)
+    .first<{ id: string }>();
+
+  if (existing) {
+    const sets: string[] = ['updated_at = ?'];
+    const binds: (string | number | null)[] = [now];
+
+    if (body.titleZh !== undefined) {
+      sets.push('title_zh = ?');
+      binds.push(body.titleZh);
+    }
+    if (body.titleEn !== undefined) {
+      sets.push('title_en = ?');
+      binds.push(body.titleEn);
+    }
+    if (body.descZh !== undefined) {
+      sets.push('desc_zh = ?');
+      binds.push(body.descZh);
+    }
+    if (body.descEn !== undefined) {
+      sets.push('desc_en = ?');
+      binds.push(body.descEn);
+    }
+    if (body.url !== undefined) {
+      sets.push('url = ?');
+      binds.push(body.url);
+    }
+    if (body.category !== undefined) {
+      sets.push('category = ?');
+      binds.push(body.category);
+    }
+    if (body.status !== undefined) {
+      sets.push('status = ?');
+      binds.push(body.status);
+    }
+    if (body.icon !== undefined) {
+      sets.push('icon = ?');
+      binds.push(body.icon);
+    }
+    if (body.featured !== undefined) {
+      sets.push('featured = ?');
+      binds.push(body.featured ? 1 : 0);
+    }
+    if (body.sortOrder !== undefined) {
+      sets.push('sort_order = ?');
+      binds.push(body.sortOrder);
+    }
+
+    sets.push('deleted_at = NULL');
+    binds.push(id);
+    await db
+      .prepare(`UPDATE root_links SET ${sets.join(', ')} WHERE id = ?`)
+      .bind(...binds)
+      .run();
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO root_links
+         (id, title_zh, title_en, desc_zh, desc_en, url, category, status,
+          icon, featured, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        body.titleZh ?? '',
+        body.titleEn ?? '',
+        body.descZh ?? '',
+        body.descEn ?? '',
+        body.url ?? '',
+        body.category ?? 'other',
+        body.status ?? 'normal',
+        body.icon ?? null,
+        body.featured ? 1 : 0,
+        body.sortOrder ?? 0,
+        now,
+        now
+      )
+      .run();
+  }
+
+  const row = await db
+    .prepare('SELECT * FROM root_links WHERE id = ?')
+    .bind(id)
+    .first<RootLinkRow>();
+
+  return json(
+    { ok: true, data: row ? linkRowToApi(row) : null },
+    existing ? 200 : 201,
+    cors
+  );
+}
+
+async function softDeleteLink(
+  id: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const result = await db
+    .prepare(
+      'UPDATE root_links SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+    )
+    .bind(now, now, id)
+    .run();
+
+  if (!result.meta.changes || result.meta.changes === 0) {
+    return json({ ok: false, error: 'Link not found' }, 404, cors);
+  }
+  return json({ ok: true, data: { id, deletedAt: now } }, 200, cors);
+}
+
+// ===== Updates 處理器 =====
+
+async function listUpdates(
+  url: URL,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const conditions = ['deleted_at IS NULL'];
+  const binds: (string | number)[] = [];
+
+  const featured = url.searchParams.get('featured');
+  if (featured === 'true') conditions.push('featured = 1');
+
+  const category = url.searchParams.get('category');
+  if (category) {
+    conditions.push('category = ?');
+    binds.push(category);
+  }
+
+  const includeDeleted = url.searchParams.get('include_deleted') === 'true';
+  if (includeDeleted) conditions.shift();
+
+  const limit = url.searchParams.get('limit');
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  let query = `SELECT * FROM root_updates ${where} ORDER BY date DESC, created_at DESC`;
+  if (limit) {
+    query += ` LIMIT ?`;
+    binds.push(parseInt(limit, 10));
+  }
+
+  const stmt = db.prepare(query);
+  const result =
+    binds.length > 0
+      ? await stmt.bind(...binds).all<RootUpdateRow>()
+      : await stmt.all<RootUpdateRow>();
+
+  return json(
+    { ok: true, data: (result.results || []).map(updateRowToApi) },
+    200,
+    cors
+  );
+}
+
+async function getUpdate(
+  id: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT * FROM root_updates WHERE id = ? AND deleted_at IS NULL')
+    .bind(id)
+    .first<RootUpdateRow>();
+
+  if (!row) return json({ ok: false, error: 'Update not found' }, 404, cors);
+  return json({ ok: true, data: updateRowToApi(row) }, 200, cors);
+}
+
+async function upsertUpdate(
+  id: string,
+  body: UpsertRootUpdateRequest,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const existing = await db
+    .prepare('SELECT id FROM root_updates WHERE id = ?')
+    .bind(id)
+    .first<{ id: string }>();
+
+  if (existing) {
+    const sets: string[] = ['updated_at = ?'];
+    const binds: (string | number | null)[] = [now];
+
+    if (body.titleZh !== undefined) {
+      sets.push('title_zh = ?');
+      binds.push(body.titleZh);
+    }
+    if (body.titleEn !== undefined) {
+      sets.push('title_en = ?');
+      binds.push(body.titleEn);
+    }
+    if (body.descZh !== undefined) {
+      sets.push('desc_zh = ?');
+      binds.push(body.descZh);
+    }
+    if (body.descEn !== undefined) {
+      sets.push('desc_en = ?');
+      binds.push(body.descEn);
+    }
+    if (body.contentZh !== undefined) {
+      sets.push('content_zh = ?');
+      binds.push(body.contentZh);
+    }
+    if (body.contentEn !== undefined) {
+      sets.push('content_en = ?');
+      binds.push(body.contentEn);
+    }
+    if (body.date !== undefined) {
+      sets.push('date = ?');
+      binds.push(body.date);
+    }
+    if (body.category !== undefined) {
+      sets.push('category = ?');
+      binds.push(body.category);
+    }
+    if (body.featured !== undefined) {
+      sets.push('featured = ?');
+      binds.push(body.featured ? 1 : 0);
+    }
+
+    sets.push('deleted_at = NULL');
+    binds.push(id);
+    await db
+      .prepare(`UPDATE root_updates SET ${sets.join(', ')} WHERE id = ?`)
+      .bind(...binds)
+      .run();
+  } else {
+    if (!body.date) {
+      return json(
+        { ok: false, error: 'date is required for new updates' },
+        400,
+        cors
+      );
+    }
+    await db
+      .prepare(
+        `INSERT INTO root_updates
+         (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
+          date, category, featured, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        body.titleZh ?? '',
+        body.titleEn ?? '',
+        body.descZh ?? '',
+        body.descEn ?? '',
+        body.contentZh ?? '',
+        body.contentEn ?? '',
+        body.date,
+        body.category ?? 'other',
+        body.featured ? 1 : 0,
+        now,
+        now
+      )
+      .run();
+  }
+
+  const row = await db
+    .prepare('SELECT * FROM root_updates WHERE id = ?')
+    .bind(id)
+    .first<RootUpdateRow>();
+
+  return json(
+    { ok: true, data: row ? updateRowToApi(row) : null },
+    existing ? 200 : 201,
+    cors
+  );
+}
+
+async function softDeleteUpdate(
+  id: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const result = await db
+    .prepare(
+      'UPDATE root_updates SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+    )
+    .bind(now, now, id)
+    .run();
+
+  if (!result.meta.changes || result.meta.changes === 0) {
+    return json({ ok: false, error: 'Update not found' }, 404, cors);
+  }
+  return json({ ok: true, data: { id, deletedAt: now } }, 200, cors);
+}
+
+// ===== Singletons 處理器 =====
+
+async function getSingleton(
+  key: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT * FROM root_singletons WHERE section_id = ?')
+    .bind(key)
+    .first<RootSingletonRow>();
+
+  if (!row) return json({ ok: false, error: 'Singleton not found' }, 404, cors);
+  return json({ ok: true, data: singletonRowToApi(row) }, 200, cors);
+}
+
+async function upsertSingleton(
+  key: string,
+  body: { content: unknown; updatedAt?: string },
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  if (!body.content) {
+    return json({ ok: false, error: 'content is required' }, 400, cors);
+  }
+  const now = body.updatedAt || new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO root_singletons (section_id, content, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(section_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`
+    )
+    .bind(key, JSON.stringify(body.content), now)
+    .run();
+
+  return json(
+    {
+      ok: true,
+      data: { sectionId: key, content: body.content, updatedAt: now },
+    },
+    200,
+    cors
+  );
+}
+
+// ===== Cards 處理器 =====
+
+async function listCards(
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const result = await db
+    .prepare('SELECT * FROM root_cards ORDER BY section_id ASC')
+    .all<RootCardRow>();
+
+  return json(
+    { ok: true, data: (result.results || []).map(cardRowToApi) },
+    200,
+    cors
+  );
+}
+
+async function getCard(
+  key: string,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT * FROM root_cards WHERE section_id = ?')
+    .bind(key)
+    .first<RootCardRow>();
+
+  if (!row) return json({ ok: false, error: 'Card not found' }, 404, cors);
+  return json({ ok: true, data: cardRowToApi(row) }, 200, cors);
+}
+
+async function upsertCard(
+  key: string,
+  body: { content: unknown; updatedAt?: string },
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  if (!body.content) {
+    return json({ ok: false, error: 'content is required' }, 400, cors);
+  }
+  const now = body.updatedAt || new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO root_cards (section_id, content, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(section_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`
+    )
+    .bind(key, JSON.stringify(body.content), now)
+    .run();
+
+  return json(
+    {
+      ok: true,
+      data: { sectionId: key, content: body.content, updatedAt: now },
+    },
+    200,
+    cors
+  );
+}

@@ -17,6 +17,7 @@ import type {
 } from './types';
 import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
+import { handleRootRoutes } from './root-routes';
 
 // ===== 工具函式 =====
 
@@ -1626,6 +1627,20 @@ export default {
         200,
         cors
       );
+    }
+
+    // ---- 主站路由（/api/root/*）----
+    if (path.startsWith('/api/root/')) {
+      const rootResponse = await handleRootRoutes(
+        path,
+        request.method,
+        request,
+        url,
+        env,
+        cors,
+        requireJwt
+      );
+      if (rootResponse) return rootResponse;
     }
 
     // 健康檢查
