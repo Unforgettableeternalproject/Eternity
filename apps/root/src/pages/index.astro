@@ -185,45 +185,34 @@ for (const [path, module] of Object.entries(updateModules)) {
           </div>
         </div>
 
-        <!-- Right: Visual Element with Animation -->
+        <!-- Right: Visual Element — Prism flat style -->
         <div class="w-full lg:w-1/2 flex items-center justify-center">
           <div class="relative w-full max-w-lg aspect-square">
-            <!-- Main visual card -->
             <div
-              class="relative w-full h-full rounded-3xl bg-gradient-to-br from-primary-500/30 via-primary-400/20 to-secondary-500/30 dark:from-primary-500/20 dark:via-primary-500/10 dark:to-secondary-500/20 backdrop-blur-sm border-2 border-white/50 dark:border-slate-700/50 shadow-2xl animate-float overflow-hidden"
+              class="relative w-full h-full rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden"
+              style="background: var(--prism-surface);"
             >
-              <!-- Inner glow effect -->
-              <div
-                class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"
-              >
-              </div>
-
               <div
                 class="absolute inset-0 flex items-center justify-center p-6 sm:p-8 md:p-10 lg:p-12"
               >
                 <div
                   class="text-center space-y-4 sm:space-y-5 md:space-y-6 max-w-full"
                 >
-                  <div class="relative">
-                    <div
-                      class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"
-                    >
-                    </div>
-                    <svg
-                      class="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                    </svg>
-                  </div>
+                  <svg
+                    class="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 mx-auto text-primary-500 dark:text-primary-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                  </svg>
                   <p
-                    class="text-sm sm:text-base md:text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide px-2"
+                    class="text-sm sm:text-base md:text-lg font-semibold tracking-wide px-2"
+                    style="color: var(--prism-ink-soft);"
                   >
                     Creative Developer Space
                   </p>
@@ -231,31 +220,20 @@ for (const [path, module] of Object.entries(updateModules)) {
                     class="flex gap-1.5 sm:gap-2 justify-center flex-wrap px-2"
                   >
                     <span
-                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium text-primary-600 dark:text-primary-400 rounded-full border border-primary-200 dark:border-primary-800 whitespace-nowrap"
                       >Code</span
                     >
                     <span
-                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium text-secondary-600 dark:text-secondary-400 rounded-full border border-secondary-200 dark:border-secondary-800 whitespace-nowrap"
                       >Design</span
                     >
                     <span
-                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
+                      class="px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium text-primary-600 dark:text-primary-400 rounded-full border border-primary-200 dark:border-primary-800 whitespace-nowrap"
                       >Story</span
                     >
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Decorative floating elements -->
-            <div
-              class="absolute -top-6 -right-6 w-28 h-28 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
-            >
-            </div>
-            <div
-              class="absolute -bottom-6 -left-6 w-36 h-36 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
-              style="animation-delay: 1s;"
-            >
             </div>
           </div>
         </div>

@@ -3,13 +3,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* CSS Variables for theming */
+/* ===== Prism Theme Tokens ===== */
 :root {
-  /* Light mode colors */
-  --color-bg: 255, 255, 255;
-  --color-text: 15, 23, 42;
-  --color-border: 226, 232, 240;
-  --color-accent: 14, 165, 233;
+  /* Light mode — Prism warm paper */
+  --color-bg: 248, 247, 243;
+  --color-text: 15, 21, 48;
+  --color-border: 215, 212, 204;
+  --color-accent: 99, 102, 241;
+
+  --prism-paper: #f8f7f3;
+  --prism-paper-soft: #f1efe9;
+  --prism-paper-deep: #e7e4da;
+  --prism-ink: #0f1530;
+  --prism-ink-soft: #3b4360;
+  --prism-ink-mute: #7b8398;
+  --prism-ink-fade: #c7ccd7;
+  --prism-line: rgba(15, 21, 48, 0.1);
+  --prism-line-hard: rgba(15, 21, 48, 0.22);
+  --prism-navy: #27396c;
+  --prism-surface: #ffffff;
+  --prism-glow-color: rgba(99, 102, 241, 0.18);
 
   /* Spacing */
   --spacing-section: 6rem;
@@ -17,19 +30,42 @@
 }
 
 .dark {
-  /* Dark mode colors */
-  --color-bg: 15, 23, 42;
-  --color-text: 241, 245, 249;
-  --color-border: 51, 65, 85;
-  --color-accent: 56, 189, 248;
+  /* Dark mode — Prism pure black-gray */
+  --color-bg: 14, 14, 17;
+  --color-text: 234, 234, 238;
+  --color-border: 42, 42, 48;
+  --color-accent: 129, 140, 248;
+
+  --prism-paper: #0e0e11;
+  --prism-paper-soft: #16161a;
+  --prism-paper-deep: #070709;
+  --prism-ink: #eaeaee;
+  --prism-ink-soft: #a8a8ae;
+  --prism-ink-mute: #6d6d75;
+  --prism-ink-fade: #3d3d44;
+  --prism-line: rgba(255, 255, 255, 0.08);
+  --prism-line-hard: rgba(255, 255, 255, 0.18);
+  --prism-navy: #7e96e8;
+  --prism-surface: #16161a;
+  --prism-glow-color: rgba(126, 150, 232, 0.1);
 }
+
+/* Google Fonts for Prism */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
 
 /* Base layer customizations */
 @layer base {
   body {
-    @apply text-slate-900 dark:text-slate-100;
-    @apply font-sans antialiased;
+    @apply antialiased;
     @apply transition-colors duration-300;
+    font-family:
+      'Plus Jakarta Sans',
+      'Noto Sans TC',
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
+    color: var(--prism-ink);
+    background: var(--prism-paper);
   }
 
   h1,
@@ -39,6 +75,7 @@
   h5,
   h6 {
     @apply font-bold tracking-tight;
+    color: var(--prism-ink);
   }
 
   h1 {
@@ -82,9 +119,15 @@
   }
 
   .card {
-    @apply bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-lg;
-    @apply border border-slate-200 dark:border-slate-700;
+    @apply rounded-xl;
     @apply transition-all duration-300;
+    background: var(--prism-surface);
+    border: 1px solid var(--prism-line);
+    box-shadow: none;
+  }
+
+  .dark .card {
+    background: var(--prism-surface);
   }
 
   .card-hover {
@@ -111,27 +154,22 @@
   }
 
   /* 側邊欄響應式：考慮螢幕高度 */
-  /* 只有在寬度和高度都足夠時，才自動顯示側邊欄 */
   @media (min-width: 1536px) and (min-height: 801px) {
     .sidebar-responsive {
       transform: translateX(0) !important;
     }
 
-    /* 高度足夠時，側邊欄內容區域可以自動調整高度 */
     .sidebar-responsive #left-sidebar-container {
       max-height: calc(100vh - 8rem);
       overflow-y: auto;
     }
   }
 
-  /* 寬度夠但高度不夠時，保持展開式（需手動開啟） */
   @media (min-width: 1536px) and (max-height: 800px) {
     .sidebar-responsive {
-      /* 保持隱藏，需要手動展開 */
       transform: translateX(-100%);
     }
 
-    /* 高度不足時，側邊欄展開後要能滾動 */
     .sidebar-responsive #left-sidebar-container {
       max-height: 100vh;
       overflow-y: auto;
@@ -158,9 +196,8 @@
     animation-delay: 600ms;
   }
 
-  /* Reveal helpers for tasteful scroll-in micro-interactions */
   .reveal {
-    /* acts as a marker container; no styles required */
+    /* marker container */
   }
 
   .reveal-item {
@@ -192,7 +229,7 @@
   }
 }
 
-/* Background patterns */
+/* Background patterns — Prism colors */
 .bg-dot-pattern {
   background-image: radial-gradient(
     circle,
@@ -209,17 +246,18 @@
   background-size: 48px 48px;
 }
 
-/* Smooth scroll behavior */
+/* Smooth scroll */
 html {
   scroll-behavior: smooth;
 }
 
-/* Selection styling */
+/* Selection — Prism indigo */
 ::selection {
-  @apply bg-primary-500/30 text-slate-900 dark:text-slate-100;
+  @apply bg-primary-500/30;
+  color: var(--prism-ink);
 }
 
-/* Respect reduced motion preferences */
+/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .reveal-item {
     transition: none !important;
@@ -227,78 +265,33 @@ html {
     opacity: 1 !important;
   }
 }
-/* Interactive gradient background with mouse tracking */
+
+/* Background — Prism flat solid, kill ALL gradient noise */
 .gradient-bg {
-  @apply fixed inset-0 overflow-hidden pointer-events-none;
+  @apply fixed inset-0 pointer-events-none;
   z-index: -1;
-  background: linear-gradient(
-    to bottom,
-    rgb(255, 255, 255) 0%,
-    rgb(248, 250, 252) 100%
-  );
+  background: var(--prism-paper) !important;
+}
+
+.gradient-bg * {
+  display: none !important;
 }
 
 .dark .gradient-bg {
-  background: linear-gradient(
-    to bottom,
-    rgb(15, 23, 42) 0%,
-    rgb(30, 41, 59) 100%
-  );
+  background: var(--prism-paper) !important;
 }
 
+/* Gradient orbs — hidden */
 .gradient-orb {
-  @apply absolute rounded-full blur-3xl opacity-20 dark:opacity-10;
-  @apply transition-all duration-[2000ms] ease-out;
-  animation: float 20s ease-in-out infinite;
+  display: none !important;
 }
 
-.gradient-orb-1 {
-  @apply w-96 h-96 bg-gradient-to-br from-primary-400 to-primary-600;
-  top: -10%;
-  left: -5%;
-  animation-delay: 0s;
-}
-
-.gradient-orb-2 {
-  @apply w-[30rem] h-[30rem] bg-gradient-to-br from-secondary-400 to-secondary-600;
-  top: 40%;
-  right: -10%;
-  animation-delay: 5s;
-}
-
-.gradient-orb-3 {
-  @apply w-80 h-80 bg-gradient-to-br from-primary-500 to-secondary-500;
-  bottom: -10%;
-  left: 30%;
-  animation-delay: 10s;
-}
-
-/* Mouse cursor glow effect */
+/* Cursor glow — hidden */
 .cursor-glow {
-  @apply pointer-events-none fixed;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(
-    circle,
-    rgba(14, 165, 233, 0.15) 0%,
-    rgba(14, 165, 233, 0.05) 25%,
-    transparent 70%
-  );
-  transform: translate(-50%, -50%);
-  transition: opacity 0.3s ease;
-  z-index: 0;
+  display: none !important;
 }
 
-.dark .cursor-glow {
-  background: radial-gradient(
-    circle,
-    rgba(56, 189, 248, 0.1) 0%,
-    rgba(56, 189, 248, 0.03) 25%,
-    transparent 70%
-  );
-}
-
-/* Floating animation for gradient orbs */
+/* Animations */
 @keyframes float {
   0%,
   100% {
@@ -315,7 +308,6 @@ html {
   }
 }
 
-/* Gradient text animation */
 @keyframes gradient {
   0%,
   100% {
@@ -331,7 +323,6 @@ html {
   animation: gradient 3s ease infinite;
 }
 
-/* Floating animation */
 @keyframes float-gentle {
   0%,
   100% {
@@ -346,7 +337,6 @@ html {
   animation: float-gentle 6s ease-in-out infinite;
 }
 
-/* Fade in up animation */
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -362,7 +352,6 @@ html {
   animation: fade-in-up 0.6s ease-out forwards;
 }
 
-/* Fade in animation */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -389,7 +378,6 @@ html {
   }
 }
 
-/* Modal animations */
 @keyframes fade-out {
   from {
     opacity: 1;
