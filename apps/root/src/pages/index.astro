@@ -1,18 +1,37 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection, getEntry } from 'astro:content';
+import { getProjects, getUpdates, getSingleton, type RootProject, type RootUpdate } from '../lib/api';
+
+export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 // Homepage CMS data
-const homepageKey = locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en';
-const homepageData = await getEntry(homepageKey, 'index');
+const homepageSingleton = await getSingleton(locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en');
+const homepageData = homepageSingleton ? { data: homepageSingleton.content as Record<string, any> } : null;
 
-// Projects
-const allProjects = await getCollection('projects');
+// Projects from D1
+const allProjectsRaw = await getProjects();
+const allProjects = allProjectsRaw.map(p => ({
+  id: p.id,
+  data: {
+    title_zh: p.titleZh,
+    title_en: p.titleEn,
+    description_zh: p.descZh,
+    description_en: p.descEn,
+    tags: p.tags,
+    featured: p.featured,
+    order: p.sortOrder,
+    status: p.status,
+    image: p.image,
+    links: p.links,
+    startDate: p.startDate ? new Date(p.startDate) : null,
+    endDate: p.endDate ? new Date(p.endDate) : null,
+  },
+}));
 const featuredProjects = allProjects
   .filter((p) => p.data.featured)
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
@@ -22,11 +41,19 @@ const otherProjects = allProjects
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
   .slice(0, 4);
 
-// Updates
-const allUpdates = await getCollection('updates');
-const latestUpdates = allUpdates
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
-  .slice(0, 5);
+// Updates from D1
+const allUpdatesRaw = await getUpdates(5);
+const latestUpdates = allUpdatesRaw.map(u => ({
+  id: u.id,
+  data: {
+    title_zh: u.titleZh,
+    title_en: u.titleEn,
+    description_zh: u.descZh,
+    description_en: u.descEn,
+    date: new Date(u.date),
+    category: u.category,
+  },
+}));
 
 // Skills count for stats
 const skillDomains = 5;
