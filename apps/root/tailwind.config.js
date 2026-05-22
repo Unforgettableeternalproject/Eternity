@@ -9,7 +9,7 @@ export default {
   presets: [baseConfig],
   theme: {
     extend: {
-      // Prism theme overrides — only affects apps/root
+      // Quartz theme — only affects apps/root
       colors: {
         // Primary: Indigo (replaces sky-blue)
         primary: {
@@ -57,18 +57,23 @@ export default {
           'monospace',
         ],
       },
-      // Prism background tokens
+      // Quartz background tokens
       backgroundColor: {
-        'prism-paper': 'var(--prism-paper, #F8F7F3)',
-        'prism-surface': 'var(--prism-surface, #FFFFFF)',
+        'q-paper': 'var(--q-paper, #F8F7F3)',
+        'q-paper-soft': 'var(--q-paper-soft, #F1EFE9)',
+        'q-surface': 'var(--q-surface, #FFFFFF)',
       },
       textColor: {
-        'prism-ink': 'var(--prism-ink, #0F1530)',
-        'prism-ink-soft': 'var(--prism-ink-soft, #3B4360)',
-        'prism-ink-mute': 'var(--prism-ink-mute, #7B8398)',
+        'q-ink': 'var(--q-ink, #0F1530)',
+        'q-ink-soft': 'var(--q-ink-soft, #3B4360)',
+        'q-ink-mute': 'var(--q-ink-mute, #7B8398)',
+        'q-ink-fade': 'var(--q-ink-fade, #C7CCD7)',
+        'q-navy': 'var(--q-navy, #27396C)',
+        'q-coral': 'var(--q-coral, #D6442E)',
       },
       borderColor: {
-        'prism-line': 'var(--prism-line, rgba(15,21,48,0.10))',
+        'q-line': 'var(--q-line, rgba(15,21,48,0.10))',
+        'q-line-hard': 'var(--q-line-hard, rgba(15,21,48,0.22))',
       },
     },
   },

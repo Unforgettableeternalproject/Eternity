@@ -58,13 +58,13 @@
 .scroll-to-top__icon {
   width: 1.5rem;
   height: 1.5rem;
-  color: rgb(59, 130, 246);
+  color: var(--q-navy, #27396c);
   position: absolute;
   z-index: 2;
 }
 
 :global(.dark) .scroll-to-top__icon {
-  color: rgb(96, 165, 250);
+  color: var(--q-navy, #7e96e8);
 }
 
 /* 進度環 */
@@ -85,7 +85,7 @@
 
 .scroll-progress-ring__progress {
   fill: none;
-  stroke: rgb(59, 130, 246);
+  stroke: var(--q-navy, #27396c);
   stroke-width: 3;
   stroke-linecap: round;
   stroke-dasharray: 163.36; /* 2 * π * r = 2 * π * 26 */
@@ -97,7 +97,7 @@
 }
 
 :global(.dark) .scroll-progress-ring__progress {
-  stroke: rgb(96, 165, 250);
+  stroke: var(--q-navy, #7e96e8);
 }
 
 /* 淡入向上動畫 */

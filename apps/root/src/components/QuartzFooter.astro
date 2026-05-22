@@ -1,0 +1,186 @@
+---
+/**
+ * Quartz Footer — minimal four-column text footer
+ */
+import { getCurrentLocale, getTranslations } from '../i18n/utils';
+
+interface Props {
+  currentLocale?: 'zh-tw' | 'en';
+}
+
+const locale = Astro.props.currentLocale || getCurrentLocale(Astro.url);
+const t = getTranslations(locale);
+const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
+
+const navItems = [
+  { label: t.nav.home, href: `${basePath}/` },
+  { label: t.nav.projects, href: `${basePath}/projects` },
+  { label: t.nav.about, href: `${basePath}/about` },
+  { label: t.nav.updates, href: `${basePath}/updates` },
+  { label: t.nav.links, href: `${basePath}/links` },
+  {
+    label: locale === 'zh-tw' ? '聯絡' : 'Contact',
+    href: `${basePath}/contact`,
+  },
+];
+
+const worldItems = [
+  {
+    label: 'Imaginary Space ↗',
+    href: 'https://uep.unforgettableeternalproject.com',
+    external: true,
+  },
+  {
+    label: locale === 'zh-tw' ? '歷史典藏庫' : 'History Archive',
+    href: 'https://uep.unforgettableeternalproject.com/history',
+    external: true,
+  },
+  {
+    label: locale === 'zh-tw' ? '回音蒐藏間' : 'Echo Collection',
+    href: 'https://uep.unforgettableeternalproject.com/echoes',
+    external: true,
+  },
+  {
+    label: locale === 'zh-tw' ? '概念調整房' : 'Concept Lab',
+    href: 'https://uep.unforgettableeternalproject.com/concepts',
+    external: true,
+  },
+];
+
+const connectItems = [
+  {
+    label: 'GitHub',
+    href: 'https://github.com/Unforgettableeternalproject',
+    external: true,
+  },
+  { label: 'Email', href: 'mailto:ptyc4076@gmail.com', external: true },
+  {
+    label: 'YouTube',
+    href: 'https://youtube.com/@unforgettable_eternalproject',
+    external: true,
+  },
+  {
+    label: 'SoundCloud',
+    href: 'https://soundcloud.com/unforgettable-eternalproject',
+    external: true,
+  },
+];
+---
+
+<footer
+  style="border-top: 1px solid var(--q-line); background: var(--q-paper);"
+>
+  <div
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 max-w-screen-2xl mx-auto"
+    style="padding-top: 80px; padding-bottom: 36px;"
+  >
+    <!-- Four-column grid -->
+    <div
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-14 pb-9"
+      style="border-bottom: 1px solid var(--q-line);"
+    >
+      <!-- Column 1: Identity -->
+      <div>
+        <div class="flex items-baseline gap-2.5">
+          <span
+            class="text-2xl font-bold tracking-tight"
+            style="color: var(--q-ink); line-height: 1.1;"
+          >
+            顏榕嶙
+          </span>
+          <span class="text-base font-medium" style="color: var(--q-ink-mute);"
+            >· Bernie Yen</span
+          >
+        </div>
+        <p
+          class="mt-4 text-sm leading-relaxed"
+          style="color: var(--q-ink-soft); max-width: 340px;"
+        >
+          {
+            locale === 'zh-tw'
+              ? '一個還在寫的故事 — 用程式、音樂、文字、像素，慢慢把它寫成現實。'
+              : 'A story still being written — built with code, music, words, and pixels.'
+          }
+        </p>
+        <div class="mt-5 flex items-center gap-2">
+          <span class="q-live-dot"></span>
+          <span class="q-mono" style="color: var(--q-coral);">
+            {locale === 'zh-tw' ? 'polishing v0.9.6' : 'polishing v0.9.6'}
+          </span>
+        </div>
+      </div>
+
+      <!-- Column 2: Navigate -->
+      <div>
+        <span class="q-mono">Navigate</span>
+        <ul class="list-none p-0 mt-4 flex flex-col gap-2">
+          {
+            navItems.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
+                  style="color: var(--q-ink);"
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <!-- Column 3: Worlds -->
+      <div>
+        <span class="q-mono">Worlds</span>
+        <ul class="list-none p-0 mt-4 flex flex-col gap-2">
+          {
+            worldItems.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
+                  style="color: var(--q-ink);"
+                  target={item.external ? '_blank' : undefined}
+                  rel={item.external ? 'noopener noreferrer' : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <!-- Column 4: Connect -->
+      <div>
+        <span class="q-mono">Connect</span>
+        <ul class="list-none p-0 mt-4 flex flex-col gap-2">
+          {
+            connectItems.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
+                  style="color: var(--q-ink);"
+                  target={item.external ? '_blank' : undefined}
+                  rel={item.external ? 'noopener noreferrer' : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+
+    <!-- Bottom bar -->
+    <div
+      class="mt-5 flex flex-col sm:flex-row justify-between items-center gap-2"
+    >
+      <span class="q-mono">© 2026 · BERNIE · 顏榕嶙 · v0.9.6</span>
+      <span class="q-mono">quietly built with astro · cloudflare · ☕</span>
+    </div>
+  </div>
+</footer>

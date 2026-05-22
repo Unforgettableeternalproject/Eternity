@@ -31,7 +31,9 @@
                 "type": "string"
               }
             },
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "additionalProperties": false
           }
         },
@@ -53,7 +55,11 @@
                 "type": "string"
               }
             },
-            "required": ["title", "company", "period"],
+            "required": [
+              "title",
+              "company",
+              "period"
+            ],
             "additionalProperties": false
           }
         },
@@ -75,7 +81,10 @@
                 "type": "string"
               }
             },
-            "required": ["name", "issuer"],
+            "required": [
+              "name",
+              "issuer"
+            ],
             "additionalProperties": false
           }
         },
@@ -98,7 +107,13 @@
           "type": "string"
         }
       },
-      "required": ["title", "bio", "skills", "experience", "certifications"],
+      "required": [
+        "title",
+        "bio",
+        "skills",
+        "experience",
+        "certifications"
+      ],
       "additionalProperties": false
     }
   },

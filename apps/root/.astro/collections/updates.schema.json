@@ -34,7 +34,12 @@
         },
         "category": {
           "type": "string",
-          "enum": ["website", "project", "announcement", "other"],
+          "enum": [
+            "website",
+            "project",
+            "announcement",
+            "other"
+          ],
           "default": "other"
         },
         "featured": {
@@ -45,7 +50,12 @@
           "type": "string"
         }
       },
-      "required": ["description_zh", "title_en", "description_en", "date"],
+      "required": [
+        "description_zh",
+        "title_en",
+        "description_en",
+        "date"
+      ],
       "additionalProperties": false
     }
   },
