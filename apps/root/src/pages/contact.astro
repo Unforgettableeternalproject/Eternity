@@ -1,52 +1,31 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getSingleton } from '../lib/api';
+
+export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-const subjects =
-  locale === 'zh-tw'
-    ? [
-        'collab · 合作邀約',
-        'music · 音樂',
-        'writing · 文字',
-        'world · 世界觀',
-        'other · 其他',
-      ]
-    : [
-        'collab · collaboration',
-        'music · music',
-        'writing · writing',
-        'world · worldbuilding',
-        'other · other',
-      ];
+/* ── Fetch from D1 ── */
+const singletonKey = locale === 'zh-tw' ? 'contact-zh' : 'contact-en';
+const raw = await getSingleton(singletonKey);
+const data = (raw?.content ?? {}) as {
+  heroTitle?: string;
+  heroIntro?: string;
+  subjects?: string[];
+  directLinks?: { key: string; value: string; url: string }[];
+  expectation?: string;
+  faqs?: { q: string; a: string }[];
+  devCta?: { heading?: string; text?: string };
+};
 
-const faqs =
-  locale === 'zh-tw'
-    ? [
-        [
-          '會接什麼樣的案？',
-          '個人專案、獨立工作室、小團隊。我比較不接純行銷網頁。',
-        ],
-        ['多久會回信？', '通常 24-48 小時內，週末可能慢一點。'],
-        ['可以用中文嗎？', '中文、英文都可以，我會配合你習慣的語言。'],
-      ]
-    : [
-        [
-          'What kind of work do you take?',
-          'Personal projects, indie studios, small teams. I tend not to take pure marketing pages.',
-        ],
-        [
-          'How long until you reply?',
-          'Usually within 24-48 hours. Weekends might be slower.',
-        ],
-        [
-          'Can I write in Chinese?',
-          "Both Chinese and English work. I'll match whichever language you're comfortable with.",
-        ],
-      ];
+const subjects = data.subjects ?? [];
+const directLinks = data.directLinks ?? [];
+const faqs = data.faqs ?? [];
+const devCta = data.devCta ?? {};
 ---
 
 <BaseLayout
@@ -92,7 +71,8 @@ const faqs =
         {
           locale === 'zh-tw' ? (
             <>
-              合作邀約、聲音作品、文字、世界觀討論、或單純打聲招呼 — 都歡迎。
+              {data.heroIntro ||
+                '合作邀約、聲音作品、文字、世界觀討論、或單純打聲招呼 — 都歡迎。'}
               我會盡量在{' '}
               <strong style="color: var(--q-ink); font-weight: 600;">
                 48 小時
@@ -101,8 +81,9 @@ const faqs =
             </>
           ) : (
             <>
-              Collaborations, music, writing, worldbuilding discussions, or just
-              saying hi — all welcome. I'll try to reply within{' '}
+              {data.heroIntro ||
+                'Collaborations, music, writing, worldbuilding discussions, or just saying hi — all welcome.'}{' '}
+              I'll try to reply within{' '}
               <strong style="color: var(--q-ink); font-weight: 600;">
                 48 hours
               </strong>
@@ -114,7 +95,7 @@ const faqs =
       <div class="flex items-center gap-2">
         <span class="q-live-dot" style="width: 8px; height: 8px;"></span>
         <span class="q-mono" style="color: var(--q-coral);">
-          {locale === 'zh-tw' ? 'currently available' : 'currently available'}
+          currently available
         </span>
       </div>
     </div>
@@ -230,57 +211,51 @@ const faqs =
       <!-- SIDEBAR -->
       <div class="flex flex-col gap-8">
         <!-- Direct -->
-        <div>
-          <span class="q-section-label">—— 02 / direct</span>
-          <h3
-            class="mt-2.5 text-xl md:text-2xl font-bold tracking-tight"
-            style="color: var(--q-ink);"
-          >
-            {locale === 'zh-tw' ? '或者直接寄' : 'Or reach out directly'}
-          </h3>
-          <div class="mt-3.5">
-            {
-              [
-                ['EMAIL', 'ptyc4076@gmail.com', 'mailto:ptyc4076@gmail.com'],
-                [
-                  'GITHUB',
-                  '@Unforgettableeternalproject',
-                  'https://github.com/Unforgettableeternalproject',
-                ],
-                [
-                  'DOCS',
-                  'uep.unforgettableeternalproject.com',
-                  'https://uep.unforgettableeternalproject.com',
-                ],
-              ].map(([k, v, url], i, arr) => (
-                <a
-                  href={url}
-                  target={k === 'EMAIL' ? '_self' : '_blank'}
-                  rel={k === 'EMAIL' ? undefined : 'noopener noreferrer'}
-                  class="grid items-baseline py-4 no-underline transition-opacity hover:opacity-70"
-                  style={`
-                  grid-template-columns: auto 1fr auto;
-                  gap: 16px;
-                  border-top: 1px solid var(--q-line);
-                  ${i === arr.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
-                  color: inherit;
-                `}
-                >
-                  <span class="q-mono" style="color: var(--q-navy);">
-                    {k}
-                  </span>
-                  <span
-                    class="text-sm font-mono truncate"
-                    style="color: var(--q-ink); font-family: 'JetBrains Mono', monospace;"
+        {
+          directLinks.length > 0 && (
+            <div>
+              <span class="q-section-label">—— 02 / direct</span>
+              <h3
+                class="mt-2.5 text-xl md:text-2xl font-bold tracking-tight"
+                style="color: var(--q-ink);"
+              >
+                {locale === 'zh-tw' ? '或者直接寄' : 'Or reach out directly'}
+              </h3>
+              <div class="mt-3.5">
+                {directLinks.map((link, i, arr) => (
+                  <a
+                    href={link.url}
+                    target={link.key === 'EMAIL' ? '_self' : '_blank'}
+                    rel={
+                      link.key === 'EMAIL' ? undefined : 'noopener noreferrer'
+                    }
+                    class="grid items-baseline py-4 no-underline transition-opacity hover:opacity-70"
+                    style={`
+                    grid-template-columns: auto 1fr auto;
+                    gap: 16px;
+                    border-top: 1px solid var(--q-line);
+                    ${i === arr.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
+                    color: inherit;
+                  `}
                   >
-                    {v}
-                  </span>
-                  <span style="color: var(--q-navy); font-size: 16px;">↗</span>
-                </a>
-              ))
-            }
-          </div>
-        </div>
+                    <span class="q-mono" style="color: var(--q-navy);">
+                      {link.key}
+                    </span>
+                    <span
+                      class="text-sm font-mono truncate"
+                      style="color: var(--q-ink); font-family: 'JetBrains Mono', monospace;"
+                    >
+                      {link.value}
+                    </span>
+                    <span style="color: var(--q-navy); font-size: 16px;">
+                      ↗
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        }
 
         <!-- Expectation -->
         <div>
@@ -295,53 +270,51 @@ const faqs =
             class="mt-3 text-sm leading-[1.75]"
             style="color: var(--q-ink-soft);"
           >
-            {
-              locale === 'zh-tw'
-                ? '目前接受小規模的接案與合作。我以業餘時間運作，所以時程可能不會像專職工作室那麼緊。請見諒。'
-                : 'Currently accepting small-scale freelance and collaborations. I operate in my spare time, so timelines may not be as tight as a full-time studio.'
-            }
+            {data.expectation || ''}
           </p>
         </div>
 
         <!-- FAQ -->
-        <div>
-          <span class="q-section-label">—— 04 / faq</span>
-          <h3
-            class="mt-2.5 text-xl md:text-2xl font-bold tracking-tight"
-            style="color: var(--q-ink);"
-          >
-            {locale === 'zh-tw' ? '常見問題' : 'FAQ'}
-          </h3>
-          <div class="mt-3.5">
-            {
-              faqs.map(([q, a], i, arr) => (
-                <details
-                  class="py-3"
-                  style={`
-                  border-top: ${i === 0 ? '1px solid var(--q-line)' : '1px dashed var(--q-line)'};
-                  ${i === arr.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
-                `}
-                >
-                  <summary
-                    class="cursor-pointer flex justify-between items-center text-sm font-semibold tracking-tight list-none"
-                    style="color: var(--q-ink);"
+        {
+          faqs.length > 0 && (
+            <div>
+              <span class="q-section-label">—— 04 / faq</span>
+              <h3
+                class="mt-2.5 text-xl md:text-2xl font-bold tracking-tight"
+                style="color: var(--q-ink);"
+              >
+                {locale === 'zh-tw' ? '常見問題' : 'FAQ'}
+              </h3>
+              <div class="mt-3.5">
+                {faqs.map((faq, i, arr) => (
+                  <details
+                    class="py-3"
+                    style={`
+                    border-top: ${i === 0 ? '1px solid var(--q-line)' : '1px dashed var(--q-line)'};
+                    ${i === arr.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
+                  `}
                   >
-                    {q}
-                    <span class="q-mono" style="color: var(--q-ink-mute);">
-                      ＋
-                    </span>
-                  </summary>
-                  <p
-                    class="mt-2 text-[13.5px] leading-[1.65]"
-                    style="color: var(--q-ink-soft);"
-                  >
-                    {a}
-                  </p>
-                </details>
-              ))
-            }
-          </div>
-        </div>
+                    <summary
+                      class="cursor-pointer flex justify-between items-center text-sm font-semibold tracking-tight list-none"
+                      style="color: var(--q-ink);"
+                    >
+                      {faq.q}
+                      <span class="q-mono" style="color: var(--q-ink-mute);">
+                        ＋
+                      </span>
+                    </summary>
+                    <p
+                      class="mt-2 text-[13.5px] leading-[1.65]"
+                      style="color: var(--q-ink-soft);"
+                    >
+                      {faq.a}
+                    </p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )
+        }
       </div>
     </div>
   </section>
@@ -367,17 +340,14 @@ const faqs =
           style="color: var(--q-ink);"
         >
           {
-            locale === 'zh-tw'
-              ? '遇到 bug 或想提建議？'
-              : 'Found a bug or have a suggestion?'
+            devCta.heading ||
+              (locale === 'zh-tw'
+                ? '遇到 bug 或想提建議？'
+                : 'Found a bug or have a suggestion?')
           }
         </h3>
         <p class="mt-1 text-sm leading-[1.6]" style="color: var(--q-ink-soft);">
-          {
-            locale === 'zh-tw'
-              ? '直接到 GitHub 開 issue 會比信件更快被處理。'
-              : 'Opening an issue on GitHub will be processed faster than email.'
-          }
+          {devCta.text || ''}
         </p>
       </div>
       <a
