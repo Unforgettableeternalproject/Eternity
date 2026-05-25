@@ -27,6 +27,10 @@ export default defineConfig({
       strategy: 'pathname',
     },
   },
-  vite: {},
+  vite: {
+    resolve: {
+      dedupe: ['react', 'react-dom'],
+    },
+  },
   integrations,
 });

@@ -21,21 +21,12 @@
         },
         "category": {
           "type": "string",
-          "enum": [
-            "social",
-            "work",
-            "creative",
-            "other"
-          ],
+          "enum": ["social", "work", "creative", "other"],
           "default": "other"
         },
         "status": {
           "type": "string",
-          "enum": [
-            "normal",
-            "deprecated",
-            "unmaintained"
-          ],
+          "enum": ["normal", "deprecated", "unmaintained"],
           "default": "normal"
         },
         "icon": {
@@ -52,12 +43,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "description_zh",
-        "title_en",
-        "description_en",
-        "url"
-      ],
+      "required": ["description_zh", "title_en", "description_en", "url"],
       "additionalProperties": false
     }
   },

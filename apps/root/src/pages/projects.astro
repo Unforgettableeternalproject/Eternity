@@ -1,13 +1,14 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getProjects } from '../lib/api';
+import { getProjects, assetUrl } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
+const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 const allProjectsRaw = await getProjects();
 const projects = allProjectsRaw
@@ -132,10 +133,19 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
             data-tags={JSON.stringify(p.data.tags)}
           >
             <!-- Plate -->
-            <div class="q-plate" style="aspect-ratio: 4/3;">
-              <div style="position: relative; z-index: 1;">
-                <span class="q-mono">{title}</span>
-              </div>
+            <div class="q-plate" style="aspect-ratio: 4/3; overflow: hidden;">
+              {p.data.image ? (
+                <img
+                  src={assetUrl(p.data.image)}
+                  alt={title}
+                  style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                  loading="lazy"
+                />
+              ) : (
+                <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
+                  <span class="q-mono">{title}</span>
+                </div>
+              )}
             </div>
 
             <!-- Meta -->

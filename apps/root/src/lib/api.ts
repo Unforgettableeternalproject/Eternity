@@ -91,10 +91,7 @@ interface ApiResponse<T> {
 }
 
 function getApiBase(): string {
-  return (
-    import.meta.env.PUBLIC_CONTENT_API_URL ||
-    'https://eternity-content-api.ptyc4076.workers.dev'
-  );
+  return import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 }
 
 async function apiFetch<T>(path: string): Promise<T | null> {
@@ -174,4 +171,36 @@ export function t(
   const zhKey = `${field}Zh`;
   const enKey = `${field}En`;
   return ((locale === 'zh-tw' ? item[zhKey] : item[enKey]) as string) || '';
+}
+
+// ───── Asset URL helper ─────
+
+/**
+ * 將 R2 key 轉為完整的 asset URL。
+ * 支援所有格式：
+ *   - 裸 key：`images/projects/xxx/img.png`
+ *   - 舊本地路徑：`/images/projects/xxx/img.png`
+ *   - 帶 API 前綴：`/api/root/assets/images/...`
+ *   - 已 encode 的前綴：`/api/root/assets/images%2F...`
+ *   - 完整 URL：`http://...`
+ */
+export function assetUrl(keyOrPath: string | null | undefined): string {
+  if (!keyOrPath) return '';
+  // 已經是完整 URL
+  if (keyOrPath.startsWith('http')) return keyOrPath;
+
+  const base = getApiBase();
+  let key = keyOrPath;
+
+  // strip /api/root/assets/ 前綴
+  if (key.startsWith('/api/root/assets/')) key = key.slice('/api/root/assets/'.length);
+  // strip 舊的 /images/ 開頭（本地 public 路徑）
+  else if (key.startsWith('/images/')) key = key.slice(1); // → images/...
+  else if (key.startsWith('/')) key = key.slice(1);
+
+  // 先 decode（避免雙重 encode），再 encode 每段
+  try { key = decodeURIComponent(key); } catch { /* already decoded */ }
+
+  const encoded = key.split('/').map(encodeURIComponent).join('/');
+  return `${base}/api/root/assets/${encoded}`;
 }

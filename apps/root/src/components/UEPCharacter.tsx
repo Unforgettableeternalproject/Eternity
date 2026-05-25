@@ -332,21 +332,21 @@ export default function UEPCharacter({
     >
       {appearanceMode === 'corner' && (
         <img
-          src={isHovered ? '/uep/Poke.PNG' : '/uep/Fence.PNG'}
+          src={isHovered ? '/uep/Poke.webp' : '/uep/Fence.webp'}
           alt="U.E.P"
           className="uep-character__image"
         />
       )}
       {appearanceMode === 'peek' && (
         <img
-          src="/uep/Peek.png"
+          src="/uep/Peek.webp"
           alt="U.E.P"
           className="uep-character__image uep-character__image--peek"
         />
       )}
       {appearanceMode === 'float' && (
         <img
-          src="/uep/Lil.PNG"
+          src="/uep/Lil.webp"
           alt="U.E.P"
           className="uep-character__image uep-character__image--float"
         />

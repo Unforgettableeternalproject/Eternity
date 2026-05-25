@@ -1,0 +1,47 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import RootEditor from '../../components/editor/RootEditor';
+import {
+  getProjects,
+  getUpdates,
+  getLinks,
+  getSingleton,
+  getCards,
+} from '../../lib/api';
+
+// 取得 JWT token 供 React 元件做寫入 API 呼叫
+const JWT_COOKIE = 'root-admin-jwt';
+const jwtCookie = Astro.cookies.get(JWT_COOKIE);
+const token = jwtCookie?.value || '';
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+// 並行取得所有資料
+const [projects, updates, links, homepageZh, aboutZh, contactZh, cards] =
+  await Promise.all([
+    getProjects(),
+    getUpdates(),
+    getLinks(),
+    getSingleton('homepage-zh'),
+    getSingleton('about-zh'),
+    getSingleton('contact-zh'),
+    getCards(),
+  ]);
+---
+
+<AdminLayout title="Admin · Editor">
+  <RootEditor
+    client:only="react"
+    projects={projects || []}
+    updates={updates || []}
+    links={links || []}
+    homepage={homepageZh?.content || null}
+    about={aboutZh?.content || null}
+    contact={contactZh?.content || null}
+    cards={cards || []}
+    apiBase={apiBase}
+    token={token}
+  />
+</AdminLayout>

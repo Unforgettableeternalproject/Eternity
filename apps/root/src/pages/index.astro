@@ -1,13 +1,14 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getProjects, getUpdates, getSingleton, type RootProject, type RootUpdate } from '../lib/api';
+import { getProjects, getUpdates, getSingleton, assetUrl, type RootProject, type RootUpdate } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
+const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 // Homepage CMS data
 const homepageSingleton = await getSingleton(locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en');
@@ -244,14 +245,23 @@ const skillDomains = 5;
           class="block no-underline group reveal-item"
         >
           <!-- Plate -->
-          <div class="q-plate" style="aspect-ratio: 16/9;">
-            <div style="position: relative; z-index: 1;">
-              <span class="q-mono">
-                {locale === 'zh-tw'
-                  ? (project.data.title_zh || project.id)
-                  : project.data.title_en}
-              </span>
-            </div>
+          <div class="q-plate" style="aspect-ratio: 16/9; overflow: hidden;">
+            {project.data.image ? (
+              <img
+                src={assetUrl(project.data.image)}
+                alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
+                style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                loading="lazy"
+              />
+            ) : (
+              <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
+                <span class="q-mono">
+                  {locale === 'zh-tw'
+                    ? (project.data.title_zh || project.id)
+                    : project.data.title_en}
+                </span>
+              </div>
+            )}
           </div>
 
           <!-- Meta -->

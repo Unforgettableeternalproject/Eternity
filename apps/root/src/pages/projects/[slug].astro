@@ -182,30 +182,7 @@ const contentText =
     </div>
   </section>
 
-  <!-- ─────────── COVER ─────────── -->
-  <section
-    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pb-10 lg:pb-[50px] max-w-screen-xl mx-auto"
-  >
-    {
-      project.data.image ? (
-        <div style="border: 1px solid var(--q-line); overflow: hidden;">
-          <img
-            src={project.data.image}
-            alt={title}
-            class="w-full"
-            style="aspect-ratio: 21/9; object-fit: cover;"
-            loading="lazy"
-          />
-        </div>
-      ) : (
-        <div class="q-plate" style="aspect-ratio: 21/9;">
-          <div style="position: relative; z-index: 1;">
-            <span class="q-mono">{title} · cover</span>
-          </div>
-        </div>
-      )
-    }
-  </section>
+  <!-- cover 只顯示在列表頁（projects.astro），詳細頁不顯示 -->
 
   <!-- ─────────── META BAR ─────────── -->
   <section

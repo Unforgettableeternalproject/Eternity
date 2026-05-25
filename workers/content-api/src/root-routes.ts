@@ -248,6 +248,68 @@ export async function handleRootRoutes(
     }
   }
 
+  // ── /api/root/assets (獨立 R2 bucket) ──
+
+  // GET /api/root/assets — 列出資產
+  if (path === '/api/root/assets' && method === 'GET') {
+    return listRootAssets(url, env.ROOT_ASSETS_BUCKET, cors);
+  }
+
+  // POST /api/root/assets — 上傳檔案
+  if (path === '/api/root/assets' && method === 'POST') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    return uploadRootAsset(request, env.ROOT_ASSETS_BUCKET, cors);
+  }
+
+  // DELETE /api/root/assets/batch — 批次刪除
+  if (path === '/api/root/assets/batch' && method === 'DELETE') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const body = (await request.json()) as { keys: string[] };
+    if (!Array.isArray(body.keys))
+      return json({ ok: false, error: 'keys required' }, 400, cors);
+    await Promise.all(body.keys.map((k) => env.ROOT_ASSETS_BUCKET.delete(k)));
+    return json({ ok: true, data: { deleted: body.keys.length } }, 200, cors);
+  }
+
+  // DELETE /api/root/assets/:key — 單筆刪除
+  const rootAssetDeleteMatch = path.match(/^\/api\/root\/assets\/(.+)$/);
+  if (rootAssetDeleteMatch && method === 'DELETE') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+    await env.ROOT_ASSETS_BUCKET.delete(key);
+    return json({ ok: true }, 200, cors);
+  }
+
+  // GET /api/root/assets/:key — 讀取檔案（公開，供前端 <img> 使用）
+  if (rootAssetDeleteMatch && method === 'GET') {
+    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+    const obj = await env.ROOT_ASSETS_BUCKET.get(key);
+    if (!obj) return json({ ok: false, error: 'Not found' }, 404, cors);
+    const headers = new Headers(cors);
+    headers.set(
+      'Content-Type',
+      obj.httpMetadata?.contentType || 'application/octet-stream'
+    );
+    headers.set('Content-Length', String(obj.size));
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    return new Response(obj.body, { headers });
+  }
+  if (rootAssetDeleteMatch && method === 'HEAD') {
+    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+    const obj = await env.ROOT_ASSETS_BUCKET.head(key);
+    if (!obj) return json({ ok: false, error: 'Not found' }, 404, cors);
+    const headers = new Headers(cors);
+    headers.set(
+      'Content-Type',
+      obj.httpMetadata?.contentType || 'application/octet-stream'
+    );
+    headers.set('Content-Length', String(obj.size));
+    return new Response(null, { headers });
+  }
+
   // 不匹配任何主站路由
   return null;
 }
@@ -920,6 +982,96 @@ async function upsertCard(
       data: { sectionId: key, content: body.content, updatedAt: now },
     },
     200,
+    cors
+  );
+}
+
+// ===== Root Assets 處理器（獨立 R2 bucket） =====
+
+interface RootAssetItem {
+  key: string;
+  size: number;
+  uploaded: string;
+  contentType: string;
+  originalName?: string;
+}
+
+async function listRootAssets(
+  url: URL,
+  bucket: R2Bucket,
+  cors: Record<string, string>
+): Promise<Response> {
+  const prefix = url.searchParams.get('prefix') || undefined;
+  const limit = Math.min(
+    parseInt(url.searchParams.get('limit') || '200', 10) || 200,
+    500
+  );
+  const cursor = url.searchParams.get('cursor') || undefined;
+
+  const listed = await bucket.list({ prefix, limit, cursor });
+
+  const items: RootAssetItem[] = listed.objects.map((obj) => ({
+    key: obj.key,
+    size: obj.size,
+    uploaded: obj.uploaded.toISOString(),
+    contentType: obj.httpMetadata?.contentType || 'application/octet-stream',
+    originalName: obj.customMetadata?.originalName,
+  }));
+
+  return json(
+    {
+      ok: true,
+      data: {
+        items,
+        cursor: listed.truncated ? listed.cursor : undefined,
+        hasMore: listed.truncated,
+      },
+    },
+    200,
+    cors
+  );
+}
+
+async function uploadRootAsset(
+  request: Request,
+  bucket: R2Bucket,
+  cors: Record<string, string>
+): Promise<Response> {
+  const formData = await request.formData();
+  const file = formData.get('file') as File | null;
+  if (!file) return json({ ok: false, error: 'No file provided' }, 400, cors);
+
+  const contentType = file.type || 'application/octet-stream';
+  const explicitKey = formData.get('key') as string | null;
+  let key: string;
+  if (explicitKey) {
+    key = explicitKey;
+  } else {
+    const prefix = contentType.startsWith('image/') ? 'images' : 'files';
+    const ext = file.name.includes('.') ? `.${file.name.split('.').pop()}` : '';
+    const base = file.name.replace(/\.[^.]+$/, '');
+    const suffix =
+      Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    key = `${prefix}/${base}-${suffix}${ext}`;
+  }
+
+  await bucket.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type },
+    customMetadata: { originalName: file.name },
+  });
+
+  return json(
+    {
+      ok: true,
+      data: {
+        key,
+        url: `/api/root/assets/${key}`,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      },
+    },
+    201,
     cors
   );
 }
