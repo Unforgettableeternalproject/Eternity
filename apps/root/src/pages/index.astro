@@ -127,7 +127,7 @@ const skillDomains = 5;
           class="px-4 py-2.5 flex justify-between items-center"
           style="background: var(--q-ink); color: var(--q-paper);"
         >
-          <span class="q-mono" style="color: rgba(248,247,243,0.7); font-size: 10px;">
+          <span class="q-mono" style="color: var(--q-paper); opacity: 0.7; font-size: 10px;">
             {locale === 'zh-tw' ? '登錄表 · Sheet A' : 'Fact Sheet · A'}
           </span>
           <span class="q-live-dot" style="width: 7px; height: 7px;"></span>
@@ -250,7 +250,6 @@ const skillDomains = 5;
               <img
                 src={assetUrl(project.data.image)}
                 alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
-                style="width: 100%; height: 100%; object-fit: cover; display: block;"
                 loading="lazy"
               />
             ) : (
@@ -409,7 +408,7 @@ const skillDomains = 5;
                 )}
               </span>
               <span class="text-sm font-medium leading-snug" style="color: var(--q-ink);">
-                {locale === 'zh-tw' ? update.id : update.data.title_en}
+                {locale === 'zh-tw' ? (update.data.title_zh || update.id) : (update.data.title_en || update.id)}
               </span>
             </a>
           ))}

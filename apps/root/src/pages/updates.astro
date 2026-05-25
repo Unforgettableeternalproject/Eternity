@@ -50,13 +50,13 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
 >
 
   <!-- ─────────── HERO ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-20 sm:pt-24 lg:pt-[120px] pb-14 lg:pb-20 max-w-screen-xl mx-auto">
+  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto">
     <span class="q-section-label">
       —— 04 / updates · {locale === 'zh-tw' ? '邊際的草稿' : 'journal'}
     </span>
 
     <h1
-      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[112px] font-bold leading-[0.96] tracking-tighter"
+      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
     >
       {locale === 'zh-tw' ? (
@@ -149,7 +149,7 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
           <div class="hidden md:block"></div>
           <div>
             {groups[ym].map((u, i, arr) => {
-              const title = locale === 'zh-tw' ? u.id : (u.data.title_en || u.id);
+              const title = locale === 'zh-tw' ? (u.data.title_zh || u.id) : (u.data.title_en || u.id);
               const desc = locale === 'zh-tw' ? u.data.description_zh : u.data.description_en;
               const catLabel = categoryLabels[u.data.category] || u.data.category;
 

@@ -257,27 +257,43 @@ async function syncCollection(name) {
       } else if (localDeleted && !remoteDeleted) {
         const winner = compareTimestamps(local.deletedAt, remote.updatedAt);
         if (winner === 'local' || winner === 'same') {
-          deleteOnRemote.push({ id, reason: `本地已刪除 (${fmtTime(local.deletedAt)})` });
+          deleteOnRemote.push({
+            id,
+            reason: `本地已刪除 (${fmtTime(local.deletedAt)})`,
+          });
         } else {
           toPull.push({ id, reason: `遠端在刪除後有更新` });
         }
       } else if (!localDeleted && remoteDeleted) {
         const winner = compareTimestamps(remote.deletedAt, local.updatedAt);
         if (winner === 'local' || winner === 'same') {
-          deleteOnLocal.push({ id, reason: `遠端已刪除 (${fmtTime(remote.deletedAt)})` });
+          deleteOnLocal.push({
+            id,
+            reason: `遠端已刪除 (${fmtTime(remote.deletedAt)})`,
+          });
         } else {
           toPush.push({ id, reason: `本地在刪除後有更新` });
         }
       } else {
         const cmp = compareTimestamps(local.updatedAt, remote.updatedAt);
-        if (cmp === 'local') toPush.push({ id, reason: `本地較新 (${fmtTime(local.updatedAt)})` });
-        else if (cmp === 'remote') toPull.push({ id, reason: `遠端較新 (${fmtTime(remote.updatedAt)})` });
+        if (cmp === 'local')
+          toPush.push({ id, reason: `本地較新 (${fmtTime(local.updatedAt)})` });
+        else if (cmp === 'remote')
+          toPull.push({
+            id,
+            reason: `遠端較新 (${fmtTime(remote.updatedAt)})`,
+          });
         else inSync.push(id);
       }
     }
   }
 
-  const hasChanges = toPush.length + toPull.length + deleteOnRemote.length + deleteOnLocal.length > 0;
+  const hasChanges =
+    toPush.length +
+      toPull.length +
+      deleteOnRemote.length +
+      deleteOnLocal.length >
+    0;
 
   console.log(
     `\n📦 ${name}  (本地: ${localItems.length} / 遠端: ${remoteItems.length})`
@@ -288,30 +304,53 @@ async function syncCollection(name) {
     return { push: 0, pull: 0 };
   }
 
-  if (toPush.length > 0) { console.log(`   ↑ 需推送: ${toPush.length}`); toPush.forEach(p => console.log(`     ${p.id} — ${p.reason}`)); }
-  if (toPull.length > 0) { console.log(`   ↓ 需拉取: ${toPull.length}`); toPull.forEach(p => console.log(`     ${p.id} — ${p.reason}`)); }
-  if (deleteOnRemote.length > 0) { console.log(`   🗑 傳播刪除到遠端: ${deleteOnRemote.length}`); deleteOnRemote.forEach(p => console.log(`     ${p.id} — ${p.reason}`)); }
-  if (deleteOnLocal.length > 0) { console.log(`   🗑 傳播刪除到本地: ${deleteOnLocal.length}`); deleteOnLocal.forEach(p => console.log(`     ${p.id} — ${p.reason}`)); }
+  if (toPush.length > 0) {
+    console.log(`   ↑ 需推送: ${toPush.length}`);
+    toPush.forEach((p) => console.log(`     ${p.id} — ${p.reason}`));
+  }
+  if (toPull.length > 0) {
+    console.log(`   ↓ 需拉取: ${toPull.length}`);
+    toPull.forEach((p) => console.log(`     ${p.id} — ${p.reason}`));
+  }
+  if (deleteOnRemote.length > 0) {
+    console.log(`   🗑 傳播刪除到遠端: ${deleteOnRemote.length}`);
+    deleteOnRemote.forEach((p) => console.log(`     ${p.id} — ${p.reason}`));
+  }
+  if (deleteOnLocal.length > 0) {
+    console.log(`   🗑 傳播刪除到本地: ${deleteOnLocal.length}`);
+    deleteOnLocal.forEach((p) => console.log(`     ${p.id} — ${p.reason}`));
+  }
 
   if (DRY_RUN) return { push: toPush.length, pull: toPull.length };
 
-  let doPush = toPush.map(p => p.id);
-  let doPull = toPull.map(p => p.id);
-  let doDelRemote = deleteOnRemote.map(p => p.id);
-  let doDelLocal = deleteOnLocal.map(p => p.id);
+  let doPush = toPush.map((p) => p.id);
+  let doPull = toPull.map((p) => p.id);
+  let doDelRemote = deleteOnRemote.map((p) => p.id);
+  let doDelLocal = deleteOnLocal.map((p) => p.id);
 
-  if (DIRECTION === 'pull') { doPush = []; doDelRemote = []; }
-  else if (DIRECTION === 'push') { doPull = []; doDelLocal = []; }
-  else {
+  if (DIRECTION === 'pull') {
+    doPush = [];
+    doDelRemote = [];
+  } else if (DIRECTION === 'push') {
+    doPull = [];
+    doDelLocal = [];
+  } else {
     const answer = await ask(
       `   同步 ${name}？ [y] 全部 / [push] / [pull] / [n] 跳過: `
     );
     if (answer === 'n') return { push: 0, pull: 0 };
-    if (answer === 'push') { doPull = []; doDelLocal = []; }
-    if (answer === 'pull') { doPush = []; doDelRemote = []; }
+    if (answer === 'push') {
+      doPull = [];
+      doDelLocal = [];
+    }
+    if (answer === 'pull') {
+      doPush = [];
+      doDelRemote = [];
+    }
   }
 
-  let pushOk = 0, pullOk = 0;
+  let pushOk = 0,
+    pullOk = 0;
 
   for (const id of doPush) {
     const full = await getItem(LOCAL_API, name, id);
@@ -431,7 +470,9 @@ async function syncSingletons() {
 
 async function listR2Keys(apiBase, prefix) {
   try {
-    const params = prefix ? `?prefix=${encodeURIComponent(prefix)}&limit=500` : '?limit=500';
+    const params = prefix
+      ? `?prefix=${encodeURIComponent(prefix)}&limit=500`
+      : '?limit=500';
     const res = await fetch(`${apiBase}/api/root/assets${params}`, {
       headers: authHeaders(apiBase),
     });
@@ -447,12 +488,16 @@ async function listR2Keys(apiBase, prefix) {
 /** 從來源 R2 下載檔案並上傳到目標 R2（保留原始 key） */
 async function transferRootAsset(fromBase, toBase, key) {
   try {
-    const encoded = key.split('/').map(s => encodeURIComponent(s)).join('/');
+    const encoded = key
+      .split('/')
+      .map((s) => encodeURIComponent(s))
+      .join('/');
     const res = await fetch(`${fromBase}/api/root/assets/${encoded}`, {
       headers: authHeaders(fromBase),
     });
     if (!res.ok) return false;
-    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    const contentType =
+      res.headers.get('content-type') || 'application/octet-stream';
     const blob = await res.blob();
     const fileName = key.split('/').pop() || key;
     const form = new FormData();
@@ -473,7 +518,10 @@ async function transferRootAsset(fromBase, toBase, key) {
 /** 刪除目標端的 R2 資產 */
 async function deleteRootAsset(apiBase, key) {
   try {
-    const encoded = key.split('/').map(s => encodeURIComponent(s)).join('/');
+    const encoded = key
+      .split('/')
+      .map((s) => encodeURIComponent(s))
+      .join('/');
     const res = await fetch(`${apiBase}/api/root/assets/${encoded}`, {
       method: 'DELETE',
       headers: authHeaders(apiBase),
@@ -494,9 +542,9 @@ async function syncAssets() {
   const localSet = new Set(localKeys);
   const remoteSet = new Set(remoteKeys);
 
-  const toPush = localKeys.filter(k => !remoteSet.has(k));
-  const toPull = remoteKeys.filter(k => !localSet.has(k));
-  const inSync = localKeys.filter(k => remoteSet.has(k));
+  const toPush = localKeys.filter((k) => !remoteSet.has(k));
+  const toPull = remoteKeys.filter((k) => !localSet.has(k));
+  const inSync = localKeys.filter((k) => remoteSet.has(k));
 
   const hasChanges = toPush.length > 0 || toPull.length > 0;
 
@@ -538,7 +586,10 @@ async function syncAssets() {
   if (doPush.length > 0) {
     console.log(`   推送 ${doPush.length} 個檔案到遠端...`);
     for (const key of doPush) {
-      if (DRY_RUN) { console.log(`  → [dry-run] ${key}`); continue; }
+      if (DRY_RUN) {
+        console.log(`  → [dry-run] ${key}`);
+        continue;
+      }
       const ok = await transferRootAsset(LOCAL_API, REMOTE_API, key);
       console.log(ok ? `  ↑ ${key}` : `  ✗ 推送失敗 ${key}`);
     }
@@ -548,7 +599,10 @@ async function syncAssets() {
   if (doPull.length > 0) {
     console.log(`   拉取 ${doPull.length} 個檔案到本地...`);
     for (const key of doPull) {
-      if (DRY_RUN) { console.log(`  ← [dry-run] ${key}`); continue; }
+      if (DRY_RUN) {
+        console.log(`  ← [dry-run] ${key}`);
+        continue;
+      }
       const ok = await transferRootAsset(REMOTE_API, LOCAL_API, key);
       console.log(ok ? `  ↓ ${key}` : `  ✗ 拉取失敗 ${key}`);
     }

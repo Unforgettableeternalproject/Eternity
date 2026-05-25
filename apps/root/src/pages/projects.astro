@@ -11,6 +11,12 @@ const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 const allProjectsRaw = await getProjects();
+
+// 排序優先級：featured > active > completed > paused > archived
+const STATUS_PRIORITY: Record<string, number> = {
+  active: 0, completed: 1, paused: 2, archived: 3,
+};
+
 const projects = allProjectsRaw
   .map(p => ({
     id: p.id,
@@ -23,13 +29,21 @@ const projects = allProjectsRaw
     },
   }))
   .sort((a, b) => {
-    const oA = a.data.order ?? 999, oB = b.data.order ?? 999;
-    if (oA !== oB) return oA - oB;
+    // featured 永遠排最前
+    if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
+    // 再按 status 優先級
+    const sA = STATUS_PRIORITY[a.data.status] ?? 9;
+    const sB = STATUS_PRIORITY[b.data.status] ?? 9;
+    if (sA !== sB) return sA - sB;
+    // 同 status 按日期倒序
     return (b.data.startDate?.getTime() ?? 0) - (a.data.startDate?.getTime() ?? 0);
   });
 
 const allTags = Array.from(new Set(projects.flatMap((p) => p.data.tags))).sort();
+const allStatuses = Array.from(new Set(projects.map((p) => p.data.status)));
 const featuredCount = projects.filter((p) => p.data.featured).length;
+const statusOrder = ['active', 'completed', 'paused', 'archived'];
+const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s));
 ---
 
 <BaseLayout
@@ -44,7 +58,7 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
     </span>
 
     <h1
-      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.98] tracking-tighter max-w-[1100px]"
+      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
     >
       {locale === 'zh-tw' ? (
@@ -89,23 +103,35 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
 
   <!-- ─────────── FILTER BAR ─────────── -->
   <section
-    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-4"
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-0"
     style="background: var(--q-paper-soft); border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); position: sticky; top: 72px; z-index: 4;"
   >
-    <div class="max-w-screen-xl mx-auto flex flex-wrap justify-between items-center gap-4">
-      <div class="flex items-center gap-2 flex-wrap">
-        <span class="q-mono">filter</span>
-        {['all', ...allTags.slice(0, 8)].map((tag, i) => (
-          <button
-            class={`q-filter-pill ${i === 0 ? 'active' : ''}`}
-            data-tag={tag}
-          >
-            {tag}
-          </button>
+    <div class="max-w-screen-xl mx-auto">
+      <!-- Status 列 -->
+      <div class="flex flex-wrap items-center gap-2 py-3" style="border-bottom: 1px solid var(--q-line-soft);">
+        <span class="q-mono q-tag-label">status</span>
+        <button class="q-filter-pill active" data-status="all">
+          {locale === 'zh-tw' ? '全部' : 'all'}
+        </button>
+        {sortedStatuses.map((s) => (
+          <button class="q-filter-pill" data-status={s}>{s}</button>
         ))}
+        {featuredCount > 0 && (
+          <button class="q-filter-pill" data-status="featured">✦ featured</button>
+        )}
       </div>
-      <div class="flex items-center gap-4">
-        <span class="q-mono">{projects.length} entries</span>
+      <!-- Tag 列 -->
+      <div class="q-tag-row">
+        <span class="q-mono q-tag-label">tag</span>
+        <div class="q-tag-scroll" id="q-tag-scroll">
+          <button class="q-filter-pill active" data-tag="all">
+            {locale === 'zh-tw' ? '全部' : 'all'}
+          </button>
+          {allTags.map((tag) => (
+            <button class="q-filter-pill" data-tag={tag}>{tag}</button>
+          ))}
+        </div>
+        <span class="q-mono q-entry-count"><span id="q-visible-count">{projects.length}</span> entries</span>
       </div>
     </div>
   </section>
@@ -121,7 +147,7 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
 
     <!-- Grid -->
     <div id="q-project-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10 reveal">
-      {projects.map((p) => {
+      {projects.map((p, idx) => {
         const title = locale === 'zh-tw' ? (p.data.title_zh || p.id) : p.data.title_en;
         const desc = locale === 'zh-tw' ? p.data.description_zh : p.data.description_en;
         const year = p.data.startDate ? p.data.startDate.getFullYear() : '—';
@@ -131,6 +157,8 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
             href={`${basePath}/projects/${p.id}`}
             class="block no-underline group project-card reveal-item"
             data-tags={JSON.stringify(p.data.tags)}
+            data-status={p.data.status}
+            data-featured={p.data.featured ? 'true' : 'false'}
           >
             <!-- Plate -->
             <div class="q-plate" style="aspect-ratio: 4/3; overflow: hidden;">
@@ -138,7 +166,6 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
                 <img
                   src={assetUrl(p.data.image)}
                   alt={title}
-                  style="width: 100%; height: 100%; object-fit: cover; display: block;"
                   loading="lazy"
                 />
               ) : (
@@ -151,7 +178,7 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
             <!-- Meta -->
             <div class="mt-4 flex justify-between items-baseline">
               <span class="q-mono" style="color: var(--q-navy);">
-                {String(p.data.order || 1).padStart(2, '0')} · {p.data.status}
+                {String(idx + 1).padStart(2, '0')} · {p.data.status}
               </span>
               <span class="q-mono">{year}</span>
             </div>
@@ -161,7 +188,7 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
               style="color: var(--q-ink);"
             >
               {title}
-              {p.data.featured && <span class="ml-2 q-pill q-pill--accent">★</span>}
+              {p.data.featured && <span class="ml-2 text-xs q-mono" style="color: var(--q-navy); vertical-align: middle;">✦</span>}
             </h3>
 
             <p class="mt-1.5 text-sm leading-[1.65]" style="color: var(--q-ink-soft); max-width: 420px;">
@@ -238,6 +265,73 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
     border-color: var(--q-ink);
   }
 
+  /* ── Tag 列：拖曳滾動 + 雙邊漸隱 ── */
+  .q-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .q-tag-label {
+    flex-shrink: 0;
+    width: 52px;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+
+  .q-tag-scroll {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+    padding: 2px 0;
+    /* 右側漸隱（預設：未滾動時只有右邊） */
+    mask-image: linear-gradient(to right, #000 0%, #000 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 88%, transparent 100%);
+  }
+
+  .q-tag-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .q-tag-scroll.grabbing {
+    cursor: grabbing;
+  }
+
+  /* 滾動到中間：雙邊漸隱 */
+  .q-tag-scroll.fade-both {
+    mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+  }
+
+  /* 滾動到最右：只有左邊漸隱 */
+  .q-tag-scroll.fade-left {
+    mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 100%);
+  }
+
+  /* 內容不足以滾動：無漸隱 */
+  .q-tag-scroll.no-fade {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .q-tag-scroll .q-filter-pill {
+    flex-shrink: 0;
+  }
+
+  .q-entry-count {
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  /* ── Project card ── */
   .project-card {
     transition: opacity 0.3s ease, transform 0.3s ease;
   }
@@ -249,35 +343,54 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
 
 <script>
   function initProjectFilters() {
-    const pills = document.querySelectorAll<HTMLButtonElement>('.q-filter-pill');
+    const statusPills = document.querySelectorAll<HTMLButtonElement>('.q-filter-pill[data-status]');
+    const tagPills = document.querySelectorAll<HTMLButtonElement>('.q-filter-pill[data-tag]');
     const cards = document.querySelectorAll<HTMLElement>('.project-card');
     const grid = document.getElementById('q-project-grid');
     const empty = document.getElementById('q-empty');
+    const countEl = document.getElementById('q-visible-count');
 
-    pills.forEach((pill) => {
+    let activeStatus = 'all';
+    let activeTag = 'all';
+
+    function applyFilters() {
+      let visible = 0;
+      cards.forEach((card) => {
+        const tags: string[] = JSON.parse(card.dataset.tags || '[]');
+        const status = card.dataset.status || '';
+        const featured = card.dataset.featured === 'true';
+
+        const statusMatch = activeStatus === 'all'
+          || (activeStatus === 'featured' ? featured : status === activeStatus);
+        const tagMatch = activeTag === 'all' || tags.includes(activeTag);
+        const match = statusMatch && tagMatch;
+
+        card.setAttribute('data-hidden', match ? 'false' : 'true');
+        if (match) visible++;
+      });
+
+      if (empty && grid) {
+        empty.classList.toggle('hidden', visible > 0);
+        grid.classList.toggle('hidden', visible === 0);
+      }
+      if (countEl) countEl.textContent = String(visible);
+    }
+
+    statusPills.forEach((pill) => {
       pill.addEventListener('click', () => {
-        const tag = pill.dataset.tag || 'all';
-
-        pills.forEach((p) => p.classList.remove('active'));
+        activeStatus = pill.dataset.status || 'all';
+        statusPills.forEach((p) => p.classList.remove('active'));
         pill.classList.add('active');
+        applyFilters();
+      });
+    });
 
-        let visible = 0;
-        cards.forEach((card) => {
-          const tags: string[] = JSON.parse(card.dataset.tags || '[]');
-          const match = tag === 'all' || tags.includes(tag);
-          card.setAttribute('data-hidden', match ? 'false' : 'true');
-          if (match) visible++;
-        });
-
-        if (empty && grid) {
-          if (visible === 0) {
-            empty.classList.remove('hidden');
-            grid.classList.add('hidden');
-          } else {
-            empty.classList.add('hidden');
-            grid.classList.remove('hidden');
-          }
-        }
+    tagPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        activeTag = pill.dataset.tag || 'all';
+        tagPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        applyFilters();
       });
     });
   }
@@ -292,6 +405,69 @@ const featuredCount = projects.filter((p) => p.data.featured).length;
     document.querySelectorAll('.reveal-item').forEach((el) => observer.observe(el));
   }
 
-  document.addEventListener('DOMContentLoaded', () => { initProjectFilters(); initRevealAnimation(); });
-  document.addEventListener('astro:page-load', () => { initProjectFilters(); initRevealAnimation(); });
+  function initDragScroll() {
+    const el = document.getElementById('q-tag-scroll');
+    if (!el) return;
+
+    let isDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+    let hasDragged = false;
+
+    // 更新漸隱方向
+    function updateFade() {
+      const { scrollLeft: sl, scrollWidth, clientWidth } = el;
+      const atStart = sl <= 2;
+      const atEnd = sl + clientWidth >= scrollWidth - 2;
+      const noScroll = scrollWidth <= clientWidth;
+
+      el.classList.remove('fade-both', 'fade-left', 'no-fade');
+      if (noScroll) el.classList.add('no-fade');
+      else if (atStart && atEnd) el.classList.add('no-fade');
+      else if (atStart) { /* 預設 CSS：只有右邊漸隱 */ }
+      else if (atEnd) el.classList.add('fade-left');
+      else el.classList.add('fade-both');
+    }
+
+    el.addEventListener('mousedown', (e) => {
+      isDown = true;
+      hasDragged = false;
+      el.classList.add('grabbing');
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+    });
+
+    el.addEventListener('mouseleave', () => { isDown = false; el.classList.remove('grabbing'); });
+    el.addEventListener('mouseup', () => { isDown = false; el.classList.remove('grabbing'); });
+
+    el.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      if (Math.abs(walk) > 3) hasDragged = true;
+      el.scrollLeft = scrollLeft - walk;
+    });
+
+    // 拖曳時不觸發 pill 點擊
+    el.addEventListener('click', (e) => {
+      if (hasDragged) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+
+    // 滾輪：垂直 → 水平
+    el.addEventListener('wheel', (e) => {
+      if (el.scrollWidth <= el.clientWidth) return; // 內容不足不攔截
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+
+    el.addEventListener('scroll', updateFade, { passive: true });
+    window.addEventListener('resize', updateFade);
+    updateFade();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => { initProjectFilters(); initDragScroll(); initRevealAnimation(); });
+  document.addEventListener('astro:page-load', () => { initProjectFilters(); initDragScroll(); initRevealAnimation(); });
 </script>

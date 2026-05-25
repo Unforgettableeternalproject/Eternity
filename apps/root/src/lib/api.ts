@@ -193,13 +193,19 @@ export function assetUrl(keyOrPath: string | null | undefined): string {
   let key = keyOrPath;
 
   // strip /api/root/assets/ 前綴
-  if (key.startsWith('/api/root/assets/')) key = key.slice('/api/root/assets/'.length);
+  if (key.startsWith('/api/root/assets/'))
+    key = key.slice('/api/root/assets/'.length);
   // strip 舊的 /images/ 開頭（本地 public 路徑）
-  else if (key.startsWith('/images/')) key = key.slice(1); // → images/...
+  else if (key.startsWith('/images/'))
+    key = key.slice(1); // → images/...
   else if (key.startsWith('/')) key = key.slice(1);
 
   // 先 decode（避免雙重 encode），再 encode 每段
-  try { key = decodeURIComponent(key); } catch { /* already decoded */ }
+  try {
+    key = decodeURIComponent(key);
+  } catch {
+    /* already decoded */
+  }
 
   const encoded = key.split('/').map(encodeURIComponent).join('/');
   return `${base}/api/root/assets/${encoded}`;

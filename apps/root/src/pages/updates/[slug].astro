@@ -230,14 +230,12 @@ const catLabel = categoryLabels[update.data.category] || update.data.category;
   }
   .q-prose :global(ul) {
     margin: 14px 0 18px;
-    padding: 0 0 0 4px;
+    padding: 0;
     list-style: none;
   }
   .q-prose :global(li) {
-    display: grid;
-    grid-template-columns: 14px 1fr;
-    gap: 14px;
-    align-items: baseline;
+    position: relative;
+    padding-left: 20px;
     margin: 0 0 10px;
     font-size: 16.5px;
     line-height: 1.7;
@@ -245,11 +243,23 @@ const catLabel = categoryLabels[update.data.category] || update.data.category;
   }
   .q-prose :global(li)::before {
     content: '';
+    position: absolute;
+    left: 0;
+    top: 11px;
     width: 5px;
     height: 5px;
     border-radius: 50%;
     background: var(--q-navy);
-    margin-top: 9px;
+  }
+  .q-prose :global(li li)::before {
+    width: 4px;
+    height: 4px;
+    background: transparent;
+    border: 1.5px solid var(--q-navy);
+  }
+  .q-prose :global(li > ul) {
+    margin-top: 6px;
+    margin-bottom: 4px;
   }
   .q-prose :global(blockquote) {
     margin: 40px 0;

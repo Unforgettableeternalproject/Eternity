@@ -46,6 +46,62 @@ const skills = data.skills ?? [];
 const experience = data.experience ?? [];
 const social = data.social ?? {};
 const cta = data.cta ?? {};
+
+/* ── Currently 動態面板 ── */
+const currentlyRaw = await getSingleton('currently');
+const currently = (currentlyRaw?.content ?? {}) as {
+  working?: string;
+  learning?: string;
+  listening?: string;
+  playing?: string;
+  reading?: string;
+  status?: string;
+  updatedAt?: string;
+};
+
+// 組裝顯示項目（只顯示有值的）
+const currentlyItems: { label: string; icon: string; value: string }[] = [];
+if (currently.working)
+  currentlyItems.push({
+    label: 'WORKING ON',
+    icon: '⚙',
+    value: currently.working,
+  });
+if (currently.learning)
+  currentlyItems.push({
+    label: 'LEARNING',
+    icon: '◈',
+    value: currently.learning,
+  });
+if (currently.listening)
+  currentlyItems.push({
+    label: 'LISTENING',
+    icon: '♪',
+    value: currently.listening,
+  });
+if (currently.playing)
+  currentlyItems.push({
+    label: 'PLAYING',
+    icon: '▶',
+    value: currently.playing,
+  });
+if (currently.reading)
+  currentlyItems.push({
+    label: 'READING',
+    icon: '▤',
+    value: currently.reading,
+  });
+if (currently.status)
+  currentlyItems.push({ label: 'STATUS', icon: '●', value: currently.status });
+
+// Fallback：如果 singleton 還沒建立
+if (currentlyItems.length === 0) {
+  currentlyItems.push(
+    { label: 'WORKING ON', icon: '⚙', value: 'Eternity v1.0' },
+    { label: 'LEARNING', icon: '◈', value: 'Cloudflare Workers' },
+    { label: 'STATUS', icon: '●', value: 'Polishing' }
+  );
+}
 ---
 
 <BaseLayout
@@ -54,14 +110,14 @@ const cta = data.cta ?? {};
 >
   <!-- ─────────── HERO ─────────── -->
   <section
-    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-20 sm:pt-24 lg:pt-[120px] pb-14 lg:pb-20 max-w-screen-xl mx-auto"
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
   >
     <span class="q-section-label">
       —— 03 / about · {locale === 'zh-tw' ? '個人簡介' : 'personal profile'}
     </span>
 
     <h1
-      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[112px] font-bold leading-[0.96] tracking-tighter max-w-[1100px]"
+      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
     >
       {
@@ -100,36 +156,71 @@ const cta = data.cta ?? {};
         {data.heroIntro || ''}
       </p>
 
-      <!-- Fact column -->
-      <dl class="m-0">
-        {
-          facts.map(([k, v], i) => (
-            <div
-              class="grid items-baseline py-2.5"
-              style={`
-              grid-template-columns: 72px 1fr;
-              gap: 16px;
-              border-top: ${i === 0 ? '1px solid var(--q-line)' : '1px dashed var(--q-line)'};
-              ${i === facts.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
-            `}
-            >
-              <span class="q-mono">{k}</span>
-              <span
-                class="text-sm font-mono"
-                style="color: var(--q-ink); font-family: 'JetBrains Mono', monospace;"
+      <!-- Currently 動態面板 -->
+      <aside
+        style="border: 1px solid var(--q-line); background: var(--q-paper);"
+      >
+        <div
+          class="px-4 py-2.5 flex justify-between items-center"
+          style="background: var(--q-ink); color: var(--q-paper);"
+        >
+          <span
+            class="q-mono"
+            style="color: var(--q-paper); opacity: 0.7; font-size: 10px;"
+          >
+            {locale === 'zh-tw' ? '目前狀態 · Currently' : 'Currently · Live'}
+          </span>
+          <span class="q-live-dot" style="width: 7px; height: 7px;"></span>
+        </div>
+        <div class="px-5 py-4">
+          {
+            currentlyItems.map((item, i) => (
+              <div
+                class="grid items-baseline py-2.5"
+                style={`
+                grid-template-columns: 96px 1fr;
+                gap: 12px;
+                ${i > 0 ? 'border-top: 1px dashed var(--q-line);' : ''}
+              `}
               >
-                {v}
+                <span
+                  class="q-mono"
+                  style="font-size: 10px; display: flex; align-items: center; gap: 5px;"
+                >
+                  <span style="font-size: 11px; opacity: 0.7;">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </span>
+                <span
+                  class="text-sm"
+                  style="color: var(--q-ink); font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;"
+                >
+                  {item.value}
+                </span>
+              </div>
+            ))
+          }
+        </div>
+        {
+          currently.updatedAt && (
+            <div
+              class="px-5 py-2 flex justify-end"
+              style="border-top: 1px solid var(--q-line); font-size: 10px;"
+            >
+              <span class="q-mono" style="opacity: 0.5;">
+                updated {currently.updatedAt}
               </span>
             </div>
-          ))
+          )
         }
-      </dl>
+      </aside>
     </div>
   </section>
 
   <!-- ─────────── FULL BIO ─────────── -->
   <section
-    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-10 lg:py-[40px_72px_60px] max-w-[820px] mx-auto reveal"
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-10 pb-10 lg:pt-[40px] lg:pb-[60px] max-w-screen-xl mx-auto reveal"
   >
     <div
       class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-9"
@@ -148,7 +239,10 @@ const cta = data.cta ?? {};
 
     {
       data.fullBio ? (
-        <div class="q-bio-prose reveal-item" set:html={data.fullBio} />
+        <div
+          class="q-bio-prose reveal-item max-w-[720px]"
+          set:html={data.fullBio}
+        />
       ) : (
         <p class="text-sm italic" style="color: var(--q-ink-mute);">
           {locale === 'zh-tw' ? '尚未撰寫。' : 'Not written yet.'}

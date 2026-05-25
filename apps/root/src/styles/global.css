@@ -353,6 +353,15 @@
   justify-content: flex-start;
   padding: 18px;
 }
+.q-plate > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  padding: 16px;
+}
 
 .q-plate::before {
   content: '';

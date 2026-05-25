@@ -476,9 +476,10 @@ function TipTapEditor({
           token={token}
           onInsert={(key) => {
             // 裸 key 或手動 URL → TipTap img src
-            const src = key.startsWith('http') || key.startsWith('/')
-              ? key
-              : `/api/root/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
+            const src =
+              key.startsWith('http') || key.startsWith('/')
+                ? key
+                : `/api/root/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
             editor.chain().focus().setImage({ src }).run();
           }}
           onClose={() => setShowImagePicker(false)}

@@ -48,13 +48,13 @@ for (const cat of categoryOrder) {
 >
 
   <!-- ─────────── HERO ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-20 sm:pt-24 lg:pt-[120px] pb-14 lg:pb-20 max-w-screen-xl mx-auto">
+  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto">
     <span class="q-section-label">
       —— 05 / links · {locale === 'zh-tw' ? '對外連結' : 'external links'}
     </span>
 
     <h1
-      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[100px] font-bold leading-[0.97] tracking-tighter max-w-[1080px]"
+      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
     >
       {locale === 'zh-tw' ? (
@@ -132,12 +132,6 @@ for (const cat of categoryOrder) {
                   class="block no-underline flex flex-col gap-1.5 p-5 lg:p-[22px] relative reveal-item group"
                   style="border: 1px solid var(--q-line); background: var(--q-paper); color: inherit; transition: border-color 0.15s;"
                 >
-                  {it.data.featured && (
-                    <div class="absolute -top-2 right-4">
-                      <span class="q-pill q-pill--accent">★ featured</span>
-                    </div>
-                  )}
-
                   <div class="flex items-center gap-3">
                     <div
                       class="w-[34px] h-[34px] grid place-items-center text-base font-bold shrink-0"
@@ -146,6 +140,7 @@ for (const cat of categoryOrder) {
                     <div class="min-w-0">
                       <div class="text-[15px] font-bold tracking-tight group-hover:opacity-75 transition-opacity" style="color: var(--q-ink);">
                         {linkTitle}
+                        {it.data.featured && <span class="ml-1.5 text-xs q-mono" style="color: var(--q-navy); vertical-align: middle;">✦</span>}
                       </div>
                       <span class="q-mono truncate block">{it.data.url?.replace('https://', '').replace('mailto:', '')}</span>
                     </div>
