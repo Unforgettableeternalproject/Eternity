@@ -396,12 +396,12 @@ async function getSingleton(apiBase, key) {
   }
 }
 
-async function putSingleton(apiBase, key, content) {
+async function putSingleton(apiBase, key, content, updatedAt) {
   try {
     const res = await fetch(`${apiBase}/api/root/singletons/${key}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders(apiBase) },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, updatedAt }),
     });
     const json = await safeJson(res);
     return json?.ok ?? false;
@@ -427,7 +427,12 @@ async function syncSingletons() {
     if (local && !remote) {
       console.log(`   ↑ ${key} (只在本地)`);
       if (!DRY_RUN && DIRECTION !== 'pull') {
-        const ok = await putSingleton(REMOTE_API, key, local.content);
+        const ok = await putSingleton(
+          REMOTE_API,
+          key,
+          local.content,
+          local.updatedAt
+        );
         if (ok) pushOk++;
       }
       continue;
@@ -435,7 +440,12 @@ async function syncSingletons() {
     if (!local && remote) {
       console.log(`   ↓ ${key} (只在遠端)`);
       if (!DRY_RUN && DIRECTION !== 'push') {
-        const ok = await putSingleton(LOCAL_API, key, remote.content);
+        const ok = await putSingleton(
+          LOCAL_API,
+          key,
+          remote.content,
+          remote.updatedAt
+        );
         if (ok) pullOk++;
       }
       continue;
@@ -449,7 +459,12 @@ async function syncSingletons() {
         `   ↑ ${key}  本地: ${fmtTime(local.updatedAt)}  遠端: ${fmtTime(remote.updatedAt)}`
       );
       if (!DRY_RUN && DIRECTION !== 'pull') {
-        const ok = await putSingleton(REMOTE_API, key, local.content);
+        const ok = await putSingleton(
+          REMOTE_API,
+          key,
+          local.content,
+          local.updatedAt
+        );
         if (ok) pushOk++;
       }
     } else {
@@ -457,7 +472,12 @@ async function syncSingletons() {
         `   ↓ ${key}  遠端: ${fmtTime(remote.updatedAt)}  本地: ${fmtTime(local.updatedAt)}`
       );
       if (!DRY_RUN && DIRECTION !== 'push') {
-        const ok = await putSingleton(LOCAL_API, key, remote.content);
+        const ok = await putSingleton(
+          LOCAL_API,
+          key,
+          remote.content,
+          remote.updatedAt
+        );
         if (ok) pullOk++;
       }
     }

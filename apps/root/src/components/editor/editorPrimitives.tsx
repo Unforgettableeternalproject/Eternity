@@ -147,7 +147,7 @@ export function TagEditor({
       <button
         className="qe-tag--add"
         onClick={() => {
-          const t = prompt('新增 tag：');
+          const t = window.prompt('新增 tag：');
           if (t?.trim()) onChange([...tags, t.trim()]);
         }}
       >

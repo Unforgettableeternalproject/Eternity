@@ -158,11 +158,13 @@ export function t<T extends { titleZh: string; titleEn: string }>(
   locale: string,
   field: 'title'
 ): string;
+// eslint-disable-next-line no-redeclare
 export function t<T extends { descZh: string; descEn: string }>(
   item: T,
   locale: string,
   field: 'desc'
 ): string;
+// eslint-disable-next-line no-redeclare
 export function t(
   item: Record<string, unknown>,
   locale: string,

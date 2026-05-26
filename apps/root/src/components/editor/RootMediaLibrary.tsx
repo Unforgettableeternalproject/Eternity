@@ -105,7 +105,7 @@ export default function RootMediaLibrary({
 
   // ── upload ──
   const handleUpload = useCallback(
-    async (files: FileList | null) => {
+    async (files: globalThis.FileList | null) => {
       if (!files || files.length === 0) return;
       const allowed = Array.from(files).filter((f) =>
         f.type.startsWith('image/')
@@ -136,7 +136,7 @@ export default function RootMediaLibrary({
   // ── delete ──
   const handleDelete = useCallback(
     async (key: string) => {
-      if (!confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
+      if (!window.confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
       try {
         await fetch(`${apiBase}/api/root/assets/${encodeAssetKey(key)}`, {
           method: 'DELETE',

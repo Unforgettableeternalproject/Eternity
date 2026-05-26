@@ -1,3 +1,4 @@
+/* global atob, TextEncoder, crypto */
 import { defineMiddleware } from 'astro:middleware';
 
 const JWT_COOKIE = 'root-admin-jwt';

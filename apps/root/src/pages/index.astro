@@ -1,18 +1,21 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getProjects, getUpdates, getSingleton, assetUrl, type RootProject, type RootUpdate } from '../lib/api';
+import { getProjects, getUpdates, getSingleton, assetUrl } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
-const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 // Homepage CMS data
-const homepageSingleton = await getSingleton(locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en');
-const homepageData = homepageSingleton ? { data: homepageSingleton.content as Record<string, any> } : null;
+const homepageSingleton = await getSingleton(
+  locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en'
+);
+const homepageData = homepageSingleton
+  ? { data: homepageSingleton.content as Record<string, any> }
+  : null;
 
 // 頁面文字 singleton（可從 admin 後台編輯的靜態文案）
 const ptKey = locale === 'zh-tw' ? 'page-home-zh' : 'page-home-en';
@@ -21,7 +24,7 @@ const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 
 // Projects from D1
 const allProjectsRaw = await getProjects();
-const allProjects = allProjectsRaw.map(p => ({
+const allProjects = allProjectsRaw.map((p) => ({
   id: p.id,
   data: {
     title_zh: p.titleZh,
@@ -49,7 +52,7 @@ const otherProjects = allProjects
 
 // Updates from D1
 const allUpdatesRaw = await getUpdates(5);
-const latestUpdates = allUpdatesRaw.map(u => ({
+const latestUpdates = allUpdatesRaw.map((u) => ({
   id: u.id,
   data: {
     title_zh: u.titleZh,
@@ -66,32 +69,35 @@ const skillDomains = 5;
 ---
 
 <BaseLayout title={t.home.title} description={t.home.description}>
-
   <!-- ─────────── HERO ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-16 py-16 md:py-24 lg:py-28 max-w-screen-2xl mx-auto">
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-16 md:py-24 lg:py-28 max-w-screen-2xl mx-auto"
+  >
     <span class="q-section-label">
       {pt.heroLabel || '—— vol. 00 · personal site · 2026'}
     </span>
 
-    <div class="mt-6 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-10 lg:gap-14 items-center">
+    <div
+      class="mt-6 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-10 lg:gap-14 items-center"
+    >
       <!-- LEFT — title + subtitle + CTA -->
       <div>
         <h1
           class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[112px] font-bold tracking-tighter leading-[0.96]"
           style="color: var(--q-ink);"
-          set:html={pt.heroTitle || (locale === 'zh-tw'
-            ? '一個還<span style="color: var(--q-ink-soft);">在</span>寫的<br /><span style="color: var(--q-navy);">故事</span>。'
-            : 'A story <span style="color: var(--q-ink-soft);">still being</span><br /><span style="color: var(--q-navy);">written</span>.'
-          )}
+          set:html={pt.heroTitle ||
+            (locale === 'zh-tw'
+              ? '一個還<span style="color: var(--q-ink-soft);">在</span>寫的<br /><span style="color: var(--q-navy);">故事</span>。'
+              : 'A story <span style="color: var(--q-ink-soft);">still being</span><br /><span style="color: var(--q-navy);">written</span>.')}
         />
 
         <p
           class="mt-7 text-lg leading-relaxed max-w-lg"
           style="color: var(--q-ink-soft);"
-          set:html={pt.heroSubtitle || (locale === 'zh-tw'
-            ? '我是 <strong style="color: var(--q-ink); font-weight: 600;">顏榕嶙</strong> — 台灣的全端工程師與創作者。我用程式、音樂、文字、像素，慢慢把心中那個故事寫成現實。'
-            : 'I\'m <strong style="color: var(--q-ink); font-weight: 600;">Bernie Yen</strong> — a full-stack developer &amp; creator from Taiwan. I use code, music, words, and pixels to slowly bring the story in my heart to life.'
-          )}
+          set:html={pt.heroSubtitle ||
+            (locale === 'zh-tw'
+              ? '我是 <strong style="color: var(--q-ink); font-weight: 600;">顏榕嶙</strong> — 台灣的全端工程師與創作者。我用程式、音樂、文字、像素，慢慢把心中那個故事寫成現實。'
+              : 'I\'m <strong style="color: var(--q-ink); font-weight: 600;">Bernie Yen</strong> — a full-stack developer &amp; creator from Taiwan. I use code, music, words, and pixels to slowly bring the story in my heart to life.')}
         />
 
         <div class="mt-5 flex gap-5 items-end flex-wrap">
@@ -109,19 +115,29 @@ const skillDomains = 5;
             class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
             style="color: var(--q-ink-soft); border-bottom: 1px solid var(--q-line); padding-bottom: 4px;"
           >
-            {pt.heroCta2 || (locale === 'zh-tw' ? '進 Imaginary Space' : 'Enter Imaginary Space')} ↗
+            {
+              pt.heroCta2 ||
+                (locale === 'zh-tw'
+                  ? '進 Imaginary Space'
+                  : 'Enter Imaginary Space')
+            } ↗
           </a>
         </div>
       </div>
 
       <!-- RIGHT — Quartz fact sheet -->
-      <aside style="border: 1px solid var(--q-line); background: var(--q-paper);">
+      <aside
+        style="border: 1px solid var(--q-line); background: var(--q-paper);"
+      >
         <!-- Header bar -->
         <div
           class="px-4 py-2.5 flex justify-between items-center"
           style="background: var(--q-ink); color: var(--q-paper);"
         >
-          <span class="q-mono" style="color: var(--q-paper); opacity: 0.7; font-size: 10px;">
+          <span
+            class="q-mono"
+            style="color: var(--q-paper); opacity: 0.7; font-size: 10px;"
+          >
             {locale === 'zh-tw' ? '登錄表 · Sheet A' : 'Fact Sheet · A'}
           </span>
           <span class="q-live-dot" style="width: 7px; height: 7px;"></span>
@@ -129,33 +145,50 @@ const skillDomains = 5;
 
         <!-- Rows -->
         <div class="px-5 py-4">
-          {[
-            ['NAME', locale === 'zh-tw' ? '顏榕嶙 · Bernie Yen' : 'Bernie Yen · 顏榕嶙'],
-            ['ROLE', locale === 'zh-tw' ? '全端工程師 / 創作者' : 'Full-stack Dev / Creator'],
-            ['LOCATION', 'Taiwan · 高雄'],
-            ['SINCE', '2018'],
-            ['STATUS', null],
-            ['REACH', 'ptyc4076@gmail.com'],
-          ].map(([key, val], i, arr) => (
-            <div
-              class="grid items-baseline py-2.5"
-              style={`
+          {
+            [
+              [
+                'NAME',
+                locale === 'zh-tw'
+                  ? '顏榕嶙 · Bernie Yen'
+                  : 'Bernie Yen · 顏榕嶙',
+              ],
+              [
+                'ROLE',
+                locale === 'zh-tw'
+                  ? '全端工程師 / 創作者'
+                  : 'Full-stack Dev / Creator',
+              ],
+              ['LOCATION', 'Taiwan · 高雄'],
+              ['SINCE', '2018'],
+              ['STATUS', null],
+              ['REACH', 'ptyc4076@gmail.com'],
+            ].map(([key, val], i, arr) => (
+              <div
+                class="grid items-baseline py-2.5"
+                style={`
                 grid-template-columns: 72px 1fr;
                 gap: 14px;
                 ${i < arr.length - 1 ? 'border-bottom: 1px dashed var(--q-line);' : ''}
               `}
-            >
-              <span class="q-mono">{key}</span>
-              {val ? (
-                <span class="text-sm font-mono" style="color: var(--q-ink);">{val}</span>
-              ) : (
-                <span class="text-sm font-mono flex items-center gap-2" style="color: var(--q-navy);">
-                  <span class="q-live-dot" style="width: 6px; height: 6px;"></span>
-                  Polishing v0.9.6
-                </span>
-              )}
-            </div>
-          ))}
+              >
+                <span class="q-mono">{key}</span>
+                {val ? (
+                  <span class="text-sm font-mono" style="color: var(--q-ink);">
+                    {val}
+                  </span>
+                ) : (
+                  <span
+                    class="text-sm font-mono flex items-center gap-2"
+                    style="color: var(--q-navy);"
+                  >
+                    <span class="q-live-dot" style="width: 6px; height: 6px;" />
+                    Polishing v0.9.6
+                  </span>
+                )}
+              </div>
+            ))
+          }
         </div>
 
         <!-- Bottom signature -->
@@ -165,7 +198,9 @@ const skillDomains = 5;
           style="background: var(--q-paper-soft);"
         >
           <span class="q-mono">signed</span>
-          <span class="text-xl font-bold italic" style="color: var(--q-navy);">B.Y.</span>
+          <span class="text-xl font-bold italic" style="color: var(--q-navy);"
+            >B.Y.</span
+          >
         </div>
       </aside>
     </div>
@@ -176,27 +211,47 @@ const skillDomains = 5;
     class="px-4 sm:px-6 lg:px-10 xl:px-16 py-7"
     style="border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); background: var(--q-paper-soft);"
   >
-    <div class="max-w-screen-xl mx-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-6 lg:gap-9 items-center">
+    <div
+      class="max-w-screen-xl mx-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-6 lg:gap-9 items-center"
+    >
       <div>
-        <div class="font-mono text-3xl font-medium tracking-tight" style="color: var(--q-ink);">
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-ink);"
+        >
           {String(allProjects.length).padStart(2, '0')}
         </div>
-        <span class="q-mono mt-1 inline-block">{locale === 'zh-tw' ? 'projects' : 'projects'}</span>
+        <span class="q-mono mt-1 inline-block"
+          >{locale === 'zh-tw' ? 'projects' : 'projects'}</span
+        >
       </div>
       <div>
-        <div class="font-mono text-3xl font-medium tracking-tight" style="color: var(--q-ink);">
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-ink);"
+        >
           2018
         </div>
-        <span class="q-mono mt-1 inline-block">{locale === 'zh-tw' ? 'since · 第一行程式' : 'since · first line'}</span>
+        <span class="q-mono mt-1 inline-block"
+          >{
+            locale === 'zh-tw' ? 'since · 第一行程式' : 'since · first line'
+          }</span
+        >
       </div>
       <div>
-        <div class="font-mono text-3xl font-medium tracking-tight" style="color: var(--q-ink);">
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-ink);"
+        >
           {String(skillDomains).padStart(2, '0')}
         </div>
         <span class="q-mono mt-1 inline-block">creative domains</span>
       </div>
       <div>
-        <div class="font-mono text-3xl font-medium tracking-tight" style="color: var(--q-navy);">
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-navy);"
+        >
           v0.9.6
         </div>
         <span class="q-mono mt-1 inline-block">currently shipping</span>
@@ -209,14 +264,26 @@ const skillDomains = 5;
   </section>
 
   <!-- ─────────── PROJECTS ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-16 py-20 md:py-28 max-w-screen-xl mx-auto reveal">
-
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-20 md:py-28 max-w-screen-xl mx-auto reveal"
+  >
     <!-- Section header -->
-    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-9" style="border-bottom: 1px solid var(--q-line);">
+    <div
+      class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-9"
+      style="border-bottom: 1px solid var(--q-line);"
+    >
       <div>
-        <span class="q-section-label">{pt.projectsLabel || '—— 01 / selected work'}</span>
-        <h2 class="mt-2 text-3xl md:text-4xl font-bold tracking-tight" style="color: var(--q-ink); line-height: 1;">
-          {pt.projectsTitle || (locale === 'zh-tw' ? '精選作品' : 'Selected Work')}
+        <span class="q-section-label"
+          >{pt.projectsLabel || '—— 01 / selected work'}</span
+        >
+        <h2
+          class="mt-2 text-3xl md:text-4xl font-bold tracking-tight"
+          style="color: var(--q-ink); line-height: 1;"
+        >
+          {
+            pt.projectsTitle ||
+              (locale === 'zh-tw' ? '精選作品' : 'Selected Work')
+          }
         </h2>
       </div>
       <div class="flex items-center gap-4">
@@ -233,143 +300,186 @@ const skillDomains = 5;
 
     <!-- Featured projects — 2 col -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-9 mb-14">
-      {featuredProjects.map((project) => (
-        <a
-          href={`${basePath}/projects/${project.id}`}
-          class="block no-underline group reveal-item"
-        >
-          <!-- Plate -->
-          <div class="q-plate" style="aspect-ratio: 16/9; overflow: hidden;">
-            {project.data.image ? (
-              <img
-                src={assetUrl(project.data.image)}
-                alt={locale === 'zh-tw' ? (project.data.title_zh || project.id) : project.data.title_en}
-                loading="lazy"
-              />
-            ) : (
-              <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
-                <span class="q-mono">
-                  {locale === 'zh-tw'
-                    ? (project.data.title_zh || project.id)
-                    : project.data.title_en}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <!-- Meta -->
-          <div class="mt-4 flex justify-between items-baseline">
-            <span class="q-mono" style="color: var(--q-navy);">
-              {String(project.data.order || 1).padStart(2, '0')} · {project.data.status}
-            </span>
-            <span class="q-mono">{project.data.startDate ? project.data.startDate.getFullYear() : '—'}</span>
-          </div>
-
-          <h3
-            class="mt-2 text-xl md:text-2xl font-bold tracking-tight group-hover:opacity-75 transition-opacity"
-            style="color: var(--q-ink);"
+      {
+        featuredProjects.map((project) => (
+          <a
+            href={`${basePath}/projects/${project.id}`}
+            class="block no-underline group reveal-item"
           >
-            {locale === 'zh-tw'
-              ? (project.data.title_zh || project.id)
-              : project.data.title_en}
-            <span class="ml-2 q-pill--accent q-pill">★</span>
-          </h3>
+            {/* Plate */}
+            <div class="q-plate" style="aspect-ratio: 16/9; overflow: hidden;">
+              {project.data.image ? (
+                <img
+                  src={assetUrl(project.data.image)}
+                  alt={
+                    locale === 'zh-tw'
+                      ? project.data.title_zh || project.id
+                      : project.data.title_en
+                  }
+                  loading="lazy"
+                />
+              ) : (
+                <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
+                  <span class="q-mono">
+                    {locale === 'zh-tw'
+                      ? project.data.title_zh || project.id
+                      : project.data.title_en}
+                  </span>
+                </div>
+              )}
+            </div>
 
-          <p class="mt-2 text-sm leading-relaxed" style="color: var(--q-ink-soft); max-width: 480px;">
-            {locale === 'zh-tw'
-              ? project.data.description_zh
-              : project.data.description_en}
-          </p>
+            {/* Meta */}
+            <div class="mt-4 flex justify-between items-baseline">
+              <span class="q-mono" style="color: var(--q-navy);">
+                {String(project.data.order || 1).padStart(2, '0')} ·{' '}
+                {project.data.status}
+              </span>
+              <span class="q-mono">
+                {project.data.startDate
+                  ? project.data.startDate.getFullYear()
+                  : '—'}
+              </span>
+            </div>
 
-          <div class="mt-3 flex gap-1.5 flex-wrap">
-            {project.data.tags.slice(0, 4).map((tag: string) => (
-              <span class="q-pill">{tag}</span>
-            ))}
-            {project.data.tags.length > 4 && (
-              <span class="q-pill">+{project.data.tags.length - 4}</span>
-            )}
-          </div>
-        </a>
-      ))}
+            <h3
+              class="mt-2 text-xl md:text-2xl font-bold tracking-tight group-hover:opacity-75 transition-opacity"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw'
+                ? project.data.title_zh || project.id
+                : project.data.title_en}
+              <span class="ml-2 q-pill--accent q-pill">★</span>
+            </h3>
+
+            <p
+              class="mt-2 text-sm leading-relaxed"
+              style="color: var(--q-ink-soft); max-width: 480px;"
+            >
+              {locale === 'zh-tw'
+                ? project.data.description_zh
+                : project.data.description_en}
+            </p>
+
+            <div class="mt-3 flex gap-1.5 flex-wrap">
+              {project.data.tags.slice(0, 4).map((tag: string) => (
+                <span class="q-pill">{tag}</span>
+              ))}
+              {project.data.tags.length > 4 && (
+                <span class="q-pill">+{project.data.tags.length - 4}</span>
+              )}
+            </div>
+          </a>
+        ))
+      }
     </div>
 
     <!-- Other projects — catalog list -->
     <div>
-      {otherProjects.map((project, i) => (
-        <a
-          href={`${basePath}/projects/${project.id}`}
-          class="grid gap-5 items-baseline py-3.5 no-underline transition-opacity hover:opacity-75 reveal-item"
-          style={`
+      {
+        otherProjects.map((project, i) => (
+          <a
+            href={`${basePath}/projects/${project.id}`}
+            class="grid gap-5 items-baseline py-3.5 no-underline transition-opacity hover:opacity-75 reveal-item"
+            style={`
             grid-template-columns: 40px 1fr 80px 24px;
             border-top: 1px solid var(--q-line);
             ${i === otherProjects.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
             color: inherit;
           `}
-        >
-          <span class="q-mono" style="color: var(--q-navy);">
-            {String(project.data.order || i + 3).padStart(2, '0')}
-          </span>
-          <div>
-            <h4
-              class="text-lg md:text-xl font-semibold tracking-tight"
-              style="color: var(--q-ink); margin: 0;"
-            >
-              {locale === 'zh-tw'
-                ? (project.data.title_zh || project.id)
-                : project.data.title_en}
-              <span class="ml-3 text-sm font-normal italic" style="color: var(--q-ink-mute);">
-                — {locale === 'zh-tw'
-                  ? project.data.description_zh?.slice(0, 30)
-                  : project.data.description_en?.slice(0, 40)}
-              </span>
-            </h4>
-          </div>
-          <span class="q-mono">{project.data.startDate ? project.data.startDate.getFullYear() : '—'}</span>
-          <span class="text-right text-lg" style="color: var(--q-ink);">→</span>
-        </a>
-      ))}
+          >
+            <span class="q-mono" style="color: var(--q-navy);">
+              {String(project.data.order || i + 3).padStart(2, '0')}
+            </span>
+            <div>
+              <h4
+                class="text-lg md:text-xl font-semibold tracking-tight"
+                style="color: var(--q-ink); margin: 0;"
+              >
+                {locale === 'zh-tw'
+                  ? project.data.title_zh || project.id
+                  : project.data.title_en}
+                <span
+                  class="ml-3 text-sm font-normal italic"
+                  style="color: var(--q-ink-mute);"
+                >
+                  —{' '}
+                  {locale === 'zh-tw'
+                    ? project.data.description_zh?.slice(0, 30)
+                    : project.data.description_en?.slice(0, 40)}
+                </span>
+              </h4>
+            </div>
+            <span class="q-mono">
+              {project.data.startDate
+                ? project.data.startDate.getFullYear()
+                : '—'}
+            </span>
+            <span class="text-right text-lg" style="color: var(--q-ink);">
+              →
+            </span>
+          </a>
+        ))
+      }
     </div>
   </section>
 
   <!-- ─────────── ABOUT + UPDATES ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-16 py-16 md:py-24 max-w-screen-xl mx-auto reveal">
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-16 md:py-24 max-w-screen-xl mx-auto reveal"
+  >
     <div class="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-16 lg:gap-20">
-
       <!-- ABOUT -->
       <div class="reveal-item">
         <span class="q-section-label">{pt.aboutLabel || '—— 02 / about'}</span>
-        <h3 class="mt-3 text-3xl md:text-4xl font-bold tracking-tight" style="color: var(--q-ink);">
+        <h3
+          class="mt-3 text-3xl md:text-4xl font-bold tracking-tight"
+          style="color: var(--q-ink);"
+        >
           {pt.aboutTitle || (locale === 'zh-tw' ? '關於我' : 'About Me')}
         </h3>
         <div class="mt-7 space-y-4">
-          {/* 優先層級：pt.aboutContent > homepageData.introContent > 硬編碼 fallback */}
-          {pt.aboutContent ? (
-            <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
-              {pt.aboutContent}
-            </p>
-          ) : homepageData?.data.introContent ? (
-            <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
-              {homepageData.data.introContent}
-            </p>
-          ) : (
-            <>
+          {
+            /* 優先層級：pt.aboutContent > homepageData.introContent > 硬編碼 fallback */
+          }
+          {
+            pt.aboutContent ? (
               <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
-                {locale === 'zh-tw'
-                  ? '我並不想要被任何事物給拘束，而希望追求一個自由自在的環境。'
-                  : "I don't want to be constrained by anything — I seek a free and open environment."}
+                {pt.aboutContent}
               </p>
+            ) : homepageData?.data.introContent ? (
               <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
-                {locale === 'zh-tw'
-                  ? '當然，聽起來還是天方夜譚，不過這也是我之所以繼續努力著的原因。'
-                  : "Of course, it still sounds like a fantasy, but that's exactly why I keep pushing forward."}
+                {homepageData.data.introContent}
               </p>
-              <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
-                {locale === 'zh-tw'
-                  ? '有一個故事存活在我的心中，而對我而言，想辦法把這個故事給實現就是我一直在追求的最終目標。'
-                  : 'A story lives in my heart, and finding a way to bring it to life is the ultimate goal I pursue.'}
-              </p>
-            </>
-          )}
+            ) : (
+              <>
+                <p
+                  class="text-base leading-[1.85]"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? '我並不想要被任何事物給拘束，而希望追求一個自由自在的環境。'
+                    : "I don't want to be constrained by anything — I seek a free and open environment."}
+                </p>
+                <p
+                  class="text-base leading-[1.85]"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? '當然，聽起來還是天方夜譚，不過這也是我之所以繼續努力著的原因。'
+                    : "Of course, it still sounds like a fantasy, but that's exactly why I keep pushing forward."}
+                </p>
+                <p
+                  class="text-base leading-[1.85]"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? '有一個故事存活在我的心中，而對我而言，想辦法把這個故事給實現就是我一直在追求的最終目標。'
+                    : 'A story lives in my heart, and finding a way to bring it to life is the ultimate goal I pursue.'}
+                </p>
+              </>
+            )
+          }
         </div>
         <a
           href={`${basePath}/about`}
@@ -383,34 +493,44 @@ const skillDomains = 5;
       <!-- UPDATES -->
       <div class="reveal-item">
         <span class="q-section-label">{pt.updatesLabel || '—— 03 / log'}</span>
-        <h3 class="mt-3 text-3xl md:text-4xl font-bold tracking-tight" style="color: var(--q-ink);">
+        <h3
+          class="mt-3 text-3xl md:text-4xl font-bold tracking-tight"
+          style="color: var(--q-ink);"
+        >
           {pt.updatesTitle || (locale === 'zh-tw' ? '近期動態' : 'Recent Log')}
         </h3>
 
         <div class="mt-7">
-          {latestUpdates.map((update, i) => (
-            <a
-              href={`${basePath}/updates/${update.id}`}
-              class="grid items-baseline py-3.5 no-underline transition-opacity hover:opacity-70"
-              style={`
+          {
+            latestUpdates.map((update, i) => (
+              <a
+                href={`${basePath}/updates/${update.id}`}
+                class="grid items-baseline py-3.5 no-underline transition-opacity hover:opacity-70"
+                style={`
                 grid-template-columns: 80px 1fr;
                 gap: 16px;
                 border-top: 1px solid var(--q-line);
                 ${i === latestUpdates.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
                 color: inherit;
               `}
-            >
-              <span class="q-mono">
-                {update.data.date.toLocaleDateString(
-                  locale === 'zh-tw' ? 'zh-TW' : 'en-US',
-                  { year: '2-digit', month: '2-digit', day: '2-digit' }
-                )}
-              </span>
-              <span class="text-sm font-medium leading-snug" style="color: var(--q-ink);">
-                {locale === 'zh-tw' ? (update.data.title_zh || update.id) : (update.data.title_en || update.id)}
-              </span>
-            </a>
-          ))}
+              >
+                <span class="q-mono">
+                  {update.data.date.toLocaleDateString(
+                    locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                    { year: '2-digit', month: '2-digit', day: '2-digit' }
+                  )}
+                </span>
+                <span
+                  class="text-sm font-medium leading-snug"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? update.data.title_zh || update.id
+                    : update.data.title_en || update.id}
+                </span>
+              </a>
+            ))
+          }
         </div>
 
         <a
@@ -421,10 +541,8 @@ const skillDomains = 5;
           {pt.updatesCta || (locale === 'zh-tw' ? '所有動態' : 'All updates')} →
         </a>
       </div>
-
     </div>
   </section>
-
 </BaseLayout>
 
 <style>

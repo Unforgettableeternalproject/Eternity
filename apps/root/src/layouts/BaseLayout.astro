@@ -8,12 +8,9 @@ import UEPCharacter from '../components/UEPCharacter';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
-import LeftSidebar from '../components/LeftSidebar.astro';
-import RightSidebar from '../components/RightSidebar.astro';
-import MobileControlPanel from '../components/MobileControlPanel.astro';
 import CookieConsent from '../components/CookieConsent';
 import ImageViewerModal from '../components/ImageViewerModal';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 // getCollection removed — footer no longer needs it here
 
 interface Props {
@@ -31,7 +28,6 @@ const {
 } = Astro.props;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 
 // Footer 連結現在由 QuartzFooter 自行管理
 

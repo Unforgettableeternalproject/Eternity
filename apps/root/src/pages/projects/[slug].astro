@@ -1,12 +1,11 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../../i18n/utils';
+import { getCurrentLocale } from '../../i18n/utils';
 import { getProject, getProjects } from '../../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 const slug = Astro.params.slug!;

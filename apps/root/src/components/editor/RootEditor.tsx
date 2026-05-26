@@ -183,6 +183,18 @@ function NewItemModal({
   );
 }
 
+// ─── 色板常數 ──────────────────────────────────────────────────────
+const COLOR_SWATCHES = [
+  { color: 'var(--q-navy)', label: 'Navy' },
+  { color: 'var(--q-coral)', label: 'Coral' },
+  { color: '#7dd3fc', label: 'Sky' },
+  { color: '#d5b618', label: 'Gold' },
+  { color: '#a78bfa', label: 'Violet' },
+  { color: '#34d399', label: 'Emerald' },
+  { color: '#fb923c', label: 'Orange' },
+  { color: '#f87171', label: 'Red' },
+];
+
 // ─── TipTap editor with toolbar ─────────────────────────────────────
 export function TipTapEditor({
   content,
@@ -198,7 +210,12 @@ export function TipTapEditor({
   token: string;
 }) {
   const [showImagePicker, setShowImagePicker] = useState(false);
-  const colorInputRef = useRef<HTMLInputElement>(null);
+  const [showColorPalette, setShowColorPalette] = useState(false);
+  // 工具列狀態追蹤（只在 selectionUpdate 時更新，避免 onTransaction 過於頻繁）
+  const [, setToolbarTick] = useState(0);
+  // 儲存選取範圍，供 color picker 恢復用
+  const savedSelection = useRef<{ from: number; to: number } | null>(null);
+  const paletteRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor(
     {
@@ -213,10 +230,24 @@ export function TipTapEditor({
         Color,
       ],
       content,
-      onUpdate: ({ editor: e }) => onUpdate(e.getHTML()),
+      onUpdate: ({ editor: e }) => {
+        onUpdate(e.getHTML());
+        setToolbarTick((n) => n + 1);
+      },
+      onSelectionUpdate: () => setToolbarTick((n) => n + 1),
     },
     []
   );
+
+  // 點擊色板以外的地方關閉色板
+  useEffect(() => {
+    if (!showColorPalette) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowColorPalette(false);
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [showColorPalette]);
 
   // sync external content changes (e.g. switching items)
   useEffect(() => {
@@ -256,104 +287,229 @@ export function TipTapEditor({
     </button>
   );
 
+  const currentColor = editor.getAttributes('textStyle').color || '';
+
   return (
     <div className="qe-tiptap-wrap">
       <div className="qe-toolbar">
         <TB
-          cmd={() => editor!.chain().focus().toggleBold().run()}
+          cmd={() => editor.chain().focus().toggleBold().run()}
           label="B"
-          active={editor!.isActive('bold')}
+          active={editor.isActive('bold')}
         />
         <TB
-          cmd={() => editor!.chain().focus().toggleItalic().run()}
+          cmd={() => editor.chain().focus().toggleItalic().run()}
           label="I"
-          active={editor!.isActive('italic')}
+          active={editor.isActive('italic')}
         />
         <TB
-          cmd={() => editor!.chain().focus().toggleUnderline().run()}
+          cmd={() => editor.chain().focus().toggleUnderline().run()}
           label="U"
-          active={editor!.isActive('underline')}
+          active={editor.isActive('underline')}
         />
         <TB
-          cmd={() => editor!.chain().focus().toggleStrike().run()}
+          cmd={() => editor.chain().focus().toggleStrike().run()}
           label="S"
-          active={editor!.isActive('strike')}
+          active={editor.isActive('strike')}
         />
         <div className="qe-toolbar__sep" />
         <TB
-          cmd={() => editor!.chain().focus().toggleHeading({ level: 2 }).run()}
+          cmd={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           label="H2"
-          active={editor!.isActive('heading', { level: 2 })}
+          active={editor.isActive('heading', { level: 2 })}
         />
         <TB
-          cmd={() => editor!.chain().focus().toggleHeading({ level: 3 }).run()}
+          cmd={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           label="H3"
-          active={editor!.isActive('heading', { level: 3 })}
+          active={editor.isActive('heading', { level: 3 })}
         />
         <TB
-          cmd={() => editor!.chain().focus().setParagraph().run()}
+          cmd={() => editor.chain().focus().setParagraph().run()}
           label="¶"
-          active={editor!.isActive('paragraph')}
+          active={editor.isActive('paragraph')}
         />
         <div className="qe-toolbar__sep" />
         <TB
-          cmd={() => editor!.chain().focus().toggleBulletList().run()}
+          cmd={() => editor.chain().focus().toggleBulletList().run()}
           label="•"
-          active={editor!.isActive('bulletList')}
+          active={editor.isActive('bulletList')}
         />
         <TB
-          cmd={() => editor!.chain().focus().toggleOrderedList().run()}
+          cmd={() => editor.chain().focus().toggleOrderedList().run()}
           label="1."
-          active={editor!.isActive('orderedList')}
+          active={editor.isActive('orderedList')}
         />
         <TB
-          cmd={() => editor!.chain().focus().toggleBlockquote().run()}
+          cmd={() => editor.chain().focus().toggleBlockquote().run()}
           label="❝"
-          active={editor!.isActive('blockquote')}
+          active={editor.isActive('blockquote')}
         />
         <div className="qe-toolbar__sep" />
         <TB
-          cmd={() => editor!.chain().focus().setHorizontalRule().run()}
+          cmd={() => editor.chain().focus().setHorizontalRule().run()}
           label="—"
         />
         <TB cmd={() => setShowImagePicker(true)} label="🖼" />
         <div className="qe-toolbar__sep" />
-        {/* 顏色選擇器 */}
-        <TB
-          cmd={() => colorInputRef.current?.click()}
-          label="A"
-          title="文字顏色"
-          style={{
-            color: editor!.getAttributes('textStyle').color || 'inherit',
-          }}
-        />
-        <input
-          ref={colorInputRef}
-          type="color"
-          style={{
-            width: 0,
-            height: 0,
-            padding: 0,
-            border: 0,
-            position: 'absolute',
-            opacity: 0,
-          }}
-          onChange={(e) =>
-            editor!.chain().focus().setColor(e.target.value).run()
-          }
-        />
+        {/* 色板選擇器 */}
+        <div ref={paletteRef} style={{ position: 'relative' }}>
+          <button
+            className={`qe-toolbar__btn${currentColor ? ' qe-toolbar__btn--active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              savedSelection.current = {
+                from: editor.state.selection.from,
+                to: editor.state.selection.to,
+              };
+              setShowColorPalette((v) => !v);
+            }}
+            title="文字顏色"
+            style={{ color: currentColor || 'inherit' }}
+          >
+            A
+          </button>
+          {showColorPalette && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                zIndex: 50,
+                background: 'var(--qe-paper)',
+                border: '1px solid var(--qe-line)',
+                padding: 6,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, 1fr)',
+                gap: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              {COLOR_SWATCHES.map((s) => (
+                <button
+                  key={s.color}
+                  title={s.label}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // 恢復選取再套色
+                    const sel = savedSelection.current;
+                    if (sel) {
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection(sel)
+                        .setColor(s.color)
+                        .run();
+                    } else {
+                      editor.chain().focus().setColor(s.color).run();
+                    }
+                    setShowColorPalette(false);
+                  }}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    background: s.color,
+                    border:
+                      currentColor === s.color
+                        ? '2px solid var(--qe-ink)'
+                        : '1px solid var(--qe-line)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+              {/* 自訂顏色 */}
+              <label
+                title="自訂顏色"
+                style={{
+                  width: 22,
+                  height: 22,
+                  background:
+                    'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
+                  border: '1px solid var(--qe-line)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onMouseDown={() => {
+                  savedSelection.current = {
+                    from: editor.state.selection.from,
+                    to: editor.state.selection.to,
+                  };
+                }}
+              >
+                <input
+                  type="color"
+                  style={{
+                    position: 'absolute',
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer',
+                  }}
+                  onChange={(e) => {
+                    // 即時套色但不關閉色板——讓使用者可以自由拖曳調色
+                    const sel = savedSelection.current;
+                    if (sel) {
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection(sel)
+                        .setColor(e.target.value)
+                        .run();
+                    } else {
+                      editor.chain().focus().setColor(e.target.value).run();
+                    }
+                  }}
+                />
+              </label>
+              {/* 清除色彩 */}
+              <button
+                title="清除色彩"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const sel = savedSelection.current;
+                  if (sel) {
+                    editor
+                      .chain()
+                      .focus()
+                      .setTextSelection(sel)
+                      .unsetColor()
+                      .run();
+                  } else {
+                    editor.chain().focus().unsetColor().run();
+                  }
+                  setShowColorPalette(false);
+                }}
+                style={{
+                  width: 22,
+                  height: 22,
+                  background: 'var(--qe-paper)',
+                  border: '1px solid var(--qe-line)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  lineHeight: '20px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
         <TB
           cmd={() =>
-            editor!.chain().focus().toggleHighlight({ color: '#fef08a' }).run()
+            editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()
           }
           label="Hi"
-          active={editor!.isActive('highlight')}
+          active={editor.isActive('highlight')}
           title="螢光標記"
-        />
-        <TB
-          cmd={() => editor!.chain().focus().unsetColor().run()}
-          label="A̲"
-          title="清除文字色"
         />
       </div>
       <EditorContent editor={editor} />
@@ -430,7 +586,7 @@ function ProjectsEditor({
   }, [p, api]);
 
   const remove = useCallback(async () => {
-    if (!p || !confirm(`確認刪除 "${p.titleZh || p.id}"？`)) return;
+    if (!p || !window.confirm(`確認刪除 "${p.titleZh || p.id}"？`)) return;
     const res = await api(`/api/root/projects/${p.id}`, 'DELETE');
     if (res.ok) {
       setItems((prev) => prev.filter((x) => x.id !== p.id));
@@ -871,7 +1027,7 @@ function UpdatesEditor({
   }, [u, api]);
 
   const remove = useCallback(async () => {
-    if (!u || !confirm(`確認刪除 "${u.titleZh || u.id}"？`)) return;
+    if (!u || !window.confirm(`確認刪除 "${u.titleZh || u.id}"？`)) return;
     const res = await api(`/api/root/updates/${u.id}`, 'DELETE');
     if (res.ok) {
       setItems((prev) => prev.filter((x) => x.id !== u.id));
@@ -1134,7 +1290,7 @@ function LinksEditor({
   }, [lk, api]);
 
   const remove = useCallback(async () => {
-    if (!lk || !confirm(`確認刪除 "${lk.titleZh || lk.id}"？`)) return;
+    if (!lk || !window.confirm(`確認刪除 "${lk.titleZh || lk.id}"？`)) return;
     const res = await api(`/api/root/links/${lk.id}`, 'DELETE');
     if (res.ok) {
       setItems((prev) => prev.filter((x) => x.id !== lk.id));

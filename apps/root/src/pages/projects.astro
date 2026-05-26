@@ -1,14 +1,12 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 import { getProjects, getSingleton, assetUrl } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
-const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 /* ── 頁面文字從 D1 讀取（fallback 為硬編碼） ── */
 const ptKey = locale === 'zh-tw' ? 'page-projects-zh' : 'page-projects-en';
@@ -19,17 +17,26 @@ const allProjectsRaw = await getProjects();
 
 // 排序優先級：featured > active > completed > paused > archived
 const STATUS_PRIORITY: Record<string, number> = {
-  active: 0, completed: 1, paused: 2, archived: 3,
+  active: 0,
+  completed: 1,
+  paused: 2,
+  archived: 3,
 };
 
 const projects = allProjectsRaw
-  .map(p => ({
+  .map((p) => ({
     id: p.id,
     data: {
-      title_zh: p.titleZh, title_en: p.titleEn,
-      description_zh: p.descZh, description_en: p.descEn,
-      tags: p.tags, featured: p.featured, order: p.sortOrder,
-      status: p.status, image: p.image, links: p.links,
+      title_zh: p.titleZh,
+      title_en: p.titleEn,
+      description_zh: p.descZh,
+      description_en: p.descEn,
+      tags: p.tags,
+      featured: p.featured,
+      order: p.sortOrder,
+      status: p.status,
+      image: p.image,
+      links: p.links,
       startDate: p.startDate ? new Date(p.startDate) : null,
     },
   }))
@@ -41,56 +48,99 @@ const projects = allProjectsRaw
     const sB = STATUS_PRIORITY[b.data.status] ?? 9;
     if (sA !== sB) return sA - sB;
     // 同 status 按日期倒序
-    return (b.data.startDate?.getTime() ?? 0) - (a.data.startDate?.getTime() ?? 0);
+    return (
+      (b.data.startDate?.getTime() ?? 0) - (a.data.startDate?.getTime() ?? 0)
+    );
   });
 
-const allTags = Array.from(new Set(projects.flatMap((p) => p.data.tags))).sort();
+const allTags = Array.from(
+  new Set(projects.flatMap((p) => p.data.tags))
+).sort();
 const allStatuses = Array.from(new Set(projects.map((p) => p.data.status)));
 const featuredCount = projects.filter((p) => p.data.featured).length;
 const statusOrder = ['active', 'completed', 'paused', 'archived'];
-const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof allStatuses[number]));
+const sortedStatuses = statusOrder.filter((s) =>
+  allStatuses.includes(s as (typeof allStatuses)[number])
+);
 ---
 
 <BaseLayout
   title={locale === 'zh-tw' ? '作品 — 顏榕嶙' : 'Projects — Bernie Yen'}
-  description={locale === 'zh-tw' ? '我做過的所有東西。' : "Everything I've built."}
+  description={locale === 'zh-tw'
+    ? '我做過的所有東西。'
+    : "Everything I've built."}
 >
-
   <!-- ─────────── HERO ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto">
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
+  >
     <span class="q-section-label">
-      {pt.heroLabel || (locale === 'zh-tw' ? '—— 02 / projects · 作品目錄' : '—— 02 / projects · project catalog')}
+      {
+        pt.heroLabel ||
+          (locale === 'zh-tw'
+            ? '—— 02 / projects · 作品目錄'
+            : '—— 02 / projects · project catalog')
+      }
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle || (locale === 'zh-tw'
-        ? '我做過的<br /><span style="color: var(--q-navy); font-weight: 600;">所有東西</span>。'
-        : 'Everything<br />I\'ve <span style="color: var(--q-navy); font-weight: 600;">built</span>.')}
+      set:html={pt.heroTitle ||
+        (locale === 'zh-tw'
+          ? '我做過的<br /><span style="color: var(--q-navy); font-weight: 600;">所有東西</span>。'
+          : 'Everything<br />I\'ve <span style="color: var(--q-navy); font-weight: 600;">built</span>.')}
     />
 
-    <div class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-12 items-end">
-      <p class="m-0 max-w-[560px] text-[17px] leading-[1.7]" style="color: var(--q-ink-soft);">
-        {pt.heroSubtitle || (locale === 'zh-tw'
-          ? '程式、世界觀、遊戲、工具 — 全部攤開列在這份目錄裡。點任何一個進去看詳細紀錄。'
-          : 'Code, worldbuilding, games, tools — all laid out in this catalog. Click any entry for full details.')}
+    <div
+      class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-12 items-end"
+    >
+      <p
+        class="m-0 max-w-[560px] text-[17px] leading-[1.7]"
+        style="color: var(--q-ink-soft);"
+      >
+        {
+          pt.heroSubtitle ||
+            (locale === 'zh-tw'
+              ? '程式、世界觀、遊戲、工具 — 全部攤開列在這份目錄裡。點任何一個進去看詳細紀錄。'
+              : 'Code, worldbuilding, games, tools — all laid out in this catalog. Click any entry for full details.')
+        }
       </p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-5 lg:gap-6">
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-ink);">{String(projects.length).padStart(2, '0')}</div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {String(projects.length).padStart(2, '0')}
+          </div>
           <span class="q-mono mt-1 inline-block">total</span>
         </div>
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-ink);">2018</div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            2018
+          </div>
           <span class="q-mono mt-1 inline-block">since</span>
         </div>
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-ink);">{String(featuredCount).padStart(2, '0')}</div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {String(featuredCount).padStart(2, '0')}
+          </div>
           <span class="q-mono mt-1 inline-block">picks</span>
         </div>
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-navy);">+</div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-navy);"
+          >
+            +
+          </div>
           <span class="q-mono mt-1 inline-block">in progress</span>
         </div>
       </div>
@@ -104,17 +154,28 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
   >
     <div class="max-w-screen-xl mx-auto">
       <!-- Status 列 -->
-      <div class="flex flex-wrap items-center gap-2 py-3" style="border-bottom: 1px solid var(--q-line-soft);">
+      <div
+        class="flex flex-wrap items-center gap-2 py-3"
+        style="border-bottom: 1px solid var(--q-line-soft);"
+      >
         <span class="q-mono q-tag-label">status</span>
         <button class="q-filter-pill active" data-status="all">
           {locale === 'zh-tw' ? '全部' : 'all'}
         </button>
-        {sortedStatuses.map((s) => (
-          <button class="q-filter-pill" data-status={s}>{s}</button>
-        ))}
-        {featuredCount > 0 && (
-          <button class="q-filter-pill" data-status="featured">✦ featured</button>
-        )}
+        {
+          sortedStatuses.map((s) => (
+            <button class="q-filter-pill" data-status={s}>
+              {s}
+            </button>
+          ))
+        }
+        {
+          featuredCount > 0 && (
+            <button class="q-filter-pill" data-status="featured">
+              ✦ featured
+            </button>
+          )
+        }
       </div>
       <!-- Tag 列 -->
       <div class="q-tag-row">
@@ -123,88 +184,119 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
           <button class="q-filter-pill active" data-tag="all">
             {locale === 'zh-tw' ? '全部' : 'all'}
           </button>
-          {allTags.map((tag) => (
-            <button class="q-filter-pill" data-tag={tag}>{tag}</button>
-          ))}
+          {
+            allTags.map((tag) => (
+              <button class="q-filter-pill" data-tag={tag}>
+                {tag}
+              </button>
+            ))
+          }
         </div>
-        <span class="q-mono q-entry-count"><span id="q-visible-count">{projects.length}</span> entries</span>
+        <span class="q-mono q-entry-count"
+          ><span id="q-visible-count">{projects.length}</span> entries</span
+        >
       </div>
     </div>
   </section>
 
   <!-- ─────────── PROJECT GRID ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-12 lg:py-14 max-w-screen-xl mx-auto">
-
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-12 lg:py-14 max-w-screen-xl mx-auto"
+  >
     <!-- Empty state -->
     <div id="q-empty" class="hidden text-center py-20">
       <div class="text-6xl mb-4" style="color: var(--q-ink-fade);">∅</div>
-      <p class="q-mono">{locale === 'zh-tw' ? '沒有符合的結果' : 'no matching results'}</p>
+      <p class="q-mono">
+        {locale === 'zh-tw' ? '沒有符合的結果' : 'no matching results'}
+      </p>
     </div>
 
     <!-- Grid -->
-    <div id="q-project-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10 reveal">
-      {projects.map((p, idx) => {
-        const title = locale === 'zh-tw' ? (p.data.title_zh || p.id) : p.data.title_en;
-        const desc = locale === 'zh-tw' ? p.data.description_zh : p.data.description_en;
-        const year = p.data.startDate ? p.data.startDate.getFullYear() : '—';
+    <div
+      id="q-project-grid"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10 reveal"
+    >
+      {
+        projects.map((p, idx) => {
+          const title =
+            locale === 'zh-tw' ? p.data.title_zh || p.id : p.data.title_en;
+          const desc =
+            locale === 'zh-tw' ? p.data.description_zh : p.data.description_en;
+          const year = p.data.startDate ? p.data.startDate.getFullYear() : '—';
 
-        return (
-          <a
-            href={`${basePath}/projects/${p.id}`}
-            class="block no-underline group project-card reveal-item"
-            data-tags={JSON.stringify(p.data.tags)}
-            data-status={p.data.status}
-            data-featured={p.data.featured ? 'true' : 'false'}
-          >
-            <!-- Plate -->
-            <div class="q-plate" style="aspect-ratio: 4/3; overflow: hidden;">
-              {p.data.image ? (
-                <img
-                  src={assetUrl(p.data.image)}
-                  alt={title}
-                  loading="lazy"
-                />
-              ) : (
-                <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
-                  <span class="q-mono">{title}</span>
-                </div>
-              )}
-            </div>
-
-            <!-- Meta -->
-            <div class="mt-4 flex justify-between items-baseline">
-              <span class="q-mono" style="color: var(--q-navy);">
-                {String(idx + 1).padStart(2, '0')} · {p.data.status}
-              </span>
-              <span class="q-mono">{year}</span>
-            </div>
-
-            <h3
-              class="mt-2 text-lg md:text-[22px] font-bold tracking-tight group-hover:opacity-75 transition-opacity"
-              style="color: var(--q-ink);"
+          return (
+            <a
+              href={`${basePath}/projects/${p.id}`}
+              class="block no-underline group project-card reveal-item"
+              data-tags={JSON.stringify(p.data.tags)}
+              data-status={p.data.status}
+              data-featured={p.data.featured ? 'true' : 'false'}
             >
-              {title}
-              {p.data.featured && <span class="ml-2 text-xs q-mono" style="color: var(--q-navy); vertical-align: middle;">✦</span>}
-            </h3>
+              {/* Plate */}
+              <div class="q-plate" style="aspect-ratio: 4/3; overflow: hidden;">
+                {p.data.image ? (
+                  <img
+                    src={assetUrl(p.data.image)}
+                    alt={title}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
+                    <span class="q-mono">{title}</span>
+                  </div>
+                )}
+              </div>
 
-            <p class="mt-1.5 text-sm leading-[1.65]" style="color: var(--q-ink-soft); max-width: 420px;">
-              {desc?.slice(0, 80)}{(desc?.length ?? 0) > 80 ? '…' : ''}
-            </p>
+              {/* Meta */}
+              <div class="mt-4 flex justify-between items-baseline">
+                <span class="q-mono" style="color: var(--q-navy);">
+                  {String(idx + 1).padStart(2, '0')} · {p.data.status}
+                </span>
+                <span class="q-mono">{year}</span>
+              </div>
 
-            <div class="mt-3 flex gap-1.5 flex-wrap">
-              {p.data.tags.slice(0, 3).map((tag: string) => (
-                <span class="q-pill">{tag}</span>
-              ))}
-              {p.data.tags.length > 3 && <span class="q-pill">+{p.data.tags.length - 3}</span>}
-            </div>
-          </a>
-        );
-      })}
+              <h3
+                class="mt-2 text-lg md:text-[22px] font-bold tracking-tight group-hover:opacity-75 transition-opacity"
+                style="color: var(--q-ink);"
+              >
+                {title}
+                {p.data.featured && (
+                  <span
+                    class="ml-2 text-xs q-mono"
+                    style="color: var(--q-navy); vertical-align: middle;"
+                  >
+                    ✦
+                  </span>
+                )}
+              </h3>
+
+              <p
+                class="mt-1.5 text-sm leading-[1.65]"
+                style="color: var(--q-ink-soft); max-width: 420px;"
+              >
+                {desc?.slice(0, 80)}
+                {(desc?.length ?? 0) > 80 ? '…' : ''}
+              </p>
+
+              <div class="mt-3 flex gap-1.5 flex-wrap">
+                {p.data.tags.slice(0, 3).map((tag: string) => (
+                  <span class="q-pill">{tag}</span>
+                ))}
+                {p.data.tags.length > 3 && (
+                  <span class="q-pill">+{p.data.tags.length - 3}</span>
+                )}
+              </div>
+            </a>
+          );
+        })
+      }
     </div>
   </section>
 
   <!-- ─────────── IN PROGRESS ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pb-20 lg:pb-[120px] max-w-screen-xl mx-auto">
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pb-20 lg:pb-[120px] max-w-screen-xl mx-auto"
+  >
     <div
       class="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-6 md:gap-9 items-center pt-12"
       style="border-top: 1px solid var(--q-line);"
@@ -212,16 +304,34 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
       <div
         class="hidden md:block font-mono text-7xl lg:text-[88px] leading-[0.85] tracking-tighter"
         style="color: var(--q-navy); font-weight: 400;"
-      >+</div>
+      >
+        +
+      </div>
       <div>
-        <span class="q-section-label">—— next · {locale === 'zh-tw' ? '進行中' : 'in progress'}</span>
-        <h3 class="mt-2 text-2xl md:text-[28px] font-bold tracking-tight" style="color: var(--q-ink);">
-          {pt.bottomTitle || (locale === 'zh-tw' ? '還有些東西躺在抽屜裡' : 'More things sitting in the drawer')}
+        <span class="q-section-label"
+          >—— next · {locale === 'zh-tw' ? '進行中' : 'in progress'}</span
+        >
+        <h3
+          class="mt-2 text-2xl md:text-[28px] font-bold tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          {
+            pt.bottomTitle ||
+              (locale === 'zh-tw'
+                ? '還有些東西躺在抽屜裡'
+                : 'More things sitting in the drawer')
+          }
         </h3>
-        <p class="mt-1.5 text-sm leading-[1.65] max-w-[600px]" style="color: var(--q-ink-soft);">
-          {pt.bottomSubtitle || (locale === 'zh-tw'
-            ? '桌面型 AI、世界觀腳本、新一輪 OST、像素場景集 — 都還在寫。'
-            : 'Desktop AI, worldbuilding scripts, new OST batch, pixel scene packs — all in progress.')}
+        <p
+          class="mt-1.5 text-sm leading-[1.65] max-w-[600px]"
+          style="color: var(--q-ink-soft);"
+        >
+          {
+            pt.bottomSubtitle ||
+              (locale === 'zh-tw'
+                ? '桌面型 AI、世界觀腳本、新一輪 OST、像素場景集 — 都還在寫。'
+                : 'Desktop AI, worldbuilding scripts, new OST batch, pixel scene packs — all in progress.')
+          }
         </p>
       </div>
       <a
@@ -233,7 +343,6 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
       </a>
     </div>
   </section>
-
 </BaseLayout>
 
 <style>
@@ -289,7 +398,12 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
     padding: 2px 0;
     /* 右側漸隱（預設：未滾動時只有右邊） */
     mask-image: linear-gradient(to right, #000 0%, #000 88%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(
+      to right,
+      #000 0%,
+      #000 88%,
+      transparent 100%
+    );
   }
 
   .q-tag-scroll::-webkit-scrollbar {
@@ -302,14 +416,31 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
 
   /* 滾動到中間：雙邊漸隱 */
   .q-tag-scroll.fade-both {
-    mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 88%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 88%,
+      transparent 100%
+    );
   }
 
   /* 滾動到最右：只有左邊漸隱 */
   .q-tag-scroll.fade-left {
     mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 100%);
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 100%
+    );
   }
 
   /* 內容不足以滾動：無漸隱 */
@@ -329,18 +460,24 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
 
   /* ── Project card ── */
   .project-card {
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
   }
 
-  .project-card[data-hidden="true"] {
+  .project-card[data-hidden='true'] {
     display: none;
   }
 </style>
 
 <script>
   function initProjectFilters() {
-    const statusPills = document.querySelectorAll<HTMLButtonElement>('.q-filter-pill[data-status]');
-    const tagPills = document.querySelectorAll<HTMLButtonElement>('.q-filter-pill[data-tag]');
+    const statusPills = document.querySelectorAll<HTMLButtonElement>(
+      '.q-filter-pill[data-status]'
+    );
+    const tagPills = document.querySelectorAll<HTMLButtonElement>(
+      '.q-filter-pill[data-tag]'
+    );
     const cards = document.querySelectorAll<HTMLElement>('.project-card');
     const grid = document.getElementById('q-project-grid');
     const empty = document.getElementById('q-empty');
@@ -356,8 +493,9 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
         const status = card.dataset.status || '';
         const featured = card.dataset.featured === 'true';
 
-        const statusMatch = activeStatus === 'all'
-          || (activeStatus === 'featured' ? featured : status === activeStatus);
+        const statusMatch =
+          activeStatus === 'all' ||
+          (activeStatus === 'featured' ? featured : status === activeStatus);
         const tagMatch = activeTag === 'all' || tags.includes(activeTag);
         const match = statusMatch && tagMatch;
 
@@ -392,13 +530,20 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
   }
 
   function initRevealAnimation() {
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
     if (prefersReduced) return;
     const observer = new IntersectionObserver(
-      (entries) => { for (const e of entries) if (e.isIntersecting) e.target.classList.add('reveal-visible'); },
+      (entries) => {
+        for (const e of entries)
+          if (e.isIntersecting) e.target.classList.add('reveal-visible');
+      },
       { rootMargin: '0px 0px -10% 0px', threshold: 0.1 }
     );
-    document.querySelectorAll('.reveal-item').forEach((el) => observer.observe(el));
+    document
+      .querySelectorAll('.reveal-item')
+      .forEach((el) => observer.observe(el));
   }
 
   function initDragScroll() {
@@ -421,8 +566,9 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
       el.classList.remove('fade-both', 'fade-left', 'no-fade');
       if (noScroll) el.classList.add('no-fade');
       else if (atStart && atEnd) el.classList.add('no-fade');
-      else if (atStart) { /* 預設 CSS：只有右邊漸隱 */ }
-      else if (atEnd) el.classList.add('fade-left');
+      else if (atStart) {
+        /* 預設 CSS：只有右邊漸隱 */
+      } else if (atEnd) el.classList.add('fade-left');
       else el.classList.add('fade-both');
     }
 
@@ -434,8 +580,14 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
       scrollLeft = el.scrollLeft;
     });
 
-    el.addEventListener('mouseleave', () => { isDown = false; el.classList.remove('grabbing'); });
-    el.addEventListener('mouseup', () => { isDown = false; el.classList.remove('grabbing'); });
+    el.addEventListener('mouseleave', () => {
+      isDown = false;
+      el.classList.remove('grabbing');
+    });
+    el.addEventListener('mouseup', () => {
+      isDown = false;
+      el.classList.remove('grabbing');
+    });
 
     el.addEventListener('mousemove', (e) => {
       if (!isDown) return;
@@ -447,24 +599,43 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof 
     });
 
     // 拖曳時不觸發 pill 點擊
-    el.addEventListener('click', (e) => {
-      if (hasDragged) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
+    el.addEventListener(
+      'click',
+      (e) => {
+        if (hasDragged) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true
+    );
 
     // 滾輪：垂直 → 水平
-    el.addEventListener('wheel', (e) => {
-      if (el.scrollWidth <= el.clientWidth) return; // 內容不足不攔截
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
-      }
-    }, { passive: false });
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        if (el.scrollWidth <= el.clientWidth) return; // 內容不足不攔截
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          e.preventDefault();
+          el.scrollLeft += e.deltaY;
+        }
+      },
+      { passive: false }
+    );
 
     el.addEventListener('scroll', updateFade, { passive: true });
     window.addEventListener('resize', updateFade);
     updateFade();
   }
 
-  document.addEventListener('DOMContentLoaded', () => { initProjectFilters(); initDragScroll(); initRevealAnimation(); });
-  document.addEventListener('astro:page-load', () => { initProjectFilters(); initDragScroll(); initRevealAnimation(); });
+  document.addEventListener('DOMContentLoaded', () => {
+    initProjectFilters();
+    initDragScroll();
+    initRevealAnimation();
+  });
+  document.addEventListener('astro:page-load', () => {
+    initProjectFilters();
+    initDragScroll();
+    initRevealAnimation();
+  });
 </script>

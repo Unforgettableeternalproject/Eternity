@@ -53,6 +53,7 @@ export interface RootProject {
 }
 
 export interface UpsertRootProjectRequest {
+  updatedAt?: string;
   titleZh?: string;
   titleEn?: string;
   descZh?: string;
@@ -113,6 +114,7 @@ export interface RootLink {
 }
 
 export interface UpsertRootLinkRequest {
+  updatedAt?: string;
   titleZh?: string;
   titleEn?: string;
   descZh?: string;
@@ -162,6 +164,7 @@ export interface RootUpdate {
 }
 
 export interface UpsertRootUpdateRequest {
+  updatedAt?: string;
   titleZh?: string;
   titleEn?: string;
   descZh?: string;

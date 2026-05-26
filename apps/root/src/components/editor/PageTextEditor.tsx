@@ -1,4 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Highlight from '@tiptap/extension-highlight';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
 import { Mono, Divider, Field, Input, OutlineRow } from './editorPrimitives';
 
 // ─── 型別定義 ────────────────────────────────────────────────────────
@@ -48,22 +54,22 @@ const PAGES: { id: PageId; num: string; label: string; sub: string }[] = [
     sub: 'page-projects-zh / page-projects-en',
   },
   {
-    id: 'updates',
+    id: 'about',
     num: '02',
+    label: '關於 About',
+    sub: 'page-about-zh / page-about-en',
+  },
+  {
+    id: 'updates',
+    num: '03',
     label: '動態 Updates',
     sub: 'page-updates-zh / page-updates-en',
   },
   {
     id: 'links',
-    num: '03',
+    num: '04',
     label: '連結 Links',
     sub: 'page-links-zh / page-links-en',
-  },
-  {
-    id: 'about',
-    num: '04',
-    label: '關於 About',
-    sub: 'page-about-zh / page-about-en',
   },
   {
     id: 'contact',
@@ -82,7 +88,7 @@ function singletonKey(page: PageId, lang: 'zh' | 'en'): string {
 const HOME_FIELDS: {
   key: string;
   label: string;
-  type: 'input' | 'textarea';
+  type: 'input' | 'textarea' | 'tiptap';
   placeholder?: string;
 }[] = [
   {
@@ -94,7 +100,7 @@ const HOME_FIELDS: {
   {
     key: 'heroTitle',
     label: 'heroTitle',
-    type: 'input',
+    type: 'tiptap',
     placeholder: '主標題大字',
   },
   {
@@ -181,7 +187,7 @@ const HOME_FIELDS: {
 const PROJECTS_FIELDS: {
   key: string;
   label: string;
-  type: 'input' | 'textarea';
+  type: 'input' | 'textarea' | 'tiptap';
   placeholder?: string;
 }[] = [
   {
@@ -193,7 +199,7 @@ const PROJECTS_FIELDS: {
   {
     key: 'heroTitle',
     label: 'heroTitle',
-    type: 'input',
+    type: 'tiptap',
     placeholder: '頁面主標題',
   },
   {
@@ -220,7 +226,7 @@ const PROJECTS_FIELDS: {
 const UPDATES_FIELDS: {
   key: string;
   label: string;
-  type: 'input' | 'textarea';
+  type: 'input' | 'textarea' | 'tiptap';
   placeholder?: string;
 }[] = [
   {
@@ -232,7 +238,7 @@ const UPDATES_FIELDS: {
   {
     key: 'heroTitle',
     label: 'heroTitle',
-    type: 'input',
+    type: 'tiptap',
     placeholder: '頁面主標題',
   },
   {
@@ -247,7 +253,7 @@ const UPDATES_FIELDS: {
 const LINKS_FIELDS: {
   key: string;
   label: string;
-  type: 'input' | 'textarea';
+  type: 'input' | 'textarea' | 'tiptap';
   placeholder?: string;
 }[] = [
   {
@@ -259,7 +265,7 @@ const LINKS_FIELDS: {
   {
     key: 'heroTitle',
     label: 'heroTitle',
-    type: 'input',
+    type: 'tiptap',
     placeholder: '頁面主標題',
   },
   {
@@ -292,9 +298,9 @@ const ABOUT_FIELDS: typeof HOME_FIELDS = [
   },
   {
     key: 'heroTitle',
-    label: 'heroTitle（支援 HTML）',
-    type: 'textarea',
-    placeholder: '頁面主標題（可含 <br/> 和 <span>）',
+    label: 'heroTitle',
+    type: 'tiptap',
+    placeholder: '頁面主標題',
   },
   {
     key: 'heroIntro',
@@ -314,9 +320,9 @@ const CONTACT_FIELDS: typeof HOME_FIELDS = [
   },
   {
     key: 'heroTitle',
-    label: 'heroTitle（支援 HTML）',
-    type: 'textarea',
-    placeholder: '頁面主標題（可含 <br/> 和 <span>）',
+    label: 'heroTitle',
+    type: 'tiptap',
+    placeholder: '頁面主標題',
   },
   {
     key: 'heroIntro',
@@ -336,7 +342,311 @@ const PAGE_FIELDS: Record<PageId, typeof HOME_FIELDS> = {
   contact: CONTACT_FIELDS,
 };
 
-// ─── 頁面欄位編輯器：依欄位定義列出 Input/textarea ──────────────────
+// ─── Mini TipTap（只有粗體、斜體、顏色——用於 heroTitle）─────────────
+// 色板常數（與 RootEditor 共用同一組）
+const MINI_SWATCHES = [
+  { color: 'var(--q-navy)', label: 'Navy' },
+  { color: 'var(--q-coral)', label: 'Coral' },
+  { color: '#7dd3fc', label: 'Sky' },
+  { color: '#d5b618', label: 'Gold' },
+  { color: '#a78bfa', label: 'Violet' },
+  { color: '#34d399', label: 'Emerald' },
+  { color: '#fb923c', label: 'Orange' },
+  { color: '#f87171', label: 'Red' },
+];
+
+function MiniTipTap({
+  content,
+  onUpdate,
+  placeholder,
+}: {
+  content: string;
+  onUpdate: (html: string) => void;
+  placeholder?: string;
+}) {
+  const [showPalette, setShowPalette] = useState(false);
+  const [, setToolbarTick] = useState(0);
+  const savedSelection = useRef<{ from: number; to: number } | null>(null);
+  const paletteRef = useRef<HTMLDivElement>(null);
+
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          heading: false,
+          blockquote: false,
+          bulletList: false,
+          orderedList: false,
+          codeBlock: false,
+          horizontalRule: false,
+        }),
+        Underline,
+        Highlight,
+        TextStyle,
+        Color,
+      ],
+      content,
+      onUpdate: ({ editor: e }) => {
+        onUpdate(e.getHTML());
+        setToolbarTick((n) => n + 1);
+      },
+      onSelectionUpdate: () => setToolbarTick((n) => n + 1),
+    },
+    []
+  );
+
+  // 同步外部內容（語言切換）
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      const cur = editor.getHTML();
+      if (content !== cur && content !== '<p></p>') {
+        editor.commands.setContent(content || '', { emitUpdate: false });
+      }
+    }
+  }, [content, editor]);
+
+  // ESC 關閉色板
+  useEffect(() => {
+    if (!showPalette) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowPalette(false);
+    };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [showPalette]);
+
+  if (!editor) return null;
+
+  const TB = ({
+    cmd,
+    label,
+    active,
+    title,
+    style: s,
+  }: {
+    cmd: () => void;
+    label: string;
+    active?: boolean;
+    title?: string;
+    style?: React.CSSProperties;
+  }) => (
+    <button
+      className={`qe-toolbar__btn${active ? ' qe-toolbar__btn--active' : ''}`}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        cmd();
+      }}
+      title={title || label}
+      style={{ padding: '2px 6px', fontSize: 11, ...s }}
+    >
+      {label}
+    </button>
+  );
+
+  const currentColor = editor.getAttributes('textStyle').color || '';
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 2,
+          marginBottom: 4,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
+        <TB
+          cmd={() => editor.chain().focus().toggleBold().run()}
+          label="B"
+          active={editor.isActive('bold')}
+          title="粗體"
+        />
+        <TB
+          cmd={() => editor.chain().focus().toggleItalic().run()}
+          label="I"
+          active={editor.isActive('italic')}
+          title="斜體"
+        />
+        <TB
+          cmd={() => editor.chain().focus().toggleUnderline().run()}
+          label="U"
+          active={editor.isActive('underline')}
+          title="底線"
+        />
+        <span
+          style={{ width: 1, background: 'var(--qe-line)', margin: '0 3px' }}
+        />
+        {/* 色板 */}
+        <div ref={paletteRef} style={{ position: 'relative' }}>
+          <button
+            className={`qe-toolbar__btn${currentColor ? ' qe-toolbar__btn--active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              savedSelection.current = {
+                from: editor.state.selection.from,
+                to: editor.state.selection.to,
+              };
+              setShowPalette((v) => !v);
+            }}
+            title="文字顏色"
+            style={{
+              padding: '2px 6px',
+              fontSize: 11,
+              color: currentColor || 'inherit',
+            }}
+          >
+            A
+          </button>
+          {showPalette && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                zIndex: 50,
+                background: 'var(--qe-paper)',
+                border: '1px solid var(--qe-line)',
+                padding: 6,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, 1fr)',
+                gap: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              {MINI_SWATCHES.map((s) => (
+                <button
+                  key={s.color}
+                  title={s.label}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const sel = savedSelection.current;
+                    if (sel)
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection(sel)
+                        .setColor(s.color)
+                        .run();
+                    else editor.chain().focus().setColor(s.color).run();
+                    setShowPalette(false);
+                  }}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    background: s.color,
+                    border:
+                      currentColor === s.color
+                        ? '2px solid var(--qe-ink)'
+                        : '1px solid var(--qe-line)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+              {/* 自訂顏色 */}
+              <label
+                title="自訂顏色"
+                style={{
+                  width: 22,
+                  height: 22,
+                  background:
+                    'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
+                  border: '1px solid var(--qe-line)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <input
+                  type="color"
+                  style={{
+                    position: 'absolute',
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer',
+                  }}
+                  onChange={(e) => {
+                    // 即時套色但不關閉——讓使用者自由拖曳調色
+                    const sel = savedSelection.current;
+                    if (sel)
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection(sel)
+                        .setColor(e.target.value)
+                        .run();
+                    else editor.chain().focus().setColor(e.target.value).run();
+                  }}
+                />
+              </label>
+              {/* 清除 */}
+              <button
+                title="清除色彩"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const sel = savedSelection.current;
+                  if (sel)
+                    editor
+                      .chain()
+                      .focus()
+                      .setTextSelection(sel)
+                      .unsetColor()
+                      .run();
+                  else editor.chain().focus().unsetColor().run();
+                  setShowPalette(false);
+                }}
+                style={{
+                  width: 22,
+                  height: 22,
+                  background: 'var(--qe-paper)',
+                  border: '1px solid var(--qe-line)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  lineHeight: '20px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+        <TB
+          cmd={() =>
+            editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()
+          }
+          label="Hi"
+          active={editor.isActive('highlight')}
+          title="螢光標記"
+        />
+      </div>
+      <div
+        style={{
+          border: '1px solid var(--qe-line)',
+          borderRadius: 2,
+          padding: '8px 12px',
+          minHeight: 40,
+          fontSize: 14,
+          lineHeight: 1.6,
+          background: 'var(--qe-paper)',
+        }}
+      >
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+
+// ─── 頁面欄位編輯器：依欄位定義列出 Input/textarea/tiptap ─────────────
 function PageFields({
   fields,
   data,
@@ -348,18 +658,32 @@ function PageFields({
 }) {
   return (
     <>
-      {fields.map(({ key, label, type, placeholder }) =>
-        type === 'textarea' ? (
-          <Field key={key} label={label}>
-            <textarea
-              className="qe-desc-textarea"
-              value={(data || {})[key] || ''}
-              rows={4}
-              placeholder={placeholder}
-              onChange={(e) => onChange({ [key]: e.target.value })}
-            />
-          </Field>
-        ) : (
+      {fields.map(({ key, label, type, placeholder }) => {
+        if (type === 'tiptap') {
+          return (
+            <Field key={key} label={label}>
+              <MiniTipTap
+                content={(data || {})[key] || ''}
+                onUpdate={(html) => onChange({ [key]: html })}
+                placeholder={placeholder}
+              />
+            </Field>
+          );
+        }
+        if (type === 'textarea') {
+          return (
+            <Field key={key} label={label}>
+              <textarea
+                className="qe-desc-textarea"
+                value={(data || {})[key] || ''}
+                rows={4}
+                placeholder={placeholder}
+                onChange={(e) => onChange({ [key]: e.target.value })}
+              />
+            </Field>
+          );
+        }
+        return (
           <Field key={key} label={label}>
             <Input
               value={(data || {})[key] || ''}
@@ -367,8 +691,8 @@ function PageFields({
               placeholder={placeholder}
             />
           </Field>
-        )
-      )}
+        );
+      })}
     </>
   );
 }
@@ -497,7 +821,6 @@ export default function PageTextEditor({
       setter({ ...(data || {}), ...patch });
       setCurrentDirty(true);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activePage,
       lang,
@@ -524,7 +847,6 @@ export default function PageTextEditor({
       content: data,
     });
     if (res.ok) setCurrentDirty(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activePage,
     lang,

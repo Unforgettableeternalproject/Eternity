@@ -1,12 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 import { getUpdates, getSingleton } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 /* ── 頁面文字從 D1 讀取 ── */
@@ -16,11 +15,13 @@ const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 
 const allUpdatesRaw = await getUpdates();
 const updates = allUpdatesRaw
-  .map(u => ({
+  .map((u) => ({
     id: u.id,
     data: {
-      title_zh: u.titleZh, title_en: u.titleEn,
-      description_zh: u.descZh, description_en: u.descEn,
+      title_zh: u.titleZh,
+      title_en: u.titleEn,
+      description_zh: u.descZh,
+      description_en: u.descEn,
       date: new Date(u.date),
       category: u.category,
     },
@@ -36,7 +37,9 @@ for (const u of updates) {
 const ymKeys = Object.keys(groups).sort().reverse();
 
 /* Collect categories for filter */
-const allCategories = Array.from(new Set(updates.map((u) => u.data.category))).sort();
+const allCategories = Array.from(
+  new Set(updates.map((u) => u.data.category))
+).sort();
 
 /* Category label mapping */
 const categoryLabels: Record<string, string> = {
@@ -46,55 +49,85 @@ const categoryLabels: Record<string, string> = {
   other: locale === 'zh-tw' ? '其他' : 'Other',
 };
 
-const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+const formatShortDate = (d: Date) =>
+  `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 ---
 
 <BaseLayout
   title={locale === 'zh-tw' ? '動態 — 顏榕嶙' : 'Updates — Bernie Yen'}
-  description={locale === 'zh-tw' ? '里程碑、上線通知、寫作進度 — 按時間倒著排。' : 'Milestones, ships, writing progress — reverse chronological.'}
+  description={locale === 'zh-tw'
+    ? '里程碑、上線通知、寫作進度 — 按時間倒著排。'
+    : 'Milestones, ships, writing progress — reverse chronological.'}
 >
-
   <!-- ─────────── HERO ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto">
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
+  >
     <span class="q-section-label">
-      {pt.heroLabel || (locale === 'zh-tw' ? '—— 04 / updates · 邊際的草稿' : '—— 04 / updates · journal')}
+      {
+        pt.heroLabel ||
+          (locale === 'zh-tw'
+            ? '—— 04 / updates · 邊際的草稿'
+            : '—— 04 / updates · journal')
+      }
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle || (locale === 'zh-tw'
-        ? '我做了<br /><span style="color: var(--q-navy); font-weight: 600;">什麼事</span>。'
-        : 'What I\'ve<br />been <span style="color: var(--q-navy); font-weight: 600;">up to</span>.')}
+      set:html={pt.heroTitle ||
+        (locale === 'zh-tw'
+          ? '我做了<br /><span style="color: var(--q-navy); font-weight: 600;">什麼事</span>。'
+          : 'What I\'ve<br />been <span style="color: var(--q-navy); font-weight: 600;">up to</span>.')}
     />
 
-    <div class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-end">
-      <p class="m-0 max-w-[560px] text-[17px] leading-[1.7]" style="color: var(--q-ink-soft);">
-        {pt.heroSubtitle || (locale === 'zh-tw'
-          ? '里程碑、上線通知、寫作進度、曲子釋出 — 按時間倒著排。想知道最近在忙什麼，看這裡。'
-          : "Milestones, ship notes, writing progress, music releases — reverse chronological. See what I've been working on.")}
+    <div
+      class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-end"
+    >
+      <p
+        class="m-0 max-w-[560px] text-[17px] leading-[1.7]"
+        style="color: var(--q-ink-soft);"
+      >
+        {
+          pt.heroSubtitle ||
+            (locale === 'zh-tw'
+              ? '里程碑、上線通知、寫作進度、曲子釋出 — 按時間倒著排。想知道最近在忙什麼，看這裡。'
+              : "Milestones, ship notes, writing progress, music releases — reverse chronological. See what I've been working on.")
+        }
       </p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-5 lg:gap-7">
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-ink);">
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
             {String(updates.length).padStart(2, '0')}
           </div>
           <span class="q-mono mt-1 inline-block">total</span>
         </div>
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-ink);">
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
             {String(ymKeys.length).padStart(2, '0')}
           </div>
           <span class="q-mono mt-1 inline-block">months</span>
         </div>
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-ink);">
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
             {String(allCategories.length).padStart(2, '0')}
           </div>
           <span class="q-mono mt-1 inline-block">kinds</span>
         </div>
         <div>
-          <div class="font-mono text-4xl font-medium tracking-tight" style="color: var(--q-navy);">
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-navy);"
+          >
             ★
           </div>
           <span class="q-mono mt-1 inline-block">latest</span>
@@ -108,15 +141,19 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
     class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-4"
     style="background: var(--q-paper-soft); border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); position: sticky; top: 72px; z-index: 4;"
   >
-    <div class="max-w-screen-xl mx-auto flex flex-wrap justify-between items-center gap-4">
+    <div
+      class="max-w-screen-xl mx-auto flex flex-wrap justify-between items-center gap-4"
+    >
       <div class="flex items-center gap-2 flex-wrap">
         <span class="q-mono">kind</span>
         <button class="q-filter-pill active" data-cat="all">all</button>
-        {allCategories.map((cat) => (
-          <button class="q-filter-pill" data-cat={cat}>
-            {categoryLabels[cat] || cat}
-          </button>
-        ))}
+        {
+          allCategories.map((cat) => (
+            <button class="q-filter-pill" data-cat={cat}>
+              {categoryLabels[cat] || cat}
+            </button>
+          ))
+        }
       </div>
       <div class="flex items-center gap-4">
         <span class="q-mono">{updates.length} entries</span>
@@ -125,67 +162,91 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
   </section>
 
   <!-- ─────────── TIMELINE ─────────── -->
-  <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-14 lg:py-[72px] max-w-screen-xl mx-auto">
-    {ymKeys.map((ym, yi) => (
-      <div class="mb-10 lg:mb-12 update-group" data-ym={ym}>
-        <!-- Month header -->
-        <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 md:gap-9 items-baseline mb-3">
-          <div
-            class="font-mono text-2xl md:text-[32px] tracking-tight leading-none"
-            style={`color: ${yi === 0 ? 'var(--q-navy)' : 'var(--q-ink-mute)'}; font-weight: 400;`}
-          >{ym}</div>
-          <div class="flex items-center gap-3">
-            <div class="flex-1 h-px" style="background: var(--q-line);"></div>
-            <span class="q-mono">{groups[ym].length} {groups[ym].length === 1 ? 'entry' : 'entries'}</span>
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-14 lg:py-[72px] max-w-screen-xl mx-auto"
+  >
+    {
+      ymKeys.map((ym, yi) => (
+        <div class="mb-10 lg:mb-12 update-group" data-ym={ym}>
+          {/* Month header */}
+          <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 md:gap-9 items-baseline mb-3">
+            <div
+              class="font-mono text-2xl md:text-[32px] tracking-tight leading-none"
+              style={`color: ${yi === 0 ? 'var(--q-navy)' : 'var(--q-ink-mute)'}; font-weight: 400;`}
+            >
+              {ym}
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex-1 h-px" style="background: var(--q-line);" />
+              <span class="q-mono">
+                {groups[ym].length}{' '}
+                {groups[ym].length === 1 ? 'entry' : 'entries'}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <!-- Entries -->
-        <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-0 md:gap-9">
-          <div class="hidden md:block"></div>
-          <div>
-            {groups[ym].map((u, i, arr) => {
-              const title = locale === 'zh-tw' ? (u.data.title_zh || u.id) : (u.data.title_en || u.id);
-              const desc = locale === 'zh-tw' ? u.data.description_zh : u.data.description_en;
-              const catLabel = categoryLabels[u.data.category] || u.data.category;
+          {/* Entries */}
+          <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-0 md:gap-9">
+            <div class="hidden md:block" />
+            <div>
+              {groups[ym].map((u, i, arr) => {
+                const title =
+                  locale === 'zh-tw'
+                    ? u.data.title_zh || u.id
+                    : u.data.title_en || u.id;
+                const desc =
+                  locale === 'zh-tw'
+                    ? u.data.description_zh
+                    : u.data.description_en;
+                const catLabel =
+                  categoryLabels[u.data.category] || u.data.category;
 
-              return (
-                <a
-                  href={`${basePath}/updates/${u.id}`}
-                  class="update-entry grid gap-3 md:gap-6 items-baseline py-5 no-underline transition-opacity hover:opacity-70"
-                  style={`
+                return (
+                  <a
+                    href={`${basePath}/updates/${u.id}`}
+                    class="update-entry grid gap-3 md:gap-6 items-baseline py-5 no-underline transition-opacity hover:opacity-70"
+                    style={`
                     grid-template-columns: 1fr;
                     border-top: 1px solid var(--q-line);
                     ${i === arr.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
                     color: inherit;
                   `}
-                  data-cat={u.data.category}
-                >
-                  <div class="flex items-baseline gap-4 flex-wrap">
-                    <span class="q-mono" style="color: var(--q-ink); min-width: 44px;">
-                      {formatShortDate(u.data.date)}
-                    </span>
-                    <span class="q-pill">{catLabel}</span>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-[17px] font-semibold leading-[1.4] tracking-tight truncate" style="color: var(--q-ink);">
-                        {title}
-                      </div>
-                      {desc && (
-                        <div class="mt-1 text-[13.5px] leading-[1.55] line-clamp-2" style="color: var(--q-ink-soft);">
-                          {desc}
+                    data-cat={u.data.category}
+                  >
+                    <div class="flex items-baseline gap-4 flex-wrap">
+                      <span
+                        class="q-mono"
+                        style="color: var(--q-ink); min-width: 44px;"
+                      >
+                        {formatShortDate(u.data.date)}
+                      </span>
+                      <span class="q-pill">{catLabel}</span>
+                      <div class="flex-1 min-w-0">
+                        <div
+                          class="text-[17px] font-semibold leading-[1.4] tracking-tight truncate"
+                          style="color: var(--q-ink);"
+                        >
+                          {title}
                         </div>
-                      )}
+                        {desc && (
+                          <div
+                            class="mt-1 text-[13.5px] leading-[1.55] line-clamp-2"
+                            style="color: var(--q-ink-soft);"
+                          >
+                            {desc}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </a>
-              );
-            })}
+                  </a>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
-    ))}
+      ))
+    }
   </section>
-
 </BaseLayout>
 
 <style>
@@ -202,7 +263,9 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
     text-transform: uppercase;
     transition: all 0.15s;
   }
-  .q-filter-pill:hover { border-color: var(--q-line-hard); }
+  .q-filter-pill:hover {
+    border-color: var(--q-line-hard);
+  }
   .q-filter-pill.active {
     background: var(--q-ink);
     color: var(--q-paper);
@@ -214,12 +277,15 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .update-entry[data-hidden="true"] { display: none; }
+  .update-entry[data-hidden='true'] {
+    display: none;
+  }
 </style>
 
 <script>
   function initUpdateFilters() {
-    const pills = document.querySelectorAll<HTMLButtonElement>('.q-filter-pill');
+    const pills =
+      document.querySelectorAll<HTMLButtonElement>('.q-filter-pill');
     const entries = document.querySelectorAll<HTMLElement>('.update-entry');
     const groups = document.querySelectorAll<HTMLElement>('.update-group');
 
@@ -236,7 +302,9 @@ const formatShortDate = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0'
 
         // Hide empty groups
         groups.forEach((g) => {
-          const visible = g.querySelectorAll('.update-entry:not([data-hidden="true"])');
+          const visible = g.querySelectorAll(
+            '.update-entry:not([data-hidden="true"])'
+          );
           g.style.display = visible.length > 0 ? '' : 'none';
         });
       });

@@ -378,7 +378,7 @@ async function upsertProject(
   db: D1Database,
   cors: Record<string, string>
 ): Promise<Response> {
-  const now = new Date().toISOString();
+  const now = body.updatedAt || new Date().toISOString();
   const existing = await db
     .prepare('SELECT id FROM root_projects WHERE id = ?')
     .bind(id)
@@ -587,7 +587,7 @@ async function upsertLink(
   db: D1Database,
   cors: Record<string, string>
 ): Promise<Response> {
-  const now = new Date().toISOString();
+  const now = body.updatedAt || new Date().toISOString();
   const existing = await db
     .prepare('SELECT id FROM root_links WHERE id = ?')
     .bind(id)
@@ -765,7 +765,7 @@ async function upsertUpdate(
   db: D1Database,
   cors: Record<string, string>
 ): Promise<Response> {
-  const now = new Date().toISOString();
+  const now = body.updatedAt || new Date().toISOString();
   const existing = await db
     .prepare('SELECT id FROM root_updates WHERE id = ?')
     .bind(id)

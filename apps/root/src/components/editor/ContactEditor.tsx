@@ -204,7 +204,6 @@ export default function ContactEditor({
       setData({ ...data, ...patch });
       setDirty(true);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, setData, setDirty]
   );
 
@@ -215,7 +214,6 @@ export default function ContactEditor({
       content: data,
     });
     if (res.ok) setDirty(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, data, api, setDirty]);
 
   // ─── 各區塊資料解包 ──────────────────────────────────────────────
@@ -255,7 +253,7 @@ export default function ContactEditor({
         <button
           className="qe-tag--add"
           onClick={() => {
-            const t = prompt(
+            const t = window.prompt(
               lang === 'zh' ? '新增主旨選項：' : 'New subject option:'
             );
             if (t?.trim()) up({ subjects: [...subjects, t.trim()] });

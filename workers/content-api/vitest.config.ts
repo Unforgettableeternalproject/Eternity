@@ -24,7 +24,7 @@ export default defineConfig(async () => {
         wrangler: { configPath: './wrangler.toml' },
         miniflare: {
           bindings: {
-            API_TOKEN: 'test-token-for-testing',
+            JWT_SECRET: 'test-jwt-secret',
             ALLOWED_ORIGINS: 'http://localhost:4321',
             TEST_MIGRATIONS: JSON.stringify(migrations),
           },

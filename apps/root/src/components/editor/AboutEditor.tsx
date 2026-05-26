@@ -200,7 +200,8 @@ function SkillsSection({
               style={{ padding: '3px 8px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`刪除技能「${skill.name}」？`)) removeSkill(idx);
+                if (window.confirm(`刪除技能「${skill.name}」？`))
+                  removeSkill(idx);
               }}
             >
               <Mono style={{ color: 'var(--qe-coral)' }}>✕</Mono>
@@ -386,7 +387,8 @@ function ExperienceSection({
               style={{ padding: '3px 8px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`刪除職位「${exp.title}」？`)) removeExp(idx);
+                if (window.confirm(`刪除職位「${exp.title}」？`))
+                  removeExp(idx);
               }}
             >
               <Mono style={{ color: 'var(--qe-coral)' }}>✕</Mono>

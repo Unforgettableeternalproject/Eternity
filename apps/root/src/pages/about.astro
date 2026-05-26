@@ -1,13 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getCurrentLocale } from '../i18n/utils';
 import { getSingleton } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
-const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 /* ── Fetch from D1 ── */
 const singletonKey = locale === 'zh-tw' ? 'about-zh' : 'about-en';
@@ -46,7 +44,6 @@ const data = (raw?.content ?? {}) as {
   cta?: { heading?: string; text?: string };
 };
 
-const facts = data.facts ?? [];
 const skills = data.skills ?? [];
 const experience = data.experience ?? [];
 const social = data.social ?? {};
