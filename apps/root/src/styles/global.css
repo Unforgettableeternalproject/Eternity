@@ -3,13 +3,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* CSS Variables for theming */
+/* ===== Quartz Theme Tokens ===== */
 :root {
-  /* Light mode colors */
-  --color-bg: 255, 255, 255;
-  --color-text: 15, 23, 42;
-  --color-border: 226, 232, 240;
-  --color-accent: 14, 165, 233;
+  /* Light mode — Quartz warm off-white */
+  --color-bg: 248, 247, 243;
+  --color-text: 15, 21, 48;
+  --color-border: 215, 212, 204;
+  --color-accent: 39, 57, 108;
+
+  --q-paper: #f8f7f3;
+  --q-paper-soft: #f1efe9;
+  --q-paper-deep: #e7e4da;
+  --q-ink: #0f1530;
+  --q-ink-soft: #3b4360;
+  --q-ink-mute: #7b8398;
+  --q-ink-fade: #c7ccd7;
+  --q-line: rgba(15, 21, 48, 0.1);
+  --q-line-hard: rgba(15, 21, 48, 0.22);
+  --q-line-soft: rgba(15, 21, 48, 0.05);
+  --q-navy: #27396c;
+  --q-navy-deep: #1a2240;
+  --q-coral: #d6442e;
+  --q-surface: #ffffff;
+
+  /* Backward-compat aliases */
+  --prism-paper: var(--q-paper);
+  --prism-paper-soft: var(--q-paper-soft);
+  --prism-paper-deep: var(--q-paper-deep);
+  --prism-ink: var(--q-ink);
+  --prism-ink-soft: var(--q-ink-soft);
+  --prism-ink-mute: var(--q-ink-mute);
+  --prism-ink-fade: var(--q-ink-fade);
+  --prism-line: var(--q-line);
+  --prism-line-hard: var(--q-line-hard);
+  --prism-navy: var(--q-navy);
+  --prism-surface: var(--q-surface);
+  --prism-glow-color: transparent;
 
   /* Spacing */
   --spacing-section: 6rem;
@@ -17,19 +46,44 @@
 }
 
 .dark {
-  /* Dark mode colors */
-  --color-bg: 15, 23, 42;
-  --color-text: 241, 245, 249;
-  --color-border: 51, 65, 85;
-  --color-accent: 56, 189, 248;
+  /* Dark mode — Quartz pure black-gray */
+  --color-bg: 14, 14, 17;
+  --color-text: 234, 234, 238;
+  --color-border: 42, 42, 48;
+  --color-accent: 126, 150, 232;
+
+  --q-paper: #0e0e11;
+  --q-paper-soft: #16161a;
+  --q-paper-deep: #070709;
+  --q-ink: #eaeaee;
+  --q-ink-soft: #a8a8ae;
+  --q-ink-mute: #6d6d75;
+  --q-ink-fade: #3d3d44;
+  --q-line: rgba(255, 255, 255, 0.08);
+  --q-line-hard: rgba(255, 255, 255, 0.18);
+  --q-line-soft: rgba(255, 255, 255, 0.04);
+  --q-navy: #7e96e8;
+  --q-navy-deep: #a3b5f0;
+  --q-coral: #f06050;
+  --q-surface: #16161a;
 }
+
+/* Google Fonts for Quartz */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
 
 /* Base layer customizations */
 @layer base {
   body {
-    @apply text-slate-900 dark:text-slate-100;
-    @apply font-sans antialiased;
+    @apply antialiased;
     @apply transition-colors duration-300;
+    font-family:
+      'Plus Jakarta Sans',
+      'Noto Sans TC',
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
+    color: var(--prism-ink);
+    background: var(--prism-paper);
   }
 
   h1,
@@ -39,6 +93,7 @@
   h5,
   h6 {
     @apply font-bold tracking-tight;
+    color: var(--q-ink);
   }
 
   h1 {
@@ -65,30 +120,41 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium;
+    @apply inline-flex items-center justify-center px-6 py-3 font-medium;
     @apply transition-all duration-200 ease-in-out;
     @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
 
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700;
-    @apply focus:ring-primary-500;
+    background: var(--q-ink);
+    color: var(--q-paper);
+  }
+  .btn-primary:hover {
+    opacity: 0.85;
   }
 
   .btn-secondary {
-    @apply bg-slate-100 text-slate-900 hover:bg-slate-200;
-    @apply dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700;
-    @apply focus:ring-slate-500;
+    background: transparent;
+    color: var(--q-ink);
+    border: 1px solid var(--q-line);
+  }
+  .btn-secondary:hover {
+    border-color: var(--q-line-hard);
   }
 
   .card {
-    @apply bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-lg;
-    @apply border border-slate-200 dark:border-slate-700;
     @apply transition-all duration-300;
+    background: var(--q-surface);
+    border: 1px solid var(--q-line);
+    box-shadow: none;
+  }
+
+  .dark .card {
+    background: var(--q-surface);
   }
 
   .card-hover {
-    @apply hover:shadow-xl hover:-translate-y-1;
+    @apply hover:-translate-y-0.5;
   }
 
   /* 側邊欄關閉按鈕：預設隱藏於 2xl，但在高度不足時顯示 */
@@ -111,27 +177,22 @@
   }
 
   /* 側邊欄響應式：考慮螢幕高度 */
-  /* 只有在寬度和高度都足夠時，才自動顯示側邊欄 */
   @media (min-width: 1536px) and (min-height: 801px) {
     .sidebar-responsive {
       transform: translateX(0) !important;
     }
 
-    /* 高度足夠時，側邊欄內容區域可以自動調整高度 */
     .sidebar-responsive #left-sidebar-container {
       max-height: calc(100vh - 8rem);
       overflow-y: auto;
     }
   }
 
-  /* 寬度夠但高度不夠時，保持展開式（需手動開啟） */
   @media (min-width: 1536px) and (max-height: 800px) {
     .sidebar-responsive {
-      /* 保持隱藏，需要手動展開 */
       transform: translateX(-100%);
     }
 
-    /* 高度不足時，側邊欄展開後要能滾動 */
     .sidebar-responsive #left-sidebar-container {
       max-height: 100vh;
       overflow-y: auto;
@@ -158,9 +219,8 @@
     animation-delay: 600ms;
   }
 
-  /* Reveal helpers for tasteful scroll-in micro-interactions */
   .reveal {
-    /* acts as a marker container; no styles required */
+    /* marker container */
   }
 
   .reveal-item {
@@ -192,7 +252,133 @@
   }
 }
 
-/* Background patterns */
+/* ===== Quartz Utility Classes ===== */
+.q-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--q-ink-mute);
+}
+
+.q-section-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--q-navy);
+}
+
+.q-rule {
+  height: 1px;
+  width: 100%;
+  background: var(--q-line);
+}
+
+.q-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--q-line);
+  background: transparent;
+  color: var(--q-ink-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.q-pill--accent {
+  border-color: var(--q-navy);
+  color: var(--q-navy);
+}
+
+.q-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--q-ink);
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1.5px solid var(--q-navy);
+  padding-bottom: 3px;
+}
+
+.q-link:hover {
+  opacity: 0.75;
+}
+
+.q-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--q-coral);
+  position: relative;
+}
+
+.q-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--q-coral);
+  opacity: 0.4;
+  animation: q-ping 2s ease-in-out infinite;
+}
+
+@keyframes q-ping {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Quartz plate — image slot */
+.q-plate {
+  width: 100%;
+  background: var(--q-paper-soft);
+  border: 1px solid var(--q-line);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 18px;
+}
+.q-plate > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  padding: 16px;
+}
+
+.q-plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    135deg,
+    transparent 49.5%,
+    var(--q-line-soft) 49.5%,
+    var(--q-line-soft) 50.5%,
+    transparent 50.5%
+  );
+  background-size: 24px 24px;
+  opacity: 0.6;
+}
+
+/* Background patterns — Quartz colors */
 .bg-dot-pattern {
   background-image: radial-gradient(
     circle,
@@ -209,17 +395,18 @@
   background-size: 48px 48px;
 }
 
-/* Smooth scroll behavior */
+/* Smooth scroll */
 html {
   scroll-behavior: smooth;
 }
 
-/* Selection styling */
+/* Selection — Quartz navy */
 ::selection {
-  @apply bg-primary-500/30 text-slate-900 dark:text-slate-100;
+  @apply bg-primary-500/30;
+  color: var(--q-ink);
 }
 
-/* Respect reduced motion preferences */
+/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .reveal-item {
     transition: none !important;
@@ -227,78 +414,33 @@ html {
     opacity: 1 !important;
   }
 }
-/* Interactive gradient background with mouse tracking */
+
+/* Background — Quartz flat solid, kill ALL gradient noise */
 .gradient-bg {
-  @apply fixed inset-0 overflow-hidden pointer-events-none;
+  @apply fixed inset-0 pointer-events-none;
   z-index: -1;
-  background: linear-gradient(
-    to bottom,
-    rgb(255, 255, 255) 0%,
-    rgb(248, 250, 252) 100%
-  );
+  background: var(--prism-paper) !important;
+}
+
+.gradient-bg * {
+  display: none !important;
 }
 
 .dark .gradient-bg {
-  background: linear-gradient(
-    to bottom,
-    rgb(15, 23, 42) 0%,
-    rgb(30, 41, 59) 100%
-  );
+  background: var(--prism-paper) !important;
 }
 
+/* Gradient orbs — hidden */
 .gradient-orb {
-  @apply absolute rounded-full blur-3xl opacity-20 dark:opacity-10;
-  @apply transition-all duration-[2000ms] ease-out;
-  animation: float 20s ease-in-out infinite;
+  display: none !important;
 }
 
-.gradient-orb-1 {
-  @apply w-96 h-96 bg-gradient-to-br from-primary-400 to-primary-600;
-  top: -10%;
-  left: -5%;
-  animation-delay: 0s;
-}
-
-.gradient-orb-2 {
-  @apply w-[30rem] h-[30rem] bg-gradient-to-br from-secondary-400 to-secondary-600;
-  top: 40%;
-  right: -10%;
-  animation-delay: 5s;
-}
-
-.gradient-orb-3 {
-  @apply w-80 h-80 bg-gradient-to-br from-primary-500 to-secondary-500;
-  bottom: -10%;
-  left: 30%;
-  animation-delay: 10s;
-}
-
-/* Mouse cursor glow effect */
+/* Cursor glow — hidden */
 .cursor-glow {
-  @apply pointer-events-none fixed;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(
-    circle,
-    rgba(14, 165, 233, 0.15) 0%,
-    rgba(14, 165, 233, 0.05) 25%,
-    transparent 70%
-  );
-  transform: translate(-50%, -50%);
-  transition: opacity 0.3s ease;
-  z-index: 0;
+  display: none !important;
 }
 
-.dark .cursor-glow {
-  background: radial-gradient(
-    circle,
-    rgba(56, 189, 248, 0.1) 0%,
-    rgba(56, 189, 248, 0.03) 25%,
-    transparent 70%
-  );
-}
-
-/* Floating animation for gradient orbs */
+/* Animations */
 @keyframes float {
   0%,
   100% {
@@ -315,7 +457,6 @@ html {
   }
 }
 
-/* Gradient text animation */
 @keyframes gradient {
   0%,
   100% {
@@ -331,7 +472,6 @@ html {
   animation: gradient 3s ease infinite;
 }
 
-/* Floating animation */
 @keyframes float-gentle {
   0%,
   100% {
@@ -346,7 +486,6 @@ html {
   animation: float-gentle 6s ease-in-out infinite;
 }
 
-/* Fade in up animation */
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -362,7 +501,6 @@ html {
   animation: fade-in-up 0.6s ease-out forwards;
 }
 
-/* Fade in animation */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -389,7 +527,6 @@ html {
   }
 }
 
-/* Modal animations */
 @keyframes fade-out {
   from {
     opacity: 1;

@@ -2,19 +2,16 @@
 import '../styles/global.css';
 import { ViewTransitions } from 'astro:transitions';
 import NavigationWithSearch from '../components/NavigationWithSearch.astro';
-import Footer from '@uep/ui/Footer';
+import QuartzFooter from '../components/QuartzFooter.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
 import UEPCharacter from '../components/UEPCharacter';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
-import LeftSidebar from '../components/LeftSidebar.astro';
-import RightSidebar from '../components/RightSidebar.astro';
-import MobileControlPanel from '../components/MobileControlPanel.astro';
 import CookieConsent from '../components/CookieConsent';
 import ImageViewerModal from '../components/ImageViewerModal';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection } from 'astro:content';
+import { getCurrentLocale } from '../i18n/utils';
+// getCollection removed — footer no longer needs it here
 
 interface Props {
   title: string;
@@ -31,19 +28,8 @@ const {
 } = Astro.props;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 
-// 載入精選連結給 Footer
-const allLinks = await getCollection('links');
-const featuredLinks = allLinks
-  .filter((l) => l.data.featured)
-  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
-  .map((link) => ({
-    title:
-      locale === 'zh-tw' ? link.data.title_zh || link.id : link.data.title_en,
-    url: link.data.url,
-    icon: link.data.icon,
-  }));
+// Footer 連結現在由 QuartzFooter 自行管理
 
 // Get canonical URL
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -219,36 +205,29 @@ const alternateURL = new URL(alternatePath, Astro.site);
       size={80}
     />
 
-    <!-- Fixed Navigation -->
+    <!-- Fixed Navigation — Quartz solid bg -->
     <header
-      class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
+      class="fixed top-0 left-0 right-0 z-50"
+      style="background: var(--q-paper); border-bottom: 1px solid var(--q-line);"
     >
       <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
 
     <!-- Spacer for fixed header -->
-    <div class="h-[88px]"></div>
+    <div class="h-[72px]"></div>
 
-    <!-- Left Sidebar -->
-    <LeftSidebar />
-
-    <!-- Right Sidebar -->
-    <RightSidebar />
-
-    <!-- Mobile Control Panel (iPhone-style bottom sheet) -->
-    <MobileControlPanel />
+    <!-- Sidebars hidden during Quartz migration — re-integrate later -->
+    <!-- <LeftSidebar /> -->
+    <!-- <RightSidebar /> -->
+    <!-- <MobileControlPanel /> -->
 
     <!-- Main Content Area -->
-    <main class="transition-all duration-300 2xl:mx-72">
+    <main class="transition-all duration-300">
       <slot />
     </main>
 
-    <!-- Footer -->
-    <Footer
-      currentLocale={locale}
-      translations={t.footer}
-      featuredLinks={featuredLinks}
-    />
+    <!-- Quartz Footer -->
+    <QuartzFooter currentLocale={locale} />
 
     <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
     <div class="hidden md:block">

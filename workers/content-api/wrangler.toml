@@ -12,10 +12,15 @@ database_name = "eternity-content"
 database_id = "1f31587a-6cc7-441b-bbfb-eb99cba8a51b"
 migrations_dir = "migrations"
 
-# R2 圖片儲存
+# R2 圖片儲存（文件站）
 [[r2_buckets]]
 binding = "ASSETS_BUCKET"
 bucket_name = "eternity-assets"
+
+# R2 圖片儲存（主站）
+[[r2_buckets]]
+binding = "ROOT_ASSETS_BUCKET"
+bucket_name = "eternity-root-assets"
 
 # 定期維護排程（Cron Triggers）
 # - 每天 UTC 04:00（台灣中午 12:00）重排 sort_order + 清理軟刪除
@@ -24,4 +29,4 @@ crons = ["0 4 * * *"]
 
 # 環境變數
 [vars]
-ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321"
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"

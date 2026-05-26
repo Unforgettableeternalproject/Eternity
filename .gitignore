@@ -73,7 +73,7 @@ NOTES.md
 TODO.md
 .notes/
 docs/hidden/**
-screenshots/to-be-fixed/
+screenshots/**/
 
 # Example files (keep as reference)
 README_Example.md

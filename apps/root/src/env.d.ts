@@ -6,8 +6,14 @@ declare namespace App {
     runtime?: {
       env?: {
         RESEND_API_KEY?: string;
+        JWT_SECRET?: string;
         [key: string]: unknown;
       };
+    };
+    user?: {
+      username: string;
+      role: string;
+      displayName: string;
     };
   }
 }

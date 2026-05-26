@@ -13,6 +13,42 @@ const ctx = {
   passThroughOnException: () => {},
 } as ExecutionContext;
 
+let adminToken: string | undefined;
+
+async function getAdminToken() {
+  if (adminToken) return adminToken;
+
+  await worker.fetch(
+    createRequest('/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'test-admin',
+        password: 'test-password',
+        display_name: 'Test Admin',
+      }),
+    }),
+    env,
+    ctx
+  );
+
+  const res = await worker.fetch(
+    createRequest('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'test-admin',
+        password: 'test-password',
+      }),
+    }),
+    env,
+    ctx
+  );
+  const json = (await res.json()) as { data?: { token?: string } };
+  adminToken = json.data?.token;
+  return adminToken;
+}
+
 // 輔助函式：建立模擬 Request
 function createRequest(
   path: string,
@@ -109,4 +145,56 @@ describe('Content API — 未知路徑', () => {
     const res = await worker.fetch(req, env, ctx);
     expect(res.status).toBe(404);
   });
+});
+
+describe('Root API — 同步時間戳', () => {
+  it.each([
+    [
+      'projects',
+      'sync-project',
+      {
+        titleZh: '同步測試專案',
+        titleEn: 'Sync Test Project',
+        tags: ['test'],
+      },
+    ],
+    [
+      'links',
+      'sync-link',
+      {
+        titleZh: '同步測試連結',
+        titleEn: 'Sync Test Link',
+        url: 'https://example.com',
+      },
+    ],
+    [
+      'updates',
+      'sync-update',
+      {
+        titleZh: '同步測試更新',
+        titleEn: 'Sync Test Update',
+        date: '2026-05-26',
+      },
+    ],
+  ])(
+    'PUT /api/root/%s/:id 保留來源端 updatedAt',
+    async (collection, id, body) => {
+      const updatedAt = '2026-05-26T06:33:12.000Z';
+      const token = await getAdminToken();
+      const req = createRequest(`/api/root/${collection}/${id}`, {
+        method: 'PUT',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, updatedAt }),
+      });
+
+      const res = await worker.fetch(req, env, ctx);
+      expect(res.status).toBe(201);
+
+      const data = (await res.json()) as {
+        data: { updatedAt: string };
+      };
+      expect(data.data.updatedAt).toBe(updatedAt);
+    }
+  );
 });

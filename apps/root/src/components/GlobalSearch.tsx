@@ -38,28 +38,9 @@ export default function GlobalSearch({
   const [filter, setFilter] = useState<'all' | 'project' | 'link' | 'update'>(
     'all'
   );
-  const [isDark, setIsDark] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // 檢測深色模式
-  useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    };
-
-    checkDarkMode();
-
-    // 監聽主題變化
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-
-    return () => observer.disconnect();
-  }, []);
 
   // 當模態框打開時禁用 body 滾動
   useEffect(() => {
@@ -328,38 +309,13 @@ export default function GlobalSearch({
             <div
               className={`global-search__backdrop ${isClosing ? 'closing' : ''}`}
               onClick={handleClose}
-              style={{
-                zIndex: 99999,
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
-                backdropFilter: 'blur(4px)',
-                pointerEvents: 'auto',
-              }}
             />
             <div
               ref={modalRef}
               className={`global-search__modal ${isClosing ? 'closing' : ''}`}
-              style={{
-                zIndex: 100000,
-              }}
             >
-              <div
-                className="global-search__container"
-                style={{
-                  background: isDark
-                    ? 'rgba(30, 41, 59, 0.98)'
-                    : 'rgba(255, 255, 255, 0.98)',
-                }}
-              >
-                <div
-                  className="global-search__header"
-                  style={{
-                    background: isDark
-                      ? 'rgba(15, 23, 42, 0.3)'
-                      : 'transparent',
-                  }}
-                >
+              <div className="global-search__container">
+                <div className="global-search__header">
                   <svg
                     className="global-search__search-icon"
                     fill="none"
@@ -388,9 +344,6 @@ export default function GlobalSearch({
                       setSelectedIndex(0);
                     }}
                     onKeyDown={handleKeyDown}
-                    style={{
-                      color: isDark ? 'rgb(226, 232, 240)' : 'rgb(15, 23, 42)',
-                    }}
                   />
                   <button
                     onClick={handleClose}
@@ -508,54 +461,25 @@ export default function GlobalSearch({
                           )}
                         </div>
                         <div className="global-search__result-content">
-                          <div
-                            className="global-search__result-title"
-                            style={{
-                              color: isDark
-                                ? 'rgb(226, 232, 240)'
-                                : 'rgb(15, 23, 42)',
-                            }}
-                          >
+                          <div className="global-search__result-title">
                             {result.title}
                           </div>
                           {result.description && (
-                            <div
-                              className="global-search__result-desc"
-                              style={{
-                                color: isDark
-                                  ? 'rgb(148, 163, 184)'
-                                  : 'rgb(100, 116, 139)',
-                              }}
-                            >
+                            <div className="global-search__result-desc">
                               {result.description}
                             </div>
                           )}
                           {result.tags && result.tags.length > 0 && (
                             <div className="global-search__result-tags">
                               {result.tags.slice(0, 3).map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="global-search__tag"
-                                  style={{
-                                    color: isDark
-                                      ? 'rgb(203, 213, 225)'
-                                      : 'rgb(71, 85, 105)',
-                                  }}
-                                >
+                                <span key={tag} className="global-search__tag">
                                   {tag}
                                 </span>
                               ))}
                             </div>
                           )}
                         </div>
-                        <div
-                          className="global-search__result-type"
-                          style={{
-                            color: isDark
-                              ? 'rgb(148, 163, 184)'
-                              : 'rgb(100, 116, 139)',
-                          }}
-                        >
+                        <div className="global-search__result-type">
                           {getTypeLabel(result.type)}
                         </div>
                       </a>

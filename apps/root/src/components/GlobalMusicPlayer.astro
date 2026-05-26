@@ -1,17 +1,21 @@
 ---
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getEntry } from 'astro:content';
+import { getCard } from '../lib/api';
 import MusicPlayer from './MusicPlayer';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 
-// 從 Keystatic 獲取音樂卡片資料
-const musicCard = await getEntry('card-music', 'index');
+// 從 D1 獲取音樂卡片資料
+const musicCardRaw = await getCard('card-music');
+const musicCard = musicCardRaw?.content as {
+  enabled?: boolean;
+  tracks?: { title: string; artist: string; url: string; cover?: string }[];
+} | null;
 
-// Music 資料（優先使用 Keystatic，fallback 到硬編碼，並過濾掉沒有 url 的曲目）
+// Music 資料（優先使用 D1，fallback 到硬編碼，並過濾掉沒有 url 的曲目）
 const tracks = (
-  musicCard?.data?.tracks || [
+  musicCard?.tracks || [
     {
       title: locale === 'zh-tw' ? '示例曲目 1' : 'Sample Track 1',
       artist: 'Artist',
@@ -32,7 +36,7 @@ const tracks = (
 ---
 
 {
-  musicCard?.data?.enabled && (
+  musicCard?.enabled && (
     <div id="global-music-player-container" transition:persist="music-player">
       <MusicPlayer
         client:only="react"

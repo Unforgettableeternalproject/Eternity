@@ -1,659 +1,641 @@
 ---
-import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection } from 'astro:content';
+import { getCurrentLocale } from '../i18n/utils';
+import { getProjects, getSingleton, assetUrl } from '../lib/api';
+
+export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-// Load projects from content collections
-const allProjects = await getCollection('projects');
+/* ── 頁面文字從 D1 讀取（fallback 為硬編碼） ── */
+const ptKey = locale === 'zh-tw' ? 'page-projects-zh' : 'page-projects-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 
-// 狀態優先級映射
-const statusPriority: Record<string, number> = {
-  active: 1,
-  completed: 2,
-  paused: 3,
-  archived: 4,
+const allProjectsRaw = await getProjects();
+
+// 排序優先級：featured > active > completed > paused > archived
+const STATUS_PRIORITY: Record<string, number> = {
+  active: 0,
+  completed: 1,
+  paused: 2,
+  archived: 3,
 };
 
-const projects = allProjects.sort((a, b) => {
-  // 1. 首先按照狀態優先級排序
-  const priorityA = statusPriority[a.data.status] || 999;
-  const priorityB = statusPriority[b.data.status] || 999;
-  if (priorityA !== priorityB) {
-    return priorityA - priorityB;
-  }
+const projects = allProjectsRaw
+  .map((p) => ({
+    id: p.id,
+    data: {
+      title_zh: p.titleZh,
+      title_en: p.titleEn,
+      description_zh: p.descZh,
+      description_en: p.descEn,
+      tags: p.tags,
+      featured: p.featured,
+      order: p.sortOrder,
+      status: p.status,
+      image: p.image,
+      links: p.links,
+      startDate: p.startDate ? new Date(p.startDate) : null,
+    },
+  }))
+  .sort((a, b) => {
+    // featured 永遠排最前
+    if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
+    // 再按 status 優先級
+    const sA = STATUS_PRIORITY[a.data.status] ?? 9;
+    const sB = STATUS_PRIORITY[b.data.status] ?? 9;
+    if (sA !== sB) return sA - sB;
+    // 同 status 按日期倒序
+    return (
+      (b.data.startDate?.getTime() ?? 0) - (a.data.startDate?.getTime() ?? 0)
+    );
+  });
 
-  // 2. 然後按照日期排序（最新的在前面）
-  const dateA = a.data.startDate || a.data.endDate;
-  const dateB = b.data.startDate || b.data.endDate;
-  if (dateA && dateB) {
-    const timeA = dateA.getTime();
-    const timeB = dateB.getTime();
-    if (timeA !== timeB) {
-      return timeB - timeA; // 降序：新的在前
-    }
-  } else if (dateA) {
-    return -1; // 有日期的排在沒日期的前面
-  } else if (dateB) {
-    return 1;
-  }
-
-  // 3. 最後按照 order 排序（數字越小越前面）
-  const orderA = a.data.order ?? 999;
-  const orderB = b.data.order ?? 999;
-  return orderA - orderB;
-});
-
-// 收集所有獨特的標籤
 const allTags = Array.from(
-  new Set(projects.flatMap((project) => project.data.tags))
+  new Set(projects.flatMap((p) => p.data.tags))
 ).sort();
+const allStatuses = Array.from(new Set(projects.map((p) => p.data.status)));
+const featuredCount = projects.filter((p) => p.data.featured).length;
+const statusOrder = ['active', 'completed', 'paused', 'archived'];
+const sortedStatuses = statusOrder.filter((s) =>
+  allStatuses.includes(s as (typeof allStatuses)[number])
+);
 ---
 
-<BaseLayout title={t.projects.title} description={t.projects.description}>
-  <div class="relative py-24">
-    <!-- 幾何裝飾 -->
-    <div class="container-custom relative z-10">
-      <!-- Header -->
-      <div class="text-center space-y-4 mb-16 animate-fade-in-up">
-        <h1 class="text-5xl font-bold text-slate-900 dark:text-white">
-          {t.projects.heading}
-        </h1>
-        <p class="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-          {t.projects.subtitle}
-        </p>
-      </div>
-
-      <!-- 篩選器 -->
+<BaseLayout
+  title={locale === 'zh-tw' ? '作品 — 顏榕嶙' : 'Projects — Bernie Yen'}
+  description={locale === 'zh-tw'
+    ? '我做過的所有東西。'
+    : "Everything I've built."}
+>
+  <!-- ─────────── HERO ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
+  >
+    <span class="q-section-label">
       {
-        projects.length > 0 && (
-          <div class="mb-12 animate-fade-in-up" style="animation-delay: 100ms">
-            <div class="rounded-3xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/80 dark:to-slate-900/80 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-              {/* 篩選器標題列 */}
-              <button
-                id="filter-toggle"
-                class="w-full p-4 flex items-center justify-between hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors"
-                aria-expanded="false"
-              >
-                <div class="flex items-center gap-3">
-                  <svg
-                    class="w-5 h-5 text-primary-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                    />
-                  </svg>
-                  <span class="text-base font-semibold text-slate-700 dark:text-slate-300">
-                    {t.projectsPage.filterProjects}
-                  </span>
-                </div>
-                <svg
-                  id="filter-icon"
-                  class="w-5 h-5 text-slate-500 transition-transform collapsed"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-
-              {/* 篩選器內容 */}
-              <div id="filter-content" class="px-8 pb-8 collapsed">
-                <div class="flex flex-col gap-6">
-                  {/* 狀態篩選 */}
-                  <div class="flex flex-col gap-3">
-                    <div class="flex items-center gap-2">
-                      <svg
-                        class="w-5 h-5 text-primary-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        {t.projectsPage.projectStatus}
-                      </label>
-                    </div>
-                    <div class="flex flex-wrap gap-2" id="status-filters">
-                      <button
-                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all active shadow-sm"
-                        data-status="all"
-                      >
-                        <span class="flex items-center gap-2">
-                          <span class="w-2 h-2 rounded-full bg-current opacity-70" />
-                          {t.projectsPage.status.all}
-                        </span>
-                      </button>
-                      <button
-                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
-                        data-status="active"
-                      >
-                        <span class="flex items-center gap-2">
-                          <span class="w-2 h-2 rounded-full bg-green-500" />
-                          {t.projectsPage.status.active}
-                        </span>
-                      </button>
-                      <button
-                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
-                        data-status="paused"
-                      >
-                        <span class="flex items-center gap-2">
-                          <span class="w-2 h-2 rounded-full bg-yellow-500" />
-                          {t.projectsPage.status.paused}
-                        </span>
-                      </button>
-                      <button
-                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
-                        data-status="completed"
-                      >
-                        <span class="flex items-center gap-2">
-                          <span class="w-2 h-2 rounded-full bg-blue-500" />
-                          {t.projectsPage.status.completed}
-                        </span>
-                      </button>
-                      <button
-                        class="status-filter-btn px-5 py-2.5 text-sm font-medium rounded-xl transition-all shadow-sm"
-                        data-status="archived"
-                      >
-                        <span class="flex items-center gap-2">
-                          <span class="w-2 h-2 rounded-full bg-slate-400" />
-                          {t.projectsPage.status.archived}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 分隔線 */}
-                  <div class="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent" />
-
-                  {/* 標籤篩選 */}
-                  <div class="flex flex-col gap-3">
-                    <div class="flex items-center gap-2">
-                      <svg
-                        class="w-5 h-5 text-secondary-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                        />
-                      </svg>
-                      <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        {t.projectsPage.techTags}
-                      </label>
-                    </div>
-                    <div class="flex flex-wrap gap-2" id="tag-filters">
-                      <button
-                        class="tag-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all active"
-                        data-tag="all"
-                      >
-                        {t.projectsPage.allProjects}
-                      </button>
-                      {allTags.map((tag) => (
-                        <button
-                          class="tag-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
-                          data-tag={tag}
-                        >
-                          #{tag}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
+        pt.heroLabel ||
+          (locale === 'zh-tw'
+            ? '—— 02 / projects · 作品目錄'
+            : '—— 02 / projects · project catalog')
       }
+    </span>
 
-      <!-- 空狀態提示 -->
-      <div id="empty-state" class="hidden text-center py-20 animate-fade-in-up">
-        <div
-          class="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/30 dark:to-secondary-900/30 flex items-center justify-center"
-        >
-          <svg
-            class="w-12 h-12 text-primary-600 dark:text-primary-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <h1
+      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
+      style="color: var(--q-ink);"
+      set:html={pt.heroTitle ||
+        (locale === 'zh-tw'
+          ? '我做過的<br /><span style="color: var(--q-navy); font-weight: 600;">所有東西</span>。'
+          : 'Everything<br />I\'ve <span style="color: var(--q-navy); font-weight: 600;">built</span>.')}
+    />
+
+    <div
+      class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-12 items-end"
+    >
+      <p
+        class="m-0 max-w-[560px] text-[17px] leading-[1.7]"
+        style="color: var(--q-ink-soft);"
+      >
+        {
+          pt.heroSubtitle ||
+            (locale === 'zh-tw'
+              ? '程式、世界觀、遊戲、工具 — 全部攤開列在這份目錄裡。點任何一個進去看詳細紀錄。'
+              : 'Code, worldbuilding, games, tools — all laid out in this catalog. Click any entry for full details.')
+        }
+      </p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-5 lg:gap-6">
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
+            {String(projects.length).padStart(2, '0')}
+          </div>
+          <span class="q-mono mt-1 inline-block">total</span>
         </div>
-        <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-          {t.projectsPage.noProjects}
-        </h3>
-        <p class="text-slate-600 dark:text-slate-300 mb-6">
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            2018
+          </div>
+          <span class="q-mono mt-1 inline-block">since</span>
+        </div>
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {String(featuredCount).padStart(2, '0')}
+          </div>
+          <span class="q-mono mt-1 inline-block">picks</span>
+        </div>
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-navy);"
+          >
+            +
+          </div>
+          <span class="q-mono mt-1 inline-block">in progress</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── FILTER BAR ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-0"
+    style="background: var(--q-paper-soft); border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); position: sticky; top: 72px; z-index: 4;"
+  >
+    <div class="max-w-screen-xl mx-auto">
+      <!-- Status 列 -->
+      <div
+        class="flex flex-wrap items-center gap-2 py-3"
+        style="border-bottom: 1px solid var(--q-line-soft);"
+      >
+        <span class="q-mono q-tag-label">status</span>
+        <button class="q-filter-pill active" data-status="all">
+          {locale === 'zh-tw' ? '全部' : 'all'}
+        </button>
+        {
+          sortedStatuses.map((s) => (
+            <button class="q-filter-pill" data-status={s}>
+              {s}
+            </button>
+          ))
+        }
+        {
+          featuredCount > 0 && (
+            <button class="q-filter-pill" data-status="featured">
+              ✦ featured
+            </button>
+          )
+        }
+      </div>
+      <!-- Tag 列 -->
+      <div class="q-tag-row">
+        <span class="q-mono q-tag-label">tag</span>
+        <div class="q-tag-scroll" id="q-tag-scroll">
+          <button class="q-filter-pill active" data-tag="all">
+            {locale === 'zh-tw' ? '全部' : 'all'}
+          </button>
           {
-            locale === 'zh-tw'
-              ? '嘗試調整篩選條件以查看更多專案'
-              : 'Try adjusting your filters to see more projects'
+            allTags.map((tag) => (
+              <button class="q-filter-pill" data-tag={tag}>
+                {tag}
+              </button>
+            ))
+          }
+        </div>
+        <span class="q-mono q-entry-count"
+          ><span id="q-visible-count">{projects.length}</span> entries</span
+        >
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── PROJECT GRID ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-12 lg:py-14 max-w-screen-xl mx-auto"
+  >
+    <!-- Empty state -->
+    <div id="q-empty" class="hidden text-center py-20">
+      <div class="text-6xl mb-4" style="color: var(--q-ink-fade);">∅</div>
+      <p class="q-mono">
+        {locale === 'zh-tw' ? '沒有符合的結果' : 'no matching results'}
+      </p>
+    </div>
+
+    <!-- Grid -->
+    <div
+      id="q-project-grid"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10 reveal"
+    >
+      {
+        projects.map((p, idx) => {
+          const title =
+            locale === 'zh-tw' ? p.data.title_zh || p.id : p.data.title_en;
+          const desc =
+            locale === 'zh-tw' ? p.data.description_zh : p.data.description_en;
+          const year = p.data.startDate ? p.data.startDate.getFullYear() : '—';
+
+          return (
+            <a
+              href={`${basePath}/projects/${p.id}`}
+              class="block no-underline group project-card reveal-item"
+              data-tags={JSON.stringify(p.data.tags)}
+              data-status={p.data.status}
+              data-featured={p.data.featured ? 'true' : 'false'}
+            >
+              {/* Plate */}
+              <div class="q-plate" style="aspect-ratio: 4/3; overflow: hidden;">
+                {p.data.image ? (
+                  <img
+                    src={assetUrl(p.data.image)}
+                    alt={title}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%;">
+                    <span class="q-mono">{title}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Meta */}
+              <div class="mt-4 flex justify-between items-baseline">
+                <span class="q-mono" style="color: var(--q-navy);">
+                  {String(idx + 1).padStart(2, '0')} · {p.data.status}
+                </span>
+                <span class="q-mono">{year}</span>
+              </div>
+
+              <h3
+                class="mt-2 text-lg md:text-[22px] font-bold tracking-tight group-hover:opacity-75 transition-opacity"
+                style="color: var(--q-ink);"
+              >
+                {title}
+                {p.data.featured && (
+                  <span
+                    class="ml-2 text-xs q-mono"
+                    style="color: var(--q-navy); vertical-align: middle;"
+                  >
+                    ✦
+                  </span>
+                )}
+              </h3>
+
+              <p
+                class="mt-1.5 text-sm leading-[1.65]"
+                style="color: var(--q-ink-soft); max-width: 420px;"
+              >
+                {desc?.slice(0, 80)}
+                {(desc?.length ?? 0) > 80 ? '…' : ''}
+              </p>
+
+              <div class="mt-3 flex gap-1.5 flex-wrap">
+                {p.data.tags.slice(0, 3).map((tag: string) => (
+                  <span class="q-pill">{tag}</span>
+                ))}
+                {p.data.tags.length > 3 && (
+                  <span class="q-pill">+{p.data.tags.length - 3}</span>
+                )}
+              </div>
+            </a>
+          );
+        })
+      }
+    </div>
+  </section>
+
+  <!-- ─────────── IN PROGRESS ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pb-20 lg:pb-[120px] max-w-screen-xl mx-auto"
+  >
+    <div
+      class="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-6 md:gap-9 items-center pt-12"
+      style="border-top: 1px solid var(--q-line);"
+    >
+      <div
+        class="hidden md:block font-mono text-7xl lg:text-[88px] leading-[0.85] tracking-tighter"
+        style="color: var(--q-navy); font-weight: 400;"
+      >
+        +
+      </div>
+      <div>
+        <span class="q-section-label"
+          >—— next · {locale === 'zh-tw' ? '進行中' : 'in progress'}</span
+        >
+        <h3
+          class="mt-2 text-2xl md:text-[28px] font-bold tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          {
+            pt.bottomTitle ||
+              (locale === 'zh-tw'
+                ? '還有些東西躺在抽屜裡'
+                : 'More things sitting in the drawer')
+          }
+        </h3>
+        <p
+          class="mt-1.5 text-sm leading-[1.65] max-w-[600px]"
+          style="color: var(--q-ink-soft);"
+        >
+          {
+            pt.bottomSubtitle ||
+              (locale === 'zh-tw'
+                ? '桌面型 AI、世界觀腳本、新一輪 OST、像素場景集 — 都還在寫。'
+                : 'Desktop AI, worldbuilding scripts, new OST batch, pixel scene packs — all in progress.')
           }
         </p>
       </div>
-
-      <!-- Projects Grid -->
-      {
-        projects.length > 0 ? (
-          <div
-            id="projects-grid"
-            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto"
-          >
-            {projects.map((project, index) => (
-              <div
-                class="project-card card card-hover p-6 animate-fade-in-up flex flex-col"
-                style={`animation-delay: ${index * 100}ms`}
-                data-status={project.data.status}
-                data-tags={JSON.stringify(project.data.tags)}
-              >
-                <div class="flex flex-col md:flex-row gap-6 flex-1">
-                  <div class="flex-1 space-y-3 flex flex-col">
-                    <div class="flex items-center gap-2 mb-2">
-                      <span
-                        class={`px-3 py-1 text-xs font-medium rounded-full ${
-                          project.data.status === 'active'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                            : project.data.status === 'paused'
-                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                              : project.data.status === 'completed'
-                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        {project.data.status === 'active'
-                          ? locale === 'zh-tw'
-                            ? '進行中'
-                            : 'Active'
-                          : project.data.status === 'paused'
-                            ? locale === 'zh-tw'
-                              ? '暫時停滯'
-                              : 'Paused'
-                            : project.data.status === 'completed'
-                              ? locale === 'zh-tw'
-                                ? '已完成'
-                                : 'Completed'
-                              : locale === 'zh-tw'
-                                ? '已封存'
-                                : 'Archived'}
-                      </span>
-                    </div>
-
-                    <h3
-                      class="text-2xl font-bold text-slate-900 dark:text-white"
-                      style="text-transform: none;"
-                    >
-                      {locale === 'zh-tw'
-                        ? project.data.title_zh || project.id
-                        : project.data.title_en}
-                    </h3>
-                    <p class="text-slate-600 dark:text-slate-300">
-                      {locale === 'zh-tw'
-                        ? project.data.description_zh
-                        : project.data.description_en}
-                    </p>
-
-                    <div class="flex-1" />
-
-                    {/* Tags */}
-                    <div class="flex flex-wrap gap-2">
-                      {project.data.tags.map((tag) => (
-                        <span class="px-3 py-1 text-xs font-medium bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-400 rounded-full">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Links */}
-                    <div class="flex flex-wrap gap-3 mt-auto pt-3">
-                      <a
-                        href={`${basePath}/projects/${project.id}`}
-                        class="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium group/link"
-                      >
-                        {t.projectsPage.viewDetails}
-                        <svg
-                          class="w-4 h-4 transition-transform group-hover/link:translate-x-1"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M13 7l5 5m0 0l-5 5m5-5H6"
-                          />
-                        </svg>
-                      </a>
-
-                      {project.data.links?.website && (
-                        <a
-                          href={project.data.links.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="inline-flex items-center gap-2 text-secondary-600 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300 font-medium"
-                        >
-                          {t.projectsPage.website}
-                          <svg
-                            class="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                            />
-                          </svg>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                  {project.data.image && (
-                    <div class="md:w-40 md:shrink-0">
-                      <Image
-                        src={project.data.image}
-                        alt={
-                          locale === 'zh-tw'
-                            ? project.data.title_zh || project.id
-                            : project.data.title_en
-                        }
-                        width={160}
-                        height={160}
-                        class="w-full aspect-square object-cover rounded-lg border border-slate-200 dark:border-slate-700"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div class="text-center py-20 animate-fade-in-up">
-            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <svg
-                class="w-12 h-12 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              {t.projectsPage.noProjectsYet}
-            </h3>
-            <p class="text-slate-600 dark:text-slate-300 mb-6">
-              {locale === 'zh-tw'
-                ? '專案內容即將推出，敬請期待'
-                : 'Projects coming soon, stay tuned'}
-            </p>
-          </div>
-        )
-      }
+      <a
+        href={`${basePath}/updates`}
+        class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
+        style="color: var(--q-ink); border-bottom: 1.5px solid var(--q-navy); padding-bottom: 3px;"
+      >
+        {locale === 'zh-tw' ? '看動態' : 'View updates'} →
+      </a>
     </div>
-  </div>
+  </section>
 </BaseLayout>
 
 <style>
-  .status-filter-btn,
-  .tag-filter-btn {
-    background: rgba(71, 85, 105, 0.1);
-    color: #475569;
-    border: 2px solid rgba(148, 163, 184, 0.2);
-    backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
+  .q-filter-pill {
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--q-ink);
+    border: 1px solid var(--q-line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
   }
 
-  .dark .status-filter-btn,
-  .dark .tag-filter-btn {
-    background: rgba(203, 213, 225, 0.1);
-    color: #cbd5e1;
-    border-color: rgba(148, 163, 184, 0.2);
+  .q-filter-pill:hover {
+    border-color: var(--q-line-hard);
   }
 
-  .status-filter-btn:hover,
-  .tag-filter-btn:hover {
-    background: rgba(71, 85, 105, 0.15);
-    color: #334155;
-    border-color: rgba(148, 163, 184, 0.3);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  .q-filter-pill.active {
+    background: var(--q-ink);
+    color: var(--q-paper);
+    border-color: var(--q-ink);
   }
 
-  .dark .status-filter-btn:hover,
-  .dark .tag-filter-btn:hover {
-    background: rgba(203, 213, 225, 0.15);
-    color: #f1f5f9;
-    border-color: rgba(148, 163, 184, 0.3);
+  /* ── Tag 列：拖曳滾動 + 雙邊漸隱 ── */
+  .q-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
   }
 
-  .status-filter-btn.active {
-    background: linear-gradient(135deg, #6366f1, #a855f7);
-    color: white !important;
-    border-color: transparent;
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  .q-tag-label {
+    flex-shrink: 0;
+    width: 52px;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.06em;
   }
 
-  .dark .status-filter-btn.active {
-    background: linear-gradient(135deg, #818cf8, #c084fc);
+  .q-tag-scroll {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+    padding: 2px 0;
+    /* 右側漸隱（預設：未滾動時只有右邊） */
+    mask-image: linear-gradient(to right, #000 0%, #000 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(
+      to right,
+      #000 0%,
+      #000 88%,
+      transparent 100%
+    );
   }
 
-  .status-filter-btn.active span {
-    color: white !important;
+  .q-tag-scroll::-webkit-scrollbar {
+    display: none;
   }
 
-  .tag-filter-btn.active {
-    background: linear-gradient(135deg, #a855f7, #6366f1);
-    color: white !important;
-    border-color: transparent;
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
+  .q-tag-scroll.grabbing {
+    cursor: grabbing;
   }
 
-  .dark .tag-filter-btn.active {
-    background: linear-gradient(135deg, #c084fc, #818cf8);
+  /* 滾動到中間：雙邊漸隱 */
+  .q-tag-scroll.fade-both {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 88%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 88%,
+      transparent 100%
+    );
   }
 
+  /* 滾動到最右：只有左邊漸隱 */
+  .q-tag-scroll.fade-left {
+    mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 100%);
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 100%
+    );
+  }
+
+  /* 內容不足以滾動：無漸隱 */
+  .q-tag-scroll.no-fade {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .q-tag-scroll .q-filter-pill {
+    flex-shrink: 0;
+  }
+
+  .q-entry-count {
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  /* ── Project card ── */
   .project-card {
     transition:
       opacity 0.3s ease,
       transform 0.3s ease;
   }
 
-  .project-card.hidden {
+  .project-card[data-hidden='true'] {
     display: none;
-  }
-
-  #empty-state {
-    transition: opacity 0.3s ease;
-  }
-
-  #empty-state.hidden {
-    display: none;
-  }
-
-  #filter-content {
-    max-height: 1000px;
-    overflow: hidden;
-    transition:
-      max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-      opacity 0.3s ease;
-    opacity: 1;
-  }
-
-  #filter-content.collapsed {
-    max-height: 0;
-    opacity: 0;
-  }
-
-  #filter-icon {
-    transition: transform 0.3s ease;
-  }
-
-  #filter-icon.collapsed {
-    transform: rotate(-90deg);
   }
 </style>
 
 <script>
   function initProjectFilters() {
-    let currentStatus = 'all';
-    let selectedTags: string[] = []; // 改為陣列支援多選
-    let isFilterExpanded = false;
+    const statusPills = document.querySelectorAll<HTMLButtonElement>(
+      '.q-filter-pill[data-status]'
+    );
+    const tagPills = document.querySelectorAll<HTMLButtonElement>(
+      '.q-filter-pill[data-tag]'
+    );
+    const cards = document.querySelectorAll<HTMLElement>('.project-card');
+    const grid = document.getElementById('q-project-grid');
+    const empty = document.getElementById('q-empty');
+    const countEl = document.getElementById('q-visible-count');
 
-    const projectCards = document.querySelectorAll('.project-card');
-    const statusButtons = document.querySelectorAll('.status-filter-btn');
-    const tagButtons = document.querySelectorAll('.tag-filter-btn');
-    const emptyState = document.getElementById('empty-state');
-    const projectsGrid = document.getElementById('projects-grid');
-    const filterToggle = document.getElementById('filter-toggle');
-    const filterContent = document.getElementById('filter-content');
-    const filterIcon = document.getElementById('filter-icon');
+    let activeStatus = 'all';
+    let activeTag = 'all';
 
-    // 切換篩選器展開/收縮
-    filterToggle?.addEventListener('click', () => {
-      isFilterExpanded = !isFilterExpanded;
-
-      if (isFilterExpanded) {
-        filterContent?.classList.remove('collapsed');
-        filterIcon?.classList.remove('collapsed');
-        filterToggle.setAttribute('aria-expanded', 'true');
-      } else {
-        filterContent?.classList.add('collapsed');
-        filterIcon?.classList.add('collapsed');
-        filterToggle.setAttribute('aria-expanded', 'false');
-      }
-    });
-
-    function filterProjects() {
-      let visibleCount = 0;
-
-      projectCards.forEach((card) => {
-        const cardElement = card as HTMLElement;
-        const cardStatus = cardElement.dataset.status;
-        const cardTags = JSON.parse(cardElement.dataset.tags || '[]');
+    function applyFilters() {
+      let visible = 0;
+      cards.forEach((card) => {
+        const tags: string[] = JSON.parse(card.dataset.tags || '[]');
+        const status = card.dataset.status || '';
+        const featured = card.dataset.featured === 'true';
 
         const statusMatch =
-          currentStatus === 'all' || cardStatus === currentStatus;
+          activeStatus === 'all' ||
+          (activeStatus === 'featured' ? featured : status === activeStatus);
+        const tagMatch = activeTag === 'all' || tags.includes(activeTag);
+        const match = statusMatch && tagMatch;
 
-        // 標籤匹配邏輯：如果沒有選擇任何標籤（selectedTags 為空），則顯示所有專案
-        // 如果有選擇標籤，則專案的 tags 中有任一個在 selectedTags 中即符合
-        const tagMatch =
-          selectedTags.length === 0 ||
-          cardTags.some((tag: string) => selectedTags.includes(tag));
-
-        if (statusMatch && tagMatch) {
-          cardElement.classList.remove('hidden');
-          visibleCount++;
-        } else {
-          cardElement.classList.add('hidden');
-        }
+        card.setAttribute('data-hidden', match ? 'false' : 'true');
+        if (match) visible++;
       });
 
-      // 控制空狀態顯示
-      if (emptyState && projectsGrid) {
-        if (visibleCount === 0) {
-          emptyState.classList.remove('hidden');
-          projectsGrid.classList.add('hidden');
-        } else {
-          emptyState.classList.add('hidden');
-          projectsGrid.classList.remove('hidden');
-        }
+      if (empty && grid) {
+        empty.classList.toggle('hidden', visible > 0);
+        grid.classList.toggle('hidden', visible === 0);
       }
+      if (countEl) countEl.textContent = String(visible);
     }
 
-    // 狀態篩選
-    statusButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const status = (btn as HTMLElement).dataset.status || 'all';
-        currentStatus = status;
-
-        statusButtons.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        filterProjects();
+    statusPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        activeStatus = pill.dataset.status || 'all';
+        statusPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        applyFilters();
       });
     });
 
-    // 標籤篩選 - 支援多選
-    tagButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const tag = (btn as HTMLElement).dataset.tag || 'all';
-
-        // 點擊「全部」時清空所有選擇
-        if (tag === 'all') {
-          selectedTags = [];
-          tagButtons.forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-        } else {
-          // 移除「全部」的 active 狀態
-          const allButton = Array.from(tagButtons).find(
-            (b) => (b as HTMLElement).dataset.tag === 'all'
-          );
-          allButton?.classList.remove('active');
-
-          // 切換當前標籤的選中狀態
-          if (selectedTags.includes(tag)) {
-            // 如果已選中，則取消選中
-            selectedTags = selectedTags.filter((t) => t !== tag);
-            btn.classList.remove('active');
-
-            // 如果沒有任何標籤被選中，自動啟用「全部」
-            if (selectedTags.length === 0) {
-              allButton?.classList.add('active');
-            }
-          } else {
-            // 如果未選中，則選中
-            selectedTags.push(tag);
-            btn.classList.add('active');
-          }
-        }
-
-        filterProjects();
+    tagPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        activeTag = pill.dataset.tag || 'all';
+        tagPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        applyFilters();
       });
     });
   }
 
-  // 初始化
-  document.addEventListener('DOMContentLoaded', initProjectFilters);
-  document.addEventListener('astro:page-load', initProjectFilters);
+  function initRevealAnimation() {
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (prefersReduced) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries)
+          if (e.isIntersecting) e.target.classList.add('reveal-visible');
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.1 }
+    );
+    document
+      .querySelectorAll('.reveal-item')
+      .forEach((el) => observer.observe(el));
+  }
+
+  function initDragScroll() {
+    const _el = document.getElementById('q-tag-scroll');
+    if (!_el) return;
+    const el = _el; // 用 const reassign 讓 TS 在 closure 中 narrow 為非 null
+
+    let isDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+    let hasDragged = false;
+
+    // 更新漸隱方向
+    function updateFade() {
+      const { scrollLeft: sl, scrollWidth, clientWidth } = el;
+      const atStart = sl <= 2;
+      const atEnd = sl + clientWidth >= scrollWidth - 2;
+      const noScroll = scrollWidth <= clientWidth;
+
+      el.classList.remove('fade-both', 'fade-left', 'no-fade');
+      if (noScroll) el.classList.add('no-fade');
+      else if (atStart && atEnd) el.classList.add('no-fade');
+      else if (atStart) {
+        /* 預設 CSS：只有右邊漸隱 */
+      } else if (atEnd) el.classList.add('fade-left');
+      else el.classList.add('fade-both');
+    }
+
+    el.addEventListener('mousedown', (e) => {
+      isDown = true;
+      hasDragged = false;
+      el.classList.add('grabbing');
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+    });
+
+    el.addEventListener('mouseleave', () => {
+      isDown = false;
+      el.classList.remove('grabbing');
+    });
+    el.addEventListener('mouseup', () => {
+      isDown = false;
+      el.classList.remove('grabbing');
+    });
+
+    el.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      if (Math.abs(walk) > 3) hasDragged = true;
+      el.scrollLeft = scrollLeft - walk;
+    });
+
+    // 拖曳時不觸發 pill 點擊
+    el.addEventListener(
+      'click',
+      (e) => {
+        if (hasDragged) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true
+    );
+
+    // 滾輪：垂直 → 水平
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        if (el.scrollWidth <= el.clientWidth) return; // 內容不足不攔截
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          e.preventDefault();
+          el.scrollLeft += e.deltaY;
+        }
+      },
+      { passive: false }
+    );
+
+    el.addEventListener('scroll', updateFade, { passive: true });
+    window.addEventListener('resize', updateFade);
+    updateFade();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initProjectFilters();
+    initDragScroll();
+    initRevealAnimation();
+  });
+  document.addEventListener('astro:page-load', () => {
+    initProjectFilters();
+    initDragScroll();
+    initRevealAnimation();
+  });
 </script>

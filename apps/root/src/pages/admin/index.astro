@@ -1,0 +1,101 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import RootEditor from '../../components/editor/RootEditor';
+import {
+  getProjects,
+  getUpdates,
+  getLinks,
+  getSingleton,
+  getCards,
+} from '../../lib/api';
+
+// 取得 JWT token 供 React 元件做寫入 API 呼叫
+const JWT_COOKIE = 'root-admin-jwt';
+const jwtCookie = Astro.cookies.get(JWT_COOKIE);
+const token = jwtCookie?.value || '';
+const apiBase =
+  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+// 並行取得所有資料（含 about 雙語及 currently singleton）
+const [
+  projects,
+  updates,
+  links,
+  homepageZh,
+  aboutZh,
+  aboutEn,
+  contactZh,
+  contactEn,
+  currentlySingleton,
+  // 頁面文字 singletons
+  pageHomeZh,
+  pageHomeEn,
+  pageProjectsZh,
+  pageProjectsEn,
+  pageUpdatesZh,
+  pageUpdatesEn,
+  pageLinksZh,
+  pageLinksEn,
+  pageAboutZh,
+  pageAboutEn,
+  pageContactZh,
+  pageContactEn,
+  cards,
+] = await Promise.all([
+  getProjects(),
+  getUpdates(),
+  getLinks(),
+  getSingleton('homepage-zh'),
+  getSingleton('about-zh'),
+  getSingleton('about-en'),
+  getSingleton('contact-zh'),
+  getSingleton('contact-en'),
+  getSingleton('currently'),
+  // 頁面文字
+  getSingleton('page-home-zh'),
+  getSingleton('page-home-en'),
+  getSingleton('page-projects-zh'),
+  getSingleton('page-projects-en'),
+  getSingleton('page-updates-zh'),
+  getSingleton('page-updates-en'),
+  getSingleton('page-links-zh'),
+  getSingleton('page-links-en'),
+  getSingleton('page-about-zh'),
+  getSingleton('page-about-en'),
+  getSingleton('page-contact-zh'),
+  getSingleton('page-contact-en'),
+  getCards(),
+]);
+---
+
+<AdminLayout title="Admin · Editor">
+  <RootEditor
+    client:only="react"
+    projects={projects || []}
+    updates={updates || []}
+    links={links || []}
+    homepage={homepageZh?.content || null}
+    about={aboutZh?.content || null}
+    aboutEn={aboutEn?.content || null}
+    contact={contactZh?.content || null}
+    contactEn={contactEn?.content || null}
+    currently={currentlySingleton?.content || null}
+    cards={cards || []}
+    pageHomeZh={pageHomeZh?.content || null}
+    pageHomeEn={pageHomeEn?.content || null}
+    pageProjectsZh={pageProjectsZh?.content || null}
+    pageProjectsEn={pageProjectsEn?.content || null}
+    pageUpdatesZh={pageUpdatesZh?.content || null}
+    pageUpdatesEn={pageUpdatesEn?.content || null}
+    pageLinksZh={pageLinksZh?.content || null}
+    pageLinksEn={pageLinksEn?.content || null}
+    pageAboutZh={pageAboutZh?.content || null}
+    pageAboutEn={pageAboutEn?.content || null}
+    pageContactZh={pageContactZh?.content || null}
+    pageContactEn={pageContactEn?.content || null}
+    apiBase={apiBase}
+    token={token}
+  />
+</AdminLayout>

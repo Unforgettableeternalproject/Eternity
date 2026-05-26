@@ -4,7 +4,7 @@
  * 顯示所有側邊欄卡片（左右合併）
  */
 import { getCurrentLocale } from '../i18n/utils';
-import { getCollection, getEntry } from 'astro:content';
+import { getCard, getProjects, getUpdates } from '../lib/api';
 
 const locale = getCurrentLocale(Astro.url);
 
@@ -13,14 +13,13 @@ const VISITOR_API_URL =
   import.meta.env.PUBLIC_VISITOR_API_URL ||
   'https://eternity-visitor-counter.ptyc4076.workers.dev';
 
-// 獲取最近的更新
-const allUpdates = await getCollection('updates');
-const latestUpdate = allUpdates.sort(
-  (a, b) => b.data.date.getTime() - a.data.date.getTime()
-)[0];
-
-// 獲取所有項目和統計數據
-const allProjects = await getCollection('projects');
+// 從 D1 獲取資料
+const [allUpdates, allProjects] = await Promise.all([
+  getUpdates(),
+  getProjects(),
+]);
+const latestUpdateRaw = allUpdates[0] ?? null;
+const latestUpdate = latestUpdateRaw;
 
 const stats = [
   {
@@ -37,30 +36,51 @@ const stats = [
   },
   {
     label: locale === 'zh-tw' ? '活躍專案' : 'Active',
-    value: allProjects.filter((p) => p.data.status === 'active').length,
+    value: allProjects.filter((p) => p.status === 'active').length,
     icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'from-green-500 to-emerald-500',
   },
   {
     label: locale === 'zh-tw' ? '已完成' : 'Completed',
-    value: allProjects.filter((p) => p.data.status === 'completed').length,
+    value: allProjects.filter((p) => p.status === 'completed').length,
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
     color: 'from-indigo-500 to-purple-500',
   },
 ];
 
-// 從 Keystatic 獲取卡片資料
-const quoteCard = await getEntry('card-quote', 'index');
-// const musicCard = await getEntry('card-music', 'index'); // 未使用，音樂播放器在側邊欄
-const visitorCounterCard = await getEntry('card-visitor-counter', 'index');
-const latestUpdateCard = await getEntry('card-latest-update', 'index');
-const quickStatsCard = await getEntry('card-quick-stats', 'index');
+// 從 D1 獲取卡片資料
+const [
+  quoteCardRaw,
+  visitorCounterCardRaw,
+  latestUpdateCardRaw,
+  quickStatsCardRaw,
+] = await Promise.all([
+  getCard('card-quote'),
+  getCard('card-visitor-counter'),
+  getCard('card-latest-update'),
+  getCard('card-quick-stats'),
+]);
+
+const quoteCard = quoteCardRaw?.content as {
+  enabled?: boolean;
+  quotes_zh?: { text: string; author: string }[];
+  quotes_en?: { text: string; author: string }[];
+} | null;
+const visitorCounterCard = visitorCounterCardRaw?.content as {
+  enabled?: boolean;
+} | null;
+const latestUpdateCard = latestUpdateCardRaw?.content as {
+  enabled?: boolean;
+} | null;
+const quickStatsCard = quickStatsCardRaw?.content as {
+  enabled?: boolean;
+} | null;
 
 // Quote 資料
-const quotes = quoteCard?.data
+const quotes = quoteCard
   ? locale === 'zh-tw'
-    ? quoteCard.data.quotes_zh
-    : quoteCard.data.quotes_en
+    ? quoteCard.quotes_zh
+    : quoteCard.quotes_en
   : null;
 
 const randomQuote =
@@ -73,27 +93,6 @@ const randomQuote =
             : 'Code is poetry, details make perfection',
         author: '',
       };
-
-// Music 資料 (未使用，音樂播放器在側邊欄)
-// const tracks = (
-//   musicCard?.data?.tracks || [
-//     {
-//       title: locale === 'zh-tw' ? '示例曲目 1' : 'Sample Track 1',
-//       artist: 'Artist',
-//       url: '/music/track1.mp3',
-//     },
-//     {
-//       title: locale === 'zh-tw' ? '示例曲目 2' : 'Sample Track 2',
-//       artist: 'Artist',
-//       url: '/music/track2.mp3',
-//     },
-//   ]
-// ).filter(
-//   (
-//     track
-//   ): track is { title: string; artist: string; url: string; cover?: string } =>
-//     !!track.url
-// );
 ---
 
 <!-- 手機版底部控制面板（僅在 < md 顯示） -->
@@ -147,7 +146,7 @@ const randomQuote =
       <div class="grid grid-cols-1 gap-4">
         <!-- 訪客計數器 -->
         {
-          visitorCounterCard?.data.enabled && (
+          visitorCounterCard?.enabled && (
             <div class="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
                 <svg
@@ -176,7 +175,7 @@ const randomQuote =
 
         <!-- 快速統計 -->
         {
-          quickStatsCard?.data.enabled && (
+          quickStatsCard?.enabled && (
             <div class="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <svg
@@ -227,7 +226,7 @@ const randomQuote =
 
         <!-- 最新更新 -->
         {
-          latestUpdateCard?.data.enabled && latestUpdate && (
+          latestUpdateCard?.enabled && latestUpdate && (
             <div class="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
                 <svg
@@ -245,11 +244,11 @@ const randomQuote =
               >
                 <div class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">
                   {locale === 'zh-tw'
-                    ? latestUpdate.data.title_zh || latestUpdate.id
-                    : latestUpdate.data.title_en || latestUpdate.id}
+                    ? latestUpdate.titleZh || latestUpdate.id
+                    : latestUpdate.titleEn || latestUpdate.id}
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400">
-                  {latestUpdate.data.date.toLocaleDateString(
+                  {new Date(latestUpdate.date).toLocaleDateString(
                     locale === 'zh-tw' ? 'zh-TW' : 'en-US'
                   )}
                 </div>
@@ -260,7 +259,7 @@ const randomQuote =
 
         <!-- 隨機格言 -->
         {
-          quoteCard?.data.enabled && (
+          quoteCard?.enabled && (
             <div class="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
                 <svg

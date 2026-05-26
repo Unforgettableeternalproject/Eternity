@@ -1,18 +1,26 @@
 ---
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection, getEntry } from 'astro:content';
+import { getCard, getProjects, getUpdates } from '../lib/api';
 import SidebarCard from './SidebarCard';
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 
-// 從 Keystatic 獲取卡片資料
-const quickStatsCard = await getEntry('card-quick-stats', 'index');
-const tocCard = await getEntry('card-table-of-contents', 'index');
+// 從 D1 獲取卡片資料
+const [quickStatsCardRaw, tocCardRaw] = await Promise.all([
+  getCard('card-quick-stats'),
+  getCard('card-table-of-contents'),
+]);
+const quickStatsCard = quickStatsCardRaw?.content as {
+  enabled?: boolean;
+} | null;
+const tocCard = tocCardRaw?.content as { enabled?: boolean } | null;
 
-// 獲取統計數據
-const allProjects = await getCollection('projects');
-const allUpdates = await getCollection('updates');
+// 從 D1 獲取統計數據
+const [allProjects, allUpdates] = await Promise.all([
+  getProjects(),
+  getUpdates(),
+]);
 
 const stats = [
   {
@@ -29,13 +37,13 @@ const stats = [
   },
   {
     label: locale === 'zh-tw' ? '活躍專案' : 'Active',
-    value: allProjects.filter((p) => p.data.status === 'active').length,
+    value: allProjects.filter((p) => p.status === 'active').length,
     icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'from-green-500 to-emerald-500',
   },
   {
     label: locale === 'zh-tw' ? '已完成' : 'Completed',
-    value: allProjects.filter((p) => p.data.status === 'completed').length,
+    value: allProjects.filter((p) => p.status === 'completed').length,
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
     color: 'from-indigo-500 to-purple-500',
   },
@@ -95,7 +103,7 @@ const stats = [
     id="right-sidebar-container"
   >
     {
-      quickStatsCard?.data.enabled && (
+      quickStatsCard?.enabled && (
         <SidebarCard client:load id="quick-stats">
           <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
             <svg
@@ -159,7 +167,7 @@ const stats = [
     }
 
     {
-      tocCard?.data.enabled && (
+      tocCard?.enabled && (
         <SidebarCard client:load id="table-of-contents">
           <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
             <svg

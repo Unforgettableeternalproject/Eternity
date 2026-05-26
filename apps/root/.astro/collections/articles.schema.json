@@ -47,11 +47,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "title",
-        "description",
-        "date"
-      ],
+      "required": ["title", "description", "date"],
       "additionalProperties": false
     }
   },
