@@ -137,116 +137,202 @@ export default function ImageViewerModal() {
 
   const { src, alt = '' } = currentImage;
 
+  /* Quartz 按鈕共用樣式 */
+  const btnBase: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.5rem',
+    border: '1px solid rgba(255,255,255,0.2)',
+    background: 'rgba(255,255,255,0.08)',
+    color: 'rgba(255,255,255,0.8)',
+    cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s',
+  };
+
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center p-8 ${
-        isClosing ? 'closing' : 'opening'
-      }`}
       style={{
-        animation: isClosing ? 'fadeOut 0.2s ease-out' : 'fadeIn 0.2s ease-out',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+        animation: isClosing
+          ? 'qImgFadeOut 0.2s ease-out'
+          : 'qImgFadeIn 0.2s ease-out',
       }}
     >
-      {/* Backdrop */}
+      {/* 背景遮罩 */}
       <div
-        className="absolute inset-0 cursor-pointer"
+        onClick={handleClose}
         style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          backdropFilter: 'blur(12px)',
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.88)',
+          cursor: 'pointer',
           zIndex: 1,
         }}
-        onClick={handleClose}
       />
 
-      {/* Modal Wrapper */}
+      {/* 內容區 */}
       <div
-        className="relative flex flex-col max-w-[90vw] max-h-[90vh] w-auto h-auto"
+        onClick={(e) => e.stopPropagation()}
         style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
           zIndex: 2,
           animation: isClosing
-            ? 'scaleOut 0.2s ease-out'
-            : 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            ? 'qImgScaleOut 0.2s ease-out'
+            : 'qImgScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* 頂部控制欄 */}
-        <div className="flex items-center justify-between gap-4 mb-4 px-2">
-          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-white/20">
+        {/* 頂部控制列 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            marginBottom: '0.75rem',
+            padding: '0 0.25rem',
+          }}
+        >
+          {/* 縮放控制 */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0,
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.06)',
+            }}
+          >
             <button
-              className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all duration-200 active:scale-95"
               onClick={handleZoomOut}
               title="縮小 (-)"
+              style={btnBase}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
+              }
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M20 12H4"
-                />
+                <path strokeLinecap="square" strokeWidth="2" d="M20 12H4" />
               </svg>
             </button>
-            <span className="text-sm font-semibold text-white px-2 min-w-[3.5rem] text-center">
+
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: '#fff',
+                padding: '0 0.75rem',
+                minWidth: '3.5rem',
+                textAlign: 'center',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              }}
+            >
               {Math.round(currentZoom * 100)}%
             </span>
+
             <button
-              className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all duration-200 active:scale-95"
               onClick={handleZoomIn}
               title="放大 (+)"
+              style={btnBase}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
+              }
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  strokeLinecap="square"
                   strokeWidth="2"
                   d="M12 4v16m8-8H4"
                 />
               </svg>
             </button>
-            <div className="w-px h-6 bg-white/20" />
+
+            <div
+              style={{
+                width: '1px',
+                height: '1.5rem',
+                background: 'rgba(255,255,255,0.15)',
+              }}
+            />
+
             <button
-              className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all duration-200 active:scale-95"
               onClick={handleReset}
               title="重置 (R)"
+              style={btnBase}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
+              }
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  strokeLinecap="square"
                   strokeWidth="2"
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
             </button>
           </div>
+
+          {/* 關閉按鈕 */}
           <button
-            className="p-2.5 rounded-full bg-white/10 hover:bg-red-500/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-200 border border-white/20 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-500/20"
             onClick={handleClose}
             title="關閉 (ESC)"
+            style={{
+              ...btnBase,
+              padding: '0.625rem',
+              borderColor: 'rgba(255,255,255,0.2)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(180,50,50,0.7)';
+              e.currentTarget.style.borderColor = 'rgba(180,50,50,0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+            }}
           >
             <svg
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                strokeLinecap="square"
                 strokeWidth="2"
                 d="M6 18L18 6M6 6l12 12"
               />
@@ -254,23 +340,30 @@ export default function ImageViewerModal() {
           </button>
         </div>
 
-        {/* 圖片展示區 */}
-        <div className="relative flex items-center justify-center flex-1 min-h-0">
+        {/* 圖片區 */}
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
           <div
-            className="relative rounded-xl overflow-hidden shadow-2xl"
             style={{
-              background:
-                'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-              border: '2px solid rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              overflow: 'hidden',
             }}
             onWheel={handleWheel}
           >
             <img
               src={src}
               alt={alt}
-              className="block transition-transform duration-300 ease-out"
+              draggable="false"
               style={{
+                display: 'block',
                 maxHeight: '75vh',
                 maxWidth: '85vw',
                 width: 'auto',
@@ -280,10 +373,10 @@ export default function ImageViewerModal() {
                   ? 'grabbing'
                   : currentZoom > 1
                     ? 'grab'
-                    : 'grab',
+                    : 'default',
                 transform: `scale(${currentZoom}) translate(${translateX}px, ${translateY}px)`,
+                transition: isDragging ? 'none' : 'transform 0.3s ease-out',
               }}
-              draggable="false"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -294,8 +387,19 @@ export default function ImageViewerModal() {
 
         {/* 底部說明 */}
         {alt && (
-          <div className="mt-4 px-2">
-            <p className="text-center text-sm text-white/70 bg-white/5 backdrop-blur-md rounded-full px-6 py-2 border border-white/10">
+          <div style={{ marginTop: '0.75rem', padding: '0 0.25rem' }}>
+            <p
+              style={{
+                textAlign: 'center',
+                fontSize: '0.8rem',
+                color: 'rgba(255,255,255,0.5)',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                letterSpacing: '0.02em',
+                border: '1px solid rgba(255,255,255,0.08)',
+                padding: '0.5rem 1rem',
+                margin: 0,
+              }}
+            >
               {alt}
             </p>
           </div>
@@ -303,36 +407,21 @@ export default function ImageViewerModal() {
       </div>
 
       <style>{`
-        @keyframes fadeIn {
+        @keyframes qImgFadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
         }
-
-        @keyframes fadeOut {
+        @keyframes qImgFadeOut {
           from { opacity: 1; }
           to { opacity: 0; }
         }
-
-        @keyframes scaleIn {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
+        @keyframes qImgScaleIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
-
-        @keyframes scaleOut {
-          from {
-            opacity: 1;
-            transform: scale(1);
-          }
-          to {
-            opacity: 0;
-            transform: scale(0.95);
-          }
+        @keyframes qImgScaleOut {
+          from { opacity: 1; transform: scale(1); }
+          to { opacity: 0; transform: scale(0.97); }
         }
       `}</style>
     </div>

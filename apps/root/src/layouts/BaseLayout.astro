@@ -258,6 +258,27 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Cookie 同意彈窗 -->
     <CookieConsent client:load />
 
+    <!-- q-prose 圖片點擊 → ImageViewerModal -->
+    <script is:inline>
+      function initProseImageClick() {
+        document.querySelectorAll('.q-prose img').forEach(function (img) {
+          if (img.dataset.zoomBound) return;
+          img.dataset.zoomBound = '1';
+          img.style.cursor = 'zoom-in';
+          img.addEventListener('click', function () {
+            window.dispatchEvent(
+              new CustomEvent('openImageModal', {
+                detail: { src: img.src, alt: img.alt || '' },
+              })
+            );
+          });
+        });
+      }
+      // 初始載入 + View Transitions 後重新綁定
+      document.addEventListener('DOMContentLoaded', initProseImageClick);
+      document.addEventListener('astro:page-load', initProseImageClick);
+    </script>
+
     <!-- Mouse tracking script -->
     <script is:inline>
       (function () {
