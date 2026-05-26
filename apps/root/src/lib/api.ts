@@ -91,19 +91,17 @@ interface ApiResponse<T> {
 }
 
 function getApiBase(): string {
-  return import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+  const raw = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+  // 移除尾巴斜線，避免拼接時產生雙斜線
+  return raw.replace(/\/+$/, '');
 }
 
 async function apiFetch<T>(path: string): Promise<T | null> {
-  const base = getApiBase();
-  const url = `${base}${path}`;
-  console.log(`[api] fetch ${url} (base=${base})`);
+  const url = `${getApiBase()}${path}`;
   try {
     const res = await fetch(url);
-    console.log(`[api] ${path} → ${res.status}`);
     if (!res.ok) return null;
     const json: ApiResponse<T> = await res.json();
-    if (!json.ok) console.warn(`[api] ${path} → ok:false`, json.error);
     return json.ok ? (json.data ?? null) : null;
   } catch (e) {
     console.error(`[api] Failed to fetch ${path}:`, e);
