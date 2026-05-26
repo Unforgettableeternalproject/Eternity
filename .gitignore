@@ -83,3 +83,4 @@ README_Example.zh-tw.md
 settings.local.json
 CLAUDE.md
 AGENTS.md
+.claude/worktrees/**
