@@ -687,7 +687,7 @@ export default function RichEditor({
     setImgPickerLoading(true);
     setImgPickerSearch('');
     try {
-      const res = await fetch(`${apiBase}/api/assets?prefix=images/&limit=500`);
+      const res = await fetch(`/api/assets?prefix=images/&limit=500`);
       if (!res.ok) {
         setImgPickerItems([]);
         return;
@@ -744,7 +744,7 @@ export default function RichEditor({
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`${apiBase}/api/assets`, {
+      const res = await fetch(`/api/assets`, {
         method: 'POST',
         body: formData,
       });
@@ -769,7 +769,7 @@ export default function RichEditor({
     setAudioPickerLoading(true);
     setAudioPickerSearch('');
     try {
-      const res = await fetch(`${apiBase}/api/assets?prefix=audio/&limit=500`);
+      const res = await fetch(`/api/assets?prefix=audio/&limit=500`);
       if (!res.ok) {
         setAudioPickerItems([]);
         return;

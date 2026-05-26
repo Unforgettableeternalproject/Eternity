@@ -1285,7 +1285,7 @@ function BrowserEditor({
                         setPickerLoading(true);
                         try {
                           const res = await fetch(
-                            `${API_BASE}/api/assets?prefix=images/&limit=500`
+                            `/api/assets?prefix=images/&limit=500`
                           );
                           const json = (await res.json()) as {
                             ok: boolean;
@@ -1615,7 +1615,7 @@ function BrowserEditor({
                       .split('/')
                       .map(encodeURIComponent)
                       .join('/');
-                    await fetch(`${API_BASE}/api/assets/${encoded}`, {
+                    await fetch(`/api/assets/${encoded}`, {
                       method: 'DELETE',
                     });
                   } catch {

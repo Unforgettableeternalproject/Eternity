@@ -25,7 +25,7 @@ async function uploadBlob(
   const formData = new FormData();
   formData.append('file', file);
   try {
-    const res = await fetch(`${API_BASE}/api/assets`, {
+    const res = await fetch(`/api/assets`, {
       method: 'POST',
       body: formData,
     });
@@ -421,7 +421,7 @@ export default function SpriteEditorModal({
     try {
       const formData = new FormData();
       formData.append('file', gridFile);
-      const res = await fetch(`${API_BASE}/api/assets`, {
+      const res = await fetch(`/api/assets`, {
         method: 'POST',
         body: formData,
       });
