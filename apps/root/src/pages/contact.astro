@@ -12,6 +12,11 @@ const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 /* ── Fetch from D1 ── */
 const singletonKey = locale === 'zh-tw' ? 'contact-zh' : 'contact-en';
 const raw = await getSingleton(singletonKey);
+
+/* ── 頁面 hero 文字（從 page-contact singleton 讀取） ── */
+const ptKey = locale === 'zh-tw' ? 'page-contact-zh' : 'page-contact-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 const data = (raw?.content ?? {}) as {
   heroTitle?: string;
   heroIntro?: string;
@@ -37,29 +42,22 @@ const devCta = data.devCta ?? {};
     class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
   >
     <span class="q-section-label">
-      —— 06 / contact · {locale === 'zh-tw' ? '寫信給我' : 'reach out'}
+      {
+        pt.heroLabel ||
+          (locale === 'zh-tw'
+            ? '—— 06 / contact · 寫信給我'
+            : '—— 06 / contact · reach out')
+      }
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-    >
-      {
-        locale === 'zh-tw' ? (
-          <>
-            來說
-            <span style="color: var(--q-navy); font-weight: 600;">你的</span>
-            故事。
-          </>
-        ) : (
-          <>
-            Tell me{' '}
-            <span style="color: var(--q-navy); font-weight: 600;">your</span>{' '}
-            story.
-          </>
-        )
-      }
-    </h1>
+      set:html={pt.heroTitle ||
+        (locale === 'zh-tw'
+          ? '來說<span style="color: var(--q-navy); font-weight: 600;">你的</span>故事。'
+          : 'Tell me <span style="color: var(--q-navy); font-weight: 600;">your</span> story.')}
+    />
 
     <div
       class="mt-10 lg:mt-12 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-end"
@@ -71,23 +69,15 @@ const devCta = data.devCta ?? {};
         {
           locale === 'zh-tw' ? (
             <>
-              {data.heroIntro ||
-                '合作邀約、聲音作品、文字、世界觀討論、或單純打聲招呼 — 都歡迎。'}
-              我會盡量在{' '}
-              <strong style="color: var(--q-ink); font-weight: 600;">
-                48 小時
-              </strong>{' '}
-              內回。
+              {pt.heroIntro ||
+                data.heroIntro ||
+                '合作邀約、聲音作品、文字、世界觀討論、或單純打聲招呼 — 都歡迎。我會盡量在 48 小時內回。'}
             </>
           ) : (
             <>
-              {data.heroIntro ||
-                'Collaborations, music, writing, worldbuilding discussions, or just saying hi — all welcome.'}{' '}
-              I'll try to reply within{' '}
-              <strong style="color: var(--q-ink); font-weight: 600;">
-                48 hours
-              </strong>
-              .
+              {pt.heroIntro ||
+                data.heroIntro ||
+                "Collaborations, music, writing, worldbuilding discussions, or just saying hi — all welcome. I'll try to reply within 48 hours."}
             </>
           )
         }

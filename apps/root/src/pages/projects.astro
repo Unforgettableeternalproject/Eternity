@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getProjects, assetUrl } from '../lib/api';
+import { getProjects, getSingleton, assetUrl } from '../lib/api';
 
 export const prerender = false;
 
@@ -9,6 +9,11 @@ const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 const apiBase = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+/* ── 頁面文字從 D1 讀取（fallback 為硬編碼） ── */
+const ptKey = locale === 'zh-tw' ? 'page-projects-zh' : 'page-projects-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 
 const allProjectsRaw = await getProjects();
 
@@ -43,7 +48,7 @@ const allTags = Array.from(new Set(projects.flatMap((p) => p.data.tags))).sort()
 const allStatuses = Array.from(new Set(projects.map((p) => p.data.status)));
 const featuredCount = projects.filter((p) => p.data.featured).length;
 const statusOrder = ['active', 'completed', 'paused', 'archived'];
-const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s));
+const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s as typeof allStatuses[number]));
 ---
 
 <BaseLayout
@@ -54,31 +59,22 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s));
   <!-- ─────────── HERO ─────────── -->
   <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto">
     <span class="q-section-label">
-      —— 02 / projects · {locale === 'zh-tw' ? '作品目錄' : 'project catalog'}
+      {pt.heroLabel || (locale === 'zh-tw' ? '—— 02 / projects · 作品目錄' : '—— 02 / projects · project catalog')}
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-    >
-      {locale === 'zh-tw' ? (
-        <>
-          我做過的<br />
-          <span style="color: var(--q-navy); font-weight: 600;">所有東西</span>。
-        </>
-      ) : (
-        <>
-          Everything<br />
-          I've <span style="color: var(--q-navy); font-weight: 600;">built</span>.
-        </>
-      )}
-    </h1>
+      set:html={pt.heroTitle || (locale === 'zh-tw'
+        ? '我做過的<br /><span style="color: var(--q-navy); font-weight: 600;">所有東西</span>。'
+        : 'Everything<br />I\'ve <span style="color: var(--q-navy); font-weight: 600;">built</span>.')}
+    />
 
     <div class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-12 items-end">
       <p class="m-0 max-w-[560px] text-[17px] leading-[1.7]" style="color: var(--q-ink-soft);">
-        {locale === 'zh-tw'
+        {pt.heroSubtitle || (locale === 'zh-tw'
           ? '程式、世界觀、遊戲、工具 — 全部攤開列在這份目錄裡。點任何一個進去看詳細紀錄。'
-          : 'Code, worldbuilding, games, tools — all laid out in this catalog. Click any entry for full details.'}
+          : 'Code, worldbuilding, games, tools — all laid out in this catalog. Click any entry for full details.')}
       </p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-5 lg:gap-6">
         <div>
@@ -220,12 +216,12 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s));
       <div>
         <span class="q-section-label">—— next · {locale === 'zh-tw' ? '進行中' : 'in progress'}</span>
         <h3 class="mt-2 text-2xl md:text-[28px] font-bold tracking-tight" style="color: var(--q-ink);">
-          {locale === 'zh-tw' ? '還有些東西躺在抽屜裡' : 'More things sitting in the drawer'}
+          {pt.bottomTitle || (locale === 'zh-tw' ? '還有些東西躺在抽屜裡' : 'More things sitting in the drawer')}
         </h3>
         <p class="mt-1.5 text-sm leading-[1.65] max-w-[600px]" style="color: var(--q-ink-soft);">
-          {locale === 'zh-tw'
+          {pt.bottomSubtitle || (locale === 'zh-tw'
             ? '桌面型 AI、世界觀腳本、新一輪 OST、像素場景集 — 都還在寫。'
-            : 'Desktop AI, worldbuilding scripts, new OST batch, pixel scene packs — all in progress.'}
+            : 'Desktop AI, worldbuilding scripts, new OST batch, pixel scene packs — all in progress.')}
         </p>
       </div>
       <a
@@ -406,8 +402,9 @@ const sortedStatuses = statusOrder.filter(s => allStatuses.includes(s));
   }
 
   function initDragScroll() {
-    const el = document.getElementById('q-tag-scroll');
-    if (!el) return;
+    const _el = document.getElementById('q-tag-scroll');
+    if (!_el) return;
+    const el = _el; // 用 const reassign 讓 TS 在 closure 中 narrow 為非 null
 
     let isDown = false;
     let startX = 0;

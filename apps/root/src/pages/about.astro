@@ -12,6 +12,11 @@ const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 /* ── Fetch from D1 ── */
 const singletonKey = locale === 'zh-tw' ? 'about-zh' : 'about-en';
 const raw = await getSingleton(singletonKey);
+
+/* ── 頁面 hero 文字（從 page-about singleton 讀取） ── */
+const ptKey = locale === 'zh-tw' ? 'page-about-zh' : 'page-about-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 const data = (raw?.content ?? {}) as {
   title?: string;
   bio?: string;
@@ -113,38 +118,22 @@ if (currentlyItems.length === 0) {
     class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
   >
     <span class="q-section-label">
-      —— 03 / about · {locale === 'zh-tw' ? '個人簡介' : 'personal profile'}
+      {
+        pt.heroLabel ||
+          (locale === 'zh-tw'
+            ? '—— 03 / about · 個人簡介'
+            : '—— 03 / about · personal profile')
+      }
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-    >
-      {
-        locale === 'zh-tw' ? (
-          <>
-            有一個
-            <br />
-            <span style="color: var(--q-navy); font-weight: 600;">
-              尚未完成
-            </span>
-            的<br />
-            故事存在著。
-          </>
-        ) : (
-          <>
-            A story <br />
-            <>
-              <span style="color: var(--q-navy); font-weight: 600;">
-                not yet finished
-              </span>
-              <br />
-            </>
-            exists.
-          </>
-        )
-      }
-    </h1>
+      set:html={pt.heroTitle ||
+        (locale === 'zh-tw'
+          ? '有一個<br /><span style="color: var(--q-navy); font-weight: 600;">尚未完成</span>的<br />故事存在著。'
+          : 'A story <br /><span style="color: var(--q-navy); font-weight: 600;">not yet finished</span><br />exists.')}
+    />
 
     <div
       class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-start"
@@ -153,7 +142,7 @@ if (currentlyItems.length === 0) {
         class="m-0 max-w-[580px] text-lg leading-[1.75]"
         style="color: var(--q-ink-soft);"
       >
-        {data.heroIntro || ''}
+        {pt.heroIntro || data.heroIntro || ''}
       </p>
 
       <!-- Currently 動態面板 -->

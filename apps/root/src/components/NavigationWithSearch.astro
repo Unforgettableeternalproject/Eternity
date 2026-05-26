@@ -96,6 +96,12 @@ const alternatePath = getAlternatePath(currentPath, locale);
             label: t.nav.links,
             num: '05',
           },
+          {
+            key: 'contact',
+            path: locale === 'zh-tw' ? '/zh-tw/contact' : '/en/contact',
+            label: t.nav.contact,
+            num: '06',
+          },
         ].map((item) => {
           const isActive =
             item.key === 'home'
@@ -242,14 +248,19 @@ const alternatePath = getAlternatePath(currentPath, locale);
             label: t.nav.home,
           },
           {
+            key: 'projects',
+            path: locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects',
+            label: t.nav.projects,
+          },
+          {
             key: 'about',
             path: locale === 'zh-tw' ? '/zh-tw/about' : '/en/about',
             label: t.nav.about,
           },
           {
-            key: 'projects',
-            path: locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects',
-            label: t.nav.projects,
+            key: 'updates',
+            path: locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates',
+            label: t.nav.updates,
           },
           {
             key: 'links',
@@ -257,9 +268,9 @@ const alternatePath = getAlternatePath(currentPath, locale);
             label: t.nav.links,
           },
           {
-            key: 'updates',
-            path: locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates',
-            label: t.nav.updates,
+            key: 'contact',
+            path: locale === 'zh-tw' ? '/zh-tw/contact' : '/en/contact',
+            label: t.nav.contact,
           },
         ].map((item) => {
           const isActive =

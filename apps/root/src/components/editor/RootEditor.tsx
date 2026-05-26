@@ -16,6 +16,19 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import ImagePickerDialog from './ImagePickerDialog';
 import RootMediaLibrary from './RootMediaLibrary';
+import AboutEditor from './AboutEditor';
+import ContactEditor from './ContactEditor';
+import PageTextEditor from './PageTextEditor';
+import {
+  Mono,
+  Divider,
+  Field,
+  Input,
+  Select,
+  Toggle,
+  TagEditor,
+  OutlineRow,
+} from './editorPrimitives';
 import './RootEditor.css';
 
 // ─── types ──────────────────────────────────────────────────────────
@@ -79,14 +92,31 @@ interface EditorProps {
   updates: RootUpdate[];
   links: RootLink[];
   homepage: any;
-  about: any;
-  contact: any;
+  about: any; // about-zh singleton content
+  aboutEn: any; // about-en singleton content
+  currently: any; // currently singleton content
+  contact: any; // contact-zh singleton content
+  contactEn: any; // contact-en singleton content
+  // 頁面文字 singletons
+  pageHomeZh: any;
+  pageHomeEn: any;
+  pageProjectsZh: any;
+  pageProjectsEn: any;
+  pageUpdatesZh: any;
+  pageUpdatesEn: any;
+  pageLinksZh: any;
+  pageLinksEn: any;
+  pageAboutZh: any;
+  pageAboutEn: any;
+  pageContactZh: any;
+  pageContactEn: any;
   cards: any[];
   apiBase: string;
   token: string;
 }
 
 const PAGES = [
+  { id: 'pages', num: '00', label: '頁面文字 · Pages' },
   { id: 'projects', num: '01', label: '作品 · Projects' },
   { id: 'updates', num: '02', label: '動態 · Updates' },
   { id: 'links', num: '03', label: '連結 · Links' },
@@ -117,193 +147,6 @@ async function apiCall(
   } catch {
     return { ok: false, error: 'Network error' };
   }
-}
-
-// ─── primitives ─────────────────────────────────────────────────────
-function Mono({
-  children,
-  v,
-  style,
-}: {
-  children: React.ReactNode;
-  v?: 'navy' | 'coral' | 'fade';
-  style?: React.CSSProperties;
-}) {
-  return (
-    <span className={`qe-mono${v ? ` qe-mono--${v}` : ''}`} style={style}>
-      {children}
-    </span>
-  );
-}
-
-function Divider({ label }: { label?: string }) {
-  return (
-    <div className="qe-divider">
-      {label && <Mono v="navy">{label}</Mono>}
-      <div className="qe-divider__line" />
-    </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="qe-field">
-      <div className="qe-field__head">
-        <Mono>{label}</Mono>
-        {hint && <span className="qe-field__hint">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Input({
-  value,
-  onChange,
-  placeholder,
-  mono,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  mono?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <input
-      className={`qe-input${mono ? ' qe-input--mono' : ''}`}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      disabled={disabled}
-    />
-  );
-}
-
-function Select({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: (string | [string, string])[];
-}) {
-  return (
-    <select
-      className="qe-select"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {options.map((o) => {
-        const [val, lab] = Array.isArray(o) ? o : [o, o];
-        return (
-          <option key={val} value={val}>
-            {lab}
-          </option>
-        );
-      })}
-    </select>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="qe-toggle">
-      <span className="qe-toggle__label">{label}</span>
-      <span
-        className={`qe-toggle__track${checked ? ' qe-toggle__track--on' : ''}`}
-      >
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-        <span className="qe-toggle__thumb" />
-      </span>
-    </label>
-  );
-}
-
-function TagEditor({
-  tags,
-  onChange,
-}: {
-  tags: string[];
-  onChange: (t: string[]) => void;
-}) {
-  return (
-    <div className="qe-tags">
-      {tags.map((t, i) => (
-        <span key={i} className="qe-tag">
-          {t}
-          <span
-            className="qe-tag__x"
-            onClick={() => onChange(tags.filter((_, j) => j !== i))}
-          >
-            ×
-          </span>
-        </span>
-      ))}
-      <button
-        className="qe-tag--add"
-        onClick={() => {
-          const t = prompt('新增 tag：');
-          if (t?.trim()) onChange([...tags, t.trim()]);
-        }}
-      >
-        + tag
-      </button>
-    </div>
-  );
-}
-
-function OutlineRow({
-  active,
-  num,
-  label,
-  sub,
-  onClick,
-}: {
-  active: boolean;
-  num: string;
-  label: string;
-  sub?: string;
-  onClick: () => void;
-}) {
-  return (
-    <div
-      className={`qe-row${active ? ' qe-row--active' : ''}`}
-      onClick={onClick}
-    >
-      <Mono v={active ? 'navy' : 'fade'}>{num}</Mono>
-      <div style={{ minWidth: 0 }}>
-        <div className="qe-row__label">{label}</div>
-        {sub && <div className="qe-row__sub">{sub}</div>}
-      </div>
-      <span
-        className="qe-row__dot"
-        style={{ background: active ? 'var(--qe-navy)' : 'var(--qe-ink-fade)' }}
-      />
-    </div>
-  );
 }
 
 function NewItemModal({
@@ -341,7 +184,7 @@ function NewItemModal({
 }
 
 // ─── TipTap editor with toolbar ─────────────────────────────────────
-function TipTapEditor({
+export function TipTapEditor({
   content,
   onUpdate,
   placeholder,
@@ -355,6 +198,8 @@ function TipTapEditor({
   token: string;
 }) {
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor(
     {
       extensions: [
@@ -377,7 +222,6 @@ function TipTapEditor({
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       const current = editor.getHTML();
-      // only reset if content actually changed externally (not from typing)
       if (content !== current && content !== '<p></p>') {
         editor.commands.setContent(content || '', { emitUpdate: false });
       }
@@ -390,10 +234,14 @@ function TipTapEditor({
     cmd,
     label,
     active,
+    title: btnTitle,
+    style: btnStyle,
   }: {
     cmd: () => void;
     label: string;
     active?: boolean;
+    title?: string;
+    style?: React.CSSProperties;
   }) => (
     <button
       className={`qe-toolbar__btn${active ? ' qe-toolbar__btn--active' : ''}`}
@@ -401,7 +249,8 @@ function TipTapEditor({
         e.preventDefault();
         cmd();
       }}
-      title={label}
+      title={btnTitle || label}
+      style={btnStyle}
     >
       {label}
     </button>
@@ -411,63 +260,101 @@ function TipTapEditor({
     <div className="qe-tiptap-wrap">
       <div className="qe-toolbar">
         <TB
-          cmd={() => editor.chain().focus().toggleBold().run()}
+          cmd={() => editor!.chain().focus().toggleBold().run()}
           label="B"
-          active={editor.isActive('bold')}
+          active={editor!.isActive('bold')}
         />
         <TB
-          cmd={() => editor.chain().focus().toggleItalic().run()}
+          cmd={() => editor!.chain().focus().toggleItalic().run()}
           label="I"
-          active={editor.isActive('italic')}
+          active={editor!.isActive('italic')}
         />
         <TB
-          cmd={() => editor.chain().focus().toggleUnderline().run()}
+          cmd={() => editor!.chain().focus().toggleUnderline().run()}
           label="U"
-          active={editor.isActive('underline')}
+          active={editor!.isActive('underline')}
         />
         <TB
-          cmd={() => editor.chain().focus().toggleStrike().run()}
+          cmd={() => editor!.chain().focus().toggleStrike().run()}
           label="S"
-          active={editor.isActive('strike')}
+          active={editor!.isActive('strike')}
         />
         <div className="qe-toolbar__sep" />
         <TB
-          cmd={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          cmd={() => editor!.chain().focus().toggleHeading({ level: 2 }).run()}
           label="H2"
-          active={editor.isActive('heading', { level: 2 })}
+          active={editor!.isActive('heading', { level: 2 })}
         />
         <TB
-          cmd={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          cmd={() => editor!.chain().focus().toggleHeading({ level: 3 }).run()}
           label="H3"
-          active={editor.isActive('heading', { level: 3 })}
+          active={editor!.isActive('heading', { level: 3 })}
         />
         <TB
-          cmd={() => editor.chain().focus().setParagraph().run()}
+          cmd={() => editor!.chain().focus().setParagraph().run()}
           label="¶"
-          active={editor.isActive('paragraph')}
+          active={editor!.isActive('paragraph')}
         />
         <div className="qe-toolbar__sep" />
         <TB
-          cmd={() => editor.chain().focus().toggleBulletList().run()}
+          cmd={() => editor!.chain().focus().toggleBulletList().run()}
           label="•"
-          active={editor.isActive('bulletList')}
+          active={editor!.isActive('bulletList')}
         />
         <TB
-          cmd={() => editor.chain().focus().toggleOrderedList().run()}
+          cmd={() => editor!.chain().focus().toggleOrderedList().run()}
           label="1."
-          active={editor.isActive('orderedList')}
+          active={editor!.isActive('orderedList')}
         />
         <TB
-          cmd={() => editor.chain().focus().toggleBlockquote().run()}
+          cmd={() => editor!.chain().focus().toggleBlockquote().run()}
           label="❝"
-          active={editor.isActive('blockquote')}
+          active={editor!.isActive('blockquote')}
         />
         <div className="qe-toolbar__sep" />
         <TB
-          cmd={() => editor.chain().focus().setHorizontalRule().run()}
+          cmd={() => editor!.chain().focus().setHorizontalRule().run()}
           label="—"
         />
         <TB cmd={() => setShowImagePicker(true)} label="🖼" />
+        <div className="qe-toolbar__sep" />
+        {/* 顏色選擇器 */}
+        <TB
+          cmd={() => colorInputRef.current?.click()}
+          label="A"
+          title="文字顏色"
+          style={{
+            color: editor!.getAttributes('textStyle').color || 'inherit',
+          }}
+        />
+        <input
+          ref={colorInputRef}
+          type="color"
+          style={{
+            width: 0,
+            height: 0,
+            padding: 0,
+            border: 0,
+            position: 'absolute',
+            opacity: 0,
+          }}
+          onChange={(e) =>
+            editor!.chain().focus().setColor(e.target.value).run()
+          }
+        />
+        <TB
+          cmd={() =>
+            editor!.chain().focus().toggleHighlight({ color: '#fef08a' }).run()
+          }
+          label="Hi"
+          active={editor!.isActive('highlight')}
+          title="螢光標記"
+        />
+        <TB
+          cmd={() => editor!.chain().focus().unsetColor().run()}
+          label="A̲"
+          title="清除文字色"
+        />
       </div>
       <EditorContent editor={editor} />
       {showImagePicker && (
@@ -475,12 +362,11 @@ function TipTapEditor({
           apiBase={apiBase}
           token={token}
           onInsert={(key) => {
-            // 裸 key 或手動 URL → TipTap img src
             const src =
               key.startsWith('http') || key.startsWith('/')
                 ? key
                 : `/api/root/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
-            editor.chain().focus().setImage({ src }).run();
+            editor!.chain().focus().setImage({ src }).run();
           }}
           onClose={() => setShowImagePicker(false)}
         />
@@ -1492,203 +1378,6 @@ function LinksEditor({
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  SINGLETON EDITOR (About / Contact)
-// ═══════════════════════════════════════════════════════════════════
-function SingletonEditor({
-  singletonKey,
-  label,
-  data,
-  setData,
-  api,
-}: {
-  singletonKey: string;
-  label: string;
-  data: any;
-  setData: (d: any) => void;
-  api: (p: string, m: string, b?: any) => Promise<any>;
-}) {
-  const [dirty, setDirty] = useState(false);
-  const content = data || {};
-  const keys = Object.keys(content);
-
-  const [activeSection, setActiveSection] = useState(keys[0] || '');
-
-  const update = useCallback(
-    (key: string, value: any) => {
-      setData({ ...content, [key]: value });
-      setDirty(true);
-    },
-    [content, setData]
-  );
-
-  const save = useCallback(async () => {
-    const res = await api(`/api/root/singletons/${singletonKey}`, 'PUT', {
-      content,
-    });
-    if (res.ok) setDirty(false);
-  }, [content, singletonKey, api]);
-
-  // Render a single field based on type
-  const renderField = (key: string, val: any) => {
-    if (val === null || val === undefined)
-      return (
-        <Field label={key}>
-          <Input
-            value=""
-            onChange={(v) => update(key, v)}
-            placeholder="(empty)"
-          />
-        </Field>
-      );
-    if (typeof val === 'boolean')
-      return (
-        <Toggle label={key} checked={val} onChange={(v) => update(key, v)} />
-      );
-    if (typeof val === 'number')
-      return (
-        <Field label={key}>
-          <Input
-            value={String(val)}
-            onChange={(v) => update(key, parseFloat(v) || 0)}
-            mono
-          />
-        </Field>
-      );
-    if (typeof val === 'string') {
-      if (val.length > 200 || val.includes('<')) {
-        return (
-          <Field label={key} hint={`${val.length} chars`}>
-            <textarea
-              className="qe-desc-textarea"
-              value={val}
-              rows={Math.min(10, Math.ceil(val.length / 60))}
-              onChange={(e) => update(key, e.target.value)}
-            />
-          </Field>
-        );
-      }
-      return (
-        <Field label={key}>
-          <Input value={val} onChange={(v) => update(key, v)} />
-        </Field>
-      );
-    }
-    // arrays / objects → show as editable JSON
-    return (
-      <Field label={key} hint="JSON">
-        <textarea
-          className="qe-desc-textarea"
-          style={{ fontFamily: 'var(--qe-mono)', fontSize: 12 }}
-          value={JSON.stringify(val, null, 2)}
-          rows={Math.min(
-            14,
-            JSON.stringify(val, null, 2).split('\n').length + 1
-          )}
-          onChange={(e) => {
-            try {
-              update(key, JSON.parse(e.target.value));
-            } catch {
-              /* skip */
-            }
-          }}
-        />
-      </Field>
-    );
-  };
-
-  return (
-    <>
-      <aside className="qe-left">
-        <div className="qe-left__header">
-          <div>
-            <Mono v="navy">—— {label}</Mono>
-            <div style={{ marginTop: 4 }}>
-              <Mono>{keys.length} fields</Mono>
-            </div>
-          </div>
-        </div>
-        <div className="qe-left__body">
-          {keys.map((k, i) => (
-            <OutlineRow
-              key={k}
-              active={activeSection === k}
-              num={String(i + 1).padStart(2, '0')}
-              label={k}
-              sub={
-                typeof content[k] === 'string'
-                  ? content[k].slice(0, 30)
-                  : typeof content[k]
-              }
-              onClick={() => setActiveSection(k)}
-            />
-          ))}
-        </div>
-      </aside>
-
-      <main className="qe-center">
-        <div className="qe-editor-surface" style={{ maxWidth: 760 }}>
-          <div className="qe-section-label">
-            —— {label} · {singletonKey}
-          </div>
-          <h2 style={{ margin: '8px 0 24px', fontSize: 28, fontWeight: 700 }}>
-            {label}
-          </h2>
-
-          {activeSection && content[activeSection] !== undefined ? (
-            <div>
-              <div className="qe-section-label">—— {activeSection}</div>
-              <div className="qe-rule" />
-              {renderField(activeSection, content[activeSection])}
-            </div>
-          ) : (
-            keys.map((k) => (
-              <div key={k} style={{ marginBottom: 16 }}>
-                {renderField(k, content[k])}
-              </div>
-            ))
-          )}
-        </div>
-      </main>
-
-      <aside className="qe-right">
-        <div className="qe-right__header">
-          <Mono v="navy">—— inspector</Mono>
-        </div>
-        <div className="qe-right__body">
-          <Divider label="source" />
-          <Field label="D1 table">
-            <Input value="root_singletons" onChange={() => {}} mono disabled />
-          </Field>
-          <Field label="key">
-            <Input value={singletonKey} onChange={() => {}} mono disabled />
-          </Field>
-          <Field label="fields">
-            <Input
-              value={String(keys.length)}
-              onChange={() => {}}
-              mono
-              disabled
-            />
-          </Field>
-
-          <Divider label="actions" />
-          <button
-            className="qe-topbar__btn qe-topbar__btn--primary"
-            style={{ width: '100%' }}
-            onClick={save}
-            disabled={!dirty}
-          >
-            <Mono style={{ color: 'inherit' }}>
-              {dirty ? '● save' : 'synced'}
-            </Mono>
-          </button>
-        </div>
-      </aside>
-    </>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════
 //  MAIN EDITOR
 // ═══════════════════════════════════════════════════════════════════
 export default function RootEditor(props: EditorProps) {
@@ -1697,7 +1386,27 @@ export default function RootEditor(props: EditorProps) {
   const [updates, setUpdates] = useState<RootUpdate[]>(props.updates);
   const [links, setLinks] = useState<RootLink[]>(props.links);
   const [about, setAbout] = useState<any>(props.about);
+  const [aboutEn, setAboutEn] = useState<any>(props.aboutEn);
+  const [currently, setCurrently] = useState<any>(props.currently);
   const [contact, setContact] = useState<any>(props.contact);
+  const [contactEn, setContactEn] = useState<any>(props.contactEn);
+  // 頁面文字 state
+  const [pageHomeZh, setPageHomeZh] = useState<any>(props.pageHomeZh);
+  const [pageHomeEn, setPageHomeEn] = useState<any>(props.pageHomeEn);
+  const [pageProjectsZh, setPageProjectsZh] = useState<any>(
+    props.pageProjectsZh
+  );
+  const [pageProjectsEn, setPageProjectsEn] = useState<any>(
+    props.pageProjectsEn
+  );
+  const [pageUpdatesZh, setPageUpdatesZh] = useState<any>(props.pageUpdatesZh);
+  const [pageUpdatesEn, setPageUpdatesEn] = useState<any>(props.pageUpdatesEn);
+  const [pageLinksZh, setPageLinksZh] = useState<any>(props.pageLinksZh);
+  const [pageLinksEn, setPageLinksEn] = useState<any>(props.pageLinksEn);
+  const [pageAboutZh, setPageAboutZh] = useState<any>(props.pageAboutZh);
+  const [pageAboutEn, setPageAboutEn] = useState<any>(props.pageAboutEn);
+  const [pageContactZh, setPageContactZh] = useState<any>(props.pageContactZh);
+  const [pageContactEn, setPageContactEn] = useState<any>(props.pageContactEn);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -1780,6 +1489,35 @@ export default function RootEditor(props: EditorProps) {
 
       {/* ─── body ─── */}
       <div className="qe-body">
+        {page === 'pages' && (
+          <PageTextEditor
+            homeZh={pageHomeZh}
+            homeEn={pageHomeEn}
+            projectsZh={pageProjectsZh}
+            projectsEn={pageProjectsEn}
+            updatesZh={pageUpdatesZh}
+            updatesEn={pageUpdatesEn}
+            linksZh={pageLinksZh}
+            linksEn={pageLinksEn}
+            setHomeZh={setPageHomeZh}
+            setHomeEn={setPageHomeEn}
+            setProjectsZh={setPageProjectsZh}
+            setProjectsEn={setPageProjectsEn}
+            setUpdatesZh={setPageUpdatesZh}
+            setUpdatesEn={setPageUpdatesEn}
+            setLinksZh={setPageLinksZh}
+            setLinksEn={setPageLinksEn}
+            aboutZh={pageAboutZh}
+            aboutEn={pageAboutEn}
+            contactZh={pageContactZh}
+            contactEn={pageContactEn}
+            setAboutZh={setPageAboutZh}
+            setAboutEn={setPageAboutEn}
+            setContactZh={setPageContactZh}
+            setContactEn={setPageContactEn}
+            api={api}
+          />
+        )}
         {page === 'projects' && (
           <ProjectsEditor
             items={projects}
@@ -1802,20 +1540,24 @@ export default function RootEditor(props: EditorProps) {
           <LinksEditor items={links} setItems={setLinks} api={api} />
         )}
         {page === 'about' && (
-          <SingletonEditor
-            singletonKey="about-zh"
-            label="關於 · About"
-            data={about}
-            setData={setAbout}
+          <AboutEditor
+            dataZh={about}
+            dataEn={aboutEn}
+            currently={currently}
+            setDataZh={setAbout}
+            setDataEn={setAboutEn}
+            setCurrently={setCurrently}
             api={api}
+            apiBase={props.apiBase}
+            token={props.token}
           />
         )}
         {page === 'contact' && (
-          <SingletonEditor
-            singletonKey="contact-zh"
-            label="聯絡 · Contact"
-            data={contact}
-            setData={setContact}
+          <ContactEditor
+            dataZh={contact}
+            dataEn={contactEn}
+            setDataZh={setContact}
+            setDataEn={setContactEn}
             api={api}
           />
         )}

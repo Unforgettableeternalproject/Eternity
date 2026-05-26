@@ -1,13 +1,18 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getLinks } from '../lib/api';
+import { getLinks, getSingleton } from '../lib/api';
 
 export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
+
+/* ── 頁面文字從 D1 讀取 ── */
+const ptKey = locale === 'zh-tw' ? 'page-links-zh' : 'page-links-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 
 const allLinksRaw = await getLinks();
 const sorted = allLinksRaw
@@ -50,31 +55,22 @@ for (const cat of categoryOrder) {
   <!-- ─────────── HERO ─────────── -->
   <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto">
     <span class="q-section-label">
-      —— 05 / links · {locale === 'zh-tw' ? '對外連結' : 'external links'}
+      {pt.heroLabel || (locale === 'zh-tw' ? '—— 05 / links · 對外連結' : '—— 05 / links · external links')}
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-    >
-      {locale === 'zh-tw' ? (
-        <>
-          你能在<br />
-          <span style="color: var(--q-navy); font-weight: 600;">哪裡</span>找到我。
-        </>
-      ) : (
-        <>
-          Where to<br />
-          <span style="color: var(--q-navy); font-weight: 600;">find</span> me.
-        </>
-      )}
-    </h1>
+      set:html={pt.heroTitle || (locale === 'zh-tw'
+        ? '你能在<br /><span style="color: var(--q-navy); font-weight: 600;">哪裡</span>找到我。'
+        : 'Where to<br /><span style="color: var(--q-navy); font-weight: 600;">find</span> me.')}
+    />
 
     <div class="mt-10 lg:mt-12 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-end">
       <p class="m-0 max-w-[540px] text-[17px] leading-[1.7]" style="color: var(--q-ink-soft);">
-        {locale === 'zh-tw'
+        {pt.heroSubtitle || (locale === 'zh-tw'
           ? '所有對外連結都收在這頁 — 程式、創作、世界觀、夥伴與聯絡方式。一個 hub，少一點四散。'
-          : 'All external links are collected here — code, creative, worldbuilding, allies and contact. One hub, less scattering.'}
+          : 'All external links are collected here — code, creative, worldbuilding, allies and contact. One hub, less scattering.')}
       </p>
       <div>
         <span class="q-mono">jump to</span>
@@ -183,12 +179,12 @@ for (const cat of categoryOrder) {
       <div>
         <span class="q-section-label">—— also</span>
         <h3 class="mt-2 text-xl md:text-2xl font-bold tracking-tight" style="color: var(--q-ink);">
-          {locale === 'zh-tw' ? '有些東西還沒放上來' : 'Some things are not listed yet'}
+          {pt.bottomTitle || (locale === 'zh-tw' ? '有些東西還沒放上來' : 'Some things are not listed yet')}
         </h3>
         <p class="mt-1.5 text-sm leading-[1.65] max-w-[580px]" style="color: var(--q-ink-soft);">
-          {locale === 'zh-tw'
+          {pt.bottomSubtitle || (locale === 'zh-tw'
             ? 'Bandcamp / itch.io / 某些 deprecated 的舊作 — 都還在整理。如果你在找特定東西，直接寫信問會更快。'
-            : 'Bandcamp, itch.io, and some deprecated old works are still being organized. If you are looking for something specific, email me directly.'}
+            : 'Bandcamp, itch.io, and some deprecated old works are still being organized. If you are looking for something specific, email me directly.')}
         </p>
       </div>
       <a
