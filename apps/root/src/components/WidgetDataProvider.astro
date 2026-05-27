@@ -1,0 +1,137 @@
+---
+/**
+ * WidgetDataProvider — SSR 端統一取得 widget 資料，注入到 window.__widgetData
+ * 在 BaseLayout 中引入，讓 React widget 系統可以存取
+ */
+import { getCurrentLocale } from '../i18n/utils';
+import { getCard, getUpdates, getProjects } from '../lib/api';
+
+const locale = getCurrentLocale(Astro.url);
+
+// 並行取得所有 widget 需要的 D1 資料
+const [
+  quoteCardRaw,
+  musicCardRaw,
+  visitorCounterCardRaw,
+  latestUpdateCardRaw,
+  quickStatsCardRaw,
+  tocCardRaw,
+  allUpdates,
+  allProjects,
+] = await Promise.all([
+  getCard('card-quote'),
+  getCard('card-music'),
+  getCard('card-visitor-counter'),
+  getCard('card-latest-update'),
+  getCard('card-quick-stats'),
+  getCard('card-table-of-contents'),
+  getUpdates(1),
+  getProjects(),
+]);
+
+// 型別化
+const quoteCard = quoteCardRaw?.content as {
+  enabled?: boolean;
+  quotes_zh?: { text: string; author: string }[];
+  quotes_en?: { text: string; author: string }[];
+} | null;
+
+const musicCard = musicCardRaw?.content as {
+  enabled?: boolean;
+  tracks?: { title: string; artist: string; url: string }[];
+} | null;
+
+const visitorCounterCard = visitorCounterCardRaw?.content as {
+  enabled?: boolean;
+} | null;
+const latestUpdateCard = latestUpdateCardRaw?.content as {
+  enabled?: boolean;
+} | null;
+const quickStatsCard = quickStatsCardRaw?.content as {
+  enabled?: boolean;
+} | null;
+const tocCard = tocCardRaw?.content as { enabled?: boolean } | null;
+
+// 每日名言（基於日期 hash）
+const quotes = quoteCard
+  ? locale === 'zh-tw'
+    ? quoteCard.quotes_zh
+    : quoteCard.quotes_en
+  : null;
+
+function getDailyIndex(len: number): number {
+  const today = new Date();
+  const ds = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  let hash = 0;
+  for (let i = 0; i < ds.length; i++) {
+    hash = ((hash << 5) - hash + ds.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % len;
+}
+
+const quote =
+  quotes && quotes.length > 0
+    ? quotes[getDailyIndex(quotes.length)]
+    : {
+        text: locale === 'zh-tw' ? '代碼如詩，細節成就完美' : 'Code is poetry',
+        author: '',
+      };
+
+// 最新更新
+const latestUpdate = allUpdates[0]
+  ? {
+      id: allUpdates[0].id,
+      titleZh: allUpdates[0].titleZh || allUpdates[0].id,
+      titleEn: allUpdates[0].titleEn || allUpdates[0].id,
+      date: allUpdates[0].date,
+    }
+  : null;
+
+// 快速統計
+const stats = {
+  projects: allProjects.length,
+  updates: allUpdates.length,
+  active: allProjects.filter((p: any) => p.status === 'active').length,
+  completed: allProjects.filter((p: any) => p.status === 'completed').length,
+};
+
+// 訪客 API URL
+const visitorApiUrl =
+  import.meta.env.PUBLIC_VISITOR_API_URL ||
+  'https://eternity-visitor-counter.ptyc4076.workers.dev';
+
+// 音樂音軌
+const musicTracks =
+  musicCard?.tracks
+    ?.filter((t) => !!t.url)
+    .map((t) => ({
+      name: t.title || 'Unknown',
+      src: t.url,
+    })) || [];
+
+// 各 widget 啟用狀態
+const cardEnabled = {
+  music: !!musicCard?.enabled,
+  visitor: !!visitorCounterCard?.enabled,
+  quote: !!quoteCard?.enabled,
+  stats: !!quickStatsCard?.enabled,
+  latest: !!latestUpdateCard?.enabled,
+  toc: !!tocCard?.enabled,
+};
+
+// 組裝完整資料物件
+const widgetData = {
+  visitorApiUrl,
+  quote,
+  stats,
+  latestUpdate,
+  cardEnabled,
+  locale,
+  musicTracks,
+};
+---
+
+<script define:vars={{ widgetData }}>
+  // 注入到 window，讓 React widget 系統讀取
+  window.__widgetData = widgetData;
+</script>
