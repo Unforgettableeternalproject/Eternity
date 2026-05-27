@@ -14,6 +14,7 @@ export default function WidgetVisitorCounter() {
 
     const data = getWidgetData();
     const apiUrl = data.visitorApiUrl;
+    if (!apiUrl) return; // 未設定 visitor API URL
 
     (async () => {
       try {

@@ -27,14 +27,19 @@ export interface WidgetData {
     music: boolean;
     visitor: boolean;
     quote: boolean;
-    stats: boolean;
-    latest: boolean;
+    portal: boolean;
+    status: boolean;
+    uep: boolean;
     toc: boolean;
   };
   /** 目前語系 */
   locale: 'zh-tw' | 'en';
-  /** 音樂播放器的音軌列表（如果有的話） */
+  /** 音樂播放器的音軌列表 */
   musicTracks?: { name: string; src: string }[];
+  /** 網站狀態項目 */
+  statusItems?: { key: string; value: string; color?: string }[];
+  /** U.E.P 角色圖片路徑 */
+  uepImage?: string;
 }
 
 /** 擴充 window 型別 */
@@ -51,7 +56,7 @@ export function getWidgetData(): WidgetData {
   }
   // Fallback 預設值
   return {
-    visitorApiUrl: 'https://eternity-visitor-counter.ptyc4076.workers.dev',
+    visitorApiUrl: '',
     quote: null,
     stats: null,
     latestUpdate: null,
@@ -59,8 +64,9 @@ export function getWidgetData(): WidgetData {
       music: true,
       visitor: true,
       quote: true,
-      stats: true,
-      latest: true,
+      portal: true,
+      status: true,
+      uep: true,
       toc: true,
     },
     locale: 'zh-tw',

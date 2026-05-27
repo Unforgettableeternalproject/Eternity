@@ -144,18 +144,26 @@
   letter-spacing: 0.1em;
   border-radius: 6px;
   z-index: 70;
-  animation: q-toast-in 0.2s ease-out;
+  animation: q-toast-in-out 1.5s ease both;
   pointer-events: none;
 }
 
-@keyframes q-toast-in {
-  from {
+@keyframes q-toast-in-out {
+  0% {
     opacity: 0;
     transform: translateY(8px);
   }
-  to {
+  12% {
     opacity: 1;
     transform: translateY(0);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 }
 

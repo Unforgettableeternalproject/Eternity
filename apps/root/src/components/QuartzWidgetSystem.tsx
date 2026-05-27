@@ -25,12 +25,13 @@ import {
 } from '../lib/widgetState';
 import { getWidgetData } from './widgets/types';
 
-// Widget 元件（lazy 不需要，體積不大）
+// Widget 元件
 import WidgetMusicPlayer from './widgets/WidgetMusicPlayer';
 import WidgetVisitorCounter from './widgets/WidgetVisitorCounter';
 import WidgetDailyQuote from './widgets/WidgetDailyQuote';
-import WidgetQuickStats from './widgets/WidgetQuickStats';
-import WidgetLatestUpdate from './widgets/WidgetLatestUpdate';
+import WidgetPortal from './widgets/WidgetPortal';
+import WidgetStatus from './widgets/WidgetStatus';
+import WidgetUEP from './widgets/WidgetUEP';
 
 // ── Widget 渲染映射 ─────────────────────────────────────────
 
@@ -38,8 +39,9 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.FC> = {
   music: WidgetMusicPlayer,
   visitor: WidgetVisitorCounter,
   quote: WidgetDailyQuote,
-  stats: WidgetQuickStats,
-  latest: WidgetLatestUpdate,
+  portal: WidgetPortal,
+  status: WidgetStatus,
+  uep: WidgetUEP,
 };
 
 // ── 浮島容器 (Mode A) ───────────────────────────────────────

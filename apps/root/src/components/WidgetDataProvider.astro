@@ -13,8 +13,9 @@ const [
   quoteCardRaw,
   musicCardRaw,
   visitorCounterCardRaw,
-  latestUpdateCardRaw,
-  quickStatsCardRaw,
+  portalCardRaw,
+  statusCardRaw,
+  uepCardRaw,
   tocCardRaw,
   allUpdates,
   allProjects,
@@ -22,8 +23,9 @@ const [
   getCard('card-quote'),
   getCard('card-music'),
   getCard('card-visitor-counter'),
-  getCard('card-latest-update'),
-  getCard('card-quick-stats'),
+  getCard('card-portal'),
+  getCard('card-status'),
+  getCard('card-uep'),
   getCard('card-table-of-contents'),
   getUpdates(1),
   getProjects(),
@@ -44,11 +46,14 @@ const musicCard = musicCardRaw?.content as {
 const visitorCounterCard = visitorCounterCardRaw?.content as {
   enabled?: boolean;
 } | null;
-const latestUpdateCard = latestUpdateCardRaw?.content as {
+const portalCard = portalCardRaw?.content as { enabled?: boolean } | null;
+const statusCard = statusCardRaw?.content as {
   enabled?: boolean;
+  items?: { key: string; value: string; color?: string }[];
 } | null;
-const quickStatsCard = quickStatsCardRaw?.content as {
+const uepCard = uepCardRaw?.content as {
   enabled?: boolean;
+  image?: string;
 } | null;
 const tocCard = tocCardRaw?.content as { enabled?: boolean } | null;
 
@@ -95,10 +100,8 @@ const stats = {
   completed: allProjects.filter((p: any) => p.status === 'completed').length,
 };
 
-// 訪客 API URL
-const visitorApiUrl =
-  import.meta.env.PUBLIC_VISITOR_API_URL ||
-  'https://eternity-visitor-counter.ptyc4076.workers.dev';
+// 訪客 API URL（未設定時留空，widget 會顯示 fallback）
+const visitorApiUrl = import.meta.env.PUBLIC_VISITOR_API_URL || '';
 
 // 音樂音軌
 const musicTracks =
@@ -109,13 +112,14 @@ const musicTracks =
       src: t.url,
     })) || [];
 
-// 各 widget 啟用狀態
+// 各 widget 啟用狀態（card 不存在時預設啟用，讓新 widget 不需先建 D1 記錄）
 const cardEnabled = {
-  music: !!musicCard?.enabled,
-  visitor: !!visitorCounterCard?.enabled,
-  quote: !!quoteCard?.enabled,
-  stats: !!quickStatsCard?.enabled,
-  latest: !!latestUpdateCard?.enabled,
+  music: musicCardRaw ? !!musicCard?.enabled : true,
+  visitor: visitorCounterCardRaw ? !!visitorCounterCard?.enabled : true,
+  quote: quoteCardRaw ? !!quoteCard?.enabled : true,
+  portal: portalCardRaw ? !!portalCard?.enabled : true,
+  status: statusCardRaw ? !!statusCard?.enabled : true,
+  uep: uepCardRaw ? !!uepCard?.enabled : true,
   toc: !!tocCard?.enabled,
 };
 
@@ -128,6 +132,8 @@ const widgetData = {
   cardEnabled,
   locale,
   musicTracks,
+  statusItems: statusCard?.items || [],
+  uepImage: uepCard?.image || '/uep/Show.webp',
 };
 ---
 

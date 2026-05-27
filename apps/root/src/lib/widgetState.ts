@@ -8,7 +8,13 @@
 
 export type WidgetMode = 'toolbox' | 'edge-tabs';
 
-export type WidgetId = 'music' | 'visitor' | 'quote' | 'stats' | 'latest';
+export type WidgetId =
+  | 'music'
+  | 'visitor'
+  | 'quote'
+  | 'portal'
+  | 'status'
+  | 'uep';
 
 export interface WidgetPosition {
   x: number;
@@ -36,8 +42,9 @@ export const ALL_WIDGETS: WidgetId[] = [
   'music',
   'visitor',
   'quote',
-  'stats',
-  'latest',
+  'portal',
+  'status',
+  'uep',
 ];
 
 export const WIDGET_META: Record<
@@ -47,8 +54,9 @@ export const WIDGET_META: Record<
   music: { icon: '♪', label: '音樂播放器', labelEn: 'MUSIC' },
   visitor: { icon: '●', label: '訪客計數', labelEn: 'VISITORS' },
   quote: { icon: '❝', label: '本日名言', labelEn: 'QUOTE' },
-  stats: { icon: '▦', label: '快速統計', labelEn: 'STATS' },
-  latest: { icon: '◈', label: '最新動態', labelEn: 'LATEST' },
+  portal: { icon: '◎', label: '隨機探索', labelEn: 'PORTAL' },
+  status: { icon: '◆', label: '網站狀態', labelEn: 'STATUS' },
+  uep: { icon: 'U', label: 'U.E.P', labelEn: 'U.E.P' },
 };
 
 const DEFAULT_STATE: WidgetState = {
@@ -57,15 +65,17 @@ const DEFAULT_STATE: WidgetState = {
     music: true,
     visitor: true,
     quote: true,
-    stats: true,
-    latest: true,
+    portal: true,
+    status: true,
+    uep: true,
   },
   pinned: {
     music: false,
     visitor: false,
     quote: false,
-    stats: false,
-    latest: false,
+    portal: false,
+    status: false,
+    uep: false,
   },
   positions: {},
   order: [...ALL_WIDGETS],
