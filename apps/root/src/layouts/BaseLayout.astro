@@ -10,6 +10,12 @@ import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
 import CookieConsent from '../components/CookieConsent';
 import ImageViewerModal from '../components/ImageViewerModal';
+import WidgetDataProvider from '../components/WidgetDataProvider.astro';
+import QuartzWidgetSystem from '../components/QuartzWidgetSystem';
+import StickyTOC from '../components/StickyTOC';
+import MobileControlPanel from '../components/MobileControlPanel.astro';
+import '../components/QuartzWidgetSystem.css';
+import '../components/StickyTOC.css';
 import { getCurrentLocale } from '../i18n/utils';
 // getCollection removed — footer no longer needs it here
 
@@ -216,10 +222,17 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Spacer for fixed header -->
     <div class="h-[72px]"></div>
 
-    <!-- Sidebars hidden during Quartz migration — re-integrate later -->
-    <!-- <LeftSidebar /> -->
-    <!-- <RightSidebar /> -->
-    <!-- <MobileControlPanel /> -->
+    <!-- Widget 資料注入（SSR → window.__widgetData） -->
+    <WidgetDataProvider />
+
+    <!-- Quartz Widget System（工具箱/邊緣吐牌，Alt+S 切換） -->
+    <QuartzWidgetSystem client:only="react" />
+
+    <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示） -->
+    <StickyTOC client:load />
+
+    <!-- 手機版底部控制面板（暫時保留舊版） -->
+    <MobileControlPanel />
 
     <!-- Main Content Area -->
     <main class="transition-all duration-300">

@@ -61,6 +61,7 @@ export default function ImagePickerDialog({
             apiBase={apiBase}
             token={token}
             mode="picker"
+            filterType="image"
             onPick={(key) => {
               onInsert(key);
               onClose();

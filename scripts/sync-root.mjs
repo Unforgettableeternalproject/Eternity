@@ -18,14 +18,37 @@ const LOCAL_API = 'http://localhost:8788';
 const REMOTE_API = 'https://eternity-content-api.ptyc4076.workers.dev';
 const R2_PREFIX = 'root';
 const COLLECTIONS = ['projects', 'links', 'updates'];
-const SINGLETONS = ['homepage-zh', 'homepage-en', 'about-zh', 'about-en'];
+const SINGLETONS = [
+  'homepage-zh',
+  'homepage-en',
+  'about-zh',
+  'about-en',
+  'contact-zh',
+  'contact-en',
+  'currently',
+  'page-home-zh',
+  'page-home-en',
+  'page-projects-zh',
+  'page-projects-en',
+  'page-updates-zh',
+  'page-updates-en',
+  'page-links-zh',
+  'page-links-en',
+  'page-about-zh',
+  'page-about-en',
+  'page-contact-zh',
+  'page-contact-en',
+];
 const CARD_KEYS = [
-  'quote',
-  'music',
-  'quick-stats',
-  'table-of-contents',
-  'visitor-counter',
-  'latest-update',
+  'card-quote',
+  'card-music',
+  'card-quick-stats',
+  'card-table-of-contents',
+  'card-visitor-counter',
+  'card-latest-update',
+  'card-portal',
+  'card-status',
+  'card-uep',
 ];
 
 const args = process.argv.slice(2);
@@ -486,6 +509,111 @@ async function syncSingletons() {
   return { push: pushOk, pull: pullOk };
 }
 
+// === Cards 同步 ===
+
+async function getCard(apiBase, key) {
+  try {
+    const res = await fetch(`${apiBase}/api/root/cards/${key}`, {
+      headers: authHeaders(apiBase),
+    });
+    if (!res.ok) return null;
+    const json = await safeJson(res);
+    return json?.ok ? json.data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function putCard(apiBase, key, content, updatedAt) {
+  try {
+    const res = await fetch(`${apiBase}/api/root/cards/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(apiBase) },
+      body: JSON.stringify({ content, updatedAt }),
+    });
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncCards() {
+  console.log(`\n🃏 Cards`);
+  let pushOk = 0,
+    pullOk = 0;
+
+  for (const key of CARD_KEYS) {
+    const [local, remote] = await Promise.all([
+      getCard(LOCAL_API, key),
+      getCard(REMOTE_API, key),
+    ]);
+
+    if (!local && !remote) {
+      continue;
+    }
+    if (local && !remote) {
+      console.log(`   ↑ ${key} (只在本地)`);
+      if (!DRY_RUN && DIRECTION !== 'pull') {
+        const ok = await putCard(
+          REMOTE_API,
+          key,
+          local.content,
+          local.updatedAt
+        );
+        if (ok) pushOk++;
+      }
+      continue;
+    }
+    if (!local && remote) {
+      console.log(`   ↓ ${key} (只在遠端)`);
+      if (!DRY_RUN && DIRECTION !== 'push') {
+        const ok = await putCard(
+          LOCAL_API,
+          key,
+          remote.content,
+          remote.updatedAt
+        );
+        if (ok) pullOk++;
+      }
+      continue;
+    }
+
+    const cmp = compareTimestamps(local.updatedAt, remote.updatedAt);
+    if (cmp === 'same') {
+      console.log(`   = ${key} ✓`);
+    } else if (cmp === 'local') {
+      console.log(
+        `   ↑ ${key}  本地: ${fmtTime(local.updatedAt)}  遠端: ${fmtTime(remote.updatedAt)}`
+      );
+      if (!DRY_RUN && DIRECTION !== 'pull') {
+        const ok = await putCard(
+          REMOTE_API,
+          key,
+          local.content,
+          local.updatedAt
+        );
+        if (ok) pushOk++;
+      }
+    } else {
+      console.log(
+        `   ↓ ${key}  遠端: ${fmtTime(remote.updatedAt)}  本地: ${fmtTime(local.updatedAt)}`
+      );
+      if (!DRY_RUN && DIRECTION !== 'push') {
+        const ok = await putCard(
+          LOCAL_API,
+          key,
+          remote.content,
+          remote.updatedAt
+        );
+        if (ok) pullOk++;
+      }
+    }
+  }
+
+  return { push: pushOk, pull: pullOk };
+}
+
 // === R2 資產同步 (R2 ↔ R2) ===
 
 async function listR2Keys(apiBase, prefix) {
@@ -662,6 +790,13 @@ async function main() {
     // Singleton 同步
     if (!ONLY_COLLECTION) {
       const r = await syncSingletons();
+      totalPush += r.push;
+      totalPull += r.pull;
+    }
+
+    // Cards 同步
+    if (!ONLY_COLLECTION) {
+      const r = await syncCards();
       totalPush += r.push;
       totalPull += r.pull;
     }

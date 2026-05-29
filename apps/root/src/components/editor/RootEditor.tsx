@@ -19,6 +19,7 @@ import RootMediaLibrary from './RootMediaLibrary';
 import AboutEditor from './AboutEditor';
 import ContactEditor from './ContactEditor';
 import PageTextEditor from './PageTextEditor';
+import WidgetEditor from './WidgetEditor';
 import {
   Mono,
   Divider,
@@ -113,6 +114,7 @@ interface EditorProps {
   cards: any[];
   apiBase: string;
   token: string;
+  visitorApiUrl?: string;
 }
 
 const PAGES = [
@@ -123,6 +125,7 @@ const PAGES = [
   { id: 'about', num: '04', label: '關於 · About' },
   { id: 'contact', num: '05', label: '聯絡 · Contact' },
   { id: 'media', num: '06', label: '媒體庫 · Media' },
+  { id: 'widgets', num: '07', label: '小工具 · Widgets' },
 ] as const;
 
 // ─── API ────────────────────────────────────────────────────────────
@@ -1724,6 +1727,15 @@ export default function RootEditor(props: EditorProps) {
             mode="page"
           />
         )}
+        {page === 'widgets' && (
+          <WidgetEditor
+            cards={props.cards}
+            api={api}
+            apiBase={props.apiBase}
+            token={props.token}
+            visitorApiUrl={props.visitorApiUrl || ''}
+          />
+        )}
       </div>
 
       {/* ─── status bar ─── */}
@@ -1742,7 +1754,9 @@ export default function RootEditor(props: EditorProps) {
                   ? `${links.length} entries`
                   : page === 'media'
                     ? 'r2 · root-assets'
-                    : 'singleton'}
+                    : page === 'widgets'
+                      ? `${props.cards.length} cards`
+                      : 'singleton'}
           </Mono>
           <Mono v="navy">v0.9.6</Mono>
         </div>

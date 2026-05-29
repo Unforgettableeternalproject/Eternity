@@ -16,6 +16,8 @@ interface RootMediaLibraryProps {
   /** page = 完整媒體庫頁面, picker = dialog 模式（選圖用） */
   mode: 'page' | 'picker';
   onPick?: (url: string) => void;
+  /** 過濾顯示的檔案類型：image 只顯示圖片、audio 只顯示音檔、all 全部（預設） */
+  filterType?: 'image' | 'audio' | 'all';
 }
 
 // ── utils ──
@@ -51,6 +53,7 @@ export default function RootMediaLibrary({
   token,
   mode,
   onPick,
+  filterType = 'all',
 }: RootMediaLibraryProps) {
   const [items, setItems] = useState<AssetItem[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
@@ -107,9 +110,11 @@ export default function RootMediaLibrary({
   const handleUpload = useCallback(
     async (files: globalThis.FileList | null) => {
       if (!files || files.length === 0) return;
-      const allowed = Array.from(files).filter((f) =>
-        f.type.startsWith('image/')
-      );
+      const allowed = Array.from(files).filter((f) => {
+        if (filterType === 'audio') return f.type.startsWith('audio/');
+        if (filterType === 'image') return f.type.startsWith('image/');
+        return f.type.startsWith('image/') || f.type.startsWith('audio/');
+      });
       if (allowed.length === 0) return;
 
       setUploading(true);
@@ -175,9 +180,24 @@ export default function RootMediaLibrary({
     [handleUpload]
   );
 
+  // ── filter helpers ──
+  const AUDIO_EXTS = /\.(mp3|wav|ogg|flac|m4a|aac|wma|opus)$/i;
+  const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i;
+
+  function isAudio(item: AssetItem): boolean {
+    return item.contentType?.startsWith('audio/') || AUDIO_EXTS.test(item.key);
+  }
+  function isImage(item: AssetItem): boolean {
+    return item.contentType?.startsWith('image/') || IMAGE_EXTS.test(item.key);
+  }
+
   // ── filter ──
   const searchLower = search.toLowerCase();
   const filtered = items.filter((item) => {
+    // content type 過濾（contentType + 副檔名 fallback）
+    if (filterType === 'image' && !isImage(item)) return false;
+    if (filterType === 'audio' && !isAudio(item)) return false;
+    // 搜尋文字過濾
     if (!searchLower) return true;
     const name = (item.originalName || item.key).toLowerCase();
     return name.includes(searchLower);
