@@ -512,19 +512,36 @@ function VisualsReaderInner() {
   // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
   useZoneRouter({
     routes: [
-      { param: 'page', handler: (value) => navigateToGallery(value, false) },
+      {
+        param: 'page',
+        handler: (value) => {
+          // 統一用 slug（不帶 area prefix），向後相容帶 prefix 的舊連結
+          const fullId = value.startsWith('visuals/')
+            ? value
+            : `visuals/${value}`;
+          navigateToGallery(fullId, false);
+        },
+      },
       {
         param: 'subcat',
         handler: (value) => {
+          const fullId = value.startsWith('visuals/')
+            ? value
+            : `visuals/${value}`;
           const group = new URLSearchParams(window.location.search).get(
             'group'
           );
-          navigateToSubcat(value, group ? parseInt(group, 10) : 0, false);
+          navigateToSubcat(fullId, group ? parseInt(group, 10) : 0, false);
         },
       },
       {
         param: 'division',
-        handler: (value) => navigateToDivision(value, false),
+        handler: (value) => {
+          const fullId = value.startsWith('visuals/')
+            ? value
+            : `visuals/${value}`;
+          navigateToDivision(fullId, false);
+        },
       },
     ],
     onLanding: () => navigateToLanding(false),
@@ -573,7 +590,7 @@ function VisualsReaderInner() {
     setDivisionPage(null);
     setSubcatPage(null);
     restoreScroll(`division:${divId}`);
-    if (push) pushUrl({ division: divId });
+    if (push) pushUrl({ division: divId.replace(/^visuals\//, '') });
     // 載入 division 頁面內容
     const divNode = findDivisionNode(tree, divId);
     if (divNode) {
@@ -602,7 +619,11 @@ function VisualsReaderInner() {
     const divDef = findParentDivision(tree, subcatId);
     if (divDef) setActiveDivisionId(divDef.id);
     restoreScroll(`subcat:${subcatId}`);
-    if (push) pushUrl({ subcat: subcatId, group: String(groupIdx) });
+    if (push)
+      pushUrl({
+        subcat: subcatId.replace(/^visuals\//, ''),
+        group: String(groupIdx),
+      });
     // 只在切換到不同 subcat 時 fetch
     if (subcatChanged) {
       setSubcatPage(null);
@@ -631,7 +652,7 @@ function VisualsReaderInner() {
     const divDef = findParentDivision(tree, pageId);
     if (divDef) setActiveDivisionId(divDef.id);
     restoreScroll(`gallery:${pageId}`);
-    if (push) pushUrl({ page: pageId });
+    if (push) pushUrl({ page: pageId.replace(/^visuals\//, '') });
     // Fetch page
     try {
       const slug = pageId.replace('visuals/', '');

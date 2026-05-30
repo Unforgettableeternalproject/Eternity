@@ -107,12 +107,20 @@ function buildTree(
 function jsonResponse<T>(
   data: ApiResponse<T>,
   status = 200,
-  corsHeaders: Record<string, string> = {}
+  corsHeaders: Record<string, string> = {},
+  /** 設為 true 時加入 CDN 短快取，適用於公開 GET 回應 */
+  cacheable = false
 ): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  const headers: Record<string, string> = {
+    ...corsHeaders,
+    'Content-Type': 'application/json',
+  };
+  if (cacheable && status >= 200 && status < 300) {
+    // CDN 快取 60 秒，用戶端 10 秒，背景重驗證最長 5 分鐘
+    headers['Cache-Control'] =
+      'public, s-maxage=60, max-age=10, stale-while-revalidate=300';
+  }
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 // ===== CORS =====
@@ -219,7 +227,7 @@ async function listPages(
   const result = await db.prepare(query).bind(area).all<PageRow>();
 
   const items: PageListItem[] = (result.results || []).map(rowToListItem);
-  return jsonResponse({ ok: true, data: items }, 200, cors);
+  return jsonResponse({ ok: true, data: items }, 200, cors, true);
 }
 
 /** GET /api/content/:area/:slug — 取得單一頁面 */
@@ -240,7 +248,7 @@ async function getPage(
     return jsonResponse({ ok: false, error: 'Page not found' }, 404, cors);
   }
 
-  return jsonResponse({ ok: true, data: rowToPage(row) }, 200, cors);
+  return jsonResponse({ ok: true, data: rowToPage(row) }, 200, cors, true);
 }
 
 /** PUT /api/content/:area/:slug — 建立或更新頁面 */
@@ -1372,7 +1380,7 @@ export default {
         metadata: JSON.parse(r.metadata || '{}'),
         updatedAt: r.updated_at,
       }));
-      return jsonResponse({ ok: true, data: items }, 200, cors);
+      return jsonResponse({ ok: true, data: items }, 200, cors, true);
     }
 
     // ---- 樹狀結構路由 ----
@@ -1393,7 +1401,7 @@ export default {
         metadata: JSON.parse(r.metadata || '{}'),
       }));
       const tree = buildTree(items);
-      return jsonResponse({ ok: true, data: tree }, 200, cors);
+      return jsonResponse({ ok: true, data: tree }, 200, cors, true);
     }
 
     // ---- 圖片資源路由 (R2) ----
@@ -1589,7 +1597,7 @@ export default {
           data[row.section_id] = { content: {}, updatedAt: row.updated_at };
         }
       }
-      return jsonResponse({ ok: true, data }, 200, cors);
+      return jsonResponse({ ok: true, data }, 200, cors, true);
     }
 
     const homepageMatch = path.match(/^\/api\/homepage\/([a-z][a-z0-9-]*)$/);
@@ -1648,7 +1656,8 @@ export default {
       return jsonResponse(
         { ok: true, data: { service: 'content-api', version: '1.0.0' } },
         200,
-        cors
+        cors,
+        true
       );
     }
 

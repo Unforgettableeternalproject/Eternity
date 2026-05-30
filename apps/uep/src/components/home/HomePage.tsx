@@ -2376,6 +2376,11 @@ export default function HomePage({
               )}
               {recents.map((r, i) => {
                 const z = mergedZones.find((z) => z.id === r.area);
+                // echoes 歌曲用 ?song= 參數，其餘用 ?page=
+                const paramName =
+                  r.area === 'echoes' && r.pageType === 'song'
+                    ? 'song'
+                    : 'page';
                 const dateStr = r.updatedAt
                   ? new Date(r.updatedAt).toLocaleDateString('zh-TW', {
                       month: '2-digit',
@@ -2385,7 +2390,7 @@ export default function HomePage({
                 return (
                   <a
                     key={r.id}
-                    href={`/${r.area}?page=${r.slug}`}
+                    href={`/${r.area}?${paramName}=${r.slug}`}
                     className={`home-recent-card${i < recents.length - 1 ? ' home-recent-card--bordered' : ''}`}
                   >
                     <div

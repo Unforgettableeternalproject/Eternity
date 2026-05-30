@@ -96,17 +96,33 @@ function getApiBase(): string {
   return raw.replace(/\/+$/, '');
 }
 
+// ── Per-request dedup cache ──
+// 同一次 SSR 渲染中，相同 URL 只 fetch 一次。
+// Cloudflare Workers 每個 request 跑在獨立 context，Map 自動釋放。
+const _inflightCache = new Map<string, Promise<unknown>>();
+
 async function apiFetch<T>(path: string): Promise<T | null> {
   const url = `${getApiBase()}${path}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const json: ApiResponse<T> = await res.json();
-    return json.ok ? (json.data ?? null) : null;
-  } catch (e) {
-    console.error(`[api] Failed to fetch ${path}:`, e);
-    return null;
+
+  // 有相同的 in-flight 請求就直接等結果
+  if (_inflightCache.has(url)) {
+    return _inflightCache.get(url) as Promise<T | null>;
   }
+
+  const promise = (async (): Promise<T | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const json: ApiResponse<T> = await res.json();
+      return json.ok ? (json.data ?? null) : null;
+    } catch (e) {
+      console.error(`[api] Failed to fetch ${path}:`, e);
+      return null;
+    }
+  })();
+
+  _inflightCache.set(url, promise);
+  return promise;
 }
 
 // ───── Projects ─────
