@@ -86,7 +86,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
         context.locals.runtime?.env?.JWT_SECRET || import.meta.env.JWT_SECRET;
       if (!jwtSecret) {
         console.error('[middleware] JWT_SECRET 未設定');
-        return new Response('Server configuration error', { status: 500 });
+        const redirect = encodeURIComponent(pathname);
+        return context.redirect(
+          `/admin/login?redirect=${redirect}&reason=no-secret`
+        );
       }
 
       const jwtCookie = context.cookies.get(JWT_COOKIE);
@@ -97,10 +100,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
       const payload = await verifyJwt(jwtCookie.value, jwtSecret);
       if (!payload) {
+        console.error('[middleware] JWT 驗證失敗');
         context.cookies.delete(JWT_COOKIE, { path: '/' });
         context.cookies.delete(ACTIVE_COOKIE, { path: '/' });
         const redirect = encodeURIComponent(pathname);
-        return context.redirect(`/admin/login?redirect=${redirect}`);
+        return context.redirect(
+          `/admin/login?redirect=${redirect}&reason=jwt-invalid`
+        );
       }
 
       context.locals.user = {
