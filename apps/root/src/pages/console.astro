@@ -13,59 +13,245 @@ const tConsole = (t as any).console as {
 ---
 
 <ConsoleLayout title={tConsole.title} description={tConsole.description}>
-  <section class="min-h-screen bg-slate-950 text-slate-100">
-    <div class="mx-auto max-w-5xl px-4 py-8">
-      <div
-        class="rounded-lg border border-slate-800 bg-slate-900/60 shadow-lg overflow-hidden"
-      >
-        <!-- Terminal header bar -->
-        <div
-          class="flex items-center gap-2 px-4 py-2 bg-slate-900 border-b border-slate-800"
-        >
-          <span class="inline-block w-3 h-3 rounded-full bg-red-500/80"></span>
-          <span class="inline-block w-3 h-3 rounded-full bg-yellow-400/80"
-          ></span>
-          <span class="inline-block w-3 h-3 rounded-full bg-green-500/80"
-          ></span>
-          <div class="ml-4 text-xs text-slate-400">Eternity Console</div>
+  <section class="crt-scene">
+    <!-- 故障閃爍開機動畫 -->
+    <div class="glitch-boot" aria-hidden="true">
+      <div class="glitch-boot__text">SIGNAL LOST</div>
+    </div>
+
+    <!-- CRT 螢幕外框 -->
+    <div class="crt-monitor crt-monitor--booting">
+      <!-- 掃描線 + 螢幕彎曲 -->
+      <div class="crt-screen">
+        <div class="crt-scanlines" aria-hidden="true"></div>
+        <div class="crt-flicker" aria-hidden="true"></div>
+
+        <!-- 終端機 header -->
+        <div class="crt-header">
+          <span class="crt-header__title">ETERNITY CONSOLE</span>
+          <div class="crt-header__dots">
+            <span></span><span></span><span></span>
+          </div>
         </div>
 
-        <!-- Terminal body -->
-        <div id="terminal" class="font-mono leading-relaxed px-4 py-6 text-sm">
+        <div class="crt-rule"></div>
+
+        <!-- 終端機主體 -->
+        <div id="terminal" class="crt-body">
           {
             tConsole.initial.map((line: string) => (
-              <div class="text-slate-300">{line}</div>
+              <div class="crt-line">{line}</div>
             ))
           }
 
-          <!-- Prompt line -->
-          <div class="mt-4 flex items-center">
-            <span class="text-emerald-400">uep@eternity</span>
-            <span class="mx-2 text-slate-500">$</span>
-            <span
-              id="prompt-input"
-              class="inline-block min-w-[2ch] text-slate-200"
-              aria-live="polite"></span>
-            <span
-              class="ml-1 inline-block w-2 h-5 bg-slate-200 animate-caret"
-              aria-hidden="true"></span>
+          <!-- Prompt -->
+          <div class="crt-prompt">
+            <span class="crt-prompt__user">uep@eternity</span>
+            <span class="crt-prompt__sep">:</span>
+            <span class="crt-prompt__path">~</span>
+            <span class="crt-prompt__dollar">$</span>
+            <span id="prompt-input" class="crt-prompt__input" aria-live="polite"
+            ></span>
+            <span class="crt-cursor" aria-hidden="true"></span>
           </div>
 
           <!-- Hint -->
-          <div class="mt-2 text-xs text-slate-500">{tConsole.hint}</div>
+          <div class="crt-hint">{tConsole.hint}</div>
+        </div>
+
+        <!-- 底部狀態列 -->
+        <div class="crt-statusbar">
+          <span>SECTOR 00</span>
+          <span>·</span>
+          <span>SESSION ACTIVE</span>
+          <span class="crt-statusbar__right">v1.0.0</span>
         </div>
       </div>
     </div>
+
+    <!-- 返回主站 -->
+    <a href="/" class="crt-back"
+      >← {locale === 'zh-tw' ? '返回主站' : 'Back to site'}</a
+    >
   </section>
 </ConsoleLayout>
 
 <style>
-  .font-mono {
-    font-family:
-      ui-monospace, 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas,
-      'Liberation Mono', 'Courier New', monospace;
+  /* ── CRT Scene ── */
+  .crt-scene {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #080808;
+    padding: 2rem 1rem;
+    gap: 1.5rem;
   }
-  @keyframes caret {
+
+  /* ── Monitor 外框 ── */
+  .crt-monitor {
+    width: 100%;
+    max-width: 720px;
+    border: 1px solid rgba(100, 255, 180, 0.12);
+    border-radius: 12px;
+    padding: 2px;
+    background: linear-gradient(
+      145deg,
+      rgba(100, 255, 180, 0.04),
+      rgba(0, 0, 0, 0) 60%
+    );
+    box-shadow:
+      0 0 60px rgba(100, 255, 180, 0.05),
+      inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ── CRT Screen ── */
+  .crt-screen {
+    position: relative;
+    background: #0a0e0a;
+    border-radius: 10px;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  /* 掃描線 */
+  .crt-scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.15) 2px,
+      rgba(0, 0, 0, 0.15) 4px
+    );
+  }
+
+  /* 閃爍效果 */
+  .crt-flicker {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 11;
+    animation: crt-flicker 0.1s infinite;
+    opacity: 0;
+  }
+
+  @keyframes crt-flicker {
+    0% {
+      opacity: 0.01;
+    }
+    50% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 0.005;
+    }
+  }
+
+  /* ── Header ── */
+  .crt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    position: relative;
+    z-index: 5;
+  }
+
+  .crt-header__title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    color: rgba(100, 255, 180, 0.5);
+  }
+
+  .crt-header__dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .crt-header__dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(100, 255, 180, 0.2);
+    background: transparent;
+  }
+
+  .crt-header__dots span:first-child:hover {
+    background: rgba(255, 95, 86, 0.8);
+    border-color: rgba(255, 95, 86, 0.4);
+  }
+
+  .crt-rule {
+    height: 1px;
+    background: rgba(100, 255, 180, 0.1);
+    margin: 0 16px;
+  }
+
+  /* ── Body ── */
+  .crt-body {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 20px 20px 16px;
+    min-height: 200px;
+    position: relative;
+    z-index: 5;
+  }
+
+  .crt-line {
+    color: rgba(100, 255, 180, 0.7);
+    text-shadow: 0 0 6px rgba(100, 255, 180, 0.15);
+  }
+
+  /* ── Prompt ── */
+  .crt-prompt {
+    margin-top: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+
+  .crt-prompt__user {
+    color: rgba(130, 255, 200, 0.9);
+    text-shadow: 0 0 8px rgba(130, 255, 200, 0.25);
+  }
+
+  .crt-prompt__sep,
+  .crt-prompt__path {
+    color: rgba(100, 255, 180, 0.5);
+  }
+
+  .crt-prompt__dollar {
+    color: rgba(100, 255, 180, 0.6);
+    margin: 0 6px 0 4px;
+  }
+
+  .crt-prompt__input {
+    color: rgba(200, 255, 230, 0.95);
+    text-shadow: 0 0 8px rgba(100, 255, 180, 0.3);
+    min-width: 2ch;
+  }
+
+  /* 方塊游標 */
+  .crt-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    background: rgba(100, 255, 180, 0.8);
+    animation: crt-blink 1s steps(2, end) infinite;
+    vertical-align: text-bottom;
+    box-shadow: 0 0 6px rgba(100, 255, 180, 0.4);
+  }
+
+  @keyframes crt-blink {
     0%,
     49% {
       opacity: 1;
@@ -75,20 +261,361 @@ const tConsole = (t as any).console as {
       opacity: 0;
     }
   }
-  .animate-caret {
-    animation: caret 1s steps(2, end) infinite;
+
+  /* ── Hint ── */
+  .crt-hint {
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(100, 255, 180, 0.25);
   }
+
+  /* ── Status Bar ── */
+  .crt-statusbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(100, 255, 180, 0.25);
+    border-top: 1px solid rgba(100, 255, 180, 0.06);
+    position: relative;
+    z-index: 5;
+  }
+
+  .crt-statusbar__right {
+    margin-left: auto;
+  }
+
+  /* ── Back link ── */
+  .crt-back {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(100, 255, 180, 0.3);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .crt-back:hover {
+    color: rgba(100, 255, 180, 0.7);
+  }
+
+  /* ── Glitch Boot 動畫 ── */
+
+  /* ── Glitch Boot 動畫（2.4s）── */
+
+  .glitch-boot {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: glitch-overlay 2.4s both;
+  }
+
+  .glitch-boot::before,
+  .glitch-boot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* RGB 色散層 */
+  .glitch-boot::before {
+    background: linear-gradient(
+      0deg,
+      transparent 40%,
+      rgba(255, 0, 80, 0.15) 41%,
+      transparent 42%,
+      transparent 58%,
+      rgba(0, 255, 180, 0.12) 59%,
+      transparent 60%
+    );
+    animation: glitch-rgb 2.4s steps(1) forwards;
+  }
+
+  /* 雜訊紋理層 */
+  .glitch-boot::after {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1px,
+      rgba(255, 255, 255, 0.02) 1px,
+      rgba(255, 255, 255, 0.02) 2px
+    );
+    animation: glitch-noise 2.4s steps(1) forwards;
+  }
+
+  .glitch-boot__text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0);
+    text-transform: uppercase;
+    /* 文字用 ease 平滑過渡 */
+    animation: glitch-text 2.4s ease forwards;
+    text-shadow: 0 0 20px rgba(255, 60, 60, 0.5);
+    position: relative;
+    z-index: 5;
+  }
+
+  /* 主覆蓋層：glitch 閃爍用 steps，結尾淡出用 ease */
+  @keyframes glitch-overlay {
+    0% {
+      background: #000;
+      opacity: 1;
+    }
+    /* 第一次 glitch 閃光 */
+    7% {
+      background: #111;
+    }
+    8% {
+      background: #fff;
+    }
+    10% {
+      background: #000;
+    }
+    /* SIGNAL LOST 出現區間 */
+    20% {
+      background: #000;
+    }
+    22% {
+      background: #1a0000;
+    }
+    24% {
+      background: #0a0a0a;
+    }
+    /* 第二次 glitch */
+    42% {
+      background: #000;
+    }
+    43% {
+      background: #fff;
+    }
+    44% {
+      background: #000a06;
+    }
+    46% {
+      background: #000;
+    }
+    /* 收尾 glitch */
+    58% {
+      background: #000;
+    }
+    60% {
+      background: #0a1a10;
+    }
+    62% {
+      background: #000;
+    }
+    /* ── 平滑淡出 ── */
+    70% {
+      background: #000;
+      opacity: 1;
+    }
+    100% {
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  /* RGB 色散（保持銳利 steps） */
+  @keyframes glitch-rgb {
+    0%,
+    7% {
+      opacity: 0;
+    }
+    8% {
+      opacity: 1;
+      transform: translateY(-30%);
+    }
+    10% {
+      opacity: 0;
+    }
+    22% {
+      opacity: 0;
+    }
+    23% {
+      opacity: 1;
+      transform: translateY(20%) scaleY(1.5);
+    }
+    25% {
+      opacity: 0;
+    }
+    43% {
+      opacity: 0;
+    }
+    44% {
+      opacity: 0.8;
+      transform: translateY(-10%);
+    }
+    46% {
+      opacity: 0;
+    }
+    60% {
+      opacity: 0;
+    }
+    61% {
+      opacity: 0.4;
+      transform: translateY(5%);
+    }
+    63% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* 雜訊（保持銳利 steps） */
+  @keyframes glitch-noise {
+    0%,
+    19% {
+      opacity: 0;
+    }
+    20% {
+      opacity: 0.4;
+    }
+    25% {
+      opacity: 0;
+    }
+    42% {
+      opacity: 0;
+    }
+    43% {
+      opacity: 0.6;
+      background-size: 100% 3px;
+    }
+    46% {
+      opacity: 0;
+    }
+    59% {
+      opacity: 0;
+    }
+    60% {
+      opacity: 0.3;
+    }
+    63% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* SIGNAL LOST — 用 ease 平滑淡入淡出 */
+  @keyframes glitch-text {
+    0% {
+      color: rgba(255, 255, 255, 0);
+      transform: translateX(0);
+    }
+    18% {
+      color: rgba(255, 255, 255, 0);
+    }
+    25% {
+      color: rgba(255, 80, 80, 0.85);
+    }
+    35% {
+      color: rgba(255, 80, 80, 0.85);
+    }
+    38% {
+      color: rgba(255, 80, 80, 0);
+    }
+    42% {
+      color: rgba(255, 80, 80, 0);
+    }
+    44% {
+      color: rgba(255, 60, 60, 0.5);
+      transform: translateX(-3px);
+    }
+    48% {
+      color: rgba(255, 60, 60, 0);
+      transform: translateX(0);
+    }
+    100% {
+      color: rgba(255, 255, 255, 0);
+    }
+  }
+
+  /* 終端機開機：延遲到 glitch 平滑淡出階段才出現 */
+  .crt-monitor--booting {
+    opacity: 0;
+    animation: crt-reveal 0.8s ease 1.7s forwards;
+  }
+
+  @keyframes crt-reveal {
+    0% {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    40% {
+      opacity: 0.6;
+    }
+    70% {
+      opacity: 1;
+      transform: scale(1.003);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* ── Reduced motion ── */
   @media (prefers-reduced-motion: reduce) {
-    .animate-caret {
+    .glitch-boot {
+      display: none;
+    }
+    .crt-monitor--booting {
       animation: none;
+      opacity: 1;
+    }
+    .crt-cursor {
+      animation: none;
+      opacity: 0.8;
+    }
+    .crt-flicker {
+      display: none;
+    }
+    .crt-scanlines {
+      opacity: 0.5;
+    }
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    .crt-scene {
+      padding: 1rem 0.5rem;
+    }
+    .crt-body {
+      font-size: 11px;
+      padding: 14px 14px 12px;
+    }
+    .crt-monitor {
+      border-radius: 8px;
+    }
+    .crt-screen {
+      border-radius: 6px;
     }
   }
 </style>
 
 <script>
-  // Minimal future-friendly hook: focuses terminal and keeps scroll on latest line
-  const term = document.getElementById('terminal');
-  if (term) {
-    term.scrollTop = term.scrollHeight;
+  // 動畫結束後移除覆蓋層
+  const boot = document.querySelector('.glitch-boot');
+  if (boot) {
+    boot.addEventListener('animationend', () => boot.remove());
   }
+
+  const term = document.getElementById('terminal');
+  if (term) term.scrollTop = term.scrollHeight;
 </script>

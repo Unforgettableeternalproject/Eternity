@@ -3,6 +3,7 @@
  * Quartz Footer — minimal four-column text footer
  */
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getLinks } from '../lib/api';
 
 interface Props {
   currentLocale?: 'zh-tw' | 'en';
@@ -47,24 +48,37 @@ const worldItems = [
   },
 ];
 
-const connectItems = [
+// Connect 區塊：從 D1 讀取 featured 連結，失敗時用 fallback
+const CONNECT_FALLBACK = [
   {
     label: 'GitHub',
     href: 'https://github.com/Unforgettableeternalproject',
     external: true,
   },
   { label: 'Email', href: 'mailto:ptyc4076@gmail.com', external: true },
-  {
-    label: 'YouTube',
-    href: 'https://youtube.com/@unforgettable_eternalproject',
-    external: true,
-  },
-  {
-    label: 'SoundCloud',
-    href: 'https://soundcloud.com/unforgettable-eternalproject',
-    external: true,
-  },
 ];
+
+let connectItems: { label: string; href: string; external: boolean }[];
+try {
+  const allLinks = await getLinks();
+  const featured = allLinks
+    .filter((l) => l.featured)
+    .sort((a, b) => (a.sortOrder || 999) - (b.sortOrder || 999));
+
+  connectItems =
+    featured.length > 0
+      ? featured.map((l) => ({
+          label:
+            locale === 'zh-tw'
+              ? l.titleZh || l.titleEn
+              : l.titleEn || l.titleZh,
+          href: l.url,
+          external: true,
+        }))
+      : CONNECT_FALLBACK;
+} catch {
+  connectItems = CONNECT_FALLBACK;
+}
 ---
 
 <footer

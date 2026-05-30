@@ -30,7 +30,11 @@ const sorted = allLinksRaw
       order: l.sortOrder,
     },
   }))
-  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999));
+  .sort((a, b) => {
+    // featured 排最前
+    if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
+    return (a.data.order || 999) - (b.data.order || 999);
+  });
 
 /* Group by category */
 const categoryOrder = ['social', 'work', 'creative', 'other'];

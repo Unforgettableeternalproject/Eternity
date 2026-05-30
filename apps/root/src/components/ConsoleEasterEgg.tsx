@@ -1,3 +1,7 @@
+/**
+ * ConsoleEasterEgg — 隨機閃現的終端機入口
+ * 閒置一段時間後有機率出現在右下角，短暫停留後消失
+ */
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 import './ConsoleEasterEgg.css';
@@ -15,174 +19,100 @@ export default function ConsoleEasterEgg({
   debugMode = false,
 }: ConsoleEasterEggProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
   const [canAppear, setCanAppear] = useState(true);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visibleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Configuration - 開發/測試環境必然出現，正式環境隨機出現
-  const IDLE_TIME = envConfig.showDevTools || debugMode ? 2000 : 10000;
-  const APPEAR_CHANCE = envConfig.showDevTools || debugMode ? 1 : 0.2;
-  const VISIBLE_TIME = 5000; // visible for 5 seconds
-  const COOLDOWN_TIME = 30000; // 30 seconds before can appear again
-
-  const log = useCallback((...args: any[]) => {
-    // Console logs disabled for production
-    void args;
-  }, []);
-
-  const getRandomPosition = useCallback(() => {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const BTN = 40; // button size
-    const MARGIN = 24;
-    const TOP_SAFE = 80; // avoid sticky header
-
-    const clamp = (n: number, min: number, max: number) =>
-      Math.max(min, Math.min(max, n));
-
-    // Predefined interesting spots
-    const candidates = [
-      { top: TOP_SAFE, left: MARGIN },
-      { top: TOP_SAFE, left: vw - MARGIN - BTN },
-      { top: vh - MARGIN - BTN, left: MARGIN },
-      { top: vh - MARGIN - BTN, left: vw - MARGIN - BTN },
-      { top: TOP_SAFE + 20, left: Math.round(vw / 2 - BTN / 2) },
-      { top: Math.round(vh / 2 - BTN / 2), left: MARGIN },
-      { top: Math.round(vh / 2 - BTN / 2), left: vw - MARGIN - BTN },
-      { top: vh - MARGIN - BTN - 20, left: Math.round(vw / 2 - BTN / 2) },
-    ];
-
-    // 70% pick from candidates, 30% random safe coordinate
-    if (Math.random() < 0.7) {
-      return candidates[Math.floor(Math.random() * candidates.length)];
-    } else {
-      const randLeft = clamp(
-        Math.floor(Math.random() * vw) - BTN / 2,
-        MARGIN,
-        vw - MARGIN - BTN
-      );
-      const randTop = clamp(
-        Math.floor(Math.random() * vh) - BTN / 2,
-        TOP_SAFE,
-        vh - MARGIN - BTN
-      );
-      return { top: randTop, left: randLeft };
-    }
-  }, []);
+  // 開發模式：長駐顯示
+  const isDev = envConfig.showDevTools || debugMode;
+  const IDLE_TIME = 10000;
+  const APPEAR_CHANCE = 0.2;
+  const VISIBLE_TIME = 5000;
+  const COOLDOWN_TIME = 30000;
 
   const hideButton = useCallback(() => {
-    log('Hiding button');
     setIsVisible(false);
-
-    // Start cooldown
-    setTimeout(() => {
-      setCanAppear(true);
-      log('Cooldown complete. Can appear again.');
-    }, COOLDOWN_TIME);
-  }, [log, COOLDOWN_TIME]);
+    setTimeout(() => setCanAppear(true), COOLDOWN_TIME);
+  }, [COOLDOWN_TIME]);
 
   const showButton = useCallback(() => {
-    const pos = getRandomPosition();
-    log('Appearing at', pos);
-    setPosition(pos);
     setIsVisible(true);
     setCanAppear(false);
-
-    // Auto-hide after visible time
-    visibleTimerRef.current = setTimeout(() => {
-      hideButton();
-    }, VISIBLE_TIME);
-  }, [getRandomPosition, log, hideButton, VISIBLE_TIME]);
+    visibleTimerRef.current = setTimeout(hideButton, VISIBLE_TIME);
+  }, [hideButton, VISIBLE_TIME]);
 
   const resetIdleTimer = useCallback(() => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-    }
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
 
     idleTimerRef.current = setTimeout(() => {
-      const roll = Math.random();
-      log(
-        `Idle detected. Roll: ${roll.toFixed(2)}, Threshold: ${APPEAR_CHANCE}`
-      );
-
-      if (roll <= APPEAR_CHANCE) {
+      if (Math.random() <= APPEAR_CHANCE) {
         showButton();
-      } else {
-        log('Did not pass chance roll.');
       }
     }, IDLE_TIME);
-  }, [log, showButton, APPEAR_CHANCE, IDLE_TIME]);
+  }, [showButton, APPEAR_CHANCE, IDLE_TIME]);
 
   useEffect(() => {
-    // Check for reduced motion preference
-    const prefersReduced = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches;
-    if (prefersReduced) {
-      log('Reduced motion detected, Easter Egg disabled');
+    // 開發模式直接顯示，不走隨機邏輯
+    if (isDev) {
+      setIsVisible(true);
       return;
     }
 
-    // Don't set up listeners if button is visible or can't appear
-    if (isVisible || !canAppear) {
-      return;
-    }
+    // 尊重使用者偏好
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (isVisible || !canAppear) return;
 
-    // Event listeners for user activity
     const events = ['mousemove', 'keydown', 'scroll', 'touchstart'];
+    const handleActivity = () => resetIdleTimer();
 
-    const handleActivity = () => {
-      resetIdleTimer();
-    };
-
-    events.forEach((event) => {
-      window.addEventListener(event, handleActivity, { passive: true });
-    });
-
-    // Initial timer
+    events.forEach((e) =>
+      window.addEventListener(e, handleActivity, { passive: true })
+    );
     resetIdleTimer();
 
-    // Cleanup
     return () => {
-      events.forEach((event) => {
-        window.removeEventListener(event, handleActivity);
-      });
-
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = null;
-      }
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [canAppear, isVisible, resetIdleTimer, log]);
+  }, [isDev, canAppear, isVisible, resetIdleTimer]);
+
+  // 清理 visible timer
+  useEffect(() => {
+    return () => {
+      if (visibleTimerRef.current) clearTimeout(visibleTimerRef.current);
+    };
+  }, []);
+
+  // 點擊 → 灰階 → 閃白 → 跳轉
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const root = document.documentElement;
+
+      // 1. 畫面漸變為灰階（0.6s ease）
+      root.classList.add('console-exit');
+
+      // 2. 灰階停留片刻後閃白（0.2s ease）
+      setTimeout(() => root.classList.add('console-exit--flash'), 900);
+
+      // 3. 閃完跳轉
+      setTimeout(() => {
+        window.location.href = consoleUrl;
+      }, 1200);
+    },
+    [consoleUrl]
+  );
 
   if (!isVisible) return null;
 
   return (
     <a
       href={consoleUrl}
-      className="console-easter-egg-btn console-glow"
-      style={{
-        position: 'fixed',
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-        opacity: isVisible ? 1 : 0,
-      }}
+      className={`console-btn${isDev ? ' console-btn--persistent' : ''}`}
       aria-label={label}
+      onClick={handleClick}
     >
-      <svg
-        className="w-4 h-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-        />
-      </svg>
+      {'>_'}
     </a>
   );
 }

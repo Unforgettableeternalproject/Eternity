@@ -242,15 +242,13 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Quartz Footer -->
     <QuartzFooter currentLocale={locale} />
 
-    <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
-    <div class="hidden md:block">
-      <ConsoleEasterEgg
-        client:idle
-        consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
-        label={locale === 'zh-tw' ? '終端機' : 'Console'}
-        debugMode={false}
-      />
-    </div>
+    <!-- Console Easter Egg — 隨機閃現的終端機入口 -->
+    <ConsoleEasterEgg
+      client:idle
+      consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
+      label={locale === 'zh-tw' ? '終端機' : 'Console'}
+      debugMode={false}
+    />
 
     <!-- U.E.P 角色互動系統 (React Island) -->
     <UEPCharacter
