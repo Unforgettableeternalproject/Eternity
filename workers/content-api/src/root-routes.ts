@@ -106,12 +106,20 @@ function cardRowToApi(row: RootCardRow): RootCard {
 function json<T>(
   data: ApiResponse<T>,
   status = 200,
-  cors: Record<string, string> = {}
+  cors: Record<string, string> = {},
+  /** 設為 true 時加入 CDN 短快取，適用於所有公開 GET 回應 */
+  cacheable = false
 ): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
-  });
+  const headers: Record<string, string> = {
+    ...cors,
+    'Content-Type': 'application/json',
+  };
+  if (cacheable && status >= 200 && status < 300) {
+    // CDN 快取 60 秒，用戶端 10 秒，背景重驗證最長 5 分鐘
+    headers['Cache-Control'] =
+      'public, s-maxage=60, max-age=10, stale-while-revalidate=300';
+  }
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 // ===== 主路由處理器 =====
@@ -352,7 +360,8 @@ async function listProjects(
   return json(
     { ok: true, data: (result.results || []).map(projectRowToApi) },
     200,
-    cors
+    cors,
+    true
   );
 }
 
@@ -369,7 +378,7 @@ async function getProject(
   if (!row) {
     return json({ ok: false, error: 'Project not found' }, 404, cors);
   }
-  return json({ ok: true, data: projectRowToApi(row) }, 200, cors);
+  return json({ ok: true, data: projectRowToApi(row) }, 200, cors, true);
 }
 
 async function upsertProject(
@@ -563,7 +572,8 @@ async function listLinks(
   return json(
     { ok: true, data: (result.results || []).map(linkRowToApi) },
     200,
-    cors
+    cors,
+    true
   );
 }
 
@@ -578,7 +588,7 @@ async function getLink(
     .first<RootLinkRow>();
 
   if (!row) return json({ ok: false, error: 'Link not found' }, 404, cors);
-  return json({ ok: true, data: linkRowToApi(row) }, 200, cors);
+  return json({ ok: true, data: linkRowToApi(row) }, 200, cors, true);
 }
 
 async function upsertLink(
@@ -741,7 +751,8 @@ async function listUpdates(
   return json(
     { ok: true, data: (result.results || []).map(updateRowToApi) },
     200,
-    cors
+    cors,
+    true
   );
 }
 
@@ -756,7 +767,7 @@ async function getUpdate(
     .first<RootUpdateRow>();
 
   if (!row) return json({ ok: false, error: 'Update not found' }, 404, cors);
-  return json({ ok: true, data: updateRowToApi(row) }, 200, cors);
+  return json({ ok: true, data: updateRowToApi(row) }, 200, cors, true);
 }
 
 async function upsertUpdate(
@@ -894,7 +905,7 @@ async function getSingleton(
     .first<RootSingletonRow>();
 
   if (!row) return json({ ok: false, error: 'Singleton not found' }, 404, cors);
-  return json({ ok: true, data: singletonRowToApi(row) }, 200, cors);
+  return json({ ok: true, data: singletonRowToApi(row) }, 200, cors, true);
 }
 
 async function upsertSingleton(
@@ -939,7 +950,8 @@ async function listCards(
   return json(
     { ok: true, data: (result.results || []).map(cardRowToApi) },
     200,
-    cors
+    cors,
+    true
   );
 }
 
@@ -954,7 +966,7 @@ async function getCard(
     .first<RootCardRow>();
 
   if (!row) return json({ ok: false, error: 'Card not found' }, 404, cors);
-  return json({ ok: true, data: cardRowToApi(row) }, 200, cors);
+  return json({ ok: true, data: cardRowToApi(row) }, 200, cors, true);
 }
 
 async function upsertCard(

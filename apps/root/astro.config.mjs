@@ -19,6 +19,11 @@ export default defineConfig({
   build: {
     format: 'directory',
   },
+  prefetch: {
+    // hover 時預載下一頁，加速感知速度
+    prefetchAll: false,
+    defaultStrategy: 'hover',
+  },
   i18n: {
     defaultLocale: 'zh-tw',
     locales: ['zh-tw', 'en'],

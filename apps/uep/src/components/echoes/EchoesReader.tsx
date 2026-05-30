@@ -1203,16 +1203,31 @@ function EchoesReaderInner() {
       {
         param: 'song',
         handler: (value) => {
-          void navigateToSong(value, false);
+          // 統一用 slug（不帶 area prefix），向後相容帶 prefix 的舊連結
+          const fullId = value.startsWith('echoes/')
+            ? value
+            : `echoes/${value}`;
+          void navigateToSong(fullId, false);
         },
       },
       {
         param: 'page',
         handler: (value) => {
-          void navigateToContent(value, false);
+          const fullId = value.startsWith('echoes/')
+            ? value
+            : `echoes/${value}`;
+          void navigateToContent(fullId, false);
         },
       },
-      { param: 'cluster', handler: (value) => navigateToCluster(value, false) },
+      {
+        param: 'cluster',
+        handler: (value) => {
+          const fullId = value.startsWith('echoes/')
+            ? value
+            : `echoes/${value}`;
+          navigateToCluster(fullId, false);
+        },
+      },
     ],
     onLanding: () => navigateToLanding(false),
     treeReady: tree.length > 0,
@@ -1284,7 +1299,7 @@ function EchoesReaderInner() {
     setCurrentContentPage(null);
     setTransitionKey((k) => k + 1);
     restoreScroll(`cluster:${clusterId}`);
-    if (pushState) pushUrl({ cluster: clusterId });
+    if (pushState) pushUrl({ cluster: clusterId.replace(/^echoes\//, '') });
     setNavPending(false);
   }
 
@@ -1316,7 +1331,10 @@ function EchoesReaderInner() {
       setNavPending(false);
     }
     if (pushState)
-      pushUrl({ page: pageId, ...(clusterId ? { cluster: clusterId } : {}) });
+      pushUrl({
+        page: pageId.replace(/^echoes\//, ''),
+        ...(clusterId ? { cluster: clusterId.replace(/^echoes\//, '') } : {}),
+      });
   }
 
   async function navigateToSong(songId: string, pushState = true) {
@@ -1335,7 +1353,10 @@ function EchoesReaderInner() {
     setTransitionKey((k) => k + 1);
     setNavPending(false);
     if (pushState)
-      pushUrl({ song: songId, ...(clusterId ? { cluster: clusterId } : {}) });
+      pushUrl({
+        song: songId.replace(/^echoes\//, ''),
+        ...(clusterId ? { cluster: clusterId.replace(/^echoes\//, '') } : {}),
+      });
   }
 
   function isSongUnlocked(songId: string) {

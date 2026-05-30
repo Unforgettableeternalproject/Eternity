@@ -62,6 +62,15 @@ if (Astro.request.method === 'POST') {
 }
 
 const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
+
+// middleware 被踢回來時的原因
+const reason = Astro.url.searchParams.get('reason');
+if (!error && reason === 'no-secret') {
+  error = 'JWT_SECRET 未設定 — 請檢查 Cloudflare Pages 環境變數';
+} else if (!error && reason === 'jwt-invalid') {
+  error =
+    'Session 驗證失敗 — JWT 簽章不符或已過期（Worker 與 Pages 的 JWT_SECRET 可能不一致）';
+}
 ---
 
 <html lang="zh-TW">

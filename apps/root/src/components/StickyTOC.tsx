@@ -14,6 +14,7 @@ export default function StickyTOC() {
   const [items, setItems] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const tocRef = useRef<HTMLElement>(null);
 
   const scanHeadings = useCallback(() => {
     // 首頁不顯示 TOC（每個區塊都是 section，列出來沒意義）
@@ -106,11 +107,38 @@ export default function StickyTOC() {
     };
   }, [scanHeadings]);
 
+  // ── active 項目進入 TOC 可見範圍外時自動捲動 ──
+  useEffect(() => {
+    if (!activeId || !tocRef.current) return;
+    const activeLink = tocRef.current.querySelector(
+      `a[href="#${CSS.escape(activeId)}"]`
+    ) as HTMLElement | null;
+    if (!activeLink) return;
+
+    const containerRect = tocRef.current.getBoundingClientRect();
+    const linkRect = activeLink.getBoundingClientRect();
+    const padding = 30;
+
+    if (linkRect.top < containerRect.top + padding) {
+      // active 在可見範圍上方
+      tocRef.current.scrollBy({
+        top: linkRect.top - containerRect.top - padding,
+        behavior: 'smooth',
+      });
+    } else if (linkRect.bottom > containerRect.bottom - padding) {
+      // active 在可見範圍下方
+      tocRef.current.scrollBy({
+        top: linkRect.bottom - containerRect.bottom + padding,
+        behavior: 'smooth',
+      });
+    }
+  }, [activeId]);
+
   // 沒有標題時不渲染
   if (items.length === 0) return null;
 
   return (
-    <nav className="sticky-toc" aria-label="Table of contents">
+    <nav ref={tocRef} className="sticky-toc" aria-label="Table of contents">
       <div className="sticky-toc__label">on this page</div>
       <ul className="sticky-toc__list">
         {items.map((item) => (
