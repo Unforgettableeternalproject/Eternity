@@ -156,6 +156,7 @@ const alternatePath = getAlternatePath(currentPath, locale);
       <!-- Language Switch -->
       <a
         href={alternatePath}
+        data-lang-switch
         class="q-mono no-underline transition-opacity hover:opacity-70"
         style="font-size: 11px; color: var(--q-ink-mute);"
       >
@@ -188,6 +189,7 @@ const alternatePath = getAlternatePath(currentPath, locale);
       <div class="flex items-center gap-1.5">
         <a
           href={alternatePath}
+          data-lang-switch
           class="inline-flex items-center justify-center w-8 h-8 text-xs font-medium transition-opacity hover:opacity-70"
           style="color: var(--q-ink-mute); border: 1px solid var(--q-line);"
           aria-label={locale === 'zh-tw'
@@ -340,4 +342,179 @@ const alternatePath = getAlternatePath(currentPath, locale);
 
   document.addEventListener('DOMContentLoaded', initMobileMenu);
   document.addEventListener('astro:page-load', initMobileMenu);
+</script>
+
+<script>
+  // 語言切換：文字 scramble ↔ decode 轉場動畫
+  // 出場：文字 scramble → 導航
+  // 入場：文字從亂碼逐步 decode 回正確內容
+
+  const SCRAMBLE_CHARS =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&<>[]{}|/~+-=*^';
+  const OUT_ROUNDS = 3; // 出場 scramble 輪數
+  const OUT_INTERVAL = 45; // 出場每輪間隔 ms
+  const IN_ROUNDS = 6; // 入場 decode 輪數
+  const IN_INTERVAL = 35; // 入場每輪間隔 ms
+
+  function getVisibleTextElements() {
+    const selectors =
+      'h1,h2,h3,h4,h5,h6,p,a,span,li,td,th,label,button,figcaption,blockquote,dt,dd';
+    const elements = document.querySelectorAll(selectors);
+    const visible = [];
+    const viewH = window.innerHeight;
+
+    for (const el of elements) {
+      if (
+        el.closest(
+          'script,style,noscript,svg,.toast-container,[data-lang-switch]'
+        )
+      )
+        continue;
+      if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed')
+        continue;
+
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > viewH || rect.width === 0) continue;
+
+      const directText = Array.from(el.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent || '')
+        .join('');
+      if (directText.trim().length === 0) continue;
+
+      visible.push(el);
+    }
+    return visible;
+  }
+
+  function scrambleChar(ch) {
+    if (/\s/.test(ch)) return ch;
+    return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+  }
+
+  function scrambleTextNodes(el) {
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+        node.textContent = node.textContent
+          .split('')
+          .map((ch) => scrambleChar(ch))
+          .join('');
+      }
+    }
+  }
+
+  // ── 出場：scramble → 導航 ──
+  function runScrambleOut(href) {
+    const elements = getVisibleTextElements();
+    if (elements.length === 0) {
+      sessionStorage.setItem('lang-switch', '1');
+      window.location.href = href;
+      return;
+    }
+
+    let round = 0;
+    const timer = setInterval(() => {
+      round++;
+      elements.forEach((el) => scrambleTextNodes(el));
+
+      if (round >= OUT_ROUNDS) {
+        clearInterval(timer);
+        sessionStorage.setItem('lang-switch', '1');
+        window.location.href = href;
+      }
+    }, OUT_INTERVAL);
+  }
+
+  // ── 入場：亂碼 → 逐步 decode 回正確內容 ──
+  function runDecodeIn() {
+    const flag = sessionStorage.getItem('lang-switch');
+    if (!flag) return;
+    sessionStorage.removeItem('lang-switch');
+
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (prefersReducedMotion) return;
+
+    const elements = getVisibleTextElements();
+    if (elements.length === 0) return;
+
+    // 儲存每個 text node 的正確內容
+    const nodeMap = [];
+    elements.forEach((el) => {
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          nodeMap.push({
+            node,
+            original: node.textContent,
+            chars: node.textContent.split(''),
+          });
+        }
+      }
+    });
+
+    // 先全部 scramble
+    nodeMap.forEach(({ node, original }) => {
+      node.textContent = original
+        .split('')
+        .map((ch) => scrambleChar(ch))
+        .join('');
+    });
+
+    // 逐步 decode：每輪多一些字元恢復正確
+    let round = 0;
+    const timer = setInterval(() => {
+      round++;
+      const revealRatio = round / IN_ROUNDS;
+
+      nodeMap.forEach(({ node, chars }) => {
+        node.textContent = chars
+          .map((ch, i) => {
+            if (/\s/.test(ch)) return ch;
+            // 用字元位置 hash 決定該字元在第幾輪「解鎖」
+            const unlockAt = ((i * 7 + ch.charCodeAt(0) * 3) % IN_ROUNDS) + 1;
+            return round >= unlockAt ? ch : scrambleChar(ch);
+          })
+          .join('');
+      });
+
+      if (round >= IN_ROUNDS) {
+        clearInterval(timer);
+        // 確保完全還原
+        nodeMap.forEach(({ node, original }) => {
+          node.textContent = original;
+        });
+      }
+    }, IN_INTERVAL);
+  }
+
+  function initLangSwitch() {
+    // 綁定出場
+    document.querySelectorAll('[data-lang-switch]').forEach((link) => {
+      if (link.dataset.langBound) return;
+      link.dataset.langBound = '1';
+
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const href = link.getAttribute('href');
+        if (!href) return;
+
+        const prefersReducedMotion = window.matchMedia(
+          '(prefers-reduced-motion: reduce)'
+        ).matches;
+        if (prefersReducedMotion) {
+          window.location.href = href;
+          return;
+        }
+
+        runScrambleOut(href);
+      });
+    });
+
+    // 檢查入場
+    runDecodeIn();
+  }
+
+  document.addEventListener('DOMContentLoaded', initLangSwitch);
+  document.addEventListener('astro:page-load', initLangSwitch);
 </script>

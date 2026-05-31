@@ -1,8 +1,8 @@
 ---
 /**
  * ThemeToggle Component
- * A button to toggle between light and dark mode with smooth transitions
- * On mobile (data-mobile="true"), shows as a simple icon button instead of a toggle switch
+ * 主題切換按鈕，附帶對角切割轉場動畫（View Transitions API）
+ * 桌面版：toggle switch | 手機版：simple icon button
  */
 interface Props {
   'data-mobile'?: string;
@@ -21,7 +21,6 @@ const { 'data-mobile': isMobile } = Astro.props;
       aria-label="Toggle dark mode"
       type="button"
     >
-      {/* Sun icon (shown in light mode) */}
       <svg
         class="w-5 h-5 theme-icon-light text-yellow-500"
         fill="currentColor"
@@ -29,7 +28,6 @@ const { 'data-mobile': isMobile } = Astro.props;
       >
         <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
       </svg>
-      {/* Moon icon (shown in dark mode) */}
       <svg
         class="w-5 h-5 theme-icon-dark hidden text-slate-200"
         fill="currentColor"
@@ -72,45 +70,130 @@ const { 'data-mobile': isMobile } = Astro.props;
   )
 }
 
+<style is:global>
+  /* ── 主題切換：對角切割動畫 ── */
+
+  /* 舊畫面被對角線從右上往左下切走（僅主題切換時觸發） */
+  html.theme-transitioning::view-transition-old(root) {
+    animation: theme-diagonal-cut 0.5s ease-out forwards;
+    z-index: 2;
+  }
+
+  html.theme-transitioning::view-transition-new(root) {
+    animation: none;
+    z-index: 1;
+  }
+
+  /*
+   * 5 點 polygon，保持頂點數一致讓 CSS 可以插值：
+   * 切割線 (\方向) 從右上角進入，向左下角掃過
+   *
+   * t=0%:  完整矩形（切割線在右上角外）
+   * t=25%: 右上角被切掉一個三角形
+   * t=50%: 對角線把畫面一分為二（左下三角形）
+   * t=100%: 收縮到左下角，全部切走
+   */
+  @keyframes theme-diagonal-cut {
+    0% {
+      clip-path: polygon(0% 0%, 100% 0%, 100% 0%, 100% 100%, 0% 100%);
+    }
+    50% {
+      clip-path: polygon(0% 0%, 0% 0%, 100% 100%, 100% 100%, 0% 100%);
+    }
+    100% {
+      clip-path: polygon(0% 100%, 0% 100%, 0% 100%, 0% 100%, 0% 100%);
+    }
+  }
+
+  /* 切割亮邊 — 隨對角線掃過畫面 */
+  .theme-cut-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    pointer-events: none;
+  }
+
+  .theme-cut-glow::after {
+    content: '';
+    position: absolute;
+    width: 300vmax;
+    height: 1px;
+    top: 50%;
+    left: 50%;
+    margin-left: -150vmax;
+    background: linear-gradient(
+      90deg,
+      transparent 15%,
+      rgba(255, 255, 255, 0.35) 40%,
+      rgba(255, 255, 255, 0.7) 50%,
+      rgba(255, 255, 255, 0.35) 60%,
+      transparent 85%
+    );
+    box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.15);
+    transform: rotate(45deg) translateY(-120vmax);
+    animation: theme-glow-sweep 0.5s ease-out forwards;
+  }
+
+  @keyframes theme-glow-sweep {
+    0% {
+      transform: rotate(45deg) translateY(-120vmax);
+      opacity: 0;
+    }
+    8% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      transform: rotate(45deg) translateY(120vmax);
+      opacity: 0;
+    }
+  }
+
+  /* 尊重減少動畫偏好 */
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none !important;
+    }
+    .theme-cut-glow {
+      display: none !important;
+    }
+  }
+</style>
+
 <script>
   function initThemeToggle() {
-    // 查找手機版和桌面版的按鈕
     const themeToggleMobile = document.getElementById('theme-toggle-mobile');
     const themeToggleDesktop = document.getElementById('theme-toggle-desktop');
 
-    // 至少需要一個按鈕存在
     if (!themeToggleMobile && !themeToggleDesktop) return;
 
-    // 將兩個按鈕都放入陣列（過濾掉 null）
     const toggleButtons = [themeToggleMobile, themeToggleDesktop].filter(
       Boolean
     );
 
-    // 為每個按鈕設置獨立的更新函數
+    // 為每個按鈕初始化圖標
     toggleButtons.forEach((themeToggle) => {
       const lightIcon = themeToggle.querySelector('.theme-icon-light');
       const darkIcon = themeToggle.querySelector('.theme-icon-dark');
-      const toggleCircle = themeToggle.querySelector('.theme-toggle-circle'); // 只有桌面版有
+      const toggleCircle = themeToggle.querySelector('.theme-toggle-circle');
 
       if (!lightIcon || !darkIcon) return;
 
-      // Update icon visibility and switch position based on current theme
       function updateThemeIcon(isDark) {
         if (isDark) {
-          // Dark mode: show moon, hide sun
           lightIcon.classList.add('hidden');
           darkIcon.classList.remove('hidden');
-          // 只在桌面版（有 toggleCircle）時移動滑桿
           if (toggleCircle) {
             toggleCircle.classList.remove('translate-x-0.5');
             toggleCircle.classList.add('translate-x-[26px]');
             themeToggle.setAttribute('aria-checked', 'true');
           }
         } else {
-          // Light mode: show sun, hide moon
           lightIcon.classList.remove('hidden');
           darkIcon.classList.add('hidden');
-          // 只在桌面版（有 toggleCircle）時移動滑桿
           if (toggleCircle) {
             toggleCircle.classList.remove('translate-x-[26px]');
             toggleCircle.classList.add('translate-x-0.5');
@@ -119,17 +202,16 @@ const { 'data-mobile': isMobile } = Astro.props;
         }
       }
 
-      // Initialize icon based on current theme
+      // 初始化圖標
       const isDark = document.documentElement.classList.contains('dark');
       updateThemeIcon(isDark);
 
-      // Handle toggle click
       themeToggle.addEventListener('click', () => {
         const currentIsDark =
           document.documentElement.classList.contains('dark');
         const newTheme = currentIsDark ? 'light' : 'dark';
 
-        // 在主題切換前保存所有卡片的可見性狀態
+        // 保存卡片可見性狀態
         const cards = document.querySelectorAll('[data-card-id]');
         const cardStates = new Map();
         cards.forEach((card) => {
@@ -141,76 +223,95 @@ const { 'data-mobile': isMobile } = Astro.props;
           });
         });
 
-        // Toggle dark class
-        document.documentElement.classList.toggle('dark');
+        // 實際切換主題的函式
+        const applyTheme = () => {
+          document.documentElement.classList.toggle('dark');
 
-        // Update ALL toggle buttons
-        toggleButtons.forEach((btn) => {
-          const btnLightIcon = btn.querySelector('.theme-icon-light');
-          const btnDarkIcon = btn.querySelector('.theme-icon-dark');
-          const btnToggleCircle = btn.querySelector('.theme-toggle-circle');
+          // 更新所有按鈕圖標
+          toggleButtons.forEach((btn) => {
+            const btnLightIcon = btn.querySelector('.theme-icon-light');
+            const btnDarkIcon = btn.querySelector('.theme-icon-dark');
+            const btnToggleCircle = btn.querySelector('.theme-toggle-circle');
 
-          if (btnLightIcon && btnDarkIcon) {
-            if (!currentIsDark) {
-              // 切換到深色模式
-              btnLightIcon.classList.add('hidden');
-              btnDarkIcon.classList.remove('hidden');
-              if (btnToggleCircle) {
-                btnToggleCircle.classList.remove('translate-x-0.5');
-                btnToggleCircle.classList.add('translate-x-[26px]');
-                btn.setAttribute('aria-checked', 'true');
-              }
-            } else {
-              // 切換到淺色模式
-              btnLightIcon.classList.remove('hidden');
-              btnDarkIcon.classList.add('hidden');
-              if (btnToggleCircle) {
-                btnToggleCircle.classList.remove('translate-x-[26px]');
-                btnToggleCircle.classList.add('translate-x-0.5');
-                btn.setAttribute('aria-checked', 'false');
-              }
-            }
-          }
-        });
-
-        // Save preference
-        localStorage.setItem('theme', newTheme);
-
-        // 確保所有卡片在主題切換後仍然可見
-        requestAnimationFrame(() => {
-          cards.forEach((card) => {
-            const htmlCard = /** @type {HTMLElement} */ (card);
-            const cardId = htmlCard.dataset.cardId;
-            const savedState = cardStates.get(cardId);
-
-            // 只恢復那些原本可見的卡片
-            if (!savedState || savedState.display !== 'none') {
-              if (
-                htmlCard.style.display === 'none' ||
-                htmlCard.style.visibility === 'hidden' ||
-                htmlCard.style.opacity === '0'
-              ) {
-                htmlCard.style.display = '';
-                htmlCard.style.visibility = '';
-                htmlCard.style.opacity = '';
+            if (btnLightIcon && btnDarkIcon) {
+              if (!currentIsDark) {
+                btnLightIcon.classList.add('hidden');
+                btnDarkIcon.classList.remove('hidden');
+                if (btnToggleCircle) {
+                  btnToggleCircle.classList.remove('translate-x-0.5');
+                  btnToggleCircle.classList.add('translate-x-[26px]');
+                  btn.setAttribute('aria-checked', 'true');
+                }
+              } else {
+                btnLightIcon.classList.remove('hidden');
+                btnDarkIcon.classList.add('hidden');
+                if (btnToggleCircle) {
+                  btnToggleCircle.classList.remove('translate-x-[26px]');
+                  btnToggleCircle.classList.add('translate-x-0.5');
+                  btn.setAttribute('aria-checked', 'false');
+                }
               }
             }
           });
-        });
 
-        // Dispatch custom event for other components to listen to
-        window.dispatchEvent(
-          new CustomEvent('theme-change', {
-            detail: { theme: newTheme },
-          })
-        );
+          localStorage.setItem('theme', newTheme);
+
+          // 恢復卡片狀態
+          requestAnimationFrame(() => {
+            cards.forEach((card) => {
+              const htmlCard = /** @type {HTMLElement} */ (card);
+              const cardId = htmlCard.dataset.cardId;
+              const savedState = cardStates.get(cardId);
+              if (!savedState || savedState.display !== 'none') {
+                if (
+                  htmlCard.style.display === 'none' ||
+                  htmlCard.style.visibility === 'hidden' ||
+                  htmlCard.style.opacity === '0'
+                ) {
+                  htmlCard.style.display = '';
+                  htmlCard.style.visibility = '';
+                  htmlCard.style.opacity = '';
+                }
+              }
+            });
+          });
+
+          window.dispatchEvent(
+            new CustomEvent('theme-change', {
+              detail: { theme: newTheme },
+            })
+          );
+        };
+
+        // 有 View Transitions API + 不偏好減少動畫 → 播放對角切割
+        const prefersReducedMotion = window.matchMedia(
+          '(prefers-reduced-motion: reduce)'
+        ).matches;
+
+        if (document.startViewTransition && !prefersReducedMotion) {
+          // 標記為主題切換（讓 CSS 只在此時套用對角切割）
+          document.documentElement.classList.add('theme-transitioning');
+
+          // 建立亮邊 overlay
+          const glow = document.createElement('div');
+          glow.className = 'theme-cut-glow';
+          document.documentElement.appendChild(glow);
+
+          const transition = document.startViewTransition(applyTheme);
+
+          const cleanup = () => {
+            document.documentElement.classList.remove('theme-transitioning');
+            glow.remove();
+          };
+          transition.finished.then(cleanup).catch(cleanup);
+        } else {
+          // Fallback：直接切換
+          applyTheme();
+        }
       });
     });
   }
 
-  // Run on initial load
   initThemeToggle();
-
-  // Re-run after view transitions (if using)
   document.addEventListener('astro:after-swap', initThemeToggle);
 </script>
