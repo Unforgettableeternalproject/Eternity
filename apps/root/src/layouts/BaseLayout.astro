@@ -13,7 +13,6 @@ import ImageViewerModal from '../components/ImageViewerModal';
 import WidgetDataProvider from '../components/WidgetDataProvider.astro';
 import QuartzWidgetSystem from '../components/QuartzWidgetSystem';
 import StickyTOC from '../components/StickyTOC';
-import MobileControlPanel from '../components/MobileControlPanel.astro';
 import '../components/QuartzWidgetSystem.css';
 import '../components/StickyTOC.css';
 import { getCurrentLocale } from '../i18n/utils';
@@ -231,8 +230,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示） -->
     <StickyTOC client:load />
 
-    <!-- 手機版底部控制面板（暫時保留舊版） -->
-    <MobileControlPanel />
+    <!-- 手機版不顯示 widget，桌面版由 QuartzWidgetSystem 處理 -->
 
     <!-- Main Content Area -->
     <main class="transition-all duration-300">

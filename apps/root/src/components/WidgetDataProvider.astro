@@ -109,6 +109,7 @@ const musicTracks =
     ?.filter((t) => !!t.url)
     .map((t) => ({
       name: t.title || 'Unknown',
+      artist: t.artist || '',
       src: t.url,
     })) || [];
 

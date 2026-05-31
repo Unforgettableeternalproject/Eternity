@@ -23,7 +23,7 @@ export default function WidgetMusicPlayer() {
       <MusicPlayer
         tracks={data.musicTracks?.map((t) => ({
           title: t.name,
-          artist: '',
+          artist: t.artist || '',
           url: t.src,
         }))}
         locale={data.locale}
