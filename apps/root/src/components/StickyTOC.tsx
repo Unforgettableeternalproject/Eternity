@@ -108,7 +108,7 @@ export default function StickyTOC() {
   useEffect(() => {
     if (!activeId || !tocRef.current) return;
     const activeLink = tocRef.current.querySelector(
-      `a[href="#${CSS.escape(activeId)}"]`
+      `a[href="#${CSS.escape(activeId)}"]` // eslint-disable-line no-undef
     ) as HTMLElement | null;
     if (!activeLink) return;
 

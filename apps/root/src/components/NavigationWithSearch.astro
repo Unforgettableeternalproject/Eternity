@@ -462,7 +462,7 @@ const alternatePath = getAlternatePath(currentPath, locale);
 
     // 儲存每個 text node 的正確內容
     interface NodeEntry {
-      node: ChildNode;
+      node: ChildNode; // eslint-disable-line no-undef
       original: string;
       chars: string[];
     }
