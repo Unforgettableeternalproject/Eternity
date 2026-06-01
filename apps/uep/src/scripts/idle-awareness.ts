@@ -25,7 +25,7 @@ interface IdleStage {
  * 初始 3 秒延遲由 TITLE_DELAY_MS 控制，第一階段在延遲結束後立刻觸發，
  * 後續階段從離開時刻算起。
  */
-const TITLE_DELAY_MS = 3000;
+const TITLE_DELAY_MS = 10000;
 
 const IDLE_STAGES: IdleStage[] = [
   {
@@ -33,7 +33,7 @@ const IDLE_STAGES: IdleStage[] = [
     messages: ['你去哪了？我還在這裡喔~', '……你還在嗎？', '嗯？人呢？'],
   },
   {
-    afterSeconds: 57, // 離開 ~60 秒（含 3 秒延遲）
+    afterSeconds: 57, // 離開 ~60 秒（含 10 秒延遲）
     messages: ['好安靜……', '……風吹過了空蕩的走廊。', '我會等你的。'],
   },
   {
