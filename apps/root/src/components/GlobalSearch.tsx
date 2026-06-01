@@ -469,20 +469,16 @@ export default function GlobalSearch({
                               {result.description}
                             </div>
                           )}
-                          {result.tags && result.tags.length > 0 && (
-                            <div className="global-search__result-tags">
-                              {result.tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="global-search__tag">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div
-                          className={`global-search__result-type${filter !== 'all' ? ' filtered' : ''}`}
-                        >
-                          {getTypeLabel(result.type)}
+                          <div className="global-search__result-tags">
+                            <span className="global-search__tag global-search__tag--type">
+                              {getTypeLabel(result.type)}
+                            </span>
+                            {result.tags?.slice(0, 3).map((tag) => (
+                              <span key={tag} className="global-search__tag">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </a>
                     ))

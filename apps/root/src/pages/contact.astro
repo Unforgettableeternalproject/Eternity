@@ -86,8 +86,7 @@ const devCta = data.devCta ?? {};
       </p>
       <div class="flex items-center gap-2">
         <span class="q-live-dot" style="width: 8px; height: 8px;"></span>
-        <span class="q-mono" style="color: var(--q-coral);">
-          {locale === 'zh-tw' ? '目前可接受聯繫' : 'currently available'}
+        <span class="q-mono" style="color: var(--q-coral);">currently available
         </span>
       </div>
     </div>
@@ -282,7 +281,7 @@ const devCta = data.devCta ?? {};
     border-radius: 0;
     font-size: 15px;
     color: var(--q-ink);
-    font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
+    font-family: var(--q-font-body);
     outline: none;
     box-sizing: border-box;
     transition: border-color 0.15s;
@@ -300,7 +299,7 @@ const devCta = data.devCta ?? {};
     background: transparent;
     color: var(--q-ink);
     border: 1px solid var(--q-line);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--q-font-body);
     font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;

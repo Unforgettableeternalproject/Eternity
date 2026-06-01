@@ -24,7 +24,7 @@
 
 /* 名言 */
 .q-widget-quote__text {
-  font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
+  font-family: var(--q-font-body);
   font-size: 13px;
   font-style: italic;
   line-height: 1.6;

@@ -44,10 +44,8 @@
   --spacing-section: 6rem;
   --spacing-container: 2rem;
 
-  /* Body font（FontTweaker 會覆蓋此值） */
-  --q-font-body:
-    'Plus Jakarta Sans', 'Noto Sans TC', -apple-system, BlinkMacSystemFont,
-    sans-serif;
+  /* Body font */
+  --q-font-body: 'Playfair Display', 'Noto Serif TC', Georgia, serif;
 }
 
 .dark {
@@ -74,7 +72,7 @@
 }
 
 /* Google Fonts for Quartz */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+TC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
 
 /* Base layer customizations */
 @layer base {

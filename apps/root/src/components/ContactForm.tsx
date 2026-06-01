@@ -279,7 +279,7 @@ function SuccessDialog({
               fontSize: 14,
               fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: 'var(--q-font-body)',
             }}
           >
             {locale === 'zh-tw' ? '知道了' : 'Got it'}
@@ -322,7 +322,7 @@ export default function ContactForm({ locale, subjects }: ContactFormProps) {
       attributes: {
         class: 'contact-tiptap',
         style:
-          'min-height: 180px; padding: 14px 16px; outline: none; font-size: 15px; line-height: 1.65; color: var(--q-ink); font-family: "Plus Jakarta Sans", "Noto Sans TC", sans-serif;',
+          'min-height: 180px; padding: 14px 16px; outline: none; font-size: 15px; line-height: 1.65; color: var(--q-ink); font-family: var(--q-font-body);',
       },
     },
   });
@@ -533,7 +533,7 @@ export default function ContactForm({ locale, subjects }: ContactFormProps) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 10,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: 'var(--q-font-body)',
             }}
           >
             {sending

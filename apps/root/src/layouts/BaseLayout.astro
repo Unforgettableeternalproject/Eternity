@@ -4,7 +4,6 @@ import { ViewTransitions } from 'astro:transitions';
 import NavigationWithSearch from '../components/NavigationWithSearch.astro';
 import QuartzFooter from '../components/QuartzFooter.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
-import FontTweaker from '../components/FontTweaker';
 import UEPCharacter from '../components/UEPCharacter';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
@@ -240,9 +239,6 @@ const alternateURL = new URL(alternatePath, Astro.site);
 
     <!-- Quartz Footer -->
     <QuartzFooter currentLocale={locale} />
-
-    <!-- Font Tweaker — 開發/Staging 字體切換（右上角，client:only 避免 hydration mismatch） -->
-    <FontTweaker client:only="react" />
 
     <!-- Console Easter Egg — 隨機閃現的終端機入口 -->
     <ConsoleEasterEgg
