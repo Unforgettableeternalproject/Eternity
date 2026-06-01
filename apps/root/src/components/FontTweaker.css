@@ -1,0 +1,93 @@
+/* FontTweaker — 開發/Staging 字體切換器 */
+
+.font-tweak {
+  position: fixed;
+  top: 84px;
+  right: 1rem;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-direction: row-reverse;
+}
+
+.font-tweak__btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--q-line);
+  border-radius: 6px;
+  background: var(--q-paper);
+  color: var(--q-ink-mute);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease,
+    opacity 0.15s ease;
+  opacity: 0.55;
+}
+
+.font-tweak__btn:hover {
+  opacity: 1;
+  color: var(--q-navy);
+  border-color: var(--q-navy);
+}
+
+.font-tweak__btn:active {
+  transform: scale(0.9);
+}
+
+/* 標籤：滑出顯示當前字體名稱 */
+.font-tweak__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--q-paper);
+  border: 1px solid var(--q-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--q-ink-soft);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.font-tweak__label--visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.font-tweak__label-index {
+  color: var(--q-navy);
+  font-weight: 500;
+}
+
+.font-tweak__label-name {
+  color: var(--q-ink-mute);
+}
+
+/* 切換時的微轉場 */
+html.font-tweak-switching {
+  transition: opacity 0.12s ease;
+  opacity: 0.94;
+}
+
+/* 手機版隱藏 */
+@media (max-width: 767px) {
+  .font-tweak {
+    display: none;
+  }
+}

@@ -43,6 +43,11 @@
   /* Spacing */
   --spacing-section: 6rem;
   --spacing-container: 2rem;
+
+  /* Body font（FontTweaker 會覆蓋此值） */
+  --q-font-body:
+    'Plus Jakarta Sans', 'Noto Sans TC', -apple-system, BlinkMacSystemFont,
+    sans-serif;
 }
 
 .dark {
@@ -76,12 +81,7 @@
   body {
     @apply antialiased;
     @apply transition-colors duration-300;
-    font-family:
-      'Plus Jakarta Sans',
-      'Noto Sans TC',
-      -apple-system,
-      BlinkMacSystemFont,
-      sans-serif;
+    font-family: var(--q-font-body);
     color: var(--prism-ink);
     background: var(--prism-paper);
   }
