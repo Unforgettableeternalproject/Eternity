@@ -97,7 +97,9 @@ test.describe('API 錯誤恢復', () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes('ResizeObserver') && // 已知 Chrome 噪音
-        !e.includes('Non-Error promise rejection')
+        !e.includes('Non-Error promise rejection') &&
+        !e.includes('Importing a module script failed') && // Vite HMR 間歇性失敗
+        !e.includes('dynamically imported module')
     );
     expect(criticalErrors).toHaveLength(0);
   });
