@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../i18n/utils';
 import { getLinks, getSingleton } from '../lib/api';
+import { normalizeColors } from '../lib/color-normalize';
 
 export const prerender = false;
 
@@ -82,10 +83,12 @@ for (const cat of categoryOrder) {
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle ||
-        (locale === 'zh-tw'
-          ? '你能在<br /><span style="color: var(--q-navy); font-weight: 600;">哪裡</span>找到我。'
-          : 'Where to<br /><span style="color: var(--q-navy); font-weight: 600;">find</span> me.')}
+      set:html={normalizeColors(
+        pt.heroTitle ||
+          (locale === 'zh-tw'
+            ? '你能在<br /><span style="color: var(--q-navy); font-weight: 600;">哪裡</span>找到我。'
+            : 'Where to<br /><span style="color: var(--q-navy); font-weight: 600;">find</span> me.')
+      )}
     />
 
     <div

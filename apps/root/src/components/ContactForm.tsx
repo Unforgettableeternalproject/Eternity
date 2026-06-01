@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
@@ -44,7 +44,7 @@ function localizeError(code: string | undefined, locale: string): string {
 }
 
 // ─── 輕量 TipTap 工具列 ─────────────────────────────────────────
-function MiniToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+function MiniToolbar({ editor }: { editor: Editor | null }) {
   if (!editor) return null;
 
   const btn = (
@@ -141,19 +141,36 @@ function SuccessDialog({
   onClose: () => void;
   locale: string;
 }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      setClosing(false);
+    }
+  }, [open]);
 
   // ESC 關閉
   useEffect(() => {
-    if (!open) return;
+    if (!visible) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [visible]);
 
-  if (!open) return null;
+  const handleClose = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      setVisible(false);
+      setClosing(false);
+      onClose();
+    }, 200);
+  }, [onClose]);
+
+  if (!visible) return null;
 
   return (
     <div
@@ -166,20 +183,24 @@ function SuccessDialog({
         justifyContent: 'center',
         background: 'rgba(0,0,0,0.35)',
         backdropFilter: 'blur(2px)',
+        animation: closing
+          ? 'dialogBgOut 0.2s ease forwards'
+          : 'dialogBgIn 0.2s ease',
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleClose();
       }}
     >
       <div
-        ref={dialogRef}
         style={{
           background: 'var(--q-paper)',
           border: '1px solid var(--q-line)',
           maxWidth: 420,
           width: '90%',
           padding: 0,
-          animation: 'dialogFadeIn 0.2s ease',
+          animation: closing
+            ? 'dialogFadeOut 0.2s ease forwards'
+            : 'dialogFadeIn 0.25s ease',
         }}
       >
         {/* 頂部條 */}
@@ -249,7 +270,7 @@ function SuccessDialog({
           </p>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               padding: '10px 32px',
               background: 'var(--q-ink)',
@@ -580,9 +601,21 @@ export default function ContactForm({ locale, subjects }: ContactFormProps) {
           pointer-events: none;
           height: 0;
         }
+        @keyframes dialogBgIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes dialogBgOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
         @keyframes dialogFadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(8px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes dialogFadeOut {
+          from { opacity: 1; transform: translateY(0) scale(1); }
+          to { opacity: 0; transform: translateY(8px) scale(0.97); }
         }
       `}</style>
     </>

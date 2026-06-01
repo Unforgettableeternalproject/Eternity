@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../../i18n/utils';
 import { getUpdate, getUpdates } from '../../lib/api';
+import { normalizeColors } from '../../lib/color-normalize';
 
 export const prerender = false;
 
@@ -131,7 +132,7 @@ const catLabel = categoryLabels[update.data.category] || update.data.category;
   >
     {
       contentText ? (
-        <div class="q-prose" set:html={contentText} />
+        <div class="q-prose" set:html={normalizeColors(contentText)} />
       ) : desc ? (
         <p class="text-[17px] leading-[1.85]" style="color: var(--q-ink);">
           {desc}

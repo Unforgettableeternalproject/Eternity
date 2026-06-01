@@ -408,6 +408,9 @@ const alternatePath = getAlternatePath(currentPath, locale);
 
   // ── 出場：scramble → 導航 ──
   function runScrambleOut(href: string): void {
+    // 保存捲動位置，語言切換後恢復
+    sessionStorage.setItem('lang-switch-scroll', String(window.scrollY));
+
     const elements = getVisibleTextElements();
     if (elements.length === 0) {
       sessionStorage.setItem('lang-switch', '1');
@@ -433,6 +436,13 @@ const alternatePath = getAlternatePath(currentPath, locale);
     const flag = sessionStorage.getItem('lang-switch');
     if (!flag) return;
     sessionStorage.removeItem('lang-switch');
+
+    // 恢復捲動位置
+    const savedScroll = sessionStorage.getItem('lang-switch-scroll');
+    if (savedScroll) {
+      sessionStorage.removeItem('lang-switch-scroll');
+      window.scrollTo(0, parseInt(savedScroll, 10));
+    }
 
     const prefersReducedMotion = window.matchMedia(
       '(prefers-reduced-motion: reduce)'
@@ -512,6 +522,11 @@ const alternatePath = getAlternatePath(currentPath, locale);
             '(prefers-reduced-motion: reduce)'
           ).matches;
           if (prefersReducedMotion) {
+            sessionStorage.setItem('lang-switch', '1');
+            sessionStorage.setItem(
+              'lang-switch-scroll',
+              String(window.scrollY)
+            );
             window.location.href = href;
             return;
           }

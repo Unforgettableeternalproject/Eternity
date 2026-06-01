@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../i18n/utils';
 import { getSingleton } from '../lib/api';
+import { normalizeColors } from '../lib/color-normalize';
 
 export const prerender = false;
 
@@ -126,10 +127,12 @@ if (currentlyItems.length === 0) {
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle ||
-        (locale === 'zh-tw'
-          ? '有一個<br /><span style="color: var(--q-navy); font-weight: 600;">尚未完成</span>的<br />故事存在著。'
-          : 'A story <br /><span style="color: var(--q-navy); font-weight: 600;">not yet finished</span><br />exists.')}
+      set:html={normalizeColors(
+        pt.heroTitle ||
+          (locale === 'zh-tw'
+            ? '有一個<br /><span style="color: var(--q-navy); font-weight: 600;">尚未完成</span>的<br />故事存在著。'
+            : 'A story <br /><span style="color: var(--q-navy); font-weight: 600;">not yet finished</span><br />exists.')
+      )}
     />
 
     <div
@@ -142,8 +145,9 @@ if (currentlyItems.length === 0) {
         {pt.heroIntro || data.heroIntro || ''}
       </p>
 
-      <!-- Currently 動態面板 -->
+      <!-- Currently 動態面板（可拖曳互動） -->
       <aside
+        data-draggable-card
         style="border: 1px solid var(--q-line); background: var(--q-paper);"
       >
         <div
@@ -227,7 +231,7 @@ if (currentlyItems.length === 0) {
       data.fullBio ? (
         <div
           class="q-bio-prose reveal-item max-w-[720px]"
-          set:html={data.fullBio}
+          set:html={normalizeColors(data.fullBio || '')}
         />
       ) : (
         <p class="text-sm italic" style="color: var(--q-ink-mute);">
@@ -492,6 +496,217 @@ if (currentlyItems.length === 0) {
       .forEach((el) => observer.observe(el));
   }
 
-  document.addEventListener('DOMContentLoaded', initRevealAnimation);
-  document.addEventListener('astro:page-load', initRevealAnimation);
+  // ── 可拖曳卡片互動（與首頁共用邏輯） ──
+  function makeDraggableCard(el: HTMLElement) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let isDragging = false;
+    let startX = 0,
+      startY = 0,
+      currentX = 0,
+      currentY = 0;
+    let velocityX = 0,
+      velocityY = 0,
+      lastX = 0,
+      lastY = 0;
+    let shakeFrame = 0,
+      inertiaRaf = 0;
+    const MAX_ROTATE = 6,
+      INERTIA_FRICTION = 0.86,
+      SNAP_BACK_MS = 600;
+    el.style.cursor = 'grab';
+    el.style.userSelect = 'none';
+    el.style.willChange = 'transform';
+    el.style.position = 'relative';
+
+    let pC: HTMLDivElement | null = null;
+    function pc() {
+      if (!pC) {
+        pC = document.createElement('div');
+        pC.style.cssText =
+          'position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:10;';
+        el.appendChild(pC);
+      }
+      return pC;
+    }
+    function emitParticles(vx: number, vy: number) {
+      const c = pc(),
+        rect = el.getBoundingClientRect();
+      const count = Math.min(10, Math.floor(Math.sqrt(vx * vx + vy * vy)) + 2);
+      for (let i = 0; i < count; i++) {
+        const p = document.createElement('span');
+        const edge = Math.random(),
+          sx =
+            edge < 0.5 ? (vx > 0 ? rect.width : 0) : Math.random() * rect.width;
+        const sy =
+          edge >= 0.5
+            ? vy > 0
+              ? rect.height
+              : 0
+            : Math.random() * rect.height;
+        const angle = Math.atan2(vy, vx) + (Math.random() - 0.5) * 2,
+          dist = 25 + Math.random() * 50,
+          size = 2 + Math.random() * 3;
+        p.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;width:${size}px;height:${size}px;background:var(--q-navy);opacity:0.5;pointer-events:none;`;
+        c.appendChild(p);
+        p.animate(
+          [
+            { transform: 'translate(0,0) scale(1)', opacity: 0.55 },
+            {
+              transform: `translate(${Math.cos(angle) * dist}px,${Math.sin(angle) * dist}px) scale(0)`,
+              opacity: 0,
+            },
+          ],
+          {
+            duration: 400 + Math.random() * 350,
+            easing: 'ease-out',
+            fill: 'forwards',
+          }
+        ).onfinish = () => p.remove();
+      }
+    }
+    let lastDirX = 0,
+      dirChangeCount = 0,
+      dirChangeTimer = 0,
+      dragParticleCD = 0;
+    function emitShakeParticles() {
+      const c = pc(),
+        rect = el.getBoundingClientRect();
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        const p = document.createElement('span');
+        const sx = Math.random() * rect.width,
+          sy = Math.random() * rect.height;
+        const angle = Math.random() * Math.PI * 2,
+          dist = 15 + Math.random() * 30,
+          size = 1.5 + Math.random() * 2;
+        p.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;width:${size}px;height:${size}px;background:var(--q-navy);opacity:0.35;pointer-events:none;`;
+        c.appendChild(p);
+        p.animate(
+          [
+            { transform: 'translate(0,0)', opacity: 0.4 },
+            {
+              transform: `translate(${Math.cos(angle) * dist}px,${Math.sin(angle) * dist}px)`,
+              opacity: 0,
+            },
+          ],
+          {
+            duration: 300 + Math.random() * 200,
+            easing: 'ease-out',
+            fill: 'forwards',
+          }
+        ).onfinish = () => p.remove();
+      }
+    }
+    function setT(x: number, y: number, d: boolean) {
+      const r = Math.max(-MAX_ROTATE, Math.min(MAX_ROTATE, velocityX * 1.2));
+      const n = d && shakeFrame++ % 3 === 0 ? (Math.random() - 0.5) * 1.2 : 0;
+      el.style.transform = `translate(${x + n}px,${y}px) rotate(${r}deg) scale(${d ? 1.018 : 1})`;
+      el.style.transition = d
+        ? 'none'
+        : `transform ${SNAP_BACK_MS}ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease`;
+    }
+    function grab(cx: number, cy: number) {
+      cancelAnimationFrame(inertiaRaf);
+      isDragging = true;
+      startX = cx - currentX;
+      startY = cy - currentY;
+      lastX = cx;
+      lastY = cy;
+      velocityX = 0;
+      velocityY = 0;
+      shakeFrame = 0;
+      lastDirX = 0;
+      dirChangeCount = 0;
+      dragParticleCD = 0;
+      el.style.cursor = 'grabbing';
+      el.style.boxShadow =
+        '0 10px 30px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06)';
+    }
+    function drag(cx: number, cy: number) {
+      if (!isDragging) return;
+      const rawVx = cx - lastX;
+      velocityX = velocityX * 0.4 + rawVx * 0.6;
+      velocityY = velocityY * 0.4 + (cy - lastY) * 0.6;
+      lastX = cx;
+      lastY = cy;
+      currentX = cx - startX;
+      currentY = cy - startY;
+      const dirX = rawVx > 0.5 ? 1 : rawVx < -0.5 ? -1 : 0;
+      if (dirX !== 0 && dirX !== lastDirX && lastDirX !== 0) {
+        dirChangeCount++;
+        clearTimeout(dirChangeTimer);
+        dirChangeTimer = window.setTimeout(() => {
+          dirChangeCount = Math.max(0, dirChangeCount - 2);
+        }, 300);
+      }
+      if (dirX !== 0) lastDirX = dirX;
+      if (dirChangeCount >= 2 && dragParticleCD <= 0) {
+        emitShakeParticles();
+        dragParticleCD = 4;
+      }
+      if (dragParticleCD > 0) dragParticleCD--;
+      setT(currentX, currentY, true);
+    }
+    function release() {
+      if (!isDragging) return;
+      isDragging = false;
+      el.style.cursor = 'grab';
+      el.style.boxShadow = 'none';
+      if (Math.sqrt(velocityX ** 2 + velocityY ** 2) > 1.5)
+        emitParticles(velocityX, velocityY);
+      let vx = velocityX * 1.4,
+        vy = velocityY * 0.8;
+      function step() {
+        vx *= INERTIA_FRICTION;
+        vy *= INERTIA_FRICTION;
+        currentX += vx;
+        currentY += vy;
+        setT(currentX, currentY, true);
+        if (Math.abs(vx) > 0.3 || Math.abs(vy) > 0.3) {
+          inertiaRaf = requestAnimationFrame(step);
+        } else {
+          currentX = 0;
+          currentY = 0;
+          setT(0, 0, false);
+        }
+      }
+      inertiaRaf = requestAnimationFrame(step);
+    }
+    el.addEventListener('mousedown', (e) => {
+      grab(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => drag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', release);
+    el.addEventListener('dblclick', () => {
+      cancelAnimationFrame(inertiaRaf);
+      currentX = 0;
+      currentY = 0;
+      setT(0, 0, false);
+    });
+    el.addEventListener(
+      'touchstart',
+      (e) => grab(e.touches[0].clientX, e.touches[0].clientY),
+      { passive: true }
+    );
+    el.addEventListener(
+      'touchmove',
+      (e) => drag(e.touches[0].clientX, e.touches[0].clientY),
+      { passive: true }
+    );
+    el.addEventListener('touchend', release);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initRevealAnimation();
+    document
+      .querySelectorAll<HTMLElement>('[data-draggable-card]')
+      .forEach(makeDraggableCard);
+  });
+  document.addEventListener('astro:page-load', () => {
+    initRevealAnimation();
+    document
+      .querySelectorAll<HTMLElement>('[data-draggable-card]')
+      .forEach(makeDraggableCard);
+  });
 </script>

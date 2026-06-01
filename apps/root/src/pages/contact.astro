@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../i18n/utils';
 import { getSingleton } from '../lib/api';
 import ContactForm from '../components/ContactForm';
+import { normalizeColors } from '../lib/color-normalize';
 
 export const prerender = false;
 
@@ -52,10 +53,12 @@ const devCta = data.devCta ?? {};
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle ||
-        (locale === 'zh-tw'
-          ? '來說<span style="color: var(--q-navy); font-weight: 600;">你的</span>故事。'
-          : 'Tell me <span style="color: var(--q-navy); font-weight: 600;">your</span> story.')}
+      set:html={normalizeColors(
+        pt.heroTitle ||
+          (locale === 'zh-tw'
+            ? '來說<span style="color: var(--q-navy); font-weight: 600;">你的</span>故事。'
+            : 'Tell me <span style="color: var(--q-navy); font-weight: 600;">your</span> story.')
+      )}
     />
 
     <div
