@@ -389,21 +389,28 @@ async function diffSingletons() {
 }
 
 async function syncSingletons() {
-  console.log(`\n🏠 Singletons`);
-
+  const inSync = SINGLETONS.length - 0; // 先算總數，稍後扣除
   const { toPush, toPull } = await diffSingletons();
   const hasChanges = toPush.length > 0 || toPull.length > 0;
+  const syncCount = SINGLETONS.length - toPush.length - toPull.length;
 
-  // 顯示差異（不論模式）
-  for (const { key, reason } of toPush) {
-    console.log(`   ↑ ${key}  ${reason}`);
-  }
-  for (const { key, reason } of toPull) {
-    console.log(`   ↓ ${key}  ${reason}`);
-  }
+  // 摘要行（與 Collection 格式一致）
+  console.log(`\n🏠 Singletons  (共 ${SINGLETONS.length} 個)`);
+
   if (!hasChanges) {
     console.log(`   ✓ 完全同步 (${SINGLETONS.length} 個)`);
     return { push: 0, pull: 0 };
+  }
+
+  if (toPush.length > 0) console.log(`   ↑ 需推送: ${toPush.length}`);
+  if (toPull.length > 0) console.log(`   ↓ 需拉取: ${toPull.length}`);
+
+  // 顯示逐筆差異
+  for (const { key, reason } of toPush) {
+    console.log(`     ↑ ${key}  ${reason}`);
+  }
+  for (const { key, reason } of toPull) {
+    console.log(`     ↓ ${key}  ${reason}`);
   }
 
   if (DRY_RUN) return { push: toPush.length, pull: toPull.length };
@@ -530,21 +537,26 @@ async function diffCards() {
 }
 
 async function syncCards() {
-  console.log(`\n🃏 Cards`);
-
   const { toPush, toPull } = await diffCards();
   const hasChanges = toPush.length > 0 || toPull.length > 0;
 
-  // 顯示差異
-  for (const { key, reason } of toPush) {
-    console.log(`   ↑ ${key}  ${reason}`);
-  }
-  for (const { key, reason } of toPull) {
-    console.log(`   ↓ ${key}  ${reason}`);
-  }
+  // 摘要行（與 Collection 格式一致）
+  console.log(`\n🃏 Cards  (共 ${CARD_KEYS.length} 個)`);
+
   if (!hasChanges) {
     console.log(`   ✓ 完全同步 (${CARD_KEYS.length} 個)`);
     return { push: 0, pull: 0 };
+  }
+
+  if (toPush.length > 0) console.log(`   ↑ 需推送: ${toPush.length}`);
+  if (toPull.length > 0) console.log(`   ↓ 需拉取: ${toPull.length}`);
+
+  // 顯示逐筆差異
+  for (const { key, reason } of toPush) {
+    console.log(`     ↑ ${key}  ${reason}`);
+  }
+  for (const { key, reason } of toPull) {
+    console.log(`     ↓ ${key}  ${reason}`);
   }
 
   if (DRY_RUN) return { push: toPush.length, pull: toPull.length };
