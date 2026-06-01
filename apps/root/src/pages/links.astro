@@ -129,7 +129,11 @@ for (const cat of categoryOrder) {
   >
     {
       groups.map((g, gi) => (
-        <div id={`group-${gi}`} class="mb-12 lg:mb-16 reveal">
+        <div
+          id={`group-${gi}`}
+          class="mb-12 lg:mb-16 reveal"
+          style="scroll-margin-top: 100px;"
+        >
           {/* Group header */}
           <div
             class="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-4 md:gap-9 items-baseline mb-5 pb-3.5"

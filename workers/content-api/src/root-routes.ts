@@ -281,19 +281,19 @@ export async function handleRootRoutes(
     return json({ ok: true, data: { deleted: body.keys.length } }, 200, cors);
   }
 
-  // DELETE /api/root/assets/:key — 單筆刪除
-  const rootAssetDeleteMatch = path.match(/^\/api\/root\/assets\/(.+)$/);
-  if (rootAssetDeleteMatch && method === 'DELETE') {
+  // DELETE / GET / HEAD /api/root/assets/:key — 資產操作
+  const rootAssetKeyMatch = path.match(/^\/api\/root\/assets\/(.+)$/);
+  if (rootAssetKeyMatch && method === 'DELETE') {
     const jwtUser = await requireJwt(request, env);
     if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
-    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+    const key = decodeURIComponent(rootAssetKeyMatch[1]);
     await env.ROOT_ASSETS_BUCKET.delete(key);
     return json({ ok: true }, 200, cors);
   }
 
   // GET /api/root/assets/:key — 讀取檔案（公開，供前端 <img> 使用）
-  if (rootAssetDeleteMatch && method === 'GET') {
-    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+  if (rootAssetKeyMatch && method === 'GET') {
+    const key = decodeURIComponent(rootAssetKeyMatch[1]);
     const obj = await env.ROOT_ASSETS_BUCKET.get(key);
     if (!obj) return json({ ok: false, error: 'Not found' }, 404, cors);
     const headers = new Headers(cors);
@@ -305,8 +305,8 @@ export async function handleRootRoutes(
     headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     return new Response(obj.body, { headers });
   }
-  if (rootAssetDeleteMatch && method === 'HEAD') {
-    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+  if (rootAssetKeyMatch && method === 'HEAD') {
+    const key = decodeURIComponent(rootAssetKeyMatch[1]);
     const obj = await env.ROOT_ASSETS_BUCKET.head(key);
     if (!obj) return json({ ok: false, error: 'Not found' }, 404, cors);
     const headers = new Headers(cors);

@@ -104,7 +104,7 @@ const _inflightCache = new Map<string, Promise<unknown>>();
 async function apiFetch<T>(path: string): Promise<T | null> {
   const url = `${getApiBase()}${path}`;
 
-  // 有相同的 in-flight 請求就直接等結果
+  // 有相同的 in-flight 請求就直接等結果（同一次 SSR 渲染 dedup）
   if (_inflightCache.has(url)) {
     return _inflightCache.get(url) as Promise<T | null>;
   }
@@ -118,6 +118,9 @@ async function apiFetch<T>(path: string): Promise<T | null> {
     } catch (e) {
       console.error(`[api] Failed to fetch ${path}:`, e);
       return null;
+    } finally {
+      // Promise 完成後清除快取，避免 dev server 跨 request 持久化
+      _inflightCache.delete(url);
     }
   })();
 

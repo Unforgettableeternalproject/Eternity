@@ -370,7 +370,10 @@ const alternatePath = getAlternatePath(currentPath, locale);
         )
       )
         continue;
-      if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed')
+      if (
+        (el as HTMLElement).offsetParent === null &&
+        getComputedStyle(el).position !== 'fixed'
+      )
         continue;
 
       const rect = el.getBoundingClientRect();
@@ -387,24 +390,24 @@ const alternatePath = getAlternatePath(currentPath, locale);
     return visible;
   }
 
-  function scrambleChar(ch) {
+  function scrambleChar(ch: string): string {
     if (/\s/.test(ch)) return ch;
     return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
   }
 
-  function scrambleTextNodes(el) {
+  function scrambleTextNodes(el: Element): void {
     for (const node of el.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
         node.textContent = node.textContent
           .split('')
-          .map((ch) => scrambleChar(ch))
+          .map((ch: string) => scrambleChar(ch))
           .join('');
       }
     }
   }
 
   // ── 出場：scramble → 導航 ──
-  function runScrambleOut(href) {
+  function runScrambleOut(href: string): void {
     const elements = getVisibleTextElements();
     if (elements.length === 0) {
       sessionStorage.setItem('lang-switch', '1');
@@ -440,10 +443,15 @@ const alternatePath = getAlternatePath(currentPath, locale);
     if (elements.length === 0) return;
 
     // 儲存每個 text node 的正確內容
-    const nodeMap = [];
-    elements.forEach((el) => {
+    interface NodeEntry {
+      node: ChildNode;
+      original: string;
+      chars: string[];
+    }
+    const nodeMap: NodeEntry[] = [];
+    elements.forEach((el: Element) => {
       for (const node of el.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
           nodeMap.push({
             node,
             original: node.textContent,
@@ -454,10 +462,10 @@ const alternatePath = getAlternatePath(currentPath, locale);
     });
 
     // 先全部 scramble
-    nodeMap.forEach(({ node, original }) => {
+    nodeMap.forEach(({ node, original }: NodeEntry) => {
       node.textContent = original
         .split('')
-        .map((ch) => scrambleChar(ch))
+        .map((ch: string) => scrambleChar(ch))
         .join('');
     });
 
@@ -465,11 +473,10 @@ const alternatePath = getAlternatePath(currentPath, locale);
     let round = 0;
     const timer = setInterval(() => {
       round++;
-      const revealRatio = round / IN_ROUNDS;
 
-      nodeMap.forEach(({ node, chars }) => {
+      nodeMap.forEach(({ node, chars }: NodeEntry) => {
         node.textContent = chars
-          .map((ch, i) => {
+          .map((ch: string, i: number) => {
             if (/\s/.test(ch)) return ch;
             // 用字元位置 hash 決定該字元在第幾輪「解鎖」
             const unlockAt = ((i * 7 + ch.charCodeAt(0) * 3) % IN_ROUNDS) + 1;
@@ -490,26 +497,28 @@ const alternatePath = getAlternatePath(currentPath, locale);
 
   function initLangSwitch() {
     // 綁定出場
-    document.querySelectorAll('[data-lang-switch]').forEach((link) => {
-      if (link.dataset.langBound) return;
-      link.dataset.langBound = '1';
+    document
+      .querySelectorAll<HTMLElement>('[data-lang-switch]')
+      .forEach((link) => {
+        if (link.dataset.langBound) return;
+        link.dataset.langBound = '1';
 
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const href = link.getAttribute('href');
-        if (!href) return;
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const href = link.getAttribute('href');
+          if (!href) return;
 
-        const prefersReducedMotion = window.matchMedia(
-          '(prefers-reduced-motion: reduce)'
-        ).matches;
-        if (prefersReducedMotion) {
-          window.location.href = href;
-          return;
-        }
+          const prefersReducedMotion = window.matchMedia(
+            '(prefers-reduced-motion: reduce)'
+          ).matches;
+          if (prefersReducedMotion) {
+            window.location.href = href;
+            return;
+          }
 
-        runScrambleOut(href);
+          runScrambleOut(href);
+        });
       });
-    });
 
     // 檢查入場
     runDecodeIn();
