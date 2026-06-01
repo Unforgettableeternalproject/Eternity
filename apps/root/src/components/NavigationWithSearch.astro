@@ -112,6 +112,7 @@ const alternatePath = getAlternatePath(currentPath, locale);
           return (
             <a
               href={item.path}
+              data-astro-prefetch
               class="relative flex items-baseline gap-1.5 no-underline pb-0.5 transition-colors duration-200"
               style={
                 isActive
@@ -292,6 +293,7 @@ const alternatePath = getAlternatePath(currentPath, locale);
           return (
             <a
               href={item.path}
+              data-astro-prefetch
               class="text-sm font-medium transition-colors duration-200 px-3 py-2.5 no-underline"
               style={
                 isActive

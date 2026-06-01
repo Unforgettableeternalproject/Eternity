@@ -71,8 +71,7 @@
   --q-surface: #16161a;
 }
 
-/* Google Fonts for Quartz */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+TC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+/* Google Fonts 已移至 BaseLayout.astro <head> 用 <link> 載入，避免 render-blocking @import */
 
 /* Base layer customizations */
 @layer base {

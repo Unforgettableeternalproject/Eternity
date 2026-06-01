@@ -96,15 +96,24 @@ function getApiBase(): string {
   return raw.replace(/\/+$/, '');
 }
 
-// ── Per-request dedup cache ──
-// 同一次 SSR 渲染中，相同 URL 只 fetch 一次。
-// Cloudflare Workers 每個 request 跑在獨立 context，Map 自動釋放。
+// ── TTL cache + in-flight dedup ──
+// 跨 SSR 請求快取：60 秒內相同 API 直接回快取，大幅減少頁面切換延遲。
+// Cloudflare Workers isolate 會跨 request 保留 module state，所以快取有效。
+// Dev server（Vite）也保留 module state，同樣有效。
+const SSR_CACHE_TTL = 60_000; // 60 秒
+const _ttlCache = new Map<string, { data: unknown; expiry: number }>();
 const _inflightCache = new Map<string, Promise<unknown>>();
 
 async function apiFetch<T>(path: string): Promise<T | null> {
   const url = `${getApiBase()}${path}`;
 
-  // 有相同的 in-flight 請求就直接等結果（同一次 SSR 渲染 dedup）
+  // 1. TTL 快取命中 → 直接回傳（0ms）
+  const cached = _ttlCache.get(url);
+  if (cached && Date.now() < cached.expiry) {
+    return cached.data as T | null;
+  }
+
+  // 2. In-flight dedup（同一次 SSR 渲染中相同 URL 只 fetch 一次）
   if (_inflightCache.has(url)) {
     return _inflightCache.get(url) as Promise<T | null>;
   }
@@ -114,12 +123,16 @@ async function apiFetch<T>(path: string): Promise<T | null> {
       const res = await fetch(url);
       if (!res.ok) return null;
       const json: ApiResponse<T> = await res.json();
-      return json.ok ? (json.data ?? null) : null;
+      const result = json.ok ? (json.data ?? null) : null;
+
+      // 存入 TTL 快取
+      _ttlCache.set(url, { data: result, expiry: Date.now() + SSR_CACHE_TTL });
+
+      return result;
     } catch (e) {
       console.error(`[api] Failed to fetch ${path}:`, e);
       return null;
     } finally {
-      // Promise 完成後清除快取，避免 dev server 跨 request 持久化
       _inflightCache.delete(url);
     }
   })();
