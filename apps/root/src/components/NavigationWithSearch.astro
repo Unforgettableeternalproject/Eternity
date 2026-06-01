@@ -70,6 +70,12 @@ const alternatePath = getAlternatePath(currentPath, locale);
             key: 'home',
             path: locale === 'zh-tw' ? '/zh-tw/' : '/en/',
             label: t.nav.home,
+            num: '00',
+          },
+          {
+            key: 'about',
+            path: locale === 'zh-tw' ? '/zh-tw/about' : '/en/about',
+            label: t.nav.about,
             num: '01',
           },
           {
@@ -79,28 +85,22 @@ const alternatePath = getAlternatePath(currentPath, locale);
             num: '02',
           },
           {
-            key: 'about',
-            path: locale === 'zh-tw' ? '/zh-tw/about' : '/en/about',
-            label: t.nav.about,
-            num: '03',
-          },
-          {
             key: 'updates',
             path: locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates',
             label: t.nav.updates,
-            num: '04',
+            num: '03',
           },
           {
             key: 'links',
             path: locale === 'zh-tw' ? '/zh-tw/links' : '/en/links',
             label: t.nav.links,
-            num: '05',
+            num: '04',
           },
           {
             key: 'contact',
             path: locale === 'zh-tw' ? '/zh-tw/contact' : '/en/contact',
             label: t.nav.contact,
-            num: '06',
+            num: '05',
           },
         ].map((item) => {
           const isActive =
@@ -148,7 +148,11 @@ const alternatePath = getAlternatePath(currentPath, locale);
     <div class="hidden md:flex items-center gap-3">
       <!-- Inline search trigger styled as Quartz ⌘K box -->
       <div class="w-48 lg:w-56">
-        <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+        <GlobalSearch
+          client:only="react"
+          locale={locale}
+          currentPath={currentPath}
+        />
       </div>
 
       <span class="w-px h-3.5" style="background: var(--q-line);"></span>
@@ -182,7 +186,11 @@ const alternatePath = getAlternatePath(currentPath, locale);
     <div class="md:hidden flex items-center gap-2 flex-1">
       <div class="flex-1 flex justify-center mx-2">
         <div class="w-full max-w-xs">
-          <GlobalSearch client:load locale={locale} currentPath={currentPath} />
+          <GlobalSearch
+            client:only="react"
+            locale={locale}
+            currentPath={currentPath}
+          />
         </div>
       </div>
 
@@ -250,14 +258,14 @@ const alternatePath = getAlternatePath(currentPath, locale);
             label: t.nav.home,
           },
           {
-            key: 'projects',
-            path: locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects',
-            label: t.nav.projects,
-          },
-          {
             key: 'about',
             path: locale === 'zh-tw' ? '/zh-tw/about' : '/en/about',
             label: t.nav.about,
+          },
+          {
+            key: 'projects',
+            path: locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects',
+            label: t.nav.projects,
           },
           {
             key: 'updates',

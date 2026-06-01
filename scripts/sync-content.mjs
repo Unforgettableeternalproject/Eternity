@@ -14,9 +14,21 @@
  *   node scripts/sync-content.mjs --purge               # 清除兩端超過 30 天的軟刪除記錄
  *   node scripts/sync-content.mjs --purge 7             # 清除超過 7 天的軟刪除記錄
  *   node scripts/sync-content.mjs --skip-homepage       # 跳過首頁同步
+ *
+ * 當由 sync.mjs 派遣時，會透過 SYNC_REMOTE_TOKEN 環境變數接收已登入的 token，
+ * 無需重複詢問密碼。獨立執行且非 dry-run 時，自行進行登入。
  */
 
-import { createInterface } from 'readline';
+import {
+  safeJson,
+  normalizeTimestamp,
+  compareTimestamps,
+  fmtTime,
+  ask,
+  checkLocalApi,
+  checkRemoteApi,
+} from './sync-utils.mjs';
+import { login, getAuthHeaders } from './sync-auth.mjs';
 
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
@@ -45,7 +57,20 @@ const AREA_FLAG = args.indexOf('--area');
 const TARGET_AREAS =
   AREA_FLAG !== -1 && args[AREA_FLAG + 1] ? [args[AREA_FLAG + 1]] : ALL_AREAS;
 
-// === 工具函式 ===
+// === 認證狀態（模組頂層，由 main() 設定） ===
+
+/** 遠端 JWT token，由 main() 初始化 */
+let remoteToken = null;
+
+/** 為請求加上認證 header（依目標 API 決定是否附帶） */
+function authHeaders(apiBase) {
+  if (apiBase === REMOTE_API) {
+    return getAuthHeaders(remoteToken);
+  }
+  return {};
+}
+
+// === 頁面讀寫 ===
 
 /** 從 API 取得指定區域的所有頁面清單（不含 content，包含已軟刪除的記錄） */
 async function listPages(apiBase, area) {
@@ -58,17 +83,6 @@ async function listPages(apiBase, area) {
     return json?.ok ? json.data || [] : [];
   } catch {
     return [];
-  }
-}
-
-/** 安全地解析 JSON 回應，回傳 null 若非 JSON */
-async function safeJson(res) {
-  const ct = res.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) return null;
-  try {
-    return await res.json();
-  } catch {
-    return null;
   }
 }
 
@@ -116,135 +130,6 @@ async function putPage(apiBase, page) {
   } catch {
     return false;
   }
-}
-
-/**
- * 正規化時間戳為 UTC ISO 格式。
- * SQLite 的 datetime('now') 輸出 'YYYY-MM-DD HH:MM:SS'（無 Z），
- * 在非 UTC 系統上 new Date() 會誤判為本地時間，必須先補上 Z。
- */
-function normalizeTimestamp(ts) {
-  if (!ts) return ts;
-  // 已有 Z 或時區偏移 → 不處理
-  if (/Z$|[+-]\d{2}:\d{2}$/.test(ts)) return ts;
-  // SQLite 格式 'YYYY-MM-DD HH:MM:SS' → 加上 T 和 Z
-  return ts.replace(' ', 'T') + 'Z';
-}
-
-/** 比較兩個時間戳，回傳較新的一方（截斷到秒，忽略毫秒差異） */
-function compareTimestamps(localTime, remoteTime) {
-  const l = Math.floor(
-    new Date(normalizeTimestamp(localTime)).getTime() / 1000
-  );
-  const r = Math.floor(
-    new Date(normalizeTimestamp(remoteTime)).getTime() / 1000
-  );
-  if (l > r) return 'local';
-  if (r > l) return 'remote';
-  return 'same';
-}
-
-/** 格式化時間戳為 UTC+8 易讀格式 */
-function fmtTime(ts) {
-  if (!ts) return '(無)';
-  const d = new Date(normalizeTimestamp(ts));
-  if (isNaN(d.getTime())) return ts;
-  // 轉換為 UTC+8
-  const utc8 = new Date(d.getTime() + 8 * 60 * 60 * 1000);
-  const yyyy = utc8.getUTCFullYear();
-  const mm = String(utc8.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(utc8.getUTCDate()).padStart(2, '0');
-  const hh = String(utc8.getUTCHours()).padStart(2, '0');
-  const mi = String(utc8.getUTCMinutes()).padStart(2, '0');
-  const ss = String(utc8.getUTCSeconds()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-}
-
-/** 互動式提問 */
-function ask(question) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim().toLowerCase());
-    });
-  });
-}
-
-// === 認證 ===
-
-/** 遠端 JWT token（登入後設定）*/
-let remoteToken = null;
-
-/** 提示輸入（不顯示密碼） */
-function askPassword(question) {
-  return new Promise((resolve) => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    // 嘗試隱藏密碼輸入
-    process.stdout.write(question);
-    const stdin = process.stdin;
-    const wasRaw = stdin.isRaw;
-    if (stdin.setRawMode) stdin.setRawMode(true);
-    let pwd = '';
-    const onData = (ch) => {
-      const c = ch.toString();
-      if (c === '\n' || c === '\r') {
-        if (stdin.setRawMode) stdin.setRawMode(wasRaw);
-        stdin.removeListener('data', onData);
-        process.stdout.write('\n');
-        rl.close();
-        resolve(pwd);
-      } else if (c === '\u007f' || c === '\b') {
-        if (pwd.length > 0) {
-          pwd = pwd.slice(0, -1);
-          process.stdout.write('\b \b');
-        }
-      } else if (c.charCodeAt(0) >= 32) {
-        pwd += c;
-        process.stdout.write('*');
-      }
-    };
-    stdin.on('data', onData);
-    stdin.resume();
-  });
-}
-
-/** 登入遠端 API 取得 JWT */
-async function loginRemote() {
-  console.log('🔐 需要登入遠端 API 以同步 R2 資產\n');
-  const username = await ask('   帳號: ');
-  const password = await askPassword('   密碼: ');
-
-  try {
-    const res = await fetch(`${REMOTE_API}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const json = await safeJson(res);
-    if (json?.ok && json.data?.token) {
-      remoteToken = json.data.token;
-      console.log(`   ✓ 登入成功 (${json.data.display_name || username})\n`);
-      return true;
-    } else {
-      console.log(`   ✗ 登入失敗: ${json?.error || '未知錯誤'}\n`);
-      return false;
-    }
-  } catch (e) {
-    console.log(`   ✗ 連線錯誤: ${e.message}\n`);
-    return false;
-  }
-}
-
-/** 為請求加上認證 header */
-function authHeaders(apiBase) {
-  if (apiBase === REMOTE_API && remoteToken) {
-    return { Authorization: `Bearer ${remoteToken}` };
-  }
-  return {};
 }
 
 // === 比對邏輯 ===
@@ -498,13 +383,9 @@ async function main() {
   );
   console.log(`   區域: ${TARGET_AREAS.join(', ')}\n`);
 
-  // 檢查本地 API 是否可用
-  try {
-    const check = await fetch(`${LOCAL_API}/api/content/history`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!check.ok) throw new Error();
-  } catch {
+  // 本地 API 健檢
+  const localOk = await checkLocalApi(LOCAL_API);
+  if (!localOk) {
     console.error(
       '❌ 無法連線到本地 content-api (localhost:8788)，請確認 dev server 正在運行：'
     );
@@ -512,26 +393,30 @@ async function main() {
     process.exit(1);
   }
 
-  // 檢查遠端 API 是否可用
-  try {
-    const check = await fetch(`${REMOTE_API}/api/content/history`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    const ct = check.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      console.error(
-        '⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面），部分操作可能失敗'
-      );
-    }
-  } catch {
+  // 遠端 API 健檢
+  const remoteStatus = await checkRemoteApi(REMOTE_API);
+  if (remoteStatus === 'unreachable') {
     console.error('⚠️  無法連線到遠端 API，將只顯示本地資料\n');
+  } else if (remoteStatus === 'bad_format') {
+    console.error(
+      '⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面），部分操作可能失敗\n'
+    );
   }
 
-  // 登入遠端（R2 資產同步和寫入操作需要）
+  // 認證：優先使用 SYNC_REMOTE_TOKEN（由 sync.mjs 統一登入後傳入）
   if (!DRY_RUN) {
-    const loggedIn = await loginRemote();
-    if (!loggedIn) {
-      console.log('   繼續同步但 R2 資產將無法存取\n');
+    const envToken = process.env.SYNC_REMOTE_TOKEN;
+    if (envToken) {
+      // 透過 dispatcher 執行，直接使用傳入的 token
+      remoteToken = envToken;
+    } else {
+      // 獨立執行，自行登入
+      const result = await login(REMOTE_API);
+      if (!result) {
+        console.error('❌ 認證失敗，無法繼續同步\n');
+        process.exit(1);
+      }
+      remoteToken = result.token;
     }
   }
 

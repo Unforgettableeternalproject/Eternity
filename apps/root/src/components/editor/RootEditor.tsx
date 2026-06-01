@@ -30,6 +30,7 @@ import {
   TagEditor,
   OutlineRow,
 } from './editorPrimitives';
+import { APP_VERSION } from '../../lib/version';
 import './RootEditor.css';
 
 // ─── types ──────────────────────────────────────────────────────────
@@ -119,10 +120,10 @@ interface EditorProps {
 
 const PAGES = [
   { id: 'pages', num: '00', label: '頁面文字 · Pages' },
-  { id: 'projects', num: '01', label: '作品 · Projects' },
-  { id: 'updates', num: '02', label: '動態 · Updates' },
-  { id: 'links', num: '03', label: '連結 · Links' },
-  { id: 'about', num: '04', label: '關於 · About' },
+  { id: 'about', num: '01', label: '關於 · About' },
+  { id: 'projects', num: '02', label: '作品 · Projects' },
+  { id: 'updates', num: '03', label: '動態 · Updates' },
+  { id: 'links', num: '04', label: '連結 · Links' },
   { id: 'contact', num: '05', label: '聯絡 · Contact' },
   { id: 'media', num: '06', label: '媒體庫 · Media' },
   { id: 'widgets', num: '07', label: '小工具 · Widgets' },
@@ -1758,7 +1759,7 @@ export default function RootEditor(props: EditorProps) {
                       ? `${props.cards.length} cards`
                       : 'singleton'}
           </Mono>
-          <Mono v="navy">v0.9.6</Mono>
+          <Mono v="navy">{APP_VERSION}</Mono>
         </div>
       </div>
 

@@ -278,7 +278,79 @@ export async function handleRootRoutes(
     if (!Array.isArray(body.keys))
       return json({ ok: false, error: 'keys required' }, 400, cors);
     await Promise.all(body.keys.map((k) => env.ROOT_ASSETS_BUCKET.delete(k)));
+    // 記錄刪除到 root_deleted_assets（同步用）
+    if (body.keys.length > 0) {
+      const stmts = body.keys.map((k) =>
+        env.CONTENT_DB.prepare(
+          "INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+        ).bind(k)
+      );
+      await env.CONTENT_DB.batch(stmts);
+    }
     return json({ ok: true, data: { deleted: body.keys.length } }, 200, cors);
+  }
+
+  // GET /api/root/assets/deleted — 列出已刪除的資產紀錄（同步用，需認證）
+  if (path === '/api/root/assets/deleted' && method === 'GET') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const since = url.searchParams.get('since');
+    let rows;
+    if (since) {
+      rows = await env.CONTENT_DB.prepare(
+        'SELECT key, deleted_at FROM root_deleted_assets WHERE deleted_at > ? ORDER BY deleted_at DESC'
+      )
+        .bind(since)
+        .all();
+    } else {
+      rows = await env.CONTENT_DB.prepare(
+        'SELECT key, deleted_at FROM root_deleted_assets ORDER BY deleted_at DESC'
+      ).all();
+    }
+    const data = (rows.results || []).map((r: Record<string, unknown>) => ({
+      key: r.key,
+      deletedAt: r.deleted_at,
+    }));
+    return json({ ok: true, data }, 200, cors);
+  }
+
+  // POST /api/root/assets/deleted/purge — 清除過期的刪除紀錄
+  if (path === '/api/root/assets/deleted/purge' && method === 'POST') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const body = (await request.json().catch(() => ({}))) as {
+      olderThan?: string;
+    };
+    const cutoff =
+      body.olderThan || new Date(Date.now() - 30 * 86400000).toISOString();
+    const result = await env.CONTENT_DB.prepare(
+      'DELETE FROM root_deleted_assets WHERE deleted_at < ?'
+    )
+      .bind(cutoff)
+      .run();
+    return json(
+      { ok: true, data: { purged: result.meta?.changes || 0 } },
+      200,
+      cors
+    );
+  }
+
+  // POST /api/root/assets/deleted/record — 記錄刪除（同步傳播用，不實際刪除 R2）
+  if (path === '/api/root/assets/deleted/record' && method === 'POST') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const body = (await request.json()) as { keys: string[] };
+    if (!Array.isArray(body.keys))
+      return json({ ok: false, error: 'keys required' }, 400, cors);
+    if (body.keys.length > 0) {
+      const stmts = body.keys.map((k) =>
+        env.CONTENT_DB.prepare(
+          "INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+        ).bind(k)
+      );
+      await env.CONTENT_DB.batch(stmts);
+    }
+    return json({ ok: true, data: { recorded: body.keys.length } }, 200, cors);
   }
 
   // DELETE / GET / HEAD /api/root/assets/:key — 資產操作
@@ -288,6 +360,12 @@ export async function handleRootRoutes(
     if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
     const key = decodeURIComponent(rootAssetKeyMatch[1]);
     await env.ROOT_ASSETS_BUCKET.delete(key);
+    // 記錄刪除到 root_deleted_assets（同步用）
+    await env.CONTENT_DB.prepare(
+      "INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+    )
+      .bind(key)
+      .run();
     return json({ ok: true }, 200, cors);
   }
 

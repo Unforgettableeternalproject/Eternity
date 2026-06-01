@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getProjects, getUpdates, getSingleton, assetUrl } from '../lib/api';
 import { normalizeColors } from '../lib/color-normalize';
+import { APP_VERSION } from '../lib/version';
 
 export const prerender = false;
 
@@ -123,8 +124,8 @@ const skillDomains = 5;
             {
               pt.heroCta2 ||
                 (locale === 'zh-tw'
-                  ? '進 Imaginary Space'
-                  : 'Enter Imaginary Space')
+                  ? '去看看U.E.P的邊際世界'
+                  : 'Check out the Imaginary World of U.E.P')
             } ↗
           </a>
         </div>
@@ -165,7 +166,6 @@ const skillDomains = 5;
                   ? '全端工程師 / 創作者'
                   : 'Full-stack Dev / Creator',
               ],
-              ['LOCATION', 'Taiwan · 高雄'],
               ['SINCE', '2018'],
               ['STATUS', null],
               ['REACH', 'ptyc4076@gmail.com'],
@@ -189,7 +189,7 @@ const skillDomains = 5;
                     style="color: var(--q-navy);"
                   >
                     <span class="q-live-dot" style="width: 6px; height: 6px;" />
-                    Polishing v0.9.6
+                    Polishing {APP_VERSION}
                   </span>
                 )}
               </div>
@@ -258,7 +258,7 @@ const skillDomains = 5;
           class="font-mono text-3xl font-medium tracking-tight"
           style="color: var(--q-navy);"
         >
-          v0.9.6
+          {APP_VERSION}
         </div>
         <span class="q-mono mt-1 inline-block">currently shipping</span>
       </div>

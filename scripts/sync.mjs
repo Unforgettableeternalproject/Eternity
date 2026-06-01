@@ -9,21 +9,27 @@
  *   pnpm sync --site all [...]       # 兩站都同步
  *
  * 所有額外參數 (--push, --pull, --dry-run 等) 會傳遞給對應腳本。
+ * 非 dry-run 模式下，此腳本統一完成登入，透過 SYNC_REMOTE_TOKEN 環境變數
+ * 傳遞給子腳本，避免多站同步時重複詢問密碼。
  */
 
-import { execSync, spawn } from 'child_process';
-import { createInterface } from 'readline';
+import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ask, checkLocalApi, checkRemoteApi } from './sync-utils.mjs';
+import { login } from './sync-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const LOCAL_API = 'http://localhost:8788';
+const REMOTE_API = 'https://eternity-content-api.ptyc4076.workers.dev';
 
 const SCRIPTS = {
   docs: path.join(__dirname, 'sync-content.mjs'),
   root: path.join(__dirname, 'sync-root.mjs'),
 };
 
-// Parse --site flag, remove it from passthrough args
+// 解析 --site 旗標，並從傳遞參數中移除
 const rawArgs = process.argv.slice(2);
 const siteIdx = rawArgs.indexOf('--site');
 let site = null;
@@ -34,25 +40,24 @@ if (siteIdx !== -1 && rawArgs[siteIdx + 1]) {
   passArgs.splice(siteIdx, 2);
 }
 
-function ask(question, options) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim().toLowerCase());
-    });
-  });
-}
+const DRY_RUN = passArgs.includes('--dry-run');
 
-function runScript(scriptPath, args) {
+/**
+ * 執行子腳本，傳入環境變數（含 SYNC_REMOTE_TOKEN）
+ * @param {string} scriptPath 腳本路徑
+ * @param {string[]} args 傳遞的參數
+ * @param {Record<string, string>} env 額外環境變數
+ */
+function runScript(scriptPath, args, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn('node', [scriptPath, ...args], {
       stdio: 'inherit',
       cwd: path.resolve(__dirname, '..'),
+      env: { ...process.env, ...env },
     });
     child.on('close', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`Script exited with code ${code}`));
+      else reject(new Error(`腳本結束代碼 ${code}`));
     });
     child.on('error', reject);
   });
@@ -65,7 +70,40 @@ async function main() {
   console.log('╚══════════════════════════════════════╝');
   console.log();
 
-  // Determine site
+  // 本地 API 健檢（dry-run 也需要讀取資料，所以一律檢查）
+  const localOk = await checkLocalApi(LOCAL_API);
+  if (!localOk) {
+    console.error(
+      '❌ 無法連線到本地 content-api (localhost:8788)，請確認 dev server 正在運行：'
+    );
+    console.error('   pnpm --filter content-api-worker dev\n');
+    process.exit(1);
+  }
+
+  // 遠端 API 健檢
+  const remoteStatus = await checkRemoteApi(REMOTE_API);
+  if (remoteStatus === 'unreachable') {
+    console.error('❌ 無法連線到遠端 API，請確認網路連線\n');
+    process.exit(1);
+  }
+  if (remoteStatus === 'bad_format') {
+    console.error(
+      '⚠️  遠端 API 回傳非 JSON 格式（可能是 Cloudflare 錯誤頁面）\n'
+    );
+  }
+
+  // 非 dry-run 時統一登入，取得 token 傳給子腳本
+  let syncToken = '';
+  if (!DRY_RUN) {
+    const result = await login(REMOTE_API);
+    if (!result) {
+      console.error('❌ 認證失敗，無法繼續同步\n');
+      process.exit(1);
+    }
+    syncToken = result.token;
+  }
+
+  // 決定同步站點
   if (!site) {
     console.log('  選擇要同步的站點：');
     console.log();
@@ -85,6 +123,8 @@ async function main() {
   }
 
   const targets = site === 'all' ? ['docs', 'root'] : [site];
+  // 傳給子腳本的額外環境變數
+  const childEnv = syncToken ? { SYNC_REMOTE_TOKEN: syncToken } : {};
 
   for (const target of targets) {
     if (!SCRIPTS[target]) {
@@ -100,7 +140,7 @@ async function main() {
     }
 
     try {
-      await runScript(SCRIPTS[target], passArgs);
+      await runScript(SCRIPTS[target], passArgs, childEnv);
     } catch (e) {
       console.error(`  ❌ ${target} 同步失敗:`, e.message);
       if (targets.length > 1) {

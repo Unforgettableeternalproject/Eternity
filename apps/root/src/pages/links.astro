@@ -34,6 +34,11 @@ const sorted = allLinksRaw
   .sort((a, b) => {
     // featured 排最前
     if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
+    // normal 排在 unmaintained/deprecated 前面
+    const statusRank = { normal: 0, unmaintained: 1, deprecated: 2 };
+    const sa = statusRank[a.data.status as keyof typeof statusRank] ?? 0;
+    const sb = statusRank[b.data.status as keyof typeof statusRank] ?? 0;
+    if (sa !== sb) return sa - sb;
     return (a.data.order || 999) - (b.data.order || 999);
   });
 
@@ -75,8 +80,8 @@ for (const cat of categoryOrder) {
       {
         pt.heroLabel ||
           (locale === 'zh-tw'
-            ? '—— 05 / links · 對外連結'
-            : '—— 05 / links · external links')
+            ? '—— 04 / links · 對外連結'
+            : '—— 04 / links · external links')
       }
     </span>
 
@@ -176,6 +181,21 @@ for (const cat of categoryOrder) {
                     ? it.data.description_zh
                     : it.data.description_en;
                 const initial = linkTitle?.[0] || '?';
+                const st = it.data.status || 'normal';
+                const isDeprecated = st === 'deprecated';
+                const isUnmaintained = st === 'unmaintained';
+                const isInactive = isDeprecated || isUnmaintained;
+
+                // 狀態標籤文字
+                const statusLabel = isDeprecated
+                  ? locale === 'zh-tw'
+                    ? '已棄用'
+                    : 'DEPRECATED'
+                  : isUnmaintained
+                    ? locale === 'zh-tw'
+                      ? '未維護'
+                      : 'UNMAINTAINED'
+                    : null;
 
                 return (
                   <a
@@ -183,19 +203,35 @@ for (const cat of categoryOrder) {
                     target="_blank"
                     rel="noopener noreferrer"
                     class="block no-underline flex flex-col gap-1.5 p-5 lg:p-[22px] relative reveal-item group"
-                    style="border: 1px solid var(--q-line); background: var(--q-paper); color: inherit; transition: border-color 0.15s;"
+                    style={`background: var(--q-paper); color: inherit; transition: border-color 0.15s, opacity 0.15s; ${
+                      isDeprecated
+                        ? 'border: 1px dashed var(--q-line); opacity: 0.5;'
+                        : isUnmaintained
+                          ? 'border: 1px solid var(--q-line); opacity: 0.65;'
+                          : 'border: 1px solid var(--q-line);'
+                    }`}
                   >
+                    {/* 狀態標籤 */}
+                    {statusLabel && (
+                      <span
+                        class="absolute top-0 right-0 font-mono text-[9px] tracking-[0.12em] uppercase px-2 py-1"
+                        style={`color: ${isDeprecated ? 'var(--q-coral)' : 'var(--q-ink-mute)'}; background: var(--q-paper-soft); border-left: 1px ${isDeprecated ? 'dashed' : 'solid'} var(--q-line); border-bottom: 1px ${isDeprecated ? 'dashed' : 'solid'} var(--q-line);`}
+                      >
+                        {statusLabel}
+                      </span>
+                    )}
+
                     <div class="flex items-center gap-3">
                       <div
                         class="w-[34px] h-[34px] grid place-items-center text-base font-bold shrink-0"
-                        style="border: 1px solid var(--q-line); background: var(--q-paper-soft); border-radius: 8px; color: var(--q-ink);"
+                        style={`border: 1px solid var(--q-line); background: var(--q-paper-soft); border-radius: 8px; color: ${isInactive ? 'var(--q-ink-mute)' : 'var(--q-ink)'};`}
                       >
                         {initial}
                       </div>
                       <div class="min-w-0">
                         <div
                           class="text-[15px] font-bold tracking-tight group-hover:opacity-75 transition-opacity"
-                          style="color: var(--q-ink);"
+                          style={`color: ${isInactive ? 'var(--q-ink-soft)' : 'var(--q-ink)'};`}
                         >
                           {linkTitle}
                           {it.data.featured && (

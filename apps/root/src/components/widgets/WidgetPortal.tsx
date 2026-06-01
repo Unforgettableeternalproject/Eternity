@@ -57,7 +57,7 @@ export default function WidgetPortal() {
             color: 'var(--q-navy)',
           }}
         >
-          探索 Imaginary Space
+          探索邊際世界
         </span>
         <span style={{ fontSize: 10, color: 'var(--q-ink-mute)' }}>
           隨機前往一個區域
