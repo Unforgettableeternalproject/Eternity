@@ -286,10 +286,16 @@ async function syncCollection(name) {
   let pushOk = 0,
     pullOk = 0;
 
+  // 過濾掉不應由呼叫端控制的 metadata 欄位
+  const stripMeta = (item) => {
+    const { createdAt, deletedAt, ...rest } = item;
+    return rest;
+  };
+
   for (const id of doPush) {
     const full = await getItem(LOCAL_API, name, id);
     if (!full) continue;
-    const ok = await putItem(REMOTE_API, name, id, full);
+    const ok = await putItem(REMOTE_API, name, id, stripMeta(full));
     console.log(ok ? `   ↑ ${id} ✅` : `   ↑ ${id} ❌`);
     if (ok) pushOk++;
   }
@@ -297,7 +303,7 @@ async function syncCollection(name) {
   for (const id of doPull) {
     const full = await getItem(REMOTE_API, name, id);
     if (!full) continue;
-    const ok = await putItem(LOCAL_API, name, id, full);
+    const ok = await putItem(LOCAL_API, name, id, stripMeta(full));
     console.log(ok ? `   ↓ ${id} ✅` : `   ↓ ${id} ❌`);
     if (ok) pullOk++;
   }
@@ -651,13 +657,15 @@ async function recordRootDeletions(apiBase, keys) {
 /** 清除主站 R2 過期刪除紀錄 */
 async function purgeRootDeletedRecords(apiBase, days = 30) {
   try {
-    const res = await fetch(
-      `${apiBase}/api/root/assets/deleted/purge?days=${days}`,
-      {
-        method: 'POST',
-        headers: authHeaders(apiBase),
-      }
-    );
+    const olderThan = new Date(Date.now() - days * 86400000).toISOString();
+    const res = await fetch(`${apiBase}/api/root/assets/deleted/purge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(apiBase),
+      },
+      body: JSON.stringify({ olderThan }),
+    });
     const json = await safeJson(res);
     return json?.ok ? json.data : null;
   } catch {

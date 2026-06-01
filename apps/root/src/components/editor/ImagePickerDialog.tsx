@@ -78,17 +78,22 @@ export default function ImagePickerDialog({
             onChange={(e) => setManualUrl(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && manualUrl.trim()) {
-                onInsert(manualUrl.trim());
+                const url = manualUrl.trim();
+                if (!/^(https?:\/\/|\/)/.test(url)) return;
+                onInsert(url);
                 onClose();
               }
             }}
           />
           <button
             className="qe-topbar__btn qe-topbar__btn--primary"
-            disabled={!manualUrl.trim()}
+            disabled={
+              !manualUrl.trim() || !/^(https?:\/\/|\/)/.test(manualUrl.trim())
+            }
             onClick={() => {
-              if (manualUrl.trim()) {
-                onInsert(manualUrl.trim());
+              const url = manualUrl.trim();
+              if (url && /^(https?:\/\/|\/)/.test(url)) {
+                onInsert(url);
                 onClose();
               }
             }}

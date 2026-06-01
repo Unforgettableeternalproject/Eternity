@@ -136,6 +136,12 @@ export async function handleRootRoutes(
   // /api/root/projects
   const projectsListMatch = path === '/api/root/projects';
   if (projectsListMatch && method === 'GET') {
+    // include_deleted 需要認證
+    if (url.searchParams.get('include_deleted') === 'true') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
     return listProjects(url, env.CONTENT_DB, cors);
   }
 
@@ -164,6 +170,11 @@ export async function handleRootRoutes(
   // /api/root/links
   const linksListMatch = path === '/api/root/links';
   if (linksListMatch && method === 'GET') {
+    if (url.searchParams.get('include_deleted') === 'true') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
     return listLinks(url, env.CONTENT_DB, cors);
   }
 
@@ -190,6 +201,11 @@ export async function handleRootRoutes(
   // /api/root/updates
   const updatesListMatch = path === '/api/root/updates';
   if (updatesListMatch && method === 'GET') {
+    if (url.searchParams.get('include_deleted') === 'true') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
     return listUpdates(url, env.CONTENT_DB, cors);
   }
 
@@ -258,8 +274,10 @@ export async function handleRootRoutes(
 
   // ── /api/root/assets (獨立 R2 bucket) ──
 
-  // GET /api/root/assets — 列出資產
+  // GET /api/root/assets — 列出資產（需認證，與文件站對齊）
   if (path === '/api/root/assets' && method === 'GET') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
     return listRootAssets(url, env.ROOT_ASSETS_BUCKET, cors);
   }
 
@@ -1127,11 +1145,33 @@ async function uploadRootAsset(
   bucket: R2Bucket,
   cors: Record<string, string>
 ): Promise<Response> {
+  const ALLOWED_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/avif',
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/ogg',
+    'audio/wav',
+    'audio/webm',
+    'application/pdf',
+  ]);
+
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
   if (!file) return json({ ok: false, error: 'No file provided' }, 400, cors);
 
   const contentType = file.type || 'application/octet-stream';
+  if (!ALLOWED_TYPES.has(contentType)) {
+    return json(
+      { ok: false, error: `不允許的檔案類型: ${contentType}` },
+      400,
+      cors
+    );
+  }
   const explicitKey = formData.get('key') as string | null;
   let key: string;
   if (explicitKey) {

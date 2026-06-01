@@ -103,10 +103,15 @@ export function getWidgetState(): WidgetState {
       enabled: { ...DEFAULT_STATE.enabled, ...parsed.enabled },
       pinned: { ...DEFAULT_STATE.pinned, ...parsed.pinned },
       positions: { ...parsed.positions },
-      order:
-        parsed.order?.length === ALL_WIDGETS.length
-          ? parsed.order
-          : [...ALL_WIDGETS],
+      order: (() => {
+        if (!parsed.order?.length) return [...ALL_WIDGETS];
+        // 保留使用者排序，過濾掉已移除的 widget，補上新增的
+        const valid = parsed.order.filter((id: WidgetId) =>
+          ALL_WIDGETS.includes(id)
+        );
+        const missing = ALL_WIDGETS.filter((id) => !valid.includes(id));
+        return [...valid, ...missing];
+      })(),
     };
   } catch {
     return { ...DEFAULT_STATE };

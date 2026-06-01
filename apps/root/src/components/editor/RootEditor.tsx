@@ -89,30 +89,106 @@ interface RootLink {
   updatedAt: string;
   deletedAt: string | null;
 }
+/** 首頁 singleton 內容 */
+interface HomepageContent {
+  title?: string;
+  name?: string;
+  subtitle?: string;
+  introHeading?: string;
+  introContent?: string;
+}
+
+/** About singleton 內容 */
+interface AboutContent {
+  title?: string;
+  bio?: string;
+  heroTitle?: string;
+  heroIntro?: string;
+  fullBio?: string;
+  avatar?: string;
+  facts?: [string, string][];
+  skills?: {
+    id: string;
+    name: string;
+    en: string;
+    brief: string;
+    description: string;
+    selfAssessment: string;
+  }[];
+  experience?: {
+    title: string;
+    company: string;
+    period: string;
+    location: string;
+    description: string;
+    stack: string[];
+    current: boolean;
+  }[];
+  social?: Record<string, string>;
+  cta?: { heading?: string; text?: string };
+}
+
+/** Currently singleton 內容 */
+interface CurrentlyContent {
+  working?: string;
+  learning?: string;
+}
+
+/** Contact singleton 內容 */
+interface ContactContent {
+  heroTitle?: string;
+  heroIntro?: string;
+  subjects?: string[];
+  directLinks?: { label: string; url: string }[];
+  expectation?: string;
+  faqs?: { q: string; a: string }[];
+  devCta?: string;
+}
+
+/** 頁面文字 singleton 內容 */
+interface PageTextContent {
+  heroLabel?: string;
+  heroTitle?: string;
+  heroIntro?: string;
+}
+
+/** Widget 卡片內容 */
+interface WidgetCard {
+  cardKey: string;
+  content: {
+    enabled?: boolean;
+    order?: number;
+    position?: string;
+    tracks?: { title: string; url: string }[];
+    quotes_zh?: string[];
+    quotes_en?: string[];
+  };
+  updatedAt: string;
+}
+
 interface EditorProps {
   projects: RootProject[];
   updates: RootUpdate[];
   links: RootLink[];
-  homepage: any;
-  about: any; // about-zh singleton content
-  aboutEn: any; // about-en singleton content
-  currently: any; // currently singleton content
-  contact: any; // contact-zh singleton content
-  contactEn: any; // contact-en singleton content
-  // 頁面文字 singletons
-  pageHomeZh: any;
-  pageHomeEn: any;
-  pageProjectsZh: any;
-  pageProjectsEn: any;
-  pageUpdatesZh: any;
-  pageUpdatesEn: any;
-  pageLinksZh: any;
-  pageLinksEn: any;
-  pageAboutZh: any;
-  pageAboutEn: any;
-  pageContactZh: any;
-  pageContactEn: any;
-  cards: any[];
+  homepage: HomepageContent | null;
+  about: AboutContent | null;
+  aboutEn: AboutContent | null;
+  currently: CurrentlyContent | null;
+  contact: ContactContent | null;
+  contactEn: ContactContent | null;
+  pageHomeZh: PageTextContent | null;
+  pageHomeEn: PageTextContent | null;
+  pageProjectsZh: PageTextContent | null;
+  pageProjectsEn: PageTextContent | null;
+  pageUpdatesZh: PageTextContent | null;
+  pageUpdatesEn: PageTextContent | null;
+  pageLinksZh: PageTextContent | null;
+  pageLinksEn: PageTextContent | null;
+  pageAboutZh: PageTextContent | null;
+  pageAboutEn: PageTextContent | null;
+  pageContactZh: PageTextContent | null;
+  pageContactEn: PageTextContent | null;
+  cards: WidgetCard[];
   apiBase: string;
   token: string;
   visitorApiUrl?: string;
@@ -135,8 +211,8 @@ async function apiCall(
   path: string,
   method: string,
   token: string,
-  body?: any
-): Promise<{ ok: boolean; data?: any; error?: string }> {
+  body?: Record<string, unknown>
+): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -1540,33 +1616,69 @@ function LinksEditor({
 // ═══════════════════════════════════════════════════════════════════
 //  MAIN EDITOR
 // ═══════════════════════════════════════════════════════════════════
+/** 從 cookie 讀取 JWT token（client 端，避免 token 序列化到 HTML） */
+function getTokenFromCookie(): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(/(?:^|;\s*)root-admin-jwt=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
 export default function RootEditor(props: EditorProps) {
   const [page, setPage] = useState('projects');
+  // 從 cookie 讀 token，不依賴 SSR prop（避免 token 出現在 HTML 中）
+  const token = useMemo(
+    () => props.token || getTokenFromCookie(),
+    [props.token]
+  );
   const [projects, setProjects] = useState<RootProject[]>(props.projects);
   const [updates, setUpdates] = useState<RootUpdate[]>(props.updates);
   const [links, setLinks] = useState<RootLink[]>(props.links);
-  const [about, setAbout] = useState<any>(props.about);
-  const [aboutEn, setAboutEn] = useState<any>(props.aboutEn);
-  const [currently, setCurrently] = useState<any>(props.currently);
-  const [contact, setContact] = useState<any>(props.contact);
-  const [contactEn, setContactEn] = useState<any>(props.contactEn);
+  const [about, setAbout] = useState<AboutContent | null>(props.about);
+  const [aboutEn, setAboutEn] = useState<AboutContent | null>(props.aboutEn);
+  const [currently, setCurrently] = useState<CurrentlyContent | null>(
+    props.currently
+  );
+  const [contact, setContact] = useState<ContactContent | null>(props.contact);
+  const [contactEn, setContactEn] = useState<ContactContent | null>(
+    props.contactEn
+  );
   // 頁面文字 state
-  const [pageHomeZh, setPageHomeZh] = useState<any>(props.pageHomeZh);
-  const [pageHomeEn, setPageHomeEn] = useState<any>(props.pageHomeEn);
-  const [pageProjectsZh, setPageProjectsZh] = useState<any>(
+  const [pageHomeZh, setPageHomeZh] = useState<PageTextContent | null>(
+    props.pageHomeZh
+  );
+  const [pageHomeEn, setPageHomeEn] = useState<PageTextContent | null>(
+    props.pageHomeEn
+  );
+  const [pageProjectsZh, setPageProjectsZh] = useState<PageTextContent | null>(
     props.pageProjectsZh
   );
-  const [pageProjectsEn, setPageProjectsEn] = useState<any>(
+  const [pageProjectsEn, setPageProjectsEn] = useState<PageTextContent | null>(
     props.pageProjectsEn
   );
-  const [pageUpdatesZh, setPageUpdatesZh] = useState<any>(props.pageUpdatesZh);
-  const [pageUpdatesEn, setPageUpdatesEn] = useState<any>(props.pageUpdatesEn);
-  const [pageLinksZh, setPageLinksZh] = useState<any>(props.pageLinksZh);
-  const [pageLinksEn, setPageLinksEn] = useState<any>(props.pageLinksEn);
-  const [pageAboutZh, setPageAboutZh] = useState<any>(props.pageAboutZh);
-  const [pageAboutEn, setPageAboutEn] = useState<any>(props.pageAboutEn);
-  const [pageContactZh, setPageContactZh] = useState<any>(props.pageContactZh);
-  const [pageContactEn, setPageContactEn] = useState<any>(props.pageContactEn);
+  const [pageUpdatesZh, setPageUpdatesZh] = useState<PageTextContent | null>(
+    props.pageUpdatesZh
+  );
+  const [pageUpdatesEn, setPageUpdatesEn] = useState<PageTextContent | null>(
+    props.pageUpdatesEn
+  );
+  const [pageLinksZh, setPageLinksZh] = useState<PageTextContent | null>(
+    props.pageLinksZh
+  );
+  const [pageLinksEn, setPageLinksEn] = useState<PageTextContent | null>(
+    props.pageLinksEn
+  );
+  const [pageAboutZh, setPageAboutZh] = useState<PageTextContent | null>(
+    props.pageAboutZh
+  );
+  const [pageAboutEn, setPageAboutEn] = useState<PageTextContent | null>(
+    props.pageAboutEn
+  );
+  const [pageContactZh, setPageContactZh] = useState<PageTextContent | null>(
+    props.pageContactZh
+  );
+  const [pageContactEn, setPageContactEn] = useState<PageTextContent | null>(
+    props.pageContactEn
+  );
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -1576,7 +1688,7 @@ export default function RootEditor(props: EditorProps) {
 
   const api = useCallback(
     async (path: string, method: string, body?: any) => {
-      const res = await apiCall(props.apiBase, path, method, props.token, body);
+      const res = await apiCall(props.apiBase, path, method, token, body);
       showToast(
         res.ok
           ? `${method} ${path.split('/').pop()} — ok`
@@ -1584,7 +1696,7 @@ export default function RootEditor(props: EditorProps) {
       );
       return res;
     },
-    [props.apiBase, props.token, showToast]
+    [props.apiBase, token, showToast]
   );
 
   // ⌘S
@@ -1684,7 +1796,7 @@ export default function RootEditor(props: EditorProps) {
             setItems={setProjects}
             api={api}
             apiBase={props.apiBase}
-            token={props.token}
+            token={token}
           />
         )}
         {page === 'updates' && (
@@ -1693,7 +1805,7 @@ export default function RootEditor(props: EditorProps) {
             setItems={setUpdates}
             api={api}
             apiBase={props.apiBase}
-            token={props.token}
+            token={token}
           />
         )}
         {page === 'links' && (
@@ -1709,7 +1821,7 @@ export default function RootEditor(props: EditorProps) {
             setCurrently={setCurrently}
             api={api}
             apiBase={props.apiBase}
-            token={props.token}
+            token={token}
           />
         )}
         {page === 'contact' && (
@@ -1722,18 +1834,14 @@ export default function RootEditor(props: EditorProps) {
           />
         )}
         {page === 'media' && (
-          <RootMediaLibrary
-            apiBase={props.apiBase}
-            token={props.token}
-            mode="page"
-          />
+          <RootMediaLibrary apiBase={props.apiBase} token={token} mode="page" />
         )}
         {page === 'widgets' && (
           <WidgetEditor
             cards={props.cards}
             api={api}
             apiBase={props.apiBase}
-            token={props.token}
+            token={token}
             visitorApiUrl={props.visitorApiUrl || ''}
           />
         )}
