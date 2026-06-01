@@ -202,9 +202,9 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Mouse cursor glow effect -->
     <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
 
-    <!-- Global click ripple effect -->
+    <!-- Global click ripple effect（client:only 避免 ViewTransitions hydration 衝突） -->
     <GlobalRipple
-      client:load
+      client:only="react"
       color="rgba(99, 102, 241, 0.15)"
       navColor="rgba(236, 72, 153, 0.2)"
       duration={800}
@@ -229,7 +229,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <QuartzWidgetSystem client:only="react" />
 
     <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示） -->
-    <StickyTOC client:load />
+    <StickyTOC client:idle />
 
     <!-- 手機版不顯示 widget，桌面版由 QuartzWidgetSystem 處理 -->
 
@@ -241,8 +241,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Quartz Footer -->
     <QuartzFooter currentLocale={locale} />
 
-    <!-- Font Tweaker — 開發/Staging 字體切換（右上角） -->
-    <FontTweaker client:idle />
+    <!-- Font Tweaker — 開發/Staging 字體切換（右上角，client:only 避免 hydration mismatch） -->
+    <FontTweaker client:only="react" />
 
     <!-- Console Easter Egg — 隨機閃現的終端機入口 -->
     <ConsoleEasterEgg
@@ -259,8 +259,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
       debugMode={false}
     />
 
-    <!-- 返回頂部按鈕 (React Island) -->
-    <ScrollToTop client:load position="right" showAfter={300} />
+    <!-- 返回頂部按鈕（client:only 避免 ViewTransitions hydration 衝突） -->
+    <ScrollToTop client:only="react" position="right" showAfter={300} />
 
     <!-- Toast 通知系統 (React Island) -->
     <ToastContainer client:only="react" position="top-right" />
@@ -268,8 +268,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- 圖片查看器模態窗 (React Portal) -->
     <ImageViewerModal client:only="react" />
 
-    <!-- Cookie 同意彈窗 -->
-    <CookieConsent client:load />
+    <!-- Cookie 同意彈窗（client:only 避免 ViewTransitions hydration 衝突） -->
+    <CookieConsent client:only="react" />
 
     <!-- q-prose 圖片點擊 → ImageViewerModal -->
     <script is:inline>

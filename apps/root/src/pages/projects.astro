@@ -661,11 +661,7 @@ const sortedStatuses = statusOrder.filter((s) =>
     updateFade();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    initProjectFilters();
-    initDragScroll();
-    initRevealAnimation();
-  });
+  // astro:page-load 已涵蓋 DOMContentLoaded 情境，只綁一次避免累積監聽器
   document.addEventListener('astro:page-load', () => {
     initProjectFilters();
     initDragScroll();

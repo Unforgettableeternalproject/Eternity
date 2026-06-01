@@ -619,9 +619,10 @@ const skillDomains = 5;
     });
   }
 
-  // ── 可拖曳卡片互動（通用） ──
+  // ── 可拖曳卡片互動（通用，手機版停用避免誤觸導致畫面縮小） ──
   function makeDraggableCard(el: HTMLElement) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(max-width: 767px)').matches) return;
 
     let isDragging = false;
     let startX = 0,
@@ -858,10 +859,7 @@ const skillDomains = 5;
       .forEach(makeDraggableCard);
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    initRevealAnimation();
-    initDraggableCards();
-  });
+  // astro:page-load 已涵蓋 DOMContentLoaded 情境
   document.addEventListener('astro:page-load', () => {
     initRevealAnimation();
     initDraggableCards();

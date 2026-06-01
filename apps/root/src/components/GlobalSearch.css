@@ -351,6 +351,14 @@
   text-transform: uppercase;
   white-space: nowrap;
   align-self: center;
+  flex-shrink: 0;
+}
+
+/* 窄螢幕：篩選後隱藏冗餘的 type badge，把空間留給內容 */
+@media (max-width: 520px) {
+  .global-search__result-type.filtered {
+    display: none;
+  }
 }
 
 /* ── 空狀態 ── */

@@ -479,7 +479,9 @@ export default function GlobalSearch({
                             </div>
                           )}
                         </div>
-                        <div className="global-search__result-type">
+                        <div
+                          className={`global-search__result-type${filter !== 'all' ? ' filtered' : ''}`}
+                        >
                           {getTypeLabel(result.type)}
                         </div>
                       </a>

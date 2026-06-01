@@ -496,9 +496,10 @@ if (currentlyItems.length === 0) {
       .forEach((el) => observer.observe(el));
   }
 
-  // ── 可拖曳卡片互動（與首頁共用邏輯） ──
+  // ── 可拖曳卡片互動（與首頁共用邏輯，手機版停用避免誤觸） ──
   function makeDraggableCard(el: HTMLElement) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(max-width: 767px)').matches) return;
     let isDragging = false;
     let startX = 0,
       startY = 0,
@@ -697,12 +698,7 @@ if (currentlyItems.length === 0) {
     el.addEventListener('touchend', release);
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    initRevealAnimation();
-    document
-      .querySelectorAll<HTMLElement>('[data-draggable-card]')
-      .forEach(makeDraggableCard);
-  });
+  // astro:page-load 已涵蓋 DOMContentLoaded 情境
   document.addEventListener('astro:page-load', () => {
     initRevealAnimation();
     document
