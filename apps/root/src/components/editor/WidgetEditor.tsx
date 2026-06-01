@@ -13,14 +13,9 @@ import {
   OutlineRow,
 } from './editorPrimitives';
 import RootMediaLibrary from './RootMediaLibrary';
+import type { RootCard } from '../../lib/api';
 
 // ── 型別 ─────────────────────────────────────────────────
-
-interface CardData {
-  sectionId: string;
-  content: Record<string, unknown>;
-  updatedAt: string;
-}
 
 interface WidgetDef {
   cardKey: string;
@@ -30,7 +25,7 @@ interface WidgetDef {
 }
 
 interface WidgetEditorProps {
-  cards: CardData[];
+  cards: RootCard[];
   api: (
     path: string,
     method: string,

@@ -117,7 +117,7 @@ describe('normalizeColors', () => {
 
   // ── rgb 空白容忍 ──────────────────────────────────────
 
-  it('rgb 數字間只允許逗號前後空白（\s*）', () => {
+  it('rgb 數字間只允許逗號前後空白（\\s*）', () => {
     // regex 用 \s* 只在逗號兩側容忍空白，數字與括號間的空白不被匹配
     const input = '<span style="color: rgb( 39 , 57 , 108 )">spaced</span>';
     // 括號與數字間有空白，不符合 regex，不會被替換

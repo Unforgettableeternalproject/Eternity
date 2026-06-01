@@ -18,8 +18,10 @@ import ImagePickerDialog from './ImagePickerDialog';
 import RootMediaLibrary from './RootMediaLibrary';
 import AboutEditor from './AboutEditor';
 import ContactEditor from './ContactEditor';
+import type { ContactData } from './ContactEditor';
 import PageTextEditor from './PageTextEditor';
 import WidgetEditor from './WidgetEditor';
+import type { RootCard } from '../../lib/api';
 import {
   Mono,
   Divider,
@@ -134,36 +136,11 @@ interface CurrentlyContent {
   learning?: string;
 }
 
-/** Contact singleton 內容 */
-interface ContactContent {
-  heroTitle?: string;
-  heroIntro?: string;
-  subjects?: string[];
-  directLinks?: { label: string; url: string }[];
-  expectation?: string;
-  faqs?: { q: string; a: string }[];
-  devCta?: string;
-}
-
 /** 頁面文字 singleton 內容 */
 interface PageTextContent {
   heroLabel?: string;
   heroTitle?: string;
   heroIntro?: string;
-}
-
-/** Widget 卡片內容 */
-interface WidgetCard {
-  cardKey: string;
-  content: {
-    enabled?: boolean;
-    order?: number;
-    position?: string;
-    tracks?: { title: string; url: string }[];
-    quotes_zh?: string[];
-    quotes_en?: string[];
-  };
-  updatedAt: string;
 }
 
 interface EditorProps {
@@ -174,8 +151,8 @@ interface EditorProps {
   about: AboutContent | null;
   aboutEn: AboutContent | null;
   currently: CurrentlyContent | null;
-  contact: ContactContent | null;
-  contactEn: ContactContent | null;
+  contact: ContactData | null;
+  contactEn: ContactData | null;
   pageHomeZh: PageTextContent | null;
   pageHomeEn: PageTextContent | null;
   pageProjectsZh: PageTextContent | null;
@@ -188,7 +165,7 @@ interface EditorProps {
   pageAboutEn: PageTextContent | null;
   pageContactZh: PageTextContent | null;
   pageContactEn: PageTextContent | null;
-  cards: WidgetCard[];
+  cards: RootCard[];
   apiBase: string;
   token: string;
   visitorApiUrl?: string;
@@ -1638,8 +1615,8 @@ export default function RootEditor(props: EditorProps) {
   const [currently, setCurrently] = useState<CurrentlyContent | null>(
     props.currently
   );
-  const [contact, setContact] = useState<ContactContent | null>(props.contact);
-  const [contactEn, setContactEn] = useState<ContactContent | null>(
+  const [contact, setContact] = useState<ContactData | null>(props.contact);
+  const [contactEn, setContactEn] = useState<ContactData | null>(
     props.contactEn
   );
   // 頁面文字 state
