@@ -240,26 +240,22 @@ const alternateURL = new URL(alternatePath, Astro.site);
       debugMode={false}
     />
 
-    <!-- 返回頂部按鈕（persist 跨頁存活） -->
+    <!-- 返回頂部按鈕（persist 跨頁存活，idle 延遲載入） -->
     <ScrollToTop
-      client:only="react"
+      client:idle
       transition:persist
       position="right"
       showAfter={300}
     />
 
-    <!-- Toast 通知系統（persist 跨頁存活） -->
-    <ToastContainer
-      client:only="react"
-      transition:persist
-      position="top-right"
-    />
+    <!-- Toast 通知系統（persist 跨頁存活，idle 延遲載入） -->
+    <ToastContainer client:idle transition:persist position="top-right" />
 
-    <!-- 圖片查看器模態窗（persist 跨頁存活） -->
-    <ImageViewerModal client:only="react" transition:persist />
+    <!-- 圖片查看器模態窗（persist 跨頁存活，idle 延遲載入） -->
+    <ImageViewerModal client:idle transition:persist />
 
-    <!-- Cookie 同意彈窗（persist 跨頁存活） -->
-    <CookieConsent client:only="react" transition:persist />
+    <!-- Cookie 同意彈窗（persist 跨頁存活，idle 延遲載入） -->
+    <CookieConsent client:idle transition:persist />
 
     <!-- q-prose 圖片點擊 → ImageViewerModal -->
     <script is:inline>

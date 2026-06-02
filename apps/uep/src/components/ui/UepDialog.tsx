@@ -127,6 +127,9 @@ if (typeof window !== 'undefined' && !window.__uepDialogManager) {
 
 /* ── 對話框容器 ── */
 export default function UepDialogContainer() {
+  // SSR guard：讓 client:idle 在伺服器端安全地回傳空內容
+  if (typeof window === 'undefined') return null;
+
   const [req, setReq] = useState<DialogRequest | null>(null);
   const [closing, setClosing] = useState(false);
   const [promptValue, setPromptValue] = useState('');
