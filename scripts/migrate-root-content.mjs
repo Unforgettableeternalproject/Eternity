@@ -444,6 +444,9 @@ async function migrateCards() {
     'card-latest-update',
     'card-quick-stats',
     'card-table-of-contents',
+    'card-portal',
+    'card-status',
+    'card-uep',
   ];
 
   let success = 0;
@@ -465,7 +468,7 @@ async function migrateCards() {
     if (!content) {
       // 有些 card 只有 base schema (enabled/order/position)，建立預設值
       console.log(`  🃏 ${key} → 使用預設值`);
-      content = { enabled: true, order: 0, position: 'left' };
+      content = defaultCardContent(key);
     } else {
       console.log(`  🃏 ${key}`);
     }
@@ -476,6 +479,29 @@ async function migrateCards() {
   }
 
   console.log(`  ✅ Cards: ${success} 成功, ${failed} 失敗`);
+}
+
+function defaultCardContent(key) {
+  const defaults = {
+    'card-portal': { enabled: false, order: 4, position: 'left' },
+    'card-status': {
+      enabled: false,
+      order: 5,
+      position: 'left',
+      items: [
+        { key: 'STATUS', value: 'Online', color: 'green' },
+        { key: 'VERSION', value: 'v0.9.8', color: 'navy' },
+      ],
+    },
+    'card-uep': {
+      enabled: false,
+      order: 6,
+      position: 'left',
+      image: '/uep/Show.webp',
+    },
+  };
+
+  return defaults[key] || { enabled: false, order: 0, position: 'left' };
 }
 
 // ===== 主流程 =====

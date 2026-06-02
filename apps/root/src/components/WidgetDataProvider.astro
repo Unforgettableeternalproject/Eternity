@@ -113,15 +113,22 @@ const musicTracks =
       src: t.url,
     })) || [];
 
-// 各 widget 啟用狀態（card 不存在時預設啟用，讓新 widget 不需先建 D1 記錄）
+function toEnabled(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return fallback;
+}
+
+// 各 widget 啟用狀態。沒有 D1 card 時一律視為停用；
+// 前台只依 D1 中的 root_cards.content.enabled 決定是否渲染。
 const cardEnabled = {
-  music: musicCardRaw ? !!musicCard?.enabled : true,
-  visitor: visitorCounterCardRaw ? !!visitorCounterCard?.enabled : true,
-  quote: quoteCardRaw ? !!quoteCard?.enabled : true,
-  portal: portalCardRaw ? !!portalCard?.enabled : true,
-  status: statusCardRaw ? !!statusCard?.enabled : true,
-  uep: uepCardRaw ? !!uepCard?.enabled : true,
-  toc: !!tocCard?.enabled,
+  music: toEnabled(musicCard?.enabled, false),
+  visitor: toEnabled(visitorCounterCard?.enabled, false),
+  quote: toEnabled(quoteCard?.enabled, false),
+  portal: toEnabled(portalCard?.enabled, false),
+  status: toEnabled(statusCard?.enabled, false),
+  uep: toEnabled(uepCard?.enabled, false),
+  toc: toEnabled(tocCard?.enabled, false),
 };
 
 // 組裝完整資料物件

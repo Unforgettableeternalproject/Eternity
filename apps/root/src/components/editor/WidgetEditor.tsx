@@ -52,6 +52,58 @@ const WIDGET_DEFS: WidgetDef[] = [
   { cardKey: 'card-uep', icon: 'U', label: 'U.E.P', labelEn: 'U.E.P' },
 ];
 
+const WIDGET_DEFAULTS: Record<string, Record<string, unknown>> = {
+  'card-music': {
+    enabled: false,
+    order: 1,
+    position: 'left',
+    tracks: [],
+  },
+  'card-visitor-counter': {
+    enabled: false,
+    order: 2,
+    position: 'left',
+  },
+  'card-quote': {
+    enabled: false,
+    order: 3,
+    position: 'left',
+  },
+  'card-portal': {
+    enabled: false,
+    order: 4,
+    position: 'left',
+  },
+  'card-status': {
+    enabled: false,
+    order: 5,
+    position: 'left',
+    items: [
+      { key: 'STATUS', value: 'Online', color: 'green' },
+      { key: 'VERSION', value: 'v0.9.8', color: 'navy' },
+    ],
+  },
+  'card-uep': {
+    enabled: false,
+    order: 6,
+    position: 'left',
+    image: '/uep/Show.webp',
+  },
+};
+
+function isEnabledValue(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return false;
+}
+
+function withWidgetDefaults(
+  cardKey: string,
+  content: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  return { ...(WIDGET_DEFAULTS[cardKey] || {}), ...(content || {}) };
+}
+
 // ── 主元件 ──────────────────────────────────────────────
 
 export default function WidgetEditor({
@@ -67,7 +119,7 @@ export default function WidgetEditor({
   >(() => {
     const m: Record<string, Record<string, unknown>> = {};
     for (const c of cards) {
-      m[c.sectionId] = { ...c.content };
+      m[c.sectionId] = withWidgetDefaults(c.sectionId, c.content);
     }
     return m;
   });
@@ -76,13 +128,19 @@ export default function WidgetEditor({
   const [toast, setToast] = useState('');
 
   const selected = WIDGET_DEFS[selectedIdx];
-  const content = cardMap[selected.cardKey] || {};
+  const content = withWidgetDefaults(
+    selected.cardKey,
+    cardMap[selected.cardKey]
+  );
 
   const updateField = useCallback(
     (key: string, value: unknown) => {
       setCardMap((prev) => ({
         ...prev,
-        [selected.cardKey]: { ...prev[selected.cardKey], [key]: value },
+        [selected.cardKey]: {
+          ...withWidgetDefaults(selected.cardKey, prev[selected.cardKey]),
+          [key]: value,
+        },
       }));
       setDirty((prev) => new Set(prev).add(selected.cardKey));
     },
@@ -91,7 +149,7 @@ export default function WidgetEditor({
 
   const handleSave = async (cardKey: string) => {
     setSaving(true);
-    const body = cardMap[cardKey] || {};
+    const body = withWidgetDefaults(cardKey, cardMap[cardKey]);
     const res = await api(`/api/root/cards/${cardKey}`, 'PUT', {
       content: body,
     });
@@ -120,7 +178,7 @@ export default function WidgetEditor({
         </div>
         <div className="qe-left__list">
           {WIDGET_DEFS.map((w, i) => {
-            const isEnabled = !!cardMap[w.cardKey]?.enabled;
+            const isEnabled = isEnabledValue(cardMap[w.cardKey]?.enabled);
             const isDirty = dirty.has(w.cardKey);
             return (
               <OutlineRow
@@ -158,7 +216,7 @@ export default function WidgetEditor({
           <Divider label="基本設定" />
           <Toggle
             label="啟用"
-            checked={!!content.enabled}
+            checked={isEnabledValue(content.enabled)}
             onChange={(v) => updateField('enabled', v)}
           />
 
@@ -203,8 +261,8 @@ export default function WidgetEditor({
 
           <Divider label="status" />
           <Field label="enabled">
-            <Mono v={content.enabled ? 'navy' : 'fade'}>
-              {content.enabled ? 'ON' : 'OFF'}
+            <Mono v={isEnabledValue(content.enabled) ? 'navy' : 'fade'}>
+              {isEnabledValue(content.enabled) ? 'ON' : 'OFF'}
             </Mono>
           </Field>
           <Field label="dirty">
@@ -215,19 +273,20 @@ export default function WidgetEditor({
 
           <Divider label="actions" />
           <button
-            className="qe-btn qe-btn--primary"
+            className="qe-topbar__btn qe-topbar__btn--primary"
             onClick={() => handleSave(selected.cardKey)}
             disabled={saving || !dirty.has(selected.cardKey)}
             style={{
               width: '100%',
-              opacity: saving || !dirty.has(selected.cardKey) ? 0.4 : 1,
-              cursor:
-                saving || !dirty.has(selected.cardKey)
-                  ? 'not-allowed'
-                  : 'pointer',
             }}
           >
-            {saving ? '儲存中...' : `儲存 ${selected.label}`}
+            <Mono style={{ color: 'inherit' }}>
+              {saving
+                ? 'saving...'
+                : dirty.has(selected.cardKey)
+                  ? '● save'
+                  : 'synced'}
+            </Mono>
           </button>
         </div>
       </aside>
@@ -1016,7 +1075,7 @@ function UEPEditor({
   const currentImage = (content.image as string) || '/uep/Show.webp';
   const availableImages = [
     { path: '/uep/Show.webp', name: 'Show', desc: '預設展示姿勢' },
-    { path: '/uep/Fence.webp', name: 'Fence', desc: '圍欄後方' },
+    { path: '/uep/Fence.webp', name: 'Fence', desc: '拿著雨傘' },
     { path: '/uep/Lil.webp', name: 'Lil', desc: '小版本' },
     { path: '/uep/Peek.webp', name: 'Peek', desc: '探頭' },
     { path: '/uep/Poke.webp', name: 'Poke', desc: '戳戳' },

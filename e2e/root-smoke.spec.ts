@@ -84,6 +84,43 @@ test.describe('主站英文版', () => {
 });
 
 test.describe('主站 API 端點', () => {
+  test('搜尋 API 回傳可搜尋資料', async ({ request }) => {
+    const res = await request.get('/api/search-zh-tw.json');
+    expect(res.status()).toBe(200);
+
+    const data = await res.json();
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
+    expect(data.some((item: { id?: string }) => item.id === 'page-home')).toBe(
+      true
+    );
+  });
+
+  test('Contact API 缺少必填欄位時回傳 400', async ({ request }) => {
+    const res = await request.post('/api/contact.json', {
+      data: { name: 'E2E', email: 'e2e@example.com' },
+    });
+    expect(res.status()).toBe(400);
+
+    const data = await res.json();
+    expect(data.code).toBe('MISSING_FIELDS');
+  });
+
+  test('Contact API email 格式錯誤時回傳 400', async ({ request }) => {
+    const res = await request.post('/api/contact.json', {
+      data: {
+        name: 'E2E',
+        email: 'not-an-email',
+        subject: 'invalid email',
+        message: 'validation only',
+      },
+    });
+    expect(res.status()).toBe(400);
+
+    const data = await res.json();
+    expect(data.code).toBe('INVALID_EMAIL');
+  });
+
   test('Root Projects API 回應正常', async ({ request }) => {
     const res = await request.get('http://localhost:8788/api/root/projects');
     expect(res.status()).toBe(200);

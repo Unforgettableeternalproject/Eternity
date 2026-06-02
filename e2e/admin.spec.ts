@@ -103,7 +103,8 @@ test.describe('Admin 首頁管理', () => {
 
 test.describe('Admin API 安全性', () => {
   const TEST_SLUG = 'e2e-test-cleanup';
-  const TEST_ASSET = 'e2e-test-cleanup.txt';
+  const TEST_ASSET_KEY = 'files/e2e-test-cleanup.txt';
+  const uploadedAssetKeys = new Set<string>();
 
   test('PUT /api/content 沒有 token 時被拒絕', async ({ request }) => {
     const res = await request.put(
@@ -113,16 +114,17 @@ test.describe('Admin API 安全性', () => {
         headers: { 'Content-Type': 'application/json' },
       }
     );
-    // 開發模式（無 API_TOKEN）：Bearer 檢查跳過 → 200
+    // 開發模式（無 API_TOKEN）：Bearer 檢查跳過 → 200（更新）或 201（建立）
     // 正式環境（有 API_TOKEN）：無 Bearer → 401
-    expect([200, 401]).toContain(res.status());
+    expect([200, 201, 401]).toContain(res.status());
   });
 
   test('POST /api/assets 有 requireJwt 保護', async ({ request }) => {
     const res = await request.post('http://localhost:8788/api/assets', {
       multipart: {
+        key: TEST_ASSET_KEY,
         file: {
-          name: TEST_ASSET,
+          name: 'e2e-test-cleanup.txt',
           mimeType: 'text/plain',
           buffer: Buffer.from('e2e test file — safe to delete'),
         },
@@ -132,6 +134,11 @@ test.describe('Admin API 安全性', () => {
     // 正式環境（有 JWT_SECRET）：無 JWT header → 401
     // 兩者都是正確行為
     expect([200, 201, 401]).toContain(res.status());
+
+    if (res.status() === 200 || res.status() === 201) {
+      const body = (await res.json()) as { data?: { key?: string } };
+      uploadedAssetKeys.add(body.data?.key ?? TEST_ASSET_KEY);
+    }
   });
 
   // 清理測試資料
@@ -141,6 +148,11 @@ test.describe('Admin API 安全性', () => {
       `http://localhost:8788/api/content/history/${TEST_SLUG}`
     );
     // 刪除測試檔案（R2）
-    await request.delete(`http://localhost:8788/api/assets/${TEST_ASSET}`);
+    uploadedAssetKeys.add(TEST_ASSET_KEY);
+    for (const key of uploadedAssetKeys) {
+      await request.delete(
+        `http://localhost:8788/api/assets/${encodeURIComponent(key)}`
+      );
+    }
   });
 });

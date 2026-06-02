@@ -87,6 +87,26 @@ function authHeaders(apiBase) {
   return {};
 }
 
+function stableJson(value) {
+  if (Array.isArray(value)) {
+    return value.map(stableJson);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, stableJson(item)])
+    );
+  }
+
+  return value;
+}
+
+function sameJsonContent(a, b) {
+  return JSON.stringify(stableJson(a)) === JSON.stringify(stableJson(b));
+}
+
 // === 集合同步 ===
 
 async function listCollection(apiBase, collection) {
@@ -371,6 +391,8 @@ async function diffSingletons() {
     } else if (!local && remote) {
       toPull.push({ key, local: null, remote, reason: '只在遠端' });
     } else {
+      if (sameJsonContent(local.content, remote.content)) continue;
+
       const cmp = compareTimestamps(local.updatedAt, remote.updatedAt);
       if (cmp === 'local') {
         toPush.push({
@@ -506,6 +528,7 @@ async function putCard(apiBase, key, content, updatedAt) {
 async function diffCards() {
   const toPush = [];
   const toPull = [];
+  const missing = [];
 
   for (const key of CARD_KEYS) {
     const [local, remote] = await Promise.all([
@@ -513,13 +536,18 @@ async function diffCards() {
       getCard(REMOTE_API, key),
     ]);
 
-    if (!local && !remote) continue;
+    if (!local && !remote) {
+      missing.push(key);
+      continue;
+    }
 
     if (local && !remote) {
       toPush.push({ key, local, remote: null, reason: '只在本地' });
     } else if (!local && remote) {
       toPull.push({ key, local: null, remote, reason: '只在遠端' });
     } else {
+      if (sameJsonContent(local.content, remote.content)) continue;
+
       const cmp = compareTimestamps(local.updatedAt, remote.updatedAt);
       if (cmp === 'local') {
         toPush.push({
@@ -539,18 +567,27 @@ async function diffCards() {
     }
   }
 
-  return { toPush, toPull };
+  return { toPush, toPull, missing };
 }
 
 async function syncCards() {
-  const { toPush, toPull } = await diffCards();
+  const { toPush, toPull, missing } = await diffCards();
   const hasChanges = toPush.length > 0 || toPull.length > 0;
 
   // 摘要行（與 Collection 格式一致）
   console.log(`\n🃏 Cards  (共 ${CARD_KEYS.length} 個)`);
 
-  if (!hasChanges) {
+  if (missing.length > 0) {
+    console.log(`   ⚠️  預期 card 缺失: ${missing.length}`);
+    missing.forEach((key) => console.log(`     ! ${key}`));
+  }
+
+  if (!hasChanges && missing.length === 0) {
     console.log(`   ✓ 完全同步 (${CARD_KEYS.length} 個)`);
+    return { push: 0, pull: 0 };
+  }
+
+  if (!hasChanges) {
     return { push: 0, pull: 0 };
   }
 
