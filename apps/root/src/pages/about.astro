@@ -430,12 +430,13 @@ if (currentlyItems.length === 0) {
       <div class="flex flex-col">
         <a
           href={`mailto:${social.email || 'ptyc4076@gmail.com'}`}
-          class="flex justify-between items-center px-5 py-4 text-[15px] font-semibold no-underline"
+          class="flex justify-between items-center gap-3 px-5 py-4 text-[15px] font-semibold no-underline overflow-hidden"
           style="background: var(--q-ink); color: var(--q-paper);"
         >
-          <span>{locale === 'zh-tw' ? '寄信' : 'Email'} →</span>
+          <span class="shrink-0">{locale === 'zh-tw' ? '寄信' : 'Email'} →</span
+          >
           <span
-            class="font-mono text-xs opacity-70"
+            class="font-mono text-xs opacity-70 truncate min-w-0"
             style="font-family: 'JetBrains Mono', monospace;"
             >{social.email || 'ptyc4076@gmail.com'}</span
           >
@@ -446,12 +447,12 @@ if (currentlyItems.length === 0) {
               href={social.github}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex justify-between items-center px-5 py-4 text-[15px] font-medium no-underline"
+              class="flex justify-between items-center gap-3 px-5 py-4 text-[15px] font-medium no-underline overflow-hidden"
               style="background: var(--q-paper); color: var(--q-ink); border: 1px solid var(--q-line); border-top: none;"
             >
-              <span>GitHub →</span>
+              <span class="shrink-0">GitHub →</span>
               <span
-                class="font-mono text-xs opacity-70"
+                class="font-mono text-xs opacity-70 truncate min-w-0"
                 style="font-family: 'JetBrains Mono', monospace;"
               >
                 {social.github.replace('https://github.com/', '@')}

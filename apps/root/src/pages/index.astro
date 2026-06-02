@@ -368,8 +368,8 @@ const skillDomains = 5;
             {/* Meta */}
             <div class="mt-4 flex justify-between items-baseline">
               <span class="q-mono" style="color: var(--q-navy);">
-                {String(project.data.order || 1).padStart(2, '0')} ·{' '}
-                {project.data.status}
+                {String(featuredProjects.indexOf(project) + 1).padStart(2, '0')}{' '}
+                · {project.data.status}
               </span>
               <span class="q-mono">
                 {project.data.startDate
@@ -421,18 +421,17 @@ const skillDomains = 5;
         otherProjects.map((project, i) => (
           <a
             href={`${basePath}/projects/${project.id}`}
-            class="grid gap-5 items-baseline py-3.5 no-underline transition-opacity hover:opacity-75 reveal-item"
+            class="catalog-row grid items-baseline py-3.5 no-underline transition-opacity hover:opacity-75 reveal-item"
             style={`
-            grid-template-columns: 40px 1fr 80px 24px;
             border-top: 1px solid var(--q-line);
             ${i === otherProjects.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
             color: inherit;
           `}
           >
             <span class="q-mono" style="color: var(--q-navy);">
-              {String(project.data.order || i + 3).padStart(2, '0')}
+              {String(i + featuredProjects.length + 1).padStart(2, '0')}
             </span>
-            <div>
+            <div class="min-w-0">
               <h4
                 class="text-lg md:text-xl font-semibold tracking-tight"
                 style="color: var(--q-ink); margin: 0;"
@@ -441,7 +440,7 @@ const skillDomains = 5;
                   ? project.data.title_zh || project.id
                   : project.data.title_en}
                 <span
-                  class="ml-3 text-sm font-normal italic"
+                  class="hidden sm:inline ml-3 text-sm font-normal italic"
                   style="color: var(--q-ink-mute);"
                 >
                   —{' '}
@@ -451,7 +450,7 @@ const skillDomains = 5;
                 </span>
               </h4>
             </div>
-            <span class="q-mono">
+            <span class="q-mono hidden sm:block">
               {project.data.startDate
                 ? project.data.startDate.getFullYear()
                 : '—'}
@@ -594,6 +593,18 @@ const skillDomains = 5;
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Catalog list — 手機版隱藏年份欄和描述，只留序號+標題+箭頭 */
+  .catalog-row {
+    grid-template-columns: 32px 1fr 24px;
+    gap: 12px;
+  }
+  @media (min-width: 640px) {
+    .catalog-row {
+      grid-template-columns: 40px 1fr 80px 24px;
+      gap: 20px;
+    }
   }
 </style>
 

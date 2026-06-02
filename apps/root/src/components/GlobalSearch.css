@@ -353,6 +353,68 @@
   font-weight: 500;
 }
 
+/* ── status badge（狀態標籤） ── */
+.global-search__tag--status {
+  font-weight: 500;
+}
+
+/* 專案 — active（維護中）：綠色 */
+.global-search__status--active {
+  border-color: #22c55e;
+  color: #16a34a;
+}
+
+.dark .global-search__status--active {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+/* 專案 — completed（已完成）：淡 navy */
+.global-search__status--completed {
+  border-color: var(--q-ink-mute);
+  color: var(--q-ink-mute);
+}
+
+/* 專案 — paused（暫停）：琥珀色 */
+.global-search__status--paused {
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.dark .global-search__status--paused {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+/* 專案 — archived（已封存）：淡灰 */
+.global-search__status--archived {
+  border-color: var(--q-ink-fade);
+  color: var(--q-ink-fade);
+}
+
+/* 連結 — deprecated（已棄置）：紅色，醒目警告 */
+.global-search__status--deprecated {
+  border-color: var(--q-coral);
+  color: var(--q-coral);
+}
+
+/* 連結 — unmaintained（未維護）：琥珀色 */
+.global-search__status--unmaintained {
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.dark .global-search__status--unmaintained {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+/* 動態 — category 資訊：淡 navy */
+.global-search__status--info {
+  border-color: var(--q-line-hard);
+  color: var(--q-ink-soft);
+}
+
 /* ── 空狀態 ── */
 .global-search__empty {
   display: flex;

@@ -67,16 +67,18 @@ const contentText =
 >
   <!-- ─────────── BREADCRUMB ─────────── -->
   <div
-    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-3.5 flex items-center gap-2.5"
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-3.5 flex items-center gap-2.5 overflow-hidden"
     style="border-bottom: 1px solid var(--q-line); background: var(--q-paper-soft);"
   >
     <a
       href={`${basePath}/projects`}
-      class="q-mono no-underline"
+      class="q-mono no-underline shrink-0"
       style="color: var(--q-ink-mute);">~/projects</a
     >
-    <span style="color: var(--q-ink-mute);">/</span>
-    <span class="q-mono" style="color: var(--q-ink);">{project.id}</span>
+    <span class="shrink-0" style="color: var(--q-ink-mute);">/</span>
+    <span class="q-mono truncate min-w-0" style="color: var(--q-ink);"
+      >{project.id}</span
+    >
   </div>
 
   <!-- ─────────── HERO ─────────── -->
@@ -127,12 +129,12 @@ const contentText =
               href={project.data.links.website}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex justify-between items-baseline px-4 py-3.5 text-sm font-semibold no-underline"
+              class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
               style="background: var(--q-ink); color: var(--q-paper);"
             >
-              <span>↗ Live</span>
+              <span class="shrink-0">↗ Live</span>
               <span
-                class="font-mono text-[11px] opacity-70"
+                class="font-mono text-[11px] opacity-70 truncate min-w-0"
                 style="font-family: 'JetBrains Mono', monospace;"
               >
                 {project.data.links.website.replace('https://', '')}
@@ -146,12 +148,12 @@ const contentText =
               href={project.data.links.github}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex justify-between items-baseline px-4 py-3.5 text-sm font-semibold no-underline"
+              class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
               style={`background: transparent; color: var(--q-ink); border: 1px solid var(--q-line); ${project.data.links?.website ? 'border-top: none;' : ''}`}
             >
-              <span>⌥ GitHub</span>
+              <span class="shrink-0">⌥ GitHub</span>
               <span
-                class="font-mono text-[11px] opacity-70"
+                class="font-mono text-[11px] opacity-70 truncate min-w-0"
                 style="font-family: 'JetBrains Mono', monospace;"
               >
                 {project.data.links.github.replace('https://', '')}
@@ -165,12 +167,12 @@ const contentText =
               href={project.data.links.demo}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex justify-between items-baseline px-4 py-3.5 text-sm font-semibold no-underline"
+              class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
               style="background: transparent; color: var(--q-ink); border: 1px solid var(--q-line); border-top: none;"
             >
-              <span>▶ Demo</span>
+              <span class="shrink-0">▶ Demo</span>
               <span
-                class="font-mono text-[11px] opacity-70"
+                class="font-mono text-[11px] opacity-70 truncate min-w-0"
                 style="font-family: 'JetBrains Mono', monospace;"
               >
                 {project.data.links.demo.replace('https://', '')}
@@ -480,71 +482,4 @@ const contentText =
   </section>
 </BaseLayout>
 
-<style>
-  .q-prose {
-    max-width: 760px;
-  }
-  .q-prose :global(p) {
-    margin: 0 0 20px;
-    font-size: 17px;
-    line-height: 1.85;
-    color: var(--q-ink);
-  }
-  .q-prose :global(h2),
-  .q-prose :global(h3) {
-    margin: 44px 0 14px;
-    font-family: var(--q-font-body);
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--q-ink);
-    letter-spacing: -0.015em;
-  }
-  .q-prose :global(ul) {
-    margin: 14px 0 18px;
-    padding: 0;
-    list-style: none;
-  }
-  .q-prose :global(li) {
-    position: relative;
-    padding-left: 20px;
-    margin: 0 0 10px;
-    font-size: 16.5px;
-    line-height: 1.7;
-    color: var(--q-ink);
-  }
-  .q-prose :global(li)::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 11px;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--q-navy);
-  }
-  .q-prose :global(li li)::before {
-    width: 4px;
-    height: 4px;
-    background: transparent;
-    border: 1.5px solid var(--q-navy);
-  }
-  .q-prose :global(li > ul) {
-    margin-top: 6px;
-    margin-bottom: 4px;
-  }
-  .q-prose :global(blockquote) {
-    margin: 40px 0;
-    padding: 8px 0 8px 32px;
-    border-left: 2px solid var(--q-navy);
-    font-size: 21px;
-    line-height: 1.6;
-    color: var(--q-ink);
-    font-style: italic;
-    font-weight: 500;
-  }
-  .q-prose :global(a) {
-    color: var(--q-navy);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-</style>
+<!-- .q-prose 樣式已提取至 global.css -->

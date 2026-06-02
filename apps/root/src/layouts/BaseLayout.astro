@@ -91,7 +91,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+TC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+TC:wght@400;500;700&display=swap"
       rel="stylesheet"
       media="print"
       onload="this.media='all'"
@@ -232,9 +232,9 @@ const alternateURL = new URL(alternatePath, Astro.site);
       debugMode={false}
     />
 
-    <!-- U.E.P 角色互動系統 — persist 跨頁存活 -->
+    <!-- U.E.P 角色互動系統 — 僅桌面版載入（手機版不顯示，避免下載 1.6MB 圖片） -->
     <UEPCharacter
-      client:idle
+      client:media="(min-width: 768px)"
       transition:persist
       uepDocsUrl="https://uep.unforgettableeternalproject.com"
       debugMode={false}

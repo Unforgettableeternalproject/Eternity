@@ -81,6 +81,7 @@
     font-family: var(--q-font-body);
     color: var(--prism-ink);
     background: var(--prism-paper);
+    overflow-x: hidden;
   }
 
   h1,
@@ -373,6 +374,152 @@
   );
   background-size: 24px 24px;
   opacity: 0.6;
+}
+
+/* ===== q-prose — 富文本內容區共用樣式 ===== */
+.q-prose {
+  max-width: 760px;
+}
+
+.q-prose p {
+  margin: 0 0 20px;
+  font-size: 17px;
+  line-height: 1.85;
+  color: var(--q-ink);
+}
+
+.q-prose h2,
+.q-prose h3 {
+  margin: 44px 0 14px;
+  font-family: var(--q-font-body);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--q-ink);
+  letter-spacing: -0.015em;
+}
+
+.q-prose ul {
+  margin: 14px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.q-prose li {
+  position: relative;
+  padding-left: 20px;
+  margin: 0 0 10px;
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--q-ink);
+}
+
+.q-prose li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 11px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--q-navy);
+}
+
+.q-prose li li::before {
+  width: 4px;
+  height: 4px;
+  background: transparent;
+  border: 1.5px solid var(--q-navy);
+}
+
+.q-prose li > ul {
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+.q-prose blockquote {
+  margin: 40px 0;
+  padding: 8px 0 8px 32px;
+  border-left: 2px solid var(--q-navy);
+  font-size: 21px;
+  line-height: 1.6;
+  color: var(--q-ink);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.q-prose a {
+  color: var(--q-navy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 程式碼區塊 — 水平捲動，不撐破頁面 */
+.q-prose pre {
+  margin: 24px 0;
+  padding: 16px 20px;
+  background: var(--q-paper-soft);
+  border: 1px solid var(--q-line);
+  border-radius: 4px;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.q-prose pre code {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--q-ink);
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+/* 行內 code */
+.q-prose code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+  padding: 2px 6px;
+  background: var(--q-paper-soft);
+  border: 1px solid var(--q-line);
+  border-radius: 3px;
+  color: var(--q-ink);
+  word-break: break-word;
+}
+
+/* 圖片不溢出 */
+.q-prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 表格水平捲動 */
+.q-prose table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+.q-prose th,
+.q-prose td {
+  padding: 8px 12px;
+  border: 1px solid var(--q-line);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.q-prose th {
+  background: var(--q-paper-soft);
+  font-weight: 600;
+  color: var(--q-ink);
 }
 
 /* Background patterns — Quartz colors */

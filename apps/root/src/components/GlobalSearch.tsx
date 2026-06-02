@@ -16,6 +16,7 @@ export interface SearchResult {
   description_en?: string;
   url: string;
   category?: string;
+  status?: string;
   tags?: string[];
   date?: string;
 }
@@ -253,6 +254,76 @@ export default function GlobalSearch({
     return labels[locale][type as keyof (typeof labels)['zh-tw']] || type;
   };
 
+  /** 取得搜尋結果的狀態 badge 文字與樣式 */
+  const getStatusBadge = (
+    result: SearchResult
+  ): { label: string; className: string } | null => {
+    const s = result.status;
+    if (!s) return null;
+
+    if (result.type === 'project') {
+      const map: Record<string, { label: string; className: string }> = {
+        active: {
+          label: locale === 'zh-tw' ? '維護中' : 'Active',
+          className: 'global-search__status--active',
+        },
+        completed: {
+          label: locale === 'zh-tw' ? '已完成' : 'Completed',
+          className: 'global-search__status--completed',
+        },
+        paused: {
+          label: locale === 'zh-tw' ? '暫停' : 'Paused',
+          className: 'global-search__status--paused',
+        },
+        archived: {
+          label: locale === 'zh-tw' ? '已封存' : 'Archived',
+          className: 'global-search__status--archived',
+        },
+      };
+      return map[s] || null;
+    }
+
+    if (result.type === 'link') {
+      // normal 不顯示 badge（預設狀態）
+      if (s === 'normal') return null;
+      const map: Record<string, { label: string; className: string }> = {
+        deprecated: {
+          label: locale === 'zh-tw' ? '已棄置' : 'Deprecated',
+          className: 'global-search__status--deprecated',
+        },
+        unmaintained: {
+          label: locale === 'zh-tw' ? '未維護' : 'Unmaintained',
+          className: 'global-search__status--unmaintained',
+        },
+      };
+      return map[s] || null;
+    }
+
+    if (result.type === 'update') {
+      const map: Record<string, { label: string; className: string }> = {
+        website: {
+          label: locale === 'zh-tw' ? '網站' : 'Website',
+          className: 'global-search__status--info',
+        },
+        project: {
+          label: locale === 'zh-tw' ? '專案' : 'Project',
+          className: 'global-search__status--info',
+        },
+        announcement: {
+          label: locale === 'zh-tw' ? '公告' : 'Announcement',
+          className: 'global-search__status--info',
+        },
+        other: {
+          label: locale === 'zh-tw' ? '其他' : 'Other',
+          className: 'global-search__status--info',
+        },
+      };
+      return map[s] || null;
+    }
+
+    return null;
+  };
+
   const getFilterLabel = (filterType: string) => {
     const labels = {
       'zh-tw': {
@@ -473,6 +544,16 @@ export default function GlobalSearch({
                             <span className="global-search__tag global-search__tag--type">
                               {getTypeLabel(result.type)}
                             </span>
+                            {(() => {
+                              const badge = getStatusBadge(result);
+                              return badge ? (
+                                <span
+                                  className={`global-search__tag global-search__tag--status ${badge.className}`}
+                                >
+                                  {badge.label}
+                                </span>
+                              ) : null;
+                            })()}
                             {result.tags?.slice(0, 3).map((tag) => (
                               <span key={tag} className="global-search__tag">
                                 {tag}
