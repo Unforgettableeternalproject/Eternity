@@ -30,8 +30,8 @@ graph LR
 
 ```bash
 git checkout develop
-git checkout -b release/v0.9.6
-git push origin release/v0.9.6
+git checkout -b release/vX.Y.Z
+git push origin release/vX.Y.Z
 ```
 
 **注意：** 推送到 release 分支會觸發 staging 自動部署（與推送到 `staging` 分支效果相同）。

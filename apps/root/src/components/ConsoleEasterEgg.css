@@ -1,109 +1,87 @@
-/* Console Easter Egg Styles */
-.console-easter-egg-btn {
-  z-index: 9999;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+/* Console Easter Egg — Quartz 風格的低調終端機按鈕 */
+
+.console-btn {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--q-line);
+  border-radius: 6px;
+  background: var(--q-paper);
+  color: var(--q-ink-mute);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 60;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgb(99, 102, 241), rgb(139, 92, 246));
-  color: white;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: opacity, transform, top, left;
-  animation:
-    console-pulse 2s ease-in-out infinite,
-    console-fade-in 0.8s ease-out;
+  text-decoration: none;
   opacity: 0;
-  animation-fill-mode: forwards;
+  animation: console-appear 4.5s ease both;
+  transition:
+    opacity 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.console-easter-egg-btn:hover {
-  transform: scale(1.1) rotate(5deg);
-  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.6);
+.console-btn:hover {
+  opacity: 1 !important;
+  color: var(--q-navy);
+  border-color: var(--q-navy);
 }
 
-.console-easter-egg-btn:active {
-  transform: scale(0.95);
-}
-
-/* Glow effect */
-.console-glow {
-  position: relative;
-}
-
-.console-glow::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgb(99, 102, 241), rgb(139, 92, 246));
-  opacity: 0.5;
-  filter: blur(12px);
-  z-index: -1;
-  animation: console-glow-pulse 2s ease-in-out infinite;
-}
-
-/* Animations */
-@keyframes console-pulse {
-  0%,
-  100% {
+/* 淡入 → 停留 → 淡出 */
+@keyframes console-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  10% {
+    opacity: 0.5;
     transform: scale(1);
   }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-@keyframes console-glow-pulse {
-  0%,
-  100% {
+  75% {
     opacity: 0.5;
   }
-  50% {
-    opacity: 0.8;
+  100% {
+    opacity: 0;
+    pointer-events: none;
   }
 }
 
-@keyframes console-fade-in {
-  from {
-    opacity: 0;
-    transform: scale(0.8) translateY(10px);
+/* 開發模式長駐：不跑淡出動畫 */
+.console-btn--persistent {
+  animation: none;
+  opacity: 0.5;
+}
+
+/* 手機版隱藏 */
+@media (max-width: 767px) {
+  .console-btn {
+    display: none;
   }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+}
+
+/* ── 出場動畫：灰階 → 閃白 → 跳轉 ── */
+/* 掛在 <html> 上，必須是全域選擇器 */
+
+html.console-exit {
+  filter: grayscale(1) !important;
+  transition: filter 0.6s ease !important;
+}
+
+html.console-exit--flash {
+  filter: grayscale(1) brightness(5) !important;
+  transition: filter 0.2s ease !important;
 }
 
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .console-easter-egg-btn {
+  .console-btn {
     animation: none;
-    transition: opacity 0.3s ease;
+    opacity: 0.4;
   }
-
-  .console-glow::before {
-    animation: none;
-  }
-
-  .console-easter-egg-btn:hover {
-    transform: none;
-  }
-}
-
-/* Dark mode adjustments */
-:global(.dark) .console-easter-egg-btn {
-  background: linear-gradient(135deg, rgb(79, 70, 229), rgb(124, 58, 237));
-  box-shadow: 0 4px 20px rgba(79, 70, 229, 0.5);
-}
-
-:global(.dark) .console-easter-egg-btn:hover {
-  box-shadow: 0 8px 30px rgba(79, 70, 229, 0.7);
-}
-
-:global(.dark) .console-glow::before {
-  background: linear-gradient(135deg, rgb(79, 70, 229), rgb(124, 58, 237));
 }

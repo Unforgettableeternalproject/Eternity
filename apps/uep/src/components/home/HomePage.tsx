@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from 'react';
 
 import {
   parseVerseStanzas,
@@ -103,6 +109,9 @@ const LOBBY_MOTES: { top: string; left: string; delay: number }[] = [
 ];
 
 type LobbyPhase = 'idle' | 'waiting' | 'playing' | 'done';
+
+const useBrowserLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 function isWithinViewportBand(
   value: number,
@@ -241,9 +250,13 @@ export default function HomePage({
 
     // ── 啟用大廳動畫（直接播放，4.2s 足夠讓資源載完） ──
     setLobbyPhase('playing');
-    // lobby overlay 已在本次 commit 掛載（z:250），移除 head 注入的遮罩樣式
-    document.getElementById('lobby-block-style')?.remove();
   }, []);
+
+  useBrowserLayoutEffect(() => {
+    if (lobbyPhase !== 'playing') return;
+    // 等 React 已掛上 lobby overlay 後，再移除 head 注入的防閃遮罩。
+    document.getElementById('lobby-block-style')?.remove();
+  }, [lobbyPhase]);
 
   // 測量 TopBar 高度，設定 --topbar-h 供 section 高度計算
   useEffect(() => {
@@ -2376,6 +2389,11 @@ export default function HomePage({
               )}
               {recents.map((r, i) => {
                 const z = mergedZones.find((z) => z.id === r.area);
+                // echoes 歌曲用 ?song= 參數，其餘用 ?page=
+                const paramName =
+                  r.area === 'echoes' && r.pageType === 'song'
+                    ? 'song'
+                    : 'page';
                 const dateStr = r.updatedAt
                   ? new Date(r.updatedAt).toLocaleDateString('zh-TW', {
                       month: '2-digit',
@@ -2385,7 +2403,7 @@ export default function HomePage({
                 return (
                   <a
                     key={r.id}
-                    href={`/${r.area}?page=${r.slug}`}
+                    href={`/${r.area}?${paramName}=${r.slug}`}
                     className={`home-recent-card${i < recents.length - 1 ? ' home-recent-card--bordered' : ''}`}
                   >
                     <div

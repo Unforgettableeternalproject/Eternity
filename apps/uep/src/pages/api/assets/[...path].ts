@@ -13,26 +13,40 @@ async function proxyToWorker(
   subpath: string
 ): Promise<Response> {
   const target = `${CONTENT_API}/api/assets/${subpath}`;
-  const headers: Record<string, string> = {};
-  if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+  const headers = new Headers();
+  if (jwt) headers.set('Authorization', `Bearer ${jwt}`);
   const contentType = request.headers.get('Content-Type');
-  if (contentType) headers['Content-Type'] = contentType;
+  if (contentType) headers.set('Content-Type', contentType);
+  const range = request.headers.get('Range');
+  if (range) headers.set('Range', range);
 
   const res = await fetch(target, {
     method: request.method,
     headers,
     body: ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
-      ? await request.text()
+      ? await request.arrayBuffer()
       : undefined,
   });
 
-  const data = await res.text();
-  return new Response(data, {
-    status: res.status,
-    headers: {
-      'Content-Type': res.headers.get('Content-Type') || 'application/json',
-    },
-  });
+  const headersOut = new Headers();
+  for (const name of [
+    'Content-Type',
+    'Content-Length',
+    'Content-Range',
+    'Accept-Ranges',
+    'Cache-Control',
+  ]) {
+    const value = res.headers.get(name);
+    if (value) headersOut.set(name, value);
+  }
+
+  return new Response(
+    request.method === 'HEAD' ? null : await res.arrayBuffer(),
+    {
+      status: res.status,
+      headers: headersOut,
+    }
+  );
 }
 
 function makeHandler(): APIRoute {
@@ -52,6 +66,10 @@ function makeHandler(): APIRoute {
 
 /** DELETE /api/assets/batch, DELETE /api/assets/:key */
 export const DELETE: APIRoute = makeHandler();
+
+/** GET /api/assets/:key, HEAD /api/assets/:key */
+export const GET: APIRoute = makeHandler();
+export const HEAD: APIRoute = makeHandler();
 
 /** POST /api/assets/rename */
 export const POST: APIRoute = makeHandler();

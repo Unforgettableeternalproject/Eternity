@@ -12,6 +12,9 @@ export default function ScrollToTop({
   showAfter = 300,
   position = 'right',
 }: ScrollToTopProps) {
+  // SSR guard：讓 client:idle 在伺服器端安全地回傳空內容
+  if (typeof window === 'undefined') return null;
+
   const [isVisible, setIsVisible] = useState(false);
   const [isHiding, setIsHiding] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);

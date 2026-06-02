@@ -1,33 +1,31 @@
 /**
  * Search API Endpoint
  * Returns searchable content for GlobalSearch component
+ * Now reads from D1 API instead of Keystatic
  */
 import type { APIRoute } from 'astro';
-import { getCollection } from 'astro:content';
+import { getProjects, getLinks, getUpdates } from '../../lib/api';
 import { getTranslations } from '../../i18n/utils';
 
-export function getStaticPaths() {
-  return [{ params: { locale: 'zh-tw' } }, { params: { locale: 'en' } }];
-}
+export const prerender = false;
 
 export const GET: APIRoute = async ({ params }) => {
   const locale = params.locale || 'zh-tw';
 
   try {
-    // 載入所有內容集合
+    // 從 D1 API 載入所有內容
     const [projects, links, updates] = await Promise.all([
-      getCollection('projects'),
-      getCollection('links'),
-      getCollection('updates'),
+      getProjects(),
+      getLinks(),
+      getUpdates(),
     ]);
 
     const searchData = [];
 
     // 處理專案
     for (const project of projects) {
-      // 優先使用 title_zh 欄位，若無則使用檔名（project.id）
-      const titleZh = project.data.title_zh || project.id;
-      const titleEn = project.data.title_en || project.id;
+      const titleZh = project.titleZh || project.id;
+      const titleEn = project.titleEn || project.id;
 
       searchData.push({
         id: `project-${project.id}`,
@@ -35,25 +33,22 @@ export const GET: APIRoute = async ({ params }) => {
         title: locale === 'zh-tw' ? titleZh : titleEn,
         title_zh: titleZh,
         title_en: titleEn,
-        description:
-          locale === 'zh-tw'
-            ? project.data.description_zh
-            : project.data.description_en,
-        description_zh: project.data.description_zh || '',
-        description_en: project.data.description_en || '',
+        description: locale === 'zh-tw' ? project.descZh : project.descEn,
+        description_zh: project.descZh || '',
+        description_en: project.descEn || '',
         url: `/${locale}/projects/${project.id}`,
-        category: project.data.status,
-        tags: project.data.tags || [],
-        date: project.data.startDate?.toISOString(),
+        category: project.status,
+        status: project.status,
+        tags: project.tags || [],
+        date: project.startDate || undefined,
         slug: project.id,
       });
     }
 
     // 處理連結
     for (const link of links) {
-      // 優先使用 title_zh 欄位，若無則使用檔名（link.id）
-      const titleZh = link.data.title_zh || link.id;
-      const titleEn = link.data.title_en || link.id;
+      const titleZh = link.titleZh || link.id;
+      const titleEn = link.titleEn || link.id;
 
       searchData.push({
         id: `link-${link.id}`,
@@ -61,14 +56,12 @@ export const GET: APIRoute = async ({ params }) => {
         title: locale === 'zh-tw' ? titleZh : titleEn,
         title_zh: titleZh,
         title_en: titleEn,
-        description:
-          locale === 'zh-tw'
-            ? link.data.description_zh
-            : link.data.description_en,
-        description_zh: link.data.description_zh || '',
-        description_en: link.data.description_en || '',
-        url: link.data.url, // 連結直接使用原始 URL
-        category: link.data.category,
+        description: locale === 'zh-tw' ? link.descZh : link.descEn,
+        description_zh: link.descZh || '',
+        description_en: link.descEn || '',
+        url: link.url, // 連結直接使用原始 URL
+        category: link.category,
+        status: link.status,
         tags: [],
         slug: link.id,
       });
@@ -76,9 +69,8 @@ export const GET: APIRoute = async ({ params }) => {
 
     // 處理動態
     for (const update of updates) {
-      // 優先使用 title_zh 欄位，若無則使用檔名（update.id）
-      const titleZh = update.data.title_zh || update.id;
-      const titleEn = update.data.title_en || update.id;
+      const titleZh = update.titleZh || update.id;
+      const titleEn = update.titleEn || update.id;
 
       searchData.push({
         id: `update-${update.id}`,
@@ -86,16 +78,14 @@ export const GET: APIRoute = async ({ params }) => {
         title: locale === 'zh-tw' ? titleZh : titleEn,
         title_zh: titleZh,
         title_en: titleEn,
-        description:
-          locale === 'zh-tw'
-            ? update.data.description_zh
-            : update.data.description_en,
-        description_zh: update.data.description_zh || '',
-        description_en: update.data.description_en || '',
+        description: locale === 'zh-tw' ? update.descZh : update.descEn,
+        description_zh: update.descZh || '',
+        description_en: update.descEn || '',
         url: `/${locale}/updates/${update.id}`,
-        category: update.data.category,
+        category: update.category,
+        status: update.category,
         tags: [],
-        date: update.data.date.toISOString(),
+        date: update.date,
         slug: update.id,
       });
     }
@@ -149,7 +139,7 @@ export const GET: APIRoute = async ({ params }) => {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache', // 開發時不緩存，方便測試
+        'Cache-Control': 'no-cache',
       },
     });
   } catch (error) {

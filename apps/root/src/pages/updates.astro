@@ -1,209 +1,319 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection } from 'astro:content';
+import { getCurrentLocale } from '../i18n/utils';
+import { getUpdates, getSingleton } from '../lib/api';
+import { normalizeColors } from '../lib/color-normalize';
+
+export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
+const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-// Load updates from content collections
-const allUpdates = await getCollection('updates');
-const updates = allUpdates.sort(
-  (a, b) => b.data.date.getTime() - a.data.date.getTime()
-);
+/* ── 頁面文字從 D1 讀取 ── */
+const ptKey = locale === 'zh-tw' ? 'page-updates-zh' : 'page-updates-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
 
-// Group updates by year
-const updatesByYear = updates.reduce(
-  (acc, update) => {
-    const year = update.data.date.getFullYear();
-    if (!acc[year]) acc[year] = [];
-    acc[year].push(update);
-    return acc;
-  },
-  {} as Record<number, typeof updates>
-);
+const allUpdatesRaw = await getUpdates();
+const updates = allUpdatesRaw
+  .map((u) => ({
+    id: u.id,
+    data: {
+      title_zh: u.titleZh,
+      title_en: u.titleEn,
+      description_zh: u.descZh,
+      description_en: u.descEn,
+      date: new Date(u.date),
+      category: u.category,
+    },
+  }))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+/* Group by year-month */
+const groups: Record<string, typeof updates> = {};
+for (const u of updates) {
+  const ym = `${u.data.date.getFullYear()}.${String(u.data.date.getMonth() + 1).padStart(2, '0')}`;
+  (groups[ym] ??= []).push(u);
+}
+const ymKeys = Object.keys(groups).sort().reverse();
+
+/* Collect categories for filter */
+const allCategories = Array.from(
+  new Set(updates.map((u) => u.data.category))
+).sort();
+
+/* Category label mapping */
+const categoryLabels: Record<string, string> = {
+  website: locale === 'zh-tw' ? '網站' : 'Website',
+  project: locale === 'zh-tw' ? '專案' : 'Project',
+  announcement: locale === 'zh-tw' ? '公告' : 'Announce',
+  other: locale === 'zh-tw' ? '其他' : 'Other',
 };
 
-const getCategoryLabel = (category: string) => {
-  const labels = {
-    website: t.updates.categories.website,
-    project: t.updates.categories.project,
-    announcement: t.updates.categories.announcement,
-    other: t.updates.categories.other,
-  };
-  return labels[category as keyof typeof labels] || category;
-};
-
-const getCategoryColor = (category: string) => {
-  const colors = {
-    website: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    project:
-      'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-    announcement:
-      'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-    other: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-  };
-  return colors[category as keyof typeof colors] || colors.other;
-};
+const formatShortDate = (d: Date) =>
+  `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 ---
 
-<BaseLayout title={t.updates.title} description={t.updates.description}>
-  <div class="relative py-24 min-h-[calc(100vh-12rem)]">
-    <div class="absolute inset-0 z-0 pointer-events-none">
-      <div
-        class="absolute top-16 left-[8%] w-56 h-56 rotate-12 geo-outline geo-hue bg-gradient-to-br from-primary-400/65 to-secondary-500/65"
-      >
-      </div>
-      <div
-        class="absolute top-[40%] right-[10%] w-40 h-40 rounded-full geo-outline geo-hue bg-gradient-to-br from-secondary-400/65 to-primary-500/65"
-      >
-      </div>
-      <div
-        class="absolute bottom-24 left-[14%] w-64 h-64 rounded-full geo-outline geo-hue bg-gradient-to-br from-primary-400/55 to-secondary-500/55"
-      >
-      </div>
-    </div>
-    <div class="container-custom max-w-4xl relative z-10">
-      <!-- Header -->
-      <div class="text-center space-y-4 mb-16 animate-fade-in-up">
-        <span
-          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 dark:bg-primary-500/15 text-sm font-semibold tracking-wide"
-        >
-          📢 {t.updates.heading}
-        </span>
-        <h1 class="text-5xl font-bold text-slate-900 dark:text-white">
-          {t.updates.subtitle}
-        </h1>
-        <p class="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-          {
-            locale === 'zh-tw'
-              ? '追蹤專案進度、網站更新與重要公告'
-              : 'Track project progress, website updates and important announcements'
-          }
-        </p>
-      </div>
-
-      <!-- Timeline -->
+<BaseLayout
+  title={locale === 'zh-tw' ? '動態 — 顏榕嶙' : 'Updates — Bernie Yen'}
+  description={locale === 'zh-tw'
+    ? '里程碑、上線通知、寫作進度 — 按時間倒著排。'
+    : 'Milestones, ships, writing progress — reverse chronological.'}
+>
+  <!-- ─────────── HERO ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 sm:pt-20 lg:pt-[100px] pb-12 lg:pb-[60px] max-w-screen-xl mx-auto"
+  >
+    <span class="q-section-label">
       {
-        updates.length > 0 ? (
-          <div class="space-y-16">
-            {Object.entries(updatesByYear)
-              .sort(([a], [b]) => Number(b) - Number(a))
-              .map(([year, yearUpdates]) => (
-                <div class="space-y-8 animate-fade-in-up">
-                  {/* Year Header */}
-                  <div class="flex items-center gap-4">
-                    <h2 class="text-3xl font-bold text-slate-900 dark:text-white">
-                      {year}
-                    </h2>
-                    <div class="flex-1 h-px bg-gradient-to-r from-slate-300 dark:from-slate-700 to-transparent" />
-                  </div>
-
-                  {/* Year Updates */}
-                  <div class="relative space-y-8">
-                    {/* Timeline Line */}
-                    <div class="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary-500/50 via-primary-500/30 to-transparent" />
-
-                    {yearUpdates.map((update, index) => (
-                      <div
-                        class="relative pl-20 animate-fade-in-up"
-                        style={`animation-delay: ${index * 100}ms`}
-                      >
-                        {/* Timeline Dot */}
-                        <div class="absolute left-6 top-6 w-4 h-4 rounded-full bg-primary-500 ring-4 ring-white dark:ring-slate-900 shadow-lg" />
-
-                        {/* Update Card */}
-                        <a
-                          href={
-                            locale === 'zh-tw'
-                              ? `/zh-tw/updates/${update.id}`
-                              : `/en/updates/${update.id}`
-                          }
-                          class="card p-6 space-y-4 group hover:shadow-xl transition-all duration-300 block"
-                        >
-                          {/* Header */}
-                          <div class="flex items-start justify-between gap-4">
-                            <div class="space-y-2 flex-1">
-                              <div class="flex items-center gap-3 flex-wrap">
-                                <span
-                                  class={`px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(update.data.category)}`}
-                                >
-                                  {getCategoryLabel(update.data.category)}
-                                </span>
-                                <time class="text-sm text-slate-500 dark:text-slate-400">
-                                  {formatDate(update.data.date)}
-                                </time>
-                              </div>
-                              <h3 class="text-2xl font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                                {locale === 'zh-tw'
-                                  ? update.id
-                                  : update.data.title_en}
-                              </h3>
-                            </div>
-                            {/* Arrow Icon */}
-                            <svg
-                              class="w-5 h-5 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-all"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          </div>
-
-                          {/* Description */}
-                          <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
-                            {locale === 'zh-tw'
-                              ? update.data.description_zh
-                              : update.data.description_en}
-                          </p>
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-          </div>
-        ) : (
-          <div class="text-center py-20 animate-fade-in-up">
-            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <svg
-                class="w-12 h-12 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-            </div>
-            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              {t.updates.noUpdates}
-            </h3>
-            <p class="text-slate-600 dark:text-slate-300 mb-6">
-              {locale === 'zh-tw'
-                ? '最新動態即將推出，敬請期待'
-                : 'Updates coming soon, stay tuned'}
-            </p>
-          </div>
-        )
+        pt.heroLabel ||
+          (locale === 'zh-tw'
+            ? '—— 03 / updates · 邊際的草稿'
+            : '—— 03 / updates · journal')
       }
+    </span>
+
+    <h1
+      class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
+      style="color: var(--q-ink);"
+      set:html={normalizeColors(
+        pt.heroTitle ||
+          (locale === 'zh-tw'
+            ? '我做了<br /><span style="color: var(--q-navy); font-weight: 600;">什麼事</span>。'
+            : 'What I\'ve<br />been <span style="color: var(--q-navy); font-weight: 600;">up to</span>.')
+      )}
+    />
+
+    <div
+      class="mt-10 lg:mt-14 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-end"
+    >
+      <p
+        class="m-0 max-w-[560px] text-[17px] leading-[1.7]"
+        style="color: var(--q-ink-soft);"
+      >
+        {
+          pt.heroSubtitle ||
+            (locale === 'zh-tw'
+              ? '里程碑、上線通知、寫作進度、曲子釋出 — 按時間倒著排。想知道最近在忙什麼，看這裡。'
+              : "Milestones, ship notes, writing progress, music releases — reverse chronological. See what I've been working on.")
+        }
+      </p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-5 lg:gap-7">
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {String(updates.length).padStart(2, '0')}
+          </div>
+          <span class="q-mono mt-1 inline-block">total</span>
+        </div>
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {String(ymKeys.length).padStart(2, '0')}
+          </div>
+          <span class="q-mono mt-1 inline-block">months</span>
+        </div>
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {String(allCategories.length).padStart(2, '0')}
+          </div>
+          <span class="q-mono mt-1 inline-block">kinds</span>
+        </div>
+        <div>
+          <div
+            class="font-mono text-4xl font-medium tracking-tight"
+            style="color: var(--q-navy);"
+          >
+            ★
+          </div>
+          <span class="q-mono mt-1 inline-block">latest</span>
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
+
+  <!-- ─────────── FILTER ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-4"
+    style="background: var(--q-paper-soft); border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); position: sticky; top: 72px; z-index: 4;"
+  >
+    <div
+      class="max-w-screen-xl mx-auto flex flex-wrap justify-between items-center gap-4"
+    >
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="q-mono">kind</span>
+        <button class="q-filter-pill active" data-cat="all">all</button>
+        {
+          allCategories.map((cat) => (
+            <button class="q-filter-pill" data-cat={cat}>
+              {categoryLabels[cat] || cat}
+            </button>
+          ))
+        }
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="q-mono">{updates.length} entries</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── TIMELINE ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-14 lg:py-[72px] max-w-screen-xl mx-auto"
+  >
+    {
+      ymKeys.map((ym, yi) => (
+        <div class="mb-10 lg:mb-12 update-group" data-ym={ym}>
+          {/* Month header */}
+          <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 md:gap-9 items-baseline mb-3">
+            <div
+              class="font-mono text-2xl md:text-[32px] tracking-tight leading-none"
+              style={`color: ${yi === 0 ? 'var(--q-navy)' : 'var(--q-ink-mute)'}; font-weight: 400;`}
+            >
+              {ym}
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex-1 h-px" style="background: var(--q-line);" />
+              <span class="q-mono">
+                {groups[ym].length}{' '}
+                {groups[ym].length === 1 ? 'entry' : 'entries'}
+              </span>
+            </div>
+          </div>
+
+          {/* Entries */}
+          <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-0 md:gap-9">
+            <div class="hidden md:block" />
+            <div>
+              {groups[ym].map((u, i, arr) => {
+                const title =
+                  locale === 'zh-tw'
+                    ? u.data.title_zh || u.id
+                    : u.data.title_en || u.id;
+                const desc =
+                  locale === 'zh-tw'
+                    ? u.data.description_zh
+                    : u.data.description_en;
+                const catLabel =
+                  categoryLabels[u.data.category] || u.data.category;
+
+                return (
+                  <a
+                    href={`${basePath}/updates/${u.id}`}
+                    class="update-entry grid gap-3 md:gap-6 items-baseline py-5 no-underline transition-opacity hover:opacity-70"
+                    style={`
+                    grid-template-columns: 1fr;
+                    border-top: 1px solid var(--q-line);
+                    ${i === arr.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
+                    color: inherit;
+                  `}
+                    data-cat={u.data.category}
+                  >
+                    <div class="flex items-baseline gap-4 flex-wrap">
+                      <span
+                        class="q-mono"
+                        style="color: var(--q-ink); min-width: 44px;"
+                      >
+                        {formatShortDate(u.data.date)}
+                      </span>
+                      <span class="q-pill">{catLabel}</span>
+                      <div class="flex-1 min-w-0">
+                        <div
+                          class="text-[17px] font-semibold leading-[1.4] tracking-tight truncate"
+                          style="color: var(--q-ink);"
+                        >
+                          {title}
+                        </div>
+                        {desc && (
+                          <div
+                            class="mt-1 text-[13.5px] leading-[1.55] line-clamp-2"
+                            style="color: var(--q-ink-soft);"
+                          >
+                            {desc}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ))
+    }
+  </section>
 </BaseLayout>
+
+<style>
+  .q-filter-pill {
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--q-ink);
+    border: 1px solid var(--q-line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .q-filter-pill:hover {
+    border-color: var(--q-line-hard);
+  }
+  .q-filter-pill.active {
+    background: var(--q-ink);
+    color: var(--q-paper);
+    border-color: var(--q-ink);
+  }
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .update-entry[data-hidden='true'] {
+    display: none;
+  }
+</style>
+
+<script>
+  function initUpdateFilters() {
+    const pills =
+      document.querySelectorAll<HTMLButtonElement>('.q-filter-pill');
+    const entries = document.querySelectorAll<HTMLElement>('.update-entry');
+    const groups = document.querySelectorAll<HTMLElement>('.update-group');
+
+    pills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        const cat = pill.dataset.cat || 'all';
+        pills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+
+        entries.forEach((e) => {
+          const match = cat === 'all' || e.dataset.cat === cat;
+          e.setAttribute('data-hidden', match ? 'false' : 'true');
+        });
+
+        // Hide empty groups
+        groups.forEach((g) => {
+          const visible = g.querySelectorAll(
+            '.update-entry:not([data-hidden="true"])'
+          );
+          g.style.display = visible.length > 0 ? '' : 'none';
+        });
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', initUpdateFilters);
+  document.addEventListener('astro:page-load', initUpdateFilters);
+</script>

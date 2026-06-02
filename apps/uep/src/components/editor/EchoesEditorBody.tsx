@@ -264,7 +264,7 @@ interface AudioPickerItem {
 /** 從 content-api 取得音檔列表（僅音檔，孤兒排前面）*/
 async function fetchAudioAssets(): Promise<AudioPickerItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/assets?prefix=audio/&limit=500`);
+    const res = await fetch(`/api/assets?prefix=audio/&limit=500`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
       ok: boolean;

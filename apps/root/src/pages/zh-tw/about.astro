@@ -1,9 +1,6 @@
 ---
-/**
- * Chinese (Traditional) About Page
- * The language detection is automatic based on URL
- */
-import AboutPage from '../about.astro';
+export const prerender = false;
+import Page from '../about.astro';
 ---
 
-<AboutPage />
+<Page />

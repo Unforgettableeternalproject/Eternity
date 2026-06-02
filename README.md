@@ -6,33 +6,39 @@
 
 ## A Conversation Between U.E.P and Exera
 
-"So... it's actually done?"
+"Wait — the main site got completely redesigned?"
 
-"Well, not just done — there are five zones now! History, Echoes, Visuals, Concepts, Storage... each with their own readers, animations, and atmosphere. Oh, and a 3D map! And an admin panel with a rich text editor and—"
+"Yep! Quartz design system, D1 backend, full admin editor... no more Keystatic. Oh, and draggable cards with physics!"
 
-"Okay okay, I get it. Bernie really went all in this time."
+"Physics. On cards."
 
-"Mmhm! He said the next step is making sure nothing breaks when real people start visiting."
+"They bounce back with spring animation and shoot particles when you shake them. Bernie said it was 'essential.'"
 
-"...Knowing him, that's probably the hardest part."
+"...Of course he did. What about the docs site?"
+
+"Still running strong — five zones, all readers working, synced through the same Content API. Everything's unified now."
+
+"So we're really doing this. Going live."
+
+"Almost. Just need to make sure nothing explodes first."
 
 ## Project Overview
 
 **Eternity** is a personal website monorepo built with **pnpm workspaces + Turborepo**, deployed on **Cloudflare Pages + Workers**. It houses two Astro-based sites, two Cloudflare Workers, and shared packages — combining a personal portfolio with an immersive world-building documentation platform.
 
-| Site             | Domain                                                                             | Description                                      |
-| ---------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------ |
-| 🌟 **Main Site** | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | Portfolio, projects, articles, contact           |
-| 📚 **UEP Docs**  | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | World-building documentation with 5 themed zones |
+| Site             | Domain                                                                             | Description                                         |
+| ---------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 🌟 **Main Site** | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | Portfolio, projects, updates, links — Quartz design |
+| 📚 **UEP Docs**  | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | World-building documentation with 5 themed zones    |
 
-> **Current Version: v0.9.6** — Release candidate, approaching production launch.
+> **Current Version: v0.9.8** — Main site redesign complete. Release candidate.
 
 ## Project Structure
 
 ```
 Eternity/
 ├── apps/
-│   ├── root/                   # Main site — Astro 5 + React + Keystatic CMS
+│   ├── root/                   # Main site — Astro 5 + React + Quartz design
 │   └── uep/                    # Docs site — Astro 4 + React + TipTap editor
 ├── packages/
 │   ├── config/                 # Shared ESLint / Prettier / TypeScript / Tailwind
@@ -41,15 +47,16 @@ Eternity/
 │   ├── content-api/            # D1 + R2 content API (port 8788)
 │   └── visitor-counter/        # KV visitor counter (port 8787)
 ├── scripts/
-│   ├── migrate-history.mjs     # Import History zone from GitBook
-│   ├── migrate-echoes.mjs      # Import Echoes zone data
-│   ├── migrate-visuals.mjs     # Import Visuals zone data
-│   ├── migrate-concepts.mjs    # Import Concepts zone data
-│   ├── migrate-storage.mjs     # Import Storage zone data
-│   ├── migrate-homepage.mjs    # Import homepage content
-│   ├── seed-homepage.mjs       # Seed homepage data
-│   ├── merge-dossier-variants.mjs  # Merge dossier variants
-│   └── sync-content.mjs        # Bidirectional D1 sync (local ↔ remote)
+│   ├── migrate-*.mjs           # Content import scripts (per zone + root)
+│   ├── seed-*.mjs              # Data seeding (about, contact, page text)
+│   ├── sync.mjs                # Unified sync dispatcher
+│   ├── sync-content.mjs        # Docs site D1 sync (local ↔ remote)
+│   ├── sync-root.mjs           # Main site D1 + R2 sync
+│   ├── sync-utils.mjs          # Shared sync utilities
+│   ├── sync-auth.mjs           # Shared auth for sync scripts
+│   └── convert-content-to-html.mjs  # Markdown → HTML converter
+├── e2e/                        # Playwright E2E tests
+├── docs/                       # Project documentation
 ├── turbo.json                  # Turborepo pipeline config
 ├── pnpm-workspace.yaml         # pnpm workspace definition
 └── package.json
@@ -64,21 +71,21 @@ Eternity/
 - **TypeScript** — Full type coverage
 - **[Tailwind CSS](https://tailwindcss.com)** — Utility-first styling
 - **[Three.js](https://threejs.org)** — 3D map (PieMap3D)
-- **[TipTap](https://tiptap.dev)** — Rich text editor (admin)
+- **[TipTap](https://tiptap.dev)** — Rich text editor (both admin panels)
 
 ### Backend & Data
 
 - **[Cloudflare Workers](https://workers.cloudflare.com)** — Serverless compute
-- **[Cloudflare D1](https://developers.cloudflare.com/d1/)** — SQLite database for content
-- **[Cloudflare R2](https://developers.cloudflare.com/r2/)** — Asset storage
+- **[Cloudflare D1](https://developers.cloudflare.com/d1/)** — SQLite database (content for both sites)
+- **[Cloudflare R2](https://developers.cloudflare.com/r2/)** — Asset storage (separate buckets per site)
 - **[Cloudflare KV](https://developers.cloudflare.com/kv/)** — Visitor statistics
-- **[Keystatic](https://keystatic.com)** — Git-based CMS (main site)
 - **[Resend](https://resend.com)** — Email API for contact form
 
 ### Tooling
 
 - **pnpm** workspaces + **Turborepo** — Monorepo management
 - **ESLint** + **Prettier** — Code quality
+- **Vitest** + **Playwright** — Testing (unit + E2E)
 - **Wrangler** — Cloudflare CLI
 - **Conventional Commits** — Commit message standard
 
@@ -98,7 +105,7 @@ corepack enable
 # Install dependencies
 pnpm install
 
-# Initialize local D1 database (for docs site)
+# Initialize local D1 database
 pnpm --filter content-api-worker db:migrate:local
 ```
 
@@ -115,7 +122,7 @@ pnpm --filter @uep/root dev              # Main site only
 pnpm --filter @uep/uep dev               # Docs site only
 ```
 
-> **Note:** The content-api Worker must be running for the docs site to load content.
+> **Note:** The content-api Worker must be running for both sites to load content.
 
 ## Development Commands
 
@@ -127,6 +134,15 @@ pnpm lint            # ESLint
 pnpm typecheck       # TypeScript type checking
 pnpm format          # Prettier format
 pnpm format:check    # Prettier format check
+```
+
+### Testing
+
+```bash
+pnpm test            # Frontend unit tests (Vitest)
+pnpm test:workers    # Worker integration tests (Vitest + Cloudflare pool)
+pnpm test:all        # All unit + Worker tests
+pnpm test:e2e        # E2E smoke tests (Playwright)
 ```
 
 ### Worker Deployment
@@ -146,14 +162,14 @@ pnpm --filter content-api-worker db:migrate:remote   # Apply migrations (remote)
 ### Content Sync
 
 ```bash
+# Unified sync dispatcher (both sites, single auth)
+pnpm sync                  # Interactive mode (diff preview, confirm each)
+pnpm sync:push             # Local → Remote
+pnpm sync:pull             # Remote → Local
+
 # Import content from source repos
 node scripts/migrate-history.mjs              # Import to local D1
 node scripts/migrate-history.mjs --remote     # Import to remote D1
-
-# Bidirectional sync (local ↔ remote D1)
-pnpm sync                  # Interactive mode
-pnpm sync:push             # Local → Remote
-pnpm sync:pull             # Remote → Local
 ```
 
 > ⚠️ `--clean` flag resets all metadata including manually edited icons. Use `pnpm sync` for incremental updates instead.
@@ -182,37 +198,66 @@ release/*    → Release candidates (staging auto-deploy)
 
 Push to staging for preview: `git push origin develop:staging`
 
+## Architecture Highlights
+
+### Main Site — Quartz Design System (v0.9.8)
+
+The main site uses the **Quartz design language** — JetBrains Mono monospace typography, navy/coral/ink color system, minimalist borders, and a quiet paper-like texture.
+
+Key features:
+
+- **All content from D1** — No more Keystatic; unified Content API for both sites
+- **Three-column Admin editor** — Entry list | TipTap editor | Inspector
+- **Independent R2 bucket** — `eternity-root-assets`, fully isolated from docs site
+- **Widget system** — 8 configurable sidebar widgets (quote, music, stats, portal, etc.)
+- **Draggable cards** — Physics-based drag with inertia, spring return, and particle effects
+- **Dark mode** — CSS variable color normalization for TipTap content
+
+### Docs Site — Zone System
+
+Five themed zones, each with dedicated Reader, boot animation, background effects, and page transitions:
+
+| Zone        | Background Effect      | Description                                |
+| ----------- | ---------------------- | ------------------------------------------ |
+| 📜 History  | Text particle float    | Chronological narrative, chapter tree      |
+| 🔊 Echoes   | Echo ripple waves      | Audio content, cluster navigation          |
+| 🎨 Visuals  | Light pillars + frames | Gallery, division/subcategory/group layers |
+| 💡 Concepts | Grid + digital rain    | Structured data, four variant readers      |
+| 📦 Storage  | Dust + floating SVG    | Archive, clearing card system              |
+
+### Content API Worker
+
+Shared Cloudflare Worker serving both sites:
+
+- **D1 database** (`eternity-content`) — pages, tree structure, sync log
+- **R2 storage** — Two isolated buckets (`eternity-assets` + `eternity-root-assets`)
+- **5 main site tables** — `root_projects`, `root_links`, `root_updates`, `root_singletons`, `root_cards`
+- **Sync utilities** — Unified dispatcher with shared auth, R2 delete propagation
+
 ## Development Status
 
 ### ✅ Completed
 
 - **Monorepo architecture** — pnpm workspaces + Turborepo pipeline
-- **Main site** — Portfolio, projects, articles, contact form, i18n (zh-tw/en), Keystatic CMS
+- **Main site — Quartz redesign** (v0.9.8)
+  - D1 backend migration (from Keystatic)
+  - Three-column TipTap admin editor (8 page editors)
+  - Media library with independent R2 bucket
+  - Widget system, draggable cards, dark mode normalization
+  - Quartz navigation, search, footer, sticky TOC
 - **Docs site — 5 themed zones** with dedicated Readers, boot animations, background effects, and page transitions
-  - 📜 **History** — Chronological narrative with text particle effects
-  - 🔊 **Echoes** — Audio content with ripple effects and cluster navigation
-  - 🎨 **Visuals** — Gallery with light pillars and frame decorations
-  - 💡 **Concepts** — Structured data with grid, digital rain, and CRT boot animation
-  - 📦 **Storage** — Archive with dust particles and floating SVG decorations
 - **3D Map** — Three.js PieMap3D with zone navigation
-- **Admin panel** — TipTap rich text editor, media library, homepage management
-- **Content API** — D1-backed CRUD with tree structure and sync
-- **Reader primitives** — ReaderShell, ZoneStateDisplay, ZonePrevNext, useZoneRouter, contentVisibility
-- **Homepage scroll state machine** — Wheel-driven zone transitions with boot animations
-- **Migration scripts** — Per-zone import from GitBook sources
-- **Bidirectional sync** — Local ↔ Remote D1 with conflict detection
-
-### 🔧 In Progress (v0.9.6)
-
-- System documentation update
-- Automated test infrastructure
-- Stability testing and bug fixes
+- **Content API** — D1-backed CRUD with tree structure, dual R2, and sync
+- **Sync tooling** — Unified dispatcher, bidirectional D1 + R2 sync, R2 delete tracking
+- **CI/CD** — GitHub Actions for quality checks and Worker deployment
+- **Testing infrastructure** — Vitest (unit + Worker) + Playwright (E2E)
 
 ### 📅 Planned (Post-Launch)
 
-- Zone Islands (interactive embedded tools)
-- History interactive embed (entity/media cue system)
 - History chapter gating / spoiler strategy
+- History interactive embed (entity/media cue system)
+- Zone Islands (interactive embedded tools)
+- Console command system (main site Easter egg)
 - Theme & progress settings admin
 
 ## Related Repositories
@@ -236,4 +281,4 @@ This project is licensed under the MIT License. See [LICENSE](./LICENSE) for det
 
 ---
 
-_Last Updated: May 2026_
+_Last Updated: June 2026_

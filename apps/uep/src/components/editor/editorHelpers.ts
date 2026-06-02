@@ -56,12 +56,12 @@ export interface UploadResult {
   size: number;
 }
 
-/** 上傳檔案到 R2 */
+/** 上傳檔案到 R2（走 Astro SSR proxy，自動帶 JWT） */
 export async function uploadAsset(file: File): Promise<UploadResult | null> {
   const formData = new FormData();
   formData.append('file', file);
   try {
-    const res = await fetch(`${API_BASE}/api/assets`, {
+    const res = await fetch(`/api/assets`, {
       method: 'POST',
       body: formData,
     });
@@ -78,10 +78,10 @@ export async function uploadAsset(file: File): Promise<UploadResult | null> {
   }
 }
 
-/** 刪除 R2 asset */
+/** 刪除 R2 asset（走 Astro SSR proxy，自動帶 JWT） */
 export async function deleteAsset(key: string): Promise<void> {
   const encoded = key.split('/').map(encodeURIComponent).join('/');
-  await fetch(`${API_BASE}/api/assets/${encoded}`, { method: 'DELETE' });
+  await fetch(`/api/assets/${encoded}`, { method: 'DELETE' });
 }
 
 // ── Asset 列表查詢 ──────────────────────────────────────────
@@ -98,7 +98,7 @@ export interface AssetItem {
 /** 取得圖片列表（孤兒排前面）*/
 export async function fetchImageAssets(): Promise<AssetItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/assets?prefix=images/&limit=500`);
+    const res = await fetch(`/api/assets?prefix=images/&limit=500`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
       ok: boolean;
@@ -121,7 +121,7 @@ export async function fetchImageAssets(): Promise<AssetItem[]> {
 /** 取得音檔列表（孤兒排前面）*/
 export async function fetchAudioAssets(): Promise<AssetItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/assets?prefix=audio/&limit=500`);
+    const res = await fetch(`/api/assets?prefix=audio/&limit=500`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
       ok: boolean;

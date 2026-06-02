@@ -1,227 +1,485 @@
 ---
-import { Image } from 'astro:assets';
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCurrentLocale } from '../../i18n/utils';
+import { getProject, getProjects, assetUrl } from '../../lib/api';
+import { normalizeColors } from '../../lib/color-normalize';
 
-export async function getStaticPaths() {
-  const projects = await getCollection('projects');
+export const prerender = false;
 
-  return projects.flatMap((project) => {
-    return [
-      {
-        params: { slug: project.id },
-        props: { project, locale: 'zh-tw' },
-      },
-      {
-        params: { slug: project.id },
-        props: { project, locale: 'en' },
-      },
-    ];
-  });
-}
+const locale = getCurrentLocale(Astro.url);
+const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-const { project, locale } = Astro.props;
+const slug = Astro.params.slug!;
+const projectRaw = await getProject(slug);
+if (!projectRaw) return Astro.redirect(`${basePath}/projects`);
 
-let ProjectContent;
-try {
-  const projectFolder =
-    project.data.title_zh || project.data.title_en || project.id;
-  const contentFileName =
-    locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
-  const contentModule = await import(
-    `../../content/projects/${projectFolder}/${contentFileName}`
-  );
-  ProjectContent = contentModule?.Content;
-} catch (error) {
-  console.error('Error loading project content:', error);
-}
+/* Map API shape to template-friendly shape */
+const toLocal = (p: typeof projectRaw) => ({
+  id: p.id,
+  data: {
+    title_zh: p.titleZh,
+    title_en: p.titleEn,
+    description_zh: p.descZh,
+    description_en: p.descEn,
+    tags: p.tags,
+    featured: p.featured,
+    order: p.sortOrder,
+    status: p.status,
+    image: p.image,
+    links: p.links,
+    startDate: p.startDate ? new Date(p.startDate) : null,
+    endDate: p.endDate ? new Date(p.endDate) : null,
+    content_zh: p.contentZh,
+    content_en: p.contentEn,
+  },
+});
 
-const formatDate = (date?: Date) => {
-  if (!date) return '';
-  return date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-  });
-};
+const project = toLocal(projectRaw);
+
+const allRaw = await getProjects();
+const sorted = allRaw
+  .map(toLocal)
+  .sort((a, b) => (a.data.order ?? 999) - (b.data.order ?? 999));
+const idx = sorted.findIndex((p) => p.id === project.id);
+const prev = idx > 0 ? sorted[idx - 1] : null;
+const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
+const related = sorted.filter((p) => p.id !== project.id).slice(0, 3);
+
+const title =
+  locale === 'zh-tw'
+    ? project.data.title_zh || project.id
+    : project.data.title_en;
+const desc =
+  locale === 'zh-tw'
+    ? project.data.description_zh
+    : project.data.description_en;
+const year = project.data.startDate
+  ? project.data.startDate.getFullYear() + '—'
+  : '—';
+const orderStr = String(project.data.order || idx + 1).padStart(2, '0');
+const contentText =
+  locale === 'zh-tw' ? project.data.content_zh : project.data.content_en;
 ---
 
 <BaseLayout
-  title={locale === 'zh-tw'
-    ? project.data.title_zh || project.data.title_en
-    : project.data.title_en}
-  description={locale === 'zh-tw'
-    ? project.data.description_zh
-    : project.data.description_en}
+  title={`${title} — ${locale === 'zh-tw' ? '顏榕嶙' : 'Bernie Yen'}`}
+  description={desc || ''}
 >
-  <div class="container-custom py-20">
-    <article class="max-w-4xl mx-auto">
-      <!-- Back Button -->
-      <a
-        href={locale === 'zh-tw' ? '/zh-tw/projects' : '/en/projects'}
-        class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 mb-8"
+  <!-- ─────────── BREADCRUMB ─────────── -->
+  <div
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-3.5 flex items-center gap-2.5 overflow-hidden"
+    style="border-bottom: 1px solid var(--q-line); background: var(--q-paper-soft);"
+  >
+    <a
+      href={`${basePath}/projects`}
+      class="q-mono no-underline shrink-0"
+      style="color: var(--q-ink-mute);">~/projects</a
+    >
+    <span class="shrink-0" style="color: var(--q-ink-mute);">/</span>
+    <span class="q-mono truncate min-w-0" style="color: var(--q-ink);"
+      >{project.id}</span
+    >
+  </div>
+
+  <!-- ─────────── HERO ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-14 lg:pt-20 pb-10 lg:pb-[50px] max-w-screen-xl mx-auto"
+  >
+    <div class="flex items-center gap-3 flex-wrap mb-6 lg:mb-7">
+      {
+        project.data.featured && (
+          <span class="q-pill q-pill--accent">✦ featured</span>
+        )
+      }
+      <span class="q-pill">{project.data.status}</span>
+      <span class="q-mono">{year}</span>
+    </div>
+
+    <h1
+      class="text-4xl sm:text-5xl lg:text-[60px] font-bold leading-[1.08] tracking-tight mb-4"
+      style="color: var(--q-ink);"
+    >
+      {title}
+    </h1>
+
+    {
+      desc && (
+        <div
+          class="text-xl lg:text-2xl italic mb-8 lg:mb-9"
+          style="color: var(--q-ink-soft); font-weight: 400;"
+        >
+          — {desc}
+        </div>
+      )
+    }
+
+    <div
+      class="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-10 lg:gap-14 items-start"
+    >
+      <p
+        class="m-0 text-lg leading-[1.75] max-w-[580px]"
+        style="color: var(--q-ink);"
       >
-        <svg
-          class="w-5 h-5 mr-2"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M15 19l-7-7 7-7"></path>
-        </svg>
-        {locale === 'zh-tw' ? '返回專案列表' : 'Back to Projects'}
-      </a>
-
-      <!-- Header -->
-      <header class="mb-12">
-        <div class="flex items-center gap-3 mb-4">
-          <span
-            class={`px-3 py-1 text-sm rounded-full ${
-              project.data.status === 'active'
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                : project.data.status === 'paused'
-                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                  : project.data.status === 'completed'
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
-            }`}
-          >
-            {
-              project.data.status === 'active'
-                ? locale === 'zh-tw'
-                  ? '進行中'
-                  : 'Active'
-                : project.data.status === 'paused'
-                  ? locale === 'zh-tw'
-                    ? '暫時停滯'
-                    : 'Paused'
-                  : project.data.status === 'completed'
-                    ? locale === 'zh-tw'
-                      ? '已完成'
-                      : 'Completed'
-                    : locale === 'zh-tw'
-                      ? '已封存'
-                      : 'Archived'
-            }
-          </span>
-          {
-            project.data.startDate && (
-              <span class="text-slate-500 dark:text-slate-400">
-                {formatDate(project.data.startDate)}
-                {project.data.endDate &&
-                  ` - ${formatDate(project.data.endDate)}`}
-              </span>
-            )
-          }
-        </div>
-
-        <h1
-          class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-6"
-          style="text-transform: none;"
-        >
-          {locale === 'zh-tw' ? project.data.title_zh : project.data.title_en}
-        </h1>
-
-        <p class="text-xl text-slate-600 dark:text-slate-300 mb-8">
-          {
-            locale === 'zh-tw'
-              ? project.data.description_zh
-              : project.data.description_en
-          }
-        </p>
-
+        {desc}
+      </p>
+      <div class="flex flex-col gap-0">
         {
-          project.data.image && (
-            <div class="mb-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-              <Image
-                src={project.data.image}
-                alt={
-                  locale === 'zh-tw'
-                    ? project.data.title_zh || project.id
-                    : project.data.title_en || project.id
-                }
-                width={800}
-                height={450}
-                class="w-full h-auto"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
+          project.data.links?.website && (
+            <a
+              href={project.data.links.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
+              style="background: var(--q-ink); color: var(--q-paper);"
+            >
+              <span class="shrink-0">↗ Live</span>
+              <span
+                class="font-mono text-[11px] opacity-70 truncate min-w-0"
+                style="font-family: 'JetBrains Mono', monospace;"
+              >
+                {project.data.links.website.replace('https://', '')}
+              </span>
+            </a>
           )
         }
-
-        <!-- Tags -->
-        <div class="flex flex-wrap gap-2 mb-8">
-          {
-            project.data.tags.map((tag) => (
-              <span class="px-3 py-1 text-sm rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                {tag}
-              </span>
-            ))
-          }
-        </div>
-
-        <!-- Links -->
         {
-          project.data.links && (
-            <div class="flex flex-wrap gap-4">
-              {project.data.links.website && (
-                <a
-                  href={project.data.links.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="btn btn-primary"
-                >
-                  {locale === 'zh-tw' ? '訪問網站' : 'Visit Website'}
-                </a>
-              )}
-              {project.data.links.demo && (
-                <a
-                  href={project.data.links.demo}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="btn btn-secondary"
-                >
-                  {locale === 'zh-tw' ? '查看 Demo' : 'View Demo'}
-                </a>
-              )}
-              {project.data.links.github && (
-                <a
-                  href={project.data.links.github}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="btn btn-secondary"
-                >
-                  <svg
-                    class="w-5 h-5 mr-2"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                  </svg>
-                  GitHub
-                </a>
-              )}
-            </div>
+          project.data.links?.github && (
+            <a
+              href={project.data.links.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
+              style={`background: transparent; color: var(--q-ink); border: 1px solid var(--q-line); ${project.data.links?.website ? 'border-top: none;' : ''}`}
+            >
+              <span class="shrink-0">⌥ GitHub</span>
+              <span
+                class="font-mono text-[11px] opacity-70 truncate min-w-0"
+                style="font-family: 'JetBrains Mono', monospace;"
+              >
+                {project.data.links.github.replace('https://', '')}
+              </span>
+            </a>
           )
         }
-      </header>
-
-      <!-- Content -->
-      <div class="prose prose-lg dark:prose-invert max-w-none">
         {
-          ProjectContent ? (
-            <ProjectContent />
-          ) : (
-            <div class="text-center py-12 text-slate-500 dark:text-slate-400">
-              <p>No detailed content available for this project.</p>
-            </div>
+          project.data.links?.demo && (
+            <a
+              href={project.data.links.demo}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
+              style="background: transparent; color: var(--q-ink); border: 1px solid var(--q-line); border-top: none;"
+            >
+              <span class="shrink-0">▶ Demo</span>
+              <span
+                class="font-mono text-[11px] opacity-70 truncate min-w-0"
+                style="font-family: 'JetBrains Mono', monospace;"
+              >
+                {project.data.links.demo.replace('https://', '')}
+              </span>
+            </a>
           )
         }
       </div>
-    </article>
-  </div>
+    </div>
+  </section>
+
+  <!-- cover 只顯示在列表頁（projects.astro），詳細頁不顯示 -->
+
+  <!-- ─────────── META BAR ─────────── -->
+  <section
+    style="border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); background: var(--q-paper-soft);"
+  >
+    <div
+      class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-10 xl:px-[72px] py-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6"
+    >
+      {
+        [
+          [
+            'STATUS',
+            project.data.status,
+            project.data.status === 'active' ? 'var(--q-navy)' : 'var(--q-ink)',
+          ],
+          [
+            'STARTED',
+            project.data.startDate
+              ? `${project.data.startDate.getFullYear()} / ${String(project.data.startDate.getMonth() + 1).padStart(2, '0')}`
+              : '—',
+            'var(--q-ink)',
+          ],
+          ['ORDER', orderStr, 'var(--q-ink)'],
+          ['TAGS', `${project.data.tags.length} tags`, 'var(--q-ink)'],
+          [
+            'FEATURED',
+            project.data.featured ? 'Yes' : 'No',
+            project.data.featured ? 'var(--q-navy)' : 'var(--q-ink)',
+          ],
+        ].map(([k, v, color], i) => (
+          <div
+            style={
+              i > 0
+                ? `border-left: 1px solid var(--q-line); padding-left: 20px;`
+                : ''
+            }
+            class={i > 0 ? 'hidden sm:block' : ''}
+          >
+            <span class="q-mono">{k}</span>
+            <div
+              class="mt-1.5 text-[15px] font-semibold tracking-tight"
+              style={`color: ${color};`}
+            >
+              {v}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- ─────────── CONTENT + SIDEBAR ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-16 lg:py-24 max-w-screen-xl mx-auto"
+  >
+    <div class="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-12 lg:gap-20">
+      <!-- Main -->
+      <article>
+        <div
+          class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-9"
+          style="border-bottom: 1px solid var(--q-line);"
+        >
+          <div>
+            <span class="q-section-label">—— 01 / overview</span>
+            <h2
+              class="mt-2 text-3xl md:text-4xl font-bold tracking-tight leading-none"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw' ? '專案總覽' : 'Overview'}
+            </h2>
+          </div>
+        </div>
+
+        {
+          contentText ? (
+            <div class="q-prose" set:html={normalizeColors(contentText)} />
+          ) : desc ? (
+            <p class="text-[17.5px] leading-[1.9]" style="color: var(--q-ink);">
+              {desc}
+            </p>
+          ) : (
+            <p class="text-sm italic" style="color: var(--q-ink-mute);">
+              {locale === 'zh-tw'
+                ? '尚未撰寫詳細內容。'
+                : 'No detailed content yet.'}
+            </p>
+          )
+        }
+      </article>
+
+      <!-- Sidebar -->
+      <aside class="lg:sticky lg:top-28 self-start flex flex-col gap-10">
+        <div>
+          <span class="q-section-label">—— tech stack</span>
+          <h4
+            class="mt-2.5 text-xl font-bold tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {locale === 'zh-tw' ? '使用技術' : 'Tech Stack'}
+          </h4>
+          <div class="mt-3.5 flex flex-wrap gap-1.5">
+            {
+              project.data.tags.map((tag: string) => (
+                <span class="q-pill">{tag}</span>
+              ))
+            }
+          </div>
+        </div>
+
+        <div>
+          <span class="q-section-label">—— quick info</span>
+          <h4
+            class="mt-2.5 text-xl font-bold tracking-tight"
+            style="color: var(--q-ink);"
+          >
+            {locale === 'zh-tw' ? '速覽' : 'Quick Info'}
+          </h4>
+          <div class="mt-3.5">
+            {
+              [
+                ['ID', orderStr],
+                ['YEAR', year],
+                ['STATUS', project.data.status],
+                [
+                  'SCOPE',
+                  locale === 'zh-tw' ? '個人 · solo' : 'Personal · solo',
+                ],
+              ].map(([k, v], i) => (
+                <div
+                  class="grid items-baseline py-3"
+                  style={`grid-template-columns: auto 1fr; gap: 16px; ${i > 0 ? 'border-top: 1px solid var(--q-line);' : ''}`}
+                >
+                  <span class="q-mono">{k}</span>
+                  <span
+                    class="text-[13px] text-right"
+                    style="color: var(--q-ink); font-family: 'JetBrains Mono', monospace;"
+                  >
+                    {v}
+                  </span>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ─────────── RELATED ─────────── -->
+  {
+    related.length > 0 && (
+      <section class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-10 lg:py-[40px] max-w-screen-xl mx-auto">
+        <div
+          class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-9"
+          style="border-bottom: 1px solid var(--q-line);"
+        >
+          <div>
+            <span class="q-section-label">—— related</span>
+            <h2
+              class="mt-2 text-3xl md:text-4xl font-bold tracking-tight leading-none"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw' ? '相關作品' : 'Related Projects'}
+            </h2>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
+          {related.map((rp) => {
+            const rpTitle =
+              locale === 'zh-tw' ? rp.data.title_zh || rp.id : rp.data.title_en;
+            return (
+              <a
+                href={`${basePath}/projects/${rp.id}`}
+                class="block no-underline group"
+              >
+                <div
+                  class="q-plate"
+                  style="aspect-ratio: 16/10; overflow: hidden;"
+                >
+                  {rp.data.image ? (
+                    <img
+                      src={assetUrl(rp.data.image)}
+                      alt={rpTitle}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div style="position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                      <svg
+                        width="36"
+                        height="36"
+                        viewBox="0 0 48 48"
+                        fill="none"
+                        style="opacity: 0.2;"
+                      >
+                        <rect
+                          x="4"
+                          y="8"
+                          width="40"
+                          height="32"
+                          stroke="var(--q-ink)"
+                          stroke-width="2"
+                          fill="none"
+                        />
+                        <path
+                          d="M4 32 L16 22 L24 28 L34 18 L44 26"
+                          stroke="var(--q-ink)"
+                          stroke-width="2"
+                          fill="none"
+                          stroke-linejoin="round"
+                        />
+                        <circle cx="14" cy="18" r="3" fill="var(--q-ink)" />
+                      </svg>
+                      <span
+                        class="q-mono"
+                        style="font-size: 10px; opacity: 0.35; max-width: 70%; text-align: center; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+                      >
+                        {rpTitle}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div class="mt-3.5">
+                  <span class="q-mono">
+                    {rp.data.status} ·{' '}
+                    {rp.data.startDate ? rp.data.startDate.getFullYear() : '—'}
+                  </span>
+                  <h4
+                    class="mt-1.5 text-lg font-bold tracking-tight group-hover:opacity-75 transition-opacity"
+                    style="color: var(--q-ink);"
+                  >
+                    {rpTitle}
+                  </h4>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    )
+  }
+
+  <!-- ─────────── PREV / NEXT ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pb-20 lg:pb-[120px] max-w-screen-xl mx-auto"
+  >
+    <div
+      class="grid grid-cols-1 sm:grid-cols-2 gap-10 lg:gap-20 pt-8"
+      style="border-top: 1px solid var(--q-line);"
+    >
+      {
+        prev ? (
+          <a
+            href={`${basePath}/projects/${prev.id}`}
+            class="no-underline"
+            style="color: inherit;"
+          >
+            <span class="q-mono">← previous</span>
+            <div
+              class="mt-2.5 text-xl lg:text-[26px] font-bold tracking-tight"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw'
+                ? prev.data.title_zh || prev.id
+                : prev.data.title_en}
+            </div>
+          </a>
+        ) : (
+          <div />
+        )
+      }
+
+      {
+        next ? (
+          <a
+            href={`${basePath}/projects/${next.id}`}
+            class="no-underline sm:text-right"
+            style="color: inherit;"
+          >
+            <span class="q-mono">next →</span>
+            <div
+              class="mt-2.5 text-xl lg:text-[26px] font-bold tracking-tight"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw'
+                ? next.data.title_zh || next.id
+                : next.data.title_en}
+            </div>
+          </a>
+        ) : (
+          <div />
+        )
+      }
+    </div>
+  </section>
 </BaseLayout>
+
+<!-- .q-prose 樣式已提取至 global.css -->

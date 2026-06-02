@@ -2,19 +2,21 @@
 import '../styles/global.css';
 import { ViewTransitions } from 'astro:transitions';
 import NavigationWithSearch from '../components/NavigationWithSearch.astro';
-import Footer from '@uep/ui/Footer';
+import QuartzFooter from '../components/QuartzFooter.astro';
 import ConsoleEasterEgg from '../components/ConsoleEasterEgg';
 import UEPCharacter from '../components/UEPCharacter';
 import ScrollToTop from '../components/ScrollToTop';
 import ToastContainer from '../components/Toast';
 import GlobalRipple from '../components/GlobalRipple';
-import LeftSidebar from '../components/LeftSidebar.astro';
-import RightSidebar from '../components/RightSidebar.astro';
-import MobileControlPanel from '../components/MobileControlPanel.astro';
 import CookieConsent from '../components/CookieConsent';
 import ImageViewerModal from '../components/ImageViewerModal';
-import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection } from 'astro:content';
+import WidgetDataProvider from '../components/WidgetDataProvider.astro';
+import QuartzWidgetSystem from '../components/QuartzWidgetSystem';
+import StickyTOC from '../components/StickyTOC';
+import '../components/QuartzWidgetSystem.css';
+import '../components/StickyTOC.css';
+import { getCurrentLocale } from '../i18n/utils';
+// getCollection removed — footer no longer needs it here
 
 interface Props {
   title: string;
@@ -31,19 +33,8 @@ const {
 } = Astro.props;
 
 const locale = getCurrentLocale(Astro.url);
-const t = getTranslations(locale);
 
-// 載入精選連結給 Footer
-const allLinks = await getCollection('links');
-const featuredLinks = allLinks
-  .filter((l) => l.data.featured)
-  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
-  .map((link) => ({
-    title:
-      locale === 'zh-tw' ? link.data.title_zh || link.id : link.data.title_en,
-    url: link.data.url,
-    icon: link.data.icon,
-  }));
+// Footer 連結現在由 QuartzFooter 自行管理
 
 // Get canonical URL
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -96,6 +87,16 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
 
+    <!-- Google Fonts（非阻塞載入，取代 global.css 的 @import） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
 
@@ -125,56 +126,28 @@ const alternateURL = new URL(alternatePath, Astro.site);
       });
     </script>
 
-    <!-- 清除舊的音樂 localStorage -->
+    <!-- 音樂狀態清理（延遲到閒置時，before-swap 監聽器除外） -->
     <script is:inline>
-      // 清除可能存在的舊音樂狀態（保留 track 選擇）
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('music-is-playing');
-        localStorage.removeItem('music-volume');
-        localStorage.removeItem('music-state');
-      }
-
-      // 清理重複的音頻元素（View Transitions 可能造成）
-      // 注意：只在 before-swap 時清理，避免影響 persist 的元素
-      document.addEventListener('astro:before-swap', () => {
-        const allAudioElements = document.querySelectorAll('audio');
-
-        // 計數有多少個 global-music-player
-        let globalPlayerCount = 0;
-        allAudioElements.forEach((audio) => {
-          if (audio.id === 'global-music-player') {
-            globalPlayerCount++;
+      // before-swap 監聽器必須立即註冊（清理重複音頻元素）
+      document.addEventListener('astro:before-swap', function () {
+        var audios = document.querySelectorAll('audio#global-music-player');
+        if (audios.length > 1) {
+          for (var i = 1; i < audios.length; i++) {
+            audios[i].pause();
+            audios[i].remove();
           }
-        });
-
-        // 如果有多個，只保留第一個（最新的會由 persist 處理）
-        if (globalPlayerCount > 1) {
-          let kept = false;
-          allAudioElements.forEach((audio) => {
-            if (audio.id === 'global-music-player') {
-              if (kept) {
-                audio.pause();
-                audio.remove();
-              } else {
-                kept = true;
-              }
-            }
-          });
         }
       });
-    </script>
-
-    <!-- 清除打字機快取（每次重載都重新播放動畫） -->
-    <script is:inline>
-      // 清除所有打字機相關的 sessionStorage
-      const keysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && key.startsWith('typewriter-shown')) {
-          keysToRemove.push(key);
+      // localStorage 清理延遲到閒置時
+      (typeof requestIdleCallback === 'function'
+        ? requestIdleCallback
+        : setTimeout)(function () {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('music-is-playing');
+          localStorage.removeItem('music-volume');
+          localStorage.removeItem('music-state');
         }
-      }
-      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+      });
     </script>
   </head>
   <body class="min-h-screen relative">
@@ -210,78 +183,106 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Mouse cursor glow effect -->
     <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
 
-    <!-- Global click ripple effect -->
+    <!-- Global click ripple effect（persist 跨頁存活，不重新 mount） -->
     <GlobalRipple
-      client:load
+      client:only="react"
+      transition:persist
       color="rgba(99, 102, 241, 0.15)"
       navColor="rgba(236, 72, 153, 0.2)"
       duration={800}
       size={80}
     />
 
-    <!-- Fixed Navigation -->
+    <!-- Fixed Navigation — Quartz solid bg -->
     <header
-      class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
+      class="fixed top-0 left-0 right-0 z-50"
+      style="background: var(--q-paper); border-bottom: 1px solid var(--q-line);"
     >
       <NavigationWithSearch currentPath={Astro.url.pathname} />
     </header>
 
     <!-- Spacer for fixed header -->
-    <div class="h-[88px]"></div>
+    <div class="h-[72px]"></div>
 
-    <!-- Left Sidebar -->
-    <LeftSidebar />
+    <!-- Widget 資料注入（SSR → window.__widgetData） -->
+    <WidgetDataProvider />
 
-    <!-- Right Sidebar -->
-    <RightSidebar />
+    <!-- Quartz Widget System（persist 跨頁存活，不重新 mount） -->
+    <QuartzWidgetSystem client:only="react" transition:persist />
 
-    <!-- Mobile Control Panel (iPhone-style bottom sheet) -->
-    <MobileControlPanel />
+    <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示，可見才載入） -->
+    <StickyTOC client:visible />
+
+    <!-- 手機版不顯示 widget，桌面版由 QuartzWidgetSystem 處理 -->
 
     <!-- Main Content Area -->
-    <main class="transition-all duration-300 2xl:mx-72">
+    <main class="transition-all duration-300">
       <slot />
     </main>
 
-    <!-- Footer -->
-    <Footer
-      currentLocale={locale}
-      translations={t.footer}
-      featuredLinks={featuredLinks}
+    <!-- Quartz Footer -->
+    <QuartzFooter currentLocale={locale} />
+
+    <!-- Console Easter Egg — persist 跨頁存活 -->
+    <ConsoleEasterEgg
+      client:idle
+      transition:persist
+      consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
+      label={locale === 'zh-tw' ? '終端機' : 'Console'}
+      debugMode={false}
     />
 
-    <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
-    <div class="hidden md:block">
-      <ConsoleEasterEgg
-        client:idle
-        consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
-        label={locale === 'zh-tw' ? '終端機' : 'Console'}
-        debugMode={false}
-      />
-    </div>
-
-    <!-- U.E.P 角色互動系統 (React Island) -->
+    <!-- U.E.P 角色互動系統 — 僅桌面版載入（手機版不顯示，避免下載 1.6MB 圖片） -->
     <UEPCharacter
-      client:idle
+      client:media="(min-width: 768px)"
+      transition:persist
       uepDocsUrl="https://uep.unforgettableeternalproject.com"
       debugMode={false}
     />
 
-    <!-- 返回頂部按鈕 (React Island) -->
-    <ScrollToTop client:load position="right" showAfter={300} />
+    <!-- 返回頂部按鈕（persist 跨頁存活，idle 延遲載入） -->
+    <ScrollToTop
+      client:idle
+      transition:persist
+      position="right"
+      showAfter={300}
+    />
 
-    <!-- Toast 通知系統 (React Island) -->
-    <ToastContainer client:only="react" position="top-right" />
+    <!-- Toast 通知系統（persist 跨頁存活，idle 延遲載入） -->
+    <ToastContainer client:idle transition:persist position="top-right" />
 
-    <!-- 圖片查看器模態窗 (React Portal) -->
-    <ImageViewerModal client:only="react" />
+    <!-- 圖片查看器模態窗（persist 跨頁存活，idle 延遲載入） -->
+    <ImageViewerModal client:idle transition:persist />
 
-    <!-- Cookie 同意彈窗 -->
-    <CookieConsent client:load />
+    <!-- Cookie 同意彈窗（persist 跨頁存活，idle 延遲載入） -->
+    <CookieConsent client:idle transition:persist />
 
-    <!-- Mouse tracking script -->
+    <!-- q-prose 圖片點擊 → ImageViewerModal -->
     <script is:inline>
-      (function () {
+      function initProseImageClick() {
+        document.querySelectorAll('.q-prose img').forEach(function (img) {
+          if (img.dataset.zoomBound) return;
+          img.dataset.zoomBound = '1';
+          img.style.cursor = 'zoom-in';
+          img.addEventListener('click', function () {
+            window.dispatchEvent(
+              new CustomEvent('openImageModal', {
+                detail: { src: img.src, alt: img.alt || '' },
+              })
+            );
+          });
+        });
+      }
+      // 初始載入 + View Transitions 後重新綁定
+      document.addEventListener('DOMContentLoaded', initProseImageClick);
+      document.addEventListener('astro:page-load', initProseImageClick);
+    </script>
+
+    <!-- Mouse tracking script（延遲到閒置時初始化，避免阻塞主線程） -->
+    <script is:inline>
+      (typeof requestIdleCallback === 'function'
+        ? requestIdleCallback
+        : setTimeout)(function () {
         const cursorGlow = document.getElementById('cursor-glow');
 
         // 嘗試從 sessionStorage 讀取上次的滑鼠位置
@@ -337,7 +338,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
         });
 
         animate();
-      })();
+      });
     </script>
   </body>
 </html>

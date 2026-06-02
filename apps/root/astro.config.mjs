@@ -1,22 +1,19 @@
-import markdoc from '@astrojs/markdoc';
+import { readFileSync } from 'node:fs';
 import react from '@astrojs/react';
 import tailwind from '@astrojs/tailwind';
 import cloudflare from '@astrojs/cloudflare';
-import keystatic from '@keystatic/astro';
 import { defineConfig } from 'astro/config';
 
-// 只在開發環境載入 Keystatic
+// 從 monorepo 根目錄 package.json 讀取版本號，透過 Vite define 注入到所有檔案
+const rootPkg = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')
+);
+
 const integrations = [
   tailwind({
-    applyBaseStyles: false, // 我們會自訂基礎樣式
+    applyBaseStyles: false,
   }),
-  markdoc(),
   react(),
-  // Keystatic 在所有環境都啟用 (使用 GitHub storage)
-  // 需要明確指定配置檔案路徑
-  keystatic({
-    config: './keystatic.config.tsx',
-  }),
 ];
 
 // https://astro.build/config
@@ -28,6 +25,11 @@ export default defineConfig({
   build: {
     format: 'directory',
   },
+  prefetch: {
+    // hover 時預載下一頁，加速感知速度
+    prefetchAll: false,
+    defaultStrategy: 'hover',
+  },
   i18n: {
     defaultLocale: 'zh-tw',
     locales: ['zh-tw', 'en'],
@@ -37,11 +39,11 @@ export default defineConfig({
     },
   },
   vite: {
-    optimizeDeps: {
-      include: ['@keystatic/astro/ui'],
+    resolve: {
+      dedupe: ['react', 'react-dom'],
     },
-    ssr: {
-      noExternal: ['@keystatic/core', '@keystatic/astro'],
+    define: {
+      __APP_VERSION__: JSON.stringify(rootPkg.version),
     },
   },
   integrations,

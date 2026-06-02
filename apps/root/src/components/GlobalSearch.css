@@ -1,45 +1,43 @@
+/* ========================================
+   GlobalSearch — Quartz Design Language
+   ======================================== */
+
 /* 全站搜索容器 */
 .global-search {
   position: relative;
   width: 100%;
 }
 
-/* 觸發按鈕 */
+/* ── 觸發按鈕 ── */
 .global-search__trigger {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
   width: 100%;
-  padding: 0.5rem 1rem;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.5rem;
-  background: rgba(248, 250, 252, 0.5);
-  color: rgb(100, 116, 139);
-  font-size: 0.875rem;
+  padding: 7px 12px;
+  border: 1px solid var(--q-line-hard);
+  border-radius: 2px;
+  background: var(--q-paper);
+  color: var(--q-ink-mute);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .global-search__trigger:hover {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgb(148, 163, 184);
-}
-
-:global(.dark) .global-search__trigger {
-  background: rgba(15, 23, 42, 0.5);
-  border-color: rgba(148, 163, 184, 0.2);
-  color: rgb(148, 163, 184);
-}
-
-:global(.dark) .global-search__trigger:hover {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgb(100, 116, 139);
+  border-color: var(--q-navy);
+  background: var(--q-paper-soft);
 }
 
 .global-search__icon {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
+  opacity: 0.6;
 }
 
 .global-search__hint {
@@ -55,12 +53,14 @@
 .global-search__kbd {
   display: none;
   margin-left: auto;
-  padding: 0.125rem 0.375rem;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.25rem;
-  background: rgba(255, 255, 255, 0.5);
-  font-size: 0.75rem;
-  font-family: monospace;
+  padding: 1px 5px;
+  border: 1px solid var(--q-line-hard);
+  border-radius: 2px;
+  background: var(--q-paper-soft);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--q-ink-mute);
+  line-height: 1.4;
 }
 
 @media (min-width: 1024px) {
@@ -69,26 +69,21 @@
   }
 }
 
-:global(.dark) .global-search__kbd {
-  background: rgba(30, 41, 59, 0.5);
-  border-color: rgba(148, 163, 184, 0.2);
-}
-
-/* 背景遮罩 */
+/* ── 背景遮罩 ── */
 .global-search__backdrop {
   position: fixed;
   inset: 0;
   z-index: 10000 !important;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  animation: fadeIn 0.2s ease-out both;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  animation: gs-fadeIn 0.15s ease-out both;
 }
 
 .global-search__backdrop.closing {
-  animation: fadeOut 0.2s ease-out forwards;
+  animation: gs-fadeOut 0.15s ease-out forwards;
 }
 
-@keyframes fadeIn {
+@keyframes gs-fadeIn {
   from {
     opacity: 0;
   }
@@ -97,7 +92,7 @@
   }
 }
 
-@keyframes fadeOut {
+@keyframes gs-fadeOut {
   from {
     opacity: 1;
   }
@@ -106,26 +101,26 @@
   }
 }
 
-/* 搜索模態框 */
+/* ── 搜索模態框 ── */
 .global-search__modal {
   position: fixed;
-  top: 60px;
+  top: 72px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10001 !important;
   width: 90vw;
-  max-width: 42rem;
-  animation: slideDown 0.2s ease-out both;
+  max-width: 580px;
+  animation: gs-slideDown 0.15s ease-out both;
 }
 
 .global-search__modal.closing {
-  animation: slideUp 0.2s ease-out forwards;
+  animation: gs-slideUp 0.15s ease-out forwards;
 }
 
-@keyframes slideDown {
+@keyframes gs-slideDown {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-20px);
+    transform: translateX(-50%) translateY(-12px);
   }
   to {
     opacity: 1;
@@ -133,14 +128,14 @@
   }
 }
 
-@keyframes slideUp {
+@keyframes gs-slideUp {
   from {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
   to {
     opacity: 0;
-    transform: translateX(-50%) translateY(-20px);
+    transform: translateX(-50%) translateY(-12px);
   }
 }
 
@@ -148,41 +143,26 @@
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(12px);
-  box-shadow:
-    0 20px 25px -5px rgb(0 0 0 / 0.1),
-    0 8px 10px -6px rgb(0 0 0 / 0.1);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
+  background: var(--q-paper);
+  border: 1px solid var(--q-line-hard);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
-:global(.dark) .global-search__container {
-  background: rgba(30, 41, 59, 0.98);
-  border-color: rgba(148, 163, 184, 0.1);
-  box-shadow:
-    0 20px 25px -5px rgb(0 0 0 / 0.5),
-    0 8px 10px -6px rgb(0 0 0 / 0.5);
-}
-
-/* 搜索頭部 */
+/* ── 搜索頭部 ── */
 .global-search__header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-:global(.dark) .global-search__header {
-  border-bottom-color: rgba(148, 163, 184, 0.05);
-  background: rgba(15, 23, 42, 0.3);
+  gap: 10px;
+  padding: 12px 16px;
+  flex-shrink: 0; /* 防止被 flex column 的 max-height 擠壓 */
+  border-bottom: 1px solid var(--q-line);
 }
 
 .global-search__search-icon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: rgb(148, 163, 184);
+  width: 16px;
+  height: 16px;
+  color: var(--q-ink-mute);
   flex-shrink: 0;
 }
 
@@ -190,153 +170,128 @@
   flex: 1;
   border: none;
   background: transparent;
-  color: rgb(15, 23, 42);
-  font-size: 1rem;
+  color: var(--q-ink);
+  font-family: var(--q-font-body);
+  font-size: 15px;
   outline: none;
 }
 
 .global-search__input::placeholder {
-  color: rgb(148, 163, 184);
-}
-
-:global(.dark) .global-search__input {
-  color: rgb(226, 232, 240);
-  background: transparent;
+  color: var(--q-ink-fade);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.01em;
 }
 
 .global-search__close {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
   background: transparent;
-  color: rgb(148, 163, 184);
-  border-radius: 0.375rem;
+  color: var(--q-ink-mute);
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.12s ease;
 }
 
 .global-search__close:hover {
-  background: rgba(148, 163, 184, 0.1);
-  color: rgb(100, 116, 139);
+  border-color: var(--q-line-hard);
+  background: var(--q-paper-soft);
+  color: var(--q-ink);
 }
 
 .global-search__close svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 14px;
+  height: 14px;
 }
 
-/* 篩選器 */
+/* ── 篩選器 ── */
 .global-search__filters {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--q-line-soft);
   overflow-x: auto;
-}
-
-:global(.dark) .global-search__filters {
-  border-bottom-color: rgba(148, 163, 184, 0.05);
+  flex-shrink: 0; /* 防止被 flex column 的 max-height 擠壓 */
 }
 
 .global-search__filter {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 9999px;
-  background: transparent;
-  color: rgb(100, 116, 139);
-  font-size: 0.8125rem;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: var(--q-paper-soft);
+  color: var(--q-ink-mute);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 
 .global-search__filter:hover {
-  border-color: rgb(59, 130, 246);
-  background: rgba(59, 130, 246, 0.05);
-  color: rgb(59, 130, 246);
+  background: var(--q-paper-deep, var(--q-paper-soft));
+  color: var(--q-navy);
 }
 
 .global-search__filter.active {
-  border-color: rgb(59, 130, 246);
-  background: rgb(59, 130, 246);
-  color: white;
+  background: var(--q-navy);
+  color: var(--q-paper);
 }
 
-:global(.dark) .global-search__filter {
-  border-color: rgba(148, 163, 184, 0.2);
-  color: rgb(148, 163, 184);
-}
-
-:global(.dark) .global-search__filter:hover {
-  border-color: rgb(96, 165, 250);
-  background: rgba(96, 165, 250, 0.1);
-  color: rgb(96, 165, 250);
-}
-
-:global(.dark) .global-search__filter.active {
-  border-color: rgb(96, 165, 250);
-  background: rgb(96, 165, 250);
-  color: rgb(15, 23, 42);
-}
-
-/* 搜索結果 */
+/* ── 搜索結果 ── */
 .global-search__results {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem;
-  min-height: 12rem;
+  padding: 6px 8px;
+  min-height: 0; /* 讓 flex 自然分配，高 zoom 時不搶空間 */
   max-height: 24rem;
-}
-
-:global(.dark) .global-search__results {
-  background: transparent;
 }
 
 .global-search__result {
   display: flex;
-  align-items: start;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  transition: background-color 0.15s ease;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 2px;
+  border-bottom: 1px solid var(--q-line-soft);
+  transition: background-color 0.1s ease;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
 }
 
-.global-search__result:hover,
-.global-search__result.selected {
-  background: rgba(59, 130, 246, 0.05);
+.global-search__result:last-child {
+  border-bottom: none;
 }
 
-:global(.dark) .global-search__result:hover,
-:global(.dark) .global-search__result.selected {
-  background: rgba(96, 165, 250, 0.1);
+.global-search__result:hover,
+.global-search__result.selected {
+  background: var(--q-paper-soft);
 }
 
 .global-search__result-icon {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
-  background: rgba(59, 130, 246, 0.1);
-  color: rgb(59, 130, 246);
+  border: 1px solid var(--q-line-hard);
+  border-radius: 2px;
+  background: var(--q-paper-soft);
+  color: var(--q-navy);
   flex-shrink: 0;
 }
 
 .global-search__result-icon svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-:global(.dark) .global-search__result-icon {
-  background: rgba(96, 165, 250, 0.15);
-  color: rgb(96, 165, 250);
+  width: 14px;
+  height: 14px;
 }
 
 .global-search__result-content {
@@ -345,164 +300,199 @@
 }
 
 .global-search__result-title {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: rgb(15, 23, 42);
-  margin-bottom: 0.25rem;
+  font-family: var(--q-font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--q-ink);
+  margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-:global(.dark) .global-search__result-title {
-  color: rgb(226, 232, 240);
 }
 
 .global-search__result-desc {
-  font-size: 0.8125rem;
-  color: rgb(100, 116, 139);
-  margin-bottom: 0.375rem;
+  font-size: 12px;
+  color: var(--q-ink-mute);
+  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-:global(.dark) .global-search__result-desc {
-  color: rgb(148, 163, 184);
+  line-height: 1.5;
 }
 
 .global-search__result-tags {
   display: flex;
-  gap: 0.25rem;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .global-search__tag {
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
-  background: rgba(148, 163, 184, 0.1);
-  color: rgb(71, 85, 105);
-  font-size: 0.6875rem;
+  padding: 1px 6px;
+  border: 1px solid var(--q-line-hard);
+  border-radius: 1px;
+  background: transparent;
+  color: var(--q-ink-mute);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.02em;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-:global(.dark) .global-search__tag {
-  background: rgba(148, 163, 184, 0.15);
-  color: rgb(203, 213, 225);
-}
-
+/* type badge 移入 tags 列，舊的獨立欄位不再使用 */
 .global-search__result-type {
-  padding: 0.25rem 0.625rem;
-  border-radius: 0.375rem;
-  background: rgba(148, 163, 184, 0.1);
-  color: rgb(100, 116, 139);
-  font-size: 0.75rem;
-  white-space: nowrap;
-  align-self: center;
+  display: none;
 }
 
-:global(.dark) .global-search__result-type {
-  background: rgba(148, 163, 184, 0.15);
-  color: rgb(148, 163, 184);
+/* type tag（混入 tags 列第一個，用 navy 色區分） */
+.global-search__tag--type {
+  border-color: var(--q-navy);
+  color: var(--q-navy);
+  font-weight: 500;
 }
 
-/* 空狀態 */
-.global-search__empty,
-.global-search__placeholder {
+/* ── status badge（狀態標籤） ── */
+.global-search__tag--status {
+  font-weight: 500;
+}
+
+/* 專案 — active（維護中）：綠色 */
+.global-search__status--active {
+  border-color: #22c55e;
+  color: #16a34a;
+}
+
+.dark .global-search__status--active {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+/* 專案 — completed（已完成）：淡 navy */
+.global-search__status--completed {
+  border-color: var(--q-ink-mute);
+  color: var(--q-ink-mute);
+}
+
+/* 專案 — paused（暫停）：琥珀色 */
+.global-search__status--paused {
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.dark .global-search__status--paused {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+/* 專案 — archived（已封存）：淡灰 */
+.global-search__status--archived {
+  border-color: var(--q-ink-fade);
+  color: var(--q-ink-fade);
+}
+
+/* 連結 — deprecated（已棄置）：紅色，醒目警告 */
+.global-search__status--deprecated {
+  border-color: var(--q-coral);
+  color: var(--q-coral);
+}
+
+/* 連結 — unmaintained（未維護）：琥珀色 */
+.global-search__status--unmaintained {
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.dark .global-search__status--unmaintained {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+/* 動態 — category 資訊：淡 navy */
+.global-search__status--info {
+  border-color: var(--q-line-hard);
+  color: var(--q-ink-soft);
+}
+
+/* ── 空狀態 ── */
+.global-search__empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  padding: 3rem 2rem;
+  gap: 12px;
+  padding: 40px 24px;
   text-align: center;
-  color: rgb(148, 163, 184);
+  color: var(--q-ink-fade);
 }
 
-:global(.dark) .global-search__empty,
-:global(.dark) .global-search__placeholder {
-  color: rgb(100, 116, 139);
+.global-search__empty svg {
+  width: 32px;
+  height: 32px;
+  opacity: 0.4;
 }
 
-.global-search__empty svg,
-.global-search__placeholder svg {
-  width: 3rem;
-  height: 3rem;
-  opacity: 0.5;
-}
-
-.global-search__empty p,
-.global-search__placeholder p {
+.global-search__empty p {
   margin: 0;
-  font-size: 0.875rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 
-/* 頁腳 */
+/* ── 頁腳 ── */
 .global-search__footer {
-  padding: 0.75rem 1.5rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-:global(.dark) .global-search__footer {
-  border-top-color: rgba(148, 163, 184, 0.05);
-  background: rgba(15, 23, 42, 0.3);
+  padding: 8px 16px;
+  border-top: 1px solid var(--q-line);
+  flex-shrink: 0;
 }
 
 .global-search__shortcuts {
   display: flex;
-  gap: 1rem;
-  font-size: 0.75rem;
-  color: rgb(100, 116, 139);
-}
-
-:global(.dark) .global-search__shortcuts {
-  color: rgb(148, 163, 184);
+  gap: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--q-ink-mute);
+  letter-spacing: 0.01em;
 }
 
 .global-search__shortcuts kbd {
-  padding: 0.125rem 0.375rem;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.25rem;
-  background: rgba(248, 250, 252, 0.5);
-  font-size: 0.6875rem;
-  font-family: monospace;
-  margin-right: 0.25rem;
+  padding: 1px 5px;
+  border: 1px solid var(--q-line-hard);
+  border-radius: 2px;
+  background: var(--q-paper-soft);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  margin-right: 4px;
+  color: var(--q-ink-mute);
 }
 
-:global(.dark) .global-search__shortcuts kbd {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(148, 163, 184, 0.15);
-}
-
-/* 響應式 */
+/* ── 響應式 ── */
 @media (max-width: 640px) {
   .global-search__modal {
-    top: 10%;
+    top: 48px;
     width: 95vw;
     max-height: 80vh;
   }
 
   .global-search__header {
-    padding: 0.75rem 1rem;
+    padding: 10px 12px;
   }
 
   .global-search__filters {
-    padding: 0.5rem 1rem;
+    padding: 8px 12px;
   }
 
   .global-search__footer {
-    padding: 0.5rem 1rem;
+    padding: 6px 12px;
   }
 
   .global-search__shortcuts {
-    display: none; /* 手機版隱藏快捷鍵提示 */
+    display: none;
   }
 }
 
-/* 減少動畫偏好 */
+/* ── 減少動畫偏好 ── */
 @media (prefers-reduced-motion: reduce) {
   .global-search__backdrop,
   .global-search__modal {

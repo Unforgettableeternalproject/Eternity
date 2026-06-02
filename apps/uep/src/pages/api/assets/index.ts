@@ -34,3 +34,37 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     });
   }
 };
+
+/** POST /api/assets — 上傳檔案，代理到 content-api 並自動帶 JWT */
+export const POST: APIRoute = async ({ cookies, request }) => {
+  const jwt = cookies.get(JWT_COOKIE)?.value;
+
+  try {
+    const headers: Record<string, string> = {};
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+    // 保留原始 Content-Type（含 multipart boundary），Worker 才能解析 FormData
+    const ct = request.headers.get('Content-Type');
+    if (ct) headers['Content-Type'] = ct;
+
+    const res = await fetch(`${CONTENT_API}/api/assets`, {
+      method: 'POST',
+      headers,
+      body: await request.arrayBuffer(),
+    });
+
+    // 回傳完整 response（包括 Content-Type）
+    const data = await res.text();
+    return new Response(data, {
+      status: res.status,
+      headers: {
+        'Content-Type': res.headers.get('Content-Type') || 'application/json',
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Proxy error';
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+};

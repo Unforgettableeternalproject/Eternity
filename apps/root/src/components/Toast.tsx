@@ -261,6 +261,9 @@ export const showToast =
 export default function ToastContainer({
   position = 'top-right',
 }: ToastContainerProps) {
+  // SSR guard：讓 client:idle 在伺服器端安全地回傳空內容
+  if (typeof window === 'undefined') return null;
+
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   useEffect(() => {

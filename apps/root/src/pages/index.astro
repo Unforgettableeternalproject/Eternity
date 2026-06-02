@@ -1,748 +1,615 @@
 ---
-import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
-import { getCollection, getEntry } from 'astro:content';
-import FlipCard from '../components/FlipCard.astro';
-import TypewriterText from '../components/TypewriterText';
+import { getProjects, getUpdates, getSingleton, assetUrl } from '../lib/api';
+import { normalizeColors } from '../lib/color-normalize';
+import { APP_VERSION } from '../lib/version';
+
+export const prerender = false;
 
 const locale = getCurrentLocale(Astro.url);
 const t = getTranslations(locale);
 const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-// 根據語言載入對應的主頁內容
-const homepageKey = locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en';
-const homepageData = await getEntry(homepageKey, 'index');
+// Homepage CMS data
+const homepageSingleton = await getSingleton(
+  locale === 'zh-tw' ? 'homepage-zh' : 'homepage-en'
+);
+const homepageData = homepageSingleton
+  ? { data: homepageSingleton.content as Record<string, any> }
+  : null;
 
-// 載入專案內容
-const allProjects = await getCollection('projects');
+// 頁面文字 singleton（可從 admin 後台編輯的靜態文案）
+const ptKey = locale === 'zh-tw' ? 'page-home-zh' : 'page-home-en';
+const ptRaw = await getSingleton(ptKey);
+const pt = (ptRaw?.content ?? {}) as Record<string, string>;
+
+// Projects from D1
+const allProjectsRaw = await getProjects();
+const allProjects = allProjectsRaw.map((p) => ({
+  id: p.id,
+  data: {
+    title_zh: p.titleZh,
+    title_en: p.titleEn,
+    description_zh: p.descZh,
+    description_en: p.descEn,
+    tags: p.tags,
+    featured: p.featured,
+    order: p.sortOrder,
+    status: p.status,
+    image: p.image,
+    links: p.links,
+    startDate: p.startDate ? new Date(p.startDate) : null,
+    endDate: p.endDate ? new Date(p.endDate) : null,
+  },
+}));
 const featuredProjects = allProjects
   .filter((p) => p.data.featured)
   .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
-  .slice(0, 3);
-
-// 載入對應語系的專案 mdoc 內容
-const projectContentZh = await Astro.glob(
-  '../content/projects/**/content_zh.mdoc'
-);
-const projectContentEn = await Astro.glob(
-  '../content/projects/**/content_en.mdoc'
-);
-const projectContentGlob =
-  locale === 'zh-tw' ? projectContentZh : projectContentEn;
-
-const projectContentMap = new Map();
-for (const module of projectContentGlob) {
-  // 支援 Windows 和 Unix 路徑
-  const normalizedPath = module.file?.replace(/\\/g, '/');
-  const match = normalizedPath?.match(/projects\/([^/]+)\//);
-  if (match) {
-    projectContentMap.set(match[1], module);
-  }
-}
-
-const allUpdates = await getCollection('updates');
-const latestUpdates = allUpdates
-  .filter((u) => u.data.featured)
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 2);
+const otherProjects = allProjects
+  .filter((p) => !p.data.featured)
+  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
   .slice(0, 4);
 
-// 載入對應語系的更新 mdoc 內容
-const updateContentSuffix =
-  locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc';
-const updateModules = import.meta.glob('../content/updates/*/content_*.mdoc', {
-  eager: true,
-});
+// Updates from D1
+const allUpdatesRaw = await getUpdates(5);
+const latestUpdates = allUpdatesRaw.map((u) => ({
+  id: u.id,
+  data: {
+    title_zh: u.titleZh,
+    title_en: u.titleEn,
+    description_zh: u.descZh,
+    description_en: u.descEn,
+    date: new Date(u.date),
+    category: u.category,
+  },
+}));
 
-const updateContentMap = new Map();
-for (const [path, module] of Object.entries(updateModules)) {
-  // 只處理當前語言的檔案
-  if (!path.endsWith(updateContentSuffix)) {
-    continue;
-  }
-
-  // 從路徑提取資料夾名稱
-  // 路徑格式: ../content/updates/第一次更新 (網站正式部署)/content_zh.mdoc
-  const normalizedPath = path.replace(/\\/g, '/');
-  const match = normalizedPath.match(/updates\/([^/]+)\//);
-
-  if (match) {
-    const folderName = match[1];
-
-    // 嘗試多種可能的 ID 格式
-    const possibleIds = [
-      folderName, // 原始資料夾名稱
-      folderName
-        .replace(/\s*\([^)]*\)/g, '')
-        .replace(/\s+/g, '-')
-        .trim(), // 移除括號，空格轉-
-      folderName.replace(/\s+/g, '-'), // 只轉空格
-      folderName.replace(/\s*\(([^)]*)\)/g, '-$1'), // 括號轉-
-    ];
-
-    // 為所有可能的 ID 都建立映射
-    for (const id of possibleIds) {
-      updateContentMap.set(id, module);
-    }
-  }
-}
+// Skills count for stats
+const skillDomains = 5;
 ---
 
 <BaseLayout title={t.home.title} description={t.home.description}>
-  <!-- Hero Section -->
-  <div
-    class="relative min-h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden"
+  <!-- ─────────── HERO ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-16 md:py-24 lg:py-28 max-w-screen-2xl mx-auto"
   >
-    <!-- 幾何裝飾 -->
-    <!-- Content -->
-    <div class="relative z-10 container-custom py-20 md:py-28">
-      <div
-        class="flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-20"
-      >
-        <!-- Left: Text Content -->
-        <div
-          class="w-full lg:w-[58%] xl:w-[55%] text-center lg:text-left space-y-8 animate-fade-in-up"
-        >
-          <div
-            class="inline-block px-4 py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-4"
+    <span class="q-section-label">
+      {pt.heroLabel || '—— vol. 00 · personal site · 2026'}
+    </span>
+
+    <div
+      class="mt-6 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-10 lg:gap-14 items-center"
+    >
+      <!-- LEFT — title + subtitle + CTA -->
+      <div>
+        <h1
+          class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[112px] font-bold tracking-tighter leading-[0.96]"
+          style="color: var(--q-ink);"
+          set:html={normalizeColors(
+            pt.heroTitle ||
+              (locale === 'zh-tw'
+                ? '一個還<span style="color: var(--q-ink-soft);">在</span>寫的<br /><span style="color: var(--q-navy);">故事</span>。'
+                : 'A story <span style="color: var(--q-ink-soft);">still being</span><br /><span style="color: var(--q-navy);">written</span>.')
+          )}
+        />
+
+        <p
+          class="mt-7 text-lg leading-relaxed max-w-lg"
+          style="color: var(--q-ink-soft);"
+          set:html={normalizeColors(
+            pt.heroSubtitle ||
+              (locale === 'zh-tw'
+                ? '我是 <strong style="color: var(--q-ink); font-weight: 600;">顏榕嶙</strong> — 台灣的全端工程師與創作者。我用程式、音樂、文字、像素，慢慢把心中那個故事寫成現實。'
+                : 'I\'m <strong style="color: var(--q-ink); font-weight: 600;">Bernie Yen</strong> — a full-stack developer &amp; creator from Taiwan. I use code, music, words, and pixels to slowly bring the story in my heart to life.')
+          )}
+        />
+
+        <div class="mt-5 flex gap-5 items-end flex-wrap">
+          <a
+            href={`${basePath}/projects`}
+            class="text-sm font-semibold no-underline transition-opacity hover:opacity-70"
+            style="color: var(--q-ink); border-bottom: 1.5px solid var(--q-ink); padding-bottom: 4px;"
           >
-            {t.home.badge}
-          </div>
-
-          <h1
-            class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight pb-2 break-words hyphens-auto"
-          >
-            <TypewriterText
-              client:load
-              text={homepageData?.data.title || t.home.greeting}
-              speed={80}
-              delay={300}
-            />
-            {' '}
-            <span
-              class="text-gradient bg-gradient-to-r from-primary-600 via-primary-500 to-secondary-600 bg-clip-text text-transparent inline-block animate-gradient pb-4 pr-2 break-words"
-            >
-              <TypewriterText
-                client:load
-                text={homepageData?.data.name || 'Bernie'}
-                speed={100}
-                delay={1200}
-              />
-            </span>
-          </h1>
-
-          <p
-            class="text-xl sm:text-2xl lg:text-3xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light"
-          >
-            <TypewriterText
-              client:load
-              text={homepageData?.data.subtitle || t.home.tagline}
-              speed={40}
-              delay={2000}
-              cursor={false}
-            />
-          </p>
-
-          <div
-            class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6"
-          >
-            <a
-              href={`${basePath}/about`}
-              class="btn btn-primary group shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40"
-            >
-              {t.home.cta.about}
-              <svg
-                class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2.5"
-                  d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-              </svg>
-            </a>
-            <a
-              href={`${basePath}/projects`}
-              class="btn btn-secondary group shadow-lg shadow-slate-200 dark:shadow-slate-800/50 hover:shadow-xl"
-            >
-              {t.home.cta.projects}
-              <svg
-                class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2.5"
-                  d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-              </svg>
-            </a>
-          </div>
-        </div>
-
-        <!-- Right: Visual Element with Animation -->
-        <div class="w-full lg:w-1/2 flex items-center justify-center">
-          <div class="relative w-full max-w-lg aspect-square">
-            <!-- Main visual card -->
-            <div
-              class="relative w-full h-full rounded-3xl bg-gradient-to-br from-primary-500/30 via-primary-400/20 to-secondary-500/30 dark:from-primary-500/20 dark:via-primary-500/10 dark:to-secondary-500/20 backdrop-blur-sm border-2 border-white/50 dark:border-slate-700/50 shadow-2xl animate-float overflow-hidden"
-            >
-              <!-- Inner glow effect -->
-              <div
-                class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"
-              >
-              </div>
-
-              <div
-                class="absolute inset-0 flex items-center justify-center p-6 sm:p-8 md:p-10 lg:p-12"
-              >
-                <div
-                  class="text-center space-y-4 sm:space-y-5 md:space-y-6 max-w-full"
-                >
-                  <div class="relative">
-                    <div
-                      class="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full"
-                    >
-                    </div>
-                    <svg
-                      class="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 mx-auto text-primary-600 dark:text-primary-400 drop-shadow-lg"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                    </svg>
-                  </div>
-                  <p
-                    class="text-sm sm:text-base md:text-lg text-slate-700 dark:text-slate-300 font-semibold tracking-wide px-2"
-                  >
-                    Creative Developer Space
-                  </p>
-                  <div
-                    class="flex gap-1.5 sm:gap-2 justify-center flex-wrap px-2"
-                  >
-                    <span
-                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
-                      >Code</span
-                    >
-                    <span
-                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
-                      >Design</span
-                    >
-                    <span
-                      class="px-2 sm:px-3 py-0.5 sm:py-1 bg-white/80 dark:bg-slate-800/80 text-xs font-medium text-primary-700 dark:text-primary-300 rounded-full shadow-sm whitespace-nowrap"
-                      >Story</span
-                    >
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Decorative floating elements -->
-            <div
-              class="absolute -top-6 -right-6 w-28 h-28 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
-            >
-            </div>
-            <div
-              class="absolute -bottom-6 -left-6 w-36 h-36 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl blur-2xl opacity-60 animate-pulse"
-              style="animation-delay: 1s;"
-            >
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Scroll Indicator -->
-    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-      <svg
-        class="w-6 h-6 text-slate-400 dark:text-slate-500"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
-      </svg>
-    </div>
-  </div>
-
-  <!-- Intro Section -->
-  <section class="relative py-32">
-    <div class="container-custom relative z-10">
-      <div class="max-w-4xl mx-auto text-center space-y-8">
-        <div class="inline-block">
-          <h2
-            class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4"
-          >
-            {homepageData?.data.introHeading || t.home.intro.heading}
-          </h2>
-          <div
-            class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"
-          >
-          </div>
-        </div>
-
-        <div class="prose prose-lg dark:prose-invert mx-auto">
-          <p class="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">
-            {homepageData?.data.introContent || t.home.intro.p1}
-          </p>
-        </div>
-
-        <div
-          class="pt-12 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto"
-        >
+            {pt.heroCta1 || (locale === 'zh-tw' ? '看作品' : 'View work')} →
+          </a>
           <a
             href="https://uep.unforgettableeternalproject.com"
             target="_blank"
             rel="noopener noreferrer"
-            class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20 hover:-translate-y-1"
+            class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
+            style="color: var(--q-ink-soft); border-bottom: 1px solid var(--q-line); padding-bottom: 4px;"
           >
-            <div
-              class="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-500/0 group-hover:from-primary-500/5 group-hover:to-secondary-500/5 transition-all duration-300"
-            >
-            </div>
-            <div class="relative flex items-center justify-between">
-              <div class="text-left">
-                <div
-                  class="text-lg font-semibold text-slate-900 dark:text-white mb-1"
-                >
-                  {t.home.quickLinks.uepDocs.title}
-                </div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">
-                  {t.home.quickLinks.uepDocs.description}
-                </div>
-              </div>
-              <svg
-                class="w-6 h-6 text-primary-600 dark:text-primary-400 transition-transform group-hover:translate-x-1 group-hover:translate-y-[-2px]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                ></path>
-              </svg>
-            </div>
-          </a>
-
-          <a
-            href={`${basePath}/links`}
-            class="group relative overflow-hidden px-8 py-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-secondary-500 dark:hover:border-secondary-500 transition-all duration-300 hover:shadow-xl hover:shadow-secondary-500/20 hover:-translate-y-1"
-          >
-            <div
-              class="absolute inset-0 bg-gradient-to-br from-secondary-500/0 to-secondary-500/0 group-hover:from-secondary-500/5 group-hover:to-primary-500/5 transition-all duration-300"
-            >
-            </div>
-            <div class="relative flex items-center justify-between">
-              <div class="text-left">
-                <div
-                  class="text-lg font-semibold text-slate-900 dark:text-white mb-1"
-                >
-                  {t.home.quickLinks.importantLinks.title}
-                </div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">
-                  {t.home.quickLinks.importantLinks.description}
-                </div>
-              </div>
-              <svg
-                class="w-6 h-6 text-secondary-600 dark:text-secondary-400 transition-transform group-hover:translate-x-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                ></path>
-              </svg>
-            </div>
+            {
+              pt.heroCta2 ||
+                (locale === 'zh-tw'
+                  ? '去看看U.E.P的邊際世界'
+                  : 'Check out the Imaginary World of U.E.P')
+            } ↗
           </a>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- Featured Projects -->
-  <section class="relative py-24 reveal">
-    <div class="container-custom">
-      <div class="max-w-5xl mx-auto text-center mb-12">
-        <h2
-          class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4"
-        >
-          {t.home.featured.heading}
-        </h2>
+      <!-- RIGHT — Quartz fact sheet（可搖晃互動） -->
+      <aside
+        data-draggable-card
+        style="border: 1px solid var(--q-line); background: var(--q-paper);"
+      >
+        <!-- Header bar -->
         <div
-          class="h-1 w-24 bg-gradient-to-r from-primary-500 to-secondary-500 mx-auto rounded-full"
+          class="px-4 py-2.5 flex justify-between items-center"
+          style="background: var(--q-ink); color: var(--q-paper);"
         >
-        </div>
-      </div>
-
-      <div class="flex flex-wrap justify-center gap-6 max-w-5xl mx-auto">
-        {
-          featuredProjects.map((project) => (
-            <div
-              class="w-full md:w-[calc(33.333%-1rem)] max-w-sm reveal-item"
-              style="min-height: 300px;"
-            >
-              <FlipCard type="project">
-                <div slot="front" class="p-6 h-full flex flex-col">
-                  <div class="flex-1">
-                    <h3
-                      class="text-xl font-bold text-slate-900 dark:text-white mb-4"
-                      style="text-transform: none;"
-                    >
-                      {locale === 'zh-tw'
-                        ? project.data.title_zh || project.id
-                        : project.data.title_en}
-                    </h3>
-                    <div class="flex items-center gap-2 mb-4">
-                      <span
-                        class={`px-3 py-1.5 text-xs font-semibold rounded-full ${
-                          project.data.status === 'active'
-                            ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
-                            : project.data.status === 'paused'
-                              ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300'
-                              : project.data.status === 'completed'
-                                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                                : 'bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        {project.data.status === 'active' &&
-                          (locale === 'zh-tw'
-                            ? '\u9032\u884c\u4e2d'
-                            : 'Active')}
-                        {project.data.status === 'paused' &&
-                          (locale === 'zh-tw'
-                            ? '\u66ab\u6642\u505c\u6eef'
-                            : 'Paused')}
-                        {project.data.status === 'completed' &&
-                          (locale === 'zh-tw'
-                            ? '\u5df2\u5b8c\u6210'
-                            : 'Completed')}
-                        {project.data.status === 'archived' &&
-                          (locale === 'zh-tw'
-                            ? '\u5df2\u5c01\u5b58'
-                            : 'Archived')}
-                      </span>
-                    </div>
-                    <div class="flex gap-2 flex-wrap">
-                      {project.data.tags.slice(0, 4).map((tag) => (
-                        <span class="px-3 py-1 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                    <span>
-                      {locale === 'zh-tw'
-                        ? '\u9ede\u64ca\u7ffb\u8f49'
-                        : 'Click to flip'}
-                    </span>
-                  </div>
-                </div>
-
-                <div slot="back" class="h-full flex flex-col p-5">
-                  <div class="flex gap-4 items-start flex-1 min-h-0">
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm leading-relaxed text-white/90 line-clamp-6">
-                        {locale === 'zh-tw'
-                          ? project.data.description_zh
-                          : project.data.description_en}
-                      </p>
-                    </div>
-                    {project.data.image && (
-                      <div class="flex-shrink-0">
-                        <Image
-                          src={project.data.image}
-                          alt={
-                            locale === 'zh-tw'
-                              ? project.id
-                              : project.data.title_en
-                          }
-                          width={96}
-                          height={96}
-                          class="h-24 w-24 object-cover rounded-lg shadow-lg"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
-                    <a
-                      href={`${basePath}/projects/${project.id}`}
-                      class="inline-flex items-center gap-1 hover:gap-2 transition-all font-medium"
-                      onclick="event.stopPropagation()"
-                    >
-                      {locale === 'zh-tw'
-                        ? '\u67e5\u770b\u8a73\u60c5'
-                        : 'View Details'}
-                      <svg
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-              </FlipCard>
-            </div>
-          ))
-        }
-      </div>
-
-      <div class="text-center mt-10">
-        <a href={`${basePath}/projects`} class="btn btn-secondary">
-          {t.home.featured.cta}
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Latest Updates -->
-  <section class="relative py-24 reveal">
-    <div class="container-custom relative z-10">
-      <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12">
-          <h2
-            class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4"
+          <span
+            class="q-mono"
+            style="color: var(--q-paper); opacity: 0.7; font-size: 10px;"
           >
-            {t.home.latest.heading}
-          </h2>
-          <div
-            class="h-1 w-24 bg-gradient-to-r from-secondary-500 to-primary-500 mx-auto rounded-full"
-          >
-          </div>
+            {locale === 'zh-tw' ? '登錄表 · Sheet A' : 'Fact Sheet · A'}
+          </span>
+          <span class="q-live-dot" style="width: 7px; height: 7px;"></span>
         </div>
 
-        <div class="flex flex-wrap justify-center gap-6">
+        <!-- Rows -->
+        <div class="px-5 py-4">
           {
-            latestUpdates.map((update) => (
+            [
+              [
+                'NAME',
+                locale === 'zh-tw'
+                  ? '顏榕嶙 · Bernie Yen'
+                  : 'Bernie Yen · 顏榕嶙',
+              ],
+              [
+                'ROLE',
+                locale === 'zh-tw'
+                  ? '全端工程師 / 創作者'
+                  : 'Full-stack Dev / Creator',
+              ],
+              ['SINCE', '2018'],
+              ['STATUS', null],
+              ['REACH', 'ptyc4076@gmail.com'],
+            ].map(([key, val], i, arr) => (
               <div
-                class="w-full md:w-[calc(50%-0.75rem)] max-w-md reveal-item"
-                style="min-height: 200px;"
+                class="grid items-baseline py-2.5"
+                style={`
+                grid-template-columns: 72px 1fr;
+                gap: 14px;
+                ${i < arr.length - 1 ? 'border-bottom: 1px dashed var(--q-line);' : ''}
+              `}
               >
-                <FlipCard type="update">
-                  <div slot="front" class="p-6 h-full flex flex-col">
-                    <div class="flex-1">
-                      <div class="flex items-center justify-between mb-3">
-                        <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 border border-secondary-200 dark:border-secondary-800">
-                          {update.data.category === 'website' &&
-                            (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
-                          {update.data.category === 'project' &&
-                            (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
-                          {update.data.category === 'announcement' &&
-                            (locale === 'zh-tw'
-                              ? '\u516c\u544a'
-                              : 'Announcement')}
-                          {update.data.category === 'other' &&
-                            (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
-                        </span>
-                        <span class="text-xs text-slate-500 dark:text-slate-400">
-                          {update.data.date.toLocaleDateString(
-                            locale === 'zh-tw' ? 'zh-TW' : 'en-US',
-                            { month: 'short', day: 'numeric' }
-                          )}
-                        </span>
-                      </div>
-                      <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                        {locale === 'zh-tw' ? update.id : update.data.title_en}
-                      </h3>
-                      <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
-                        {locale === 'zh-tw'
-                          ? update.data.description_zh
-                          : update.data.description_en}
-                      </p>
-                    </div>
-                    <div class="flip-card__flip-hint mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                      <svg
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      <span>
-                        {locale === 'zh-tw'
-                          ? '\u9ede\u64ca\u7ffb\u8f49'
-                          : 'Click to flip'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div slot="back" class="h-full flex flex-col p-5">
-                    <div
-                      class="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
-                      data-auto-scroll-content
-                    >
-                      <div class="text-sm leading-relaxed text-white/90 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_h4]:text-sm [&_h5]:text-xs [&_h6]:text-xs [&_p]:text-sm [&_li]:text-sm">
-                        {(() => {
-                          console.log('=== Rendering update:', update.id);
-                          const contentModule = updateContentMap.get(update.id);
-                          console.log('Content module found:', !!contentModule);
-                          console.log(
-                            'Has Content component:',
-                            !!contentModule?.Content
-                          );
-
-                          if (contentModule && contentModule.Content) {
-                            const { Content } = contentModule;
-                            console.log(
-                              'Rendering Content component for:',
-                              update.id
-                            );
-                            return <Content />;
-                          }
-
-                          // Fallback 到 description
-                          console.log(
-                            'Fallback to description for:',
-                            update.id
-                          );
-                          return (
-                            <p class="text-white/80">
-                              {locale === 'zh-tw'
-                                ? update.data.description_zh
-                                : update.data.description_en}
-                            </p>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                    <div class="flip-card__back-footer mt-4 pt-4 border-t border-white/20">
-                      <div class="flex items-center justify-between text-xs opacity-90">
-                        <span>
-                          {update.data.category === 'website' &&
-                            (locale === 'zh-tw' ? '\u7db2\u7ad9' : 'Website')}
-                          {update.data.category === 'project' &&
-                            (locale === 'zh-tw' ? '\u5c08\u6848' : 'Project')}
-                          {update.data.category === 'announcement' &&
-                            (locale === 'zh-tw'
-                              ? '\u516c\u544a'
-                              : 'Announcement')}
-                          {update.data.category === 'other' &&
-                            (locale === 'zh-tw' ? '\u5176\u4ed6' : 'Other')}
-                        </span>
-                        <span>
-                          {update.data.date.toLocaleDateString(
-                            locale === 'zh-tw' ? 'zh-TW' : 'en-US',
-                            {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            }
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </FlipCard>
+                <span class="q-mono">{key}</span>
+                {val ? (
+                  <span class="text-sm font-mono" style="color: var(--q-ink);">
+                    {val}
+                  </span>
+                ) : (
+                  <span
+                    class="text-sm font-mono flex items-center gap-2"
+                    style="color: var(--q-navy);"
+                  >
+                    <span class="q-live-dot" style="width: 6px; height: 6px;" />
+                    Polishing {APP_VERSION}
+                  </span>
+                )}
               </div>
             ))
           }
         </div>
 
-        <div class="text-center mt-10">
-          <a href={`${basePath}/updates`} class="btn btn-primary">
-            {locale === 'zh-tw' ? '查看所有更新' : 'View All Updates'}
-          </a>
+        <!-- Bottom signature -->
+        <div style="height: 1px; background: var(--q-line);"></div>
+        <div
+          class="px-5 py-3 flex justify-between items-center"
+          style="background: var(--q-paper-soft);"
+        >
+          <span class="q-mono">signed</span>
+          <span class="text-xl font-bold italic" style="color: var(--q-navy);"
+            >B.Y.</span
+          >
         </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ─────────── STATS BAR ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-7"
+    style="border-top: 1px solid var(--q-line); border-bottom: 1px solid var(--q-line); background: var(--q-paper-soft);"
+  >
+    <div
+      class="max-w-screen-xl mx-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-6 lg:gap-9 items-center"
+    >
+      <div>
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          {String(allProjects.length).padStart(2, '0')}
+        </div>
+        <span class="q-mono mt-1 inline-block"
+          >{locale === 'zh-tw' ? 'projects' : 'projects'}</span
+        >
+      </div>
+      <div>
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          2018
+        </div>
+        <span class="q-mono mt-1 inline-block"
+          >{
+            locale === 'zh-tw' ? 'since · 第一行程式' : 'since · first line'
+          }</span
+        >
+      </div>
+      <div>
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          {String(skillDomains).padStart(2, '0')}
+        </div>
+        <span class="q-mono mt-1 inline-block">creative domains</span>
+      </div>
+      <div>
+        <div
+          class="font-mono text-3xl font-medium tracking-tight"
+          style="color: var(--q-navy);"
+        >
+          {APP_VERSION}
+        </div>
+        <span class="q-mono mt-1 inline-block">currently shipping</span>
+      </div>
+      <div class="hidden lg:flex items-center gap-2">
+        <span class="q-live-dot"></span>
+        <span class="q-mono" style="color: var(--q-coral);">online</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── PROJECTS ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-20 md:py-28 max-w-screen-xl mx-auto reveal"
+  >
+    <!-- Section header -->
+    <div
+      class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-9"
+      style="border-bottom: 1px solid var(--q-line);"
+    >
+      <div>
+        <span class="q-section-label"
+          >{pt.projectsLabel || '—— 01 / selected work'}</span
+        >
+        <h2
+          class="mt-2 text-3xl md:text-4xl font-bold tracking-tight"
+          style="color: var(--q-ink); line-height: 1;"
+        >
+          {
+            pt.projectsTitle ||
+              (locale === 'zh-tw' ? '精選作品' : 'Selected Work')
+          }
+        </h2>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="q-mono">{allProjects.length} entries</span>
+        <a
+          href={`${basePath}/projects`}
+          class="text-sm font-medium no-underline transition-opacity hover:opacity-70"
+          style="color: var(--q-ink); border-bottom: 1px solid var(--q-ink-soft); padding-bottom: 2px;"
+        >
+          {pt.projectsCta || (locale === 'zh-tw' ? '查看全部' : 'View all')} →
+        </a>
+      </div>
+    </div>
+
+    <!-- Featured projects — 2 col -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-9 mb-14">
+      {
+        featuredProjects.map((project) => (
+          <a
+            href={`${basePath}/projects/${project.id}`}
+            class="block no-underline group reveal-item"
+          >
+            {/* Plate */}
+            <div class="q-plate" style="aspect-ratio: 16/9; overflow: hidden;">
+              {project.data.image ? (
+                <img
+                  src={assetUrl(project.data.image)}
+                  alt={
+                    locale === 'zh-tw'
+                      ? project.data.title_zh || project.id
+                      : project.data.title_en
+                  }
+                  width={640}
+                  height={360}
+                  loading="lazy"
+                />
+              ) : (
+                <div style="position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                  <svg
+                    width="36"
+                    height="36"
+                    viewBox="0 0 48 48"
+                    fill="none"
+                    style="opacity: 0.2;"
+                  >
+                    <rect
+                      x="4"
+                      y="8"
+                      width="40"
+                      height="32"
+                      stroke="var(--q-ink)"
+                      stroke-width="2"
+                      fill="none"
+                    />
+                    <path
+                      d="M4 32 L16 22 L24 28 L34 18 L44 26"
+                      stroke="var(--q-ink)"
+                      stroke-width="2"
+                      fill="none"
+                      stroke-linejoin="round"
+                    />
+                    <circle cx="14" cy="18" r="3" fill="var(--q-ink)" />
+                  </svg>
+                  <span
+                    class="q-mono"
+                    style="font-size: 10px; opacity: 0.35; max-width: 70%; text-align: center; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+                  >
+                    {locale === 'zh-tw'
+                      ? project.data.title_zh || project.id
+                      : project.data.title_en}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Meta */}
+            <div class="mt-4 flex justify-between items-baseline">
+              <span class="q-mono" style="color: var(--q-navy);">
+                {String(featuredProjects.indexOf(project) + 1).padStart(2, '0')}{' '}
+                · {project.data.status}
+              </span>
+              <span class="q-mono">
+                {project.data.startDate
+                  ? project.data.startDate.getFullYear()
+                  : '—'}
+              </span>
+            </div>
+
+            <h3
+              class="mt-2 text-xl md:text-2xl font-bold tracking-tight group-hover:opacity-75 transition-opacity"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw'
+                ? project.data.title_zh || project.id
+                : project.data.title_en}
+              <span
+                class="ml-2 text-xs q-mono"
+                style="color: var(--q-navy); vertical-align: middle;"
+              >
+                ✦
+              </span>
+            </h3>
+
+            <p
+              class="mt-2 text-sm leading-relaxed"
+              style="color: var(--q-ink-soft); max-width: 480px;"
+            >
+              {locale === 'zh-tw'
+                ? project.data.description_zh
+                : project.data.description_en}
+            </p>
+
+            <div class="mt-3 flex gap-1.5 flex-wrap">
+              {project.data.tags.slice(0, 4).map((tag: string) => (
+                <span class="q-pill">{tag}</span>
+              ))}
+              {project.data.tags.length > 4 && (
+                <span class="q-pill">+{project.data.tags.length - 4}</span>
+              )}
+            </div>
+          </a>
+        ))
+      }
+    </div>
+
+    <!-- Other projects — catalog list -->
+    <div>
+      {
+        otherProjects.map((project, i) => (
+          <a
+            href={`${basePath}/projects/${project.id}`}
+            class="catalog-row grid items-baseline py-3.5 no-underline transition-opacity hover:opacity-75 reveal-item"
+            style={`
+            border-top: 1px solid var(--q-line);
+            ${i === otherProjects.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
+            color: inherit;
+          `}
+          >
+            <span class="q-mono" style="color: var(--q-navy);">
+              {String(i + featuredProjects.length + 1).padStart(2, '0')}
+            </span>
+            <div class="min-w-0">
+              <h4
+                class="text-lg md:text-xl font-semibold tracking-tight"
+                style="color: var(--q-ink); margin: 0;"
+              >
+                {locale === 'zh-tw'
+                  ? project.data.title_zh || project.id
+                  : project.data.title_en}
+                <span
+                  class="hidden sm:inline ml-3 text-sm font-normal italic"
+                  style="color: var(--q-ink-mute);"
+                >
+                  —{' '}
+                  {locale === 'zh-tw'
+                    ? project.data.description_zh?.slice(0, 30)
+                    : project.data.description_en?.slice(0, 40)}
+                </span>
+              </h4>
+            </div>
+            <span class="q-mono hidden sm:block">
+              {project.data.startDate
+                ? project.data.startDate.getFullYear()
+                : '—'}
+            </span>
+            <span class="text-right text-lg" style="color: var(--q-ink);">
+              →
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- ─────────── ABOUT + UPDATES ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-16 py-16 md:py-24 max-w-screen-xl mx-auto reveal"
+  >
+    <div class="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-16 lg:gap-20">
+      <!-- ABOUT -->
+      <div class="reveal-item">
+        <span class="q-section-label">{pt.aboutLabel || '—— 02 / about'}</span>
+        <h3
+          class="mt-3 text-3xl md:text-4xl font-bold tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          {pt.aboutTitle || (locale === 'zh-tw' ? '關於我' : 'About Me')}
+        </h3>
+        <div class="mt-7 space-y-4">
+          {
+            /* 優先層級：pt.aboutContent > homepageData.introContent > 硬編碼 fallback */
+          }
+          {
+            pt.aboutContent ? (
+              <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
+                {pt.aboutContent}
+              </p>
+            ) : homepageData?.data.introContent ? (
+              <p class="text-base leading-[1.85]" style="color: var(--q-ink);">
+                {homepageData.data.introContent}
+              </p>
+            ) : (
+              <>
+                <p
+                  class="text-base leading-[1.85]"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? '我並不想要被任何事物給拘束，而希望追求一個自由自在的環境。'
+                    : "I don't want to be constrained by anything — I seek a free and open environment."}
+                </p>
+                <p
+                  class="text-base leading-[1.85]"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? '當然，聽起來還是天方夜譚，不過這也是我之所以繼續努力著的原因。'
+                    : "Of course, it still sounds like a fantasy, but that's exactly why I keep pushing forward."}
+                </p>
+                <p
+                  class="text-base leading-[1.85]"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? '有一個故事存活在我的心中，而對我而言，想辦法把這個故事給實現就是我一直在追求的最終目標。'
+                    : 'A story lives in my heart, and finding a way to bring it to life is the ultimate goal I pursue.'}
+                </p>
+              </>
+            )
+          }
+        </div>
+        <a
+          href={`${basePath}/about`}
+          class="inline-block mt-5 text-sm font-medium no-underline transition-opacity hover:opacity-70"
+          style="color: var(--q-ink); border-bottom: 1.5px solid var(--q-navy); padding-bottom: 3px;"
+        >
+          {pt.aboutCta || (locale === 'zh-tw' ? '完整自介' : 'Full bio')} →
+        </a>
+      </div>
+
+      <!-- UPDATES -->
+      <div class="reveal-item">
+        <span class="q-section-label">{pt.updatesLabel || '—— 03 / log'}</span>
+        <h3
+          class="mt-3 text-3xl md:text-4xl font-bold tracking-tight"
+          style="color: var(--q-ink);"
+        >
+          {pt.updatesTitle || (locale === 'zh-tw' ? '近期動態' : 'Recent Log')}
+        </h3>
+
+        <div class="mt-7">
+          {
+            latestUpdates.map((update, i) => (
+              <a
+                href={`${basePath}/updates/${update.id}`}
+                class="grid items-baseline py-3.5 no-underline transition-opacity hover:opacity-70"
+                style={`
+                grid-template-columns: 80px 1fr;
+                gap: 16px;
+                border-top: 1px solid var(--q-line);
+                ${i === latestUpdates.length - 1 ? 'border-bottom: 1px solid var(--q-line);' : ''}
+                color: inherit;
+              `}
+              >
+                <span class="q-mono">
+                  {update.data.date.toLocaleDateString(
+                    locale === 'zh-tw' ? 'zh-TW' : 'en-US',
+                    { year: '2-digit', month: '2-digit', day: '2-digit' }
+                  )}
+                </span>
+                <span
+                  class="text-sm font-medium leading-snug"
+                  style="color: var(--q-ink);"
+                >
+                  {locale === 'zh-tw'
+                    ? update.data.title_zh || update.id
+                    : update.data.title_en || update.id}
+                </span>
+              </a>
+            ))
+          }
+        </div>
+
+        <a
+          href={`${basePath}/updates`}
+          class="inline-block mt-5 text-sm font-medium no-underline transition-opacity hover:opacity-70"
+          style="color: var(--q-ink); border-bottom: 1.5px solid var(--q-navy); padding-bottom: 3px;"
+        >
+          {pt.updatesCta || (locale === 'zh-tw' ? '所有動態' : 'All updates')} →
+        </a>
       </div>
     </div>
   </section>
 </BaseLayout>
 
 <style>
-  /* 隱藏滾動條但保持可滾動功能 */
+  /* Scrollbar hide for any overflow containers */
   .scrollbar-hide {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
-
   .scrollbar-hide::-webkit-scrollbar {
-    display: none; /* Chrome, Safari and Opera */
+    display: none;
   }
 
-  .dot-pattern {
-    background-image:
-      radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px),
-      radial-gradient(circle, rgb(148 163 184 / 0.3) 1px, transparent 1px);
-    background-size: 24px 41.57px;
-    background-position:
-      0 0,
-      12px 20.78px;
+  /* Catalog list — 手機版隱藏年份欄和描述，只留序號+標題+箭頭 */
+  .catalog-row {
+    grid-template-columns: 32px 1fr 24px;
+    gap: 12px;
   }
-
-  :global(.dark) .dot-pattern {
-    background-image:
-      radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px),
-      radial-gradient(circle, rgb(255 255 255 / 0.15) 1px, transparent 1px);
-  }
-
-  @keyframes gradient {
-    0%,
-    100% {
-      background-position: 0% 50%;
+  @media (min-width: 640px) {
+    .catalog-row {
+      grid-template-columns: 40px 1fr 80px 24px;
+      gap: 20px;
     }
-    50% {
-      background-position: 100% 50%;
-    }
-  }
-
-  .animate-gradient {
-    background-size: 200% auto;
-    animation: gradient 3s ease infinite;
   }
 </style>
 
 <script>
-  // Lightweight intersection reveal for sections/cards; respects reduced motion via CSS
+  // Lightweight intersection reveal — respects reduced motion via CSS
   function initRevealAnimation() {
     const prefersReduced = window.matchMedia(
       '(prefers-reduced-motion: reduce)'
@@ -752,9 +619,8 @@ for (const [path, module] of Object.entries(updateModules)) {
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          const el = entry.target;
           if (entry.isIntersecting) {
-            el.classList.add('reveal-visible');
+            entry.target.classList.add('reveal-visible');
           }
         }
       },
@@ -766,97 +632,249 @@ for (const [path, module] of Object.entries(updateModules)) {
     });
   }
 
-  // 初始載入和頁面切換時都要執行
-  document.addEventListener('DOMContentLoaded', initRevealAnimation);
-  document.addEventListener('astro:page-load', initRevealAnimation);
+  // ── 可拖曳卡片互動（通用，手機版停用避免誤觸導致畫面縮小） ──
+  function makeDraggableCard(el: HTMLElement) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(max-width: 767px)').matches) return;
 
-  // 自動滾動功能
-  function initAutoScroll() {
-    const cards = document.querySelectorAll('[data-flip-card]');
+    let isDragging = false;
+    let startX = 0,
+      startY = 0;
+    let currentX = 0,
+      currentY = 0;
+    let velocityX = 0,
+      velocityY = 0;
+    let lastX = 0,
+      lastY = 0;
+    let shakeFrame = 0;
+    let inertiaRaf = 0;
+    const MAX_ROTATE = 6;
+    const INERTIA_FRICTION = 0.86; // 慣性摩擦係數（每幀保留 86% 速度）
+    const SNAP_BACK_MS = 600;
 
-    cards.forEach((card) => {
-      const scrollContainer = card.querySelector('[data-auto-scroll-content]');
-      if (!scrollContainer) return;
+    // 初始化樣式
+    el.style.cursor = 'grab';
+    el.style.userSelect = 'none';
+    el.style.willChange = 'transform';
+    el.style.position = 'relative';
 
-      let scrollInterval: number | null = null;
-      let isScrolling = false;
+    // 粒子容器
+    let pContainer: HTMLDivElement | null = null;
+    function pc() {
+      if (!pContainer) {
+        pContainer = document.createElement('div');
+        pContainer.style.cssText =
+          'position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:10;';
+        el.appendChild(pContainer);
+      }
+      return pContainer;
+    }
 
-      // 監聽卡片翻轉事件
-      card.addEventListener('cardFlipped', () => {
-        // 重置到頂部
-        scrollContainer.scrollTop = 0;
-
-        // 清除之前的滾動
-        if (scrollInterval) {
-          clearInterval(scrollInterval);
-          scrollInterval = null;
-        }
-
-        // 等待卡片翻轉動畫完成後開始滾動
-        setTimeout(() => {
-          const maxScroll =
-            scrollContainer.scrollHeight - scrollContainer.clientHeight;
-
-          // 如果內容不需要滾動，就不要開始
-          if (maxScroll <= 0) return;
-
-          isScrolling = true;
-          const scrollSpeed = 30; // 每秒滾動像素數
-          const scrollStep = scrollSpeed / 60; // 每幀滾動的距離（60fps）
-
-          scrollInterval = window.setInterval(() => {
-            if (!isScrolling) return;
-
-            scrollContainer.scrollTop += scrollStep;
-
-            // 滾動到底部時停止
-            if (scrollContainer.scrollTop >= maxScroll) {
-              if (scrollInterval) {
-                clearInterval(scrollInterval);
-                scrollInterval = null;
-              }
-              isScrolling = false;
-            }
-          }, 1000 / 60) as unknown as number; // 60fps
-        }, 600); // 等待翻轉動畫（0.6s）
-      });
-
-      // 滑鼠懸停或觸摸時暫停滾動
-      scrollContainer.addEventListener('mouseenter', () => {
-        if (scrollInterval) {
-          clearInterval(scrollInterval);
-          scrollInterval = null;
-          isScrolling = false;
-        }
-      });
-
-      // 手動滾動時也暫停自動滾動
-      scrollContainer.addEventListener(
-        'wheel',
-        () => {
-          if (scrollInterval) {
-            clearInterval(scrollInterval);
-            scrollInterval = null;
-            isScrolling = false;
+    function emitParticles(vx: number, vy: number) {
+      const c = pc();
+      const rect = el.getBoundingClientRect();
+      const count = Math.min(10, Math.floor(Math.sqrt(vx * vx + vy * vy)) + 2);
+      for (let i = 0; i < count; i++) {
+        const p = document.createElement('span');
+        const edge = Math.random();
+        const sx =
+          edge < 0.5 ? (vx > 0 ? rect.width : 0) : Math.random() * rect.width;
+        const sy =
+          edge >= 0.5
+            ? vy > 0
+              ? rect.height
+              : 0
+            : Math.random() * rect.height;
+        const angle = Math.atan2(vy, vx) + (Math.random() - 0.5) * 2;
+        const dist = 25 + Math.random() * 50;
+        const size = 2 + Math.random() * 3;
+        p.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;width:${size}px;height:${size}px;background:var(--q-navy);opacity:0.5;pointer-events:none;`;
+        c.appendChild(p);
+        p.animate(
+          [
+            { transform: 'translate(0,0) scale(1)', opacity: 0.55 },
+            {
+              transform: `translate(${Math.cos(angle) * dist}px,${Math.sin(angle) * dist}px) scale(0)`,
+              opacity: 0,
+            },
+          ],
+          {
+            duration: 400 + Math.random() * 350,
+            easing: 'ease-out',
+            fill: 'forwards',
           }
-        },
-        { passive: true }
-      );
+        ).onfinish = () => p.remove();
+      }
+    }
 
-      scrollContainer.addEventListener(
-        'touchstart',
-        () => {
-          if (scrollInterval) {
-            clearInterval(scrollInterval);
-            scrollInterval = null;
-            isScrolling = false;
-          }
-        },
-        { passive: true }
+    // 晃動偵測：追蹤水平方向變化
+    let lastDirX = 0; // 上一次水平移動方向 (-1/0/1)
+    let dirChangeCount = 0; // 短時間內方向變化次數
+    let dirChangeTimer = 0; // 方向變化衰減計時器
+    let dragParticleCD = 0; // 拖曳粒子冷卻
+
+    function setTransform(x: number, y: number, dragging: boolean) {
+      // 旋轉方向跟著滑鼠移動方向，不是卡片位置
+      const tiltTarget = Math.max(
+        -MAX_ROTATE,
+        Math.min(MAX_ROTATE, velocityX * 1.2)
       );
+      const noise =
+        dragging && shakeFrame++ % 3 === 0 ? (Math.random() - 0.5) * 1.2 : 0;
+      const scale = dragging ? 1.018 : 1;
+      el.style.transform = `translate(${x + noise}px, ${y}px) rotate(${tiltTarget}deg) scale(${scale})`;
+      el.style.transition = dragging
+        ? 'none'
+        : `transform ${SNAP_BACK_MS}ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease`;
+    }
+
+    function grab(cx: number, cy: number) {
+      cancelAnimationFrame(inertiaRaf);
+      isDragging = true;
+      startX = cx - currentX;
+      startY = cy - currentY;
+      lastX = cx;
+      lastY = cy;
+      velocityX = 0;
+      velocityY = 0;
+      shakeFrame = 0;
+      lastDirX = 0;
+      dirChangeCount = 0;
+      dragParticleCD = 0;
+      el.style.cursor = 'grabbing';
+      el.style.boxShadow =
+        '0 10px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)';
+    }
+
+    // 晃動時的小粒子（比放開時更輕、更散）
+    function emitShakeParticles() {
+      const c = pc();
+      const rect = el.getBoundingClientRect();
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        const p = document.createElement('span');
+        const sx = Math.random() * rect.width;
+        const sy = Math.random() * rect.height;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 15 + Math.random() * 30;
+        const size = 1.5 + Math.random() * 2;
+        p.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;width:${size}px;height:${size}px;background:var(--q-navy);opacity:0.35;pointer-events:none;`;
+        c.appendChild(p);
+        p.animate(
+          [
+            { transform: 'translate(0,0)', opacity: 0.4 },
+            {
+              transform: `translate(${Math.cos(angle) * dist}px,${Math.sin(angle) * dist}px)`,
+              opacity: 0,
+            },
+          ],
+          {
+            duration: 300 + Math.random() * 200,
+            easing: 'ease-out',
+            fill: 'forwards',
+          }
+        ).onfinish = () => p.remove();
+      }
+    }
+
+    function drag(cx: number, cy: number) {
+      if (!isDragging) return;
+      const rawVx = cx - lastX;
+      const rawVy = cy - lastY;
+      velocityX = velocityX * 0.4 + rawVx * 0.6;
+      velocityY = velocityY * 0.4 + rawVy * 0.6;
+      lastX = cx;
+      lastY = cy;
+      currentX = cx - startX;
+      currentY = cy - startY;
+
+      // 偵測左右晃動：方向快速反轉
+      const dirX = rawVx > 0.5 ? 1 : rawVx < -0.5 ? -1 : 0;
+      if (dirX !== 0 && dirX !== lastDirX && lastDirX !== 0) {
+        dirChangeCount++;
+        clearTimeout(dirChangeTimer);
+        dirChangeTimer = window.setTimeout(() => {
+          dirChangeCount = Math.max(0, dirChangeCount - 2);
+        }, 300);
+      }
+      if (dirX !== 0) lastDirX = dirX;
+
+      // 晃動夠快時噴粒子（有冷卻避免過多）
+      if (dirChangeCount >= 2 && dragParticleCD <= 0) {
+        emitShakeParticles();
+        dragParticleCD = 4; // 每 4 次 move 才能再噴
+      }
+      if (dragParticleCD > 0) dragParticleCD--;
+
+      setTransform(currentX, currentY, true);
+    }
+
+    function release() {
+      if (!isDragging) return;
+      isDragging = false;
+      el.style.cursor = 'grab';
+      el.style.boxShadow = 'none';
+
+      const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
+      if (speed > 1.5) emitParticles(velocityX, velocityY);
+
+      // 慣性滑行 → 彈回原位
+      let vx = velocityX * 1.4; // 水平慣性倍率
+      let vy = velocityY * 0.8;
+
+      function inertiaStep() {
+        vx *= INERTIA_FRICTION;
+        vy *= INERTIA_FRICTION;
+        currentX += vx;
+        currentY += vy;
+        setTransform(currentX, currentY, true);
+
+        if (Math.abs(vx) > 0.3 || Math.abs(vy) > 0.3) {
+          inertiaRaf = requestAnimationFrame(inertiaStep);
+        } else {
+          // 慣性結束，彈回原位
+          currentX = 0;
+          currentY = 0;
+          setTransform(0, 0, false);
+        }
+      }
+      inertiaRaf = requestAnimationFrame(inertiaStep);
+    }
+
+    el.addEventListener('mousedown', (e) => {
+      grab(e.clientX, e.clientY);
+      e.preventDefault();
     });
+    window.addEventListener('mousemove', (e) => drag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', release);
+    el.addEventListener('dblclick', () => {
+      cancelAnimationFrame(inertiaRaf);
+      currentX = 0;
+      currentY = 0;
+      setTransform(0, 0, false);
+    });
+    el.addEventListener(
+      'touchstart',
+      (e) => grab(e.touches[0].clientX, e.touches[0].clientY),
+      { passive: true }
+    );
+    el.addEventListener(
+      'touchmove',
+      (e) => drag(e.touches[0].clientX, e.touches[0].clientY),
+      { passive: true }
+    );
+    el.addEventListener('touchend', release);
   }
 
-  document.addEventListener('DOMContentLoaded', initAutoScroll);
-  document.addEventListener('astro:page-load', initAutoScroll);
+  function initDraggableCards() {
+    document
+      .querySelectorAll<HTMLElement>('[data-draggable-card]')
+      .forEach(makeDraggableCard);
+  }
+
+  // astro:page-load 已涵蓋 DOMContentLoaded 情境
+  document.addEventListener('astro:page-load', () => {
+    initRevealAnimation();
+    initDraggableCards();
+  });
 </script>

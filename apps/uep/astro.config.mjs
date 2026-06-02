@@ -15,6 +15,10 @@ export default defineConfig({
   output: 'hybrid',
   adapter: isDev ? node({ mode: 'standalone' }) : cloudflare(),
   integrations: [mdx(), react()],
+  prefetch: {
+    prefetchAll: false,
+    defaultStrategy: 'hover',
+  },
   build: {
     format: 'directory',
   },

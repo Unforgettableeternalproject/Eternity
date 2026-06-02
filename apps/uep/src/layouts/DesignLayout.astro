@@ -31,6 +31,25 @@ const {
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
 
+    <!-- Preconnect：Content API（首頁 SSR 有 runtime fetch，提前建立連線） -->
+    <link
+      rel="preconnect"
+      href="https://eternity-content-api.ptyc4076.workers.dev"
+      crossorigin
+    />
+
+    <!-- LCP 圖片預載（僅首頁，瀏覽器提前發現 React 元件內的圖片） -->
+    {
+      lobbyBlock && (
+        <link
+          rel="preload"
+          as="image"
+          href="/uep/Big-UEP.webp"
+          type="image/webp"
+        />
+      )
+    }
+
     <!-- Fonts：非阻塞載入，避免 render-blocking 300ms 延遲 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -81,8 +100,8 @@ const {
   </head>
   <body data-zone={zone}>
     <slot />
-    <UepToastContainer client:only="react" />
-    <UepDialogContainer client:only="react" />
+    <UepToastContainer client:idle />
+    <UepDialogContainer client:idle />
   </body>
 </html>
 

@@ -344,7 +344,11 @@ export default function HistoryReader() {
       {
         param: 'page',
         handler: (value) => {
-          const target = readablePages.find((p) => p.id === value);
+          // 統一用 slug（不帶 area prefix），同時向後相容帶 prefix 的舊連結
+          const fullId = value.startsWith('history/')
+            ? value
+            : `history/${value}`;
+          const target = readablePages.find((p) => p.id === fullId);
           if (target) void loadPage(target, false);
         },
       },
@@ -547,7 +551,7 @@ export default function HistoryReader() {
         });
       }
 
-      if (pushState) zonePushUrl({ page: node.id });
+      if (pushState) zonePushUrl({ page: node.id.replace(/^history\//, '') });
     } catch (err) {
       setContentError(err instanceof Error ? err.message : String(err));
     } finally {

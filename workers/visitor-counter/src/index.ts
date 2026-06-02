@@ -1,11 +1,42 @@
 export interface Env {
   VISITOR_STATS: KVNamespace;
   ALLOWED_ORIGINS: string;
+  /** 管理用靜態 Token（腳本用，wrangler secret put API_TOKEN） */
+  API_TOKEN?: string;
+  /** JWT Secret（與 content-api 共用，讓 admin 編輯器的 JWT 也能驗證） */
+  JWT_SECRET?: string;
 }
 
 interface VisitorData {
   totalVisitors: number;
   lastVisitTimestamp: number;
+}
+
+/** 簡易 JWT 驗證（只驗簽章，不檢查 exp 等 claims） */
+async function verifyJwt(token: string, secret: string): Promise<boolean> {
+  try {
+    const [headerB64, payloadB64, sigB64] = token.split('.');
+    if (!headerB64 || !payloadB64 || !sigB64) return false;
+
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    // Base64url → Uint8Array
+    const sig = Uint8Array.from(
+      atob(sigB64.replace(/-/g, '+').replace(/_/g, '/')),
+      (c) => c.charCodeAt(0)
+    );
+
+    const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    return await crypto.subtle.verify('HMAC', key, sig, data);
+  } catch {
+    return false;
+  }
 }
 
 // 簡單的指紋識別（基於 IP + User Agent）
@@ -152,6 +183,66 @@ export default {
           }
         );
       }
+    }
+
+    // ── 重置計數器（需要驗證：API_TOKEN 或 JWT） ──
+    if (url.pathname === '/api/visitor/reset' && request.method === 'POST') {
+      // dev mode：兩個 secret 都沒設 → 跳過驗證
+      const hasAuth = env.API_TOKEN || env.JWT_SECRET;
+      if (hasAuth) {
+        const authHeader = request.headers.get('Authorization') || '';
+        const bearerToken = authHeader.replace('Bearer ', '');
+        let authorized = false;
+
+        // 方式 1：靜態 API_TOKEN（腳本用）
+        if (env.API_TOKEN && bearerToken === env.API_TOKEN) {
+          authorized = true;
+        }
+
+        // 方式 2：JWT 簽章驗證（admin 編輯器用）
+        if (!authorized && env.JWT_SECRET && bearerToken) {
+          authorized = await verifyJwt(bearerToken, env.JWT_SECRET);
+        }
+
+        if (!authorized) {
+          return new Response(
+            JSON.stringify({ ok: false, error: '驗證失敗' }),
+            {
+              status: 401,
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+        }
+      }
+
+      // 讀取請求 body，支援指定重置值
+      let resetTo = 0;
+      try {
+        const body = (await request.json()) as { value?: number };
+        if (typeof body.value === 'number' && body.value >= 0) {
+          resetTo = Math.floor(body.value);
+        }
+      } catch {
+        // 沒有 body 或解析失敗 → 重置為 0
+      }
+
+      // 重置計數
+      const now = Date.now();
+      await env.VISITOR_STATS.put(
+        'visitor-data',
+        JSON.stringify({
+          totalVisitors: resetTo,
+          lastVisitTimestamp: now,
+        })
+      );
+
+      return new Response(
+        JSON.stringify({ ok: true, totalVisitors: resetTo }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // 404

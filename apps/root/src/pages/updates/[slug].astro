@@ -1,144 +1,219 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getTranslations } from '../../i18n/utils';
+import { getCurrentLocale } from '../../i18n/utils';
+import { getUpdate, getUpdates } from '../../lib/api';
+import { normalizeColors } from '../../lib/color-normalize';
 
-export async function getStaticPaths() {
-  const updates = await getCollection('updates');
+export const prerender = false;
 
-  return updates.flatMap((update) => {
-    return [
-      {
-        params: { slug: update.id },
-        props: { update, locale: 'zh-tw' },
-      },
-      {
-        params: { slug: update.id },
-        props: { update, locale: 'en' },
-      },
-    ];
-  });
-}
+const locale = getCurrentLocale(Astro.url);
+const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
-const { update, locale } = Astro.props;
-const t = getTranslations(locale as 'zh-tw' | 'en');
+const slug = Astro.params.slug!;
+const updateRaw = await getUpdate(slug);
+if (!updateRaw) return Astro.redirect(`${basePath}/updates`);
 
-const contentModules = await Astro.glob(
-  '../../content/updates/**/content_*.mdoc'
-);
-const contentFileSuffix = `/content/updates/${update.id}/${locale === 'zh-tw' ? 'content_zh.mdoc' : 'content_en.mdoc'}`;
-const contentEntry = contentModules.find((mod) =>
-  mod.file?.replace(/\\/g, '/').endsWith(contentFileSuffix)
-);
-const UpdateContent = contentEntry?.Content;
+const toLocal = (u: typeof updateRaw) => ({
+  id: u.id,
+  data: {
+    title_zh: u.titleZh,
+    title_en: u.titleEn,
+    description_zh: u.descZh,
+    description_en: u.descEn,
+    content_zh: u.contentZh,
+    content_en: u.contentEn,
+    date: new Date(u.date),
+    category: u.category,
+  },
+});
 
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString(locale === 'zh-tw' ? 'zh-TW' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+const update = toLocal(updateRaw);
+
+const allRaw = await getUpdates();
+const sorted = allRaw
+  .map(toLocal)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const idx = sorted.findIndex((u) => u.id === update.id);
+const newer = idx > 0 ? sorted[idx - 1] : null;
+const older = idx < sorted.length - 1 ? sorted[idx + 1] : null;
+
+const title =
+  locale === 'zh-tw'
+    ? update.data.title_zh || update.id
+    : update.data.title_en || update.id;
+const desc =
+  locale === 'zh-tw' ? update.data.description_zh : update.data.description_en;
+const contentText =
+  locale === 'zh-tw' ? update.data.content_zh : update.data.content_en;
+const dateStr = `${update.data.date.getFullYear()}.${String(update.data.date.getMonth() + 1).padStart(2, '0')}.${String(update.data.date.getDate()).padStart(2, '0')}`;
+const ymStr = `${update.data.date.getFullYear()} / ${String(update.data.date.getMonth() + 1).padStart(2, '0')}`;
+
+const categoryLabels: Record<string, string> = {
+  website: locale === 'zh-tw' ? '網站' : 'Website',
+  project: locale === 'zh-tw' ? '專案' : 'Project',
+  announcement: locale === 'zh-tw' ? '公告' : 'Announce',
+  other: locale === 'zh-tw' ? '其他' : 'Other',
 };
-
-const getCategoryLabel = (category: string) => {
-  const labels = {
-    website: t.updates.categories.website,
-    project: t.updates.categories.project,
-    announcement: t.updates.categories.announcement,
-    other: t.updates.categories.other,
-  };
-  return labels[category as keyof typeof labels] || category;
-};
-
-const getCategoryColor = (category: string) => {
-  const colors = {
-    website: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    project:
-      'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-    announcement:
-      'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-    other: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-  };
-  return colors[category as keyof typeof colors] || colors.other;
-};
+const catLabel = categoryLabels[update.data.category] || update.data.category;
 ---
 
 <BaseLayout
-  title={`${locale === 'zh-tw' ? update.data.title_zh : update.data.title_en} - ${locale === 'zh-tw' ? '更新動態' : 'Updates'}`}
-  description={locale === 'zh-tw'
-    ? update.data.description_zh
-    : update.data.description_en}
+  title={`${title} — ${locale === 'zh-tw' ? '動態' : 'Updates'}`}
+  description={desc || ''}
 >
-  <div class="container-custom py-20">
-    <article class="max-w-4xl mx-auto">
-      <!-- Back Button -->
-      <a
-        href={locale === 'zh-tw' ? '/zh-tw/updates' : '/en/updates'}
-        class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 mb-8 transition-colors"
-      >
-        <svg
-          class="w-5 h-5 mr-2"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M15 19l-7-7 7-7"></path>
-        </svg>
-        {locale === 'zh-tw' ? '返回動態列表' : 'Back to Updates'}
-      </a>
-
-      <!-- Header -->
-      <header class="mb-12 space-y-6">
-        <div class="flex items-center gap-3">
-          <span
-            class={`px-3 py-1 text-sm rounded-full font-medium ${getCategoryColor(update.data.category)}`}
-          >
-            {getCategoryLabel(update.data.category)}
-          </span>
-          <time class="text-slate-500 dark:text-slate-400">
-            {formatDate(update.data.date)}
-          </time>
-        </div>
-
-        <h1
-          class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white"
-        >
-          {locale === 'zh-tw' ? update.data.title_zh : update.data.title_en}
-        </h1>
-
-        <p class="text-xl text-slate-600 dark:text-slate-300">
-          {
-            locale === 'zh-tw'
-              ? update.data.description_zh
-              : update.data.description_en
-          }
-        </p>
-      </header>
-
-      <!-- Divider -->
-      <div
-        class="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent mb-12"
-      >
-      </div>
-
-      <!-- Content -->
-      <div
-        class="prose prose-lg dark:prose-invert max-w-none min-h-[calc(100vh-12rem)]"
-      >
-        {
-          UpdateContent ? (
-            <UpdateContent />
-          ) : (
-            <div class="text-center py-12 text-slate-500 dark:text-slate-400">
-              <p>No detailed content available for this update.</p>
-            </div>
-          )
-        }
-      </div>
-    </article>
+  <!-- ─────────── BREADCRUMB ─────────── -->
+  <div
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-3.5 flex items-center gap-2.5 overflow-hidden"
+    style="border-bottom: 1px solid var(--q-line); background: var(--q-paper-soft);"
+  >
+    <a
+      href={`${basePath}/updates`}
+      class="q-mono no-underline shrink-0"
+      style="color: var(--q-ink-mute);">~/updates</a
+    >
+    <span class="shrink-0" style="color: var(--q-ink-mute);">/</span>
+    <span class="q-mono shrink-0" style="color: var(--q-ink-mute);"
+      >{ymStr}</span
+    >
+    <span class="shrink-0" style="color: var(--q-ink-mute);">/</span>
+    <span class="q-mono truncate min-w-0" style="color: var(--q-ink);"
+      >{update.id}</span
+    >
   </div>
+
+  <!-- ─────────── HEAD ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pt-16 lg:pt-[100px] pb-10 lg:pb-[50px] max-w-[880px] mx-auto"
+  >
+    <div class="flex items-center gap-3 flex-wrap mb-6 lg:mb-7">
+      <span class="q-pill q-pill--accent">● {catLabel}</span>
+      <span class="q-mono">{dateStr}</span>
+    </div>
+
+    <h1
+      class="text-4xl sm:text-5xl lg:text-[60px] font-bold leading-[1.08] tracking-tight mb-6"
+      style="color: var(--q-ink);"
+    >
+      {title}
+    </h1>
+
+    {
+      desc && (
+        <p
+          class="text-xl lg:text-[21px] leading-[1.65] italic"
+          style="color: var(--q-ink-soft); font-weight: 400;"
+        >
+          {desc}
+        </p>
+      )
+    }
+
+    <!-- Author -->
+    <div
+      class="mt-10 pt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      style="border-top: 1px solid var(--q-line);"
+    >
+      <div class="flex items-center gap-3.5">
+        <div
+          class="w-[42px] h-[42px] rounded-full grid place-items-center text-base font-bold"
+          style="border: 1.5px solid var(--q-ink); background: var(--q-paper); color: var(--q-ink);"
+        >
+          顏
+        </div>
+        <div>
+          <div class="text-[15px] font-semibold" style="color: var(--q-ink);">
+            顏榕嶙 · Bernie
+          </div>
+          <span class="q-mono">posted {dateStr}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── BODY ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] py-14 lg:py-[72px] max-w-[880px] mx-auto"
+  >
+    {
+      contentText ? (
+        <div class="q-prose" set:html={normalizeColors(contentText)} />
+      ) : desc ? (
+        <p class="text-[17px] leading-[1.85]" style="color: var(--q-ink);">
+          {desc}
+        </p>
+      ) : (
+        <p class="text-sm italic" style="color: var(--q-ink-mute);">
+          {locale === 'zh-tw'
+            ? '尚未撰寫詳細內容。'
+            : 'No detailed content yet.'}
+        </p>
+      )
+    }
+  </section>
+
+  <!-- ─────────── PREV / NEXT ─────────── -->
+  <section
+    class="px-4 sm:px-6 lg:px-10 xl:px-[72px] pb-20 lg:pb-[120px] max-w-[880px] mx-auto"
+  >
+    <div
+      class="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:gap-10 pt-6"
+      style="border-top: 1px solid var(--q-line);"
+    >
+      {
+        older ? (
+          <a
+            href={`${basePath}/updates/${older.id}`}
+            class="no-underline"
+            style="color: inherit;"
+          >
+            <span class="q-mono">← older</span>
+            <div
+              class="mt-2 text-base font-semibold leading-[1.4] tracking-tight"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw'
+                ? older.data.title_zh || older.id
+                : older.data.title_en || older.id}
+            </div>
+          </a>
+        ) : (
+          <div />
+        )
+      }
+
+      {
+        newer ? (
+          <a
+            href={`${basePath}/updates/${newer.id}`}
+            class="no-underline sm:text-right"
+            style="color: inherit;"
+          >
+            <span class="q-mono">newer →</span>
+            <div
+              class="mt-2 text-base font-semibold leading-[1.4] tracking-tight"
+              style="color: var(--q-ink);"
+            >
+              {locale === 'zh-tw'
+                ? newer.data.title_zh || newer.id
+                : newer.data.title_en || newer.id}
+            </div>
+          </a>
+        ) : (
+          <div class="sm:text-right">
+            <span class="q-mono">newer →</span>
+            <div
+              class="mt-2 text-[15px] italic"
+              style="color: var(--q-ink-soft);"
+            >
+              {locale === 'zh-tw'
+                ? '（你正在讀最新的一篇）'
+                : '(You are reading the latest entry)'}
+            </div>
+          </div>
+        )
+      }
+    </div>
+  </section>
 </BaseLayout>
+
+<!-- .q-prose 樣式已提取至 global.css -->
