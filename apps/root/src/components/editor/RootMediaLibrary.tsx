@@ -1,4 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import ConfirmDialog, {
+  type ConfirmDialogState,
+  DIALOG_CLOSED,
+} from './ConfirmDialog';
 import './RootMediaLibrary.css';
 
 // ── types ──
@@ -62,6 +66,7 @@ export default function RootMediaLibrary({
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AssetItem | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -137,7 +142,12 @@ export default function RootMediaLibrary({
       }
       setUploading(false);
       if (failed.length > 0) {
-        alert(`上傳失敗：${failed.join('、')}`);
+        setDialog({
+          open: true,
+          title: '上傳失敗',
+          description: failed.join('、'),
+          alertOnly: true,
+        });
       }
       fetchAssets();
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -147,25 +157,42 @@ export default function RootMediaLibrary({
 
   // ── delete ──
   const handleDelete = useCallback(
-    async (key: string) => {
-      if (!window.confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
-      try {
-        const res = await fetch(
-          `${apiBase}/api/root/assets/${encodeAssetKey(key)}`,
-          {
-            method: 'DELETE',
-            headers: authHeaders(),
+    (key: string) => {
+      setDialog({
+        open: true,
+        title: `確定要刪除「${getFilename(key)}」嗎？`,
+        confirmLabel: '刪除',
+        danger: true,
+        onConfirm: async () => {
+          try {
+            const res = await fetch(
+              `${apiBase}/api/root/assets/${encodeAssetKey(key)}`,
+              {
+                method: 'DELETE',
+                headers: authHeaders(),
+              }
+            );
+            if (!res.ok) {
+              setDialog({
+                open: true,
+                title: '刪除失敗',
+                description: getFilename(key),
+                alertOnly: true,
+              });
+              return;
+            }
+            setItems((prev) => prev.filter((i) => i.key !== key));
+            if (selected?.key === key) setSelected(null);
+          } catch {
+            setDialog({
+              open: true,
+              title: '刪除失敗',
+              description: getFilename(key),
+              alertOnly: true,
+            });
           }
-        );
-        if (!res.ok) {
-          alert(`刪除失敗：${getFilename(key)}`);
-          return;
-        }
-        setItems((prev) => prev.filter((i) => i.key !== key));
-        if (selected?.key === key) setSelected(null);
-      } catch {
-        alert(`刪除失敗：${getFilename(key)}`);
-      }
+        },
+      });
     },
     [apiBase, authHeaders, selected]
   );
@@ -393,6 +420,7 @@ export default function RootMediaLibrary({
           </span>
         </div>
       )}
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </div>
   );
 }

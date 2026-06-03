@@ -13,6 +13,8 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
+import { Markdown } from '@tiptap/markdown';
+import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -271,6 +273,8 @@ export default function RichEditor({
       TableCell,
       UepDialogueNode,
       InlineAudioNode,
+      Markdown,
+      MarkdownPaste,
     ],
     content: isConcepts
       ? initialContentBlocks?.find((b) => b.type === 'rich_text')?.content ||

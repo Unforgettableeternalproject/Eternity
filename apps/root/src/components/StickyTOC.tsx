@@ -13,6 +13,7 @@ interface TocItem {
 export default function StickyTOC() {
   const [items, setItems] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pastMain, setPastMain] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const tocRef = useRef<HTMLElement>(null);
 
@@ -131,11 +132,28 @@ export default function StickyTOC() {
     }
   }, [activeId]);
 
+  // ── footer 進入視窗時隱藏 TOC ──
+  useEffect(() => {
+    const footer = document.querySelector('footer');
+    if (!footer) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => setPastMain(entry.isIntersecting),
+      { threshold: 0 }
+    );
+    io.observe(footer);
+    return () => io.disconnect();
+  }, []);
+
   // 沒有標題時不渲染
   if (items.length === 0) return null;
 
   return (
-    <nav ref={tocRef} className="sticky-toc" aria-label="Table of contents">
+    <nav
+      ref={tocRef}
+      className={`sticky-toc${pastMain ? ' sticky-toc--hidden' : ''}`}
+      aria-label="Table of contents"
+    >
       <div className="sticky-toc__label">on this page</div>
       <ul className="sticky-toc__list">
         {items.map((item) => (

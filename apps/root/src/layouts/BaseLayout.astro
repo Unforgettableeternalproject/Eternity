@@ -210,8 +210,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Quartz Widget System（persist 跨頁存活，不重新 mount） -->
     <QuartzWidgetSystem client:only="react" transition:persist />
 
-    <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示，可見才載入） -->
-    <StickyTOC client:visible />
+    <!-- Sticky TOC（右側固定目錄，idle 時 hydrate — client:visible 對 SSR 空殼不觸發） -->
+    <StickyTOC client:idle />
 
     <!-- 手機版不顯示 widget，桌面版由 QuartzWidgetSystem 處理 -->
 
