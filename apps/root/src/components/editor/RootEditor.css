@@ -256,7 +256,7 @@
 }
 
 /* 插入指示線 — 上方 */
-.qe-row--drop-above::before {
+.qe-row--drop-top::before {
   content: '';
   position: absolute;
   top: -1.5px;
@@ -268,7 +268,7 @@
   z-index: 2;
   animation: drop-line-in 0.12s ease-out;
 }
-.qe-row--drop-above::after {
+.qe-row--drop-top::after {
   content: '';
   position: absolute;
   top: -4.5px;
@@ -282,7 +282,7 @@
 }
 
 /* 插入指示線 — 下方 */
-.qe-row--drop-below::before {
+.qe-row--drop-bottom::before {
   content: '';
   position: absolute;
   bottom: -1.5px;
@@ -294,7 +294,7 @@
   z-index: 2;
   animation: drop-line-in 0.12s ease-out;
 }
-.qe-row--drop-below::after {
+.qe-row--drop-bottom::after {
   content: '';
   position: absolute;
   bottom: -4.5px;
