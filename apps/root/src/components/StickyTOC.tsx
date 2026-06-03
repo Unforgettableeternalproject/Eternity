@@ -17,15 +17,12 @@ export default function StickyTOC() {
   const tocRef = useRef<HTMLElement>(null);
 
   const scanHeadings = useCallback(() => {
-    // 首頁不顯示 TOC（每個區塊都是 section，列出來沒意義）
-    const path = window.location.pathname;
-    const isHome =
-      path === '/' ||
-      path === '/zh-tw' ||
-      path === '/zh-tw/' ||
-      path === '/en' ||
-      path === '/en/';
-    if (isHome) {
+    // 只在詳細頁面顯示 TOC（projects/[slug]、updates/[slug]）
+    const path = window.location.pathname.replace(/\/$/, '');
+    const isDetailPage =
+      /^\/(zh-tw|en)?\/projects\/[^/]+$/.test(path) ||
+      /^\/(zh-tw|en)?\/updates\/[^/]+$/.test(path);
+    if (!isDetailPage) {
       setItems([]);
       return;
     }
@@ -111,7 +108,7 @@ export default function StickyTOC() {
   useEffect(() => {
     if (!activeId || !tocRef.current) return;
     const activeLink = tocRef.current.querySelector(
-      `a[href="#${CSS.escape(activeId)}"]`
+      `a[href="#${CSS.escape(activeId)}"]` // eslint-disable-line no-undef
     ) as HTMLElement | null;
     if (!activeLink) return;
 

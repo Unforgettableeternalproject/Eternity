@@ -3,6 +3,8 @@
  * Quartz Footer — minimal four-column text footer
  */
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
+import { getLinks } from '../lib/api';
+import { APP_VERSION } from '../lib/version';
 
 interface Props {
   currentLocale?: 'zh-tw' | 'en';
@@ -14,8 +16,8 @@ const basePath = locale === 'zh-tw' ? '/zh-tw' : '/en';
 
 const navItems = [
   { label: t.nav.home, href: `${basePath}/` },
-  { label: t.nav.projects, href: `${basePath}/projects` },
   { label: t.nav.about, href: `${basePath}/about` },
+  { label: t.nav.projects, href: `${basePath}/projects` },
   { label: t.nav.updates, href: `${basePath}/updates` },
   { label: t.nav.links, href: `${basePath}/links` },
   {
@@ -26,45 +28,49 @@ const navItems = [
 
 const worldItems = [
   {
-    label: 'Imaginary Space ↗',
+    label:
+      locale === 'zh-tw' ? 'U.E.P的邊際世界 ↗' : "U.E.P's Imaginary Space ↗",
     href: 'https://uep.unforgettableeternalproject.com',
-    external: true,
-  },
-  {
-    label: locale === 'zh-tw' ? '歷史典藏庫' : 'History Archive',
-    href: 'https://uep.unforgettableeternalproject.com/history',
-    external: true,
-  },
-  {
-    label: locale === 'zh-tw' ? '回音蒐藏間' : 'Echo Collection',
-    href: 'https://uep.unforgettableeternalproject.com/echoes',
-    external: true,
-  },
-  {
-    label: locale === 'zh-tw' ? '概念調整房' : 'Concept Lab',
-    href: 'https://uep.unforgettableeternalproject.com/concepts',
     external: true,
   },
 ];
 
-const connectItems = [
+const worldPlaceholder =
+  locale === 'zh-tw'
+    ? '其他世界仍在建構中…'
+    : 'More worlds under construction…';
+
+// Connect 區塊：從 D1 讀取 featured 連結，失敗時用 fallback
+const CONNECT_FALLBACK = [
   {
     label: 'GitHub',
     href: 'https://github.com/Unforgettableeternalproject',
     external: true,
   },
   { label: 'Email', href: 'mailto:ptyc4076@gmail.com', external: true },
-  {
-    label: 'YouTube',
-    href: 'https://youtube.com/@unforgettable_eternalproject',
-    external: true,
-  },
-  {
-    label: 'SoundCloud',
-    href: 'https://soundcloud.com/unforgettable-eternalproject',
-    external: true,
-  },
 ];
+
+let connectItems: { label: string; href: string; external: boolean }[];
+try {
+  const allLinks = await getLinks();
+  const featured = allLinks
+    .filter((l) => l.featured)
+    .sort((a, b) => (a.sortOrder || 999) - (b.sortOrder || 999));
+
+  connectItems =
+    featured.length > 0
+      ? featured.map((l) => ({
+          label:
+            locale === 'zh-tw'
+              ? l.titleZh || l.titleEn
+              : l.titleEn || l.titleZh,
+          href: l.url,
+          external: true,
+        }))
+      : CONNECT_FALLBACK;
+} catch {
+  connectItems = CONNECT_FALLBACK;
+}
 ---
 
 <footer
@@ -105,7 +111,11 @@ const connectItems = [
         <div class="mt-5 flex items-center gap-2">
           <span class="q-live-dot"></span>
           <span class="q-mono" style="color: var(--q-coral);">
-            {locale === 'zh-tw' ? 'polishing v0.9.6' : 'polishing v0.9.6'}
+            {
+              locale === 'zh-tw'
+                ? `polishing ${APP_VERSION}`
+                : `polishing ${APP_VERSION}`
+            }
           </span>
         </div>
       </div>
@@ -149,6 +159,11 @@ const connectItems = [
               </li>
             ))
           }
+          <li>
+            <span class="text-sm italic" style="color: var(--q-ink-fade);">
+              {worldPlaceholder}
+            </span>
+          </li>
         </ul>
       </div>
 
@@ -179,8 +194,8 @@ const connectItems = [
     <div
       class="mt-5 flex flex-col sm:flex-row justify-between items-center gap-2"
     >
-      <span class="q-mono">© 2026 · BERNIE · 顏榕嶙 · v0.9.6</span>
-      <span class="q-mono">We</span>
+      <span class="q-mono">© 2026 · BERNIE · 顏榕嶙 · {APP_VERSION}</span>
+      <span class="q-mono">Unforgettable Eternal Project</span>
     </div>
   </div>
 </footer>

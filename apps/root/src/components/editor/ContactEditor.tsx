@@ -1,25 +1,25 @@
 import React, { useState, useCallback } from 'react';
 import { Mono, Divider, Field, Input, OutlineRow } from './editorPrimitives';
 
-// ─── 型別定義 ────────────────────────────────────────────────────────
-interface DirectLink {
+// ─── 型別定義（匯出供 RootEditor 共用） ─────────────────────────────
+export interface DirectLink {
   key: string; // 顯示標籤，如 "EMAIL"
   value: string; // 顯示值，如 "ptyc4076@gmail.com"
   url: string; // 連結 URL
 }
 
-interface FAQ {
+export interface FAQ {
   q: string; // 問題
   a: string; // 答案
 }
 
-interface DevCta {
+export interface DevCta {
   heading: string; // 如 "遇到 bug 或想提建議？"
   text: string; // 補充說明
 }
 
 // contact singleton 的資料結構
-interface ContactData {
+export interface ContactData {
   heroTitle?: string;
   heroIntro?: string;
   subjects?: string[];
@@ -31,10 +31,10 @@ interface ContactData {
 }
 
 export interface ContactEditorProps {
-  dataZh: ContactData;
-  dataEn: ContactData;
-  setDataZh: (d: ContactData) => void;
-  setDataEn: (d: ContactData) => void;
+  dataZh: ContactData | null;
+  dataEn: ContactData | null;
+  setDataZh: (d: ContactData | null) => void;
+  setDataEn: (d: ContactData | null) => void;
   api: (path: string, method: string, body?: any) => Promise<any>;
 }
 

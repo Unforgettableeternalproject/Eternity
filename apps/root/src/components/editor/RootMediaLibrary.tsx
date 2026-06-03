@@ -118,20 +118,27 @@ export default function RootMediaLibrary({
       if (allowed.length === 0) return;
 
       setUploading(true);
+      const failed: string[] = [];
       for (const file of allowed) {
         try {
-          const formData = new FormData();
-          formData.append('file', file);
-          await fetch(`${apiBase}/api/root/assets`, {
+          const res = await fetch(`${apiBase}/api/root/assets`, {
             method: 'POST',
             headers: authHeaders(),
-            body: formData,
+            body: (() => {
+              const fd = new FormData();
+              fd.append('file', file);
+              return fd;
+            })(),
           });
+          if (!res.ok) failed.push(file.name);
         } catch {
-          // silent
+          failed.push(file.name);
         }
       }
       setUploading(false);
+      if (failed.length > 0) {
+        alert(`上傳失敗：${failed.join('、')}`);
+      }
       fetchAssets();
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
@@ -143,14 +150,21 @@ export default function RootMediaLibrary({
     async (key: string) => {
       if (!window.confirm(`確定要刪除「${getFilename(key)}」嗎？`)) return;
       try {
-        await fetch(`${apiBase}/api/root/assets/${encodeAssetKey(key)}`, {
-          method: 'DELETE',
-          headers: authHeaders(),
-        });
+        const res = await fetch(
+          `${apiBase}/api/root/assets/${encodeAssetKey(key)}`,
+          {
+            method: 'DELETE',
+            headers: authHeaders(),
+          }
+        );
+        if (!res.ok) {
+          alert(`刪除失敗：${getFilename(key)}`);
+          return;
+        }
         setItems((prev) => prev.filter((i) => i.key !== key));
         if (selected?.key === key) setSelected(null);
       } catch {
-        // silent
+        alert(`刪除失敗：${getFilename(key)}`);
       }
     },
     [apiBase, authHeaders, selected]

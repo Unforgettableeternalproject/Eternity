@@ -187,7 +187,7 @@ function isAuthorized(request: Request, env: Env): boolean {
   const auth = request.headers.get('Authorization');
   if (!auth) return false;
 
-  const token = auth.replace('Bearer ', '');
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
   return token === env.API_TOKEN;
 }
 
@@ -207,7 +207,7 @@ async function requireJwt(
       jti: '',
     };
   const auth = request.headers.get('Authorization');
-  const token = auth?.replace('Bearer ', '');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
   if (!token) return null;
   return verifyJwt(token, env.JWT_SECRET);
 }
@@ -215,6 +215,9 @@ async function requireJwt(
 // ===== 路由處理 =====
 
 /** GET /api/content/:area — 列出區域內所有頁面 */
+const LIST_COLS =
+  'id, area, title, slug, sort_order, status, source_file, parent_id, depth, page_type, updated_at, deleted_at';
+
 async function listPages(
   area: string,
   db: D1Database,
@@ -222,8 +225,8 @@ async function listPages(
   includeDeleted = false
 ): Promise<Response> {
   const query = includeDeleted
-    ? 'SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC'
-    : 'SELECT * FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC';
+    ? `SELECT ${LIST_COLS} FROM pages WHERE area = ? ORDER BY sort_order ASC`
+    : `SELECT ${LIST_COLS} FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC`;
   const result = await db.prepare(query).bind(area).all<PageRow>();
 
   const items: PageListItem[] = (result.results || []).map(rowToListItem);
@@ -450,53 +453,79 @@ async function importPages(
   const skipped: string[] = [];
   const updated: string[] = [];
 
+  // 批次查詢所有要匯入的頁面，避免 N+1 問題
+  const existingMap = new Map<
+    string,
+    Pick<PageRow, 'id' | 'status' | 'base_content_hash'>
+  >();
+  if (body.pages.length > 0) {
+    // D1 支援最多 100 個 bind parameter，分批查詢
+    const CHUNK_SIZE = 80;
+    for (let i = 0; i < body.pages.length; i += CHUNK_SIZE) {
+      const chunk = body.pages.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(',');
+      const result = await db
+        .prepare(
+          `SELECT id, status, base_content_hash FROM pages WHERE id IN (${placeholders})`
+        )
+        .bind(...chunk.map((p) => p.id))
+        .all<Pick<PageRow, 'id' | 'status' | 'base_content_hash'>>();
+      for (const row of result.results || []) {
+        existingMap.set(row.id, row);
+      }
+    }
+  }
+
+  // 分類後用 db.batch() 批次執行寫入
+  const insertStmts: D1PreparedStatement[] = [];
+  const updateStmts: D1PreparedStatement[] = [];
+
   for (const page of body.pages) {
-    const existing = await db
-      .prepare('SELECT id, status, base_content_hash FROM pages WHERE id = ?')
-      .bind(page.id)
-      .first<Pick<PageRow, 'id' | 'status' | 'base_content_hash'>>();
+    const existing = existingMap.get(page.id);
 
     if (!existing) {
       // 新頁面：直接匯入
-      await db
-        .prepare(
-          `INSERT INTO pages (id, area, title, slug, sort_order, content, source_file, base_content_hash, status, metadata, parent_id, depth, page_type, created_at, updated_at)
+      insertStmts.push(
+        db
+          .prepare(
+            `INSERT INTO pages (id, area, title, slug, sort_order, content, source_file, base_content_hash, status, metadata, parent_id, depth, page_type, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          page.id,
-          page.area,
-          page.title,
-          page.slug,
-          page.sortOrder || 0,
-          JSON.stringify(page.content),
-          page.sourceFile,
-          page.contentHash,
-          JSON.stringify(page.metadata || {}),
-          page.parentId || null,
-          page.depth || 0,
-          page.pageType || 'page',
-          now,
-          now
-        )
-        .run();
+          )
+          .bind(
+            page.id,
+            page.area,
+            page.title,
+            page.slug,
+            page.sortOrder || 0,
+            JSON.stringify(page.content),
+            page.sourceFile,
+            page.contentHash,
+            JSON.stringify(page.metadata || {}),
+            page.parentId || null,
+            page.depth || 0,
+            page.pageType || 'page',
+            now,
+            now
+          )
+      );
       imported.push(page.id);
     } else if (existing.status === 'synced') {
       // 同步中的頁面：來源有變更時自動更新
       if (existing.base_content_hash !== page.contentHash) {
-        await db
-          .prepare(
-            `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, updated_at = ? WHERE id = ?`
-          )
-          .bind(
-            page.title,
-            JSON.stringify(page.content),
-            page.contentHash,
-            page.sourceFile,
-            now,
-            page.id
-          )
-          .run();
+        updateStmts.push(
+          db
+            .prepare(
+              `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, updated_at = ? WHERE id = ?`
+            )
+            .bind(
+              page.title,
+              JSON.stringify(page.content),
+              page.contentHash,
+              page.sourceFile,
+              now,
+              page.id
+            )
+        );
         updated.push(page.id);
       } else {
         skipped.push(page.id);
@@ -505,17 +534,24 @@ async function importPages(
       // 已修改的頁面：不自動覆蓋，只更新 base hash 供比對
       if (existing.base_content_hash !== page.contentHash) {
         // 標記來源有新版本（metadata 裡記錄）
-        await db
-          .prepare(
-            `UPDATE pages SET metadata = json_set(COALESCE(metadata, '{}'), '$.pendingSourceHash', ?), updated_at = ? WHERE id = ?`
-          )
-          .bind(page.contentHash, now, page.id)
-          .run();
+        updateStmts.push(
+          db
+            .prepare(
+              `UPDATE pages SET metadata = json_set(COALESCE(metadata, '{}'), '$.pendingSourceHash', ?), updated_at = ? WHERE id = ?`
+            )
+            .bind(page.contentHash, now, page.id)
+        );
         skipped.push(page.id);
       } else {
         skipped.push(page.id);
       }
     }
+  }
+
+  // 批次執行所有 INSERT 和 UPDATE
+  const allStmts = [...insertStmts, ...updateStmts];
+  if (allStmts.length > 0) {
+    await db.batch(allStmts);
   }
 
   // 記錄同步日誌
@@ -872,9 +908,11 @@ async function listAssets(
     }
   }
 
-  // 掃描所有頁面的 content，找出資產引用
+  // 掃描有內容的頁面 content，找出資產引用（排除空陣列以減少掃描量）
   const contentRows = await db
-    .prepare('SELECT id, content FROM pages')
+    .prepare(
+      "SELECT id, content FROM pages WHERE content IS NOT NULL AND content != '[]'"
+    )
     .all<{ id: string; content: string }>();
 
   for (const row of contentRows.results || []) {
@@ -1088,30 +1126,24 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
 
     let reindexed = 0;
     for (const pid of uniqueParents) {
+      // 一次查出 id + sort_order，同時用於判斷和重排
       const query = pid
-        ? 'SELECT id FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
-        : 'SELECT id FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
+        ? 'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+        : 'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
       const result = pid
-        ? await db.prepare(query).bind(area, pid).all<{ id: string }>()
-        : await db.prepare(query).bind(area).all<{ id: string }>();
+        ? await db
+            .prepare(query)
+            .bind(area, pid)
+            .all<{ id: string; sort_order: number }>()
+        : await db
+            .prepare(query)
+            .bind(area)
+            .all<{ id: string; sort_order: number }>();
       const rows = result.results || [];
       if (rows.length <= 1) continue;
 
       // 檢查是否已經是連續的 0, 1, 2...（避免無意義的寫入）
-      const checkQuery = pid
-        ? 'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
-        : 'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC';
-      const checkResult = pid
-        ? await db
-            .prepare(checkQuery)
-            .bind(area, pid)
-            .all<{ id: string; sort_order: number }>()
-        : await db
-            .prepare(checkQuery)
-            .bind(area)
-            .all<{ id: string; sort_order: number }>();
-      const checkRows = checkResult.results || [];
-      const needsReindex = checkRows.some((r, i) => r.sort_order !== i);
+      const needsReindex = rows.some((r, i) => r.sort_order !== i);
       if (!needsReindex) continue;
 
       const batch = rows.map((row, i) =>
@@ -1143,7 +1175,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   // ── 3. 清理過期的 R2 資產刪除紀錄 ──
   try {
     const assetPurge = await db
-      .prepare('DELETE FROM asset_deletions WHERE deleted_at < ?')
+      .prepare('DELETE FROM deleted_assets WHERE deleted_at < ?')
       .bind(cutoff)
       .run();
     const assetPurged = assetPurge.meta?.changes ?? 0;
@@ -1151,7 +1183,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
       log.push(`清理 ${assetPurged} 筆過期 R2 刪除紀錄`);
     }
   } catch {
-    // asset_deletions 表不存在則忽略
+    // deleted_assets 表不存在則忽略
   }
 
   if (log.length > 0) {
@@ -1232,8 +1264,11 @@ export default {
       return batchDeleteAssets(body, env.ASSETS_BUCKET, env.CONTENT_DB, cors);
     }
 
-    // GET /api/assets/deleted — 列出已刪除的資產紀錄（同步用）
+    // GET /api/assets/deleted — 列出已刪除的資產紀錄（同步用，需認證）
     if (path === '/api/assets/deleted' && request.method === 'GET') {
+      if (!isAuthorized(request, env)) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
       const result = await env.CONTENT_DB.prepare(
         'SELECT key, deleted_at FROM deleted_assets ORDER BY deleted_at DESC'
       ).all<{ key: string; deleted_at: string }>();
@@ -1390,8 +1425,8 @@ export default {
       const treeIncludeDeleted =
         url.searchParams.get('include_deleted') === 'true';
       const treeQuery = treeIncludeDeleted
-        ? 'SELECT * FROM pages WHERE area = ? ORDER BY sort_order ASC'
-        : 'SELECT * FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC';
+        ? `SELECT ${LIST_COLS}, metadata FROM pages WHERE area = ? ORDER BY sort_order ASC`
+        : `SELECT ${LIST_COLS}, metadata FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC`;
       const result = await env.CONTENT_DB.prepare(treeQuery)
         .bind(area)
         .all<PageRow>();

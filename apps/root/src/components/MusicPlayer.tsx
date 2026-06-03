@@ -269,7 +269,6 @@ export default function MusicPlayer({
 
     const handleCookieAccepted = () => {
       // 只在非行動版（md 以上，768px+）才自動播放
-      // 對應 MobileControlPanel 的 md:hidden 條件
       if (window.innerWidth < 768) return;
 
       // 檢查是否已經播放過
@@ -366,67 +365,74 @@ export default function MusicPlayer({
     }
   }, [currentTrack]);
 
+  // === 手機版控制橋接 ===
+  // 接收 music-next-track / music-change-track 事件
+  useEffect(() => {
+    const handleNext = () => {
+      shouldAutoPlay.current = true;
+      setCurrentTrack((prev) => (prev + 1) % tracks.length);
+    };
+    const handleChange = (e: Event) => {
+      const { index } = (e as CustomEvent).detail;
+      if (typeof index === 'number' && index >= 0 && index < tracks.length) {
+        changeTrack(index);
+      }
+    };
+    window.addEventListener('music-next-track', handleNext);
+    window.addEventListener('music-change-track', handleChange);
+    return () => {
+      window.removeEventListener('music-next-track', handleNext);
+      window.removeEventListener('music-change-track', handleChange);
+    };
+  }, [tracks.length]);
+
+  // 廣播當前曲目資訊（讓手機版同步顯示）
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('music-track-change', {
+        detail: {
+          index: currentTrack,
+          title: tracks[currentTrack]?.title || '',
+        },
+      })
+    );
+  }, [currentTrack]);
+
+  // 曲目顯示文字（避免空 artist 造成尾巴 ` - `）
+  const trackLabel = tracks[currentTrack].artist
+    ? `${tracks[currentTrack].title} — ${tracks[currentTrack].artist}`
+    : tracks[currentTrack].title;
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <svg
-              className="w-4 h-4 text-primary-500"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-            </svg>
-            {currentTranslations.title}
-          </h3>
-          {tracks[currentTrack].cover && (
-            <img
-              src={tracks[currentTrack].cover}
-              alt={tracks[currentTrack].title}
-              className="w-8 h-8 rounded object-contain bg-slate-100 dark:bg-slate-800 ml-auto"
-            />
-          )}
-        </div>
+    <div className="qmp">
+      {/* 曲目資訊 */}
+      <div className="qmp__track">
+        <span className="qmp__title">{trackLabel}</span>
         <button
           onClick={() => setShowTracks(!showTracks)}
-          className="text-slate-600 dark:text-slate-400 hover:text-primary-500 dark:hover:text-primary-400 ml-2"
+          className="qmp__list-toggle"
+          aria-label="Track list"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
+          {showTracks ? '▾' : '▸'}{' '}
+          <span className="qmp__count">
+            {currentTrack + 1}/{tracks.length}
+          </span>
         </button>
       </div>
 
-      <div className="text-xs text-slate-600 dark:text-slate-300 mb-2 truncate">
-        {tracks[currentTrack].title} - {tracks[currentTrack].artist}
-      </div>
-
-      <div className="flex items-center gap-2 mb-3">
+      {/* 播放控制列 */}
+      <div className="qmp__controls">
         <button
           onClick={togglePlay}
-          className="w-10 h-10 rounded-full bg-primary-500 hover:bg-primary-600 text-white flex items-center justify-center transition-colors"
+          className="qmp__play"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? (
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
             </svg>
           ) : (
-            <svg
-              className="w-5 h-5 ml-0.5"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
@@ -434,22 +440,21 @@ export default function MusicPlayer({
 
         <button
           onClick={nextTrack}
-          className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors"
+          className="qmp__next"
+          aria-label="Next track"
         >
-          <svg
-            className="w-4 h-4 text-slate-700 dark:text-slate-300"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
           </svg>
         </button>
 
-        <div className="flex-1 flex items-center gap-2">
+        <div className="qmp__volume">
           <svg
-            className="w-4 h-4 text-slate-500"
+            width="12"
+            height="12"
             fill="currentColor"
             viewBox="0 0 24 24"
+            className="qmp__volume-icon"
           >
             <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
           </svg>
@@ -460,27 +465,26 @@ export default function MusicPlayer({
             step="0.01"
             value={volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="flex-1 h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+            className="qmp__volume-slider"
           />
         </div>
       </div>
 
+      {/* 曲目清單 */}
       {showTracks && (
-        <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-2 max-h-40 overflow-y-auto">
+        <div className="qmp__tracklist">
           {tracks.map((track, index) => (
             <button
               key={index}
               onClick={() => changeTrack(index)}
-              className={`w-full text-left text-xs p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
-                currentTrack === index
-                  ? 'bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300'
-                  : 'text-slate-600 dark:text-slate-400'
+              className={`qmp__tracklist-item ${
+                currentTrack === index ? 'qmp__tracklist-item--active' : ''
               }`}
             >
-              <div className="truncate font-medium">{track.title}</div>
-              <div className="truncate text-[10px] opacity-75">
-                {track.artist}
-              </div>
+              <span className="qmp__tracklist-idx">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <span className="qmp__tracklist-name">{track.title}</span>
             </button>
           ))}
         </div>

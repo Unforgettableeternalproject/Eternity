@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../i18n/utils';
 import { getUpdates, getSingleton } from '../lib/api';
+import { normalizeColors } from '../lib/color-normalize';
 
 export const prerender = false;
 
@@ -67,18 +68,20 @@ const formatShortDate = (d: Date) =>
       {
         pt.heroLabel ||
           (locale === 'zh-tw'
-            ? '—— 04 / updates · 邊際的草稿'
-            : '—— 04 / updates · journal')
+            ? '—— 03 / updates · 邊際的草稿'
+            : '—— 03 / updates · journal')
       }
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle ||
-        (locale === 'zh-tw'
-          ? '我做了<br /><span style="color: var(--q-navy); font-weight: 600;">什麼事</span>。'
-          : 'What I\'ve<br />been <span style="color: var(--q-navy); font-weight: 600;">up to</span>.')}
+      set:html={normalizeColors(
+        pt.heroTitle ||
+          (locale === 'zh-tw'
+            ? '我做了<br /><span style="color: var(--q-navy); font-weight: 600;">什麼事</span>。'
+            : 'What I\'ve<br />been <span style="color: var(--q-navy); font-weight: 600;">up to</span>.')
+      )}
     />
 
     <div

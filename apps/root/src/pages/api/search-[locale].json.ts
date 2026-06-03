@@ -38,6 +38,7 @@ export const GET: APIRoute = async ({ params }) => {
         description_en: project.descEn || '',
         url: `/${locale}/projects/${project.id}`,
         category: project.status,
+        status: project.status,
         tags: project.tags || [],
         date: project.startDate || undefined,
         slug: project.id,
@@ -60,6 +61,7 @@ export const GET: APIRoute = async ({ params }) => {
         description_en: link.descEn || '',
         url: link.url, // 連結直接使用原始 URL
         category: link.category,
+        status: link.status,
         tags: [],
         slug: link.id,
       });
@@ -81,6 +83,7 @@ export const GET: APIRoute = async ({ params }) => {
         description_en: update.descEn || '',
         url: `/${locale}/updates/${update.id}`,
         category: update.category,
+        status: update.category,
         tags: [],
         date: update.date,
         slug: update.id,

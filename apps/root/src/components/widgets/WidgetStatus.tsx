@@ -3,6 +3,7 @@
  * 編輯器可自訂要顯示的狀態項目
  */
 import React from 'react';
+import { APP_VERSION } from '../../lib/version';
 import { getWidgetData } from './types';
 
 interface StatusItem {
@@ -28,7 +29,7 @@ export default function WidgetStatus() {
       ? statusData
       : [
           { key: 'STATUS', value: 'Online', color: 'green' },
-          { key: 'VERSION', value: 'v0.9.6', color: 'navy' },
+          { key: 'VERSION', value: APP_VERSION, color: 'navy' },
         ];
 
   return (

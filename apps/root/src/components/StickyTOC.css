@@ -51,7 +51,7 @@
 .sticky-toc__link {
   display: block;
   padding: 4px 8px;
-  font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
+  font-family: var(--q-font-body);
   font-size: 12px;
   line-height: 1.5;
   color: var(--q-ink-soft);

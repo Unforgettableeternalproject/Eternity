@@ -80,13 +80,9 @@ test.describe('Admin 媒體庫', () => {
     const body = page.locator('body');
     await expect(body).not.toBeEmpty();
 
-    // 應該有媒體庫介面元素
-    const bodyText = await body.textContent();
-    expect(
-      bodyText?.includes('媒體') ||
-        bodyText?.includes('Media') ||
-        bodyText?.includes('上傳')
-    ).toBeTruthy();
+    // 確認頁面 title 包含「媒體庫」
+    const title = await page.title();
+    expect(title).toContain('媒體庫');
   });
 });
 
@@ -106,25 +102,31 @@ test.describe('Admin 首頁管理', () => {
 });
 
 test.describe('Admin API 安全性', () => {
+  const TEST_SLUG = 'e2e-test-cleanup';
+  const TEST_ASSET_KEY = 'files/e2e-test-cleanup.txt';
+  const uploadedAssetKeys = new Set<string>();
+
   test('PUT /api/content 沒有 token 時被拒絕', async ({ request }) => {
     const res = await request.put(
-      'http://localhost:8788/api/content/history/test-unauthorized',
+      `http://localhost:8788/api/content/history/${TEST_SLUG}`,
       {
-        data: { title: 'test', content: {} },
+        data: { title: 'E2E Test — 自動清理', content: {} },
         headers: { 'Content-Type': 'application/json' },
       }
     );
-    // 應該被拒絕（開發模式下 API_TOKEN 未設定時可能全通過，但這仍驗證路由存在）
-    expect([200, 401]).toContain(res.status());
+    // 開發模式（無 API_TOKEN）：Bearer 檢查跳過 → 200（更新）或 201（建立）
+    // 正式環境（有 API_TOKEN）：無 Bearer → 401
+    expect([200, 201, 401]).toContain(res.status());
   });
 
   test('POST /api/assets 有 requireJwt 保護', async ({ request }) => {
     const res = await request.post('http://localhost:8788/api/assets', {
       multipart: {
+        key: TEST_ASSET_KEY,
         file: {
-          name: 'test.txt',
+          name: 'e2e-test-cleanup.txt',
           mimeType: 'text/plain',
-          buffer: Buffer.from('test'),
+          buffer: Buffer.from('e2e test file — safe to delete'),
         },
       },
     });
@@ -132,5 +134,25 @@ test.describe('Admin API 安全性', () => {
     // 正式環境（有 JWT_SECRET）：無 JWT header → 401
     // 兩者都是正確行為
     expect([200, 201, 401]).toContain(res.status());
+
+    if (res.status() === 200 || res.status() === 201) {
+      const body = (await res.json()) as { data?: { key?: string } };
+      uploadedAssetKeys.add(body.data?.key ?? TEST_ASSET_KEY);
+    }
+  });
+
+  // 清理測試資料
+  test.afterAll(async ({ request }) => {
+    // 刪除測試頁面（D1）
+    await request.delete(
+      `http://localhost:8788/api/content/history/${TEST_SLUG}`
+    );
+    // 刪除測試檔案（R2）
+    uploadedAssetKeys.add(TEST_ASSET_KEY);
+    for (const key of uploadedAssetKeys) {
+      await request.delete(
+        `http://localhost:8788/api/assets/${encodeURIComponent(key)}`
+      );
+    }
   });
 });

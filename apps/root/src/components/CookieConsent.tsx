@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 
 export default function CookieConsent() {
+  // SSR guard：讓 client:idle 在伺服器端安全地回傳空內容
+  if (typeof window === 'undefined') return null;
+
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 

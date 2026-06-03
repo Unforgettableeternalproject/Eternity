@@ -35,7 +35,7 @@ export interface WidgetData {
   /** 目前語系 */
   locale: 'zh-tw' | 'en';
   /** 音樂播放器的音軌列表 */
-  musicTracks?: { name: string; src: string }[];
+  musicTracks?: { name: string; artist: string; src: string }[];
   /** 網站狀態項目 */
   statusItems?: { key: string; value: string; color?: string }[];
   /** U.E.P 角色圖片路徑 */
@@ -61,13 +61,13 @@ export function getWidgetData(): WidgetData {
     stats: null,
     latestUpdate: null,
     cardEnabled: {
-      music: true,
-      visitor: true,
-      quote: true,
-      portal: true,
-      status: true,
-      uep: true,
-      toc: true,
+      music: false,
+      visitor: false,
+      quote: false,
+      portal: false,
+      status: false,
+      uep: false,
+      toc: false,
     },
     locale: 'zh-tw',
   };

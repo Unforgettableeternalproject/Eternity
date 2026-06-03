@@ -2,6 +2,8 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../i18n/utils';
 import { getSingleton } from '../lib/api';
+import ContactForm from '../components/ContactForm';
+import { normalizeColors } from '../lib/color-normalize';
 
 export const prerender = false;
 
@@ -43,18 +45,20 @@ const devCta = data.devCta ?? {};
       {
         pt.heroLabel ||
           (locale === 'zh-tw'
-            ? '—— 06 / contact · 寫信給我'
-            : '—— 06 / contact · reach out')
+            ? '—— 05 / contact · 寫信給我'
+            : '—— 05 / contact · reach out')
       }
     </span>
 
     <h1
       class="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[96px] font-bold leading-[0.97] tracking-tighter max-w-[1100px]"
       style="color: var(--q-ink);"
-      set:html={pt.heroTitle ||
-        (locale === 'zh-tw'
-          ? '來說<span style="color: var(--q-navy); font-weight: 600;">你的</span>故事。'
-          : 'Tell me <span style="color: var(--q-navy); font-weight: 600;">your</span> story.')}
+      set:html={normalizeColors(
+        pt.heroTitle ||
+          (locale === 'zh-tw'
+            ? '來說<span style="color: var(--q-navy); font-weight: 600;">你的</span>故事。'
+            : 'Tell me <span style="color: var(--q-navy); font-weight: 600;">your</span> story.')
+      )}
     />
 
     <div
@@ -82,8 +86,8 @@ const devCta = data.devCta ?? {};
       </p>
       <div class="flex items-center gap-2">
         <span class="q-live-dot" style="width: 8px; height: 8px;"></span>
-        <span class="q-mono" style="color: var(--q-coral);">
-          currently available
+        <span class="q-mono" style="color: var(--q-coral);"
+          >currently available
         </span>
       </div>
     </div>
@@ -111,89 +115,7 @@ const devCta = data.devCta ?? {};
           </div>
         </div>
 
-        <form id="contact-form" class="space-y-5">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <span class="q-mono">name *</span>
-              <input
-                type="text"
-                name="name"
-                required
-                class="q-input mt-2"
-                placeholder={locale === 'zh-tw' ? '你的名字' : 'Your name'}
-              />
-            </div>
-            <div>
-              <span class="q-mono">email *</span>
-              <input
-                type="email"
-                name="email"
-                required
-                class="q-input mt-2"
-                placeholder="you@somewhere.com"
-              />
-            </div>
-          </div>
-
-          <div>
-            <span class="q-mono">subject</span>
-            <div class="flex gap-1.5 flex-wrap mt-2.5 mb-3" id="subject-pills">
-              {
-                subjects.map((s, i) => (
-                  <button
-                    type="button"
-                    class={`q-subject-pill ${i === 0 ? 'active' : ''}`}
-                    data-subject={s.split(' · ')[0]}
-                  >
-                    {s}
-                  </button>
-                ))
-              }
-            </div>
-            <input
-              type="text"
-              name="subject"
-              class="q-input"
-              placeholder={locale === 'zh-tw'
-                ? '一句話說明你想聊什麼'
-                : 'One line about what you want to discuss'}
-            />
-          </div>
-
-          <div>
-            <span class="q-mono">message *</span>
-            <textarea
-              name="message"
-              required
-              class="q-input mt-2"
-              style="min-height: 180px; resize: vertical; line-height: 1.65;"
-              placeholder={locale === 'zh-tw'
-                ? '細節寫多一點對我很有幫助 — 你做什麼、想合作什麼、時程怎麼樣...'
-                : 'More detail helps — what you do, what collaboration you have in mind, timeline...'}
-            ></textarea>
-            <div class="mt-2 flex justify-between">
-              <span class="q-mono">markdown supported</span>
-              <span class="q-mono" id="char-count">0 / 2000</span>
-            </div>
-          </div>
-
-          <div
-            class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2"
-          >
-            <span class="q-mono"
-              >powered by resend · ≤ 48hr {
-                locale === 'zh-tw' ? '回覆' : 'reply'
-              }</span
-            >
-            <button
-              type="submit"
-              class="px-8 py-3.5 text-[15px] font-semibold inline-flex items-center gap-2.5 cursor-pointer"
-              style="background: var(--q-ink); color: var(--q-paper); border: none;"
-            >
-              {locale === 'zh-tw' ? '送出' : 'Send'} →
-            </button>
-          </div>
-        </form>
+        <ContactForm client:load locale={locale} subjects={subjects} />
       </div>
 
       <!-- SIDEBAR -->
@@ -230,7 +152,7 @@ const devCta = data.devCta ?? {};
                       {link.key}
                     </span>
                     <span
-                      class="text-sm font-mono truncate"
+                      class="text-sm font-mono truncate min-w-0"
                       style="color: var(--q-ink); font-family: 'JetBrains Mono', monospace;"
                     >
                       {link.value}
@@ -351,7 +273,7 @@ const devCta = data.devCta ?? {};
   </section>
 </BaseLayout>
 
-<style>
+<style is:global>
   .q-input {
     width: 100%;
     padding: 14px 16px;
@@ -360,7 +282,7 @@ const devCta = data.devCta ?? {};
     border-radius: 0;
     font-size: 15px;
     color: var(--q-ink);
-    font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
+    font-family: var(--q-font-body);
     outline: none;
     box-sizing: border-box;
     transition: border-color 0.15s;
@@ -378,7 +300,7 @@ const devCta = data.devCta ?? {};
     background: transparent;
     color: var(--q-ink);
     border: 1px solid var(--q-line);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--q-font-body);
     font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;
@@ -402,68 +324,4 @@ const devCta = data.devCta ?? {};
   }
 </style>
 
-<script>
-  import { toastManager } from '../components/Toast';
-
-  function initContactForm() {
-    /* Subject pills */
-    const pills =
-      document.querySelectorAll<HTMLButtonElement>('.q-subject-pill');
-    const subjectInput = document.querySelector<HTMLInputElement>(
-      'input[name="subject"]'
-    );
-    pills.forEach((pill) => {
-      pill.addEventListener('click', () => {
-        pills.forEach((p) => p.classList.remove('active'));
-        pill.classList.add('active');
-        if (subjectInput) subjectInput.value = pill.dataset.subject || '';
-      });
-    });
-
-    /* Char count */
-    const textarea = document.querySelector<HTMLTextAreaElement>(
-      'textarea[name="message"]'
-    );
-    const counter = document.getElementById('char-count');
-    textarea?.addEventListener('input', () => {
-      if (counter) counter.textContent = `${textarea.value.length} / 2000`;
-    });
-
-    /* Form submit */
-    const form = document.getElementById('contact-form') as HTMLFormElement;
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      const data = {
-        name: fd.get('name'),
-        email: fd.get('email'),
-        subject: fd.get('subject'),
-        message: fd.get('message'),
-      };
-
-      try {
-        const res = await fetch('/api/contact.json', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        const result = await res.json();
-        if (res.ok) {
-          toastManager.success('訊息已成功發送！我會儘快回覆您。', 5000);
-          form.reset();
-          if (counter) counter.textContent = '0 / 2000';
-          pills.forEach((p, i) => {
-            p.classList.toggle('active', i === 0);
-          });
-        } else {
-          toastManager.error(result.error || '發送失敗，請稍後再試。', 5000);
-        }
-      } catch {
-        toastManager.error('網路錯誤，請檢查您的連線。', 5000);
-      }
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', initContactForm);
-  document.addEventListener('astro:page-load', initContactForm);
-</script>
+<!-- 表單邏輯已移至 ContactForm.tsx React 元件 -->

@@ -3,6 +3,32 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import UepDialogue from './UepDialogue';
 import './InlineAudioPlayer.css';
 
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+
+const ASSET_ATTR_RE =
+  /\b(src|data-src)=(["'])(https?:\/\/[^"']+\/api\/assets\/|\/api\/assets\/)([^"']+)\2/g;
+
+function normalizeInlineAssetUrls(html: string): string {
+  return html.replace(
+    ASSET_ATTR_RE,
+    (_match, attr, quote, _prefix, rawPath) => {
+      const key = rawPath
+        .split('/')
+        .map((part: string) => {
+          try {
+            return encodeURIComponent(decodeURIComponent(part));
+          } catch {
+            return encodeURIComponent(part);
+          }
+        })
+        .join('/');
+      return `${attr}=${quote}${API_BASE}/api/assets/${key}${quote}`;
+    }
+  );
+}
+
 /* ────────────────────────────────────────────────────────
    InlineAudioPlayerSimple — 純 React 自管理的 plain 版播放器
    用於 Reader 側渲染 data-role="audio-player" 節點
@@ -149,22 +175,24 @@ export default function renderHtmlWithUep(
   keyPrefix: string | number = 0,
   proseClass = 'sto-prose'
 ): React.ReactNode[] {
+  const normalizedHtml = normalizeInlineAssetUrls(html);
+
   if (
-    !html ||
-    (!html.includes('data-role="uep"') &&
-      !html.includes('data-role="audio-player"'))
+    !normalizedHtml ||
+    (!normalizedHtml.includes('data-role="uep"') &&
+      !normalizedHtml.includes('data-role="audio-player"'))
   ) {
     return [
       <div
         key={keyPrefix}
         className={proseClass}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: normalizedHtml }}
       />,
     ];
   }
 
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const doc = parser.parseFromString(normalizedHtml, 'text/html');
   const nodes: React.ReactNode[] = [];
   let htmlBuf = '';
   let idx = 0;

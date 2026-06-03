@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ImageModalEvent {
@@ -7,6 +7,9 @@ interface ImageModalEvent {
 }
 
 export default function ImageViewerModal() {
+  // SSR guard：讓 client:idle 在伺服器端安全地回傳空內容
+  if (typeof window === 'undefined') return null;
+
   const [isOpen, setIsOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState<ImageModalEvent>({
     src: '',
@@ -16,9 +19,12 @@ export default function ImageViewerModal() {
   const [isDragging, setIsDragging] = useState(false);
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
-  const [startX, setStartX] = useState(0);
-  const [startY, setStartY] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
+
+  // 用 ref 儲存拖曳起始點，避免 stale closure 問題
+  const dragStart = useRef({ x: 0, y: 0 });
+  // 記錄拖曳開始時的位移量，讓累積位移更精確
+  const dragOrigin = useRef({ tx: 0, ty: 0 });
 
   useEffect(() => {
     const handleOpenModal = (e: CustomEvent<ImageModalEvent>) => {
@@ -76,7 +82,7 @@ export default function ImageViewerModal() {
       setTranslateX(0);
       setTranslateY(0);
       setIsClosing(false);
-    }, 200);
+    }, 250);
   };
 
   const handleZoomIn = () => {
@@ -86,7 +92,7 @@ export default function ImageViewerModal() {
   const handleZoomOut = () => {
     setCurrentZoom((prev) => {
       const newZoom = Math.max(prev - 0.25, 0.5);
-      if (newZoom === 1) {
+      if (newZoom <= 1) {
         setTranslateX(0);
         setTranslateY(0);
       }
@@ -105,7 +111,7 @@ export default function ImageViewerModal() {
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setCurrentZoom((prev) => {
       const newZoom = Math.max(0.5, Math.min(3, prev + delta));
-      if (newZoom === 1) {
+      if (newZoom <= 1) {
         setTranslateX(0);
         setTranslateY(0);
       }
@@ -114,23 +120,34 @@ export default function ImageViewerModal() {
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // 縮放大於 1 才允許拖曳
     if (currentZoom > 1) {
+      e.preventDefault();
       setIsDragging(true);
-      setStartX(e.clientX - translateX);
-      setStartY(e.clientY - translateY);
+      // 記錄按下時的滑鼠位置和當前位移原點
+      dragStart.current = { x: e.clientX, y: e.clientY };
+      dragOrigin.current = { tx: translateX, ty: translateY };
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      e.preventDefault();
-      setTranslateX(e.clientX - startX);
-      setTranslateY(e.clientY - startY);
-    }
+    if (!isDragging) return;
+    e.preventDefault();
+    // 以起始原點累加差值，避免每幀累積誤差
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    setTranslateX(dragOrigin.current.tx + dx);
+    setTranslateY(dragOrigin.current.ty + dy);
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+  };
+
+  // 雙擊圖片重置縮放和位置至初始狀態
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleReset();
   };
 
   if (!isOpen && !isClosing) return null;
@@ -160,18 +177,22 @@ export default function ImageViewerModal() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '2rem',
+        // 外層容器負責整體淡入/淡出動畫
         animation: isClosing
-          ? 'qImgFadeOut 0.2s ease-out'
-          : 'qImgFadeIn 0.2s ease-out',
+          ? 'qImgFadeOut 0.25s ease-out forwards'
+          : 'qImgFadeIn 0.25s ease-out forwards',
       }}
     >
-      {/* 背景遮罩 */}
+      {/* 背景遮罩：實心深色 + backdrop-filter 模糊 */}
       <div
         onClick={handleClose}
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.88)',
+          // 實心深色背景，避免透視到頁面內容
+          background: 'rgba(10, 10, 14, 0.95)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           cursor: 'pointer',
           zIndex: 1,
         }}
@@ -187,9 +208,10 @@ export default function ImageViewerModal() {
           maxWidth: '90vw',
           maxHeight: '90vh',
           zIndex: 2,
+          // 圖片容器有獨立的縮放進出動畫
           animation: isClosing
-            ? 'qImgScaleOut 0.2s ease-out'
-            : 'qImgScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            ? 'qImgScaleOut 0.25s ease-out forwards'
+            : 'qImgScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
         }}
       >
         {/* 頂部控制列 */}
@@ -369,18 +391,24 @@ export default function ImageViewerModal() {
                 width: 'auto',
                 height: 'auto',
                 objectFit: 'contain',
+                // grab/grabbing cursor 提示可拖曳
                 cursor: isDragging
                   ? 'grabbing'
                   : currentZoom > 1
                     ? 'grab'
                     : 'default',
-                transform: `scale(${currentZoom}) translate(${translateX}px, ${translateY}px)`,
+                // 修正 transform 順序：先 translate 再 scale，
+                // 讓位移量不受縮放倍率影響（原本的 scale→translate 會放大位移距離）
+                transform: `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`,
                 transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+                // 選取文字會干擾拖曳，關閉
+                userSelect: 'none',
               }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onDoubleClick={handleDoubleClick}
             />
           </div>
         </div>
@@ -407,21 +435,24 @@ export default function ImageViewerModal() {
       </div>
 
       <style>{`
+        /* 整體淡入：遮罩 + 容器同步淡出 */
         @keyframes qImgFadeIn {
           from { opacity: 0; }
-          to { opacity: 1; }
+          to   { opacity: 1; }
         }
         @keyframes qImgFadeOut {
           from { opacity: 1; }
-          to { opacity: 0; }
+          to   { opacity: 0; }
         }
+        /* 圖片容器的縮放入場：帶有彈性的 spring 效果 */
         @keyframes qImgScaleIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
+          from { opacity: 0; transform: scale(0.92); }
+          to   { opacity: 1; transform: scale(1); }
         }
+        /* 圖片容器縮放退場：輕微縮小同步消失 */
         @keyframes qImgScaleOut {
           from { opacity: 1; transform: scale(1); }
-          to { opacity: 0; transform: scale(0.97); }
+          to   { opacity: 0; transform: scale(0.95); }
         }
       `}</style>
     </div>

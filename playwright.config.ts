@@ -3,14 +3,14 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Eternity E2E 測試設定
  *
- * 針對文件站（UEP）的關鍵使用者路徑進行煙霧測試。
+ * 覆蓋兩站（主站 + 文件站）的關鍵使用者路徑。
  *
  * 執行方式：
  *   pnpm test:e2e              — 執行全部 E2E 測試
  *   pnpm test:e2e --ui         — 開啟 Playwright UI
  *   pnpm test:e2e --headed     — 有頭模式（可視化）
  *
- * 注意：需要 content-api Worker 和文件站都在運行中。
+ * 注意：需要 content-api Worker、主站、文件站都在運行中。
  */
 export default defineConfig({
   testDir: './e2e',
@@ -52,6 +52,12 @@ export default defineConfig({
             url: 'http://localhost:8788/api/content/history',
             reuseExistingServer: true,
             timeout: 30_000,
+          },
+          {
+            command: 'pnpm --filter @uep/root dev',
+            url: 'http://localhost:4320',
+            reuseExistingServer: true,
+            timeout: 60_000,
           },
           {
             command: 'pnpm --filter @uep/uep dev',

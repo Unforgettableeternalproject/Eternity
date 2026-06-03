@@ -68,9 +68,17 @@ function FloatingIsland({
     origX: number;
     origY: number;
   } | null>(null);
-  const [pos, setPos] = useState<WidgetPosition>(
-    initialPos || { x: 100, y: 200 }
-  );
+  const [pos, setPos] = useState<WidgetPosition>(() => {
+    const p = initialPos || { x: 100, y: 200 };
+    // mount 時驗證已存 position 是否在 viewport 內
+    if (typeof window !== 'undefined') {
+      return {
+        x: Math.max(0, Math.min(window.innerWidth - 240, p.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 100, p.y)),
+      };
+    }
+    return p;
+  });
   const [nearDock, setNearDock] = useState(false);
 
   const DOCK_THRESHOLD = 60; // 拖到左邊 60px 內觸發收回
@@ -217,8 +225,8 @@ function ToolboxMode({
       // 超過工具箱範圍且已開始拖曳 → 建立浮島
       if (started && e.clientX > 260) {
         updateWidgetPosition(id, {
-          x: e.clientX - 100,
-          y: e.clientY - 20,
+          x: Math.max(0, Math.min(window.innerWidth - 240, e.clientX - 100)),
+          y: Math.max(0, Math.min(window.innerHeight - 100, e.clientY - 20)),
         });
         toggleWidgetPinned(id);
         onStateChange(getWidgetState());

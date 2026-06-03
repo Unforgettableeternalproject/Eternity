@@ -13,7 +13,6 @@ import ImageViewerModal from '../components/ImageViewerModal';
 import WidgetDataProvider from '../components/WidgetDataProvider.astro';
 import QuartzWidgetSystem from '../components/QuartzWidgetSystem';
 import StickyTOC from '../components/StickyTOC';
-import MobileControlPanel from '../components/MobileControlPanel.astro';
 import '../components/QuartzWidgetSystem.css';
 import '../components/StickyTOC.css';
 import { getCurrentLocale } from '../i18n/utils';
@@ -88,6 +87,16 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
 
+    <!-- Google Fonts（非阻塞載入，取代 global.css 的 @import） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
 
@@ -117,56 +126,28 @@ const alternateURL = new URL(alternatePath, Astro.site);
       });
     </script>
 
-    <!-- 清除舊的音樂 localStorage -->
+    <!-- 音樂狀態清理（延遲到閒置時，before-swap 監聽器除外） -->
     <script is:inline>
-      // 清除可能存在的舊音樂狀態（保留 track 選擇）
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('music-is-playing');
-        localStorage.removeItem('music-volume');
-        localStorage.removeItem('music-state');
-      }
-
-      // 清理重複的音頻元素（View Transitions 可能造成）
-      // 注意：只在 before-swap 時清理，避免影響 persist 的元素
-      document.addEventListener('astro:before-swap', () => {
-        const allAudioElements = document.querySelectorAll('audio');
-
-        // 計數有多少個 global-music-player
-        let globalPlayerCount = 0;
-        allAudioElements.forEach((audio) => {
-          if (audio.id === 'global-music-player') {
-            globalPlayerCount++;
+      // before-swap 監聽器必須立即註冊（清理重複音頻元素）
+      document.addEventListener('astro:before-swap', function () {
+        var audios = document.querySelectorAll('audio#global-music-player');
+        if (audios.length > 1) {
+          for (var i = 1; i < audios.length; i++) {
+            audios[i].pause();
+            audios[i].remove();
           }
-        });
-
-        // 如果有多個，只保留第一個（最新的會由 persist 處理）
-        if (globalPlayerCount > 1) {
-          let kept = false;
-          allAudioElements.forEach((audio) => {
-            if (audio.id === 'global-music-player') {
-              if (kept) {
-                audio.pause();
-                audio.remove();
-              } else {
-                kept = true;
-              }
-            }
-          });
         }
       });
-    </script>
-
-    <!-- 清除打字機快取（每次重載都重新播放動畫） -->
-    <script is:inline>
-      // 清除所有打字機相關的 sessionStorage
-      const keysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && key.startsWith('typewriter-shown')) {
-          keysToRemove.push(key);
+      // localStorage 清理延遲到閒置時
+      (typeof requestIdleCallback === 'function'
+        ? requestIdleCallback
+        : setTimeout)(function () {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('music-is-playing');
+          localStorage.removeItem('music-volume');
+          localStorage.removeItem('music-state');
         }
-      }
-      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+      });
     </script>
   </head>
   <body class="min-h-screen relative">
@@ -202,9 +183,10 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Mouse cursor glow effect -->
     <div id="cursor-glow" class="cursor-glow" style="opacity: 0;"></div>
 
-    <!-- Global click ripple effect -->
+    <!-- Global click ripple effect（persist 跨頁存活，不重新 mount） -->
     <GlobalRipple
-      client:load
+      client:only="react"
+      transition:persist
       color="rgba(99, 102, 241, 0.15)"
       navColor="rgba(236, 72, 153, 0.2)"
       duration={800}
@@ -225,14 +207,13 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Widget 資料注入（SSR → window.__widgetData） -->
     <WidgetDataProvider />
 
-    <!-- Quartz Widget System（工具箱/邊緣吐牌，Alt+S 切換） -->
-    <QuartzWidgetSystem client:only="react" />
+    <!-- Quartz Widget System（persist 跨頁存活，不重新 mount） -->
+    <QuartzWidgetSystem client:only="react" transition:persist />
 
-    <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示） -->
-    <StickyTOC client:load />
+    <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示，可見才載入） -->
+    <StickyTOC client:visible />
 
-    <!-- 手機版底部控制面板（暫時保留舊版） -->
-    <MobileControlPanel />
+    <!-- 手機版不顯示 widget，桌面版由 QuartzWidgetSystem 處理 -->
 
     <!-- Main Content Area -->
     <main class="transition-all duration-300">
@@ -242,34 +223,39 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Quartz Footer -->
     <QuartzFooter currentLocale={locale} />
 
-    <!-- Console Easter Egg (React Island) - 只在桌面版顯示 -->
-    <div class="hidden md:block">
-      <ConsoleEasterEgg
-        client:idle
-        consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
-        label={locale === 'zh-tw' ? '終端機' : 'Console'}
-        debugMode={false}
-      />
-    </div>
-
-    <!-- U.E.P 角色互動系統 (React Island) -->
-    <UEPCharacter
+    <!-- Console Easter Egg — persist 跨頁存活 -->
+    <ConsoleEasterEgg
       client:idle
+      transition:persist
+      consoleUrl={locale === 'zh-tw' ? '/zh-tw/console' : '/en/console'}
+      label={locale === 'zh-tw' ? '終端機' : 'Console'}
+      debugMode={false}
+    />
+
+    <!-- U.E.P 角色互動系統 — 僅桌面版載入（手機版不顯示，避免下載 1.6MB 圖片） -->
+    <UEPCharacter
+      client:media="(min-width: 768px)"
+      transition:persist
       uepDocsUrl="https://uep.unforgettableeternalproject.com"
       debugMode={false}
     />
 
-    <!-- 返回頂部按鈕 (React Island) -->
-    <ScrollToTop client:load position="right" showAfter={300} />
+    <!-- 返回頂部按鈕（persist 跨頁存活，idle 延遲載入） -->
+    <ScrollToTop
+      client:idle
+      transition:persist
+      position="right"
+      showAfter={300}
+    />
 
-    <!-- Toast 通知系統 (React Island) -->
-    <ToastContainer client:only="react" position="top-right" />
+    <!-- Toast 通知系統（persist 跨頁存活，idle 延遲載入） -->
+    <ToastContainer client:idle transition:persist position="top-right" />
 
-    <!-- 圖片查看器模態窗 (React Portal) -->
-    <ImageViewerModal client:only="react" />
+    <!-- 圖片查看器模態窗（persist 跨頁存活，idle 延遲載入） -->
+    <ImageViewerModal client:idle transition:persist />
 
-    <!-- Cookie 同意彈窗 -->
-    <CookieConsent client:load />
+    <!-- Cookie 同意彈窗（persist 跨頁存活，idle 延遲載入） -->
+    <CookieConsent client:idle transition:persist />
 
     <!-- q-prose 圖片點擊 → ImageViewerModal -->
     <script is:inline>
@@ -292,9 +278,11 @@ const alternateURL = new URL(alternatePath, Astro.site);
       document.addEventListener('astro:page-load', initProseImageClick);
     </script>
 
-    <!-- Mouse tracking script -->
+    <!-- Mouse tracking script（延遲到閒置時初始化，避免阻塞主線程） -->
     <script is:inline>
-      (function () {
+      (typeof requestIdleCallback === 'function'
+        ? requestIdleCallback
+        : setTimeout)(function () {
         const cursorGlow = document.getElementById('cursor-glow');
 
         // 嘗試從 sessionStorage 讀取上次的滑鼠位置
@@ -350,7 +338,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
         });
 
         animate();
-      })();
+      });
     </script>
   </body>
 </html>

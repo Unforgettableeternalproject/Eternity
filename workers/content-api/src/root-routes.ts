@@ -136,6 +136,12 @@ export async function handleRootRoutes(
   // /api/root/projects
   const projectsListMatch = path === '/api/root/projects';
   if (projectsListMatch && method === 'GET') {
+    // include_deleted 需要認證
+    if (url.searchParams.get('include_deleted') === 'true') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
     return listProjects(url, env.CONTENT_DB, cors);
   }
 
@@ -164,6 +170,11 @@ export async function handleRootRoutes(
   // /api/root/links
   const linksListMatch = path === '/api/root/links';
   if (linksListMatch && method === 'GET') {
+    if (url.searchParams.get('include_deleted') === 'true') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
     return listLinks(url, env.CONTENT_DB, cors);
   }
 
@@ -190,6 +201,11 @@ export async function handleRootRoutes(
   // /api/root/updates
   const updatesListMatch = path === '/api/root/updates';
   if (updatesListMatch && method === 'GET') {
+    if (url.searchParams.get('include_deleted') === 'true') {
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser)
+        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
     return listUpdates(url, env.CONTENT_DB, cors);
   }
 
@@ -258,8 +274,10 @@ export async function handleRootRoutes(
 
   // ── /api/root/assets (獨立 R2 bucket) ──
 
-  // GET /api/root/assets — 列出資產
+  // GET /api/root/assets — 列出資產（需認證，與文件站對齊）
   if (path === '/api/root/assets' && method === 'GET') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
     return listRootAssets(url, env.ROOT_ASSETS_BUCKET, cors);
   }
 
@@ -278,22 +296,100 @@ export async function handleRootRoutes(
     if (!Array.isArray(body.keys))
       return json({ ok: false, error: 'keys required' }, 400, cors);
     await Promise.all(body.keys.map((k) => env.ROOT_ASSETS_BUCKET.delete(k)));
+    // 記錄刪除到 root_deleted_assets（同步用）
+    if (body.keys.length > 0) {
+      const stmts = body.keys.map((k) =>
+        env.CONTENT_DB.prepare(
+          "INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+        ).bind(k)
+      );
+      await env.CONTENT_DB.batch(stmts);
+    }
     return json({ ok: true, data: { deleted: body.keys.length } }, 200, cors);
   }
 
-  // DELETE /api/root/assets/:key — 單筆刪除
-  const rootAssetDeleteMatch = path.match(/^\/api\/root\/assets\/(.+)$/);
-  if (rootAssetDeleteMatch && method === 'DELETE') {
+  // GET /api/root/assets/deleted — 列出已刪除的資產紀錄（同步用，需認證）
+  if (path === '/api/root/assets/deleted' && method === 'GET') {
     const jwtUser = await requireJwt(request, env);
     if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
-    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+    const since = url.searchParams.get('since');
+    let rows;
+    if (since) {
+      rows = await env.CONTENT_DB.prepare(
+        'SELECT key, deleted_at FROM root_deleted_assets WHERE deleted_at > ? ORDER BY deleted_at DESC'
+      )
+        .bind(since)
+        .all();
+    } else {
+      rows = await env.CONTENT_DB.prepare(
+        'SELECT key, deleted_at FROM root_deleted_assets ORDER BY deleted_at DESC'
+      ).all();
+    }
+    const data = (rows.results || []).map((r: Record<string, unknown>) => ({
+      key: r.key,
+      deletedAt: r.deleted_at,
+    }));
+    return json({ ok: true, data }, 200, cors);
+  }
+
+  // POST /api/root/assets/deleted/purge — 清除過期的刪除紀錄
+  if (path === '/api/root/assets/deleted/purge' && method === 'POST') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const body = (await request.json().catch(() => ({}))) as {
+      olderThan?: string;
+    };
+    const cutoff =
+      body.olderThan || new Date(Date.now() - 30 * 86400000).toISOString();
+    const result = await env.CONTENT_DB.prepare(
+      'DELETE FROM root_deleted_assets WHERE deleted_at < ?'
+    )
+      .bind(cutoff)
+      .run();
+    return json(
+      { ok: true, data: { purged: result.meta?.changes || 0 } },
+      200,
+      cors
+    );
+  }
+
+  // POST /api/root/assets/deleted/record — 記錄刪除（同步傳播用，不實際刪除 R2）
+  if (path === '/api/root/assets/deleted/record' && method === 'POST') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const body = (await request.json()) as { keys: string[] };
+    if (!Array.isArray(body.keys))
+      return json({ ok: false, error: 'keys required' }, 400, cors);
+    if (body.keys.length > 0) {
+      const stmts = body.keys.map((k) =>
+        env.CONTENT_DB.prepare(
+          "INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+        ).bind(k)
+      );
+      await env.CONTENT_DB.batch(stmts);
+    }
+    return json({ ok: true, data: { recorded: body.keys.length } }, 200, cors);
+  }
+
+  // DELETE / GET / HEAD /api/root/assets/:key — 資產操作
+  const rootAssetKeyMatch = path.match(/^\/api\/root\/assets\/(.+)$/);
+  if (rootAssetKeyMatch && method === 'DELETE') {
+    const jwtUser = await requireJwt(request, env);
+    if (!jwtUser) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    const key = decodeURIComponent(rootAssetKeyMatch[1]);
     await env.ROOT_ASSETS_BUCKET.delete(key);
+    // 記錄刪除到 root_deleted_assets（同步用）
+    await env.CONTENT_DB.prepare(
+      "INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at) VALUES (?, datetime('now'))"
+    )
+      .bind(key)
+      .run();
     return json({ ok: true }, 200, cors);
   }
 
   // GET /api/root/assets/:key — 讀取檔案（公開，供前端 <img> 使用）
-  if (rootAssetDeleteMatch && method === 'GET') {
-    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+  if (rootAssetKeyMatch && method === 'GET') {
+    const key = decodeURIComponent(rootAssetKeyMatch[1]);
     const obj = await env.ROOT_ASSETS_BUCKET.get(key);
     if (!obj) return json({ ok: false, error: 'Not found' }, 404, cors);
     const headers = new Headers(cors);
@@ -305,8 +401,8 @@ export async function handleRootRoutes(
     headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     return new Response(obj.body, { headers });
   }
-  if (rootAssetDeleteMatch && method === 'HEAD') {
-    const key = decodeURIComponent(rootAssetDeleteMatch[1]);
+  if (rootAssetKeyMatch && method === 'HEAD') {
+    const key = decodeURIComponent(rootAssetKeyMatch[1]);
     const obj = await env.ROOT_ASSETS_BUCKET.head(key);
     if (!obj) return json({ ok: false, error: 'Not found' }, 404, cors);
     const headers = new Headers(cors);
@@ -1049,11 +1145,33 @@ async function uploadRootAsset(
   bucket: R2Bucket,
   cors: Record<string, string>
 ): Promise<Response> {
+  const ALLOWED_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/avif',
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/ogg',
+    'audio/wav',
+    'audio/webm',
+    'application/pdf',
+  ]);
+
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
   if (!file) return json({ ok: false, error: 'No file provided' }, 400, cors);
 
   const contentType = file.type || 'application/octet-stream';
+  if (!ALLOWED_TYPES.has(contentType)) {
+    return json(
+      { ok: false, error: `不允許的檔案類型: ${contentType}` },
+      400,
+      cors
+    );
+  }
   const explicitKey = formData.get('key') as string | null;
   let key: string;
   if (explicitKey) {

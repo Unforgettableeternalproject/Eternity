@@ -173,6 +173,9 @@ function ToastItem({
 
 /* ── 容器（掛在 Layout 層級） ── */
 export default function UepToastContainer() {
+  // SSR guard：讓 client:idle 在伺服器端安全地回傳空內容
+  if (typeof window === 'undefined') return null;
+
   const [toasts, setToasts] = useState<UepToastMessage[]>([]);
 
   useEffect(() => {

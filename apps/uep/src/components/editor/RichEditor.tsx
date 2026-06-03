@@ -644,6 +644,9 @@ export default function RichEditor({
     }
   };
 
+  const toAssetSrc = (key: string) =>
+    `/api/assets/${key.split('/').map(encodeURIComponent).join('/')}`;
+
   const insertOrReplaceImage = (src: string) => {
     if (!editor) return;
 
@@ -687,7 +690,7 @@ export default function RichEditor({
     setImgPickerLoading(true);
     setImgPickerSearch('');
     try {
-      const res = await fetch(`/api/assets?prefix=images/&limit=500`);
+      const res = await fetch(`/api/assets?limit=500`);
       if (!res.ok) {
         setImgPickerItems([]);
         return;
@@ -726,11 +729,7 @@ export default function RichEditor({
 
   const selectFromLibrary = (item: { key: string }) => {
     if (!editor) return;
-    const imgUrl = `${apiBase}/api/assets/${item.key
-      .split('/')
-      .map(encodeURIComponent)
-      .join('/')}`;
-    insertOrReplaceImage(imgUrl);
+    insertOrReplaceImage(toAssetSrc(item.key));
     setImgPickerOpen(false);
   };
 
@@ -750,7 +749,7 @@ export default function RichEditor({
       });
       const json = await res.json();
       if (json.ok) {
-        const imgUrl = `${apiBase}${json.data.url}`;
+        const imgUrl = toAssetSrc(json.data.key);
         insertOrReplaceImage(imgUrl);
       } else {
         getToast().error(`Upload failed: ${json.error}`);
@@ -769,7 +768,7 @@ export default function RichEditor({
     setAudioPickerLoading(true);
     setAudioPickerSearch('');
     try {
-      const res = await fetch(`/api/assets?prefix=audio/&limit=500`);
+      const res = await fetch(`/api/assets?limit=500`);
       if (!res.ok) {
         setAudioPickerItems([]);
         return;
@@ -810,10 +809,7 @@ export default function RichEditor({
     originalName?: string;
   }) => {
     if (!editor) return;
-    const src = `${apiBase}/api/assets/${item.key
-      .split('/')
-      .map(encodeURIComponent)
-      .join('/')}`;
+    const src = toAssetSrc(item.key);
     const label = item.originalName || item.key.split('/').pop() || '';
 
     if (audioReplaceMode && selectedAudio) {
@@ -2172,32 +2168,19 @@ export default function RichEditor({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input
                   type="text"
+                  className="ned-media-picker-search"
                   placeholder="搜尋..."
                   value={imgPickerSearch}
                   onChange={(e) => setImgPickerSearch(e.target.value)}
-                  style={{
-                    background: 'var(--bg-deep, #111)',
-                    border: '1px solid var(--line, #333)',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    fontSize: '0.85em',
-                    color: 'var(--ink, #ccc)',
-                    width: 160,
-                  }}
                 />
                 <button
                   type="button"
+                  className="ned-media-picker-close"
                   onClick={() => setImgPickerOpen(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--ink, #ccc)',
-                    fontSize: 20,
-                    cursor: 'pointer',
-                    padding: '0 4px',
-                  }}
+                  aria-label="關閉媒體庫"
+                  title="關閉"
                 >
-                  關閉
+                  ×
                 </button>
               </div>
             </div>

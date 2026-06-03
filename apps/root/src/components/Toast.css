@@ -1,270 +1,158 @@
-/* Toast 容器 */
+/* Toast — 低調 snackbar 風格 */
+
 .toast-container {
   position: fixed;
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 6px;
   pointer-events: none;
-  max-width: 90vw;
 }
 
-.toast-container--top-right {
-  top: 5.5rem;
-  right: 1.5rem;
-}
-
-.toast-container--top-left {
-  top: 5.5rem;
-  left: 1.5rem;
-}
-
-.toast-container--bottom-right {
-  bottom: 1.5rem;
-  right: 1.5rem;
-}
-
-.toast-container--bottom-left {
-  bottom: 1.5rem;
-  left: 1.5rem;
-}
-
+.toast-container--top-right,
+.toast-container--top-left,
 .toast-container--top-center {
-  top: 5.5rem;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 5rem;
 }
 
+.toast-container--bottom-right,
+.toast-container--bottom-left,
 .toast-container--bottom-center {
   bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
-/* Toast 訊息 — Quartz 風格 */
+.toast-container--top-right,
+.toast-container--bottom-right {
+  right: 1.5rem;
+  align-items: flex-end;
+}
+
+.toast-container--top-left,
+.toast-container--bottom-left {
+  left: 1.5rem;
+  align-items: flex-start;
+}
+
+.toast-container--top-center,
+.toast-container--bottom-center {
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+/* Toast 本體 — 緊湊單行 */
 .toast {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  min-width: 18rem;
-  max-width: 28rem;
-  padding: 0.875rem 1rem;
+  gap: 8px;
+  padding: 8px 14px;
   background: var(--q-paper);
   border: 1px solid var(--q-line);
   pointer-events: auto;
-  animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'JetBrains Mono', monospace;
+  animation: toast-fade-in 0.25s ease-out;
+  max-width: 22rem;
 }
 
 .toast--closing {
-  animation: toastSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: toast-fade-out 0.2s ease-out forwards;
 }
 
-/* Toast 類型 — 左邊框色彩 */
-.toast--success {
-  border-left: 3px solid #2a7d4f;
-}
-
-.toast--error {
-  border-left: 3px solid #b83232;
-}
-
-.toast--warning {
-  border-left: 3px solid #c08a1e;
-}
-
-.toast--info {
-  border-left: 3px solid var(--q-navy);
-}
-
-.toast--uep {
-  border-left: 3px solid #d5b618;
-}
-
-/* 圖標容器 */
+/* 類型指示 — 小圓點取代大圖標 */
 .toast__icon-wrapper {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-}
-
-.toast--success .toast__icon-wrapper {
-  color: #2a7d4f;
-}
-
-.toast--error .toast__icon-wrapper {
-  color: #b83232;
-}
-
-.toast--warning .toast__icon-wrapper {
-  color: #c08a1e;
-}
-
-.toast--info .toast__icon-wrapper {
-  color: var(--q-navy);
-}
-
-.toast--uep .toast__icon-wrapper {
-  color: #d5b618;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
 
 .toast__icon {
-  width: 1.125rem;
-  height: 1.125rem;
+  display: none;
+}
+
+.toast--success .toast__icon-wrapper {
+  background: #2a7d4f;
+}
+
+.toast--error .toast__icon-wrapper {
+  background: #b83232;
+}
+
+.toast--warning .toast__icon-wrapper {
+  background: #c08a1e;
+}
+
+.toast--info .toast__icon-wrapper {
+  background: var(--q-navy);
+}
+
+.toast--uep .toast__icon-wrapper {
+  background: #d5b618;
 }
 
 /* 訊息文字 */
 .toast__message {
   flex: 1;
-  font-size: 0.85rem;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
   color: var(--q-ink);
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 關閉按鈕 */
+/* 關閉按鈕 — 極小、低對比 */
 .toast__close {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 14px;
+  height: 14px;
   border: none;
   background: transparent;
   color: var(--q-ink);
-  opacity: 0.35;
+  opacity: 0;
   cursor: pointer;
   transition: opacity 0.15s;
   padding: 0;
 }
 
+.toast:hover .toast__close {
+  opacity: 0.3;
+}
+
 .toast__close:hover {
-  opacity: 0.7;
+  opacity: 0.6 !important;
 }
 
 .toast__close svg {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 10px;
+  height: 10px;
 }
 
-/* 動畫 */
-@keyframes toastSlideIn {
+/* 動畫 — 淡入淡出 */
+@keyframes toast-fade-in {
   from {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateY(-4px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
-@keyframes toastSlideOut {
+@keyframes toast-fade-out {
   from {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
   to {
     opacity: 0;
-    transform: translateX(100%);
-  }
-}
-
-/* 從左側進入 */
-.toast-container--top-left .toast,
-.toast-container--bottom-left .toast {
-  animation: toastSlideInLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.toast-container--top-left .toast--closing,
-.toast-container--bottom-left .toast--closing {
-  animation: toastSlideOutLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes toastSlideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes toastSlideOutLeft {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-}
-
-/* 從上方進入 */
-.toast-container--top-center .toast {
-  animation: toastSlideInTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.toast-container--top-center .toast--closing {
-  animation: toastSlideOutTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes toastSlideInTop {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes toastSlideOutTop {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-100%);
-  }
-}
-
-/* 從下方進入 */
-.toast-container--bottom-center .toast {
-  animation: toastSlideInBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.toast-container--bottom-center .toast--closing {
-  animation: toastSlideOutBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes toastSlideInBottom {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes toastSlideOutBottom {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(100%);
+    transform: translateY(-4px);
   }
 }
 
@@ -273,29 +161,25 @@
   .toast {
     animation: none !important;
   }
-
   .toast--closing {
     animation: none !important;
     opacity: 0;
   }
 }
 
-/* 小螢幕調整 */
+/* 小螢幕 */
 @media (max-width: 640px) {
   .toast-container {
     left: 1rem !important;
     right: 1rem !important;
-    top: 5rem;
+    top: 4.5rem;
     max-width: calc(100vw - 2rem);
-  }
-
-  .toast-container--top-center,
-  .toast-container--bottom-center {
     transform: none;
+    align-items: stretch !important;
   }
-
   .toast {
     min-width: auto;
     width: 100%;
+    max-width: none;
   }
 }

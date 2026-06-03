@@ -10,7 +10,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // 驗證必填欄位
     if (!name || !email || !subject || !message) {
       return new Response(
-        JSON.stringify({ error: 'All fields are required' }),
+        JSON.stringify({
+          error: 'All fields are required',
+          code: 'MISSING_FIELDS',
+        }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -18,10 +21,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // 驗證 email 格式
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return new Response(JSON.stringify({ error: 'Invalid email format' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid email format',
+          code: 'INVALID_EMAIL',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     // 開發環境：只記錄，不實際發送
@@ -56,7 +62,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
       return new Response(
         JSON.stringify({
-          error: 'Email service not configured. Please contact administrator.',
+          error: 'Email service not configured.',
+          code: 'SERVICE_NOT_CONFIGURED',
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
@@ -104,6 +111,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(
         JSON.stringify({
           error: 'Failed to send email',
+          code: 'SEND_FAILED',
           statusCode: mailResponse.status,
           details: errorData,
         }),
@@ -127,9 +135,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   } catch (error) {
     console.error('Contact form error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 };

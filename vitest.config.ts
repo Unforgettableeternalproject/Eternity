@@ -13,6 +13,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     projects: [
+      // 主站單元測試
+      'apps/root/vitest.config.ts',
       // 文件站單元測試
       'apps/uep/vitest.config.ts',
     ],
