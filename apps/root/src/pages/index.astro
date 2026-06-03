@@ -756,6 +756,13 @@ const skillDomains = 5;
     const INERTIA_FRICTION = 0.86; // 慣性摩擦係數（每幀保留 86% 速度）
     const SNAP_BACK_MS = 600;
 
+    // 清除入場動畫的 forwards 填充，避免 CSS animation 覆蓋 JS transform
+    if (el.classList.contains('hero-entrance')) {
+      el.style.animation = 'none';
+      el.style.opacity = '1';
+      el.style.transform = 'none';
+    }
+
     // 初始化樣式
     el.style.cursor = 'grab';
     el.style.userSelect = 'none';

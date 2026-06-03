@@ -144,8 +144,8 @@ jobs:
             VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
             echo "Detected Release: v$VERSION"
 
-          # 檢測 Hotfix: "Hotfix vX.Y.Z batch #N: <描述>. MM/DD"
-          elif echo "$COMMIT_MSG" | grep -qE "Hotfix v[0-9]+\.[0-9]+\.[0-9]+ batch #[0-9]+"; then
+          # 檢測 Hotfix: "Hotfix [version] vX.Y.Z batch #N: <描述>. MM/DD"
+          elif echo "$COMMIT_MSG" | grep -qE "Hotfix (version )?v[0-9]+\.[0-9]+\.[0-9]+ batch #[0-9]+"; then
             BRANCH_TYPE="hotfix"
             VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
             BATCH_NUM=$(echo "$COMMIT_MSG" | grep -oE "batch #[0-9]+" | grep -oE "[0-9]+")
