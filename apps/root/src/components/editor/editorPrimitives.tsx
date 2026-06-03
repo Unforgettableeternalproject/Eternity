@@ -1,4 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ConfirmDialog, {
+  type ConfirmDialogState,
+  DIALOG_CLOSED,
+} from './ConfirmDialog';
 
 // ─── 共用 primitive 元件（從 RootEditor 提取） ───────────────────────
 
@@ -131,6 +135,8 @@ export function TagEditor({
   tags: string[];
   onChange: (t: string[]) => void;
 }) {
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
+
   return (
     <div className="qe-tags">
       {tags.map((t, i) => (
@@ -147,12 +153,19 @@ export function TagEditor({
       <button
         className="qe-tag--add"
         onClick={() => {
-          const t = window.prompt('新增 tag：');
-          if (t?.trim()) onChange([...tags, t.trim()]);
+          setDialog({
+            open: true,
+            title: '新增 tag',
+            prompt: true,
+            promptPlaceholder: '輸入 tag 名稱',
+            confirmLabel: '新增',
+            onPromptConfirm: (v) => onChange([...tags, v]),
+          });
         }}
       >
         + tag
       </button>
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </div>
   );
 }
@@ -163,17 +176,46 @@ export function OutlineRow({
   label,
   sub,
   onClick,
+  draggable,
+  dragClass,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: {
   active: boolean;
   num: string;
   label: string;
   sub?: string;
   onClick: () => void;
+  draggable?: boolean;
+  dragClass?: string;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
 }) {
+  const cls = [
+    'qe-row',
+    active && 'qe-row--active',
+    draggable && 'qe-row--sortable',
+    dragClass,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div
-      className={`qe-row${active ? ' qe-row--active' : ''}`}
+      className={cls}
       onClick={onClick}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
     >
       <Mono v={active ? 'navy' : 'fade'}>{num}</Mono>
       <div style={{ minWidth: 0 }}>

@@ -1,5 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { Mono, Divider, Field, Input, OutlineRow } from './editorPrimitives';
+import ConfirmDialog, {
+  type ConfirmDialogState,
+  DIALOG_CLOSED,
+} from './ConfirmDialog';
 
 // ─── 型別定義（匯出供 RootEditor 共用） ─────────────────────────────
 export interface DirectLink {
@@ -191,6 +195,7 @@ export default function ContactEditor({
   // 各語言各自的 dirty 追蹤
   const [dirtyZh, setDirtyZh] = useState(false);
   const [dirtyEn, setDirtyEn] = useState(false);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   // 目前語言的資料與 setter
   const data: ContactData = lang === 'zh' ? dataZh || {} : dataEn || {};
@@ -253,10 +258,15 @@ export default function ContactEditor({
         <button
           className="qe-tag--add"
           onClick={() => {
-            const t = window.prompt(
-              lang === 'zh' ? '新增主旨選項：' : 'New subject option:'
-            );
-            if (t?.trim()) up({ subjects: [...subjects, t.trim()] });
+            setDialog({
+              open: true,
+              title: lang === 'zh' ? '新增主旨選項' : 'New subject option',
+              prompt: true,
+              promptPlaceholder:
+                lang === 'zh' ? '輸入主旨名稱' : 'Enter subject name',
+              confirmLabel: '新增',
+              onPromptConfirm: (v) => up({ subjects: [...subjects, v] }),
+            });
           }}
         >
           + subject
@@ -606,6 +616,7 @@ export default function ContactEditor({
           </p>
         </div>
       </aside>
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </>
   );
 }

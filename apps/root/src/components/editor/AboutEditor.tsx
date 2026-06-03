@@ -1,6 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { TipTapEditor } from './RootEditor';
 import ImagePickerDialog from './ImagePickerDialog';
+import ConfirmDialog, {
+  type ConfirmDialogState,
+  DIALOG_CLOSED,
+} from './ConfirmDialog';
 import {
   Mono,
   Divider,
@@ -131,6 +135,7 @@ function SkillsSection({
   const skills: Skill[] = data?.skills || [];
   // 追蹤哪個項目展開
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   const updateSkill = (idx: number, patch: Partial<Skill>) => {
     const next = skills.map((s, i) => (i === idx ? { ...s, ...patch } : s));
@@ -200,8 +205,13 @@ function SkillsSection({
               style={{ padding: '3px 8px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`刪除技能「${skill.name}」？`))
-                  removeSkill(idx);
+                setDialog({
+                  open: true,
+                  title: `刪除技能「${skill.name}」？`,
+                  confirmLabel: '刪除',
+                  danger: true,
+                  onConfirm: () => removeSkill(idx),
+                });
               }}
             >
               <Mono style={{ color: 'var(--qe-coral)' }}>✕</Mono>
@@ -291,6 +301,7 @@ function SkillsSection({
       >
         ＋ new skill
       </button>
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </div>
   );
 }
@@ -305,6 +316,7 @@ function ExperienceSection({
 }) {
   const experience: Experience[] = data?.experience || [];
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   const updateExp = (idx: number, patch: Partial<Experience>) => {
     const next = experience.map((e, i) => (i === idx ? { ...e, ...patch } : e));
@@ -387,8 +399,13 @@ function ExperienceSection({
               style={{ padding: '3px 8px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`刪除職位「${exp.title}」？`))
-                  removeExp(idx);
+                setDialog({
+                  open: true,
+                  title: `刪除職位「${exp.title}」？`,
+                  confirmLabel: '刪除',
+                  danger: true,
+                  onConfirm: () => removeExp(idx),
+                });
               }}
             >
               <Mono style={{ color: 'var(--qe-coral)' }}>✕</Mono>
@@ -480,6 +497,7 @@ function ExperienceSection({
       >
         ＋ new experience
       </button>
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </div>
   );
 }

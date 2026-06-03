@@ -230,6 +230,102 @@
   margin-right: 4px;
 }
 
+/* ─── drag & drop 排序 ─────────────────────────────────── */
+.qe-row--sortable {
+  position: relative;
+  cursor: grab;
+  transition:
+    background 0.1s,
+    opacity 0.15s,
+    transform 0.15s ease;
+}
+.qe-row--sortable:active {
+  cursor: grabbing;
+}
+
+/* 被拖曳的項目 */
+.qe-row--dragging {
+  opacity: 0.15;
+  background: var(--qe-paper-deep);
+  transform: scale(0.97);
+}
+
+/* 拖曳進行中，列表區域啟用，微弱提示所有 row */
+.qe-left__body--dragging .qe-row--sortable:not(.qe-row--dragging) {
+  border-left-color: transparent;
+}
+
+/* 插入指示線 — 上方 */
+.qe-row--drop-above::before {
+  content: '';
+  position: absolute;
+  top: -1.5px;
+  left: 12px;
+  right: 12px;
+  height: 2.5px;
+  background: var(--qe-navy);
+  border-radius: 2px;
+  z-index: 2;
+  animation: drop-line-in 0.12s ease-out;
+}
+.qe-row--drop-above::after {
+  content: '';
+  position: absolute;
+  top: -4.5px;
+  left: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qe-navy);
+  z-index: 2;
+  animation: drop-dot-in 0.12s ease-out;
+}
+
+/* 插入指示線 — 下方 */
+.qe-row--drop-below::before {
+  content: '';
+  position: absolute;
+  bottom: -1.5px;
+  left: 12px;
+  right: 12px;
+  height: 2.5px;
+  background: var(--qe-navy);
+  border-radius: 2px;
+  z-index: 2;
+  animation: drop-line-in 0.12s ease-out;
+}
+.qe-row--drop-below::after {
+  content: '';
+  position: absolute;
+  bottom: -4.5px;
+  left: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qe-navy);
+  z-index: 2;
+  animation: drop-dot-in 0.12s ease-out;
+}
+
+@keyframes drop-line-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes drop-dot-in {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
 .qe-filters {
   padding: 4px 18px 10px;
   display: flex;
