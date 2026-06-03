@@ -43,13 +43,14 @@ const allProjects = allProjectsRaw.map((p) => ({
     endDate: p.endDate ? new Date(p.endDate) : null,
   },
 }));
-const featuredProjects = allProjects
+const allFeatured = allProjects
   .filter((p) => p.data.featured)
-  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
-  .slice(0, 2);
+  .sort((a, b) => (a.data.order ?? 999) - (b.data.order ?? 999));
+const featuredProjects = allFeatured.slice(0, 2);
+const extraFeatured = allFeatured.slice(2);
 const otherProjects = allProjects
   .filter((p) => !p.data.featured)
-  .sort((a, b) => (a.data.order || 999) - (b.data.order || 999))
+  .sort((a, b) => (a.data.order ?? 999) - (b.data.order ?? 999))
   .slice(0, 4);
 
 // Updates from D1
@@ -414,6 +415,106 @@ const skillDomains = 5;
         ))
       }
     </div>
+
+    {/* Extra featured — 較小的卡片 */}
+    {
+      extraFeatured.length > 0 && (
+        <div class="flex flex-wrap justify-center gap-6 mb-14">
+          {extraFeatured.map((project, i) => (
+            <a
+              href={`${basePath}/projects/${project.id}`}
+              class="block no-underline group reveal-item w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]"
+            >
+              <div
+                class="q-plate"
+                style="aspect-ratio: 16/10; overflow: hidden;"
+              >
+                {project.data.image ? (
+                  <img
+                    src={assetUrl(project.data.image)}
+                    alt={
+                      locale === 'zh-tw'
+                        ? project.data.title_zh || project.id
+                        : project.data.title_en
+                    }
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style="position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;">
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 48 48"
+                      fill="none"
+                      style="opacity: 0.2;"
+                    >
+                      <rect
+                        x="4"
+                        y="8"
+                        width="40"
+                        height="32"
+                        stroke="var(--q-ink)"
+                        stroke-width="2"
+                        fill="none"
+                      />
+                      <path
+                        d="M4 32 L16 22 L24 28 L34 18 L44 26"
+                        stroke="var(--q-ink)"
+                        stroke-width="2"
+                        fill="none"
+                        stroke-linejoin="round"
+                      />
+                      <circle cx="14" cy="18" r="3" fill="var(--q-ink)" />
+                    </svg>
+                    <span
+                      class="q-mono"
+                      style="font-size: 9px; opacity: 0.35; max-width: 70%; text-align: center; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+                    >
+                      {locale === 'zh-tw'
+                        ? project.data.title_zh || project.id
+                        : project.data.title_en}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div class="mt-3 flex justify-between items-baseline">
+                <span class="q-mono" style="color: var(--q-navy);">
+                  {String(featuredProjects.length + i + 1).padStart(2, '0')} ·{' '}
+                  {project.data.status}
+                </span>
+                <span class="q-mono">
+                  {project.data.startDate
+                    ? project.data.startDate.getFullYear()
+                    : '—'}
+                </span>
+              </div>
+              <h4
+                class="mt-1.5 text-base md:text-lg font-bold tracking-tight group-hover:opacity-75 transition-opacity"
+                style="color: var(--q-ink);"
+              >
+                {locale === 'zh-tw'
+                  ? project.data.title_zh || project.id
+                  : project.data.title_en}
+                <span
+                  class="ml-1.5 text-[10px] q-mono"
+                  style="color: var(--q-navy); vertical-align: middle;"
+                >
+                  ✦
+                </span>
+              </h4>
+              <div class="mt-2 flex gap-1.5 flex-wrap">
+                {project.data.tags.slice(0, 3).map((tag: string) => (
+                  <span class="q-pill">{tag}</span>
+                ))}
+                {project.data.tags.length > 3 && (
+                  <span class="q-pill">+{project.data.tags.length - 3}</span>
+                )}
+              </div>
+            </a>
+          ))}
+        </div>
+      )
+    }
 
     <!-- Other projects — catalog list -->
     <div>
