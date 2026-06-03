@@ -69,9 +69,8 @@ export default function ConfirmDialog({ state, onClose }: Props) {
 
   const handleConfirm = useCallback(() => {
     if (state.prompt) {
-      if (inputValue.trim()) {
-        state.onPromptConfirm?.(inputValue.trim());
-      }
+      if (!inputValue.trim()) return; // 空值不關閉
+      state.onPromptConfirm?.(inputValue.trim());
     } else {
       state.onConfirm?.();
     }
@@ -92,15 +91,22 @@ export default function ConfirmDialog({ state, onClose }: Props) {
   if (!state.open) return null;
 
   return (
-    <div className="qe-modal-overlay" onClick={onClose}>
+    <div className="qe-modal-overlay" onClick={onClose} role="presentation">
       <div
         className="qe-modal"
         style={{ maxWidth: 400 }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby={state.description ? 'confirm-dialog-desc' : undefined}
       >
-        <h3 className="qe-modal__title">{state.title}</h3>
+        <h3 id="confirm-dialog-title" className="qe-modal__title">
+          {state.title}
+        </h3>
         {state.description && (
           <p
+            id="confirm-dialog-desc"
             style={{
               margin: 0,
               fontSize: 14,

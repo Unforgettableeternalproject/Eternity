@@ -965,7 +965,8 @@ function ProjectsEditor({
           />
           <Field label="order">
             <Mono v="fade">
-              #{idx + 1} / {list.length} — 拖曳左側列表排序
+              #{idx + 1} / {list.length}
+              {canDrag ? ' — 拖曳左側列表排序' : ''}
             </Mono>
           </Field>
 
@@ -1748,7 +1749,8 @@ function LinksEditor({
           />
           <Field label="order">
             <Mono v="fade">
-              #{idx + 1} / {list.length} — 拖曳左側列表排序
+              #{idx + 1} / {list.length}
+              {canDrag ? ' — 拖曳左側列表排序' : ''}
             </Mono>
           </Field>
 
