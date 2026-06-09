@@ -24,6 +24,8 @@ export interface ConfirmDialogState {
   prompt?: boolean;
   /** prompt 的 placeholder */
   promptPlaceholder?: string;
+  /** prompt 的預設值 */
+  promptDefault?: string;
   /** 確認後的回呼（無輸入） */
   onConfirm?: () => void;
   /** prompt 確認後的回呼（帶輸入值） */
@@ -42,20 +44,21 @@ export default function ConfirmDialog({ state, onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState('');
 
-  // 開啟時重置輸入值
+  // 開啟時重置輸入值（如有 promptDefault 則套用）
   useEffect(() => {
     if (state.open) {
-      setInputValue('');
-      // prompt 模式 focus input，否則 focus 按鈕
+      setInputValue(state.promptDefault ?? '');
+      // prompt 模式 focus input 並全選，否則 focus 按鈕
       requestAnimationFrame(() => {
         if (state.prompt) {
           inputRef.current?.focus();
+          inputRef.current?.select();
         } else {
           confirmRef.current?.focus();
         }
       });
     }
-  }, [state.open, state.prompt]);
+  }, [state.open, state.prompt, state.promptDefault]);
 
   // ESC 關閉
   useEffect(() => {
