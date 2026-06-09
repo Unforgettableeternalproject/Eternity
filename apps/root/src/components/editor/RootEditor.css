@@ -331,6 +331,9 @@
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+  max-height: 160px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .qe-filter {
   padding: 3px 9px;

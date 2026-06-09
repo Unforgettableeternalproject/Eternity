@@ -619,6 +619,8 @@ function ProjectsEditor({
   const [showNew, setShowNew] = useState(false);
   const [showCoverPicker, setShowCoverPicker] = useState(false);
   const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
+  const [filterDialog, setFilterDialog] =
+    useState<ConfirmDialogState>(DIALOG_CLOSED);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   // ── 排序 + 拖曳 ──
@@ -664,6 +666,30 @@ function ProjectsEditor({
   const allTags = useMemo(
     () => [...new Set(items.flatMap((x) => x.tags))],
     [items]
+  );
+
+  /** 全域重命名標籤：更新所有含此 tag 的專案並批次存檔 */
+  const renameTag = useCallback(
+    async (oldName: string, newName: string) => {
+      const affected = items.filter((x) => x.tags.includes(oldName));
+      if (affected.length === 0) return;
+      // 本地更新
+      setItems((prev) =>
+        prev.map((x) => {
+          if (!x.tags.includes(oldName)) return x;
+          const newTags = x.tags.map((t) => (t === oldName ? newName : t));
+          return { ...x, tags: newTags };
+        })
+      );
+      // 如果正在篩選被重命名的 tag，跟著切換
+      if (filter === oldName) setFilter(newName);
+      // 批次存檔
+      for (const item of affected) {
+        const newTags = item.tags.map((t) => (t === oldName ? newName : t));
+        await api(`/api/root/projects/${item.id}`, 'PUT', { tags: newTags });
+      }
+    },
+    [items, filter, api, setItems]
   );
 
   useEffect(() => {
@@ -782,9 +808,26 @@ function ProjectsEditor({
               <button
                 key={t}
                 className={`qe-filter${filter === t ? ' qe-filter--active' : ''}`}
+                title="雙擊重命名"
                 onClick={() => {
                   setFilter(t);
                   setIdx(0);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setFilterDialog({
+                    open: true,
+                    title: `重命名標籤「${t}」`,
+                    description: '所有使用此標籤的項目都會同步更新',
+                    prompt: true,
+                    promptPlaceholder: '輸入新名稱',
+                    promptDefault: t,
+                    confirmLabel: '重命名',
+                    onPromptConfirm: (v) => {
+                      const newName = v.trim();
+                      if (newName && newName !== t) renameTag(t, newName);
+                    },
+                  });
                 }}
               >
                 {t}
@@ -989,7 +1032,11 @@ function ProjectsEditor({
           </Field>
 
           <Divider label="tags" />
-          <TagEditor tags={p.tags} onChange={(t) => up({ tags: t })} />
+          <TagEditor
+            tags={p.tags}
+            onChange={(t) => up({ tags: t })}
+            onRename={renameTag}
+          />
 
           <Divider label="links" />
           <Field label="demo">
@@ -1137,6 +1184,10 @@ function ProjectsEditor({
         />
       )}
       <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
+      <ConfirmDialog
+        state={filterDialog}
+        onClose={() => setFilterDialog(DIALOG_CLOSED)}
+      />
     </>
   );
 }
@@ -1808,7 +1859,7 @@ function getTokenFromCookie(): string {
 }
 
 export default function RootEditor(props: EditorProps) {
-  const [page, setPage] = useState('projects');
+  const [page, setPage] = useState('pages');
   // 從 cookie 讀 token，不依賴 SSR prop（避免 token 出現在 HTML 中）
   const token = useMemo(
     () => props.token || getTokenFromCookie(),
