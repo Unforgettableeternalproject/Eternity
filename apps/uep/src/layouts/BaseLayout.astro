@@ -6,8 +6,12 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'U.E.P的幻想空間 - 創作與技術筆記' } = Astro.props;
+const {
+  title,
+  description = "U.E.P's Imaginary Space — 不朽永恆計畫 (UEP) 邊際世界觀測誌",
+} = Astro.props;
 const currentPath = Astro.url.pathname;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
@@ -22,6 +26,40 @@ const currentPath = Astro.url.pathname;
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:site_name" content="U.E.P's Imaginary Space" />
+    <meta property="og:locale" content="zh_TW" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- JSON-LD 結構化資料 -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: "U.E.P's Imaginary Space",
+        alternateName: [
+          '邊際世界觀測誌',
+          '不朽永恆計畫',
+          'Unforgettable Eternal Project',
+          'UEP',
+        ],
+        url: 'https://uep.unforgettableeternalproject.com',
+        inLanguage: 'zh-TW',
+      })}
+    />
   </head>
   <body>
     <!-- 背景裝飾層 -->

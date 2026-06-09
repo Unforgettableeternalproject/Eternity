@@ -17,6 +17,7 @@
     "@astrojs/markdown-remark": "^6.3.10",
     "@astrojs/mdx": "^3.1.9",
     "@astrojs/react": "^4.4.2",
+    "@astrojs/sitemap": "^3.2.1",
     "@tiptap/core": "^3.22.5",
     "@tiptap/extension-color": "^3.22.5",
     "@tiptap/extension-font-family": "^3.22.5",

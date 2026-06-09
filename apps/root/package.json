@@ -16,6 +16,7 @@
   "dependencies": {
     "@astrojs/check": "^0.9.6",
     "@astrojs/react": "^4.4.2",
+    "@astrojs/sitemap": "^3.7.3",
     "@tiptap/core": "^3.22.5",
     "@tiptap/extension-color": "^3.22.5",
     "@tiptap/extension-highlight": "^3.22.5",

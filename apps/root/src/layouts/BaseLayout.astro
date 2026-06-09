@@ -27,8 +27,8 @@ interface Props {
 
 const {
   title,
-  description = "Eternity - Bernie's Personal Website",
-  ogImage = '/og-image.png',
+  description = '顏榕嶙 (Bernie Yen) 的個人網站 Eternity。軟體開發專案、創意作品、技術文章，以及不朽永恆計畫 (UEP) 邊際世界的入口。',
+  ogImage,
   ogType = 'website',
 } = Astro.props;
 
@@ -73,8 +73,12 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta property="og:url" content={canonicalURL} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(ogImage, Astro.site)} />
-    <meta property="og:site_name" content="Bernie's Eternity" />
+    {
+      ogImage && (
+        <meta property="og:image" content={new URL(ogImage, Astro.site)} />
+      )
+    }
+    <meta property="og:site_name" content="Eternity — 顏榕嶙 (Bernie Yen)" />
     <meta
       property="og:locale"
       content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'}
@@ -85,7 +89,39 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="twitter:url" content={canonicalURL} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+    {
+      ogImage && (
+        <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+      )
+    }
+
+    <!-- JSON-LD 結構化資料 -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'WebSite',
+            name: 'Eternity',
+            alternateName: ['不朽永恆計畫', 'Unforgettable Eternal Project'],
+            url: 'https://unforgettableeternalproject.com',
+            inLanguage: ['zh-TW', 'en'],
+          },
+          {
+            '@type': 'Person',
+            name: '顏榕嶙',
+            alternateName: ['Bernie Yen', 'Yen, Jung-Lin', 'Bernie'],
+            url: 'https://unforgettableeternalproject.com',
+            sameAs: [
+              'https://github.com/Unforgettableeternalproject',
+              'https://uep.unforgettableeternalproject.com',
+            ],
+            jobTitle: 'Developer & Creator',
+          },
+        ],
+      })}
+    />
 
     <!-- Google Fonts（非阻塞載入，取代 global.css 的 @import） -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
