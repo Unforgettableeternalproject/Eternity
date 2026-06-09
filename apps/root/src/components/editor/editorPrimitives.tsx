@@ -131,16 +131,39 @@ export function Toggle({
 export function TagEditor({
   tags,
   onChange,
+  onRename,
 }: {
   tags: string[];
   onChange: (t: string[]) => void;
+  /** 重命名標籤：(舊名, 新名) → 由外層處理全域傳播 */
+  onRename?: (oldName: string, newName: string) => void;
 }) {
   const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   return (
     <div className="qe-tags">
       {tags.map((t, i) => (
-        <span key={i} className="qe-tag">
+        <span
+          key={i}
+          className="qe-tag"
+          title={onRename ? '雙擊重命名' : undefined}
+          onDoubleClick={() => {
+            if (!onRename) return;
+            setDialog({
+              open: true,
+              title: `重命名標籤「${t}」`,
+              description: '所有使用此標籤的項目都會同步更新',
+              prompt: true,
+              promptPlaceholder: '輸入新名稱',
+              promptDefault: t,
+              confirmLabel: '重命名',
+              onPromptConfirm: (v) => {
+                const newName = v.trim();
+                if (newName && newName !== t) onRename(t, newName);
+              },
+            });
+          }}
+        >
           {t}
           <span
             className="qe-tag__x"

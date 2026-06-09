@@ -11,8 +11,8 @@ interface Props {
 
 const {
   title,
-  description = 'Eternity - Console',
-  ogImage = '/og-image.png',
+  description = 'Eternity Console — 顏榕嶙 (Bernie Yen)',
+  ogImage,
   ogType = 'website',
 } = Astro.props as Props;
 
@@ -48,8 +48,12 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta property="og:url" content={canonicalURL} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(ogImage, Astro.site)} />
-    <meta property="og:site_name" content="Bernie's Eternity" />
+    {
+      ogImage && (
+        <meta property="og:image" content={new URL(ogImage, Astro.site)} />
+      )
+    }
+    <meta property="og:site_name" content="Eternity — 顏榕嶙 (Bernie Yen)" />
     <meta
       property="og:locale"
       content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'}
@@ -59,7 +63,11 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="twitter:url" content={canonicalURL} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+    {
+      ogImage && (
+        <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+      )
+    }
 
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />

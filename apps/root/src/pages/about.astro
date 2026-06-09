@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../i18n/utils';
-import { getSingleton } from '../lib/api';
+import { getSingleton, assetUrl } from '../lib/api';
 import { normalizeColors } from '../lib/color-normalize';
 
 export const prerender = false;
@@ -22,6 +22,8 @@ const data = (raw?.content ?? {}) as {
   heroTitle?: string;
   heroIntro?: string;
   fullBio?: string;
+  bioPhoto?: string;
+  bioPhotoCaption?: string;
   avatar?: string;
   facts?: [string, string][];
   skills?: {
@@ -227,18 +229,50 @@ if (currentlyItems.length === 0) {
       </div>
     </div>
 
-    {
-      data.fullBio ? (
-        <div
-          class="q-bio-prose reveal-item max-w-[720px]"
-          set:html={normalizeColors(data.fullBio || '')}
-        />
-      ) : (
-        <p class="text-sm italic" style="color: var(--q-ink-mute);">
-          {locale === 'zh-tw' ? '尚未撰寫。' : 'Not written yet.'}
-        </p>
-      )
-    }
+    <div
+      class={`grid gap-10 lg:gap-14 ${data.bioPhoto ? 'grid-cols-1 lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_320px]' : ''}`}
+    >
+      {/* 左側：自傳文字 */}
+      {
+        data.fullBio ? (
+          <div
+            class="q-bio-prose reveal-item"
+            set:html={normalizeColors(data.fullBio || '')}
+          />
+        ) : (
+          <p class="text-sm italic" style="color: var(--q-ink-mute);">
+            {locale === 'zh-tw' ? '尚未撰寫。' : 'Not written yet.'}
+          </p>
+        )
+      }
+
+      {/* 右側：照片 */}
+      {
+        data.bioPhoto && (
+          <div class="bio-photo-container reveal-item">
+            <div class="bio-photo-frame">
+              <div class="bio-photo-inner">
+                <img
+                  src={assetUrl(data.bioPhoto)}
+                  alt={locale === 'zh-tw' ? '個人照片' : 'Personal photo'}
+                  class="bio-photo-img"
+                  loading="lazy"
+                />
+              </div>
+              {/* 裝飾角標 */}
+              <span class="bio-photo-corner bio-photo-corner--tl" />
+              <span class="bio-photo-corner bio-photo-corner--tr" />
+              <span class="bio-photo-corner bio-photo-corner--bl" />
+              <span class="bio-photo-corner bio-photo-corner--br" />
+            </div>
+            <p class="bio-photo-caption q-mono">
+              {data.bioPhotoCaption ||
+                (locale === 'zh-tw' ? '↑ 這是我' : '↑ This is me')}
+            </p>
+          </div>
+        )
+      }
+    </div>
   </section>
 
   <!-- ─────────── SKILLS ─────────── -->
@@ -471,6 +505,132 @@ if (currentlyItems.length === 0) {
     font-size: 18px;
     line-height: 1.9;
     color: var(--q-ink);
+  }
+
+  /* ── 照片區塊 ── */
+  .bio-photo-container {
+    position: sticky;
+    top: 120px;
+    align-self: start;
+  }
+
+  .bio-photo-frame {
+    position: relative;
+    border: 1px solid var(--q-line);
+    padding: 6px;
+  }
+
+  .bio-photo-inner {
+    overflow: hidden;
+    aspect-ratio: 3 / 4;
+    background: var(--q-line);
+  }
+
+  .bio-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .bio-photo-frame:hover .bio-photo-img {
+    transform: scale(1.06);
+  }
+
+  /* 四角裝飾標記 */
+  .bio-photo-corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+  }
+  .bio-photo-corner::before,
+  .bio-photo-corner::after {
+    content: '';
+    position: absolute;
+    background: var(--q-navy);
+  }
+  .bio-photo-corner--tl {
+    top: -4px;
+    left: -4px;
+  }
+  .bio-photo-corner--tl::before {
+    top: 0;
+    left: 0;
+    width: 14px;
+    height: 1.5px;
+  }
+  .bio-photo-corner--tl::after {
+    top: 0;
+    left: 0;
+    width: 1.5px;
+    height: 14px;
+  }
+  .bio-photo-corner--tr {
+    top: -4px;
+    right: -4px;
+  }
+  .bio-photo-corner--tr::before {
+    top: 0;
+    right: 0;
+    width: 14px;
+    height: 1.5px;
+  }
+  .bio-photo-corner--tr::after {
+    top: 0;
+    right: 0;
+    width: 1.5px;
+    height: 14px;
+  }
+  .bio-photo-corner--bl {
+    bottom: -4px;
+    left: -4px;
+  }
+  .bio-photo-corner--bl::before {
+    bottom: 0;
+    left: 0;
+    width: 14px;
+    height: 1.5px;
+  }
+  .bio-photo-corner--bl::after {
+    bottom: 0;
+    left: 0;
+    width: 1.5px;
+    height: 14px;
+  }
+  .bio-photo-corner--br {
+    bottom: -4px;
+    right: -4px;
+  }
+  .bio-photo-corner--br::before {
+    bottom: 0;
+    right: 0;
+    width: 14px;
+    height: 1.5px;
+  }
+  .bio-photo-corner--br::after {
+    bottom: 0;
+    right: 0;
+    width: 1.5px;
+    height: 14px;
+  }
+
+  .bio-photo-caption {
+    margin: 12px 0 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--q-ink-mute);
+    letter-spacing: 0.5px;
+  }
+
+  /* 手機板照片置中、不黏頂 */
+  @media (max-width: 1023px) {
+    .bio-photo-container {
+      position: static;
+      max-width: 280px;
+      margin: 0 auto;
+    }
   }
 </style>
 
