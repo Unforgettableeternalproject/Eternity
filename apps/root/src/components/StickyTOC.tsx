@@ -10,6 +10,9 @@ interface TocItem {
   level: 2 | 3;
 }
 
+/** 導航欄高度（用於 scroll 偏移補正） */
+const NAV_OFFSET = 80;
+
 export default function StickyTOC() {
   const [items, setItems] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -67,6 +70,11 @@ export default function StickyTOC() {
 
     setItems(tocItems);
 
+    // 為所有 heading 設定 scroll-margin-top，確保錨點跳轉也正確
+    headings.forEach((h) => {
+      (h as HTMLElement).style.scrollMarginTop = `${NAV_OFFSET + 16}px`;
+    });
+
     // 重建 IntersectionObserver
     if (observerRef.current) observerRef.current.disconnect();
 
@@ -81,7 +89,7 @@ export default function StickyTOC() {
           setActiveId(visible[0].target.id);
         }
       },
-      { rootMargin: '-80px 0px -60% 0px' }
+      { rootMargin: `${-NAV_OFFSET}px 0px -60% 0px` }
     );
 
     headings.forEach((h) => observer.observe(h));
@@ -169,9 +177,15 @@ export default function StickyTOC() {
                 .join(' ')}
               onClick={(e) => {
                 e.preventDefault();
-                document
-                  .getElementById(item.id)
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const target = document.getElementById(item.id);
+                if (target) {
+                  const y =
+                    target.getBoundingClientRect().top +
+                    window.scrollY -
+                    NAV_OFFSET -
+                    16;
+                  window.scrollTo({ top: y, behavior: 'smooth' });
+                }
               }}
             >
               {item.text}
