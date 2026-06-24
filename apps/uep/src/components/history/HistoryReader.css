@@ -871,6 +871,10 @@
 .history-prose p {
   margin: 0 0 1.3em;
 }
+/* 空段落（編輯器留白行）需要最小高度，防止 CSS margin collapsing 吃掉間距 */
+.history-prose p:empty {
+  min-height: 1em;
+}
 
 .history-prose h1,
 .history-prose h2,

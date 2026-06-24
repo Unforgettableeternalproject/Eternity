@@ -395,6 +395,9 @@
   line-height: 1.85;
   color: var(--q-ink);
 }
+.q-prose p:empty {
+  min-height: 1em;
+}
 
 .q-prose h2,
 .q-prose h3 {

@@ -357,6 +357,9 @@
 .echoes-prose p {
   margin: 0 0 1.3em;
 }
+.echoes-prose p:empty {
+  min-height: 1em;
+}
 
 .echoes-prose h1,
 .echoes-prose h2,
