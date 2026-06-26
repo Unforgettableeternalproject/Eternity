@@ -873,6 +873,75 @@ export default function RichEditor({
 
   if (editorMode.needsTipTap && !editor) return null;
 
+  // ── 選取範圍樣式分析 ──
+  // 分析選取範圍中的 heading level（排除普通段落，多種 level 時回傳「混合」）
+  const getHeadingLabel = (): string => {
+    if (!editor) return '內文';
+    const { from, to } = editor.state.selection;
+    const levels = new Set<number>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (node.isTextblock && node.type.name === 'heading') {
+        levels.add(node.attrs.level as number);
+      }
+    });
+    if (levels.size === 0) return '內文';
+    if (levels.size === 1) return `H${[...levels][0]}`;
+    return '混合';
+  };
+
+  // 分析選取範圍中的字型（排除未設定字型的文字）
+  const getFontLabel = (): string => {
+    if (!editor) return 'Font';
+    const { from, to } = editor.state.selection;
+    // 游標（無選取）：用 getAttributes
+    if (from === to) {
+      const f = editor.getAttributes('textStyle').fontFamily as
+        | string
+        | undefined;
+      if (!f) return 'Font';
+      const entry = FONT_FAMILIES.find((ff) => ff.value === f);
+      return entry ? entry.label : f.split(',')[0].replace(/['"]/g, '');
+    }
+    const fonts = new Set<string>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      const mark = node.marks.find(
+        (m) => m.type.name === 'textStyle' && m.attrs.fontFamily
+      );
+      if (mark) fonts.add(mark.attrs.fontFamily as string);
+    });
+    if (fonts.size === 0) return 'Font';
+    if (fonts.size === 1) {
+      const val = [...fonts][0];
+      const entry = FONT_FAMILIES.find((ff) => ff.value === val);
+      return entry ? entry.label : val.split(',')[0].replace(/['"]/g, '');
+    }
+    return '混合';
+  };
+
+  // 分析選取範圍中的字型大小（排除未設定的文字）
+  const getFontSizeLabel = (): string => {
+    if (!editor) return '大小';
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      const s = editor.getAttributes('textStyle').fontSize as
+        | string
+        | undefined;
+      return s ? s.replace('px', '') : '大小';
+    }
+    const sizes = new Set<string>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      const mark = node.marks.find(
+        (m) => m.type.name === 'textStyle' && m.attrs.fontSize
+      );
+      if (mark) sizes.add(mark.attrs.fontSize as string);
+    });
+    if (sizes.size === 0) return '大小';
+    if (sizes.size === 1) return [...sizes][0].replace('px', '');
+    return '混合';
+  };
+
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
     setActiveDropdown((prev) => (prev === name ? null : name));
@@ -1101,16 +1170,10 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getHeadingLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('heading')}
                   >
-                    {editor.isActive('heading', { level: 1 })
-                      ? 'H1'
-                      : editor.isActive('heading', { level: 2 })
-                        ? 'H2'
-                        : editor.isActive('heading', { level: 3 })
-                          ? 'H3'
-                          : '內文'}
+                    {getHeadingLabel()}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'heading' && (
@@ -1239,11 +1302,11 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getFontLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('font')}
                     title="Font"
                   >
-                    Font <span className="tb-caret">&#9662;</span>
+                    {getFontLabel()} <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'font' && (
                     <div className="tb-dropdown">
@@ -1268,13 +1331,11 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getFontSizeLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('fontSize')}
                     title="字型大小"
                   >
-                    {editor
-                      .getAttributes('textStyle')
-                      .fontSize?.replace('px', '') || '大小'}
+                    {getFontSizeLabel()}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'fontSize' && (
