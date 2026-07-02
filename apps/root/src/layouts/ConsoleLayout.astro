@@ -83,9 +83,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
         ) {
           return localStorage.getItem('theme');
         }
-        return window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light';
+        // 與 BaseLayout 一致：預設亮色模式
+        return 'light';
       };
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
