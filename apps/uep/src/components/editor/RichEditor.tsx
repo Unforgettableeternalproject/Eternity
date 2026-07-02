@@ -253,6 +253,10 @@ export default function RichEditor({
 
   // TipTap editor
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染（v2 預設會），
+    // 導致只移動選取範圍時工具列的 isActive 狀態凍結（粗體按鈕黏住等）。
+    // 開啟後每次 transaction 都重渲染，工具列狀態才會跟著 selection 即時更新。
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },

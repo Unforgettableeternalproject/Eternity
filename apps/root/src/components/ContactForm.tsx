@@ -552,7 +552,11 @@ export default function ContactForm({ locale, subjects }: ContactFormProps) {
         locale={locale}
       />
 
-      <style>{`
+      {/* 用 dangerouslySetInnerHTML 避免 SSR 對 style 內文做 HTML escape
+          （引號被轉成 &#x27; 導致 font-family 失效 + hydration mismatch） */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         .contact-tiptap p {
           margin: 0 0 8px;
         }
@@ -615,7 +619,9 @@ export default function ContactForm({ locale, subjects }: ContactFormProps) {
           from { opacity: 1; transform: translateY(0) scale(1); }
           to { opacity: 0; transform: translateY(8px) scale(0.97); }
         }
-      `}</style>
+      `,
+        }}
+      />
     </>
   );
 }

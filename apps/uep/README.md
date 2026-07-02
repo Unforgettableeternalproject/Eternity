@@ -71,7 +71,7 @@ components/
 ├── concepts/           # ConceptsReader + 四種 variant Reader
 ├── storage/            # StorageReader + Clearing 卡片
 ├── editor/             # Admin 編輯器
-│   ├── RichEditor.tsx           # TipTap 編輯器主體
+│   ├── RichEditor.tsx           # TipTap 編輯器主體（含 Markdown 匯入/匯出、混合樣式偵測）
 │   ├── MediaLibrary.tsx         # 媒體庫
 │   ├── IconLibrary.tsx          # 圖示庫
 │   └── [zone]/EditorBody.tsx    # 各 Zone 專屬編輯器
@@ -92,7 +92,7 @@ components/
 
 ### 設計系統
 
-- **DesignLayout** — 幾乎所有頁面使用，接受 `zone` prop 控制主題色
+- **DesignLayout** — 幾乎所有頁面使用，接受 `zone` prop 控制主題色；掛載內容保護腳本（`scripts/content-protection.ts`，禁止選取/右鍵）
 - **BaseLayout** — 僅 Portal 使用
 - **雙主題** — `data-theme` 屬性切換
 - **Zone 色彩** — 每個 Zone 有專屬 CSS 變數（`--zone-primary` 等）
