@@ -78,6 +78,7 @@ export default [
         HTMLCanvasElement: 'readonly',
         performance: 'readonly',
         // Other browser APIs
+        DOMParser: 'readonly',
         TextDecoder: 'readonly',
         alert: 'readonly',
         IntersectionObserver: 'readonly',

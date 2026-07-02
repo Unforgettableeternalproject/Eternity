@@ -31,7 +31,7 @@
 | 🌟 **主站**   | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | 作品集、專案展示、動態、連結 — Quartz 設計 |
 | 📚 **文件站** | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | 世界觀文件，5 個主題區域                   |
 
-> **目前版本：v0.9.8** — 主站全面改版完成。Release candidate。
+> **目前版本：v0.9.8.2** — UI 微調與編輯器強化（Markdown 匯入/匯出、混合樣式偵測、內容保護）。
 
 ## 專案結構
 

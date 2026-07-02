@@ -253,6 +253,10 @@ export default function RichEditor({
 
   // TipTap editor
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染（v2 預設會），
+    // 導致只移動選取範圍時工具列的 isActive 狀態凍結（粗體按鈕黏住等）。
+    // 開啟後每次 transaction 都重渲染，工具列狀態才會跟著 selection 即時更新。
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -875,6 +879,92 @@ export default function RichEditor({
       }
     }
   };
+
+  // === Import / Export MD ===
+  // 注意：所有 hooks 必須放在下方 early return 之前，
+  // 否則 editor 從 null 變成 instance 時 hooks 數量改變，React 會 throw
+  const importMdInputRef = useRef<HTMLInputElement>(null);
+  const canImportExport = editorMode.needsTipTap && !!editor && !isEntryMode;
+
+  const handleExportMd = useCallback(() => {
+    if (!editor) return;
+
+    // 用自製的 HTML → Markdown 轉換器，保證輸出乾淨的純文字
+    const md = htmlToMarkdown(editor.getHTML());
+
+    const frontmatter = [
+      '---',
+      `title: "${title.replace(/"/g, '\\"')}"`,
+      `slug: "${pageSlug}"`,
+      `area: "${area}"`,
+      `pageType: "${pageType}"`,
+      ...(icon ? [`icon: "${icon}"`] : []),
+      ...(description
+        ? [`description: "${description.replace(/"/g, '\\"')}"`]
+        : []),
+      `exportedAt: "${new Date().toISOString()}"`,
+      '---',
+      '',
+    ].join('\n');
+
+    const blob = new Blob([frontmatter + md], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(pageSlug || 'page').replace(/\//g, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [editor, title, pageSlug, area, pageType, icon, description]);
+
+  const handleImportMd = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !editor) return;
+      e.target.value = '';
+
+      const text = await file.text();
+      let content = text;
+
+      // 解析 YAML frontmatter
+      const fmMatch = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (fmMatch) {
+        const fm = fmMatch[1];
+        content = fmMatch[2];
+
+        const titleMatch = fm.match(/^title:\s*"?([^"\n]+?)"?\s*$/m);
+        if (titleMatch) {
+          setTitle(titleMatch[1]);
+          setDirtyTitle(true);
+        }
+        const iconMatch = fm.match(/^icon:\s*"?([^"\n]+?)"?\s*$/m);
+        if (iconMatch) {
+          setIcon(iconMatch[1]);
+          setDirtyMetadata(true);
+        }
+        const descMatch = fm.match(/^description:\s*"?([^"\n]+?)"?\s*$/m);
+        if (descMatch) {
+          setDescription(descMatch[1]);
+          setDirtyMetadata(true);
+        }
+      }
+
+      // 設定 TipTap 內容——setContent 預設把字串當 JSON/HTML 處理，
+      // 必須指定 contentType: 'markdown' 才會走 Markdown parser
+      const trimmed = content.trim();
+      if (trimmed) {
+        editor.commands.setContent(trimmed, { contentType: 'markdown' });
+      } else {
+        editor.commands.setContent('<p></p>');
+      }
+      setEditorDirty(true);
+      getToast().success(`已匯入：${file.name}`);
+    },
+    [editor]
+  );
 
   if (editorMode.needsTipTap && !editor) return null;
 

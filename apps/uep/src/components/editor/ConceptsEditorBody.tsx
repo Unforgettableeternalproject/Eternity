@@ -195,6 +195,8 @@ function MiniEditor({
   );
 
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染，會讓工具列 isActive 狀態凍結
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({ heading: false }),
       Placeholder.configure({ placeholder: placeholder || '輸入內容...' }),

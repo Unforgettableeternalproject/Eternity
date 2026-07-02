@@ -139,6 +139,42 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Page Title -->
     <title>{title}</title>
 
+    <!-- 首次造訪依瀏覽器語言決定預設語言（手動切換過則永遠尊重使用者選擇） -->
+    <script is:inline>
+      (function () {
+        try {
+          // 已有偏好記錄（手動切換或先前偵測過）→ 不再自動導向
+          if (localStorage.getItem('lang-pref')) return;
+
+          var path = location.pathname;
+          // admin / api 不參與語言導向
+          if (path.indexOf('/admin') === 0 || path.indexOf('/api') === 0)
+            return;
+
+          var nav =
+            (navigator.languages && navigator.languages[0]) ||
+            navigator.language ||
+            'zh';
+          var wantEn = nav.toLowerCase().indexOf('zh') !== 0;
+
+          // 記錄偵測結果，只在第一次造訪時做一次
+          localStorage.setItem('lang-pref', wantEn ? 'en' : 'zh-tw');
+
+          var isEn = path === '/en' || path.indexOf('/en/') === 0;
+          if (wantEn && !isEn) {
+            var target =
+              path.indexOf('/zh-tw') === 0
+                ? '/en' + path.slice('/zh-tw'.length)
+                : '/en' + (path === '/' ? '/' : path);
+            location.replace(target + location.search + location.hash);
+          }
+          // 中文使用者若直接開 /en 連結，多半是刻意點擊，不強制轉回
+        } catch (e) {
+          /* localStorage 不可用時靜默跳過 */
+        }
+      })();
+    </script>
+
     <!-- 防止深色模式閃爍 (FOUC) -->
     <script is:inline>
       // 在頁面載入前立即執行
@@ -149,8 +185,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
         ) {
           return localStorage.getItem('theme');
         }
-        // 預設使用深色模式
-        return 'dark';
+        // 預設使用亮色模式
+        return 'light';
       };
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');

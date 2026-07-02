@@ -528,6 +528,16 @@ const alternatePath = getAlternatePath(currentPath, locale);
           const href = link.getAttribute('href');
           if (!href) return;
 
+          // 記錄手動語言選擇——自動偵測（BaseLayout）看到此記錄後不再導向
+          try {
+            localStorage.setItem(
+              'lang-pref',
+              href === '/en' || href.startsWith('/en/') ? 'en' : 'zh-tw'
+            );
+          } catch (err) {
+            /* localStorage 不可用時靜默跳過 */
+          }
+
           const prefersReducedMotion = window.matchMedia(
             '(prefers-reduced-motion: reduce)'
           ).matches;

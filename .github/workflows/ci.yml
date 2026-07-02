@@ -138,16 +138,16 @@ jobs:
           COMMIT_MSG=$(git log -1 --pretty=%s)
           echo "Commit message: $COMMIT_MSG"
 
-          # 檢測 Release: "Release version vX.Y.Z deploy to main. MM/DD"
-          if echo "$COMMIT_MSG" | grep -qE "Release version v[0-9]+\.[0-9]+\.[0-9]+ deploy to main"; then
+          # 檢測 Release: "Release version vX.Y.Z[.N] deploy to main. MM/DD"（第四段為可選流水號）
+          if echo "$COMMIT_MSG" | grep -qE "Release version v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)? deploy to main"; then
             BRANCH_TYPE="release"
-            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
+            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?" | head -1 | sed 's/^v//')
             echo "Detected Release: v$VERSION"
 
-          # 檢測 Hotfix: "Hotfix [version] vX.Y.Z batch #N: <描述>. MM/DD"
-          elif echo "$COMMIT_MSG" | grep -qE "Hotfix (version )?v[0-9]+\.[0-9]+\.[0-9]+ batch #[0-9]+"; then
+          # 檢測 Hotfix: "Hotfix [version] vX.Y.Z[.N] batch #N: <描述>. MM/DD"
+          elif echo "$COMMIT_MSG" | grep -qE "Hotfix (version )?v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)? batch #[0-9]+"; then
             BRANCH_TYPE="hotfix"
-            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
+            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?" | head -1 | sed 's/^v//')
             BATCH_NUM=$(echo "$COMMIT_MSG" | grep -oE "batch #[0-9]+" | grep -oE "[0-9]+")
             echo "Detected Hotfix: v$VERSION batch #$BATCH_NUM"
             echo "hotfix_batch=$BATCH_NUM" >> $GITHUB_OUTPUT
@@ -210,19 +210,22 @@ jobs:
 
       - name: Sync back to develop
         if: steps.detect_merge.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
           BRANCH_TYPE="${{ steps.detect_merge.outputs.branch_type }}"
           VERSION="${{ steps.detect_merge.outputs.version }}"
 
-          # 1. 回推 develop（release + hotfix 都做）
-          git fetch origin develop
-          git checkout develop
-          git merge origin/main -m "chore: sync from main after ${BRANCH_TYPE} v${VERSION} [skip ci]"
-          git push origin develop
-          echo "✅ Synced changes back to develop"
+          # 回推 develop（release + hotfix 都做）
+          # 使用 GitHub Merge API 而非本地 git merge：
+          # 伺服器端產生的 merge commit 由 GitHub 自動簽名（Verified），
+          # 本地 CLI merge 的 commit 沒有簽名，會讓後續 release PR
+          # 被 main 的 verified signatures 規則擋下
+          gh api "repos/${{ github.repository }}/merges" \
+            -f base=develop \
+            -f head=main \
+            -f commit_message="chore: sync from main after ${BRANCH_TYPE} v${VERSION} [skip ci]"
+          echo "✅ Synced changes back to develop (GitHub-signed merge)"
 
       - name: Sync back to staging (release only)
         if: steps.detect_merge.outputs.skip != 'true' && steps.detect_merge.outputs.branch_type == 'release'

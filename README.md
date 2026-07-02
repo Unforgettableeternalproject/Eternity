@@ -31,7 +31,7 @@
 | 🌟 **Main Site** | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | Portfolio, projects, updates, links — Quartz design |
 | 📚 **UEP Docs**  | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | World-building documentation with 5 themed zones    |
 
-> **Current Version: v0.9.8** — Main site redesign complete. Release candidate.
+> **Current Version: v0.9.8.2** — UI polish & editor enhancements (Markdown import/export, mixed style detection, content protection).
 
 ## Project Structure
 

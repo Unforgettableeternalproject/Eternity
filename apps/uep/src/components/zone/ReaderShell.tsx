@@ -23,7 +23,7 @@ export function ReaderShell({ zoneId, className, children }: ReaderShellProps) {
       (typeof localStorage !== 'undefined' &&
         localStorage.getItem('uep-theme')) ||
       document.documentElement.getAttribute('data-theme') ||
-      'dark';
+      'light';
     document.documentElement.setAttribute('data-theme', stored);
   }, []);
 

@@ -124,7 +124,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {
-        var t = localStorage.getItem('uep-theme') || 'dark';
+        var t = localStorage.getItem('uep-theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
         if (document.documentElement.hasAttribute('data-lobby')) {
           var bg = t === 'dark' ? '#14151a' : '#fafaf7';
