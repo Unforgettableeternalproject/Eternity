@@ -956,6 +956,9 @@
 .conc-prose p {
   margin: 0 0 1.3em;
 }
+.conc-prose p:empty {
+  min-height: 1em;
+}
 
 .conc-prose h1,
 .conc-prose h2,

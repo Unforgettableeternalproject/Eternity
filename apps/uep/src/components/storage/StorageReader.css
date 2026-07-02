@@ -420,6 +420,9 @@
 .sto-prose p {
   margin: 0 0 1.3em;
 }
+.sto-prose p:empty {
+  min-height: 1em;
+}
 .sto-prose hr {
   border: none;
   height: 1px;

@@ -18,7 +18,12 @@ import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getToast, extractAssetKey, deleteAsset } from './editorHelpers';
+import {
+  getToast,
+  extractAssetKey,
+  deleteAsset,
+  htmlToMarkdown,
+} from './editorHelpers';
 import { resolveEditorMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
 import EditorPageTree from './EditorPageTree';
@@ -248,6 +253,10 @@ export default function RichEditor({
 
   // TipTap editor
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染（v2 預設會），
+    // 導致只移動選取範圍時工具列的 isActive 狀態凍結（粗體按鈕黏住等）。
+    // 開啟後每次 transaction 都重渲染，工具列狀態才會跟著 selection 即時更新。
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -871,7 +880,162 @@ export default function RichEditor({
     }
   };
 
+  // === Import / Export MD ===
+  // 注意：所有 hooks 必須放在下方 early return 之前，
+  // 否則 editor 從 null 變成 instance 時 hooks 數量改變，React 會 throw
+  const importMdInputRef = useRef<HTMLInputElement>(null);
+  const canImportExport = editorMode.needsTipTap && !!editor && !isEntryMode;
+
+  const handleExportMd = useCallback(() => {
+    if (!editor) return;
+
+    // 用自製的 HTML → Markdown 轉換器，保證輸出乾淨的純文字
+    const md = htmlToMarkdown(editor.getHTML());
+
+    const frontmatter = [
+      '---',
+      `title: "${title.replace(/"/g, '\\"')}"`,
+      `slug: "${pageSlug}"`,
+      `area: "${area}"`,
+      `pageType: "${pageType}"`,
+      ...(icon ? [`icon: "${icon}"`] : []),
+      ...(description
+        ? [`description: "${description.replace(/"/g, '\\"')}"`]
+        : []),
+      `exportedAt: "${new Date().toISOString()}"`,
+      '---',
+      '',
+    ].join('\n');
+
+    const blob = new Blob([frontmatter + md], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(pageSlug || 'page').replace(/\//g, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [editor, title, pageSlug, area, pageType, icon, description]);
+
+  const handleImportMd = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !editor) return;
+      e.target.value = '';
+
+      const text = await file.text();
+      let content = text;
+
+      // 解析 YAML frontmatter
+      const fmMatch = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (fmMatch) {
+        const fm = fmMatch[1];
+        content = fmMatch[2];
+
+        const titleMatch = fm.match(/^title:\s*"?([^"\n]+?)"?\s*$/m);
+        if (titleMatch) {
+          setTitle(titleMatch[1]);
+          setDirtyTitle(true);
+        }
+        const iconMatch = fm.match(/^icon:\s*"?([^"\n]+?)"?\s*$/m);
+        if (iconMatch) {
+          setIcon(iconMatch[1]);
+          setDirtyMetadata(true);
+        }
+        const descMatch = fm.match(/^description:\s*"?([^"\n]+?)"?\s*$/m);
+        if (descMatch) {
+          setDescription(descMatch[1]);
+          setDirtyMetadata(true);
+        }
+      }
+
+      // 設定 TipTap 內容——setContent 預設把字串當 JSON/HTML 處理，
+      // 必須指定 contentType: 'markdown' 才會走 Markdown parser
+      const trimmed = content.trim();
+      if (trimmed) {
+        editor.commands.setContent(trimmed, { contentType: 'markdown' });
+      } else {
+        editor.commands.setContent('<p></p>');
+      }
+      setEditorDirty(true);
+      getToast().success(`已匯入：${file.name}`);
+    },
+    [editor]
+  );
+
   if (editorMode.needsTipTap && !editor) return null;
+
+  // ── 選取範圍樣式分析 ──
+  // 分析選取範圍中的 heading level（排除普通段落，多種 level 時回傳「混合」）
+  const getHeadingLabel = (): string => {
+    if (!editor) return '內文';
+    const { from, to } = editor.state.selection;
+    const levels = new Set<number>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (node.isTextblock && node.type.name === 'heading') {
+        levels.add(node.attrs.level as number);
+      }
+    });
+    if (levels.size === 0) return '內文';
+    if (levels.size === 1) return `H${[...levels][0]}`;
+    return '混合';
+  };
+
+  // 分析選取範圍中的字型（排除未設定字型的文字）
+  const getFontLabel = (): string => {
+    if (!editor) return 'Font';
+    const { from, to } = editor.state.selection;
+    // 游標（無選取）：用 getAttributes
+    if (from === to) {
+      const f = editor.getAttributes('textStyle').fontFamily as
+        | string
+        | undefined;
+      if (!f) return 'Font';
+      const entry = FONT_FAMILIES.find((ff) => ff.value === f);
+      return entry ? entry.label : f.split(',')[0].replace(/['"]/g, '');
+    }
+    const fonts = new Set<string>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      const mark = node.marks.find(
+        (m) => m.type.name === 'textStyle' && m.attrs.fontFamily
+      );
+      if (mark) fonts.add(mark.attrs.fontFamily as string);
+    });
+    if (fonts.size === 0) return 'Font';
+    if (fonts.size === 1) {
+      const val = [...fonts][0];
+      const entry = FONT_FAMILIES.find((ff) => ff.value === val);
+      return entry ? entry.label : val.split(',')[0].replace(/['"]/g, '');
+    }
+    return '混合';
+  };
+
+  // 分析選取範圍中的字型大小（排除未設定的文字）
+  const getFontSizeLabel = (): string => {
+    if (!editor) return '大小';
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      const s = editor.getAttributes('textStyle').fontSize as
+        | string
+        | undefined;
+      return s ? s.replace('px', '') : '大小';
+    }
+    const sizes = new Set<string>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      const mark = node.marks.find(
+        (m) => m.type.name === 'textStyle' && m.attrs.fontSize
+      );
+      if (mark) sizes.add(mark.attrs.fontSize as string);
+    });
+    if (sizes.size === 0) return '大小';
+    if (sizes.size === 1) return [...sizes][0].replace('px', '');
+    return '混合';
+  };
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -1101,16 +1265,10 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getHeadingLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('heading')}
                   >
-                    {editor.isActive('heading', { level: 1 })
-                      ? 'H1'
-                      : editor.isActive('heading', { level: 2 })
-                        ? 'H2'
-                        : editor.isActive('heading', { level: 3 })
-                          ? 'H3'
-                          : '內文'}
+                    {getHeadingLabel()}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'heading' && (
@@ -1239,11 +1397,11 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getFontLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('font')}
                     title="Font"
                   >
-                    Font <span className="tb-caret">&#9662;</span>
+                    {getFontLabel()} <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'font' && (
                     <div className="tb-dropdown">
@@ -1268,13 +1426,11 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getFontSizeLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('fontSize')}
                     title="字型大小"
                   >
-                    {editor
-                      .getAttributes('textStyle')
-                      .fontSize?.replace('px', '') || '大小'}
+                    {getFontSizeLabel()}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'fontSize' && (
@@ -1812,6 +1968,55 @@ export default function RichEditor({
           )}
 
           <span className="ned-toolbar-right">
+            <button
+              className="tb-btn ned-io-btn"
+              disabled={!canImportExport}
+              onClick={() => importMdInputRef.current?.click()}
+              title={
+                canImportExport ? '匯入 Markdown (.md)' : '此模式不支援匯入'
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span className="ned-io-label">匯入</span>
+            </button>
+            <button
+              className="tb-btn ned-io-btn"
+              disabled={!canImportExport}
+              onClick={handleExportMd}
+              title={
+                canImportExport ? '匯出為 Markdown (.md)' : '此模式不支援匯出'
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span className="ned-io-label">匯出</span>
+            </button>
+            <span className="ned-io-sep" />
             {editorMode.toolbarLabel}
             {editorMode.needsTipTap && ` | ${charCount.toLocaleString()} chars`}
           </span>
@@ -2107,6 +2312,14 @@ export default function RichEditor({
         accept="image/*"
         style={{ display: 'none' }}
         onChange={handleImageUpload}
+      />
+      {/* Hidden file input for MD import */}
+      <input
+        ref={importMdInputRef}
+        type="file"
+        accept=".md,.markdown,.txt"
+        style={{ display: 'none' }}
+        onChange={handleImportMd}
       />
 
       {/* 圖片浮動操作列 */}

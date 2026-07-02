@@ -1885,14 +1885,15 @@ export default function HomePage({
               }}
             />
 
-            {/* LCP 主視覺圖：使用 WebP 格式（680×962 @ 2x），fetchpriority 優先載入 */}
+            {/* LCP 主視覺圖：使用 WebP 格式（680×962 @ 2x），fetchpriority 優先載入。
+                React 18 不認得 camelCase fetchPriority（React 19 才支援），用小寫 + spread 繞過型別檢查 */}
             <img
               src="/uep/Big-UEP.webp"
               alt="U.E.P"
               className="home-hero-portrait"
               width={340}
               height={481}
-              fetchPriority="high"
+              {...{ fetchpriority: 'high' }}
               style={{
                 width: 340,
                 height: 'auto',

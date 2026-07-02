@@ -1067,6 +1067,9 @@
 .visuals-prose p {
   margin: 0 0 1.3em;
 }
+.visuals-prose p:empty {
+  min-height: 1em;
+}
 
 .visuals-prose h1,
 .visuals-prose h2,
