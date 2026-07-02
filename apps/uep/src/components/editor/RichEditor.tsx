@@ -18,7 +18,12 @@ import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getToast, extractAssetKey, deleteAsset } from './editorHelpers';
+import {
+  getToast,
+  extractAssetKey,
+  deleteAsset,
+  htmlToMarkdown,
+} from './editorHelpers';
 import { resolveEditorMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
 import EditorPageTree from './EditorPageTree';
@@ -1055,6 +1060,84 @@ export default function RichEditor({
     ));
   }
 
+  // === Import / Export MD ===
+  const importMdInputRef = useRef<HTMLInputElement>(null);
+  const canImportExport = editorMode.needsTipTap && !!editor && !isEntryMode;
+
+  const handleExportMd = useCallback(() => {
+    if (!editor) return;
+
+    // 用自製的 HTML → Markdown 轉換器，保證輸出乾淨的純文字
+    const md = htmlToMarkdown(editor.getHTML());
+
+    const frontmatter = [
+      '---',
+      `title: "${title.replace(/"/g, '\\"')}"`,
+      `slug: "${pageSlug}"`,
+      `area: "${area}"`,
+      `pageType: "${pageType}"`,
+      ...(icon ? [`icon: "${icon}"`] : []),
+      ...(description
+        ? [`description: "${description.replace(/"/g, '\\"')}"`]
+        : []),
+      `exportedAt: "${new Date().toISOString()}"`,
+      '---',
+      '',
+    ].join('\n');
+
+    const blob = new Blob([frontmatter + md], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(pageSlug || 'page').replace(/\//g, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [editor, title, pageSlug, area, pageType, icon, description]);
+
+  const handleImportMd = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !editor) return;
+      e.target.value = '';
+
+      const text = await file.text();
+      let content = text;
+
+      // 解析 YAML frontmatter
+      const fmMatch = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (fmMatch) {
+        const fm = fmMatch[1];
+        content = fmMatch[2];
+
+        const titleMatch = fm.match(/^title:\s*"?([^"\n]+?)"?\s*$/m);
+        if (titleMatch) {
+          setTitle(titleMatch[1]);
+          setDirtyTitle(true);
+        }
+        const iconMatch = fm.match(/^icon:\s*"?([^"\n]+?)"?\s*$/m);
+        if (iconMatch) {
+          setIcon(iconMatch[1]);
+          setDirtyMetadata(true);
+        }
+        const descMatch = fm.match(/^description:\s*"?([^"\n]+?)"?\s*$/m);
+        if (descMatch) {
+          setDescription(descMatch[1]);
+          setDirtyMetadata(true);
+        }
+      }
+
+      // 設定 TipTap 內容（Markdown 擴充會自動解析 MD 格式）
+      editor.commands.setContent(content.trim() || '<p></p>');
+      setEditorDirty(true);
+      getToast().success(`已匯入：${file.name}`);
+    },
+    [editor]
+  );
+
   const charCount = editor ? editor.getText().length : 0;
 
   const statusLabel = {
@@ -1873,6 +1956,55 @@ export default function RichEditor({
           )}
 
           <span className="ned-toolbar-right">
+            <button
+              className="tb-btn ned-io-btn"
+              disabled={!canImportExport}
+              onClick={() => importMdInputRef.current?.click()}
+              title={
+                canImportExport ? '匯入 Markdown (.md)' : '此模式不支援匯入'
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span className="ned-io-label">匯入</span>
+            </button>
+            <button
+              className="tb-btn ned-io-btn"
+              disabled={!canImportExport}
+              onClick={handleExportMd}
+              title={
+                canImportExport ? '匯出為 Markdown (.md)' : '此模式不支援匯出'
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span className="ned-io-label">匯出</span>
+            </button>
+            <span className="ned-io-sep" />
             {editorMode.toolbarLabel}
             {editorMode.needsTipTap && ` | ${charCount.toLocaleString()} chars`}
           </span>
@@ -2168,6 +2300,14 @@ export default function RichEditor({
         accept="image/*"
         style={{ display: 'none' }}
         onChange={handleImageUpload}
+      />
+      {/* Hidden file input for MD import */}
+      <input
+        ref={importMdInputRef}
+        type="file"
+        accept=".md,.markdown,.txt"
+        style={{ display: 'none' }}
+        onChange={handleImportMd}
       />
 
       {/* 圖片浮動操作列 */}

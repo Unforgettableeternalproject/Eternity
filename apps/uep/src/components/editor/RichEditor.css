@@ -150,10 +150,39 @@
 
 .ned-toolbar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--ink-mute);
   letter-spacing: 0.14em;
+}
+
+/* Import / Export 按鈕 */
+.ned-io-btn {
+  width: auto !important;
+  min-width: unset !important;
+  padding: 0 8px !important;
+  gap: 4px !important;
+  font-size: 11px !important;
+  font-family: var(--font-mono) !important;
+  letter-spacing: 0.06em;
+}
+.ned-io-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.ned-io-label {
+  font-size: 10px;
+}
+.ned-io-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--hairline-strong);
+  margin: 0 6px;
+  flex-shrink: 0;
 }
 
 .tb-group {
