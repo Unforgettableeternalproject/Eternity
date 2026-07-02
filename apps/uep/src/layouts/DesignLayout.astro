@@ -115,6 +115,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       initIdleAwareness();
     </script>
 
+    <!-- 內容保護（反白/複製/右鍵攔截，admin 頁面自動跳過） -->
+    <script>
+      import { initContentProtection } from '../scripts/content-protection';
+      initContentProtection();
+    </script>
+
     <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {
