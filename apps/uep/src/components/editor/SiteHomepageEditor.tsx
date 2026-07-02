@@ -110,6 +110,8 @@ interface MiniEditorProps {
 
 function MiniEditor({ content, onChange, placeholder }: MiniEditorProps) {
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染，會讓工具列 isActive 狀態凍結
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit,
       Underline,

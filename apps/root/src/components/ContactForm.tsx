@@ -304,6 +304,8 @@ export default function ContactForm({ locale, subjects }: ContactFormProps) {
 
   const editor = useEditor({
     immediatelyRender: false,
+    // TipTap v3 預設不在 transaction 時重渲染，會讓工具列 isActive 狀態凍結
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({
         heading: false,
