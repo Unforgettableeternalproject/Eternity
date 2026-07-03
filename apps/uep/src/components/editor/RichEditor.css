@@ -3734,3 +3734,32 @@
   opacity: 0.35;
   cursor: default;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   UepEmbedMarks — entity/cue 嵌入標記（僅編輯器內可見的視覺提示；
+   前台在 S4 dispatcher 接線前不套任何樣式 = 普通文字）
+   ═══════════════════════════════════════════════════════════════════ */
+.tiptap-content span[data-uep-entity] {
+  border-bottom: 1px dashed var(--ned-accent);
+  background: color-mix(in srgb, var(--ned-accent) 8%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.tiptap-content span[data-uep-cue] {
+  border-bottom: 1px dotted var(--ink-soft);
+  background: color-mix(in srgb, var(--ink-soft) 8%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* 嵌入面板的種類選擇 */
+.tb-embed-kind {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-panel, transparent);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
