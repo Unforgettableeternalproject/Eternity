@@ -23,12 +23,7 @@ import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import { parseGateCondition } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
-import {
-  ENTITY_KINDS,
-  CUE_KINDS,
-  isValidRef,
-  collectEmbeds,
-} from '../../embed';
+import { ENTITY_KINDS, isValidRef, collectEmbeds } from '../../embed';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
@@ -212,9 +207,9 @@ export default function RichEditor({
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
-  // 嵌入標記 popover 狀態（Epic 2 — entity/cue inline mark）
+  // 嵌入標記 popover 狀態（Epic 2 — entity inline mark；
+  // cue 工具已撤下，等浮島階段以旗標式/浮鈕重新設計）
   const [entityDraft, setEntityDraft] = useState({ kind: 'term', ref: '' });
-  const [cueDraft, setCueDraft] = useState({ kind: 'song', ref: '' });
   // Reference Picker：跨 zone 頁面樹快取（entity → concepts；
   // cue → song 抓 echoes / image 抓 visuals），面板共用
   const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
@@ -1264,17 +1259,6 @@ export default function RichEditor({
     toggleDropdown('uep-entity');
   };
 
-  // 開啟 cue 嵌入面板（選取在既有標記上時預填屬性）
-  const handleOpenCueDropdown = () => {
-    const attrs = editor.getAttributes('uepCue');
-    setCueDraft({
-      kind: (attrs.kind as string) || 'song',
-      ref: (attrs.ref as string) || '',
-    });
-    setEmbedPickerOpen(false);
-    toggleDropdown('uep-cue');
-  };
-
   // 載入 Reference Picker 的頁面樹（依目標 area 快取）
   const loadEmbedTree = async (targetArea: string) => {
     if (embedTreeCache[targetArea]) return;
@@ -2153,7 +2137,7 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
-              {/* 嵌入工具（Epic 2 — entity/cue 互動式引用，與旗標工具分開） */}
+              {/* 嵌入工具（Epic 2 — entity 互動式引用，與旗標工具分開） */}
               <div className="tb-group">
                 {/* Entity 引用 */}
                 <div className="tb-dropdown-wrap">
@@ -2253,106 +2237,11 @@ export default function RichEditor({
                     </div>
                   )}
                 </div>
-                {/* Cue 引用 */}
-                <div className="tb-dropdown-wrap">
-                  <button
-                    className={`tb-btn ${editor.isActive('uepCue') ? 'is-active' : ''}`}
-                    onClick={handleOpenCueDropdown}
-                    title="標記 cue 引用（歌曲/圖片）"
-                  >
-                    ♫
-                  </button>
-                  {activeDropdown === 'uep-cue' && (
-                    <div className="tb-dropdown tb-link-panel">
-                      <select
-                        className="tb-embed-kind"
-                        value={cueDraft.kind}
-                        onChange={(e) => {
-                          // 換種類 = 換目標 area，收合 picker 避免顯示錯的樹
-                          setCueDraft((d) => ({ ...d, kind: e.target.value }));
-                          setEmbedPickerOpen(false);
-                        }}
-                      >
-                        {CUE_KINDS.map((k) => (
-                          <option key={k.value} value={k.value}>
-                            {k.label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="tb-link-input"
-                        type="text"
-                        placeholder="引用目標（如 echoes/xxx）"
-                        value={cueDraft.ref}
-                        onChange={(e) =>
-                          setCueDraft((d) => ({ ...d, ref: e.target.value }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') setActiveDropdown(null);
-                        }}
-                        autoFocus
-                      />
-                      <button
-                        className="tb-embed-browse"
-                        type="button"
-                        onClick={() => {
-                          const targetArea =
-                            cueDraft.kind === 'image' ? 'visuals' : 'echoes';
-                          setEmbedPickerOpen((v) => !v);
-                          if (!embedPickerOpen) void loadEmbedTree(targetArea);
-                        }}
-                      >
-                        {embedPickerOpen
-                          ? '－ 收合'
-                          : `＋ 從 ${cueDraft.kind === 'image' ? 'Visuals' : 'Echoes'} 選擇…`}
-                      </button>
-                      {embedPickerOpen && (
-                        <div className="tb-link-page-tree">
-                          {embedTreeLoading ? (
-                            <div className="tb-link-loading">載入頁面中...</div>
-                          ) : (
-                            renderEmbedPickerTree(
-                              embedTreeCache[
-                                cueDraft.kind === 'image' ? 'visuals' : 'echoes'
-                              ] || [],
-                              (ref) => setCueDraft((d) => ({ ...d, ref }))
-                            )
-                          )}
-                        </div>
-                      )}
-                      <div className="tb-link-actions">
-                        <button
-                          className="tb-link-apply"
-                          disabled={!isValidRef(cueDraft.ref.trim())}
-                          onClick={() => {
-                            editor
-                              .chain()
-                              .focus()
-                              .setUepCue({
-                                kind: cueDraft.kind,
-                                ref: cueDraft.ref.trim(),
-                              })
-                              .run();
-                            setActiveDropdown(null);
-                          }}
-                        >
-                          套用
-                        </button>
-                        {editor.isActive('uepCue') && (
-                          <button
-                            className="tb-link-remove"
-                            onClick={() => {
-                              editor.chain().focus().unsetUepCue().run();
-                              setActiveDropdown(null);
-                            }}
-                          >
-                            移除標記
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Cue 工具已撤下（艾斯維爾 2026-07-03 驗收定案）：
+                    song 不是嵌入而是旗標式播放觸發點（掃描線經過即播放）、
+                    image 是浮動按鈕（小說插圖式，連動 Visuals 浮島）。
+                    兩者的編輯器應用與浮島行為綁定，拆到浮島階段實作。
+                    UepCueMark extension 與 embed 格式層保留（無內容寫入）。 */}
               </div>
 
               <div className="tb-sep" />

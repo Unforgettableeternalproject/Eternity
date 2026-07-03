@@ -3784,3 +3784,12 @@
   border-color: var(--ned-accent);
   color: var(--ink-title);
 }
+
+/* 進度條件的範圍提示 */
+.ned-gate-scope-hint {
+  padding: 4px 6px;
+  border-left: 2px solid var(--hairline);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-mute);
+}

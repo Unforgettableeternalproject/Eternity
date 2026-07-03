@@ -15,7 +15,12 @@ import {
   pushUrl as zonePushUrl,
   clearUrl,
 } from '../zone/useZoneRouter';
-import { isHidden, isLocked } from '../zone/contentVisibility';
+import {
+  isHidden,
+  isLocked,
+  getLockKind,
+  isProgressionChainHidden,
+} from '../zone/contentVisibility';
 import {
   useScanline,
   useProgress,
@@ -314,6 +319,13 @@ export default function HistoryReader() {
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
+  // pageId → node 索引（進度鏈隱藏判定用）
+  const pagesById = useMemo(() => {
+    const map = new Map<string, PageTreeNode>();
+    for (const page of flatPages) map.set(page.id, page);
+    return map;
+  }, [flatPages]);
+  const resolvePageById = (pageId: string) => pagesById.get(pageId);
   const readablePages = useMemo(
     () =>
       flatPages.filter(
@@ -394,6 +406,22 @@ export default function HistoryReader() {
     treeReady: tree.length > 0 && readablePages.length > 0,
     setBootNavPending: setNavPending,
   });
+
+  // 目前頁面的閘門重新驗證：loadPage 只在進入時擋，若使用者已在
+  // gated 頁內而狀態事後變化（觀測者切回探索者、進度重置、登入合併
+  // 後旗標消失），gate 不再滿足時要踢回 landing，不讓內容殘留。
+  useEffect(() => {
+    if (!currentId) return;
+    const node = pagesById.get(currentId);
+    if (node && isLocked(node, progress)) {
+      setCurrentId(null);
+      setCurrentPage(null);
+      setArticleHtml('');
+      setScrollHint(null);
+      clearUrl();
+      scrollRef.current?.scrollTo({ top: 0 });
+    }
+  }, [progress, currentId, pagesById]);
 
   useEffect(() => {
     if (!pageLevelNodes.length) return;
@@ -711,6 +739,10 @@ export default function HistoryReader() {
     return nodes
       .filter((node) => !isHidden(node) && isNodeVisible(node))
       .flatMap((node) => {
+        // 進度鏈隱藏：依賴頁本身仍鎖定的進度鎖頁面不顯示（循序漸進）
+        if (isProgressionChainHidden(node, progress, resolvePageById)) {
+          return [];
+        }
         const children = (node.children || []).filter(
           (child) => !isHidden(child)
         );
@@ -721,7 +753,9 @@ export default function HistoryReader() {
         const hasChildren = children.length > 0;
         const isExpanded = expanded.has(node.id) || Boolean(query.trim());
         const isCurrent = node.id === currentId;
-        const nodeLocked = isLocked(node, progress);
+        // 鎖定三態：static 原樣🔒 / progression 標題模糊 / flag 標題遮蔽
+        const lockKind = getLockKind(node, progress);
+        const nodeLocked = lockKind !== null;
 
         return (
           <div className="history-tree-item" data-depth={depth} key={node.id}>
@@ -744,7 +778,7 @@ export default function HistoryReader() {
                 className={`history-tree-link ${isCurrent ? 'is-current' : ''}`}
                 style={{
                   paddingLeft: `${Math.min(depth, 5) * 10 + 8}px`,
-                  opacity: nodeLocked ? 0.45 : undefined,
+                  opacity: lockKind === 'static' ? 0.45 : undefined,
                   cursor: nodeLocked ? 'not-allowed' : undefined,
                 }}
                 onClick={() => {
@@ -752,9 +786,17 @@ export default function HistoryReader() {
                 }}
                 disabled={nodeLocked}
               >
-                {nodeLocked ? (
+                {lockKind === 'static' ? (
                   <span className="history-tree-kind" style={{ opacity: 0.6 }}>
                     🔒
+                  </span>
+                ) : lockKind === 'progression' ? (
+                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>
+                    ◌
+                  </span>
+                ) : lockKind === 'flag' ? (
+                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>
+                    ❖
                   </span>
                 ) : (
                   renderIcon(
@@ -767,7 +809,21 @@ export default function HistoryReader() {
                     </span>
                   )
                 )}
-                <span className="history-tree-title">{node.title}</span>
+                {lockKind === 'flag' ? (
+                  <span className="history-tree-title history-tree-title--veiled">
+                    ？？？
+                  </span>
+                ) : (
+                  <span
+                    className={`history-tree-title${
+                      lockKind === 'progression'
+                        ? ' history-tree-title--blurred'
+                        : ''
+                    }`}
+                  >
+                    {node.title}
+                  </span>
+                )}
               </button>
             </div>
             {hasChildren && isExpanded && (
@@ -1238,40 +1294,70 @@ export default function HistoryReader() {
                         </div>
                       ) : (
                         <ul className="history-zone-tab-list">
-                          {zoneTabItems.map((child) => {
-                            const childLocked = isLocked(child, progress);
-                            return (
-                              <li key={child.id}>
-                                <button
-                                  type="button"
-                                  className="history-zone-tab-link"
-                                  style={
-                                    childLocked
-                                      ? {
-                                          opacity: 0.45,
-                                          cursor: 'not-allowed',
+                          {zoneTabItems
+                            .filter(
+                              (child) =>
+                                !isProgressionChainHidden(
+                                  child,
+                                  progress,
+                                  resolvePageById
+                                )
+                            )
+                            .map((child) => {
+                              const childKind = getLockKind(child, progress);
+                              const childLocked = childKind !== null;
+                              return (
+                                <li key={child.id}>
+                                  <button
+                                    type="button"
+                                    className="history-zone-tab-link"
+                                    style={
+                                      childKind === 'static'
+                                        ? {
+                                            opacity: 0.45,
+                                            cursor: 'not-allowed',
+                                          }
+                                        : childLocked
+                                          ? { cursor: 'not-allowed' }
+                                          : undefined
+                                    }
+                                    disabled={childLocked}
+                                    onClick={() => void loadPage(child)}
+                                  >
+                                    {childLocked ? (
+                                      <span className="history-zone-tab-link-icon">
+                                        {childKind === 'static'
+                                          ? '🔒'
+                                          : childKind === 'progression'
+                                            ? '◌'
+                                            : '❖'}
+                                      </span>
+                                    ) : (
+                                      renderIcon(
+                                        child.metadata?.icon as string,
+                                        14,
+                                        'history-zone-tab-link-icon'
+                                      ) || null
+                                    )}
+                                    {childKind === 'flag' ? (
+                                      <span className="history-tree-title--veiled">
+                                        ？？？
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={
+                                          childKind === 'progression'
+                                            ? 'history-tree-title--blurred'
+                                            : undefined
                                         }
-                                      : undefined
-                                  }
-                                  disabled={childLocked}
-                                  onClick={() => void loadPage(child)}
-                                >
-                                  {childLocked ? (
-                                    <span className="history-zone-tab-link-icon">
-                                      🔒
-                                    </span>
-                                  ) : (
-                                    renderIcon(
-                                      child.metadata?.icon as string,
-                                      14,
-                                      'history-zone-tab-link-icon'
-                                    ) || null
-                                  )}
-                                  {child.title}
-                                </button>
-                              </li>
-                            );
-                          })}
+                                      >
+                                        {child.title}
+                                      </span>
+                                    )}
+                                  </button>
+                                </li>
+                              );
+                            })}
                         </ul>
                       )}
                     </div>

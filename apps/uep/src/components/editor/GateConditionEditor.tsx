@@ -113,6 +113,11 @@ export default function GateConditionEditor({
 
   return (
     <div className="ned-gate">
+      {/* 範圍提示：gate 資料全區域通用，但前台消費目前只接了 History。
+          其他 zone 的 Reader 接上動態 gating 後移除此提示。 */}
+      <div className="ned-gate-scope-hint">
+        ⓘ 條件會隨頁面儲存，但目前前台僅 History 生效
+      </div>
       {flags.length > 0 && (
         <div className="ned-gate-flags">
           {flags.map((flag) => (
