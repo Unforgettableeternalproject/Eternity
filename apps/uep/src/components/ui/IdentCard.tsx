@@ -29,22 +29,22 @@ export default function IdentCard() {
 
   return (
     <div className={`uep-ident${open ? ' is-open' : ''}`}>
-      {/* 吊繩 */}
-      <div className="uep-ident__cord" aria-hidden="true" />
-
-      {/* 吊牌（收合狀態）/ 展開切換 */}
-      <button
-        type="button"
-        className="uep-ident__tab"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        title={open ? '收起身分證' : '查看身分證'}
-      >
-        <span className="uep-ident__tab-glyph" aria-hidden="true">
-          {isObserver ? '◉' : '◈'}
-        </span>
-        <span className="uep-ident__tab-label">識別證</span>
-      </button>
+      {/* 吊繩 + 吊牌：固定在 TopBar 下緣的掛點，開合時不變形不位移 */}
+      <div className="uep-ident__hanger">
+        <div className="uep-ident__cord" aria-hidden="true" />
+        <button
+          type="button"
+          className="uep-ident__tab"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={open ? '收起身分證' : '查看身分證'}
+        >
+          <span className="uep-ident__tab-glyph" aria-hidden="true">
+            {isObserver ? '◉' : '◈'}
+          </span>
+          <span className="uep-ident__tab-label">識別證</span>
+        </button>
+      </div>
 
       {/* 證卡本體 */}
       {open && (

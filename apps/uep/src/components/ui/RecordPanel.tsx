@@ -161,7 +161,7 @@ function RegisterFlow({ onDone }: { onDone: () => void }) {
           type="text"
           value={draft.username}
           autoComplete="username"
-          placeholder="identifier"
+          placeholder="辨識符"
           onChange={(e) => setDraft({ ...draft, username: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && next()}
         />
@@ -302,7 +302,7 @@ function LoginFlow({ onDone }: { onDone: () => void }) {
         type="text"
         value={username}
         autoComplete="username"
-        placeholder="identifier"
+        placeholder="辨識符"
         onChange={(e) => setUsername(e.target.value)}
       />
       <input
