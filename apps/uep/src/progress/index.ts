@@ -43,7 +43,12 @@ export {
 } from './gating';
 export type { GateCondition } from './gating';
 
-export type { ProgressTreeAdapter, TreeNodeLike } from './tree';
+export { collectProgressLeafIds } from './tree';
+export type {
+  ProgressTreeAdapter,
+  TreeNodeLike,
+  ProgressTreeNode,
+} from './tree';
 
 export {
   PROGRESS_MARKER_ROLE,

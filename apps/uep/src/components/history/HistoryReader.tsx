@@ -26,6 +26,7 @@ import {
   useScanline,
   useProgress,
   collectMarkers,
+  collectProgressLeafIds,
   getProgressManager,
   resolveResumeMarkerIdx,
 } from '../../progress';
@@ -346,22 +347,6 @@ export default function HistoryReader() {
         ? tree
         : (ancestors[ancestors.length - 1].children ?? []);
     };
-    const collectProgressLeaves = (
-      node: PageTreeNode,
-      acc: string[] = []
-    ): string[] => {
-      const children = node.children ?? [];
-      for (const child of children) {
-        const grand = child.children ?? [];
-        const isProgressChild = child.metadata?.progressPage === true;
-        if (grand.length === 0) {
-          if (isProgressChild) acc.push(child.id);
-        } else {
-          collectProgressLeaves(child, acc);
-        }
-      }
-      return acc;
-    };
     return {
       getNode: (id) => pagesById.get(id),
       getParent: (id) => {
@@ -383,7 +368,7 @@ export default function HistoryReader() {
       },
       getProgressDescendantIds: (id) => {
         const node = pagesById.get(id);
-        return node ? collectProgressLeaves(node) : [];
+        return node ? collectProgressLeafIds(node) : [];
       },
     };
   }, [tree, pagesById, ancestorMap]);

@@ -12,6 +12,8 @@
  * 「同層前一個進度頁」：同 parent、sortOrder 較小、跳過非進度頁的最靠近 sibling。
  */
 
+import { isProgressPage } from './gating';
+
 /** tree 節點的最小介面：只需能取 metadata，其餘由 adapter 反查 */
 export interface TreeNodeLike {
   metadata?: Record<string, unknown> | null;
@@ -41,4 +43,36 @@ export interface ProgressTreeAdapter {
    * 若節點本身非 container 或無進度後代，回傳 []。
    */
   getProgressDescendantIds(id: string): string[];
+}
+
+/** 具 id 與 children 的樹節點（collectProgressLeafIds 用的最小形狀） */
+export interface ProgressTreeNode extends TreeNodeLike {
+  id: string;
+  children?: ProgressTreeNode[] | null;
+}
+
+/**
+ * 收集節點底下的進度葉節點 id — getProgressDescendantIds 的參考實作。
+ *
+ * 依上方合約：「葉」= 本身標為進度頁、且子樹內沒有其他進度頁。
+ * 因此進度頁若「有 children 但子樹內無進度後代」（例：標為進度的
+ * section 底下掛圖片子頁），本身即視為葉，計入父容器的完成判定——
+ * 這是 2026-07-03 審核發現的邊界修正（原實作遞迴時直接略過該節點）。
+ *
+ * 目標節點本身不計入（container completeness 只看後代；
+ * 無後代的進度頁由 isEffectivelyCompleted 的 leaf fallback 處理）。
+ */
+export function collectProgressLeafIds(node: ProgressTreeNode): string[] {
+  const acc: string[] = [];
+  const walk = (current: ProgressTreeNode) => {
+    for (const child of current.children ?? []) {
+      const isProgress = isProgressPage(child.metadata ?? null);
+      const before = acc.length;
+      walk(child);
+      // 子樹沒貢獻任何進度葉、且 child 本身是進度頁 → child 即為葉
+      if (isProgress && acc.length === before) acc.push(child.id);
+    }
+  };
+  walk(node);
+  return acc;
 }
