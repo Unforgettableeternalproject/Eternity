@@ -18,6 +18,7 @@ import type {
 import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { handleRootRoutes } from './root-routes';
+import { handleUepRoutes } from './uep-auth';
 
 // ===== 工具函式 =====
 
@@ -209,7 +210,11 @@ async function requireJwt(
   const auth = request.headers.get('Authorization');
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
   if (!token) return null;
-  return verifyJwt(token, env.JWT_SECRET);
+  const payload = await verifyJwt(token, env.JWT_SECRET);
+  // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，
+  // 僅靠 role 區分權限——admin 保護路由一律拒絕 reader token
+  if (payload && payload.role === 'reader') return null;
+  return payload;
 }
 
 // ===== 路由處理 =====
@@ -1206,6 +1211,16 @@ export default {
     }
 
     const path = url.pathname;
+
+    // ---- UEP 讀者路由（/api/uep/*，含公開的註冊/登入，必須在 API_TOKEN guard 之前） ----
+    const uepResponse = await handleUepRoutes(
+      path,
+      request.method,
+      request,
+      env,
+      cors
+    );
+    if (uepResponse) return uepResponse;
 
     // ---- 認證路由（在 isAuthorized 檢查之前） ----
 

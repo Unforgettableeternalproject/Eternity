@@ -166,6 +166,9 @@ export interface ApiResponse<T = unknown> {
 
 export type AdminRole = 'super_admin' | 'editor' | 'viewer';
 
+/** 讀者角色 — UEP 探索者帳號（Epic 2 S5），與 admin 角色互斥 */
+export type ReaderRole = 'reader';
+
 export interface AdminUserRow {
   id: number;
   username: string;
@@ -179,11 +182,40 @@ export interface AdminUserRow {
 
 export interface JwtPayload {
   sub: string;
-  role: AdminRole;
+  /**
+   * admin 角色或 'reader'（讀者帳號）。
+   * ⚠️ admin 保護路由（requireJwt）必須拒絕 'reader'——
+   * 兩種 token 共用 JWT_SECRET，僅靠 role 區分權限邊界。
+   */
+  role: AdminRole | ReaderRole;
   display_name: string;
   iat: number;
   exp: number;
   jti: string;
+}
+
+// ===== UEP 讀者帳號（Epic 2 S5） =====
+
+export interface UepUserRow {
+  id: number;
+  username: string;
+  password_hash: string;
+  email: string | null;
+  alias: string;
+  observer_ever: number;
+  progress: string | null;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UepRegisterRequest {
+  username: string;
+  password: string;
+  /** 可選郵件信箱 */
+  email?: string;
+  /** 註冊 UI roll 出的代稱；未傳則由伺服器 roll。必須是詞庫合法組合 */
+  alias?: string;
 }
 
 export interface LoginRequest {
