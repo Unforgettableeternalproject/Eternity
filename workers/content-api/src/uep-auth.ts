@@ -30,6 +30,19 @@ import { isValidAlias, rollAlias } from './uep-alias';
 /** 讀者 token 有效期：30 天（閱讀進度帳號，不需像 admin 一樣每日過期） */
 const READER_TOKEN_TTL = 30 * 86400;
 
+/**
+ * 開發模式 fallback secret——未設定 JWT_SECRET 時（本地 wrangler dev）使用，
+ * 讓註冊/登入/進度同步在本地走完整的簽驗流程。
+ * 與 admin 的開發模式哲學一致（requireJwt 未設 secret 時全通），
+ * 正式環境一律以 `wrangler secret put JWT_SECRET` 設定，永遠不會用到此值。
+ */
+const DEV_JWT_SECRET = 'uep-dev-jwt-secret';
+
+/** 取得讀者 JWT 用的 secret（正式 secret 優先，本地 fallback） */
+function readerSecret(env: Env): string {
+  return env.JWT_SECRET || DEV_JWT_SECRET;
+}
+
 /** progress blob 大小上限（bytes）——防止濫用；正常 ProgressState 遠小於此 */
 const PROGRESS_MAX_BYTES = 131072; // 128 KB
 
@@ -44,25 +57,19 @@ function json<T>(
   });
 }
 
-/** 讀者 JWT 驗證 — 只接受 role='reader' 的 token */
+/**
+ * 讀者 JWT 驗證 — 只接受 role='reader' 的 token。
+ * 開發模式（無 JWT_SECRET）以 fallback secret 驗證，
+ * 本地註冊/登入拿到的 token 一樣能走完整流程。
+ */
 export async function requireReaderJwt(
   request: Request,
   env: Env
 ): Promise<JwtPayload | null> {
-  // 開發模式（無 JWT_SECRET）：注入預設讀者
-  if (!env.JWT_SECRET)
-    return {
-      sub: 'dev-reader',
-      role: 'reader',
-      display_name: '開發用讀者',
-      iat: 0,
-      exp: 0,
-      jti: '',
-    };
   const auth = request.headers.get('Authorization');
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
   if (!token) return null;
-  const payload = await verifyJwt(token, env.JWT_SECRET);
+  const payload = await verifyJwt(token, readerSecret(env));
   if (!payload || payload.role !== 'reader') return null;
   return payload;
 }
@@ -347,19 +354,13 @@ export async function handleUepRoutes(
   }
 
   if (path === '/api/uep/auth/register' && method === 'POST') {
-    if (!env.JWT_SECRET) {
-      return json({ ok: false, error: 'JWT_SECRET not configured' }, 500, cors);
-    }
     const body = (await request.json()) as UepRegisterRequest;
-    return handleRegister(body, db, env.JWT_SECRET, cors);
+    return handleRegister(body, db, readerSecret(env), cors);
   }
 
   if (path === '/api/uep/auth/login' && method === 'POST') {
-    if (!env.JWT_SECRET) {
-      return json({ ok: false, error: 'JWT_SECRET not configured' }, 500, cors);
-    }
     const body = (await request.json()) as LoginRequest;
-    return handleLogin(body, db, env.JWT_SECRET, cors);
+    return handleLogin(body, db, readerSecret(env), cors);
   }
 
   if (path === '/api/uep/auth/me' && method === 'GET') {
