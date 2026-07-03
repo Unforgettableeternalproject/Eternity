@@ -178,6 +178,10 @@ export default function RichEditor({
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [locked, setLocked] = useState(initialMetadata?.locked === true);
+  // 進度頁：本頁的解鎖倚賴同層前一個進度頁完成（鏈條件由 effectiveGate 動態注入）
+  const [progressPage, setProgressPage] = useState(
+    initialMetadata?.progressPage === true
+  );
   // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
   // 存檔時一律正規化為巢狀 metadata.gate
   const [gate, setGate] = useState<GateCondition | null>(() =>
@@ -399,6 +403,10 @@ export default function RichEditor({
         ...(initialMetadata || {}),
         ...(hidden ? { hidden: true } : { hidden: undefined }),
         ...(locked ? { locked: true } : { locked: undefined }),
+        // 進度頁 toggle：true 才寫入，false 一律清除以維持存檔精簡
+        ...(progressPage
+          ? { progressPage: true }
+          : { progressPage: undefined }),
         // 進度條件一律存巢狀 gate；平鋪形狀的舊鍵一併清除避免雙重來源
         gate: gate ?? undefined,
         requiresFlags: undefined,
@@ -2595,6 +2603,11 @@ export default function RichEditor({
                   value={gate}
                   onChange={(next) => {
                     setGate(next);
+                    setDirtyMetadata(true);
+                  }}
+                  isProgressPage={progressPage}
+                  onProgressPageChange={(next) => {
+                    setProgressPage(next);
                     setDirtyMetadata(true);
                   }}
                   apiBase={apiBase}

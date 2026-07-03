@@ -25,6 +25,9 @@ interface GatePageNode {
 interface GateConditionEditorProps {
   value: GateCondition | null;
   onChange: (next: GateCondition | null) => void;
+  /** 本頁是否為進度頁（metadata.progressPage）——鏈條件由前台動態注入 */
+  isProgressPage?: boolean;
+  onProgressPageChange?: (next: boolean) => void;
   apiBase: string;
   accent: string;
 }
@@ -41,6 +44,8 @@ function normalize(next: GateCondition): GateCondition | null {
 export default function GateConditionEditor({
   value,
   onChange,
+  isProgressPage = false,
+  onProgressPageChange,
   apiBase,
   accent,
 }: GateConditionEditorProps) {
@@ -111,8 +116,30 @@ export default function GateConditionEditor({
     ));
   }
 
+  const supportsProgressToggle = typeof onProgressPageChange === 'function';
+
   return (
     <div className="ned-gate">
+      {/* 進度頁 toggle：勾選後系統自動要求同層前一個進度頁 completed；
+          Arc/Chapter 標為進度頁時，底下 section 預設繼承（前台動態求值）。
+          picker 在進度頁模式下收起——鏈條件由容器/兄弟關係自動決定。 */}
+      {supportsProgressToggle && (
+        <div className="ned-inspector-toggle ned-gate-progress-toggle">
+          <span>這是進度頁</span>
+          <input
+            type="checkbox"
+            checked={isProgressPage}
+            onChange={(e) => onProgressPageChange!(e.target.checked)}
+          />
+        </div>
+      )}
+      {supportsProgressToggle && isProgressPage && (
+        <div className="ned-gate-scope-hint">
+          ⓘ 進度頁：解鎖倚賴同層前一個進度頁完成；父容器（arc/chapter）標為
+          進度頁時整包自動繼承。可另外設自訂旗標與純潔者限定。
+        </div>
+      )}
+
       {/* 範圍提示：gate 資料全區域通用，但前台消費目前只接了 History。
           其他 zone 的 Reader 接上動態 gating 後移除此提示。 */}
       <div className="ned-gate-scope-hint">
@@ -136,27 +163,33 @@ export default function GateConditionEditor({
         </div>
       )}
 
-      <button
-        type="button"
-        className="ned-gate-add-page"
-        onClick={() => {
-          setPickerOpen((v) => !v);
-          if (!pickerOpen) void loadTree();
-        }}
-      >
-        {pickerOpen ? '－ 收合頁面清單' : '＋ 需先讀完…'}
-      </button>
+      {/* 「需先讀完」picker：進度頁模式下收起，鏈條件由前台自動決定；
+          非進度頁仍保留 picker 支援手動的頁面依賴（舊資料與特殊需求） */}
+      {!isProgressPage && (
+        <>
+          <button
+            type="button"
+            className="ned-gate-add-page"
+            onClick={() => {
+              setPickerOpen((v) => !v);
+              if (!pickerOpen) void loadTree();
+            }}
+          >
+            {pickerOpen ? '－ 收合頁面清單' : '＋ 需先讀完…'}
+          </button>
 
-      {pickerOpen && (
-        <div className="ned-gate-picker">
-          {treeLoading ? (
-            <div className="ned-gate-picker-empty">載入中…</div>
-          ) : pageTree.length === 0 ? (
-            <div className="ned-gate-picker-empty">無法載入頁面清單</div>
-          ) : (
-            renderTree(pageTree)
+          {pickerOpen && (
+            <div className="ned-gate-picker">
+              {treeLoading ? (
+                <div className="ned-gate-picker-empty">載入中…</div>
+              ) : pageTree.length === 0 ? (
+                <div className="ned-gate-picker-empty">無法載入頁面清單</div>
+              ) : (
+                renderTree(pageTree)
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
       <div className="ned-gate-custom">
