@@ -295,6 +295,16 @@ if (typeof window !== 'undefined' && !window.__uepReaderAuth) {
   if (session) {
     void attachServerAdapter().then(() => uepReaderAuth.refresh());
   }
+  // 印記即時同步：觀測者印記的事實來源在 progress store（切視角當下寫入），
+  // session 只是快照——這裡訂閱 store，印記一落下就同步進 session 並通知消費端，
+  // 「已見證的」前綴與識別證印記列不用等 refresh/重載。
+  getProgressManager().subscribe((state) => {
+    if (session && state.observerEver && !session.observerEver) {
+      session = { ...session, observerEver: true };
+      persistSession();
+      notify();
+    }
+  });
 }
 
 /** 取得全域單例（優先 window bridge，SSR fallback 為 module 實例） */

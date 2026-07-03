@@ -193,3 +193,36 @@ describe('token 驗證（refresh）', () => {
     expect(uepReaderAuth.isLoggedIn()).toBe(true);
   });
 });
+
+describe('印記即時同步（progress → session）', () => {
+  it('登入者切換觀測者後 session.observerEver 立即更新，前綴即時生效', async () => {
+    const { uepReaderAuth, WITNESSED_PREFIX } = await freshAuth();
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/api/uep/auth/login')) {
+        return Promise.resolve(jsonResponse({ ok: true, data: AUTH_DATA }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: null }));
+    });
+    await uepReaderAuth.login('reader-one', 'password-123');
+    expect(uepReaderAuth.getSession()?.observerEver).toBe(false);
+
+    const listener = vi.fn();
+    uepReaderAuth.subscribe(listener);
+
+    // 模擬 ViewSwitch：只呼叫 progress store 的 setView（印記寫入 store）
+    const { getProgressManager } = await import('../../progress/progressStore');
+    getProgressManager().setView('observer');
+
+    // session 不等 refresh/重載即同步印記並通知消費端
+    expect(uepReaderAuth.getSession()?.observerEver).toBe(true);
+    expect(uepReaderAuth.displayAlias()).toBe(`${WITNESSED_PREFIX}拾光的旅人`);
+    expect(listener).toHaveBeenCalled();
+  });
+
+  it('訪客切換觀測者不會產生 session', async () => {
+    const { uepReaderAuth } = await freshAuth();
+    const { getProgressManager } = await import('../../progress/progressStore');
+    getProgressManager().setView('observer');
+    expect(uepReaderAuth.getSession()).toBeNull();
+  });
+});
