@@ -1,0 +1,218 @@
+/* 身分證吊掛面板 — 登入後的固定識別證（Epic 2 S5） */
+
+.uep-ident {
+  position: fixed;
+  top: 0;
+  right: 84px;
+  z-index: 1400; /* RecordPanel(1500) 之下、內容之上 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none; /* 只有吊牌與證卡可互動 */
+  animation: uep-ident-drop 0.7s cubic-bezier(0.34, 1.4, 0.64, 1);
+  transform-origin: top center;
+}
+
+@keyframes uep-ident-drop {
+  0% {
+    transform: translateY(-40px);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident {
+    animation: none;
+  }
+}
+
+/* 吊繩 */
+.uep-ident__cord {
+  width: 1px;
+  height: 64px; /* 從視窗頂垂下、穿過 TopBar 的高度 */
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--uep-gold) 30%,
+    var(--uep-gold)
+  );
+  opacity: 0.55;
+}
+
+.uep-ident.is-open .uep-ident__cord {
+  height: 72px;
+}
+
+/* 吊牌 */
+.uep-ident__tab {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 10px 11px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-top-color: var(--uep-gold);
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.uep-ident__tab:hover {
+  border-color: var(--uep-gold);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  transform: translateY(2px);
+}
+
+.uep-ident__tab-glyph {
+  font-size: 14px;
+  color: var(--uep-gold);
+  line-height: 1;
+}
+
+.uep-ident__tab-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--ink-mute);
+  letter-spacing: 0.24em;
+  writing-mode: vertical-rl;
+}
+
+.uep-ident.is-open .uep-ident__tab-label {
+  writing-mode: horizontal-tb;
+}
+
+/* 證卡本體 */
+.uep-ident__card {
+  pointer-events: auto;
+  position: relative;
+  width: 248px;
+  margin-top: 8px;
+  padding: 22px 20px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4);
+  animation: uep-ident-card-in 0.35s ease-out;
+}
+
+@keyframes uep-ident-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__card {
+    animation: none;
+  }
+}
+
+/* 證卡打孔（識別證的掛孔裝飾） */
+.uep-ident__punch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--hairline-strong);
+}
+
+.uep-ident__kicker {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--uep-gold);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.uep-ident__alias {
+  font-family: var(--font-serif-tc);
+  font-size: 19px;
+  color: var(--ink-title);
+  text-align: center;
+  margin-top: 12px;
+}
+
+.uep-ident__username {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin-top: 4px;
+}
+
+.uep-ident__sep {
+  height: 1px;
+  background: var(--hairline);
+  margin: 14px 0;
+}
+
+.uep-ident__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uep-ident__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.uep-ident__row-label {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.uep-ident__row-value {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-body);
+  letter-spacing: 0.04em;
+}
+
+.uep-ident__row--mark .uep-ident__row-value {
+  color: var(--uep-gold);
+}
+
+.uep-ident__view-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 手機：identity 卡靠右貼齊、縮窄 */
+@media (max-width: 560px) {
+  .uep-ident {
+    right: 14px;
+  }
+  .uep-ident__cord {
+    height: 56px;
+  }
+  .uep-ident__card {
+    width: 228px;
+  }
+}

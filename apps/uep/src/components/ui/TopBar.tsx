@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import IdentCard from './IdentCard';
 import OnboardingGate from './OnboardingGate';
 import RecordPanel from './RecordPanel';
 
@@ -144,6 +145,9 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
 
       {/* 入站儀式：TopBar 出現在所有非 admin 頁面，藉此覆蓋全站 */}
       <OnboardingGate />
+
+      {/* 身分證吊掛面板：登入後出現的固定識別證 */}
+      <IdentCard />
     </div>
   );
 }
