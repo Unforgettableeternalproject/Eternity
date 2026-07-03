@@ -1465,20 +1465,17 @@ export default function HistoryReader() {
                         className="history-scan-sentinel"
                         aria-hidden="true"
                       />
-                      {/* Chapter/Arc 頁自動時間軸目錄（子項依進度狀態呈現） */}
-                      {(currentPage.pageType === 'chapter' ||
-                        currentPage.pageType === 'arc') &&
+                      {/* Chapter 頁自動時間軸目錄（列出 arc 子項依進度狀態呈現）。
+                          arc 頁本身已是故事段落層，section 目錄由左側 tree 處理，
+                          不再重複注入目錄——2026-07-03 修 #12。 */}
+                      {currentPage.pageType === 'chapter' &&
                         (() => {
                           const containerNode = pagesById.get(currentPage.id);
                           if (!containerNode) return null;
-                          const childType =
-                            currentPage.pageType === 'chapter'
-                              ? 'arc'
-                              : 'section';
                           return (
                             <ChapterTimeline
                               containerNode={containerNode}
-                              childType={childType}
+                              childType="arc"
                               progress={progress}
                               progressTree={progressTree}
                               resolvePageById={resolvePageById}

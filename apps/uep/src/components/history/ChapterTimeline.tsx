@@ -1,9 +1,9 @@
 /**
- * ChapterTimeline — Chapter / Arc 頁的自動時間軸目錄
+ * ChapterTimeline — Chapter 頁的自動時間軸目錄
  *
- * 依父容器層級呈現子項目：
- * - Chapter 頁：列出直屬 arc（不含 section）
- * - Arc 頁：列出直屬 section
+ * 只在 chapter 頁自動注入，列出直屬 arc（不含 section）依進度狀態呈現。
+ * Arc 頁本身已是故事段落層，section 目錄由左側 tree 處理，不再重複注入
+ * ——2026-07-03 修 #12。props 仍保留 childType 供既有測試與未來擴充。
  *
  * 視覺形式為垂直時間軸——左側節點、右側標題與摘要。狀態表現：
  * - completed：實心點（金）
