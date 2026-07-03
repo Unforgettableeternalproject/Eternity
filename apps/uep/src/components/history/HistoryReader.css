@@ -515,6 +515,23 @@
   z-index: 1;
 }
 
+/* === 掃描線（Epic 2 進度系統）=== */
+/* 進度標記前台隱形——不能用 display:none，
+   IntersectionObserver 需要 layout box 才會觸發 */
+.history-prose [data-role='progress-marker'] {
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+/* 文末哨兵：通過即視為讀完整篇 */
+.history-scan-sentinel {
+  height: 1px;
+}
+
 /* === 滾動軸「上次閱讀位置」標記 === */
 .history-scroll-marker {
   position: absolute;

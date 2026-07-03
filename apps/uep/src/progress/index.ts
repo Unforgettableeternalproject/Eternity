@@ -50,3 +50,13 @@ export {
 export type { ScanMarker } from './markers';
 
 export { useProgress, useGate } from './useProgress';
+
+export { createScanline } from './scanline';
+export type {
+  ScanlineOptions,
+  ScanlineHandle,
+  MarkerPassedInfo,
+} from './scanline';
+
+export { useScanline } from './useScanline';
+export type { UseScanlineOptions } from './useScanline';

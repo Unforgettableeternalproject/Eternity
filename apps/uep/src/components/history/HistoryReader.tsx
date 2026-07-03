@@ -16,6 +16,11 @@ import {
   clearUrl,
 } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
+import {
+  useScanline,
+  collectMarkers,
+  getProgressManager,
+} from '../../progress';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import type {
@@ -269,6 +274,8 @@ export default function HistoryReader() {
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 掃描線文末哨兵（通過 = 頁面完成）
+  const scanSentinelRef = useRef<HTMLDivElement>(null);
   // 跨頁面導航的滾動位置記憶
   const { saveScroll, getSavedPosition, clearSavedPosition } = useScrollMemory(
     scrollRef,
@@ -280,6 +287,24 @@ export default function HistoryReader() {
     pct: number; // 0~100，標記在滾動軸上的百分比位置
     leaving?: boolean; // 消失動畫中
   } | null>(null);
+
+  // 掃描線：追蹤文章閱讀進度（Epic 2）。滾動容器是內層
+  // .history-content div，root 必須指定 scrollRef 而非 viewport；
+  // articleHtml 變更時 observer 整組重建。
+  useScanline({
+    pageId: currentId,
+    containerRef: contentRef,
+    sentinelRef: scanSentinelRef,
+    rootRef: scrollRef,
+    contentKey: articleHtml,
+    enabled: Boolean(
+      currentId &&
+      currentPage &&
+      articleHtml &&
+      !contentLoading &&
+      !contentError
+    ),
+  });
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
@@ -535,21 +560,22 @@ export default function HistoryReader() {
       const page = await fetchPageById(node.id);
       setCurrentPage(page);
       setArticleHtml(renderBlocks(page.content));
-      // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記
+      // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記。
+      // session 內用精確 scroll 位置；跨 session fallback 到
+      // 掃描線 lastMarkerIdx 對應的標記點位置。
       scrollRef.current?.scrollTo({ top: 0 });
       const saved = getSavedPosition(node.id);
-      if (saved) {
-        // 等 DOM 更新後計算百分比位置
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const el = scrollRef.current;
-            if (!el) return;
-            const scrollable = el.scrollHeight - el.clientHeight;
-            const pct = scrollable > 0 ? (saved / scrollable) * 100 : 0;
-            setScrollHint({ targetTop: saved, pct: Math.min(pct, 95) });
-          });
+          const el = scrollRef.current;
+          if (!el) return;
+          const targetTop = saved ?? resolveMarkerResumeTop(node.id, el);
+          if (targetTop == null || targetTop <= 0) return;
+          const scrollable = el.scrollHeight - el.clientHeight;
+          const pct = scrollable > 0 ? (targetTop / scrollable) * 100 : 0;
+          setScrollHint({ targetTop, pct: Math.min(pct, 95) });
         });
-      }
+      });
 
       if (pushState) zonePushUrl({ page: node.id.replace(/^history\//, '') });
     } catch (err) {
@@ -559,6 +585,28 @@ export default function HistoryReader() {
       setTransitionKey((k) => k + 1);
       setNavPending(false);
     }
+  }
+
+  /**
+   * 跨 session 續讀：由掃描線 lastMarkerIdx 換算滾動位置。
+   * 已完成的頁面（停在文末哨兵）不提示；內容變動導致索引失效時放棄。
+   */
+  function resolveMarkerResumeTop(
+    pageId: string,
+    scrollEl: HTMLElement
+  ): number | null {
+    const progress = getProgressManager().getState().pageMarkers[pageId];
+    if (!progress || progress.lastMarkerIdx <= 0) return null;
+    if (progress.lastMarkerIdx >= progress.totalMarkers - 1) return null;
+    if (!contentRef.current) return null;
+    const marker = collectMarkers(contentRef.current)[progress.lastMarkerIdx];
+    if (!marker) return null;
+    const top =
+      (marker.el as HTMLElement).getBoundingClientRect().top -
+      scrollEl.getBoundingClientRect().top +
+      scrollEl.scrollTop -
+      120; // 標記點上方預留呼吸空間
+    return top > 0 ? top : null;
   }
 
   function toggleSidebar() {
@@ -1146,6 +1194,12 @@ export default function HistoryReader() {
                           'history-prose'
                         )}
                       </div>
+                      {/* 掃描線文末哨兵：通過 = 讀完整篇 */}
+                      <div
+                        ref={scanSentinelRef}
+                        className="history-scan-sentinel"
+                        aria-hidden="true"
+                      />
                     </>
                   )}
                 </article>
