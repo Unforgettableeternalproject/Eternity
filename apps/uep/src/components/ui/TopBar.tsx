@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+import ViewSwitch from './ViewSwitch';
+
 interface TopBarProps {
   onOpenMap?: () => void;
   onGoHome?: () => void;
@@ -118,6 +120,7 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
             ✦ 大地圖
           </button>
         )}
+        <ViewSwitch />
         <span
           className="uep-topbar-divider"
           style={{
