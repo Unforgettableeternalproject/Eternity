@@ -128,7 +128,8 @@ export default function GateConditionEditor({
     <div className="ned-gate">
       {/* 進度頁 toggle：勾選後系統自動要求同層前一個進度頁 completed；
           Arc/Chapter 標為進度頁時，底下 section 預設繼承（前台動態求值）。
-          picker 在進度頁模式下收起——鏈條件由容器/兄弟關係自動決定。 */}
+          picker、自訂旗標、純潔者限定皆與此 toggle 聯集——一頁可同時是
+          進度頁、且要求特定其他頁面讀過（例如伏筆回收） */}
       {supportsProgressToggle && (
         <div className="ned-inspector-toggle ned-gate-progress-toggle">
           <span>這是進度頁</span>
@@ -142,7 +143,8 @@ export default function GateConditionEditor({
       {supportsProgressToggle && isProgressPage && (
         <div className="ned-gate-scope-hint">
           ⓘ 進度頁：解鎖倚賴同層前一個進度頁完成；父容器（arc/chapter）標為
-          進度頁時整包自動繼承。可另外設自訂旗標與純潔者限定。
+          進度頁時整包自動繼承。可另外設「需先讀完」的特定頁面、自訂旗標
+          與純潔者限定，全部與鏈條件聯集。
         </div>
       )}
 
@@ -188,33 +190,30 @@ export default function GateConditionEditor({
         </div>
       )}
 
-      {/* 「需先讀完」picker：進度頁模式下收起，鏈條件由前台自動決定；
-          非進度頁仍保留 picker 支援手動的頁面依賴（舊資料與特殊需求） */}
-      {!isProgressPage && (
-        <>
-          <button
-            type="button"
-            className="ned-gate-add-page"
-            onClick={() => {
-              setPickerOpen((v) => !v);
-              if (!pickerOpen) void loadTree();
-            }}
-          >
-            {pickerOpen ? '－ 收合頁面清單' : '＋ 需先讀完…'}
-          </button>
+      {/* 「需先讀完」picker：一律顯示，與進度頁鏈條件聯集。
+          進度頁鏈解決「循序漸進」的普遍情境，picker 用於挑指定頁面
+          （例如伏筆回收：這頁需要讀過某個先前的角色初登場） */}
+      <button
+        type="button"
+        className="ned-gate-add-page"
+        onClick={() => {
+          setPickerOpen((v) => !v);
+          if (!pickerOpen) void loadTree();
+        }}
+      >
+        {pickerOpen ? '－ 收合頁面清單' : '＋ 需先讀完…'}
+      </button>
 
-          {pickerOpen && (
-            <div className="ned-gate-picker">
-              {treeLoading ? (
-                <div className="ned-gate-picker-empty">載入中…</div>
-              ) : pageTree.length === 0 ? (
-                <div className="ned-gate-picker-empty">無法載入頁面清單</div>
-              ) : (
-                renderTree(pageTree)
-              )}
-            </div>
+      {pickerOpen && (
+        <div className="ned-gate-picker">
+          {treeLoading ? (
+            <div className="ned-gate-picker-empty">載入中…</div>
+          ) : pageTree.length === 0 ? (
+            <div className="ned-gate-picker-empty">無法載入頁面清單</div>
+          ) : (
+            renderTree(pageTree)
           )}
-        </>
+        </div>
       )}
 
       <div className="ned-gate-custom">

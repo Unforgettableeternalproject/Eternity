@@ -43,8 +43,8 @@ describe('GateConditionEditor — progressPage toggle', () => {
     expect(screen.getByText('這是進度頁')).toBeInTheDocument();
   });
 
-  it('isProgressPage=true → 「需先讀完」picker 完全收起', () => {
-    render(
+  it('isProgressPage=true 時 picker 仍顯示（與鏈條件聯集），並顯示提示文字', () => {
+    const { container } = render(
       <GateConditionEditor
         value={null}
         onChange={() => {}}
@@ -54,7 +54,10 @@ describe('GateConditionEditor — progressPage toggle', () => {
         accent="#000"
       />
     );
-    expect(screen.queryByText(/需先讀完/)).not.toBeInTheDocument();
+    // picker 觸發按鈕存在——可同時是進度頁又指定特定頁面
+    const pickerButton = container.querySelector('.ned-gate-add-page');
+    expect(pickerButton).toBeInTheDocument();
+    expect(pickerButton?.textContent).toMatch(/需先讀完/);
     // 提示文字顯示
     expect(
       screen.getByText(/進度頁：解鎖倚賴同層前一個進度頁完成/)
