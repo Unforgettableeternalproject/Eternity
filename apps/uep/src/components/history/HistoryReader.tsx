@@ -20,6 +20,7 @@ import {
   useScanline,
   collectMarkers,
   getProgressManager,
+  resolveResumeMarkerIdx,
 } from '../../progress';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
@@ -589,17 +590,16 @@ export default function HistoryReader() {
 
   /**
    * 跨 session 續讀：由掃描線 lastMarkerIdx 換算滾動位置。
-   * 已完成的頁面（停在文末哨兵）不提示；內容變動導致索引失效時放棄。
+   * 是否該提示由 resolveResumeMarkerIdx 統一判定（已完成頁面不提示，
+   * 即使讀完後回捲讓 lastMarkerIdx 變小）；內容變動導致索引失效時放棄。
    */
   function resolveMarkerResumeTop(
     pageId: string,
     scrollEl: HTMLElement
   ): number | null {
-    const progress = getProgressManager().getState().pageMarkers[pageId];
-    if (!progress || progress.lastMarkerIdx <= 0) return null;
-    if (progress.lastMarkerIdx >= progress.totalMarkers - 1) return null;
-    if (!contentRef.current) return null;
-    const marker = collectMarkers(contentRef.current)[progress.lastMarkerIdx];
+    const idx = resolveResumeMarkerIdx(getProgressManager().getState(), pageId);
+    if (idx == null || !contentRef.current) return null;
+    const marker = collectMarkers(contentRef.current)[idx];
     if (!marker) return null;
     const top =
       (marker.el as HTMLElement).getBoundingClientRect().top -

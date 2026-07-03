@@ -46,6 +46,7 @@ export {
   collectMarkers,
   isPageCompleted,
   completionFlag,
+  resolveResumeMarkerIdx,
 } from './markers';
 export type { ScanMarker } from './markers';
 

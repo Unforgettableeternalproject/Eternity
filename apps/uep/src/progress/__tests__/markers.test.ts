@@ -9,8 +9,11 @@ import {
   completionFlag,
   isPageCompleted,
   parseFlagsAttr,
+  resolveResumeMarkerIdx,
   serializeFlagsAttr,
 } from '../markers';
+import { createInitialState } from '../types';
+import type { PageMarkerProgress, ProgressState } from '../types';
 
 describe('parseFlagsAttr', () => {
   it('解析逗號分隔旗標並去空白', () => {
@@ -83,17 +86,88 @@ describe('collectMarkers', () => {
 });
 
 describe('isPageCompleted', () => {
-  it('通過最後一個標記點即完成', () => {
-    expect(isPageCompleted(2, 3)).toBe(true);
+  it('通過哨兵（max = total）即完成', () => {
     expect(isPageCompleted(3, 3)).toBe(true);
+    expect(isPageCompleted(4, 3)).toBe(true);
   });
 
-  it('未達最後標記點未完成', () => {
-    expect(isPageCompleted(1, 3)).toBe(false);
+  it('只通過最後一個內容標記（max = total - 1）未完成', () => {
+    expect(isPageCompleted(2, 3)).toBe(false);
   });
 
-  it('totalMarkers 為 0 時永不完成（防呆）', () => {
-    expect(isPageCompleted(0, 0)).toBe(false);
+  it('無內容標記的頁面：哨兵過線（max=0, total=0）即完成', () => {
+    expect(isPageCompleted(0, 0)).toBe(true);
+  });
+});
+
+describe('resolveResumeMarkerIdx', () => {
+  const PAGE_ID = 'history/u/chapt-01/1-1';
+
+  function makeState(
+    marker: Partial<PageMarkerProgress> | null,
+    completed = false
+  ): ProgressState {
+    const state = createInitialState();
+    if (marker) {
+      state.pageMarkers[PAGE_ID] = {
+        maxMarkerIdx: 0,
+        lastMarkerIdx: 0,
+        totalMarkers: 0,
+        updatedAt: new Date().toISOString(),
+        ...marker,
+      };
+    }
+    if (completed) state.completedPageIds.push(PAGE_ID);
+    return state;
+  }
+
+  it('讀到中途的頁面回傳上次位置索引', () => {
+    const state = makeState({
+      maxMarkerIdx: 3,
+      lastMarkerIdx: 2,
+      totalMarkers: 5,
+    });
+    expect(resolveResumeMarkerIdx(state, PAGE_ID)).toBe(2);
+  });
+
+  it('無進度紀錄回傳 null', () => {
+    expect(resolveResumeMarkerIdx(makeState(null), PAGE_ID)).toBeNull();
+  });
+
+  it('上次位置在開頭（lastMarkerIdx = 0）不提示', () => {
+    const state = makeState({
+      maxMarkerIdx: 1,
+      lastMarkerIdx: 0,
+      totalMarkers: 5,
+    });
+    expect(resolveResumeMarkerIdx(state, PAGE_ID)).toBeNull();
+  });
+
+  it('已完成頁面即使讀完後回捲（last 變小）也不提示【回歸：Codex 審核】', () => {
+    // 讀完（completedPageIds 已記錄）後回捲到中段，lastMarkerIdx 變小
+    const state = makeState(
+      { maxMarkerIdx: 5, lastMarkerIdx: 2, totalMarkers: 5 },
+      true
+    );
+    expect(resolveResumeMarkerIdx(state, PAGE_ID)).toBeNull();
+  });
+
+  it('max 已達哨兵（= totalMarkers）即使 completedPageIds 缺漏也不提示', () => {
+    const state = makeState({
+      maxMarkerIdx: 5,
+      lastMarkerIdx: 2,
+      totalMarkers: 5,
+    });
+    expect(resolveResumeMarkerIdx(state, PAGE_ID)).toBeNull();
+  });
+
+  it('上次位置停在哨兵（無對應內容標記元素）不提示', () => {
+    const state = makeState({
+      maxMarkerIdx: 4,
+      lastMarkerIdx: 5,
+      totalMarkers: 5,
+    });
+    expect(resolveResumeMarkerIdx(state, PAGE_ID)).toBeNull();
   });
 });
 

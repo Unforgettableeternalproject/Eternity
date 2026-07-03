@@ -11,6 +11,8 @@
  * （useScanline）都從這裡取用，確保序列化格式只有一份定義。
  */
 
+import type { ProgressState } from './types';
+
 /** 進度標記在 HTML 中的 data-role 值 */
 export const PROGRESS_MARKER_ROLE = 'progress-marker';
 
@@ -62,15 +64,42 @@ export function collectMarkers(container: Element): ScanMarker[] {
   );
 }
 
-/** 完成判定：通過最後一個標記點（totalMarkers 含文末哨兵） */
+/**
+ * 完成判定：通過文末哨兵。
+ * totalMarkers = 內容標記點數（不含哨兵），哨兵索引 = totalMarkers，
+ * 因此完成時 maxMarkerIdx === totalMarkers（數字直覺對齊：max = total）。
+ */
 export function isPageCompleted(
   maxMarkerIdx: number,
   totalMarkers: number
 ): boolean {
-  return totalMarkers > 0 && maxMarkerIdx >= totalMarkers - 1;
+  return maxMarkerIdx >= totalMarkers;
 }
 
 /** 頁面完成旗標的命名慣例（gating 統一以旗標消費完成狀態） */
 export function completionFlag(pageId: string): string {
   return `completed:${pageId}`;
+}
+
+/**
+ * 續讀判定：回傳「回到上次位置」提示應指向的標記索引，
+ * 不該提示時回傳 null。
+ *
+ * 不提示的情況：
+ * - 沒有進度紀錄，或上次位置在開頭（lastMarkerIdx <= 0）
+ * - 頁面已完成（completedPageIds 或 max 已達哨兵）——讀完後回捲
+ *   會讓 lastMarkerIdx 變小，但完成狀態不會消失，不該再提示
+ * - lastMarkerIdx 落在哨兵（>= totalMarkers），無對應內容標記元素
+ */
+export function resolveResumeMarkerIdx(
+  state: ProgressState,
+  pageId: string
+): number | null {
+  const progress = state.pageMarkers[pageId];
+  if (!progress || progress.lastMarkerIdx <= 0) return null;
+  if (state.completedPageIds.includes(pageId)) return null;
+  if (isPageCompleted(progress.maxMarkerIdx, progress.totalMarkers))
+    return null;
+  if (progress.lastMarkerIdx >= progress.totalMarkers) return null;
+  return progress.lastMarkerIdx;
 }
