@@ -672,7 +672,6 @@ export default function RichEditor({
       label: selectedMarker.label,
     });
     // 只在切換到不同位置的標記時重設，避免打字中被覆蓋
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMarker?.pos]);
 
   // 音訊 node Delete/Backspace 攔截

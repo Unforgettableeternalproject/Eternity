@@ -62,6 +62,5 @@ export function useScanline({
 
     return () => handle.destroy();
     // ref 物件的 identity 穩定，不列入 deps；內容變更由 contentKey 驅動
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId, contentKey, enabled]);
 }

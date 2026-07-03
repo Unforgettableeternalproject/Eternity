@@ -5,6 +5,7 @@
  * intersection entries。store 是 module singleton，比照 progressStore
  * 測試用 vi.resetModules() 隔離。
  */
+/* global IntersectionObserverEntry, IntersectionObserverInit */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PROGRESS_MARKER_ROLE } from '../markers';
