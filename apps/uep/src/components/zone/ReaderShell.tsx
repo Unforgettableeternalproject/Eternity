@@ -27,6 +27,14 @@ export function ReaderShell({ zoneId, className, children }: ReaderShellProps) {
     document.documentElement.setAttribute('data-theme', stored);
   }, []);
 
+  // 標記本頁為 Reader 頁面，讓內容保護系統只在此類頁面上作用
+  useEffect(() => {
+    document.body.dataset.readerPage = 'true';
+    return () => {
+      delete document.body.dataset.readerPage;
+    };
+  }, []);
+
   function enterZoneFromMap(targetId: string) {
     const target = ZONES.find((z) => z.id === targetId);
     if (!target) return;
