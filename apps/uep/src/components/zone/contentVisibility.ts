@@ -22,8 +22,11 @@ import {
   evaluateGate,
   parseGateCondition,
   completionFlag,
+  effectiveGate,
+  evaluateEffectiveGate,
+  isEffectivelyCompleted,
 } from '../../progress';
-import type { ProgressState } from '../../progress';
+import type { ProgressState, ProgressTreeAdapter } from '../../progress';
 
 interface HasMetadata {
   metadata?: Record<string, unknown> | null;
@@ -41,15 +44,30 @@ export function isHidden(node: HasMetadata): boolean {
 /**
  * 鎖定分類。回傳 null 表示未鎖定。
  * 優先序：static > flag > progression（混合條件以旗標鎖為主）。
+ *
+ * @param nodeId 傳入時啟用 tree-aware 求值（含 progressPage 鏈 + 容器繼承 + 遞迴 completed）
+ * @param tree tree 適配器，與 nodeId 一同傳入才生效
  */
 export function getLockKind(
   node: HasMetadata,
-  progress?: ProgressState | null
+  progress?: ProgressState | null,
+  nodeId?: string,
+  tree?: ProgressTreeAdapter
 ): LockKind | null {
   if (node.metadata?.locked === true) return 'static';
   if (!progress) return null;
-  const gate = parseGateCondition(node.metadata ?? null);
-  if (!gate || evaluateGate(progress, gate)) return null;
+
+  const useTree = nodeId !== undefined && tree !== undefined;
+  const gate = useTree
+    ? effectiveGate(nodeId, tree)
+    : parseGateCondition(node.metadata ?? null);
+  if (!gate) return null;
+
+  const passes = useTree
+    ? evaluateEffectiveGate(nodeId, progress, tree, gate)
+    : evaluateGate(progress, gate);
+  if (passes) return null;
+
   const flags = gate.requiresFlags || [];
   const hasCustomFlag = flags.some((f) => !f.startsWith(COMPLETION_PREFIX));
   if (gate.pristineOnly || hasCustomFlag) return 'flag';
@@ -58,9 +76,11 @@ export function getLockKind(
 
 export function isLocked(
   node: HasMetadata,
-  progress?: ProgressState | null
+  progress?: ProgressState | null,
+  nodeId?: string,
+  tree?: ProgressTreeAdapter
 ): boolean {
-  return getLockKind(node, progress) !== null;
+  return getLockKind(node, progress, nodeId, tree) !== null;
 }
 
 /**
@@ -73,20 +93,38 @@ export function isLocked(
  * 只作用於 progression 鎖：flag 鎖無論何時都顯示，static 維持原樣。
  *
  * @param resolvePage 以 pageId 取得節點（tree 的 id 索引）；找不到視為不隱藏
+ * @param nodeId 傳入時啟用 tree-aware 求值（含 progressPage 鏈 + 容器繼承）
+ * @param tree tree 適配器，與 nodeId 一同傳入才生效
  */
 export function isProgressionChainHidden(
   node: HasMetadata,
   progress: ProgressState | null | undefined,
-  resolvePage: (pageId: string) => HasMetadata | undefined
+  resolvePage: (pageId: string) => HasMetadata | undefined,
+  nodeId?: string,
+  tree?: ProgressTreeAdapter
 ): boolean {
-  if (getLockKind(node, progress) !== 'progression') return false;
-  const gate = parseGateCondition(node.metadata ?? null);
+  if (getLockKind(node, progress, nodeId, tree) !== 'progression') return false;
+
+  const useTree = nodeId !== undefined && tree !== undefined && progress != null;
+  const gate = useTree
+    ? effectiveGate(nodeId, tree)
+    : parseGateCondition(node.metadata ?? null);
+
   const deps = (gate?.requiresFlags || [])
     .filter((f) => f.startsWith(COMPLETION_PREFIX))
     .map((f) => f.slice(COMPLETION_PREFIX.length));
+
   return deps.some((depId) => {
     const dep = resolvePage(depId);
-    return dep ? isLocked(dep, progress) : false;
+    if (!dep) return false;
+    if (useTree) {
+      // tree-aware：依賴頁 lock 或未有效 completed 都算「還沒解鎖」
+      return (
+        isLocked(dep, progress, depId, tree) ||
+        !isEffectivelyCompleted(depId, progress, tree)
+      );
+    }
+    return isLocked(dep, progress);
   });
 }
 
@@ -97,7 +135,9 @@ export function getSpoilerLevel(node: HasMetadata): number {
 
 export function isAccessible(
   node: HasMetadata,
-  progress?: ProgressState | null
+  progress?: ProgressState | null,
+  nodeId?: string,
+  tree?: ProgressTreeAdapter
 ): boolean {
-  return !isHidden(node) && !isLocked(node, progress);
+  return !isHidden(node) && !isLocked(node, progress, nodeId, tree);
 }
