@@ -484,6 +484,16 @@ export default function HistoryReader() {
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
 
+  // 孤兒 complete 靜默清理：tree 首次載入完成後跑一次，
+  // 清除依賴不成立的 completed:* 旗標（測試模式手動蓋、或匯入舊資料時）。
+  const swept = useRef(false);
+  useEffect(() => {
+    if (swept.current) return;
+    if (!pagesById.size) return;
+    getProgressManager().sweepOrphanCompletions(progressTree);
+    swept.current = true;
+  }, [pagesById, progressTree]);
+
   // 載入首頁區塊資料，完成後通知 boot hook 解除動畫
   useEffect(() => {
     fetch(`${API_BASE}/api/content/history/homepage`)

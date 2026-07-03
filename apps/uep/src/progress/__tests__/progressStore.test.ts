@@ -194,6 +194,159 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
   });
 });
 
+describe('sweepOrphanCompletions', () => {
+  // 建立三頁鏈：A → B → C（B 依賴 A、C 依賴 B）的 tree adapter
+  function makeChainTree() {
+    const nodes = new Map<string, { metadata: Record<string, unknown> }>([
+      ['A', { metadata: { progressPage: true } }],
+      ['B', { metadata: { progressPage: true } }],
+      ['C', { metadata: { progressPage: true } }],
+    ]);
+    const order = ['A', 'B', 'C'];
+    return {
+      getNode: (id: string) => nodes.get(id),
+      getParent: () => undefined,
+      getParentId: () => null,
+      getPreviousProgressSiblingId: (id: string) => {
+        const idx = order.indexOf(id);
+        return idx > 0 ? order[idx - 1] : undefined;
+      },
+      getProgressDescendantIds: () => [],
+    };
+  }
+
+  it('孤兒 completed:C（B 未完成）→ 清除', async () => {
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['completed:C'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress } = await freshStore();
+    const removed = uepProgress.sweepOrphanCompletions(makeChainTree());
+    expect(removed).toEqual(['completed:C']);
+    expect(uepProgress.getState().flags).toEqual([]);
+  });
+
+  it('合法鏈 A→B→C 全部 completed → 都保留', async () => {
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['completed:A', 'completed:B', 'completed:C'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress } = await freshStore();
+    const removed = uepProgress.sweepOrphanCompletions(makeChainTree());
+    expect(removed).toEqual([]);
+    expect(uepProgress.getState().flags).toHaveLength(3);
+  });
+
+  it('混合：completed:A 合法保留、completed:C（B 缺失）清除', async () => {
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['completed:A', 'completed:C', 'met:norvia'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress } = await freshStore();
+    const removed = uepProgress.sweepOrphanCompletions(makeChainTree());
+    expect(removed).toEqual(['completed:C']);
+    // 非 completed:* 的自訂旗標（met:norvia）不受影響
+    expect(uepProgress.getState().flags).toEqual(['completed:A', 'met:norvia']);
+  });
+
+  it('未識別頁面（tree 中不存在）保守保留', async () => {
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['completed:ghost'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress } = await freshStore();
+    const removed = uepProgress.sweepOrphanCompletions(makeChainTree());
+    expect(removed).toEqual([]);
+    expect(uepProgress.getState().flags).toEqual(['completed:ghost']);
+  });
+
+  it('無 completed:* 旗標 → no-op、不觸發 mutate', async () => {
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['met:norvia'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress } = await freshStore();
+    const before = uepProgress.getState().updatedAt;
+    const removed = uepProgress.sweepOrphanCompletions(makeChainTree());
+    expect(removed).toEqual([]);
+    // 沒觸發 mutate → updatedAt 不變
+    expect(uepProgress.getState().updatedAt).toBe(before);
+  });
+
+  it('清理後發 sweep 事件並持久化', async () => {
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['completed:C'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress, PROGRESS_CHANGE_EVENT } = await freshStore();
+    let receivedSource: string | null = null;
+    const handler = (evt: Event) => {
+      receivedSource = (evt as CustomEvent).detail.source;
+    };
+    window.addEventListener(PROGRESS_CHANGE_EVENT, handler);
+    uepProgress.sweepOrphanCompletions(makeChainTree());
+    window.removeEventListener(PROGRESS_CHANGE_EVENT, handler);
+    expect(receivedSource).toBe('sweep');
+    // 持久化：localStorage 已更新
+    const raw = JSON.parse(window.localStorage.getItem(PROGRESS_STORAGE_KEY)!);
+    expect(raw.flags).toEqual([]);
+  });
+});
+
 describe('normalizeState', () => {
   it('欄位缺漏時以初始值補齊（observer 視角依不變量補上印記）', () => {
     const result = normalizeState({ view: 'observer' });
