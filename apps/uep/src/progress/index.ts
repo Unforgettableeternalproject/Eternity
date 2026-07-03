@@ -33,6 +33,7 @@ export type { ProgressChangeDetail } from './progressStore';
 export {
   evaluateGate,
   parseGateCondition,
+  isProgressPage,
   isPristine,
   hasAllFlags,
 } from './gating';

@@ -66,6 +66,22 @@ export function evaluateGate(
 }
 
 /**
+ * 讀取「這是進度頁」旗標。
+ *
+ * progressPage 是頁面本體性質（與 `locked` / `hidden` 同層平鋪），
+ * 語意為「本頁的解鎖倚賴同層前一個進度頁完成」。實際的鏈條件由
+ * `effectiveGate`（見 B 步驟）動態注入，不落地到 metadata.gate。
+ *
+ * Arc / Chapter 也可標為進度頁 → 觸發容器繼承（底下所有 section 預設繼承）。
+ */
+export function isProgressPage(
+  metadata: Record<string, unknown> | null | undefined
+): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  return metadata.progressPage === true;
+}
+
+/**
  * 從 metadata JSON 解析 gating 條件。
  * 支援兩種存放形狀：
  * - 平鋪：`{ requiresFlags: [...], pristineOnly: true }`
