@@ -45,6 +45,23 @@ export const CUE_KINDS = [
 export type EntityKind = (typeof ENTITY_KINDS)[number]['value'];
 export type CueKind = (typeof CUE_KINDS)[number]['value'];
 
+/** entity 種類的顯示名稱（未知種類 fallback「條目」） */
+export function entityKindLabel(kind: string): string {
+  return ENTITY_KINDS.find((k) => k.value === kind)?.label ?? '條目';
+}
+
+/**
+ * entity「認識」旗標的命名慣例：`met:` + 完整 ref（含 #entry: 錨點）。
+ *
+ * 授予端：FlagMarker 認識點的 grantsFlags 填相同字串（S2 掃描線授予）；
+ * 消費端：前台 dispatcher 判定 entity 解鎖（S4）。
+ * 採全 ref 而非簡短 id——零歧義、零額外欄位，
+ * 且與 metadata.related 摘要的 ref 天然對齊（2026-07-03 艾斯維爾定案）。
+ */
+export function metFlag(ref: string): string {
+  return `met:${ref}`;
+}
+
 /** 單筆嵌入引用（HTML 標記與 metadata 摘要的共用形狀） */
 export interface EmbedRef {
   /** 種類（entity: character/location/term；cue: song/image） */

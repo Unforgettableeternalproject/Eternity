@@ -11,7 +11,9 @@ import {
   UEP_ENTITY_ATTR,
   UEP_CUE_ATTR,
   UEP_REF_ATTR,
+  entityKindLabel,
   isValidRef,
+  metFlag,
   parseRef,
   readEmbedFromElement,
   collectEmbeds,
@@ -56,6 +58,28 @@ describe('parseRef', () => {
       pageId: 'concepts/log',
       entryId: 'asvere',
     });
+  });
+});
+
+describe('metFlag', () => {
+  it('慣例 = met: + 完整 ref（含錨點，與 FlagMarker grantsFlags 對齊）', () => {
+    expect(metFlag('concepts/log')).toBe('met:concepts/log');
+    expect(metFlag('concepts/log#entry:asvere')).toBe(
+      'met:concepts/log#entry:asvere'
+    );
+  });
+});
+
+describe('entityKindLabel', () => {
+  it('已知種類回傳顯示名稱', () => {
+    expect(entityKindLabel('character')).toBe('角色');
+    expect(entityKindLabel('location')).toBe('地點');
+    expect(entityKindLabel('term')).toBe('術語');
+  });
+
+  it('未知種類 fallback「條目」', () => {
+    expect(entityKindLabel('unknown')).toBe('條目');
+    expect(entityKindLabel('')).toBe('條目');
   });
 });
 

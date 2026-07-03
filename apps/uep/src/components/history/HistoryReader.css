@@ -532,6 +532,30 @@
   height: 1px;
 }
 
+/* === 互動式嵌入（Epic 2 S4）===
+   只有「已解鎖」的 entity 才有樣式與行為；
+   未解鎖的 entity span 不帶啟用屬性，就是普通文字。 */
+.history-prose span[data-uep-entity-active] {
+  cursor: pointer;
+  color: var(--history-main);
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+}
+
+.history-prose span[data-uep-entity-active]:hover {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
+}
+
+.history-prose span[data-uep-entity-active]:focus-visible {
+  outline: 1px dotted var(--history-main);
+  outline-offset: 2px;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
+}
+
 /* === 滾動軸「上次閱讀位置」標記 === */
 .history-scroll-marker {
   position: absolute;

@@ -5,7 +5,7 @@
  *
  * 使用方式：
  * - 編輯器（TipTap mark）：components/editor/UepEmbedMarks.ts
- * - 前台 dispatcher（S4）：readEmbedFromElement + selectors
+ * - 前台啟用/dispatcher：decorateInteractiveHtml + dispatchEntityActivate
  * - metadata 摘要：collectEmbeds
  */
 
@@ -17,9 +17,21 @@ export {
   UEP_CUE_SELECTOR,
   ENTITY_KINDS,
   CUE_KINDS,
+  entityKindLabel,
+  metFlag,
   isValidRef,
   parseRef,
   readEmbedFromElement,
   collectEmbeds,
 } from './marks';
 export type { EntityKind, CueKind, EmbedRef, EmbedSummary } from './marks';
+
+export {
+  UEP_ENTITY_ACTIVE_ATTR,
+  UEP_ENTITY_ACTIVE_SELECTOR,
+  UEP_ENTITY_ACTIVATE_EVENT,
+  isEntityUnlocked,
+  decorateInteractiveHtml,
+  dispatchEntityActivate,
+} from './interactive';
+export type { EntityActivateDetail } from './interactive';
