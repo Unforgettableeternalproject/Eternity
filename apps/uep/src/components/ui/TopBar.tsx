@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-import ViewSwitch from './ViewSwitch';
+import OnboardingGate from './OnboardingGate';
+import RecordPanel from './RecordPanel';
 
 interface TopBarProps {
   onOpenMap?: () => void;
@@ -120,7 +121,8 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
             ✦ 大地圖
           </button>
         )}
-        <ViewSwitch />
+        {/* 記錄面板：登入/註冊入口，視角切換也藏在裡面（S5 起撤出 TopBar） */}
+        <RecordPanel />
         <span
           className="uep-topbar-divider"
           style={{
@@ -139,6 +141,9 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
           {theme === 'dark' ? '☀ 白晝' : '☾ 夜間'}
         </button>
       </div>
+
+      {/* 入站儀式：TopBar 出現在所有非 admin 頁面，藉此覆蓋全站 */}
+      <OnboardingGate />
     </div>
   );
 }

@@ -1,0 +1,156 @@
+/* 入站儀式 — 初次進入的身分選擇（Epic 2 S5） */
+
+.uep-onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 4000; /* Dialog(3000) 之上——儀式期間不允許其他互動 */
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.uep-onboard__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.88);
+  backdrop-filter: blur(6px);
+  animation: uep-onboard-veil 0.6s ease-out;
+}
+
+@keyframes uep-onboard-veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.uep-onboard__panel {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  padding: 44px 40px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  text-align: center;
+  animation: uep-onboard-panel 0.5s ease-out 0.2s both;
+}
+
+@keyframes uep-onboard-panel {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-onboard__veil,
+  .uep-onboard__panel {
+    animation: none;
+  }
+}
+
+.uep-onboard__kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--uep-gold);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.uep-onboard__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--ink-title);
+  margin: 16px 0 8px;
+}
+
+.uep-onboard__sub {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin: 0 0 28px;
+}
+
+.uep-onboard__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 560px) {
+  .uep-onboard__cards {
+    grid-template-columns: 1fr;
+  }
+  .uep-onboard__panel {
+    padding: 32px 24px;
+  }
+}
+
+.uep-onboard__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 20px;
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline-strong);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.uep-onboard__card:hover,
+.uep-onboard__card:focus-visible {
+  border-color: var(--uep-gold);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  outline: none;
+}
+
+.uep-onboard__card-glyph {
+  font-size: 26px;
+  color: var(--uep-gold);
+}
+
+.uep-onboard__card--observer .uep-onboard__card-glyph {
+  color: var(--ink-mute);
+}
+
+.uep-onboard__card--observer:hover .uep-onboard__card-glyph {
+  color: var(--uep-gold);
+}
+
+.uep-onboard__card-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink-title);
+}
+
+.uep-onboard__card-desc {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-body);
+}
+
+.uep-onboard__card-note {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.uep-onboard__card--observer .uep-onboard__card-note {
+  color: #b8874a;
+}
