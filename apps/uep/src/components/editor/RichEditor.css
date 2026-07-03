@@ -1022,6 +1022,66 @@
   white-space: nowrap;
 }
 
+/* ── 進度標記（Epic 2 掃描線）──
+   編輯器內可見的虛線列；前台以零高度 div 隱形（見 HistoryReader.css）。
+   帶 data-grants-flags 者為旗標標記，以金色點綴區分。 */
+.tiptap-content .tiptap-progress-marker {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 14px 0;
+  padding: 3px 10px;
+  border: 1px dashed var(--line, #444);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-mute, #888);
+  user-select: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.tiptap-content .tiptap-progress-marker::before {
+  content: '⚑ 進度標記　' attr(data-label);
+  letter-spacing: 0.05em;
+}
+.tiptap-content .tiptap-progress-marker[data-grants-flags] {
+  border-color: #d5b61866;
+}
+.tiptap-content .tiptap-progress-marker[data-grants-flags]::before {
+  content: '⚑ 旗標標記　' attr(data-label);
+  color: #d5b618;
+}
+.tiptap-content .tiptap-progress-marker[data-grants-flags]::after {
+  content: attr(data-grants-flags);
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  color: #d5b618cc;
+}
+.tiptap-content .tiptap-progress-marker.ProseMirror-selectednode {
+  outline: 2px solid var(--ned-accent, #888);
+  outline-offset: 2px;
+}
+
+/* 進度標記 bubble 的輸入欄 */
+.ned-marker-input {
+  width: 150px;
+  background: var(--bg-soft, #111);
+  border: 1px solid var(--line, #333);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 0.78em;
+  color: var(--ink, #ddd);
+}
+.ned-marker-input--flags {
+  width: 190px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+.ned-marker-input:focus {
+  outline: none;
+  border-color: var(--ned-accent, #888);
+}
+
 /* Images */
 .tiptap-content img {
   max-width: 100%;

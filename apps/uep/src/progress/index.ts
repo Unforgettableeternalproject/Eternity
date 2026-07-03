@@ -38,4 +38,15 @@ export {
 } from './gating';
 export type { GateCondition } from './gating';
 
+export {
+  PROGRESS_MARKER_ROLE,
+  PROGRESS_MARKER_SELECTOR,
+  parseFlagsAttr,
+  serializeFlagsAttr,
+  collectMarkers,
+  isPageCompleted,
+  completionFlag,
+} from './markers';
+export type { ScanMarker } from './markers';
+
 export { useProgress, useGate } from './useProgress';

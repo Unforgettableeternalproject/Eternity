@@ -17,6 +17,8 @@ import { Markdown } from '@tiptap/markdown';
 import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
+import ProgressMarkerNode from './ProgressMarkerNode';
+import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
@@ -282,6 +284,7 @@ export default function RichEditor({
       TableCell,
       UepDialogueNode,
       InlineAudioNode,
+      ProgressMarkerNode,
       Markdown,
       MarkdownPaste,
     ],
@@ -527,6 +530,17 @@ export default function RichEditor({
   const [audioPickerSearch, setAudioPickerSearch] = useState('');
   const [audioReplaceMode, setAudioReplaceMode] = useState(false);
 
+  // 進度標記 node 選取與編輯草稿（Epic 2 掃描線）
+  const [selectedMarker, setSelectedMarker] = useState<{
+    pos: number;
+    grantsFlags: string;
+    label: string;
+  } | null>(null);
+  const [markerDraft, setMarkerDraft] = useState<{
+    grantsFlags: string;
+    label: string;
+  }>({ grantsFlags: '', label: '' });
+
   useEffect(() => {
     if (!editor) return;
 
@@ -610,6 +624,56 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedAudio);
     };
   }, [editor]);
+
+  // 進度標記 node 選取追蹤
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncSelectedMarker = () => {
+      const selection = editor.state.selection as any;
+      let next: { pos: number; grantsFlags: string; label: string } | null =
+        null;
+
+      if (selection.node?.type?.name === 'progressMarker') {
+        const attrs = selection.node.attrs || {};
+        next = {
+          pos: selection.from,
+          grantsFlags: serializeFlagsAttr(
+            Array.isArray(attrs.grantsFlags) ? attrs.grantsFlags : []
+          ),
+          label: attrs.label || '',
+        };
+      }
+
+      setSelectedMarker((current) =>
+        current?.pos === next?.pos &&
+        current?.grantsFlags === next?.grantsFlags &&
+        current?.label === next?.label
+          ? current
+          : next
+      );
+    };
+
+    syncSelectedMarker();
+    editor.on('selectionUpdate', syncSelectedMarker);
+    editor.on('transaction', syncSelectedMarker);
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedMarker);
+      editor.off('transaction', syncSelectedMarker);
+    };
+  }, [editor]);
+
+  // 選到不同標記時重設編輯草稿
+  useEffect(() => {
+    if (!selectedMarker) return;
+    setMarkerDraft({
+      grantsFlags: selectedMarker.grantsFlags,
+      label: selectedMarker.label,
+    });
+    // 只在切換到不同位置的標記時重設，避免打字中被覆蓋
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMarker?.pos]);
 
   // 音訊 node Delete/Backspace 攔截
   useEffect(() => {
@@ -1933,6 +1997,33 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
+              {/* 進度標記（Epic 2 掃描線） */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn ${editor.isActive('progressMarker') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().setProgressMarker().run()
+                  }
+                  title="插入進度標記（掃描線標記點，前台隱形）"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                    <line x1="4" y1="22" x2="4" y2="15" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="tb-sep" />
+
               {/* 清除格式 */}
               <div className="tb-group">
                 <button
@@ -2618,6 +2709,69 @@ export default function RichEditor({
             </div>
           );
         })()}
+
+      {/* 進度標記 bubble menu（Epic 2 掃描線） */}
+      {editor && selectedMarker && (
+        <div className="ned-audio-bubble ned-marker-bubble" key="marker-bubble">
+          <span className="ned-audio-bubble-label">
+            ⚑ {markerDraft.grantsFlags.trim() ? '旗標標記' : '進度標記'}
+          </span>
+          <input
+            className="ned-marker-input"
+            type="text"
+            placeholder="備註（僅編輯器可見）"
+            value={markerDraft.label}
+            onChange={(e) =>
+              setMarkerDraft((d) => ({ ...d, label: e.target.value }))
+            }
+          />
+          <input
+            className="ned-marker-input ned-marker-input--flags"
+            type="text"
+            placeholder="授予旗標（逗號分隔）"
+            value={markerDraft.grantsFlags}
+            onChange={(e) =>
+              setMarkerDraft((d) => ({ ...d, grantsFlags: e.target.value }))
+            }
+          />
+          <button
+            className="ned-img-bubble-btn"
+            title="套用標記設定"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedMarker.pos);
+              if (node?.type.name !== 'progressMarker') return;
+              editor.view.dispatch(
+                editor.state.tr.setNodeMarkup(selectedMarker.pos, undefined, {
+                  grantsFlags: parseFlagsAttr(markerDraft.grantsFlags),
+                  label: markerDraft.label.trim(),
+                })
+              );
+            }}
+          >
+            套用
+          </button>
+          <button
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            title="刪除標記"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedMarker.pos);
+              if (node?.type.name === 'progressMarker') {
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange({
+                    from: selectedMarker.pos,
+                    to: selectedMarker.pos + node.nodeSize,
+                  })
+                  .run();
+              }
+              setSelectedMarker(null);
+            }}
+          >
+            刪除
+          </button>
+        </div>
+      )}
 
       {/* 音訊選擇器 Modal */}
       {audioPickerOpen && (
