@@ -8,6 +8,8 @@
 
 import { useSyncExternalStore } from 'react';
 
+import { evaluateGate } from './gating';
+import type { GateCondition } from './gating';
 import { getProgressManager } from './progressStore';
 import type { ProgressState } from './types';
 
@@ -18,4 +20,13 @@ export function useProgress(): ProgressState {
     () => getProgressManager().getState(),
     () => getProgressManager().getState()
   );
+}
+
+/**
+ * 求值 gating 條件並隨進度變更自動更新。
+ * 回傳 true 表示內容對目前使用者可見。
+ */
+export function useGate(condition: GateCondition | null | undefined): boolean {
+  const state = useProgress();
+  return evaluateGate(state, condition);
 }

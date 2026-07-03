@@ -195,12 +195,13 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
 });
 
 describe('normalizeState', () => {
-  it('欄位缺漏時以初始值補齊', () => {
+  it('欄位缺漏時以初始值補齊（observer 視角依不變量補上印記）', () => {
     const result = normalizeState({ view: 'observer' });
     expect(result).not.toBeNull();
     expect(result!.view).toBe('observer');
     expect(result!.flags).toEqual([]);
-    expect(result!.observerEver).toBe(false);
+    // 不變量：處於觀測者視角必然有印記
+    expect(result!.observerEver).toBe(true);
   });
 
   it('非物件輸入回傳 null', () => {

@@ -19,11 +19,13 @@ export function normalizeState(raw: unknown): ProgressState | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const obj = raw as Partial<ProgressState>;
   const base = createInitialState();
+  const view = obj.view === 'observer' ? 'observer' : 'explorer';
   return {
     version:
       typeof obj.version === 'number' ? obj.version : PROGRESS_SCHEMA_VERSION,
-    view: obj.view === 'observer' ? 'observer' : 'explorer',
-    observerEver: obj.observerEver === true,
+    view,
+    // 不變量：處於觀測者視角必然有印記（防止外部資料破壞不變量）
+    observerEver: obj.observerEver === true || view === 'observer',
     flags: Array.isArray(obj.flags)
       ? obj.flags.filter((f) => typeof f === 'string')
       : base.flags,
