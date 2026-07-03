@@ -4,6 +4,7 @@ import { ZONES } from '../../data/zones';
 import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import renderInteractiveHtml from '../ui/renderInteractiveHtml';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZonePrevNext } from '../zone/ZonePrevNext';
@@ -28,6 +29,13 @@ import {
   getProgressManager,
   resolveResumeMarkerIdx,
 } from '../../progress';
+import {
+  UEP_ENTITY_ACTIVE_ATTR,
+  UEP_ENTITY_ACTIVATE_EVENT,
+  dispatchEntityActivate,
+  entityKindLabel,
+} from '../../embed';
+import type { EntityActivateDetail } from '../../embed';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import type {
@@ -383,6 +391,24 @@ export default function HistoryReader() {
     void fetchTree();
   }, []);
 
+  // ⚠️ S4 臨時佔位消費端：entity 啟動事件先以 Toast 呈現，
+  // 讓解鎖→點擊的閉環可肉眼驗證。S6/S7 浮島（Concepts mini
+  // dossier）接上 UEP_ENTITY_ACTIVATE_EVENT 後，整段 effect 拆除。
+  useEffect(() => {
+    const onEntityActivate = (event: Event) => {
+      const detail = (event as CustomEvent<EntityActivateDetail>).detail;
+      if (!detail) return;
+      window.__uepToastManager?.info(
+        `◈ ${entityKindLabel(detail.kind)}引用：${
+          detail.text ?? detail.pageId
+        }（${detail.ref}）`
+      );
+    };
+    window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, onEntityActivate);
+    return () =>
+      window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onEntityActivate);
+  }, []);
+
   // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
   useZoneRouter({
     routes: [
@@ -659,6 +685,15 @@ export default function HistoryReader() {
 
   function onArticleClick(event: React.MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
+
+    // 已解鎖的 entity 標記：dispatch 啟動事件（浮島消費；S4 為 Toast 佔位）
+    const entityEl = target.closest<HTMLElement>(`[${UEP_ENTITY_ACTIVE_ATTR}]`);
+    if (entityEl) {
+      event.preventDefault();
+      dispatchEntityActivate(entityEl, currentId ?? undefined);
+      return;
+    }
+
     const navCard = target.closest<HTMLElement>('.content-card[data-nav-ref]');
     if (navCard) {
       const ref = navCard.dataset.navRef || '';
@@ -703,6 +738,15 @@ export default function HistoryReader() {
       event.preventDefault();
       void loadPage(resolved);
     }
+  }
+
+  /** entity 標記的鍵盤可及性：Enter / Space 等同點擊 */
+  function onArticleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target as HTMLElement;
+    if (!target.hasAttribute(UEP_ENTITY_ACTIVE_ATTR)) return;
+    event.preventDefault();
+    dispatchEntityActivate(target, currentId ?? undefined);
   }
 
   function toggleNode(id: string) {
@@ -1254,10 +1298,15 @@ export default function HistoryReader() {
                         {typeof currentPage.metadata?.description ===
                           'string' && <p>{currentPage.metadata.description}</p>}
                       </header>
-                      <div ref={contentRef} onClick={onArticleClick}>
-                        {renderHtmlWithUep(
+                      <div
+                        ref={contentRef}
+                        onClick={onArticleClick}
+                        onKeyDown={onArticleKeyDown}
+                      >
+                        {renderInteractiveHtml(
                           articleHtml ||
                             '<p class="empty-notice">這篇內容目前是空的。</p>',
+                          progress,
                           'article',
                           'history-prose'
                         )}
