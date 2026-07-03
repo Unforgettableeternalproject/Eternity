@@ -182,6 +182,10 @@ export default function RichEditor({
   const [progressPage, setProgressPage] = useState(
     initialMetadata?.progressPage === true
   );
+  // 豁免：不繼承容器進度（切斷點，子樹一併豁免）——番外/特別篇提前開放用
+  const [gateExempt, setGateExempt] = useState(
+    initialMetadata?.gateExempt === true
+  );
   // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
   // 存檔時一律正規化為巢狀 metadata.gate
   const [gate, setGate] = useState<GateCondition | null>(() =>
@@ -407,6 +411,8 @@ export default function RichEditor({
         ...(progressPage
           ? { progressPage: true }
           : { progressPage: undefined }),
+        // 豁免 toggle：同上，true 才寫入
+        ...(gateExempt ? { gateExempt: true } : { gateExempt: undefined }),
         // 進度條件一律存巢狀 gate；平鋪形狀的舊鍵一併清除避免雙重來源
         gate: gate ?? undefined,
         requiresFlags: undefined,
@@ -2608,6 +2614,11 @@ export default function RichEditor({
                   isProgressPage={progressPage}
                   onProgressPageChange={(next) => {
                     setProgressPage(next);
+                    setDirtyMetadata(true);
+                  }}
+                  isGateExempt={gateExempt}
+                  onGateExemptChange={(next) => {
+                    setGateExempt(next);
                     setDirtyMetadata(true);
                   }}
                   apiBase={apiBase}

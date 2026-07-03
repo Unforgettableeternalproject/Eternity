@@ -34,6 +34,7 @@ export {
   evaluateGate,
   parseGateCondition,
   isProgressPage,
+  isGateExempt,
   isPristine,
   hasAllFlags,
   effectiveGate,

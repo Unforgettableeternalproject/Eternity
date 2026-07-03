@@ -84,6 +84,27 @@ export function isProgressPage(
 }
 
 /**
+ * 讀取「不繼承容器進度」豁免旗標（與 progressPage 同層平鋪）。
+ *
+ * 切斷點語意（2026-07-03 艾斯維爾定案）：豁免節點與其整個子樹
+ * 都不繼承祖先容器的進度鏈——effectiveGate 的 parent chain 走訪
+ * 遇到豁免節點即停止（該節點自己的鏈條件也不加）。
+ *
+ * 豁免「只」影響祖先繼承，不影響：
+ * - 節點自身的手動 gate 與 progressPage 同層鏈（照常生效）
+ * - 父容器的完成判定——豁免頁若同時標 progressPage 仍計入
+ *   （豁免管「何時能讀」，progressPage 管「算不算進度」，語意正交）
+ *
+ * 典型場景：番外/特別篇掛在 arc 底下但開放提前閱讀。
+ */
+export function isGateExempt(
+  metadata: Record<string, unknown> | null | undefined
+): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  return metadata.gateExempt === true;
+}
+
+/**
  * 從 metadata JSON 解析 gating 條件。
  * 支援兩種存放形狀：
  * - 平鋪：`{ requiresFlags: [...], pristineOnly: true }`
@@ -167,14 +188,19 @@ export function effectiveGate(
     if (prev) flags.add(completionFlag(prev));
   }
 
-  // 容器繼承：走 parent chain，若父層是進度頁則加其鏈條件
-  let cursorId: string | null | undefined = tree.getParentId(nodeId);
+  // 容器繼承：走 parent chain，若父層是進度頁則加其鏈條件。
+  // 豁免切斷點：自身標 gateExempt → 整段繼承跳過；
+  // 祖先標 gateExempt → 走到該節點即停（其鏈條件也不加，子樹一併豁免）
+  let cursorId: string | null | undefined = isGateExempt(node.metadata ?? null)
+    ? null
+    : tree.getParentId(nodeId);
   const walked: VisitSet = new Set([nodeId]);
   while (cursorId) {
     if (walked.has(cursorId)) break; // 環保護
     walked.add(cursorId);
     const parent = tree.getNode(cursorId);
     if (!parent) break;
+    if (isGateExempt(parent.metadata ?? null)) break; // 豁免切斷點
     if (isProgressPage(parent.metadata ?? null)) {
       const parentPrev = tree.getPreviousProgressSiblingId(cursorId);
       if (parentPrev) flags.add(completionFlag(parentPrev));

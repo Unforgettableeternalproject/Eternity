@@ -28,6 +28,9 @@ interface GateConditionEditorProps {
   /** 本頁是否為進度頁（metadata.progressPage）——鏈條件由前台動態注入 */
   isProgressPage?: boolean;
   onProgressPageChange?: (next: boolean) => void;
+  /** 不繼承容器進度（metadata.gateExempt）——切斷點，子樹一併豁免 */
+  isGateExempt?: boolean;
+  onGateExemptChange?: (next: boolean) => void;
   apiBase: string;
   accent: string;
 }
@@ -46,6 +49,8 @@ export default function GateConditionEditor({
   onChange,
   isProgressPage = false,
   onProgressPageChange,
+  isGateExempt = false,
+  onGateExemptChange,
   apiBase,
   accent,
 }: GateConditionEditorProps) {
@@ -117,6 +122,7 @@ export default function GateConditionEditor({
   }
 
   const supportsProgressToggle = typeof onProgressPageChange === 'function';
+  const supportsExemptToggle = typeof onGateExemptChange === 'function';
 
   return (
     <div className="ned-gate">
@@ -137,6 +143,25 @@ export default function GateConditionEditor({
         <div className="ned-gate-scope-hint">
           ⓘ 進度頁：解鎖倚賴同層前一個進度頁完成；父容器（arc/chapter）標為
           進度頁時整包自動繼承。可另外設自訂旗標與純潔者限定。
+        </div>
+      )}
+
+      {/* 豁免 toggle：切斷容器繼承（含子樹）。番外/特別篇提前開放用。
+          不影響本頁自身的手動 gate、進度頁鏈與父容器完成判定。 */}
+      {supportsExemptToggle && (
+        <div className="ned-inspector-toggle ned-gate-exempt-toggle">
+          <span>不繼承容器進度</span>
+          <input
+            type="checkbox"
+            checked={isGateExempt}
+            onChange={(e) => onGateExemptChange!(e.target.checked)}
+          />
+        </div>
+      )}
+      {supportsExemptToggle && isGateExempt && (
+        <div className="ned-gate-scope-hint">
+          ⓘ 豁免：本頁與其底下子頁不再等待父容器（arc/chapter）的進度解鎖。
+          自身的進度頁設定與其他條件照常生效。
         </div>
       )}
 

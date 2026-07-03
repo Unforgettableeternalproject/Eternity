@@ -332,3 +332,79 @@ describe('環保護', () => {
     ).not.toThrow();
   });
 });
+
+describe('gateExempt — 豁免切斷點（2026-07-03 定案）', () => {
+  // chapter（進度）底下：arc1（進度）→ arc2（進度）；
+  // arc2 底下：s1（進度）、extra（豁免）、extra 底下 sub
+  const tree = makeTree([
+    { id: 'ch', parentId: null, metadata: { progressPage: true } },
+    { id: 'arc1', parentId: 'ch', metadata: { progressPage: true } },
+    { id: 'arc2', parentId: 'ch', metadata: { progressPage: true } },
+    { id: 's1', parentId: 'arc2', metadata: { progressPage: true } },
+    { id: 'extra', parentId: 'arc2', metadata: { gateExempt: true } },
+    { id: 'sub', parentId: 'extra', metadata: {} },
+  ]);
+
+  it('自身豁免：不繼承祖先容器鏈（arc2 要求 completed:arc1，extra 不吃）', () => {
+    // s1 有繼承：arc2 是進度頁 → 注入 completed:arc1
+    expect(effectiveGate('s1', tree)).toEqual({
+      requiresFlags: ['completed:arc1'],
+    });
+    // extra 豁免：整段繼承跳過
+    expect(effectiveGate('extra', tree)).toBeNull();
+  });
+
+  it('切斷點傳播：豁免節點的子頁一併豁免（sub 不吃 arc2/ch 的鏈）', () => {
+    expect(effectiveGate('sub', tree)).toBeNull();
+  });
+
+  it('豁免不影響自身手動 gate', () => {
+    const t = makeTree([
+      { id: 'p', parentId: null, metadata: { progressPage: true } },
+      {
+        id: 'x',
+        parentId: 'p',
+        metadata: { gateExempt: true, gate: { requiresFlags: ['met:z'] } },
+      },
+    ]);
+    expect(effectiveGate('x', t)).toEqual({ requiresFlags: ['met:z'] });
+  });
+
+  it('豁免不影響自身進度頁鏈（豁免只切祖先繼承）', () => {
+    const t = makeTree([
+      { id: 'a', parentId: null, metadata: { progressPage: true } },
+      {
+        id: 'b',
+        parentId: null,
+        metadata: { progressPage: true, gateExempt: true },
+      },
+    ]);
+    expect(effectiveGate('b', t)).toEqual({
+      requiresFlags: ['completed:a'],
+    });
+  });
+
+  it('豁免 + progressPage 仍計入父容器完成判定（語意正交）', () => {
+    const t = makeTree([
+      { id: 'arc', parentId: null, metadata: { progressPage: true } },
+      { id: 's1', parentId: 'arc', metadata: { progressPage: true } },
+      {
+        id: 's2',
+        parentId: 'arc',
+        metadata: { progressPage: true, gateExempt: true },
+      },
+    ]);
+    // 只完成 s1 → arc 未完成（豁免的 s2 仍是必要條件）
+    expect(
+      isEffectivelyCompleted('arc', stateWith({ flags: ['completed:s1'] }), t)
+    ).toBe(false);
+    // s1 + s2 都完成 → arc 完成
+    expect(
+      isEffectivelyCompleted(
+        'arc',
+        stateWith({ flags: ['completed:s1', 'completed:s2'] }),
+        t
+      )
+    ).toBe(true);
+  });
+});

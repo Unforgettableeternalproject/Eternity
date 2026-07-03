@@ -133,3 +133,68 @@ describe('GateConditionEditor — progressPage toggle', () => {
     expect(screen.getByText('met:norvia')).toBeInTheDocument();
   });
 });
+
+describe('GateConditionEditor — gateExempt 豁免 toggle', () => {
+  it('未提供 onGateExemptChange 時不顯示 toggle（向後相容）', () => {
+    render(
+      <GateConditionEditor
+        value={null}
+        onChange={() => {}}
+        apiBase="http://localhost"
+        accent="#000"
+      />
+    );
+    expect(screen.queryByText('不繼承容器進度')).not.toBeInTheDocument();
+  });
+
+  it('切換 toggle 觸發 onGateExemptChange，勾選時顯示豁免提示', () => {
+    const onGateExemptChange = vi.fn();
+    const { rerender } = render(
+      <GateConditionEditor
+        value={null}
+        onChange={() => {}}
+        isGateExempt={false}
+        onGateExemptChange={onGateExemptChange}
+        apiBase="http://localhost"
+        accent="#000"
+      />
+    );
+    const toggle = screen
+      .getByText('不繼承容器進度')
+      .parentElement?.querySelector('input[type="checkbox"]');
+    expect(toggle).toBeInTheDocument();
+    fireEvent.click(toggle!);
+    expect(onGateExemptChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <GateConditionEditor
+        value={null}
+        onChange={() => {}}
+        isGateExempt={true}
+        onGateExemptChange={onGateExemptChange}
+        apiBase="http://localhost"
+        accent="#000"
+      />
+    );
+    expect(
+      screen.getByText(/豁免：本頁與其底下子頁不再等待父容器/)
+    ).toBeInTheDocument();
+  });
+
+  it('豁免與進度頁 toggle 可同時存在（語意正交）', () => {
+    render(
+      <GateConditionEditor
+        value={null}
+        onChange={() => {}}
+        isProgressPage={true}
+        onProgressPageChange={() => {}}
+        isGateExempt={true}
+        onGateExemptChange={() => {}}
+        apiBase="http://localhost"
+        accent="#000"
+      />
+    );
+    expect(screen.getByText('這是進度頁')).toBeInTheDocument();
+    expect(screen.getByText('不繼承容器進度')).toBeInTheDocument();
+  });
+});
