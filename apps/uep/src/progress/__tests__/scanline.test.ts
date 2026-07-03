@@ -214,6 +214,61 @@ describe('createScanline', () => {
     expect(progress.lastMarkerIdx).toBe(0);
   });
 
+  it('FlagMarker 過線時授予旗標到 store', async () => {
+    const { createScanline, uepProgress } = await freshScanline();
+    const { container, sentinel } = buildDom(
+      `<div data-role="${PROGRESS_MARKER_ROLE}" data-grants-flags="met:novia"></div>`
+    );
+
+    createScanline({ pageId: PAGE_ID, container, sentinel });
+    const io = MockIntersectionObserver.instances[0];
+
+    io.trigger([io.observed[0]]);
+    expect(uepProgress.getState().flags).toContain('met:novia');
+  });
+
+  it('重複過線不重複授予旗標', async () => {
+    const { createScanline, uepProgress } = await freshScanline();
+    const { container, sentinel } = buildDom(
+      `<div data-role="${PROGRESS_MARKER_ROLE}" data-grants-flags="met:novia"></div>`
+    );
+
+    createScanline({ pageId: PAGE_ID, container, sentinel });
+    const io = MockIntersectionObserver.instances[0];
+
+    io.trigger([io.observed[0]]);
+    io.trigger([io.observed[0]]);
+    expect(
+      uepProgress.getState().flags.filter((f) => f === 'met:novia')
+    ).toHaveLength(1);
+  });
+
+  it('通過哨兵時標記頁面完成並授予 completed:* 旗標', async () => {
+    const { createScanline, uepProgress } = await freshScanline();
+    const { container, sentinel } = buildDom('<hr />');
+
+    createScanline({ pageId: PAGE_ID, container, sentinel });
+    const io = MockIntersectionObserver.instances[0];
+
+    io.trigger([sentinel]);
+    const state = uepProgress.getState();
+    expect(state.completedPageIds).toContain(PAGE_ID);
+    expect(state.flags).toContain(`completed:${PAGE_ID}`);
+  });
+
+  it('未通過哨兵不標記完成', async () => {
+    const { createScanline, uepProgress } = await freshScanline();
+    const { container, sentinel } = buildDom('<hr /><hr />');
+
+    createScanline({ pageId: PAGE_ID, container, sentinel });
+    const io = MockIntersectionObserver.instances[0];
+
+    io.trigger([io.observed[0], io.observed[1]]); // 只過標記，沒過哨兵
+    const state = uepProgress.getState();
+    expect(state.completedPageIds).not.toContain(PAGE_ID);
+    expect(state.flags).toEqual([]);
+  });
+
   it('IntersectionObserver 不存在時安靜降級', async () => {
     window.IntersectionObserver =
       undefined as unknown as typeof IntersectionObserver;

@@ -15,7 +15,7 @@
  * 非 React 的 Astro script 可直接 createScanline / destroy。
  */
 
-import { collectMarkers } from './markers';
+import { collectMarkers, completionFlag } from './markers';
 import { getProgressManager } from './progressStore';
 
 /** lastMarkerIdx 的寫入節流間隔（ms）——max 進度前進不受此限 */
@@ -112,10 +112,26 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
           maxAdvanced = true;
         }
 
+        const isSentinel = idx === sentinelIdx;
+        const grantsFlags = isSentinel ? [] : markers[idx].grantsFlags;
+
+        // FlagMarker 位置粒度授予：掃描線通過標註點才給旗標
+        // （「出現名字 ≠ 認識人物」——授予點由編輯器手動標註）
+        if (grantsFlags.length > 0) {
+          store.grantFlags(grantsFlags);
+        }
+
+        // 完成判定：通過文末哨兵 = 讀完整篇。
+        // 完成狀態同時以 completed:* 旗標暴露，讓 gating 統一用旗標消費
+        if (isSentinel) {
+          store.markPageCompleted(pageId);
+          store.grantFlags([completionFlag(pageId)]);
+        }
+
         onMarkerPassed?.({
           index: idx,
-          grantsFlags: idx === sentinelIdx ? [] : markers[idx].grantsFlags,
-          isSentinel: idx === sentinelIdx,
+          grantsFlags,
+          isSentinel,
           totalMarkers,
         });
       }
