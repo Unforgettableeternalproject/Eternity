@@ -10,6 +10,8 @@
  */
 
 import { LocalStorageAdapter } from './adapters';
+import { COMPLETION_FLAG_PREFIX, isEffectivelyCompleted } from './gating';
+import type { ProgressTreeAdapter } from './tree';
 import type { ProgressAdapter, ProgressState, ViewMode } from './types';
 import { createInitialState } from './types';
 
@@ -28,7 +30,8 @@ export interface ProgressChangeDetail {
     | 'island-unlocked'
     | 'marker-update'
     | 'hydrate'
-    | 'reset';
+    | 'reset'
+    | 'sweep';
 }
 
 type Listener = (state: ProgressState, detail: ProgressChangeDetail) => void;
@@ -116,6 +119,40 @@ export const uepProgress = {
       ...prev,
       completedPageIds: [...prev.completedPageIds, pageId],
     }));
+  },
+
+  /**
+   * 孤兒 complete 靜默清理。
+   *
+   * 掃過所有 `completed:*` 旗標，用 isEffectivelyCompleted 遞迴驗證每個
+   * 是否合法（含依賴鏈）；不合法者一律剔除。靜默執行，回傳被清除的旗標
+   * 陣列供 debug/測試用（實際使用可忽略回傳值）。
+   *
+   * 典型情境：測試模式手動蓋 completed:1-4，但 1-1~1-3 沒完成 →
+   * 該 flag 為孤兒、下游 1-5 卻因此洩漏可讀，這裡把 1-4 flag 清掉，
+   * 求值邏輯就會把 1-5 回歸鎖定。
+   *
+   * @param tree tree adapter；tree 中不存在的頁面保守保留（可能是 tree
+   *             未完全載入或該頁在他 area）
+   * @returns 被清除的 completed:* 旗標陣列（可能為空）
+   */
+  sweepOrphanCompletions(tree: ProgressTreeAdapter): string[] {
+    const orphaned: string[] = [];
+    for (const flag of state.flags) {
+      if (!flag.startsWith(COMPLETION_FLAG_PREFIX)) continue;
+      const pageId = flag.slice(COMPLETION_FLAG_PREFIX.length);
+      if (!tree.getNode(pageId)) continue; // 保守：未識別的頁面不動
+      if (!isEffectivelyCompleted(pageId, state, tree)) {
+        orphaned.push(flag);
+      }
+    }
+    if (orphaned.length === 0) return [];
+    const drop = new Set(orphaned);
+    mutate('sweep', (prev) => ({
+      ...prev,
+      flags: prev.flags.filter((f) => !drop.has(f)),
+    }));
+    return orphaned;
   },
 
   /** 解鎖浮島 */

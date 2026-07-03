@@ -33,10 +33,17 @@ export type { ProgressChangeDetail } from './progressStore';
 export {
   evaluateGate,
   parseGateCondition,
+  isProgressPage,
   isPristine,
   hasAllFlags,
+  effectiveGate,
+  evaluateEffectiveGate,
+  isEffectivelyCompleted,
+  COMPLETION_FLAG_PREFIX,
 } from './gating';
 export type { GateCondition } from './gating';
+
+export type { ProgressTreeAdapter, TreeNodeLike } from './tree';
 
 export {
   PROGRESS_MARKER_ROLE,

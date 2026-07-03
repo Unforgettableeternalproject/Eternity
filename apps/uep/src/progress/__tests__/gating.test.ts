@@ -12,6 +12,7 @@ import { normalizeState } from '../adapters';
 import {
   evaluateGate,
   parseGateCondition,
+  isProgressPage,
   isPristine,
   hasAllFlags,
 } from '../gating';
@@ -154,6 +155,35 @@ describe('parseGateCondition', () => {
     expect(
       parseGateCondition({ requiresFlags: ['ok', 42, '', null, 'fine'] })
     ).toEqual({ requiresFlags: ['ok', 'fine'] });
+  });
+});
+
+describe('isProgressPage', () => {
+  it('metadata.progressPage === true → true', () => {
+    expect(isProgressPage({ progressPage: true })).toBe(true);
+  });
+
+  it('未設定或明確 false → false', () => {
+    expect(isProgressPage({})).toBe(false);
+    expect(isProgressPage({ progressPage: false })).toBe(false);
+    expect(isProgressPage(null)).toBe(false);
+    expect(isProgressPage(undefined)).toBe(false);
+  });
+
+  it('非 boolean 值一律 false（防禦）', () => {
+    expect(isProgressPage({ progressPage: 1 })).toBe(false);
+    expect(isProgressPage({ progressPage: 'true' })).toBe(false);
+    expect(isProgressPage({ progressPage: null })).toBe(false);
+  });
+
+  it('與 gate/locked/hidden 平鋪共存不干擾', () => {
+    const meta = {
+      progressPage: true,
+      locked: true,
+      hidden: false,
+      gate: { pristineOnly: true },
+    };
+    expect(isProgressPage(meta)).toBe(true);
   });
 });
 

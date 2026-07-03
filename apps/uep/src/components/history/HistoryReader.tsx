@@ -29,6 +29,7 @@ import {
   getProgressManager,
   resolveResumeMarkerIdx,
 } from '../../progress';
+import type { ProgressTreeAdapter } from '../../progress';
 import {
   UEP_ENTITY_ACTIVE_ATTR,
   UEP_ENTITY_ACTIVATE_EVENT,
@@ -38,6 +39,7 @@ import {
 import type { EntityActivateDetail } from '../../embed';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
+import { ChapterTimeline } from './ChapterTimeline';
 import type {
   HomepageBlock,
   ZoneHeaderData,
@@ -334,12 +336,66 @@ export default function HistoryReader() {
     return map;
   }, [flatPages]);
   const resolvePageById = (pageId: string) => pagesById.get(pageId);
+
+  // Progress tree adapter：把 PageTreeNode 樹接進 gating 的 tree 求值層
+  // （effectiveGate / isEffectivelyCompleted 需要 sibling & 父層資訊）
+  const progressTree = useMemo<ProgressTreeAdapter>(() => {
+    const siblingsOf = (id: string): PageTreeNode[] => {
+      const ancestors = ancestorMap.get(id) || [];
+      return ancestors.length === 0
+        ? tree
+        : (ancestors[ancestors.length - 1].children ?? []);
+    };
+    const collectProgressLeaves = (
+      node: PageTreeNode,
+      acc: string[] = []
+    ): string[] => {
+      const children = node.children ?? [];
+      for (const child of children) {
+        const grand = child.children ?? [];
+        const isProgressChild = child.metadata?.progressPage === true;
+        if (grand.length === 0) {
+          if (isProgressChild) acc.push(child.id);
+        } else {
+          collectProgressLeaves(child, acc);
+        }
+      }
+      return acc;
+    };
+    return {
+      getNode: (id) => pagesById.get(id),
+      getParent: (id) => {
+        const ancestors = ancestorMap.get(id) || [];
+        return ancestors[ancestors.length - 1];
+      },
+      getParentId: (id) => {
+        const ancestors = ancestorMap.get(id) || [];
+        return ancestors.length > 0 ? ancestors[ancestors.length - 1].id : null;
+      },
+      getPreviousProgressSiblingId: (id) => {
+        const siblings = siblingsOf(id);
+        const idx = siblings.findIndex((s) => s.id === id);
+        for (let i = idx - 1; i >= 0; i -= 1) {
+          if (siblings[i].metadata?.progressPage === true)
+            return siblings[i].id;
+        }
+        return undefined;
+      },
+      getProgressDescendantIds: (id) => {
+        const node = pagesById.get(id);
+        return node ? collectProgressLeaves(node) : [];
+      },
+    };
+  }, [tree, pagesById, ancestorMap]);
+
   const readablePages = useMemo(
     () =>
       flatPages.filter(
-        (page) => page.pageType !== 'page' && !isLocked(page, progress)
+        (page) =>
+          page.pageType !== 'page' &&
+          !isLocked(page, progress, page.id, progressTree)
       ),
-    [flatPages, progress]
+    [flatPages, progress, progressTree]
   );
   const pageLevelNodes = useMemo(
     () => flatPages.filter((page) => page.pageType === 'page'),
@@ -439,7 +495,7 @@ export default function HistoryReader() {
   useEffect(() => {
     if (!currentId) return;
     const node = pagesById.get(currentId);
-    if (node && isLocked(node, progress)) {
+    if (node && isLocked(node, progress, node.id, progressTree)) {
       setCurrentId(null);
       setCurrentPage(null);
       setArticleHtml('');
@@ -447,12 +503,22 @@ export default function HistoryReader() {
       clearUrl();
       scrollRef.current?.scrollTo({ top: 0 });
     }
-  }, [progress, currentId, pagesById]);
+  }, [progress, currentId, pagesById, progressTree]);
 
   useEffect(() => {
     if (!pageLevelNodes.length) return;
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
+
+  // 孤兒 complete 靜默清理：tree 首次載入完成後跑一次，
+  // 清除依賴不成立的 completed:* 旗標（測試模式手動蓋、或匯入舊資料時）。
+  const swept = useRef(false);
+  useEffect(() => {
+    if (swept.current) return;
+    if (!pagesById.size) return;
+    getProgressManager().sweepOrphanCompletions(progressTree);
+    swept.current = true;
+  }, [pagesById, progressTree]);
 
   // 載入首頁區塊資料，完成後通知 boot hook 解除動畫
   useEffect(() => {
@@ -590,7 +656,7 @@ export default function HistoryReader() {
     // 閘門守衛：所有導航路徑（tree、zone tabs、文內連結、breadcrumb、
     // prev/next、deep link）都收斂到這裡，鎖定頁一律擋下。
     // tree/prev/next 各自有 UI 層排除，這裡是統一的最後防線。
-    if (isLocked(node, progress)) return;
+    if (isLocked(node, progress, node.id, progressTree)) return;
 
     // 導航前先儲存當前頁面的滾動位置
     saveScroll(currentId || 'landing');
@@ -784,7 +850,15 @@ export default function HistoryReader() {
       .filter((node) => !isHidden(node) && isNodeVisible(node))
       .flatMap((node) => {
         // 進度鏈隱藏：依賴頁本身仍鎖定的進度鎖頁面不顯示（循序漸進）
-        if (isProgressionChainHidden(node, progress, resolvePageById)) {
+        if (
+          isProgressionChainHidden(
+            node,
+            progress,
+            resolvePageById,
+            node.id,
+            progressTree
+          )
+        ) {
           return [];
         }
         const children = (node.children || []).filter(
@@ -798,7 +872,7 @@ export default function HistoryReader() {
         const isExpanded = expanded.has(node.id) || Boolean(query.trim());
         const isCurrent = node.id === currentId;
         // 鎖定三態：static 原樣🔒 / progression 標題模糊 / flag 標題遮蔽
-        const lockKind = getLockKind(node, progress);
+        const lockKind = getLockKind(node, progress, node.id, progressTree);
         const nodeLocked = lockKind !== null;
 
         return (
@@ -1317,6 +1391,30 @@ export default function HistoryReader() {
                         className="history-scan-sentinel"
                         aria-hidden="true"
                       />
+                      {/* Chapter/Arc 頁自動時間軸目錄（子項依進度狀態呈現） */}
+                      {(currentPage.pageType === 'chapter' ||
+                        currentPage.pageType === 'arc') &&
+                        (() => {
+                          const containerNode = pagesById.get(currentPage.id);
+                          if (!containerNode) return null;
+                          const childType =
+                            currentPage.pageType === 'chapter'
+                              ? 'arc'
+                              : 'section';
+                          return (
+                            <ChapterTimeline
+                              containerNode={containerNode}
+                              childType={childType}
+                              progress={progress}
+                              progressTree={progressTree}
+                              resolvePageById={resolvePageById}
+                              onNavigate={(child) =>
+                                void loadPage(child as PageTreeNode)
+                              }
+                              currentId={currentId}
+                            />
+                          );
+                        })()}
                     </>
                   )}
                 </article>
@@ -1349,11 +1447,18 @@ export default function HistoryReader() {
                                 !isProgressionChainHidden(
                                   child,
                                   progress,
-                                  resolvePageById
+                                  resolvePageById,
+                                  child.id,
+                                  progressTree
                                 )
                             )
                             .map((child) => {
-                              const childKind = getLockKind(child, progress);
+                              const childKind = getLockKind(
+                                child,
+                                progress,
+                                child.id,
+                                progressTree
+                              );
                               const childLocked = childKind !== null;
                               return (
                                 <li key={child.id}>
