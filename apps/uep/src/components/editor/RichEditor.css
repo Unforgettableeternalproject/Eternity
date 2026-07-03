@@ -3612,3 +3612,125 @@
   color: inherit;
   max-width: 300px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   GateConditionEditor (ned-gate-*) — 進度條件（Epic 2 內容閘門）
+   ═══════════════════════════════════════════════════════════════════ */
+.ned-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ned-gate-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ned-gate-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-panel, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.ned-gate-flag-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ned-gate-flag-remove {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.ned-gate-flag-remove:hover {
+  color: var(--ned-accent);
+}
+.ned-gate-add-page {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px dashed var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
+}
+.ned-gate-add-page:hover {
+  border-color: var(--ned-accent);
+  color: var(--ink-title);
+}
+.ned-gate-picker {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+}
+.ned-gate-picker-empty {
+  padding: 12px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  text-align: center;
+}
+.ned-gate-page-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ned-gate-page-item:hover {
+  background: var(--hairline);
+  color: var(--ink-title);
+}
+.ned-gate-page-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ned-accent);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  width: 12px;
+}
+.ned-gate-custom {
+  display: flex;
+  gap: 4px;
+}
+.ned-gate-custom .ned-field {
+  flex: 1;
+  min-width: 0;
+}
+.ned-gate-custom-add {
+  flex-shrink: 0;
+  width: 28px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ned-gate-custom-add:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

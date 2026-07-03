@@ -18,7 +18,10 @@ import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import ProgressMarkerNode from './ProgressMarkerNode';
+import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
+import { parseGateCondition } from '../../progress/gating';
+import type { GateCondition } from '../../progress/gating';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
@@ -173,6 +176,11 @@ export default function RichEditor({
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [locked, setLocked] = useState(initialMetadata?.locked === true);
+  // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
+  // 存檔時一律正規化為巢狀 metadata.gate
+  const [gate, setGate] = useState<GateCondition | null>(() =>
+    parseGateCondition(initialMetadata || null)
+  );
   const [icon, setIcon] = useState(initialMetadata?.icon || '');
   const [description, setDescription] = useState(
     initialMetadata?.description || ''
@@ -358,6 +366,10 @@ export default function RichEditor({
         ...(initialMetadata || {}),
         ...(hidden ? { hidden: true } : { hidden: undefined }),
         ...(locked ? { locked: true } : { locked: undefined }),
+        // 進度條件一律存巢狀 gate；平鋪形狀的舊鍵一併清除避免雙重來源
+        gate: gate ?? undefined,
+        requiresFlags: undefined,
+        pristineOnly: undefined,
         ...(icon ? { icon } : { icon: undefined }),
         ...(description ? { description } : { description: undefined }),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
@@ -436,6 +448,7 @@ export default function RichEditor({
     depth,
     hidden,
     locked,
+    gate,
     icon,
     description,
     layout,
@@ -2367,6 +2380,17 @@ export default function RichEditor({
               pageStatus={pageStatus}
               createdAt={createdAt}
               updatedAt={updatedAt}
+              gateFields={
+                <GateConditionEditor
+                  value={gate}
+                  onChange={(next) => {
+                    setGate(next);
+                    setDirtyMetadata(true);
+                  }}
+                  apiBase={apiBase}
+                  accent={accentMain}
+                />
+              }
               modeFields={
                 <>
                   {modeId === 'visuals.division' && (

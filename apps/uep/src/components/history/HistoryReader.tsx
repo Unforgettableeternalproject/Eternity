@@ -18,6 +18,7 @@ import {
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import {
   useScanline,
+  useProgress,
   collectMarkers,
   getProgressManager,
   resolveResumeMarkerIdx,
@@ -307,12 +308,18 @@ export default function HistoryReader() {
     ),
   });
 
+  // 訂閱全域進度：旗標授予（如讀完前一篇）時 re-render，
+  // 動態閘門的鎖定狀態即時反映在 tree 與 prev/next。
+  const progress = useProgress();
+
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
   const readablePages = useMemo(
     () =>
-      flatPages.filter((page) => page.pageType !== 'page' && !isLocked(page)),
-    [flatPages]
+      flatPages.filter(
+        (page) => page.pageType !== 'page' && !isLocked(page, progress)
+      ),
+    [flatPages, progress]
   );
   const pageLevelNodes = useMemo(
     () => flatPages.filter((page) => page.pageType === 'page'),
@@ -526,6 +533,11 @@ export default function HistoryReader() {
   }
 
   async function loadPage(node: PageTreeNode, pushState = true) {
+    // 閘門守衛：所有導航路徑（tree、zone tabs、文內連結、breadcrumb、
+    // prev/next、deep link）都收斂到這裡，鎖定頁一律擋下。
+    // tree/prev/next 各自有 UI 層排除，這裡是統一的最後防線。
+    if (isLocked(node, progress)) return;
+
     // 導航前先儲存當前頁面的滾動位置
     saveScroll(currentId || 'landing');
     setScrollHint(null);
@@ -709,7 +721,7 @@ export default function HistoryReader() {
         const hasChildren = children.length > 0;
         const isExpanded = expanded.has(node.id) || Boolean(query.trim());
         const isCurrent = node.id === currentId;
-        const nodeLocked = isLocked(node);
+        const nodeLocked = isLocked(node, progress);
 
         return (
           <div className="history-tree-item" data-depth={depth} key={node.id}>
@@ -1226,22 +1238,40 @@ export default function HistoryReader() {
                         </div>
                       ) : (
                         <ul className="history-zone-tab-list">
-                          {zoneTabItems.map((child) => (
-                            <li key={child.id}>
-                              <button
-                                type="button"
-                                className="history-zone-tab-link"
-                                onClick={() => void loadPage(child)}
-                              >
-                                {renderIcon(
-                                  child.metadata?.icon as string,
-                                  14,
-                                  'history-zone-tab-link-icon'
-                                ) || null}
-                                {child.title}
-                              </button>
-                            </li>
-                          ))}
+                          {zoneTabItems.map((child) => {
+                            const childLocked = isLocked(child, progress);
+                            return (
+                              <li key={child.id}>
+                                <button
+                                  type="button"
+                                  className="history-zone-tab-link"
+                                  style={
+                                    childLocked
+                                      ? {
+                                          opacity: 0.45,
+                                          cursor: 'not-allowed',
+                                        }
+                                      : undefined
+                                  }
+                                  disabled={childLocked}
+                                  onClick={() => void loadPage(child)}
+                                >
+                                  {childLocked ? (
+                                    <span className="history-zone-tab-link-icon">
+                                      🔒
+                                    </span>
+                                  ) : (
+                                    renderIcon(
+                                      child.metadata?.icon as string,
+                                      14,
+                                      'history-zone-tab-link-icon'
+                                    ) || null
+                                  )}
+                                  {child.title}
+                                </button>
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </div>
