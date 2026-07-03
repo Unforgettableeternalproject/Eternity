@@ -23,7 +23,12 @@ import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import { parseGateCondition } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
-import { ENTITY_KINDS, CUE_KINDS, isValidRef } from '../../embed';
+import {
+  ENTITY_KINDS,
+  CUE_KINDS,
+  isValidRef,
+  collectEmbeds,
+} from '../../embed';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
@@ -210,6 +215,13 @@ export default function RichEditor({
   // 嵌入標記 popover 狀態（Epic 2 — entity/cue inline mark）
   const [entityDraft, setEntityDraft] = useState({ kind: 'term', ref: '' });
   const [cueDraft, setCueDraft] = useState({ kind: 'song', ref: '' });
+  // Reference Picker：跨 zone 頁面樹快取（entity → concepts；
+  // cue → song 抓 echoes / image 抓 visuals），面板共用
+  const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
+  const [embedTreeCache, setEmbedTreeCache] = useState<Record<string, any[]>>(
+    {}
+  );
+  const [embedTreeLoading, setEmbedTreeLoading] = useState(false);
 
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
@@ -370,6 +382,24 @@ export default function RichEditor({
                   ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
+
+      // 嵌入摘要（Epic 2）：掃描 HTML 中的 entity/cue 標記寫入
+      // metadata.related/cues——island 只讀摘要，不必解析整篇 HTML。
+      // 只在 editor HTML 實際被持久化的模式計算（echoes/visuals/
+      // storage 特化模式不存 editor HTML，摘要會失真）。
+      const persistsEditorHtml =
+        editorMode.needsTipTap &&
+        editor &&
+        !isEchoes &&
+        !isVisuals &&
+        !isStorageDialogue &&
+        !isStorageChangelog;
+      const embedSummary = persistsEditorHtml
+        ? collectEmbeds(
+            new DOMParser().parseFromString(editor.getHTML(), 'text/html').body
+          )
+        : null;
+
       const metadata: Record<string, any> = {
         ...(initialMetadata || {}),
         ...(hidden ? { hidden: true } : { hidden: undefined }),
@@ -378,6 +408,17 @@ export default function RichEditor({
         gate: gate ?? undefined,
         requiresFlags: undefined,
         pristineOnly: undefined,
+        // 嵌入摘要：有標記才寫入；標記全移除時一併清除
+        ...(embedSummary
+          ? {
+              related:
+                embedSummary.related.length > 0
+                  ? embedSummary.related
+                  : undefined,
+              cues:
+                embedSummary.cues.length > 0 ? embedSummary.cues : undefined,
+            }
+          : {}),
         ...(icon ? { icon } : { icon: undefined }),
         ...(description ? { description } : { description: undefined }),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
@@ -1219,6 +1260,7 @@ export default function RichEditor({
       kind: (attrs.kind as string) || 'term',
       ref: (attrs.ref as string) || '',
     });
+    setEmbedPickerOpen(false);
     toggleDropdown('uep-entity');
   };
 
@@ -1229,8 +1271,55 @@ export default function RichEditor({
       kind: (attrs.kind as string) || 'song',
       ref: (attrs.ref as string) || '',
     });
+    setEmbedPickerOpen(false);
     toggleDropdown('uep-cue');
   };
+
+  // 載入 Reference Picker 的頁面樹（依目標 area 快取）
+  const loadEmbedTree = async (targetArea: string) => {
+    if (embedTreeCache[targetArea]) return;
+    setEmbedTreeLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/content/${targetArea}/tree`);
+      const json = await res.json();
+      if (json.ok) {
+        setEmbedTreeCache((prev) => ({
+          ...prev,
+          [targetArea]: json.data || [],
+        }));
+      }
+    } catch {
+      // 靜默失敗，picker 顯示空清單
+    } finally {
+      setEmbedTreeLoading(false);
+    }
+  };
+
+  // 渲染 Reference Picker 樹（點擊將頁面 id 填入 ref）
+  function renderEmbedPickerTree(
+    nodes: any[],
+    onPick: (ref: string) => void,
+    depth = 0
+  ): React.ReactNode {
+    return nodes.map((node: any) => (
+      <React.Fragment key={node.id}>
+        {node.pageType !== 'page' && node.pageType !== 'homepage' && (
+          <button
+            className="tb-link-page-item"
+            style={{ paddingLeft: `${8 + depth * 12}px` }}
+            onClick={() => onPick(node.id)}
+          >
+            <span className="tb-link-page-type">
+              {(node.pageType || 'P')[0].toUpperCase()}
+            </span>
+            {node.title}
+          </button>
+        )}
+        {node.children?.length > 0 &&
+          renderEmbedPickerTree(node.children, onPick, depth + 1)}
+      </React.Fragment>
+    ));
+  }
 
   // 渲染內部頁面選擇器的樹狀結構
   function renderLinkPageTree(nodes: any[], depth = 0): React.ReactNode {
@@ -2109,6 +2198,28 @@ export default function RichEditor({
                         }}
                         autoFocus
                       />
+                      <button
+                        className="tb-embed-browse"
+                        type="button"
+                        onClick={() => {
+                          setEmbedPickerOpen((v) => !v);
+                          if (!embedPickerOpen) void loadEmbedTree('concepts');
+                        }}
+                      >
+                        {embedPickerOpen ? '－ 收合' : '＋ 從 Concepts 選擇…'}
+                      </button>
+                      {embedPickerOpen && (
+                        <div className="tb-link-page-tree">
+                          {embedTreeLoading ? (
+                            <div className="tb-link-loading">載入頁面中...</div>
+                          ) : (
+                            renderEmbedPickerTree(
+                              embedTreeCache['concepts'] || [],
+                              (ref) => setEntityDraft((d) => ({ ...d, ref }))
+                            )
+                          )}
+                        </div>
+                      )}
                       <div className="tb-link-actions">
                         <button
                           className="tb-link-apply"
@@ -2156,9 +2267,11 @@ export default function RichEditor({
                       <select
                         className="tb-embed-kind"
                         value={cueDraft.kind}
-                        onChange={(e) =>
-                          setCueDraft((d) => ({ ...d, kind: e.target.value }))
-                        }
+                        onChange={(e) => {
+                          // 換種類 = 換目標 area，收合 picker 避免顯示錯的樹
+                          setCueDraft((d) => ({ ...d, kind: e.target.value }));
+                          setEmbedPickerOpen(false);
+                        }}
                       >
                         {CUE_KINDS.map((k) => (
                           <option key={k.value} value={k.value}>
@@ -2179,6 +2292,34 @@ export default function RichEditor({
                         }}
                         autoFocus
                       />
+                      <button
+                        className="tb-embed-browse"
+                        type="button"
+                        onClick={() => {
+                          const targetArea =
+                            cueDraft.kind === 'image' ? 'visuals' : 'echoes';
+                          setEmbedPickerOpen((v) => !v);
+                          if (!embedPickerOpen) void loadEmbedTree(targetArea);
+                        }}
+                      >
+                        {embedPickerOpen
+                          ? '－ 收合'
+                          : `＋ 從 ${cueDraft.kind === 'image' ? 'Visuals' : 'Echoes'} 選擇…`}
+                      </button>
+                      {embedPickerOpen && (
+                        <div className="tb-link-page-tree">
+                          {embedTreeLoading ? (
+                            <div className="tb-link-loading">載入頁面中...</div>
+                          ) : (
+                            renderEmbedPickerTree(
+                              embedTreeCache[
+                                cueDraft.kind === 'image' ? 'visuals' : 'echoes'
+                              ] || [],
+                              (ref) => setCueDraft((d) => ({ ...d, ref }))
+                            )
+                          )}
+                        </div>
+                      )}
                       <div className="tb-link-actions">
                         <button
                           className="tb-link-apply"

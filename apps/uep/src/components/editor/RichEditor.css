@@ -3763,3 +3763,24 @@
   color: var(--ink-soft);
   font-size: 12px;
 }
+
+/* 嵌入面板的 Reference Picker 展開鈕 */
+.tb-embed-browse {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px dashed var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
+}
+.tb-embed-browse:hover {
+  border-color: var(--ned-accent);
+  color: var(--ink-title);
+}
