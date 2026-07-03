@@ -31,6 +31,7 @@ import {
 import type { ProgressTreeAdapter } from '../../progress';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
+import { ChapterTimeline } from './ChapterTimeline';
 import type {
   HomepageBlock,
   ZoneHeaderData,
@@ -1342,6 +1343,30 @@ export default function HistoryReader() {
                         className="history-scan-sentinel"
                         aria-hidden="true"
                       />
+                      {/* Chapter/Arc 頁自動時間軸目錄（子項依進度狀態呈現） */}
+                      {(currentPage.pageType === 'chapter' ||
+                        currentPage.pageType === 'arc') &&
+                        (() => {
+                          const containerNode = pagesById.get(currentPage.id);
+                          if (!containerNode) return null;
+                          const childType =
+                            currentPage.pageType === 'chapter'
+                              ? 'arc'
+                              : 'section';
+                          return (
+                            <ChapterTimeline
+                              containerNode={containerNode}
+                              childType={childType}
+                              progress={progress}
+                              progressTree={progressTree}
+                              resolvePageById={resolvePageById}
+                              onNavigate={(child) =>
+                                void loadPage(child as PageTreeNode)
+                              }
+                              currentId={currentId}
+                            />
+                          );
+                        })()}
                     </>
                   )}
                 </article>

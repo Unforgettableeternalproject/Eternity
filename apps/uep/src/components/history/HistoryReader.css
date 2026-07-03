@@ -1305,3 +1305,174 @@
   letter-spacing: 0.2em;
   user-select: none;
 }
+
+/* ═══ Chapter / Arc 頁自動時間軸目錄（D 步驟）═══
+   垂直時間軸，左節點右內容。狀態：completed/available/progression/flag/static。 */
+.history-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 2.5rem 0 0.5rem;
+  border-top: 1px solid
+    color-mix(in srgb, var(--history-main) 20%, transparent);
+  padding-top: 2rem;
+  position: relative;
+}
+
+.history-timeline-item {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 0;
+}
+
+/* 縱向連線（畫在節點欄中央，穿透每個 item） */
+.history-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 0.9rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--history-main) 30%, transparent);
+}
+.history-timeline-item:first-child::before {
+  top: 50%;
+}
+.history-timeline-item:last-child::before {
+  bottom: 50%;
+}
+
+.history-timeline-button {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  color: inherit;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+  position: relative;
+}
+.history-timeline-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--history-main) 6%, transparent);
+}
+.history-timeline-button:focus-visible {
+  outline: 2px solid var(--history-main);
+  outline-offset: 2px;
+}
+.history-timeline-button:disabled {
+  cursor: not-allowed;
+}
+
+.history-timeline-marker {
+  flex: 0 0 1.8rem;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.15rem;
+}
+
+.history-timeline-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  line-height: 1;
+  background: var(--bg-card);
+  border: 1.5px solid var(--history-main);
+  color: var(--history-main);
+  position: relative;
+  z-index: 1;
+}
+
+/* 已完成：實心金點 */
+.history-timeline-dot.is-completed {
+  background: var(--history-main);
+  border-color: var(--history-main);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--history-main) 18%, transparent);
+}
+
+/* 可讀：空心（default） */
+.history-timeline-dot.is-available {
+  background: var(--bg-card);
+}
+
+/* 當前節點閃爍（僅在 available 時應用；locked 節點不高亮） */
+.history-timeline-dot.is-available.is-current {
+  background: var(--history-soft);
+  border-color: var(--history-main);
+  animation: historyTimelinePulse 1.8s ease-in-out infinite;
+}
+@keyframes historyTimelinePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--history-main) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px
+      color-mix(in srgb, var(--history-main) 10%, transparent);
+  }
+}
+
+/* 進度鎖：虛化實心點 */
+.history-timeline-dot.is-progression {
+  background: color-mix(in srgb, var(--history-main) 35%, transparent);
+  border-color: color-mix(in srgb, var(--history-main) 40%, transparent);
+  opacity: 0.55;
+}
+
+/* 旗標鎖：❖ 符號 */
+.history-timeline-dot.is-flag {
+  background: transparent;
+  border-style: dashed;
+  color: color-mix(in srgb, var(--history-main) 55%, transparent);
+  font-size: 0.75rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* 靜態鎖：🔒 emoji */
+.history-timeline-dot.is-static {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.history-timeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.history-timeline-title {
+  font-family: 'Cinzel', 'Noto Serif TC', serif;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--history-main);
+  line-height: 1.35;
+}
+
+.history-timeline-desc {
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--history-main) 68%, var(--text-body));
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.history-timeline-item.is-static .history-timeline-button,
+.history-timeline-item.is-progression .history-timeline-button {
+  opacity: 0.6;
+}
+.history-timeline-item.is-flag .history-timeline-button {
+  opacity: 0.5;
+}

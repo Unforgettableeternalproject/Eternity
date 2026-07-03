@@ -24,7 +24,6 @@ import {
   completionFlag,
   effectiveGate,
   evaluateEffectiveGate,
-  isEffectivelyCompleted,
 } from '../../progress';
 import type { ProgressState, ProgressTreeAdapter } from '../../progress';
 
@@ -117,14 +116,9 @@ export function isProgressionChainHidden(
   return deps.some((depId) => {
     const dep = resolvePage(depId);
     if (!dep) return false;
-    if (useTree) {
-      // tree-aware：依賴頁 lock 或未有效 completed 都算「還沒解鎖」
-      return (
-        isLocked(dep, progress, depId, tree) ||
-        !isEffectivelyCompleted(depId, progress, tree)
-      );
-    }
-    return isLocked(dep, progress);
+    // 循序漸進定義：依賴頁本身仍鎖定 → 隱藏；依賴頁可讀但未完成 → 露出 progression。
+    // 孤兒偵測靠 isEffectivelyCompleted 在 gate 求值層處理，不干涉這裡的隱藏判定。
+    return isLocked(dep, progress, useTree ? depId : undefined, tree);
   });
 }
 
