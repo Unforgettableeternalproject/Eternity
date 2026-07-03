@@ -27,6 +27,7 @@ import { ENTITY_KINDS, isValidRef, collectEmbeds } from '../../embed';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
+  getDialog,
   extractAssetKey,
   deleteAsset,
   htmlToMarkdown,
@@ -542,17 +543,40 @@ export default function RichEditor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // beforeunload
+  // dirty state 的同步 ref——beforeunload 讀 ref 而非 state，
+  // 讓 SPA 內守衛（handleBeforeNavigate）在使用者確認捨棄變更後
+  // 立刻 bypass 原生 beforeunload，避免二次跳原生 alert
+  const dirtyRef = useRef(isDirty);
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  // beforeunload — 關瀏覽器 / 換域 / 未經守衛的 hard navigation 才走這裡
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
+      if (dirtyRef.current) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
+  }, []);
+
+  // 樹狀 / 選單導航前的守衛——用 UepDialog 取代瀏覽器原生 alert
+  const handleBeforeNavigate = useCallback(async (): Promise<boolean> => {
+    if (!dirtyRef.current) return true;
+    const ok = await getDialog().confirm(
+      '這頁有未儲存的變更，離開將會捨棄。要繼續嗎？',
+      {
+        title: '未儲存的變更',
+        confirmText: '捨棄變更並離開',
+        cancelText: '留在此頁',
+      }
+    );
+    if (ok) dirtyRef.current = false; // bypass 後續 beforeunload
+    return ok;
+  }, []);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -2374,6 +2398,7 @@ export default function RichEditor({
               currentSlug={pageSlug}
               accent={accentMain}
               refreshKey={treeRefreshKey}
+              beforeNavigate={handleBeforeNavigate}
             />
           </aside>
         )}
