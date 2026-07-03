@@ -1330,6 +1330,87 @@
   user-select: none;
 }
 
+/* blur 消散為 transition：解鎖時模糊淡出、視覺不會硬切 */
+.history-tree-title {
+  transition:
+    filter 0.7s ease-out,
+    opacity 0.7s ease-out;
+}
+
+/* ═══ 節點狀態轉換入場動畫（Epic 2 打磨輪 2026-07-03）═══
+   露出：hidden → visible，從左緩緩滑入 + 淡入（墨韻鋪展）。
+   解鎖：progression/flag → open，金色高光橫掃標題（豁然開朗）。
+   兩者同時觸發時併行播放。動畫結束後 class 由 React 於 900ms
+   內清除；使用 prefers-reduced-motion 時退回瞬時切換。 */
+@keyframes history-reveal-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+    filter: blur(1px);
+  }
+  60% {
+    opacity: 0.9;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+.history-tree-item.is-revealed {
+  animation: history-reveal-slide 0.6s ease-out;
+}
+
+@keyframes history-unlock-shine {
+  0% {
+    background-position: -120% 0;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 220% 0;
+    opacity: 0;
+  }
+}
+
+.history-tree-item.is-unlocked .history-tree-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.history-tree-item.is-unlocked .history-tree-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 65%, transparent) 45%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 85%, transparent) 50%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 65%, transparent) 55%,
+    transparent 100%
+  );
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  animation: history-unlock-shine 0.85s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-tree-item.is-revealed,
+  .history-tree-item.is-unlocked .history-tree-link::after {
+    animation: none;
+  }
+  .history-tree-title {
+    transition: none;
+  }
+}
+
 /* ═══ Chapter / Arc 頁自動時間軸目錄（D 步驟）═══
    垂直時間軸，左節點右內容。狀態：completed/available/progression/flag/static。 */
 .history-timeline {

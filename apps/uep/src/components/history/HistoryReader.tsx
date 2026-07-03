@@ -359,16 +359,33 @@ export default function HistoryReader() {
       },
       getPreviousProgressSiblingId: (id) => {
         const siblings = siblingsOf(id);
+        const ancestors = ancestorMap.get(id) || [];
+        const parent = ancestors[ancestors.length - 1];
+        const parentIsProgress = parent?.metadata?.progressPage === true;
         const idx = siblings.findIndex((s) => s.id === id);
         for (let i = idx - 1; i >= 0; i -= 1) {
-          if (siblings[i].metadata?.progressPage === true)
-            return siblings[i].id;
+          const s = siblings[i];
+          const meta = s.metadata ?? {};
+          // hidden/static-locked/豁免的節點不計入進度鏈
+          if (meta.hidden === true || meta.locked === true) continue;
+          if (meta.gateExempt === true) continue;
+          // 有效進度頁：自身標記或父容器繼承（單層）
+          const isProgress = meta.progressPage === true || parentIsProgress;
+          if (isProgress) return s.id;
         }
         return undefined;
       },
       getProgressDescendantIds: (id) => {
         const node = pagesById.get(id);
-        return node ? collectProgressLeafIds(node) : [];
+        if (!node) return [];
+        // 只保留內容型 pageType 作為 progress leaf——避免插圖/附件/
+        // homepage 之類非章節子頁被繼承語意 (#10) 誤計成進度葉，導致
+        // 容器 completeness 永遠不成立、下游解鎖卡住 (#11 修)。
+        const contentTypes = new Set(['chapter', 'arc', 'section', 'page']);
+        return collectProgressLeafIds(node).filter((leafId) => {
+          const leaf = pagesById.get(leafId);
+          return leaf ? contentTypes.has(leaf.pageType) : false;
+        });
       },
     };
   }, [tree, pagesById, ancestorMap]);
@@ -495,15 +512,58 @@ export default function HistoryReader() {
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
 
-  // 孤兒 complete 靜默清理：tree 首次載入完成後跑一次，
-  // 清除依賴不成立的 completed:* 旗標（測試模式手動蓋、或匯入舊資料時）。
-  const swept = useRef(false);
+  // 孤兒 complete 靜默清理：tree 載入或變動時掃一次，
+  // 清除依賴不成立的 completed:* 旗標（測試模式手動蓋、匯入舊資料、
+  // 靜態鎖遲設等）。sweep 本身冪等，無孤兒時零副作用。
   useEffect(() => {
-    if (swept.current) return;
     if (!pagesById.size) return;
     getProgressManager().sweepOrphanCompletions(progressTree);
-    swept.current = true;
   }, [pagesById, progressTree]);
+
+  // 節點狀態轉換動畫：追蹤上次 render 時每個節點的可見鎖定態，
+  // progress 變化後比對觸發「露出」與「解鎖」入場動畫。第一次
+  // mount 建立基線（不觸發動畫，避免頁面初載時整片亮起）。
+  type NodeStatus = 'hidden' | 'progression' | 'flag' | 'static' | 'open';
+  const prevStatuses = useRef<Map<string, NodeStatus>>(new Map());
+  const [revealAnim, setRevealAnim] = useState<Set<string>>(new Set());
+  const [unlockAnim, setUnlockAnim] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!pagesById.size) return;
+    const nextStatuses = new Map<string, NodeStatus>();
+    const revealed = new Set<string>();
+    const unlocked = new Set<string>();
+    const baseline = prevStatuses.current.size === 0;
+    for (const page of flatPages) {
+      const chainHidden = isProgressionChainHidden(
+        page,
+        progress,
+        resolvePageById,
+        page.id,
+        progressTree
+      );
+      const kind = chainHidden
+        ? null
+        : getLockKind(page, progress, page.id, progressTree);
+      const status: NodeStatus = chainHidden ? 'hidden' : (kind ?? 'open');
+      nextStatuses.set(page.id, status);
+      if (baseline) continue;
+      const prev = prevStatuses.current.get(page.id);
+      if (prev === 'hidden' && status !== 'hidden') revealed.add(page.id);
+      if ((prev === 'progression' || prev === 'flag') && status === 'open')
+        unlocked.add(page.id);
+    }
+    prevStatuses.current = nextStatuses;
+    if (revealed.size === 0 && unlocked.size === 0) return;
+    setRevealAnim(revealed);
+    setUnlockAnim(unlocked);
+    // 動畫長度 ≈ 0.9s；動畫結束後清除 class（重複觸發時
+    // React 會以新 Set 重掛 class，CSS animation 自然重播）
+    const clear = window.setTimeout(() => {
+      setRevealAnim(new Set());
+      setUnlockAnim(new Set());
+    }, 900);
+    return () => window.clearTimeout(clear);
+  }, [progress, flatPages, progressTree, pagesById]);
 
   // 載入首頁區塊資料，完成後通知 boot hook 解除動畫
   useEffect(() => {
@@ -643,8 +703,18 @@ export default function HistoryReader() {
     // tree/prev/next 各自有 UI 層排除，這裡是統一的最後防線。
     if (isLocked(node, progress, node.id, progressTree)) return;
 
-    // 導航前先儲存當前頁面的滾動位置
-    saveScroll(currentId || 'landing');
+    // 導航前先儲存當前頁面的滾動位置。chapter 頁是目錄性質不應留紀錄，
+    // 順手也把先前殘留清除，避免使用者切換視角後回到過期位置。
+    const prevPageType = currentId
+      ? pagesById.get(currentId)?.pageType
+      : undefined;
+    if (currentId && prevPageType !== 'chapter') {
+      saveScroll(currentId);
+    } else if (currentId) {
+      clearSavedPosition(currentId);
+    } else {
+      saveScroll('landing');
+    }
     setScrollHint(null);
 
     if (node.pageType === 'page') {
@@ -810,7 +880,17 @@ export default function HistoryReader() {
   }
 
   function returnToLanding() {
-    saveScroll(currentId || 'landing');
+    // 目錄性質頁面（chapter）不記憶位置
+    const prevPageType = currentId
+      ? pagesById.get(currentId)?.pageType
+      : undefined;
+    if (currentId && prevPageType !== 'chapter') {
+      saveScroll(currentId);
+    } else if (currentId) {
+      clearSavedPosition(currentId);
+    } else {
+      saveScroll('landing');
+    }
     setScrollHint(null);
     setCurrentId(null);
     setCurrentPage(null);
@@ -859,11 +939,20 @@ export default function HistoryReader() {
         // 鎖定三態：static 原樣🔒 / progression 標題模糊 / flag 標題遮蔽
         const lockKind = getLockKind(node, progress, node.id, progressTree);
         const nodeLocked = lockKind !== null;
+        // 鎖定容器不展開子樹（子節點已於下方 render 中 guard），
+        // 一併收起 chevron 免得只按下無反應。
+        const showChevron = hasChildren && !nodeLocked;
 
+        const revealed = revealAnim.has(node.id);
+        const unlocked = unlockAnim.has(node.id);
         return (
-          <div className="history-tree-item" data-depth={depth} key={node.id}>
+          <div
+            className={`history-tree-item${revealed ? ' is-revealed' : ''}${unlocked ? ' is-unlocked' : ''}`}
+            data-depth={depth}
+            key={node.id}
+          >
             <div className="history-tree-row">
-              {hasChildren ? (
+              {showChevron ? (
                 <button
                   className="history-tree-chevron"
                   type="button"
@@ -929,7 +1018,7 @@ export default function HistoryReader() {
                 )}
               </button>
             </div>
-            {hasChildren && isExpanded && (
+            {hasChildren && isExpanded && !nodeLocked && (
               <div className="history-tree-children">
                 {renderTree(children, depth + 1)}
               </div>

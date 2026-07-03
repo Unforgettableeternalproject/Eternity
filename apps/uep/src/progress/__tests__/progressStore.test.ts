@@ -318,6 +318,37 @@ describe('sweepOrphanCompletions', () => {
     expect(uepProgress.getState().updatedAt).toBe(before);
   });
 
+  it('static-locked 頁面的 completed:* 亦視為孤兒清除（2026-07-03 修）', async () => {
+    // 靜態鎖頁面不可能被合法完成，即使 flag 存在也應被視為孤兒
+    const nodes = new Map<string, { metadata: Record<string, unknown> }>([
+      ['locked-page', { metadata: { locked: true, progressPage: true } }],
+    ]);
+    const tree = {
+      getNode: (id: string) => nodes.get(id),
+      getParent: () => undefined,
+      getParentId: () => null,
+      getPreviousProgressSiblingId: () => undefined,
+      getProgressDescendantIds: () => [],
+    };
+    window.localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: ['completed:locked-page'],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        updatedAt: '2026-07-03T00:00:00.000Z',
+      })
+    );
+    const { uepProgress } = await freshStore();
+    const removed = uepProgress.sweepOrphanCompletions(tree);
+    expect(removed).toEqual(['completed:locked-page']);
+    expect(uepProgress.getState().flags).toEqual([]);
+  });
+
   it('清理後發 sweep 事件並持久化', async () => {
     window.localStorage.setItem(
       PROGRESS_STORAGE_KEY,

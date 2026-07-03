@@ -31,6 +31,12 @@ interface GateConditionEditorProps {
   /** 不繼承容器進度（metadata.gateExempt）——切斷點，子樹一併豁免 */
   isGateExempt?: boolean;
   onGateExemptChange?: (next: boolean) => void;
+  /**
+   * 父容器是否已標為進度頁（單層繼承語意，2026-07-03 修正 #10）。
+   * 為 true 時本頁自動被視為進度頁——toggle 收起，改顯示提示；
+   * 若要退出繼承，勾「不繼承容器進度」（gateExempt）即可。
+   */
+  parentIsProgressContainer?: boolean;
   apiBase: string;
   accent: string;
 }
@@ -51,6 +57,7 @@ export default function GateConditionEditor({
   onProgressPageChange,
   isGateExempt = false,
   onGateExemptChange,
+  parentIsProgressContainer = false,
   apiBase,
   accent,
 }: GateConditionEditorProps) {
@@ -123,6 +130,9 @@ export default function GateConditionEditor({
 
   const supportsProgressToggle = typeof onProgressPageChange === 'function';
   const supportsExemptToggle = typeof onGateExemptChange === 'function';
+  // 繼承語意：父容器已標進度頁時，本頁自動視為進度頁，除非勾豁免退出。
+  // toggle 顯示為 checked 並禁用，改由 gateExempt 控制去留。
+  const inheritedProgressPage = parentIsProgressContainer && !isGateExempt;
 
   return (
     <div className="ned-gate">
@@ -135,12 +145,24 @@ export default function GateConditionEditor({
           <span>這是進度頁</span>
           <input
             type="checkbox"
-            checked={isProgressPage}
+            checked={isProgressPage || inheritedProgressPage}
+            disabled={inheritedProgressPage}
+            title={
+              inheritedProgressPage
+                ? '父容器已標為進度頁，本頁自動視為進度頁（勾「不繼承容器進度」可退出）'
+                : undefined
+            }
             onChange={(e) => onProgressPageChange!(e.target.checked)}
           />
         </div>
       )}
-      {supportsProgressToggle && isProgressPage && (
+      {supportsProgressToggle && inheritedProgressPage && (
+        <div className="ned-gate-scope-hint">
+          ⓘ 繼承自父容器：本頁自動計入進度鏈與 container 完成判定。
+          若這一頁不算進度（如番外），勾下方「不繼承容器進度」豁免即可。
+        </div>
+      )}
+      {supportsProgressToggle && isProgressPage && !inheritedProgressPage && (
         <div className="ned-gate-scope-hint">
           ⓘ 進度頁：解鎖倚賴同層前一個進度頁完成；父容器（arc/chapter）標為
           進度頁時整包自動繼承。可另外設「需先讀完」的特定頁面、自訂旗標

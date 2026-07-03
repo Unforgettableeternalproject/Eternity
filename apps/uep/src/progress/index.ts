@@ -44,7 +44,7 @@ export {
 } from './gating';
 export type { GateCondition } from './gating';
 
-export { collectProgressLeafIds } from './tree';
+export { collectProgressLeafIds, isEffectiveProgressPage } from './tree';
 export type {
   ProgressTreeAdapter,
   TreeNodeLike,

@@ -187,6 +187,27 @@ export default function RichEditor({
   const [gateExempt, setGateExempt] = useState(
     initialMetadata?.gateExempt === true
   );
+  // 父容器繼承偵測：拉一次父頁面 metadata，若 progressPage=true 則本頁
+  // 在 GateConditionEditor 顯示為繼承（toggle 收起、僅剩豁免選項）
+  const [parentIsProgressContainer, setParentIsProgressContainer] =
+    useState(false);
+  useEffect(() => {
+    if (!parentId) {
+      setParentIsProgressContainer(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    fetch(`${apiBase}/api/content/${parentId}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const meta = data?.data?.metadata;
+        setParentIsProgressContainer(meta?.progressPage === true);
+      })
+      .catch(() => {
+        // 靜默失敗：找不到父頁（例如新建頁面）→ 視為未繼承
+      });
+    return () => ctrl.abort();
+  }, [parentId, apiBase]);
   // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
   // 存檔時一律正規化為巢狀 metadata.gate
   const [gate, setGate] = useState<GateCondition | null>(() =>
@@ -2646,6 +2667,7 @@ export default function RichEditor({
                     setGateExempt(next);
                     setDirtyMetadata(true);
                   }}
+                  parentIsProgressContainer={parentIsProgressContainer}
                   apiBase={apiBase}
                   accent={accentMain}
                 />

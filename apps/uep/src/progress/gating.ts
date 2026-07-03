@@ -182,10 +182,44 @@ export function effectiveGate(
     if (manual.pristineOnly) pristineOnly = true;
   }
 
-  // 本頁進度頁鏈：加上前一個進度 sibling 的 completed:*
-  if (isProgressPage(node.metadata ?? null)) {
+  // 依賴頁選擇（2026-07-03 修 #11）：前一個 sibling 若是 container
+  // （有 progress leaves），本節點依賴其**最後一個 leaf** 的 completion
+  // ——排除 static-locked/hidden（由 adapter 保證）。因為 leaves 之間
+  // 已經是完整鏈（01-05 completed 需要 01-04 completed …），只要最
+  // 後一個 completed 就代表全部走完。純 leaf sibling 沿用自身依賴。
+  //   arc.02 前 sibling = arc.01（container）→ 最後 leaf = 01-05
+  //     → 依賴 completed:01-05（讀完最後一節才解鎖 arc.02）
+  //   01-02 前 sibling = 01-01（leaf）→ 依賴 completed:01-01
+  const chainDepFor = (depId: string): string => {
+    const leaves = tree.getProgressDescendantIds(depId);
+    if (leaves.length === 0) return completionFlag(depId);
+    return completionFlag(leaves[leaves.length - 1]);
+  };
+
+  // 本頁進度頁鏈：加上前一個進度 sibling 的完成依賴。
+  // 「父容器繼承」（2026-07-03 修 #10）：父標為進度頁時，本節點即便
+  // 未個別勾選也自動視為進度頁——省去使用者一個個 section 手動勾。
+  // gateExempt 只切「父繼承」與「祖先繼承」，不影響本身若自標
+  // progressPage 的同層鏈（原設計語意保留）。
+  const parentIdForInherit = tree.getParentId(nodeId);
+  const parentMetaForInherit = parentIdForInherit
+    ? (tree.getNode(parentIdForInherit)?.metadata ?? null)
+    : null;
+  const selfIsExempt = isGateExempt(node.metadata ?? null);
+  const selfIsProgress = isProgressPage(node.metadata ?? null);
+  const inheritedFromParent =
+    !selfIsExempt && isProgressPage(parentMetaForInherit);
+  if (selfIsProgress || inheritedFromParent) {
     const prev = tree.getPreviousProgressSiblingId(nodeId);
-    if (prev) flags.add(completionFlag(prev));
+    if (prev) {
+      flags.add(chainDepFor(prev));
+    } else if (inheritedFromParent && parentIdForInherit) {
+      // 首節 fallback（2026-07-03 修 #11）：無前一 sibling + 父為
+      // progress container → 依賴父自身 landing 讀完（用 completed
+      // 而非 finished 避免循環：父的 container completeness 需要
+      // 本節點完成，本節點又不能等父 container 完成）。
+      flags.add(completionFlag(parentIdForInherit));
+    }
   }
 
   // 容器繼承：走 parent chain，若父層是進度頁則加其鏈條件。
@@ -203,7 +237,7 @@ export function effectiveGate(
     if (isGateExempt(parent.metadata ?? null)) break; // 豁免切斷點
     if (isProgressPage(parent.metadata ?? null)) {
       const parentPrev = tree.getPreviousProgressSiblingId(cursorId);
-      if (parentPrev) flags.add(completionFlag(parentPrev));
+      if (parentPrev) flags.add(chainDepFor(parentPrev));
     }
     cursorId = tree.getParentId(cursorId);
   }
@@ -225,6 +259,10 @@ export function effectiveGate(
  * Container（arc/chapter）沒有自己的 completed:* 旗標，改判定為
  * 「底下所有 progressPage 葉節點都 effectively completed」。
  *
+ * 靜態鎖（`metadata.locked === true`）的頁面永遠視為未完成——按定義
+ * 靜態鎖頁面不可被正常抵達，因此不存在合法完成，任何 completed 旗標
+ * 都是孤兒（sweep 會清）。
+ *
  * @param nodeId 要驗證完成狀態的頁面 id
  * @param visiting 遞迴保護集合，外部呼叫無需傳
  */
@@ -237,24 +275,42 @@ export function isEffectivelyCompleted(
   if (visiting.has(nodeId)) return false; // 環保護：視為未完成
   const node = tree.getNode(nodeId);
   if (!node) return false;
-
-  // Container 判定：有 progressPage 後代 → 底下全 completed 才算 container 完成
-  const descendants = tree.getProgressDescendantIds(nodeId);
-  if (descendants.length > 0) {
-    const nextVisit = new Set(visiting);
-    nextVisit.add(nodeId);
-    return descendants.every((id) =>
-      isEffectivelyCompleted(id, progress, tree, nextVisit)
-    );
+  // 靜態鎖：不可被合法完成
+  if (
+    node.metadata &&
+    typeof node.metadata === 'object' &&
+    (node.metadata as Record<string, unknown>).locked === true
+  ) {
+    return false;
   }
-
-  // Leaf 判定：flags 有 completed:X 且自己 effectiveGate 通過
-  if (!progress.flags.includes(completionFlag(nodeId))) return false;
 
   const nextVisit = new Set(visiting);
   nextVisit.add(nodeId);
-  const gate = effectiveGate(nodeId, tree);
-  return evaluateEffectiveGate(nodeId, progress, tree, gate, nextVisit);
+
+  // Flag 快速路徑：頁面本身讀完（掃描線授旗）就算 completed，即使底下
+  // sections 未讀完——這樣 arc landing 讀完就能推進、第一個 section 也
+  // 能露出。gate 仍需通過（孤兒偵測：手動塞 completed:X 但依賴鏈不成立
+  // 時仍視為未完成，供 sweep 清除）。
+  const hasFlag = progress.flags.includes(completionFlag(nodeId));
+  if (hasFlag) {
+    const gate = effectiveGate(nodeId, tree);
+    if (evaluateEffectiveGate(nodeId, progress, tree, gate, nextVisit)) {
+      return true;
+    }
+  }
+
+  // Container fallback：純目錄型頁（landing 無實質內容、無 flag）靠
+  // 「底下 progress leaves 都有 flag」推得完成。用 flag-only 判定避免
+  // 與「首節 gate 依賴父 flag」形成循環（否則 s1 gate 需要 completed:arc、
+  // arc container 又需要 s1 completed → 死鎖）。
+  const descendants = tree.getProgressDescendantIds(nodeId);
+  if (descendants.length > 0) {
+    return descendants.every((id) =>
+      progress.flags.includes(completionFlag(id))
+    );
+  }
+
+  return false;
 }
 
 /**

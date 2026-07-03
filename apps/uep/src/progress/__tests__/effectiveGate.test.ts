@@ -43,9 +43,24 @@ function makeTree(nodes: TestNode[]): ProgressTreeAdapter {
     return n.metadata.progressPage === true;
   }
 
+  // 認識父容器繼承（2026-07-03 修 #10）：父標 progressPage 時，
+  // 非豁免的子節點都視為進度頁。與 HistoryReader adapter 對齊。
+  function isEffectiveProgress(n: TestNode): boolean {
+    if (n.metadata.gateExempt === true) return false;
+    if (isProgressNode(n)) return true;
+    if (n.parentId == null) return false;
+    const parent = byId.get(n.parentId);
+    return parent ? isProgressNode(parent) : false;
+  }
+
   function collectProgressLeaves(id: string, acc: string[] = []): string[] {
     const children = nodes.filter((n) => n.parentId === id);
     for (const child of children) {
+      // 與純函式 collectProgressLeafIds、生產 adapter 對齊：
+      // hidden / static-locked 整段排除
+      if (child.metadata.hidden === true || child.metadata.locked === true) {
+        continue;
+      }
       const grandChildren = nodes.filter((n) => n.parentId === child.id);
       if (grandChildren.length === 0) {
         if (isProgressNode(child)) acc.push(child.id);
@@ -69,7 +84,7 @@ function makeTree(nodes: TestNode[]): ProgressTreeAdapter {
       const siblings = siblingsByParent.get(node.parentId) ?? [];
       const idx = siblings.findIndex((s) => s.id === id);
       for (let i = idx - 1; i >= 0; i -= 1) {
-        if (isProgressNode(siblings[i])) return siblings[i].id;
+        if (isEffectiveProgress(siblings[i])) return siblings[i].id;
       }
       return undefined;
     },
@@ -127,6 +142,47 @@ describe('effectiveGate — progressPage 鏈條件自動注入', () => {
   });
 });
 
+describe('effectiveGate — 父容器繼承（2026-07-03 修 #10 + #11 首節 fallback）', () => {
+  // arc（進度）底下 s1、s2、s3（都未個別勾 progressPage）
+  // → 全部自動繼承成進度頁，各自吃前一個 sibling completed
+  const tree = makeTree([
+    { id: 'arc', parentId: null, metadata: { progressPage: true } },
+    { id: 's1', parentId: 'arc', metadata: {} },
+    { id: 's2', parentId: 'arc', metadata: {} },
+    { id: 's3', parentId: 'arc', metadata: {} },
+  ]);
+
+  it('s1 為首節 → 依賴父 landing 讀完（completed:arc）', () => {
+    // 首節 fallback：先讀完 arc landing 才解鎖第一節
+    expect(effectiveGate('s1', tree)).toEqual({
+      requiresFlags: ['completed:arc'],
+    });
+  });
+
+  it('s2 繼承後仍要求 completed:s1（省去手動勾 progressPage）', () => {
+    expect(effectiveGate('s2', tree)).toEqual({
+      requiresFlags: ['completed:s1'],
+    });
+  });
+
+  it('s3 繼承後要求 completed:s2', () => {
+    expect(effectiveGate('s3', tree)).toEqual({
+      requiresFlags: ['completed:s2'],
+    });
+  });
+
+  it('繼承 + 豁免：extra 標 gateExempt → 不吃繼承、s2 找 s1 作前一個', () => {
+    const t = makeTree([
+      { id: 'arc', parentId: null, metadata: { progressPage: true } },
+      { id: 's1', parentId: 'arc', metadata: {} },
+      { id: 'extra', parentId: 'arc', metadata: { gateExempt: true } },
+      { id: 's2', parentId: 'arc', metadata: {} },
+    ]);
+    // extra 豁免 → 完全不吃繼承，effectiveGate 為 null
+    expect(effectiveGate('extra', t)).toBeNull();
+  });
+});
+
 describe('effectiveGate — 跳過非進度頁 sibling', () => {
   // A(進度) → 番外(非進度) → B(進度) → C(進度)
   const tree = makeTree([
@@ -179,14 +235,20 @@ describe('effectiveGate — 父層繼承（容器體）', () => {
     { id: 'arc3', parentId: 'ch2', metadata: {} },
   ]);
 
-  it('ch1 下的 arc1 無父層繼承（ch1 是第一個）', () => {
-    expect(effectiveGate('arc1', tree)).toBeNull();
-  });
-
-  it('ch2 下的 arc3 繼承 ch2 的鏈條件 → 需 ch1 completed', () => {
-    expect(effectiveGate('arc3', tree)).toEqual({
+  it('ch1 下的 arc1 走首節 fallback → 依賴 completed:ch1（父 landing 讀完）', () => {
+    // 修 #11：首節 fallback 讓父容器 landing 讀完解鎖第一個 child
+    expect(effectiveGate('arc1', tree)).toEqual({
       requiresFlags: ['completed:ch1'],
     });
+  });
+
+  it('ch2 下的 arc3 首節 fallback + parent chain → 兩層依賴', () => {
+    // arc3 首節 fallback：加 completed:ch2（父 landing）
+    // Parent chain：ch2 progressPage → prev sibling ch1（無 progress 後代）→ completed:ch1
+    const gate = effectiveGate('arc3', tree);
+    expect(gate?.requiresFlags).toEqual(
+      expect.arrayContaining(['completed:ch2', 'completed:ch1'])
+    );
   });
 });
 
@@ -333,6 +395,56 @@ describe('環保護', () => {
   });
 });
 
+describe('isEffectivelyCompleted — static locked 拒絕（2026-07-03 修）', () => {
+  // 靜態鎖頁面不可被合法抵達，任何 completed:* 都是孤兒
+  const tree = makeTree([
+    { id: 'A', parentId: null, metadata: { progressPage: true } },
+    {
+      id: 'B',
+      parentId: null,
+      metadata: { progressPage: true, locked: true },
+    },
+    { id: 'C', parentId: null, metadata: { progressPage: true } },
+  ]);
+
+  it('static-locked leaf 即使有 completed 旗標仍視為未完成', () => {
+    const state = stateWith({ flags: ['completed:B'] });
+    expect(isEffectivelyCompleted('B', state, tree)).toBe(false);
+  });
+
+  it('下游 C 因 B 是 static-locked 而不能通過鏈判定', () => {
+    const state = stateWith({ flags: ['completed:A', 'completed:B'] });
+    // C 需要 completed:B，但 B 是 static-locked → 視為未完成
+    expect(isEffectivelyCompleted('C', state, tree)).toBe(false);
+    expect(evaluateEffectiveGate('C', state, tree)).toBe(false);
+  });
+
+  it('container 含 static-locked 進度葉 → static-locked 不計入，只需其他 leaf 完成（2026-07-03 修 #11）', () => {
+    // 用戶場景：01-06 static-locked（作者手動封存）→ 不阻擋 arc.01 完成
+    // arc.01 completed = 剩餘進度 leaves 完成即可（S2 這個 test 中就是 s1）
+    const t = makeTree([
+      { id: 'arc', parentId: null, metadata: {} },
+      { id: 's1', parentId: 'arc', metadata: { progressPage: true } },
+      {
+        id: 's2',
+        parentId: 'arc',
+        metadata: { progressPage: true, locked: true },
+      },
+    ]);
+    // 只需 s1 completed（s2 static-locked 已被 adapter 排除）
+    const state = stateWith({ flags: ['completed:s1'] });
+    expect(isEffectivelyCompleted('arc', state, t)).toBe(true);
+    // s2 flag 存在也無用（永遠不可能合法讀完）
+    const stateWithS2Flag = stateWith({
+      flags: ['completed:s1', 'completed:s2'],
+    });
+    expect(isEffectivelyCompleted('arc', stateWithS2Flag, t)).toBe(true);
+    // 若 s1 未完成 → arc 未完成（s2 排除後只剩 s1，需 completed）
+    const stateEmpty = stateWith({ flags: [] });
+    expect(isEffectivelyCompleted('arc', stateEmpty, t)).toBe(false);
+  });
+});
+
 describe('gateExempt — 豁免切斷點（2026-07-03 定案）', () => {
   // chapter（進度）底下：arc1（進度）→ arc2（進度）；
   // arc2 底下：s1（進度）、extra（豁免）、extra 底下 sub
@@ -345,11 +457,12 @@ describe('gateExempt — 豁免切斷點（2026-07-03 定案）', () => {
     { id: 'sub', parentId: 'extra', metadata: {} },
   ]);
 
-  it('自身豁免：不繼承祖先容器鏈（arc2 要求 completed:arc1，extra 不吃）', () => {
-    // s1 有繼承：arc2 是進度頁 → 注入 completed:arc1
-    expect(effectiveGate('s1', tree)).toEqual({
-      requiresFlags: ['completed:arc1'],
-    });
+  it('自身豁免：不繼承祖先容器鏈（s1 有繼承、extra 不吃）', () => {
+    // 修 #11：s1 首節 fallback → completed:arc2；parent chain → completed:arc1
+    const s1Gate = effectiveGate('s1', tree);
+    expect(s1Gate?.requiresFlags).toEqual(
+      expect.arrayContaining(['completed:arc2', 'completed:arc1'])
+    );
     // extra 豁免：整段繼承跳過
     expect(effectiveGate('extra', tree)).toBeNull();
   });

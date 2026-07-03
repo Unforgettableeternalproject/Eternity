@@ -184,11 +184,44 @@ describe('contentVisibility', () => {
       ).toBe(null);
     });
 
-    it('靜態 locked 回傳 static（不需 progress）', () => {
+    it('靜態 locked 且無 gate 回傳 static', () => {
       expect(getLockKind({ metadata: { locked: true } })).toBe('static');
       expect(
         getLockKind({ metadata: { locked: true } }, createInitialState())
       ).toBe('static');
+    });
+
+    /**
+     * 進度鎖優先於 static（2026-07-03 修正）：頁面同時有靜態鎖與進度鏈時，
+     * 前置未完成 → 呈現 progression / flag（藏或模糊），前置完成才 static 🔒。
+     */
+    it('static + gate 未通過 → progression 優先（進度鎖搶先）', () => {
+      const node = {
+        metadata: {
+          locked: true,
+          gate: { requiresFlags: ['completed:history/1-5'] },
+        },
+      };
+      expect(getLockKind(node, createInitialState())).toBe('progression');
+    });
+
+    it('static + gate 通過 → 才顯 static', () => {
+      const node = {
+        metadata: {
+          locked: true,
+          gate: { requiresFlags: ['completed:history/1-5'] },
+        },
+      };
+      expect(
+        getLockKind(node, stateWith({ flags: ['completed:history/1-5'] }))
+      ).toBe('static');
+    });
+
+    it('static + 自訂旗標未持有 → flag 優先', () => {
+      const node = {
+        metadata: { locked: true, gate: { requiresFlags: ['met:norvia'] } },
+      };
+      expect(getLockKind(node, createInitialState())).toBe('flag');
     });
 
     it('條件全為 completed:* → progression', () => {
@@ -298,6 +331,66 @@ describe('contentVisibility', () => {
       expect(
         isProgressionChainHidden(orphan, createInitialState(), () => undefined)
       ).toBe(false);
+    });
+  });
+
+  /**
+   * 2026-07-03 修 #11：前一 container 的最後 leaf 決定下一 sibling 解鎖。
+   * arc.02 依賴 arc.01 的最後一節（排除 static-locked/hidden），
+   * 而非 arc.01 landing flag——強制使用者讀完整個 arc 才推進。
+   * 首節 fallback：arc.01 的第一個 section 依賴 completed:arc.01
+   * （arc landing 讀完才解鎖第一節）。
+   */
+  describe('isProgressionChainHidden — 前一 container 最後 leaf 規則（2026-07-03 修 #11）', () => {
+    const arc1Node = { metadata: { progressPage: true } };
+    const arc2Node = {
+      metadata: {
+        progressPage: true,
+      },
+    };
+    const nodes = new Map<string, { metadata: Record<string, unknown> }>([
+      ['arc1', arc1Node],
+      ['arc2', arc2Node],
+      ['s1', { metadata: { progressPage: true } }],
+      ['s2', { metadata: { progressPage: true } }],
+    ]);
+    const treeAdapter = {
+      getNode: (id: string) => nodes.get(id),
+      getParent: () => undefined,
+      getParentId: (id: string) => (['s1', 's2'].includes(id) ? 'arc1' : null),
+      getPreviousProgressSiblingId: (id: string) => {
+        const orderTop = ['arc1', 'arc2'];
+        const orderSub = ['s1', 's2'];
+        const order = orderTop.includes(id) ? orderTop : orderSub;
+        const idx = order.indexOf(id);
+        return idx > 0 ? order[idx - 1] : undefined;
+      },
+      getProgressDescendantIds: (id: string) =>
+        id === 'arc1' ? ['s1', 's2'] : [],
+    };
+    const resolve = (id: string) => nodes.get(id);
+
+    it('未讀完任何 → arc2 隱藏（依賴 arc1 最後 leaf s2 沒完成）', () => {
+      const state = createInitialState();
+      expect(
+        isProgressionChainHidden(arc2Node, state, resolve, 'arc2', treeAdapter)
+      ).toBe(true);
+    });
+
+    it('只讀完 arc1 landing → arc2 仍鎖（用戶必須讀完最後一節）', () => {
+      const state = stateWith({ flags: ['completed:arc1'] });
+      // arc2 gate = completed:s2（arc1 最後 leaf）→ s2 未完成 → 仍 progression
+      expect(getLockKind(arc2Node, state, 'arc2', treeAdapter)).toBe(
+        'progression'
+      );
+    });
+
+    it('讀完 arc1 最後 leaf s2 → arc2 gate 通過解鎖', () => {
+      // 完整流程：先讀 arc1 landing → 解鎖 s1 → 讀 s1 → 解鎖 s2 → 讀 s2 → 解鎖 arc2
+      const state = stateWith({
+        flags: ['completed:arc1', 'completed:s1', 'completed:s2'],
+      });
+      expect(getLockKind(arc2Node, state, 'arc2', treeAdapter)).toBe(null);
     });
   });
 });

@@ -42,7 +42,13 @@ export function isHidden(node: HasMetadata): boolean {
 
 /**
  * 鎖定分類。回傳 null 表示未鎖定。
- * 優先序：static > flag > progression（混合條件以旗標鎖為主）。
+ *
+ * 優先序（2026-07-03 修正）：進度鎖 > flag > static
+ * ——當頁面同時有靜態鎖與進度鏈條件時，先讓進度鏈把它藏起或以模糊態露出，
+ * 只有等鏈條件通過（前置全部 completed）後才顯示 static 🔒 表示
+ * 「進度到了，但這一節被手動封存」。混合旗標與進度時以旗標鎖為主。
+ *
+ * 向後相容：無 progress 時只判靜態鎖（Visuals/Echoes 尚未接進度系統）。
  *
  * @param nodeId 傳入時啟用 tree-aware 求值（含 progressPage 鏈 + 容器繼承 + 遞迴 completed）
  * @param tree tree 適配器，與 nodeId 一同傳入才生效
@@ -53,24 +59,31 @@ export function getLockKind(
   nodeId?: string,
   tree?: ProgressTreeAdapter
 ): LockKind | null {
-  if (node.metadata?.locked === true) return 'static';
-  if (!progress) return null;
+  const staticLocked = node.metadata?.locked === true;
+
+  // 無 progress → 只判靜態（向後相容）
+  if (!progress) return staticLocked ? 'static' : null;
 
   const useTree = nodeId !== undefined && tree !== undefined;
   const gate = useTree
     ? effectiveGate(nodeId, tree)
     : parseGateCondition(node.metadata ?? null);
-  if (!gate) return null;
 
-  const passes = useTree
-    ? evaluateEffectiveGate(nodeId, progress, tree, gate)
-    : evaluateGate(progress, gate);
-  if (passes) return null;
+  if (gate) {
+    const passes = useTree
+      ? evaluateEffectiveGate(nodeId, progress, tree, gate)
+      : evaluateGate(progress, gate);
+    if (!passes) {
+      // 進度鎖優先：gate 尚未通過時，先呈現 flag / progression，不看 static
+      const flags = gate.requiresFlags || [];
+      const hasCustomFlag = flags.some((f) => !f.startsWith(COMPLETION_PREFIX));
+      if (gate.pristineOnly || hasCustomFlag) return 'flag';
+      return 'progression';
+    }
+  }
 
-  const flags = gate.requiresFlags || [];
-  const hasCustomFlag = flags.some((f) => !f.startsWith(COMPLETION_PREFIX));
-  if (gate.pristineOnly || hasCustomFlag) return 'flag';
-  return 'progression';
+  // gate 通過（或無 gate）→ static 才生效
+  return staticLocked ? 'static' : null;
 }
 
 export function isLocked(
@@ -86,12 +99,17 @@ export function isLocked(
  * 進度鏈隱藏判定（循序漸進顯示）。
  *
  * 進度鎖頁面若其 completed:* 依賴的頁面「本身也還鎖定」，則不顯示——
- * 例：1-5 鎖 1-4、1-6 鎖 1-5 時，只有 1-5 以模糊態露出，1-6 隱藏；
- * 讀完 1-4 解鎖 1-5 後，1-6 才以模糊態露出。多條平行進度線各自獨立。
+ * 例：讀完 arc.00 前，arc.01 隱藏；讀完 arc.00 後 arc.01 露出模糊，
+ * 但 arc.02 仍隱藏，讀完 arc.01 才露出。多條平行進度線各自獨立。
  *
  * 只作用於 progression 鎖：flag 鎖無論何時都顯示，static 維持原樣。
  *
- * @param resolvePage 以 pageId 取得節點（tree 的 id 索引）；找不到視為不隱藏
+ * 註：2026-07-03 一度改為「倒數第二 leaf 露出、最後 leaf 解鎖」規則
+ * （#9），實測後回退——理由：arc.landing 讀完應直接推進，倒數第二
+ * 規則對「無 sections 的 arc」不適用，且 UX 上「讀完自己 → 下一個
+ * 露出」的線性感更符合使用者心智。
+ *
+ * @param resolvePage 以 pageId 取得節點；找不到視為不隱藏
  * @param nodeId 傳入時啟用 tree-aware 求值（含 progressPage 鏈 + 容器繼承）
  * @param tree tree 適配器，與 nodeId 一同傳入才生效
  */
