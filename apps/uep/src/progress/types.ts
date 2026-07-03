@@ -10,11 +10,14 @@ export type ViewMode = 'explorer' | 'observer';
 
 /** 單一頁面的掃描線閱讀進度（S2 掃描線系統寫入） */
 export interface PageMarkerProgress {
-  /** 曾經到達的最遠標記點索引（進度判定用） */
+  /** 曾經到達的最遠標記點索引（進度判定用；哨兵索引 = totalMarkers） */
   maxMarkerIdx: number;
   /** 最後閱讀位置的標記點索引（「回到上次位置」用） */
   lastMarkerIdx: number;
-  /** 標記點總數（完成判定：maxMarkerIdx >= totalMarkers - 1） */
+  /**
+   * 內容標記點總數（不含文末哨兵）。
+   * 完成判定：maxMarkerIdx >= totalMarkers（= 通過哨兵，max 與 total 對齊）
+   */
   totalMarkers: number;
   /** 最後更新時間（ISO 8601） */
   updatedAt: string;

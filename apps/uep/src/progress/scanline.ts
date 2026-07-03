@@ -6,10 +6,18 @@
  *
  * - maxMarkerIdx：曾到達的最遠標記點（單調遞增，進度判定）
  * - lastMarkerIdx：最近通過的標記點（「回到上次位置」）
- * - 文末哨兵永遠是最後一個索引，通過 = 頁面完成
+ * - totalMarkers = 內容標記點數（不含哨兵）；哨兵索引 = totalMarkers。
+ *   通過哨兵 = 頁面完成，此時 max = last = totalMarkers（數字直覺對齊）
  *
- * 掃描線位置：視窗高度 80% 處（rootMargin bottom -20%）——
- * 標記點頂端越過該線即視為「通過」。
+ * 掃描線位置：
+ * - 內容標記：視窗高度 80% 處（rootMargin bottom -20%）——
+ *   標記點頂端越過該線即視為「通過」
+ * - 文末哨兵：獨立 observer（rootMargin 0）——捲到底部哨兵一進入
+ *   視窗即算完成（掃描線等效跟著捲到底）。否則文章尾端 trailing
+ *   內容不夠高時，哨兵永遠過不了 80% 線，完成無法觸發
+ *
+ * 哨兵過線 = 整篇已讀：會補授「所有」內容標記的旗標——高速滾動時
+ * IntersectionObserver 可能漏報中途標記，讀到文末時兜底補齊。
  *
  * React 端請用 useScanline（本模組的薄包裝）；
  * 非 React 的 Astro script 可直接 createScanline / destroy。
@@ -23,13 +31,16 @@ const LAST_IDX_WRITE_DEBOUNCE = 800;
 
 /** 標記點通過事件 */
 export interface MarkerPassedInfo {
-  /** 標記點索引（含哨兵，0-based） */
+  /** 標記點索引（0-based；哨兵索引 = totalMarkers） */
   index: number;
-  /** 該標記授予的旗標（hr 與哨兵為空陣列） */
+  /**
+   * 本次通過授予的旗標。哨兵事件會帶「所有」內容標記旗標的聯集
+   * （兜底補授）；hr 與無旗標的手動標記為空陣列。
+   */
   grantsFlags: string[];
   /** 是否為文末哨兵（= 頁面完成點） */
   isSentinel: boolean;
-  /** 標記點總數（含哨兵） */
+  /** 內容標記點總數（不含哨兵） */
   totalMarkers: number;
 }
 
@@ -42,7 +53,7 @@ export interface ScanlineOptions {
   sentinel: HTMLElement;
   /** 滾動容器（IntersectionObserver root）；null 用 viewport */
   root?: HTMLElement | null;
-  /** 標記點通過時的回呼（FlagMarker 旗標授予、完成判定掛這裡） */
+  /** 標記點通過時的回呼（額外消費端用；授予/完成已內建） */
   onMarkerPassed?: (info: MarkerPassedInfo) => void;
 }
 
@@ -64,12 +75,11 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
 
   const store = getProgressManager();
   const markers = collectMarkers(container);
-  // 標記點 + 文末哨兵，哨兵永遠是最後一個索引
-  const totalMarkers = markers.length + 1;
-  const sentinelIdx = totalMarkers - 1;
+  // totalMarkers = 內容標記數；哨兵索引 = totalMarkers（完成時 max = total）
+  const totalMarkers = markers.length;
+  const sentinelIdx = totalMarkers;
 
   const indexOf = new Map<Element, number>(markers.map((m) => [m.el, m.index]));
-  indexOf.set(sentinel, sentinelIdx);
 
   // 以既有進度為基準（跨 session 續讀時不倒退）
   let maxIdx = store.getState().pageMarkers[pageId]?.maxMarkerIdx ?? -1;
@@ -96,7 +106,32 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
     writeTimer = setTimeout(write, LAST_IDX_WRITE_DEBOUNCE);
   };
 
-  const observer = new IntersectionObserver(
+  /** 哨兵通過：整篇已讀——完成 + 補授所有內容標記的旗標 */
+  const passSentinel = () => {
+    lastIdx = sentinelIdx;
+    maxIdx = Math.max(maxIdx, sentinelIdx);
+
+    // 兜底補授：高速滾動可能漏報中途 FlagMarker，讀完時補齊
+    const allFlags = [...new Set(markers.flatMap((m) => m.grantsFlags))];
+    if (allFlags.length > 0) {
+      store.grantFlags(allFlags);
+    }
+
+    // 完成狀態同時以 completed:* 旗標暴露，讓 gating 統一用旗標消費
+    store.markPageCompleted(pageId);
+    store.grantFlags([completionFlag(pageId)]);
+    scheduleWrite(true);
+
+    onMarkerPassed?.({
+      index: sentinelIdx,
+      grantsFlags: allFlags,
+      isSentinel: true,
+      totalMarkers,
+    });
+  };
+
+  // 內容標記 observer：掃描線在視窗高度 80% 處
+  const markerObserver = new IntersectionObserver(
     (entries) => {
       let maxAdvanced = false;
       let anyPassed = false;
@@ -112,26 +147,17 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
           maxAdvanced = true;
         }
 
-        const isSentinel = idx === sentinelIdx;
-        const grantsFlags = isSentinel ? [] : markers[idx].grantsFlags;
-
         // FlagMarker 位置粒度授予：掃描線通過標註點才給旗標
         // （「出現名字 ≠ 認識人物」——授予點由編輯器手動標註）
+        const grantsFlags = markers[idx].grantsFlags;
         if (grantsFlags.length > 0) {
           store.grantFlags(grantsFlags);
-        }
-
-        // 完成判定：通過文末哨兵 = 讀完整篇。
-        // 完成狀態同時以 completed:* 旗標暴露，讓 gating 統一用旗標消費
-        if (isSentinel) {
-          store.markPageCompleted(pageId);
-          store.grantFlags([completionFlag(pageId)]);
         }
 
         onMarkerPassed?.({
           index: idx,
           grantsFlags,
-          isSentinel,
+          isSentinel: false,
           totalMarkers,
         });
       }
@@ -146,12 +172,23 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
     }
   );
 
-  markers.forEach((m) => observer.observe(m.el));
-  observer.observe(sentinel);
+  // 哨兵 observer：不縮視窗——捲到底部哨兵進入視窗即完成
+  const sentinelObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        passSentinel();
+      }
+    },
+    { root, threshold: 0 }
+  );
+
+  markers.forEach((m) => markerObserver.observe(m.el));
+  sentinelObserver.observe(sentinel);
 
   return {
     destroy() {
-      observer.disconnect();
+      markerObserver.disconnect();
+      sentinelObserver.disconnect();
       // 離頁前 flush 未寫入的位置，避免掉最後的閱讀進度
       if (writeTimer) {
         clearTimeout(writeTimer);
