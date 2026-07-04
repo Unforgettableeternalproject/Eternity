@@ -142,14 +142,14 @@ export default function GateConditionEditor({
           進度頁、且要求特定其他頁面讀過（例如伏筆回收） */}
       {supportsProgressToggle && (
         <div className="ned-inspector-toggle ned-gate-progress-toggle">
-          <span>這是進度頁</span>
+          <span>progress page</span>
           <input
             type="checkbox"
             checked={isProgressPage || inheritedProgressPage}
             disabled={inheritedProgressPage}
             title={
               inheritedProgressPage
-                ? '父容器已標為進度頁，本頁自動視為進度頁（勾「不繼承容器進度」可退出）'
+                ? '父容器已標為進度頁，本頁自動視為進度頁（勾「exempt from container」可退出）'
                 : undefined
             }
             onChange={(e) => onProgressPageChange!(e.target.checked)}
@@ -159,7 +159,7 @@ export default function GateConditionEditor({
       {supportsProgressToggle && inheritedProgressPage && (
         <div className="ned-gate-scope-hint">
           ⓘ 繼承自父容器：本頁自動計入進度鏈與 container 完成判定。
-          若這一頁不算進度（如番外），勾下方「不繼承容器進度」豁免即可。
+          若這一頁不算進度（如番外），勾下方「exempt from container」豁免即可。
         </div>
       )}
       {supportsProgressToggle && isProgressPage && !inheritedProgressPage && (
@@ -174,7 +174,7 @@ export default function GateConditionEditor({
           不影響本頁自身的手動 gate、進度頁鏈與父容器完成判定。 */}
       {supportsExemptToggle && (
         <div className="ned-inspector-toggle ned-gate-exempt-toggle">
-          <span>不繼承容器進度</span>
+          <span>exempt from container</span>
           <input
             type="checkbox"
             checked={isGateExempt}
@@ -223,15 +223,15 @@ export default function GateConditionEditor({
           if (!pickerOpen) void loadTree();
         }}
       >
-        {pickerOpen ? '－ 收合頁面清單' : '＋ 需先讀完…'}
+        {pickerOpen ? '－ collapse list' : '＋ requires completion…'}
       </button>
 
       {pickerOpen && (
         <div className="ned-gate-picker">
           {treeLoading ? (
-            <div className="ned-gate-picker-empty">載入中…</div>
+            <div className="ned-gate-picker-empty">loading…</div>
           ) : pageTree.length === 0 ? (
-            <div className="ned-gate-picker-empty">無法載入頁面清單</div>
+            <div className="ned-gate-picker-empty">unable to load pages</div>
           ) : (
             renderTree(pageTree)
           )}
@@ -243,7 +243,7 @@ export default function GateConditionEditor({
           className="ned-field"
           type="text"
           value={customFlag}
-          placeholder="自訂旗標（如 met:norvia）"
+          placeholder="custom flag (e.g. met:norvia)"
           onChange={(e) => setCustomFlag(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -268,7 +268,7 @@ export default function GateConditionEditor({
       </div>
 
       <div className="ned-inspector-toggle">
-        <span>純潔者限定</span>
+        <span>pristine only</span>
         <input
           type="checkbox"
           checked={pristineOnly}

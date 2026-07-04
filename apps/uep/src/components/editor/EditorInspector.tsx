@@ -150,7 +150,7 @@ export default function EditorInspector({
       {gateFields && (
         <>
           <div className="ned-inspector-sep" />
-          <Section label="進度條件">{gateFields}</Section>
+          <Section label="progress gate">{gateFields}</Section>
         </>
       )}
 
