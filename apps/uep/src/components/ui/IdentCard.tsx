@@ -19,14 +19,16 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
 import { useProgress } from '../../progress/useProgress';
+import { WELCOME_DONE_EVENT } from './GlobalWelcomeHost';
 import ViewSwitch from './ViewSwitch';
 
 import './IdentCard.css';
 
-/** sessionStorage flag：/login 頁完成 auth 後種下，識別證讀到就播「掛上」動畫 */
-const IDENTCARD_ARRIVAL_KEY = 'uep.identcard.arrival.v1';
-/** 掛上動畫總時長，動畫走完後清除 flag */
-const ARRIVAL_ANIM_MS = 1400;
+/** 掛上動畫總時長，動畫走完後移除 class */
+const ARRIVAL_ANIM_MS = 1600;
+/** WelcomeCeremony 結束後多久才播 arrival——留一段緩衝讓頁面入場動畫穩定
+ *  下來，避免識別證接上時視覺焦點還在頁面 boot 動畫上 */
+const ARRIVAL_POST_WELCOME_DELAY_MS = 350;
 
 /** 拖曳判定：小於此距離視為 click（翻面），超過才進入 tear mode */
 const DRAG_THRESHOLD_PX = 8;
@@ -43,22 +45,29 @@ export default function IdentCard() {
   const [arriving, setArriving] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  /* 掛上動畫 flag：sessionStorage 有 key 就播一次、清掉、之後正常展示。
-     刻意在 mount 立刻讀（不放 session 條件內），避免 session 尚未 hydrate
-     時漏播；訪客沒 session 也不 render 就自然不會誤觸發 */
+  /* 掛上動畫由 WelcomeCeremony 完成事件驅動——不再自己讀 sessionStorage。
+     這樣時序上：頁面入場動畫先跑（Welcome 遮罩下）→ Welcome 播完 dispatch
+     event → 短延遲讓入場焦點穩定 → 識別證接上。
+     訪客沒 session 也不 render 就自然不會誤觸發 */
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let flagged = false;
-    try {
-      flagged = sessionStorage.getItem(IDENTCARD_ARRIVAL_KEY) === '1';
-      if (flagged) sessionStorage.removeItem(IDENTCARD_ARRIVAL_KEY);
-    } catch {
-      /* 忽略 */
+    if (typeof window === 'undefined') return undefined;
+    let animTimer: ReturnType<typeof setTimeout> | null = null;
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function handleWelcomeDone() {
+      /* 延遲一小段時間再播 arrival，等 zone/主頁的入場動畫穩下來 */
+      delayTimer = setTimeout(() => {
+        setArriving(true);
+        animTimer = setTimeout(() => setArriving(false), ARRIVAL_ANIM_MS);
+      }, ARRIVAL_POST_WELCOME_DELAY_MS);
     }
-    if (!flagged) return;
-    setArriving(true);
-    const t = setTimeout(() => setArriving(false), ARRIVAL_ANIM_MS);
-    return () => clearTimeout(t);
+
+    window.addEventListener(WELCOME_DONE_EVENT, handleWelcomeDone);
+    return () => {
+      window.removeEventListener(WELCOME_DONE_EVENT, handleWelcomeDone);
+      if (delayTimer) clearTimeout(delayTimer);
+      if (animTimer) clearTimeout(animTimer);
+    };
   }, []);
   /** 拖曳狀態透過 ref 存，避免每一 pointermove 都 rerender */
   const dragRef = useRef<{

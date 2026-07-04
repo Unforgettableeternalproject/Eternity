@@ -16,12 +16,9 @@ import {
   useReaderAuth,
   WITNESSED_PREFIX,
 } from '../../auth';
-import WelcomeCeremony from '../ui/WelcomeCeremony';
+import { WELCOME_PENDING_KEY } from '../ui/GlobalWelcomeHost';
 
 import './ReaderLoginPage.css';
-
-/** sessionStorage flag：告訴目標頁的識別證播「掛上」動畫 */
-const IDENTCARD_ARRIVAL_KEY = 'uep.identcard.arrival.v1';
 
 type Mode = 'choice' | 'login' | 'register';
 
@@ -363,31 +360,32 @@ function LoginFlow({
 export default function ReaderLoginPage({ returnUrl }: Props) {
   const session = useReaderAuth();
   const [mode, setMode] = useState<Mode>('choice');
-  /** 儀式進行中：暫停一切 UI，等 WelcomeCeremony 走完再導頁 */
-  const [welcome, setWelcome] = useState<{
-    kind: 'login' | 'register';
-    alias: string;
-  } | null>(null);
   const safeReturn = sanitizeReturn(returnUrl);
 
-  /* 已登入者：直接彈回來源頁——避免二次登入。
-     但若正在跑歡迎儀式（剛剛才登入），讓儀式播完再離開 */
+  /* 已登入者：直接彈回來源頁——避免二次登入 */
   useEffect(() => {
-    if (session && !welcome) {
+    if (session) {
       window.location.replace(safeReturn);
     }
-  }, [session, safeReturn, welcome]);
+  }, [session, safeReturn]);
 
+  /**
+   * auth 成功後只做兩件事：
+   * 1. sessionStorage 存 pending flag（含 kind + alias），目標頁 GlobalWelcomeHost
+   *    掛載時讀到就播 WelcomeCeremony
+   * 2. 立刻導頁——不在 /login 頁播儀式，避免目標頁自己的入場動畫在下方搶跑
+   *
+   * 這樣時序上是「頁面已就位 → 儀式在頁面上方播 → 識別證接手」，
+   * 而不是「儀式播 → 導頁 → 目標頁動畫蓋過識別證」。
+   */
   function done(kind: 'login' | 'register', alias: string) {
-    setWelcome({ kind, alias });
-  }
-
-  function afterWelcome() {
-    /* 通知目標頁的識別證播「掛上」動畫 */
     try {
-      sessionStorage.setItem(IDENTCARD_ARRIVAL_KEY, '1');
+      sessionStorage.setItem(
+        WELCOME_PENDING_KEY,
+        JSON.stringify({ kind, alias })
+      );
     } catch {
-      /* 忽略：sessionStorage 不可用時就沒接上動畫，不影響主流程 */
+      /* sessionStorage 不可用時就沒儀式，不影響 auth 流程 */
     }
     window.location.href = safeReturn;
   }
@@ -498,14 +496,6 @@ export default function ReaderLoginPage({ returnUrl }: Props) {
           )}
         </div>
       </div>
-
-      {welcome && (
-        <WelcomeCeremony
-          kind={welcome.kind}
-          alias={welcome.alias}
-          onDone={afterWelcome}
-        />
-      )}
     </div>
   );
 }

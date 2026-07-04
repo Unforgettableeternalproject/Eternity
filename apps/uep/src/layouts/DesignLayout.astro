@@ -1,6 +1,7 @@
 ---
 import UepToastContainer from '../components/ui/UepToast';
 import UepDialogContainer from '../components/ui/UepDialog';
+import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
 
 interface Props {
   title: string;
@@ -126,7 +127,19 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       (function () {
         var t = localStorage.getItem('uep-theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
-        if (document.documentElement.hasAttribute('data-lobby')) {
+        /* 剛從 /login 完成 auth 回來：WelcomeCeremony 全屏遮罩自己就是唯一畫面，
+           跳過 lobbyBlock 避免雙層遮罩造成 Welcome 淡出時空白閃現 */
+        var welcomePending = false;
+        try {
+          welcomePending =
+            sessionStorage.getItem('uep.welcome.pending.v1') !== null;
+        } catch (e) {
+          /* sessionStorage 不可用時走預設分支 */
+        }
+        if (
+          document.documentElement.hasAttribute('data-lobby') &&
+          !welcomePending
+        ) {
           var bg = t === 'dark' ? '#14151a' : '#fafaf7';
           var s = document.createElement('style');
           s.id = 'lobby-block-style';
@@ -143,6 +156,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <slot />
     <UepToastContainer client:idle />
     <UepDialogContainer client:idle />
+    <GlobalWelcomeHost client:idle />
   </body>
 </html>
 

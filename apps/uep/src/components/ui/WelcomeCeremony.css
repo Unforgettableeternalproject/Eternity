@@ -3,7 +3,7 @@
 .uep-welcome {
   position: fixed;
   inset: 0;
-  z-index: 5000;
+  z-index: 10001; /* 蓋過 lobbyBlock(9999) 與 Toast(10000) —— Welcome 期間是唯一畫面 */
   display: grid;
   place-items: center;
   pointer-events: none;
