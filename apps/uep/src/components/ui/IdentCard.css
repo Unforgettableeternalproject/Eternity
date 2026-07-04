@@ -38,10 +38,13 @@
 }
 
 /* 「掛上」加強動畫——剛從 /login 完成 auth 回來時播一次：
-   吊繩從 0 高度生長出來，識別證從上方降落 + 微幅擺盪定位 */
-.uep-ident.is-arriving {
-  animation: none; /* 停用預設 drop，改由子元素各自演出 */
-}
+   吊繩從 0 高度生長出來，識別證從上方降落 + 微幅擺盪定位。
+
+   注意：不要在此加 .uep-ident { animation: none } 來停用 root 的 drop。
+   Welcome 儀式已經蓋住 drop 的 0.7s（drop 早跑完了），但如果 arriving
+   期間把 animation 屬性從 uep-ident-drop 覆寫成 none，等 is-arriving
+   class 被移除時 animation 屬性回切成 uep-ident-drop 會觸發 CSS
+   重新播放整個 drop，使用者會看到「識別證動畫又跑一次」。 */
 
 .uep-ident.is-arriving .uep-ident__cord {
   animation: uep-ident-cord-grow 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
@@ -91,6 +94,13 @@
   .uep-ident.is-arriving .uep-ident__flip {
     animation: none;
   }
+}
+
+/* 額外保險：若 root drop 動畫在 arrive 進場前還沒跑完（例如頁面
+   極慢載入），本規則讓 root 進入 forwards 終態、不再干擾 arrive；
+   對已跑完 drop 的路徑則為 no-op（動畫終態本就是 translateY(0)） */
+.uep-ident.is-arriving {
+  animation-fill-mode: forwards;
 }
 
 /* 吊繩：從 TopBar 下緣垂下；撕下拖曳時被拉長（--tear-y 由 JS 控制）
