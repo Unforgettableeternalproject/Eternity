@@ -99,8 +99,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
       }
 
       const payload = await verifyJwt(jwtCookie.value, jwtSecret);
-      if (!payload) {
-        // JWT 無效或過期 — 清除 cookie
+      // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，
+      // 僅靠 role 區分權限——admin 頁面一律拒絕 reader token（與 Worker requireJwt 一致）
+      if (!payload || payload.role === 'reader') {
+        // JWT 無效、過期或非 admin — 清除 cookie
         context.cookies.delete(JWT_COOKIE, { path: '/' });
         context.cookies.delete(ACTIVE_COOKIE, { path: '/' });
         const redirect = encodeURIComponent(pathname);

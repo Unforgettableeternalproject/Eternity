@@ -15,7 +15,13 @@ import type {
   ListAssetsResponse,
   BatchDeleteRequest,
 } from './types';
-import { signJwt, verifyJwt, hashPassword, verifyPassword } from './auth';
+import {
+  signJwt,
+  verifyJwt,
+  hashPassword,
+  verifyPassword,
+  requireJwt,
+} from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
@@ -190,31 +196,6 @@ function isAuthorized(request: Request, env: Env): boolean {
 
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
   return token === env.API_TOKEN;
-}
-
-/** JWT 驗證 — 用於需要登入的 Admin 路由，回傳 payload 或 null */
-async function requireJwt(
-  request: Request,
-  env: Env
-): Promise<JwtPayload | null> {
-  // 開發模式（無 JWT_SECRET）：允許所有請求
-  if (!env.JWT_SECRET)
-    return {
-      sub: 'dev',
-      role: 'super_admin',
-      display_name: 'Dev',
-      iat: 0,
-      exp: 0,
-      jti: '',
-    };
-  const auth = request.headers.get('Authorization');
-  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
-  if (!token) return null;
-  const payload = await verifyJwt(token, env.JWT_SECRET);
-  // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，
-  // 僅靠 role 區分權限——admin 保護路由一律拒絕 reader token
-  if (payload && payload.role === 'reader') return null;
-  return payload;
 }
 
 // ===== 路由處理 =====
@@ -1201,7 +1182,11 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
 // ===== Worker 入口 =====
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    _ctx?: ExecutionContext
+  ): Promise<Response> {
     const url = new URL(request.url);
     const cors = getCorsHeaders(request, env);
 

@@ -1,4 +1,4 @@
-import type { JwtPayload } from './types';
+import type { Env, JwtPayload } from './types';
 
 // ===== Base64url 編解碼 =====
 
@@ -78,6 +78,34 @@ export async function verifyJwt(
   } catch {
     return null;
   }
+}
+
+/**
+ * JWT 驗證 — 用於需要登入的 Admin 保護路由，回傳 payload 或 null。
+ * index.ts 與 uep-auth.ts 共用，role 邊界規則只在此處定義一份。
+ */
+export async function requireJwt(
+  request: Request,
+  env: Env
+): Promise<JwtPayload | null> {
+  // 開發模式（無 JWT_SECRET）：允許所有請求
+  if (!env.JWT_SECRET)
+    return {
+      sub: 'dev',
+      role: 'super_admin',
+      display_name: 'Dev',
+      iat: 0,
+      exp: 0,
+      jti: '',
+    };
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (!token) return null;
+  const payload = await verifyJwt(token, env.JWT_SECRET);
+  // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，
+  // 僅靠 role 區分權限——admin 保護路由一律拒絕 reader token
+  if (payload && payload.role === 'reader') return null;
+  return payload;
 }
 
 // ===== 密碼雜湊 (PBKDF2-SHA256) =====

@@ -205,6 +205,8 @@ export interface UepUserRow {
   observer_ever: number;
   progress: string | null;
   is_active: number;
+  admin_note: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -24,7 +24,13 @@ import type {
   UepRegisterRequest,
   UepUserRow,
 } from './types';
-import { hashPassword, signJwt, verifyJwt, verifyPassword } from './auth';
+import {
+  hashPassword,
+  requireJwt,
+  signJwt,
+  verifyJwt,
+  verifyPassword,
+} from './auth';
 import { isValidAlias, rollAlias } from './uep-alias';
 
 /** 讀者 token 有效期：30 天（閱讀進度帳號，不需像 admin 一樣每日過期） */
@@ -45,6 +51,9 @@ function readerSecret(env: Env): string {
 
 /** progress blob 大小上限（bytes）——防止濫用；正常 ProgressState 遠小於此 */
 const PROGRESS_MAX_BYTES = 131072; // 128 KB
+
+/** admin 備註長度上限（字元）——與 progress 上限同理，防止濫用 */
+const ADMIN_NOTE_MAX_CHARS = 4096;
 
 function json<T>(
   data: ApiResponse<T>,
@@ -103,6 +112,27 @@ function publicUser(row: UepUserRow) {
     observerEver: row.observer_ever === 1,
     hasProgress: row.progress !== null,
     createdAt: row.created_at,
+  };
+}
+
+/**
+ * Admin 端使用者資訊（含管理欄位，不含密碼與 progress blob）。
+ * 查詢一律用 ADMIN_USER_COLS（以 has_progress 取代 progress 本體），
+ * list/get 共用此映射，欄位格式只定義一份。
+ */
+function adminUser(row: UepUserRow & { has_progress: number }) {
+  return {
+    id: row.id,
+    username: row.username,
+    alias: row.alias,
+    email: row.email,
+    observerEver: row.observer_ever === 1,
+    hasProgress: row.has_progress === 1,
+    isActive: row.is_active === 1,
+    adminNote: row.admin_note,
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -190,7 +220,9 @@ async function handleLogin(
   cors: Record<string, string>
 ): Promise<Response> {
   const row = await db
-    .prepare('SELECT * FROM uep_users WHERE username = ? AND is_active = 1')
+    .prepare(
+      'SELECT * FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+    )
     .bind(body.username || '')
     .first<UepUserRow>();
 
@@ -237,7 +269,9 @@ async function handleMe(
     return json({ ok: false, error: 'Unauthorized' }, 401, cors);
   }
   const row = await db
-    .prepare('SELECT * FROM uep_users WHERE username = ? AND is_active = 1')
+    .prepare(
+      'SELECT * FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+    )
     .bind(payload.sub)
     .first<UepUserRow>();
   if (!row) {
@@ -260,7 +294,7 @@ async function handleGetProgress(
   }
   const row = await db
     .prepare(
-      'SELECT progress FROM uep_users WHERE username = ? AND is_active = 1'
+      'SELECT progress FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
     .first<Pick<UepUserRow, 'progress'>>();
@@ -302,7 +336,7 @@ async function handlePutProgress(
 
   const row = await db
     .prepare(
-      'SELECT observer_ever FROM uep_users WHERE username = ? AND is_active = 1'
+      'SELECT observer_ever FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
     .first<Pick<UepUserRow, 'observer_ever'>>();
@@ -330,6 +364,190 @@ async function handlePutProgress(
   return json({ ok: true, data: { observerEver, savedAt: now } }, 200, cors);
 }
 
+// ===== Admin 使用者管理（JWT admin 保護）=====
+
+/** Admin 端列出使用者清單欄位（不含 password_hash 和 progress blob） */
+const ADMIN_USER_COLS =
+  'id, username, email, alias, observer_ever, is_active, admin_note, deleted_at, created_at, updated_at, CASE WHEN progress IS NOT NULL THEN 1 ELSE 0 END AS has_progress';
+
+/** GET /api/uep/admin/users — 列出所有使用者（admin JWT） */
+async function handleAdminListUsers(
+  url: URL,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const includeDeleted = url.searchParams.get('include_deleted') === 'true';
+  const search = url.searchParams.get('search')?.trim() || '';
+
+  let query = `SELECT ${ADMIN_USER_COLS} FROM uep_users`;
+  const conditions: string[] = [];
+  const binds: unknown[] = [];
+
+  if (!includeDeleted) {
+    conditions.push('deleted_at IS NULL');
+  }
+  if (search) {
+    conditions.push(
+      "(username LIKE ? ESCAPE '\\' OR alias LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\')"
+    );
+    // escape LIKE 萬用字元，避免使用者輸入 % / _ 被當成 pattern
+    const escaped = search.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const pattern = `%${escaped}%`;
+    binds.push(pattern, pattern, pattern);
+  }
+
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
+  }
+  query += ' ORDER BY created_at DESC';
+
+  const result = await db
+    .prepare(query)
+    .bind(...binds)
+    .all<UepUserRow & { has_progress: number }>();
+
+  return json(
+    { ok: true, data: (result.results || []).map(adminUser) },
+    200,
+    cors
+  );
+}
+
+/** GET /api/uep/admin/users/:id — 取得單一使用者詳情（admin JWT） */
+async function handleAdminGetUser(
+  userId: number,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare(`SELECT ${ADMIN_USER_COLS} FROM uep_users WHERE id = ?`)
+    .bind(userId)
+    .first<UepUserRow & { has_progress: number }>();
+
+  if (!row) {
+    return json({ ok: false, error: '使用者不存在' }, 404, cors);
+  }
+
+  return json({ ok: true, data: adminUser(row) }, 200, cors);
+}
+
+/** PUT /api/uep/admin/users/:id — 更新使用者（admin_note、alias、email、is_active） */
+async function handleAdminUpdateUser(
+  userId: number,
+  request: Request,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return json({ ok: false, error: '無效的 JSON' }, 400, cors);
+  }
+
+  // 確認使用者存在
+  const existing = await db
+    .prepare('SELECT id FROM uep_users WHERE id = ?')
+    .bind(userId)
+    .first<{ id: number }>();
+  if (!existing) {
+    return json({ ok: false, error: '使用者不存在' }, 404, cors);
+  }
+
+  const updates: string[] = [];
+  const values: unknown[] = [];
+
+  if (body.adminNote !== undefined) {
+    const note = typeof body.adminNote === 'string' ? body.adminNote : null;
+    if (note && note.length > ADMIN_NOTE_MAX_CHARS) {
+      return json({ ok: false, error: '備註過長' }, 400, cors);
+    }
+    updates.push('admin_note = ?');
+    values.push(note);
+  }
+  if (body.alias !== undefined) {
+    // 與註冊相同規則：詞庫為代稱合法性的唯一來源（isValidAlias）
+    const alias = typeof body.alias === 'string' ? body.alias.trim() : '';
+    if (!isValidAlias(alias)) {
+      return json({ ok: false, error: '代稱必須是詞庫的合法組合' }, 400, cors);
+    }
+    updates.push('alias = ?');
+    values.push(alias);
+  }
+  if (body.email !== undefined) {
+    // 與註冊相同規則：空值存 NULL，非空需通過 EMAIL_RE
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    if (email && !EMAIL_RE.test(email)) {
+      return json({ ok: false, error: '郵件信箱格式不正確' }, 400, cors);
+    }
+    updates.push('email = ?');
+    values.push(email || null);
+  }
+  if (typeof body.isActive === 'boolean') {
+    updates.push('is_active = ?');
+    values.push(body.isActive ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return json({ ok: false, error: '沒有要更新的欄位' }, 400, cors);
+  }
+
+  updates.push('updated_at = ?');
+  const now = new Date().toISOString();
+  values.push(now);
+  values.push(userId);
+
+  await db
+    .prepare(`UPDATE uep_users SET ${updates.join(', ')} WHERE id = ?`)
+    .bind(...values)
+    .run();
+
+  // 回傳更新後的資料
+  return handleAdminGetUser(userId, db, cors);
+}
+
+/** DELETE /api/uep/admin/users/:id — 軟刪除使用者 */
+async function handleAdminDeleteUser(
+  userId: number,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const result = await db
+    .prepare(
+      'UPDATE uep_users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+    )
+    .bind(now, now, userId)
+    .run();
+
+  if (result.meta.changes === 0) {
+    return json({ ok: false, error: '使用者不存在或已被刪除' }, 404, cors);
+  }
+
+  return json({ ok: true, data: { deletedAt: now } }, 200, cors);
+}
+
+/** POST /api/uep/admin/users/:id/restore — 恢復軟刪除的使用者 */
+async function handleAdminRestoreUser(
+  userId: number,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const result = await db
+    .prepare(
+      'UPDATE uep_users SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
+    )
+    .bind(now, userId)
+    .run();
+
+  if (result.meta.changes === 0) {
+    return json({ ok: false, error: '使用者不存在或未被刪除' }, 404, cors);
+  }
+
+  return json({ ok: true }, 200, cors);
+}
+
 // ===== 路由分派 =====
 
 /**
@@ -347,6 +565,7 @@ export async function handleUepRoutes(
   if (!path.startsWith('/api/uep/')) return null;
 
   const db = env.CONTENT_DB;
+  const url = new URL(request.url);
 
   // 公開端點：代稱 roll（註冊 UI 的重 roll 按鈕）
   if (path === '/api/uep/alias/roll' && method === 'GET') {
@@ -373,6 +592,40 @@ export async function handleUepRoutes(
 
   if (path === '/api/uep/progress' && method === 'PUT') {
     return handlePutProgress(request, db, env, cors);
+  }
+
+  // ---- Admin 使用者管理路由（/api/uep/admin/users/*，需 admin JWT） ----
+
+  if (path === '/api/uep/admin/users' && method === 'GET') {
+    const adminPayload = await requireJwt(request, env);
+    if (!adminPayload) {
+      return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
+    return handleAdminListUsers(url, db, cors);
+  }
+
+  // 匹配 /api/uep/admin/users/:id 和 /api/uep/admin/users/:id/restore
+  const adminUserMatch = path.match(
+    /^\/api\/uep\/admin\/users\/(\d+)(\/restore)?$/
+  );
+  if (adminUserMatch) {
+    const adminPayload = await requireJwt(request, env);
+    if (!adminPayload) {
+      return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    }
+
+    const userId = parseInt(adminUserMatch[1], 10);
+    const isRestore = adminUserMatch[2] === '/restore';
+
+    if (isRestore && method === 'POST') {
+      return handleAdminRestoreUser(userId, db, cors);
+    }
+    if (!isRestore) {
+      if (method === 'GET') return handleAdminGetUser(userId, db, cors);
+      if (method === 'PUT')
+        return handleAdminUpdateUser(userId, request, db, cors);
+      if (method === 'DELETE') return handleAdminDeleteUser(userId, db, cors);
+    }
   }
 
   return json({ ok: false, error: 'Not found' }, 404, cors);

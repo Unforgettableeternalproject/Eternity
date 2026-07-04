@@ -13,6 +13,7 @@ import { isValidAlias, rollAlias, GUEST_ALIAS } from '../uep-alias';
 const ctx = {
   waitUntil: () => {},
   passThroughOnException: () => {},
+  props: {},
 } as ExecutionContext;
 
 function createRequest(
@@ -344,6 +345,292 @@ describe('進度同步', () => {
       body: JSON.stringify(sampleProgress),
     });
     expect(put.status).toBe(401);
+  });
+});
+
+describe('Admin 使用者管理（/api/uep/admin/users）', () => {
+  // 與「權限隔離」describe 共用同一組 admin——bootstrap 只允許建立第一位 admin，
+  // 兩個 describe 用同帳號才能各自獨立取得 token
+  async function getAdminToken(): Promise<string> {
+    await worker.fetch(
+      createRequest('/api/auth/bootstrap', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: 'sec-admin',
+          password: 'sec-password',
+          display_name: 'Sec Admin',
+        }),
+      }),
+      env,
+      ctx
+    );
+    const { body } = await fetchJson<{ token: string }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: 'sec-admin', password: 'sec-password' }),
+    });
+    return body.data!.token;
+  }
+
+  interface AdminUser {
+    id: number;
+    username: string;
+    alias: string;
+    email: string | null;
+    observerEver: boolean;
+    hasProgress: boolean;
+    isActive: boolean;
+    adminNote: string | null;
+    deletedAt: string | null;
+  }
+
+  /** 以 admin token 取得指定 username 的使用者（含已刪除） */
+  async function findUser(
+    adminToken: string,
+    username: string
+  ): Promise<AdminUser | undefined> {
+    const { body } = await fetchJson<AdminUser[]>(
+      '/api/uep/admin/users?include_deleted=true',
+      { token: adminToken }
+    );
+    return body.data!.find((u) => u.username === username);
+  }
+
+  it('無 token 一律 401', async () => {
+    const list = await fetchJson('/api/uep/admin/users');
+    expect(list.status).toBe(401);
+    const put = await fetchJson('/api/uep/admin/users/1', {
+      method: 'PUT',
+      body: JSON.stringify({ adminNote: 'x' }),
+    });
+    expect(put.status).toBe(401);
+    const del = await fetchJson('/api/uep/admin/users/1', {
+      method: 'DELETE',
+    });
+    expect(del.status).toBe(401);
+  });
+
+  it('reader token 一律 401（安全邊界）', async () => {
+    const { token } = await registerUser('um-reader-sec');
+    const list = await fetchJson('/api/uep/admin/users', { token });
+    expect(list.status).toBe(401);
+    const del = await fetchJson('/api/uep/admin/users/1', {
+      method: 'DELETE',
+      token,
+    });
+    expect(del.status).toBe(401);
+  });
+
+  it('admin token 可列出使用者，欄位不含敏感資料', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-list-user');
+    const user = await findUser(adminToken, 'um-list-user');
+    expect(user).toBeDefined();
+    expect(user!.isActive).toBe(true);
+    expect(user!.hasProgress).toBe(false);
+    expect(user!.deletedAt).toBeNull();
+    expect(user).not.toHaveProperty('password_hash');
+    expect(user).not.toHaveProperty('progress');
+  });
+
+  it('search 過濾 username（含 LIKE 萬用字元 escape）', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-search-target');
+    await registerUser('um-search-other');
+
+    const { body } = await fetchJson<AdminUser[]>(
+      '/api/uep/admin/users?search=um-search-target',
+      { token: adminToken }
+    );
+    expect(body.data!.some((u) => u.username === 'um-search-target')).toBe(
+      true
+    );
+    expect(body.data!.some((u) => u.username === 'um-search-other')).toBe(
+      false
+    );
+
+    // % 不能被當成萬用字元吞掉全部
+    const wild = await fetchJson<AdminUser[]>('/api/uep/admin/users?search=%', {
+      token: adminToken,
+    });
+    expect(wild.body.data!.length).toBe(0);
+  });
+
+  it('PUT 更新 adminNote / alias / email', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-update-user');
+    const user = await findUser(adminToken, 'um-update-user');
+    const newAlias = rollAlias();
+
+    const { status, body } = await fetchJson<AdminUser>(
+      `/api/uep/admin/users/${user!.id}`,
+      {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({
+          adminNote: '測試備註',
+          alias: newAlias,
+          email: 'updated@example.com',
+        }),
+      }
+    );
+    expect(status).toBe(200);
+    expect(body.data!.adminNote).toBe('測試備註');
+    expect(body.data!.alias).toBe(newAlias);
+    expect(body.data!.email).toBe('updated@example.com');
+  });
+
+  it('PUT 驗證與註冊同規則：非法代稱/信箱/過長備註回傳 400', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-validate-user');
+    const user = await findUser(adminToken, 'um-validate-user');
+
+    const badAlias = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ alias: '至高無上的管理員' }),
+    });
+    expect(badAlias.status).toBe(400);
+
+    const badEmail = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ email: 'not-an-email' }),
+    });
+    expect(badEmail.status).toBe(400);
+
+    const longNote = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ adminNote: 'x'.repeat(5000) }),
+    });
+    expect(longNote.status).toBe(400);
+  });
+
+  it('停用（isActive=false）後不能登入，重新啟用後恢復', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-deact-user', 'deact-password-1');
+    const user = await findUser(adminToken, 'um-deact-user');
+
+    await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ isActive: false }),
+    });
+    const blocked = await fetchJson('/api/uep/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'um-deact-user',
+        password: 'deact-password-1',
+      }),
+    });
+    expect(blocked.status).toBe(401);
+
+    await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ isActive: true }),
+    });
+    const restored = await fetchJson('/api/uep/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'um-deact-user',
+        password: 'deact-password-1',
+      }),
+    });
+    expect(restored.status).toBe(200);
+  });
+
+  it('軟刪除後：登入/me/progress 全部拒絕，預設列表隱藏，restore 後恢復', async () => {
+    const adminToken = await getAdminToken();
+    const { token: readerToken } = await registerUser(
+      'um-del-user',
+      'del-password-1'
+    );
+    const user = await findUser(adminToken, 'um-del-user');
+
+    const del = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'DELETE',
+      token: adminToken,
+    });
+    expect(del.status).toBe(200);
+
+    // 登入被拒
+    const login = await fetchJson('/api/uep/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'um-del-user',
+        password: 'del-password-1',
+      }),
+    });
+    expect(login.status).toBe(401);
+
+    // 既有 token 的 me / progress 也被拒（軟刪與停用一致）
+    const me = await fetchJson('/api/uep/auth/me', { token: readerToken });
+    expect(me.status).toBe(401);
+    const prog = await fetchJson('/api/uep/progress', { token: readerToken });
+    expect(prog.status).toBe(401);
+    const progPut = await fetchJson('/api/uep/progress', {
+      method: 'PUT',
+      token: readerToken,
+      body: JSON.stringify({ version: 1 }),
+    });
+    expect(progPut.status).toBe(401);
+
+    // 預設列表隱藏、include_deleted 可見
+    const defaultList = await fetchJson<AdminUser[]>('/api/uep/admin/users', {
+      token: adminToken,
+    });
+    expect(
+      defaultList.body.data!.some((u) => u.username === 'um-del-user')
+    ).toBe(false);
+    const withDeleted = await findUser(adminToken, 'um-del-user');
+    expect(withDeleted!.deletedAt).not.toBeNull();
+
+    // 重複刪除 → 404
+    const delAgain = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'DELETE',
+      token: adminToken,
+    });
+    expect(delAgain.status).toBe(404);
+
+    // restore 後恢復登入
+    const restore = await fetchJson(
+      `/api/uep/admin/users/${user!.id}/restore`,
+      { method: 'POST', token: adminToken }
+    );
+    expect(restore.status).toBe(200);
+    const loginAfter = await fetchJson('/api/uep/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'um-del-user',
+        password: 'del-password-1',
+      }),
+    });
+    expect(loginAfter.status).toBe(200);
+  });
+
+  it('不存在的使用者：GET/PUT/DELETE/restore 回傳 404', async () => {
+    const adminToken = await getAdminToken();
+    const get = await fetchJson('/api/uep/admin/users/99999', {
+      token: adminToken,
+    });
+    expect(get.status).toBe(404);
+    const put = await fetchJson('/api/uep/admin/users/99999', {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ adminNote: 'x' }),
+    });
+    expect(put.status).toBe(404);
+    const del = await fetchJson('/api/uep/admin/users/99999', {
+      method: 'DELETE',
+      token: adminToken,
+    });
+    expect(del.status).toBe(404);
+    const restore = await fetchJson('/api/uep/admin/users/99999/restore', {
+      method: 'POST',
+      token: adminToken,
+    });
+    expect(restore.status).toBe(404);
   });
 });
 
