@@ -23,6 +23,33 @@ export const ONBOARDED_KEY = 'uep.onboarded.v1';
 
 type Stage = 'hidden' | 'choice' | 'observer-gate';
 
+interface OnboardingTestBridge {
+  /** 直接叫出身分選擇視窗，不修改任何紀錄。 */
+  showChoice(): void;
+  /** 直接叫出觀測者協議儀式，不修改任何紀錄。 */
+  showObserverGate(): void;
+  /** 關閉目前入站測試視窗。 */
+  hide(): void;
+  /**
+   * 清除本機訪客入站紀錄與進度，用來模擬全新訪客。
+   * 預設會導回主頁重新載入，確保 module singleton 也回到乾淨狀態。
+   */
+  resetLocalIdentity(options?: { reload?: boolean }): void;
+  /** 查看目前入站測試狀態。 */
+  status(): {
+    stage: Stage;
+    onboarded: boolean;
+    progressExists: boolean;
+    path: string;
+  };
+}
+
+declare global {
+  interface Window {
+    __uepOnboardingTest?: OnboardingTestBridge;
+  }
+}
+
 function hasIdentityRecord(): boolean {
   try {
     return (
@@ -43,9 +70,71 @@ function markOnboarded(): void {
   }
 }
 
+/** 儀式期間掛在 body 上的 class，讓浮島等固定元素能被 CSS 一律隱藏
+ *  （z-index 在 fixed + 有 transform 祖先時不一定夠力，用 class 最保險） */
+const ONBOARDING_ACTIVE_CLASS = 'uep-onboarding-active';
+
 export default function OnboardingGate() {
   const [stage, setStage] = useState<Stage>('hidden');
 
+  /* 儀式活躍時鎖住其他固定 UI（Minimap 等），避免穿透遮罩 */
+  useEffect(() => {
+    const active = stage !== 'hidden';
+    document.body.classList.toggle(ONBOARDING_ACTIVE_CLASS, active);
+    return () => {
+      document.body.classList.remove(ONBOARDING_ACTIVE_CLASS);
+    };
+  }, [stage]);
+
+  useEffect(() => {
+    const bridge: OnboardingTestBridge = {
+      showChoice() {
+        setStage('choice');
+      },
+      showObserverGate() {
+        setStage('observer-gate');
+      },
+      hide() {
+        setStage('hidden');
+      },
+      resetLocalIdentity(options) {
+        try {
+          window.localStorage.removeItem(ONBOARDED_KEY);
+          window.localStorage.removeItem(PROGRESS_STORAGE_KEY);
+        } catch {
+          /* 忽略 */
+        }
+        if (options?.reload === false) {
+          setStage('choice');
+          return;
+        }
+        window.location.assign('/');
+      },
+      status() {
+        let onboarded = false;
+        let progressExists = false;
+        try {
+          onboarded = window.localStorage.getItem(ONBOARDED_KEY) !== null;
+          progressExists =
+            window.localStorage.getItem(PROGRESS_STORAGE_KEY) !== null;
+        } catch {
+          /* 忽略 */
+        }
+        return {
+          stage,
+          onboarded,
+          progressExists,
+          path: window.location.pathname,
+        };
+      },
+    };
+    window.__uepOnboardingTest = bridge;
+    return () => {
+      if (window.__uepOnboardingTest === bridge) {
+        delete window.__uepOnboardingTest;
+      }
+    };
+  }, [stage]);
   useEffect(() => {
     if (hasIdentityRecord()) {
       // 舊使用者（有進度無標記）：靜默補標記

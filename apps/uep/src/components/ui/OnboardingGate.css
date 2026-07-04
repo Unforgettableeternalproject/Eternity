@@ -9,6 +9,14 @@
   padding: 20px;
 }
 
+/* 儀式期間隱藏 Minimap 等浮島固定元素——
+   Minimap 的 z-index(300) 在有 transform 祖先的 stacking context 內
+   不一定能被遮罩壓過去，用 body class 直接 display:none 最徹底 */
+body.uep-onboarding-active .uep-minimap,
+body.uep-onboarding-active [data-uep-hide-on-onboard] {
+  display: none !important;
+}
+
 .uep-onboard__veil {
   position: absolute;
   inset: 0;
