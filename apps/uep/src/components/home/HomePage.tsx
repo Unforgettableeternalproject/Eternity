@@ -240,6 +240,19 @@ export default function HomePage({
   useEffect(() => {
     setIsDark(document.documentElement.dataset.theme === 'dark');
 
+    // 剛從 /login 完成 auth 回來：WelcomeCeremony 已作為特別入場儀式播出，
+    // 主頁的 4.2s 大廳動畫該跳過——避免 Welcome 淡出後還看到頁面在跑動畫。
+    // 由 DesignLayout inline script 種下 class（html 與 body 各種一份，早於此
+    // effect 執行）；GlobalWelcomeHost 播完儀式才移除
+    const welcomePending =
+      document.documentElement.classList.contains('uep-welcome-pending') ||
+      document.body.classList.contains('uep-welcome-pending');
+    if (welcomePending) {
+      // 移除 head 注入的防閃遮罩（本次流程不會播 lobby，遮罩留著會擋畫面）
+      document.getElementById('lobby-block-style')?.remove();
+      return;
+    }
+
     // TODO: 測試結束後恢復 session 檢查（取消下方註解）
     // let seen = false;
     // try { seen = sessionStorage.getItem('uep-lobby-seen') === '1'; } catch {}

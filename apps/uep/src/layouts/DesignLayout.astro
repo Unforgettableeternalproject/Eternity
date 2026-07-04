@@ -128,13 +128,24 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
         var t = localStorage.getItem('uep-theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
         /* 剛從 /login 完成 auth 回來：WelcomeCeremony 全屏遮罩自己就是唯一畫面，
-           跳過 lobbyBlock 避免雙層遮罩造成 Welcome 淡出時空白閃現 */
+           跳過 lobbyBlock 避免雙層遮罩造成 Welcome 淡出時空白閃現。
+           同時在 body 上加 class，讓需要 skip 入場動畫的元件（主頁 lobby 等）
+           可以檢查這個 class 決定是否播——歡迎儀式作為「特別例外」取代
+           頁面自身的長入場，避免 Welcome 淡出後還看到頁面在跑動畫 */
         var welcomePending = false;
         try {
           welcomePending =
             sessionStorage.getItem('uep.welcome.pending.v1') !== null;
         } catch (e) {
           /* sessionStorage 不可用時走預設分支 */
+        }
+        if (welcomePending) {
+          /* body 尚未存在（script 在 head 執行），先掛到 html 上；DOMContentLoaded
+             後再搬到 body。兩個地方都掛，元件檢查任一即可 */
+          document.documentElement.classList.add('uep-welcome-pending');
+          document.addEventListener('DOMContentLoaded', function () {
+            document.body.classList.add('uep-welcome-pending');
+          });
         }
         if (
           document.documentElement.hasAttribute('data-lobby') &&

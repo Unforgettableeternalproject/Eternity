@@ -62,10 +62,17 @@ export default function GlobalWelcomeHost() {
   }, []);
 
   function handleDone() {
-    /* 先清 flag、再 dispatch event、最後 unmount ceremony。
-       順序重要：identcard 收到 event 時就不該再看見 pending，
-       避免它反覆自旋 */
+    /* 順序重要：
+       1. 清 sessionStorage flag（防止 identcard 收 event 時還看見 pending）
+       2. 移除 body/html 的 uep-welcome-pending class——已經播完儀式，
+          若使用者在頁面上再度導航（例如點側欄），入場動畫該恢復正常
+       3. dispatch event 讓 identcard 接續 arrival
+       4. unmount ceremony */
     clearPending();
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.remove('uep-welcome-pending');
+      document.body.classList.remove('uep-welcome-pending');
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(WELCOME_DONE_EVENT));
     }
