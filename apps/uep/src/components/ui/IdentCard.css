@@ -1,16 +1,17 @@
-/* 身分證吊掛面板 — 登入後的固定識別證（Epic 2 S5） */
+/* 身分證吊掛面板 — 登入後的固定識別證（Epic 2 S5，翻面展開版） */
 
 /* 錨定在 TopBar 下緣（TopBar 是 position:sticky，即為定位祖先）：
    看起來像掛在橫杆上，且隨 sticky bar 一起停留在視窗頂 */
 .uep-ident {
+  --tear-y: 0px; /* 撕下拖曳的當前拉伸距離（由 JS 更新） */
   position: absolute;
   top: 100%;
   right: 36px; /* 對齊 TopBar 的水平 padding */
   z-index: 50; /* TopBar 堆疊上下文內：RecordPanel(1500) 之下 */
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  pointer-events: none; /* 只有吊牌與證卡可互動 */
+  align-items: center; /* 吊繩與翻面容器都以中心軸對齊 */
+  pointer-events: none; /* 只有 flip 主體可互動 */
   animation: uep-ident-drop 0.7s cubic-bezier(0.34, 1.4, 0.64, 1);
   transform-origin: top center;
 }
@@ -35,40 +36,129 @@
   }
 }
 
-/* 掛點（吊繩 + 吊牌）：開合狀態完全同尺寸，定位不跳動 */
-.uep-ident__hanger {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-right: 14px; /* 吊牌與證卡右緣的間距（證卡展開時吊牌懸在其右上方） */
-}
-
-/* 吊繩：從 TopBar 下緣垂下 */
+/* 吊繩：從 TopBar 下緣垂下；撕下拖曳時被拉長（--tear-y 由 JS 控制）
+   非拖曳狀態下有 transition，讓「掛回去」時有回彈感 */
 .uep-ident__cord {
   width: 1px;
-  height: 22px;
+  height: calc(22px + var(--tear-y));
   background: var(--uep-gold);
   opacity: 0.55;
+  transition: height 0.42s cubic-bezier(0.34, 1.5, 0.64, 1);
 }
 
-/* 吊牌 */
-.uep-ident__tab {
+.uep-ident.is-dragging .uep-ident__cord {
+  transition: none; /* 拖曳中即時跟隨手指，不加緩動 */
+}
+
+/* 接近撕下閾值：吊繩顏色轉警戒紅暖，暗示鬆手即撕下 */
+.uep-ident.is-near-tear .uep-ident__cord {
+  background: #d8a24a;
+  opacity: 0.85;
+  box-shadow: 0 0 4px rgba(216, 162, 74, 0.6);
+}
+
+/* 撕開瞬間：cord 消失、flip 順勢墜落淡出 */
+.uep-ident.is-torn .uep-ident__cord {
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+.uep-ident.is-torn .uep-ident__flip {
+  animation: uep-ident-fall 0.55s cubic-bezier(0.55, 0, 0.85, 0.35) forwards;
+  pointer-events: none;
+}
+
+@keyframes uep-ident-fall {
+  0% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(140px) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__cord,
+  .uep-ident.is-torn .uep-ident__flip {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── 翻面容器：吊牌與證卡是同一張卡的正反面 ── */
+.uep-ident__flip {
+  /* 未展開時是吊牌尺寸；展開時放大成證卡尺寸。透視深度給翻面立體感 */
   pointer-events: auto;
+  perspective: 900px;
+  width: 44px;
+  height: 68px;
+  margin-top: 0; /* 直接連著吊繩，不留空隙 */
+  transition:
+    width 0.55s cubic-bezier(0.34, 1.2, 0.64, 1),
+    height 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.uep-ident.is-open .uep-ident__flip {
+  width: 248px;
+  height: 300px; /* 容納 view-row + 未來預留空間，避免下方被截 */
+}
+
+/* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向 */
+.uep-ident__flip-inner {
+  all: unset;
+  cursor: pointer;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+  transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+  /* 讓 flip 動畫從頂部（吊繩接點）為軸心 */
+  transform-origin: 50% 12px;
+}
+
+.uep-ident.is-open .uep-ident__flip-inner {
+  transform: rotateY(180deg);
+}
+
+/* 拖曳中：避免文字選取干擾拉扯，並改變 cursor */
+.uep-ident.is-dragging .uep-ident__flip-inner {
+  cursor: grabbing;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__flip,
+  .uep-ident__flip-inner {
+    transition: none;
+  }
+}
+
+/* ── 正/反面共用基底 ── */
+.uep-ident__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  box-sizing: border-box;
+}
+
+/* 正面：吊牌 */
+.uep-ident__face--front {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 9px 8px 11px;
-  background: var(--bg-card);
-  border: 1px solid var(--hairline-strong);
   border-top-color: var(--uep-gold);
-  cursor: pointer;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
 }
 
-.uep-ident__tab:hover {
+.uep-ident__flip-inner:hover .uep-ident__face--front {
   border-color: var(--uep-gold);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
@@ -87,46 +177,58 @@
   writing-mode: vertical-rl;
 }
 
-/* 證卡本體：右緣對齊容器（flex-end），往左展開，不會位移吊牌 */
-.uep-ident__card {
-  pointer-events: auto;
-  position: relative;
-  width: 248px;
-  margin-top: 8px;
+/* 背面：完整證卡（rotateY 180 讓正向可讀，backface-visibility 由父層處理） */
+.uep-ident__face--back {
+  transform: rotateY(180deg);
   padding: 22px 20px 18px;
-  background: var(--bg-card);
-  border: 1px solid var(--hairline-strong);
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4);
-  animation: uep-ident-card-in 0.35s ease-out;
+  /* 內容按鈕 hover 時不希望翻回，用預設 cursor 覆蓋按鈕 cursor */
+  cursor: default;
+  text-align: left;
+  overflow: hidden;
 }
 
-@keyframes uep-ident-card-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .uep-ident__card {
-    animation: none;
-  }
-}
-
-/* 證卡打孔（識別證的掛孔裝飾，對齊吊牌位置） */
+/* 證卡打孔（掛孔裝飾） */
 .uep-ident__punch {
   position: absolute;
   top: 8px;
-  right: 21px; /* 與 hanger 的 margin-right + 吊牌半寬對齊 */
+  left: 50%;
+  transform: translateX(-50%);
   width: 26px;
   height: 5px;
   border-radius: 3px;
   background: var(--bg);
   border: 1px solid var(--hairline-strong);
+}
+
+/* 右上角設定按鈕（未來偏好設定入口） */
+.uep-ident__gear {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.uep-ident__gear:hover,
+.uep-ident__gear:focus-visible {
+  color: var(--uep-gold);
+  border-color: var(--hairline-strong);
+  background: var(--bg-soft);
+  outline: none;
 }
 
 .uep-ident__kicker {
@@ -144,7 +246,7 @@
   font-size: 19px;
   color: var(--ink-title);
   text-align: center;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .uep-ident__username {
@@ -153,19 +255,19 @@
   color: var(--ink-mute);
   letter-spacing: 0.08em;
   text-align: center;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .uep-ident__sep {
   height: 1px;
   background: var(--hairline);
-  margin: 14px 0;
+  margin: 10px 0;
 }
 
 .uep-ident__rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .uep-ident__row {
@@ -196,6 +298,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* ViewSwitch 是互動元素——加大點擊區並確保 cursor 對 */
+  cursor: default;
 }
 
 /* 手機：貼齊 TopBar 手機版 padding、證卡縮窄 */
@@ -206,7 +310,8 @@
 }
 
 @media (max-width: 560px) {
-  .uep-ident__card {
+  .uep-ident.is-open .uep-ident__flip {
     width: 228px;
+    height: 300px;
   }
 }

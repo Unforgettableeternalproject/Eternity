@@ -10,6 +10,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { getProgressManager } from '../../progress/progressStore';
 import { useProgress } from '../../progress/useProgress';
@@ -63,12 +64,18 @@ export default function ViewSwitch() {
       >
         {isObserver ? '◉ 觀測者' : '◈ 探索者'}
       </button>
-      {gateOpen && (
-        <ObserverGate
-          onConfirm={handleConfirm}
-          onCancel={() => setGateOpen(false)}
-        />
-      )}
+      {/* Portal 到 body：識別證翻面用 rotateY + preserve-3d 建立 stacking
+          context，會鎖住裡頭 fixed 定位的元素（含 ObserverGate 遮罩）。
+          掛到 body 才能真正全屏覆蓋。SSR 時 document 不存在，先擋掉 */}
+      {gateOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <ObserverGate
+            onConfirm={handleConfirm}
+            onCancel={() => setGateOpen(false)}
+          />,
+          document.body
+        )}
     </>
   );
 }
