@@ -4,6 +4,7 @@
    看起來像掛在橫杆上，且隨 sticky bar 一起停留在視窗頂 */
 .uep-ident {
   --tear-y: 0px; /* 撕下拖曳的當前拉伸距離（由 JS 更新） */
+  --tear-progress: 0; /* 拉伸進度 0~1（由 JS 更新，驅動吊繩顏色漸變） */
   position: absolute;
   top: 100%;
   right: 36px; /* 對齊 TopBar 的水平 padding */
@@ -36,12 +37,73 @@
   }
 }
 
+/* 「掛上」加強動畫——剛從 /login 完成 auth 回來時播一次：
+   吊繩從 0 高度生長出來，識別證從上方降落 + 微幅擺盪定位 */
+.uep-ident.is-arriving {
+  animation: none; /* 停用預設 drop，改由子元素各自演出 */
+}
+
+.uep-ident.is-arriving .uep-ident__cord {
+  animation: uep-ident-cord-grow 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.uep-ident.is-arriving .uep-ident__flip {
+  animation: uep-ident-arrive 0.9s cubic-bezier(0.34, 1.4, 0.64, 1) 0.42s both;
+  transform-origin: top center;
+}
+
+@keyframes uep-ident-cord-grow {
+  0% {
+    height: 0;
+    opacity: 0.2;
+  }
+  100% {
+    height: calc(22px + var(--tear-y));
+    opacity: 0.55;
+  }
+}
+
+@keyframes uep-ident-arrive {
+  0% {
+    transform: translateY(-80px) rotate(-12deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(8px) rotate(4deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(-1.5deg);
+  }
+  90% {
+    transform: translateY(1px) rotate(0.5deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident.is-arriving .uep-ident__cord,
+  .uep-ident.is-arriving .uep-ident__flip {
+    animation: none;
+  }
+}
+
 /* 吊繩：從 TopBar 下緣垂下；撕下拖曳時被拉長（--tear-y 由 JS 控制）
    非拖曳狀態下有 transition，讓「掛回去」時有回彈感 */
 .uep-ident__cord {
   width: 1px;
   height: calc(22px + var(--tear-y));
-  background: var(--uep-gold);
+  /* 撕下時吊繩顏色從金色連續 lerp 到警戒紅——由 --tear-progress 驅動 */
+  background: color-mix(
+    in srgb,
+    var(--uep-gold),
+    #c53c3c calc(var(--tear-progress, 0) * 100%)
+  );
   opacity: 0.55;
   transition: height 0.42s cubic-bezier(0.34, 1.5, 0.64, 1);
 }
@@ -50,11 +112,11 @@
   transition: none; /* 拖曳中即時跟隨手指，不加緩動 */
 }
 
-/* 接近撕下閾值：吊繩顏色轉警戒紅暖，暗示鬆手即撕下 */
+/* 接近撕下閾值：加強 opacity + glow 提示鬆手即撕下
+   顏色由 --tear-progress 連續驅動（見 .uep-ident__cord），這裡只補強亮度感 */
 .uep-ident.is-near-tear .uep-ident__cord {
-  background: #d8a24a;
-  opacity: 0.85;
-  box-shadow: 0 0 4px rgba(216, 162, 74, 0.6);
+  opacity: 0.95;
+  box-shadow: 0 0 5px rgba(197, 60, 60, 0.65);
 }
 
 /* 撕開瞬間：cord 消失、flip 順勢墜落淡出 */

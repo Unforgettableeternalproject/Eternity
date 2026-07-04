@@ -16,8 +16,12 @@ import {
   useReaderAuth,
   WITNESSED_PREFIX,
 } from '../../auth';
+import WelcomeCeremony from '../ui/WelcomeCeremony';
 
 import './ReaderLoginPage.css';
+
+/** sessionStorage flag：告訴目標頁的識別證播「掛上」動畫 */
+const IDENTCARD_ARRIVAL_KEY = 'uep.identcard.arrival.v1';
 
 type Mode = 'choice' | 'login' | 'register';
 
@@ -83,7 +87,7 @@ function RegisterFlow({
   onDone,
   onBack,
 }: {
-  onDone: () => void;
+  onDone: (alias: string) => void;
   onBack: () => void;
 }) {
   const [step, setStep] = useState(0);
@@ -155,10 +159,8 @@ function RegisterFlow({
       setError(result.error || '建立記錄失敗');
       return;
     }
-    window.__uepToastManager?.info(
-      `記錄已建立。歡迎，${getReaderAuth().displayAlias()}。`
-    );
-    onDone();
+    /* 儀式接手——不再吐 toast，交給 WelcomeCeremony 顯示 alias */
+    onDone(getReaderAuth().displayAlias());
   }
 
   const meta = REGISTER_STEPS[step];
@@ -287,7 +289,7 @@ function LoginFlow({
   onDone,
   onBack,
 }: {
-  onDone: () => void;
+  onDone: (alias: string) => void;
   onBack: () => void;
 }) {
   const [username, setUsername] = useState('');
@@ -313,10 +315,7 @@ function LoginFlow({
       setError(result.error || '登入失敗');
       return;
     }
-    window.__uepToastManager?.info(
-      `記錄已接續。歡迎回來，${getReaderAuth().displayAlias()}。`
-    );
-    onDone();
+    onDone(getReaderAuth().displayAlias());
   }
 
   return (
@@ -364,17 +363,32 @@ function LoginFlow({
 export default function ReaderLoginPage({ returnUrl }: Props) {
   const session = useReaderAuth();
   const [mode, setMode] = useState<Mode>('choice');
+  /** 儀式進行中：暫停一切 UI，等 WelcomeCeremony 走完再導頁 */
+  const [welcome, setWelcome] = useState<{
+    kind: 'login' | 'register';
+    alias: string;
+  } | null>(null);
   const safeReturn = sanitizeReturn(returnUrl);
 
-  /* 已登入者：直接彈回來源頁——避免二次登入 */
+  /* 已登入者：直接彈回來源頁——避免二次登入。
+     但若正在跑歡迎儀式（剛剛才登入），讓儀式播完再離開 */
   useEffect(() => {
-    if (session) {
+    if (session && !welcome) {
       window.location.replace(safeReturn);
     }
-  }, [session, safeReturn]);
+  }, [session, safeReturn, welcome]);
 
-  function done() {
-    /* auth 成功後 progressStore 已切 ServerAdapter，這裡直接離開頁面 */
+  function done(kind: 'login' | 'register', alias: string) {
+    setWelcome({ kind, alias });
+  }
+
+  function afterWelcome() {
+    /* 通知目標頁的識別證播「掛上」動畫 */
+    try {
+      sessionStorage.setItem(IDENTCARD_ARRIVAL_KEY, '1');
+    } catch {
+      /* 忽略：sessionStorage 不可用時就沒接上動畫，不影響主流程 */
+    }
     window.location.href = safeReturn;
   }
 
@@ -464,11 +478,17 @@ export default function ReaderLoginPage({ returnUrl }: Props) {
           )}
 
           {mode === 'login' && (
-            <LoginFlow onDone={done} onBack={() => setMode('choice')} />
+            <LoginFlow
+              onDone={(alias) => done('login', alias)}
+              onBack={() => setMode('choice')}
+            />
           )}
 
           {mode === 'register' && (
-            <RegisterFlow onDone={done} onBack={() => setMode('choice')} />
+            <RegisterFlow
+              onDone={(alias) => done('register', alias)}
+              onBack={() => setMode('choice')}
+            />
           )}
         </div>
 
@@ -478,6 +498,14 @@ export default function ReaderLoginPage({ returnUrl }: Props) {
           )}
         </div>
       </div>
+
+      {welcome && (
+        <WelcomeCeremony
+          kind={welcome.kind}
+          alias={welcome.alias}
+          onDone={afterWelcome}
+        />
+      )}
     </div>
   );
 }

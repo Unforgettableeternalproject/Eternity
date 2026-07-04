@@ -15,13 +15,18 @@
  * 未來會加上小工具開關（哪些浮島/元件要顯示），目前在右上齒輪按鈕預留。
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
 import { useProgress } from '../../progress/useProgress';
 import ViewSwitch from './ViewSwitch';
 
 import './IdentCard.css';
+
+/** sessionStorage flag：/login 頁完成 auth 後種下，識別證讀到就播「掛上」動畫 */
+const IDENTCARD_ARRIVAL_KEY = 'uep.identcard.arrival.v1';
+/** 掛上動畫總時長，動畫走完後清除 flag */
+const ARRIVAL_ANIM_MS = 1400;
 
 /** 拖曳判定：小於此距離視為 click（翻面），超過才進入 tear mode */
 const DRAG_THRESHOLD_PX = 8;
@@ -34,7 +39,27 @@ export default function IdentCard() {
   const session = useReaderAuth();
   const progress = useProgress();
   const [open, setOpen] = useState(false);
+  /** 是否播「剛從 /login 完成、識別證正在掛上」的加強動畫 */
+  const [arriving, setArriving] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  /* 掛上動畫 flag：sessionStorage 有 key 就播一次、清掉、之後正常展示。
+     刻意在 mount 立刻讀（不放 session 條件內），避免 session 尚未 hydrate
+     時漏播；訪客沒 session 也不 render 就自然不會誤觸發 */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let flagged = false;
+    try {
+      flagged = sessionStorage.getItem(IDENTCARD_ARRIVAL_KEY) === '1';
+      if (flagged) sessionStorage.removeItem(IDENTCARD_ARRIVAL_KEY);
+    } catch {
+      /* 忽略 */
+    }
+    if (!flagged) return;
+    setArriving(true);
+    const t = setTimeout(() => setArriving(false), ARRIVAL_ANIM_MS);
+    return () => clearTimeout(t);
+  }, []);
   /** 拖曳狀態透過 ref 存，避免每一 pointermove 都 rerender */
   const dragRef = useRef<{
     startY: number;
@@ -56,6 +81,9 @@ export default function IdentCard() {
     const el = rootRef.current;
     if (!el) return;
     el.style.setProperty('--tear-y', `${dy}px`);
+    /* progress 0~1 驅動 cord 顏色從金色連續 lerp 到警戒紅 */
+    const progress = Math.min(1, Math.max(0, dy / TEAR_THRESHOLD_PX));
+    el.style.setProperty('--tear-progress', progress.toFixed(3));
   }
 
   function resetTear(withTransition = true) {
@@ -67,6 +95,7 @@ export default function IdentCard() {
       el.classList.add('is-dragging'); // 無 transition
     }
     el.style.setProperty('--tear-y', '0px');
+    el.style.setProperty('--tear-progress', '0');
     el.classList.remove('is-near-tear');
   }
 
@@ -163,7 +192,10 @@ export default function IdentCard() {
   }
 
   return (
-    <div className={`uep-ident${open ? ' is-open' : ''}`} ref={rootRef}>
+    <div
+      className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}`}
+      ref={rootRef}
+    >
       {/* 吊繩：從 TopBar 下緣垂下，撕下拖曳時會被拉長 */}
       <div className="uep-ident__cord" aria-hidden="true" />
 

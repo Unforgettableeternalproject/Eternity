@@ -1,0 +1,156 @@
+/* 登入 / 註冊成功轉場儀式（Epic 2 S5 打磨輪 3） */
+
+.uep-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  animation: uep-welcome-fade 2.2s ease-in-out forwards;
+}
+
+@keyframes uep-welcome-fade {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.uep-welcome__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* 中央舞台：用相對定位錨定文字與金線 */
+.uep-welcome__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 44px 60px;
+  min-width: 360px;
+  animation: uep-welcome-stage 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes uep-welcome-stage {
+  0% {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  20%,
+  80% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-6px);
+    opacity: 0.4;
+  }
+}
+
+/* 金線：從中心對稱展開，強調「儀式開場」 */
+.uep-welcome__rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--uep-gold) 50%,
+    transparent 100%
+  );
+  animation: uep-welcome-rule 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform: scaleX(0);
+}
+
+.uep-welcome__rule--top {
+  width: 220px;
+  margin-bottom: 6px;
+}
+
+.uep-welcome__rule--bottom {
+  width: 220px;
+  margin-top: 6px;
+  animation-delay: 0.1s;
+}
+
+@keyframes uep-welcome-rule {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.uep-welcome__kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--uep-gold);
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+}
+
+.uep-welcome__alias {
+  font-family: var(--font-serif-tc);
+  font-size: 34px;
+  color: #f5efd8;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 26px rgba(213, 182, 24, 0.35);
+}
+
+.uep-welcome__greeting {
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  color: rgba(245, 239, 216, 0.75);
+  letter-spacing: 0.16em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-welcome {
+    animation: uep-welcome-fade-reduced 0.7s ease-in-out forwards;
+  }
+  .uep-welcome__stage,
+  .uep-welcome__rule {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+  @keyframes uep-welcome-fade-reduced {
+    0% {
+      opacity: 0;
+    }
+    20%,
+    80% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}
+
+@media (max-width: 520px) {
+  .uep-welcome__stage {
+    min-width: 280px;
+    padding: 32px 28px;
+  }
+  .uep-welcome__alias {
+    font-size: 28px;
+  }
+  .uep-welcome__rule--top,
+  .uep-welcome__rule--bottom {
+    width: 160px;
+  }
+}
