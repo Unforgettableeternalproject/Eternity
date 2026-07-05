@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
+
 import { ZONES } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
+import IslandUnlockObject from '../../islands/IslandUnlockObject';
+import type { HomepageBlock } from '../editor/homepage/types';
+import { fromContentBlock } from '../editor/homepage/types';
+import BigMapModal from '../ui/BigMapModal';
+import IntroOverlay from '../ui/IntroOverlay';
+import Minimap from '../ui/Minimap';
+import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import UepDialogue from '../ui/UepDialogue';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
-import Minimap from '../ui/Minimap';
-import BigMapModal from '../ui/BigMapModal';
-import PortalTransition from '../ui/PortalTransition';
-import IntroOverlay from '../ui/IntroOverlay';
+
 import ZoneHomepageRenderer from './ZoneHomepageRenderer';
-import type { HomepageBlock } from '../editor/homepage/types';
-import { fromContentBlock } from '../editor/homepage/types';
+
 import './ZoneEntry.css';
 
 // ─── Shared shell wrapper ──────────────────────────────────────────────────────
@@ -1545,6 +1549,9 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
         }}
         position="bottom-left"
       />
+
+      {/* 浮島解鎖小物件：到訪過 Reader 後才浮現，點擊喚醒對應浮島 */}
+      <IslandUnlockObject zoneId={zoneId} />
 
       {/* BigMap modal */}
       {showMap && (

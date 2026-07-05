@@ -5,11 +5,11 @@
  * sticky z-100 堆疊上下文（S5 教訓：內部 fixed 元件 z-index 對外被鎖 100 層），
  * 讓浮島的 2000-2999 層帶真正生效於 Minimap（300）之上。
  *
- * 掛載守門（三關）：
+ * 掛載守門（四關）：
  * 1. 探索者視角（觀測者/切換中沒有浮島——需求定案）
  * 2. 已解鎖（ProgressState.islandsUnlocked，zone 首頁小物件授予）
- * 3. 已有實體元件（S6 只有 history；S7/S8 逐島補上）
- * （使用者停用清單 Commit 2 加入後在此疊加第四關）
+ * 3. 未被使用者停用（識別證設定視窗寫入）
+ * 4. 已有實體元件（S6 只有 history；S7/S8 逐島補上）
  */
 
 import React, { useEffect, useState } from 'react';
@@ -19,7 +19,7 @@ import { useProgress } from '../progress';
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
-import { canUseIslands, isIslandUnlocked } from './islandRuntime';
+import { canUseIslands, shouldMountIsland } from './islandRuntime';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
@@ -51,9 +51,9 @@ export default function IslandHost() {
   // 守門 1：只有探索者有浮島
   if (!canUseIslands(progress)) return null;
 
-  // 守門 2 + 3：已解鎖且有實體元件
+  // 守門 2 + 3 + 4：已解鎖、未停用、且有實體元件
   const activeIds = ISLAND_IDS.filter(
-    (id) => isIslandUnlocked(progress, id) && ISLAND_COMPONENTS[id]
+    (id) => shouldMountIsland(progress, id) && ISLAND_COMPONENTS[id]
   );
   if (activeIds.length === 0) return null;
 

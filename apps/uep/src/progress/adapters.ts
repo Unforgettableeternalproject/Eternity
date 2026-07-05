@@ -35,6 +35,10 @@ export function normalizeState(raw: unknown): ProgressState | null {
     islandsUnlocked: Array.isArray(obj.islandsUnlocked)
       ? obj.islandsUnlocked.filter((id) => typeof id === 'string')
       : base.islandsUnlocked,
+    // S6 新增欄位：舊 blob 沒有此欄位時補空陣列
+    islandsDisabled: Array.isArray(obj.islandsDisabled)
+      ? obj.islandsDisabled.filter((id) => typeof id === 'string')
+      : base.islandsDisabled,
     pageMarkers:
       typeof obj.pageMarkers === 'object' && obj.pageMarkers !== null
         ? obj.pageMarkers

@@ -184,6 +184,22 @@ export function getIslandRuntime(): typeof uepIslands {
 
 /* ── gating helpers（progress 是唯一事實來源） ── */
 
+/** zone 足跡旗標前綴（進到過該 zone 的 Reader 即授予） */
+export const ZONE_VISITED_FLAG_PREFIX = 'zone:visited:';
+
+/** 組出 zone 足跡旗標，如 `zone:visited:history` */
+export function zoneVisitedFlag(zone: IslandId): string {
+  return `${ZONE_VISITED_FLAG_PREFIX}${zone}`;
+}
+
+/** 是否到訪過該 zone 的 Reader（解鎖小物件的浮現條件） */
+export function hasVisitedZone(
+  progress: ProgressState,
+  zone: IslandId
+): boolean {
+  return progress.flags.includes(zoneVisitedFlag(zone));
+}
+
 /**
  * 浮島系統整體是否可用：只有探索者有浮島。
  * 觀測者/切到觀測者視角時不掛載（需求定案，不是 bug）。
@@ -200,15 +216,24 @@ export function isIslandUnlocked(
   return progress.islandsUnlocked.includes(id);
 }
 
-/**
- * 指定浮島是否應該掛載 = 探索者 + 已解鎖。
- * （使用者停用清單 S6 Commit 2 加入後在此疊加）
- */
+/** 指定浮島是否被使用者主動停用（設定視窗寫入） */
+export function isIslandDisabled(
+  progress: ProgressState,
+  id: IslandId
+): boolean {
+  return progress.islandsDisabled.includes(id);
+}
+
+/** 指定浮島是否應該掛載 = 探索者 + 已解鎖 + 未被使用者停用 */
 export function shouldMountIsland(
   progress: ProgressState,
   id: IslandId
 ): boolean {
-  return canUseIslands(progress) && isIslandUnlocked(progress, id);
+  return (
+    canUseIslands(progress) &&
+    isIslandUnlocked(progress, id) &&
+    !isIslandDisabled(progress, id)
+  );
 }
 
 /** 便捷：解鎖浮島（轉呼叫 progress store，集中入口方便未來加儀式 hook） */

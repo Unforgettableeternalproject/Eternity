@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
+
 import { ZONES, type ZoneData } from '../../data/zones';
+import { isIslandId, zoneVisitedFlag } from '../../islands';
+import { getProgressManager } from '../../progress';
 import BigMapModal from '../ui/BigMapModal';
+import IntroOverlay from '../ui/IntroOverlay';
 import Minimap from '../ui/Minimap';
 import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
-import IntroOverlay from '../ui/IntroOverlay';
 
 interface ReaderShellProps {
   zoneId: string;
@@ -34,6 +37,13 @@ export function ReaderShell({ zoneId, className, children }: ReaderShellProps) {
       delete document.body.dataset.readerPage;
     };
   }, []);
+
+  // zone 足跡：進到過 Reader 才算到訪（zone 首頁解鎖小物件的浮現條件）
+  useEffect(() => {
+    if (isIslandId(zoneId)) {
+      getProgressManager().grantFlags([zoneVisitedFlag(zoneId)]);
+    }
+  }, [zoneId]);
 
   function enterZoneFromMap(targetId: string) {
     const target = ZONES.find((z) => z.id === targetId);

@@ -18,7 +18,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
+import IslandSettingsPanel from '../../islands/IslandSettingsPanel';
 import { useProgress } from '../../progress/useProgress';
+
 import { WELCOME_DONE_EVENT } from './GlobalWelcomeHost';
 import ViewSwitch from './ViewSwitch';
 
@@ -41,6 +43,8 @@ export default function IdentCard() {
   const session = useReaderAuth();
   const progress = useProgress();
   const [open, setOpen] = useState(false);
+  /** 浮島偏好設定視窗（右上齒輪開啟） */
+  const [showSettings, setShowSettings] = useState(false);
   /** 是否播「剛從 /login 完成、識別證正在掛上」的加強動畫 */
   const [arriving, setArriving] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -237,7 +241,7 @@ export default function IdentCard() {
           >
             <div className="uep-ident__punch" aria-hidden="true" />
 
-            {/* 右上角設定按鈕：未來連到偏好設定面板（小工具開關等）。
+            {/* 右上角設定按鈕：開啟浮島偏好設定視窗。
                 stopPropagation 避免點下去把證卡翻回吊牌 */}
             <button
               type="button"
@@ -246,9 +250,7 @@ export default function IdentCard() {
               title="偏好設定"
               onClick={(e) => {
                 e.stopPropagation();
-                window.__uepToastManager?.info(
-                  '偏好設定即將開放——之後可在這裡設定小工具與浮島。'
-                );
+                setShowSettings(true);
               }}
             >
               ⚙
@@ -312,6 +314,11 @@ export default function IdentCard() {
           </div>
         </button>
       </div>
+
+      {/* 浮島偏好設定視窗（portal 到 body，逃出 TopBar 堆疊上下文） */}
+      {showSettings && (
+        <IslandSettingsPanel onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }

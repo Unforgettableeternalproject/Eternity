@@ -112,6 +112,31 @@ describe('頁面完成與浮島', () => {
     uepProgress.unlockIsland('concepts');
     expect(uepProgress.getState().islandsUnlocked).toEqual(['concepts']);
   });
+
+  it('setIslandDisabled 停用/啟用往返（冪等，不動解鎖清單）', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.unlockIsland('history');
+    uepProgress.setIslandDisabled('history', true);
+    uepProgress.setIslandDisabled('history', true); // 重複停用 no-op
+    expect(uepProgress.getState().islandsDisabled).toEqual(['history']);
+    expect(uepProgress.getState().islandsUnlocked).toEqual(['history']);
+    uepProgress.setIslandDisabled('history', false);
+    expect(uepProgress.getState().islandsDisabled).toEqual([]);
+  });
+
+  it('舊 blob 沒有 islandsDisabled 欄位時 normalize 補空陣列', async () => {
+    const legacy = {
+      version: 1,
+      view: 'explorer',
+      observerEver: false,
+      flags: [],
+      completedPageIds: [],
+      islandsUnlocked: ['history'],
+      pageMarkers: {},
+      updatedAt: '2026-07-05T00:00:00.000Z',
+    };
+    expect(normalizeState(legacy)!.islandsDisabled).toEqual([]);
+  });
 });
 
 describe('掃描線進度', () => {
@@ -174,6 +199,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       flags: ['remote-flag'],
       completedPageIds: [],
       islandsUnlocked: [],
+      islandsDisabled: [],
       pageMarkers: {},
       updatedAt: '2026-07-03T00:00:00.000Z',
     };

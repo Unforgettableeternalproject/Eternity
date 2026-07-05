@@ -28,6 +28,7 @@ export interface ProgressChangeDetail {
     | 'flags-granted'
     | 'page-completed'
     | 'island-unlocked'
+    | 'island-setting'
     | 'marker-update'
     | 'hydrate'
     | 'reset'
@@ -161,6 +162,21 @@ export const uepProgress = {
     mutate('island-unlocked', (prev) => ({
       ...prev,
       islandsUnlocked: [...prev.islandsUnlocked, islandId],
+    }));
+  },
+
+  /**
+   * 設定浮島的使用者停用狀態（S6 設定視窗呼叫）。
+   * 停用與解鎖分開存：停用 ≠ 未解鎖，重新啟用不需要再解鎖。
+   */
+  setIslandDisabled(islandId: string, disabled: boolean): void {
+    const has = state.islandsDisabled.includes(islandId);
+    if (disabled === has) return;
+    mutate('island-setting', (prev) => ({
+      ...prev,
+      islandsDisabled: disabled
+        ? [...prev.islandsDisabled, islandId]
+        : prev.islandsDisabled.filter((id) => id !== islandId),
     }));
   },
 

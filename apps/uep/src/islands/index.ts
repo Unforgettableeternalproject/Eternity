@@ -37,8 +37,12 @@ export {
   uepIslands,
   getIslandRuntime,
   ISLAND_CHANGE_EVENT,
+  ZONE_VISITED_FLAG_PREFIX,
+  zoneVisitedFlag,
+  hasVisitedZone,
   canUseIslands,
   isIslandUnlocked,
+  isIslandDisabled,
   shouldMountIsland,
   unlockIsland,
 } from './islandRuntime';
@@ -57,3 +61,5 @@ export { useIslandRuntimeState } from './useIslands';
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';
 export { default as IslandHost, registerIslandComponent } from './IslandHost';
+export { default as IslandUnlockObject } from './IslandUnlockObject';
+export { default as IslandSettingsPanel } from './IslandSettingsPanel';

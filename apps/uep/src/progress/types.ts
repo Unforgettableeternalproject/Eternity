@@ -39,8 +39,13 @@ export interface ProgressState {
   flags: string[];
   /** 已完成閱讀的 History 頁面 id */
   completedPageIds: string[];
-  /** 已解鎖的浮島 id（zone:visited:* 旗標的衍生快取） */
+  /** 已解鎖的浮島 id（zone 首頁解鎖小物件點擊後授予） */
   islandsUnlocked: string[];
+  /**
+   * 使用者主動停用的浮島 id（S6 設定視窗寫入）。
+   * 與 islandsUnlocked 分開存：停用 ≠ 未解鎖，重新啟用不需要再解鎖。
+   */
+  islandsDisabled: string[];
   /** 各頁面的掃描線進度，key 為 pageId */
   pageMarkers: Record<string, PageMarkerProgress>;
   /** 最後更新時間（ISO 8601） */
@@ -67,6 +72,7 @@ export function createInitialState(): ProgressState {
     flags: [],
     completedPageIds: [],
     islandsUnlocked: [],
+    islandsDisabled: [],
     pageMarkers: {},
     updatedAt: new Date().toISOString(),
   };

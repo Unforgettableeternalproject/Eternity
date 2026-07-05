@@ -170,11 +170,287 @@
   }
 }
 
+/* ── 解鎖小物件（zone 首頁） ── */
+.uep-unlock-object {
+  all: unset;
+  position: fixed;
+  right: 26px;
+  bottom: 84px; /* dock 位置上方，避免解鎖後與 dock/浮島重疊 */
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 1900; /* dock（1999）之下、Minimap（300）之上 */
+  animation: uep-unlock-bob 3.4s ease-in-out infinite;
+}
+
+.uep-unlock-object__glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(212, 175, 55, 0.35) 0%,
+    rgba(212, 175, 55, 0.12) 45%,
+    transparent 70%
+  );
+  animation: uep-unlock-pulse 2.6s ease-in-out infinite;
+}
+
+.uep-unlock-object__icon {
+  position: relative;
+  font-size: 22px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+  transition: transform 0.25s var(--ease);
+}
+
+.uep-unlock-object:hover .uep-unlock-object__icon {
+  transform: scale(1.12);
+}
+
+.uep-unlock-object:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+
+/* 甦醒：光暈爆發 + 物件上浮淡出 */
+.uep-unlock-object.is-awakening {
+  pointer-events: none;
+  animation: none;
+}
+
+.uep-unlock-object.is-awakening .uep-unlock-object__glow {
+  animation: uep-unlock-burst 1.4s var(--ease) forwards;
+}
+
+.uep-unlock-object.is-awakening .uep-unlock-object__icon {
+  animation: uep-unlock-ascend 1.4s var(--ease) forwards;
+}
+
+@keyframes uep-unlock-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes uep-unlock-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes uep-unlock-burst {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(2.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.4);
+  }
+}
+
+@keyframes uep-unlock-ascend {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-18px) scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-34px) scale(0.9);
+  }
+}
+
+/* ── 浮島設定視窗（識別證齒輪開啟） ── */
+.uep-island-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 10001; /* 與 UepDialog 同層（都是 modal） */
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.42);
+  animation: uep-settings-fade 0.2s var(--ease);
+}
+
+.uep-island-settings__panel {
+  width: min(360px, calc(100vw - 32px));
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  padding: 18px 20px 16px;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.uep-island-settings__title {
+  font-family: var(--font-serif-tc);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin-bottom: 2px;
+}
+
+.uep-island-settings__subtitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 14px;
+}
+
+.uep-island-settings__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uep-island-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 3px;
+}
+
+.uep-island-settings__row:hover {
+  background: rgba(128, 128, 128, 0.06);
+}
+
+.uep-island-settings__row--locked {
+  opacity: 0.45;
+}
+
+.uep-island-settings__row-icon {
+  font-size: 15px;
+  width: 22px;
+  text-align: center;
+}
+
+.uep-island-settings__row-name {
+  flex: 1;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+}
+
+.uep-island-settings__row-state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+}
+
+/* 開關（沿站內簡約語彙的小 toggle） */
+.uep-island-settings__toggle {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg);
+  cursor: pointer;
+  transition:
+    background 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.uep-island-settings__toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink-mute);
+  transition:
+    transform 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.uep-island-settings__toggle[aria-checked='true'] {
+  background: rgba(212, 175, 55, 0.18);
+  border-color: var(--uep-gold);
+}
+
+.uep-island-settings__toggle[aria-checked='true']::after {
+  transform: translateX(16px);
+  background: var(--uep-gold);
+}
+
+.uep-island-settings__toggle:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+.uep-island-settings__close {
+  all: unset;
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.uep-island-settings__close:hover {
+  border-color: var(--uep-gold);
+  color: var(--ink-title);
+}
+
+.uep-island-settings__close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+@keyframes uep-settings-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* 動畫偏好：全部關閉 */
 @media (prefers-reduced-motion: reduce) {
   .uep-island,
   .uep-island--sheet,
-  .uep-island-dock__chip {
+  .uep-island-dock__chip,
+  .uep-unlock-object,
+  .uep-unlock-object__glow,
+  .uep-unlock-object__icon,
+  .uep-island-settings {
     transition: none;
     animation: none;
   }
