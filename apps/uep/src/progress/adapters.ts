@@ -43,6 +43,14 @@ export function normalizeState(raw: unknown): ProgressState | null {
       typeof obj.pageMarkers === 'object' && obj.pageMarkers !== null
         ? obj.pageMarkers
         : base.pageMarkers,
+    // S6 新增欄位：舊 blob 沒有時補初始值；totalMs 防禦非有限數值
+    readingStats:
+      typeof obj.readingStats === 'object' &&
+      obj.readingStats !== null &&
+      typeof obj.readingStats.totalMs === 'number' &&
+      Number.isFinite(obj.readingStats.totalMs)
+        ? { totalMs: Math.max(0, obj.readingStats.totalMs) }
+        : base.readingStats,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : base.updatedAt,
   };

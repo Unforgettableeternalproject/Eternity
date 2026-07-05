@@ -30,6 +30,7 @@ export interface ProgressChangeDetail {
     | 'island-unlocked'
     | 'island-setting'
     | 'marker-update'
+    | 'reading-time'
     | 'hydrate'
     | 'reset'
     | 'sweep';
@@ -162,6 +163,18 @@ export const uepProgress = {
     mutate('island-unlocked', (prev) => ({
       ...prev,
       islandsUnlocked: [...prev.islandsUnlocked, islandId],
+    }));
+  },
+
+  /**
+   * 累計閱讀時間（S6，HistoryReader 每次頁面停留結束時呼叫）。
+   * 呼叫端負責上限防灌水（單次造訪 cap），這裡只做累加與防禦。
+   */
+  addReadingTime(ms: number): void {
+    if (!Number.isFinite(ms) || ms <= 0) return;
+    mutate('reading-time', (prev) => ({
+      ...prev,
+      readingStats: { totalMs: prev.readingStats.totalMs + ms },
     }));
   },
 

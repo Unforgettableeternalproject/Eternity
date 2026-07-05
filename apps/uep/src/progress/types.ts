@@ -48,6 +48,14 @@ export interface ProgressState {
   islandsDisabled: string[];
   /** 各頁面的掃描線進度，key 為 pageId */
   pageMarkers: Record<string, PageMarkerProgress>;
+  /**
+   * 閱讀時間統計（S6，History Island 的簡單統計用）。
+   * totalMs 為 History 文章的累計停留時間（單次造訪有上限防掛機灌水），
+   * 平均閱讀時間 = totalMs / completedPageIds.length。
+   */
+  readingStats: {
+    totalMs: number;
+  };
   /** 最後更新時間（ISO 8601） */
   updatedAt: string;
 }
@@ -74,6 +82,7 @@ export function createInitialState(): ProgressState {
     islandsUnlocked: [],
     islandsDisabled: [],
     pageMarkers: {},
+    readingStats: { totalMs: 0 },
     updatedAt: new Date().toISOString(),
   };
 }

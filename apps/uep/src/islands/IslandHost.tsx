@@ -12,7 +12,7 @@
  * 4. 已有實體元件（S6 只有 history；S7/S8 逐島補上）
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useProgress } from '../progress';
@@ -25,18 +25,15 @@ import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
 
 /**
- * 各島的實體內容元件註冊表。
- * S6：history（Commit 3 接上）；S7：concepts、echoes；S8：visuals、storage。
+ * 各島的實體內容元件註冊表（lazy——TopBar 全站掛載，島內容只在
+ * 真正展開時載入，避免 tree 抓取等邏輯進到每一頁的初始 bundle）。
+ * S6：history；S7：concepts、echoes；S8：visuals、storage。
  */
-const ISLAND_COMPONENTS: Partial<Record<IslandId, React.ComponentType>> = {};
-
-/** 註冊島的內容元件（各島模組 import 時自行呼叫，避免 host 反向依賴） */
-export function registerIslandComponent(
-  id: IslandId,
-  component: React.ComponentType
-): void {
-  ISLAND_COMPONENTS[id] = component;
-}
+const ISLAND_COMPONENTS: Partial<
+  Record<IslandId, React.LazyExoticComponent<React.ComponentType>>
+> = {
+  history: React.lazy(() => import('./history/HistoryIsland')),
+};
 
 export default function IslandHost() {
   const progress = useProgress();
@@ -66,7 +63,9 @@ export default function IslandHost() {
         const Body = ISLAND_COMPONENTS[id]!;
         return (
           <DraggableIsland key={id} id={id}>
-            <Body />
+            <Suspense fallback={null}>
+              <Body />
+            </Suspense>
           </DraggableIsland>
         );
       })}

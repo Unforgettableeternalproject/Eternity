@@ -25,8 +25,8 @@ import {
 import {
   useScanline,
   useProgress,
+  buildProgressTreeAdapter,
   collectMarkers,
-  collectProgressLeafIds,
   getProgressManager,
   resolveResumeMarkerIdx,
 } from '../../progress';
@@ -328,6 +328,19 @@ export default function HistoryReader() {
   // 動態閘門的鎖定狀態即時反映在 tree 與 prev/next。
   const progress = useProgress();
 
+  // 閱讀時間統計（S6，History Island 的簡單統計用）：
+  // 每次文章停留結束（換頁/離開）時累計停留時間，單次造訪上限
+  // 30 分鐘防掛機灌水。粗粒度即可——這只是輔助統計，不是精確計時。
+  useEffect(() => {
+    if (!currentId) return undefined;
+    const start = Date.now();
+    return () => {
+      const READING_TIME_CAP_MS = 30 * 60 * 1000;
+      const elapsed = Math.min(Date.now() - start, READING_TIME_CAP_MS);
+      getProgressManager().addReadingTime(elapsed);
+    };
+  }, [currentId]);
+
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
   // pageId → node 索引（進度鏈隱藏判定用）
@@ -339,56 +352,14 @@ export default function HistoryReader() {
   const resolvePageById = (pageId: string) => pagesById.get(pageId);
 
   // Progress tree adapter：把 PageTreeNode 樹接進 gating 的 tree 求值層
-  // （effectiveGate / isEffectivelyCompleted 需要 sibling & 父層資訊）
-  const progressTree = useMemo<ProgressTreeAdapter>(() => {
-    const siblingsOf = (id: string): PageTreeNode[] => {
-      const ancestors = ancestorMap.get(id) || [];
-      return ancestors.length === 0
-        ? tree
-        : (ancestors[ancestors.length - 1].children ?? []);
-    };
-    return {
-      getNode: (id) => pagesById.get(id),
-      getParent: (id) => {
-        const ancestors = ancestorMap.get(id) || [];
-        return ancestors[ancestors.length - 1];
-      },
-      getParentId: (id) => {
-        const ancestors = ancestorMap.get(id) || [];
-        return ancestors.length > 0 ? ancestors[ancestors.length - 1].id : null;
-      },
-      getPreviousProgressSiblingId: (id) => {
-        const siblings = siblingsOf(id);
-        const ancestors = ancestorMap.get(id) || [];
-        const parent = ancestors[ancestors.length - 1];
-        const parentIsProgress = parent?.metadata?.progressPage === true;
-        const idx = siblings.findIndex((s) => s.id === id);
-        for (let i = idx - 1; i >= 0; i -= 1) {
-          const s = siblings[i];
-          const meta = s.metadata ?? {};
-          // hidden/static-locked/豁免的節點不計入進度鏈
-          if (meta.hidden === true || meta.locked === true) continue;
-          if (meta.gateExempt === true) continue;
-          // 有效進度頁：自身標記或父容器繼承（單層）
-          const isProgress = meta.progressPage === true || parentIsProgress;
-          if (isProgress) return s.id;
-        }
-        return undefined;
-      },
-      getProgressDescendantIds: (id) => {
-        const node = pagesById.get(id);
-        if (!node) return [];
-        // 只保留內容型 pageType 作為 progress leaf——避免插圖/附件/
-        // homepage 之類非章節子頁被繼承語意 (#10) 誤計成進度葉，導致
-        // 容器 completeness 永遠不成立、下游解鎖卡住 (#11 修)。
-        const contentTypes = new Set(['chapter', 'arc', 'section', 'page']);
-        return collectProgressLeafIds(node).filter((leafId) => {
-          const leaf = pagesById.get(leafId);
-          return leaf ? contentTypes.has(leaf.pageType) : false;
-        });
-      },
-    };
-  }, [tree, pagesById, ancestorMap]);
+  // （effectiveGate / isEffectivelyCompleted 需要 sibling & 父層資訊）。
+  // S6 起抽出為 progress/tree 的 buildProgressTreeAdapter 共用實作——
+  // History Island 需要同一套求值語意（同層前一個進度頁、父容器繼承、
+  // hidden/locked 排除、內容型 pageType 過濾）。
+  const progressTree = useMemo<ProgressTreeAdapter>(
+    () => buildProgressTreeAdapter(tree),
+    [tree]
+  );
 
   const readablePages = useMemo(
     () =>

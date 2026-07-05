@@ -124,3 +124,26 @@ export function createInitialWindowState(): IslandWindowState {
     updatedAt: new Date().toISOString(),
   };
 }
+
+/* ── 跨島關聯事件合約（S7/S8 消費，S6 先定契約不實作） ──
+ *
+ * 情境：使用者在 Echoes 遊歷某曲目 / 在 Visuals 查看某畫廊時，
+ * 來源端 dispatch 此事件，History Island（旅程之書）動態展示
+ * 對應章節讓使用者快速跳轉。
+ *
+ * dispatch 在 window 層（與 uep:entity-activate 同模式），
+ * 島不必與來源端同處一棵 React 樹。
+ */
+
+/** 跨島關聯事件名稱（CustomEvent<IslandRelatedDetail>） */
+export const ISLAND_RELATED_EVENT = 'uep:island-related';
+
+/** 跨島關聯事件的 detail 內容 */
+export interface IslandRelatedDetail {
+  /** 來源 zone（如 echoes/visuals） */
+  sourceZone: IslandId;
+  /** 相關的 History 頁面 id（帶 area prefix，如 history/u/1-1） */
+  historyPageIds: string[];
+  /** 來源說明（如曲名/畫廊名），島端顯示用 */
+  label?: string;
+}

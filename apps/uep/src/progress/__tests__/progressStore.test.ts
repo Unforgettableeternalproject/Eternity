@@ -124,6 +124,15 @@ describe('頁面完成與浮島', () => {
     expect(uepProgress.getState().islandsDisabled).toEqual([]);
   });
 
+  it('addReadingTime 累加閱讀時間，非法值防禦', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addReadingTime(60_000);
+    uepProgress.addReadingTime(30_000);
+    uepProgress.addReadingTime(-5); // 負值 no-op
+    uepProgress.addReadingTime(NaN); // NaN no-op
+    expect(uepProgress.getState().readingStats.totalMs).toBe(90_000);
+  });
+
   it('舊 blob 沒有 islandsDisabled 欄位時 normalize 補空陣列', async () => {
     const legacy = {
       version: 1,
@@ -136,6 +145,7 @@ describe('頁面完成與浮島', () => {
       updatedAt: '2026-07-05T00:00:00.000Z',
     };
     expect(normalizeState(legacy)!.islandsDisabled).toEqual([]);
+    expect(normalizeState(legacy)!.readingStats).toEqual({ totalMs: 0 });
   });
 });
 
@@ -201,6 +211,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       islandsUnlocked: [],
       islandsDisabled: [],
       pageMarkers: {},
+      readingStats: { totalMs: 0 },
       updatedAt: '2026-07-03T00:00:00.000Z',
     };
     await uepProgress.setAdapter({

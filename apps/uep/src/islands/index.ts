@@ -15,12 +15,14 @@ export type {
   IslandCorner,
   IslandDefinition,
   IslandWindowState,
+  IslandRelatedDetail,
 } from './types';
 export {
   ISLAND_DEFINITIONS,
   ISLAND_IDS,
   ISLAND_SCHEMA_VERSION,
   ISLAND_Z_BASE,
+  ISLAND_RELATED_EVENT,
   createInitialWindowState,
   isIslandId,
 } from './types';
@@ -60,6 +62,6 @@ export { useIslandRuntimeState } from './useIslands';
 
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';
-export { default as IslandHost, registerIslandComponent } from './IslandHost';
+export { default as IslandHost } from './IslandHost';
 export { default as IslandUnlockObject } from './IslandUnlockObject';
 export { default as IslandSettingsPanel } from './IslandSettingsPanel';

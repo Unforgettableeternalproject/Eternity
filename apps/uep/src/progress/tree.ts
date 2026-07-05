@@ -119,3 +119,90 @@ export function isEffectiveProgressPage(
   if (isProgressPage(metadata)) return true;
   return isProgressPage(parentMetadata ?? null);
 }
+
+/** buildProgressTreeAdapter 需要的節點形狀（content API tree 的子集） */
+export interface AdapterTreeNode extends ProgressTreeNode {
+  id: string;
+  pageType?: string;
+  children?: AdapterTreeNode[] | null;
+}
+
+/**
+ * 內容型 pageType——只有這些算 progress leaf。
+ * 避免插圖/附件/homepage 之類非章節子頁被繼承語意誤計成進度葉，
+ * 導致容器 completeness 永遠不成立、下游解鎖卡住（S3.5 #11 修）。
+ */
+const PROGRESS_CONTENT_TYPES = new Set(['chapter', 'arc', 'section', 'page']);
+
+/**
+ * 從 content API 的 tree 建出 ProgressTreeAdapter — 標準實作。
+ *
+ * 原為 HistoryReader 內的 useMemo（S3.5），S6 抽出共用：
+ * HistoryReader 與 History Island 都需要同一套 tree-aware gating 求值，
+ * 語意必須完全一致（同層前一個進度頁、父容器繼承、hidden/locked 排除、
+ * 內容型 pageType 過濾）。
+ *
+ * 純函式：對相同的 tree 回傳等價 adapter，消費端自行 memoize。
+ */
+export function buildProgressTreeAdapter(
+  roots: AdapterTreeNode[]
+): ProgressTreeAdapter {
+  // 攤平 + 祖先鏈索引（一次走訪建齊）
+  const nodesById = new Map<string, AdapterTreeNode>();
+  const ancestorsById = new Map<string, AdapterTreeNode[]>();
+  const walk = (nodes: AdapterTreeNode[], ancestors: AdapterTreeNode[]) => {
+    for (const node of nodes) {
+      nodesById.set(node.id, node);
+      ancestorsById.set(node.id, ancestors);
+      walk(node.children ?? [], [...ancestors, node]);
+    }
+  };
+  walk(roots, []);
+
+  const siblingsOf = (id: string): AdapterTreeNode[] => {
+    const ancestors = ancestorsById.get(id) || [];
+    return ancestors.length === 0
+      ? roots
+      : (ancestors[ancestors.length - 1].children ?? []);
+  };
+
+  return {
+    getNode: (id) => nodesById.get(id),
+    getParent: (id) => {
+      const ancestors = ancestorsById.get(id) || [];
+      return ancestors[ancestors.length - 1];
+    },
+    getParentId: (id) => {
+      const ancestors = ancestorsById.get(id) || [];
+      return ancestors.length > 0 ? ancestors[ancestors.length - 1].id : null;
+    },
+    getPreviousProgressSiblingId: (id) => {
+      const siblings = siblingsOf(id);
+      const ancestors = ancestorsById.get(id) || [];
+      const parent = ancestors[ancestors.length - 1];
+      const parentIsProgress = parent?.metadata?.progressPage === true;
+      const idx = siblings.findIndex((s) => s.id === id);
+      for (let i = idx - 1; i >= 0; i -= 1) {
+        const s = siblings[i];
+        const meta = s.metadata ?? {};
+        // hidden/static-locked/豁免的節點不計入進度鏈
+        if (meta.hidden === true || meta.locked === true) continue;
+        if (meta.gateExempt === true) continue;
+        // 有效進度頁：自身標記或父容器繼承（單層）
+        const isProgress = meta.progressPage === true || parentIsProgress;
+        if (isProgress) return s.id;
+      }
+      return undefined;
+    },
+    getProgressDescendantIds: (id) => {
+      const node = nodesById.get(id);
+      if (!node) return [];
+      return collectProgressLeafIds(node).filter((leafId) => {
+        const leaf = nodesById.get(leafId);
+        return leaf?.pageType
+          ? PROGRESS_CONTENT_TYPES.has(leaf.pageType)
+          : false;
+      });
+    },
+  };
+}
