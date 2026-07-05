@@ -1,0 +1,217 @@
+/**
+ * UEP 浮島系統 — 中央 Runtime（module singleton + window bridge）
+ *
+ * 跨 React island 共享模式沿用 progressStore / UepToast 的做法：
+ * module-level state + `window.__uepIslands` bridge + subscribe/notify，
+ * 每次變更 dispatch `uep:island-change` CustomEvent。
+ *
+ * Runtime 只管「視窗狀態」：開合、位置、焦點順序（z-index）。
+ * 「能不能用」的守門（視角/解鎖/停用）是 progress 的事，見下方 gating helpers。
+ */
+
+import { getProgressManager } from '../progress';
+import type { ProgressState } from '../progress';
+
+import { loadWindowState, saveWindowState } from './persistence';
+import type { IslandId, IslandWindowState } from './types';
+import { ISLAND_IDS, ISLAND_Z_BASE, createInitialWindowState } from './types';
+
+/** 浮島變更事件名稱（CustomEvent<IslandChangeDetail>） */
+export const ISLAND_CHANGE_EVENT = 'uep:island-change';
+
+/** 浮島變更事件的 detail 內容 */
+export interface IslandChangeDetail {
+  state: IslandRuntimeState;
+  /** 本次變更的來源操作，方便消費端過濾 */
+  source: 'open' | 'close' | 'move' | 'focus' | 'hydrate';
+}
+
+/** Runtime 全體狀態快照（唯讀） */
+export interface IslandRuntimeState {
+  /** 各浮島的視窗狀態（尚未 hydrate 的島不在其中） */
+  windows: Partial<Record<IslandId, IslandWindowState>>;
+  /** 焦點順序（越後面越上層），只含目前展開的島 */
+  focusOrder: IslandId[];
+}
+
+type Listener = (state: IslandRuntimeState, detail: IslandChangeDetail) => void;
+
+declare global {
+  interface Window {
+    __uepIslands?: typeof uepIslands;
+  }
+}
+
+/* ── module-level 狀態 ── */
+let state: IslandRuntimeState = bootstrap();
+const listeners: Listener[] = [];
+
+/** 初始化：同步從 localStorage 讀回各島視窗狀態，開著的島進焦點序 */
+function bootstrap(): IslandRuntimeState {
+  const windows: IslandRuntimeState['windows'] = {};
+  const focusOrder: IslandId[] = [];
+  if (typeof window !== 'undefined') {
+    for (const id of ISLAND_IDS) {
+      const stored = loadWindowState(id);
+      if (stored) {
+        windows[id] = stored;
+        if (stored.open) focusOrder.push(id);
+      }
+    }
+  }
+  return { windows, focusOrder };
+}
+
+function notify(source: IslandChangeDetail['source']): void {
+  const detail: IslandChangeDetail = { state, source };
+  listeners.forEach((fn) => fn(state, detail));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<IslandChangeDetail>(ISLAND_CHANGE_EVENT, { detail })
+    );
+  }
+}
+
+/** 更新單島視窗狀態並持久化 */
+function mutateWindow(
+  id: IslandId,
+  source: IslandChangeDetail['source'],
+  updater: (prev: IslandWindowState) => IslandWindowState,
+  focusUpdater?: (prev: IslandId[]) => IslandId[]
+): void {
+  const prev = state.windows[id] ?? createInitialWindowState();
+  const nextWindow = { ...updater(prev), updatedAt: new Date().toISOString() };
+  state = {
+    windows: { ...state.windows, [id]: nextWindow },
+    focusOrder: focusUpdater
+      ? focusUpdater(state.focusOrder)
+      : state.focusOrder,
+  };
+  saveWindowState(id, nextWindow);
+  notify(source);
+}
+
+/** 從焦點序移除後推到最上層 */
+function toTop(order: IslandId[], id: IslandId): IslandId[] {
+  return [...order.filter((i) => i !== id), id];
+}
+
+/* ── 公開 API ── */
+export const uepIslands = {
+  /** 取得目前狀態（唯讀快照，勿直接修改） */
+  getState(): IslandRuntimeState {
+    return state;
+  },
+
+  /** 取得單島視窗狀態（未 hydrate 時回傳 null） */
+  getWindow(id: IslandId): IslandWindowState | null {
+    return state.windows[id] ?? null;
+  },
+
+  /** 展開浮島並取得焦點 */
+  open(id: IslandId): void {
+    mutateWindow(
+      id,
+      'open',
+      (prev) => ({ ...prev, open: true }),
+      (order) => toTop(order, id)
+    );
+  },
+
+  /** 收合浮島（回 dock） */
+  close(id: IslandId): void {
+    const win = state.windows[id];
+    if (!win || !win.open) return;
+    mutateWindow(
+      id,
+      'close',
+      (prev) => ({ ...prev, open: false }),
+      (order) => order.filter((i) => i !== id)
+    );
+  },
+
+  /** 展開 ↔ 收合 */
+  toggle(id: IslandId): void {
+    if (state.windows[id]?.open) {
+      this.close(id);
+    } else {
+      this.open(id);
+    }
+  },
+
+  /** 更新拖曳後的位置（viewport 座標） */
+  setPosition(id: IslandId, position: { left: number; top: number }): void {
+    mutateWindow(id, 'move', (prev) => ({ ...prev, position }));
+  },
+
+  /** 將浮島推到焦點最上層 */
+  focus(id: IslandId): void {
+    if (!state.windows[id]?.open) return;
+    const idx = state.focusOrder.indexOf(id);
+    if (idx === state.focusOrder.length - 1) return; // 已是最上層
+    state = { ...state, focusOrder: toTop(state.focusOrder, id) };
+    notify('focus');
+  },
+
+  /** 取得浮島目前的 z-index（焦點越後越高；不在焦點序 = 底層） */
+  zIndexOf(id: IslandId): number {
+    const idx = state.focusOrder.indexOf(id);
+    return ISLAND_Z_BASE + (idx === -1 ? 0 : idx + 1);
+  },
+
+  /** 訂閱狀態變更，回傳取消訂閱函式 */
+  subscribe(listener: Listener): () => void {
+    listeners.push(listener);
+    return () => {
+      const i = listeners.indexOf(listener);
+      if (i > -1) listeners.splice(i, 1);
+    };
+  },
+};
+
+/* ── window bridge（跨 React island 單例保證） ── */
+if (typeof window !== 'undefined' && !window.__uepIslands) {
+  window.__uepIslands = uepIslands;
+}
+
+/** 取得全域單例（優先 window bridge，SSR fallback 為 module 實例） */
+export function getIslandRuntime(): typeof uepIslands {
+  if (typeof window !== 'undefined' && window.__uepIslands) {
+    return window.__uepIslands;
+  }
+  return uepIslands;
+}
+
+/* ── gating helpers（progress 是唯一事實來源） ── */
+
+/**
+ * 浮島系統整體是否可用：只有探索者有浮島。
+ * 觀測者/切到觀測者視角時不掛載（需求定案，不是 bug）。
+ */
+export function canUseIslands(progress: ProgressState): boolean {
+  return progress.view === 'explorer';
+}
+
+/** 指定浮島是否已解鎖（zone 首頁小物件點擊後授予） */
+export function isIslandUnlocked(
+  progress: ProgressState,
+  id: IslandId
+): boolean {
+  return progress.islandsUnlocked.includes(id);
+}
+
+/**
+ * 指定浮島是否應該掛載 = 探索者 + 已解鎖。
+ * （使用者停用清單 S6 Commit 2 加入後在此疊加）
+ */
+export function shouldMountIsland(
+  progress: ProgressState,
+  id: IslandId
+): boolean {
+  return canUseIslands(progress) && isIslandUnlocked(progress, id);
+}
+
+/** 便捷：解鎖浮島（轉呼叫 progress store，集中入口方便未來加儀式 hook） */
+export function unlockIsland(id: IslandId): void {
+  getProgressManager().unlockIsland(id);
+}

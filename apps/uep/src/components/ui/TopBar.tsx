@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+import IslandHost from '../../islands/IslandHost';
+
 import IdentCard from './IdentCard';
 import OnboardingGate from './OnboardingGate';
 import RecordPanel from './RecordPanel';
@@ -148,6 +150,9 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
 
       {/* 身分證吊掛面板：登入後出現的固定識別證 */}
       <IdentCard />
+
+      {/* 浮島系統：portal 到 body，逃出 TopBar 的 sticky 堆疊上下文 */}
+      <IslandHost />
     </div>
   );
 }

@@ -1,0 +1,181 @@
+/*
+ * UEP 浮島系統 — 視窗外殼 + dock 樣式
+ *
+ * 外殼走中性語彙（跟站內卡片一致），各島的內容視覺在自己的 CSS 內疊加。
+ * z-index 由 runtime 動態指定（2000-2999），不在這裡寫死。
+ */
+
+/* ── 浮動視窗（桌面） ── */
+.uep-island {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  font-family: var(--font-sans);
+  color: var(--ink);
+  user-select: none;
+  transition:
+    box-shadow 0.25s var(--ease),
+    opacity 0.2s var(--ease);
+}
+
+.uep-island--dragging {
+  transition: none;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.26);
+}
+
+/* ── header（拖曳把手） ── */
+.uep-island__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--hairline);
+  cursor: grab;
+  touch-action: none;
+}
+
+.uep-island--dragging .uep-island__header {
+  cursor: grabbing;
+}
+
+.uep-island__icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.uep-island__title {
+  flex: 1;
+  font-family: var(--font-serif-tc);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-title);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uep-island__collapse {
+  all: unset;
+  cursor: pointer;
+  padding: 0 5px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-mute);
+}
+
+.uep-island__collapse:hover {
+  color: var(--ink-title);
+}
+
+.uep-island__collapse:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+/* ── body ── */
+.uep-island__body {
+  user-select: text;
+  overflow-y: auto;
+  max-height: min(420px, 60vh);
+}
+
+/* ── 手機 bottom sheet ── */
+.uep-island--sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  border-radius: 10px 10px 0 0;
+  border-bottom: none;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2);
+  animation: uep-island-sheet-in 0.28s var(--ease);
+}
+
+.uep-island--sheet .uep-island__header {
+  cursor: default;
+  touch-action: auto;
+  padding: 10px 14px;
+}
+
+.uep-island--sheet .uep-island__body {
+  max-height: 55vh;
+}
+
+@keyframes uep-island-sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ── Island Dock（收合島的停靠列） ── */
+.uep-island-dock {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1999; /* 浮島層帶（2000+）之下、Minimap（300）之上 */
+}
+
+.uep-island-dock__chip {
+  all: unset;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  font-size: 17px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 0.18s var(--ease),
+    box-shadow 0.18s var(--ease),
+    border-color 0.18s var(--ease);
+}
+
+.uep-island-dock__chip:hover {
+  transform: translateY(-2px);
+  border-color: var(--uep-gold);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.uep-island-dock__chip:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .uep-island-dock {
+    flex-direction: row;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .uep-island-dock__chip {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* 動畫偏好：全部關閉 */
+@media (prefers-reduced-motion: reduce) {
+  .uep-island,
+  .uep-island--sheet,
+  .uep-island-dock__chip {
+    transition: none;
+    animation: none;
+  }
+}
