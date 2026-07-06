@@ -19,6 +19,7 @@ import {
   uploadAsset,
 } from './editorHelpers';
 import EntityKeyField from './EntityKeyField';
+import RevisionModal from './RevisionModal';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';
@@ -514,6 +515,7 @@ function DossierVariantBody({
     groupIdx: number;
     entryIdx: number;
   } | null>(null);
+  const [revModalOpen, setRevModalOpen] = useState(false);
 
   function updateSubcats(subcats: DossierSubcat[]) {
     onSubcatsChange(subcats);
@@ -879,6 +881,16 @@ function DossierVariantBody({
                     }
                     existingKeys={usedEntityKeys}
                   />
+                  <div className="ced-field-row">
+                    <label className="ced-label">revisions</label>
+                    <button
+                      className="ced-rev-open-btn"
+                      onClick={() => setRevModalOpen(true)}
+                      style={{ color: accent }}
+                    >
+                      進度版本 ({entry.revisions?.length ?? 0})
+                    </button>
+                  </div>
                   <div className="ced-section-header">
                     <span className="ced-section-title">描述</span>
                   </div>
@@ -942,6 +954,22 @@ function DossierVariantBody({
           </div>
         </>
       )}
+
+      {revModalOpen && entry && (
+        <RevisionModal
+          entryLabel={entry.name || '(未命名條目)'}
+          stackStyle="dossier"
+          entityKey={entry.entityKey}
+          revisions={entry.revisions ?? []}
+          onChange={(revs) =>
+            updateEntry(activeEntry!, {
+              revisions: revs.length > 0 ? revs : undefined,
+            })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
+      )}
     </div>
   );
 }
@@ -974,6 +1002,7 @@ function BrowserEditor({
   >([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [avatarDeleteOpen, setAvatarDeleteOpen] = useState(false);
+  const [revModalOpen, setRevModalOpen] = useState(false);
 
   function updateProfiles(profiles: CharacterProfile[]) {
     onChange({ ...data, profiles });
@@ -1382,6 +1411,16 @@ function BrowserEditor({
                 onChange={(key) => updateProfile({ entityKey: key })}
                 existingKeys={usedEntityKeys}
               />
+              <div className="ced-field-row">
+                <label className="ced-label">revisions</label>
+                <button
+                  className="ced-rev-open-btn"
+                  onClick={() => setRevModalOpen(true)}
+                  style={{ color: accent }}
+                >
+                  進度版本 ({profile.revisions?.length ?? 0})
+                </button>
+              </div>
               <label className="ced-checkbox-row">
                 <input
                   type="checkbox"
@@ -1522,6 +1561,20 @@ function BrowserEditor({
           )}
         </div>
       </div>
+
+      {revModalOpen && profile && (
+        <RevisionModal
+          entryLabel={profile.name || '(未命名角色)'}
+          stackStyle="browser"
+          entityKey={profile.entityKey}
+          revisions={profile.revisions ?? []}
+          onChange={(revs) =>
+            updateProfile({ revisions: revs.length > 0 ? revs : undefined })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
+      )}
 
       {/* 圖片選取器 overlay */}
       {pickerOpen && (
@@ -1857,6 +1910,7 @@ function ChronoEditor({
   const data = React.useMemo(() => migrateChronoData(rawData), [rawData]);
   const [activePeriod, setActivePeriod] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [revModalOpen, setRevModalOpen] = useState(false);
 
   // 時間點拖曳排序
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -2331,6 +2385,16 @@ function ChronoEditor({
                 onChange={(key) => updatePeriod({ entityKey: key })}
                 existingKeys={usedEntityKeys}
               />
+              <div className="ced-field-row">
+                <label className="ced-label">revisions</label>
+                <button
+                  className="ced-rev-open-btn"
+                  onClick={() => setRevModalOpen(true)}
+                  style={{ color: accent }}
+                >
+                  進度版本 ({period.revisions?.length ?? 0})
+                </button>
+              </div>
 
               {/* 各欄位類別 */}
               {data.fieldDefs.map((def, di) => {
@@ -2605,6 +2669,22 @@ function ChronoEditor({
           )}
         </div>
       </div>
+
+      {revModalOpen && period && (
+        <RevisionModal
+          entryLabel={
+            period.title ? `${period.year}・${period.title}` : period.year
+          }
+          stackStyle="chrono"
+          entityKey={period.entityKey}
+          revisions={period.revisions ?? []}
+          onChange={(revs) =>
+            updatePeriod({ revisions: revs.length > 0 ? revs : undefined })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
+      )}
     </div>
   );
 }
@@ -2630,6 +2710,7 @@ function DiffEditor({
     sectionIdx: number;
     entryIdx: number;
   } | null>(null);
+  const [revModalOpen, setRevModalOpen] = useState(false);
 
   function updateSubcats(subcats: DiffSubcat[]) {
     onChange({ ...data, subcategories: subcats });
@@ -3002,6 +3083,16 @@ function DiffEditor({
                     }
                     existingKeys={usedEntityKeys}
                   />
+                  <div className="ced-field-row">
+                    <label className="ced-label">revisions</label>
+                    <button
+                      className="ced-rev-open-btn"
+                      onClick={() => setRevModalOpen(true)}
+                      style={{ color: accent }}
+                    >
+                      進度版本 ({entry.revisions?.length ?? 0})
+                    </button>
+                  </div>
 
                   {/* 值欄位（可新增/刪除） */}
                   <div className="ced-section-header">
@@ -3133,6 +3224,22 @@ function DiffEditor({
             </div>
           </div>
         </>
+      )}
+
+      {revModalOpen && entry && (
+        <RevisionModal
+          entryLabel={entry.term || '(未命名詞條)'}
+          stackStyle="diff"
+          entityKey={entry.entityKey}
+          revisions={entry.revisions ?? []}
+          onChange={(revs) =>
+            updateEntry(activeEntry!, {
+              revisions: revs.length > 0 ? revs : undefined,
+            })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
       )}
     </div>
   );

@@ -2786,6 +2786,154 @@
   margin: -4px 0 8px 90px;
   letter-spacing: 0.03em;
 }
+
+/* ── Revision 時間線 modal（S7-B） ─────────────────────────────── */
+.ced-rev-open-btn {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: border-color 0.15s;
+}
+.ced-rev-open-btn:hover {
+  border-color: var(--ced-accent, var(--ink-sub));
+}
+.ced-rev-modal {
+  max-width: 860px;
+  height: 82vh;
+}
+.ced-rev-header-entry {
+  font-size: 12px;
+  color: var(--ink-sub);
+  margin-left: 10px;
+}
+.ced-rev-header-stack {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.ced-rev-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.ced-rev-list {
+  width: 230px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--hairline);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ced-rev-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.ced-rev-item:hover {
+  border-color: var(--ced-accent, var(--ink-sub));
+}
+.ced-rev-item.active {
+  border-color: var(--ced-accent, var(--ink-sub));
+  background: color-mix(in srgb, var(--ced-accent, #888) 8%, transparent);
+}
+.ced-rev-item-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-body);
+  word-break: break-all;
+}
+.ced-rev-item-note {
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.ced-rev-item-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  gap: 2px;
+}
+.ced-rev-item:hover .ced-rev-item-actions,
+.ced-rev-item.active .ced-rev-item-actions {
+  display: flex;
+}
+.ced-rev-move-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.ced-rev-move-btn:hover:not(:disabled) {
+  color: var(--ink-body);
+}
+.ced-rev-move-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.ced-rev-del-btn:hover {
+  color: #b3413e;
+}
+.ced-rev-add-btn {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px dashed var(--hairline);
+}
+.ced-rev-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+.ced-rev-section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 14px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.ced-rev-gate {
+  margin-bottom: 8px;
+}
+.ced-rev-base-info {
+  font-size: 12px;
+  color: var(--ink-sub);
+  line-height: 1.8;
+}
+.ced-rev-base-info p {
+  margin: 0 0 10px;
+}
+.ced-rev-hint {
+  font-size: 11px;
+  color: var(--ink-mute);
+  line-height: 1.7;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--ink-mute) 4%, transparent);
+  margin-bottom: 8px;
+}
 .ced-textarea {
   flex: 1;
   padding: 8px 10px;

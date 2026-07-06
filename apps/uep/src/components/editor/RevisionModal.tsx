@@ -1,0 +1,288 @@
+/**
+ * RevisionModal — Concepts 條目的 Revision 時間線編輯 modal（Epic 2 S7-B）
+ *
+ * 設計依據 docs/agent/S7_CONCEPTS_DESIGN.md §4-3 + Sub-session B 排版定案：
+ * revision 編輯不進右側詳情欄（會爆版面），開獨立 modal——
+ * - 左欄：revision 時間線（base 虛擬項 + revision 鏈，可增刪、上下移）
+ * - 右欄：選中 revision 的 id / GateConditionEditor / PatchEditor
+ * - 四 stack 共用同一骨架，PatchEditor 依 stackStyle 動態渲染
+ *
+ * 語意備忘：
+ * - base 不是 revisions[0]——條目自身欄位就是 base 內容，時間線上的
+ *   base 卡片是唯讀說明項
+ * - revisions[0] 帶 gate ⇒ 條目在該 gate 通過前整條隱藏
+ *   （browser profile 例外：placeholder 佔位，見設計定案 C）
+ * - gate 為 null 的 revision = 無條件套用
+ * - 宣告順序 = 劇情揭露順序，resolver 不重排（亂序防禦見 revision.ts）
+ */
+
+import React, { useState } from 'react';
+
+import type {
+  ConceptsRevision,
+  ConceptsVariationMeta,
+} from '../concepts/types';
+
+import GateConditionEditor from './GateConditionEditor';
+import { API_BASE, getDialog } from './editorHelpers';
+
+type StackKind = ConceptsVariationMeta['stack_style'];
+
+/** 時間線選取狀態：base 虛擬項或 revisions 索引 */
+type Selection = 'base' | number;
+
+interface RevisionModalProps {
+  /** 條目顯示名稱（dossier=name、browser=name、chrono=year、diff=term） */
+  entryLabel: string;
+  stackStyle: StackKind;
+  /** 條目 entityKey——新 revision 的預設 id 依旗標慣例產生 */
+  entityKey?: string;
+  revisions: ConceptsRevision[];
+  onChange: (revisions: ConceptsRevision[]) => void;
+  onClose: () => void;
+  accent: string;
+}
+
+/** 新 revision 的預設 id：有 entityKey 走旗標慣例 {key}:{NN}，否則 rev-N */
+function defaultRevisionId(
+  entityKey: string | undefined,
+  count: number
+): string {
+  if (entityKey) return `${entityKey}:${String(count + 1).padStart(2, '0')}`;
+  return `rev-${count + 1}`;
+}
+
+export default function RevisionModal({
+  entryLabel,
+  stackStyle,
+  entityKey,
+  revisions,
+  onChange,
+  onClose,
+  accent,
+}: RevisionModalProps) {
+  const [selected, setSelected] = useState<Selection>(
+    revisions.length > 0 ? 0 : 'base'
+  );
+
+  const current =
+    typeof selected === 'number' ? (revisions[selected] ?? null) : null;
+
+  function updateRevision(idx: number, patch: Partial<ConceptsRevision>) {
+    onChange(revisions.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  }
+
+  function addRevision() {
+    const next: ConceptsRevision = {
+      id: defaultRevisionId(entityKey, revisions.length),
+      gate: null,
+      patch: {},
+    };
+    onChange([...revisions, next]);
+    setSelected(revisions.length);
+  }
+
+  async function removeRevision(idx: number) {
+    const target = revisions[idx];
+    const ok = await getDialog().confirm(
+      `確定刪除 revision「${target.id || '(未命名)'}」？此操作無法復原。`,
+      { title: '刪除 Revision', confirmText: '刪除', cancelText: '取消' }
+    );
+    if (!ok) return;
+    const next = revisions.filter((_, i) => i !== idx);
+    onChange(next);
+    if (typeof selected === 'number') {
+      if (selected === idx) setSelected(next.length > 0 ? 0 : 'base');
+      else if (selected > idx) setSelected(selected - 1);
+    }
+  }
+
+  function moveRevision(idx: number, dir: -1 | 1) {
+    const target = idx + dir;
+    if (target < 0 || target >= revisions.length) return;
+    const next = [...revisions];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    onChange(next);
+    if (selected === idx) setSelected(target);
+    else if (selected === target) setSelected(idx);
+  }
+
+  return (
+    <div className="ced-picker-overlay" onClick={onClose}>
+      <div
+        className="ced-picker-modal ced-rev-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ '--ced-accent': accent } as React.CSSProperties}
+      >
+        <div className="ced-picker-header">
+          <strong>進度版本</strong>
+          <span className="ced-rev-header-entry">{entryLabel}</span>
+          <span className="ced-rev-header-stack">{stackStyle}</span>
+          <button
+            className="ced-del-btn"
+            onClick={onClose}
+            style={{ marginLeft: 'auto' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="ced-rev-body">
+          {/* 左欄：時間線 */}
+          <div className="ced-rev-list">
+            <button
+              className={`ced-rev-item ${selected === 'base' ? 'active' : ''}`}
+              onClick={() => setSelected('base')}
+            >
+              <span className="ced-rev-item-id">base</span>
+              <span className="ced-rev-item-note">條目現有內容</span>
+            </button>
+
+            {revisions.map((rev, i) => (
+              <div
+                key={i}
+                className={`ced-rev-item ced-rev-item--rev ${
+                  selected === i ? 'active' : ''
+                }`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelected(i)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelected(i);
+                  }
+                }}
+              >
+                <span className="ced-rev-item-id">{rev.id || '(未命名)'}</span>
+                <span className="ced-rev-item-note">
+                  {rev.gate ? '⚑ 有解鎖條件' : '無條件'}
+                </span>
+                <span className="ced-rev-item-actions">
+                  <button
+                    className="ced-rev-move-btn"
+                    disabled={i === 0}
+                    title="上移"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveRevision(i, -1);
+                    }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className="ced-rev-move-btn"
+                    disabled={i === revisions.length - 1}
+                    title="下移"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveRevision(i, 1);
+                    }}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    className="ced-rev-move-btn ced-rev-del-btn"
+                    title="刪除"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void removeRevision(i);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              </div>
+            ))}
+
+            <button
+              className="ced-add-btn ced-rev-add-btn"
+              onClick={addRevision}
+              style={{ color: accent }}
+            >
+              + 新增 Revision
+            </button>
+          </div>
+
+          {/* 右欄：選中項編輯 */}
+          <div className="ced-rev-detail">
+            {selected === 'base' ? (
+              <div className="ced-rev-base-info">
+                <div className="ced-rev-section-title">BASE</div>
+                <p>
+                  條目在詳情欄編輯的欄位就是 base 內容——讀者最初認識這個
+                  條目時看到的樣子。
+                </p>
+                <p>
+                  {stackStyle === 'browser' ? (
+                    <>
+                      Browser profile 未解鎖時顯示 placeholder
+                      鎖定佔位（「知道有尚未認識的角色存在」是設計意圖）； 首個
+                      revision 的 patch 通常設 placeholder=false
+                      並補上完整內容。
+                    </>
+                  ) : (
+                    <>
+                      若第一個 revision 帶解鎖條件，條目在該條件通過前
+                      整條隱藏（未解鎖 = 隱藏）；無 revision 或首個 revision
+                      無條件時，條目一開始就可見。
+                    </>
+                  )}
+                </p>
+                {revisions.length === 0 && (
+                  <p className="ced-rev-hint">
+                    尚無 revision——此條目不隨進度演進。點左欄「+ 新增
+                    Revision」開始建立認知演進鏈。
+                  </p>
+                )}
+              </div>
+            ) : current ? (
+              <>
+                <div className="ced-field-row">
+                  <label className="ced-label">revision id</label>
+                  <input
+                    className="ced-input ced-entity-key-input"
+                    value={current.id}
+                    onChange={(e) =>
+                      updateRevision(selected as number, {
+                        id: e.target.value,
+                      })
+                    }
+                    placeholder={entityKey ? `如 ${entityKey}:01` : '如 rev-1'}
+                    spellCheck={false}
+                  />
+                </div>
+
+                <div className="ced-rev-section-title">解鎖條件</div>
+                <div className="ced-rev-gate">
+                  <GateConditionEditor
+                    value={current.gate}
+                    onChange={(gate) =>
+                      updateRevision(selected as number, { gate })
+                    }
+                    apiBase={API_BASE}
+                    accent={accent}
+                  />
+                </div>
+                {!current.gate && (
+                  <div className="ced-rev-hint">
+                    ⓘ 無條件的 revision 會永遠套用——通常 revision
+                    應設定旗標條件（慣例 {entityKey || '{entityKey}'}
+                    :01、:02…）。
+                  </div>
+                )}
+
+                <div className="ced-rev-section-title">Patch</div>
+                <div className="ced-rev-hint">
+                  patch 欄位編輯將於下一刀（PatchEditor）接上。
+                </div>
+              </>
+            ) : (
+              <div className="ced-rev-base-info">選擇左欄的項目</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
