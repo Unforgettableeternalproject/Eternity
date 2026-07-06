@@ -20,15 +20,15 @@ import { useProgress } from '../../progress';
 
 import {
   averageReadingMinutes,
-  buildChapterEntries,
   buildTreeIndex,
+  buildUnlockedChapterList,
   deriveLastRead,
   fetchHistoryTree,
   navigateToHistoryPage,
+  parentOf,
   progressRatio,
-  volumeOf,
 } from './historyIslandData';
-import type { HistoryTreeIndex } from './historyIslandData';
+import type { ChapterEntry, HistoryTreeIndex } from './historyIslandData';
 
 import './HistoryIsland.css';
 
@@ -36,6 +36,13 @@ export default function HistoryIsland() {
   const progress = useProgress();
   const [index, setIndex] = useState<HistoryTreeIndex | null>(null);
   const [error, setError] = useState(false);
+  /**
+   * 目錄展開狀態（S6-2）：使用者手動開合的覆寫，未覆寫時
+   * lastRead 鏈上的 chapter 預設展開。session 內有效，不進 localStorage。
+   */
+  const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>(
+    {}
+  );
 
   /* tree 載入（模組級快取，重開視窗不重抓） */
   useEffect(() => {
@@ -56,16 +63,17 @@ export default function HistoryIsland() {
     () => (index ? deriveLastRead(progress, index) : null),
     [index, progress]
   );
-  const volume = useMemo(
-    () => (index && lastRead ? volumeOf(lastRead.id, index) : null),
+  /** 續讀 kicker：直接上層（Section→arc、Arc→chapter、Chapter→null） */
+  const resumeParent = useMemo(
+    () => (index && lastRead ? parentOf(lastRead.id, index) : null),
     [index, lastRead]
   );
-  const chapters = useMemo(
+  const chapterItems = useMemo(
     () =>
-      index && volume
-        ? buildChapterEntries(volume, progress, index, lastRead?.id ?? null)
+      index
+        ? buildUnlockedChapterList(index, progress, lastRead?.id ?? null)
         : [],
-    [index, volume, progress, lastRead]
+    [index, progress, lastRead]
   );
   const avgMinutes = averageReadingMinutes(progress);
 
@@ -110,8 +118,8 @@ export default function HistoryIsland() {
       <div className="uep-hisland__resume">
         <div className="uep-hisland__resume-kicker">─ 書籤停在 ─</div>
         <div className="uep-hisland__resume-title">{lastRead.title}</div>
-        {volume && volume.id !== lastRead.id && (
-          <div className="uep-hisland__resume-volume">{volume.title}</div>
+        {resumeParent && (
+          <div className="uep-hisland__resume-volume">{resumeParent.title}</div>
         )}
         {lastPct !== null && (
           <div className="uep-hisland__resume-pct">讀到 {lastPct}%</div>
@@ -125,45 +133,117 @@ export default function HistoryIsland() {
         </button>
       </div>
 
-      {/* 章節列表：當前卷的目錄頁 */}
-      {volume && chapters.length > 0 && (
+      {/* 目錄（S6-2）：已解鎖 chapters，可展開為底下 arcs */}
+      {chapterItems.length > 0 && (
         <div className="uep-hisland__chapters">
-          <div className="uep-hisland__chapters-kicker">
-            {volume.title} · 目錄
-          </div>
-          {chapters.map((entry) => {
-            const ratio = progressRatio(entry);
+          <div className="uep-hisland__chapters-kicker">典藏目錄</div>
+          {chapterItems.map((item) => {
+            const expanded = expandOverride[item.node.id] ?? item.isCurrent;
+            const hasArcs = item.arcs.length > 0;
             return (
-              <button
-                key={entry.node.id}
-                type="button"
-                className={`uep-hisland__chapter${entry.isCurrent ? ' is-current' : ''}${entry.locked ? ' is-locked' : ''}`}
-                disabled={entry.locked}
-                onClick={() => navigateToHistoryPage(entry.node.id)}
-                title={
-                  entry.locked
-                    ? '尚未解鎖的章節'
-                    : `前往「${entry.node.title}」`
-                }
+              <div
+                key={item.node.id}
+                className={`uep-hisland__chapter-group${item.isCurrent ? ' is-current' : ''}`}
               >
-                <span className="uep-hisland__chapter-title">
-                  {entry.locked ? '🔒 ' : ''}
-                  {entry.node.title}
-                </span>
-                {ratio !== null && !entry.locked && (
-                  <span className="uep-hisland__chapter-progress">
-                    <span className="uep-hisland__chapter-bar" aria-hidden>
-                      <span
-                        className="uep-hisland__chapter-bar-fill"
-                        style={{ width: `${Math.round(ratio * 100)}%` }}
-                      />
+                <div className="uep-hisland__chapter-row">
+                  {hasArcs ? (
+                    <button
+                      type="button"
+                      className="uep-hisland__chapter-caret"
+                      aria-expanded={expanded}
+                      aria-label={
+                        expanded
+                          ? `收合「${item.node.title}」`
+                          : `展開「${item.node.title}」`
+                      }
+                      onClick={() =>
+                        setExpandOverride((prev) => ({
+                          ...prev,
+                          [item.node.id]: !expanded,
+                        }))
+                      }
+                    >
+                      {expanded ? '▾' : '▸'}
+                    </button>
+                  ) : (
+                    <span
+                      className="uep-hisland__chapter-caret is-leaf"
+                      aria-hidden
+                    >
+                      ·
                     </span>
-                    <span className="uep-hisland__chapter-count">
-                      {entry.completed}/{entry.total}
+                  )}
+                  <button
+                    type="button"
+                    className={`uep-hisland__chapter${item.isCurrent ? ' is-current' : ''}`}
+                    onClick={() => navigateToHistoryPage(item.node.id)}
+                    title={`前往「${item.node.title}」`}
+                  >
+                    <span className="uep-hisland__chapter-title">
+                      {item.node.title}
                     </span>
-                  </span>
+                    {item.total > 0 && (
+                      <span className="uep-hisland__chapter-progress">
+                        <span className="uep-hisland__chapter-bar" aria-hidden>
+                          <span
+                            className="uep-hisland__chapter-bar-fill"
+                            style={{
+                              width: `${Math.round((item.completed / item.total) * 100)}%`,
+                            }}
+                          />
+                        </span>
+                        <span className="uep-hisland__chapter-count">
+                          {item.completed}/{item.total}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                </div>
+                {expanded && hasArcs && (
+                  <div className="uep-hisland__arcs">
+                    {item.arcs.map((entry: ChapterEntry) => {
+                      const ratio = progressRatio(entry);
+                      return (
+                        <button
+                          key={entry.node.id}
+                          type="button"
+                          className={`uep-hisland__arc${entry.isCurrent ? ' is-current' : ''}${entry.locked ? ' is-locked' : ''}`}
+                          disabled={entry.locked}
+                          onClick={() => navigateToHistoryPage(entry.node.id)}
+                          title={
+                            entry.locked
+                              ? '尚未解鎖的篇章'
+                              : `前往「${entry.node.title}」`
+                          }
+                        >
+                          <span className="uep-hisland__chapter-title">
+                            {entry.locked ? '🔒 ' : ''}
+                            {entry.node.title}
+                          </span>
+                          {ratio !== null && !entry.locked && (
+                            <span className="uep-hisland__chapter-progress">
+                              <span
+                                className="uep-hisland__chapter-bar"
+                                aria-hidden
+                              >
+                                <span
+                                  className="uep-hisland__chapter-bar-fill"
+                                  style={{
+                                    width: `${Math.round(ratio * 100)}%`,
+                                  }}
+                                />
+                              </span>
+                              <span className="uep-hisland__chapter-count">
+                                {entry.completed}/{entry.total}
+                              </span>
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

@@ -12,8 +12,10 @@ import {
   averageReadingMinutes,
   buildChapterEntries,
   buildTreeIndex,
+  buildUnlockedChapterList,
   deriveLastRead,
   navigateToHistoryPage,
+  parentOf,
   progressRatio,
   volumeOf,
 } from '../historyIslandData';
@@ -57,6 +59,28 @@ function buildFixtureTree(): HistoryTreeNode[] {
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
   return { ...createInitialState(), ...partial };
+}
+
+/**
+ * 四層測試樹（S6-2，對齊真實 D1 結構）：
+ * zone(U) → chapter ×3（一般/靜態鎖/隱藏）→ arc → section
+ */
+function buildZoneTree(): HistoryTreeNode[] {
+  return [
+    node('history/u', 'zone', {}, [
+      node('history/u/c1', 'chapter', {}, [
+        node('history/u/c1/a1', 'arc', { progressPage: true }, [
+          node('history/u/c1/a1/s1', 'section', {}),
+          node('history/u/c1/a1/s2', 'section', {}),
+        ]),
+        node('history/u/c1/a2', 'arc', { progressPage: true }, [
+          node('history/u/c1/a2/s1', 'section', {}),
+        ]),
+      ]),
+      node('history/u/c2', 'chapter', { locked: true }),
+      node('history/u/chidden', 'chapter', { hidden: true }),
+    ]),
+  ];
 }
 
 describe('buildTreeIndex', () => {
@@ -165,6 +189,52 @@ describe('volumeOf', () => {
     expect(volumeOf('history/u/1/1-1', index)?.id).toBe('history/u');
     expect(volumeOf('history/u', index)?.id).toBe('history/u');
     expect(volumeOf('history/nope', index)).toBeNull();
+  });
+});
+
+describe('parentOf（S6-2 續讀 kicker 層級）', () => {
+  it('Section→arc、Arc→chapter、Chapter/Zone→null，判層用 pageType', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    expect(parentOf('history/u/c1/a1/s1', index)?.id).toBe('history/u/c1/a1');
+    expect(parentOf('history/u/c1/a1', index)?.id).toBe('history/u/c1');
+    expect(parentOf('history/u/c1', index)).toBeNull();
+    expect(parentOf('history/u', index)).toBeNull();
+    expect(parentOf('history/nope', index)).toBeNull();
+  });
+});
+
+describe('buildUnlockedChapterList（S6-2 兩層目錄）', () => {
+  it('只列已解鎖 chapters：靜態鎖與隱藏排除，arcs 沿用 Reader 語意', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    const items = buildUnlockedChapterList(index, createInitialState(), null);
+
+    const ids = items.map((i) => i.node.id);
+    expect(ids).toEqual(['history/u/c1']); // c2 鎖定、chidden 隱藏
+    // a2 被進度鏈隱藏（a1 未完成），arcs 只剩 a1
+    expect(items[0].arcs.map((a) => a.node.id)).toEqual(['history/u/c1/a1']);
+    // 進度彙總：三個 section 進度葉，全未完成
+    expect(items[0].total).toBe(3);
+    expect(items[0].completed).toBe(0);
+  });
+
+  it('isCurrent 標在 lastRead 祖先鏈上（chapter 與 arc 都標）', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    const items = buildUnlockedChapterList(
+      index,
+      createInitialState(),
+      'history/u/c1/a1/s2'
+    );
+    const c1 = items.find((i) => i.node.id === 'history/u/c1')!;
+    expect(c1.isCurrent).toBe(true);
+    expect(
+      c1.arcs.find((a) => a.node.id === 'history/u/c1/a1')?.isCurrent
+    ).toBe(true);
+  });
+
+  it('roots 直接是 chapter 時也能列（防禦性容錯）', () => {
+    const index = buildTreeIndex(buildFixtureTree());
+    const items = buildUnlockedChapterList(index, createInitialState(), null);
+    expect(items.map((i) => i.node.id)).toEqual(['history/u']);
   });
 });
 

@@ -106,6 +106,24 @@ export function volumeOf(
   return ancestors.length > 0 ? ancestors[0] : node;
 }
 
+/**
+ * 續讀卡 kicker 用的直接上層（S6-2 定案）：
+ * Section→顯示 arc、Arc→顯示 chapter、Chapter→不顯示（回傳 null）。
+ * 判層用 pageType（schema 保證的枚舉），不用深度推測。
+ */
+export function parentOf(
+  pageId: string,
+  index: HistoryTreeIndex
+): HistoryTreeNode | null {
+  const node = index.nodesById.get(pageId);
+  if (!node) return null;
+  if (node.pageType === 'chapter' || node.pageType === 'zone') return null;
+  const ancestors = index.ancestorsById.get(pageId) || [];
+  const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
+  if (!parent || parent.pageType === 'zone') return null;
+  return parent;
+}
+
 /** 章節列表項目 */
 export interface ChapterEntry {
   node: HistoryTreeNode;
@@ -151,24 +169,7 @@ export function buildChapterEntries(
     )
       continue;
 
-    const leaves = index.adapter.getProgressDescendantIds(child.id);
-    let completed: number;
-    let total: number;
-    if (leaves.length > 0) {
-      total = leaves.length;
-      completed = leaves.filter((leafId) =>
-        isEffectivelyCompleted(leafId, progress, index.adapter)
-      ).length;
-    } else {
-      // 無進度葉：以自身完成與否計（非進度頁顯示 0/0，UI 不畫進度條）
-      const selfDone = isEffectivelyCompleted(
-        child.id,
-        progress,
-        index.adapter
-      );
-      total = selfDone ? 1 : 0;
-      completed = selfDone ? 1 : 0;
-    }
+    const { completed, total } = progressCounts(child.id, progress, index);
 
     entries.push({
       node: child,
@@ -179,6 +180,98 @@ export function buildChapterEntries(
     });
   }
   return entries;
+}
+
+/** 進度葉完成數彙總（無進度葉時以自身完成與否計 0/0 或 1/1） */
+function progressCounts(
+  nodeId: string,
+  progress: ProgressState,
+  index: HistoryTreeIndex
+): { completed: number; total: number } {
+  const leaves = index.adapter.getProgressDescendantIds(nodeId);
+  if (leaves.length > 0) {
+    return {
+      total: leaves.length,
+      completed: leaves.filter((leafId) =>
+        isEffectivelyCompleted(leafId, progress, index.adapter)
+      ).length,
+    };
+  }
+  // 無進度葉：以自身完成與否計（非進度頁顯示 0/0，UI 不畫進度條）
+  const selfDone = isEffectivelyCompleted(nodeId, progress, index.adapter);
+  return { total: selfDone ? 1 : 0, completed: selfDone ? 1 : 0 };
+}
+
+/** 目錄列表項（S6-2）：一個已解鎖 chapter + 其底下的 arcs */
+export interface ChapterListItem {
+  node: HistoryTreeNode;
+  completed: number;
+  total: number;
+  /** 是否在最後閱讀頁的祖先鏈上（UI 預設展開） */
+  isCurrent: boolean;
+  /** 底下的 arcs（沿用 ChapterEntry 語意：鎖定列出但禁用） */
+  arcs: ChapterEntry[];
+}
+
+/**
+ * 目錄（S6-2 定案重寫）：跨全部卷列出「已解鎖的 chapters」，
+ * 每個 chapter 可展開為底下 arcs（不到 section）。
+ * 隱藏/進度鏈隱藏/鎖定的 chapter 一律不列（只列已解鎖）。
+ */
+export function buildUnlockedChapterList(
+  index: HistoryTreeIndex,
+  progress: ProgressState,
+  lastReadId: string | null
+): ChapterListItem[] {
+  const resolvePage = (pageId: string) => index.nodesById.get(pageId);
+  const lastReadChain = new Set(
+    lastReadId
+      ? [
+          lastReadId,
+          ...(index.ancestorsById.get(lastReadId) || []).map((a) => a.id),
+        ]
+      : []
+  );
+
+  // roots 可能是 zone（真實樹）或直接是 chapter（防禦性容錯）
+  const chapters: HistoryTreeNode[] = [];
+  for (const root of index.roots) {
+    if (root.pageType === 'chapter') {
+      chapters.push(root);
+    } else if (root.pageType === 'zone') {
+      chapters.push(
+        ...(root.children ?? []).filter((c) => c.pageType === 'chapter')
+      );
+    }
+  }
+
+  const items: ChapterListItem[] = [];
+  for (const chapter of chapters) {
+    if (isHidden(chapter)) continue;
+    if (
+      isProgressionChainHidden(
+        chapter,
+        progress,
+        resolvePage,
+        chapter.id,
+        index.adapter
+      )
+    )
+      continue;
+    if (isLocked(chapter, progress, chapter.id, index.adapter)) continue;
+
+    const { completed, total } = progressCounts(chapter.id, progress, index);
+    items.push({
+      node: chapter,
+      completed,
+      total,
+      isCurrent: lastReadChain.has(chapter.id),
+      arcs: buildChapterEntries(chapter, progress, index, lastReadId).filter(
+        (entry) => entry.node.pageType === 'arc'
+      ),
+    });
+  }
+  return items;
 }
 
 /** 頁面在 tree 內的可讀性（與 HistoryReader 的最後防線同語意） */
