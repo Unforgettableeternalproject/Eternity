@@ -233,17 +233,21 @@ export function buildUnlockedChapterList(
       : []
   );
 
-  // roots 可能是 zone（真實樹）或直接是 chapter（防禦性容錯）
+  // 遞迴走全樹撈 chapter（S6-3 修正）：真實 D1 樹是五層
+  // passage(page) → zone → chapter → arc → section，root 不是 zone/chapter，
+  // 原本只查 root 一層會撈空。不管中間夾 page/homepage/zone 幾層都往下鑽，
+  // 遇到 chapter 即收，不再深入（chapter 底下不會再有 chapter）。
   const chapters: HistoryTreeNode[] = [];
-  for (const root of index.roots) {
-    if (root.pageType === 'chapter') {
-      chapters.push(root);
-    } else if (root.pageType === 'zone') {
-      chapters.push(
-        ...(root.children ?? []).filter((c) => c.pageType === 'chapter')
-      );
+  const collectChapters = (nodes: HistoryTreeNode[]) => {
+    for (const node of nodes) {
+      if (node.pageType === 'chapter') {
+        chapters.push(node);
+        continue;
+      }
+      if (node.children?.length) collectChapters(node.children);
     }
-  }
+  };
+  collectChapters(index.roots);
 
   const items: ChapterListItem[] = [];
   for (const chapter of chapters) {
@@ -289,6 +293,19 @@ export function isPageNavigable(
 export function progressRatio(entry: ChapterEntry): number | null {
   if (entry.total === 0) return null;
   return entry.completed / entry.total;
+}
+
+/**
+ * 顯示用進度百分比（S6-3 定案）：1% 下限——
+ * 已解鎖但尚未讀完任何進度葉的章節顯示 1% 而非 0%（「已經踏進來了」）。
+ * total 為 0 時回傳 null（UI 不畫進度條）；100% 不受下限影響。
+ */
+export function displayProgressPct(
+  completed: number,
+  total: number
+): number | null {
+  if (total <= 0) return null;
+  return Math.max(1, Math.min(100, Math.round((completed / total) * 100)));
 }
 
 /**

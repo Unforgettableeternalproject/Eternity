@@ -14,6 +14,7 @@ import {
   buildTreeIndex,
   buildUnlockedChapterList,
   deriveLastRead,
+  displayProgressPct,
   navigateToHistoryPage,
   parentOf,
   progressRatio,
@@ -79,6 +80,36 @@ function buildZoneTree(): HistoryTreeNode[] {
       ]),
       node('history/u/c2', 'chapter', { locked: true }),
       node('history/u/chidden', 'chapter', { hidden: true }),
+    ]),
+  ];
+}
+
+/**
+ * 五層測試樹（S6-3，對齊真實 D1 結構）：
+ * passage(page) → zone ×2 → chapter → arc → section。
+ * root 是 page 不是 zone/chapter——目錄必須遞迴往下鑽才撈得到 chapter。
+ * homepage root 平行存在（landing 拼裝用，目錄不該誤收）。
+ */
+function buildPassageTree(): HistoryTreeNode[] {
+  return [
+    node('history/homepage', 'homepage', {}),
+    node('history/passage', 'page', {}, [
+      node('history/passage/u', 'zone', {}, [
+        node('history/passage/u/c1', 'chapter', {}, [
+          node('history/passage/u/c1/a1', 'arc', { progressPage: true }, [
+            node('history/passage/u/c1/a1/s1', 'section', {}),
+            node('history/passage/u/c1/a1/s2', 'section', {}),
+          ]),
+        ]),
+        node('history/passage/u/c2', 'chapter', { locked: true }),
+      ]),
+      node('history/passage/e', 'zone', {}, [
+        node('history/passage/e/c1', 'chapter', {}, [
+          node('history/passage/e/c1/a1', 'arc', { progressPage: true }, [
+            node('history/passage/e/c1/a1/s1', 'section', {}),
+          ]),
+        ]),
+      ]),
     ]),
   ];
 }
@@ -235,6 +266,44 @@ describe('buildUnlockedChapterList（S6-2 兩層目錄）', () => {
     const index = buildTreeIndex(buildFixtureTree());
     const items = buildUnlockedChapterList(index, createInitialState(), null);
     expect(items.map((i) => i.node.id)).toEqual(['history/u']);
+  });
+
+  it('五層真實樹（root=passage page）：遞迴往下鑽撈到全部 chapter（S6-3 根因）', () => {
+    const index = buildTreeIndex(buildPassageTree());
+    const items = buildUnlockedChapterList(index, createInitialState(), null);
+
+    // root 是 page 不是 zone/chapter——舊實作只查 root 一層會回空陣列
+    const ids = items.map((i) => i.node.id);
+    expect(ids).toEqual(['history/passage/u/c1', 'history/passage/e/c1']);
+    // homepage root 不含 chapter，不會誤收
+    expect(ids.some((id) => id.startsWith('history/homepage'))).toBe(false);
+    // 靜態鎖章排除
+    expect(ids).not.toContain('history/passage/u/c2');
+    // 進度彙總與 arcs 語意不受樹深影響
+    expect(items[0].total).toBe(2);
+    expect(items[0].arcs.map((a) => a.node.id)).toEqual([
+      'history/passage/u/c1/a1',
+    ]);
+  });
+});
+
+describe('displayProgressPct（S6-3 1% 下限）', () => {
+  it('total 為 0 回傳 null（UI 不畫進度條）', () => {
+    expect(displayProgressPct(0, 0)).toBeNull();
+  });
+
+  it('completed 為 0 但 total > 0 顯示 1% 而非 0%', () => {
+    expect(displayProgressPct(0, 3)).toBe(1);
+  });
+
+  it('四捨五入後為 0 的極小進度也套下限', () => {
+    expect(displayProgressPct(1, 500)).toBe(1);
+  });
+
+  it('一般值照常四捨五入，100% 不被下限影響', () => {
+    expect(displayProgressPct(1, 3)).toBe(33);
+    expect(displayProgressPct(2, 3)).toBe(67);
+    expect(displayProgressPct(3, 3)).toBe(100);
   });
 });
 

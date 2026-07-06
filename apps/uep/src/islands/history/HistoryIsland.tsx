@@ -23,6 +23,7 @@ import {
   buildTreeIndex,
   buildUnlockedChapterList,
   deriveLastRead,
+  displayProgressPct,
   fetchHistoryTree,
   navigateToHistoryPage,
   parentOf,
@@ -188,7 +189,8 @@ export default function HistoryIsland() {
                           <span
                             className="uep-hisland__chapter-bar-fill"
                             style={{
-                              width: `${Math.round((item.completed / item.total) * 100)}%`,
+                              // 1% 下限（S6-3）：已解鎖未讀完顯示 1% 而非 0%
+                              width: `${displayProgressPct(item.completed, item.total)}%`,
                             }}
                           />
                         </span>
@@ -229,7 +231,8 @@ export default function HistoryIsland() {
                                 <span
                                   className="uep-hisland__chapter-bar-fill"
                                   style={{
-                                    width: `${Math.round(ratio * 100)}%`,
+                                    // 1% 下限（S6-3）：同 chapter bar
+                                    width: `${displayProgressPct(entry.completed, entry.total)}%`,
                                   }}
                                 />
                               </span>
