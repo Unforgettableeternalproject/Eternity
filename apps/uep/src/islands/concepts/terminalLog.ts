@@ -34,6 +34,8 @@ export interface TermLine {
   text: string;
   fade?: boolean;
   action?: TermAction;
+  /** 行尾附加動作（如 ↗ 跳頁符號）——與主 action 獨立可點 */
+  suffix?: { text: string; action: TermAction };
   /** 捲動置頂錨點（清空式展現用）——UI 一次性標記，不持久化 */
   anchorId?: string;
 }
@@ -95,6 +97,14 @@ export function normalizeTermLines(raw: unknown): TermLine[] | null {
     if (obj.fade === true) line.fade = true;
     const action = normalizeAction(obj.action);
     if (action) line.action = action;
+    // suffix：text + action 皆合法才保留，否則整個 suffix 丟棄
+    if (typeof obj.suffix === 'object' && obj.suffix !== null) {
+      const suf = obj.suffix as { text?: unknown; action?: unknown };
+      const sufAction = normalizeAction(suf.action);
+      if (typeof suf.text === 'string' && suf.text && sufAction) {
+        line.suffix = { text: suf.text, action: sufAction };
+      }
+    }
     out.push(line);
   }
   return out.slice(-MAX_TERM_LINES);

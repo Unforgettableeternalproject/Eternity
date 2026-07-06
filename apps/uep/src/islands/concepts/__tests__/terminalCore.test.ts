@@ -194,12 +194,13 @@ describe('queryIndex', () => {
     expect(queryIndex(entries, 'XAVIER', stateWith({}))).toHaveLength(1);
   });
 
-  it('entityKey 也可比對，且帶 key 條目排前', () => {
-    // 'l' 同時命中 'Xavier Colsono'（帶 key）與 '月桂 Laurel'（無 key）
+  it('entityKey 也可比對；browser 條目不進檢索（三輪定案）', () => {
+    // 'l' 命中 'Xavier Colsono'（dossier 帶 key）與 '月桂 Laurel'（browser）
+    // ——browser 為 log entry 的附屬內容，不能直接搜尋
     const hits = queryIndex(entries, 'l', stateWith({}));
-    expect(hits).toHaveLength(2);
+    expect(hits).toHaveLength(1);
     expect(hits[0].entityKey).toBe('xavier-colsono');
-    expect(hits[1].name).toBe('月桂 Laurel');
+    expect(hits.find((h) => h.stack === 'browser')).toBeUndefined();
   });
 
   it('未解鎖條目從結果隱藏', () => {

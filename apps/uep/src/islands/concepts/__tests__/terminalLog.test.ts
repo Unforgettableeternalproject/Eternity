@@ -177,3 +177,70 @@ describe('容錯', () => {
     expect('fade' in normalized![1]).toBe(false);
   });
 });
+
+describe('suffix（行尾符號動作）', () => {
+  it('suffix round-trip；非法 suffix 整個丟棄、主行保留', () => {
+    const normalized = normalizeTermLines([
+      {
+        kind: 'ok',
+        text: '✓ 艾斯維爾 · log/records',
+        suffix: {
+          text: '↗',
+          action: { type: 'navigate', pageId: 'concepts/server/records/x' },
+        },
+      },
+      {
+        kind: 'ok',
+        text: 'bad suffix action',
+        suffix: { text: '↗', action: { type: 'navigate', pageId: '' } },
+      },
+      {
+        kind: 'ok',
+        text: 'bad suffix text',
+        suffix: { text: '', action: { type: 'navigate', pageId: 'p' } },
+      },
+    ]);
+    expect(normalized![0].suffix).toEqual({
+      text: '↗',
+      action: { type: 'navigate', pageId: 'concepts/server/records/x' },
+    });
+    expect(normalized![1].suffix).toBeUndefined();
+    expect(normalized![1].text).toBe('bad suffix action');
+    expect(normalized![2].suffix).toBeUndefined();
+  });
+
+  it('主 action 與 suffix 可並存', () => {
+    const normalized = normalizeTermLines([
+      {
+        kind: 'row',
+        text: '› 條目',
+        action: { type: 'show-entry', entry: sampleEntry },
+        suffix: {
+          text: '↗',
+          action: { type: 'navigate', pageId: 'concepts/p' },
+        },
+      },
+    ]);
+    expect(normalized![0].action?.type).toBe('show-entry');
+    expect(normalized![0].suffix?.action.type).toBe('navigate');
+  });
+});
+
+describe('completeInput 的 browser 排除（三輪定案）', () => {
+  it('browser 條目不進補全候選', async () => {
+    const { completeInput } = await import('../terminalCore');
+    const { createInitialState } = await import('../../../progress/types');
+    const entries = [
+      sampleEntry, // dossier
+      {
+        name: '艾斯維爾·科索諾 (Xavier Colsono)',
+        stack: 'browser' as const,
+        pageId: 'concepts/server/browser/profiles',
+        pageTitle: '個性瀏覽器',
+        entityKey: 'xavier',
+      },
+    ];
+    const hits = completeInput('query xavier', entries, createInitialState());
+    expect(hits).toEqual(['query 艾斯維爾·科索諾']);
+  });
+});

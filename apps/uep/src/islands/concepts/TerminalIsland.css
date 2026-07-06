@@ -127,6 +127,39 @@
   outline-offset: 1px;
 }
 
+/* 帶行尾符號的行：主文字 + 獨立可點符號 */
+.uep-terminal__line-flex {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.uep-terminal__line-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.uep-terminal__suffix-btn {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  padding: 0 5px;
+  color: #74c69d;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.uep-terminal__suffix-btn:hover {
+  background: rgba(45, 106, 79, 0.35);
+  color: #ffffff;
+}
+
+.uep-terminal__suffix-btn:focus-visible {
+  outline: 1px solid #74c69d;
+  outline-offset: 1px;
+}
+
 /* ── 首次使用引導 chips ── */
 .uep-terminal__chips {
   margin-top: 6px;
@@ -164,12 +197,59 @@
 
 /* ── prompt 列 ── */
 .uep-terminal__prompt {
+  position: relative; /* 補全候選列表的定位錨 */
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
   border-top: 1px solid rgba(45, 106, 79, 0.45);
   background: #0a1410;
+}
+
+/* ── 補全候選列表（slash-command 式向上展開） ── */
+.uep-terminal__suggest {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #0c1814;
+  border: 1px solid rgba(45, 106, 79, 0.6);
+  border-bottom: none;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.45);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(116, 198, 157, 0.35) transparent;
+}
+
+.uep-terminal__suggest-item {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  color: #a6e0bd;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uep-terminal__suggest-item:hover {
+  background: rgba(45, 106, 79, 0.25);
+}
+
+.uep-terminal__suggest-item.is-active {
+  background: rgba(45, 106, 79, 0.45);
+  color: #ffffff;
+}
+
+.uep-terminal__suggest-hint {
+  padding: 3px 10px;
+  color: rgba(166, 224, 189, 0.4);
+  font-size: 9.5px;
+  border-top: 1px solid rgba(45, 106, 79, 0.3);
 }
 
 .uep-terminal__prompt-sign {
@@ -193,11 +273,4 @@
 
 .uep-terminal__enter {
   color: rgba(45, 106, 79, 0.8);
-}
-
-/* Tab 補全候選指示（n/m 循環位置） */
-.uep-terminal__completion-hint {
-  color: #74c69d;
-  font-size: 10px;
-  white-space: nowrap;
 }

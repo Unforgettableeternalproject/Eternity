@@ -105,13 +105,17 @@ export default function TerminalIsland() {
   const pendingAnchorRef = useRef<string | null>(null);
   const anchorSeqRef = useRef(0);
 
-  /* Tab 補全 + ↑↓ 候選/歷史（S7-C 驗收回饋） */
+  /* 補全候選列表（S7-C 驗收回饋三輪：slash-command 式向上展開，
+     打字即出、↑↓/Tab 移動高亮、Enter 填入、無高亮 Enter 照常送出） */
   const [completion, setCompletion] = useState<{
     candidates: string[];
-    index: number;
+    /** 高亮位置；null = 未進入選擇（Enter 直接送出輸入） */
+    index: number | null;
   } | null>(null);
   const historyRef = useRef<string[]>([]);
   const histIdxRef = useRef<number | null>(null);
+  /** 索引預熱後的同步引用（onChange 即時計算候選用） */
+  const entriesRef = useRef<TerminalIndexEntry[]>([]);
 
   function append(add: TermLine[]) {
     setLines((prev) => [...prev, ...add].slice(-MAX_TERM_LINES));
@@ -155,8 +159,10 @@ export default function TerminalIsland() {
   useEffect(() => {
     let cancelled = false;
     loadEntityIndex()
-      .then(() => {
-        if (!cancelled) setIndexReady(true);
+      .then((entries) => {
+        if (cancelled) return;
+        entriesRef.current = entries;
+        setIndexReady(true);
       })
       .catch(() => {
         /* 失敗不在 mount 時報錯——首次指令會經 ensureIndex 呈現 */
@@ -297,17 +303,16 @@ export default function TerminalIsland() {
 
   async function showDetails(target: TerminalIndexEntry) {
     // browser 內容一律不在 terminal 展示（S7-C 驗收定案：資料保證
-    // log↔browser 映射，詳細欄位歸個性瀏覽器）——只輸出導向列
+    // log↔browser 映射，詳細欄位歸個性瀏覽器）——只輸出導向標題
     if (target.stack === 'browser') {
       appendAnchored([
         {
           kind: 'ok',
           text: `✓ ${target.name} · ${TERMINAL_STACK_LABELS.browser}`,
-        },
-        {
-          kind: 'row',
-          text: '  → 開啟個性瀏覽器檔案 ▸',
-          action: { type: 'navigate', pageId: target.pageId },
+          suffix: {
+            text: '↗',
+            action: { type: 'navigate', pageId: target.pageId },
+          },
         },
       ]);
       return;
@@ -335,26 +340,31 @@ export default function TerminalIsland() {
       out.push({
         kind: 'ok',
         text: `✓ ${d.name}${variant} · ${TERMINAL_STACK_LABELS[d.stack]}`,
+        // 導向符號（S7-C 三輪定案：標題行尾 ↗，取代整行導向文字）；
+        // restricted 條目已在上方 continue，這裡必然可導向
+        suffix: {
+          text: '↗',
+          action: { type: 'navigate', pageId: target.pageId },
+        },
       });
       out.push({ kind: 'row', text: `  ⌂ ${d.pageTitle}`, fade: true });
       for (const s of d.summary) {
         out.push({ kind: 'row', text: `  ${s}` });
       }
     }
-    // 統一導向列（S7-C 驗收定案：所有 entry 尾端可導向對應頁面）；
-    // 全 restricted 時不給導向（頁面守門也會擋，避免死路體驗）
+    // browser 對應（同 entityKey）：暫以縮短導向呈現——
+    // 「展開完整檔案」的 terminal 內展現屬下一輪（S7-D 併行）
     if (anyVisible) {
-      out.push({
-        kind: 'row',
-        text: `  → 前往 ${target.pageTitle} ▸`,
-        action: { type: 'navigate', pageId: target.pageId },
-      });
       const counterpart = await findBrowserCounterpart(target);
       if (counterpart) {
         out.push({
           kind: 'row',
-          text: '  → 開啟個性瀏覽器檔案 ▸',
-          action: { type: 'navigate', pageId: counterpart.pageId },
+          text: '  → 個性瀏覽器',
+          fade: true,
+          suffix: {
+            text: '↗',
+            action: { type: 'navigate', pageId: counterpart.pageId },
+          },
         });
       }
     }
@@ -383,22 +393,8 @@ export default function TerminalIsland() {
     const entries = await ensureIndex();
     if (!entries) return;
 
-    const rawHits = queryIndex(entries, kw, progressRef.current);
-    // 同 entityKey 去重（S7-C 驗收定案）：存在 log/diff 命中時，
-    // browser 那筆不進結果列表——瀏覽器內容統一走詳細頁導向列
-    const keyedNonBrowser = new Set(
-      rawHits
-        .filter((h) => h.stack !== 'browser' && h.entityKey)
-        .map((h) => h.entityKey as string)
-    );
-    const hits = rawHits.filter(
-      (h) =>
-        !(
-          h.stack === 'browser' &&
-          h.entityKey &&
-          keyedNonBrowser.has(h.entityKey)
-        )
-    );
+    // browser 不進檢索（queryIndex 內建排除）——log entry 為主體
+    const hits = queryIndex(entries, kw, progressRef.current);
     if (hits.length === 0) {
       append([
         { kind: 'err', text: `× 查無「${kw}」` },
@@ -604,56 +600,76 @@ export default function TerminalIsland() {
     void runQuery(cmd);
   }
 
-  /* ── Tab 補全 / 歷史導航 ── */
+  /* ── 補全候選列表 / 歷史導航 ── */
 
-  /** 套用候選（同步更新輸入列與循環索引） */
-  function applyCandidate(
-    candidates: string[],
-    index: number,
-    open = false
-  ): void {
-    setCompletion({ candidates, index });
-    setInput(candidates[index]);
-    if (open) histIdxRef.current = null;
+  /** 依輸入值重算候選列表（打字即出；空輸入或無候選時收起） */
+  function computeCandidates(value: string): void {
+    if (!value.trim()) {
+      setCompletion(null);
+      return;
+    }
+    const candidates = completeInput(
+      value,
+      entriesRef.current,
+      progressRef.current
+    ).filter((c) => c !== value); // 已與輸入相同的候選不重複列
+    setCompletion(candidates.length > 0 ? { candidates, index: null } : null);
   }
 
-  /** Tab 首按：計算候選並套用第一個 */
-  async function openCompletion(): Promise<void> {
-    let entries: TerminalIndexEntry[] = [];
-    try {
-      entries = await loadEntityIndex();
-    } catch {
-      // 索引失敗仍可補指令詞
-    }
-    const candidates = completeInput(input, entries, progressRef.current);
-    if (candidates.length === 0) return;
-    applyCandidate(candidates, 0, true);
+  /** 確認候選：填入輸入列並以新值重算（帶參數指令可繼續 refine） */
+  function selectCandidate(candidate: string): void {
+    setInput(candidate);
+    histIdxRef.current = null;
+    computeCandidates(candidate);
+    inputRef.current?.focus();
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
-    if (e.key === 'Tab') {
+    const hasList = completion !== null && completion.candidates.length > 0;
+
+    if (e.key === 'Escape' && hasList) {
       e.preventDefault();
-      if (completion && completion.candidates.length > 0) {
-        const next = (completion.index + 1) % completion.candidates.length;
-        applyCandidate(completion.candidates, next);
-      } else {
-        void openCompletion();
-      }
+      setCompletion(null);
       return;
     }
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (!hasList) return;
+      // Tab：高亮往下循環（null → 第一項）
+      const len = completion.candidates.length;
+      const next = completion.index === null ? 0 : (completion.index + 1) % len;
+      setCompletion({ ...completion, index: next });
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      // 有高亮 → Enter 是「選候選」不是送出
+      if (hasList && completion.index !== null) {
+        e.preventDefault();
+        selectCandidate(completion.candidates[completion.index]);
+      }
+      return; // 無高亮：交給 form submit
+    }
+
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
     const dir = e.key === 'ArrowUp' ? -1 : 1;
 
-    // 候選開啟中：↑↓ 在候選間循環
-    if (completion && completion.candidates.length > 0) {
+    // 列表開啟中：↑↓ 移動高亮（不動輸入列）
+    if (hasList) {
       const len = completion.candidates.length;
-      const next = (completion.index + dir + len) % len;
-      applyCandidate(completion.candidates, next);
+      const next =
+        completion.index === null
+          ? dir === -1
+            ? len - 1
+            : 0
+          : (completion.index + dir + len) % len;
+      setCompletion({ ...completion, index: next });
       return;
     }
 
-    // 無候選：↑↓ 翻指令歷史（↓ 超出回到空輸入列）
+    // 無列表：↑↓ 翻指令歷史（↓ 超出回到空輸入列）
     const hist = historyRef.current;
     if (hist.length === 0) return;
     const cur = histIdxRef.current;
@@ -677,7 +693,34 @@ export default function TerminalIsland() {
     <div className="uep-terminal">
       <div className="uep-terminal__body" ref={bodyRef}>
         {lines.map((line, i) =>
-          line.action ? (
+          line.suffix ? (
+            // 帶行尾符號的行：主文字 + 獨立可點符號（如 ↗ 跳頁）
+            <div
+              key={i}
+              className={`${lineClass(line)} uep-terminal__line-flex`}
+              data-anchor-id={line.anchorId}
+            >
+              {line.action ? (
+                <button
+                  type="button"
+                  className="uep-terminal__line-btn uep-terminal__line-main"
+                  onClick={() => runAction(line.action!)}
+                >
+                  {line.text}
+                </button>
+              ) : (
+                <span className="uep-terminal__line-main">{line.text}</span>
+              )}
+              <button
+                type="button"
+                className="uep-terminal__suffix-btn"
+                title="前往對應頁面"
+                onClick={() => runAction(line.suffix!.action)}
+              >
+                {line.suffix.text}
+              </button>
+            </div>
+          ) : line.action ? (
             <button
               key={i}
               type="button"
@@ -735,6 +778,32 @@ export default function TerminalIsland() {
           setInput('');
         }}
       >
+        {/* 補全候選列表——slash-command 式向上展開（打字即出） */}
+        {completion && completion.candidates.length > 0 && (
+          <div className="uep-terminal__suggest" role="listbox">
+            {completion.candidates.map((c, i) => (
+              <button
+                key={c}
+                type="button"
+                role="option"
+                aria-selected={i === completion.index}
+                className={`uep-terminal__suggest-item${
+                  i === completion.index ? ' is-active' : ''
+                }`}
+                // mousedown 防 input blur（blur 會先於 click 關列表）
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectCandidate(c);
+                }}
+              >
+                › {c}
+              </button>
+            ))}
+            <div className="uep-terminal__suggest-hint">
+              ⇥/↑↓ 選擇 · ↵ 填入 · esc 關閉
+            </div>
+          </div>
+        )}
         <span className="uep-terminal__prompt-sign" aria-hidden>
           $
         </span>
@@ -744,24 +813,19 @@ export default function TerminalIsland() {
           value={input}
           onChange={(e) => {
             setInput(e.target.value);
-            setCompletion(null);
             histIdxRef.current = null;
+            computeCandidates(e.target.value);
           }}
           onKeyDown={handleInputKeyDown}
+          onBlur={() => setCompletion(null)}
           placeholder={indexReady ? 'query … （⇥ 補全）' : 'initializing…'}
           aria-label="terminal 指令輸入"
           spellCheck={false}
           autoComplete="off"
         />
-        {completion && completion.candidates.length > 1 ? (
-          <span className="uep-terminal__completion-hint" aria-hidden>
-            ⇥ {completion.index + 1}/{completion.candidates.length}
-          </span>
-        ) : (
-          <span className="uep-terminal__enter" aria-hidden>
-            ↵
-          </span>
-        )}
+        <span className="uep-terminal__enter" aria-hidden>
+          ↵
+        </span>
       </form>
     </div>
   );

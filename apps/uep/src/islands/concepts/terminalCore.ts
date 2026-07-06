@@ -199,6 +199,8 @@ export function resolveStackAlias(input: string): TerminalStack | null {
 /**
  * 關鍵字檢索：name / entityKey 的 case-insensitive substring 比對。
  * 未解鎖條目直接隱藏（不進結果）；帶 entityKey 的條目排前。
+ * browser 條目不進檢索（S7-C 三輪定案）：terminal 以 log entry 為主體，
+ * browser 詳細內容經 log entry 的連結呈現，不能直接搜尋。
  */
 export function queryIndex(
   entries: TerminalIndexEntry[],
@@ -208,6 +210,7 @@ export function queryIndex(
   const kw = keyword.trim().toLowerCase();
   if (!kw) return [];
   return entries
+    .filter((e) => e.stack !== 'browser')
     .filter((e) => isIndexEntryUnlocked(e, progress))
     .filter(
       (e) =>
@@ -322,6 +325,7 @@ const COMPLETION_COMMANDS = ['query ', 'ls ', 'clear', 'help'];
 /**
  * 已解鎖條目的補全候選（name/entityKey，startsWith 優先、includes 補位）。
  * 未解鎖條目不進候選——防洩漏（與 query 隱藏語意一致）。同名去重。
+ * browser 條目不進候選（與 queryIndex 檢索語意一致）。
  */
 function entryCandidates(
   entries: TerminalIndexEntry[],
@@ -334,6 +338,7 @@ function entryCandidates(
   const includes: string[] = [];
   const seen = new Set<string>();
   for (const entry of entries) {
+    if (entry.stack === 'browser') continue;
     if (!isIndexEntryUnlocked(entry, progress)) continue;
     if (seen.has(entry.name)) continue;
     const name = entry.name.toLowerCase();
