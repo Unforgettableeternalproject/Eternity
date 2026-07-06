@@ -423,6 +423,9 @@ function DossierVariantBody({
     entryIdx: number;
   } | null>(null);
   const [revModalOpen, setRevModalOpen] = useState(false);
+  // 條目列表結構版本：刪除/拖曳會 shift index，active 索引可能指到
+  // 不同條目但數值不變——進 MiniEditor key 強制 remount 防內容殘留
+  const [listVersion, setListVersion] = useState(0);
 
   function updateSubcats(subcats: DossierSubcat[]) {
     onSubcatsChange(subcats);
@@ -495,6 +498,7 @@ function DossierVariantBody({
   function removeEntry(i: number) {
     if (!group) return;
     updateEntries(group.entries.filter((_, idx) => idx !== i));
+    setListVersion((v) => v + 1);
     if (activeEntry === i) {
       setActiveEntry(null);
       setPanelMode('group');
@@ -522,6 +526,7 @@ function DossierVariantBody({
       return g;
     });
     updateGroups(newGroups);
+    setListVersion((v) => v + 1);
     if (activeGroup === srcGi && activeEntry === srcEi) {
       setActiveEntry(null);
       setPanelMode('group');
@@ -537,6 +542,7 @@ function DossierVariantBody({
     const [moved] = items.splice(dragEntryInfo.entryIdx, 1);
     items.splice(targetIdx, 0, moved);
     updateEntries(items);
+    setListVersion((v) => v + 1);
     if (activeEntry === dragEntryInfo.entryIdx) setActiveEntry(targetIdx);
     setDragEntryInfo(null);
   }
@@ -804,7 +810,7 @@ function DossierVariantBody({
                   {/* key：TipTap content 只吃初始值，切換條目必須 remount，
                       否則殘留前一條目內容（編輯還會把舊內容寫進新條目） */}
                   <MiniEditor
-                    key={`${activeTab}-${activeGroup}-${activeEntry}`}
+                    key={`${activeTab}-${activeGroup}-${activeEntry}-${listVersion}`}
                     value={entry.content_html || ''}
                     onChange={(html) =>
                       updateEntry(activeEntry!, {
@@ -914,6 +920,9 @@ function BrowserEditor({
   const [pickerLoading, setPickerLoading] = useState(false);
   const [avatarDeleteOpen, setAvatarDeleteOpen] = useState(false);
   const [revModalOpen, setRevModalOpen] = useState(false);
+  // 列表結構版本：刪除角色/區段、區段拖曳會 shift index——
+  // 進 MiniEditor key 強制 remount 防內容殘留
+  const [listVersion, setListVersion] = useState(0);
 
   function updateProfiles(profiles: CharacterProfile[]) {
     onChange({ ...data, profiles });
@@ -975,6 +984,7 @@ function BrowserEditor({
     );
     if (!ok) return;
     updateProfiles(data.profiles.filter((_, idx) => idx !== i));
+    setListVersion((v) => v + 1);
     if (activeIdx === i) setActiveIdx(null);
   }
   function addProfileHere() {
@@ -1028,6 +1038,7 @@ function BrowserEditor({
   }
   function removeSection(i: number) {
     updateSections((profile?.sections || []).filter((_, idx) => idx !== i));
+    setListVersion((v) => v + 1);
   }
   // 區段拖曳排序
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
@@ -1037,6 +1048,7 @@ function BrowserEditor({
     const [moved] = items.splice(dragSectionIdx, 1);
     items.splice(targetIdx, 0, moved);
     updateSections(items);
+    setListVersion((v) => v + 1);
     setDragSectionIdx(null);
   }
   // 麵包屑 drop handler
@@ -1451,7 +1463,7 @@ function BrowserEditor({
                       {/* key 含 activeIdx：換角色時同 index 的區段
                           會被 React 重用，必須 remount 防內容殘留 */}
                       <MiniEditor
-                        key={`${activeIdx}-${si}`}
+                        key={`${activeIdx}-${si}-${listVersion}`}
                         value={section.content_html}
                         onChange={(html) => {
                           const next = [...(profile.sections || [])];
