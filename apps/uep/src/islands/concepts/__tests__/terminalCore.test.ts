@@ -227,6 +227,21 @@ describe('queryIndex', () => {
     expect(queryIndex(entries, '  ', stateWith({}))).toHaveLength(0);
   });
 
+  it('aliases 也可比對（S7-D-2 補充匹配詞）', () => {
+    const withAlias = [
+      ...entries,
+      indexEntry({
+        name: '諾薇亞 Norvia',
+        entityKey: 'norvia',
+        aliases: ['小諾', 'Nov'],
+      }),
+    ];
+    expect(queryIndex(withAlias, '小諾', stateWith({}))).toHaveLength(1);
+    expect(queryIndex(withAlias, 'nov', stateWith({}))).toHaveLength(1);
+    // 別名不影響未命中情況
+    expect(queryIndex(withAlias, '大諾', stateWith({}))).toHaveLength(0);
+  });
+
   it('findByEntityKey 精準取回（跨 stack 多筆）', () => {
     const multi = [
       ...entries,
@@ -639,6 +654,20 @@ describe('completeInput', () => {
     // norvia 是 entityKey startsWith；Colsono 是 name includes
     expect(hits[0]).toBe('query 諾薇亞 Norvia');
     expect(hits).toContain('query 艾斯維爾·科索諾 Xavier Colsono');
+  });
+
+  it('query 別名比對（S7-D-2）：alias 命中回傳條目名', () => {
+    const withAlias = [
+      ...entries,
+      indexEntry({
+        name: '瑞斯可·亞克 Rethiscor Yaakov',
+        entityKey: 'rethiscor-yaakov',
+        aliases: ['主人'],
+      }),
+    ];
+    expect(completeInput('query 主人', withAlias, stateWith({}))).toEqual([
+      'query 瑞斯可·亞克 Rethiscor Yaakov',
+    ]);
   });
 
   it('裸字：只補指令前綴，不倒出條目候選（裸名提交仍為 query 語意）', () => {

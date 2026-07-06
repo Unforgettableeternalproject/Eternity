@@ -143,6 +143,20 @@ describe('groupPickerEntries', () => {
     expect(groupPickerEntries(entries, '理論')[0].entries[0].name).toBe('遣返');
     expect(groupPickerEntries(entries, '不存在')).toEqual([]);
   });
+
+  it('關鍵字比對 aliases（S7-D-2）', () => {
+    const withAlias = [
+      ...entries,
+      entry({
+        name: '瑞斯可·亞克',
+        entityKey: 'rethiscor-yaakov',
+        aliases: ['主人'],
+      }),
+    ];
+    const groups = groupPickerEntries(withAlias, '主人');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].entries[0].name).toBe('瑞斯可·亞克');
+  });
 });
 
 describe('EntityIndexPicker 元件', () => {

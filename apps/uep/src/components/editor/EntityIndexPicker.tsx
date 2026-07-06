@@ -25,6 +25,8 @@ export interface EntityPickerEntry {
   pageId: string;
   pageTitle: string;
   entityKey?: string;
+  /** 匹配別名（S7-D-2：搜尋比對納入） */
+  aliases?: string[];
   category?: string;
   group?: string;
   variantId?: string;
@@ -79,7 +81,7 @@ export function inferEntityKind(entry: EntityPickerEntry): EntityKind {
 
 /**
  * 關鍵字過濾 + category 分組。
- * 比對 name / entityKey / category / group（不分大小寫 includes）；
+ * 比對 name / entityKey / aliases / category / group（不分大小寫 includes）；
  * 空關鍵字列出全部（picker 是有界清單，與 terminal 補全的
  * 「預設空」語意不同——這裡瀏覽本身就是目的）。
  * 分組鍵 = `{pageTitle}｜{category}`（不同頁面的同名分類不合併）。
@@ -91,7 +93,13 @@ export function groupPickerEntries(
   const kw = keyword.trim().toLowerCase();
   const hit = (entry: EntityPickerEntry): boolean => {
     if (!kw) return true;
-    return [entry.name, entry.entityKey, entry.category, entry.group]
+    return [
+      entry.name,
+      entry.entityKey,
+      ...(entry.aliases ?? []),
+      entry.category,
+      entry.group,
+    ]
       .filter((v): v is string => typeof v === 'string')
       .some((v) => v.toLowerCase().includes(kw));
   };

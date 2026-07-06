@@ -10,7 +10,7 @@
  * 資料流：content[0].content (JSON string) → parsed → 編輯 → onDataChange → save
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   API_BASE,
   getDialog,
@@ -167,6 +167,59 @@ function getEmptyData(style: StackStyle): ConceptsData {
     case 'diff':
       return { subcategories: [] } as DiffContent;
   }
+}
+
+// ── AliasesField — 匹配別名輸入（S7-D-2） ─────────────────────────
+
+/** 別名字串解析：頓號/全半形逗號分隔，trim 後去空、去重 */
+export function parseAliases(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(/[,，、]/)) {
+    const alias = part.trim();
+    if (!alias || seen.has(alias)) continue;
+    seen.add(alias);
+    out.push(alias);
+  }
+  return out;
+}
+
+interface AliasesFieldProps {
+  value: string[] | undefined;
+  onChange: (aliases: string[] | undefined) => void;
+}
+
+/**
+ * 匹配別名輸入欄（EntityKeyField 旁，dossier/diff 條目詳情用）。
+ * 供自動偵測 suggestion 與 terminal 檢索的補充匹配詞（S7-D 定案 3）。
+ *
+ * 本地 raw state 保留使用者輸入中的分隔符——controlled 直接
+ * split→join 會吃掉剛打出的頓號（分類路徑欄位的既有毛病，不沿用）；
+ * 外部值變化（切換條目）時若與本地解析結果不一致才覆蓋顯示值。
+ */
+export function AliasesField({ value, onChange }: AliasesFieldProps) {
+  const [raw, setRaw] = useState(() => (value ?? []).join('、'));
+  useEffect(() => {
+    const external = (value ?? []).join('、');
+    if (external !== parseAliases(raw).join('、')) setRaw(external);
+    // raw 刻意不進 deps：只在外部值換內容（切條目）時覆蓋輸入中的字串
+  }, [value]);
+  return (
+    <div className="ced-field-row">
+      <label className="ced-label">別名</label>
+      <input
+        className="ced-input"
+        value={raw}
+        onChange={(e) => {
+          setRaw(e.target.value);
+          const parsed = parseAliases(e.target.value);
+          onChange(parsed.length > 0 ? parsed : undefined);
+        }}
+        placeholder="暱稱/異寫，用、分隔（選填）"
+        spellCheck={false}
+      />
+    </div>
+  );
 }
 
 // ── 主元件 ────────────────────────────────────────────────────────
@@ -793,6 +846,12 @@ function DossierVariantBody({
                       updateEntry(activeEntry!, { entityKey: key })
                     }
                     existingKeys={usedEntityKeys}
+                  />
+                  <AliasesField
+                    value={entry.aliases}
+                    onChange={(aliases) =>
+                      updateEntry(activeEntry!, { aliases })
+                    }
                   />
                   <div className="ced-field-row">
                     <label className="ced-label">revisions</label>
@@ -3010,6 +3069,12 @@ function DiffEditor({
                       updateEntry(activeEntry!, { entityKey: key })
                     }
                     existingKeys={usedEntityKeys}
+                  />
+                  <AliasesField
+                    value={entry.aliases}
+                    onChange={(aliases) =>
+                      updateEntry(activeEntry!, { aliases })
+                    }
                   />
                   <div className="ced-field-row">
                     <label className="ced-label">revisions</label>

@@ -51,6 +51,8 @@ export interface TerminalIndexEntry {
   pageId: string;
   pageTitle: string;
   entityKey?: string;
+  /** 匹配別名（S7-D-2：query / 補全的補充匹配詞） */
+  aliases?: string[];
   revisionGates?: { id: string; gate: GateCondition | null }[];
   /** 分類標籤（dossier=subcategory、diff=subcat）——ls 分組用 */
   category?: string;
@@ -209,7 +211,8 @@ function isSearchable(entry: TerminalIndexEntry): boolean {
 }
 
 /**
- * 關鍵字檢索：name / entityKey 的 case-insensitive substring 比對。
+ * 關鍵字檢索：name / entityKey / aliases 的 case-insensitive
+ * substring 比對（aliases 為 S7-D-2 編輯器選填的補充匹配詞）。
  * 未解鎖條目直接隱藏（不進結果）；帶 entityKey 的條目排前。
  * 檢索範圍見 isSearchable。
  */
@@ -226,7 +229,8 @@ export function queryIndex(
     .filter(
       (e) =>
         e.name.toLowerCase().includes(kw) ||
-        (e.entityKey ? e.entityKey.toLowerCase().includes(kw) : false)
+        (e.entityKey ? e.entityKey.toLowerCase().includes(kw) : false) ||
+        (e.aliases ?? []).some((a) => a.toLowerCase().includes(kw))
     )
     .sort((a, b) => {
       const keyDiff =
@@ -334,9 +338,9 @@ export function summarizeCategories(
 const COMPLETION_COMMANDS = ['query ', 'ls ', 'clear', 'help'];
 
 /**
- * 已解鎖條目的補全候選（name/entityKey，startsWith 優先、includes 補位）。
- * 未解鎖條目不進候選——防洩漏（與 query 隱藏語意一致）。同名去重。
- * 檢索範圍同 queryIndex（isSearchable）。
+ * 已解鎖條目的補全候選（name/entityKey/aliases，startsWith 優先、
+ * includes 補位）。未解鎖條目不進候選——防洩漏（與 query 隱藏語意
+ * 一致）。同名去重。檢索範圍同 queryIndex（isSearchable）。
  * 空關鍵字回空陣列——不倒全部（S7-C 四輪定案：預設空）。
  */
 function entryCandidates(
@@ -354,12 +358,13 @@ function entryCandidates(
     if (!isSearchable(entry)) continue;
     if (!isIndexEntryUnlocked(entry, progress)) continue;
     if (seen.has(entry.name)) continue;
-    const name = entry.name.toLowerCase();
-    const key = entry.entityKey?.toLowerCase() ?? '';
-    if (name.startsWith(kw) || (key && key.startsWith(kw))) {
+    const terms = [entry.name, entry.entityKey ?? '', ...(entry.aliases ?? [])]
+      .filter(Boolean)
+      .map((t) => t.toLowerCase());
+    if (terms.some((t) => t.startsWith(kw))) {
       starts.push(entry.name);
       seen.add(entry.name);
-    } else if (name.includes(kw) || (key && key.includes(kw))) {
+    } else if (terms.some((t) => t.includes(kw))) {
       includes.push(entry.name);
       seen.add(entry.name);
     }

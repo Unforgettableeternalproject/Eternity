@@ -39,6 +39,8 @@ export interface EntityIndexEntry {
   pageTitle: string;
   /** 跨 stack 穩定識別碼（有 = 可深連 + 更動通知） */
   entityKey?: string;
+  /** 匹配別名（S7-D-2：編輯器選填，自動偵測 + terminal query 兩用） */
+  aliases?: string[];
   /** revision gate 摘要（條目有 revision 鏈才有） */
   revisionGates?: RevisionGateSummary[];
   /** 分類標籤（dossier=subcategory label、diff=subcat label）——ls 分組用 */
@@ -65,14 +67,19 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-/** 從條目物件抽出 entityKey / revisionGates（共用形狀 WithRevision） */
+/** 從條目物件抽出 entityKey / aliases / revisionGates（共用形狀 WithRevision + S7-D aliases） */
 function withRevisionFields(
   entry: Dict
-): Pick<EntityIndexEntry, 'entityKey' | 'revisionGates'> {
-  const out: Pick<EntityIndexEntry, 'entityKey' | 'revisionGates'> = {};
+): Pick<EntityIndexEntry, 'entityKey' | 'aliases' | 'revisionGates'> {
+  const out: Pick<EntityIndexEntry, 'entityKey' | 'aliases' | 'revisionGates'> =
+    {};
   if (typeof entry.entityKey === 'string' && entry.entityKey) {
     out.entityKey = entry.entityKey;
   }
+  const aliases = asArray(entry.aliases).filter(
+    (a): a is string => typeof a === 'string' && a.trim().length > 0
+  );
+  if (aliases.length > 0) out.aliases = aliases;
   const revisions = asArray(entry.revisions)
     .map(asDict)
     .filter((r): r is Dict => r !== null);

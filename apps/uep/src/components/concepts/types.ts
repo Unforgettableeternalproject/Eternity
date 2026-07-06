@@ -144,6 +144,12 @@ export interface DossierGroup {
 export interface DossierEntry extends WithRevision {
   /** 條目名稱 */
   name: string;
+  /**
+   * 匹配別名（S7-D）：自動偵測與 terminal 檢索的補充匹配詞。
+   * 自動拆名（中文全名/中文首段/英文全名）之外的暱稱、異寫由此補充；
+   * 姓氏單獨匹配刻意不進預設（家族同姓誤傷），需要時在此顯式列出。
+   */
+  aliases?: string[];
   /** 富文本描述（各列表內容不同，由用戶自由填寫） */
   content_html?: string;
   /** 劇透等級 0-3 */
@@ -279,6 +285,8 @@ export interface DiffSection {
 export interface DiffEntry extends WithRevision {
   /** 術語/詞條名稱 */
   term: string;
+  /** 匹配別名（S7-D）：異寫/簡稱補充匹配詞，語意同 DossierEntry.aliases */
+  aliases?: string[];
   /** 定義或翻譯值（多欄時為陣列） */
   values: string[];
   /** 劇透等級 */

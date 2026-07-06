@@ -72,6 +72,8 @@ describe('GET /api/concepts/entity-index', () => {
                       {
                         name: '艾斯維爾·科索諾 Xavier Colsono',
                         entityKey: 'xavier-colsono',
+                        // S7-D-2：空字串/非字串須被過濾
+                        aliases: ['艾斯', '', 42, '  '],
                         revisions: [
                           { id: 'base', gate: null, patch: {} },
                           {
@@ -210,6 +212,15 @@ describe('GET /api/concepts/entity-index', () => {
     ]);
     // 摘要不得夾帶 patch 內容
     expect(JSON.stringify(xavier)).not.toContain('content_html');
+  });
+
+  it('aliases 帶出且過濾空字串/非字串（S7-D-2）', async () => {
+    const entries = await fetchIndex();
+    const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
+    expect(xavier!.aliases).toEqual(['艾斯']);
+    // 無 aliases 的條目不落欄位
+    const norvia = entries.find((e) => e.entityKey === 'norvia');
+    expect(norvia!.aliases).toBeUndefined();
   });
 
   it('無 entityKey 條目以 name-only 納入（含 diff term）', async () => {
