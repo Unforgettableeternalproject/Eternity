@@ -10,7 +10,7 @@
  * 資料流：content[0].content (JSON string) → parsed → 編輯 → onDataChange → save
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   API_BASE,
   getDialog,
@@ -19,10 +19,8 @@ import {
   uploadAsset,
 } from './editorHelpers';
 import EntityKeyField from './EntityKeyField';
+import MiniEditor from './MiniEditor';
 import RevisionModal from './RevisionModal';
-import { useEditor, EditorContent } from '@tiptap/react';
-import { StarterKit } from '@tiptap/starter-kit';
-import { Placeholder } from '@tiptap/extension-placeholder';
 import type {
   DossierContent,
   DossierVariant,
@@ -169,97 +167,6 @@ function getEmptyData(style: StackStyle): ConceptsData {
     case 'diff':
       return { subcategories: [] } as DiffContent;
   }
-}
-
-// ── 輕量 TipTap 編輯器（用於條目內容） ────────────────────────────
-
-function MiniEditor({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (html: string) => void;
-  placeholder?: string;
-}) {
-  const initialized = useRef(false);
-  const handleUpdate = useCallback(
-    ({ editor: e }: { editor: { getHTML: () => string } }) => {
-      // 跳過初始化時的第一次 onUpdate
-      if (!initialized.current) {
-        initialized.current = true;
-        return;
-      }
-      const html = e.getHTML();
-      onChange(html === '<p></p>' ? '' : html);
-    },
-    [onChange]
-  );
-
-  const editor = useEditor({
-    // TipTap v3 預設不在 transaction 時重渲染，會讓工具列 isActive 狀態凍結
-    shouldRerenderOnTransaction: true,
-    extensions: [
-      StarterKit.configure({ heading: false }),
-      Placeholder.configure({ placeholder: placeholder || '輸入內容...' }),
-    ],
-    content: value || '',
-    onUpdate: handleUpdate,
-  });
-
-  if (!editor) return null;
-
-  return (
-    <div className="ced-mini-editor">
-      <div className="ced-mini-toolbar">
-        <button
-          type="button"
-          className={editor.isActive('bold') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleBold().run();
-          }}
-          title="粗體"
-        >
-          <b>B</b>
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('italic') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleItalic().run();
-          }}
-          title="斜體"
-        >
-          <i>I</i>
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('strike') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleStrike().run();
-          }}
-          title="刪除線"
-        >
-          <s>S</s>
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('bulletList') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleBulletList().run();
-          }}
-          title="列表"
-        >
-          •
-        </button>
-      </div>
-      <EditorContent editor={editor} />
-    </div>
-  );
 }
 
 // ── 主元件 ────────────────────────────────────────────────────────

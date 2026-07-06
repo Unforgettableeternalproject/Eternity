@@ -25,6 +25,7 @@ import type {
 
 import GateConditionEditor from './GateConditionEditor';
 import { API_BASE, getDialog } from './editorHelpers';
+import PatchEditor from './PatchEditor';
 
 type StackKind = ConceptsVariationMeta['stack_style'];
 
@@ -273,9 +274,18 @@ export default function RevisionModal({
                 )}
 
                 <div className="ced-rev-section-title">Patch</div>
-                <div className="ced-rev-hint">
-                  patch 欄位編輯將於下一刀（PatchEditor）接上。
-                </div>
+                {/* key=selected：切換 revision 時整棵 remount——
+                    MiniEditor content 只吃初始值，且同時只有選中的
+                    revision 會實例化 TipTap（惰性 mount） */}
+                <PatchEditor
+                  key={selected}
+                  stackStyle={stackStyle}
+                  patch={current.patch ?? {}}
+                  onChange={(patch) =>
+                    updateRevision(selected as number, { patch })
+                  }
+                  accent={accent}
+                />
               </>
             ) : (
               <div className="ced-rev-base-info">選擇左欄的項目</div>
