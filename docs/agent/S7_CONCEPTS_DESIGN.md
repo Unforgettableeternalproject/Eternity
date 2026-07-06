@@ -728,7 +728,7 @@ interface ProgressState {
    ```json
    {
      "艾斯維爾·科索諾 Xavier Colsono": "xavier-colsono",
-     "諾薇亞": "norvia",
+     "諾薇亞": "novia",
      "雨海塔": "rain-sea-tower"
    }
    ```

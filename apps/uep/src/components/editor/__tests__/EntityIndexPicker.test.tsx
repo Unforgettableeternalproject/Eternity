@@ -113,7 +113,7 @@ describe('inferEntityKind', () => {
 describe('groupPickerEntries', () => {
   const entries: EntityPickerEntry[] = [
     entry({ name: '艾斯維爾', entityKey: 'xavier-colsono', category: '三區' }),
-    entry({ name: '諾薇亞', entityKey: 'norvia', category: '三區' }),
+    entry({ name: '諾薇亞', entityKey: 'novia', category: '三區' }),
     entry({
       name: '遣返',
       stack: 'diff',
@@ -195,13 +195,13 @@ describe('EntityIndexPicker 元件', () => {
   it('搜尋框過濾條目', async () => {
     stubIndex([
       entry({ name: '艾斯維爾', entityKey: 'xavier-colsono' }),
-      entry({ name: '諾薇亞', entityKey: 'norvia' }),
+      entry({ name: '諾薇亞', entityKey: 'novia' }),
     ]);
     render(<EntityIndexPicker apiBase="http://api" onPick={vi.fn()} />);
 
     await screen.findByText('艾斯維爾');
     fireEvent.change(screen.getByPlaceholderText(/搜尋條目/), {
-      target: { value: 'norvia' },
+      target: { value: 'novia' },
     });
     expect(screen.queryByText('艾斯維爾')).toBeNull();
     expect(screen.getByText('諾薇亞')).toBeInTheDocument();

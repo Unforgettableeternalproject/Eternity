@@ -232,8 +232,8 @@ describe('queryIndex', () => {
     const withAlias = [
       ...entries,
       indexEntry({
-        name: '諾薇亞 Norvia',
-        entityKey: 'norvia',
+        name: '諾薇亞 Novia',
+        entityKey: 'novia',
         aliases: ['小諾', 'Nov'],
       }),
     ];
@@ -405,8 +405,8 @@ describe('resolveEntryDetails', () => {
 
   it('browser 已解鎖 profile → basic 摘要 + 區段數', async () => {
     const target = indexEntry({
-      name: '諾薇亞 (Norvia)',
-      entityKey: 'norvia',
+      name: '諾薇亞 (Novia)',
+      entityKey: 'novia',
       stack: 'browser',
       pageId: 'concepts/server/browser/profiles',
     });
@@ -420,8 +420,8 @@ describe('resolveEntryDetails', () => {
               content: JSON.stringify({
                 profiles: [
                   {
-                    name: '諾薇亞 (Norvia)',
-                    entityKey: 'norvia',
+                    name: '諾薇亞 (Novia)',
+                    entityKey: 'novia',
                     placeholder: false,
                     basic: { 種族: '生體機械', 職務: '程式碼執行者' },
                     sections: [{ label: '內在特質', content_html: '<p>x</p>' }],
@@ -496,8 +496,8 @@ describe('resolveEntryDetails', () => {
 describe('resolveBrowserExpand', () => {
   const pageId = 'concepts/server/browser/profiles';
   const target = indexEntry({
-    name: '諾薇亞 (Norvia)',
-    entityKey: 'norvia',
+    name: '諾薇亞 (Novia)',
+    entityKey: 'novia',
     stack: 'browser',
     pageId,
   });
@@ -521,8 +521,8 @@ describe('resolveBrowserExpand', () => {
   it('basic 全欄位（不限 4 欄）+ sections 全段落不截短', async () => {
     stubBrowserPage([
       {
-        name: '諾薇亞 (Norvia)',
-        entityKey: 'norvia',
+        name: '諾薇亞 (Novia)',
+        entityKey: 'novia',
         placeholder: false,
         basic: {
           種族: '生體機械',
@@ -556,8 +556,8 @@ describe('resolveBrowserExpand', () => {
   it('placeholder → restricted（佔位鎖定，不洩內容）', async () => {
     stubBrowserPage([
       {
-        name: '諾薇亞 (Norvia)',
-        entityKey: 'norvia',
+        name: '諾薇亞 (Novia)',
+        entityKey: 'novia',
         placeholder: true,
         basic: { 種族: '不可見' },
       },
@@ -571,14 +571,14 @@ describe('resolveBrowserExpand', () => {
   it('revision gate 未過 → restricted；通過後 patch 生效', async () => {
     const profiles = [
       {
-        name: '諾薇亞 (Norvia)',
-        entityKey: 'norvia',
+        name: '諾薇亞 (Novia)',
+        entityKey: 'novia',
         placeholder: false,
         basic: { 職務: '???' },
         revisions: [
           {
-            id: 'norvia:01',
-            gate: { requiresFlags: ['norvia:01'] },
+            id: 'novia:01',
+            gate: { requiresFlags: ['novia:01'] },
             patch: { set: { 'basic.職務': '程式碼執行者' } },
           },
         ],
@@ -592,7 +592,7 @@ describe('resolveBrowserExpand', () => {
     stubBrowserPage(profiles);
     const passed = await resolveBrowserExpand(
       target,
-      stateWith({ flags: ['norvia:01'] })
+      stateWith({ flags: ['novia:01'] })
     );
     expect(passed!.restricted).toBeUndefined();
     expect(passed!.basic).toEqual(['職務：程式碼執行者']);
@@ -725,13 +725,13 @@ describe('completeInput', () => {
       name: '艾斯維爾·科索諾 Xavier Colsono',
       entityKey: 'xavier-colsono',
     }),
-    indexEntry({ name: '諾薇亞 Norvia', entityKey: 'norvia' }),
+    indexEntry({ name: '諾薇亞 Novia', entityKey: 'novia' }),
     indexEntry({ name: '舊礦山 Old Mine Site' }),
     indexEntry({
       name: '未解鎖角色',
       revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
     }),
-    indexEntry({ name: '諾薇亞 Norvia', stack: 'browser' }), // 同名跨 stack
+    indexEntry({ name: '諾薇亞 Novia', stack: 'browser' }), // 同名跨 stack
   ];
 
   it('空輸入與 query 空參數 → 空候選（預設空，不倒全部）', () => {
@@ -763,7 +763,7 @@ describe('completeInput', () => {
     expect(byKey).toEqual(['query 艾斯維爾·科索諾 Xavier Colsono']);
 
     const byName = completeInput('query 諾薇亞', entries, stateWith({}));
-    expect(byName).toEqual(['query 諾薇亞 Norvia']); // 跨 stack 同名只一筆
+    expect(byName).toEqual(['query 諾薇亞 Novia']); // 跨 stack 同名只一筆
 
     const locked = completeInput('query 未解鎖', entries, stateWith({}));
     expect(locked).toEqual([]);
@@ -771,8 +771,8 @@ describe('completeInput', () => {
 
   it('query 中段比對補位（includes 排在 startsWith 之後）', () => {
     const hits = completeInput('query no', entries, stateWith({}));
-    // norvia 是 entityKey startsWith；Colsono 是 name includes
-    expect(hits[0]).toBe('query 諾薇亞 Norvia');
+    // novia 是 entityKey startsWith；Colsono 是 name includes
+    expect(hits[0]).toBe('query 諾薇亞 Novia');
     expect(hits).toContain('query 艾斯維爾·科索諾 Xavier Colsono');
   });
 

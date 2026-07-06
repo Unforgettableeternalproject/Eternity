@@ -202,20 +202,20 @@ describe('頁面完成與浮島', () => {
 
   it('updateConceptsReadLevel 水位單調不降，非法值防禦', async () => {
     const { uepProgress } = await freshStore();
-    uepProgress.updateConceptsReadLevel({ 'xavier-colsono': 2, norvia: 0 });
+    uepProgress.updateConceptsReadLevel({ 'xavier-colsono': 2, novia: 0 });
     expect(uepProgress.getState().conceptsReadLevel).toEqual({
       'xavier-colsono': 2,
-      norvia: 0,
+      novia: 0,
     });
     // 低於現值 / 相等 → no-op；非法值剔除
     uepProgress.updateConceptsReadLevel({
       'xavier-colsono': 1,
-      norvia: 0,
+      novia: 0,
       bad: NaN,
     });
     expect(uepProgress.getState().conceptsReadLevel).toEqual({
       'xavier-colsono': 2,
-      norvia: 0,
+      novia: 0,
     });
     // 高於現值 → 更新
     uepProgress.updateConceptsReadLevel({ 'xavier-colsono': 3 });
@@ -389,7 +389,7 @@ describe('sweepOrphanCompletions', () => {
         version: 1,
         view: 'explorer',
         observerEver: false,
-        flags: ['completed:A', 'completed:C', 'met:norvia'],
+        flags: ['completed:A', 'completed:C', 'met:novia'],
         completedPageIds: [],
         islandsUnlocked: [],
         pageMarkers: {},
@@ -399,8 +399,8 @@ describe('sweepOrphanCompletions', () => {
     const { uepProgress } = await freshStore();
     const removed = uepProgress.sweepOrphanCompletions(makeChainTree());
     expect(removed).toEqual(['completed:C']);
-    // 非 completed:* 的自訂旗標（met:norvia）不受影響
-    expect(uepProgress.getState().flags).toEqual(['completed:A', 'met:norvia']);
+    // 非 completed:* 的自訂旗標（met:novia）不受影響
+    expect(uepProgress.getState().flags).toEqual(['completed:A', 'met:novia']);
   });
 
   it('未識別頁面（tree 中不存在）保守保留', async () => {
@@ -430,7 +430,7 @@ describe('sweepOrphanCompletions', () => {
         version: 1,
         view: 'explorer',
         observerEver: false,
-        flags: ['met:norvia'],
+        flags: ['met:novia'],
         completedPageIds: [],
         islandsUnlocked: [],
         pageMarkers: {},

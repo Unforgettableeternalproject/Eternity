@@ -219,7 +219,7 @@ describe('contentVisibility', () => {
 
     it('static + 自訂旗標未持有 → flag 優先', () => {
       const node = {
-        metadata: { locked: true, gate: { requiresFlags: ['met:norvia'] } },
+        metadata: { locked: true, gate: { requiresFlags: ['met:novia'] } },
       };
       expect(getLockKind(node, createInitialState())).toBe('flag');
     });
@@ -235,7 +235,7 @@ describe('contentVisibility', () => {
 
     it('含自訂旗標 → flag', () => {
       const node = {
-        metadata: { gate: { requiresFlags: ['met:norvia'] } },
+        metadata: { gate: { requiresFlags: ['met:novia'] } },
       };
       expect(getLockKind(node, createInitialState())).toBe('flag');
     });
@@ -244,7 +244,7 @@ describe('contentVisibility', () => {
       const node = {
         metadata: {
           gate: {
-            requiresFlags: ['completed:history/1-4', 'met:norvia'],
+            requiresFlags: ['completed:history/1-4', 'met:novia'],
           },
         },
       };
@@ -306,7 +306,7 @@ describe('contentVisibility', () => {
       const flagNode = {
         metadata: {
           gate: {
-            requiresFlags: ['completed:history/1-5', 'met:norvia'],
+            requiresFlags: ['completed:history/1-5', 'met:novia'],
           },
         },
       };

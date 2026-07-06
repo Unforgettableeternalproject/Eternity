@@ -243,7 +243,7 @@ export default function GateConditionEditor({
           className="ned-field"
           type="text"
           value={customFlag}
-          placeholder="custom flag (e.g. met:norvia)"
+          placeholder="custom flag (e.g. met:novia)"
           onChange={(e) => setCustomFlag(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {

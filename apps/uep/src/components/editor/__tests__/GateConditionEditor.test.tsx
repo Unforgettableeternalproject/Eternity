@@ -97,9 +97,9 @@ describe('GateConditionEditor — progressPage toggle', () => {
       />
     );
     const input = screen.getByPlaceholderText(/custom flag/);
-    fireEvent.change(input, { target: { value: 'met:norvia' } });
+    fireEvent.change(input, { target: { value: 'met:novia' } });
     fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onChange).toHaveBeenCalledWith({ requiresFlags: ['met:norvia'] });
+    expect(onChange).toHaveBeenCalledWith({ requiresFlags: ['met:novia'] });
   });
 
   it('進度頁模式下純潔者限定 checkbox 仍可用', () => {
@@ -124,7 +124,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
   it('現有旗標無論是否進度頁模式都顯示', () => {
     render(
       <GateConditionEditor
-        value={{ requiresFlags: ['completed:history/1-1', 'met:norvia'] }}
+        value={{ requiresFlags: ['completed:history/1-1', 'met:novia'] }}
         onChange={() => {}}
         isProgressPage={true}
         onProgressPageChange={() => {}}
@@ -133,7 +133,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
       />
     );
     expect(screen.getByText('completed:history/1-1')).toBeInTheDocument();
-    expect(screen.getByText('met:norvia')).toBeInTheDocument();
+    expect(screen.getByText('met:novia')).toBeInTheDocument();
   });
 });
 

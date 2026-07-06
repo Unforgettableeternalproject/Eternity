@@ -211,7 +211,7 @@ describe('effectiveGate — 手動 gate + 進度鏈聯集', () => {
       parentId: null,
       metadata: {
         progressPage: true,
-        gate: { requiresFlags: ['met:norvia'], pristineOnly: true },
+        gate: { requiresFlags: ['met:novia'], pristineOnly: true },
       },
     },
   ]);
@@ -219,7 +219,7 @@ describe('effectiveGate — 手動 gate + 進度鏈聯集', () => {
   it('B 的條件同時含手動旗標與自動 completed:A', () => {
     const gate = effectiveGate('B', tree);
     expect(gate?.requiresFlags).toEqual(
-      expect.arrayContaining(['met:norvia', 'completed:A'])
+      expect.arrayContaining(['met:novia', 'completed:A'])
     );
     expect(gate?.pristineOnly).toBe(true);
   });

@@ -152,7 +152,7 @@ describe('GET /api/concepts/entity-index', () => {
       'browser',
       {
         profiles: [
-          { name: '諾薇亞 (Norvia)', entityKey: 'norvia', placeholder: false },
+          { name: '諾薇亞 (Novia)', entityKey: 'novia', placeholder: false },
         ],
       }
     );
@@ -219,8 +219,8 @@ describe('GET /api/concepts/entity-index', () => {
     const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
     expect(xavier!.aliases).toEqual(['艾斯']);
     // 無 aliases 的條目不落欄位
-    const norvia = entries.find((e) => e.entityKey === 'norvia');
-    expect(norvia!.aliases).toBeUndefined();
+    const novia = entries.find((e) => e.entityKey === 'novia');
+    expect(novia!.aliases).toBeUndefined();
   });
 
   it('無 entityKey 條目以 name-only 納入（含 diff term）', async () => {
@@ -273,9 +273,9 @@ describe('GET /api/concepts/entity-index', () => {
 
   it('browser profile 帶 entityKey 納入', async () => {
     const entries = await fetchIndex();
-    const norvia = entries.find((e) => e.entityKey === 'norvia');
-    expect(norvia).toBeDefined();
-    expect(norvia!.stack).toBe('browser');
+    const novia = entries.find((e) => e.entityKey === 'novia');
+    expect(novia).toBeDefined();
+    expect(novia!.stack).toBe('browser');
   });
 
   it('無 stack_style 與軟刪除頁面被排除', async () => {

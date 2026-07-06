@@ -19,7 +19,7 @@ import EntityKeyField, {
 
 describe('ENTITY_KEY_PATTERN', () => {
   it('接受合法 kebab-case', () => {
-    for (const key of ['xavier-colsono', 'norvia', 'rain-sea-tower', 'a1-b2']) {
+    for (const key of ['xavier-colsono', 'novia', 'rain-sea-tower', 'a1-b2']) {
       expect(ENTITY_KEY_PATTERN.test(key)).toBe(true);
     }
   });
@@ -56,8 +56,8 @@ describe('EntityKeyField', () => {
   }
 
   it('顯示現有值', () => {
-    const { input } = setup('norvia');
-    expect(input).toHaveValue('norvia');
+    const { input } = setup('novia');
+    expect(input).toHaveValue('novia');
   });
 
   it('輸入合法 key 時無錯誤訊息', () => {
@@ -72,7 +72,7 @@ describe('EntityKeyField', () => {
   });
 
   it('與同範圍其他條目重複時顯示唯一性警告', () => {
-    setup('norvia', ['norvia', 'xavier-colsono']);
+    setup('novia', ['novia', 'xavier-colsono']);
     expect(screen.getByText(/已被同範圍/)).toBeInTheDocument();
   });
 
@@ -84,18 +84,18 @@ describe('EntityKeyField', () => {
 
   it('輸入非空值觸發 onChange（trim 後）', () => {
     const { input, onChange } = setup(undefined);
-    fireEvent.change(input, { target: { value: ' norvia ' } });
-    expect(onChange).toHaveBeenCalledWith('norvia');
+    fireEvent.change(input, { target: { value: ' novia ' } });
+    expect(onChange).toHaveBeenCalledWith('novia');
   });
 
   it('清空輸入收斂為 undefined', () => {
-    const { input, onChange } = setup('norvia');
+    const { input, onChange } = setup('novia');
     fireEvent.change(input, { target: { value: '' } });
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
 
   it('空值不顯示任何警告', () => {
-    setup(undefined, ['norvia']);
+    setup(undefined, ['novia']);
     expect(screen.queryByText(/kebab-case/)).not.toBeInTheDocument();
     expect(screen.queryByText(/已被同範圍/)).not.toBeInTheDocument();
   });
@@ -118,7 +118,7 @@ describe('collectEntityKeyIssues — 存檔前硬驗證', () => {
     const data = dossier([
       [
         { name: '甲', entityKey: 'xavier-colsono' },
-        { name: '乙', entityKey: 'norvia' },
+        { name: '乙', entityKey: 'novia' },
         { name: '丙' },
       ],
     ]);

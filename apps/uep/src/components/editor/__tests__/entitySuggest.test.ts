@@ -51,7 +51,7 @@ describe('buildMatchTerms', () => {
   });
 
   it('無間隔號名稱不重複派生首段', () => {
-    expect(buildMatchTerms('諾薇亞 Norvia')).toEqual(['諾薇亞', 'Norvia']);
+    expect(buildMatchTerms('諾薇亞 Novia')).toEqual(['諾薇亞', 'Novia']);
   });
 
   it('純中文 / 純英文名稱', () => {
@@ -66,7 +66,7 @@ describe('buildMatchTerms', () => {
   });
 
   it('aliases 納入且不受派生長度限制；去重', () => {
-    const terms = buildMatchTerms('諾薇亞 Norvia', ['小諾', '諾薇亞', 'Nov']);
+    const terms = buildMatchTerms('諾薇亞 Novia', ['小諾', '諾薇亞', 'Nov']);
     expect(terms).toContain('小諾');
     expect(terms).toContain('Nov');
     expect(terms.filter((t) => t === '諾薇亞')).toHaveLength(1);
@@ -85,11 +85,11 @@ describe('buildSuggestIndex / matchSuffix', () => {
       name: '艾斯維爾·科索諾 Xavier Colsono',
       entityKey: 'xavier-colsono',
     }),
-    entry({ name: '諾薇亞 Norvia', entityKey: 'norvia', aliases: ['小諾'] }),
+    entry({ name: '諾薇亞 Novia', entityKey: 'novia', aliases: ['小諾'] }),
     // 同 alias 多候選
     entry({
       name: '諾薇亞複製體',
-      entityKey: 'norvia-clone',
+      entityKey: 'novia-clone',
       aliases: ['小諾'],
     }),
   ];
@@ -98,8 +98,8 @@ describe('buildSuggestIndex / matchSuffix', () => {
   it('索引含拆名與 aliases；同詞多候選聚合', () => {
     expect(index.terms.get('艾斯維爾')![0].entityKey).toBe('xavier-colsono');
     expect(index.terms.get('小諾')!.map((e) => e.entityKey)).toEqual([
-      'norvia',
-      'norvia-clone',
+      'novia',
+      'novia-clone',
     ]);
     expect(index.maxTermLength).toBeGreaterThanOrEqual(
       '艾斯維爾·科索諾'.length
@@ -120,7 +120,7 @@ describe('buildSuggestIndex / matchSuffix', () => {
 
   it('英文詞要求左邊界（Nov 不命中 Renov 的尾巴）', () => {
     const withNov = buildSuggestIndex([
-      entry({ name: '諾薇亞 Norvia', entityKey: 'norvia', aliases: ['Nov'] }),
+      entry({ name: '諾薇亞 Novia', entityKey: 'novia', aliases: ['Nov'] }),
     ]);
     expect(matchSuffix('meet Nov', withNov)!.term).toBe('Nov');
     expect(matchSuffix('Renov', withNov)).toBeNull();
@@ -136,7 +136,7 @@ describe('buildSuggestIndex / matchSuffix', () => {
 
 describe('EntitySuggestExtension', () => {
   const entries: EntityPickerEntry[] = [
-    entry({ name: '諾薇亞 Norvia', entityKey: 'norvia' }),
+    entry({ name: '諾薇亞 Novia', entityKey: 'novia' }),
     entry({ name: '雙生子甲', entityKey: 'twin-a', aliases: ['雙生子'] }),
     entry({ name: '雙生子乙', entityKey: 'twin-b', aliases: ['雙生子'] }),
   ];
@@ -188,7 +188,7 @@ describe('EntitySuggestExtension', () => {
     const { active } = pluginState();
     expect(active).not.toBeNull();
     expect(active!.term).toBe('諾薇亞');
-    expect(active!.candidates[0].entityKey).toBe('norvia');
+    expect(active!.candidates[0].entityKey).toBe('novia');
   });
 
   it('Tab 套 uepEntity mark（entity:{key} + kind 推斷）並清除 suggestion', () => {
@@ -197,7 +197,7 @@ describe('EntitySuggestExtension', () => {
     expect(pluginState().active).toBeNull();
     const html = editor.getHTML();
     expect(html).toContain('data-uep-entity="character"');
-    expect(html).toContain('data-ref="entity:norvia"');
+    expect(html).toContain('data-ref="entity:novia"');
     expect(html).toContain('>諾薇亞</span>');
   });
 
@@ -228,7 +228,7 @@ describe('EntitySuggestExtension', () => {
 
   it('已標記文字不偵測', () => {
     setup(
-      '<p>今天遇見了<span data-uep-entity="character" data-ref="entity:norvia">諾薇亞</span></p>'
+      '<p>今天遇見了<span data-uep-entity="character" data-ref="entity:novia">諾薇亞</span></p>'
     );
     expect(pluginState().active).toBeNull();
   });
