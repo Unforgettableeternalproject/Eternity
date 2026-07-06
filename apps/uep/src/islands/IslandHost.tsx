@@ -12,14 +12,21 @@
  * 4. 已有實體元件（S6 只有 history；S7/S8 逐島補上）
  */
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { UEP_ENTITY_ACTIVATE_EVENT } from '../embed';
+import type { EntityActivateDetail } from '../embed';
 import { useProgress } from '../progress';
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
-import { canUseIslands, shouldMountIsland } from './islandRuntime';
+import { pushEntityActivate } from './concepts/terminalBridge';
+import {
+  canUseIslands,
+  getIslandRuntime,
+  shouldMountIsland,
+} from './islandRuntime';
 import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
@@ -28,24 +35,45 @@ import { useIslandRuntimeState } from './useIslands';
 /**
  * 各島的實體內容元件註冊表（lazy——TopBar 全站掛載，島內容只在
  * 真正展開時載入，避免 tree 抓取等邏輯進到每一頁的初始 bundle）。
- * S6：history；S7：concepts、echoes；S8：visuals、storage。
+ * S6：history；S7：concepts；S7 後半：echoes；S8：visuals、storage。
  */
 const ISLAND_COMPONENTS: Partial<
   Record<IslandId, React.LazyExoticComponent<React.ComponentType>>
 > = {
   history: React.lazy(() => import('./history/HistoryIsland')),
+  concepts: React.lazy(() => import('./concepts/TerminalIsland')),
 };
 
 export default function IslandHost() {
   const progress = useProgress();
   const runtimeState = useIslandRuntimeState();
   const [mounted, setMounted] = useState(false);
+  /** 事件 listener 取用最新進度（不重綁） */
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
 
   useEffect(() => setMounted(true), []);
 
   // dev 測試 bridge（S6-3）：全站可用的浮島解鎖/足跡操控入口。
   // 掛在這裡而非各 Reader——解鎖狀態是全域的，不該綁定單一 zone。
   useEffect(() => mountIslandsTestBridge(), []);
+
+  // entity-activate 常駐監聽（S7-C）：監聽必須放在 Host 而非
+  // TerminalIsland——島收合時內容元件沒有 mount，聽不到事件。
+  // 收到後暫存 detail（terminalBridge）並展開島，島 mount 後取走。
+  // concepts 島不可用（未解鎖/停用/觀測者）→ 事件靜默消失（既有定案）。
+  useEffect(() => {
+    const onActivate = (event: Event) => {
+      const detail = (event as CustomEvent<EntityActivateDetail>).detail;
+      if (!detail) return;
+      if (!shouldMountIsland(progressRef.current, 'concepts')) return;
+      pushEntityActivate(detail);
+      getIslandRuntime().open('concepts');
+    };
+    window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+    return () =>
+      window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+  }, []);
 
   // SSR / 首次 render 前不輸出（portal 需要 document）
   if (!mounted) return null;
@@ -67,7 +95,7 @@ export default function IslandHost() {
       {openIds.map((id) => {
         const Body = ISLAND_COMPONENTS[id]!;
         return (
-          <DraggableIsland key={id} id={id}>
+          <DraggableIsland key={id} id={id} className={`uep-island--${id}`}>
             <Suspense fallback={null}>
               <Body />
             </Suspense>

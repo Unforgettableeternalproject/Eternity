@@ -1,0 +1,182 @@
+/*
+ * Terminal Island —「移動終端」視覺（Epic 2 S7-C）
+ *
+ * 語彙取自 Eternity-Design concepts-base.jsx：
+ * 深綠終端底、mono 字體、行分色（meta/in/ok/err/row）、$ prompt。
+ * 色票：CONC_MAIN=#2d6a4f、CONC_SOFT=#74c69d、ink=#a6e0bd。
+ * 外殼（.uep-island--concepts）一併換上終端皮膚。
+ */
+
+/* ── 外殼皮膚（IslandHost 傳入 uep-island--{id} class） ── */
+.uep-island--concepts {
+  background: #070d0a;
+  border-color: #2d6a4f;
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(45, 106, 79, 0.2),
+    inset 0 0 0 1px rgba(116, 198, 157, 0.08);
+}
+
+.uep-island--concepts .uep-island__header {
+  background: #0c1814;
+  border-bottom-color: rgba(45, 106, 79, 0.45);
+}
+
+.uep-island--concepts .uep-island__title {
+  color: #74c69d;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.uep-island--concepts .uep-island__icon {
+  color: #74c69d;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.uep-island--concepts .uep-island__collapse {
+  color: #a6e0bd;
+}
+
+.uep-island--concepts .uep-island__collapse:hover {
+  color: #ffffff;
+}
+
+/* ── 終端本體 ── */
+.uep-terminal {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #a6e0bd;
+}
+
+.uep-terminal__body {
+  height: 220px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(116, 198, 157, 0.35) transparent;
+}
+
+/* ── 輸出行分色 ── */
+.uep-terminal__line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.uep-terminal__line--meta {
+  color: rgba(166, 224, 189, 0.55);
+}
+
+.uep-terminal__line--in {
+  color: #74c69d;
+}
+
+.uep-terminal__line--ok {
+  color: #9be3a5;
+}
+
+.uep-terminal__line--err {
+  color: #e08a8a;
+}
+
+.uep-terminal__line--row {
+  color: #cfe9d9;
+}
+
+.uep-terminal__line--fade {
+  color: rgba(166, 224, 189, 0.5);
+}
+
+/* 可點擊列（查詢結果/ls 條目） */
+.uep-terminal__line-btn {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-radius: 2px;
+}
+
+.uep-terminal__line-btn:hover {
+  background: rgba(45, 106, 79, 0.25);
+  color: #ffffff;
+}
+
+.uep-terminal__line-btn:focus-visible {
+  outline: 1px solid #74c69d;
+  outline-offset: 1px;
+}
+
+/* ── 首次使用引導 chips ── */
+.uep-terminal__chips {
+  margin-top: 6px;
+  opacity: 0.75;
+}
+
+.uep-terminal__chips-label {
+  color: rgba(166, 224, 189, 0.45);
+}
+
+.uep-terminal__chip {
+  all: unset;
+  box-sizing: border-box;
+  margin: 4px 5px 0 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(45, 106, 79, 0.6);
+  border-radius: 2px;
+  color: #74c69d;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition:
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.uep-terminal__chip:hover {
+  border-color: #74c69d;
+  color: #ffffff;
+}
+
+.uep-terminal__chip:focus-visible {
+  outline: 1px solid #74c69d;
+  outline-offset: 1px;
+}
+
+/* ── prompt 列 ── */
+.uep-terminal__prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(45, 106, 79, 0.45);
+  background: #0a1410;
+}
+
+.uep-terminal__prompt-sign {
+  color: #2d6a4f;
+  font-weight: 600;
+}
+
+.uep-terminal__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #a6e0bd;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.uep-terminal__input::placeholder {
+  color: rgba(166, 224, 189, 0.35);
+}
+
+.uep-terminal__enter {
+  color: rgba(45, 106, 79, 0.8);
+}
