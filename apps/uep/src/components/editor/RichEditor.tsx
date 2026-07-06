@@ -56,6 +56,7 @@ import ConceptsEditorBody, {
   serializeConceptsContent,
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
+import { collectEntityKeyIssues } from './EntityKeyField';
 import StorageDialogueEditor from './StorageDialogueEditor';
 import ChangelogEditorBody, { type ChangelogMeta } from './ChangelogEditorBody';
 import ThoughtStream from './ThoughtStream';
@@ -380,6 +381,22 @@ export default function RichEditor({
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
     if (editorMode.needsTipTap && !editor) return;
+
+    // entityKey 硬驗證（S7-B 驗收回饋）：輸入層只警告不阻擋打字，
+    // 存檔是資料進 D1 的最後關卡——非法/重複 key 直接擋下
+    if (isConcepts) {
+      const entityKeyIssues = collectEntityKeyIssues(conceptsData.data);
+      if (entityKeyIssues.length > 0) {
+        getToast().error(
+          `entityKey 驗證未通過：${entityKeyIssues[0]}` +
+            (entityKeyIssues.length > 1
+              ? `（共 ${entityKeyIssues.length} 項）`
+              : '')
+        );
+        return;
+      }
+    }
+
     setSaveStatus('saving');
     try {
       const content =

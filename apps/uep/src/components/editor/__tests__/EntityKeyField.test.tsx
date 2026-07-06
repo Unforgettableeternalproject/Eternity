@@ -11,7 +11,11 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-import EntityKeyField, { ENTITY_KEY_PATTERN } from '../EntityKeyField';
+import type { DiffContent, DossierContent } from '../../concepts/types';
+import EntityKeyField, {
+  ENTITY_KEY_PATTERN,
+  collectEntityKeyIssues,
+} from '../EntityKeyField';
 
 describe('ENTITY_KEY_PATTERN', () => {
   it('接受合法 kebab-case', () => {
@@ -94,5 +98,83 @@ describe('EntityKeyField', () => {
     setup(undefined, ['norvia']);
     expect(screen.queryByText(/kebab-case/)).not.toBeInTheDocument();
     expect(screen.queryByText(/已被同範圍/)).not.toBeInTheDocument();
+  });
+});
+
+describe('collectEntityKeyIssues — 存檔前硬驗證', () => {
+  function dossier(
+    entries: { name: string; entityKey?: string }[][]
+  ): DossierContent {
+    return {
+      variants: entries.map((list, i) => ({
+        id: `v${i}`,
+        label: `V${i}`,
+        subcategories: [{ label: 't', groups: [{ label: '', entries: list }] }],
+      })),
+    };
+  }
+
+  it('全部合法時回傳空陣列', () => {
+    const data = dossier([
+      [
+        { name: '甲', entityKey: 'xavier-colsono' },
+        { name: '乙', entityKey: 'norvia' },
+        { name: '丙' },
+      ],
+    ]);
+    expect(collectEntityKeyIssues(data)).toEqual([]);
+  });
+
+  it('非法格式回報條目名稱與 key', () => {
+    const data = dossier([[{ name: '甲', entityKey: 'Bad Key' }]]);
+    const issues = collectEntityKeyIssues(data);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('甲');
+    expect(issues[0]).toContain('Bad Key');
+  });
+
+  it('dossier 同 variant 內重複回報、跨 variant 允許', () => {
+    const dup = dossier([
+      [
+        { name: '甲', entityKey: 'xavier-colsono' },
+        { name: '乙', entityKey: 'xavier-colsono' },
+      ],
+    ]);
+    expect(collectEntityKeyIssues(dup)).toHaveLength(1);
+    expect(collectEntityKeyIssues(dup)[0]).toContain('重複');
+
+    const crossVariant = dossier([
+      [{ name: '甲', entityKey: 'xavier-colsono' }],
+      [{ name: '甲(E)', entityKey: 'xavier-colsono' }],
+    ]);
+    expect(collectEntityKeyIssues(crossVariant)).toEqual([]);
+  });
+
+  it('diff 跨分類同頁重複回報', () => {
+    const data: DiffContent = {
+      subcategories: [
+        {
+          label: 'A',
+          sections: [
+            {
+              label: '',
+              entries: [{ term: '甲', values: [''], entityKey: 'essence' }],
+            },
+          ],
+        },
+        {
+          label: 'B',
+          sections: [
+            {
+              label: '',
+              entries: [{ term: '乙', values: [''], entityKey: 'essence' }],
+            },
+          ],
+        },
+      ],
+    };
+    const issues = collectEntityKeyIssues(data);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('essence');
   });
 });

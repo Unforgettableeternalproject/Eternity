@@ -17,8 +17,87 @@
 
 import React from 'react';
 
+import {
+  isBrowserContent,
+  isChronoContent,
+  isDiffContent,
+  isDossierContent,
+} from '../concepts/revision';
+import type { ConceptsData } from '../concepts/types';
+
 /** kebab-case：小寫英文/數字，連字號分段 */
 export const ENTITY_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * 存檔前的 entityKey 硬驗證（S7-B 驗收回饋）：
+ * 輸入層的警告不阻擋打字，但非法/重複 key 不可進 D1——
+ * 旗標慣例（{entityKey}:{NN}）會跟著髒掉且事後難修。
+ *
+ * 唯一性範圍與輸入層一致：dossier=同 variant、其他=同頁。
+ * 回傳問題描述陣列，空陣列 = 通過。
+ */
+export function collectEntityKeyIssues(data: ConceptsData): string[] {
+  const issues: string[] = [];
+
+  /** 檢查一個唯一性範圍內的條目集合 */
+  function checkScope(
+    items: { label: string; key: string | undefined }[],
+    scopeLabel: string
+  ) {
+    const seen = new Map<string, string>();
+    for (const { label, key } of items) {
+      if (!key) continue;
+      if (!ENTITY_KEY_PATTERN.test(key)) {
+        issues.push(`「${label}」的 entityKey「${key}」不是合法 kebab-case`);
+        continue;
+      }
+      const prev = seen.get(key);
+      if (prev) {
+        issues.push(
+          `entityKey「${key}」在${scopeLabel}內重複（「${prev}」與「${label}」）`
+        );
+      } else {
+        seen.set(key, label);
+      }
+    }
+  }
+
+  if (isDossierContent(data)) {
+    for (const variant of data.variants) {
+      const items: { label: string; key: string | undefined }[] = [];
+      for (const subcat of variant.subcategories ?? [])
+        for (const group of subcat.groups ?? [])
+          for (const entry of group.entries ?? [])
+            items.push({
+              label: entry.name || '(空條目)',
+              key: entry.entityKey,
+            });
+      checkScope(items, `variant ${variant.id}`);
+    }
+  } else if (isBrowserContent(data)) {
+    checkScope(
+      data.profiles.map((p) => ({
+        label: p.name || '(未命名角色)',
+        key: p.entityKey,
+      })),
+      '頁面'
+    );
+  } else if (isChronoContent(data)) {
+    checkScope(
+      data.periods.map((p) => ({ label: p.year, key: p.entityKey })),
+      '頁面'
+    );
+  } else if (isDiffContent(data)) {
+    const items: { label: string; key: string | undefined }[] = [];
+    for (const subcat of data.subcategories)
+      for (const section of subcat.sections ?? [])
+        for (const entry of section.entries ?? [])
+          items.push({ label: entry.term || '(空詞條)', key: entry.entityKey });
+    checkScope(items, '頁面');
+  }
+
+  return issues;
+}
 
 interface EntityKeyFieldProps {
   value: string | undefined;
