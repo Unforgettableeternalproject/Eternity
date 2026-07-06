@@ -28,7 +28,10 @@ const KEY_REF = 'entity:xavier-colsono';
    （浮島限已登入探索者）——mock auth，預設已登入 */
 const authMock = vi.hoisted(() => ({ loggedIn: true }));
 vi.mock('../../auth', () => ({
-  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+  getReaderAuth: () => ({
+    isLoggedIn: () => authMock.loggedIn,
+    subscribe: () => () => {}, // islandRuntime 登入收合監聽用
+  }),
 }));
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
