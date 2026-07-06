@@ -1141,32 +1141,34 @@ export default function HistoryReader() {
           </button>
         )}
 
+        {/* 滾動軸旁的「上次閱讀位置」標記——掛在 .history-main（不滾動）
+            而非滾動容器內，top:% 對映可視高度，像滾動軸上的書籤不隨內容捲動 */}
+        {scrollHint && (
+          <button
+            type="button"
+            className={`history-scroll-marker${scrollHint.leaving ? ' is-leaving' : ''}`}
+            style={{ top: `${scrollHint.pct}%` }}
+            title="回到上次閱讀位置"
+            onClick={() => {
+              if (scrollHint.leaving) return;
+              scrollRef.current?.scrollTo({
+                top: scrollHint.targetTop,
+                behavior: 'smooth',
+              });
+              if (currentId) clearSavedPosition(currentId);
+              // 播放消失動畫後移除
+              setScrollHint((prev) =>
+                prev ? { ...prev, leaving: true } : null
+              );
+              setTimeout(() => setScrollHint(null), 350);
+            }}
+          >
+            <span className="history-scroll-marker-line" />
+            <span className="history-scroll-marker-label">上次位置 ▸</span>
+          </button>
+        )}
+
         <div className="history-content" ref={scrollRef}>
-          {/* 滾動軸旁的「上次閱讀位置」標記 */}
-          {scrollHint && (
-            <button
-              type="button"
-              className={`history-scroll-marker${scrollHint.leaving ? ' is-leaving' : ''}`}
-              style={{ top: `${scrollHint.pct}%` }}
-              title="回到上次閱讀位置"
-              onClick={() => {
-                if (scrollHint.leaving) return;
-                scrollRef.current?.scrollTo({
-                  top: scrollHint.targetTop,
-                  behavior: 'smooth',
-                });
-                if (currentId) clearSavedPosition(currentId);
-                // 播放消失動畫後移除
-                setScrollHint((prev) =>
-                  prev ? { ...prev, leaving: true } : null
-                );
-                setTimeout(() => setScrollHint(null), 350);
-              }}
-            >
-              <span className="history-scroll-marker-line" />
-              <span className="history-scroll-marker-label">上次位置 ▸</span>
-            </button>
-          )}
           <div key={transitionKey} className="history-page-transition">
             {!currentId ? (
               <section className="history-landing">

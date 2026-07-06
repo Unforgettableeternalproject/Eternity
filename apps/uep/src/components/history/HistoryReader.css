@@ -556,7 +556,9 @@
   text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
 }
 
-/* === 滾動軸「上次閱讀位置」標記 === */
+/* === 滾動軸「上次閱讀位置」標記 ===
+ * 掛在 .history-main（position: relative、不滾動）而非 .history-content
+ * 滾動容器內——top:% 對映可視高度，像滾動軸上的書籤，不隨內容捲動（S6-2）。 */
 .history-scroll-marker {
   position: absolute;
   right: 0;
