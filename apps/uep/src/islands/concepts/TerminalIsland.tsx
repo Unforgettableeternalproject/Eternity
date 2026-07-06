@@ -29,24 +29,20 @@ import {
   resolveStackAlias,
 } from './terminalCore';
 import type { TerminalIndexEntry } from './terminalCore';
+import {
+  MAX_TERM_LINES,
+  clearTerminalLog,
+  loadTerminalLog,
+  saveTerminalLog,
+} from './terminalLog';
+import type { TermAction, TermLine } from './terminalLog';
 
 import './TerminalIsland.css';
-
-/** 單行輸出（action 有值時渲染為可點擊列） */
-interface TermLine {
-  kind: 'meta' | 'in' | 'ok' | 'err' | 'row';
-  text: string;
-  fade?: boolean;
-  action?: () => void;
-}
 
 const BOOT_LINES: TermLine[] = [
   { kind: 'meta', text: 'uep.terminal v1.0 — 輸入 ? 查看指令' },
   { kind: 'meta', text: 'connected → concepts://*' },
 ];
-
-/** 輸出行上限（防長 session 無界成長） */
-const MAX_LINES = 200;
 
 /** ls 逐項列出的上限（其餘提示用 query 檢索） */
 const LS_LIST_CAP = 20;
@@ -60,7 +56,11 @@ const HELP_LINES: TermLine[] = [
 
 export default function TerminalIsland() {
   const progress = useProgress();
-  const [lines, setLines] = useState<TermLine[]>(BOOT_LINES);
+  // 輸出歷史持久化（S7-C 驗收定案）：mount 時還原上次內容，
+  // 跨頁/收合/登出重登都不消失（本機 localStorage）
+  const [lines, setLines] = useState<TermLine[]>(
+    () => loadTerminalLog() ?? BOOT_LINES
+  );
   const [input, setInput] = useState('');
   const [indexReady, setIndexReady] = useState(false);
 
@@ -71,7 +71,14 @@ export default function TerminalIsland() {
   progressRef.current = progress;
 
   function append(add: TermLine[]) {
-    setLines((prev) => [...prev, ...add].slice(-MAX_LINES));
+    setLines((prev) => [...prev, ...add].slice(-MAX_TERM_LINES));
+  }
+
+  /** data-driven action 的執行入口（rehydrate 後的列也走同一條路） */
+  function runAction(action: TermAction) {
+    if (action.type === 'show-entry') {
+      void showDetails(action.entry);
+    }
   }
 
   /** 取得索引；未就緒時輸出載入提示，失敗時輸出錯誤並回 null */
@@ -110,6 +117,11 @@ export default function TerminalIsland() {
     if (bodyRef.current) {
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
     }
+  }, [lines]);
+
+  /* 輸出歷史持久化（action 是純資料，整批可序列化） */
+  useEffect(() => {
+    saveTerminalLog(lines);
   }, [lines]);
 
   /* entity-activate 消費（經 terminalBridge，收合期間的事件會補送） */
@@ -258,7 +270,7 @@ export default function TerminalIsland() {
         (hit): TermLine => ({
           kind: 'row',
           text: `  › ${hit.name} · ${TERMINAL_STACK_LABELS[hit.stack]}`,
-          action: () => void showDetails(hit),
+          action: { type: 'show-entry', entry: hit },
         })
       ),
       ...(hits.length > 8
@@ -308,7 +320,7 @@ export default function TerminalIsland() {
         out.push({
           kind: 'row',
           text: `  › ${entry.name}`,
-          action: () => void showDetails(entry),
+          action: { type: 'show-entry', entry },
         });
       }
       if (unlocked.length > LS_LIST_CAP) {
@@ -327,7 +339,9 @@ export default function TerminalIsland() {
     if (!cmd) return;
 
     if (cmd === 'clear') {
-      setLines([]);
+      // 回到 boot 狀態（非死白）並清除持久化歷史
+      clearTerminalLog();
+      setLines(BOOT_LINES);
       return;
     }
 
@@ -363,7 +377,7 @@ export default function TerminalIsland() {
               key={i}
               type="button"
               className={`${lineClass(line)} uep-terminal__line-btn`}
-              onClick={line.action}
+              onClick={() => runAction(line.action!)}
             >
               {line.text}
             </button>
