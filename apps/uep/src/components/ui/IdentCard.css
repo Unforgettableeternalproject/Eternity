@@ -176,9 +176,11 @@
   height: 300px; /* 容納 view-row + 未來預留空間，避免下方被截 */
 }
 
-/* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向 */
+/* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向。
+   S6-3：宿主從 <button> 改為 div[role=button]（內含齒輪 button 與
+   ViewSwitch，button 巢狀 button 是無效 HTML）——不再需要 all: unset
+   重置原生按鈕樣式，鍵盤焦點外框於下方手動補齊 */
 .uep-ident__flip-inner {
-  all: unset;
   cursor: pointer;
   position: relative;
   width: 100%;
@@ -188,6 +190,11 @@
   transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
   /* 讓 flip 動畫從頂部（吊繩接點）為軸心 */
   transform-origin: 50% 12px;
+}
+
+.uep-ident__flip-inner:focus-visible {
+  outline: 2px solid var(--uep-gold);
+  outline-offset: 2px;
 }
 
 .uep-ident.is-open .uep-ident__flip-inner {

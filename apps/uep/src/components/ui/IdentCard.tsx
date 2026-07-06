@@ -204,6 +204,17 @@ export default function IdentCard() {
     setOpen((v) => !v);
   }
 
+  /* flip-inner 從 <button> 改為 div[role=button]（S6-3）：
+     內部含齒輪 button 與 ViewSwitch，button 巢狀 button 是無效 HTML，
+     React 會噴 validateDOMNesting 警告。鍵盤語意手動補齊。 */
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    /* 事件來自內部互動元件（齒輪/ViewSwitch）時不翻面 */
+    if (e.target !== e.currentTarget) return;
+    e.preventDefault(); // Space 不捲動頁面
+    handleClick();
+  }
+
   return (
     <div
       className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}`}
@@ -214,10 +225,12 @@ export default function IdentCard() {
 
       {/* 翻面主體：吊牌與證卡是同一張卡的正反面 */}
       <div className="uep-ident__flip">
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className="uep-ident__flip-inner"
           onClick={handleClick}
+          onKeyDown={handleKeyDown}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -312,7 +325,7 @@ export default function IdentCard() {
               <ViewSwitch />
             </div>
           </div>
-        </button>
+        </div>
       </div>
 
       {/* 浮島偏好設定視窗（portal 到 body，逃出 TopBar 堆疊上下文） */}
