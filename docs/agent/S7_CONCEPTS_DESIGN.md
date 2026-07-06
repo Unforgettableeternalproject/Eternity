@@ -957,12 +957,12 @@ S7 引入 revision 後，解鎖一個 browser profile 有兩種可能語意：
 | Commit | 版號 | 內容 |
 |--------|------|------|
 | 0f90d70 | 0.9.12.20 | embed 層改造：parseEntityRef 新舊格式 + 全可點新語意（島掛載守門）+ EntityActivateDetail.entityKey；ENTITY_KEY_PATTERN 下沉 embed/marks |
-| c1b39a5 | 0.9.12.21 | Worker 索引端點 GET /api/concepts/entity-index（獨立前綴繞開 contentMatch；含無 key 條目與 gate 摘要）|
+| 0ef5a23 | 0.9.12.21 | Worker 索引端點 GET /api/concepts/entity-index（獨立前綴繞開 contentMatch；含無 key 條目與 gate 摘要）|
 | c8bfbed | （fix） | diff hidden 條目不進索引（名稱不洩漏）；locked 照常納入 |
-| （T-03） | 0.9.12.22 | terminalCore：索引快取/queryIndex/ls/resolveEntryDetails（effective view + restricted fallback）/passedRevisionCount |
-| （T-04） | 0.9.12.23 | TerminalIsland UI + terminalBridge（收合期事件暫存補送）+ IslandHost 接線 + uep-island--{id} 外殼皮膚 |
+| 48858d3 | 0.9.12.22 | terminalCore：索引快取/queryIndex/ls/resolveEntryDetails（effective view + restricted fallback）/passedRevisionCount |
+| 25bee9e | 0.9.12.23 | TerminalIsland UI + terminalBridge（收合期事件暫存補送）+ IslandHost 接線 + uep-island--{id} 外殼皮膚 |
 | 54fa625 | 0.9.12.24 | conceptsReadLevel 已讀水位 + [SYS] 更動通知（首遇靜默建檔、跨 stack 取最大、水位單調不降）|
-| （T-06） | 0.9.12.25 | HistoryReader Toast 佔位拆除 + renderInteractiveHtml 註解對齊新語意 + 全站驗證 |
+| 9a86777 | 0.9.12.25 | HistoryReader Toast 佔位拆除 + renderInteractiveHtml 註解對齊新語意 + 全站驗證 |
 
 驗證：`pnpm check` 全過；全站 test:all 572 全綠（前端 516 + workers 56，新增 47 零退化）。
 
