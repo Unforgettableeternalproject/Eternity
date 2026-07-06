@@ -5,6 +5,17 @@
  * z-index 由 runtime 動態指定（2000-2999），不在這裡寫死。
  */
 
+/* ── 區域入場動畫期間隱藏浮動 UI ──
+ * IntroOverlay / PortalTransition / zone boot 播放時由 zoneEntryLock
+ * 掛上 body class（ref-count，沿用 OnboardingGate 前例）。
+ * Minimap 一併隱藏——艾斯維爾指示：島應與 Minimap 同層級行為。 */
+body.uep-zone-entry-active .uep-island,
+body.uep-zone-entry-active .uep-island-dock,
+body.uep-zone-entry-active .uep-unlock-object,
+body.uep-zone-entry-active .uep-minimap {
+  display: none !important;
+}
+
 /* ── 浮動視窗（桌面） ── */
 .uep-island {
   position: fixed;

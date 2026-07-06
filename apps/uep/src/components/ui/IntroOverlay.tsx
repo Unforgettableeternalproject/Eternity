@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
+import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 import UepDialogue from './UepDialogue';
 import './IntroOverlay.css';
 
@@ -26,6 +27,12 @@ export default function IntroOverlay({
     setClosing(false);
   }
   prevZoneRef.current = zone;
+
+  // 開啟期間隱藏浮島層（body class，見 zoneEntryLock）
+  useEffect(() => {
+    if (!zone) return;
+    return acquireZoneEntryLock();
+  }, [zone]);
 
   const handleClose = useCallback(() => {
     if (closingRef.current) return;
