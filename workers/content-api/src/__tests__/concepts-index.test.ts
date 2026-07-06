@@ -116,14 +116,28 @@ describe('GET /api/concepts/entity-index', () => {
       }
     );
 
-    // chrono：title fallback year
+    // chrono：title fallback year + eventCount（flat + grouped 合計）
     await insertConceptsPage(
       'concepts/eidx-test/time_logs/chronicles',
       '測試時鐘',
       'chrono',
       {
         periods: [
-          { era: 'u', yearNum: 420, year: 'U.0420', title: '叛逃事件' },
+          {
+            era: 'u',
+            yearNum: 420,
+            year: 'U.0420',
+            title: '叛逃事件',
+            fields: {
+              main: { items: ['事件一', '事件二'] },
+              regional: {
+                groups: [
+                  { label: '三區', items: ['區域事件'] },
+                  { label: '五區', items: ['區域事件二', '區域事件三'] },
+                ],
+              },
+            },
+          },
           { era: 'u', yearNum: 421, year: 'U.0421' },
         ],
       }
@@ -220,6 +234,30 @@ describe('GET /api/concepts/entity-index', () => {
     const entries = await fetchIndex();
     expect(entries.find((e) => e.name === '叛逃事件')?.stack).toBe('chrono');
     expect(entries.find((e) => e.name === 'U.0421')?.stack).toBe('chrono');
+  });
+
+  it('chrono period 帶 eventCount（flat + grouped items 合計）', async () => {
+    const entries = await fetchIndex();
+    // 2 flat + 1 + 2 grouped = 5
+    expect(entries.find((e) => e.name === '叛逃事件')?.eventCount).toBe(5);
+    // 無 fields 的 period → 0
+    expect(entries.find((e) => e.name === 'U.0421')?.eventCount).toBe(0);
+  });
+
+  it('dossier 條目帶分類欄位（category/group/variantId）', async () => {
+    const entries = await fetchIndex();
+    const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
+    expect(xavier!.category).toBe('人物');
+    expect(xavier!.variantId).toBe('u');
+    // 空字串 label 不落欄位
+    expect(xavier!.group).toBeUndefined();
+  });
+
+  it('diff 條目帶分類欄位（category=subcat label）', async () => {
+    const entries = await fetchIndex();
+    const diffTerm = entries.find((e) => e.name === '原質');
+    expect(diffTerm!.category).toBe('術語');
+    expect(diffTerm!.group).toBeUndefined(); // 空 section label
   });
 
   it('browser profile 帶 entityKey 納入', async () => {

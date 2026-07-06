@@ -41,6 +41,14 @@ export interface EntityIndexEntry {
   entityKey?: string;
   /** revision gate 摘要（條目有 revision 鏈才有） */
   revisionGates?: RevisionGateSummary[];
+  /** 分類標籤（dossier=subcategory label、diff=subcat label）——ls 分組用 */
+  category?: string;
+  /** 群組標籤（dossier=group label、diff=section label） */
+  group?: string;
+  /** dossier variant id（era，如 'u'） */
+  variantId?: string;
+  /** chrono period 的事件總數（ls clock 顯著時代排序用） */
+  eventCount?: number;
 }
 
 // ===== 內部工具 =====
@@ -96,6 +104,26 @@ function parseStructuredBlock(contentJson: string): Dict | null {
   }
 }
 
+/** 取字串欄位（空字串視為無值） */
+function asLabel(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+/** chrono period 的事件總數（flat items + grouped items 合計） */
+function countChronoEvents(period: Dict): number {
+  const fields = asDict(period.fields);
+  if (!fields) return 0;
+  let count = 0;
+  for (const field of Object.values(fields).map(asDict)) {
+    if (!field) continue;
+    count += asArray(field.items).length;
+    for (const group of asArray(field.groups).map(asDict)) {
+      if (group) count += asArray(group.items).length;
+    }
+  }
+  return count;
+}
+
 /** 收集單頁所有條目摘要 */
 function collectFromPage(
   data: Dict,
@@ -104,7 +132,11 @@ function collectFromPage(
   pageTitle: string
 ): EntityIndexEntry[] {
   const out: EntityIndexEntry[] = [];
-  const push = (name: unknown, entry: Dict) => {
+  const push = (
+    name: unknown,
+    entry: Dict,
+    extra?: Partial<EntityIndexEntry>
+  ) => {
     if (typeof name !== 'string' || !name.trim()) return;
     out.push({
       name: name.trim(),
@@ -112,6 +144,7 @@ function collectFromPage(
       pageId,
       pageTitle,
       ...withRevisionFields(entry),
+      ...extra,
     });
   };
 
@@ -123,7 +156,13 @@ function collectFromPage(
         for (const group of asArray(subcat.groups).map(asDict)) {
           if (!group) continue;
           for (const entry of asArray(group.entries).map(asDict)) {
-            if (entry) push(entry.name, entry);
+            if (entry) {
+              push(entry.name, entry, {
+                category: asLabel(subcat.label),
+                group: asLabel(group.label),
+                variantId: asLabel(variant.id),
+              });
+            }
           }
         }
       }
@@ -134,7 +173,11 @@ function collectFromPage(
     }
   } else if (stack === 'chrono') {
     for (const period of asArray(data.periods).map(asDict)) {
-      if (period) push(period.title || period.year, period);
+      if (period) {
+        push(period.title || period.year, period, {
+          eventCount: countChronoEvents(period),
+        });
+      }
     }
   } else if (stack === 'diff') {
     for (const subcat of asArray(data.subcategories).map(asDict)) {
@@ -144,7 +187,12 @@ function collectFromPage(
         for (const entry of asArray(section.entries).map(asDict)) {
           // hidden = 故事中尚未出現的概念——不進索引（名稱也不洩漏）；
           // locked（已出現未解釋）照常納入，由 Terminal 顯示 restricted
-          if (entry && entry.hidden !== true) push(entry.term, entry);
+          if (entry && entry.hidden !== true) {
+            push(entry.term, entry, {
+              category: asLabel(subcat.label),
+              group: asLabel(section.label),
+            });
+          }
         }
       }
     }

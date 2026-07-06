@@ -52,6 +52,14 @@ export interface TerminalIndexEntry {
   pageTitle: string;
   entityKey?: string;
   revisionGates?: { id: string; gate: GateCondition | null }[];
+  /** 分類標籤（dossier=subcategory、diff=subcat）——ls 分組用 */
+  category?: string;
+  /** 群組標籤（dossier=group、diff=section） */
+  group?: string;
+  /** dossier variant id（era，如 'u'） */
+  variantId?: string;
+  /** chrono period 事件總數（ls clock 顯著時代排序用） */
+  eventCount?: number;
 }
 
 /** 條目內容解析結果（Terminal 輸出行的資料來源） */
