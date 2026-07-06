@@ -102,7 +102,14 @@ describe('GET /api/concepts/entity-index', () => {
           {
             label: '術語',
             sections: [
-              { label: '', entries: [{ term: '原質', values: ['Essence'] }] },
+              {
+                label: '',
+                entries: [
+                  { term: '原質', values: ['Essence'] },
+                  { term: '隱藏概念', values: ['?'], hidden: true },
+                  { term: '鎖定概念', values: ['?'], locked: true },
+                ],
+              },
             ],
           },
         ],
@@ -201,6 +208,12 @@ describe('GET /api/concepts/entity-index', () => {
     expect(diffTerm).toBeDefined();
     expect(diffTerm!.stack).toBe('diff');
     expect(diffTerm!.entityKey).toBeUndefined();
+  });
+
+  it('diff hidden 條目不進索引（名稱不洩漏）；locked 條目照常納入', async () => {
+    const entries = await fetchIndex();
+    expect(entries.find((e) => e.name === '隱藏概念')).toBeUndefined();
+    expect(entries.find((e) => e.name === '鎖定概念')).toBeDefined();
   });
 
   it('chrono period 以 title 為名、無 title 時 fallback year', async () => {

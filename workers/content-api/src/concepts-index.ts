@@ -142,7 +142,9 @@ function collectFromPage(
       for (const section of asArray(subcat.sections).map(asDict)) {
         if (!section) continue;
         for (const entry of asArray(section.entries).map(asDict)) {
-          if (entry) push(entry.term, entry);
+          // hidden = 故事中尚未出現的概念——不進索引（名稱也不洩漏）；
+          // locked（已出現未解釋）照常納入，由 Terminal 顯示 restricted
+          if (entry && entry.hidden !== true) push(entry.term, entry);
         }
       }
     }
