@@ -64,11 +64,24 @@ export function buildTreeIndex(roots: HistoryTreeNode[]): HistoryTreeIndex {
   };
 }
 
-/** 最後閱讀頁：pageMarkers 中 updatedAt 最新、且存在於 tree 的頁面 */
+/**
+ * 最後閱讀頁（S6-2 改版）：
+ * 1. 優先讀平鋪的 lastVisitedPageId（換頁當下即更新，續讀顯示不落後）——
+ *    需存在於 tree 且目前非鎖定（進度重置/資料異動後的防禦）
+ * 2. fallback：pageMarkers 中 updatedAt 最新、且存在於 tree 的頁面
+ *    （容舊 blob——lastVisited 是 S6-2 才有的欄位）
+ */
 export function deriveLastRead(
   progress: ProgressState,
   index: HistoryTreeIndex
 ): HistoryTreeNode | null {
+  const visitedId = progress.lastVisitedPageId;
+  if (visitedId) {
+    const node = index.nodesById.get(visitedId);
+    if (node && !isLocked(node, progress, visitedId, index.adapter)) {
+      return node;
+    }
+  }
   let best: HistoryTreeNode | null = null;
   let bestTime = -Infinity;
   for (const [pageId, marker] of Object.entries(progress.pageMarkers)) {

@@ -43,6 +43,11 @@ export function normalizeState(raw: unknown): ProgressState | null {
       typeof obj.pageMarkers === 'object' && obj.pageMarkers !== null
         ? obj.pageMarkers
         : base.pageMarkers,
+    // S6-2 新增欄位：舊 blob 沒有時補 null（deriveLastRead 會 fallback pageMarkers）
+    lastVisitedPageId:
+      typeof obj.lastVisitedPageId === 'string' ? obj.lastVisitedPageId : null,
+    lastVisitedAt:
+      typeof obj.lastVisitedAt === 'string' ? obj.lastVisitedAt : null,
     // S6 新增欄位：舊 blob 沒有時補初始值；totalMs 防禦非有限數值
     readingStats:
       typeof obj.readingStats === 'object' &&

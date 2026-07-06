@@ -49,6 +49,14 @@ export interface ProgressState {
   /** 各頁面的掃描線進度，key 為 pageId */
   pageMarkers: Record<string, PageMarkerProgress>;
   /**
+   * 最後造訪的 History 頁面 id（S6-2 續讀顯示用）。
+   * 與 pageMarkers 分開存：pageMarker 要通過第一個標記點才建立，
+   * 換頁當下就該更新續讀顯示，所以平鋪一份「最後造訪」。
+   */
+  lastVisitedPageId: string | null;
+  /** 最後造訪時間（ISO 8601），與 lastVisitedPageId 成對 */
+  lastVisitedAt: string | null;
+  /**
    * 閱讀時間統計（S6，History Island 的簡單統計用）。
    * totalMs 為 History 文章的累計停留時間（單次造訪有上限防掛機灌水），
    * 平均閱讀時間 = totalMs / completedPageIds.length。
@@ -82,6 +90,8 @@ export function createInitialState(): ProgressState {
     islandsUnlocked: [],
     islandsDisabled: [],
     pageMarkers: {},
+    lastVisitedPageId: null,
+    lastVisitedAt: null,
     readingStats: { totalMs: 0 },
     updatedAt: new Date().toISOString(),
   };

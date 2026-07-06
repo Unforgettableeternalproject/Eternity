@@ -146,6 +146,21 @@ describe('頁面完成與浮島', () => {
     };
     expect(normalizeState(legacy)!.islandsDisabled).toEqual([]);
     expect(normalizeState(legacy)!.readingStats).toEqual({ totalMs: 0 });
+    // S6-2 新增欄位：舊 blob 沒有時補 null
+    expect(normalizeState(legacy)!.lastVisitedPageId).toBeNull();
+    expect(normalizeState(legacy)!.lastVisitedAt).toBeNull();
+  });
+
+  it('markPageVisited 記錄最後造訪頁與時間', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.markPageVisited('history/u/1');
+    const state = uepProgress.getState();
+    expect(state.lastVisitedPageId).toBe('history/u/1');
+    expect(typeof state.lastVisitedAt).toBe('string');
+    uepProgress.markPageVisited('history/u/1/1-1');
+    expect(uepProgress.getState().lastVisitedPageId).toBe('history/u/1/1-1');
+    uepProgress.markPageVisited(''); // 空字串 no-op
+    expect(uepProgress.getState().lastVisitedPageId).toBe('history/u/1/1-1');
   });
 });
 
@@ -211,6 +226,8 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       islandsUnlocked: [],
       islandsDisabled: [],
       pageMarkers: {},
+      lastVisitedPageId: null,
+      lastVisitedAt: null,
       readingStats: { totalMs: 0 },
       updatedAt: '2026-07-03T00:00:00.000Z',
     };

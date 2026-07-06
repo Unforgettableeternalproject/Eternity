@@ -30,6 +30,7 @@ export interface ProgressChangeDetail {
     | 'island-unlocked'
     | 'island-setting'
     | 'marker-update'
+    | 'page-visited'
     | 'reading-time'
     | 'hydrate'
     | 'reset'
@@ -112,6 +113,20 @@ export const uepProgress = {
   /** 是否持有旗標 */
   hasFlag(flag: string): boolean {
     return state.flags.includes(flag);
+  },
+
+  /**
+   * 記錄最後造訪的 History 頁面（S6-2，換頁副作用呼叫）。
+   * 與掃描線 pageMarkers 無關——沒捲動過任何標記點也算造訪，
+   * 續讀顯示（旅程之書）以此為優先來源。
+   */
+  markPageVisited(pageId: string): void {
+    if (!pageId) return;
+    mutate('page-visited', (prev) => ({
+      ...prev,
+      lastVisitedPageId: pageId,
+      lastVisitedAt: new Date().toISOString(),
+    }));
   },
 
   /** 標記 History 頁面為已完成 */

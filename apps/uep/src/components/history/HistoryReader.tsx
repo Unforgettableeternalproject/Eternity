@@ -719,6 +719,8 @@ export default function HistoryReader() {
       const page = await fetchPageById(node.id);
       setCurrentPage(page);
       setArticleHtml(renderBlocks(page.content));
+      // 記錄最後造訪頁（S6-2 續讀顯示；與掃描線 pageMarkers 無關）
+      getProgressManager().markPageVisited(node.id);
       // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記。
       // session 內用精確 scroll 位置；跨 session fallback 到
       // 掃描線 lastMarkerIdx 對應的標記點位置。

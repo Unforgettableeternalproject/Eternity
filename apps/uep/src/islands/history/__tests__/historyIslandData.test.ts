@@ -106,6 +106,57 @@ describe('deriveLastRead', () => {
     const index = buildTreeIndex(buildFixtureTree());
     expect(deriveLastRead(createInitialState(), index)).toBeNull();
   });
+
+  it('lastVisitedPageId 優先於 pageMarkers（換頁當下即更新續讀）', () => {
+    const index = buildTreeIndex(buildFixtureTree());
+    const progress = stateWith({
+      lastVisitedPageId: 'history/u/1',
+      lastVisitedAt: '2026-07-06T00:00:00.000Z',
+      pageMarkers: {
+        'history/u/1/1-2': {
+          maxMarkerIdx: 1,
+          lastMarkerIdx: 1,
+          totalMarkers: 3,
+          updatedAt: '2026-07-06T12:00:00.000Z', // 比 lastVisited 新也不採用
+        },
+      },
+    });
+    expect(deriveLastRead(progress, index)?.id).toBe('history/u/1');
+  });
+
+  it('lastVisited 頁面已鎖定時 fallback 到 pageMarkers', () => {
+    const index = buildTreeIndex(buildFixtureTree());
+    const progress = stateWith({
+      lastVisitedPageId: 'history/u/sealed', // 靜態鎖定
+      lastVisitedAt: '2026-07-06T00:00:00.000Z',
+      pageMarkers: {
+        'history/u/1/1-2': {
+          maxMarkerIdx: 1,
+          lastMarkerIdx: 1,
+          totalMarkers: 3,
+          updatedAt: '2026-07-05T00:00:00.000Z',
+        },
+      },
+    });
+    expect(deriveLastRead(progress, index)?.id).toBe('history/u/1/1-2');
+  });
+
+  it('lastVisited 頁面不在 tree 時 fallback 到 pageMarkers', () => {
+    const index = buildTreeIndex(buildFixtureTree());
+    const progress = stateWith({
+      lastVisitedPageId: 'history/deleted-page',
+      lastVisitedAt: '2026-07-06T00:00:00.000Z',
+      pageMarkers: {
+        'history/u/1/1-2': {
+          maxMarkerIdx: 1,
+          lastMarkerIdx: 1,
+          totalMarkers: 3,
+          updatedAt: '2026-07-05T00:00:00.000Z',
+        },
+      },
+    });
+    expect(deriveLastRead(progress, index)?.id).toBe('history/u/1/1-2');
+  });
 });
 
 describe('volumeOf', () => {
