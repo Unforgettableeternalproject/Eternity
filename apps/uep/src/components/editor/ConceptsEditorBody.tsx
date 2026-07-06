@@ -18,6 +18,7 @@ import {
   toAssetPath,
   uploadAsset,
 } from './editorHelpers';
+import EntityKeyField from './EntityKeyField';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';
@@ -634,6 +635,22 @@ function DossierVariantBody({
   const entry =
     activeEntry !== null && group ? group.entries[activeEntry] : null;
 
+  // entityKey 唯一性範圍 = 同 variant 內（跨 variant 允許同 key，
+  // 各 variant 的條目維護自己的 revision 鏈——設計文件 §1-3-a）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    subcategories.forEach((sc, sci) =>
+      sc.groups.forEach((g, gi) =>
+        g.entries.forEach((ent, ei) => {
+          if (sci === activeTab && gi === activeGroup && ei === activeEntry)
+            return;
+          if (ent.entityKey) keys.add(ent.entityKey);
+        })
+      )
+    );
+    return keys;
+  }, [subcategories, activeTab, activeGroup, activeEntry]);
+
   React.useEffect(() => {
     if (subcat && subcat.groups.length === 0)
       updateGroups([{ label: '', entries: [] }]);
@@ -855,6 +872,13 @@ function DossierVariantBody({
                       }
                     />
                   </div>
+                  <EntityKeyField
+                    value={entry.entityKey}
+                    onChange={(key) =>
+                      updateEntry(activeEntry!, { entityKey: key })
+                    }
+                    existingKeys={usedEntityKeys}
+                  />
                   <div className="ced-section-header">
                     <span className="ced-section-title">描述</span>
                   </div>
@@ -986,6 +1010,16 @@ function BrowserEditor({
   }, [data.profiles, data.category_tree, navPath]);
 
   const profile = activeIdx !== null ? data.profiles[activeIdx] : null;
+
+  // entityKey 唯一性範圍 = 同頁面內（排除自身）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    data.profiles.forEach((p, i) => {
+      if (i === activeIdx) return;
+      if (p.entityKey) keys.add(p.entityKey);
+    });
+    return keys;
+  }, [data.profiles, activeIdx]);
 
   function updateProfile(patch: Partial<CharacterProfile>) {
     if (activeIdx === null) return;
@@ -1343,6 +1377,11 @@ function BrowserEditor({
                   </div>
                 </div>
               </div>
+              <EntityKeyField
+                value={profile.entityKey}
+                onChange={(key) => updateProfile({ entityKey: key })}
+                existingKeys={usedEntityKeys}
+              />
               <label className="ced-checkbox-row">
                 <input
                   type="checkbox"
@@ -1882,6 +1921,16 @@ function ChronoEditor({
 
   const period = data.periods[activePeriod];
 
+  // entityKey 唯一性範圍 = 同頁面內（排除自身）；chrono 選用不強制（定案 A）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    data.periods.forEach((p, i) => {
+      if (i === activePeriod) return;
+      if (p.entityKey) keys.add(p.entityKey);
+    });
+    return keys;
+  }, [data.periods, activePeriod]);
+
   function updatePeriod(patch: Partial<ChronoPeriod>) {
     updatePeriods(
       data.periods.map((p, i) => (i === activePeriod ? { ...p, ...patch } : p)),
@@ -2276,6 +2325,12 @@ function ChronoEditor({
                   placeholder="選填"
                 />
               </div>
+
+              <EntityKeyField
+                value={period.entityKey}
+                onChange={(key) => updatePeriod({ entityKey: key })}
+                existingKeys={usedEntityKeys}
+              />
 
               {/* 各欄位類別 */}
               {data.fieldDefs.map((def, di) => {
@@ -2702,6 +2757,21 @@ function DiffEditor({
   const entry =
     activeEntry !== null && section ? section.entries[activeEntry] : null;
 
+  // entityKey 唯一性範圍 = 同頁面內（全部分類，排除自身）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    data.subcategories.forEach((sc, sci) =>
+      sc.sections.forEach((s, si) =>
+        s.entries.forEach((ent, ei) => {
+          if (sci === activeTab && si === activeSection && ei === activeEntry)
+            return;
+          if (ent.entityKey) keys.add(ent.entityKey);
+        })
+      )
+    );
+    return keys;
+  }, [data.subcategories, activeTab, activeSection, activeEntry]);
+
   return (
     <div className="ced-section">
       {/* 分類 Tab */}
@@ -2924,6 +2994,14 @@ function DiffEditor({
                       }
                     />
                   </div>
+
+                  <EntityKeyField
+                    value={entry.entityKey}
+                    onChange={(key) =>
+                      updateEntry(activeEntry!, { entityKey: key })
+                    }
+                    existingKeys={usedEntityKeys}
+                  />
 
                   {/* 值欄位（可新增/刪除） */}
                   <div className="ced-section-header">

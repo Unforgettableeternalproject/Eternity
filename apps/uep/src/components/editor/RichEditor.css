@@ -2768,6 +2768,24 @@
 .ced-input-sm {
   font-size: 12px;
 }
+/* entityKey 輸入欄（S7-B）：等寬字型 + 錯誤警告 */
+.ced-entity-key-input {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.ced-entity-key-input--error {
+  border-color: #b3413e;
+}
+.ced-entity-key-input--error:focus {
+  border-color: #b3413e;
+}
+.ced-entity-key-error {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #b3413e;
+  margin: -4px 0 8px 90px;
+  letter-spacing: 0.03em;
+}
 .ced-textarea {
   flex: 1;
   padding: 8px 10px;
