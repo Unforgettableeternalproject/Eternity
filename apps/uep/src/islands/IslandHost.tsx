@@ -20,6 +20,7 @@ import { useProgress } from '../progress';
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
 import { canUseIslands, shouldMountIsland } from './islandRuntime';
+import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
@@ -41,6 +42,10 @@ export default function IslandHost() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  // dev 測試 bridge（S6-3）：全站可用的浮島解鎖/足跡操控入口。
+  // 掛在這裡而非各 Reader——解鎖狀態是全域的，不該綁定單一 zone。
+  useEffect(() => mountIslandsTestBridge(), []);
 
   // SSR / 首次 render 前不輸出（portal 需要 document）
   if (!mounted) return null;

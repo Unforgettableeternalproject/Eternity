@@ -60,6 +60,8 @@ export type { XYPosition, PositionRatio } from './dragPosition';
 
 export { useIslandRuntimeState } from './useIslands';
 
+export { mountIslandsTestBridge } from './testBridge';
+
 export {
   LOST_BOOKMARK_STEP_PCT,
   LOST_BOOKMARK_OPEN_GATE_EVENT,

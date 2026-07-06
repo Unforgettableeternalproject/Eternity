@@ -26,8 +26,10 @@ export interface ProgressChangeDetail {
     | 'init'
     | 'view-change'
     | 'flags-granted'
+    | 'flags-revoked'
     | 'page-completed'
     | 'island-unlocked'
+    | 'island-relocked'
     | 'island-setting'
     | 'marker-update'
     | 'page-visited'
@@ -117,6 +119,19 @@ export const uepProgress = {
   },
 
   /**
+   * 撤銷旗標（S6-3）。目前消費端是 dev 測試 bridge；語意保持通用，
+   * 未來若有「旗標會失效」的機制可直接沿用。不存在的旗標忽略。
+   */
+  revokeFlags(flags: string[]): void {
+    const drop = new Set(flags);
+    if (!state.flags.some((f) => drop.has(f))) return;
+    mutate('flags-revoked', (prev) => ({
+      ...prev,
+      flags: prev.flags.filter((f) => !drop.has(f)),
+    }));
+  },
+
+  /**
    * 記錄最後造訪的 History 頁面（S6-2，換頁副作用呼叫）。
    * 與掃描線 pageMarkers 無關——沒捲動過任何標記點也算造訪，
    * 續讀顯示（旅程之書）以此為優先來源。
@@ -197,6 +212,18 @@ export const uepProgress = {
     mutate('island-unlocked', (prev) => ({
       ...prev,
       islandsUnlocked: [...prev.islandsUnlocked, islandId],
+    }));
+  },
+
+  /**
+   * 重新上鎖浮島（S6-3）。dev 測試 bridge 用——回到「未解鎖」狀態以便
+   * 重驗解鎖儀式。視窗會因 IslandHost 的守門條件自動卸載，不需另行 close。
+   */
+  relockIsland(islandId: string): void {
+    if (!state.islandsUnlocked.includes(islandId)) return;
+    mutate('island-relocked', (prev) => ({
+      ...prev,
+      islandsUnlocked: prev.islandsUnlocked.filter((id) => id !== islandId),
     }));
   },
 

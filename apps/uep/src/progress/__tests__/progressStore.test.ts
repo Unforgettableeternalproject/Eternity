@@ -96,6 +96,18 @@ describe('旗標', () => {
     uepProgress.grantFlags(['a']);
     expect(listener).not.toHaveBeenCalled();
   });
+
+  it('revokeFlags 撤銷旗標；不存在的旗標不觸發通知（S6-3）', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.grantFlags(['a', 'b', 'c']);
+    uepProgress.revokeFlags(['b', 'nope']);
+    expect(uepProgress.getState().flags).toEqual(['a', 'c']);
+
+    const listener = vi.fn();
+    uepProgress.subscribe(listener);
+    uepProgress.revokeFlags(['nope']); // 全部不存在 → no-op
+    expect(listener).not.toHaveBeenCalled();
+  });
 });
 
 describe('頁面完成與浮島', () => {
@@ -111,6 +123,19 @@ describe('頁面完成與浮島', () => {
     uepProgress.unlockIsland('concepts');
     uepProgress.unlockIsland('concepts');
     expect(uepProgress.getState().islandsUnlocked).toEqual(['concepts']);
+  });
+
+  it('relockIsland 重新上鎖；未解鎖時不觸發通知（S6-3）', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.unlockIsland('history');
+    uepProgress.unlockIsland('concepts');
+    uepProgress.relockIsland('history');
+    expect(uepProgress.getState().islandsUnlocked).toEqual(['concepts']);
+
+    const listener = vi.fn();
+    uepProgress.subscribe(listener);
+    uepProgress.relockIsland('history'); // 已不在清單 → no-op
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it('setIslandDisabled 停用/啟用往返（冪等，不動解鎖清單）', async () => {
