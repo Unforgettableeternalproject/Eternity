@@ -23,6 +23,7 @@ import {
   requireJwt,
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
+import { buildConceptsEntityIndex } from './concepts-index';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
 
@@ -1572,6 +1573,20 @@ export default {
         },
         201,
         cors
+      );
+    }
+
+    // ---- Concepts 條目索引（S7-C Terminal Island 消費）----
+    // 獨立前綴 /api/concepts/*，刻意不走 /api/content/（會被下方
+    // contentMatch regex 當成 area=concepts, slug=entity-index 吃掉）。
+    // 公開 GET（與內容讀取端點同級），CDN 短快取。
+    if (path === '/api/concepts/entity-index' && request.method === 'GET') {
+      const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
+      return jsonResponse(
+        { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
+        200,
+        cors,
+        true
       );
     }
 
