@@ -36,6 +36,26 @@ body.uep-zone-entry-active .uep-minimap {
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.26);
 }
 
+/* ── 收合離場（S6-3）：縮往右下（dock 方向）淡出 ──
+ * 純 CSS 版：固定右下方向縮小，不精算 dock chip 座標。
+ * 播完由 DraggableIsland 的 animationend（+ 保底計時器）真正 close。 */
+.uep-island--leaving {
+  pointer-events: none;
+  transform-origin: bottom right;
+  animation: uep-island-leave 0.26s var(--ease) forwards;
+}
+
+@keyframes uep-island-leave {
+  from {
+    transform: scale(1) translate(0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.4) translate(48px, 48px);
+    opacity: 0;
+  }
+}
+
 /* ── header（拖曳把手） ── */
 .uep-island__header {
   display: flex;
@@ -116,6 +136,12 @@ body.uep-zone-entry-active .uep-minimap {
   max-height: 55vh;
 }
 
+/* 手機 sheet 的離場：進場反向（往下滑出） */
+.uep-island--sheet.uep-island--leaving {
+  transform-origin: center bottom;
+  animation: uep-island-sheet-out 0.24s var(--ease) forwards;
+}
+
 @keyframes uep-island-sheet-in {
   from {
     transform: translateY(24px);
@@ -124,6 +150,17 @@ body.uep-zone-entry-active .uep-minimap {
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes uep-island-sheet-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(24px);
+    opacity: 0;
   }
 }
 
@@ -155,6 +192,19 @@ body.uep-zone-entry-active .uep-minimap {
     transform 0.18s var(--ease),
     box-shadow 0.18s var(--ease),
     border-color 0.18s var(--ease);
+  /* 進場淡入（S6-3）：島收合後 chip 出現時不要瞬間跳出 */
+  animation: uep-dock-chip-in 0.22s var(--ease);
+}
+
+@keyframes uep-dock-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .uep-island-dock__chip:hover {

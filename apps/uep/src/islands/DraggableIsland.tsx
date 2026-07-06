@@ -34,6 +34,9 @@ interface DraggableIslandProps {
 /** 手機判定斷點（與 Minimap 隱藏斷點一致） */
 const MOBILE_QUERY = '(max-width: 760px)';
 
+/** 收合動畫時長（ms）——與 islands.css 的 uep-island-leave 對齊 */
+const LEAVE_ANIM_MS = 260;
+
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
@@ -63,8 +66,32 @@ export default function DraggableIsland({
   const [pos, setPos] = useState<XYPosition>({ left: 20, top: 20 });
   const [ready, setReady] = useState(false);
   const [drag, setDrag] = useState<{ offX: number; offY: number } | null>(null);
+  /** 收合動畫中（S6-3）：播完才真正 runtime.close，讓島縮往右下 dock */
+  const [leaving, setLeaving] = useState(false);
   const posRef = useRef<XYPosition>(pos);
   const ratioRef = useRef<PositionRatio>({ lr: 0, tr: 0 });
+  /** close 只觸發一次（animationend 與保底計時器可能都到） */
+  const closeFinalizedRef = useRef(false);
+
+  /* ---------- 收合：先播離場動畫，播完才通知 runtime ---------- */
+  function finalizeClose() {
+    if (closeFinalizedRef.current) return;
+    closeFinalizedRef.current = true;
+    runtime.close(id);
+  }
+
+  function requestClose() {
+    if (leaving) return;
+    setLeaving(true);
+    /* 保底：prefers-reduced-motion 會把 animation 關掉（animationend
+       不觸發），計時器確保無論如何都會關閉 */
+    window.setTimeout(finalizeClose, LEAVE_ANIM_MS + 80);
+  }
+
+  function handleLeaveAnimationEnd(e: React.AnimationEvent) {
+    /* 只認自己根節點的離場動畫，忽略子元素冒泡上來的 animationend */
+    if (leaving && e.target === e.currentTarget) finalizeClose();
+  }
 
   function updatePos(next: XYPosition) {
     posRef.current = next;
@@ -132,9 +159,10 @@ export default function DraggableIsland({
   if (isMobile) {
     return (
       <div
-        className={`uep-island uep-island--sheet${className ? ` ${className}` : ''}`}
+        className={`uep-island uep-island--sheet${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
         style={{ zIndex }}
         onPointerDown={() => runtime.focus(id)}
+        onAnimationEnd={handleLeaveAnimationEnd}
         role="dialog"
         aria-label={def.title}
       >
@@ -145,7 +173,7 @@ export default function DraggableIsland({
           <span className="uep-island__title">{def.title}</span>
           <button
             className="uep-island__collapse"
-            onClick={() => runtime.close(id)}
+            onClick={requestClose}
             aria-label={`收合${def.title}`}
             title="收合"
           >
@@ -161,7 +189,7 @@ export default function DraggableIsland({
   return (
     <div
       ref={ref}
-      className={`uep-island${drag ? ' uep-island--dragging' : ''}${className ? ` ${className}` : ''}`}
+      className={`uep-island${drag ? ' uep-island--dragging' : ''}${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
       style={{
         left: pos.left,
         top: pos.top,
@@ -170,6 +198,7 @@ export default function DraggableIsland({
         opacity: ready ? 1 : 0,
       }}
       onPointerDown={() => runtime.focus(id)}
+      onAnimationEnd={handleLeaveAnimationEnd}
       role="dialog"
       aria-label={def.title}
     >
@@ -188,7 +217,7 @@ export default function DraggableIsland({
           className="uep-island__collapse"
           onClick={(e) => {
             e.stopPropagation();
-            runtime.close(id);
+            requestClose();
           }}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label={`收合${def.title}`}
