@@ -20,7 +20,13 @@ export const MAX_TERM_LINES = 200;
 /** 可序列化的行為（rehydrate 後由 UI 重建 handler） */
 export type TermAction =
   | { type: 'show-entry'; entry: TerminalIndexEntry }
-  | { type: 'navigate'; pageId: string };
+  | { type: 'navigate'; pageId: string }
+  /** ls 層級式展開：列出指定分類的條目（category '' = 未分類） */
+  | {
+      type: 'ls-category';
+      stack: 'dossier' | 'browser' | 'chrono' | 'diff';
+      category: string;
+    };
 
 /** 單行輸出（action 有值時渲染為可點擊列） */
 export interface TermLine {
@@ -38,10 +44,27 @@ const STACKS = new Set(['dossier', 'browser', 'chrono', 'diff']);
 /** 驗證單筆 action 形狀；非法時回傳 undefined（該行降級為純文字） */
 function normalizeAction(raw: unknown): TermAction | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
-  const obj = raw as { type?: unknown; entry?: unknown; pageId?: unknown };
+  const obj = raw as {
+    type?: unknown;
+    entry?: unknown;
+    pageId?: unknown;
+    stack?: unknown;
+    category?: unknown;
+  };
   if (obj.type === 'navigate') {
     return typeof obj.pageId === 'string' && obj.pageId
       ? { type: 'navigate', pageId: obj.pageId }
+      : undefined;
+  }
+  if (obj.type === 'ls-category') {
+    return typeof obj.stack === 'string' &&
+      STACKS.has(obj.stack) &&
+      typeof obj.category === 'string'
+      ? {
+          type: 'ls-category',
+          stack: obj.stack as TerminalIndexEntry['stack'],
+          category: obj.category,
+        }
       : undefined;
   }
   if (obj.type !== 'show-entry') return undefined;

@@ -30,6 +30,7 @@ import {
   resolveEntryDetails,
   resolveStackAlias,
   significantChronoPeriods,
+  summarizeCategories,
 } from './terminalCore';
 import type { TerminalIndexEntry } from './terminalCore';
 import {
@@ -54,10 +55,10 @@ const LS_LIST_CAP = 30;
 const CLOCK_HIGHLIGHT_LIMIT = 5;
 
 const HELP_LINES: TermLine[] = [
-  { kind: 'meta', text: '? · query <keyword> — 檢索人物 / 地點 / 術語' },
-  { kind: 'meta', text: '  · ls <stack>      — 列出已解鎖條目' },
+  { kind: 'meta', text: '? · query <keyword>    — 檢索人物 / 地點 / 術語' },
+  { kind: 'meta', text: '  · ls <stack> [分類]  — 列出分類，點分類展開條目' },
   { kind: 'meta', text: '        stack: log · browser · clock · compare' },
-  { kind: 'meta', text: '  · clear           — 清空輸出' },
+  { kind: 'meta', text: '  · clear              — 清空輸出' },
 ];
 
 /**
@@ -95,6 +96,7 @@ export default function TerminalIsland() {
   const [indexReady, setIndexReady] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   /** async 回呼取用最新進度（不重綁 listener） */
   const progressRef = useRef(progress);
@@ -115,12 +117,22 @@ export default function TerminalIsland() {
     setLines((prev) => [...prev, ...add].slice(-MAX_TERM_LINES));
   }
 
+  /** 清空式展現輸出：整批第一行標錨點，effect 內捲動置頂（保留歷史） */
+  function appendAnchored(add: TermLine[]) {
+    if (add.length === 0) return;
+    const anchorId = `anchor-${++anchorSeqRef.current}`;
+    pendingAnchorRef.current = anchorId;
+    append([{ ...add[0], anchorId }, ...add.slice(1)]);
+  }
+
   /** data-driven action 的執行入口（rehydrate 後的列也走同一條路） */
   function runAction(action: TermAction) {
     if (action.type === 'show-entry') {
       void showDetails(action.entry);
     } else if (action.type === 'navigate') {
       navigateToConceptsPage(action.pageId);
+    } else if (action.type === 'ls-category') {
+      void runLsCategory(action.stack, action.category);
     }
   }
 
@@ -155,11 +167,16 @@ export default function TerminalIsland() {
     };
   }, []);
 
-  /* 輸出更新後捲動：有 pending anchor（entry 詳細內容）→ 該行置頂
-     ——清空式展現（艾斯維爾定案：保留歷史、捲動置頂）；否則照常捲到底 */
+  /* 輸出更新後捲動：有 pending anchor（entry 詳細內容 / 分類展開）→
+     該行「置頂」——清空式展現（艾斯維爾定案：保留歷史、捲動置頂，
+     上方歷史需上捲才看到）。內容不足一屏時以底部 spacer 補足捲動空間，
+     否則 anchor 行物理上到不了視窗頂。無 anchor 照常捲到底。 */
   useEffect(() => {
     const body = bodyRef.current;
+    const spacer = spacerRef.current;
     if (!body) return;
+    // 先歸零 spacer 再量測，取得純內容高度
+    if (spacer) spacer.style.height = '0px';
     const anchorId = pendingAnchorRef.current;
     if (anchorId) {
       pendingAnchorRef.current = null;
@@ -167,8 +184,15 @@ export default function TerminalIsland() {
         `[data-anchor-id="${anchorId}"]`
       );
       if (el) {
-        body.scrollTop +=
-          el.getBoundingClientRect().top - body.getBoundingClientRect().top;
+        // anchor 行相對內容頂部的偏移
+        const anchorTop =
+          el.getBoundingClientRect().top -
+          body.getBoundingClientRect().top +
+          body.scrollTop;
+        // anchor 以下內容不足一屏 → spacer 補足，讓該行能真正置頂
+        const deficit = anchorTop + body.clientHeight - body.scrollHeight;
+        if (spacer && deficit > 0) spacer.style.height = `${deficit}px`;
+        body.scrollTop = anchorTop;
         return;
       }
     }
@@ -275,13 +299,10 @@ export default function TerminalIsland() {
     // browser 內容一律不在 terminal 展示（S7-C 驗收定案：資料保證
     // log↔browser 映射，詳細欄位歸個性瀏覽器）——只輸出導向列
     if (target.stack === 'browser') {
-      const anchorId = `anchor-${++anchorSeqRef.current}`;
-      pendingAnchorRef.current = anchorId;
-      append([
+      appendAnchored([
         {
           kind: 'ok',
           text: `✓ ${target.name} · ${TERMINAL_STACK_LABELS.browser}`,
-          anchorId,
         },
         {
           kind: 'row',
@@ -337,13 +358,7 @@ export default function TerminalIsland() {
         });
       }
     }
-    // 清空式展現：整批第一行標錨點，輸出後捲動置頂（保留歷史）
-    if (out.length > 0) {
-      const anchorId = `anchor-${++anchorSeqRef.current}`;
-      out[0] = { ...out[0], anchorId };
-      pendingAnchorRef.current = anchorId;
-    }
-    append(out);
+    appendAnchored(out);
   }
 
   async function showByEntityKey(entityKey: string, label: string) {
@@ -420,67 +435,35 @@ export default function TerminalIsland() {
     ]);
   }
 
-  async function runLs(arg: string) {
-    if (!arg) {
-      append([{ kind: 'err', text: '用法：ls <log|browser|clock|compare>' }]);
-      return;
-    }
-    const stack = resolveStackAlias(arg);
-    if (!stack) {
-      append([{ kind: 'err', text: `× unknown stack: ${arg}` }]);
-      return;
-    }
+  /** ls 第二層：列出指定分類的條目（category '' = 未分類） */
+  async function runLsCategory(
+    stack: NonNullable<ReturnType<typeof resolveStackAlias>>,
+    category: string
+  ) {
     const entries = await ensureIndex();
     if (!entries) return;
 
-    const { groups, unlockedCount, total } = groupStackEntries(
-      entries,
-      stack,
-      progressRef.current
-    );
-    const out: TermLine[] = [
-      {
-        kind: 'ok',
-        text: `✓ ${TERMINAL_STACK_LABELS[stack]} · ${unlockedCount}/${total} 已解鎖`,
-      },
-    ];
-
-    if (stack === 'chrono') {
-      // 顯著時代（事件較多 = 顯著）——完整時間軸仍在原質震盪時鐘
-      const highlights = significantChronoPeriods(
-        entries,
-        progressRef.current,
-        CLOCK_HIGHLIGHT_LIMIT
-      );
-      if (highlights.length > 0) {
-        out.push({ kind: 'head', text: '▸ 顯著時代' });
-        for (const entry of highlights) {
-          out.push({
-            kind: 'row',
-            text: `  › ${entry.name} · ${entry.eventCount} 事件`,
-            action: { type: 'show-entry', entry },
-          });
-        }
-      }
-      out.push({
-        kind: 'meta',
-        text: '（完整時間軸見原質震盪時鐘）',
-      });
-      append(out);
+    const { groups } = groupStackEntries(entries, stack, progressRef.current);
+    const matched = groups.filter((g) => (g.category ?? '') === category);
+    const count = matched.reduce((n, g) => n + g.entries.length, 0);
+    if (count === 0) {
+      append([{ kind: 'err', text: `× 查無分類「${category || '未分類'}」` }]);
       return;
     }
 
-    // dossier/diff/browser：按 category → group 分組列出（S7-C 驗收回饋）
+    const out: TermLine[] = [
+      {
+        kind: 'ok',
+        text: `✓ ${TERMINAL_STACK_LABELS[stack]} › ${category || '未分類'} · ${count} 條`,
+      },
+    ];
     let listed = 0;
     let capped = false;
-    outer: for (const bucket of groups) {
-      if (bucket.category) {
-        out.push({ kind: 'head', text: `▸ ${bucket.category}` });
-      }
+    outer: for (const bucket of matched) {
       if (bucket.group) {
         out.push({ kind: 'head', text: `  · ${bucket.group}`, fade: true });
       }
-      const indent = bucket.category || bucket.group ? '    ' : '  ';
+      const indent = bucket.group ? '    ' : '  ';
       for (const entry of bucket.entries) {
         if (listed >= LS_LIST_CAP) {
           capped = true;
@@ -497,10 +480,98 @@ export default function TerminalIsland() {
     if (capped) {
       out.push({
         kind: 'row',
-        text: `  ……其餘 ${unlockedCount - listed} 條省略，用 query 檢索`,
+        text: `  ……其餘 ${count - listed} 條省略，用 query 檢索`,
         fade: true,
       });
     }
+    // 點入下一層 = 清空式展現（該層從視窗頂開始）
+    appendAnchored(out);
+  }
+
+  /** ls 頂層：層級式——只列分類摘要，點分類（或 ls <stack> <分類>）才展開 */
+  async function runLs(arg: string) {
+    if (!arg) {
+      append([
+        { kind: 'err', text: '用法：ls <log|browser|clock|compare> [分類]' },
+      ]);
+      return;
+    }
+    const [stackArg, ...rest] = arg.split(/\s+/);
+    const categoryArg = rest.join(' ').trim();
+    const stack = resolveStackAlias(stackArg);
+    if (!stack) {
+      append([{ kind: 'err', text: `× unknown stack: ${stackArg}` }]);
+      return;
+    }
+
+    // 指定分類 → 直接進第二層（「未分類」對映空分類）
+    if (categoryArg) {
+      await runLsCategory(stack, categoryArg === '未分類' ? '' : categoryArg);
+      return;
+    }
+
+    const entries = await ensureIndex();
+    if (!entries) return;
+
+    if (stack === 'chrono') {
+      // 顯著時代（事件較多 = 顯著）——完整時間軸仍在原質震盪時鐘
+      const { unlockedCount, total } = summarizeCategories(
+        entries,
+        stack,
+        progressRef.current
+      );
+      const out: TermLine[] = [
+        {
+          kind: 'ok',
+          text: `✓ ${TERMINAL_STACK_LABELS.chrono} · ${unlockedCount}/${total} 已解鎖`,
+        },
+      ];
+      const highlights = significantChronoPeriods(
+        entries,
+        progressRef.current,
+        CLOCK_HIGHLIGHT_LIMIT
+      );
+      if (highlights.length > 0) {
+        out.push({ kind: 'head', text: '▸ 顯著時代' });
+        for (const entry of highlights) {
+          out.push({
+            kind: 'row',
+            text: `  › ${entry.name} · ${entry.eventCount} 事件`,
+            action: { type: 'show-entry', entry },
+          });
+        }
+      }
+      out.push({ kind: 'meta', text: '（完整時間軸見原質震盪時鐘）' });
+      append(out);
+      return;
+    }
+
+    const { categories, unlockedCount, total } = summarizeCategories(
+      entries,
+      stack,
+      progressRef.current
+    );
+
+    // 全無分類（如 browser profiles 平鋪）→ 沒有第二層，直接列條目
+    if (categories.length === 1 && categories[0].category === '') {
+      await runLsCategory(stack, '');
+      return;
+    }
+
+    const out: TermLine[] = [
+      {
+        kind: 'ok',
+        text: `✓ ${TERMINAL_STACK_LABELS[stack]} · ${unlockedCount}/${total} 已解鎖`,
+      },
+    ];
+    for (const cat of categories) {
+      out.push({
+        kind: 'row',
+        text: `  ▸ ${cat.category || '未分類'} (${cat.count}) ▾`,
+        action: { type: 'ls-category', stack, category: cat.category },
+      });
+    }
+    out.push({ kind: 'meta', text: '（點分類展開條目）' });
     append(out);
   }
 
@@ -626,6 +697,9 @@ export default function TerminalIsland() {
             </div>
           )
         )}
+
+        {/* 置頂捲動的動態補位（內容不足一屏時撐開捲動空間） */}
+        <div ref={spacerRef} aria-hidden />
 
         {/* 首次使用引導 chips（照設計稿原型） */}
         {lines.length <= BOOT_LINES.length && (

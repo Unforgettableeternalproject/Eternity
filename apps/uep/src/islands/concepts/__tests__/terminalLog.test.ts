@@ -137,6 +137,37 @@ describe('容錯', () => {
     expect(normalized![2].action).toBeUndefined();
   });
 
+  it('ls-category action round-trip；非法 stack 降級純文字', () => {
+    const normalized = normalizeTermLines([
+      {
+        kind: 'row',
+        text: '▸ 人物 (17) ▾',
+        action: { type: 'ls-category', stack: 'dossier', category: '人物' },
+      },
+      {
+        kind: 'row',
+        text: '▸ 未分類 (3) ▾',
+        action: { type: 'ls-category', stack: 'diff', category: '' },
+      },
+      {
+        kind: 'row',
+        text: 'bad',
+        action: { type: 'ls-category', stack: 'evil', category: 'x' },
+      },
+    ]);
+    expect(normalized![0].action).toEqual({
+      type: 'ls-category',
+      stack: 'dossier',
+      category: '人物',
+    });
+    expect(normalized![1].action).toEqual({
+      type: 'ls-category',
+      stack: 'diff',
+      category: '',
+    });
+    expect(normalized![2].action).toBeUndefined();
+  });
+
   it('fade 只接受 true（其他值不落欄位）', () => {
     const normalized = normalizeTermLines([
       { kind: 'row', text: 'a', fade: true },

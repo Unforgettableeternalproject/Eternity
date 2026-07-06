@@ -22,6 +22,7 @@ import {
   findByEntityKey,
   listStackEntries,
   groupStackEntries,
+  summarizeCategories,
   significantChronoPeriods,
   completeInput,
   stripHtml,
@@ -639,5 +640,36 @@ describe('completeInput', () => {
       indexEntry({ name: `條目${String(i).padStart(2, '0')}` })
     );
     expect(completeInput('query 條目', many, stateWith({}), 8)).toHaveLength(8);
+  });
+});
+
+// ── ls 層級式頂層（S7-C 驗收回饋二輪） ─────────────────────────────
+
+describe('summarizeCategories', () => {
+  const entries: TerminalIndexEntry[] = [
+    indexEntry({ name: '甲', category: '人物', group: '命運織者' }),
+    indexEntry({ name: '乙', category: '人物', group: '總務高層' }),
+    indexEntry({ name: '丙', category: '地點' }),
+    indexEntry({ name: '丁' }),
+    indexEntry({
+      name: '鎖',
+      category: '人物',
+      revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
+    }),
+  ];
+
+  it('同 category 跨 group 合併計數；無分類歸空字串', () => {
+    const { categories, unlockedCount, total } = summarizeCategories(
+      entries,
+      'dossier',
+      stateWith({})
+    );
+    expect(total).toBe(5);
+    expect(unlockedCount).toBe(4);
+    expect(categories).toEqual([
+      { category: '人物', count: 2 }, // 鎖定條目不計
+      { category: '地點', count: 1 },
+      { category: '', count: 1 },
+    ]);
   });
 });

@@ -276,6 +276,46 @@ export function groupStackEntries(
   return { groups, unlockedCount: unlocked.length, total };
 }
 
+/** ls 頂層的分類摘要（category '' = 未分類） */
+export interface CategorySummary {
+  category: string;
+  count: number;
+}
+
+/**
+ * ls 層級式頂層（S7-C 驗收回饋二輪）：把已解鎖條目聚合成分類摘要，
+ * 使用者點分類才展開條目——不一次全部托出。
+ * 分類順序 = 索引出現順序；無分類條目歸 ''（未分類）。
+ */
+export function summarizeCategories(
+  entries: TerminalIndexEntry[],
+  stack: TerminalStack,
+  progress: ProgressState
+): {
+  categories: CategorySummary[];
+  unlockedCount: number;
+  total: number;
+} {
+  const { groups, unlockedCount, total } = groupStackEntries(
+    entries,
+    stack,
+    progress
+  );
+  const categories: CategorySummary[] = [];
+  const byName = new Map<string, CategorySummary>();
+  for (const bucket of groups) {
+    const name = bucket.category ?? '';
+    let summary = byName.get(name);
+    if (!summary) {
+      summary = { category: name, count: 0 };
+      byName.set(name, summary);
+      categories.push(summary);
+    }
+    summary.count += bucket.entries.length;
+  }
+  return { categories, unlockedCount, total };
+}
+
 /** Tab 補全的指令詞（尾空格 = 帶參數指令） */
 const COMPLETION_COMMANDS = ['query ', 'ls ', 'clear', 'help'];
 
