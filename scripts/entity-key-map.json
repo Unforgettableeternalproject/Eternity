@@ -173,9 +173,7 @@
       "dossier concepts/server/records/hostile_creatures [variant u] 三區記錄/(預設)",
       "dossier concepts/server/records/hostile_creatures [variant u] 三區記錄/迷霧流石蠍"
     ],
-    "未知的存在...": [
-      "browser concepts/server/browser/charateristics"
-    ],
+    "未知的存在...": ["browser concepts/server/browser/charateristics"],
     "標準採礦坑道工作區 Mining Work Area": [
       "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/第四象限: 戴司 Quadrant Four - Delth"
     ],
@@ -243,15 +241,11 @@
     "阿提克斯·布蘭米克 Atticus Bramirk": [
       "dossier concepts/server/records/character_list [variant u] 三區/政府相關"
     ],
-    "震盪": [
-      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
-    ],
+    "震盪": ["diff concepts/server/translation/multilingual 魔法理論/(預設)"],
     "魔力 (大氣/體內)": [
       "diff concepts/server/translation/multilingual 魔法理論/(預設)"
     ],
-    "魔力": [
-      "diff concepts/server/translation/explainations 理論/未被歸類"
-    ],
+    "魔力": ["diff concepts/server/translation/explainations 理論/未被歸類"],
     "魔晶石": [
       "diff concepts/server/translation/explainations 技術/未被歸類",
       "diff concepts/server/translation/multilingual 魔法理論/(預設)"
