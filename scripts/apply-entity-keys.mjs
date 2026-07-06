@@ -13,7 +13,11 @@
  *
  * 使用方式：
  *   node scripts/apply-entity-keys.mjs [--remote] [--dry-run] [--force]
+ *                                      [--stacks=dossier,browser]
  *   API_TOKEN=xxx node scripts/apply-entity-keys.mjs --remote
+ *
+ * 預設範圍 dossier,browser——diff/translation 不掛 entityKey
+ * （名詞翻譯對照不需要 revision）；要含入時 --stacks=dossier,browser,diff
  */
 
 import { readFileSync, existsSync } from 'fs';
@@ -27,11 +31,25 @@ const API_BASE = USE_REMOTE
   : 'http://localhost:8788';
 const API_TOKEN = process.env.API_TOKEN ?? '';
 
+// 目標 stack 過濾：預設排除 diff——translation 對照表不掛 entityKey
+// （2026-07-06 艾斯維爾定案：名詞翻譯對照不需要 revision）。
+// map 是名稱全域比對，不過濾的話同名條目會同時寫進 dossier 和 diff。
+// 要含 diff 時：--stacks=dossier,browser,diff
+const stacksArg = process.argv.find((a) => a.startsWith('--stacks='));
+const TARGET_STACKS = stacksArg
+  ? stacksArg
+      .slice('--stacks='.length)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : ['dossier', 'browser'];
+
 const MAP_PATH = join(import.meta.dirname, 'entity-key-map.json');
 const ENTITY_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 console.log(`\n⬡ entityKey 批次寫入`);
 console.log(`  目標: ${API_BASE}`);
+console.log(`  範圍: ${TARGET_STACKS.join(', ')}`);
 console.log(
   `  模式: ${DRY_RUN ? 'dry-run（不寫入）' : '寫入'}${FORCE ? ' + force 覆寫' : ''}\n`
 );
@@ -172,7 +190,7 @@ async function main() {
     const pageJson = await pageRes.json();
     if (!pageJson.ok) continue;
     const stackStyle = pageJson.data.metadata?.stack_style;
-    if (!['dossier', 'browser', 'diff'].includes(stackStyle)) continue;
+    if (!TARGET_STACKS.includes(stackStyle)) continue;
 
     const parsed = parseStructuredBlock(pageJson.data);
     if (!parsed) continue;

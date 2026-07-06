@@ -1,9 +1,11 @@
 /**
  * generate-entity-keys.mjs — entityKey 候選清單產生器（Epic 2 S7-B）
  *
- * 掃描 Concepts 的 dossier entries / browser profiles / diff entries，
+ * 掃描 Concepts 的 dossier entries / browser profiles，
  * 從名稱提取拉丁字符序列，產生 kebab-case 候選 entityKey。
- * chrono periods 不掃（entityKey 選用不強制——設計定案 A）。
+ * - chrono periods 不掃（entityKey 選用不強制——設計定案 A）
+ * - diff/translation 預設不掃（2026-07-06 艾斯維爾定案：名詞翻譯
+ *   對照不需要 revision/entityKey）；要含入時 --stacks=dossier,browser,diff
  *
  * 保守策略（設計文件 §7-2）：不自動寫入 D1——entityKey 是語意資產，
  * 錯配比缺失更難修復。輸出 scripts/entity-key-map.proposed.json，
@@ -11,7 +13,7 @@
  * 再跑 apply-entity-keys.mjs 批次寫入。
  *
  * 使用方式：
- *   node scripts/generate-entity-keys.mjs [--remote]
+ *   node scripts/generate-entity-keys.mjs [--remote] [--stacks=dossier,browser]
  */
 
 import { writeFileSync } from 'fs';
@@ -21,6 +23,15 @@ const USE_REMOTE = process.argv.includes('--remote');
 const API_BASE = USE_REMOTE
   ? 'https://eternity-content-api.ptyc4076.workers.dev'
   : 'http://localhost:8788';
+
+const stacksArg = process.argv.find((a) => a.startsWith('--stacks='));
+const TARGET_STACKS = stacksArg
+  ? stacksArg
+      .slice('--stacks='.length)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : ['dossier', 'browser'];
 
 const OUT_PATH = join(import.meta.dirname, 'entity-key-map.proposed.json');
 
@@ -100,7 +111,8 @@ function collectFromPage(page, stackStyle) {
 
 async function main() {
   console.log(`\n⬡ entityKey 候選清單產生器`);
-  console.log(`  來源: ${API_BASE}\n`);
+  console.log(`  來源: ${API_BASE}`);
+  console.log(`  範圍: ${TARGET_STACKS.join(', ')}\n`);
 
   const listRes = await fetch(`${API_BASE}/api/content/concepts`);
   const listJson = await listRes.json();
@@ -124,7 +136,7 @@ async function main() {
       continue;
     }
     const stackStyle = pageJson.data.metadata?.stack_style;
-    if (!['dossier', 'browser', 'diff'].includes(stackStyle)) continue;
+    if (!TARGET_STACKS.includes(stackStyle)) continue;
     scannedPages++;
 
     for (const item of collectFromPage(pageJson.data, stackStyle)) {
