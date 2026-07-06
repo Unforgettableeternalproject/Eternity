@@ -21,10 +21,19 @@ export {
   metFlag,
   isValidRef,
   parseRef,
+  parseEntityRef,
+  ENTITY_KEY_REF_PREFIX,
+  ENTITY_KEY_PATTERN,
   readEmbedFromElement,
   collectEmbeds,
 } from './marks';
-export type { EntityKind, CueKind, EmbedRef, EmbedSummary } from './marks';
+export type {
+  EntityKind,
+  CueKind,
+  EmbedRef,
+  EmbedSummary,
+  EntityRefResult,
+} from './marks';
 
 export {
   UEP_ENTITY_ACTIVE_ATTR,

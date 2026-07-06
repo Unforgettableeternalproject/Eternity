@@ -15,6 +15,7 @@ import {
   isValidRef,
   metFlag,
   parseRef,
+  parseEntityRef,
   readEmbedFromElement,
   collectEmbeds,
 } from '../marks';
@@ -37,6 +38,12 @@ describe('isValidRef', () => {
     expect(isValidRef('concepts/log#entry:asvere')).toBe(true);
   });
 
+  it('接受新格式 entity:{entityKey}（S7-C）', () => {
+    expect(isValidRef('entity:xavier-colsono')).toBe(true);
+    expect(isValidRef('entity:essence')).toBe(true);
+    expect(isValidRef('entity:rain-sea-tower')).toBe(true);
+  });
+
   it('拒絕無效形狀', () => {
     expect(isValidRef('')).toBe(false);
     expect(isValidRef('concepts')).toBe(false); // 缺 slug
@@ -45,6 +52,50 @@ describe('isValidRef', () => {
     expect(isValidRef('concepts/log#bad:x')).toBe(false); // 非 entry 錨點
     expect(isValidRef('concepts/log#entry:a#b')).toBe(false); // 多個 #
     expect(isValidRef('has space/slug')).toBe(false);
+  });
+
+  it('拒絕無效 entityKey 的新格式 ref', () => {
+    expect(isValidRef('entity:')).toBe(false); // 空 key
+    expect(isValidRef('entity:Xavier')).toBe(false); // 大寫
+    expect(isValidRef('entity:xavier--colsono')).toBe(false); // 連續連字號
+    expect(isValidRef('entity:-xavier')).toBe(false); // 開頭連字號
+    expect(isValidRef('entity:xavier colsono')).toBe(false); // 空白
+    expect(isValidRef('entity:艾斯維爾')).toBe(false); // 非拉丁
+  });
+});
+
+describe('parseEntityRef', () => {
+  it('新格式 → entity-key', () => {
+    expect(parseEntityRef('entity:xavier-colsono')).toEqual({
+      type: 'entity-key',
+      entityKey: 'xavier-colsono',
+    });
+  });
+
+  it('舊格式帶錨點 → concepts-entry', () => {
+    expect(parseEntityRef('concepts/log#entry:asvere')).toEqual({
+      type: 'concepts-entry',
+      pageId: 'concepts/log',
+      entryId: 'asvere',
+    });
+  });
+
+  it('一般頁面 ref → page', () => {
+    expect(parseEntityRef('concepts/log')).toEqual({
+      type: 'page',
+      pageId: 'concepts/log',
+    });
+    expect(parseEntityRef('echoes/main-theme')).toEqual({
+      type: 'page',
+      pageId: 'echoes/main-theme',
+    });
+  });
+
+  it('無效形狀 → invalid（含壞掉的新格式）', () => {
+    expect(parseEntityRef('')).toEqual({ type: 'invalid' });
+    expect(parseEntityRef('badref')).toEqual({ type: 'invalid' });
+    expect(parseEntityRef('entity:')).toEqual({ type: 'invalid' });
+    expect(parseEntityRef('entity:Bad Key')).toEqual({ type: 'invalid' });
   });
 });
 

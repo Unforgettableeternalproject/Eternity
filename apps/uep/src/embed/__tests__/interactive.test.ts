@@ -1,10 +1,10 @@
 /**
- * embed/interactive 測試 — 前台啟用層（Epic 2 S4）
+ * embed/interactive 測試 — 前台啟用層（Epic 2 S4，S7-C 新語意）
  *
  * 驗證三件事：
- * 1. 解鎖判定：met:{ref} 旗標慣例 + 觀測者 bypass + 無效 ref 容錯
- * 2. decorateInteractiveHtml：已解鎖附加啟用屬性、未解鎖普通文字、冪等
- * 3. dispatchEntityActivate：事件 detail 合約（浮島消費的介面）
+ * 1. isEntityUnlocked：新格式一律解鎖；舊格式 met:{ref} fallback + 觀測者 bypass
+ * 2. decorateInteractiveHtml：concepts 島掛載 → 全部啟用；未掛載/觀測者 → 普通文字
+ * 3. dispatchEntityActivate：事件 detail 合約（新格式帶 entityKey、舊格式帶 pageId）
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -22,9 +22,15 @@ import type { EntityActivateDetail } from '../interactive';
 import { metFlag } from '../marks';
 
 const REF = 'concepts/log#entry:asvere';
+const KEY_REF = 'entity:xavier-colsono';
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
   return { ...createInitialState(), ...partial };
+}
+
+/** concepts 島掛載中的探索者（decorate 守門通過的基準狀態） */
+function mountedState(partial: Partial<ProgressState> = {}): ProgressState {
+  return stateWith({ islandsUnlocked: ['concepts'], ...partial });
 }
 
 function parseHtml(html: string): HTMLElement {
@@ -40,40 +46,45 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('isEntityUnlocked', () => {
-  it('探索者未持有 met 旗標 → 未解鎖', () => {
+describe('isEntityUnlocked（S7-C：僅剩舊格式 fallback 語意）', () => {
+  it('新格式 entity:{key} 一律解鎖（旗標不卡，revision 卡內容）', () => {
+    expect(isEntityUnlocked(stateWith({}), KEY_REF)).toBe(true);
+  });
+
+  it('舊格式未持有 met 旗標 → 未解鎖', () => {
     expect(isEntityUnlocked(stateWith({}), REF)).toBe(false);
   });
 
-  it('探索者持有 met:{ref} 旗標 → 解鎖', () => {
+  it('舊格式持有 met:{ref} 旗標 → 解鎖', () => {
     expect(isEntityUnlocked(stateWith({ flags: [metFlag(REF)] }), REF)).toBe(
       true
     );
   });
 
-  it('觀測者視角 bypass（全知）', () => {
+  it('舊格式觀測者視角 bypass（全知）', () => {
     expect(
       isEntityUnlocked(stateWith({ view: 'observer', observerEver: true }), REF)
     ).toBe(true);
   });
 
-  it('無效 ref 一律未解鎖，觀測者也一樣（前台容錯）', () => {
+  it('無效 ref 一律 false，觀測者也一樣（前台容錯）', () => {
     const observer = stateWith({ view: 'observer', observerEver: true });
     expect(isEntityUnlocked(observer, 'badref')).toBe(false);
     expect(isEntityUnlocked(stateWith({}), '')).toBe(false);
+    expect(isEntityUnlocked(stateWith({}), 'entity:Bad Key')).toBe(false);
   });
 });
 
-describe('decorateInteractiveHtml', () => {
+describe('decorateInteractiveHtml（S7-C：島掛載守門，全可點）', () => {
   it('無 entity 標記的 HTML 原樣返回（不經 DOMParser）', () => {
     const html = '<p>普通段落，<strong>沒有</strong>嵌入。</p>';
-    expect(decorateInteractiveHtml(html, stateWith({}))).toBe(html);
+    expect(decorateInteractiveHtml(html, mountedState())).toBe(html);
   });
 
-  it('已解鎖 entity 附加啟用 + a11y 屬性', () => {
+  it('島掛載時所有合法 entity 附加啟用 + a11y 屬性（不看旗標）', () => {
     const out = decorateInteractiveHtml(
       `<p>${entitySpan()}</p>`,
-      stateWith({ flags: [metFlag(REF)] })
+      mountedState() // 無任何 met 旗標
     );
     const span = parseHtml(out).querySelector('span')!;
     expect(span.getAttribute(UEP_ENTITY_ACTIVE_ATTR)).toBe('true');
@@ -82,10 +93,20 @@ describe('decorateInteractiveHtml', () => {
     expect(span.getAttribute('aria-label')).toBe('開啟角色引用：艾斯維爾');
   });
 
-  it('未解鎖 entity 維持普通文字（不加任何屬性）', () => {
+  it('新格式 ref 同樣啟用', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan(KEY_REF)}</p>`,
+      mountedState()
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).not.toBeNull();
+  });
+
+  it('島未解鎖時維持普通文字（旗標再多也不啟用）', () => {
     const out = decorateInteractiveHtml(
       `<p>${entitySpan()}</p>`,
-      stateWith({})
+      stateWith({ flags: [metFlag(REF)] }) // islandsUnlocked 為空
     );
     const span = parseHtml(out).querySelector('span')!;
     expect(span.hasAttribute(UEP_ENTITY_ACTIVE_ATTR)).toBe(false);
@@ -95,27 +116,37 @@ describe('decorateInteractiveHtml', () => {
     expect(span.getAttribute('data-uep-entity')).toBe('character');
   });
 
-  it('觀測者視角全部啟用', () => {
+  it('島被使用者停用時不啟用', () => {
     const out = decorateInteractiveHtml(
       `<p>${entitySpan()}</p>`,
-      stateWith({ view: 'observer', observerEver: true })
-    );
-    expect(
-      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
-    ).not.toBeNull();
-  });
-
-  it('無效 ref 的 entity 不啟用（觀測者也一樣）', () => {
-    const out = decorateInteractiveHtml(
-      `<p>${entitySpan('badref', '壞引用')}</p>`,
-      stateWith({ view: 'observer', observerEver: true })
+      mountedState({ islandsDisabled: ['concepts'] })
     );
     expect(
       parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
     ).toBeNull();
   });
 
-  it('冪等：殘留的啟用屬性在旗標失效後被清除（防禦外部資料）', () => {
+  it('觀測者視角不啟用（無浮島 = 無消費端，維持普通文字）', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan()}</p>`,
+      mountedState({ view: 'observer', observerEver: true })
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).toBeNull();
+  });
+
+  it('無效 ref 的 entity 不啟用（島掛載也一樣）', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan('badref', '壞引用')}</p>`,
+      mountedState()
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).toBeNull();
+  });
+
+  it('冪等：殘留的啟用屬性在島未掛載時被清除（防禦外部資料）', () => {
     const stale =
       `<p><span data-uep-entity="character" data-ref="${REF}" ` +
       `${UEP_ENTITY_ACTIVE_ATTR}="true" role="button" tabindex="0">甲</span></p>`;
@@ -150,7 +181,7 @@ describe('dispatchEntityActivate', () => {
     window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, listener);
   });
 
-  it('啟用元素 → dispatch 完整 detail（浮島消費合約）', () => {
+  it('舊格式啟用元素 → dispatch 完整 detail（pageId + entryId）', () => {
     const received: EntityActivateDetail[] = [];
     const listener = (event: Event) =>
       received.push((event as CustomEvent<EntityActivateDetail>).detail);
@@ -158,7 +189,7 @@ describe('dispatchEntityActivate', () => {
 
     const decorated = decorateInteractiveHtml(
       `<p>${entitySpan()}</p>`,
-      stateWith({ flags: [metFlag(REF)] })
+      mountedState()
     );
     const el = parseHtml(decorated).querySelector(
       `[${UEP_ENTITY_ACTIVE_ATTR}]`
@@ -178,11 +209,28 @@ describe('dispatchEntityActivate', () => {
     window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, listener);
   });
 
+  it('新格式啟用元素 → detail 帶 entityKey、不帶 pageId（S7-C 合約）', () => {
+    const decorated = decorateInteractiveHtml(
+      `<p>${entitySpan(KEY_REF)}</p>`,
+      mountedState()
+    );
+    const el = parseHtml(decorated).querySelector(
+      `[${UEP_ENTITY_ACTIVE_ATTR}]`
+    )!;
+    expect(dispatchEntityActivate(el, 'history/u/1-1')).toEqual({
+      kind: 'character',
+      ref: KEY_REF,
+      entityKey: 'xavier-colsono',
+      text: '艾斯維爾',
+      sourcePageId: 'history/u/1-1',
+    });
+  });
+
   it('無錨點 ref → detail 不含 entryId；未提供來源頁 → 不含 sourcePageId', () => {
     const ref = 'concepts/log';
     const decorated = decorateInteractiveHtml(
       `<p>${entitySpan(ref, '雨海塔')}</p>`,
-      stateWith({ flags: [metFlag(ref)] })
+      mountedState()
     );
     const el = parseHtml(decorated).querySelector(
       `[${UEP_ENTITY_ACTIVE_ATTR}]`

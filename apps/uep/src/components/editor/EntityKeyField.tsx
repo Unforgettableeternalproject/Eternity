@@ -17,6 +17,7 @@
 
 import React from 'react';
 
+import { ENTITY_KEY_PATTERN } from '../../embed/marks';
 import {
   isBrowserContent,
   isChronoContent,
@@ -25,8 +26,9 @@ import {
 } from '../concepts/revision';
 import type { ConceptsData } from '../concepts/types';
 
-/** kebab-case：小寫英文/數字，連字號分段 */
-export const ENTITY_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// kebab-case pattern 下沉至 embed/marks.ts（S7-C，ref 驗證共用）；
+// 由此 re-export 維持既有 import 路徑不變。
+export { ENTITY_KEY_PATTERN };
 
 /**
  * 存檔前的 entityKey 硬驗證（S7-B 驗收回饋）：

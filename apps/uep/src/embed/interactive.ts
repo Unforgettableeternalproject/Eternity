@@ -4,20 +4,25 @@
  * 職責：把資料庫 HTML 中的 entity 標記（S3 編輯器產出）轉為
  * 前台可互動的元素，並定義啟動事件的合約。
  *
- * 解鎖模型：
- * - entity 解鎖 = 持有 `met:{ref}` 旗標（metFlag 慣例，全 ref 零歧義）
- * - 觀測者視角 bypass（走 evaluateGate 的 requiresFlags 語意）
- * - 未解鎖 entity 維持普通文字——不加樣式、不可點、無任何提示
- *   （History 可讀性優先原則，2026-07-03 定案：例外遮蔽不做）
+ * 啟用模型（S7-C 定案：嵌入全可點，旗標不卡點擊）：
+ * - decorate 守門 = concepts 島已掛載（shouldMountIsland 語意：
+ *   探索者＋已解鎖＋未停用）——入口跟著工具走，避免「可點但沒反應」
+ * - 島未掛載／觀測者視角 = 普通文字——不加樣式、不可點、無任何提示
+ *   （History 可讀性優先原則不變）
+ * - 內容進度一律由 Concepts 條目的 revision 鏈卡控（effective view），
+ *   met:{ref} 旗標判定在嵌入線退役（2026-07-06 定案，停增不刪）
  *
  * 事件模型：
- * - 點擊已解鎖 entity → window dispatch `uep:entity-activate`
- * - 消費端是浮島（S6/S7 的 Concepts mini dossier）；S4 僅 Toast 佔位
+ * - 點擊已啟用 entity → window dispatch `uep:entity-activate`
+ * - 消費端是 Terminal Island（S7-C）；無消費端時事件靜默消失
  * - dispatch 在 window 層，浮島不必掛在 Reader 的 React 樹內
  *
  * 此檔案不碰 React——前台渲染器與測試都從這裡取用。
+ * 依賴方向備註：embed（前台渲染層）→ islands/islandRuntime（守門純函式）
+ * 是單向引用，islands 不反向 import embed，無循環。
  */
 
+import { shouldMountIsland } from '../islands/islandRuntime';
 import { evaluateGate } from '../progress/gating';
 import type { ProgressState } from '../progress/types';
 
@@ -28,7 +33,7 @@ import {
   entityKindLabel,
   isValidRef,
   metFlag,
-  parseRef,
+  parseEntityRef,
   readEmbedFromElement,
 } from './marks';
 
@@ -45,11 +50,13 @@ export const UEP_ENTITY_ACTIVATE_EVENT = 'uep:entity-activate';
 export interface EntityActivateDetail {
   /** entity 種類（character/location/term） */
   kind: string;
-  /** 完整 ref（含 #entry: 錨點） */
+  /** 完整 ref（新格式 entity:{key} 或舊格式含 #entry: 錨點） */
   ref: string;
-  /** ref 的頁面部分 */
-  pageId: string;
-  /** ref 的條目錨點（若有） */
+  /** 解析後的 entityKey（新格式 ref 才有，Terminal 直達檢索用） */
+  entityKey?: string;
+  /** ref 的頁面部分（路徑型舊格式才有） */
+  pageId?: string;
+  /** ref 的條目錨點（舊格式且帶錨點才有） */
   entryId?: string;
   /** 標記的顯示文字 */
   text?: string;
@@ -58,21 +65,27 @@ export interface EntityActivateDetail {
 }
 
 /**
- * entity 是否已解鎖：持有 `met:{ref}` 旗標或觀測者視角。
- * 無效 ref 一律視為未解鎖（普通文字，前台容錯）。
+ * entity 解鎖判定 — S7-C 起僅剩舊格式 fallback 語意：
+ * - 新格式 `entity:{entityKey}`：一律解鎖（嵌入全可點，內容由
+ *   Concepts revision 卡控——此函式不再是點擊守門）
+ * - 舊格式路徑 ref：持有 `met:{ref}` 旗標或觀測者視角（向後相容）
+ * - 無效 ref 一律 false（前台容錯）
  */
 export function isEntityUnlocked(state: ProgressState, ref: string): boolean {
-  if (!isValidRef(ref)) return false;
+  const parsed = parseEntityRef(ref);
+  if (parsed.type === 'invalid') return false;
+  if (parsed.type === 'entity-key') return true;
   return evaluateGate(state, { requiresFlags: [metFlag(ref)] });
 }
 
 /**
- * 前台渲染前處理：已解鎖 entity 附加啟用屬性 + a11y 屬性，
- * 未解鎖維持原樣（普通文字）。
+ * 前台渲染前處理（S7-C 新語意）：concepts 島掛載時，所有合法 ref 的
+ * entity 一律附加啟用屬性 + a11y 屬性——旗標不卡點擊，內容進度由
+ * Concepts revision 卡控。島未掛載／觀測者時全部維持普通文字。
  *
  * 冪等：無論輸入是否殘留啟用屬性（防禦外部資料），
- * 一律先清除再依當前進度重算——進度變化（含觀測者切回探索者）
- * 時重跑即得正確結果。
+ * 一律先清除再依當前進度重算——進度變化（含觀測者切回探索者、
+ * 島解鎖/停用切換）時重跑即得正確結果。
  */
 export function decorateInteractiveHtml(
   html: string,
@@ -80,6 +93,8 @@ export function decorateInteractiveHtml(
 ): string {
   if (!html || !html.includes(UEP_ENTITY_ATTR)) return html;
   if (typeof DOMParser === 'undefined') return html; // SSR 防禦
+
+  const terminalMounted = shouldMountIsland(state, 'concepts');
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
   doc.body.querySelectorAll(UEP_ENTITY_SELECTOR).forEach((el) => {
@@ -89,7 +104,7 @@ export function decorateInteractiveHtml(
     el.removeAttribute('aria-label');
 
     const ref = el.getAttribute(UEP_REF_ATTR) || '';
-    if (!isEntityUnlocked(state, ref)) return;
+    if (!terminalMounted || !isValidRef(ref)) return;
 
     el.setAttribute(UEP_ENTITY_ACTIVE_ATTR, 'true');
     el.setAttribute('role', 'button');
@@ -117,12 +132,14 @@ export function dispatchEntityActivate(
     return null;
   }
 
-  const { pageId, entryId } = parseRef(found.embed.ref);
+  const parsed = parseEntityRef(found.embed.ref);
+  if (parsed.type === 'invalid') return null;
   const detail: EntityActivateDetail = {
     kind: found.embed.kind,
     ref: found.embed.ref,
-    pageId,
-    ...(entryId ? { entryId } : {}),
+    ...(parsed.type === 'entity-key' ? { entityKey: parsed.entityKey } : {}),
+    ...(parsed.type !== 'entity-key' ? { pageId: parsed.pageId } : {}),
+    ...(parsed.type === 'concepts-entry' ? { entryId: parsed.entryId } : {}),
     ...(found.embed.text ? { text: found.embed.text } : {}),
     ...(sourcePageId ? { sourcePageId } : {}),
   };

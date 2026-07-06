@@ -911,6 +911,29 @@ S7 引入 revision 後，解鎖一個 browser profile 有兩種可能語意：
 4. browser/chrono 的條目編輯區同樣走此模式——四 stack 共用同一個 modal 骨架，
    PatchEditor 依 stack 動態渲染（4-3 節設計不變，只是容器從 inline 改 modal）
 
+### Sub-session C 開工前定案（2026-07-06，艾斯維爾拍板）
+
+**核心語意變更：嵌入全可點，旗標不卡點擊。**
+內容進度一律由 Concepts 條目的 revision 鏈卡控（effective view），嵌入只是導向入口。
+本節取代 5-2「isEntityUnlocked = 持有 {entityKey}:* 任一旗標」的設計。
+
+| 議題 | 決議 |
+|------|------|
+| 嵌入可點守門 | **島掛載才 decorate**——`decorateInteractiveHtml` 的判定從「持有旗標」改為「concepts 島已掛載」（`shouldMountIsland(progress, 'concepts')` 同語意：探索者＋已解鎖＋未停用）。未解鎖／觀測者＝普通文字，避免「可點但點了沒反應」 |
+| 未解鎖條目回應 | 內容節奏由劇情推進控制，理論上不會出現「使用者先點到未解鎖名詞」；Terminal 保留 **`access restricted` 作為 fallback**（防資料失誤） |
+| 索引端點範圍 | **納入無 entityKey 條目**（name/term-only）——translation 定案不掛 key（S7-B），靠 name 檢索；有 entityKey 的條目才具備深連與更動通知能力 |
+| Terminal 顯示深度 | **條目內容直接顯示在 terminal 內**，不做導向頁面的超連結（頂多到列表層沒意義）。dossier / diff 條目的敘述在 terminal 直接查閱（effective view 抽取） |
+| 互動範圍 | 互動式嵌入只導向 **dossier（records）與 diff（translation）**；browser 與 chrono 不做嵌入目標，但使用者可在 terminal 獨立查詢（`query` / `ls`） |
+| 視覺策略 | 比照 History 島：功能優先，設計稿原型只取語彙參考，視覺驗收時調 |
+| 島解鎖入口 | 沿用現成 IslandUnlockObject（zone 首頁小物件）；UnlockRitualGate 通用化仍留白（等整體框架定案） |
+
+**連動效果**：
+- `metFlag` / `met:*` 在嵌入判定線完全退役（只停增不刪除，舊旗標無害殘留）
+- 觀測者視角無浮島 → 嵌入自然不 decorate，語意一致，不需額外防禦
+- 索引端點需含各條目 revision gate 摘要（id + gate，不含 patch 內容）——`ls` 的解鎖計數、
+  query 的隱藏過濾、更動通知水位三張嘴共用；條目完整內容按需 fetch 頁面 JSON 後前端以
+  revision resolver 抽取（符合 6-1「不持有資料」）
+
 ### Sub-session B：已完成（2026-07-06，0.9.12.15 ~ 0.9.12.19）
 
 | Commit | 版號 | 內容 |
