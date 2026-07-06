@@ -801,7 +801,10 @@ function DossierVariantBody({
                   <div className="ced-section-header">
                     <span className="ced-section-title">描述</span>
                   </div>
+                  {/* key：TipTap content 只吃初始值，切換條目必須 remount，
+                      否則殘留前一條目內容（編輯還會把舊內容寫進新條目） */}
                   <MiniEditor
+                    key={`${activeTab}-${activeGroup}-${activeEntry}`}
                     value={entry.content_html || ''}
                     onChange={(html) =>
                       updateEntry(activeEntry!, {
@@ -1445,7 +1448,10 @@ function BrowserEditor({
                           ✕
                         </button>
                       </div>
+                      {/* key 含 activeIdx：換角色時同 index 的區段
+                          會被 React 重用，必須 remount 防內容殘留 */}
                       <MiniEditor
+                        key={`${activeIdx}-${si}`}
                         value={section.content_html}
                         onChange={(html) => {
                           const next = [...(profile.sections || [])];
