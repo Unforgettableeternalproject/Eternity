@@ -33,9 +33,11 @@ import {
 } from '../../progress';
 import type { ProgressTreeAdapter, ProgressChangeDetail } from '../../progress';
 import {
+  LOST_BOOKMARK_OPEN_GATE_EVENT,
   dismissLostBookmark,
   getIslandRuntime,
   isLostBookmarkVisible,
+  mountLostBookmarkTestBridge,
   rollLostBookmark,
   settleLostBookmark,
   unlockIsland,
@@ -376,6 +378,19 @@ export default function HistoryReader() {
     window.addEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
     return () =>
       window.removeEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
+  }, []);
+
+  // 遺落的書籤測試 hook（S6-3，dev only）：機率制難以手動驗收，
+  // 掛 window.__uepLostBookmarkTest 供 console 操作；openGate 事件
+  // 直接開啟儀式頁。production build 為 no-op。
+  useEffect(() => {
+    const unmountBridge = mountLostBookmarkTestBridge();
+    const onOpenGate = () => setBookmarkGateOpen(true);
+    window.addEventListener(LOST_BOOKMARK_OPEN_GATE_EVENT, onOpenGate);
+    return () => {
+      unmountBridge();
+      window.removeEventListener(LOST_BOOKMARK_OPEN_GATE_EVENT, onOpenGate);
+    };
   }, []);
 
   // 書籤條目的插入錨點：最後閱讀頁所在的 chapter（跟隨閱讀進度，

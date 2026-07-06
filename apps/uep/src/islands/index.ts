@@ -62,11 +62,13 @@ export { useIslandRuntimeState } from './useIslands';
 
 export {
   LOST_BOOKMARK_STEP_PCT,
+  LOST_BOOKMARK_OPEN_GATE_EVENT,
   isLostBookmarkEligible,
   isLostBookmarkVisible,
   rollLostBookmark,
   dismissLostBookmark,
   settleLostBookmark,
+  mountLostBookmarkTestBridge,
 } from './history/lostBookmark';
 
 export { default as DraggableIsland } from './DraggableIsland';

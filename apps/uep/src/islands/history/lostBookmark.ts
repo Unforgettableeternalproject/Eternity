@@ -82,3 +82,77 @@ export function dismissLostBookmark(state: ProgressState): void {
 export function settleLostBookmark(): void {
   getProgressManager().updateLostBookmark({ visible: false });
 }
+
+/* ── 測試 hook（S6-3，dev only）──
+ * 機率制很難手動驗收（20% 起跳、忽視重置），沿用 OnboardingGate 的
+ * window bridge 前例，在 dev 提供 console 直接操作的入口。 */
+
+/** 儀式頁開啟事件：bridge 的 openGate 廣播，HistoryReader 監聽切狀態 */
+export const LOST_BOOKMARK_OPEN_GATE_EVENT = 'uep:lost-bookmark:open-gate';
+
+interface LostBookmarkTestBridge {
+  /** 直接讓書籤條目浮現（不經 roll；底線條件仍需成立才會渲染） */
+  force(): void;
+  /** 重置回初始狀態（條目消失、機率回 20%） */
+  reset(): void;
+  /** 機率拉滿 100%——下次 page-completed 必中 */
+  guarantee(): void;
+  /** 立刻 roll 一次（等同讀完一篇的信號），回傳結果 */
+  roll(): 'shown' | 'missed' | 'skipped';
+  /** 直接開啟儀式頁（需在 /history Reader 內才有人消費事件） */
+  openGate(): void;
+  /** 查看目前狀態 */
+  status(): {
+    chancePct: number;
+    visible: boolean;
+    eligible: boolean;
+  };
+}
+
+declare global {
+  interface Window {
+    __uepLostBookmarkTest?: LostBookmarkTestBridge;
+  }
+}
+
+/**
+ * 掛上 dev 測試 bridge，回傳 cleanup。production build 為 no-op
+ * （`import.meta.env.DEV` 為 false 時整段被 tree-shake 掉）。
+ */
+export function mountLostBookmarkTestBridge(): () => void {
+  if (!import.meta.env.DEV) return () => {};
+  const bridge: LostBookmarkTestBridge = {
+    force() {
+      getProgressManager().updateLostBookmark({ visible: true });
+    },
+    reset() {
+      getProgressManager().updateLostBookmark({
+        visible: false,
+        chancePct: LOST_BOOKMARK_BASE_PCT,
+      });
+    },
+    guarantee() {
+      getProgressManager().updateLostBookmark({ chancePct: 100 });
+    },
+    roll() {
+      return rollLostBookmark(getProgressManager().getState());
+    },
+    openGate() {
+      window.dispatchEvent(new CustomEvent(LOST_BOOKMARK_OPEN_GATE_EVENT));
+    },
+    status() {
+      const state = getProgressManager().getState();
+      return {
+        chancePct: state.lostBookmark.chancePct,
+        visible: state.lostBookmark.visible,
+        eligible: isLostBookmarkEligible(state),
+      };
+    },
+  };
+  window.__uepLostBookmarkTest = bridge;
+  return () => {
+    if (window.__uepLostBookmarkTest === bridge) {
+      delete window.__uepLostBookmarkTest;
+    }
+  };
+}

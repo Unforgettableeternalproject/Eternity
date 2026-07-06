@@ -111,3 +111,53 @@ describe('isLostBookmarkVisible / settleLostBookmark', () => {
     expect(lb.isLostBookmarkVisible(store.getState())).toBe(true);
   });
 });
+
+describe('mountLostBookmarkTestBridge（S6-3 dev hook）', () => {
+  it('掛上 window.__uepLostBookmarkTest，cleanup 後移除', async () => {
+    const { lb } = await freshModules();
+    const cleanup = lb.mountLostBookmarkTestBridge();
+    expect(window.__uepLostBookmarkTest).toBeTruthy();
+    cleanup();
+    expect(window.__uepLostBookmarkTest).toBeUndefined();
+  });
+
+  it('force/guarantee/reset/status 直接操作書籤狀態', async () => {
+    const { store, lb } = await freshModules();
+    makeEligible(store);
+    const cleanup = lb.mountLostBookmarkTestBridge();
+    const bridge = window.__uepLostBookmarkTest!;
+
+    bridge.force();
+    expect(store.getState().lostBookmark.visible).toBe(true);
+
+    bridge.reset();
+    expect(store.getState().lostBookmark.visible).toBe(false);
+    expect(store.getState().lostBookmark.chancePct).toBe(20);
+
+    bridge.guarantee();
+    expect(store.getState().lostBookmark.chancePct).toBe(100);
+    // 100% 之後 roll 必中
+    expect(bridge.roll()).toBe('shown');
+
+    expect(bridge.status()).toMatchObject({
+      visible: true,
+      chancePct: 100,
+      eligible: true,
+    });
+    cleanup();
+  });
+
+  it('openGate 廣播儀式頁開啟事件', async () => {
+    const { lb } = await freshModules();
+    const cleanup = lb.mountLostBookmarkTestBridge();
+    let opened = 0;
+    const onOpen = () => {
+      opened += 1;
+    };
+    window.addEventListener(lb.LOST_BOOKMARK_OPEN_GATE_EVENT, onOpen);
+    window.__uepLostBookmarkTest!.openGate();
+    window.removeEventListener(lb.LOST_BOOKMARK_OPEN_GATE_EVENT, onOpen);
+    expect(opened).toBe(1);
+    cleanup();
+  });
+});
