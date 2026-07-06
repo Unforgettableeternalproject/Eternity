@@ -87,6 +87,20 @@
   color: #cfe9d9;
 }
 
+/* 分組標題行（ls 結構化輸出——category/group） */
+.uep-terminal__line--head {
+  color: #74c69d;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+.uep-terminal__line--head.uep-terminal__line--fade {
+  color: rgba(116, 198, 157, 0.7);
+  font-weight: 400;
+  margin-top: 0;
+}
+
 .uep-terminal__line--fade {
   color: rgba(166, 224, 189, 0.5);
 }

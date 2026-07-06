@@ -243,6 +243,62 @@ export function listStackEntries(
   };
 }
 
+/** ls 分組結果的單一群組（category/group 取自索引分類欄位） */
+export interface StackGroup {
+  category?: string;
+  group?: string;
+  entries: TerminalIndexEntry[];
+}
+
+/**
+ * ls 結構化分組（S7-C 驗收回饋）：已解鎖條目按 category → group
+ * 兩層彙整，分組順序 = 索引出現順序（sort_order + 頁內遍歷序）。
+ * 無分類欄位的條目落在「未分類」群組（category/group 皆 undefined）。
+ */
+export function groupStackEntries(
+  entries: TerminalIndexEntry[],
+  stack: TerminalStack,
+  progress: ProgressState
+): { groups: StackGroup[]; unlockedCount: number; total: number } {
+  const { unlocked, total } = listStackEntries(entries, stack, progress);
+  const groups: StackGroup[] = [];
+  const byKey = new Map<string, StackGroup>();
+  for (const entry of unlocked) {
+    const key = `${entry.category ?? ''} ${entry.group ?? ''}`;
+    let bucket = byKey.get(key);
+    if (!bucket) {
+      bucket = { category: entry.category, group: entry.group, entries: [] };
+      byKey.set(key, bucket);
+      groups.push(bucket);
+    }
+    bucket.entries.push(entry);
+  }
+  return { groups, unlockedCount: unlocked.length, total };
+}
+
+/**
+ * ls clock 的顯著時代（S7-C 驗收回饋）：已解鎖 chrono 條目按
+ * eventCount 降序取前 `limit` 個（0 事件不顯著、不列），
+ * 同事件數保持索引順序（時間軸序）。
+ */
+export function significantChronoPeriods(
+  entries: TerminalIndexEntry[],
+  progress: ProgressState,
+  limit = 5
+): TerminalIndexEntry[] {
+  const { unlocked } = listStackEntries(entries, 'chrono', progress);
+  return unlocked
+    .map((entry, order) => ({ entry, order }))
+    .filter(({ entry }) => (entry.eventCount ?? 0) > 0)
+    .sort(
+      (a, b) =>
+        (b.entry.eventCount ?? 0) - (a.entry.eventCount ?? 0) ||
+        a.order - b.order
+    )
+    .slice(0, limit)
+    .map(({ entry }) => entry);
+}
+
 // ── 條目內容解析（effective view） ─────────────────────────────────
 
 /** 剝除 HTML 標記與常見 entity，壓平空白 */
@@ -261,6 +317,17 @@ export function stripHtml(html: string): string {
 /** 截短至 max 字（預設 120），尾端補 … */
 export function truncate(text: string, max = 120): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+/**
+ * HTML → 段落行（S7-C 驗收定案：dossier/diff 內容不設字數上限）。
+ * 以 block 邊界（p/li/div/br/標題）切段後逐段剝標記，濾空段。
+ */
+export function htmlToLines(html: string): string[] {
+  return html
+    .split(/<\/(?:p|li|div|h[1-6]|blockquote)>|<br\s*\/?>/gi)
+    .map((seg) => stripHtml(seg))
+    .filter((seg) => seg.length > 0);
 }
 
 /** 條目比對：entityKey 優先，無 key 時退回名稱全等 */
@@ -283,16 +350,13 @@ function detailBase(
   };
 }
 
-/** dossier 條目 → detail（effective view 已套用） */
+/** dossier 條目 → detail（effective view 已套用；全文不截短，按段落切行） */
 function dossierDetail(
   entry: DossierEntry,
   target: TerminalIndexEntry,
   variantId: string
 ): TerminalEntryDetail {
-  const summary: string[] = [];
-  if (entry.content_html) {
-    summary.push(truncate(stripHtml(entry.content_html)));
-  }
+  const summary = entry.content_html ? htmlToLines(entry.content_html) : [];
   return { ...detailBase(target), name: entry.name, variantId, summary };
 }
 
@@ -356,7 +420,8 @@ function diffDetail(
   return {
     ...detailBase(target),
     name: entry.term,
-    summary: [truncate((entry.values || []).join(' ／ '))],
+    // S7-C 驗收定案：diff 內容不截短
+    summary: [(entry.values || []).join(' ／ ')],
   };
 }
 

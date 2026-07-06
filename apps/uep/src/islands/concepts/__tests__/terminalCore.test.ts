@@ -21,8 +21,11 @@ import {
   queryIndex,
   findByEntityKey,
   listStackEntries,
+  groupStackEntries,
+  significantChronoPeriods,
   stripHtml,
   truncate,
+  htmlToLines,
   resolveEntryDetails,
 } from '../terminalCore';
 import type { TerminalIndexEntry } from '../terminalCore';
@@ -453,5 +456,116 @@ describe('resolveEntryDetails', () => {
     stubFetch({});
     const details = await resolveEntryDetails(xavierIndex, stateWith({}));
     expect(details).toEqual([]);
+  });
+});
+
+// ── ls 結構化分組（S7-C 驗收回饋） ─────────────────────────────────
+
+describe('groupStackEntries', () => {
+  const entries: TerminalIndexEntry[] = [
+    indexEntry({ name: '艾斯維爾', category: '人物', group: '命運織者' }),
+    indexEntry({ name: '諾薇亞', category: '人物', group: '命運織者' }),
+    indexEntry({ name: '舊礦山', category: '地點' }),
+    indexEntry({ name: '未分類條目' }),
+    indexEntry({
+      name: '被鎖條目',
+      category: '人物',
+      group: '命運織者',
+      revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
+    }),
+    indexEntry({ name: '別棧條目', stack: 'diff', category: '術語' }),
+  ];
+
+  it('按 category → group 分組，順序 = 索引出現順序', () => {
+    const { groups, unlockedCount, total } = groupStackEntries(
+      entries,
+      'dossier',
+      stateWith({})
+    );
+    expect(total).toBe(5); // 別棧條目不計
+    expect(unlockedCount).toBe(4); // 被鎖條目過濾
+    expect(groups.map((g) => [g.category, g.group])).toEqual([
+      ['人物', '命運織者'],
+      ['地點', undefined],
+      [undefined, undefined],
+    ]);
+    expect(groups[0].entries.map((e) => e.name)).toEqual([
+      '艾斯維爾',
+      '諾薇亞',
+    ]);
+  });
+
+  it('未解鎖條目不進任何群組（名稱不洩漏）', () => {
+    const { groups } = groupStackEntries(entries, 'dossier', stateWith({}));
+    const all = groups.flatMap((g) => g.entries.map((e) => e.name));
+    expect(all).not.toContain('被鎖條目');
+  });
+});
+
+describe('significantChronoPeriods', () => {
+  const chrono = (
+    name: string,
+    eventCount: number,
+    gates?: TerminalIndexEntry['revisionGates']
+  ) =>
+    indexEntry({
+      name,
+      stack: 'chrono',
+      pageId: 'concepts/server/time_logs/chronicles',
+      eventCount,
+      revisionGates: gates,
+    });
+
+  it('按 eventCount 降序取前 limit 個；0 事件不列', () => {
+    const entries = [
+      chrono('平淡年', 0),
+      chrono('小事年', 2),
+      chrono('大事年', 9),
+      chrono('中事年', 5),
+    ];
+    const top = significantChronoPeriods(entries, stateWith({}), 5);
+    expect(top.map((e) => e.name)).toEqual(['大事年', '中事年', '小事年']);
+  });
+
+  it('同事件數維持索引順序（時間軸序）；超出 limit 截斷', () => {
+    const entries = [
+      chrono('前年', 3),
+      chrono('後年', 3),
+      chrono('峰年', 7),
+    ];
+    const top = significantChronoPeriods(entries, stateWith({}), 2);
+    expect(top.map((e) => e.name)).toEqual(['峰年', '前年']);
+  });
+
+  it('未解鎖 period 不進顯著時代', () => {
+    const entries = [
+      chrono('公開年', 4),
+      chrono('隱藏年', 99, [{ id: 'g', gate: { requiresFlags: ['nope'] } }]),
+    ];
+    const top = significantChronoPeriods(entries, stateWith({}), 5);
+    expect(top.map((e) => e.name)).toEqual(['公開年']);
+  });
+});
+
+// ── 不截短（S7-C 驗收定案） ────────────────────────────────────────
+
+describe('htmlToLines', () => {
+  it('按 block 邊界切段、剝標記、濾空段', () => {
+    const lines = htmlToLines(
+      '<p>第一段內容</p><p></p><p>第二段<strong>粗體</strong>內容</p><ul><li>條列一</li><li>條列二</li></ul>'
+    );
+    expect(lines).toEqual([
+      '第一段內容',
+      '第二段 粗體 內容',
+      '條列一',
+      '條列二',
+    ]);
+  });
+
+  it('br 也是切點；長文完整保留不截短', () => {
+    const long = 'Ａ'.repeat(300);
+    const lines = htmlToLines(`<p>短行<br/>${long}</p>`);
+    expect(lines).toEqual(['短行', long]);
+    expect(lines[1]).toHaveLength(300);
   });
 });

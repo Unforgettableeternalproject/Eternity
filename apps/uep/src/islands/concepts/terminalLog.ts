@@ -22,13 +22,15 @@ export type TermAction = { type: 'show-entry'; entry: TerminalIndexEntry };
 
 /** 單行輸出（action 有值時渲染為可點擊列） */
 export interface TermLine {
-  kind: 'meta' | 'in' | 'ok' | 'err' | 'row';
+  kind: 'meta' | 'in' | 'ok' | 'err' | 'row' | 'head';
   text: string;
   fade?: boolean;
   action?: TermAction;
+  /** 捲動置頂錨點（清空式展現用）——UI 一次性標記，不持久化 */
+  anchorId?: string;
 }
 
-const LINE_KINDS = new Set(['meta', 'in', 'ok', 'err', 'row']);
+const LINE_KINDS = new Set(['meta', 'in', 'ok', 'err', 'row', 'head']);
 const STACKS = new Set(['dossier', 'browser', 'chrono', 'diff']);
 
 /** 驗證單筆 action 形狀；非法時回傳 undefined（該行降級為純文字） */

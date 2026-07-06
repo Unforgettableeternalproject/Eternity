@@ -21,12 +21,13 @@ import { subscribeEntityActivate } from './terminalBridge';
 import {
   TERMINAL_STACK_LABELS,
   findByEntityKey,
-  listStackEntries,
+  groupStackEntries,
   loadEntityIndex,
   passedRevisionCount,
   queryIndex,
   resolveEntryDetails,
   resolveStackAlias,
+  significantChronoPeriods,
 } from './terminalCore';
 import type { TerminalIndexEntry } from './terminalCore';
 import {
@@ -45,7 +46,10 @@ const BOOT_LINES: TermLine[] = [
 ];
 
 /** ls 逐項列出的上限（其餘提示用 query 檢索） */
-const LS_LIST_CAP = 20;
+const LS_LIST_CAP = 30;
+
+/** ls clock 顯著時代的列出數（事件較多 = 顯著，艾斯維爾定案 3~5 個） */
+const CLOCK_HIGHLIGHT_LIMIT = 5;
 
 const HELP_LINES: TermLine[] = [
   { kind: 'meta', text: '? · query <keyword> — 檢索人物 / 地點 / 術語' },
@@ -69,6 +73,9 @@ export default function TerminalIsland() {
   /** async 回呼取用最新進度（不重綁 listener） */
   const progressRef = useRef(progress);
   progressRef.current = progress;
+  /** 清空式展現的一次性捲動目標（null = 照常捲到底） */
+  const pendingAnchorRef = useRef<string | null>(null);
+  const anchorSeqRef = useRef(0);
 
   function append(add: TermLine[]) {
     setLines((prev) => [...prev, ...add].slice(-MAX_TERM_LINES));
@@ -112,11 +119,24 @@ export default function TerminalIsland() {
     };
   }, []);
 
-  /* 輸出更新後捲到底 */
+  /* 輸出更新後捲動：有 pending anchor（entry 詳細內容）→ 該行置頂
+     ——清空式展現（艾斯維爾定案：保留歷史、捲動置頂）；否則照常捲到底 */
   useEffect(() => {
-    if (bodyRef.current) {
-      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    const body = bodyRef.current;
+    if (!body) return;
+    const anchorId = pendingAnchorRef.current;
+    if (anchorId) {
+      pendingAnchorRef.current = null;
+      const el = body.querySelector<HTMLElement>(
+        `[data-anchor-id="${anchorId}"]`
+      );
+      if (el) {
+        body.scrollTop +=
+          el.getBoundingClientRect().top - body.getBoundingClientRect().top;
+        return;
+      }
     }
+    body.scrollTop = body.scrollHeight;
   }, [lines]);
 
   /* 輸出歷史持久化（action 是純資料，整批可序列化） */
@@ -225,6 +245,12 @@ export default function TerminalIsland() {
         out.push({ kind: 'row', text: `  ${s}` });
       }
     }
+    // 清空式展現：整批第一行標錨點，輸出後捲動置頂（保留歷史）
+    if (out.length > 0) {
+      const anchorId = `anchor-${++anchorSeqRef.current}`;
+      out[0] = { ...out[0], anchorId };
+      pendingAnchorRef.current = anchorId;
+    }
     append(out);
   }
 
@@ -298,7 +324,7 @@ export default function TerminalIsland() {
     const entries = await ensureIndex();
     if (!entries) return;
 
-    const { unlocked, total } = listStackEntries(
+    const { groups, unlockedCount, total } = groupStackEntries(
       entries,
       stack,
       progressRef.current
@@ -306,30 +332,65 @@ export default function TerminalIsland() {
     const out: TermLine[] = [
       {
         kind: 'ok',
-        text: `✓ ${TERMINAL_STACK_LABELS[stack]} · ${unlocked.length}/${total} 已解鎖`,
+        text: `✓ ${TERMINAL_STACK_LABELS[stack]} · ${unlockedCount}/${total} 已解鎖`,
       },
     ];
+
     if (stack === 'chrono') {
-      // 定案 A：ls clock 不逐項列出時間點
+      // 顯著時代（事件較多 = 顯著）——完整時間軸仍在原質震盪時鐘
+      const highlights = significantChronoPeriods(
+        entries,
+        progressRef.current,
+        CLOCK_HIGHLIGHT_LIMIT
+      );
+      if (highlights.length > 0) {
+        out.push({ kind: 'head', text: '▸ 顯著時代' });
+        for (const entry of highlights) {
+          out.push({
+            kind: 'row',
+            text: `  › ${entry.name} · ${entry.eventCount} 事件`,
+            action: { type: 'show-entry', entry },
+          });
+        }
+      }
       out.push({
         kind: 'meta',
-        text: '（時間點不逐項列出——完整時間軸見原質震盪時鐘）',
+        text: '（完整時間軸見原質震盪時鐘）',
       });
-    } else {
-      for (const entry of unlocked.slice(0, LS_LIST_CAP)) {
+      append(out);
+      return;
+    }
+
+    // dossier/diff/browser：按 category → group 分組列出（S7-C 驗收回饋）
+    let listed = 0;
+    let capped = false;
+    outer: for (const bucket of groups) {
+      if (bucket.category) {
+        out.push({ kind: 'head', text: `▸ ${bucket.category}` });
+      }
+      if (bucket.group) {
+        out.push({ kind: 'head', text: `  · ${bucket.group}`, fade: true });
+      }
+      const indent = bucket.category || bucket.group ? '    ' : '  ';
+      for (const entry of bucket.entries) {
+        if (listed >= LS_LIST_CAP) {
+          capped = true;
+          break outer;
+        }
         out.push({
           kind: 'row',
-          text: `  › ${entry.name}`,
+          text: `${indent}› ${entry.name}`,
           action: { type: 'show-entry', entry },
         });
+        listed += 1;
       }
-      if (unlocked.length > LS_LIST_CAP) {
-        out.push({
-          kind: 'row',
-          text: `  ……其餘 ${unlocked.length - LS_LIST_CAP} 條省略，用 query 檢索`,
-          fade: true,
-        });
-      }
+    }
+    if (capped) {
+      out.push({
+        kind: 'row',
+        text: `  ……其餘 ${unlockedCount - listed} 條省略，用 query 檢索`,
+        fade: true,
+      });
     }
     append(out);
   }
@@ -377,12 +438,17 @@ export default function TerminalIsland() {
               key={i}
               type="button"
               className={`${lineClass(line)} uep-terminal__line-btn`}
+              data-anchor-id={line.anchorId}
               onClick={() => runAction(line.action!)}
             >
               {line.text}
             </button>
           ) : (
-            <div key={i} className={lineClass(line)}>
+            <div
+              key={i}
+              className={lineClass(line)}
+              data-anchor-id={line.anchorId}
+            >
               {line.text}
             </div>
           )
