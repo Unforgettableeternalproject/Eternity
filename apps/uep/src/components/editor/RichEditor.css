@@ -4141,6 +4141,27 @@
   color: var(--ink-title);
 }
 
+/* entity 自動偵測 suggestion（S7-D-3） */
+.tiptap-content .ned-entity-suggest {
+  border-bottom: 1.5px dashed var(--ned-accent);
+  background: color-mix(in srgb, var(--ned-accent) 12%, transparent);
+  border-radius: 2px;
+}
+.ned-entity-suggest-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-panel, rgba(0, 0, 0, 0.04));
+  color: var(--ink-mute);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+  user-select: none;
+  vertical-align: baseline;
+}
+
 /* 條目級 Reference Picker（S7-D-1：entity-index 條目清單） */
 .tb-entity-picker .tb-link-input {
   margin-bottom: 6px;

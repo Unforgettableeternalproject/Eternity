@@ -130,6 +130,16 @@ export function invalidateEntityPickerCache(): void {
   pickerIndexCache = null;
 }
 
+/**
+ * 可嵌入條目載入（S7-D-3 自動偵測共用）：索引 → embeddable 過濾。
+ * 與 picker 共用模組級快取——編輯器一個 session 只抓一次。
+ */
+export async function loadEmbeddableEntries(
+  apiBase: string
+): Promise<EntityPickerEntry[]> {
+  return embeddableEntries(await loadPickerIndex(apiBase));
+}
+
 function loadPickerIndex(apiBase: string): Promise<EntityPickerEntry[]> {
   if (!pickerIndexCache) {
     pickerIndexCache = (async () => {
