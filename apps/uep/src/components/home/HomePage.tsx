@@ -24,6 +24,7 @@ import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 
 import JourneyNav from './JourneyNav';
 import JourneyScene from './JourneyScene';
@@ -269,6 +270,14 @@ export default function HomePage({
     if (lobbyPhase !== 'playing') return;
     // 等 React 已掛上 lobby overlay 後，再移除 head 注入的防閃遮罩。
     document.getElementById('lobby-block-style')?.remove();
+  }, [lobbyPhase]);
+
+  // lobby 動畫期間隱藏浮動 UI（S7-C 驗收回饋）：lobby-overlay 的
+  // z-index（400）低於浮島層帶（2000+），與 IntroOverlay/PortalTransition
+  // 同樣走 zoneEntryLock（body class），動畫播畢釋放。
+  useEffect(() => {
+    if (lobbyPhase !== 'playing') return;
+    return acquireZoneEntryLock();
   }, [lobbyPhase]);
 
   // 測量 TopBar 高度，設定 --topbar-h 供 section 高度計算
