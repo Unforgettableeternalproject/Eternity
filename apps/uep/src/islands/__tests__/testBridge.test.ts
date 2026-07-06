@@ -9,7 +9,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 /* status() 讀 auth 的登入狀態（浮島限已登入探索者）——mock auth */
 const authMock = vi.hoisted(() => ({ loggedIn: true }));
 vi.mock('../../auth', () => ({
-  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+  getReaderAuth: () => ({
+    isLoggedIn: () => authMock.loggedIn,
+    subscribe: () => () => {}, // islandRuntime 登入收合監聽用
+  }),
 }));
 
 async function freshModules() {

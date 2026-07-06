@@ -140,6 +140,25 @@ export const uepIslands = {
     }
   },
 
+  /**
+   * 全島一律收合進 dock（位置保留）——登入事件的入場整理用
+   * （S7-C 驗收定案：登入瞬間不直接彈出整群浮島）。
+   * 無開啟島時 no-op（不寫入、不通知）。
+   */
+  collapseAll(): void {
+    const openIds = ISLAND_IDS.filter((id) => state.windows[id]?.open);
+    if (openIds.length === 0) return;
+    const windows = { ...state.windows };
+    const stamp = new Date().toISOString();
+    for (const id of openIds) {
+      const next = { ...windows[id]!, open: false, updatedAt: stamp };
+      windows[id] = next;
+      saveWindowState(id, next);
+    }
+    state = { windows, focusOrder: [] };
+    notify('close');
+  },
+
   /** 更新拖曳後的位置（viewport 座標） */
   setPosition(id: IslandId, position: { left: number; top: number }): void {
     mutateWindow(id, 'move', (prev) => ({ ...prev, position }));
@@ -173,6 +192,16 @@ export const uepIslands = {
 /* ── window bridge（跨 React island 單例保證） ── */
 if (typeof window !== 'undefined' && !window.__uepIslands) {
   window.__uepIslands = uepIslands;
+  // 登入事件（訪客 → 登入的轉變）：全島收合進 dock（S7-C 驗收定案）。
+  // 頁面載入恢復既有 session 不經歷 null→session 轉變——換頁/重載
+  // 照常還原上次開合狀態；refresh()/印記同步的 notify 也不會誤觸。
+  const auth = getReaderAuth();
+  let wasLoggedIn = auth.isLoggedIn();
+  auth.subscribe((session) => {
+    const loggedIn = session !== null;
+    if (loggedIn && !wasLoggedIn) uepIslands.collapseAll();
+    wasLoggedIn = loggedIn;
+  });
 }
 
 /** 取得全域單例（優先 window bridge，SSR fallback 為 module 實例） */

@@ -10,10 +10,20 @@ import { islandStorageKey } from '../persistence';
 import { ISLAND_Z_BASE } from '../types';
 
 /* 浮島限已登入探索者（S7-C 定案）——mock auth，預設已登入，
-   個別測試可切 authMock.loggedIn 驗登出行為 */
-const authMock = vi.hoisted(() => ({ loggedIn: true }));
+   個別測試可切 authMock.loggedIn 驗登出行為。
+   listeners 供登入轉變測試手動觸發 auth notify。 */
+const authMock = vi.hoisted(() => ({
+  loggedIn: true,
+  listeners: [] as ((session: { token: string } | null) => void)[],
+}));
 vi.mock('../../auth', () => ({
-  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+  getReaderAuth: () => ({
+    isLoggedIn: () => authMock.loggedIn,
+    subscribe: (fn: (session: { token: string } | null) => void) => {
+      authMock.listeners.push(fn);
+      return () => {};
+    },
+  }),
 }));
 
 async function freshRuntime() {
@@ -24,6 +34,7 @@ async function freshRuntime() {
 
 beforeEach(() => {
   authMock.loggedIn = true;
+  authMock.listeners = [];
   window.localStorage.clear();
   delete window.__uepIslands;
   delete window.__uepProgress;
@@ -115,6 +126,81 @@ describe('open / close / toggle', () => {
     uepIslands.open('storage');
     uepIslands.open('history');
     expect(uepIslands.getState().focusOrder).toEqual(['storage', 'history']);
+  });
+});
+
+describe('collapseAll / 登入收合', () => {
+  it('collapseAll 收合所有開啟島、清焦點序、持久化（位置保留）', async () => {
+    const { uepIslands } = await freshRuntime();
+    uepIslands.open('history');
+    uepIslands.setPosition('history', { left: 10, top: 20 });
+    uepIslands.open('concepts');
+    uepIslands.collapseAll();
+    expect(uepIslands.getWindow('history')?.open).toBe(false);
+    expect(uepIslands.getWindow('concepts')?.open).toBe(false);
+    expect(uepIslands.getState().focusOrder).toEqual([]);
+    // 位置記錄不受收合影響
+    expect(uepIslands.getWindow('history')?.position).toEqual({
+      left: 10,
+      top: 20,
+    });
+    const stored = JSON.parse(
+      window.localStorage.getItem(islandStorageKey('history'))!
+    );
+    expect(stored.open).toBe(false);
+    expect(stored.position).toEqual({ left: 10, top: 20 });
+  });
+
+  it('collapseAll 無開啟島時是 no-op（不通知）', async () => {
+    const { uepIslands } = await freshRuntime();
+    const listener = vi.fn();
+    uepIslands.subscribe(listener);
+    uepIslands.collapseAll();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('登入轉變（訪客→登入）觸發全島收合', async () => {
+    authMock.loggedIn = false;
+    // 上次 session 留下的「開著」狀態
+    window.localStorage.setItem(
+      islandStorageKey('history'),
+      JSON.stringify({
+        version: 1,
+        open: true,
+        position: null,
+        updatedAt: '2026-07-05T00:00:00.000Z',
+      })
+    );
+    const { uepIslands } = await freshRuntime();
+    expect(uepIslands.getWindow('history')?.open).toBe(true);
+    // 模擬登入：auth notify null→session 轉變
+    authMock.loggedIn = true;
+    authMock.listeners.forEach((fn) => fn({ token: 'x' }));
+    expect(uepIslands.getWindow('history')?.open).toBe(false);
+    expect(uepIslands.getState().focusOrder).toEqual([]);
+  });
+
+  it('頁面載入時已登入：後續 auth notify（如 refresh）不觸發收合', async () => {
+    authMock.loggedIn = true;
+    const { uepIslands } = await freshRuntime();
+    uepIslands.open('history');
+    // refresh() 之類的 notify：session 維持非 null
+    authMock.listeners.forEach((fn) => fn({ token: 'x' }));
+    expect(uepIslands.getWindow('history')?.open).toBe(true);
+  });
+
+  it('登出 notify 不收合；再登入才收合', async () => {
+    authMock.loggedIn = true;
+    const { uepIslands } = await freshRuntime();
+    uepIslands.open('history');
+    // 登出：session → null（島 unmount 由守門處理，runtime 不動狀態）
+    authMock.loggedIn = false;
+    authMock.listeners.forEach((fn) => fn(null));
+    expect(uepIslands.getWindow('history')?.open).toBe(true);
+    // 再登入：null → session 轉變 → 收合
+    authMock.loggedIn = true;
+    authMock.listeners.forEach((fn) => fn({ token: 'x' }));
+    expect(uepIslands.getWindow('history')?.open).toBe(false);
   });
 });
 

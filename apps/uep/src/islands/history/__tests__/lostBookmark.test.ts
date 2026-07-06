@@ -10,7 +10,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
    預設已登入；未登入不出書籤由 canUseIslands 統一守門 */
 const authMock = vi.hoisted(() => ({ loggedIn: true }));
 vi.mock('../../../auth', () => ({
-  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+  getReaderAuth: () => ({
+    isLoggedIn: () => authMock.loggedIn,
+    subscribe: () => () => {}, // islandRuntime 登入收合監聽用
+  }),
 }));
 
 async function freshModules() {
