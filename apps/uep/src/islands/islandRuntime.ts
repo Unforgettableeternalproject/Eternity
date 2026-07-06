@@ -9,6 +9,7 @@
  * 「能不能用」的守門（視角/解鎖/停用）是 progress 的事，見下方 gating helpers。
  */
 
+import { getReaderAuth } from '../auth';
 import { getProgressManager } from '../progress';
 import type { ProgressState } from '../progress';
 
@@ -201,11 +202,22 @@ export function hasVisitedZone(
 }
 
 /**
- * 浮島系統整體是否可用：只有探索者有浮島。
- * 觀測者/切到觀測者視角時不掛載（需求定案，不是 bug）。
+ * 浮島系統整體是否可用：**已登入的探索者**才有浮島
+ * （艾斯維爾 2026-07-06 定案；觀測者/訪客都沒有）。
+ *
+ * 登入判定讀 auth singleton 而非參數——理由：登出後 ServerAdapter 的
+ * write-through 鏡像仍含 islandsUnlocked，若守門不含登入，殘留狀態會讓
+ * 島原地復活。此函式是所有守門的根（IslandHost / 解鎖小物件 /
+ * shouldMountIsland → embed 可點判定 / 書籤儀式 eligible），在根上
+ * 綁登入可一次涵蓋全部消費端。
+ *
+ * ⚠️ 消費端注意：auth 變化不保證觸發 progress notify（logout 的
+ * setAdapter 在 localStorage 鏡像為空時不 notify）——React 消費端需
+ * 另以 useReaderAuth() 訂閱 auth 變化（IslandHost / IslandUnlockObject
+ * 已接）。
  */
 export function canUseIslands(progress: ProgressState): boolean {
-  return progress.view === 'explorer';
+  return progress.view === 'explorer' && getReaderAuth().isLoggedIn();
 }
 
 /** 指定浮島是否已解鎖（zone 首頁小物件點擊後授予） */

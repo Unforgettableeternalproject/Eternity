@@ -15,6 +15,7 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useReaderAuth } from '../auth';
 import { UEP_ENTITY_ACTIVATE_EVENT } from '../embed';
 import type { EntityActivateDetail } from '../embed';
 import { useProgress } from '../progress';
@@ -46,6 +47,9 @@ const ISLAND_COMPONENTS: Partial<
 
 export default function IslandHost() {
   const progress = useProgress();
+  // 訂閱 auth 變化（S7-C 定案：浮島限已登入探索者）——登入/登出時
+  // 重新求值守門；canUseIslands 內部讀 auth singleton，此 hook 純為重渲染
+  useReaderAuth();
   const runtimeState = useIslandRuntimeState();
   const [mounted, setMounted] = useState(false);
   /** 事件 listener 取用最新進度（不重綁） */

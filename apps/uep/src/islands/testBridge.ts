@@ -13,6 +13,7 @@
  * 旗標要等重新整理（remount）才會補發。用 `visit(zone)` 可直接補。
  */
 
+import { getReaderAuth } from '../auth';
 import { getProgressManager } from '../progress';
 
 import { zoneVisitedFlag } from './islandRuntime';
@@ -31,6 +32,8 @@ interface IslandsTestBridge {
   /** 查看目前狀態 */
   status(): {
     view: string;
+    /** 浮島前置：已登入的探索者才有浮島（false 時全部不掛載） */
+    loggedIn: boolean;
     unlocked: string[];
     disabled: string[];
     visitedZones: string[];
@@ -79,6 +82,7 @@ export function mountIslandsTestBridge(): () => void {
       const state = getProgressManager().getState();
       return {
         view: state.view,
+        loggedIn: getReaderAuth().isLoggedIn(),
         unlocked: [...state.islandsUnlocked],
         disabled: [...state.islandsDisabled],
         visitedZones: ISLAND_IDS.filter((id) =>

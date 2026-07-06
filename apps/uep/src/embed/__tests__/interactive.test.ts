@@ -7,7 +7,7 @@
  * 3. dispatchEntityActivate：事件 detail 合約（新格式帶 entityKey、舊格式帶 pageId）
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 import { createInitialState } from '../../progress/types';
 import type { ProgressState } from '../../progress/types';
@@ -23,6 +23,13 @@ import { metFlag } from '../marks';
 
 const REF = 'concepts/log#entry:asvere';
 const KEY_REF = 'entity:xavier-colsono';
+
+/* decorate 守門經 shouldMountIsland → canUseIslands 含登入判定
+   （浮島限已登入探索者）——mock auth，預設已登入 */
+const authMock = vi.hoisted(() => ({ loggedIn: true }));
+vi.mock('../../auth', () => ({
+  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+}));
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
   return { ...createInitialState(), ...partial };
@@ -41,6 +48,10 @@ function parseHtml(html: string): HTMLElement {
 
 const entitySpan = (ref: string = REF, text = '艾斯維爾') =>
   `<span data-uep-entity="character" data-ref="${ref}">${text}</span>`;
+
+beforeEach(() => {
+  authMock.loggedIn = true;
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -120,6 +131,17 @@ describe('decorateInteractiveHtml（S7-C：島掛載守門，全可點）', () =
     const out = decorateInteractiveHtml(
       `<p>${entitySpan()}</p>`,
       mountedState({ islandsDisabled: ['concepts'] })
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).toBeNull();
+  });
+
+  it('未登入不啟用（浮島限已登入探索者，S7-C 定案）', () => {
+    authMock.loggedIn = false;
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan()}</p>`,
+      mountedState() // 解鎖狀態殘留也不啟用
     );
     expect(
       parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)

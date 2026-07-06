@@ -13,6 +13,7 @@
 
 import React, { useState } from 'react';
 
+import { useReaderAuth } from '../auth';
 import { useProgress } from '../progress';
 
 import {
@@ -47,6 +48,8 @@ export default function IslandUnlockObject({
   zoneId,
 }: IslandUnlockObjectProps) {
   const progress = useProgress();
+  // 訂閱 auth 變化——canUseIslands 含登入判定（浮島限已登入探索者）
+  useReaderAuth();
   const [awakening, setAwakening] = useState(false);
 
   // zoneId 不是浮島 zone（如 portal）時不渲染

@@ -9,6 +9,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { islandStorageKey } from '../persistence';
 import { ISLAND_Z_BASE } from '../types';
 
+/* 浮島限已登入探索者（S7-C 定案）——mock auth，預設已登入，
+   個別測試可切 authMock.loggedIn 驗登出行為 */
+const authMock = vi.hoisted(() => ({ loggedIn: true }));
+vi.mock('../../auth', () => ({
+  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+}));
+
 async function freshRuntime() {
   vi.resetModules();
   const mod = await import('../islandRuntime');
@@ -16,6 +23,7 @@ async function freshRuntime() {
 }
 
 beforeEach(() => {
+  authMock.loggedIn = true;
   window.localStorage.clear();
   delete window.__uepIslands;
   delete window.__uepProgress;
@@ -199,7 +207,7 @@ describe('事件與訂閱', () => {
 });
 
 describe('gating helpers', () => {
-  it('canUseIslands：只有探索者可用', async () => {
+  it('canUseIslands：只有「已登入的探索者」可用', async () => {
     const { canUseIslands } = await freshRuntime();
     const { createInitialState } = await import('../../progress');
     const explorer = createInitialState();
@@ -207,9 +215,12 @@ describe('gating helpers', () => {
     expect(
       canUseIslands({ ...explorer, view: 'observer', observerEver: true })
     ).toBe(false);
+    // S7-C 定案：未登入（訪客/登出後）無浮島——鏡像殘留的解鎖狀態不復活
+    authMock.loggedIn = false;
+    expect(canUseIslands(explorer)).toBe(false);
   });
 
-  it('shouldMountIsland：探索者 + 已解鎖', async () => {
+  it('shouldMountIsland：已登入探索者 + 已解鎖', async () => {
     const { shouldMountIsland } = await freshRuntime();
     const { createInitialState } = await import('../../progress');
     const base = createInitialState();
@@ -222,6 +233,9 @@ describe('gating helpers', () => {
         'history'
       )
     ).toBe(false); // 觀測者無浮島
+    // 登出後即使解鎖狀態殘留也不掛載
+    authMock.loggedIn = false;
+    expect(shouldMountIsland(unlocked, 'history')).toBe(false);
   });
 
   it('unlockIsland 轉呼叫 progress store', async () => {

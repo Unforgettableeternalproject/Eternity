@@ -6,6 +6,13 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+/* 書籤 eligible 走 canUseIslands（浮島限已登入探索者）——mock auth，
+   預設已登入；未登入不出書籤由 canUseIslands 統一守門 */
+const authMock = vi.hoisted(() => ({ loggedIn: true }));
+vi.mock('../../../auth', () => ({
+  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+}));
+
 async function freshModules() {
   vi.resetModules();
   const store = await import('../../../progress/progressStore');

@@ -6,6 +6,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+/* status() 讀 auth 的登入狀態（浮島限已登入探索者）——mock auth */
+const authMock = vi.hoisted(() => ({ loggedIn: true }));
+vi.mock('../../auth', () => ({
+  getReaderAuth: () => ({ isLoggedIn: () => authMock.loggedIn }),
+}));
+
 async function freshModules() {
   vi.resetModules();
   const store = await import('../../progress/progressStore');
@@ -80,10 +86,16 @@ describe('mountIslandsTestBridge', () => {
 
     expect(t.status()).toEqual({
       view: 'explorer',
+      loggedIn: true,
       unlocked: ['history'],
       disabled: ['history'],
       visitedZones: ['concepts'],
     });
+
+    // 登出狀態如實反映（浮島前置條件的除錯資訊）
+    authMock.loggedIn = false;
+    expect(t.status().loggedIn).toBe(false);
+    authMock.loggedIn = true;
     cleanup();
   });
 });
