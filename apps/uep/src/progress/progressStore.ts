@@ -31,6 +31,7 @@ export interface ProgressChangeDetail {
     | 'island-setting'
     | 'marker-update'
     | 'page-visited'
+    | 'lost-bookmark'
     | 'reading-time'
     | 'hydrate'
     | 'reset'
@@ -126,6 +127,24 @@ export const uepProgress = {
       ...prev,
       lastVisitedPageId: pageId,
       lastVisitedAt: new Date().toISOString(),
+    }));
+  },
+
+  /**
+   * 更新「遺落的書籤」機率狀態（S6-2）。
+   * roll / 遞增 / 忽視重置的規則在 islands/history/lostBookmark.ts，
+   * store 只負責存值。
+   */
+  updateLostBookmark(patch: { chancePct?: number; visible?: boolean }): void {
+    mutate('lost-bookmark', (prev) => ({
+      ...prev,
+      lostBookmark: {
+        chancePct: Math.min(
+          100,
+          Math.max(0, patch.chancePct ?? prev.lostBookmark.chancePct)
+        ),
+        visible: patch.visible ?? prev.lostBookmark.visible,
+      },
     }));
   },
 

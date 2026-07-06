@@ -48,6 +48,17 @@ export function normalizeState(raw: unknown): ProgressState | null {
       typeof obj.lastVisitedPageId === 'string' ? obj.lastVisitedPageId : null,
     lastVisitedAt:
       typeof obj.lastVisitedAt === 'string' ? obj.lastVisitedAt : null,
+    // S6-2 新增欄位：遺落的書籤機率狀態，舊 blob 沒有時回到初始
+    lostBookmark:
+      typeof obj.lostBookmark === 'object' &&
+      obj.lostBookmark !== null &&
+      typeof obj.lostBookmark.chancePct === 'number' &&
+      Number.isFinite(obj.lostBookmark.chancePct)
+        ? {
+            chancePct: Math.min(100, Math.max(0, obj.lostBookmark.chancePct)),
+            visible: obj.lostBookmark.visible === true,
+          }
+        : base.lostBookmark,
     // S6 新增欄位：舊 blob 沒有時補初始值；totalMs 防禦非有限數值
     readingStats:
       typeof obj.readingStats === 'object' &&

@@ -556,6 +556,58 @@
   text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
 }
 
+/* === 遺落的書籤 — 導航樹特殊條目（S6-2） === */
+.history-tree-item--bookmark {
+  position: relative;
+}
+
+.history-tree-bookmark {
+  font-family: var(--font-serif-tc);
+  font-style: italic;
+  color: var(--uep-gold);
+  animation: lostBookmarkEntryIn 0.8s var(--ease) both;
+}
+
+.history-tree-bookmark .history-tree-title {
+  background: linear-gradient(
+    100deg,
+    var(--uep-gold) 20%,
+    #fff2c4 50%,
+    var(--uep-gold) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lostBookmarkShimmer 3.2s linear infinite;
+}
+
+.history-tree-bookmark:hover .history-tree-title {
+  animation-duration: 1.4s;
+}
+
+@keyframes lostBookmarkEntryIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes lostBookmarkShimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 /* === 滾動軸「上次閱讀位置」標記 ===
  * 掛在 .history-main（position: relative、不滾動）而非 .history-content
  * 滾動容器內——top:% 對映可視高度，像滾動軸上的書籤，不隨內容捲動（S6-2）。 */

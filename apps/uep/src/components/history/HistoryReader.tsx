@@ -29,8 +29,18 @@ import {
   collectMarkers,
   getProgressManager,
   resolveResumeMarkerIdx,
+  PROGRESS_CHANGE_EVENT,
 } from '../../progress';
-import type { ProgressTreeAdapter } from '../../progress';
+import type { ProgressTreeAdapter, ProgressChangeDetail } from '../../progress';
+import {
+  dismissLostBookmark,
+  getIslandRuntime,
+  isLostBookmarkVisible,
+  rollLostBookmark,
+  settleLostBookmark,
+  unlockIsland,
+} from '../../islands';
+import LostBookmarkGate from './LostBookmarkGate';
 import {
   UEP_ENTITY_ACTIVE_ATTR,
   UEP_ENTITY_ACTIVATE_EVENT,
@@ -305,6 +315,8 @@ export default function HistoryReader() {
     pct: number; // 0~100，標記在滾動軸上的百分比位置
     leaving?: boolean; // 消失動畫中
   } | null>(null);
+  // 「一張遺落的書籤」儀式頁是否佔據內容區（S6-2，浮島解鎖儀式）
+  const [bookmarkGateOpen, setBookmarkGateOpen] = useState(false);
 
   // 掃描線：追蹤文章閱讀進度（Epic 2）。滾動容器是內層
   // .history-content div，root 必須指定 scrollRef 而非 viewport；
@@ -320,7 +332,8 @@ export default function HistoryReader() {
       currentPage &&
       articleHtml &&
       !contentLoading &&
-      !contentError
+      !contentError &&
+      !bookmarkGateOpen
     ),
   });
 
@@ -350,6 +363,35 @@ export default function HistoryReader() {
     return map;
   }, [flatPages]);
   const resolvePageById = (pageId: string) => pagesById.get(pageId);
+
+  // 遺落的書籤：每次「首次讀完一篇」roll 一次出現機率（S6-2）。
+  // page-completed 信號只在 completedPageIds 首次新增時發出，
+  // 跳章/重讀不會誤觸。
+  useEffect(() => {
+    const onProgressChange = (event: Event) => {
+      const detail = (event as CustomEvent<ProgressChangeDetail>).detail;
+      if (detail?.source !== 'page-completed') return;
+      rollLostBookmark(detail.state);
+    };
+    window.addEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
+    return () =>
+      window.removeEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
+  }, []);
+
+  // 書籤條目的插入錨點：最後閱讀頁所在的 chapter（跟隨閱讀進度，
+  // 呼應「書架縫隙」——條目渲染在該 chapter 的樹項下方）
+  const lostBookmarkAnchorId = useMemo(() => {
+    if (!isLostBookmarkVisible(progress)) return null;
+    const lastId = progress.lastVisitedPageId;
+    if (!lastId) return null;
+    const self = pagesById.get(lastId);
+    if (!self) return null;
+    if (self.pageType === 'chapter') return self.id;
+    const chapter = (ancestorMap.get(lastId) || []).find(
+      (a) => a.pageType === 'chapter'
+    );
+    return chapter ? chapter.id : self.id;
+  }, [progress, pagesById, ancestorMap]);
 
   // Progress tree adapter：把 PageTreeNode 樹接進 gating 的 tree 求值層
   // （effectiveGate / isEffectivelyCompleted 需要 sibling & 父層資訊）。
@@ -674,6 +716,15 @@ export default function HistoryReader() {
     // tree/prev/next 各自有 UI 層排除，這裡是統一的最後防線。
     if (isLocked(node, progress, node.id, progressTree)) return;
 
+    // 遺落的書籤：條目浮現時導航到「其他」頁面 = 忽視 → 消失並重置機率
+    // （S6-2 定案）。回到同一頁（重新整理的 deep link）不算忽視。
+    // 儀式頁若開著則一併關閉。
+    setBookmarkGateOpen(false);
+    const progressSnapshot = getProgressManager().getState();
+    if (node.id !== progressSnapshot.lastVisitedPageId) {
+      dismissLostBookmark(progressSnapshot);
+    }
+
     // 導航前先儲存當前頁面的滾動位置。chapter 頁是目錄性質不應留紀錄，
     // 順手也把先前殘留清除，避免使用者切換視角後回到過期位置。
     const prevPageType = currentId
@@ -918,7 +969,7 @@ export default function HistoryReader() {
 
         const revealed = revealAnim.has(node.id);
         const unlocked = unlockAnim.has(node.id);
-        return (
+        const treeItem = (
           <div
             className={`history-tree-item${revealed ? ' is-revealed' : ''}${unlocked ? ' is-unlocked' : ''}`}
             data-depth={depth}
@@ -998,7 +1049,49 @@ export default function HistoryReader() {
             )}
           </div>
         );
+
+        // 遺落的書籤（S6-2）：條目插在最後閱讀頁所在 chapter 的下方縫隙
+        if (node.id === lostBookmarkAnchorId) {
+          return [treeItem, renderLostBookmarkEntry(depth)];
+        }
+        return treeItem;
       });
+  }
+
+  /** 「一張遺落的書籤」導航樹條目：特殊樣式，點擊開啟儀式頁 */
+  function renderLostBookmarkEntry(depth: number) {
+    return (
+      <div
+        className="history-tree-item history-tree-item--bookmark"
+        data-depth={depth}
+        key="lost-bookmark-entry"
+      >
+        <div className="history-tree-row">
+          <span className="history-tree-spacer" />
+          <button
+            type="button"
+            className={`history-tree-link history-tree-bookmark${bookmarkGateOpen ? ' is-current' : ''}`}
+            style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
+            onClick={() => setBookmarkGateOpen(true)}
+            title="書架的縫隙裡，似乎夾著什麼……"
+          >
+            <span className="history-tree-kind" aria-hidden>
+              🔖
+            </span>
+            <span className="history-tree-title">一張遺落的書籤</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /** 儀式完成：解鎖旅程之書並回到閱讀（內容區本來就停在上次閱讀頁） */
+  function handleLostBookmarkOpen() {
+    settleLostBookmark();
+    unlockIsland('history');
+    getIslandRuntime().open('history');
+    window.__uepToastManager?.info('旅程之書甦醒了，加入了你的浮島。');
+    setBookmarkGateOpen(false);
   }
 
   const crumbs = currentId
@@ -1170,7 +1263,11 @@ export default function HistoryReader() {
 
         <div className="history-content" ref={scrollRef}>
           <div key={transitionKey} className="history-page-transition">
-            {!currentId ? (
+            {bookmarkGateOpen ? (
+              /* 遺落的書籤儀式頁（S6-2）：暫時佔據內容區，
+                 完成或導航離開後回到原本的頁面 */
+              <LostBookmarkGate onOpen={handleLostBookmarkOpen} />
+            ) : !currentId ? (
               <section className="history-landing">
                 <div className="history-landing-inner">
                   {homepageBlocks.length > 0 ? (

@@ -60,6 +60,15 @@ export type { XYPosition, PositionRatio } from './dragPosition';
 
 export { useIslandRuntimeState } from './useIslands';
 
+export {
+  LOST_BOOKMARK_STEP_PCT,
+  isLostBookmarkEligible,
+  isLostBookmarkVisible,
+  rollLostBookmark,
+  dismissLostBookmark,
+  settleLostBookmark,
+} from './history/lostBookmark';
+
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';
 export { default as IslandHost } from './IslandHost';

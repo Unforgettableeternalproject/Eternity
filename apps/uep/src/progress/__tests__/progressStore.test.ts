@@ -146,9 +146,20 @@ describe('頁面完成與浮島', () => {
     };
     expect(normalizeState(legacy)!.islandsDisabled).toEqual([]);
     expect(normalizeState(legacy)!.readingStats).toEqual({ totalMs: 0 });
-    // S6-2 新增欄位：舊 blob 沒有時補 null
+    // S6-2 新增欄位：舊 blob 沒有時補 null / 初始值
     expect(normalizeState(legacy)!.lastVisitedPageId).toBeNull();
     expect(normalizeState(legacy)!.lastVisitedAt).toBeNull();
+    expect(normalizeState(legacy)!.lostBookmark).toEqual({
+      chancePct: 20,
+      visible: false,
+    });
+    // chancePct 超界時 clamp 到 0~100
+    expect(
+      normalizeState({
+        ...legacy,
+        lostBookmark: { chancePct: 250, visible: true },
+      })!.lostBookmark
+    ).toEqual({ chancePct: 100, visible: true });
   });
 
   it('markPageVisited 記錄最後造訪頁與時間', async () => {
@@ -228,6 +239,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       pageMarkers: {},
       lastVisitedPageId: null,
       lastVisitedAt: null,
+      lostBookmark: { chancePct: 20, visible: false },
       readingStats: { totalMs: 0 },
       updatedAt: '2026-07-03T00:00:00.000Z',
     };

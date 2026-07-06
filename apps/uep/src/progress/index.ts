@@ -15,7 +15,11 @@ export type {
   ProgressAdapter,
   PageMarkerProgress,
 } from './types';
-export { PROGRESS_SCHEMA_VERSION, createInitialState } from './types';
+export {
+  PROGRESS_SCHEMA_VERSION,
+  LOST_BOOKMARK_BASE_PCT,
+  createInitialState,
+} from './types';
 
 export {
   LocalStorageAdapter,

@@ -57,6 +57,17 @@ export interface ProgressState {
   /** 最後造訪時間（ISO 8601），與 lastVisitedPageId 成對 */
   lastVisitedAt: string | null;
   /**
+   * 「遺落的書籤」機率狀態（S6-2，History 浮島解鎖儀式）。
+   * 每次首次讀完一篇 roll 一次：中了 visible=true（導航樹浮現條目）；
+   * 沒中 chancePct 遞增；被忽視（導去別頁）時 visible=false 且機率重置。
+   */
+  lostBookmark: {
+    /** 下次 roll 的出現機率（百分比，20 → 100） */
+    chancePct: number;
+    /** 條目目前是否浮現在導航樹 */
+    visible: boolean;
+  };
+  /**
    * 閱讀時間統計（S6，History Island 的簡單統計用）。
    * totalMs 為 History 文章的累計停留時間（單次造訪有上限防掛機灌水），
    * 平均閱讀時間 = totalMs / completedPageIds.length。
@@ -79,6 +90,9 @@ export interface ProgressAdapter {
 /** 目前 schema 版本 */
 export const PROGRESS_SCHEMA_VERSION = 1;
 
+/** 遺落的書籤：初始出現機率（%） */
+export const LOST_BOOKMARK_BASE_PCT = 20;
+
 /** 建立初始狀態（首次進站的探索者） */
 export function createInitialState(): ProgressState {
   return {
@@ -92,6 +106,7 @@ export function createInitialState(): ProgressState {
     pageMarkers: {},
     lastVisitedPageId: null,
     lastVisitedAt: null,
+    lostBookmark: { chancePct: LOST_BOOKMARK_BASE_PCT, visible: false },
     readingStats: { totalMs: 0 },
     updatedAt: new Date().toISOString(),
   };
