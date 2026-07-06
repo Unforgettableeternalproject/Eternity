@@ -46,6 +46,7 @@ function setup(
       entryLabel="艾斯維爾"
       stackStyle="dossier"
       entityKey="xavier-colsono"
+      baseEntry={{ name: '艾斯維爾' }}
       revisions={[]}
       onChange={onChange}
       onClose={onClose}

@@ -867,6 +867,7 @@ function DossierVariantBody({
           entryLabel={entry.name || '(未命名條目)'}
           stackStyle="dossier"
           entityKey={entry.entityKey}
+          baseEntry={entry as unknown as Record<string, unknown>}
           revisions={entry.revisions ?? []}
           onChange={(revs) =>
             updateEntry(activeEntry!, {
@@ -1474,6 +1475,7 @@ function BrowserEditor({
           entryLabel={profile.name || '(未命名角色)'}
           stackStyle="browser"
           entityKey={profile.entityKey}
+          baseEntry={profile as unknown as Record<string, unknown>}
           revisions={profile.revisions ?? []}
           onChange={(revs) =>
             updateProfile({ revisions: revs.length > 0 ? revs : undefined })
@@ -2584,6 +2586,7 @@ function ChronoEditor({
           }
           stackStyle="chrono"
           entityKey={period.entityKey}
+          baseEntry={period as unknown as Record<string, unknown>}
           revisions={period.revisions ?? []}
           onChange={(revs) =>
             updatePeriod({ revisions: revs.length > 0 ? revs : undefined })
@@ -3138,6 +3141,7 @@ function DiffEditor({
           entryLabel={entry.term || '(未命名詞條)'}
           stackStyle="diff"
           entityKey={entry.entityKey}
+          baseEntry={entry as unknown as Record<string, unknown>}
           revisions={entry.revisions ?? []}
           onChange={(revs) =>
             updateEntry(activeEntry!, {

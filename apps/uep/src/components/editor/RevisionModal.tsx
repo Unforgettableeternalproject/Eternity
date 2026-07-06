@@ -26,6 +26,7 @@ import type {
 import GateConditionEditor from './GateConditionEditor';
 import { API_BASE, getDialog } from './editorHelpers';
 import PatchEditor from './PatchEditor';
+import RevisionSimulator from './RevisionSimulator';
 
 type StackKind = ConceptsVariationMeta['stack_style'];
 
@@ -38,6 +39,8 @@ interface RevisionModalProps {
   stackStyle: StackKind;
   /** 條目 entityKey——新 revision 的預設 id 依旗標慣例產生 */
   entityKey?: string;
+  /** 條目 base 資料（進度模擬預覽用；含 revisions/entityKey 也無妨） */
+  baseEntry: Record<string, unknown>;
   revisions: ConceptsRevision[];
   onChange: (revisions: ConceptsRevision[]) => void;
   onClose: () => void;
@@ -57,6 +60,7 @@ export default function RevisionModal({
   entryLabel,
   stackStyle,
   entityKey,
+  baseEntry,
   revisions,
   onChange,
   onClose,
@@ -65,6 +69,7 @@ export default function RevisionModal({
   const [selected, setSelected] = useState<Selection>(
     revisions.length > 0 ? 0 : 'base'
   );
+  const [simOpen, setSimOpen] = useState(false);
 
   const current =
     typeof selected === 'number' ? (revisions[selected] ?? null) : null;
@@ -292,6 +297,24 @@ export default function RevisionModal({
             )}
           </div>
         </div>
+
+        {/* 底部：進度模擬預覽切換（B 排版定案：RevisionSimulator 併入 modal） */}
+        <div className="ced-rev-footer">
+          <button
+            type="button"
+            className={`ced-rev-sim-toggle ${simOpen ? 'active' : ''}`}
+            onClick={() => setSimOpen((v) => !v)}
+          >
+            {simOpen ? '▾ 收起模擬預覽' : '▸ 進度模擬預覽'}
+          </button>
+        </div>
+        {simOpen && (
+          <RevisionSimulator
+            baseEntry={baseEntry}
+            revisions={revisions}
+            accent={accent}
+          />
+        )}
       </div>
     </div>
   );
