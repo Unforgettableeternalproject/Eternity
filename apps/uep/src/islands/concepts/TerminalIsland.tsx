@@ -27,6 +27,7 @@ import {
   loadEntityIndex,
   passedRevisionCount,
   queryIndex,
+  resolveBrowserExpand,
   resolveEntryDetails,
   resolveStackAlias,
   significantChronoPeriods,
@@ -133,6 +134,8 @@ export default function TerminalIsland() {
   function runAction(action: TermAction) {
     if (action.type === 'show-entry') {
       void showDetails(action.entry);
+    } else if (action.type === 'expand-browser') {
+      void showBrowserExpand(action.entry);
     } else if (action.type === 'navigate') {
       navigateToConceptsPage(action.pageId);
     } else if (action.type === 'ls-category') {
@@ -302,8 +305,9 @@ export default function TerminalIsland() {
   }
 
   async function showDetails(target: TerminalIndexEntry) {
-    // browser 內容一律不在 terminal 展示（S7-C 驗收定案：資料保證
-    // log↔browser 映射，詳細欄位歸個性瀏覽器）——只輸出導向標題
+    // browser 條目：預設不展開內容（log entry 為主體），
+    // 輸出導向標題 + 展開列——完整檔案由 expand-browser 在
+    // terminal 內展現（S7-D-4，取代 S7-C 的純導向過渡形態）
     if (target.stack === 'browser') {
       appendAnchored([
         {
@@ -313,6 +317,11 @@ export default function TerminalIsland() {
             text: '↗',
             action: { type: 'navigate', pageId: target.pageId },
           },
+        },
+        {
+          kind: 'row',
+          text: '  ▸ 展開完整檔案',
+          action: { type: 'expand-browser', entry: target },
         },
       ]);
       return;
@@ -352,20 +361,62 @@ export default function TerminalIsland() {
         out.push({ kind: 'row', text: `  ${s}` });
       }
     }
-    // browser 對應（同 entityKey）：暫以縮短導向呈現——
-    // 「展開完整檔案」的 terminal 內展現屬下一輪（S7-D 併行）
+    // browser 對應（同 entityKey）：「▸ 展開完整檔案」在 terminal 內
+    // 展現（S7-D-4 定案，取代「→ 個性瀏覽器」縮短導向）；
+    // 行尾 ↗ 仍可直接跳個性瀏覽器頁面
     if (anyVisible) {
       const counterpart = await findBrowserCounterpart(target);
       if (counterpart) {
         out.push({
           kind: 'row',
-          text: '  → 個性瀏覽器',
-          fade: true,
+          text: '  ▸ 展開完整檔案',
+          action: { type: 'expand-browser', entry: counterpart },
           suffix: {
             text: '↗',
             action: { type: 'navigate', pageId: counterpart.pageId },
           },
         });
+      }
+    }
+    appendAnchored(out);
+  }
+
+  /** browser 完整檔案的 terminal 內展現（S7-D-4：basic 全欄位 + sections 不截短） */
+  async function showBrowserExpand(target: TerminalIndexEntry) {
+    const detail = await resolveBrowserExpand(target, progressRef.current);
+    if (!detail) {
+      append([
+        { kind: 'err', text: `× 資料軌跡遺失——${target.pageTitle} 查無此檔案` },
+      ]);
+      return;
+    }
+    if (detail.restricted) {
+      appendAnchored([
+        {
+          kind: 'err',
+          text: `✗ ACCESS RESTRICTED · ${detail.name} — 檔案尚未解密`,
+        },
+      ]);
+      return;
+    }
+    const out: TermLine[] = [
+      {
+        kind: 'ok',
+        text: `✓ ${detail.name} · ${TERMINAL_STACK_LABELS.browser} [FULL]`,
+        suffix: {
+          text: '↗',
+          action: { type: 'navigate', pageId: detail.pageId },
+        },
+      },
+      { kind: 'row', text: `  ⌂ ${detail.pageTitle}`, fade: true },
+    ];
+    for (const line of detail.basic) {
+      out.push({ kind: 'row', text: `  ${line}` });
+    }
+    for (const section of detail.sections) {
+      out.push({ kind: 'head', text: `  ▸ ${section.label}` });
+      for (const line of section.lines) {
+        out.push({ kind: 'row', text: `  ${line}` });
       }
     }
     appendAnchored(out);

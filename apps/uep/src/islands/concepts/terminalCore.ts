@@ -652,3 +652,75 @@ export async function resolveEntryDetails(
 
   return out;
 }
+
+// ── browser 完整檔案展開（S7-D-4） ─────────────────────────────────
+
+/**
+ * browser 完整檔案的展開結果——與 TerminalEntryDetail 的縮短摘要
+ * 不同：basic 全欄位、sections 全段落（htmlToLines 不截短），
+ * 供「▸ 展開完整檔案」在 terminal 內展現（取代縮短導向的過渡形態）。
+ */
+export interface BrowserExpandDetail {
+  name: string;
+  pageId: string;
+  pageTitle: string;
+  /** basic 全欄位（「key：value」一項一行） */
+  basic: string[];
+  /** 自定義區段（label + 段落行，不截短） */
+  sections: { label: string; lines: string[] }[];
+  /** placeholder 佔位 / gate 未過 → restricted */
+  restricted?: boolean;
+}
+
+/**
+ * 解析 browser profile 的完整檔案（S7-D-4）。
+ * 回傳 null = 頁面抓不到或 profile 消失（呼叫端顯示 not-found）；
+ * placeholder / gate 未過 → restricted（與 browserDetail 語意一致）。
+ */
+export async function resolveBrowserExpand(
+  target: TerminalIndexEntry,
+  progress: ProgressState
+): Promise<BrowserExpandDetail | null> {
+  if (target.stack !== 'browser') return null;
+  const data = await loadPageData(target.pageId);
+  if (!data || !isBrowserContent(data)) return null;
+
+  for (const profile of data.profiles) {
+    if (!matchesEntry(profile, profile.name, target)) continue;
+    const base = {
+      name: profile.name,
+      pageId: target.pageId,
+      pageTitle: target.pageTitle,
+    };
+    const revisions = profile.revisions;
+    if (!isEntryUnlocked(revisions, progress)) {
+      return { ...base, basic: [], sections: [], restricted: true };
+    }
+    const resolved = applyRevisions(
+      profile as unknown as Record<string, unknown>,
+      revisions,
+      progress
+    ) as unknown as CharacterProfile;
+    if (resolved.placeholder === true) {
+      return {
+        ...base,
+        name: resolved.name,
+        basic: [],
+        sections: [],
+        restricted: true,
+      };
+    }
+    return {
+      ...base,
+      name: resolved.name,
+      basic: Object.entries(resolved.basic || {}).map(
+        ([key, value]) => `${key}：${value}`
+      ),
+      sections: (resolved.sections || []).map((section) => ({
+        label: section.label,
+        lines: htmlToLines(section.content_html || ''),
+      })),
+    };
+  }
+  return null;
+}

@@ -28,6 +28,7 @@ import {
   stripHtml,
   truncate,
   htmlToLines,
+  resolveBrowserExpand,
   resolveEntryDetails,
 } from '../terminalCore';
 import type { TerminalIndexEntry } from '../terminalCore';
@@ -487,6 +488,125 @@ describe('resolveEntryDetails', () => {
     stubFetch({});
     const details = await resolveEntryDetails(xavierIndex, stateWith({}));
     expect(details).toEqual([]);
+  });
+});
+
+// ── browser 完整檔案展開（S7-D-4） ─────────────────────────────────
+
+describe('resolveBrowserExpand', () => {
+  const pageId = 'concepts/server/browser/profiles';
+  const target = indexEntry({
+    name: '諾薇亞 (Norvia)',
+    entityKey: 'norvia',
+    stack: 'browser',
+    pageId,
+  });
+
+  function stubBrowserPage(profiles: unknown[]) {
+    stubFetch({
+      [`/api/content/${pageId}`]: {
+        ok: true,
+        data: {
+          content: [
+            {
+              type: 'browser_profile',
+              content: JSON.stringify({ profiles }),
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('basic 全欄位（不限 4 欄）+ sections 全段落不截短', async () => {
+    stubBrowserPage([
+      {
+        name: '諾薇亞 (Norvia)',
+        entityKey: 'norvia',
+        placeholder: false,
+        basic: {
+          種族: '生體機械',
+          職務: '程式碼執行者',
+          創造者: '瑞斯可·亞克',
+          隸屬: '命運織者',
+          狀態: '運作中',
+        },
+        sections: [
+          {
+            label: '內在特質',
+            content_html: `<p>${'長段落'.repeat(60)}</p><p>第二段。</p>`,
+          },
+          { label: '角色背景', content_html: '<p>背景敘述。</p>' },
+        ],
+      },
+    ]);
+    const detail = await resolveBrowserExpand(target, stateWith({}));
+    expect(detail).not.toBeNull();
+    expect(detail!.restricted).toBeUndefined();
+    // basic 全 5 欄（browserDetail 縮短形態只取 4）
+    expect(detail!.basic).toHaveLength(5);
+    expect(detail!.basic[4]).toBe('狀態：運作中');
+    // sections 全段落，長段不截短
+    expect(detail!.sections).toHaveLength(2);
+    expect(detail!.sections[0].lines[0]).toBe('長段落'.repeat(60));
+    expect(detail!.sections[0].lines[1]).toBe('第二段。');
+    expect(detail!.sections[1].label).toBe('角色背景');
+  });
+
+  it('placeholder → restricted（佔位鎖定，不洩內容）', async () => {
+    stubBrowserPage([
+      {
+        name: '諾薇亞 (Norvia)',
+        entityKey: 'norvia',
+        placeholder: true,
+        basic: { 種族: '不可見' },
+      },
+    ]);
+    const detail = await resolveBrowserExpand(target, stateWith({}));
+    expect(detail!.restricted).toBe(true);
+    expect(detail!.basic).toEqual([]);
+    expect(detail!.sections).toEqual([]);
+  });
+
+  it('revision gate 未過 → restricted；通過後 patch 生效', async () => {
+    const profiles = [
+      {
+        name: '諾薇亞 (Norvia)',
+        entityKey: 'norvia',
+        placeholder: false,
+        basic: { 職務: '???' },
+        revisions: [
+          {
+            id: 'norvia:01',
+            gate: { requiresFlags: ['norvia:01'] },
+            patch: { set: { 'basic.職務': '程式碼執行者' } },
+          },
+        ],
+      },
+    ];
+    stubBrowserPage(profiles);
+    const gated = await resolveBrowserExpand(target, stateWith({}));
+    expect(gated!.restricted).toBe(true);
+
+    invalidateTerminalCache();
+    stubBrowserPage(profiles);
+    const passed = await resolveBrowserExpand(
+      target,
+      stateWith({ flags: ['norvia:01'] })
+    );
+    expect(passed!.restricted).toBeUndefined();
+    expect(passed!.basic).toEqual(['職務：程式碼執行者']);
+  });
+
+  it('非 browser 目標 / profile 消失 → null', async () => {
+    expect(
+      await resolveBrowserExpand(
+        indexEntry({ name: 'x', stack: 'dossier' }),
+        stateWith({})
+      )
+    ).toBeNull();
+    stubBrowserPage([{ name: '別人', entityKey: 'other' }]);
+    expect(await resolveBrowserExpand(target, stateWith({}))).toBeNull();
   });
 });
 

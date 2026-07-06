@@ -20,6 +20,8 @@ export const MAX_TERM_LINES = 200;
 /** 可序列化的行為（rehydrate 後由 UI 重建 handler） */
 export type TermAction =
   | { type: 'show-entry'; entry: TerminalIndexEntry }
+  /** browser 完整檔案在 terminal 內展開（S7-D-4；entry = browser 條目） */
+  | { type: 'expand-browser'; entry: TerminalIndexEntry }
   | { type: 'navigate'; pageId: string }
   /** ls 層級式展開：列出指定分類的條目（category '' = 未分類） */
   | {
@@ -69,7 +71,9 @@ function normalizeAction(raw: unknown): TermAction | undefined {
         }
       : undefined;
   }
-  if (obj.type !== 'show-entry') return undefined;
+  if (obj.type !== 'show-entry' && obj.type !== 'expand-browser') {
+    return undefined;
+  }
   if (typeof obj.entry !== 'object' || obj.entry === null) return undefined;
   const entry = obj.entry as Partial<TerminalIndexEntry>;
   if (
@@ -81,7 +85,7 @@ function normalizeAction(raw: unknown): TermAction | undefined {
   ) {
     return undefined;
   }
-  return { type: 'show-entry', entry: entry as TerminalIndexEntry };
+  return { type: obj.type, entry: entry as TerminalIndexEntry };
 }
 
 /** 驗證並過濾讀回的行陣列；整體形狀非法時回傳 null */

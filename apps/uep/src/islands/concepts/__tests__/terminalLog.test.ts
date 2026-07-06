@@ -137,6 +137,27 @@ describe('容錯', () => {
     expect(normalized![2].action).toBeUndefined();
   });
 
+  it('expand-browser action round-trip；非法 entry 降級純文字（S7-D-4）', () => {
+    const browserEntry = {
+      ...sampleEntry,
+      stack: 'browser' as const,
+      pageId: 'concepts/server/browser/profiles',
+    };
+    const normalized = normalizeTermLines([
+      {
+        kind: 'row',
+        text: '  ▸ 展開完整檔案',
+        action: { type: 'expand-browser', entry: browserEntry },
+      },
+      { kind: 'row', text: 'bad', action: { type: 'expand-browser' } },
+    ]);
+    expect(normalized![0].action).toEqual({
+      type: 'expand-browser',
+      entry: browserEntry,
+    });
+    expect(normalized![1].action).toBeUndefined();
+  });
+
   it('ls-category action round-trip；非法 stack 降級純文字', () => {
     const normalized = normalizeTermLines([
       {
