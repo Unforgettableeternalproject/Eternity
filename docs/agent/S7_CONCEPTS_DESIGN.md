@@ -911,4 +911,22 @@ S7 引入 revision 後，解鎖一個 browser profile 有兩種可能語意：
 4. browser/chrono 的條目編輯區同樣走此模式——四 stack 共用同一個 modal 骨架，
    PatchEditor 依 stack 動態渲染（4-3 節設計不變，只是容器從 inline 改 modal）
 
+### Sub-session B：已完成（2026-07-06，0.9.12.15 ~ 0.9.12.19）
+
+| Commit | 版號 | 內容 |
+|--------|------|------|
+| 5ff6b6d | 0.9.12.15 | EntityKeyField：kebab-case 即時校驗 + 唯一性警告，接入四 stack 詳情欄（dossier=同 variant 唯一、其他=同頁唯一）|
+| d144760 | 0.9.12.16 | RevisionModal：時間線左欄（增刪/上下移）+ GateConditionEditor 接線 + base 虛擬項說明 + 預設 id 走旗標慣例 |
+| c05e4b3 | 0.9.12.17 | PatchEditor：set 欄位八型值編輯器 + remove 路徑列表 + 自訂 dot-notation 欄位；MiniEditor 抽出獨立檔 |
+| 9ad5283 | 0.9.12.18 | RevisionSimulator：旗標 chips + 觀測者切換 + 亂序警告 + effective view JSON（modal 底部切換）|
+| be058a9 | 0.9.12.19 | generate/apply-entity-keys.mjs 遷移腳本（候選產生 → 人工確認 → 批次寫入，本地實掃 13 頁 59 候選）|
+| c3fbd14 | （fix） | MiniEditor 切換條目內容殘留（既有 bug）——call site 補 key 強制 remount + 回歸測試 |
+
+驗證：`pnpm check` 全過；全站 525 測試全綠（uep 476 + workers 49，新增 49 零退化）。
+
+實作備註：
+- 清單端點（GET /api/content/:area）不含 metadata——腳本逐頁抓取後判 stack_style
+- 已知殘留：browser 區段同角色內拖曳排序仍用位置型 key（section 無穩定 id）
+- 手動驗收待做：Admin 實際設 entityKey + revision 存檔 → Reader 前台驗證（連同 A 段一起）
+
 *文件結束。*
