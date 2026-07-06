@@ -867,4 +867,48 @@ S7 引入 revision 後，解鎖一個 browser profile 有兩種可能語意：
 - Dossier patch 欄位清單實作時要照實際型別補齊（`name/alias/title/ability/notes/spoiler`），設計文件範例只是示意
 - `conceptsReadLevel` 放 ProgressState = 跟登入同步、跨裝置不重複通知（隱含決定，艾斯維爾已知悉）
 
+---
+
+## 實作進度記錄
+
+### Sub-session A：已完成（2026-07-06，0.9.12.11 ~ 0.9.12.14）
+
+| Commit | 版號 | 內容 |
+|--------|------|------|
+| 7449ab3 | 0.9.12.11 | Revision schema 型別（WithRevision/ConceptsRevision/RevisionPatch，四 stack extends）|
+| db1a1f9 | 0.9.12.12 | `revision.ts` resolver：applyDotPath/applyRevisions/isEntryUnlocked/type guards/resolveEffectiveViewForPage（27 測試）|
+| 88c4139 | 0.9.12.13 | `revisionCache.ts`：progressFingerprint 快取（8 測試）|
+| 0af89ac | 0.9.12.14 | ConceptsReader 接線：useProgress、stack 列表 gate 過濾、deep link 守門、effective view 套用 |
+| 16fb478 | （fix）  | structuredClone eslint global 宣告 |
+
+驗證：`pnpm check` 全過；全站 476 測試全綠（新增 35，零退化）。
+
+與原拆卡的偏移：A-2/A-3 合併為單一 commit（同檔案不拆刀），版號順移；A-6 check 不佔版號。
+
+實作備註：
+- type narrowing 實解：dossier 靠 `variants`、browser 靠 `profiles`、chrono 靠 `periods`、diff = subcategories 且非前三者且無 groups
+- `patch.set` 的 value 也做 structuredClone（防多條目共用 patch 物件的引用共用）
+- 快取同 page 只留最新 fingerprint 一份（進度單調前進）；fingerprint 含 observerEver
+- 手動驗收延後：資料端尚無 revision 內容，艾斯維爾將於 Sub-session B 完成後一併測試
+
+### Sub-session B 排版定案（2026-07-06，開工前補充）
+
+艾斯維爾反映編輯器現有排版已擠。實查 `ConceptsEditorBody`：dossier/diff 為雙欄
+（左 groups/entries 檔案樹 + 右詳情欄），右詳情欄寬度有限，revision 時間線
+（gate 編輯器 + patch 欄位 + TipTap）inline 塞入必爆。
+
+**定案：revision 編輯不進右側詳情欄，開獨立 modal。**
+
+1. 右詳情欄只加兩個輕量元素：
+   - `entityKey` 單行輸入（一個 ced-field-row，與名稱同規格）
+   - 「進度版本 (N)」按鈕——顯示 revision 數量，點擊開 modal
+2. Revision 時間線 modal（比照既有 SpriteEditorModal / MediaLibrary 的 modal 慣例）：
+   - 左欄：revision 列表（base / r1 / r2…，可增刪排序）
+   - 右欄：選中 revision 的 GateConditionEditor + PatchEditor
+   - 底部：進度模擬預覽切換（4-4 節的 RevisionSimulator 併入此 modal）
+3. TipTap 惰性 mount：只有選中的 revision 才實例化 MiniEditor
+   （直接緩解「每 revision 一個 TipTap 實例」的效能風險）
+4. browser/chrono 的條目編輯區同樣走此模式——四 stack 共用同一個 modal 骨架，
+   PatchEditor 依 stack 動態渲染（4-3 節設計不變，只是容器從 inline 改 modal）
+
 *文件結束。*
