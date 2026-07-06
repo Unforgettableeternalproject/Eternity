@@ -43,13 +43,7 @@ import {
   unlockIsland,
 } from '../../islands';
 import LostBookmarkGate from './LostBookmarkGate';
-import {
-  UEP_ENTITY_ACTIVE_ATTR,
-  UEP_ENTITY_ACTIVATE_EVENT,
-  dispatchEntityActivate,
-  entityKindLabel,
-} from '../../embed';
-import type { EntityActivateDetail } from '../../embed';
+import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import { ChapterTimeline } from './ChapterTimeline';
@@ -477,23 +471,9 @@ export default function HistoryReader() {
     void fetchTree();
   }, []);
 
-  // ⚠️ S4 臨時佔位消費端：entity 啟動事件先以 Toast 呈現，
-  // 讓解鎖→點擊的閉環可肉眼驗證。S6/S7 浮島（Concepts mini
-  // dossier）接上 UEP_ENTITY_ACTIVATE_EVENT 後，整段 effect 拆除。
-  useEffect(() => {
-    const onEntityActivate = (event: Event) => {
-      const detail = (event as CustomEvent<EntityActivateDetail>).detail;
-      if (!detail) return;
-      window.__uepToastManager?.info(
-        `◈ ${entityKindLabel(detail.kind)}引用：${
-          detail.text ?? detail.pageId
-        }（${detail.ref}）`
-      );
-    };
-    window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, onEntityActivate);
-    return () =>
-      window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onEntityActivate);
-  }, []);
+  // entity 啟動事件的消費端是 Terminal Island（S7-C 接管；
+  // 監聽常駐 IslandHost，經 terminalBridge 轉交）——S4 的 Toast
+  // 佔位 effect 已於此拆除。本元件只負責 dispatch（見 handleContentClick）。
 
   // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
   useZoneRouter({
