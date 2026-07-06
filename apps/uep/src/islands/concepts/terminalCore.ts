@@ -197,10 +197,21 @@ export function resolveStackAlias(input: string): TerminalStack | null {
 }
 
 /**
+ * 檢索範圍判定（S7-C 四輪定案）：terminal 以 log entry 為主體——
+ * browser 一律不可直接搜尋（詳細內容經 log entry 的連結呈現）；
+ * diff 只有掛 entityKey 的名詞對照條目可查（與嵌入目標同規則），
+ * 純翻譯條目不掛 key 自然排除，ls compare 仍可瀏覽全部。
+ */
+function isSearchable(entry: TerminalIndexEntry): boolean {
+  if (entry.stack === 'browser') return false;
+  if (entry.stack === 'diff') return Boolean(entry.entityKey);
+  return true;
+}
+
+/**
  * 關鍵字檢索：name / entityKey 的 case-insensitive substring 比對。
  * 未解鎖條目直接隱藏（不進結果）；帶 entityKey 的條目排前。
- * browser 條目不進檢索（S7-C 三輪定案）：terminal 以 log entry 為主體，
- * browser 詳細內容經 log entry 的連結呈現，不能直接搜尋。
+ * 檢索範圍見 isSearchable。
  */
 export function queryIndex(
   entries: TerminalIndexEntry[],
@@ -210,7 +221,7 @@ export function queryIndex(
   const kw = keyword.trim().toLowerCase();
   if (!kw) return [];
   return entries
-    .filter((e) => e.stack !== 'browser')
+    .filter(isSearchable)
     .filter((e) => isIndexEntryUnlocked(e, progress))
     .filter(
       (e) =>
@@ -325,7 +336,8 @@ const COMPLETION_COMMANDS = ['query ', 'ls ', 'clear', 'help'];
 /**
  * 已解鎖條目的補全候選（name/entityKey，startsWith 優先、includes 補位）。
  * 未解鎖條目不進候選——防洩漏（與 query 隱藏語意一致）。同名去重。
- * browser 條目不進候選（與 queryIndex 檢索語意一致）。
+ * 檢索範圍同 queryIndex（isSearchable）。
+ * 空關鍵字回空陣列——不倒全部（S7-C 四輪定案：預設空）。
  */
 function entryCandidates(
   entries: TerminalIndexEntry[],
@@ -334,16 +346,17 @@ function entryCandidates(
   limit: number
 ): string[] {
   const kw = keyword.toLowerCase();
+  if (!kw) return [];
   const starts: string[] = [];
   const includes: string[] = [];
   const seen = new Set<string>();
   for (const entry of entries) {
-    if (entry.stack === 'browser') continue;
+    if (!isSearchable(entry)) continue;
     if (!isIndexEntryUnlocked(entry, progress)) continue;
     if (seen.has(entry.name)) continue;
     const name = entry.name.toLowerCase();
     const key = entry.entityKey?.toLowerCase() ?? '';
-    if (!kw || name.startsWith(kw) || (key && key.startsWith(kw))) {
+    if (name.startsWith(kw) || (key && key.startsWith(kw))) {
       starts.push(entry.name);
       seen.add(entry.name);
     } else if (name.includes(kw) || (key && key.includes(kw))) {
@@ -370,7 +383,8 @@ export function completeInput(
 ): string[] {
   const input = raw.replace(/^\s+/, '');
   const lower = input.toLowerCase();
-  if (!input) return [...COMPLETION_COMMANDS];
+  // 空輸入不出候選（S7-C 四輪定案：預設空，指令靠 ?/help 查）
+  if (!input) return [];
 
   if (lower === 'ls' || lower.startsWith('ls ')) {
     const arg = lower === 'ls' ? '' : lower.slice(3).trimStart();

@@ -203,6 +203,19 @@ describe('queryIndex', () => {
     expect(hits.find((h) => h.stack === 'browser')).toBeUndefined();
   });
 
+  it('diff 條目掛 entityKey 才可查（四輪定案：純翻譯不進 query）', () => {
+    // '原質' 是無 key 的 diff 條目（翻譯類）——不可查
+    expect(queryIndex(entries, '原質', stateWith({}))).toHaveLength(0);
+    // 掛 key 的 diff 名詞對照條目——可查
+    const withKeyed = [
+      ...entries,
+      indexEntry({ name: '遣返', stack: 'diff', entityKey: 'repatriation' }),
+    ];
+    const hits = queryIndex(withKeyed, '遣返', stateWith({}));
+    expect(hits).toHaveLength(1);
+    expect(hits[0].entityKey).toBe('repatriation');
+  });
+
   it('未解鎖條目從結果隱藏', () => {
     expect(queryIndex(entries, '未解鎖', stateWith({}))).toHaveLength(0);
     expect(
@@ -586,13 +599,10 @@ describe('completeInput', () => {
     indexEntry({ name: '諾薇亞 Norvia', stack: 'browser' }), // 同名跨 stack
   ];
 
-  it('空輸入 → 指令清單', () => {
-    expect(completeInput('', entries, stateWith({}))).toEqual([
-      'query ',
-      'ls ',
-      'clear',
-      'help',
-    ]);
+  it('空輸入與 query 空參數 → 空候選（預設空，不倒全部）', () => {
+    expect(completeInput('', entries, stateWith({}))).toEqual([]);
+    expect(completeInput('query ', entries, stateWith({}))).toEqual([]);
+    expect(completeInput('query', entries, stateWith({}))).toEqual([]);
   });
 
   it('指令前綴補全（cl → clear）', () => {
