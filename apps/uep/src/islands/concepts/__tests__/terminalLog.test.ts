@@ -41,7 +41,10 @@ describe('round-trip', () => {
     const loaded = loadTerminalLog();
     expect(loaded).toEqual(lines);
     // action 是純資料——可序列化重建
-    expect(loaded![2].action?.entry.entityKey).toBe('xavier');
+    expect(loaded![2].action).toEqual({
+      type: 'show-entry',
+      entry: sampleEntry,
+    });
   });
 
   it('超過上限時截尾保留最新', () => {
@@ -110,7 +113,28 @@ describe('容錯', () => {
     expect(normalized![0].action).toBeUndefined();
     expect(normalized![1].action).toBeUndefined();
     expect(normalized![2].action).toBeUndefined();
-    expect(normalized![3].action?.entry.name).toBe('艾斯維爾·科索諾');
+    expect(normalized![3].action).toEqual({
+      type: 'show-entry',
+      entry: sampleEntry,
+    });
+  });
+
+  it('navigate action round-trip；非法 pageId 降級純文字', () => {
+    const normalized = normalizeTermLines([
+      {
+        kind: 'row',
+        text: '→ 前往角色列表 ▸',
+        action: { type: 'navigate', pageId: 'concepts/server/records/x' },
+      },
+      { kind: 'row', text: 'bad', action: { type: 'navigate', pageId: '' } },
+      { kind: 'row', text: 'bad2', action: { type: 'navigate' } },
+    ]);
+    expect(normalized![0].action).toEqual({
+      type: 'navigate',
+      pageId: 'concepts/server/records/x',
+    });
+    expect(normalized![1].action).toBeUndefined();
+    expect(normalized![2].action).toBeUndefined();
   });
 
   it('fade 只接受 true（其他值不落欄位）', () => {

@@ -58,6 +58,30 @@ const HELP_LINES: TermLine[] = [
   { kind: 'meta', text: '  · clear           — 清空輸出' },
 ];
 
+/**
+ * 跳轉到 Concepts 頁面（entry 導向列用，比照 navigateToHistoryPage）：
+ * - 已在 /concepts：pushState + 手動 dispatch popstate，讓 Reader 的
+ *   useZoneRouter 接手載入（不整頁重載）
+ * - 在其他頁面：整頁導航到 /concepts?page=...
+ * 未解鎖頁由 ConceptsReader 的 deep link 守門處理（not-found 呈現）。
+ */
+function navigateToConceptsPage(pageId: string): void {
+  const slug = pageId.startsWith('concepts/')
+    ? pageId.slice('concepts/'.length)
+    : pageId;
+  const onConceptsPage =
+    window.location.pathname.replace(/\/$/, '') === '/concepts';
+  if (onConceptsPage) {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.searchParams.set('page', slug);
+    window.history.pushState({}, '', url.toString());
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  } else {
+    window.location.href = `/concepts?page=${encodeURIComponent(slug)}`;
+  }
+}
+
 export default function TerminalIsland() {
   const progress = useProgress();
   // 輸出歷史持久化（S7-C 驗收定案）：mount 時還原上次內容，
@@ -85,6 +109,8 @@ export default function TerminalIsland() {
   function runAction(action: TermAction) {
     if (action.type === 'show-entry') {
       void showDetails(action.entry);
+    } else if (action.type === 'navigate') {
+      navigateToConceptsPage(action.pageId);
     }
   }
 
@@ -218,7 +244,44 @@ export default function TerminalIsland() {
 
   /* ── 指令處理 ── */
 
+  /** 同 entityKey 的 browser 對應條目（導向列用；無 key 或無對應回 null） */
+  async function findBrowserCounterpart(
+    target: TerminalIndexEntry
+  ): Promise<TerminalIndexEntry | null> {
+    if (!target.entityKey || target.stack === 'browser') return null;
+    try {
+      const entries = await loadEntityIndex();
+      return (
+        entries.find(
+          (e) => e.stack === 'browser' && e.entityKey === target.entityKey
+        ) ?? null
+      );
+    } catch {
+      return null;
+    }
+  }
+
   async function showDetails(target: TerminalIndexEntry) {
+    // browser 內容一律不在 terminal 展示（S7-C 驗收定案：資料保證
+    // log↔browser 映射，詳細欄位歸個性瀏覽器）——只輸出導向列
+    if (target.stack === 'browser') {
+      const anchorId = `anchor-${++anchorSeqRef.current}`;
+      pendingAnchorRef.current = anchorId;
+      append([
+        {
+          kind: 'ok',
+          text: `✓ ${target.name} · ${TERMINAL_STACK_LABELS.browser}`,
+          anchorId,
+        },
+        {
+          kind: 'row',
+          text: '  → 開啟個性瀏覽器檔案 ▸',
+          action: { type: 'navigate', pageId: target.pageId },
+        },
+      ]);
+      return;
+    }
+
     const details = await resolveEntryDetails(target, progressRef.current);
     if (details.length === 0) {
       append([
@@ -227,6 +290,7 @@ export default function TerminalIsland() {
       return;
     }
     const out: TermLine[] = [];
+    let anyVisible = false;
     for (const d of details) {
       if (d.restricted) {
         out.push({
@@ -235,6 +299,7 @@ export default function TerminalIsland() {
         });
         continue;
       }
+      anyVisible = true;
       const variant = d.variantId ? ` [${d.variantId.toUpperCase()}]` : '';
       out.push({
         kind: 'ok',
@@ -243,6 +308,23 @@ export default function TerminalIsland() {
       out.push({ kind: 'row', text: `  ⌂ ${d.pageTitle}`, fade: true });
       for (const s of d.summary) {
         out.push({ kind: 'row', text: `  ${s}` });
+      }
+    }
+    // 統一導向列（S7-C 驗收定案：所有 entry 尾端可導向對應頁面）；
+    // 全 restricted 時不給導向（頁面守門也會擋，避免死路體驗）
+    if (anyVisible) {
+      out.push({
+        kind: 'row',
+        text: `  → 前往 ${target.pageTitle} ▸`,
+        action: { type: 'navigate', pageId: target.pageId },
+      });
+      const counterpart = await findBrowserCounterpart(target);
+      if (counterpart) {
+        out.push({
+          kind: 'row',
+          text: '  → 開啟個性瀏覽器檔案 ▸',
+          action: { type: 'navigate', pageId: counterpart.pageId },
+        });
       }
     }
     // 清空式展現：整批第一行標錨點，輸出後捲動置頂（保留歷史）
@@ -263,7 +345,9 @@ export default function TerminalIsland() {
       await runQuery(label);
       return;
     }
-    for (const hit of hits) {
+    // 同 key 去重：有 log/diff 命中時 browser 不另列（導向列已涵蓋）
+    const nonBrowser = hits.filter((h) => h.stack !== 'browser');
+    for (const hit of nonBrowser.length > 0 ? nonBrowser : hits) {
       await showDetails(hit);
     }
   }
@@ -274,7 +358,22 @@ export default function TerminalIsland() {
     const entries = await ensureIndex();
     if (!entries) return;
 
-    const hits = queryIndex(entries, kw, progressRef.current);
+    const rawHits = queryIndex(entries, kw, progressRef.current);
+    // 同 entityKey 去重（S7-C 驗收定案）：存在 log/diff 命中時，
+    // browser 那筆不進結果列表——瀏覽器內容統一走詳細頁導向列
+    const keyedNonBrowser = new Set(
+      rawHits
+        .filter((h) => h.stack !== 'browser' && h.entityKey)
+        .map((h) => h.entityKey as string)
+    );
+    const hits = rawHits.filter(
+      (h) =>
+        !(
+          h.stack === 'browser' &&
+          h.entityKey &&
+          keyedNonBrowser.has(h.entityKey)
+        )
+    );
     if (hits.length === 0) {
       append([
         { kind: 'err', text: `× 查無「${kw}」` },

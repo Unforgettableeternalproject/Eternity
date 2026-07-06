@@ -18,7 +18,9 @@ export const TERMINAL_LOG_KEY = 'uep.islands.terminal.v1';
 export const MAX_TERM_LINES = 200;
 
 /** 可序列化的行為（rehydrate 後由 UI 重建 handler） */
-export type TermAction = { type: 'show-entry'; entry: TerminalIndexEntry };
+export type TermAction =
+  | { type: 'show-entry'; entry: TerminalIndexEntry }
+  | { type: 'navigate'; pageId: string };
 
 /** 單行輸出（action 有值時渲染為可點擊列） */
 export interface TermLine {
@@ -36,7 +38,12 @@ const STACKS = new Set(['dossier', 'browser', 'chrono', 'diff']);
 /** 驗證單筆 action 形狀；非法時回傳 undefined（該行降級為純文字） */
 function normalizeAction(raw: unknown): TermAction | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
-  const obj = raw as { type?: unknown; entry?: unknown };
+  const obj = raw as { type?: unknown; entry?: unknown; pageId?: unknown };
+  if (obj.type === 'navigate') {
+    return typeof obj.pageId === 'string' && obj.pageId
+      ? { type: 'navigate', pageId: obj.pageId }
+      : undefined;
+  }
   if (obj.type !== 'show-entry') return undefined;
   if (typeof obj.entry !== 'object' || obj.entry === null) return undefined;
   const entry = obj.entry as Partial<TerminalIndexEntry>;
