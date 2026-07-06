@@ -194,3 +194,10 @@
 .uep-terminal__enter {
   color: rgba(45, 106, 79, 0.8);
 }
+
+/* Tab 補全候選指示（n/m 循環位置） */
+.uep-terminal__completion-hint {
+  color: #74c69d;
+  font-size: 10px;
+  white-space: nowrap;
+}

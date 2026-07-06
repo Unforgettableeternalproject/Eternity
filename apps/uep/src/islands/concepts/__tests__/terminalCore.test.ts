@@ -23,6 +23,7 @@ import {
   listStackEntries,
   groupStackEntries,
   significantChronoPeriods,
+  completeInput,
   stripHtml,
   truncate,
   htmlToLines,
@@ -528,11 +529,7 @@ describe('significantChronoPeriods', () => {
   });
 
   it('同事件數維持索引順序（時間軸序）；超出 limit 截斷', () => {
-    const entries = [
-      chrono('前年', 3),
-      chrono('後年', 3),
-      chrono('峰年', 7),
-    ];
+    const entries = [chrono('前年', 3), chrono('後年', 3), chrono('峰年', 7)];
     const top = significantChronoPeriods(entries, stateWith({}), 2);
     expect(top.map((e) => e.name)).toEqual(['峰年', '前年']);
   });
@@ -567,5 +564,80 @@ describe('htmlToLines', () => {
     const lines = htmlToLines(`<p>短行<br/>${long}</p>`);
     expect(lines).toEqual(['短行', long]);
     expect(lines[1]).toHaveLength(300);
+  });
+});
+
+// ── Tab 補全候選（S7-C 驗收回饋） ──────────────────────────────────
+
+describe('completeInput', () => {
+  const entries: TerminalIndexEntry[] = [
+    indexEntry({
+      name: '艾斯維爾·科索諾 Xavier Colsono',
+      entityKey: 'xavier-colsono',
+    }),
+    indexEntry({ name: '諾薇亞 Norvia', entityKey: 'norvia' }),
+    indexEntry({ name: '舊礦山 Old Mine Site' }),
+    indexEntry({
+      name: '未解鎖角色',
+      revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
+    }),
+    indexEntry({ name: '諾薇亞 Norvia', stack: 'browser' }), // 同名跨 stack
+  ];
+
+  it('空輸入 → 指令清單', () => {
+    expect(completeInput('', entries, stateWith({}))).toEqual([
+      'query ',
+      'ls ',
+      'clear',
+      'help',
+    ]);
+  });
+
+  it('指令前綴補全（cl → clear）', () => {
+    expect(completeInput('cl', entries, stateWith({}))).toContain('clear');
+    expect(completeInput('q', entries, stateWith({}))).toContain('query ');
+  });
+
+  it('ls 參數補全（含裸 ls 與部分參數）', () => {
+    expect(completeInput('ls ', entries, stateWith({}))).toEqual([
+      'ls log',
+      'ls browser',
+      'ls clock',
+      'ls compare',
+    ]);
+    expect(completeInput('ls c', entries, stateWith({}))).toEqual([
+      'ls clock',
+      'ls compare',
+    ]);
+  });
+
+  it('query 條目補全：name/entityKey 皆可，未解鎖不出現、同名去重', () => {
+    const byKey = completeInput('query xavier', entries, stateWith({}));
+    expect(byKey).toEqual(['query 艾斯維爾·科索諾 Xavier Colsono']);
+
+    const byName = completeInput('query 諾薇亞', entries, stateWith({}));
+    expect(byName).toEqual(['query 諾薇亞 Norvia']); // 跨 stack 同名只一筆
+
+    const locked = completeInput('query 未解鎖', entries, stateWith({}));
+    expect(locked).toEqual([]);
+  });
+
+  it('query 中段比對補位（includes 排在 startsWith 之後）', () => {
+    const hits = completeInput('query no', entries, stateWith({}));
+    // norvia 是 entityKey startsWith；Colsono 是 name includes
+    expect(hits[0]).toBe('query 諾薇亞 Norvia');
+    expect(hits).toContain('query 艾斯維爾·科索諾 Xavier Colsono');
+  });
+
+  it('裸字：指令前綴優先、條目名補位（裸名提交即 query）', () => {
+    const hits = completeInput('舊礦', entries, stateWith({}));
+    expect(hits).toEqual(['舊礦山 Old Mine Site']);
+  });
+
+  it('limit 截斷', () => {
+    const many = Array.from({ length: 20 }, (_, i) =>
+      indexEntry({ name: `條目${String(i).padStart(2, '0')}` })
+    );
+    expect(completeInput('query 條目', many, stateWith({}), 8)).toHaveLength(8);
   });
 });

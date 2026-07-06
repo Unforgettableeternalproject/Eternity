@@ -276,6 +276,83 @@ export function groupStackEntries(
   return { groups, unlockedCount: unlocked.length, total };
 }
 
+/** Tab 補全的指令詞（尾空格 = 帶參數指令） */
+const COMPLETION_COMMANDS = ['query ', 'ls ', 'clear', 'help'];
+
+/**
+ * 已解鎖條目的補全候選（name/entityKey，startsWith 優先、includes 補位）。
+ * 未解鎖條目不進候選——防洩漏（與 query 隱藏語意一致）。同名去重。
+ */
+function entryCandidates(
+  entries: TerminalIndexEntry[],
+  keyword: string,
+  progress: ProgressState,
+  limit: number
+): string[] {
+  const kw = keyword.toLowerCase();
+  const starts: string[] = [];
+  const includes: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    if (!isIndexEntryUnlocked(entry, progress)) continue;
+    if (seen.has(entry.name)) continue;
+    const name = entry.name.toLowerCase();
+    const key = entry.entityKey?.toLowerCase() ?? '';
+    if (!kw || name.startsWith(kw) || (key && key.startsWith(kw))) {
+      starts.push(entry.name);
+      seen.add(entry.name);
+    } else if (name.includes(kw) || (key && key.includes(kw))) {
+      includes.push(entry.name);
+      seen.add(entry.name);
+    }
+  }
+  return [...starts, ...includes].slice(0, limit);
+}
+
+/**
+ * Tab 補全候選（S7-C 驗收回饋）：回傳「補全後整行」候選，
+ * UI 以 Tab/↑↓ 循環直接替換輸入列。
+ * - 空輸入 → 指令清單
+ * - `ls <部分參數>` → stack 簡稱
+ * - `query <部分關鍵字>` → 已解鎖條目名（未解鎖不出現）
+ * - 裸字 → 指令前綴 + 條目名（裸名提交即 query 語意）
+ */
+export function completeInput(
+  raw: string,
+  entries: TerminalIndexEntry[],
+  progress: ProgressState,
+  limit = 8
+): string[] {
+  const input = raw.replace(/^\s+/, '');
+  const lower = input.toLowerCase();
+  if (!input) return [...COMPLETION_COMMANDS];
+
+  if (lower === 'ls' || lower.startsWith('ls ')) {
+    const arg = lower === 'ls' ? '' : lower.slice(3).trimStart();
+    return Object.keys(TERMINAL_STACK_ALIASES)
+      .filter((s) => s.startsWith(arg))
+      .map((s) => `ls ${s}`)
+      .slice(0, limit);
+  }
+  if (lower === 'query' || lower.startsWith('query ')) {
+    const kw = lower === 'query' ? '' : input.slice(6).trim();
+    return entryCandidates(entries, kw, progress, limit).map(
+      (name) => `query ${name}`
+    );
+  }
+  // 裸字：指令前綴優先，條目名（裸）補位
+  const cmdHits = COMPLETION_COMMANDS.filter(
+    (c) => c.toLowerCase().startsWith(lower) && c.trimEnd() !== input
+  );
+  const entryHits = entryCandidates(
+    entries,
+    input,
+    progress,
+    limit - cmdHits.length
+  ).filter((name) => name !== input);
+  return [...cmdHits, ...entryHits].slice(0, limit);
+}
+
 /**
  * ls clock 的顯著時代（S7-C 驗收回饋）：已解鎖 chrono 條目按
  * eventCount 降序取前 `limit` 個（0 事件不顯著、不列），

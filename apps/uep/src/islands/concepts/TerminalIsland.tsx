@@ -20,6 +20,7 @@ import { getProgressManager, useProgress } from '../../progress';
 import { subscribeEntityActivate } from './terminalBridge';
 import {
   TERMINAL_STACK_LABELS,
+  completeInput,
   findByEntityKey,
   groupStackEntries,
   loadEntityIndex,
@@ -100,6 +101,14 @@ export default function TerminalIsland() {
   /** 清空式展現的一次性捲動目標（null = 照常捲到底） */
   const pendingAnchorRef = useRef<string | null>(null);
   const anchorSeqRef = useRef(0);
+
+  /* Tab 補全 + ↑↓ 候選/歷史（S7-C 驗收回饋） */
+  const [completion, setCompletion] = useState<{
+    candidates: string[];
+    index: number;
+  } | null>(null);
+  const historyRef = useRef<string[]>([]);
+  const histIdxRef = useRef<number | null>(null);
 
   function append(add: TermLine[]) {
     setLines((prev) => [...prev, ...add].slice(-MAX_TERM_LINES));
@@ -523,6 +532,70 @@ export default function TerminalIsland() {
     void runQuery(cmd);
   }
 
+  /* ── Tab 補全 / 歷史導航 ── */
+
+  /** 套用候選（同步更新輸入列與循環索引） */
+  function applyCandidate(
+    candidates: string[],
+    index: number,
+    open = false
+  ): void {
+    setCompletion({ candidates, index });
+    setInput(candidates[index]);
+    if (open) histIdxRef.current = null;
+  }
+
+  /** Tab 首按：計算候選並套用第一個 */
+  async function openCompletion(): Promise<void> {
+    let entries: TerminalIndexEntry[] = [];
+    try {
+      entries = await loadEntityIndex();
+    } catch {
+      // 索引失敗仍可補指令詞
+    }
+    const candidates = completeInput(input, entries, progressRef.current);
+    if (candidates.length === 0) return;
+    applyCandidate(candidates, 0, true);
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (completion && completion.candidates.length > 0) {
+        const next = (completion.index + 1) % completion.candidates.length;
+        applyCandidate(completion.candidates, next);
+      } else {
+        void openCompletion();
+      }
+      return;
+    }
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const dir = e.key === 'ArrowUp' ? -1 : 1;
+
+    // 候選開啟中：↑↓ 在候選間循環
+    if (completion && completion.candidates.length > 0) {
+      const len = completion.candidates.length;
+      const next = (completion.index + dir + len) % len;
+      applyCandidate(completion.candidates, next);
+      return;
+    }
+
+    // 無候選：↑↓ 翻指令歷史（↓ 超出回到空輸入列）
+    const hist = historyRef.current;
+    if (hist.length === 0) return;
+    const cur = histIdxRef.current;
+    let next: number | null;
+    if (cur === null) {
+      next = dir === -1 ? hist.length - 1 : null;
+    } else {
+      const moved = cur + dir;
+      next = moved >= hist.length ? null : Math.max(0, moved);
+    }
+    histIdxRef.current = next;
+    setInput(next === null ? '' : hist[next]);
+  }
+
   const lineClass = (line: TermLine) =>
     `uep-terminal__line uep-terminal__line--${line.kind}${
       line.fade ? ' uep-terminal__line--fade' : ''
@@ -575,6 +648,14 @@ export default function TerminalIsland() {
         className="uep-terminal__prompt"
         onSubmit={(e) => {
           e.preventDefault();
+          const cmd = input.trim();
+          if (cmd) {
+            const hist = historyRef.current;
+            if (hist[hist.length - 1] !== cmd) hist.push(cmd);
+            if (hist.length > 50) hist.shift();
+          }
+          histIdxRef.current = null;
+          setCompletion(null);
           runCommand(input);
           setInput('');
         }}
@@ -586,15 +667,26 @@ export default function TerminalIsland() {
           ref={inputRef}
           className="uep-terminal__input"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={indexReady ? 'query …' : 'initializing…'}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setCompletion(null);
+            histIdxRef.current = null;
+          }}
+          onKeyDown={handleInputKeyDown}
+          placeholder={indexReady ? 'query … （⇥ 補全）' : 'initializing…'}
           aria-label="terminal 指令輸入"
           spellCheck={false}
           autoComplete="off"
         />
-        <span className="uep-terminal__enter" aria-hidden>
-          ↵
-        </span>
+        {completion && completion.candidates.length > 1 ? (
+          <span className="uep-terminal__completion-hint" aria-hidden>
+            ⇥ {completion.index + 1}/{completion.candidates.length}
+          </span>
+        ) : (
+          <span className="uep-terminal__enter" aria-hidden>
+            ↵
+          </span>
+        )}
       </form>
     </div>
   );
