@@ -641,9 +641,13 @@ describe('completeInput', () => {
     expect(hits).toContain('query 艾斯維爾·科索諾 Xavier Colsono');
   });
 
-  it('裸字：指令前綴優先、條目名補位（裸名提交即 query）', () => {
-    const hits = completeInput('舊礦', entries, stateWith({}));
-    expect(hits).toEqual(['舊礦山 Old Mine Site']);
+  it('裸字：只補指令前綴，不倒出條目候選（裸名提交仍為 query 語意）', () => {
+    // 條目名裸字 → 無指令命中 → 空候選（不列條目）
+    expect(completeInput('舊礦', entries, stateWith({}))).toEqual([]);
+    // 任意單字元（如 s）也不得倒出條目清單
+    expect(completeInput('s', entries, stateWith({}))).toEqual([]);
+    // 指令前綴照常補全
+    expect(completeInput('l', entries, stateWith({}))).toEqual(['ls ']);
   });
 
   it('limit 截斷', () => {

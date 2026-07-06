@@ -370,10 +370,11 @@ function entryCandidates(
 /**
  * Tab 補全候選（S7-C 驗收回饋）：回傳「補全後整行」候選，
  * UI 以 Tab/↑↓ 循環直接替換輸入列。
- * - 空輸入 → 指令清單
+ * - 空輸入 → 空候選（指令靠 ?/help 查）
  * - `ls <部分參數>` → stack 簡稱
  * - `query <部分關鍵字>` → 已解鎖條目名（未解鎖不出現）
- * - 裸字 → 指令前綴 + 條目名（裸名提交即 query 語意）
+ * - 裸字 → 只補指令前綴（條目候選僅在 query 參數位置出現，
+ *   避免任意字元倒出候選清單；裸名「提交」仍為 query 語意）
  */
 export function completeInput(
   raw: string,
@@ -399,17 +400,10 @@ export function completeInput(
       (name) => `query ${name}`
     );
   }
-  // 裸字：指令前綴優先，條目名（裸）補位
-  const cmdHits = COMPLETION_COMMANDS.filter(
+  // 裸字：只補指令前綴——條目候選必須在 query 參數位置才出現
+  return COMPLETION_COMMANDS.filter(
     (c) => c.toLowerCase().startsWith(lower) && c.trimEnd() !== input
-  );
-  const entryHits = entryCandidates(
-    entries,
-    input,
-    progress,
-    limit - cmdHits.length
-  ).filter((name) => name !== input);
-  return [...cmdHits, ...entryHits].slice(0, limit);
+  ).slice(0, limit);
 }
 
 /**
