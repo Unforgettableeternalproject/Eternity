@@ -5,7 +5,59 @@
  * 每個 Stack 有各自的 content 格式與 Reader/Editor 風格。
  */
 
+import type { GateCondition } from '../../progress/gating';
+
 // ── 共用 ──────────────────────────────────────────────────────────
+
+// ── Revision 系統（Epic 2 S7：條目級進度閘） ──────────────────────
+//
+// Concepts 條目隨讀者的 History 進度演進：同一條目在不同旗標持有
+// 狀態下呈現不同內容。設計文件：docs/agent/S7_CONCEPTS_DESIGN.md
+//
+// - Revision 是 patch 不是 append：可整段替換（set）或移除（remove）欄位
+// - Effective view = 按宣告順序套用所有 gate 通過的 revision patch
+// - 旗標慣例：`{entityKey}:{stage}`（如 xavier-colsono:01）
+// - Variants（era u/e/p）與 Revision 正交：各 variant 的條目維護自己的鏈
+
+/** 單一 Revision 的 patch 操作 */
+export interface RevisionPatch {
+  /**
+   * 欄位級整段替換（key = 欄位路徑，支援 dot-notation 如 'basic.種族'，
+   * value = 新內容）。陣列欄位（sections/values/items）一律整段替換。
+   */
+  set?: Record<string, unknown>;
+  /** 欄位刪除（欄位路徑陣列，支援 dot-notation） */
+  remove?: string[];
+}
+
+/** 單一 Revision 條目 */
+export interface ConceptsRevision {
+  /** 版本辨識（慣例用對應旗標名，如 'xavier-colsono:01'；base 慣例 'base'） */
+  id: string;
+  /** 解鎖條件；null = 無條件（base revision） */
+  gate: GateCondition | null;
+  /** 本 revision 對「前面所有已通過 revision 疊加結果」的 patch */
+  patch: RevisionPatch;
+}
+
+/** 帶 entityKey 與 revision 鏈的條目包裝（四種 stack 條目共用） */
+export interface WithRevision {
+  /**
+   * 跨 stack 統一實體身分識別碼（kebab-case 小寫英文/數字/連字號）。
+   * 範例：'xavier-colsono'、'rain-sea-tower'、'essence'
+   * 用途：embed ref（entity:{entityKey}）、terminal 檢索、
+   * 旗標命名慣例（{entityKey}:{stage}）、跨 stack 深連。
+   * 選填——無深連/解鎖需求的條目可不掛。
+   */
+  entityKey?: string;
+  /**
+   * Revision 鏈（宣告順序 = 劇情揭露順序）。
+   * 未定義或空陣列 = 無進度閘（條目永遠以 base 資料顯示）。
+   * revisions[0].gate 若非 null，條目在該 gate 通過前整條隱藏
+   * （Browser profile 例外：placeholder 佔位語意，見設計文件定案 C）。
+   */
+  revisions?: ConceptsRevision[];
+}
 
 /** 所有 variation 頁面的 metadata 結構 */
 export interface ConceptsVariationMeta {
@@ -89,7 +141,7 @@ export interface DossierGroup {
   entries: DossierEntry[];
 }
 
-export interface DossierEntry {
+export interface DossierEntry extends WithRevision {
   /** 條目名稱 */
   name: string;
   /** 富文本描述（各列表內容不同，由用戶自由填寫） */
@@ -124,7 +176,7 @@ export interface ProfileSection {
   content_html: string;
 }
 
-export interface CharacterProfile {
+export interface CharacterProfile extends WithRevision {
   /** 角色全名 */
   name: string;
   /** 分類路徑（從根到葉，如 ['U時代', '三區', '無組織']） */
@@ -166,7 +218,7 @@ export interface ChronoFieldDef {
 /** 時期代號 */
 export type ChronoEra = 'pre-ad' | 'ad' | 'fa' | 'nw';
 
-export interface ChronoPeriod {
+export interface ChronoPeriod extends WithRevision {
   /** 時期代號 */
   era: ChronoEra;
   /** 年份數字 */
@@ -224,7 +276,7 @@ export interface DiffSection {
   entries: DiffEntry[];
 }
 
-export interface DiffEntry {
+export interface DiffEntry extends WithRevision {
   /** 術語/詞條名稱 */
   term: string;
   /** 定義或翻譯值（多欄時為陣列） */
