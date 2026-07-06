@@ -4141,6 +4141,25 @@
   color: var(--ink-title);
 }
 
+/* 條目級 Reference Picker（S7-D-1：entity-index 條目清單） */
+.tb-entity-picker .tb-link-input {
+  margin-bottom: 6px;
+}
+.tb-entity-picker-cat {
+  padding: 5px 8px 2px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--hairline);
+}
+.tb-entity-picker-key {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--ink-mute);
+}
+
 /* 進度條件的範圍提示 */
 .ned-gate-scope-hint {
   padding: 4px 6px;

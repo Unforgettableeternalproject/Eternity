@@ -24,6 +24,7 @@ import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import { parseGateCondition } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
 import { ENTITY_KINDS, isValidRef, collectEmbeds } from '../../embed';
+import EntityIndexPicker from './EntityIndexPicker';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
@@ -241,13 +242,8 @@ export default function RichEditor({
   // 嵌入標記 popover 狀態（Epic 2 — entity inline mark；
   // cue 工具已撤下，等浮島階段以旗標式/浮鈕重新設計）
   const [entityDraft, setEntityDraft] = useState({ kind: 'term', ref: '' });
-  // Reference Picker：跨 zone 頁面樹快取（entity → concepts；
-  // cue → song 抓 echoes / image 抓 visuals），面板共用
+  // 條目級 Reference Picker（S7-D-1：頁面樹改 entity-index 條目清單）
   const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
-  const [embedTreeCache, setEmbedTreeCache] = useState<Record<string, any[]>>(
-    {}
-  );
-  const [embedTreeLoading, setEmbedTreeLoading] = useState(false);
 
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
@@ -1335,52 +1331,6 @@ export default function RichEditor({
     toggleDropdown('uep-entity');
   };
 
-  // 載入 Reference Picker 的頁面樹（依目標 area 快取）
-  const loadEmbedTree = async (targetArea: string) => {
-    if (embedTreeCache[targetArea]) return;
-    setEmbedTreeLoading(true);
-    try {
-      const res = await fetch(`${apiBase}/api/content/${targetArea}/tree`);
-      const json = await res.json();
-      if (json.ok) {
-        setEmbedTreeCache((prev) => ({
-          ...prev,
-          [targetArea]: json.data || [],
-        }));
-      }
-    } catch {
-      // 靜默失敗，picker 顯示空清單
-    } finally {
-      setEmbedTreeLoading(false);
-    }
-  };
-
-  // 渲染 Reference Picker 樹（點擊將頁面 id 填入 ref）
-  function renderEmbedPickerTree(
-    nodes: any[],
-    onPick: (ref: string) => void,
-    depth = 0
-  ): React.ReactNode {
-    return nodes.map((node: any) => (
-      <React.Fragment key={node.id}>
-        {node.pageType !== 'page' && node.pageType !== 'homepage' && (
-          <button
-            className="tb-link-page-item"
-            style={{ paddingLeft: `${8 + depth * 12}px` }}
-            onClick={() => onPick(node.id)}
-          >
-            <span className="tb-link-page-type">
-              {(node.pageType || 'P')[0].toUpperCase()}
-            </span>
-            {node.title}
-          </button>
-        )}
-        {node.children?.length > 0 &&
-          renderEmbedPickerTree(node.children, onPick, depth + 1)}
-      </React.Fragment>
-    ));
-  }
-
   // 渲染內部頁面選擇器的樹狀結構
   function renderLinkPageTree(nodes: any[], depth = 0): React.ReactNode {
     return nodes.map((node: any) => (
@@ -2261,24 +2211,17 @@ export default function RichEditor({
                       <button
                         className="tb-embed-browse"
                         type="button"
-                        onClick={() => {
-                          setEmbedPickerOpen((v) => !v);
-                          if (!embedPickerOpen) void loadEmbedTree('concepts');
-                        }}
+                        onClick={() => setEmbedPickerOpen((v) => !v)}
                       >
-                        {embedPickerOpen ? '－ 收合' : '＋ 從 Concepts 選擇…'}
+                        {embedPickerOpen
+                          ? '－ 收合'
+                          : '＋ 從 Concepts 條目選擇…'}
                       </button>
                       {embedPickerOpen && (
-                        <div className="tb-link-page-tree">
-                          {embedTreeLoading ? (
-                            <div className="tb-link-loading">載入頁面中...</div>
-                          ) : (
-                            renderEmbedPickerTree(
-                              embedTreeCache['concepts'] || [],
-                              (ref) => setEntityDraft((d) => ({ ...d, ref }))
-                            )
-                          )}
-                        </div>
+                        <EntityIndexPicker
+                          apiBase={apiBase}
+                          onPick={(ref, kind) => setEntityDraft({ kind, ref })}
+                        />
                       )}
                       <div className="tb-link-actions">
                         <button
