@@ -15,6 +15,8 @@
  *   由資料端以 placeholder 欄位表達，不在 resolver 特判）
  */
 
+/* global structuredClone */
+
 import { evaluateGate } from '../../progress/gating';
 import type { ProgressState } from '../../progress/types';
 
