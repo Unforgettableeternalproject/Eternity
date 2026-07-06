@@ -67,6 +67,22 @@ export function normalizeState(raw: unknown): ProgressState | null {
       Number.isFinite(obj.readingStats.totalMs)
         ? { totalMs: Math.max(0, obj.readingStats.totalMs) }
         : base.readingStats,
+    // S7-C 新增欄位：Terminal 已讀水位，舊 blob 沒有時補空表；
+    // 值逐項防禦（僅接受非負有限數），壞值直接剔除
+    conceptsReadLevel:
+      typeof obj.conceptsReadLevel === 'object' &&
+      obj.conceptsReadLevel !== null
+        ? Object.fromEntries(
+            Object.entries(
+              obj.conceptsReadLevel as Record<string, unknown>
+            ).filter(
+              (pair): pair is [string, number] =>
+                typeof pair[1] === 'number' &&
+                Number.isFinite(pair[1]) &&
+                pair[1] >= 0
+            )
+          )
+        : base.conceptsReadLevel,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : base.updatedAt,
   };

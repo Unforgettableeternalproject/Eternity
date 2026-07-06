@@ -4,6 +4,11 @@
  * 右下角的 chip 列：顯示「已解鎖但目前收合」的浮島，點擊展開。
  * 展開中的島不出現在 dock（視窗自己的收合鈕會把它送回來）。
  * 沒有可顯示的 chip 時整個 dock 不渲染。
+ *
+ * TODO(S7-C 驗收後)：concepts chip 的「更動未讀」亮點。
+ * 收合狀態下 terminalCore 尚未 lazy 載入，水位 diff 需要另做
+ * 輕量預計算（或把比對結果掛回 runtime state）——依戴爾拆卡決議
+ * 先不阻塞 T-05，等艾斯維爾驗收時定奪呈現方式。
  */
 
 import React from 'react';

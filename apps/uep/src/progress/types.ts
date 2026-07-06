@@ -75,6 +75,13 @@ export interface ProgressState {
   readingStats: {
     totalMs: number;
   };
+  /**
+   * Terminal Island 已讀水位（S7-C 更動通知）：
+   * key = entityKey，value = 上次確認的「已通過 revision 數」。
+   * 首次遇到的 key 靜默建檔（不通知）；之後數值增加 → terminal
+   * 輸出更動通知。放 ProgressState = 跟登入同步、跨裝置不重複通知。
+   */
+  conceptsReadLevel: Record<string, number>;
   /** 最後更新時間（ISO 8601） */
   updatedAt: string;
 }
@@ -108,6 +115,7 @@ export function createInitialState(): ProgressState {
     lastVisitedAt: null,
     lostBookmark: { chancePct: LOST_BOOKMARK_BASE_PCT, visible: false },
     readingStats: { totalMs: 0 },
+    conceptsReadLevel: {},
     updatedAt: new Date().toISOString(),
   };
 }

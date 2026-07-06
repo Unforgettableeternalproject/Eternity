@@ -35,6 +35,7 @@ export interface ProgressChangeDetail {
     | 'page-visited'
     | 'lost-bookmark'
     | 'reading-time'
+    | 'concepts-read-level'
     | 'hydrate'
     | 'reset'
     | 'sweep';
@@ -224,6 +225,24 @@ export const uepProgress = {
     mutate('island-relocked', (prev) => ({
       ...prev,
       islandsUnlocked: prev.islandsUnlocked.filter((id) => id !== islandId),
+    }));
+  },
+
+  /**
+   * 更新 Terminal 已讀水位（S7-C 更動通知，TerminalIsland 呼叫）。
+   * 水位單調不降：僅接受高於現值的數字——旗標撤銷（dev bridge）造成的
+   * 回退不降水位，避免同一批 revision 重新解鎖時重複通知。
+   */
+  updateConceptsReadLevel(levels: Record<string, number>): void {
+    const patch: Record<string, number> = {};
+    for (const [key, value] of Object.entries(levels)) {
+      if (!Number.isFinite(value) || value < 0) continue;
+      if ((state.conceptsReadLevel[key] ?? -1) < value) patch[key] = value;
+    }
+    if (Object.keys(patch).length === 0) return;
+    mutate('concepts-read-level', (prev) => ({
+      ...prev,
+      conceptsReadLevel: { ...prev.conceptsReadLevel, ...patch },
     }));
   },
 

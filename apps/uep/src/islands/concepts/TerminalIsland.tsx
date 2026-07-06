@@ -15,7 +15,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
-import { useProgress } from '../../progress';
+import { getProgressManager, useProgress } from '../../progress';
 
 import { subscribeEntityActivate } from './terminalBridge';
 import {
@@ -23,6 +23,7 @@ import {
   findByEntityKey,
   listStackEntries,
   loadEntityIndex,
+  passedRevisionCount,
   queryIndex,
   resolveEntryDetails,
   resolveStackAlias,
@@ -126,6 +127,62 @@ export default function TerminalIsland() {
       }),
     []
   );
+
+  /* 更動通知（設計文件 6-6）：旗標/視角變化 → 重算各 entityKey 的
+     已通過 revision 數，高於已讀水位 → 輸出 [SYS] 通知並寫回水位。
+     首次遇到的 key 靜默建檔（不通知）——否則初訪會被 base revision 洗版。
+     同 entityKey 跨 stack 多條鏈時取最大值（同組旗標驅動，天然同步）。
+     deps 刻意不含 conceptsReadLevel：寫回水位不得再觸發重算。 */
+  useEffect(() => {
+    if (!indexReady) return;
+    let cancelled = false;
+    void loadEntityIndex()
+      .then((entries) => {
+        if (cancelled) return;
+        const current = progressRef.current;
+        const counts = new Map<string, number>();
+        for (const entry of entries) {
+          if (!entry.entityKey || !entry.revisionGates?.length) continue;
+          counts.set(
+            entry.entityKey,
+            Math.max(
+              counts.get(entry.entityKey) ?? 0,
+              passedRevisionCount(entry, current)
+            )
+          );
+        }
+        const levels: Record<string, number> = {};
+        const notices: TermLine[] = [];
+        for (const [key, passed] of counts) {
+          const known = current.conceptsReadLevel[key];
+          if (known === undefined) {
+            levels[key] = passed; // 首次建檔：靜默
+            continue;
+          }
+          if (passed > known) {
+            levels[key] = passed;
+            notices.push({
+              kind: 'meta',
+              text: `[SYS] · ${key} 資料已更新（+${passed - known} revision）`,
+            });
+            notices.push({
+              kind: 'meta',
+              text: `[SYS] · 輸入 query ${key} 查看最新內容`,
+            });
+          }
+        }
+        if (Object.keys(levels).length > 0) {
+          getProgressManager().updateConceptsReadLevel(levels);
+        }
+        if (notices.length > 0) append(notices);
+      })
+      .catch(() => {
+        /* 索引失敗已由指令路徑呈現，通知靜默略過 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [indexReady, progress.flags, progress.view, progress.observerEver]);
 
   /* ── 指令處理 ── */
 

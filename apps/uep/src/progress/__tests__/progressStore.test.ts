@@ -171,6 +171,19 @@ describe('頁面完成與浮島', () => {
     };
     expect(normalizeState(legacy)!.islandsDisabled).toEqual([]);
     expect(normalizeState(legacy)!.readingStats).toEqual({ totalMs: 0 });
+    // S7-C 新增欄位：舊 blob 沒有時補空表；壞值逐項剔除
+    expect(normalizeState(legacy)!.conceptsReadLevel).toEqual({});
+    expect(
+      normalizeState({
+        ...legacy,
+        conceptsReadLevel: {
+          'xavier-colsono': 2,
+          bad: 'x',
+          negative: -1,
+          inf: Infinity,
+        },
+      })!.conceptsReadLevel
+    ).toEqual({ 'xavier-colsono': 2 });
     // S6-2 新增欄位：舊 blob 沒有時補 null / 初始值
     expect(normalizeState(legacy)!.lastVisitedPageId).toBeNull();
     expect(normalizeState(legacy)!.lastVisitedAt).toBeNull();
@@ -185,6 +198,28 @@ describe('頁面完成與浮島', () => {
         lostBookmark: { chancePct: 250, visible: true },
       })!.lostBookmark
     ).toEqual({ chancePct: 100, visible: true });
+  });
+
+  it('updateConceptsReadLevel 水位單調不降，非法值防禦', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.updateConceptsReadLevel({ 'xavier-colsono': 2, norvia: 0 });
+    expect(uepProgress.getState().conceptsReadLevel).toEqual({
+      'xavier-colsono': 2,
+      norvia: 0,
+    });
+    // 低於現值 / 相等 → no-op；非法值剔除
+    uepProgress.updateConceptsReadLevel({
+      'xavier-colsono': 1,
+      norvia: 0,
+      bad: NaN,
+    });
+    expect(uepProgress.getState().conceptsReadLevel).toEqual({
+      'xavier-colsono': 2,
+      norvia: 0,
+    });
+    // 高於現值 → 更新
+    uepProgress.updateConceptsReadLevel({ 'xavier-colsono': 3 });
+    expect(uepProgress.getState().conceptsReadLevel['xavier-colsono']).toBe(3);
   });
 
   it('markPageVisited 記錄最後造訪頁與時間', async () => {
@@ -266,6 +301,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       lastVisitedAt: null,
       lostBookmark: { chancePct: 20, visible: false },
       readingStats: { totalMs: 0 },
+      conceptsReadLevel: {},
       updatedAt: '2026-07-03T00:00:00.000Z',
     };
     await uepProgress.setAdapter({
