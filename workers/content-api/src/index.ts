@@ -26,6 +26,7 @@ import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
+import { buildDiscordStats } from './widget-stats';
 
 // ===== 工具函式 =====
 
@@ -1699,6 +1700,39 @@ export default {
         requireJwt
       );
       if (rootResponse) return rootResponse;
+    }
+
+    // ---- Discord widget 統計（公開唯讀，5 分鐘快取）----
+    if (path === '/api/widget/discord-stats' && request.method === 'GET') {
+      try {
+        const stats = await buildDiscordStats(
+          env.CONTENT_DB,
+          env.VISITOR_API_URL
+        );
+        return new Response(
+          JSON.stringify({ ok: true, data: stats } satisfies ApiResponse<
+            typeof stats
+          >),
+          {
+            status: 200,
+            headers: {
+              ...cors,
+              'Content-Type': 'application/json',
+              // Discord widget 不需要即時；5 分鐘 CDN 快取大幅降低 D1 壓力
+              'Cache-Control': 'public, max-age=300, s-maxage=300',
+            },
+          }
+        );
+      } catch (err) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: err instanceof Error ? err.message : 'Failed to build stats',
+          },
+          500,
+          cors
+        );
+      }
     }
 
     // 健康檢查

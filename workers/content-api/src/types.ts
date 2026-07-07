@@ -8,6 +8,8 @@ export interface Env {
   API_TOKEN?: string;
   JWT_SECRET?: string;
   BOOTSTRAP_TOKEN?: string;
+  /** visitor-counter Worker base URL，供 /api/widget/discord-stats 拿文件站訪客數 */
+  VISITOR_API_URL?: string;
 }
 
 // ===== 內容區塊系統 =====

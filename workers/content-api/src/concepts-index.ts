@@ -217,6 +217,20 @@ const STACK_STYLES: EntityIndexEntry['stack'][] = [
 
 // ===== 主函式 =====
 
+/** buildConceptsEntityIndex 選項 */
+export interface BuildConceptsEntityIndexOptions {
+  /**
+   * 只納入公開頁面（排除 `metadata.hidden`/`metadata.locked`）。
+   *
+   * 預設 `false` —— 保持 `/api/concepts/entity-index` 原有行為：Terminal Island
+   * 前端依 gate 邏輯自行處理 hide/lock，索引本身是通用來源。
+   *
+   * `true` 用於 widget/Discord 統計等「僅公開內容」口徑，讓 count 與其它 zone
+   * 統計保持一致（hidden/locked 一律不算）。
+   */
+  publicOnly?: boolean;
+}
+
 /**
  * 建立 Concepts 條目索引：單次 D1 掃描 concepts 全區頁面，
  * 逐頁解析 content JSON 並彙整條目摘要。
@@ -225,12 +239,20 @@ const STACK_STYLES: EntityIndexEntry['stack'][] = [
  * 解析失敗的頁面靜默跳過（索引是輔助功能，容錯優先）。
  */
 export async function buildConceptsEntityIndex(
-  db: D1Database
+  db: D1Database,
+  opts: BuildConceptsEntityIndexOptions = {}
 ): Promise<EntityIndexEntry[]> {
+  // publicOnly=true 時 SQL 端就排掉 hidden/locked 頁，讓下游 collectFromPage
+  // 完全不看到這些頁的 entity（比事後過濾乾淨，也省 parse 成本）
+  const visibleClause = opts.publicOnly
+    ? `AND COALESCE(json_extract(metadata, '$.hidden'), 0) != 1
+       AND COALESCE(json_extract(metadata, '$.locked'), 0) != 1`
+    : '';
+
   const result = await db
     .prepare(
       `SELECT id, title, content, metadata FROM pages
-       WHERE area = 'concepts' AND deleted_at IS NULL
+       WHERE area = 'concepts' AND deleted_at IS NULL ${visibleClause}
        ORDER BY sort_order ASC`
     )
     .all<{ id: string; title: string; content: string; metadata: string }>();

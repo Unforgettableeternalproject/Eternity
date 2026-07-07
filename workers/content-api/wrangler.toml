@@ -30,3 +30,6 @@ crons = ["0 4 * * *"]
 # 環境變數
 [vars]
 ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+# visitor-counter Worker base URL — /api/widget/discord-stats 由此拿文件站訪客數
+# 缺失時該欄位回 null，端點仍 200
+VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"

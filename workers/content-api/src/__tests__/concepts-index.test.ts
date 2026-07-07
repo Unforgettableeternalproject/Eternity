@@ -294,3 +294,126 @@ describe('GET /api/concepts/entity-index', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('buildConceptsEntityIndex — publicOnly 選項', () => {
+  // 專用測試 area，用 clearOnly 隔離避免影響上面 GET /api/concepts/entity-index 的 fixtures
+  const AREA_PAGES = [
+    'concepts/pubonly/public-dossier',
+    'concepts/pubonly/hidden-dossier',
+    'concepts/pubonly/locked-dossier',
+  ];
+
+  async function insertWithFlags(
+    id: string,
+    stackStyle: string,
+    data: unknown,
+    flags: { hidden?: boolean; locked?: boolean } = {}
+  ) {
+    const metadata: Record<string, unknown> = { stack_style: stackStyle };
+    if (flags.hidden) metadata.hidden = true;
+    if (flags.locked) metadata.locked = true;
+    await env.CONTENT_DB.prepare(
+      `INSERT INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth, deleted_at)
+       VALUES (?, 'concepts', ?, ?, 1, ?, ?, 'synced', 'page', 2, NULL)`
+    )
+      .bind(
+        id,
+        id,
+        id.slice('concepts/'.length),
+        JSON.stringify([{ type: stackStyle, content: JSON.stringify(data) }]),
+        JSON.stringify(metadata)
+      )
+      .run();
+  }
+
+  beforeAll(async () => {
+    // 三頁 dossier：一頁公開、一頁 hidden、一頁 locked，各帶一個 entry
+    const dossierData = (name: string) => ({
+      variants: [
+        {
+          id: 'u',
+          subcategories: [
+            {
+              label: 'X',
+              groups: [{ label: 'Y', entries: [{ name }] }],
+            },
+          ],
+        },
+      ],
+    });
+    await insertWithFlags(
+      'concepts/pubonly/public-dossier',
+      'dossier',
+      dossierData('公開條目')
+    );
+    await insertWithFlags(
+      'concepts/pubonly/hidden-dossier',
+      'dossier',
+      dossierData('隱藏條目'),
+      { hidden: true }
+    );
+    await insertWithFlags(
+      'concepts/pubonly/locked-dossier',
+      'dossier',
+      dossierData('鎖定條目'),
+      { locked: true }
+    );
+  });
+
+  it('預設（publicOnly=false）納入 hidden/locked 頁面的 entity（沿用舊行為）', async () => {
+    const { buildConceptsEntityIndex } = await import('../concepts-index');
+    const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
+    const names = entries.map((e) => e.name);
+    expect(names).toContain('公開條目');
+    expect(names).toContain('隱藏條目');
+    expect(names).toContain('鎖定條目');
+  });
+
+  it('publicOnly=true 排除 hidden/locked 頁面的 entity', async () => {
+    const { buildConceptsEntityIndex } = await import('../concepts-index');
+    const entries = await buildConceptsEntityIndex(env.CONTENT_DB, {
+      publicOnly: true,
+    });
+    const names = entries.map((e) => e.name);
+    expect(names).toContain('公開條目');
+    expect(names).not.toContain('隱藏條目');
+    expect(names).not.toContain('鎖定條目');
+  });
+
+  it('publicOnly=true 仍然排除軟刪除頁面（SQL 保留原有 deleted_at 條件）', async () => {
+    // 額外插入一個 hidden=false 但 deleted 的頁
+    await env.CONTENT_DB.prepare(
+      `INSERT INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth, deleted_at)
+       VALUES ('concepts/pubonly/deleted-dossier', 'concepts', 'del', 'del', 1, ?, ?, 'synced', 'page', 2, ?)`
+    )
+      .bind(
+        JSON.stringify([
+          {
+            type: 'dossier',
+            content: JSON.stringify({
+              variants: [
+                {
+                  id: 'u',
+                  subcategories: [
+                    {
+                      label: 'X',
+                      groups: [{ label: 'Y', entries: [{ name: '刪除條目' }] }],
+                    },
+                  ],
+                },
+              ],
+            }),
+          },
+        ]),
+        JSON.stringify({ stack_style: 'dossier' }),
+        new Date().toISOString()
+      )
+      .run();
+
+    const { buildConceptsEntityIndex } = await import('../concepts-index');
+    const entries = await buildConceptsEntityIndex(env.CONTENT_DB, {
+      publicOnly: true,
+    });
+    expect(entries.map((e) => e.name)).not.toContain('刪除條目');
+  });
+});
