@@ -104,14 +104,14 @@ function pageWordCount(row: {
   }
 }
 
-/** History 總字數（`area='history' AND page_type='page'`） */
+/** History 總字數：只納入實際正文層級 arc/section */
 export async function computeHistoryTotalWords(
   db: D1Database
 ): Promise<number> {
   const result = await db
     .prepare(
       `SELECT metadata, content FROM pages
-       WHERE area = 'history' AND page_type = 'page' AND ${VISIBLE_WHERE}`
+       WHERE area = 'history' AND page_type IN ('arc', 'section') AND ${VISIBLE_WHERE}`
     )
     .all<{ metadata: string | null; content: string | null }>();
 
@@ -143,15 +143,23 @@ export async function countVisiblePages(
  * 失敗（未設定 URL / 網路錯誤 / 非 200 / JSON 解析錯）一律回 null，讓整個 stats 端點仍能 200。
  */
 export async function fetchUepVisitorCount(
-  visitorApiUrl: string | undefined
+  visitorApiUrl: string | undefined,
+  visitorCounter?: Fetcher
 ): Promise<number | null> {
-  if (!visitorApiUrl) return null;
   try {
-    const res = await fetch(`${visitorApiUrl}/api/visitor/count?site=uep`, {
-      // 讓 CF 對此子請求可以快取（visitor-counter 端目前沒設 Cache-Control，此值僅為容錯）
-      cf: { cacheTtl: 60 },
-    });
-    if (!res.ok) return null;
+    const res = visitorCounter
+      ? await visitorCounter.fetch(
+          new Request(
+            'https://visitor-counter.internal/api/visitor/count?site=uep'
+          )
+        )
+      : visitorApiUrl
+        ? await fetch(`${visitorApiUrl}/api/visitor/count?site=uep`, {
+            // 讓 CF 對此子請求可以快取（visitor-counter 端目前沒設 Cache-Control，此值僅為容錯）
+            cf: { cacheTtl: 60 },
+          })
+        : null;
+    if (!res?.ok) return null;
     const json = (await res.json()) as { totalVisitors?: unknown };
     if (typeof json.totalVisitors !== 'number') return null;
     return Math.max(0, Math.floor(json.totalVisitors));
@@ -165,7 +173,8 @@ export async function fetchUepVisitorCount(
  */
 export async function buildDiscordStats(
   db: D1Database,
-  visitorApiUrl: string | undefined
+  visitorApiUrl: string | undefined,
+  visitorCounter?: Fetcher
 ): Promise<DiscordStatsResponse> {
   const [
     historyTotalWords,
@@ -182,7 +191,7 @@ export async function buildDiscordStats(
     // 排除 hidden/locked（deleted 已由 SQL 內建排除）
     buildConceptsEntityIndex(db, { publicOnly: true }),
     countVisiblePages(db, 'storage', 'stuff'),
-    fetchUepVisitorCount(visitorApiUrl),
+    fetchUepVisitorCount(visitorApiUrl, visitorCounter),
   ]);
 
   return {

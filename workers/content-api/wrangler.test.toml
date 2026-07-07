@@ -33,7 +33,4 @@ ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgett
 # visitor-counter Worker base URL — /api/widget/discord-stats 由此拿文件站訪客數
 # 缺失時該欄位回 null，端點仍 200
 VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
-[[services]]
-binding = "VISITOR_COUNTER"
-service = "eternity-visitor-counter"
 

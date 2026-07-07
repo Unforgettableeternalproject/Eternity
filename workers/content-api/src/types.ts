@@ -10,6 +10,8 @@ export interface Env {
   BOOTSTRAP_TOKEN?: string;
   /** visitor-counter Worker base URL，供 /api/widget/discord-stats 拿文件站訪客數 */
   VISITOR_API_URL?: string;
+  /** visitor-counter Worker service binding，避免 Worker-to-Worker fetch workers.dev 失敗 */
+  VISITOR_COUNTER?: Fetcher;
 }
 
 // ===== 內容區塊系統 =====

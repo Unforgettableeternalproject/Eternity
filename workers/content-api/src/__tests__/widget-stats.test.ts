@@ -153,10 +153,10 @@ describe('widget-stats — computeHistoryTotalWords（D1 整合）', () => {
 
   it('metadata.wordCount 存在時走 fast path', async () => {
     await insertPage({
-      id: 'history/page-a',
+      id: 'history/arc-a',
       area: 'history',
-      slug: 'page-a',
-      pageType: 'page',
+      slug: 'arc-a',
+      pageType: 'arc',
       content: [
         { id: 'c', type: 'rich_text', content: '<p>這段文字不會被算</p>' },
       ],
@@ -169,10 +169,10 @@ describe('widget-stats — computeHistoryTotalWords（D1 整合）', () => {
 
   it('無 metadata.wordCount 時 fallback 到解析 content', async () => {
     await insertPage({
-      id: 'history/page-b',
+      id: 'history/section-b',
       area: 'history',
-      slug: 'page-b',
-      pageType: 'page',
+      slug: 'section-b',
+      pageType: 'section',
       content: [
         { id: 'c1', type: 'rich_text', content: '<p>諾薇亞</p>' },
         { id: 'c2', type: 'paragraph', content: '<p>行動中</p>' },
@@ -207,10 +207,10 @@ describe('widget-stats — computeHistoryTotalWords（D1 整合）', () => {
       deleted: true,
     });
     await insertPage({
-      id: 'history/page-f',
+      id: 'history/arc-f',
       area: 'history',
-      slug: 'page-f',
-      pageType: 'page',
+      slug: 'arc-f',
+      pageType: 'arc',
       metadata: { wordCount: 42 },
     });
 
@@ -218,17 +218,52 @@ describe('widget-stats — computeHistoryTotalWords（D1 整合）', () => {
     expect(total).toBe(42);
   });
 
-  it('chapter/section 等非 page 頁面不計入', async () => {
+  it('只計入 arc/section，chapter/page/zone/homepage 不計入', async () => {
     await insertPage({
       id: 'history/chapter-x',
       area: 'history',
       slug: 'chapter-x',
       pageType: 'chapter',
+      metadata: { wordCount: 100 },
+    });
+    await insertPage({
+      id: 'history/arc-x',
+      area: 'history',
+      slug: 'arc-x',
+      pageType: 'arc',
+      metadata: { wordCount: 200 },
+    });
+    await insertPage({
+      id: 'history/section-x',
+      area: 'history',
+      slug: 'section-x',
+      pageType: 'section',
+      metadata: { wordCount: 300 },
+    });
+    await insertPage({
+      id: 'history/page-x',
+      area: 'history',
+      slug: 'page-x',
+      pageType: 'page',
+      metadata: { wordCount: 400 },
+    });
+    await insertPage({
+      id: 'history/zone-x',
+      area: 'history',
+      slug: 'zone-x',
+      pageType: 'zone',
       metadata: { wordCount: 500 },
+    });
+    await insertPage({
+      id: 'history/homepage-x',
+      area: 'history',
+      slug: 'homepage-x',
+      pageType: 'homepage',
+      metadata: { wordCount: 600 },
     });
 
     const total = await computeHistoryTotalWords(env.CONTENT_DB);
-    expect(total).toBe(0);
+    expect(total).toBe(500);
   });
 });
 
@@ -238,6 +273,27 @@ describe('widget-stats — fetchUepVisitorCount', () => {
     expect(n).toBeNull();
   });
 
+  it('service binding 成功回應解析 totalVisitors', async () => {
+    const requests: string[] = [];
+    const visitorCounter = {
+      fetch: async (request: Request) => {
+        requests.push(request.url);
+        return new Response(
+          JSON.stringify({ totalVisitors: 66, site: 'uep' }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      },
+    } as Fetcher;
+
+    const n = await fetchUepVisitorCount(undefined, visitorCounter);
+    expect(n).toBe(66);
+    expect(requests).toEqual([
+      'https://visitor-counter.internal/api/visitor/count?site=uep',
+    ]);
+  });
   it('成功回應解析 totalVisitors', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -309,10 +365,10 @@ describe('widget-stats — buildDiscordStats（整合）', () => {
   it('聚合五 zone 統計 + visitor（成功情境）', async () => {
     // Fixtures
     await insertPage({
-      id: 'history/hp-1',
+      id: 'history/arc-1',
       area: 'history',
-      slug: 'hp-1',
-      pageType: 'page',
+      slug: 'arc-1',
+      pageType: 'arc',
       metadata: { wordCount: 1000 },
     });
     await insertPage({

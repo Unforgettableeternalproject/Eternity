@@ -1707,7 +1707,8 @@ export default {
       try {
         const stats = await buildDiscordStats(
           env.CONTENT_DB,
-          env.VISITOR_API_URL
+          env.VISITOR_API_URL,
+          env.VISITOR_COUNTER
         );
         return new Response(
           JSON.stringify({ ok: true, data: stats } satisfies ApiResponse<
