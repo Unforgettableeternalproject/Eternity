@@ -21,10 +21,12 @@
     "sync:all": "node scripts/sync.mjs --site all",
     "sync:push": "node scripts/sync.mjs --site all --push",
     "sync:pull": "node scripts/sync.mjs --site all --pull",
+    "dev:discord-widget": "pnpm --filter discord-widget-sync-worker dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:workers": "pnpm --filter content-api-worker test && pnpm --filter visitor-counter-worker test",
+    "test:workers": "pnpm --filter content-api-worker test && pnpm --filter visitor-counter-worker test && pnpm --filter discord-widget-sync-worker test",
+    "test:discord-widget": "pnpm --filter discord-widget-sync-worker test",
     "test:all": "pnpm test && pnpm test:workers",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -34,7 +36,8 @@
     "test:release": "pnpm test:all && pnpm test:e2e:stress",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
     "deploy:content-api": "pnpm --filter content-api-worker ship",
-    "deploy:visitor": "pnpm --filter visitor-counter-worker ship"
+    "deploy:visitor": "pnpm --filter visitor-counter-worker ship",
+    "deploy:discord-widget": "pnpm --filter discord-widget-sync-worker ship"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

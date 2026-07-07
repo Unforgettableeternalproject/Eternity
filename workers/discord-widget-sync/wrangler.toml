@@ -1,0 +1,25 @@
+name = "eternity-discord-widget-sync"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[dev]
+port = 8790
+
+# 每 30 分鐘同步一次 Discord Profile Widget。
+# Discord Profile Widget / Game Stats 仍屬實驗性整合面，保持低頻同步避免 rate limit。
+[triggers]
+crons = ["*/30 * * * *"]
+
+[vars]
+STATS_API_URL = "https://eternity-content-api.ptyc4076.workers.dev/api/widget/discord-stats"
+DISCORD_API_BASE = "https://discord.com/api/v9"
+DISCORD_IDENTITY_ID = "0"
+DISCORD_WIDGET_USERNAME = "U.E.P"
+DISCORD_WIDGET_SYNC_ENABLED = "true"
+
+[observability.logs]
+enabled = true
+[[services]]
+binding = "CONTENT_API"
+service = "eternity-content-api"
+
