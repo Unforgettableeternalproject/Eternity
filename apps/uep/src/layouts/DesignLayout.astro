@@ -122,6 +122,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       initContentProtection();
     </script>
 
+    <!-- 訪客追蹤：文件站分站計數，透過 visitor-counter Worker 記錄 site=uep -->
+    <script>
+      import { scheduleUepVisitorTrack } from '../scripts/visitor-track';
+      scheduleUepVisitorTrack();
+    </script>
+
     <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {

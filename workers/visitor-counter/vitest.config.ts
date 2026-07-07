@@ -13,7 +13,8 @@ export default defineConfig({
       wrangler: { configPath: './wrangler.toml' },
       miniflare: {
         bindings: {
-          ALLOWED_ORIGINS: 'http://localhost:4321,http://localhost:4320',
+          ALLOWED_ORIGINS:
+            'http://localhost:4321,http://localhost:4320,https://uep.unforgettableeternalproject.com,https://*.eternity-uep.pages.dev',
         },
       },
     }),
