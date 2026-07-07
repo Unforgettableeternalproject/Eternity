@@ -55,6 +55,14 @@ const LS_LIST_CAP = 30;
 /** ls clock 顯著時代的列出數（事件較多 = 顯著，艾斯維爾定案 3~5 個） */
 const CLOCK_HIGHLIGHT_LIMIT = 5;
 
+/**
+ * 打字機動畫節奏（艾斯維爾定案：中速 ~25ms/字、一行接一行、reduced-motion 才跳過）。
+ * 空白與標點降到 8ms 通過——避免長句被逗號拖住節奏。
+ */
+const TYPE_DELAY_MS = 25;
+const TYPE_PUNCT_DELAY_MS = 8;
+const TYPE_PUNCT_PATTERN = /[\s.,、。·—:：（）()!?！？]/;
+
 const HELP_LINES: TermLine[] = [
   { kind: 'meta', text: '? · query <keyword>    — 檢索人物 / 地點 / 術語' },
   { kind: 'meta', text: '  · ls <stack> [分類]  — 列出分類，點分類展開條目' },
@@ -95,6 +103,31 @@ export default function TerminalIsland() {
   );
   const [input, setInput] = useState('');
   const [indexReady, setIndexReady] = useState(false);
+
+  /**
+   * 打字機動畫進度（艾斯維爾定案的四題：只新輸出、一行接一行、
+   * reduced-motion 才跳過、~25ms/字）。
+   * - currentLine：正在打字的行索引；`>= lines.length` 表示全部已完成
+   * - charCount：當前行已顯示的字元數（達到 line.text.length 即完成該行）
+   *
+   * mount 時：有 stored → 全部立即完成（不重播歷史）；無 stored → 從 0 開始
+   * 打字 boot 兩行，首次進入才有終端啟動感。
+   */
+  const [currentLine, setCurrentLine] = useState<number>(() => {
+    const stored = loadTerminalLog();
+    return stored ? stored.length : 0;
+  });
+  const [charCount, setCharCount] = useState(0);
+  /**
+   * prefers-reduced-motion：一次讀取即可（極端情況下切換不需要即時反應）。
+   * SSR 安全：無 window 時預設 false（動畫照常）——TerminalIsland 是 lazy 掛載，
+   * 實務上只在瀏覽器端 mount。
+   */
+  const [prefersReducedMotion] = useState<boolean>(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  );
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const spacerRef = useRef<HTMLDivElement>(null);
@@ -176,10 +209,45 @@ export default function TerminalIsland() {
     };
   }, []);
 
+  /* 打字機 tick：一行接一行、每字排一次 setTimeout。
+     - reduced-motion：整批瞬間完成（單次 setCurrentLine 到底）
+     - 完成當前行 → 進下一行、charCount 歸零
+     - 尚有字要打 → 依字元屬性排下一 tick（標點/空白加速通過）
+     捲動 effect 監聽 currentLine（不含 charCount）——每完成一行才捲動一次，
+     打字中的 wrap 換行不觸發 reflow-driven 捲動，符合真實終端 stdout 行為。 */
+  useEffect(() => {
+    if (currentLine >= lines.length) return; // 全部打完
+    if (prefersReducedMotion) {
+      setCurrentLine(lines.length);
+      setCharCount(0);
+      return;
+    }
+    const line = lines[currentLine];
+    const total = line.text.length;
+    if (charCount >= total) {
+      // 該行完成 → 立刻進下一行（同一 tick 內完成推進）
+      setCurrentLine((n) => n + 1);
+      setCharCount(0);
+      return;
+    }
+    const nextChar = line.text.charAt(charCount);
+    const delay = TYPE_PUNCT_PATTERN.test(nextChar)
+      ? TYPE_PUNCT_DELAY_MS
+      : TYPE_DELAY_MS;
+    const id = window.setTimeout(() => {
+      setCharCount((c) => c + 1);
+    }, delay);
+    return () => window.clearTimeout(id);
+  }, [lines, currentLine, charCount, prefersReducedMotion]);
+
   /* 輸出更新後捲動：有 pending anchor（entry 詳細內容 / 分類展開）→
      該行「置頂」——清空式展現（艾斯維爾定案：保留歷史、捲動置頂，
      上方歷史需上捲才看到）。內容不足一屏時以底部 spacer 補足捲動空間，
-     否則 anchor 行物理上到不了視窗頂。無 anchor 照常捲到底。 */
+     否則 anchor 行物理上到不了視窗頂。無 anchor 照常捲到底。
+     打字機加入後 deps 含 currentLine：每完成一行都重算——anchor 場合
+     scrollTop 維持在 anchorTop（第一行位置不變），下方行漸次冒出時
+     spacer 隨 scrollHeight 增長而收縮，anchor 持續留頂。全部打完後
+     才清 pendingAnchorRef，之後手動捲動不再被拉回。 */
   useEffect(() => {
     const body = bodyRef.current;
     const spacer = spacerRef.current;
@@ -187,8 +255,8 @@ export default function TerminalIsland() {
     // 先歸零 spacer 再量測，取得純內容高度
     if (spacer) spacer.style.height = '0px';
     const anchorId = pendingAnchorRef.current;
+    const typingDone = currentLine >= lines.length;
     if (anchorId) {
-      pendingAnchorRef.current = null;
       const el = body.querySelector<HTMLElement>(
         `[data-anchor-id="${anchorId}"]`
       );
@@ -202,11 +270,15 @@ export default function TerminalIsland() {
         const deficit = anchorTop + body.clientHeight - body.scrollHeight;
         if (spacer && deficit > 0) spacer.style.height = `${deficit}px`;
         body.scrollTop = anchorTop;
+        // 打字全結束才卸除 anchor（否則新行冒出仍要保持置頂）
+        if (typingDone) pendingAnchorRef.current = null;
         return;
       }
+      // anchor 元素未找到（極端案例）：卸除避免卡住
+      if (typingDone) pendingAnchorRef.current = null;
     }
     body.scrollTop = body.scrollHeight;
-  }, [lines]);
+  }, [lines, currentLine]);
 
   /* 輸出歷史持久化（action 是純資料，整批可序列化） */
   useEffect(() => {
@@ -627,9 +699,12 @@ export default function TerminalIsland() {
     if (!cmd) return;
 
     if (cmd === 'clear') {
-      // 回到 boot 狀態（非死白）並清除持久化歷史
+      // 回到 boot 狀態（非死白）並清除持久化歷史。
+      // clear 是使用者刻意的重置——boot 已見過，不再重播打字（直接完成）。
       clearTerminalLog();
       setLines(BOOT_LINES);
+      setCurrentLine(BOOT_LINES.length);
+      setCharCount(0);
       return;
     }
 
@@ -740,57 +815,88 @@ export default function TerminalIsland() {
       line.fade ? ' uep-terminal__line--fade' : ''
     }`;
 
+  /** 打字機游標——正在打字的行末端；打字完成後消失 */
+  const cursor = (
+    <span className="uep-terminal__cursor" aria-hidden>
+      ▋
+    </span>
+  );
+
   return (
     <div className="uep-terminal">
       <div className="uep-terminal__body" ref={bodyRef}>
-        {lines.map((line, i) =>
-          line.suffix ? (
-            // 帶行尾符號的行：主文字 + 獨立可點符號（如 ↗ 跳頁）
-            <div
-              key={i}
-              className={`${lineClass(line)} uep-terminal__line-flex`}
-              data-anchor-id={line.anchorId}
-            >
-              {line.action ? (
+        {/* 打字機切片：只 render「已完成 + 正在打字」的行，尚未開始的
+            隱藏——真實終端「一行一行冒出」的視覺（若尚無打字進行，
+            currentLine === lines.length，slice 涵蓋全部）。 */}
+        {lines
+          .slice(0, Math.min(lines.length, currentLine + 1))
+          .map((line, i) => {
+            const isTyping =
+              i === currentLine &&
+              currentLine < lines.length &&
+              charCount < line.text.length;
+            // 打字中：只顯示已打出的文字 + 游標，action/suffix 按鈕暫不啟用
+            // （避免半行文字就被點擊，也避免游標卡在 flex 對齊中間）
+            if (isTyping) {
+              const shown = line.text.slice(0, charCount);
+              return (
+                <div
+                  key={i}
+                  className={lineClass(line)}
+                  data-anchor-id={line.anchorId}
+                >
+                  {shown}
+                  {cursor}
+                </div>
+              );
+            }
+            return line.suffix ? (
+              // 帶行尾符號的行：主文字 + 獨立可點符號（如 ↗ 跳頁）
+              <div
+                key={i}
+                className={`${lineClass(line)} uep-terminal__line-flex`}
+                data-anchor-id={line.anchorId}
+              >
+                {line.action ? (
+                  <button
+                    type="button"
+                    className="uep-terminal__line-btn uep-terminal__line-main"
+                    onClick={() => runAction(line.action!)}
+                  >
+                    {line.text}
+                  </button>
+                ) : (
+                  <span className="uep-terminal__line-main">{line.text}</span>
+                )}
                 <button
                   type="button"
-                  className="uep-terminal__line-btn uep-terminal__line-main"
-                  onClick={() => runAction(line.action!)}
+                  className="uep-terminal__suffix-btn"
+                  title="前往對應頁面"
+                  onClick={() => runAction(line.suffix!.action)}
                 >
-                  {line.text}
+                  {line.suffix.text}
                 </button>
-              ) : (
-                <span className="uep-terminal__line-main">{line.text}</span>
-              )}
+              </div>
+            ) : line.action ? (
               <button
+                key={i}
                 type="button"
-                className="uep-terminal__suffix-btn"
-                title="前往對應頁面"
-                onClick={() => runAction(line.suffix!.action)}
+                className={`${lineClass(line)} uep-terminal__line-btn`}
+                data-anchor-id={line.anchorId}
+                onClick={() => runAction(line.action!)}
               >
-                {line.suffix.text}
+                {line.text}
               </button>
-            </div>
-          ) : line.action ? (
-            <button
-              key={i}
-              type="button"
-              className={`${lineClass(line)} uep-terminal__line-btn`}
-              data-anchor-id={line.anchorId}
-              onClick={() => runAction(line.action!)}
-            >
-              {line.text}
-            </button>
-          ) : (
-            <div
-              key={i}
-              className={lineClass(line)}
-              data-anchor-id={line.anchorId}
-            >
-              {line.text}
-            </div>
-          )
-        )}
+            ) : (
+              <div
+                key={i}
+                className={lineClass(line)}
+                data-anchor-id={line.anchorId}
+              >
+                {line.text}
+              </div>
+            );
+          })}
 
         {/* 置頂捲動的動態補位（內容不足一屏時撐開捲動空間） */}
         <div ref={spacerRef} aria-hidden />

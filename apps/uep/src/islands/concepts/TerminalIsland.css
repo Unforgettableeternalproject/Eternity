@@ -87,6 +87,32 @@
   color: #cfe9d9;
 }
 
+/* 打字機游標——僅在正在打字的行末端出現（艾斯維爾定案的終端感） */
+.uep-terminal__cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: #74c69d;
+  animation: uep-terminal-cursor-blink 0.9s steps(2, end) infinite;
+}
+
+@keyframes uep-terminal-cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-terminal__cursor {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
 /* 分組標題行（ls 結構化輸出——category/group） */
 .uep-terminal__line--head {
   color: #74c69d;
