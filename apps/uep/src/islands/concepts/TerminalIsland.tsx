@@ -19,6 +19,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { getProgressManager, useProgress } from '../../progress';
 
 import { subscribeEntityActivate } from './terminalBridge';
+import { computeUnreadUpdates } from './terminalNotify';
 import {
   TERMINAL_STACK_LABELS,
   completeInput,
@@ -26,7 +27,6 @@ import {
   formatEntryLabel,
   groupStackEntries,
   loadEntityIndex,
-  passedRevisionCount,
   queryIndex,
   resolveBrowserExpand,
   resolveEntryDetails,
@@ -324,10 +324,11 @@ export default function TerminalIsland() {
     []
   );
 
-  /* 更動通知（設計文件 6-6）：旗標/視角變化 → 重算各 entityKey 的
-     已通過 revision 數，高於已讀水位 → 輸出 [SYS] 通知並寫回水位。
+  /* 更動通知（設計文件 6-6 + S7 驗收 #10）：旗標/視角變化 → 水位 diff
+     （computeUnreadUpdates 與 dock badge 共用）→ 條列輸出並寫回水位。
      首次遇到的 key 靜默建檔（不通知）——否則初訪會被 base revision 洗版。
-     同 entityKey 跨 stack 多條鏈時取最大值（同組旗標驅動，天然同步）。
+     通知文字只在 terminal 展開（本元件 mount）時渲染——收合期間
+     累積的更新由 dock badge 標註，展開當下這個 effect 一次條列。
      deps 刻意不含 conceptsReadLevel：寫回水位不得再觸發重算。 */
   useEffect(() => {
     if (!indexReady) return;
@@ -336,41 +337,25 @@ export default function TerminalIsland() {
       .then((entries) => {
         if (cancelled) return;
         const current = progressRef.current;
-        const counts = new Map<string, number>();
-        for (const entry of entries) {
-          if (!entry.entityKey || !entry.revisionGates?.length) continue;
-          counts.set(
-            entry.entityKey,
-            Math.max(
-              counts.get(entry.entityKey) ?? 0,
-              passedRevisionCount(entry, current)
-            )
-          );
-        }
-        const levels: Record<string, number> = {};
-        const notices: TermLine[] = [];
-        for (const [key, passed] of counts) {
-          const known = current.conceptsReadLevel[key];
-          if (known === undefined) {
-            levels[key] = passed; // 首次建檔：靜默
-            continue;
-          }
-          if (passed > known) {
-            levels[key] = passed;
-            notices.push({
-              kind: 'meta',
-              text: `[SYS] · ${key} 資料已更新（+${passed - known} revision）`,
-            });
-            notices.push({
-              kind: 'meta',
-              text: `[SYS] · 輸入 query ${key} 查看最新內容`,
-            });
-          }
-        }
+        const { firstSeen, updates } = computeUnreadUpdates(entries, current);
+        const levels: Record<string, number> = { ...firstSeen };
+        for (const u of updates) levels[u.key] = u.passed;
         if (Object.keys(levels).length > 0) {
           getProgressManager().updateConceptsReadLevel(levels);
         }
-        if (notices.length > 0) append(notices);
+        if (updates.length === 0) return;
+        // 條列：收合期間累積多筆也一次列清（點擊直達條目）
+        const notices: TermLine[] = [
+          { kind: 'meta', text: `[SYS] 資料已更新 · ${updates.length} 項` },
+        ];
+        for (const u of updates) {
+          notices.push({
+            kind: 'row',
+            text: `  · ${u.entry.name}（${u.key} +${u.delta} revision）`,
+            action: { type: 'show-entry', entry: u.entry },
+          });
+        }
+        append(notices);
       })
       .catch(() => {
         /* 索引失敗已由指令路徑呈現，通知靜默略過 */

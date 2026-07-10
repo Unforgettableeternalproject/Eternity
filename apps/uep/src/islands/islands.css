@@ -178,6 +178,7 @@ body.uep-zone-entry-active .uep-minimap {
 .uep-island-dock__chip {
   all: unset;
   box-sizing: border-box;
+  position: relative; /* badge 定位基準（S7 驗收 #10） */
   width: 44px;
   height: 44px;
   display: grid;
@@ -194,6 +195,39 @@ body.uep-zone-entry-active .uep-minimap {
     border-color 0.18s var(--ease);
   /* 進場淡入（S6-3）：島收合後 chip 出現時不要瞬間跳出 */
   animation: uep-dock-chip-in 0.22s var(--ease);
+}
+
+/* 未讀更新 badge：收合期間累積的更動通知數（S7 驗收 #10） */
+.uep-island-dock__badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  background: var(--uep-gold);
+  color: var(--bg, #14120e);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 6px rgba(201, 168, 76, 0.55);
+  animation: uep-dock-badge-in 0.22s var(--ease);
+}
+
+@keyframes uep-dock-badge-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes uep-dock-chip-in {
