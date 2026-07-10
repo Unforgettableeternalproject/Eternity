@@ -490,3 +490,140 @@
     flex-direction: column;
   }
 }
+
+/* ── 進度編輯（S7 驗收加碼）── */
+.um-progress {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+}
+
+.um-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.um-progress-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-right: auto;
+}
+
+.um-progress-empty {
+  font-size: 12px;
+  color: var(--ink-mute);
+  padding: 6px 0;
+}
+
+.um-btn--sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.um-mark-btn {
+  all: unset;
+  cursor: pointer;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-mute);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.um-mark-btn:hover {
+  color: var(--uep-gold);
+  border-color: var(--uep-gold);
+}
+
+.um-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.um-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-body);
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-card);
+}
+
+.um-chip button {
+  all: unset;
+  cursor: pointer;
+  color: var(--ink-mute);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.um-chip button:hover {
+  color: #c0504d;
+}
+
+.um-chips-empty {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.um-chip-add {
+  display: flex;
+  gap: 6px;
+}
+
+.um-chip-add .um-field-input {
+  flex: 1;
+}
+
+.um-json-toggle {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin: 8px 0 6px;
+}
+
+.um-json-toggle:hover {
+  color: var(--uep-gold);
+}
+
+.um-json {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.um-json--error {
+  border-color: #c0504d;
+}
+
+.um-hint {
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin: 4px 0 8px;
+  line-height: 1.6;
+}
+
+.um-hint--error {
+  color: #c0504d;
+}

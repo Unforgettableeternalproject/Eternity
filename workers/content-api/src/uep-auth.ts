@@ -431,7 +431,8 @@ async function handleAdminGetUser(
   return json({ ok: true, data: adminUser(row) }, 200, cors);
 }
 
-/** PUT /api/uep/admin/users/:id — 更新使用者（admin_note、alias、email、is_active） */
+/** PUT /api/uep/admin/users/:id — 更新使用者
+ *（admin_note、alias、email、is_active、observer_ever、progress） */
 async function handleAdminUpdateUser(
   userId: number,
   request: Request,
@@ -445,11 +446,11 @@ async function handleAdminUpdateUser(
     return json({ ok: false, error: '無效的 JSON' }, 400, cors);
   }
 
-  // 確認使用者存在
+  // 確認使用者存在（印記/進度編輯需要現值做鏡射同步）
   const existing = await db
-    .prepare('SELECT id FROM uep_users WHERE id = ?')
+    .prepare('SELECT id, observer_ever, progress FROM uep_users WHERE id = ?')
     .bind(userId)
-    .first<{ id: number }>();
+    .first<{ id: number; observer_ever: number; progress: string | null }>();
   if (!existing) {
     return json({ ok: false, error: '使用者不存在' }, 404, cors);
   }
@@ -488,6 +489,72 @@ async function handleAdminUpdateUser(
     values.push(body.isActive ? 1 : 0);
   }
 
+  /* ── 印記 + 進度（S7 驗收加碼，2026-07-10）──
+     observer_ever 欄位與 progress blob 內的 observerEver 是鏡射雙份，
+     必須一起動，否則讀者端 PUT 的單向遞增規則會把清掉的印記升回去：
+     - 明確給 observerEver（admin 雙向覆寫，取消印記＝恢復純潔者）→ 以它為準
+     - 只給 progress → 欄位跟隨 blob 內的 observerEver
+     - 兩者皆無 → 不動
+     注意：admin 清印記後，若使用者當下仍有開著的分頁，本地鏡像的
+     debounced PUT 可能把印記回寫（讀者端單向規則）；下次載入由
+     ServerAdapter 伺服器優先 hydrate 即對齊。 */
+  const hasObserverEdit = typeof body.observerEver === 'boolean';
+  const hasProgressEdit = body.progress !== undefined;
+  if (hasObserverEdit || hasProgressEdit) {
+    // 解析目標 progress：本次上傳的優先，否則沿用既有 blob
+    let progressObj: Record<string, unknown> | null = null;
+    if (hasProgressEdit) {
+      if (body.progress === null) {
+        progressObj = null; // 重置進度
+      } else if (typeof body.progress === 'string') {
+        try {
+          progressObj = JSON.parse(body.progress) as Record<string, unknown>;
+        } catch {
+          return json({ ok: false, error: '進度必須是合法 JSON' }, 400, cors);
+        }
+      } else if (
+        typeof body.progress === 'object' &&
+        !Array.isArray(body.progress)
+      ) {
+        progressObj = body.progress as Record<string, unknown>;
+      }
+      if (
+        body.progress !== null &&
+        (progressObj === null ||
+          typeof progressObj !== 'object' ||
+          Array.isArray(progressObj))
+      ) {
+        return json({ ok: false, error: '進度資料必須是物件' }, 400, cors);
+      }
+    } else if (existing.progress) {
+      try {
+        progressObj = JSON.parse(existing.progress) as Record<string, unknown>;
+      } catch {
+        progressObj = null; // 既有 blob 毀損：只動欄位
+      }
+    }
+
+    // 最終印記：明確 toggle 優先 → blob 內值 → 維持欄位現值
+    const finalObserver = hasObserverEdit
+      ? body.observerEver === true
+      : progressObj && typeof progressObj.observerEver === 'boolean'
+        ? progressObj.observerEver
+        : existing.observer_ever === 1;
+
+    if (progressObj) progressObj.observerEver = finalObserver;
+
+    if (hasProgressEdit || (hasObserverEdit && progressObj)) {
+      const serialized = progressObj ? JSON.stringify(progressObj) : null;
+      if (serialized && serialized.length > PROGRESS_MAX_BYTES) {
+        return json({ ok: false, error: '進度資料過大' }, 413, cors);
+      }
+      updates.push('progress = ?');
+      values.push(serialized);
+    }
+    updates.push('observer_ever = ?');
+    values.push(finalObserver ? 1 : 0);
+  }
+
   if (updates.length === 0) {
     return json({ ok: false, error: '沒有要更新的欄位' }, 400, cors);
   }
@@ -504,6 +571,30 @@ async function handleAdminUpdateUser(
 
   // 回傳更新後的資料
   return handleAdminGetUser(userId, db, cors);
+}
+
+/** GET /api/uep/admin/users/:id/progress — 取得使用者進度 blob
+ *（S7 驗收加碼：admin 進度編輯用；無進度或毀損回 null） */
+async function handleAdminGetUserProgress(
+  userId: number,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const row = await db
+    .prepare('SELECT progress FROM uep_users WHERE id = ?')
+    .bind(userId)
+    .first<{ progress: string | null }>();
+  if (!row) {
+    return json({ ok: false, error: '使用者不存在' }, 404, cors);
+  }
+  if (!row.progress) {
+    return json({ ok: true, data: null }, 200, cors);
+  }
+  try {
+    return json({ ok: true, data: JSON.parse(row.progress) }, 200, cors);
+  } catch {
+    return json({ ok: true, data: null }, 200, cors);
+  }
 }
 
 /** DELETE /api/uep/admin/users/:id — 軟刪除使用者 */
@@ -604,9 +695,9 @@ export async function handleUepRoutes(
     return handleAdminListUsers(url, db, cors);
   }
 
-  // 匹配 /api/uep/admin/users/:id 和 /api/uep/admin/users/:id/restore
+  // 匹配 /api/uep/admin/users/:id（+ /restore、/progress 子路徑）
   const adminUserMatch = path.match(
-    /^\/api\/uep\/admin\/users\/(\d+)(\/restore)?$/
+    /^\/api\/uep\/admin\/users\/(\d+)(\/restore|\/progress)?$/
   );
   if (adminUserMatch) {
     const adminPayload = await requireJwt(request, env);
@@ -615,12 +706,15 @@ export async function handleUepRoutes(
     }
 
     const userId = parseInt(adminUserMatch[1], 10);
-    const isRestore = adminUserMatch[2] === '/restore';
+    const sub = adminUserMatch[2];
 
-    if (isRestore && method === 'POST') {
+    if (sub === '/restore' && method === 'POST') {
       return handleAdminRestoreUser(userId, db, cors);
     }
-    if (!isRestore) {
+    if (sub === '/progress' && method === 'GET') {
+      return handleAdminGetUserProgress(userId, db, cors);
+    }
+    if (!sub) {
       if (method === 'GET') return handleAdminGetUser(userId, db, cors);
       if (method === 'PUT')
         return handleAdminUpdateUser(userId, request, db, cors);

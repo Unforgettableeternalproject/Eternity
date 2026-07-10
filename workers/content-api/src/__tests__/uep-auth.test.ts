@@ -479,6 +479,163 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
     expect(body.data!.email).toBe('updated@example.com');
   });
 
+  it('PUT observerEver 雙向覆寫並同步 progress blob（S7 驗收加碼）', async () => {
+    const adminToken = await getAdminToken();
+    const { token } = await registerUser('um-mark-user');
+    // 使用者先上傳一份帶印記的進度（走讀者端單向升級路徑）
+    await fetchJson('/api/uep/progress', {
+      method: 'PUT',
+      token,
+      body: JSON.stringify({
+        view: 'observer',
+        observerEver: true,
+        flags: ['met:a'],
+      }),
+    });
+    const user = await findUser(adminToken, 'um-mark-user');
+    expect(user!.observerEver).toBe(true);
+
+    // admin 清除印記（讀者端單向規則不適用 admin 覆寫）
+    const cleared = await fetchJson<AdminUser>(
+      `/api/uep/admin/users/${user!.id}`,
+      {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ observerEver: false }),
+      }
+    );
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data!.observerEver).toBe(false);
+
+    // blob 內 observerEver 必須一併同步——否則讀者下次 PUT 會升回去
+    const prog = await fetchJson<Record<string, unknown>>(
+      `/api/uep/admin/users/${user!.id}/progress`,
+      { token: adminToken }
+    );
+    expect(prog.status).toBe(200);
+    expect(prog.body.data!.observerEver).toBe(false);
+    expect(prog.body.data!.flags).toEqual(['met:a']); // 其他欄位不動
+
+    // 再烙回去
+    const granted = await fetchJson<AdminUser>(
+      `/api/uep/admin/users/${user!.id}`,
+      {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ observerEver: true }),
+      }
+    );
+    expect(granted.body.data!.observerEver).toBe(true);
+  });
+
+  it('PUT progress 物件/字串皆可；欄位跟隨 blob、明確 toggle 優先', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-prog-user');
+    const user = await findUser(adminToken, 'um-prog-user');
+
+    // 物件形式 + blob 標 observerEver=true → 欄位跟隨 blob
+    const res = await fetchJson<AdminUser>(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({
+        progress: { view: 'observer', observerEver: true, flags: ['met:a'] },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data!.hasProgress).toBe(true);
+    expect(res.body.data!.observerEver).toBe(true);
+
+    // 字串形式（合法 JSON）
+    const res2 = await fetchJson<AdminUser>(
+      `/api/uep/admin/users/${user!.id}`,
+      {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({
+          progress: JSON.stringify({
+            view: 'explorer',
+            observerEver: false,
+            flags: [],
+          }),
+        }),
+      }
+    );
+    expect(res2.status).toBe(200);
+    expect(res2.body.data!.observerEver).toBe(false);
+
+    // 明確 toggle 與 blob 同時給：toggle 優先、blob 被改寫一致
+    const res3 = await fetchJson<AdminUser>(
+      `/api/uep/admin/users/${user!.id}`,
+      {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({
+          progress: { view: 'explorer', observerEver: true, flags: [] },
+          observerEver: false,
+        }),
+      }
+    );
+    expect(res3.body.data!.observerEver).toBe(false);
+    const prog = await fetchJson<Record<string, unknown>>(
+      `/api/uep/admin/users/${user!.id}/progress`,
+      { token: adminToken }
+    );
+    expect(prog.body.data!.observerEver).toBe(false);
+  });
+
+  it('PUT progress: null 重置；非法 JSON / 非物件 400', async () => {
+    const adminToken = await getAdminToken();
+    await registerUser('um-prog-reset');
+    const user = await findUser(adminToken, 'um-prog-reset');
+
+    await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ progress: { view: 'explorer', flags: [] } }),
+    });
+
+    // 重置
+    const reset = await fetchJson<AdminUser>(
+      `/api/uep/admin/users/${user!.id}`,
+      {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ progress: null }),
+      }
+    );
+    expect(reset.status).toBe(200);
+    expect(reset.body.data!.hasProgress).toBe(false);
+    const prog = await fetchJson(`/api/uep/admin/users/${user!.id}/progress`, {
+      token: adminToken,
+    });
+    expect(prog.body.data).toBeNull();
+
+    // 非法 JSON 字串 / 陣列 → 400
+    const bad = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ progress: '{broken' }),
+    });
+    expect(bad.status).toBe(400);
+    const arr = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ progress: [1, 2] }),
+    });
+    expect(arr.status).toBe(400);
+  });
+
+  it('GET /users/:id/progress 需 admin token；不存在 404', async () => {
+    const noToken = await fetchJson('/api/uep/admin/users/1/progress');
+    expect(noToken.status).toBe(401);
+
+    const adminToken = await getAdminToken();
+    const missing = await fetchJson('/api/uep/admin/users/999999/progress', {
+      token: adminToken,
+    });
+    expect(missing.status).toBe(404);
+  });
+
   it('PUT 驗證與註冊同規則：非法代稱/信箱/過長備註回傳 400', async () => {
     const adminToken = await getAdminToken();
     await registerUser('um-validate-user');
