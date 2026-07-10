@@ -10,10 +10,15 @@
  */
 
 import { getReaderAuth } from '../auth';
-import { getProgressManager } from '../progress';
-import type { ProgressState } from '../progress';
+import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../progress';
+import type { ProgressChangeDetail, ProgressState } from '../progress';
 
-import { loadWindowState, saveWindowState } from './persistence';
+import { clearTerminalLog } from './concepts/terminalLog';
+import {
+  clearAllWindowStates,
+  loadWindowState,
+  saveWindowState,
+} from './persistence';
 import type { IslandId, IslandWindowState } from './types';
 import { ISLAND_IDS, ISLAND_Z_BASE, createInitialWindowState } from './types';
 
@@ -24,7 +29,7 @@ export const ISLAND_CHANGE_EVENT = 'uep:island-change';
 export interface IslandChangeDetail {
   state: IslandRuntimeState;
   /** 本次變更的來源操作，方便消費端過濾 */
-  source: 'open' | 'close' | 'move' | 'focus' | 'hydrate';
+  source: 'open' | 'close' | 'move' | 'focus' | 'hydrate' | 'reset';
 }
 
 /** Runtime 全體狀態快照（唯讀） */
@@ -159,6 +164,19 @@ export const uepIslands = {
     notify('close');
   },
 
+  /**
+   * 全面重置（S7 驗收 #9/#13）：清除所有島的視窗狀態（開合＋位置）
+   * 與 localStorage 持久化，並清空 terminal 輸出歷史——登出與進度
+   * reset 用（同瀏覽器換帳號不得看到上一個帳號的查詢紀錄）。
+   * 登入維持 collapseAll（位置保留），兩者語意刻意不同。
+   */
+  resetAll(): void {
+    clearAllWindowStates();
+    clearTerminalLog();
+    state = { windows: {}, focusOrder: [] };
+    notify('reset');
+  },
+
   /** 更新拖曳後的位置（viewport 座標） */
   setPosition(id: IslandId, position: { left: number; top: number }): void {
     mutateWindow(id, 'move', (prev) => ({ ...prev, position }));
@@ -195,12 +213,21 @@ if (typeof window !== 'undefined' && !window.__uepIslands) {
   // 登入事件（訪客 → 登入的轉變）：全島收合進 dock（S7-C 驗收定案）。
   // 頁面載入恢復既有 session 不經歷 null→session 轉變——換頁/重載
   // 照常還原上次開合狀態；refresh()/印記同步的 notify 也不會誤觸。
+  // 登出事件（session → null）：全面重置（S7 驗收 #9）——視窗狀態
+  // 與 terminal 歷史全清，同瀏覽器換帳號不得殘留上一帳號的痕跡。
   const auth = getReaderAuth();
   let wasLoggedIn = auth.isLoggedIn();
   auth.subscribe((session) => {
     const loggedIn = session !== null;
     if (loggedIn && !wasLoggedIn) uepIslands.collapseAll();
+    if (!loggedIn && wasLoggedIn) uepIslands.resetAll();
     wasLoggedIn = loggedIn;
+  });
+  // 進度 reset（S7 驗收 #13）：小工具狀態一併清空。
+  // 走 CustomEvent 不走 store 訂閱——避免 progress → islands 反向耦合。
+  window.addEventListener(PROGRESS_CHANGE_EVENT, (e) => {
+    const detail = (e as CustomEvent<ProgressChangeDetail>).detail;
+    if (detail?.source === 'reset') uepIslands.resetAll();
   });
 }
 

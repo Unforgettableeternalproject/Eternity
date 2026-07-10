@@ -7,7 +7,11 @@
  */
 
 import type { IslandId, IslandWindowState } from './types';
-import { ISLAND_SCHEMA_VERSION, createInitialWindowState } from './types';
+import {
+  ISLAND_IDS,
+  ISLAND_SCHEMA_VERSION,
+  createInitialWindowState,
+} from './types';
 
 /** localStorage key 前綴（版本進 key，schema 大改時直接換代） */
 export const ISLAND_STORAGE_PREFIX = 'uep.islands.v1.';
@@ -64,5 +68,17 @@ export function saveWindowState(id: IslandId, state: IslandWindowState): void {
     window.localStorage.setItem(islandStorageKey(id), JSON.stringify(state));
   } catch {
     // localStorage 滿載或被禁用時靜默失敗
+  }
+}
+
+/** 清除所有浮島視窗狀態（登出/進度重置用——S7 驗收 #9/#13） */
+export function clearAllWindowStates(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  for (const id of ISLAND_IDS) {
+    try {
+      window.localStorage.removeItem(islandStorageKey(id));
+    } catch {
+      // 靜默失敗
+    }
   }
 }

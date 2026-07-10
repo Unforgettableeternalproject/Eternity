@@ -23,7 +23,7 @@ export const WELCOME_PENDING_KEY = 'uep.welcome.pending.v1';
 export const WELCOME_DONE_EVENT = 'uep:welcome-done';
 
 interface Pending {
-  kind: 'login' | 'register';
+  kind: 'login' | 'register' | 'logout';
   alias: string;
 }
 
@@ -34,7 +34,9 @@ function readPending(): Pending | null {
     if (!raw) return null;
     const obj = JSON.parse(raw) as Partial<Pending>;
     if (
-      (obj.kind !== 'login' && obj.kind !== 'register') ||
+      (obj.kind !== 'login' &&
+        obj.kind !== 'register' &&
+        obj.kind !== 'logout') ||
       typeof obj.alias !== 'string'
     ) {
       return null;

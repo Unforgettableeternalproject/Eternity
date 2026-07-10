@@ -21,7 +21,7 @@ import { getReaderAuth, useReaderAuth } from '../../auth';
 import IslandSettingsPanel from '../../islands/IslandSettingsPanel';
 import { useProgress } from '../../progress/useProgress';
 
-import { WELCOME_DONE_EVENT } from './GlobalWelcomeHost';
+import { WELCOME_DONE_EVENT, WELCOME_PENDING_KEY } from './GlobalWelcomeHost';
 import ViewSwitch from './ViewSwitch';
 
 import './IdentCard.css';
@@ -189,10 +189,21 @@ export default function IdentCard() {
     if (ok) {
       /* 撕開動畫（cord 斷裂 + 卡片墜落），完成後真正登出 */
       rootRef.current?.classList.add('is-torn');
+      const alias = session?.alias ?? '';
       await new Promise((r) => setTimeout(r, 550));
       await getReaderAuth().logout();
-      window.__uepToastManager?.info('記錄已闔上。你的足跡仍會留在此處。');
-      /* session 變 null 後元件會 unmount，這裡不用手動 reset */
+      /* 登出儀式（S7 驗收 #14）：鏡射登入的 pending 模式——
+         種 flag + 導向主頁，GlobalWelcomeHost 在主頁播放登出變體
+         （WelcomeCeremony kind='logout'），取代原本的 toast 提示 */
+      try {
+        sessionStorage.setItem(
+          WELCOME_PENDING_KEY,
+          JSON.stringify({ kind: 'logout', alias })
+        );
+      } catch {
+        /* sessionStorage 不可用時就沒儀式，不影響登出 */
+      }
+      window.location.assign('/');
     } else {
       /* 掛回去：回彈 */
       resetTear(true);

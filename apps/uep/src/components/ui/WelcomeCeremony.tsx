@@ -1,11 +1,14 @@
 /**
- * 登入 / 註冊成功轉場儀式（Epic 2 S5 打磨輪 3）
+ * 登入 / 註冊 / 登出轉場儀式（Epic 2 S5 打磨輪 3；S7 驗收 #14 加登出）
  *
  * 從 /login 頁完成 auth 後不立刻導頁——先播一段短促的「迎接」轉場：
  * 頂部升起金色細線、中央顯示代稱與極簡祝賀語、底部同樣一線收攏。
  * 結束後才 onDone → 呼叫端執行 window.location.href（跳回來源頁）。
  *
- * 與 ViewSwitchCeremony 語意分工：這個是「從無到有的迎接」，
+ * 登出（kind='logout'）是登入的反向變體：金線從展開收攏、色調轉灰、
+ * 舞台下沉——「闔上記錄」的儀式感，取代原本的 toast 提示。
+ *
+ * 與 ViewSwitchCeremony 語意分工：這個是「從無到有的迎接／告別」，
  * ViewSwitchCeremony 是「已在世界內的身分轉換」——兩者刻意不共用素材。
  *
  * 走 createPortal 掛到 body：頁面容器可能有 transform 建立 stacking
@@ -19,7 +22,7 @@ import './WelcomeCeremony.css';
 
 interface Props {
   alias: string;
-  kind: 'login' | 'register';
+  kind: 'login' | 'register' | 'logout';
   onDone: () => void;
 }
 
@@ -30,11 +33,13 @@ const CEREMONY_MS_REDUCED = 700;
 const KICKER: Record<Props['kind'], string> = {
   login: 'RECORD RESUMED',
   register: 'RECORD BEGUN',
+  logout: 'RECORD CLOSED',
 };
 
 const GREETING: Record<Props['kind'], string> = {
   login: '記錄已接續',
   register: '記錄已銘刻',
+  logout: '記錄已闔上。你的足跡仍會留在此處。',
 };
 
 export default function WelcomeCeremony({ alias, kind, onDone }: Props) {
@@ -50,7 +55,7 @@ export default function WelcomeCeremony({ alias, kind, onDone }: Props) {
 
   return createPortal(
     <div
-      className="uep-welcome"
+      className={`uep-welcome${kind === 'logout' ? ' uep-welcome--logout' : ''}`}
       role="status"
       aria-live="polite"
       aria-label={`${GREETING[kind]}，${alias}`}

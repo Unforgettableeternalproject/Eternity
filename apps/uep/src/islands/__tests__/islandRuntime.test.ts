@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+import { TERMINAL_LOG_KEY } from '../concepts/terminalLog';
 import { islandStorageKey } from '../persistence';
 import { ISLAND_Z_BASE } from '../types';
 
@@ -189,18 +190,71 @@ describe('collapseAll / 登入收合', () => {
     expect(uepIslands.getWindow('history')?.open).toBe(true);
   });
 
-  it('登出 notify 不收合；再登入才收合', async () => {
+  it('登出轉變（session→null）觸發全面重置（S7 驗收 #9）', async () => {
     authMock.loggedIn = true;
+    window.localStorage.setItem(TERMINAL_LOG_KEY, '[]');
     const { uepIslands } = await freshRuntime();
     uepIslands.open('history');
-    // 登出：session → null（島 unmount 由守門處理，runtime 不動狀態）
+    uepIslands.setPosition('history', { left: 10, top: 20 });
+    // 登出：session → null → 視窗狀態（含位置）與 terminal 歷史全清
     authMock.loggedIn = false;
     authMock.listeners.forEach((fn) => fn(null));
+    expect(uepIslands.getWindow('history')).toBeNull();
+    expect(uepIslands.getState().focusOrder).toEqual([]);
+    expect(window.localStorage.getItem(islandStorageKey('history'))).toBeNull();
+    expect(window.localStorage.getItem(TERMINAL_LOG_KEY)).toBeNull();
+  });
+});
+
+describe('resetAll / 進度重置清空小工具（S7 驗收 #9/#13）', () => {
+  it('resetAll 清空 in-memory 狀態、localStorage 與 terminal 歷史', async () => {
+    window.localStorage.setItem(TERMINAL_LOG_KEY, '[{"kind":"in","text":"$"}]');
+    const { uepIslands } = await freshRuntime();
+    uepIslands.open('history');
+    uepIslands.open('concepts');
+    uepIslands.setPosition('concepts', { left: 5, top: 5 });
+    uepIslands.resetAll();
+    expect(uepIslands.getState().windows).toEqual({});
+    expect(uepIslands.getState().focusOrder).toEqual([]);
+    expect(window.localStorage.getItem(islandStorageKey('history'))).toBeNull();
+    expect(
+      window.localStorage.getItem(islandStorageKey('concepts'))
+    ).toBeNull();
+    expect(window.localStorage.getItem(TERMINAL_LOG_KEY)).toBeNull();
+  });
+
+  it('resetAll 以 source=reset 通知訂閱者', async () => {
+    const { uepIslands } = await freshRuntime();
+    const listener = vi.fn();
+    uepIslands.subscribe(listener);
+    uepIslands.resetAll();
+    expect(listener).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ source: 'reset' })
+    );
+  });
+
+  it('progress reset 事件（source=reset）觸發 resetAll', async () => {
+    const { uepIslands } = await freshRuntime();
+    uepIslands.open('history');
+    window.dispatchEvent(
+      new CustomEvent('uep:progress-change', {
+        detail: { state: {}, source: 'reset' },
+      })
+    );
+    expect(uepIslands.getState().windows).toEqual({});
+    expect(window.localStorage.getItem(islandStorageKey('history'))).toBeNull();
+  });
+
+  it('其他 progress 事件來源不觸發重置', async () => {
+    const { uepIslands } = await freshRuntime();
+    uepIslands.open('history');
+    window.dispatchEvent(
+      new CustomEvent('uep:progress-change', {
+        detail: { state: {}, source: 'view-change' },
+      })
+    );
     expect(uepIslands.getWindow('history')?.open).toBe(true);
-    // 再登入：null → session 轉變 → 收合
-    authMock.loggedIn = true;
-    authMock.listeners.forEach((fn) => fn({ token: 'x' }));
-    expect(uepIslands.getWindow('history')?.open).toBe(false);
   });
 });
 
