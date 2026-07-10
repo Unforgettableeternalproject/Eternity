@@ -189,6 +189,76 @@ describe('容錯', () => {
     expect(normalized![2].action).toBeUndefined();
   });
 
+  it('ls-category 帶 pageId 的三層式 round-trip（S7 驗收 #5）', () => {
+    const normalized = normalizeTermLines([
+      {
+        kind: 'row',
+        text: '▸ 三區 (5) ▾',
+        action: {
+          type: 'ls-category',
+          stack: 'dossier',
+          category: '三區',
+          pageId: 'concepts/a',
+        },
+      },
+      // 非字串 pageId → 欄位丟棄但 action 保留（舊 log 相容語意）
+      {
+        kind: 'row',
+        text: '▸ 五區 (2) ▾',
+        action: {
+          type: 'ls-category',
+          stack: 'dossier',
+          category: '五區',
+          pageId: 42,
+        },
+      },
+    ]);
+    expect(normalized![0].action).toEqual({
+      type: 'ls-category',
+      stack: 'dossier',
+      category: '三區',
+      pageId: 'concepts/a',
+    });
+    expect(normalized![1].action).toEqual({
+      type: 'ls-category',
+      stack: 'dossier',
+      category: '五區',
+    });
+  });
+
+  it('ls-page action round-trip；缺 pageTitle / 非法 stack 降級純文字（S7 驗收 #5）', () => {
+    const normalized = normalizeTermLines([
+      {
+        kind: 'row',
+        text: '▸ 人物列表 (13) ▾',
+        action: {
+          type: 'ls-page',
+          stack: 'dossier',
+          pageId: 'concepts/a',
+          pageTitle: '人物列表',
+        },
+      },
+      {
+        kind: 'row',
+        text: 'bad',
+        action: { type: 'ls-page', stack: 'dossier', pageId: 'concepts/a' },
+      },
+      {
+        kind: 'row',
+        text: 'bad2',
+        action: { type: 'ls-page', stack: 'evil', pageId: 'x', pageTitle: 'y' },
+      },
+    ]);
+    expect(normalized![0].action).toEqual({
+      type: 'ls-page',
+      stack: 'dossier',
+      pageId: 'concepts/a',
+      pageTitle: '人物列表',
+    });
+    expect(normalized![1].action).toBeUndefined();
+    expect(normalized![2].action).toBeUndefined();
+  });
+
   it('fade 只接受 true（其他值不落欄位）', () => {
     const normalized = normalizeTermLines([
       { kind: 'row', text: 'a', fade: true },

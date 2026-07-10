@@ -30,6 +30,8 @@ import {
   htmlToLines,
   resolveBrowserExpand,
   resolveEntryDetails,
+  summarizePages,
+  formatEntryLabel,
 } from '../terminalCore';
 import type { TerminalIndexEntry } from '../terminalCore';
 
@@ -321,6 +323,90 @@ describe('resolveStackAlias / listStackEntries', () => {
     const result = listStackEntries(entries, 'dossier', stateWith({}));
     expect(result.total).toBe(2);
     expect(result.unlocked.map((e) => e.name)).toEqual(['甲']);
+  });
+});
+
+// ── ls 三層式（S7 驗收 #5）＋ alias 標籤（#11） ─────────────────────
+
+describe('summarizePages / pageId 過濾 / formatEntryLabel', () => {
+  const entries = [
+    indexEntry({
+      name: '甲',
+      pageId: 'concepts/a',
+      pageTitle: '人物列表',
+      category: '三區',
+    }),
+    indexEntry({
+      name: '乙',
+      pageId: 'concepts/a',
+      pageTitle: '人物列表',
+      category: '五區',
+    }),
+    indexEntry({
+      name: '丙',
+      pageId: 'concepts/b',
+      pageTitle: '地點列表',
+      category: '三區',
+    }),
+    indexEntry({
+      name: '丁（未解鎖）',
+      pageId: 'concepts/b',
+      pageTitle: '地點列表',
+      revisionGates: [{ id: 'r', gate: { requiresFlags: ['no:01'] } }],
+    }),
+  ];
+
+  it('summarizePages：按來源頁彙整已解鎖條目（索引順序）', () => {
+    const { pages, unlockedCount, total } = summarizePages(
+      entries,
+      'dossier',
+      stateWith({})
+    );
+    expect(pages).toEqual([
+      { pageId: 'concepts/a', pageTitle: '人物列表', count: 2 },
+      { pageId: 'concepts/b', pageTitle: '地點列表', count: 1 },
+    ]);
+    expect(unlockedCount).toBe(3);
+    expect(total).toBe(4);
+  });
+
+  it('summarizeCategories 帶 pageId：只看該頁——同名分類不跨頁混列', () => {
+    const scoped = summarizeCategories(
+      entries,
+      'dossier',
+      stateWith({}),
+      'concepts/a'
+    );
+    expect(scoped.categories).toEqual([
+      { category: '三區', count: 1 },
+      { category: '五區', count: 1 },
+    ]);
+    // 不帶 pageId 時「三區」跨頁合併（舊行為保留）
+    const global = summarizeCategories(entries, 'dossier', stateWith({}));
+    expect(global.categories.find((c) => c.category === '三區')?.count).toBe(2);
+  });
+
+  it('groupStackEntries 帶 pageId：條目層限定來源頁', () => {
+    const { groups, unlockedCount } = groupStackEntries(
+      entries,
+      'dossier',
+      stateWith({}),
+      'concepts/b'
+    );
+    expect(unlockedCount).toBe(1);
+    expect(groups.flatMap((g) => g.entries.map((e) => e.name))).toEqual(['丙']);
+  });
+
+  it('formatEntryLabel：名稱後附 aliases、空白別名過濾、無別名原樣', () => {
+    expect(
+      formatEntryLabel(
+        indexEntry({ name: '諾薇亞 Novia', aliases: ['小諾', ' ', 'Nov'] })
+      )
+    ).toBe('諾薇亞 Novia（小諾、Nov）');
+    expect(formatEntryLabel(indexEntry({ name: '甲' }))).toBe('甲');
+    expect(formatEntryLabel(indexEntry({ name: '甲', aliases: [] }))).toBe(
+      '甲'
+    );
   });
 });
 

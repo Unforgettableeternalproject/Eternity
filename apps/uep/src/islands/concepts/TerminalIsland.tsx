@@ -23,6 +23,7 @@ import {
   TERMINAL_STACK_LABELS,
   completeInput,
   findByEntityKey,
+  formatEntryLabel,
   groupStackEntries,
   loadEntityIndex,
   passedRevisionCount,
@@ -32,6 +33,7 @@ import {
   resolveStackAlias,
   significantChronoPeriods,
   summarizeCategories,
+  summarizePages,
 } from './terminalCore';
 import type { TerminalIndexEntry } from './terminalCore';
 import {
@@ -174,8 +176,10 @@ export default function TerminalIsland() {
       void showBrowserExpand(action.entry);
     } else if (action.type === 'navigate') {
       navigateToConceptsPage(action.pageId);
+    } else if (action.type === 'ls-page') {
+      void runLsPage(action.stack, action.pageId, action.pageTitle);
     } else if (action.type === 'ls-category') {
-      void runLsCategory(action.stack, action.category);
+      void runLsCategory(action.stack, action.category, action.pageId);
     }
   }
 
@@ -557,7 +561,8 @@ export default function TerminalIsland() {
       ...hits.slice(0, 8).map(
         (hit): TermLine => ({
           kind: 'row',
-          text: `  › ${hit.name} · ${TERMINAL_STACK_LABELS[hit.stack]}`,
+          // 名稱後附 aliases（S7 驗收 #11）
+          text: `  › ${formatEntryLabel(hit)} · ${TERMINAL_STACK_LABELS[hit.stack]}`,
           action: { type: 'show-entry', entry: hit },
         })
       ),
@@ -573,15 +578,22 @@ export default function TerminalIsland() {
     ]);
   }
 
-  /** ls 第二層：列出指定分類的條目（category '' = 未分類） */
+  /** ls 條目層：列出指定分類的條目（category '' = 未分類）。
+      pageId 有值時限定來源頁（三層式，S7 驗收 #5）。 */
   async function runLsCategory(
     stack: NonNullable<ReturnType<typeof resolveStackAlias>>,
-    category: string
+    category: string,
+    pageId?: string
   ) {
     const entries = await ensureIndex();
     if (!entries) return;
 
-    const { groups } = groupStackEntries(entries, stack, progressRef.current);
+    const { groups } = groupStackEntries(
+      entries,
+      stack,
+      progressRef.current,
+      pageId
+    );
     const matched = groups.filter((g) => (g.category ?? '') === category);
     const count = matched.reduce((n, g) => n + g.entries.length, 0);
     if (count === 0) {
@@ -589,12 +601,14 @@ export default function TerminalIsland() {
       return;
     }
 
-    const out: TermLine[] = [
-      {
-        kind: 'ok',
-        text: `✓ ${TERMINAL_STACK_LABELS[stack]} › ${category || '未分類'} · ${count} 條`,
-      },
-    ];
+    // 三層式標頭帶來源頁：log/records › 人物列表 › 三區
+    const pageTitle = pageId ? matched[0]?.entries[0]?.pageTitle : undefined;
+    const crumb = [
+      TERMINAL_STACK_LABELS[stack],
+      ...(pageTitle ? [pageTitle] : []),
+      category || '未分類',
+    ].join(' › ');
+    const out: TermLine[] = [{ kind: 'ok', text: `✓ ${crumb} · ${count} 條` }];
     let listed = 0;
     let capped = false;
     outer: for (const bucket of matched) {
@@ -609,7 +623,8 @@ export default function TerminalIsland() {
         }
         out.push({
           kind: 'row',
-          text: `${indent}› ${entry.name}`,
+          // 名稱後附 aliases（S7 驗收 #11）
+          text: `${indent}› ${formatEntryLabel(entry)}`,
           action: { type: 'show-entry', entry },
         });
         listed += 1;
@@ -626,25 +641,81 @@ export default function TerminalIsland() {
     appendAnchored(out);
   }
 
-  /** ls 頂層：層級式——只列分類摘要，點分類（或 ls <stack> <分類>）才展開 */
+  /** ls 第二層：列出指定來源頁的分類（S7 驗收 #5：頁 → 分類 → 條目） */
+  async function runLsPage(
+    stack: NonNullable<ReturnType<typeof resolveStackAlias>>,
+    pageId: string,
+    pageTitle: string
+  ) {
+    const entries = await ensureIndex();
+    if (!entries) return;
+
+    const { categories } = summarizeCategories(
+      entries,
+      stack,
+      progressRef.current,
+      pageId
+    );
+    if (categories.length === 0) {
+      append([{ kind: 'err', text: `× 「${pageTitle}」查無已解鎖條目` }]);
+      return;
+    }
+    // 該頁全無分類 → 沒有分類層，直接列條目
+    if (categories.length === 1 && categories[0].category === '') {
+      await runLsCategory(stack, '', pageId);
+      return;
+    }
+    const total = categories.reduce((n, c) => n + c.count, 0);
+    const out: TermLine[] = [
+      {
+        kind: 'ok',
+        text: `✓ ${TERMINAL_STACK_LABELS[stack]} › ${pageTitle} · ${total} 條`,
+      },
+    ];
+    for (const cat of categories) {
+      out.push({
+        kind: 'row',
+        text: `  ▸ ${cat.category || '未分類'} (${cat.count}) ▾`,
+        action: { type: 'ls-category', stack, category: cat.category, pageId },
+      });
+    }
+    out.push({ kind: 'meta', text: '（點分類展開條目）' });
+    appendAnchored(out);
+  }
+
+  /** ls 頂層：三層式（S7 驗收 #5）——列「列表（來源頁）」摘要，
+      點頁（或 ls <stack> <頁名/分類>）才往下展開 */
   async function runLs(arg: string) {
     if (!arg) {
       append([
-        { kind: 'err', text: '用法：ls <log|browser|clock|compare> [分類]' },
+        {
+          kind: 'err',
+          text: '用法：ls <log|browser|clock|compare> [列表/分類]',
+        },
       ]);
       return;
     }
     const [stackArg, ...rest] = arg.split(/\s+/);
-    const categoryArg = rest.join(' ').trim();
+    const filterArg = rest.join(' ').trim();
     const stack = resolveStackAlias(stackArg);
     if (!stack) {
       append([{ kind: 'err', text: `× unknown stack: ${stackArg}` }]);
       return;
     }
 
-    // 指定分類 → 直接進第二層（「未分類」對映空分類）
-    if (categoryArg) {
-      await runLsCategory(stack, categoryArg === '未分類' ? '' : categoryArg);
+    // 帶參數：先比對列表（來源頁標題），沒中再當分類（跨頁，舊行為）
+    if (filterArg) {
+      const entries = await ensureIndex();
+      if (!entries) return;
+      const { pages } = summarizePages(entries, stack, progressRef.current);
+      const page =
+        pages.find((p) => p.pageTitle === filterArg) ??
+        pages.find((p) => p.pageTitle.includes(filterArg));
+      if (page) {
+        await runLsPage(stack, page.pageId, page.pageTitle);
+        return;
+      }
+      await runLsCategory(stack, filterArg === '未分類' ? '' : filterArg);
       return;
     }
 
@@ -684,15 +755,26 @@ export default function TerminalIsland() {
       return;
     }
 
-    const { categories, unlockedCount, total } = summarizeCategories(
+    const { pages, unlockedCount, total } = summarizePages(
       entries,
       stack,
       progressRef.current
     );
 
-    // 全無分類（如 browser profiles 平鋪）→ 沒有第二層，直接列條目
-    if (categories.length === 1 && categories[0].category === '') {
-      await runLsCategory(stack, '');
+    if (pages.length === 0) {
+      append([
+        {
+          kind: 'ok',
+          text: `✓ ${TERMINAL_STACK_LABELS[stack]} · ${unlockedCount}/${total} 已解鎖`,
+        },
+        { kind: 'meta', text: '（尚無已解鎖條目）' },
+      ]);
+      return;
+    }
+
+    // 單一來源頁（如 browser）→ 沒有列表層，直接進該頁的分類層
+    if (pages.length === 1) {
+      await runLsPage(stack, pages[0].pageId, pages[0].pageTitle);
       return;
     }
 
@@ -702,14 +784,19 @@ export default function TerminalIsland() {
         text: `✓ ${TERMINAL_STACK_LABELS[stack]} · ${unlockedCount}/${total} 已解鎖`,
       },
     ];
-    for (const cat of categories) {
+    for (const page of pages) {
       out.push({
         kind: 'row',
-        text: `  ▸ ${cat.category || '未分類'} (${cat.count}) ▾`,
-        action: { type: 'ls-category', stack, category: cat.category },
+        text: `  ▸ ${page.pageTitle} (${page.count}) ▾`,
+        action: {
+          type: 'ls-page',
+          stack,
+          pageId: page.pageId,
+          pageTitle: page.pageTitle,
+        },
       });
     }
-    out.push({ kind: 'meta', text: '（點分類展開條目）' });
+    out.push({ kind: 'meta', text: '（點列表展開分類）' });
     append(out);
   }
 

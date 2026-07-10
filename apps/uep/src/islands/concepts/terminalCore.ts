@@ -290,9 +290,18 @@ export interface StackGroup {
 export function groupStackEntries(
   entries: TerminalIndexEntry[],
   stack: TerminalStack,
-  progress: ProgressState
+  progress: ProgressState,
+  pageId?: string
 ): { groups: StackGroup[]; unlockedCount: number; total: number } {
-  const { unlocked, total } = listStackEntries(entries, stack, progress);
+  const { unlocked: allUnlocked, total } = listStackEntries(
+    entries,
+    stack,
+    progress
+  );
+  // pageId 有值時只彙整該來源頁的條目（S7 驗收 #5：頁面層過濾）
+  const unlocked = pageId
+    ? allUnlocked.filter((e) => e.pageId === pageId)
+    : allUnlocked;
   const groups: StackGroup[] = [];
   const byKey = new Map<string, StackGroup>();
   for (const entry of unlocked) {
@@ -322,7 +331,8 @@ export interface CategorySummary {
 export function summarizeCategories(
   entries: TerminalIndexEntry[],
   stack: TerminalStack,
-  progress: ProgressState
+  progress: ProgressState,
+  pageId?: string
 ): {
   categories: CategorySummary[];
   unlockedCount: number;
@@ -331,7 +341,8 @@ export function summarizeCategories(
   const { groups, unlockedCount, total } = groupStackEntries(
     entries,
     stack,
-    progress
+    progress,
+    pageId
   );
   const categories: CategorySummary[] = [];
   const byName = new Map<string, CategorySummary>();
@@ -346,6 +357,49 @@ export function summarizeCategories(
     summary.count += bucket.entries.length;
   }
   return { categories, unlockedCount, total };
+}
+
+/** ls 頂層的來源頁摘要（S7 驗收 #5：三層結構的第一層） */
+export interface PageSummary {
+  pageId: string;
+  pageTitle: string;
+  count: number;
+}
+
+/**
+ * ls 頂層改以「列表（來源頁）」分（S7 驗收 #5 定案）：
+ * 原本把所有來源頁的分類攤平混列，會出現多個「三區」並排而不知
+ * 來自哪個列表。改為 頁 → 分類 → 條目 三層。
+ * 頁面順序 = 索引出現順序（sort_order）；只計已解鎖條目。
+ */
+export function summarizePages(
+  entries: TerminalIndexEntry[],
+  stack: TerminalStack,
+  progress: ProgressState
+): { pages: PageSummary[]; unlockedCount: number; total: number } {
+  const { unlocked, total } = listStackEntries(entries, stack, progress);
+  const pages: PageSummary[] = [];
+  const byId = new Map<string, PageSummary>();
+  for (const entry of unlocked) {
+    let page = byId.get(entry.pageId);
+    if (!page) {
+      page = { pageId: entry.pageId, pageTitle: entry.pageTitle, count: 0 };
+      byId.set(entry.pageId, page);
+      pages.push(page);
+    }
+    page.count += 1;
+  }
+  return { pages, unlockedCount: unlocked.length, total };
+}
+
+/**
+ * 條目顯示標籤（S7 驗收 #11）：名稱後方附 aliases。
+ * 如「艾斯維爾·科索諾（艾斯、隊長）」；無別名時只回名稱。
+ */
+export function formatEntryLabel(entry: TerminalIndexEntry): string {
+  const aliases = (entry.aliases ?? []).filter((a) => a.trim().length > 0);
+  if (aliases.length === 0) return entry.name;
+  return `${entry.name}（${aliases.join('、')}）`;
 }
 
 /** Tab 補全的指令詞（尾空格 = 帶參數指令） */

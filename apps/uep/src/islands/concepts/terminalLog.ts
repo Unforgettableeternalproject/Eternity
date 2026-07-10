@@ -23,11 +23,20 @@ export type TermAction =
   /** browser 完整檔案在 terminal 內展開（S7-D-4；entry = browser 條目） */
   | { type: 'expand-browser'; entry: TerminalIndexEntry }
   | { type: 'navigate'; pageId: string }
-  /** ls 層級式展開：列出指定分類的條目（category '' = 未分類） */
+  /** ls 三層式第一層 → 第二層：列出指定來源頁的分類（S7 驗收 #5） */
+  | {
+      type: 'ls-page';
+      stack: 'dossier' | 'browser' | 'chrono' | 'diff';
+      pageId: string;
+      pageTitle: string;
+    }
+  /** ls 展開條目層：列出指定分類的條目（category '' = 未分類）。
+      pageId 有值時限定來源頁（三層式）；無值 = 跨頁（舊 log 相容） */
   | {
       type: 'ls-category';
       stack: 'dossier' | 'browser' | 'chrono' | 'diff';
       category: string;
+      pageId?: string;
     };
 
 /** 單行輸出（action 有值時渲染為可點擊列） */
@@ -52,6 +61,7 @@ function normalizeAction(raw: unknown): TermAction | undefined {
     type?: unknown;
     entry?: unknown;
     pageId?: unknown;
+    pageTitle?: unknown;
     stack?: unknown;
     category?: unknown;
   };
@@ -60,16 +70,38 @@ function normalizeAction(raw: unknown): TermAction | undefined {
       ? { type: 'navigate', pageId: obj.pageId }
       : undefined;
   }
-  if (obj.type === 'ls-category') {
+  if (obj.type === 'ls-page') {
     return typeof obj.stack === 'string' &&
       STACKS.has(obj.stack) &&
-      typeof obj.category === 'string'
+      typeof obj.pageId === 'string' &&
+      obj.pageId &&
+      typeof obj.pageTitle === 'string'
       ? {
-          type: 'ls-category',
+          type: 'ls-page',
           stack: obj.stack as TerminalIndexEntry['stack'],
-          category: obj.category,
+          pageId: obj.pageId,
+          pageTitle: obj.pageTitle,
         }
       : undefined;
+  }
+  if (obj.type === 'ls-category') {
+    if (
+      typeof obj.stack !== 'string' ||
+      !STACKS.has(obj.stack) ||
+      typeof obj.category !== 'string'
+    ) {
+      return undefined;
+    }
+    const action: TermAction = {
+      type: 'ls-category',
+      stack: obj.stack as TerminalIndexEntry['stack'],
+      category: obj.category,
+    };
+    // pageId 選填（三層式）；舊 log 無此欄位照常通過
+    if (typeof obj.pageId === 'string' && obj.pageId) {
+      action.pageId = obj.pageId;
+    }
+    return action;
   }
   if (obj.type !== 'show-entry' && obj.type !== 'expand-browser') {
     return undefined;
