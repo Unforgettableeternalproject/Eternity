@@ -41,6 +41,10 @@ export interface EntityIndexEntry {
   entityKey?: string;
   /** 匹配別名（S7-D-2：編輯器選填，自動偵測 + terminal query 兩用） */
   aliases?: string[];
+  /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
+  baseGate?: unknown;
+  /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
+  groupGate?: unknown;
   /** revision gate 摘要（條目有 revision 鏈才有） */
   revisionGates?: RevisionGateSummary[];
   /** 分類標籤（dossier=subcategory label、diff=subcat label）——ls 分組用 */
@@ -67,14 +71,23 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-/** 從條目物件抽出 entityKey / aliases / revisionGates（共用形狀 WithRevision + S7-D aliases） */
+/** 從條目物件抽出 entityKey / aliases / baseGate / revisionGates（共用形狀 WithRevision + S7-D aliases） */
 function withRevisionFields(
   entry: Dict
-): Pick<EntityIndexEntry, 'entityKey' | 'aliases' | 'revisionGates'> {
-  const out: Pick<EntityIndexEntry, 'entityKey' | 'aliases' | 'revisionGates'> =
-    {};
+): Pick<
+  EntityIndexEntry,
+  'entityKey' | 'aliases' | 'baseGate' | 'revisionGates'
+> {
+  const out: Pick<
+    EntityIndexEntry,
+    'entityKey' | 'aliases' | 'baseGate' | 'revisionGates'
+  > = {};
   if (typeof entry.entityKey === 'string' && entry.entityKey) {
     out.entityKey = entry.entityKey;
+  }
+  // base 解鎖條件（S7 驗收 #4）——null 視為無條件，不進摘要
+  if (entry.gate != null && typeof entry.gate === 'object') {
+    out.baseGate = entry.gate;
   }
   const aliases = asArray(entry.aliases).filter(
     (a): a is string => typeof a === 'string' && a.trim().length > 0
@@ -162,12 +175,19 @@ function collectFromPage(
         if (!subcat) continue;
         for (const group of asArray(subcat.groups).map(asDict)) {
           if (!group) continue;
+          // 群組解鎖條件（S7 驗收 #3）：帶進每筆條目摘要，
+          // 前端未解鎖過濾據此整組隱藏（名稱不洩漏）
+          const groupGate =
+            group.gate != null && typeof group.gate === 'object'
+              ? group.gate
+              : undefined;
           for (const entry of asArray(group.entries).map(asDict)) {
             if (entry) {
               push(entry.name, entry, {
                 category: asLabel(subcat.label),
                 group: asLabel(group.label),
                 variantId: asLabel(variant.id),
+                ...(groupGate !== undefined ? { groupGate } : {}),
               });
             }
           }

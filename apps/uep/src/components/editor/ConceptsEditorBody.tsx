@@ -19,6 +19,7 @@ import {
   uploadAsset,
 } from './editorHelpers';
 import EntityKeyField from './EntityKeyField';
+import GateConditionEditor from './GateConditionEditor';
 import MiniEditor from './MiniEditor';
 import RevisionModal from './RevisionModal';
 import type {
@@ -925,6 +926,29 @@ function DossierVariantBody({
                       : '拖曳左側條目到群組名稱上可移動條目。'}
                   </div>
                   <div className="ced-empty">{group.entries.length} 個條目</div>
+                  {/* 群組解鎖條件（S7 驗收 #3）：未過整組隱藏（含全部條目） */}
+                  <div className="ced-section-header">
+                    <span className="ced-section-title">群組解鎖條件</span>
+                  </div>
+                  <GateConditionEditor
+                    value={group.gate ?? null}
+                    onChange={(gate) =>
+                      updateGroups(
+                        subcat.groups.map((g, i) =>
+                          i === activeGroup
+                            ? { ...g, gate: gate ?? undefined }
+                            : g
+                        )
+                      )
+                    }
+                    apiBase={API_BASE}
+                    accent={accent}
+                  />
+                  {group.gate && (
+                    <div className="ced-rev-hint">
+                      ⓘ 條件未通過時整組隱藏——底下條目自身的 解鎖條件不再求值。
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="ced-browser-empty">
@@ -947,6 +971,10 @@ function DossierVariantBody({
             updateEntry(activeEntry!, {
               revisions: revs.length > 0 ? revs : undefined,
             })
+          }
+          baseGate={entry.gate ?? null}
+          onBaseGateChange={(gate) =>
+            updateEntry(activeEntry!, { gate: gate ?? undefined })
           }
           onClose={() => setRevModalOpen(false)}
           accent={accent}
@@ -1562,6 +1590,10 @@ function BrowserEditor({
           revisions={profile.revisions ?? []}
           onChange={(revs) =>
             updateProfile({ revisions: revs.length > 0 ? revs : undefined })
+          }
+          baseGate={profile.gate ?? null}
+          onBaseGateChange={(gate) =>
+            updateProfile({ gate: gate ?? undefined })
           }
           onClose={() => setRevModalOpen(false)}
           accent={accent}
@@ -2674,6 +2706,8 @@ function ChronoEditor({
           onChange={(revs) =>
             updatePeriod({ revisions: revs.length > 0 ? revs : undefined })
           }
+          baseGate={period.gate ?? null}
+          onBaseGateChange={(gate) => updatePeriod({ gate: gate ?? undefined })}
           onClose={() => setRevModalOpen(false)}
           accent={accent}
         />
@@ -3242,6 +3276,10 @@ function DiffEditor({
             updateEntry(activeEntry!, {
               revisions: revs.length > 0 ? revs : undefined,
             })
+          }
+          baseGate={entry.gate ?? null}
+          onBaseGateChange={(gate) =>
+            updateEntry(activeEntry!, { gate: gate ?? undefined })
           }
           onClose={() => setRevModalOpen(false)}
           accent={accent}

@@ -14,6 +14,7 @@ import React, { useMemo, useState } from 'react';
 
 import { createInitialState, evaluateGate } from '../../progress';
 import type { ProgressState } from '../../progress';
+import type { GateCondition } from '../../progress/gating';
 import { applyRevisions, isEntryUnlocked } from '../concepts/revision';
 import type { ConceptsRevision } from '../concepts/types';
 
@@ -21,6 +22,8 @@ interface RevisionSimulatorProps {
   /** 條目 base 資料（含 entityKey/revisions 也無妨，預覽前會剝除） */
   baseEntry: Record<string, unknown>;
   revisions: ConceptsRevision[];
+  /** base 解鎖條件（S7 驗收 #4）——影響「條目狀態」求值與可模擬旗標 */
+  baseGate?: GateCondition | null;
   accent: string;
 }
 
@@ -39,21 +42,23 @@ function buildSimulatedProgress(
 export default function RevisionSimulator({
   baseEntry,
   revisions,
+  baseGate,
   accent,
 }: RevisionSimulatorProps) {
   const [activeFlags, setActiveFlags] = useState<string[]>([]);
   const [customFlag, setCustomFlag] = useState('');
   const [observer, setObserver] = useState(false);
 
-  /** 可勾選旗標 = 各 revision gate 的 requiresFlags 聯集 + 手動加入的 */
+  /** 可勾選旗標 = base gate + 各 revision gate 的 requiresFlags 聯集 + 手動加入的 */
   const knownFlags = useMemo(() => {
     const flags = new Set<string>();
+    for (const f of baseGate?.requiresFlags ?? []) flags.add(f);
     for (const rev of revisions) {
       for (const f of rev.gate?.requiresFlags ?? []) flags.add(f);
     }
     for (const f of activeFlags) flags.add(f);
     return Array.from(flags);
-  }, [revisions, activeFlags]);
+  }, [baseGate, revisions, activeFlags]);
 
   const progress = useMemo(
     () => buildSimulatedProgress(activeFlags, observer),
@@ -66,7 +71,12 @@ export default function RevisionSimulator({
     [revisions, progress]
   );
 
-  const unlocked = isEntryUnlocked(revisions, progress);
+  const unlocked = isEntryUnlocked(revisions, progress, baseGate);
+  /** base gate 自身的求值結果（有設定才顯示） */
+  const baseGatePass = useMemo(
+    () => (baseGate ? evaluateGate(progress, baseGate) : null),
+    [baseGate, progress]
+  );
 
   /** 亂序暴露：某 revision 通過但更前面有未通過的 → 可能的跳躍 */
   const outOfOrder = useMemo(() => {
@@ -166,6 +176,17 @@ export default function RevisionSimulator({
         )}
       </div>
       <ul className="ced-rev-sim-results">
+        {baseGatePass !== null && (
+          <li className="ced-rev-sim-result">
+            <span
+              className={baseGatePass ? 'ced-rev-sim-pass' : 'ced-rev-sim-fail'}
+            >
+              {baseGatePass ? '✓' : '✗'}
+            </span>
+            <span className="ced-rev-item-id">base</span>
+            <span className="ced-rev-sim-note">base 解鎖條件</span>
+          </li>
+        )}
         {revisions.map((rev, i) => (
           <li key={i} className="ced-rev-sim-result">
             <span

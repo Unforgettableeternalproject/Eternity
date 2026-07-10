@@ -51,6 +51,14 @@ export interface WithRevision {
    */
   entityKey?: string;
   /**
+   * Base 解鎖條件（S7 驗收 #4）：條目本身的可見閘門——
+   * 未通過前條目整條隱藏，不需要再用「首個 revision 掛 gate」硬擋。
+   * null / 未定義 = base 無條件可見（維持舊語意）。
+   * 與 revision 鏈為聯集：base gate 未過但任一 revision gate 通過時
+   * 條目仍可見（後期揭露的資料形狀，resolver 照宣告順序疊 patch）。
+   */
+  gate?: GateCondition | null;
+  /**
    * Revision 鏈（宣告順序 = 劇情揭露順序）。
    * 未定義或空陣列 = 無進度閘（條目永遠以 base 資料顯示）。
    * revisions[0].gate 若非 null，條目在該 gate 通過前整條隱藏
@@ -137,6 +145,11 @@ export interface DossierSubcat {
 export interface DossierGroup {
   /** 群組標題，如「無組織」「政府相關」 */
   label: string;
+  /**
+   * 群組解鎖條件（S7 驗收 #3）：未通過前整組隱藏（含底下全部條目，
+   * 條目自身的 gate/revision 不再求值）。null / 未定義 = 無條件可見。
+   */
+  gate?: GateCondition | null;
   /** 條目列表 */
   entries: DossierEntry[];
 }

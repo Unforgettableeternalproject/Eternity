@@ -18,6 +18,7 @@
 /* global structuredClone */
 
 import { evaluateGate } from '../../progress/gating';
+import type { GateCondition } from '../../progress/gating';
 import type { ProgressState } from '../../progress/types';
 
 import type {
@@ -134,16 +135,24 @@ export function applyRevisions<T extends Record<string, unknown>>(
 /**
  * 條目是否已解鎖（「未解鎖條目 = 隱藏」的守門判定）。
  *
- * - 無 revisions 或空陣列 → true（無進度閘）
- * - 首個 revision gate 為 null → true（base 無條件可見）
- * - 否則：任一 revision 的 gate 通過 → true
- *   （觀測者 bypass requiresFlags 沿用 evaluateGate 語意；
- *   pristineOnly 條目對觀測者/印記者依然隱藏）
+ * - 有 base gate（S7 驗收 #4）：base gate 通過 → true；未過時
+ *   任一 revision gate 通過仍 → true（後期揭露），全部未過 → false
+ * - 無 base gate 時維持舊語意：
+ *   - 無 revisions 或空陣列 → true（無進度閘）
+ *   - 首個 revision gate 為 null → true（base 無條件可見）
+ *   - 否則：任一 revision 的 gate 通過 → true
+ * （觀測者 bypass requiresFlags 沿用 evaluateGate 語意；
+ * pristineOnly 條目對觀測者/印記者依然隱藏）
  */
 export function isEntryUnlocked(
   revisions: ConceptsRevision[] | undefined,
-  progress: ProgressState
+  progress: ProgressState,
+  baseGate?: GateCondition | null
 ): boolean {
+  if (baseGate) {
+    if (evaluateGate(progress, baseGate)) return true;
+    return (revisions ?? []).some((r) => evaluateGate(progress, r.gate));
+  }
   if (!revisions || revisions.length === 0) return true;
   return revisions.some((r) => evaluateGate(progress, r.gate));
 }
@@ -181,7 +190,7 @@ export function isDiffContent(data: ConceptsData): data is DiffContent {
   return subcats.every((s) => s && typeof s === 'object' && !('groups' in s));
 }
 
-/** 條目層通用處理：過濾未解鎖 + 套 patch + 剝除 revisions（前台不需要） */
+/** 條目層通用處理：過濾未解鎖 + 套 patch + 剝除 revisions/gate（前台不需要） */
 function resolveEntries<T extends Record<string, unknown>>(
   entries: T[],
   progress: ProgressState
@@ -189,9 +198,11 @@ function resolveEntries<T extends Record<string, unknown>>(
   const out: T[] = [];
   for (const entry of entries) {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
-    if (!isEntryUnlocked(revisions, progress)) continue;
+    const baseGate = entry.gate as GateCondition | null | undefined;
+    if (!isEntryUnlocked(revisions, progress, baseGate)) continue;
     const resolved = applyRevisions(entry, revisions, progress);
     delete (resolved as Record<string, unknown>).revisions;
+    delete (resolved as Record<string, unknown>).gate;
     out.push(resolved);
   }
   return out;
@@ -220,13 +231,16 @@ export function resolveEffectiveViewForPage<D extends ConceptsData>(
         ...variant,
         subcategories: variant.subcategories.map((subcat) => ({
           ...subcat,
-          groups: subcat.groups.map((group) => ({
-            ...group,
-            entries: resolveEntries(
-              group.entries as unknown as Record<string, unknown>[],
-              progress
-            ) as unknown as typeof group.entries,
-          })),
+          // 群組 gate（S7 驗收 #3）：未通過整組隱藏，條目層不再求值
+          groups: subcat.groups
+            .filter((group) => evaluateGate(progress, group.gate ?? null))
+            .map((group) => ({
+              ...group,
+              entries: resolveEntries(
+                group.entries as unknown as Record<string, unknown>[],
+                progress
+              ) as unknown as typeof group.entries,
+            })),
         })),
       })),
     };

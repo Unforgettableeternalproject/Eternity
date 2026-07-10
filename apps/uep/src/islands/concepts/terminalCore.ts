@@ -53,6 +53,10 @@ export interface TerminalIndexEntry {
   entityKey?: string;
   /** 匹配別名（S7-D-2：query / 補全的補充匹配詞） */
   aliases?: string[];
+  /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
+  baseGate?: GateCondition | null;
+  /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
+  groupGate?: GateCondition | null;
   revisionGates?: { id: string; gate: GateCondition | null }[];
   /** 分類標籤（dossier=subcategory、diff=subcat）——ls 分組用 */
   category?: string;
@@ -163,14 +167,24 @@ function loadPageData(pageId: string): Promise<ConceptsData | null> {
 // ── 解鎖判定（索引層） ─────────────────────────────────────────────
 
 /**
- * 索引條目是否已解鎖——與 revision.ts isEntryUnlocked 同語意：
- * 無 gate 摘要 = 無進度閘；否則任一 gate 通過即解鎖。
+ * 索引條目是否已解鎖——與 revision.ts 的求值語意一致：
+ * - 群組 gate（S7 驗收 #3）未過 → 整組隱藏（前置 AND，條目層不再看）
+ * - base gate（S7 驗收 #4）：通過即解鎖；未過時任一 revision gate
+ *   通過仍解鎖（後期揭露）
+ * - 皆無 → 無 gate 摘要 = 無進度閘；否則任一 revision gate 通過即解鎖
  */
 export function isIndexEntryUnlocked(
   entry: TerminalIndexEntry,
   progress: ProgressState
 ): boolean {
+  if (entry.groupGate && !evaluateGate(progress, entry.groupGate)) {
+    return false;
+  }
   const gates = entry.revisionGates;
+  if (entry.baseGate) {
+    if (evaluateGate(progress, entry.baseGate)) return true;
+    return (gates ?? []).some((g) => evaluateGate(progress, g.gate));
+  }
   if (!gates || gates.length === 0) return true;
   return gates.some((g) => evaluateGate(progress, g.gate));
 }
@@ -585,7 +599,8 @@ export async function resolveEntryDetails(
 
   const resolve = <T extends Record<string, unknown>>(entry: T): T | null => {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
-    if (!isEntryUnlocked(revisions, progress)) return null;
+    const baseGate = entry.gate as GateCondition | null | undefined;
+    if (!isEntryUnlocked(revisions, progress, baseGate)) return null;
     return applyRevisions(entry, revisions, progress);
   };
 
@@ -595,6 +610,8 @@ export async function resolveEntryDetails(
     for (const variant of data.variants) {
       for (const subcat of variant.subcategories) {
         for (const group of subcat.groups) {
+          // 群組 gate 未過 → 整組隱藏（與 resolver/索引語意一致）
+          if (!evaluateGate(progress, group.gate ?? null)) continue;
           for (const entry of group.entries) {
             if (!matchesEntry(entry, entry.name, target)) continue;
             const resolved = resolve(
@@ -693,7 +710,7 @@ export async function resolveBrowserExpand(
       pageTitle: target.pageTitle,
     };
     const revisions = profile.revisions;
-    if (!isEntryUnlocked(revisions, progress)) {
+    if (!isEntryUnlocked(revisions, progress, profile.gate)) {
       return { ...base, basic: [], sections: [], restricted: true };
     }
     const resolved = applyRevisions(

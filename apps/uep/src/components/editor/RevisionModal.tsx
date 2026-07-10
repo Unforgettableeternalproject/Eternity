@@ -18,6 +18,7 @@
 
 import React, { useState } from 'react';
 
+import type { GateCondition } from '../../progress/gating';
 import type {
   ConceptsRevision,
   ConceptsVariationMeta,
@@ -43,6 +44,10 @@ interface RevisionModalProps {
   baseEntry: Record<string, unknown>;
   revisions: ConceptsRevision[];
   onChange: (revisions: ConceptsRevision[]) => void;
+  /** base 解鎖條件（S7 驗收 #4）：條目本身的可見閘門 */
+  baseGate?: GateCondition | null;
+  /** base gate 變更回寫（未提供時 base 卡不顯示條件編輯器） */
+  onBaseGateChange?: (gate: GateCondition | null) => void;
   onClose: () => void;
   accent: string;
 }
@@ -63,6 +68,8 @@ export default function RevisionModal({
   baseEntry,
   revisions,
   onChange,
+  baseGate,
+  onBaseGateChange,
   onClose,
   accent,
 }: RevisionModalProps) {
@@ -141,7 +148,9 @@ export default function RevisionModal({
               onClick={() => setSelected('base')}
             >
               <span className="ced-rev-item-id">base</span>
-              <span className="ced-rev-item-note">條目現有內容</span>
+              <span className="ced-rev-item-note">
+                {baseGate ? '⚑ 有解鎖條件' : '條目現有內容'}
+              </span>
             </button>
 
             {revisions.map((rev, i) => (
@@ -229,12 +238,32 @@ export default function RevisionModal({
                     </>
                   ) : (
                     <>
-                      若第一個 revision 帶解鎖條件，條目在該條件通過前
-                      整條隱藏（未解鎖 = 隱藏）；無 revision 或首個 revision
-                      無條件時，條目一開始就可見。
+                      base 可直接設定解鎖條件（下方）——條目在條件通過前
+                      整條隱藏，不需要再用首個 revision 硬擋；無條件時
+                      條目一開始就可見。
                     </>
                   )}
                 </p>
+                {onBaseGateChange && (
+                  <>
+                    <div className="ced-rev-section-title">BASE 解鎖條件</div>
+                    <div className="ced-rev-gate">
+                      <GateConditionEditor
+                        value={baseGate ?? null}
+                        onChange={onBaseGateChange}
+                        apiBase={API_BASE}
+                        accent={accent}
+                      />
+                    </div>
+                    {baseGate && revisions.length > 0 && (
+                      <div className="ced-rev-hint">
+                        ⓘ base 條件未通過但任一 revision 條件通過時，
+                        條目仍會可見（後期揭露）——請確認 revision 鏈的條件不早於
+                        base。
+                      </div>
+                    )}
+                  </>
+                )}
                 {revisions.length === 0 && (
                   <p className="ced-rev-hint">
                     尚無 revision——此條目不隨進度演進。點左欄「+ 新增
@@ -312,6 +341,7 @@ export default function RevisionModal({
           <RevisionSimulator
             baseEntry={baseEntry}
             revisions={revisions}
+            baseGate={baseGate}
             accent={accent}
           />
         )}

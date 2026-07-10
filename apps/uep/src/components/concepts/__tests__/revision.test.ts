@@ -247,6 +247,39 @@ describe('isEntryUnlocked', () => {
       false
     );
   });
+
+  it('base gate（S7 驗收 #4）：未過隱藏、通過可見', () => {
+    const baseGate = { requiresFlags: ['met:xavier'] };
+    expect(isEntryUnlocked(undefined, stateWith({}), baseGate)).toBe(false);
+    expect(
+      isEntryUnlocked(undefined, stateWith({ flags: ['met:xavier'] }), baseGate)
+    ).toBe(true);
+    // null / 未定義 = 無 base gate（舊語意）
+    expect(isEntryUnlocked(undefined, stateWith({}), null)).toBe(true);
+  });
+
+  it('base gate 未過但任一 revision gate 通過 → 仍可見（後期揭露）', () => {
+    const baseGate = { requiresFlags: ['met:xavier'] };
+    expect(
+      isEntryUnlocked(
+        [XAVIER_R2],
+        stateWith({ flags: ['xavier-colsono:02'] }),
+        baseGate
+      )
+    ).toBe(true);
+    expect(isEntryUnlocked([XAVIER_R2], stateWith({}), baseGate)).toBe(false);
+  });
+
+  it('base gate：觀測者 bypass requiresFlags → 可見', () => {
+    const baseGate = { requiresFlags: ['met:xavier'] };
+    expect(
+      isEntryUnlocked(
+        undefined,
+        stateWith({ view: 'observer', observerEver: true }),
+        baseGate
+      )
+    ).toBe(true);
+  });
 });
 
 // ── type guards + resolveEffectiveViewForPage ─────────────────────
@@ -459,5 +492,85 @@ describe('resolveEffectiveViewForPage', () => {
     const entries = out.variants[0].subcategories[0].groups[0].entries;
     expect(entries).toHaveLength(2);
     expect(entries[1].content_html).toBe('<p>叛逃事件的中心人物。</p>');
+  });
+
+  it('dossier：base gate 未過的條目隱藏，通過後可見且剝除 gate（S7 驗收 #4）', () => {
+    const data: DossierContent = {
+      variants: [
+        {
+          id: 'u',
+          label: 'U',
+          subcategories: [
+            {
+              label: '三區',
+              groups: [
+                {
+                  label: '',
+                  entries: [
+                    { name: '甲', gate: { requiresFlags: ['met:a'] } },
+                    { name: '乙' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const locked = resolveEffectiveViewForPage(data, stateWith({}));
+    expect(
+      locked.variants[0].subcategories[0].groups[0].entries.map((e) => e.name)
+    ).toEqual(['乙']);
+
+    const unlocked = resolveEffectiveViewForPage(
+      data,
+      stateWith({ flags: ['met:a'] })
+    );
+    const entries = unlocked.variants[0].subcategories[0].groups[0].entries;
+    expect(entries.map((e) => e.name)).toEqual(['甲', '乙']);
+    expect(entries[0].gate).toBeUndefined();
+  });
+
+  it('dossier：群組 gate 未過整組隱藏（S7 驗收 #3）', () => {
+    const data: DossierContent = {
+      variants: [
+        {
+          id: 'u',
+          label: 'U',
+          subcategories: [
+            {
+              label: '三區',
+              groups: [
+                { label: '公開', entries: [{ name: '甲' }] },
+                {
+                  label: '機密',
+                  gate: { requiresFlags: ['sec:01'] },
+                  entries: [{ name: '乙' }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const locked = resolveEffectiveViewForPage(data, stateWith({}));
+    expect(
+      locked.variants[0].subcategories[0].groups.map((g) => g.label)
+    ).toEqual(['公開']);
+
+    const unlocked = resolveEffectiveViewForPage(
+      data,
+      stateWith({ flags: ['sec:01'] })
+    );
+    expect(
+      unlocked.variants[0].subcategories[0].groups.map((g) => g.label)
+    ).toEqual(['公開', '機密']);
+
+    // 觀測者 bypass requiresFlags → 群組可見
+    const observer = resolveEffectiveViewForPage(
+      data,
+      stateWith({ view: 'observer', observerEver: true })
+    );
+    expect(observer.variants[0].subcategories[0].groups).toHaveLength(2);
   });
 });

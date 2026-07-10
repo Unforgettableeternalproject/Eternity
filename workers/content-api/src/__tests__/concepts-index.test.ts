@@ -86,6 +86,14 @@ describe('GET /api/concepts/entity-index', () => {
                       { name: '無鑰條目' },
                     ],
                   },
+                  // S7 驗收 #3/#4：群組 gate + 條目 base gate 帶進摘要
+                  {
+                    label: '機密',
+                    gate: { requiresFlags: ['sec:01'] },
+                    entries: [
+                      { name: '機密條目', gate: { requiresFlags: ['met:secret'] } },
+                    ],
+                  },
                 ],
               },
             ],
@@ -269,6 +277,18 @@ describe('GET /api/concepts/entity-index', () => {
     const diffTerm = entries.find((e) => e.name === '原質');
     expect(diffTerm!.category).toBe('術語');
     expect(diffTerm!.group).toBeUndefined(); // 空 section label
+  });
+
+  it('base gate 與群組 gate 帶進摘要（S7 驗收 #3/#4）', async () => {
+    const entries = await fetchIndex();
+    const secret = entries.find((e) => e.name === '機密條目');
+    expect(secret).toBeDefined();
+    expect(secret!.baseGate).toEqual({ requiresFlags: ['met:secret'] });
+    expect(secret!.groupGate).toEqual({ requiresFlags: ['sec:01'] });
+    // 無 gate 的條目不落欄位
+    const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
+    expect(xavier!.baseGate).toBeUndefined();
+    expect(xavier!.groupGate).toBeUndefined();
   });
 
   it('browser profile 帶 entityKey 納入', async () => {

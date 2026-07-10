@@ -155,6 +155,47 @@ describe('isIndexEntryUnlocked / passedRevisionCount', () => {
     ).toBe(true);
   });
 
+  it('baseGate（S7 驗收 #4）：未過隱藏、通過解鎖、revision 後期揭露仍解鎖', () => {
+    const baseGated = indexEntry({
+      name: '甲',
+      baseGate: { requiresFlags: ['met:a'] },
+    });
+    expect(isIndexEntryUnlocked(baseGated, stateWith({}))).toBe(false);
+    expect(
+      isIndexEntryUnlocked(baseGated, stateWith({ flags: ['met:a'] }))
+    ).toBe(true);
+
+    // base 未過但 revision gate 通過 → 解鎖（後期揭露）
+    const withRev = indexEntry({
+      name: '乙',
+      baseGate: { requiresFlags: ['met:b'] },
+      revisionGates: [{ id: 'b:01', gate: { requiresFlags: ['b:01'] } }],
+    });
+    expect(isIndexEntryUnlocked(withRev, stateWith({}))).toBe(false);
+    expect(isIndexEntryUnlocked(withRev, stateWith({ flags: ['b:01'] }))).toBe(
+      true
+    );
+  });
+
+  it('groupGate（S7 驗收 #3）：未過整組隱藏（前置 AND，base/revision 不再看）', () => {
+    const inGatedGroup = indexEntry({
+      name: '丙',
+      groupGate: { requiresFlags: ['sec:01'] },
+      revisionGates: [{ id: 'base', gate: null }],
+    });
+    expect(isIndexEntryUnlocked(inGatedGroup, stateWith({}))).toBe(false);
+    expect(
+      isIndexEntryUnlocked(inGatedGroup, stateWith({ flags: ['sec:01'] }))
+    ).toBe(true);
+    // 觀測者 bypass
+    expect(
+      isIndexEntryUnlocked(
+        inGatedGroup,
+        stateWith({ view: 'observer', observerEver: true })
+      )
+    ).toBe(true);
+  });
+
   it('passedRevisionCount 隨旗標遞增（T-05 水位）', () => {
     expect(passedRevisionCount(gated, stateWith({}))).toBe(1);
     expect(
