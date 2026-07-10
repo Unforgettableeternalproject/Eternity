@@ -1,21 +1,13 @@
 /* 記錄按鈕 — TopBar 極簡登入入口（Epic 2 S5，重構後） */
 
+/* 字體/顏色/間距全部交給 .btn-outline（tokens.css）——與 TopBar 其他
+   按鈕（大地圖/白晝）完全同源，避免各自覆蓋造成字體不對齊（S7 驗收 #2）。
+   這裡只補 <a> 與 <button> 的渲染差異：
+   - text-decoration：連結底線拿掉
+   - line-height：<a> 會繼承外層行高，<button> 是 UA 的 normal——
+     行高不同導致按鈕高度與字體基線錯位，強制對齊 */
 .uep-record-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   padding: 8px 14px;
   text-decoration: none;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  color: var(--ink-body);
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.uep-record-trigger:hover {
-  color: var(--uep-gold);
+  line-height: normal;
 }

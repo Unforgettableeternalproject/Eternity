@@ -548,8 +548,14 @@ function DossierVariantBody({
     setActiveEntry(group.entries.length);
     setPanelMode('entry');
   }
-  function removeEntry(i: number) {
+  async function removeEntry(i: number) {
     if (!group) return;
+    const target = group.entries[i];
+    const ok = await getDialog().confirm(
+      `確定要刪除條目「${target?.name || '(空條目)'}」嗎？此操作無法復原。`,
+      { title: '刪除條目', confirmText: '刪除', cancelText: '取消' }
+    );
+    if (!ok) return;
     updateEntries(group.entries.filter((_, idx) => idx !== i));
     setListVersion((v) => v + 1);
     if (activeEntry === i) {
@@ -2774,8 +2780,14 @@ function DiffEditor({
     setActiveEntry(section.entries.length);
     setPanelMode('entry');
   }
-  function removeEntry(i: number) {
+  async function removeEntry(i: number) {
     if (!section) return;
+    const target = section.entries[i];
+    const ok = await getDialog().confirm(
+      `確定要刪除詞條「${target?.term || '(空詞條)'}」嗎？此操作無法復原。`,
+      { title: '刪除詞條', confirmText: '刪除', cancelText: '取消' }
+    );
+    if (!ok) return;
     updateEntries(section.entries.filter((_, idx) => idx !== i));
     if (activeEntry === i) {
       setActiveEntry(null);

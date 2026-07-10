@@ -138,6 +138,8 @@ export default function TerminalIsland() {
   /** 清空式展現的一次性捲動目標（null = 照常捲到底） */
   const pendingAnchorRef = useRef<string | null>(null);
   const anchorSeqRef = useRef(0);
+  /** anchor 是否已完成首次置頂——之後打字推進不再碰 scrollTop（#12） */
+  const anchorAlignedRef = useRef(false);
 
   /* 補全候選列表（S7-C 驗收回饋三輪：slash-command 式向上展開，
      打字即出、↑↓/Tab 移動高亮、Enter 填入、無高亮 Enter 照常送出） */
@@ -160,6 +162,7 @@ export default function TerminalIsland() {
     if (add.length === 0) return;
     const anchorId = `anchor-${++anchorSeqRef.current}`;
     pendingAnchorRef.current = anchorId;
+    anchorAlignedRef.current = false;
     append([{ ...add[0], anchorId }, ...add.slice(1)]);
   }
 
@@ -244,16 +247,14 @@ export default function TerminalIsland() {
      該行「置頂」——清空式展現（艾斯維爾定案：保留歷史、捲動置頂，
      上方歷史需上捲才看到）。內容不足一屏時以底部 spacer 補足捲動空間，
      否則 anchor 行物理上到不了視窗頂。無 anchor 照常捲到底。
-     打字機加入後 deps 含 currentLine：每完成一行都重算——anchor 場合
-     scrollTop 維持在 anchorTop（第一行位置不變），下方行漸次冒出時
-     spacer 隨 scrollHeight 增長而收縮，anchor 持續留頂。全部打完後
-     才清 pendingAnchorRef，之後手動捲動不再被拉回。 */
+     #12 修正（S7 驗收回饋）：置頂只在錨點批次首次渲染時對齊一次——
+     之後打字機每完成一行只收縮 spacer（配合內容增長），不再改寫
+     scrollTop 也不歸零 spacer 重量測（歸零瞬間 scrollHeight 縮短會被
+     瀏覽器 clamp 而跳動）。使用者中途手動捲動不會被拉回。 */
   useEffect(() => {
     const body = bodyRef.current;
     const spacer = spacerRef.current;
     if (!body) return;
-    // 先歸零 spacer 再量測，取得純內容高度
-    if (spacer) spacer.style.height = '0px';
     const anchorId = pendingAnchorRef.current;
     const typingDone = currentLine >= lines.length;
     if (anchorId) {
@@ -261,22 +262,40 @@ export default function TerminalIsland() {
         `[data-anchor-id="${anchorId}"]`
       );
       if (el) {
-        // anchor 行相對內容頂部的偏移
+        // anchor 行相對內容頂部的偏移（與當前捲動位置無關）
         const anchorTop =
           el.getBoundingClientRect().top -
           body.getBoundingClientRect().top +
           body.scrollTop;
-        // anchor 以下內容不足一屏 → spacer 補足，讓該行能真正置頂
-        const deficit = anchorTop + body.clientHeight - body.scrollHeight;
-        if (spacer && deficit > 0) spacer.style.height = `${deficit}px`;
-        body.scrollTop = anchorTop;
-        // 打字全結束才卸除 anchor（否則新行冒出仍要保持置頂）
-        if (typingDone) pendingAnchorRef.current = null;
+        if (!anchorAlignedRef.current) {
+          // 首次渲染：歸零 spacer 量測純內容高度 → 補足 → 對齊一次
+          if (spacer) spacer.style.height = '0px';
+          const deficit = anchorTop + body.clientHeight - body.scrollHeight;
+          if (spacer && deficit > 0) spacer.style.height = `${deficit}px`;
+          body.scrollTop = anchorTop;
+          anchorAlignedRef.current = true;
+        } else if (spacer) {
+          // 後續打字推進：只依內容增長收縮 spacer，不碰 scrollTop
+          const spacerH = parseFloat(spacer.style.height) || 0;
+          const contentH = body.scrollHeight - spacerH;
+          const deficit = anchorTop + body.clientHeight - contentH;
+          spacer.style.height = `${Math.max(0, deficit)}px`;
+        }
+        // 打字全結束才卸除 anchor（spacer 保留，維持當前視圖穩定）
+        if (typingDone) {
+          pendingAnchorRef.current = null;
+          anchorAlignedRef.current = false;
+        }
         return;
       }
       // anchor 元素未找到（極端案例）：卸除避免卡住
-      if (typingDone) pendingAnchorRef.current = null;
+      if (typingDone) {
+        pendingAnchorRef.current = null;
+        anchorAlignedRef.current = false;
+      }
     }
+    // 無 anchor 的一般輸出：清掉殘留 spacer、照常捲到底
+    if (spacer) spacer.style.height = '0px';
     body.scrollTop = body.scrollHeight;
   }, [lines, currentLine]);
 

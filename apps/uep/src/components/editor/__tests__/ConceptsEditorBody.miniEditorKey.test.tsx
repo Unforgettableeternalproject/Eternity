@@ -8,11 +8,21 @@
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 import type { DossierContent } from '../../concepts/types';
 import ConceptsEditorBody from '../ConceptsEditorBody';
+
+// 刪除條目現在有確認對話框（S7 驗收 #15）——getDialog() 走
+// window.__uepDialogManager，測試中直接放行（同 RevisionModal.test 模式）
+beforeEach(() => {
+  (
+    window as unknown as {
+      __uepDialogManager: { confirm: () => Promise<boolean> };
+    }
+  ).__uepDialogManager = { confirm: vi.fn().mockResolvedValue(true) };
+});
 
 const dossierData: DossierContent = {
   variants: [
