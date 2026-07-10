@@ -16,10 +16,13 @@
  * - 宣告順序 = 劇情揭露順序，resolver 不重排（亂序防禦見 revision.ts）
  */
 
+/* global structuredClone */
+
 import React, { useState } from 'react';
 
 import type { GateCondition } from '../../progress/gating';
 import type {
+  ChronoFieldDef,
   ConceptsRevision,
   ConceptsVariationMeta,
 } from '../concepts/types';
@@ -48,6 +51,8 @@ interface RevisionModalProps {
   baseGate?: GateCondition | null;
   /** base gate 變更回寫（未提供時 base 卡不顯示條件編輯器） */
   onBaseGateChange?: (gate: GateCondition | null) => void;
+  /** chrono 專用（S7 驗收 #7）：pool fieldDefs，事件列 patch 下拉選擇 */
+  chronoFieldDefs?: ChronoFieldDef[];
   onClose: () => void;
   accent: string;
 }
@@ -70,6 +75,7 @@ export default function RevisionModal({
   onChange,
   baseGate,
   onBaseGateChange,
+  chronoFieldDefs,
   onClose,
   accent,
 }: RevisionModalProps) {
@@ -77,6 +83,9 @@ export default function RevisionModal({
     revisions.length > 0 ? 0 : 'base'
   );
   const [simOpen, setSimOpen] = useState(false);
+  /** patch 整包替換（複製上一版）時 bump——PatchEditor 內的 MiniEditor
+      只吃初始值，必須 remount 才會顯示新內容 */
+  const [patchVersion, setPatchVersion] = useState(0);
 
   const current =
     typeof selected === 'number' ? (revisions[selected] ?? null) : null;
@@ -118,6 +127,30 @@ export default function RevisionModal({
     onChange(next);
     if (selected === idx) setSelected(target);
     else if (selected === target) setSelected(idx);
+  }
+
+  /** patch 是否已有內容（複製上一版前的覆蓋確認判定） */
+  function patchHasContent(patch: ConceptsRevision['patch'] | undefined) {
+    if (!patch) return false;
+    const setCount = patch.set ? Object.keys(patch.set).length : 0;
+    const removeCount = patch.remove?.length ?? 0;
+    return setCount > 0 || removeCount > 0;
+  }
+
+  /** 從上一版複製 patch 內容作為起點（S7 驗收 #6：PATCH 繼承） */
+  async function copyPreviousPatch() {
+    if (typeof selected !== 'number' || selected <= 0) return;
+    const prev = revisions[selected - 1];
+    if (!prev) return;
+    if (patchHasContent(current?.patch)) {
+      const ok = await getDialog().confirm(
+        `目前的 patch 內容會被「${prev.id || '(未命名)'}」的 patch 覆蓋，確定？`,
+        { title: '複製上一版 Patch', confirmText: '覆蓋', cancelText: '取消' }
+      );
+      if (!ok) return;
+    }
+    updateRevision(selected, { patch: structuredClone(prev.patch ?? {}) });
+    setPatchVersion((v) => v + 1);
   }
 
   return (
@@ -307,17 +340,31 @@ export default function RevisionModal({
                   </div>
                 )}
 
-                <div className="ced-rev-section-title">Patch</div>
-                {/* key=selected：切換 revision 時整棵 remount——
-                    MiniEditor content 只吃初始值，且同時只有選中的
-                    revision 會實例化 TipTap（惰性 mount） */}
+                <div className="ced-rev-section-title ced-rev-patch-title">
+                  <span>Patch</span>
+                  {typeof selected === 'number' && selected > 0 && (
+                    <button
+                      type="button"
+                      className="ced-add-btn"
+                      style={{ color: accent }}
+                      title={`複製「${revisions[selected - 1]?.id || '(未命名)'}」的 patch 內容作為起點`}
+                      onClick={() => void copyPreviousPatch()}
+                    >
+                      ⧉ 複製上一版
+                    </button>
+                  )}
+                </div>
+                {/* key=selected-patchVersion：切換 revision 或整包複製時
+                    整棵 remount——MiniEditor content 只吃初始值，且同時
+                    只有選中的 revision 會實例化 TipTap（惰性 mount） */}
                 <PatchEditor
-                  key={selected}
+                  key={`${selected}-${patchVersion}`}
                   stackStyle={stackStyle}
                   patch={current.patch ?? {}}
                   onChange={(patch) =>
                     updateRevision(selected as number, { patch })
                   }
+                  chronoFieldDefs={chronoFieldDefs}
                   accent={accent}
                 />
               </>

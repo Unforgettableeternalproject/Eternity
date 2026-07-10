@@ -73,6 +73,83 @@ function setup(patch: RevisionPatch, stackStyle = 'dossier' as const) {
   return { onChange };
 }
 
+describe('PatchEditor — chrono 事件列下拉選擇（S7 驗收 #7）', () => {
+  const fieldDefs = [
+    { id: 'main', icon: '◆', label: '主線事件', style: 'flat' as const },
+    { id: 'regional', icon: '▧', label: '區域動態', style: 'grouped' as const },
+  ];
+
+  function setupChrono(patch: RevisionPatch) {
+    const onChange = vi.fn();
+    render(
+      <PatchEditor
+        stackStyle="chrono"
+        patch={patch}
+        onChange={onChange}
+        chronoFieldDefs={fieldDefs}
+        accent="#2d6a4f"
+      />
+    );
+    return { onChange };
+  }
+
+  it('有 fieldDefs 時顯示下拉（不再是 prompt 按鈕）', () => {
+    setupChrono({});
+    expect(screen.getByText('+ 事件列…')).toBeInTheDocument();
+    expect(screen.queryByText('+ 事件列')).not.toBeInTheDocument();
+    expect(screen.getByText('◆ 主線事件（main）')).toBeInTheDocument();
+    expect(screen.getByText('▧ 區域動態（regional）')).toBeInTheDocument();
+  });
+
+  it('選 flat 欄位 → fields.{id}.items 帶預設值', () => {
+    const { onChange } = setupChrono({});
+    const selects = screen.getAllByRole('combobox');
+    // 事件列下拉是含「+ 事件列…」選項的那個
+    const eventSelect = selects.find((s) =>
+      Array.from(s.querySelectorAll('option')).some(
+        (o) => o.textContent === '+ 事件列…'
+      )
+    )!;
+    fireEvent.change(eventSelect, { target: { value: 'main' } });
+    expect(onChange).toHaveBeenCalledWith({
+      set: { 'fields.main.items': [''] },
+    });
+  });
+
+  it('選 grouped 欄位 → fields.{id}.groups 帶空陣列', () => {
+    const { onChange } = setupChrono({});
+    const selects = screen.getAllByRole('combobox');
+    const eventSelect = selects.find((s) =>
+      Array.from(s.querySelectorAll('option')).some(
+        (o) => o.textContent === '+ 事件列…'
+      )
+    )!;
+    fireEvent.change(eventSelect, { target: { value: 'regional' } });
+    expect(onChange).toHaveBeenCalledWith({
+      set: { 'fields.regional.groups': [] },
+    });
+  });
+
+  it('已在 set 的欄位不再出現於下拉', () => {
+    setupChrono({ set: { 'fields.main.items': ['x'] } });
+    expect(screen.queryByText('◆ 主線事件（main）')).not.toBeInTheDocument();
+    expect(screen.getByText('▧ 區域動態（regional）')).toBeInTheDocument();
+  });
+
+  it('無 fieldDefs 時退回 prompt 按鈕（向後相容）', () => {
+    const onChange = vi.fn();
+    render(
+      <PatchEditor
+        stackStyle="chrono"
+        patch={{}}
+        onChange={onChange}
+        accent="#2d6a4f"
+      />
+    );
+    expect(screen.getByText('+ 事件列')).toBeInTheDocument();
+  });
+});
+
 describe('PatchEditor — set 欄位', () => {
   it('空 patch 顯示引導提示', () => {
     setup({});

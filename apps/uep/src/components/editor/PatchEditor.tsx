@@ -19,6 +19,7 @@
 import React, { useState } from 'react';
 
 import type {
+  ChronoFieldDef,
   ConceptsVariationMeta,
   ProfileSection,
   RevisionPatch,
@@ -134,6 +135,11 @@ interface PatchEditorProps {
   stackStyle: StackKind;
   patch: RevisionPatch;
   onChange: (patch: RevisionPatch) => void;
+  /**
+   * chrono 專用（S7 驗收 #7）：pool 的 fieldDefs——事件列 patch 改為
+   * 下拉選擇欄位，不再手填 fieldDef ID。未提供時退回 prompt 輸入。
+   */
+  chronoFieldDefs?: ChronoFieldDef[];
   accent: string;
 }
 
@@ -141,6 +147,7 @@ export default function PatchEditor({
   stackStyle,
   patch,
   onChange,
+  chronoFieldDefs,
   accent,
 }: PatchEditorProps) {
   const [removeInput, setRemoveInput] = useState('');
@@ -189,6 +196,20 @@ export default function PatchEditor({
     const path = `fields.${fieldId.trim()}.items`;
     if (path in set) return;
     setPath(path, ['']);
+  }
+
+  /** chrono 欄位路徑：flat=items、grouped=groups（整段替換語意一致） */
+  function chronoFieldPath(def: ChronoFieldDef): string {
+    return `fields.${def.id}.${def.style === 'grouped' ? 'groups' : 'items'}`;
+  }
+
+  /** 下拉選擇 fieldDef 新增事件列 patch（S7 驗收 #7） */
+  function addChronoFieldFromDef(defId: string) {
+    const def = (chronoFieldDefs ?? []).find((d) => d.id === defId);
+    if (!def) return;
+    const path = chronoFieldPath(def);
+    if (path in set) return;
+    setPath(path, def.style === 'grouped' ? [] : ['']);
   }
 
   async function addCustomField() {
@@ -242,15 +263,33 @@ export default function PatchEditor({
             ))}
           </select>
         )}
-        {stackStyle === 'chrono' && (
-          <button
-            className="ced-add-btn"
-            onClick={() => void addChronoItemsField()}
-            style={{ color: accent }}
-          >
-            + 事件列
-          </button>
-        )}
+        {stackStyle === 'chrono' &&
+          (chronoFieldDefs && chronoFieldDefs.length > 0 ? (
+            <select
+              className="ced-select ced-patch-add-select"
+              value=""
+              onChange={(e) => addChronoFieldFromDef(e.target.value)}
+            >
+              <option value="" disabled>
+                + 事件列…
+              </option>
+              {chronoFieldDefs
+                .filter((d) => !(chronoFieldPath(d) in set))
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.icon} {d.label}（{d.id}）
+                  </option>
+                ))}
+            </select>
+          ) : (
+            <button
+              className="ced-add-btn"
+              onClick={() => void addChronoItemsField()}
+              style={{ color: accent }}
+            >
+              + 事件列
+            </button>
+          ))}
         <button
           className="ced-add-btn"
           onClick={() => void addCustomField()}

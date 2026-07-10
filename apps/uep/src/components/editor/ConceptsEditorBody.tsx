@@ -2708,6 +2708,7 @@ function ChronoEditor({
           }
           baseGate={period.gate ?? null}
           onBaseGateChange={(gate) => updatePeriod({ gate: gate ?? undefined })}
+          chronoFieldDefs={data.fieldDefs}
           onClose={() => setRevModalOpen(false)}
           accent={accent}
         />

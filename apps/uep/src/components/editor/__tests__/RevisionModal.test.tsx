@@ -184,3 +184,83 @@ describe('RevisionModal — 編輯', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('RevisionModal — base gate（S7 驗收 #4）', () => {
+  it('提供 onBaseGateChange 時 base 卡顯示條件編輯器並寫回', () => {
+    const onBaseGateChange = vi.fn();
+    setup({ baseGate: null, onBaseGateChange });
+    fireEvent.click(screen.getByText('base'));
+    expect(screen.getByText('BASE 解鎖條件')).toBeInTheDocument();
+    const flagInput = screen.getByPlaceholderText(/custom flag/);
+    fireEvent.change(flagInput, { target: { value: 'met:xavier' } });
+    fireEvent.keyDown(flagInput, { key: 'Enter' });
+    expect(onBaseGateChange).toHaveBeenCalledWith({
+      requiresFlags: ['met:xavier'],
+    });
+  });
+
+  it('baseGate 有值時時間線 base 卡顯示 ⚑ 標記', () => {
+    setup({
+      baseGate: { requiresFlags: ['met:xavier'] },
+      onBaseGateChange: vi.fn(),
+    });
+    expect(screen.getAllByText('⚑ 有解鎖條件').length).toBeGreaterThan(0);
+    expect(screen.queryByText('條目現有內容')).not.toBeInTheDocument();
+  });
+
+  it('未提供 onBaseGateChange 時 base 卡不顯示條件編輯器', () => {
+    setup();
+    fireEvent.click(screen.getByText('base'));
+    expect(screen.queryByText('BASE 解鎖條件')).not.toBeInTheDocument();
+  });
+});
+
+describe('RevisionModal — 複製上一版 patch（S7 驗收 #6）', () => {
+  it('第一個 revision 不顯示複製按鈕', () => {
+    setup({ revisions: makeRevisions() });
+    // 預設選中第一個 revision
+    expect(screen.queryByText('⧉ 複製上一版')).not.toBeInTheDocument();
+  });
+
+  it('選中後段 revision 時複製上一版 patch（空 patch 不經 confirm）', async () => {
+    const revisions = makeRevisions();
+    const { onChange } = setup({ revisions });
+    fireEvent.click(screen.getByText('xavier-colsono:02'));
+    fireEvent.click(screen.getByText('⧉ 複製上一版'));
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith([
+        revisions[0],
+        { ...revisions[1], patch: revisions[0].patch },
+      ]);
+    });
+    // deep clone：不可與上一版共用引用
+    const written = onChange.mock.calls[0][0][1].patch;
+    expect(written).toEqual(revisions[0].patch);
+    expect(written).not.toBe(revisions[0].patch);
+    expect(written.set).not.toBe(revisions[0].patch.set);
+  });
+
+  it('目前 patch 已有內容時經 confirm 守門，取消不覆蓋', async () => {
+    const confirmFn = vi.fn().mockResolvedValue(false);
+    (
+      window as unknown as {
+        __uepDialogManager: { confirm: () => Promise<boolean> };
+      }
+    ).__uepDialogManager = { confirm: confirmFn };
+    const revisions: ConceptsRevision[] = [
+      makeRevisions()[0],
+      {
+        id: 'xavier-colsono:02',
+        gate: null,
+        patch: { set: { name: '既有內容' } },
+      },
+    ];
+    const { onChange } = setup({ revisions });
+    fireEvent.click(screen.getByText('xavier-colsono:02'));
+    fireEvent.click(screen.getByText('⧉ 複製上一版'));
+    await waitFor(() => {
+      expect(confirmFn).toHaveBeenCalled();
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

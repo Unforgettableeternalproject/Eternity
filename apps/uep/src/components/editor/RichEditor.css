@@ -2914,6 +2914,18 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--hairline);
 }
+/* Patch 標題列：右側掛「複製上一版」按鈕（S7 驗收 #6） */
+.ced-rev-patch-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ced-rev-patch-title .ced-add-btn {
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
 .ced-rev-gate {
   margin-bottom: 8px;
 }
