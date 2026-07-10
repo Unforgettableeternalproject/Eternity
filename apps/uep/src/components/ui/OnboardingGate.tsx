@@ -224,6 +224,15 @@ export default function OnboardingGate() {
             <div className="uep-onboard__card-note">包含大量劇透</div>
           </button>
         </div>
+
+        {/* 已註冊者的捷徑（S7 驗收 #1）：直接前往登入頁，
+            不標記 onboarded——登入成功後進度鏡像落地即視為已完成儀式；
+            中途折返則下次來訪儀式照常出現 */}
+        <div className="uep-onboard__login">
+          <a className="uep-onboard__login-link" href="/login?return=%2F">
+            已經銘刻過記錄？直接登入 ▸
+          </a>
+        </div>
       </div>
     </div>
   );

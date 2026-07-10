@@ -162,3 +162,25 @@ body.uep-onboarding-active [data-uep-hide-on-onboard] {
 .uep-onboard__card--observer .uep-onboard__card-note {
   color: #b8874a;
 }
+
+/* 已註冊者的登入捷徑（S7 驗收 #1）：卡片下方的低調文字連結 */
+.uep-onboard__login {
+  margin-top: 22px;
+  text-align: center;
+}
+
+.uep-onboard__login-link {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--hairline-strong);
+  padding-bottom: 2px;
+  transition: color 0.18s var(--ease);
+}
+
+.uep-onboard__login-link:hover {
+  color: var(--uep-gold);
+  border-bottom-color: var(--uep-gold);
+}

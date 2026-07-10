@@ -28,6 +28,20 @@ describe('OnboardingGate console 測試 bridge', () => {
     ).toBeTruthy();
   });
 
+  it('儀式下方有直接登入捷徑，導向 /login 且不標記 onboarded（S7 驗收 #1）', async () => {
+    render(<OnboardingGate />);
+
+    await waitFor(() => expect(window.__uepOnboardingTest).toBeTruthy());
+    act(() => window.__uepOnboardingTest!.showChoice());
+
+    const link = screen.getByRole('link', {
+      name: '已經銘刻過記錄？直接登入 ▸',
+    });
+    expect(link.getAttribute('href')).toBe('/login?return=%2F');
+    // 捷徑是純連結——點擊前後皆不寫 onboarded 標記
+    expect(window.localStorage.getItem(ONBOARDED_KEY)).toBeNull();
+  });
+
   it('可直接叫出觀測者協議儀式', async () => {
     render(<OnboardingGate />);
 
