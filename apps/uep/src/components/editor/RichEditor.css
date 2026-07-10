@@ -2914,6 +2914,47 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--hairline);
 }
+/* Entity 浮動資訊 chip（S7 驗收 #8）：游標落在 uepEntity 標記時浮出 */
+.ned-entity-chip {
+  position: fixed;
+  transform: translateY(calc(-100% - 8px));
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  padding: 4px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ned-entity-chip-kind {
+  color: var(--ned-accent);
+  flex-shrink: 0;
+}
+.ned-entity-chip-ref {
+  color: var(--ink-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ned-entity-chip-btn {
+  all: unset;
+  cursor: pointer;
+  padding: 0 3px;
+  color: var(--ink-mute);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.ned-entity-chip-btn:hover {
+  color: var(--ned-accent);
+}
+.ned-entity-chip-btn--del:hover {
+  color: #c0504d;
+}
+
 /* Patch 標題列：右側掛「複製上一版」按鈕（S7 驗收 #6） */
 .ced-rev-patch-title {
   display: flex;

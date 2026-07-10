@@ -19,6 +19,7 @@ import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import ProgressMarkerNode from './ProgressMarkerNode';
 import { UepEntityMark, UepCueMark } from './UepEmbedMarks';
+import EntityInfoChip from './EntityInfoChip';
 import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import { parseGateCondition } from '../../progress/gating';
@@ -2279,6 +2280,12 @@ export default function RichEditor({
                     兩者的編輯器應用與浮島行為綁定，拆到浮島階段實作。
                     UepCueMark extension 與 embed 格式層保留（無內容寫入）。 */}
                   </div>
+
+                  {/* 點擊已嵌入實體文字的浮動資訊 chip（S7 驗收 #8） */}
+                  <EntityInfoChip
+                    editor={editor}
+                    onEdit={handleOpenEntityDropdown}
+                  />
                 </>
               )}
 
