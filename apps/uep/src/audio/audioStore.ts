@@ -79,6 +79,7 @@ function normalizePersisted(raw: unknown): AudioPersisted | null {
     currentSongId: typeof o.currentSongId === 'string' ? o.currentSongId : null,
     currentUrl: typeof o.currentUrl === 'string' ? o.currentUrl : null,
     currentTitle: typeof o.currentTitle === 'string' ? o.currentTitle : null,
+    currentAccent: typeof o.currentAccent === 'string' ? o.currentAccent : null,
     currentTime:
       typeof o.currentTime === 'number' && Number.isFinite(o.currentTime)
         ? Math.max(0, o.currentTime)
@@ -114,6 +115,7 @@ function toPersisted(s: AudioState): AudioPersisted {
     currentSongId: s.currentSongId,
     currentUrl: s.currentUrl,
     currentTitle: s.currentTitle,
+    currentAccent: s.currentAccent,
     currentTime: s.currentTime,
     duration: s.duration,
     playlist: s.playlist,
@@ -176,6 +178,7 @@ function bootstrapState(): AudioState {
     currentSongId: persisted.currentSongId,
     currentUrl: persisted.currentUrl,
     currentTitle: persisted.currentTitle,
+    currentAccent: persisted.currentAccent,
     currentTime: persisted.currentTime,
     duration: persisted.duration,
     progress:
@@ -266,7 +269,8 @@ function seekWhenReady(audio: HTMLAudioElement, time: number): void {
 function loadSong(
   songId: string,
   url: string,
-  title?: string
+  title?: string,
+  accent?: string
 ): HTMLAudioElement | null {
   const audio = ensureAudio();
   if (!audio) return null;
@@ -286,6 +290,7 @@ function loadSong(
     currentSongId: songId,
     currentUrl: url,
     currentTitle: title ?? (resumeTime !== null ? state.currentTitle : null),
+    currentAccent: accent ?? (resumeTime !== null ? state.currentAccent : null),
     currentTime: resumeTime ?? 0,
     progress:
       resumeTime !== null && state.duration > 0
@@ -310,11 +315,12 @@ function playQueueHead(): boolean {
         songId: state.currentSongId,
         url: state.currentUrl,
         ...(state.currentTitle ? { title: state.currentTitle } : {}),
+        ...(state.currentAccent ? { accent: state.currentAccent } : {}),
       },
     ];
   }
   setState({ playlist });
-  uepAudio.play(next.songId, next.url, next.title);
+  uepAudio.play(next.songId, next.url, next.title, next.accent);
   return true;
 }
 
@@ -364,8 +370,8 @@ export const uepAudio = {
   /* ── 播放控制 ── */
 
   /** 播放指定曲目（同曲續播、異曲換載）。autoplay 被擋時靜默 */
-  play(songId: string, url: string, title?: string): void {
-    const audio = loadSong(songId, url, title);
+  play(songId: string, url: string, title?: string, accent?: string): void {
+    const audio = loadSong(songId, url, title, accent);
     if (!audio) return;
     cancelAnimationFrame(rafId);
     audio
@@ -388,11 +394,11 @@ export const uepAudio = {
     persistNow();
   },
 
-  toggle(songId: string, url: string, title?: string): void {
+  toggle(songId: string, url: string, title?: string, accent?: string): void {
     if (state.currentSongId === songId && state.isPlaying) {
       this.pause();
     } else {
-      this.play(songId, url, title);
+      this.play(songId, url, title, accent);
     }
   },
 
@@ -495,19 +501,25 @@ export const uepAudio = {
    * 恢復點永遠是使用者自己的播放狀態（不會恢復到上一個插播）。
    * 佇列在插播期間保持原樣（整頁重載不遺失佇列）。
    */
-  interrupt(songId: string, url: string, title?: string): void {
+  interrupt(
+    songId: string,
+    url: string,
+    title?: string,
+    accent?: string
+  ): void {
     if (!state.interruptionSnapshot) {
       setState({
         interruptionSnapshot: {
           songId: state.currentSongId,
           url: state.currentUrl,
           title: state.currentTitle,
+          accent: state.currentAccent,
           currentTime: state.currentTime,
           wasPlaying: state.isPlaying,
         },
       });
     }
-    this.play(songId, url, title);
+    this.play(songId, url, title, accent);
   },
 
   /**
@@ -531,6 +543,7 @@ export const uepAudio = {
         currentSongId: null,
         currentUrl: null,
         currentTitle: null,
+        currentAccent: null,
         currentTime: 0,
         progress: 0,
         duration: 0,
@@ -543,9 +556,19 @@ export const uepAudio = {
     pendingSeekTime = snap.currentTime;
     setState({ currentSongId: snap.songId });
     if (snap.wasPlaying) {
-      this.play(snap.songId, snap.url, snap.title ?? undefined);
+      this.play(
+        snap.songId,
+        snap.url,
+        snap.title ?? undefined,
+        snap.accent ?? undefined
+      );
     } else {
-      loadSong(snap.songId, snap.url, snap.title ?? undefined);
+      loadSong(
+        snap.songId,
+        snap.url,
+        snap.title ?? undefined,
+        snap.accent ?? undefined
+      );
       audioEl?.pause();
       setState({ isPlaying: false });
       persistNow();

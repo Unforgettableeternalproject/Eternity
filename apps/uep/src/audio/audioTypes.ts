@@ -17,6 +17,8 @@ export interface AudioQueueItem {
   url: string;
   /** 顯示用曲名（浮島佇列清單用；spoiler 遮蔽由 UI 層處理） */
   title?: string;
+  /** 分類色（cluster accent，浮島視覺：黑球光暈/漣漪/衛星著色） */
+  accent?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export interface AudioInterruptionSnapshot {
   songId: string | null;
   url: string | null;
   title: string | null;
+  accent: string | null;
   currentTime: number;
   wasPlaying: boolean;
 }
@@ -44,6 +47,8 @@ export interface AudioState {
   currentUrl: string | null;
   /** 目前曲目顯示名（浮島 UI 用） */
   currentTitle: string | null;
+  /** 目前曲目分類色（浮島視覺用；null = 用 zone 預設色） */
+  currentAccent: string | null;
   /** 是否正在播放 */
   isPlaying: boolean;
   /** 播放進度 0-1 */
@@ -73,6 +78,7 @@ export interface AudioPersisted {
   currentSongId: string | null;
   currentUrl: string | null;
   currentTitle: string | null;
+  currentAccent: string | null;
   currentTime: number;
   /** 總時長（秒）；重載後在 metadata 就緒前先用來算 progress 顯示 */
   duration: number;
@@ -100,6 +106,7 @@ export function createInitialAudioState(): AudioState {
     currentSongId: null,
     currentUrl: null,
     currentTitle: null,
+    currentAccent: null,
     isPlaying: false,
     progress: 0,
     currentTime: 0,
