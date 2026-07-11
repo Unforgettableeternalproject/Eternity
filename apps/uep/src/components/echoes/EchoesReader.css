@@ -1666,3 +1666,26 @@
     transform: none;
   }
 }
+
+/* ── 加入流浪回聲佇列按鈕（S8 B-4） ── */
+.echoes-player-queue-btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.echoes-player-queue-btn:hover {
+  opacity: 1;
+}

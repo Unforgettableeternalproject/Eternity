@@ -19,7 +19,7 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
-import { AudioProvider, useAudio } from '../../audio';
+import { AudioProvider, getAudioStore, useAudio } from '../../audio';
 import { useProgress } from '../../progress';
 import type { ProgressState } from '../../progress';
 import { isSongUnlockedInZone } from './echoesVisibility';
@@ -425,6 +425,7 @@ function EchoesAudioPlayer({
   locked = false,
   onLockedClick,
   sealed = false,
+  onAddToQueue,
 }: {
   songId: string;
   audioUrl: string | null;
@@ -434,6 +435,8 @@ function EchoesAudioPlayer({
   onLockedClick?: () => void;
   /** L3 封印：已確認 spoiler 警告但等級仍為 3——完全不可播放（S8 取代 30 秒 preview） */
   sealed?: boolean;
+  /** 加入流浪回聲佇列（S8 B-4）：已解鎖且 spoiler < 3 才傳入 */
+  onAddToQueue?: () => void;
 }) {
   const a = useAudio();
   const isMe = a.currentSongId === songId;
@@ -588,6 +591,19 @@ function EchoesAudioPlayer({
           <span>{dur > 0 ? fmtTime(dur) : '--:--'}</span>
         </div>
       </div>
+
+      {/* 加入流浪回聲佇列（S8 B-4：已解鎖且 spoiler < 3 才出現） */}
+      {onAddToQueue && (
+        <button
+          type="button"
+          className="echoes-player-queue-btn"
+          onClick={onAddToQueue}
+          aria-label="加入流浪回聲佇列"
+          title="加入流浪回聲佇列"
+        >
+          +♫
+        </button>
+      )}
 
       {/* 音量控制（可展開） */}
       <div className="echoes-player-vol" ref={volRef}>
@@ -2079,6 +2095,33 @@ function EchoesReaderInner() {
                   locked={locked}
                   onLockedClick={handlePlayAttempt}
                   sealed={sealed}
+                  onAddToQueue={
+                    !locked && !sealed && audioUrl
+                      ? () => {
+                          const store = getAudioStore();
+                          const already = store
+                            .getState()
+                            .playlist.some(
+                              (it) => it.songId === currentSongPage.id
+                            );
+                          if (already) {
+                            window.__uepToastManager?.info(
+                              '這枚回聲已經在佇列裡了。'
+                            );
+                            return;
+                          }
+                          store.enqueue({
+                            songId: currentSongPage.id,
+                            url: audioUrl,
+                            title: currentSongPage.title,
+                            accent: color,
+                          });
+                          window.__uepToastManager?.success(
+                            '已加入流浪回聲佇列。'
+                          );
+                        }
+                      : undefined
+                  }
                 />
               </div>
             </div>
