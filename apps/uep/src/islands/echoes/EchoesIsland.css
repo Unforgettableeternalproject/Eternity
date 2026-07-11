@@ -138,13 +138,10 @@
   display: grid;
   place-items: center;
   cursor: pointer;
-  background: radial-gradient(
-    circle at 34% 30%,
-    #4a443a 0%,
-    #26221b 55%,
-    #17140f 100%
-  );
-  transition: filter 0.2s;
+  /* 底色由 inline ballBg() 決定：待機淡灰、播放中染分類色 */
+  transition:
+    filter 0.2s,
+    background 0.4s;
 }
 
 .uep-eisland__ball:hover:not(:disabled) {
@@ -161,10 +158,16 @@
 }
 
 .uep-eisland__ball-glyph {
-  color: #fffcf0;
+  /* 淡灰球配深字；播放染色後換淺字 */
+  color: #6d6759;
   font-size: 11px;
   line-height: 1;
   opacity: 0.9;
+  transition: color 0.4s;
+}
+
+.uep-eisland__ball.is-playing .uep-eisland__ball-glyph {
+  color: #fffcf0;
 }
 
 .uep-eisland__fleck {
@@ -259,7 +262,7 @@
   height: 9px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 35% 30%, #4a443a, #26221b);
+  /* 底色由 inline ballBg() 決定（與中央球同語彙） */
   pointer-events: none;
 }
 

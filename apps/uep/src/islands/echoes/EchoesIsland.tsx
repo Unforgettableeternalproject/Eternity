@@ -31,8 +31,15 @@ import './EchoesIsland.css';
 /** Echoes zone 預設 accent（無分類色資訊時的 fallback） */
 const DEFAULT_ACCENT = '#355C7D';
 
-/** 黑色回聲本體色（沿設計稿） */
-const ECHO_BLACK = '#26221B';
+/**
+ * 回聲球體底色：待機淡灰，播放中被分類色「染色」
+ * （艾斯維爾 2026-07-11：不要黑色——播放不同 cluster 時球染該色）。
+ */
+function ballBg(accent: string, playing: boolean): string {
+  return playing
+    ? `radial-gradient(circle at 34% 30%, color-mix(in srgb, ${accent} 45%, #fff) 0%, ${accent} 60%, color-mix(in srgb, ${accent} 65%, #000) 100%)`
+    : 'radial-gradient(circle at 34% 30%, #f7f4ec 0%, #ddd7cb 55%, #bfb8a9 100%)';
+}
 
 /**
  * 收合前是否正在播放——收合＝unmount，React ref 活不過去，
@@ -122,6 +129,7 @@ function EchoOrb({
         style={{
           width: ball,
           height: ball,
+          background: ballBg(accent, playing),
           boxShadow: `0 0 0 3px var(--bg-card), 0 0 0 4px ${accent}, 0 6px 18px rgba(20, 12, 4, 0.28)${
             playing ? `, 0 0 22px ${accent}55` : ''
           }`,
@@ -307,6 +315,7 @@ export default function EchoesIsland() {
             className="uep-eisland__seek-thumb"
             style={{
               left: `${displayProg * 100}%`,
+              background: ballBg(accent, state.isPlaying),
               boxShadow: `0 0 0 1.5px ${accent}`,
             }}
           />
