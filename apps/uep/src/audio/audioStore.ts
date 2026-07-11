@@ -13,7 +13,6 @@
  * **禁止 import islands/islandRuntime**（避免循環依賴）——登出與進度
  * reset 的生命週期走 auth subscribe 與 PROGRESS_CHANGE_EVENT 解耦。
  */
-/* global HTMLAudioElement, Audio */
 
 import { getReaderAuth } from '../auth';
 import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../progress';
