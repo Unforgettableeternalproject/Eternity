@@ -24,6 +24,7 @@ import {
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
+import { findEntitySong } from './echoes-song';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
 import { buildDiscordStats } from './widget-stats';
@@ -1585,6 +1586,26 @@ export default {
       const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
       return jsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- Echoes entity↔曲目反查（S8 B-5：互動嵌入的曲目卡消費）----
+    // 同 entity-index：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
+    if (path === '/api/echoes/entity-song' && request.method === 'GET') {
+      const key = url.searchParams.get('key')?.trim() ?? '';
+      if (!key) {
+        return jsonResponse(
+          { ok: false, error: 'Missing key parameter' },
+          400,
+          cors
+        );
+      }
+      const song = await findEntitySong(env.CONTENT_DB, key);
+      return jsonResponse(
+        { ok: true, data: song ? { found: true, song } : { found: false } },
         200,
         cors,
         true
