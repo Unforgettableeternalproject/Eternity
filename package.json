@@ -1,6 +1,6 @@
 {
   "name": "eternity-monorepo",
-  "version": "0.9.12.50",
+  "version": "0.9.12.51",
   "private": true,
   "description": "Bernie's personal website monorepo with Astro",
   "packageManager": "pnpm@9.15.0",

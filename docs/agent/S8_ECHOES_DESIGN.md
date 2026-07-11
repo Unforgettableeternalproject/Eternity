@@ -278,11 +278,24 @@ Terminal Island 監聽 `uep:entity-activate` 並顯示條目資訊；EchoesIslan
 
 **定義**：解鎖 = 歌曲進入收藏池（有資格加入佇列）。
 
-**解鎖來源**：
-1. Echo spot 掃描線觸發 → 授予解鎖旗標 → 歌曲加入收藏池
-2. Echoes zone 內直接讀到（讀到某首歌的詳情頁 → 自動解鎖）
+**解鎖凌駕於所有 spoiler 之上**（艾斯維爾 2026-07-11 第二輪修正）：
+未解鎖的歌曲在 Echoes 中**完全不存在**——列表、計數、prev/next、deep link
+一律隱藏（同 Concepts dossier 語意，不是遮蔽佔位）。解鎖之後才輪到
+Spoiler 降級鏈決定資訊量。**沒有「讀到詳情頁自動解鎖」這種事——未解鎖
+根本讀不到。**
 
-**未解鎖歌曲在 Echoes 列表中完全隱藏**（同 Concepts dossier 語意，不是遮蔽佔位）：
+**解鎖來源**（任一成立即解鎖）：
+1. **Gate 條件達成**——基本上與 Concepts 的做法相同：可能是被某個旗標
+   觸發、完成某個章節（`completed:*`）等，走既有 `parseGateCondition` +
+   `evaluateGate`（`requiresFlags` / `pristineOnly`）。**無 gate 且無靜態鎖
+   的歌 = 天生解鎖**。
+2. **系統推導旗標被授予**（`deriveSongUnlockFlag`）——echo spot 觸發播放、
+   或互動嵌入觸發播放時授予。echo spot 的特殊之處只有「觸發時直接插播
+   （如果可以）」，解鎖機制本身與其他來源無異。
+
+靜態鎖（`metadata.locked === true`，手動封存）凌駕於推導旗標之上。
+觀測者沿既有 `evaluateGate` 語意 bypass `requiresFlags`。
+
 - 使用者看不到「有幾首未解鎖歌曲」
 - 已解鎖歌曲的可見資訊量由 Spoiler 等級決定（見 3-2）
 

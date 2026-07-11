@@ -3,15 +3,18 @@
  *
  * 設計依據：docs/agent/S8_ECHOES_DESIGN.md 第三章。
  *
- * 兩條獨立的軸（艾斯維爾 2026-07-11 定案）：
- * 1. 收藏（collected）＝歌曲進入收藏池，有資格加入佇列。
- *    來源：echo spot 觸發自動解鎖、Echoes zone 內直接讀到。
- *    未收藏的歌在 Echoes 列表中完全隱藏（同 Concepts dossier 語意）。
- * 2. Spoiler 降級鏈＝已收藏歌曲「呈現多少資訊」。維持既有 L0-L3
+ * 兩條獨立的軸（艾斯維爾 2026-07-11 定案，第二輪修正）：
+ * 1. 解鎖（collected）＝歌曲進入收藏池，有資格加入佇列。
+ *    **解鎖凌駕於所有 spoiler 之上**：未解鎖的歌在 Echoes 中完全隱藏
+ *    （列表、計數、deep link 一律不存在，同 Concepts dossier 語意）。
+ *    解鎖 = gate 條件達成（同 Concepts：旗標／完成章節；無 gate = 天生
+ *    解鎖）或持有系統推導旗標（echo spot／互動嵌入觸發播放時授予）。
+ *    ⚠️ 沒有「讀到詳情頁自動解鎖」這種事——未解鎖根本讀不到。
+ * 2. Spoiler 降級鏈＝已解鎖歌曲「呈現多少資訊」。維持既有 L0-L3
  *    遮蔽機制（SpoilerTitle），等級隨進度鎖漸進降級——單調 AND 鏈，
  *    每降一級須同時符合所有上級的降級條件。
  *
- * 交會點：已收藏但 spoiler 仍在 L3 → 不可播放
+ * 交會點：已解鎖但 spoiler 仍在 L3 → 不可播放
  * （S8 唯一的既有行為變更：L3 從 30 秒 preview 改為完全不可播放）。
  *
  * ⚠️ 命名注意：EchoesReader 內另有 `isSongUnlocked`（語意＝使用者已

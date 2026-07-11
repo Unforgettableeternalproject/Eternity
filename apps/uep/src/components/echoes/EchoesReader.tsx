@@ -20,6 +20,9 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import { AudioProvider, useAudio } from '../../audio';
+import { useProgress } from '../../progress';
+import type { ProgressState } from '../../progress';
+import { isSongUnlockedInZone } from './echoesVisibility';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -421,7 +424,7 @@ function EchoesAudioPlayer({
   color,
   locked = false,
   onLockedClick,
-  previewLimit,
+  sealed = false,
 }: {
   songId: string;
   audioUrl: string | null;
@@ -429,7 +432,8 @@ function EchoesAudioPlayer({
   color: string;
   locked?: boolean;
   onLockedClick?: () => void;
-  previewLimit?: number;
+  /** L3 封印：已確認 spoiler 警告但等級仍為 3——完全不可播放（S8 取代 30 秒 preview） */
+  sealed?: boolean;
 }) {
   const a = useAudio();
   const isMe = a.currentSongId === songId;
@@ -437,37 +441,12 @@ function EchoesAudioPlayer({
   const cur = isMe ? a.currentTime : 0;
   const prog = isMe ? a.progress : 0;
   const dur = isMe && a.duration > 0 ? a.duration : metaDuration || 0;
-  const disabled = locked || !audioUrl;
-
-  // === 預覽模式（L3 解鎖：僅播放前 N 秒）===
-  const isPreview = previewLimit != null && previewLimit > 0;
-  const previewFraction =
-    isPreview && dur > 0 ? Math.min(1, previewLimit / dur) : 1;
-  const [previewEnded, setPreviewEnded] = useState(false);
-
-  // 超過預覽上限時自動暫停
-  useEffect(() => {
-    if (!isPreview || !isMe || !a.isPlaying) return;
-    if (a.currentTime >= previewLimit) {
-      a.pause();
-      setPreviewEnded(true);
-    }
-  }, [isPreview, isMe, a.currentTime, a.isPlaying, previewLimit]);
-
-  // 切換歌曲時重置預覽狀態
-  useEffect(() => {
-    if (!isMe) setPreviewEnded(false);
-  }, [isMe]);
+  const disabled = locked || sealed || !audioUrl;
 
   // 本地拖曳進度（避免 RAF 在拖曳期間覆蓋受控 input）
   const [seekProg, setSeekProg] = useState<number | null>(null);
   const isSeeking = seekProg !== null;
-  // 預覽模式：將進度正規化到 0–1 代表 0–previewLimit 秒
-  const normalProg =
-    isPreview && previewFraction > 0
-      ? Math.min(1, prog / previewFraction)
-      : prog;
-  const displayProg = isSeeking ? seekProg : normalProg;
+  const displayProg = isSeeking ? seekProg : prog;
 
   // 音量面板開關（雙狀態：mounted 控制 DOM 存在，open 控制動畫）
   const [volMounted, setVolMounted] = useState(false);
@@ -511,14 +490,8 @@ function EchoesAudioPlayer({
       onLockedClick?.();
       return;
     }
-    if (!audioUrl) return;
-    // 預覽結束後重新從頭播放
-    if (isPreview && previewEnded) {
-      setPreviewEnded(false);
-      a.play(songId, audioUrl);
-      setTimeout(() => a.seek(0), 50);
-      return;
-    }
+    // L3 封印：完全不可播放（S8 取代既有 30 秒 preview）
+    if (sealed || !audioUrl) return;
     a.toggle(songId, audioUrl);
   };
 
@@ -537,18 +510,13 @@ function EchoesAudioPlayer({
       setSeekProg(null);
       return;
     }
-    // 預覽模式：val 是正規化座標 (0–1 → 0–previewLimit)，轉回實際音頻比例
-    const actual = isPreview ? Math.min(val, 1) * previewFraction : val;
     setSeekProg(null);
-    if (isPreview && val < 1) {
-      setPreviewEnded(false);
-    }
     // 一律呼叫 endSeek 重置 isSeekingRef，避免殘留阻塞 RAF 進度更新
-    a.endSeek(actual);
+    a.endSeek(val);
     if (!isMe && audioUrl && !locked) {
       // 歌曲尚未播放：先啟動再 seek
       a.play(songId, audioUrl);
-      setTimeout(() => a.seek(actual), 50);
+      setTimeout(() => a.seek(val), 50);
     }
   };
 
@@ -563,8 +531,8 @@ function EchoesAudioPlayer({
       style={{
         borderColor: isMe ? color : 'var(--line)',
         background: isMe ? `${color}10` : 'var(--bg-card)',
-        filter: locked ? 'grayscale(0.6)' : 'none',
-        opacity: locked ? 0.5 : 1,
+        filter: locked || sealed ? 'grayscale(0.6)' : 'none',
+        opacity: locked || sealed ? 0.5 : 1,
       }}
     >
       <button
@@ -617,13 +585,7 @@ function EchoesAudioPlayer({
         />
         <div className="echoes-player-times">
           <span>{fmtTime(cur)}</span>
-          <span>
-            {isPreview
-              ? fmtTime(previewLimit)
-              : dur > 0
-                ? fmtTime(dur)
-                : '--:--'}
-          </span>
+          <span>{dur > 0 ? fmtTime(dur) : '--:--'}</span>
         </div>
       </div>
 
@@ -671,20 +633,16 @@ function EchoesAudioPlayer({
       <span
         className="echoes-player-status"
         style={{
-          color: previewEnded ? 'crimson' : isMe ? color : 'var(--ink-mute)',
+          color: sealed ? 'crimson' : isMe ? color : 'var(--ink-mute)',
         }}
       >
         {locked
           ? 'LOCKED'
-          : previewEnded
-            ? 'PREVIEW ENDED · 目前你還無法接觸到後續的內容'
-            : isPreview
-              ? playing
-                ? `PREVIEW · ${fmtTime(previewLimit)}`
-                : `PREVIEW · ${fmtTime(previewLimit)}`
-              : playing
-                ? 'NOW PLAYING'
-                : 'STANDBY'}
+          : sealed
+            ? 'SEALED · 現在的你還無法聆聽這首回聲'
+            : playing
+              ? 'NOW PLAYING'
+              : 'STANDBY'}
       </span>
     </div>
   );
@@ -694,25 +652,39 @@ function EchoesAudioPlayer({
 // 工具函式（遞迴遍歷，支援任意深度巢狀）
 // ──────────────────────────────────────────────────────────────────
 
-/** 遞迴收集節點下所有 song（排除 hidden 與 locked） */
-function collectSongs(node: PageTreeNode): PageTreeNode[] {
+/**
+ * 遞迴收集節點下所有 song。
+ * S8：未解鎖歌曲完全隱藏（解鎖凌駕於所有 spoiler 之上，同 Concepts
+ * dossier 語意）；容器維持既有 hidden / 靜態鎖語意。
+ */
+function collectSongs(
+  node: PageTreeNode,
+  progress: ProgressState | null
+): PageTreeNode[] {
   const songs: PageTreeNode[] = [];
   for (const child of node.children || []) {
     if (isHidden(child)) continue;
-    if (isLocked(child)) continue;
-    if (child.pageType === 'song') songs.push(child);
-    else songs.push(...collectSongs(child));
+    if (child.pageType === 'song') {
+      if (isSongUnlockedInZone(child, progress)) songs.push(child);
+    } else {
+      if (isLocked(child)) continue;
+      songs.push(...collectSongs(child, progress));
+    }
   }
   return songs;
 }
 
-/** 遞迴計算節點下所有可見 song 數量 */
-function countSongs(node: PageTreeNode): number {
+/** 遞迴計算節點下所有可見（已解鎖）song 數量 */
+function countSongs(
+  node: PageTreeNode,
+  progress: ProgressState | null
+): number {
   let count = 0;
   for (const child of node.children || []) {
     if (isHidden(child)) continue;
-    if (child.pageType === 'song') count++;
-    else count += countSongs(child);
+    if (child.pageType === 'song') {
+      if (isSongUnlockedInZone(child, progress)) count++;
+    } else count += countSongs(child, progress);
   }
   return count;
 }
@@ -754,14 +726,15 @@ function getClusterDef(id: string): ClusterDef | undefined {
 /** 從樹中取得指定節點 ID 所屬的最近 subcategory 的所有歌曲（用於 prev/next）*/
 function getSongsInParentSubcat(
   tree: PageTreeNode[],
-  songId: string
+  songId: string,
+  progress: ProgressState | null
 ): PageTreeNode[] {
   // 從 songId 往上找到 parent subcategory
   function findParentAndCollect(node: PageTreeNode): PageTreeNode[] | null {
     for (const child of node.children || []) {
       if (child.id === songId) {
         // 找到了，收集同層的所有 songs
-        return collectSongs(node);
+        return collectSongs(node, progress);
       }
       const result = findParentAndCollect(child);
       if (result) return result;
@@ -777,9 +750,13 @@ function getSongsInParentSubcat(
 }
 
 /** 從 tree 取得 cluster 下的歌曲總數 */
-function countSongsInCluster(tree: PageTreeNode[], clusterId: string): number {
+function countSongsInCluster(
+  tree: PageTreeNode[],
+  clusterId: string,
+  progress: ProgressState | null
+): number {
   const cluster = findClusterNode(tree, clusterId);
-  return cluster ? countSongs(cluster) : 0;
+  return cluster ? countSongs(cluster, progress) : 0;
 }
 
 /** 渲染 landing HTML：把 card-grid 替換為集群卡片插入標記 */
@@ -818,6 +795,9 @@ function buildAudioUrl(audioFile: string | null): string | null {
 // ──────────────────────────────────────────────────────────────────
 function EchoesReaderInner() {
   const echoesZone = ZONES.find((z) => z.id === 'echoes') || ZONES[0];
+
+  // === 進度狀態（S8：歌曲解鎖判定，未解鎖完全隱藏）===
+  const progress = useProgress();
 
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -1174,8 +1154,8 @@ function EchoesReaderInner() {
   // === Prev/Next 歌曲 (同一 parent subcategory) ===
   const subcatSongs = useMemo(() => {
     if (!activeSongId || !tree.length) return [];
-    return getSongsInParentSubcat(tree, activeSongId);
-  }, [tree, activeSongId]);
+    return getSongsInParentSubcat(tree, activeSongId, progress);
+  }, [tree, activeSongId, progress]);
 
   const songIndex = activeSongId
     ? subcatSongs.findIndex((s) => s.id === activeSongId)
@@ -1237,7 +1217,11 @@ function EchoesReaderInner() {
                         const hp = clusters[idx];
                         const color = hp?.color || cluster.color;
                         const label = hp?.label || cluster.label;
-                        const songCount = countSongsInCluster(tree, cluster.id);
+                        const songCount = countSongsInCluster(
+                          tree,
+                          cluster.id,
+                          progress
+                        );
                         const orbCount = Math.max(songCount, 6);
                         // 內圈最多 40 個，超出的到外圈
                         const innerCount = Math.min(orbCount, 40);
@@ -1376,7 +1360,11 @@ function EchoesReaderInner() {
               )}
               <div className="echoes-cluster-grid">
                 {CLUSTERS.map((cluster) => {
-                  const songCount = countSongsInCluster(tree, cluster.id);
+                  const songCount = countSongsInCluster(
+                    tree,
+                    cluster.id,
+                    progress
+                  );
                   const orbCount = Math.max(songCount, 6);
                   const innerCount = Math.min(orbCount, 40);
                   const outerCount = Math.max(orbCount - 40, 0);
@@ -1528,7 +1516,7 @@ function EchoesReaderInner() {
     const subcatNodes = (clusterNode?.children || []).filter(
       (n) => n.pageType !== 'song' && n.pageType !== 'page' && !isHidden(n)
     );
-    const totalSongs = clusterNode ? countSongs(clusterNode) : 0;
+    const totalSongs = clusterNode ? countSongs(clusterNode, progress) : 0;
 
     return (
       <section className="echoes-cluster-page">
@@ -1583,11 +1571,11 @@ function EchoesReaderInner() {
           {/* 子分類卡片列表 — 從 tree 讀取 */}
           <div className="echoes-subcat-list">
             {subcatNodes.map((subcatNode, i) => {
-              const songCount = countSongs(subcatNode);
+              const songCount = countSongs(subcatNode, progress);
               const subcatHidden = isHidden(subcatNode);
               const subcatLocked = isLocked(subcatNode);
               const inaccessible = subcatHidden || subcatLocked;
-              const songs = collectSongs(subcatNode);
+              const songs = collectSongs(subcatNode, progress);
               return (
                 <button
                   key={subcatNode.id}
@@ -1697,8 +1685,12 @@ function EchoesReaderInner() {
     const childSubcats = allChildren.filter(
       (c) => c.pageType !== 'song' && c.pageType !== 'page' && !isHidden(c)
     );
+    // S8：未解鎖歌曲完全隱藏（不是 LOCK 佔位）
     const directSongs = allChildren.filter(
-      (c) => c.pageType === 'song' && !isHidden(c)
+      (c) =>
+        c.pageType === 'song' &&
+        !isHidden(c) &&
+        isSongUnlockedInZone(c, progress)
     );
 
     return (
@@ -1754,7 +1746,7 @@ function EchoesReaderInner() {
                     <div className="echoes-subcat-name">{child.title}</div>
                   </div>
                   <span className="echoes-subcat-count">
-                    {countSongs(child)} echoes
+                    {countSongs(child, progress)} echoes
                   </span>
                   <span className="echoes-subcat-arrow" style={{ color }}>
                     →
@@ -1776,7 +1768,6 @@ function EchoesReaderInner() {
                 const meta = song.metadata as Record<string, unknown>;
                 const sp = getSpoilerLevel(song);
                 const subtitle = (meta?.subtitle as string) || '';
-                const isPageLocked = isLocked(song);
                 // 分級解鎖：解鎖後仍根據等級決定可見範圍
                 const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
                 const songCanSeeTitle = songHasUnlocked && sp <= 2;
@@ -1786,15 +1777,8 @@ function EchoesReaderInner() {
                     key={song.id}
                     type="button"
                     className="echoes-playlist-item"
-                    style={{
-                      ['--accent' as string]: color,
-                      opacity: isPageLocked ? 0.5 : 1,
-                      cursor: isPageLocked ? 'not-allowed' : 'pointer',
-                    }}
-                    onClick={() => {
-                      if (!isPageLocked) void navigateToSong(song.id);
-                    }}
-                    disabled={isPageLocked}
+                    style={{ ['--accent' as string]: color }}
+                    onClick={() => void navigateToSong(song.id)}
                   >
                     <span className="echoes-playlist-num">
                       {String(i + 1).padStart(2, '0')}
@@ -1835,21 +1819,6 @@ function EchoesReaderInner() {
                       )}
                     </div>
                     {/* 狀態標籤 */}
-                    {isPageLocked && (
-                      <span
-                        style={{
-                          flexShrink: 0,
-                          fontSize: '0.7em',
-                          padding: '2px 7px',
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          color: 'var(--ink-mute)',
-                          border: '1px solid var(--ink-mute)',
-                        }}
-                      >
-                        LOCK
-                      </span>
-                    )}
                     {sp > 0 && !songHasUnlocked && (
                       <span
                         style={{
@@ -1868,7 +1837,7 @@ function EchoesReaderInner() {
                       </span>
                     )}
                     <span className="echoes-subcat-arrow" style={{ color }}>
-                      {isPageLocked ? 'LOCK' : '→'}
+                      →
                     </span>
                   </button>
                 );
@@ -1917,6 +1886,19 @@ function EchoesReaderInner() {
     }
     if (!currentSongPage || !songData) return null;
 
+    // S8：未解鎖歌曲的 deep link → not-found（同 Concepts 語意，不是鎖定佔位）
+    const songNode = flatPages.find((p) => p.id === currentSongPage.id);
+    if (
+      tree.length > 0 &&
+      (!songNode ||
+        isHidden(songNode) ||
+        !isSongUnlockedInZone(songNode, progress))
+    ) {
+      return (
+        <ZoneStateDisplay kind="not-found" message="找不到這枚回聲" large />
+      );
+    }
+
     const cluster = activeSongCluster;
     const color = cluster?.color || ECHOES_ZONE.main;
 
@@ -1932,11 +1914,11 @@ function EchoesReaderInner() {
     // 分級解鎖可見性
     // L1 解鎖：標題、副標題、metadata 可見，賞析標記為非完整版
     // L2 解鎖：僅標題可見，其餘隱藏
-    // L3 解鎖：全部隱藏，音檔僅播放前 30 秒
+    // L3 解鎖：全部隱藏，完全不可播放（S8 取代既有 30 秒 preview）
     const canSeeTitle = hasUnlocked && spoiler <= 2;
     const canSeeSubtitle = hasUnlocked && spoiler <= 1;
     const canSeeMetadata = hasUnlocked && spoiler <= 1;
-    const previewOnly = hasUnlocked && spoiler >= 3;
+    const sealed = hasUnlocked && spoiler >= 3;
     const isPartialAppreciation = hasUnlocked && spoiler >= 1;
 
     const isPlaying =
@@ -1945,9 +1927,12 @@ function EchoesReaderInner() {
     const handlePlayAttempt = () => {
       if (locked) {
         requestUnlock(currentSongPage.id, spoiler, songData.gate, () => {
-          if (audioUrl) audio.play(currentSongPage.id, audioUrl);
+          // L3 確認警告後仍為封印態，不啟動播放
+          if (spoiler < 3 && audioUrl) {
+            audio.play(currentSongPage.id, audioUrl);
+          }
         });
-      } else if (audioUrl) {
+      } else if (spoiler < 3 && audioUrl) {
         audio.toggle(currentSongPage.id, audioUrl);
       }
     };
@@ -2013,7 +1998,7 @@ function EchoesReaderInner() {
                     ? '✓ unlocked'
                     : spoiler === 2
                       ? '✓ partial · L2'
-                      : '✓ preview · L3'}
+                      : '✓ sealed · L3'}
               </span>
             )}
             {meta?.format && (
@@ -2033,7 +2018,7 @@ function EchoesReaderInner() {
           <div className="echoes-song-hero">
             <VinylDisc
               isPlaying={isPlaying}
-              isLocked={locked}
+              isLocked={locked || sealed}
               color={color}
               coverImage={songData.coverImage}
             />
@@ -2088,12 +2073,12 @@ function EchoesReaderInner() {
               <div onClick={locked ? handlePlayAttempt : undefined}>
                 <EchoesAudioPlayer
                   songId={currentSongPage.id}
-                  audioUrl={locked ? null : audioUrl}
+                  audioUrl={locked || sealed ? null : audioUrl}
                   metaDuration={songData.audioMeta?.duration}
                   color={color}
                   locked={locked}
                   onLockedClick={handlePlayAttempt}
-                  previewLimit={previewOnly ? 30 : undefined}
+                  sealed={sealed}
                 />
               </div>
             </div>
