@@ -91,7 +91,10 @@ describe('GET /api/concepts/entity-index', () => {
                     label: '機密',
                     gate: { requiresFlags: ['sec:01'] },
                     entries: [
-                      { name: '機密條目', gate: { requiresFlags: ['met:secret'] } },
+                      {
+                        name: '機密條目',
+                        gate: { requiresFlags: ['met:secret'] },
+                      },
                     ],
                   },
                 ],
