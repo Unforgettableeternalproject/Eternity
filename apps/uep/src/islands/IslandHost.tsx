@@ -36,13 +36,14 @@ import { useIslandRuntimeState } from './useIslands';
 /**
  * 各島的實體內容元件註冊表（lazy——TopBar 全站掛載，島內容只在
  * 真正展開時載入，避免 tree 抓取等邏輯進到每一頁的初始 bundle）。
- * S6：history；S7：concepts；S7 後半：echoes；S8：visuals、storage。
+ * S6：history；S7：concepts；S8：echoes；S8 後半：visuals；S9：storage。
  */
 const ISLAND_COMPONENTS: Partial<
   Record<IslandId, React.LazyExoticComponent<React.ComponentType>>
 > = {
   history: React.lazy(() => import('./history/HistoryIsland')),
   concepts: React.lazy(() => import('./concepts/TerminalIsland')),
+  echoes: React.lazy(() => import('./echoes/EchoesIsland')),
 };
 
 export default function IslandHost() {

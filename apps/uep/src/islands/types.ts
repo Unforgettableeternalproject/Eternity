@@ -80,10 +80,11 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
   },
   echoes: {
     id: 'echoes',
-    title: '回聲清單',
+    title: '流浪回聲',
     icon: '♫',
     defaultCorner: 'bottom-right',
-    width: 320,
+    // 292 = 設計稿定案寬度（黑球=播放鍵、橫排舞台的緊湊格局）
+    width: 292,
   },
   visuals: {
     id: 'visuals',
