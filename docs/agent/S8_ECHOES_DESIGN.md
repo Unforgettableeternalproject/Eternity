@@ -1,0 +1,888 @@
+# S8 Echoes 設計文件：流浪回聲 Playlist Island（上半場）
+
+> 版本：0.9.12.46（feature/epic2-progress-foundation）
+> 目標里程碑：0.9.13.0（S8 完成點）
+> 作者：奈留 × 奈也（架構師）
+> 日期：2026-07-11
+
+---
+
+## 總覽
+
+S8 上半場核心命題：**讓音樂跟著讀者走，而不是被頁面綁住。**
+
+現行 EchoesReader 的 AudioProvider 採用 React Context，Audio 元素在 Reader unmount 時立即殺死——讀者切換到其他 zone，音樂必然中斷。浮島（EchoesIsland）常駐於 `document.body`（portal），與 Reader tree 分離，兩者之間沒有共享的播放狀態，屬結構性衝突。
+
+S8 解決方案：**將 Audio 元素抽離 React tree，成為 module-level singleton**（`uepAudioStore`，`window.__uepAudio` bridge），沿 `progressStore`/`islandRuntime` 的既有慣例。EchoesReader 的 AudioProvider 改為包裹 singleton 的薄殼（Context API 介面盡量不變），EchoesIsland 直接消費同一個 singleton。
+
+S8 同時引入**兩種內容訊號**——echo spot（掃描線觸發播放）與互動嵌入展示——以及**解鎖 vs Spoiler 兩軸**的訊號控制架構。
+
+---
+
+## 一、Audio Singleton
+
+### 1-1 設計原則與為什麼不用其他方案
+
+**必須抽離 React tree 的根因**：React component 的 unmount 語意是「清理副作用」，AudioProvider 的 `useEffect` cleanup 正確地 `pause()` 並清空 `audio.src`——這是 React 正確的做法，但也是問題所在。若改用 Context API + 全域 Provider（放在最外層 Astro component），因 uep 站是純 MPA（沒有 ClientRouter），跨 zone 導航本來就是整頁重載，頂層 Provider 照樣消失。
+
+結論：**唯一能在頁面生命週期內全程存活的位置是 module-level 變數**，配合 `window.__uepAudio` bridge 跨 React island 共用，與 `progressStore`/`islandRuntime` 完全同模式。
+
+**同 zone pushState 導航（useZoneRouter）不整頁重載**：EchoesReader 內部換頁（如從歌曲列表切到歌曲詳情）走 pushState，IslandHost 的 portal 常駐在 body 上，singleton 不受影響，音樂天然不斷。
+
+**跨 zone 整頁重載**：使用者導航到非 Echoes 的其他 zone，整頁重載，singleton 消失。此時恢復策略：由 `uep.audio.v1` localStorage 讀回狀態，恢復為**暫停態**。使用者手勢（點擊播放按鈕）才續播——autoplay policy 防禦。`currentTime` 恢復必須等 `loadedmetadata` 事件，沿用 EchoesReader.tsx:368 的 `endSeek` retry 模式。
+
+### 1-2 模組位置
+
+```
+apps/uep/src/audio/
+  audioStore.ts          ← module-level singleton + window bridge（新建）
+  audioStore.test.ts     ← 純函式層測試（新建）
+  audioTypes.ts          ← 型別定義（新建）
+  audioContext.tsx        ← React Context 橋接層，AudioProvider 薄殼（新建）
+```
+
+AudioProvider 從 `EchoesReader.tsx` 搬遷至 `audio/audioContext.tsx`，原始檔案只保留 `import { AudioProvider, useAudio } from '../../audio/audioContext'`。
+
+### 1-3 核心型別
+
+```typescript
+// audio/audioTypes.ts
+
+/** 播放佇列中的單一曲目 */
+export interface AudioQueueItem {
+  songId: string;
+  url: string;
+  /** 插播快照：記錄插播前佇列，用於插播結束後恢復 */
+  _isInterruption?: boolean;
+}
+
+/** Audio Singleton 的完整狀態 */
+export interface AudioState {
+  /** 目前播放曲目 ID；null = 無 */
+  currentSongId: string | null;
+  /** 是否正在播放 */
+  isPlaying: boolean;
+  /** 播放進度 0-1 */
+  progress: number;
+  /** 目前時間（秒） */
+  currentTime: number;
+  /** 總時長（秒，0 = 未知） */
+  duration: number;
+  /** 音量 0-1 */
+  volume: number;
+  /** 播放佇列（不含當前曲目） */
+  playlist: AudioQueueItem[];
+  /** 循環模式 */
+  loop: 'none' | 'one' | 'all';
+  /**
+   * 插播快照：echo spot 觸發時的前一佇列狀態。
+   * null = 目前不在插播狀態。
+   */
+  interruptionSnapshot: {
+    songId: string | null;
+    currentTime: number;
+    playlist: AudioQueueItem[];
+    wasPlaying: boolean;
+  } | null;
+}
+
+/** uep.audio.v1 的 localStorage 持久化形狀 */
+export interface AudioPersisted {
+  currentSongId: string | null;
+  currentTime: number;
+  playlist: AudioQueueItem[];
+  volume: number;
+  loop: 'none' | 'one' | 'all';
+  wasPlaying: boolean;
+}
+```
+
+### 1-4 Singleton API
+
+```typescript
+// audio/audioStore.ts（介面草稿）
+
+declare global {
+  interface Window { __uepAudio?: typeof uepAudio; }
+}
+
+export const uepAudio = {
+  /** 取得目前狀態（唯讀快照） */
+  getState(): AudioState;
+
+  /** 訂閱狀態變更，回傳取消訂閱函式 */
+  subscribe(listener: (state: AudioState) => void): () => void;
+
+  // ── 播放控制 ──
+  play(songId: string, url: string): void;
+  pause(): void;
+  toggle(songId: string, url: string): void;
+  seek(fraction: number): void;
+  beginSeek(): void;
+  endSeek(fraction: number): void;
+  setVolume(v: number): void;
+  setLoop(mode: 'none' | 'one' | 'all'): void;
+  next(): void;
+  previous(): void;
+
+  // ── 佇列管理 ──
+  enqueue(item: AudioQueueItem): void;
+  setPlaylist(items: AudioQueueItem[]): void;
+  clearPlaylist(): void;
+
+  // ── 插播 ──
+  /**
+   * 插播語意：記錄快照 → 中斷當前佇列 → 播放 songId。
+   * 如果已在插播，直接替換（新插播覆蓋舊插播，快照不巢狀）。
+   */
+  interrupt(songId: string, url: string): void;
+
+  /**
+   * 結束插播，恢復快照狀態。
+   * 恢復條件任一：離開頁面 / 被其他 echo spot 插入 / 播畢 / 使用者手動切掉。
+   * 恢復後繼續播還是維持暫停，由 interruptionSnapshot.wasPlaying 決定。
+   */
+  restoreFromInterruption(): void;
+
+  // ── 生命週期 ──
+  /** 停用 echoes 島時或登出時呼叫：停止播放 + 清理狀態 */
+  stop(): void;
+};
+```
+
+### 1-5 持久化策略
+
+持久化 key：`uep.audio.v1`（統一入 `uep.*.v1` 命名空間，收編舊 `uep-player-volume`）。
+
+寫入時機：
+1. 換曲、暫停、seek **立即**寫入
+2. 播放中 **throttle 約 5 秒**寫入一次（RAF 驅動，不另設 setInterval）
+3. `pagehide` 事件兜底（處理快速切頁來不及 throttle 的情況）
+
+讀回時機：模組 bootstrap（`window.__uepAudio` 首次初始化）。恢復後：
+- `volume`、`playlist`、`loop` 立即套用
+- `currentSongId`、`currentTime`：讀回 ID、等 `loadedmetadata` 後定位（沿 EchoesReader:368 retry 模式）
+- `wasPlaying = true` 時**不自動播放**，等使用者手勢——autoplay policy 防禦
+
+### 1-6 生命週期連線
+
+| 事件 | 行為 |
+|------|------|
+| 登出（session→null） | `islandRuntime.resetAll()` 被呼叫 → 同時 `uepAudio.stop()` |
+| 進度 reset（`source='reset'`） | 同登出，`uepAudio.stop()` |
+| echoes 島被使用者停用 | `islandRuntime` 的 `island-setting` 通知 → `uepAudio.stop()` |
+
+**依賴方向注意**：`islandRuntime.ts` 不可反向 import `audioStore`。連線方式為：`audioStore.ts` 訂閱 `PROGRESS_CHANGE_EVENT`（已在 `islandRuntime.ts` 中使用），`stop()` 的呼叫透過 CustomEvent 觸發而非直接 import。
+
+替代方案：在 `IslandHost.tsx` 統一訂閱，協調 island runtime 與 audio singleton 的生命週期。此方案耦合度低但需要 React 層作橋接，適合作為 fallback。
+
+### 1-7 EchoesReader AudioProvider 改造
+
+EchoesReader 的 `AudioProvider` 改為**薄殼**：不再建立 `new Audio()`，改為從 `uepAudio.getState()` 讀取初始狀態，訂閱後 `setState` 驅動重渲染，並把 play/pause/seek 等操作代理到 `uepAudio.*`。
+
+Context API 的介面（`AudioState` 的欄位名稱、`useAudio` hook）**盡量不變**，讓 `EchoesAudioPlayer` 等消費端零改動或僅微調。
+
+```typescript
+// audio/audioContext.tsx（薄殼）
+function AudioProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState(() => getAudioStore().getState());
+
+  useEffect(() => {
+    return getAudioStore().subscribe(setState); // 訂閱 → 狀態同步
+  }, []);
+
+  const value = useMemo(() => ({
+    ...state,
+    play: (id, url) => getAudioStore().play(id, url),
+    pause: () => getAudioStore().pause(),
+    // ... 餘下代理
+  }), [state]);
+
+  return <AudioCtx.Provider value={value}>{children}</AudioCtx.Provider>;
+}
+```
+
+---
+
+## 二、兩種內容訊號
+
+### 2-1 Echo Spot（掃描線觸發）
+
+**定位**：類 FlagMarker 的 TipTap 節點，插在文字段落中。掃描線通過時觸發**插播**，同時解鎖對應歌曲。
+
+**觸發語意**：
+- 同一次頁面 session（不跨整頁重載）只觸發一次——用 `sessionStorage` 記錄已觸發的 spot ID，不進 localStorage（頁面重載後允許再次觸發）
+- 掃描線通過 → `uepAudio.interrupt(songId, url)` → 插播
+
+**為什麼用 sessionStorage 而非 ProgressState**：
+- ProgressState 的旗標是持久化的、跨裝置同步的，語意是「認知的永久狀態」
+- echo spot 的「一次觸發」是**單次頁面 session 的體驗保護**，避免重複干擾，重新進入頁面可以再次觸發（合理的劇情重讀體驗）
+- 不汙染 ProgressState 的旗標空間
+
+**DOM 形狀（TipTap 序列化到 D1）**：
+
+```html
+<div
+  data-role="echo-spot"
+  data-song-id="{songId}"
+  data-song-url-key="{audioFileKey}"
+></div>
+```
+
+`data-song-url-key` 存 R2 key（裸），前台由 `buildAudioUrl` 組合完整 URL。不存完整 URL 的理由：API base 可能隨環境變動，D1 只存純粹的資源路徑。
+
+**掃描線整合（`useScanline` 或等效機制）**：
+在已有的 FlagMarker 掃描線掃到 `[data-role="echo-spot"]` 時，額外呼叫 echo spot handler。注意：echo spot **不授予 FlagMarker 旗標**，兩者職責分離。解鎖旗標（見第三節）由 echo spot handler 單獨授予。
+
+**Autoplay 防禦（第五節詳述）**：
+掃描線觸發 ≠ 直接呼叫 `audio.play()`。先走防禦邏輯，判斷是否可以自動播放；若不可（上次已被瀏覽器擋、捲速過快、快速跳轉模式），降級為提示卡模式。
+
+### 2-2 互動嵌入展示
+
+**定位**：entity 嵌入被點擊（`uep:entity-activate` 事件觸發），若有同 entityKey 對應歌曲且已解鎖，曲目卡浮在播放層之上。**不播放、不插播、不中斷當前播放。**
+
+**資料查詢路徑**：
+1. `EntityActivateDetail.entityKey` 取得 entityKey
+2. 呼叫 `/api/echoes/entity-song?key={entityKey}`（新端點，見第七節）取得對應歌曲
+3. 若對應歌曲存在且已解鎖（見三-1 解鎖判定） → 顯示曲目卡
+4. 若不存在或未解鎖 → 靜默忽略（不顯示任何提示）
+
+**曲目卡（SongPreviewCard）**：
+- 浮在 `document.body`（同 IslandHost portal 模式），z-index 在 Island 層帶（2000-2999）上方，或與 Island 同層但焦點置頂
+- 顯示：曲名、所屬 cluster、解鎖狀態（spoiler 降級後的資訊）
+- 操作：「加入佇列」（`uepAudio.enqueue`）、dismiss
+- 存在時間：使用者 dismiss 或點選加入佇列後自動消失
+
+**與 Terminal Island 的類比**：
+Terminal Island 監聽 `uep:entity-activate` 並顯示條目資訊；EchoesIsland 同樣監聽此事件並顯示對應歌曲（如果有）。兩者共享同一個事件，不互相干擾——Terminal 顯示 Concepts 資料，Echoes 顯示歌曲卡。
+
+**監聽位置**：掛在 `IslandHost.tsx`（同 Terminal 的 entity-activate 監聽模式），不在 EchoesIsland 內部——島收合時內容元件沒有 mount，聽不到事件。
+
+**entity 條目出現 ≠ 歌曲解鎖**：entity 被 embed 出現在文章中，不代表對應歌曲解鎖。解鎖狀態獨立判定（三-1 節），嵌入展示只在「已解鎖」時才出現。
+
+### 2-3 歌曲種類與訊號適用矩陣
+
+| 歌曲種類 | Echo Spot 觸發 | 嵌入展示 | 備註 |
+|---------|--------------|---------|------|
+| 劇情歌 | ✓（唯一解鎖路徑） | ✗ | 必須透過 spot，不可直接展示 |
+| 角色歌 | ✓ | ✓（需已解鎖） | spot 解鎖 → 之後嵌入可展示 |
+| 區域歌 | ✓ | ✓（需已解鎖） | spot 解鎖 → 之後嵌入可展示 |
+
+歌曲種類在 Echoes 歌曲頁的 metadata 中標記（`songType: 'story' | 'character' | 'area'`）。嵌入端不需要知道種類，只需知道「是否已解鎖」。
+
+---
+
+## 三、解鎖 vs Spoiler 兩軸
+
+### 3-1 解鎖機制
+
+**定義**：解鎖 = 歌曲進入收藏池（有資格加入佇列）。
+
+**解鎖來源**：
+1. Echo spot 掃描線觸發 → 授予解鎖旗標 → 歌曲加入收藏池
+2. Echoes zone 內直接讀到（讀到某首歌的詳情頁 → 自動解鎖）
+
+**未解鎖歌曲在 Echoes 列表中完全隱藏**（同 Concepts dossier 語意，不是遮蔽佔位）：
+- 使用者看不到「有幾首未解鎖歌曲」
+- 已解鎖歌曲的可見資訊量由 Spoiler 等級決定（見 3-2）
+
+#### 解鎖旗標慣例（諾薇亞提案 + 奈留分析）
+
+**選項 A：`song:{songId}`**
+- 優點：直接對應歌曲 ID，零歧義，不依賴 entityKey
+- 缺點：與 Concepts 的 `{entityKey}:{stage}` 旗標慣例斷裂，Terminal 無法用 entityKey 反查
+- 適用：劇情歌（無 entityKey，spot 唯一入口）
+
+**選項 B：`song:{entityKey}` 或 `{entityKey}:unlocked`**
+- 優點：沿 entityKey 命名空間，Terminal 可用 `{entityKey}:*` 掃描
+- 缺點：劇情歌不一定有 entityKey；且 Concepts 的 `{entityKey}:NN` 是版本進度，語意不同
+
+**奈留建議（提案，非定案）**：
+
+採**雙命名空間並存**策略：
+- 凡有 entityKey 的歌曲 → 解鎖旗標為 `{entityKey}:song`（沿 entityKey 空間，stage 用 `song` 固定詞，不與 Concepts 的 `:NN` 序號衝突）
+- 無 entityKey 的純劇情歌 → 解鎖旗標為 `song:{songId}`
+
+理由：Terminal Island 的 `{entityKey}:*` 掃描可以找到音樂解鎖（`xavier-colsono:song`），而劇情歌有自己的 `song:` 命名空間，保持語意分離。`evaluateGate({ requiresFlags: ['xavier-colsono:song'] })` 語意清晰。
+
+> **待艾斯維爾定案**——此為奈留的技術觀點，最終由艾斯維爾拍板。
+
+**Echoes 頁 metadata 欄位**：
+
+```typescript
+// Echoes 歌曲頁（pageType: 'song'）的 metadata 擴充
+interface EchoeSongMetadata {
+  /** 音檔 R2 key */
+  audioFile?: string;
+  /** 封面圖 R2 key */
+  coverImage?: string;
+  /** 歌曲時長（秒，管理端填入，避免每次 loadedmetadata） */
+  duration?: number;
+  /** 跨 zone 統一實體身分（沿 S7 entityKey 慣例） */
+  entityKey?: string;
+  /** 歌曲種類 */
+  songType?: 'story' | 'character' | 'area';
+  /** Spoiler 降級鏈（格式見 3-2） */
+  spoilerRevisions?: SongSpoilerRevision[];
+}
+```
+
+### 3-2 Spoiler 降級鏈
+
+**定義**：決定「已解鎖歌曲顯示多少資訊」的進度閘控機制。
+
+**四個 Spoiler 等級**（沿既有機制，見 EchoesReader.tsx:2148-2160）：
+
+| 等級 | 可見資訊（既有語意不變） | 可播放 |
+|------|---------|--------|
+| L3（最嚴格） | 標題全遮蔽、無副標/metadata | **否（S8 變更：取代既有 30 秒 preview）** |
+| L2 | 標題遮蔽（SpoilerTitle）、無副標/metadata | 是 |
+| L1 | 標題可見、副標/metadata 模糊（partial appreciation） | 是 |
+| L0（完全解鎖） | 完整資訊 | 是 |
+
+**艾斯維爾定案：spoiler 機制維持原本做法，唯一變更是 L3 從「30 秒 preview」改為「完全不可播放」**（`previewLimit` 30 秒路徑廢除）。L0-L2 照舊可播放。遮蔽視覺沿用既有 `SpoilerTitle` 四級系統；Reader 內既有的 spoiler 警告確認流程（`requestUnlock`）保留不動。觀測者 bypass 全部 spoiler（既有語意）。
+
+**已解鎖但 spoiler 仍在 L3 → 不可播放**：進入收藏池資格（解鎖）≠ 播放資格（spoiler < 3）。
+
+**Spoiler 降級鏈結構**（近親 Concepts revision，但更簡單）：
+
+```typescript
+// 單一降級條件
+export interface SongSpoilerRevision {
+  /** 降級後達到的 spoiler 等級（0 = 完全解鎖） */
+  targetLevel: 0 | 1 | 2;
+  /** 降級條件（通過 = 可降到此等級） */
+  gate: GateCondition;
+}
+
+// 在 EchoeSongMetadata 中：
+// spoilerRevisions: [
+//   { targetLevel: 2, gate: { requiresFlags: ['xavier-colsono:01'] } },
+//   { targetLevel: 1, gate: { requiresFlags: ['xavier-colsono:02'] } },
+//   { targetLevel: 0, gate: { requiresFlags: ['xavier-colsono:03'] } },
+// ]
+```
+
+**求值規則（單調 AND 鏈）**：從最嚴格等級（初始值 = 3）開始，按 `targetLevel` 升序（或宣告順序，要求設計者保證）逐條判斷，通過則降到對應等級，繼續往後。不可跳躍（若 L2 未達，L1 和 L0 的條件即使通過也不生效）。
+
+```typescript
+// audio/spoilerResolver.ts（新建，純函式）
+
+/**
+ * 計算歌曲的有效 spoiler 等級。
+ * 純函式——不碰 DOM、不碰 store，方便測試。
+ *
+ * @param revisions   spoilerRevisions 陣列（從最嚴格到最寬鬆宣告）
+ * @param progress    目前 ProgressState
+ * @returns           有效 spoiler 等級（0-3）
+ */
+export function resolveSpoilerLevel(
+  revisions: SongSpoilerRevision[] | undefined,
+  progress: ProgressState
+): 0 | 1 | 2 | 3 {
+  if (!revisions || revisions.length === 0) return 0; // 無降級鏈 = 完全開放
+  if (progress.view === 'observer') return 0;          // 觀測者 bypass
+  let current: 0 | 1 | 2 | 3 = 3;
+  for (const rev of revisions) {
+    if (rev.targetLevel >= current) continue;          // 防亂序跳躍
+    if (!evaluateGate(progress, rev.gate)) break;      // 單調 AND 鏈：一關不過就停
+    current = rev.targetLevel;
+  }
+  return current;
+}
+```
+
+**為什麼 break 而不是 continue**：降級鏈的語意是「你得先解鎖前面的劇情，才能看到更多資訊」。如果某一關的條件未達，後面的關卡條件即使達到也沒有意義——這是 AND 鏈（`break`），不是 OR 鏈（`continue`）。這與 Concepts `applyRevisions` 的「逐條通過逐條套用」不同，Concepts 是獨立 patch，Spoiler 是嚴格遞進。
+
+**`isEntryUnlocked` 的類比**：Echoes 需要對應的 `isSongCollected` 純函式（**不叫 `isSongUnlocked`**——Reader 內已有同名的 spoiler 警告確認狀態，語意不同，見風險 R7）：
+
+```typescript
+// audio/spoilerResolver.ts
+export function isSongCollected(
+  unlockFlag: string,      // 'song:{songId}' 或 '{entityKey}:song'
+  progress: ProgressState
+): boolean {
+  if (progress.view === 'observer') return true;
+  return progress.flags.includes(unlockFlag);
+}
+```
+
+---
+
+## 四、插播語意
+
+### 4-1 插播流程
+
+```
+echo spot 掃描線通過
+  → 防禦判斷（autoplay policy，見第五節）
+  ↓ 可播放
+  → 檢查是否已觸發過（sessionStorage 查詢）
+  → 已觸發：忽略
+  → 未觸發：
+      1. uepAudio.interrupt(songId, url)
+         ├── 記錄快照（currentSongId, currentTime, playlist, wasPlaying）
+         ├── clearPlaylist()
+         └── play(songId, url)
+      2. 授予解鎖旗標（isSongCollected = false 時）
+      3. sessionStorage.setItem(`echo-spot-triggered:{spotId}`, '1')
+```
+
+**快照記錄只做一層**：如果已在插播狀態，新的插播覆蓋快照（不做巢狀快照），理由：多重插播的「恢復到哪裡」在 UX 上很難清晰，覆蓋是最可預期的行為。
+
+### 4-2 插播恢復條件
+
+任一條件達成即觸發 `uepAudio.restoreFromInterruption()`：
+
+| 條件 | 實作方式 |
+|------|---------|
+| 離開該頁面 | `useEffect` cleanup 或 `pushstate`/`popstate` 偵測（不是整頁重載，只有 zone 內導航） |
+| 被其他 echo spot 插入 | `interrupt()` 被再次呼叫，自動覆蓋快照 |
+| 播放完畢 | Audio `ended` 事件 → `restoreFromInterruption()` |
+| 使用者手動切掉 | Island 的「上一首/下一首/停止」按鈕 → `restoreFromInterruption()` 或 clearInterruption() |
+
+**恢復後行為**：
+- `wasPlaying = true` → 繼續播放快照中的曲目（從 snapshot.currentTime 恢復）
+- `wasPlaying = false` → 維持暫停，等使用者手勢
+
+**整頁重載時的插播狀態**：插播快照不進 localStorage（`interruptionSnapshot` 不在 `AudioPersisted` 中），整頁重載後快照自然清空，恢復為一般播放狀態（讀 wasPlaying）。
+
+---
+
+## 五、Autoplay 防禦
+
+### 5-1 防禦策略
+
+**根本限制**：瀏覽器 Autoplay Policy 要求使用者有過手勢互動（click、tap、keydown）後才允許 `audio.play()` 成功；純捲動不算手勢。
+
+**三層防禦**：
+
+1. **手勢追蹤**：`audioStore` 在初始化時監聽 `click`/`keydown`/`touchstart`，設 `userHasInteracted = true`（module-level 變數，不持久化）。`userHasInteracted = false` 時，所有 spot 觸發一律降級到提示卡模式。
+
+2. **一次嘗試原則**：同一個頁面 session 只嘗試直接播放一次（`sessionStorage` 記錄 `echo-spot-autoplay-attempted`）。第一次被瀏覽器擋住後，後續 spot 直接跳過嘗試，降級為提示卡。
+
+3. **快速捲動偵測**：若捲速超過閾值（如 > 1500px/s，可由測試調整），判定為「快速跳轉」，跳過當下的 spot 觸發（同 sessionStorage 只觸發一次的語意）。實作：`useScanline` 或 echo spot handler 傳入最近的 scroll velocity。
+
+### 5-2 降級模式：提示卡
+
+提示卡（`EchoSpotToast`）——不中斷現有播放，浮現在頁面右上角（或可配置的位置），顯示：
+- 曲名（依 spoiler 等級決定顯示多少）
+- 「播放」按鈕（使用者手勢點擊 → `uepAudio.play`）
+- 「加入佇列」按鈕
+- 自動消失：8 秒後或使用者關閉
+
+提示卡與互動嵌入展示的 `SongPreviewCard` **共用同一個視覺元件**，只是觸發來源不同（spot vs embed）。
+
+### 5-3 「上次讀到」快速跳轉保護
+
+使用者點擊「回到上次位置」時，HistoryReader 會 `scrollTo` 上次標記點，可能瞬間觸發多個掃描線（包含 echo spot）。此時：
+- `scrollTo` 前設 `sessionStorage` flag（`reading-resume-jump = 1`）
+- echo spot handler 偵測到此 flag → 跳過自動播放，直接降級到提示卡
+- scroll 結束後清除此 flag（`setTimeout` 兜底或 `scrollend` 事件）
+
+---
+
+## 六、EchoesIsland（流浪回聲）
+
+### 6-1 定位與職責
+
+EchoesIsland 是**跨頁面跟著走的基本播放器**。
+
+```
+職責：
+  - 顯示當前播放曲目（依 spoiler 等級決定資訊量）
+  - 播放控制（play/pause/prev/next/seek/volume）
+  - 顯示播放佇列（已解鎖且 L0 的曲目可加入）
+  - loop 模式切換
+  - 接收 echo spot 插播通知
+
+不做：
+  - 內容解鎖（由 spot/Reader 負責）
+  - Spoiler 降級鏈的 gate 求值（純函式層負責，島只讀結果）
+  - 歌曲的完整詳情展示（導向 Echoes Reader）
+```
+
+### 6-2 掛載位置
+
+沿 `history`/`concepts` 的模式，在 `IslandHost.tsx` 的 `ISLAND_COMPONENTS` 新增：
+
+```typescript
+echoes: React.lazy(() => import('./echoes/EchoesIsland')),
+```
+
+路徑：`apps/uep/src/islands/echoes/EchoesIsland.tsx`（新建）。
+
+`shouldMountIsland(progress, 'echoes')` 守門（探索者 + 已解鎖 + 未停用），沿用既有邏輯，零修改。
+
+### 6-3 ISLAND_DEFINITIONS 更新
+
+`types.ts` 的 `ISLAND_DEFINITIONS` 中 `echoes` 的 `title` 需從 `'回聲清單'` 改為 `'流浪回聲'`。這是唯一需要修改的 S6 既有定義。
+
+### 6-4 島 UI 結構（功能層）
+
+視覺設計待艾斯維爾出稿（Eternity-Design 無島原型），以下為功能結構定義：
+
+```
+EchoesIsland
+├── 標題列（'流浪回聲' + 最小化按鈕）
+├── 目前播放區
+│   ├── 曲目資訊（沿既有 SpoilerTitle 遮蔽語彙，依有效 spoiler 等級呈現）
+│   ├── VinylDisc（可從 EchoesReader 提取共用）
+│   └── 播放控制（play/pause/prev/next/seek/volume）
+├── 佇列區（可展開）
+│   └── 已解鎖且 spoiler < 3 的曲目清單，可拖曳排序（選填，S8 若時間不足可後置）
+└── loop 切換
+```
+
+**與 EchoesReader 的關係**：EchoesReader 是「已解鎖曲目加入播放清單的入口」（主操作在 Reader），島是「帶著走的控制器」。讀者在 Echoes zone 看到某首歌 → 點「加入清單」→ 歌曲進入島的佇列；在其他 zone 閱讀時，用島控制播放。
+
+### 6-5 Reader UI 新增「加入清單」動線
+
+EchoesReader 的 `EchoesAudioPlayer` 元件（現有，L1027:L912 區間）在**已解鎖且 spoiler < 3** 狀態下，新增「加入佇列」按鈕：
+
+```typescript
+// EchoesAudioPlayer 新增 prop
+interface EchoesAudioPlayerProps {
+  // ... 現有 props
+  onAddToQueue?: () => void; // 已解鎖且 spoiler < 3 才顯示按鈕
+}
+```
+
+呼叫 `uepAudio.enqueue({ songId, url })`，toast 提示「已加入流浪回聲佇列」。
+
+---
+
+## 七、編輯器設計
+
+### 7-1 Echo Spot TipTap Node
+
+**Node 類型**：block-level void node（與 FlagMarker 同模式，插在段落之間）
+
+```typescript
+// apps/uep/src/components/editor/nodes/EchoSpotNode.ts（新建）
+// 沿 ProgressMarkerNode 的實作模式
+
+const EchoSpotNode = Node.create({
+  name: 'echoSpot',
+  group: 'block',
+  atom: true,    // void，不包含子節點
+  draggable: true,
+
+  addAttributes() {
+    return {
+      songId:       { default: null },
+      songUrlKey:   { default: null },  // R2 裸 key
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-role="echo-spot"]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes(HTMLAttributes, {
+      'data-role': 'echo-spot',
+      'data-song-id': HTMLAttributes.songId,
+      'data-song-url-key': HTMLAttributes.songUrlKey,
+    })];
+  },
+});
+```
+
+**編輯器工具列**：在 History 編輯器工具列新增「♫ 插入回聲點」按鈕（限 History 編輯器，同 FlagMarker 的 history-only 限制）。
+
+### 7-2 曲目 Picker
+
+點擊「插入回聲點」→ 開啟 Song Picker modal（類 S7-D 的 Reference Picker）：
+
+```
+Song Picker
+├── 搜尋欄（曲名模糊比對）
+├── Cluster 分組（areas / characters / stories / special）
+│   └── Subcategory → Song 列表
+│       └── 選中：寫入 EchoSpotNode 的 songId + songUrlKey
+└── 取消
+```
+
+實作方式：類 `ConceptsEntityPicker`，API 呼叫 `GET /api/content/echoes/tree`，在前端遍歷取出 `pageType: 'song'` 的節點。Song Picker 只顯示歌曲節點，不顯示 cluster/subcategory 結構（只作分組標頭）。
+
+**預覽**：picker 選中後，在 Node 的 NodeView 中顯示小型 preview（曲名 + 所屬 cluster 色彩），類 FlagMarker 的已選旗標顯示方式。
+
+### 7-3 歌曲頁 metadata 的 entityKey 欄位
+
+Echoes 歌曲頁的 Admin 編輯器（`EchoesEditorBody`）新增 `entityKey` 輸入欄位，複用 S7-B 的 `EntityKeyField` 元件：
+
+```typescript
+// EchoesEditorBody 的 song 頁面編輯區
+<EntityKeyField
+  value={meta.entityKey}
+  onChange={(key) => setMeta({ ...meta, entityKey: key })}
+  existingKeys={allSongEntityKeys}  // 同 zone 內的已用 key（頁面層唯一）
+  accent={clusterColor}
+/>
+```
+
+### 7-4 Spoiler 降級鏈的編輯 UI
+
+在歌曲頁的 Admin 編輯器新增 Spoiler Revision 時間線（類 Concepts RevisionModal 但更簡單）：
+
+```
+▸ Spoiler 等級設定
+  目前等級：L3（預設，最嚴格）
+  ┌─────────────────────────────────────────────────┐
+  │ 降到 L2（部分遮蔽）                               │
+  │ [Gate 條件編輯器]  ← GateConditionEditor 復用     │
+  └─────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────┐
+  │ 降到 L1（曲名模糊）                               │
+  │ [Gate 條件編輯器]                                │
+  └─────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────┐
+  │ 降到 L0（完全解鎖，可播放）                        │
+  │ [Gate 條件編輯器]                                │
+  └─────────────────────────────────────────────────┘
+```
+
+每格的 `GateConditionEditor` 傳入對應的 `targetLevel`，`onChange` 更新 `spoilerRevisions[i].gate`。不開 modal（只有三格，inline 不爆）。
+
+---
+
+## 八、Worker 端點擴充（content-api）
+
+### 8-1 Entity-Song 查詢端點
+
+```
+GET /api/echoes/entity-song?key={entityKey}
+```
+
+回傳：
+
+```typescript
+interface EntitySongResponse {
+  found: boolean;
+  song?: {
+    id: string;
+    title: string;
+    audioFile: string | null;
+    entityKey: string;
+    songType: 'story' | 'character' | 'area';
+    spoilerRevisions?: SongSpoilerRevision[];  // gate 摘要，前端 resolver 用
+    clusterId: string;
+    clusterColor: string;
+  };
+}
+```
+
+實作：D1 查詢 `pages` 表，條件 `area = 'echoes' AND page_type = 'song' AND json_extract(metadata, '$.entityKey') = {key}`，回傳 metadata 解析結果。
+
+此端點**不回傳音檔 URL**（只回傳 `audioFile` 裸 key），前端由 `buildAudioUrl` 組合。
+
+### 8-2 解鎖旗標授予
+
+Echo spot 觸發時的解鎖旗標授予**在前台完成**（`getProgressManager().grantFlags([unlockFlag])`），不需要後端端點。與 FlagMarker 的 grantsFlags 機制相同。
+
+---
+
+## 九、ProgressState 擴充
+
+S8 需要在 `ProgressState` 新增以下欄位：
+
+```typescript
+// progress/types.ts 新增欄位
+interface ProgressState {
+  // ... 既有欄位 ...
+
+  /**
+   * 已解鎖的 Echoes 歌曲旗標（S8）。
+   * 實際儲存在 flags 陣列（'song:{id}' 或 '{entityKey}:song'）——
+   * 此欄位的設計決策同 Concepts 的 conceptsReadLevel：
+   * 旗標本身在 flags 裡，EchoesIsland 需要的是「哪些歌已解鎖」的快速查詢。
+   *
+   * 不另開欄位：利用 isSongCollected(flag, progress) 函式對 flags 掃描即可，
+   * 不需要冗餘欄位——flags 陣列已是 Set 語意（parseFlagsAttr 去重）。
+   */
+}
+```
+
+**結論**：S8 不新增 ProgressState 欄位，解鎖旗標寫入既有 `flags` 陣列，由 `isSongCollected` 純函式判斷。`normalizeState` 不需要修改。
+
+---
+
+## 十、可測性設計
+
+延續 `revision.ts`、`markers.ts` 的純函式優先原則：
+
+| 純函式 | 位置 | 測試重點 |
+|--------|------|---------|
+| `resolveSpoilerLevel` | `audio/spoilerResolver.ts` | 初始 L3、逐級降、亂序防禦、觀測者 bypass |
+| `isSongCollected` | `audio/spoilerResolver.ts` | flags 存在/不存在、觀測者 bypass |
+| `AudioPersisted` 序列/反序列 | `audio/audioStore.ts` | volume 收編、向後相容 |
+| echo spot sessionStorage 查詢 | 純函式包裝 | 觸發/已觸發/重置 |
+
+**Singleton 測試策略**：`audioStore.ts` 提供 `_resetForTest()` 函式（僅測試環境），讓各測試 case 可清空 module-level state，同 `progressStore` 的測試慣例。
+
+**Island 測試**：EchoesIsland 的 UI 邏輯盡量下推到純函式（如 `resolvePlayableState(songId, progress)`），減少依賴 singleton 的元件測試量。
+
+---
+
+## 十一、遷移/相容策略
+
+### 11-1 既有 `uep-player-volume` 收編
+
+Bootstrap 時讀取順序：
+1. `uep.audio.v1` 存在 → 使用（volume 欄位已在其中）
+2. `uep.audio.v1` 不存在，但 `uep-player-volume` 存在 → 遷移：讀 volume 值，寫入 `uep.audio.v1`，刪除 `uep-player-volume`
+3. 兩者皆不存在 → 使用預設值 `0.6`
+
+### 11-2 EchoesReader 的現有播放功能
+
+S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudioPlayer` 零改動，Reader 內的播放行為不變。用戶在 Reader 播放的歌曲，因為現在對到同一個 singleton，島的狀態會自動同步。
+
+### 11-3 既有 ISLAND_DEFINITIONS
+
+`types.ts` 中 `echoes.title` 的改名（`'回聲清單'` → `'流浪回聲'`）是唯一 breaking change，需確認沒有 hardcode 字串 `'回聲清單'` 的地方（一律用 `ISLAND_DEFINITIONS.echoes.title`）。
+
+---
+
+## 十二、風險識別
+
+### R1：Audio Singleton 的 DOM 問題
+
+**風險**：module-level `new Audio()` 在 SSR 環境（Astro 預渲染）會 throw，因為 `Audio` 不存在於 Node.js。
+
+**緩解**：`audioStore.ts` 的 bootstrap 加 `typeof window !== 'undefined'` 防禦，Audio 元素延遲到首次 `play()` 呼叫或 `window` 初始化時建立，同 `islandRuntime.ts` 的 bootstrap 模式。
+
+### R2：RAF 驅動的 5s throttle 與頁面 visibility
+
+**風險**：頁面進入背景時 `requestAnimationFrame` 被瀏覽器降頻或暫停，throttle 計時失準，可能導致 `currentTime` 持久化落後。
+
+**緩解**：`pagehide`（pagehide 取代 beforeunload，iOS Safari 相容性更好）兜底強制寫入，這是最重要的持久化路徑。RAF throttle 只是「播放中的定期更新」，不是唯一防線。
+
+### R3：插播快照的競態條件
+
+**風險**：多個 echo spot 在快速捲動中幾乎同時觸發，快照被連續覆蓋，「最後一個」快照可能記錄的是上一個插播的狀態，而非真正的「播放前」狀態。
+
+**緩解**：sessionStorage 的「已觸發」機制確保每個 spot 在同一 session 只觸發一次，加上快速捲動偵測，正常使用場景下不會發生多重觸發。極端情況（debug 清 sessionStorage 後快速捲動）可接受降級行為（快照記錄到中間狀態）。
+
+### R4：echo spot 在 History 編輯器中的 DOM 汙染
+
+**風險**：History 文章 HTML 被其他 Reader 或非 Echoes 頁面渲染時，`data-role="echo-spot"` div 會產生空白 block。
+
+**緩解**：echo spot handler（掃描線整合端）只在 EchoesReader 或 HistoryReader（非 Echoes zone）中掛載時才啟用。其他 zone 的 Reader 渲染 History HTML 時，`data-role="echo-spot"` 被當成普通 div，CSS 設 `display: none` 防視覺干擾。長遠：`renderHtmlWithUep` 增加 strip echo spot 選項（S9 前考慮）。
+
+### R5：uep 站純 MPA 的 singleton 壽命假設
+
+**風險**：設計文件基於「uep 站純 MPA，跨 zone 必整頁重載」的假設。若未來引入 View Transitions API 或部分 SPA 化，singleton 壽命變長，需要額外的清理邏輯。
+
+**緩解**：此假設已在定案筆記中明確記錄，架構決策有文字依據。未來若引入 SPA 導航，需重新評估 singleton 的頁面邊界語意。
+
+### R6：`concepts` 浮島同事件競爭
+
+**風險**：`uep:entity-activate` 被 Terminal Island（concepts）和 EchoesIsland 同時消費，若 entity 同時有 Concepts 條目和 Echoes 歌曲對應，兩個 UI 同時彈出。
+
+**緩解**：Terminal 顯示 Concepts 資料（左邊），EchoesIsland 顯示曲目卡（右邊），兩者視覺上不重疊（位置分離）。UX 上這是「同一個人物既有百科資料也有歌曲」的合理呈現，非 bug。若艾斯維爾覺得 too busy，可設優先序（Terminal 先，曲目卡自動延遲 1.5s 顯示）。
+
+### R7：`isSongUnlocked` 命名衝突
+
+**風險**：EchoesReader 內已有同名概念（`EchoesReader.tsx:2149` 的 `isSongUnlocked`）——語意是「使用者已確認 spoiler 警告」，與 S8 新引入的「歌曲進入收藏池」完全不同。若新純函式沿用 `isSongUnlocked` 命名，實作與 review 時極易混淆。
+
+**緩解**：新純函式改名為 `isSongCollected`（或 `isSongInPool`），既有 Reader 內的 spoiler 警告確認機制保留原名不動。Sub-session B 實作時定名。
+
+---
+
+## 十三、實作分期建議（粗粒度，供戴爾細拆）
+
+### Sub-session A：Audio Singleton 地基
+
+**目標**：純函式層與 singleton 可跑測試，不接 UI。
+
+- 新建 `audio/audioTypes.ts`、`audio/audioStore.ts`（含 bootstrap、persistence、play/pause/seek/volume API）
+- `uep-player-volume` 遷移邏輯
+- `audio/audioContext.tsx`（AudioProvider 薄殼，Context 介面不變）
+- EchoesReader.tsx 中 AudioProvider 改為 import 薄殼（不修改 EchoesAudioPlayer）
+- `audioStore.test.ts`：bootstrap、persistence、play/pause/volume/enqueue
+
+**驗收**：EchoesReader 播放功能不退化；`uep.audio.v1` 寫入正確；Reader 與 Island 共用同一個 Audio 元素（不同 React tree 操控同一首歌）
+
+### Sub-session B：EchoesIsland 骨架 + 佇列 UI
+
+**目標**：EchoesIsland 可掛載、可播放，視覺為骨架（等設計稿）。
+
+- `audio/spoilerResolver.ts`（`resolveSpoilerLevel`、`isSongUnlocked` 純函式 + 測試）
+- `islands/echoes/EchoesIsland.tsx`（新建：標題列、播放控制、佇列清單、骨架）
+- `IslandHost.tsx` 新增 echoes lazy import
+- `ISLAND_DEFINITIONS.echoes.title` 改名
+- EchoesReader 新增「加入佇列」按鈕（spoiler L0 才顯示）
+- `Worker entity-song 端點`（`/api/echoes/entity-song`）
+
+**驗收**：Island 可掛載；播放控制正常接 audioStore；Reader 的「加入佇列」可進佇列；spoiler 等級計算正確（單元測試）
+
+### Sub-session C：Echo Spot + 插播
+
+**目標**：TipTap node 可插入，掃描線觸發插播，歌曲解鎖旗標授予。
+
+- `EchoSpotNode.ts`（TipTap node）
+- History 編輯器工具列新增 Echo Spot 按鈕
+- Song Picker modal
+- 掃描線整合（EchoesReader 或 HistoryReader 的 echo spot handler）
+- 插播語意（`interrupt()`、`restoreFromInterruption()`）
+- sessionStorage 觸發追蹤
+- 解鎖旗標授予（`grantFlags`）
+
+**驗收**：Admin 可插入 echo spot；前台掃描線通過觸發插播；歌曲解鎖後在 Echoes 列表可見；插播結束後正確恢復
+
+### Sub-session D：嵌入展示 + Autoplay 防禦 + Spoiler 降級鏈編輯
+
+**目標**：entity 嵌入展示歌曲卡，autoplay 防禦完整，admin 可設定 spoiler 降級鏈。
+
+- `EchoSpotToast`/`SongPreviewCard` 元件（嵌入展示 + autoplay 降級共用）
+- `IslandHost.tsx` 新增 `entity-activate` 的 echoes 消費（類 Terminal 的 pushEntityActivate 模式）
+- Autoplay 防禦三層（手勢追蹤、一次嘗試、快速捲動偵測）
+- 歌曲頁 Admin 編輯器：EntityKeyField + Spoiler 降級鏈 UI（GateConditionEditor 復用）
+- `entityKey` 的 metadata 存取/存檔
+
+**驗收**：點擊已解鎖角色歌的 entity 嵌入 → 曲目卡浮現；autoplay 被擋時降級為提示卡；Admin 可設定 spoiler 降級鏈且前台正確顯示
+
+---
+
+## 定案記錄（2026-07-11 艾斯維爾核可）
+
+| 議題 | 決議 |
+|------|------|
+| Audio singleton 方案 | module-level + `window.__uepAudio` bridge；AudioProvider 改薄殼，Context API 介面不變 |
+| MPA 導航行為 | 跨 zone 整頁重載恢復暫停態；同 zone pushState 天然不斷 |
+| 持久化 key | `uep.audio.v1`，收編 `uep-player-volume` |
+| 插播快照 | 不巢狀，後來的插播覆蓋快照 |
+| sessionStorage 去重 | echo spot 同 session 只觸發一次，整頁重載後重置 |
+| 未解鎖歌曲 | Echoes 列表完全隱藏（非佔位遮蔽） |
+| Spoiler 降級鏈語意 | 單調 AND 鏈（`break`）；遮蔽維持既有 SpoilerTitle 語意，L0-L2 可播放，**L3 不可播放（取代既有 30 秒 preview）** |
+| 觀測者 bypass | bypass 全部 spoiler（既有語意沿用） |
+| 嵌入展示語意 | 僅展示不播放；entity 出現 ≠ 歌曲解鎖 |
+| 劇情歌唯一解鎖路徑 | 必須經 echo spot，嵌入展示不開放劇情歌 |
+| EchoesIsland 標題 | `'流浪回聲'`（原 `'回聲清單'`）|
+| 0.9.13.0 里程碑 | 掛 S8 完成點 |
+| 測試基準 | 731 全綠，新增純函式測試；建議 A 段完成後驗 731 不退化 |
+| 島收合行為 | **收合即暫停**；展開（點擊=手勢）若收合前播放中則自動續播（2026-07-11 二輪） |
+| 解鎖旗標慣例 | 雙命名空間：`{entityKey}:song` / `song:{songId}`，由系統自動推導、編輯器不手填（2026-07-11 二輪） |
+
+---
+
+## 待決問題（2026-07-11 二輪定案後更新）
+
+### ~~待決 1~~ → 已定案：**收合即暫停**（選項 B，艾斯維爾 2026-07-11）
+
+收合 EchoesIsland → `uepAudio.pause()`。展開島（點擊本身即使用者手勢）時，若收合前正在播放則自動續播。實作歸 Sub-session B（島 UI 接線）。Dock chip 不需要播放中動畫。
+
+### ~~待決 2~~ → 已定案：**雙命名空間 + 編輯器直接綁定**（艾斯維爾 2026-07-11）
+
+- 有 entityKey 的歌曲：`{entityKey}:song`；無 entityKey 的劇情歌：`song:{songId}`
+- **綁定操作全在編輯器完成**：歌曲頁編輯器以 EntityKeyField 綁 entityKey（§7-3）；劇情歌可直接以歌曲頁 id 為準
+- 解鎖旗標由系統**自動推導**（有 entityKey → `{entityKey}:song`，無 → `song:{songId}`），編輯者無需手填旗標字串；echo spot picker 選中歌曲時同樣自動推導
+
+### 待決 3：流浪回聲視覺設計
+
+艾斯維爾將出稿或提供參考圖（Eternity-Design 無 Echoes 島原型）。功能層先行，Sub-session A/B 以骨架 UI 完成，Sub-session D 前接視覺稿。
+
+---
+
+*文件結束。*
