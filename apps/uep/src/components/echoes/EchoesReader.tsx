@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -21,6 +19,7 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
+import { AudioProvider, useAudio } from '../../audio';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -192,229 +191,9 @@ const NOISE_CHARS = '▓░▒█▞▚▙▟▜▛◣◢◤◥░▒▓█@#%&*
 const MUSIC_NOTES = ['♪', '♫', '♩', '♬', '♮', '♭'];
 
 // ──────────────────────────────────────────────────────────────────
-// 音訊系統 (AudioProvider)
+// 音訊系統 — S8 起移至 src/audio/（module singleton，跨頁面持久化）。
+// AudioProvider/useAudio 介面不變，見 audio/audioContext.tsx。
 // ──────────────────────────────────────────────────────────────────
-interface AudioState {
-  currentSongId: string | null;
-  isPlaying: boolean;
-  progress: number;
-  currentTime: number;
-  duration: number;
-  volume: number;
-  play: (songId: string, url: string) => void;
-  pause: () => void;
-  toggle: (songId: string, url: string) => void;
-  seek: (fraction: number) => void;
-  setVolume: (v: number) => void;
-  beginSeek: () => void;
-  endSeek: (fraction: number) => void;
-}
-
-const VOLUME_KEY = 'uep-player-volume';
-
-const AudioCtx = createContext<AudioState>({
-  currentSongId: null,
-  isPlaying: false,
-  progress: 0,
-  currentTime: 0,
-  duration: 0,
-  volume: 1,
-  play: () => {},
-  pause: () => {},
-  toggle: () => {},
-  seek: () => {},
-  setVolume: () => {},
-  beginSeek: () => {},
-  endSeek: () => {},
-});
-
-function AudioProvider({ children }: { children: React.ReactNode }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const rafRef = useRef<number>(0);
-  const isSeekingRef = useRef(false);
-  // 同步 ref：避免 React state 批次更新造成的競態條件
-  // play/toggle 用此 ref 判斷是否需要重新載入音源
-  const currentSongIdRef = useRef<string | null>(null);
-  const [currentSongId, setCurrentSongId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(() => {
-    if (typeof window === 'undefined') return 0.6;
-    return parseFloat(localStorage.getItem(VOLUME_KEY) ?? '0.6');
-  });
-
-  useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.preload = 'metadata';
-    audioRef.current.volume = parseFloat(
-      localStorage.getItem(VOLUME_KEY) ?? '0.6'
-    );
-
-    const audio = audioRef.current;
-    audio.addEventListener('ended', () => {
-      setIsPlaying(false);
-      setProgress(1);
-    });
-    audio.addEventListener('loadedmetadata', () => {
-      setDuration(audio.duration || 0);
-    });
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      audio.pause();
-      audio.src = '';
-    };
-  }, []);
-
-  const updateProgress = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    // 拖曳 seek 期間暫停更新，避免受控 input 被 RAF 覆蓋
-    if (!isSeekingRef.current) {
-      const dur = audio.duration || 0;
-      setCurrentTime(audio.currentTime);
-      setProgress(dur > 0 ? audio.currentTime / dur : 0);
-    }
-    if (!audio.paused) {
-      // 先取消前一個待執行的 RAF，確保同時只有一條鏈在跑
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateProgress);
-    }
-  }, []);
-
-  const play = useCallback(
-    (songId: string, url: string) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-
-      // 使用同步 ref 判斷，避免 React state 延遲造成重複載入音源
-      if (currentSongIdRef.current !== songId) {
-        audio.src = url;
-        audio.load();
-        currentSongIdRef.current = songId;
-        setCurrentSongId(songId);
-        setProgress(0);
-        setCurrentTime(0);
-      }
-
-      // 啟動播放前先清除所有殘存的 RAF 鏈
-      cancelAnimationFrame(rafRef.current);
-
-      audio
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          cancelAnimationFrame(rafRef.current);
-          rafRef.current = requestAnimationFrame(updateProgress);
-        })
-        .catch(() => {
-          // 自動播放被阻擋時靜默處理
-        });
-    },
-    [updateProgress]
-  );
-
-  const pause = useCallback(() => {
-    audioRef.current?.pause();
-    cancelAnimationFrame(rafRef.current);
-    setIsPlaying(false);
-  }, []);
-
-  const toggle = useCallback(
-    (songId: string, url: string) => {
-      if (currentSongIdRef.current === songId && isPlaying) {
-        pause();
-      } else {
-        play(songId, url);
-      }
-    },
-    [isPlaying, pause, play]
-  );
-
-  const seek = useCallback((fraction: number) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const d = audio.duration;
-    if (d && isFinite(d) && d > 0) {
-      audio.currentTime = fraction * d;
-      setCurrentTime(audio.currentTime);
-      setProgress(fraction);
-    }
-  }, []);
-
-  const setVolume = useCallback((v: number) => {
-    const clamped = Math.max(0, Math.min(1, v));
-    if (audioRef.current) audioRef.current.volume = clamped;
-    localStorage.setItem(VOLUME_KEY, String(clamped));
-    setVolumeState(clamped);
-  }, []);
-
-  const beginSeek = useCallback(() => {
-    isSeekingRef.current = true;
-  }, []);
-
-  const endSeek = useCallback((fraction: number) => {
-    isSeekingRef.current = false;
-    const audio = audioRef.current;
-    if (!audio) return;
-    const d = audio.duration;
-    if (d && isFinite(d) && d > 0) {
-      audio.currentTime = fraction * d;
-      setCurrentTime(audio.currentTime);
-      setProgress(fraction);
-    } else {
-      // duration 尚未載入（部分音檔延遲回報），等 metadata 就緒後重試
-      const retry = () => {
-        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-          audio.currentTime = fraction * audio.duration;
-          setCurrentTime(audio.currentTime);
-          setProgress(fraction);
-        }
-        audio.removeEventListener('loadedmetadata', retry);
-      };
-      audio.addEventListener('loadedmetadata', retry);
-    }
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      currentSongId,
-      isPlaying,
-      progress,
-      currentTime,
-      duration,
-      volume,
-      play,
-      pause,
-      toggle,
-      seek,
-      setVolume,
-      beginSeek,
-      endSeek,
-    }),
-    [
-      currentSongId,
-      isPlaying,
-      progress,
-      currentTime,
-      duration,
-      volume,
-      play,
-      pause,
-      toggle,
-      seek,
-      setVolume,
-      beginSeek,
-      endSeek,
-    ]
-  );
-
-  return <AudioCtx.Provider value={value}>{children}</AudioCtx.Provider>;
-}
-
-const useAudio = () => useContext(AudioCtx);
 
 function fmtTime(s: number) {
   const m = Math.floor(s / 60);
