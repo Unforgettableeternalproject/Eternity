@@ -1,9 +1,14 @@
 # S8 Echoes 設計文件：流浪回聲 Playlist Island（上半場）
 
-> 版本：0.9.12.46（feature/epic2-progress-foundation）
-> 目標里程碑：0.9.13.0（S8 完成點）
-> 作者：奈留 × 奈也（架構師）
+> 起草基準：0.9.12.46（feature/epic2-progress-foundation）
+> 版號範疇：**S8 全段掛 0.9.13.x**（艾斯維爾 2026-07-11 修正——A/B 段實作時曾沿用 0.9.12.48~55，版號重整 commit 進位至 0.9.13.0，C 段起從 **0.9.13.1** 續編）
+> 目標里程碑：S8 完成點 → **0.9.14.0**（原「0.9.13.0 掛 S8 完成點」作廢）
+> 作者：奈留 × 奈也（架構師）；B 段實作與交接註記：諾薇亞
 > 日期：2026-07-11
+>
+> **交接注意**：A/B 段已完成（見文末「實作進度與交接」章節），
+> 本文件 §3-1 的解鎖語意已依艾斯維爾二輪口頭定案修正——閱讀舊筆記
+> 時若見「讀到詳情頁自動解鎖」字樣，以本文件現行內容為準。
 
 ---
 
@@ -873,7 +878,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 | 嵌入展示語意 | 僅展示不播放；entity 出現 ≠ 歌曲解鎖 |
 | 劇情歌唯一解鎖路徑 | 必須經 echo spot，嵌入展示不開放劇情歌 |
 | EchoesIsland 標題 | `'流浪回聲'`（原 `'回聲清單'`）|
-| 0.9.13.0 里程碑 | 掛 S8 完成點 |
+| 版號範疇 | S8 全段掛 0.9.13.x（2026-07-11 修正）；S8 完成點 → 0.9.14.0 |
 | 測試基準 | 731 全綠，新增純函式測試；建議 A 段完成後驗 731 不退化 |
 | 島收合行為 | **收合即暫停**；展開（點擊=手勢）若收合前播放中則自動續播（2026-07-11 二輪） |
 | 解鎖旗標慣例 | 雙命名空間：`{entityKey}:song` / `song:{songId}`，由系統自動推導、編輯器不手填（2026-07-11 二輪） |
@@ -892,10 +897,48 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 - **綁定操作全在編輯器完成**：歌曲頁編輯器以 EntityKeyField 綁 entityKey（§7-3）；劇情歌可直接以歌曲頁 id 為準
 - 解鎖旗標由系統**自動推導**（有 entityKey → `{entityKey}:song`，無 → `song:{songId}`），編輯者無需手填旗標字串；echo spot picker 選中歌曲時同樣自動推導
 
-### 待決 3：流浪回聲視覺設計
+### ~~待決 3~~ → 已定案：流浪回聲視覺（2026-07-11）
 
-艾斯維爾將出稿或提供參考圖（Eternity-Design 無 Echoes 島原型）。功能層先行，Sub-session A/B 以骨架 UI 完成，Sub-session D 前接視覺稿。
+定案稿：`Eternity-Design/components/echoes-island.jsx`（設計 agent 初稿 → 諾薇亞格局改版 → 艾斯維爾視覺修正）。要點：
+
+- **淡灰的回聲球＝播放鍵**：待機淡灰、**播放中被曲目分類色染色**（球體/光暈/漣漪/字形，艾斯維爾明示不要黑色）；砍掉獨立播放按鈕
+- 橫排舞台（球 96px 靠左、曲目資訊右側）、控制列單行（⟳ ◀◀ ▶▶ ♪）
+- 佇列曲目以小球繞球公轉（佇列收合時仍是佇列的軌道形態）；佇列預設收合、toggle 展開
+- 尺寸：佇列收合態 292×約215
+- 生產版已落地 `apps/uep/src/islands/echoes/`（B-3）；D 段 EchoSpotToast/SongPreviewCard 視覺照稿（288px 卡）
 
 ---
+
+## 實作進度與交接（S8-C 接手用，諾薇亞 2026-07-11）
+
+### 已完成
+
+**A 段（0.9.12.48~50）**：audioTypes + spoilerResolver / audioStore singleton（播放/佇列/插播/持久化/生命週期）/ AudioProvider 薄殼接線。三處與本文件的實作偏離（艾斯維爾已知）：interrupt 不清佇列（快照不含 playlist）、插播中再 interrupt 不重拍快照、previous() = 重播當前曲。
+
+**B 段（0.9.12.51~55 + 2 fix）**：
+
+| 版號 | 內容 |
+|---|---|
+| .51 | Echoes 接進度系統：`echoesVisibility.ts` 的 `isSongUnlockedInZone`——未解鎖完全隱藏（列表/計數/prev-next/deep link）+ **L3 封印（sealed）取代 30 秒 preview** + 移除列表 LOCK 佔位 |
+| .52 | ISLAND_DEFINITIONS 改名「流浪回聲」、寬度 292、IslandHost lazy 註冊 |
+| .53 | 島本體 `islands/echoes/`：球=播放鍵 + **accent 分類色管線**（AudioQueueItem.accent / AudioState.currentAccent，沿 title 管線鋪滿 store 含持久化與插播快照）+ 收合即暫停/展開續播 + 佇列 UI |
+| .54 | Reader EchoesAudioPlayer `onAddToQueue`（+♫，已解鎖且 spoiler<3）+ 去重 toast |
+| .55 | content-api `GET /api/echoes/entity-song?key=`（**偏離 §8-1：不回傳 clusterColor**——分類色是前端 CLUSTERS 常數，回 clusterId 由頁面 id 路徑推導；songType 對映既有 metadata.category，不開新欄位） |
+| fix | audioStore 移除 `/* global */`（no-redeclare）；回聲球淡灰+播放染色（視覺定案） |
+
+測試基線：前端 **699** + workers **108** 全綠；`pnpm check` 全過。
+
+### 關鍵實作備註（C 段會踩到的）
+
+1. **收合即暫停的真相**：DraggableIsland 的 close = `runtime.close(id)` → IslandHost 只渲染 open 島 → **body unmount**。pause 在 EchoesIsland 的 useEffect cleanup；`wasPlayingBeforeCollapse` 是 **module-level 變數**（React ref 活不過 unmount）。登出/停用先 `stop()` 清 isPlaying，旗標不會誤續播
+2. **推導旗標的 songId = 完整頁 id**（如 `song:echoes/characters/heroes/xxx`）——C-3 spot 授旗、Song Picker 寫入 node 屬性時必須保持一致（`deriveSongUnlockFlag(page.id, entityKey)`）
+3. **跨 island bundle 隔離**：任何要跨 Reader/島共享的資料只能走 store（window bridge），module-level map 不共享——accent 進 store 就是這個原因
+4. **echoes 歌曲頁 metadata.gate 是「字串」**（spoiler 警告的提示文案），與 gating 的 GateCondition（平鋪 requiresFlags/pristineOnly 或巢狀 gate 物件）不同——`parseGateCondition` 遇字串 gate 會 fallback 平鋪解析，天然不衝突，但 D 段 admin UI 設計 gate 編輯時要處理這個欄位歧義
+
+### C 段（0.9.13.1~5，原 .56~.60 順移）開工前置
+
+- 🔴 **先勘查 `useScanline` API**（progress/useScanline.ts）——確認 FlagMarker 掃描線能否對 `[data-role="echo-spot"]` 額外掛 handler（戴爾標記的相容性風險）
+- C-1 EchoSpotNode（TipTap void node，沿 ProgressMarkerNode 模式）→ C-2 Song Picker（選中一併寫 entityKey 進 node 屬性，免 API 反查）→ C-3 掃描線觸發+sessionStorage 去重+旗標自動推導授予 → C-4 interrupt 恢復接線 → C-5「上次讀到」跳轉保護（scrollend + setTimeout 500ms 雙掛）
+- D 段（0.9.13.6~10）：嵌入展示 + Autoplay 防禦 + Admin Spoiler UI
 
 *文件結束。*
