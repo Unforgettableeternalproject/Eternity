@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { TERMINAL_LOG_KEY } from '../concepts/terminalLog';
 import { islandStorageKey } from '../persistence';
-import { ISLAND_Z_BASE } from '../types';
+import { ISLAND_SCHEMA_VERSION, ISLAND_Z_BASE } from '../types';
 
 /* 浮島限已登入探索者（S7-C 定案）——mock auth，預設已登入，
    個別測試可切 authMock.loggedIn 驗登出行為。
@@ -52,7 +52,7 @@ describe('bootstrap', () => {
     window.localStorage.setItem(
       islandStorageKey('history'),
       JSON.stringify({
-        version: 1,
+        version: ISLAND_SCHEMA_VERSION,
         open: true,
         position: { left: 10, top: 20 },
         updatedAt: '2026-07-05T00:00:00.000Z',
@@ -61,7 +61,7 @@ describe('bootstrap', () => {
     window.localStorage.setItem(
       islandStorageKey('storage'),
       JSON.stringify({
-        version: 1,
+        version: ISLAND_SCHEMA_VERSION,
         open: false,
         position: null,
         updatedAt: '2026-07-05T00:00:00.000Z',

@@ -43,6 +43,7 @@ import {
   unlockIsland,
 } from '../../islands';
 import LostBookmarkGate from './LostBookmarkGate';
+import { useEchoSpots } from './useEchoSpots';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
@@ -300,6 +301,9 @@ export default function HistoryReader() {
   const scrollRef = useRef<HTMLDivElement>(null);
   // 掃描線文末哨兵（通過 = 頁面完成）
   const scanSentinelRef = useRef<HTMLDivElement>(null);
+  const resumeJumpRef = useRef(false);
+  const resumeJumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollVelocityRef = useRef(0);
   // 跨頁面導航的滾動位置記憶
   const { saveScroll, getSavedPosition, clearSavedPosition } = useScrollMemory(
     scrollRef,
@@ -313,6 +317,44 @@ export default function HistoryReader() {
   } | null>(null);
   // 「一張遺落的書籤」儀式頁是否佔據內容區（S6-2，浮島解鎖儀式）
   const [bookmarkGateOpen, setBookmarkGateOpen] = useState(false);
+
+  // 進度需先於 echo spot handler 建立：spot 授旗永遠執行，但播放/提示卡
+  // 受 echoes 島掛載與 spoiler 狀態守門。
+  const progress = useProgress();
+  const onEchoMarkerPassed = useEchoSpots({
+    pageId: currentId,
+    progress,
+    apiBase: API_BASE,
+    resumeJumpRef,
+    scrollVelocityRef,
+  });
+
+  // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
+  // 停下閱讀後仍被前一個快速 wheel 事件誤判。
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    let lastTop = element.scrollTop;
+    let lastAt = performance.now();
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      const now = performance.now();
+      const elapsed = Math.max(now - lastAt, 1);
+      scrollVelocityRef.current =
+        (Math.abs(element.scrollTop - lastTop) / elapsed) * 1000;
+      lastTop = element.scrollTop;
+      lastAt = now;
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        scrollVelocityRef.current = 0;
+      }, 180);
+    };
+    element.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      if (settleTimer) clearTimeout(settleTimer);
+    };
+  }, []);
 
   // 掃描線：追蹤文章閱讀進度（Epic 2）。滾動容器是內層
   // .history-content div，root 必須指定 scrollRef 而非 viewport；
@@ -331,11 +373,39 @@ export default function HistoryReader() {
       !contentError &&
       !bookmarkGateOpen
     ),
+    onMarkerPassed: onEchoMarkerPassed,
   });
 
-  // 訂閱全域進度：旗標授予（如讀完前一篇）時 re-render，
-  // 動態閘門的鎖定狀態即時反映在 tree 與 prev/next。
-  const progress = useProgress();
+  const beginResumeJump = () => {
+    resumeJumpRef.current = true;
+    try {
+      sessionStorage.setItem('reading-resume-jump', '1');
+    } catch {
+      // sessionStorage 不可用時 ref 仍足以保護當次跳轉。
+    }
+    const clear = () => {
+      resumeJumpRef.current = false;
+      try {
+        sessionStorage.removeItem('reading-resume-jump');
+      } catch {
+        // no-op
+      }
+      if (resumeJumpTimerRef.current) {
+        clearTimeout(resumeJumpTimerRef.current);
+        resumeJumpTimerRef.current = null;
+      }
+    };
+    scrollRef.current?.addEventListener('scrollend', clear, { once: true });
+    if (resumeJumpTimerRef.current) clearTimeout(resumeJumpTimerRef.current);
+    resumeJumpTimerRef.current = setTimeout(clear, 500);
+  };
+
+  useEffect(
+    () => () => {
+      if (resumeJumpTimerRef.current) clearTimeout(resumeJumpTimerRef.current);
+    },
+    []
+  );
 
   // 閱讀時間統計（S6，History Island 的簡單統計用）：
   // 每次文章停留結束（換頁/離開）時累計停留時間，單次造訪上限
@@ -1239,6 +1309,7 @@ export default function HistoryReader() {
             title="回到上次閱讀位置"
             onClick={() => {
               if (scrollHint.leaving) return;
+              beginResumeJump();
               scrollRef.current?.scrollTo({
                 top: scrollHint.targetTop,
                 behavior: 'smooth',

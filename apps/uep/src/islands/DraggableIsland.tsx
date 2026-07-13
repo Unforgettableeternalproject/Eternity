@@ -1,3 +1,4 @@
+/* global ResizeObserver */
 /**
  * UEP 浮島系統 — 可拖曳視窗外殼
  *

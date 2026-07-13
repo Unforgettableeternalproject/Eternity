@@ -27,6 +27,12 @@ export interface EntitySongPayload {
   entityKey: string;
   /** metadata.category 原值（area/character/story/special） */
   songType: string | null;
+  subtitle: string | null;
+  duration: number | null;
+  spoilerLevel: number;
+  /** Echoes zone 收藏池 gate；舊字串 gate 不回傳為條件。 */
+  gate?: unknown;
+  locked: boolean;
   /** spoiler 降級鏈摘要（有設定才出現） */
   spoilerRevisions?: unknown[];
   /** 頁面 id 第二段（`echoes/{cluster}/...`）；推導不出時 null */
@@ -49,6 +55,7 @@ export async function findEntitySong(
       `SELECT id, title, metadata FROM pages
        WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
          AND json_extract(metadata, '$.entityKey') = ?
+         AND COALESCE(json_extract(metadata, '$.hidden'), 0) = 0
        LIMIT 1`
     )
     .bind(key)
@@ -69,6 +76,22 @@ export async function findEntitySong(
     audioFile: typeof meta.audioFile === 'string' ? meta.audioFile : null,
     entityKey: key,
     songType: typeof meta.category === 'string' ? meta.category : null,
+    subtitle: typeof meta.subtitle === 'string' ? meta.subtitle : null,
+    duration:
+      typeof (meta.audioMeta as Record<string, unknown> | undefined)
+        ?.duration === 'number'
+        ? ((meta.audioMeta as Record<string, number>).duration ?? null)
+        : null,
+    spoilerLevel:
+      typeof meta.spoilerLevel === 'number' &&
+      meta.spoilerLevel >= 0 &&
+      meta.spoilerLevel <= 3
+        ? meta.spoilerLevel
+        : 0,
+    ...(meta.gate != null && typeof meta.gate === 'object'
+      ? { gate: meta.gate }
+      : {}),
+    locked: meta.locked === true,
     ...(Array.isArray(meta.spoilerRevisions) && meta.spoilerRevisions.length > 0
       ? { spoilerRevisions: meta.spoilerRevisions }
       : {}),

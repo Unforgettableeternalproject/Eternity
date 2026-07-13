@@ -1,3 +1,4 @@
+/* global AbortController */
 /**
  * UEP 浮島系統 — 全域掛載點
  *
@@ -12,13 +13,21 @@
  * 4. 已有實體元件（S6 只有 history；S7/S8 逐島補上）
  */
 
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import { useReaderAuth } from '../auth';
 import { UEP_ENTITY_ACTIVATE_EVENT } from '../embed';
 import type { EntityActivateDetail } from '../embed';
 import { useProgress } from '../progress';
+import { resolveSpoilerLevel } from '../audio';
+import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
@@ -32,6 +41,18 @@ import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
+import SongPreviewCard from './echoes/SongPreviewCard';
+import {
+  UEP_ECHO_PREVIEW_EVENT,
+  buildEchoAudioUrl,
+  dispatchEchoPreview,
+  echoClusterStyle,
+  type EchoPreviewTrack,
+} from './echoes/echoPreview';
+
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 
 /**
  * 各島的實體內容元件註冊表（lazy——TopBar 全站掛載，島內容只在
@@ -53,6 +74,7 @@ export default function IslandHost() {
   useReaderAuth();
   const runtimeState = useIslandRuntimeState();
   const [mounted, setMounted] = useState(false);
+  const [echoPreview, setEchoPreview] = useState<EchoPreviewTrack | null>(null);
   /** 事件 listener 取用最新進度（不重綁） */
   const progressRef = useRef(progress);
   progressRef.current = progress;
@@ -80,6 +102,87 @@ export default function IslandHost() {
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
   }, []);
 
+  // Echo spot autoplay 降級與 entity 曲目展示共用同一張卡。
+  useEffect(() => {
+    const onPreview = (event: Event) => {
+      const detail = (event as CustomEvent<EchoPreviewTrack>).detail;
+      if (!detail) return;
+      if (!shouldMountIsland(progressRef.current, 'echoes')) return;
+      setEchoPreview(detail);
+    };
+    window.addEventListener(UEP_ECHO_PREVIEW_EVENT, onPreview);
+    return () => window.removeEventListener(UEP_ECHO_PREVIEW_EVENT, onPreview);
+  }, []);
+
+  // entity-activate 的 Echoes 消費：只顯示「已收藏」且非劇情歌的對應曲。
+  // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
+  useEffect(() => {
+    let controller: AbortController | null = null;
+    const onActivate = (event: Event) => {
+      const detail = (event as CustomEvent<EntityActivateDetail>).detail;
+      if (!detail?.entityKey) return;
+      if (!shouldMountIsland(progressRef.current, 'echoes')) return;
+      controller?.abort();
+      controller = new AbortController();
+      void fetch(
+        `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`,
+        { signal: controller.signal }
+      )
+        .then((response) => response.json())
+        .then((payload) => {
+          const song = payload?.data?.song;
+          if (!payload?.ok || !song || song.songType === 'story') return;
+          const progressNow = progressRef.current;
+          if (
+            !isSongUnlockedInZone(
+              {
+                id: song.id,
+                metadata: {
+                  entityKey: song.entityKey,
+                  gate: song.gate,
+                  locked: song.locked,
+                },
+              },
+              progressNow
+            )
+          ) {
+            return;
+          }
+          const revisions = Array.isArray(song.spoilerRevisions)
+            ? song.spoilerRevisions
+            : [];
+          const spoilerLevel =
+            revisions.length > 0
+              ? resolveSpoilerLevel(revisions, progressNow)
+              : song.spoilerLevel || 0;
+          if (!song.audioFile) return;
+          const cluster = echoClusterStyle(song.clusterId || song.songType);
+          dispatchEchoPreview({
+            source: 'embed',
+            songId: song.id,
+            title: song.title,
+            url: buildEchoAudioUrl(API_BASE, song.audioFile),
+            clusterId: song.clusterId || song.songType || 'special',
+            ...(song.duration ? { duration: song.duration } : {}),
+            spoilerLevel,
+            accent: cluster.color,
+          });
+        })
+        .catch((error: unknown) => {
+          if ((error as { name?: string }).name !== 'AbortError') {
+            // 對使用者靜默；entity 本身仍由 Terminal 正常處理。
+          }
+        });
+    };
+    window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+    return () => {
+      controller?.abort();
+      window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+    };
+  }, []);
+
+  const dismissEchoPreview = useCallback(() => setEchoPreview(null), []);
+
   // SSR / 首次 render 前不輸出（portal 需要 document）
   if (!mounted) return null;
 
@@ -97,6 +200,9 @@ export default function IslandHost() {
   return createPortal(
     <>
       <IslandDock unlockedIds={activeIds} />
+      {echoPreview && (
+        <SongPreviewCard track={echoPreview} onDismiss={dismissEchoPreview} />
+      )}
       {openIds.map((id) => {
         const Body = ISLAND_COMPONENTS[id]!;
         return (

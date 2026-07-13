@@ -83,6 +83,22 @@ describe('collectMarkers', () => {
     );
     expect(collectMarkers(container)).toHaveLength(1);
   });
+
+  it('echo spot 納入文件順序，但不冒充 FlagMarker 授旗', () => {
+    const container = makeContainer(`
+      <hr>
+      <div data-role="echo-spot" data-song-id="echoes/stories/a"></div>
+      <div data-role="progress-marker" data-grants-flags="met:x"></div>
+    `);
+    const markers = collectMarkers(container);
+    expect(markers.map((marker) => marker.role)).toEqual([
+      'hr',
+      'echo-spot',
+      'progress-marker',
+    ]);
+    expect(markers[1].grantsFlags).toEqual([]);
+    expect(markers[2].grantsFlags).toEqual(['met:x']);
+  });
 });
 
 describe('isPageCompleted', () => {

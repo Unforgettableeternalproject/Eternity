@@ -1,11 +1,19 @@
-import React, { useRef, useState } from 'react';
+/* global AbortController */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { SongSpoilerRevision } from '../../audio';
+import type { GateCondition } from '../../progress';
 import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
+import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
+import GateConditionEditor from './GateConditionEditor';
 
 interface EchoesEditorBodyProps {
   accent: string;
   initialData: EchoesData;
+  apiBase: string;
+  songId: string;
   onDataChange: (data: EchoesData) => void;
   onDirty: () => void;
+  onValidationChange?: (issues: string[]) => void;
 }
 
 export interface AudioMeta {
@@ -25,7 +33,10 @@ export interface EchoesData {
   subtitle: string;
   category: string;
   spoilerLevel: number;
-  gate: string;
+  /** spoiler 警告視窗顯示的劇情提示；不可再與 metadata.gate 混用。 */
+  spoilerGate: string;
+  entityKey?: string;
+  spoilerRevisions: SongSpoilerRevision[];
   audioFile: string | null;
   audioMeta: AudioMeta | null;
   coverImage: string | null;
@@ -34,11 +45,33 @@ export interface EchoesData {
 }
 
 export function parseEchoesData(metadata: Record<string, any>): EchoesData {
+  // 舊資料曾把提示文案存在 metadata.gate 字串；GateCondition 物件則留給
+  // 全站內容可見性，不可當文案讀取。
+  const legacySpoilerGate =
+    typeof metadata?.gate === 'string' ? metadata.gate : '';
   return {
     subtitle: metadata?.subtitle || '',
     category: metadata?.category || 'character',
     spoilerLevel: metadata?.spoilerLevel ?? 0,
-    gate: metadata?.gate || '',
+    spoilerGate: metadata?.spoilerGate || legacySpoilerGate,
+    entityKey:
+      typeof metadata?.entityKey === 'string' && metadata.entityKey.trim()
+        ? metadata.entityKey.trim()
+        : undefined,
+    spoilerRevisions: Array.isArray(metadata?.spoilerRevisions)
+      ? metadata.spoilerRevisions.filter(
+          (revision: unknown): revision is SongSpoilerRevision => {
+            if (!revision || typeof revision !== 'object') return false;
+            const level = (revision as { targetLevel?: unknown }).targetLevel;
+            const gate = (revision as { gate?: unknown }).gate;
+            return (
+              (level === 0 || level === 1 || level === 2) &&
+              !!gate &&
+              typeof gate === 'object'
+            );
+          }
+        )
+      : [],
     audioFile: metadata?.audioFile || null,
     audioMeta: metadata?.audioMeta || null,
     coverImage: metadata?.coverImage || null,
@@ -52,7 +85,10 @@ export function serializeEchoesData(data: EchoesData): Record<string, any> {
     subtitle: data.subtitle || undefined,
     category: data.category,
     spoilerLevel: data.spoilerLevel,
-    gate: data.gate || undefined,
+    spoilerGate: data.spoilerGate || undefined,
+    entityKey: data.entityKey || undefined,
+    spoilerRevisions:
+      data.spoilerRevisions.length > 0 ? data.spoilerRevisions : undefined,
     audioFile: data.audioFile || undefined,
     audioMeta: data.audioMeta || undefined,
     coverImage: data.coverImage || undefined,
@@ -305,8 +341,11 @@ function readDurationFromUrl(url: string): Promise<number> {
 export default function EchoesEditorBody({
   accent,
   initialData,
+  apiBase,
+  songId,
   onDataChange,
   onDirty,
+  onValidationChange,
 }: EchoesEditorBodyProps) {
   const [data, setData] = useState<EchoesData>(initialData);
   const [uploading, setUploading] = useState<'audio' | 'cover' | null>(null);
@@ -318,6 +357,13 @@ export default function EchoesEditorBody({
   const [pickerItems, setPickerItems] = useState<AudioPickerItem[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerSelecting, setPickerSelecting] = useState<string | null>(null);
+  const [otherEntityKeys, setOtherEntityKeys] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [entityKeyCheckStatus, setEntityKeyCheckStatus] = useState<
+    'loading' | 'ready' | 'error'
+  >('loading');
+  const [entityKeyReload, setEntityKeyReload] = useState(0);
 
   // === 刪除確認 state ===
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -330,6 +376,95 @@ export default function EchoesEditorBody({
     setData(next);
     onDataChange(next);
     onDirty();
+  };
+
+  /** entityKey 在 Echoes zone 以歌曲頁為唯一範圍；查核未完成時不可存檔。 */
+  useEffect(() => {
+    const controller = new AbortController();
+    setEntityKeyCheckStatus('loading');
+    fetch(`${apiBase}/api/content/echoes/tree`, {
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => {
+        if (!payload?.ok || !Array.isArray(payload.data)) {
+          throw new Error('Echoes tree payload 格式錯誤');
+        }
+        const keys = new Set<string>();
+        const walk = (nodes: Array<Record<string, any>>) => {
+          for (const node of nodes) {
+            if (node.id !== songId && node.pageType === 'song') {
+              const key = node.metadata?.entityKey;
+              if (typeof key === 'string' && key.trim()) keys.add(key.trim());
+            }
+            if (Array.isArray(node.children)) walk(node.children);
+          }
+        };
+        walk(payload.data);
+        setOtherEntityKeys(keys);
+        setEntityKeyCheckStatus('ready');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setEntityKeyCheckStatus('error');
+      });
+    return () => controller.abort();
+  }, [apiBase, entityKeyReload, songId]);
+
+  const validationIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (data.entityKey && !ENTITY_KEY_PATTERN.test(data.entityKey)) {
+      issues.push(`entityKey「${data.entityKey}」不是合法 kebab-case`);
+    } else if (data.entityKey && entityKeyCheckStatus === 'loading') {
+      issues.push('正在查核 entityKey 唯一性，請稍候');
+    } else if (data.entityKey && entityKeyCheckStatus === 'error') {
+      issues.push('無法查核 entityKey 唯一性，請重試後再儲存');
+    } else if (data.entityKey && otherEntityKeys.has(data.entityKey)) {
+      issues.push(`entityKey「${data.entityKey}」已被其他歌曲使用`);
+    }
+    const levels = data.spoilerRevisions.map(
+      (revision) => revision.targetLevel
+    );
+    const expected = [2, 1, 0].slice(0, levels.length);
+    if (levels.some((level, index) => level !== expected[index])) {
+      issues.push('Spoiler 降級鏈必須依 L2 → L1 → L0 連續設定');
+    }
+    return issues;
+  }, [
+    data.entityKey,
+    data.spoilerRevisions,
+    entityKeyCheckStatus,
+    otherEntityKeys,
+  ]);
+
+  useEffect(() => {
+    onValidationChange?.(validationIssues);
+  }, [onValidationChange, validationIssues]);
+
+  const gateForLevel = (level: 0 | 1 | 2): GateCondition | null =>
+    data.spoilerRevisions.find((revision) => revision.targetLevel === level)
+      ?.gate ?? null;
+
+  const setSpoilerGate = (level: 0 | 1 | 2, nextGate: GateCondition | null) => {
+    const ordered: Array<0 | 1 | 2> = [2, 1, 0];
+    const index = ordered.indexOf(level);
+    const byLevel = new Map(
+      data.spoilerRevisions.map((revision) => [revision.targetLevel, revision])
+    );
+    if (nextGate) {
+      byLevel.set(level, { targetLevel: level, gate: nextGate });
+    } else {
+      // AND 鏈不可留洞：移除某級時，其後更寬鬆的等級一併移除。
+      ordered.slice(index).forEach((target) => byLevel.delete(target));
+    }
+    update({
+      spoilerLevel: byLevel.size > 0 ? 3 : data.spoilerLevel,
+      spoilerRevisions: ordered
+        .map((target) => byLevel.get(target))
+        .filter((revision): revision is SongSpoilerRevision => !!revision),
+    });
   };
 
   const updateAudioMeta = (patch: Partial<AudioMeta>) => {
@@ -488,8 +623,14 @@ export default function EchoesEditorBody({
                     data.spoilerLevel === o.l ? `${accent}12` : 'transparent',
                   color: data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
                 }}
+                disabled={data.spoilerRevisions.length > 0}
                 onClick={() => update({ spoilerLevel: o.l })}
                 type="button"
+                title={
+                  data.spoilerRevisions.length > 0
+                    ? '已啟用漸進降級；請先清除降級鏈再修改起始等級'
+                    : undefined
+                }
               >
                 L{o.l}
                 <span className="ned-spoiler-btn-label">{o.n}</span>
@@ -499,15 +640,99 @@ export default function EchoesEditorBody({
         </div>
       </div>
 
-      {/* 解鎖條件 */}
-      <label className="ned-field-label">解鎖條件 (劇情前置)</label>
+      {/* 跨 zone 實體身分。解鎖條件本身由右側 Inspector 的 gate 編輯器管理。 */}
+      <div className="ned-echoes-entity-section">
+        <EntityKeyField
+          value={data.entityKey}
+          existingKeys={otherEntityKeys}
+          onChange={(entityKey) => update({ entityKey })}
+        />
+        <div className="ned-gate-scope-hint">
+          entityKey 用於角色／區域嵌入反查歌曲；劇情歌可留空，系統會改用
+          song:頁面ID 推導收藏旗標。
+        </div>
+        {data.entityKey && entityKeyCheckStatus === 'error' && (
+          <button
+            type="button"
+            className="ned-btn-ghost ned-btn-sm"
+            onClick={() => setEntityKeyReload((value) => value + 1)}
+          >
+            重試唯一性查核
+          </button>
+        )}
+      </div>
+
+      {/* 舊 metadata.gate 字串已拆為 spoilerGate，避免覆蓋真正的 GateCondition。 */}
+      <label className="ned-field-label">Spoiler 警告提示文案</label>
       <input
         className="ned-field"
         type="text"
-        value={data.gate}
-        placeholder="哪段劇情解鎖這首歌"
-        onChange={(e) => update({ gate: e.target.value })}
+        value={data.spoilerGate}
+        placeholder="例如：讀過第三章後再聆聽"
+        onChange={(e) => update({ spoilerGate: e.target.value })}
       />
+
+      <section className="ned-spoiler-revisions">
+        <div className="ned-spoiler-revisions__header">
+          <div>
+            <strong>Spoiler 漸進降級</strong>
+            <p>
+              由 L3 開始，必須依 L2 → L1 → L0 逐級通過；中間任一條件未達，
+              後續等級不會生效。
+            </p>
+          </div>
+          {data.spoilerRevisions.length > 0 && (
+            <button
+              type="button"
+              className="ned-btn-ghost ned-btn-sm"
+              onClick={() => update({ spoilerRevisions: [] })}
+            >
+              清除降級鏈
+            </button>
+          )}
+        </div>
+
+        {(
+          [
+            { level: 2 as const, label: '降到 L2 · 標題遮蔽' },
+            { level: 1 as const, label: '降到 L1 · 部分資訊霧化' },
+            { level: 0 as const, label: '降到 L0 · 完整資訊與佇列資格' },
+          ] as const
+        ).map(({ level, label }, index) => {
+          const previousConfigured =
+            index === 0 ||
+            gateForLevel(([2, 1, 0] as const)[index - 1]) !== null;
+          return (
+            <div
+              className={`ned-spoiler-revision${previousConfigured ? '' : ' is-disabled'}`}
+              key={level}
+            >
+              <div className="ned-spoiler-revision__title">{label}</div>
+              {!previousConfigured ? (
+                <div className="ned-gate-scope-hint">
+                  請先設定上一級，避免產生可跳級的資料。
+                </div>
+              ) : (
+                <GateConditionEditor
+                  value={gateForLevel(level)}
+                  onChange={(next) => setSpoilerGate(level, next)}
+                  apiBase={apiBase}
+                  accent={accent}
+                  showScopeHint={false}
+                />
+              )}
+            </div>
+          );
+        })}
+      </section>
+
+      {validationIssues.length > 0 && (
+        <div className="ned-echoes-validation" role="alert">
+          {validationIssues.map((issue) => (
+            <div key={issue}>⚠ {issue}</div>
+          ))}
+        </div>
+      )}
 
       {/* 音檔 */}
       <label className="ned-field-label">音檔</label>

@@ -368,21 +368,31 @@ export const uepAudio = {
 
   /* ── 播放控制 ── */
 
-  /** 播放指定曲目（同曲續播、異曲換載）。autoplay 被擋時靜默 */
-  play(songId: string, url: string, title?: string, accent?: string): void {
+  /**
+   * 播放指定曲目（同曲續播、異曲換載）。回傳是否真的開始播放，
+   * 讓 echo spot 在 autoplay 被擋時可降級成提示卡；一般 UI 可忽略回傳值。
+   */
+  play(
+    songId: string,
+    url: string,
+    title?: string,
+    accent?: string
+  ): Promise<boolean> {
     const audio = loadSong(songId, url, title, accent);
-    if (!audio) return;
+    if (!audio) return Promise.resolve(false);
     cancelAnimationFrame(rafId);
-    audio
+    return audio
       .play()
       .then(() => {
         setState({ isPlaying: true });
         persistNow();
         cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(updateProgress);
+        return true;
       })
       .catch(() => {
-        // autoplay policy 擋下時靜默處理（防禦層見 D 段）
+        setState({ isPlaying: false });
+        return false;
       });
   },
 
@@ -397,7 +407,7 @@ export const uepAudio = {
     if (state.currentSongId === songId && state.isPlaying) {
       this.pause();
     } else {
-      this.play(songId, url, title, accent);
+      void this.play(songId, url, title, accent);
     }
   },
 
@@ -454,11 +464,20 @@ export const uepAudio = {
 
   /** 手動跳下一首（佇列空時 no-op；loop='all' 時當前曲回佇列尾） */
   next(): void {
+    if (state.interruptionSnapshot) {
+      // 使用者主動切曲即結束插播；先回原播放脈絡，再依一般 next 語意走。
+      this.restoreFromInterruption();
+    }
     playQueueHead();
   },
 
   /** 回到當前曲目開頭（無播放歷史紀錄，previous = 重播） */
   previous(): void {
+    if (state.interruptionSnapshot) {
+      // 插播中的 previous 語意是「回到被中斷的曲目」，不是重播插播曲。
+      this.restoreFromInterruption();
+      return;
+    }
     if (!state.currentSongId) return;
     const audio = audioEl;
     if (audio && loadedSongId === state.currentSongId) {
@@ -505,7 +524,7 @@ export const uepAudio = {
     url: string,
     title?: string,
     accent?: string
-  ): void {
+  ): Promise<boolean> {
     if (!state.interruptionSnapshot) {
       setState({
         interruptionSnapshot: {
@@ -518,7 +537,7 @@ export const uepAudio = {
         },
       });
     }
-    this.play(songId, url, title, accent);
+    return this.play(songId, url, title, accent);
   },
 
   /**
@@ -555,7 +574,7 @@ export const uepAudio = {
     pendingSeekTime = snap.currentTime;
     setState({ currentSongId: snap.songId });
     if (snap.wasPlaying) {
-      this.play(
+      void this.play(
         snap.songId,
         snap.url,
         snap.title ?? undefined,

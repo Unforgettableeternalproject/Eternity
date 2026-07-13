@@ -18,6 +18,8 @@ import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import ProgressMarkerNode from './ProgressMarkerNode';
+import EchoSpotNode, { type EchoSpotAttributes } from './EchoSpotNode';
+import EchoSongPicker, { type EchoSongChoice } from './EchoSongPicker';
 import { UepEntityMark, UepCueMark } from './UepEmbedMarks';
 import EntityInfoChip from './EntityInfoChip';
 import GateConditionEditor from './GateConditionEditor';
@@ -114,6 +116,16 @@ const FONT_SIZES = [
   { label: '大字', value: '20px' },
   { label: '特大', value: '26px' },
 ];
+
+function createEchoSpotId(): string {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+  return `spot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 // === Props ===
 interface RichEditorProps {
@@ -246,6 +258,10 @@ export default function RichEditor({
   const [entityDraft, setEntityDraft] = useState({ kind: 'term', ref: '' });
   // 條目級 Reference Picker（S7-D-1：頁面樹改 entity-index 條目清單）
   const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
+  const [echoSongPickerOpen, setEchoSongPickerOpen] = useState(false);
+  const [echoesValidationIssues, setEchoesValidationIssues] = useState<
+    string[]
+  >([]);
 
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
@@ -335,6 +351,7 @@ export default function RichEditor({
       UepDialogueNode,
       InlineAudioNode,
       ProgressMarkerNode,
+      EchoSpotNode,
       UepEntityMark,
       UepCueMark,
       // entity 自動偵測（S7-D-3）：打字命中匹配詞 → Tab 套 entity mark。
@@ -403,6 +420,15 @@ export default function RichEditor({
         );
         return;
       }
+    }
+    if (isEchoes && echoesValidationIssues.length > 0) {
+      getToast().error(
+        `Echoes 資料驗證未通過：${echoesValidationIssues[0]}` +
+          (echoesValidationIssues.length > 1
+            ? `（共 ${echoesValidationIssues.length} 項）`
+            : '')
+      );
+      return;
     }
 
     setSaveStatus('saving');
@@ -539,6 +565,7 @@ export default function RichEditor({
     echoesData,
     visualsData,
     conceptsData,
+    echoesValidationIssues,
     conceptsStackStyle,
     storageDialogueBlocks,
     changelogBlocks,
@@ -681,6 +708,9 @@ export default function RichEditor({
     grantsFlags: string;
     label: string;
   }>({ grantsFlags: '', label: '' });
+  const [selectedEchoSpot, setSelectedEchoSpot] = useState<
+    (EchoSpotAttributes & { pos: number }) | null
+  >(null);
 
   useEffect(() => {
     if (!editor) return;
@@ -712,6 +742,63 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedImage);
     };
   }, [editor]);
+
+  // Echo Spot node 選取追蹤：可重新挑曲或刪除，不把錯綁變成永久資料。
+  useEffect(() => {
+    if (!editor) return;
+    const syncSelectedEchoSpot = () => {
+      const selection = editor.state.selection as any;
+      const next =
+        selection.node?.type?.name === 'echoSpot'
+          ? ({
+              pos: selection.from,
+              ...selection.node.attrs,
+            } as EchoSpotAttributes & {
+              pos: number;
+            })
+          : null;
+      setSelectedEchoSpot((current) =>
+        current?.pos === next?.pos && current?.songId === next?.songId
+          ? current
+          : next
+      );
+    };
+    syncSelectedEchoSpot();
+    editor.on('selectionUpdate', syncSelectedEchoSpot);
+    editor.on('transaction', syncSelectedEchoSpot);
+    return () => {
+      editor.off('selectionUpdate', syncSelectedEchoSpot);
+      editor.off('transaction', syncSelectedEchoSpot);
+    };
+  }, [editor]);
+
+  const applyEchoSongChoice = (song: EchoSongChoice) => {
+    if (!editor) return;
+    const attrs: EchoSpotAttributes = {
+      spotId: selectedEchoSpot?.spotId || createEchoSpotId(),
+      songId: song.id,
+      songUrlKey: song.audioFile,
+      ...(song.entityKey ? { entityKey: song.entityKey } : {}),
+      title: song.title,
+      clusterId: song.clusterId,
+      ...(song.duration ? { duration: song.duration } : {}),
+      spoilerLevel: song.spoilerLevel,
+      ...(song.spoilerRevisions
+        ? { spoilerRevisions: song.spoilerRevisions }
+        : {}),
+    };
+    if (selectedEchoSpot) {
+      const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
+      if (node?.type.name === 'echoSpot') {
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(selectedEchoSpot.pos, undefined, attrs)
+        );
+      }
+    } else {
+      editor.chain().focus().setEchoSpot(attrs).run();
+    }
+    setEchoSongPickerOpen(false);
+  };
 
   useEffect(() => {
     if (!editor || !selectedImage || imgDeleteConfirm) return;
@@ -2181,6 +2268,17 @@ export default function RichEditor({
                   <div className="tb-sep" />
 
                   <div className="tb-group">
+                    <button
+                      className={`tb-btn ${editor.isActive('echoSpot') ? 'is-active' : ''}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedEchoSpot(null);
+                        setEchoSongPickerOpen(true);
+                      }}
+                      title="插入回聲點（掃描線通過時解鎖並嘗試插播）"
+                    >
+                      ♫
+                    </button>
                     {/* Entity 引用 */}
                     <div className="tb-dropdown-wrap">
                       <button
@@ -2450,8 +2548,11 @@ export default function RichEditor({
                   <EchoesEditorBody
                     accent={accentMain}
                     initialData={echoesData}
+                    apiBase={apiBase}
+                    songId={`echoes/${pageSlug}`}
                     onDataChange={setEchoesData}
                     onDirty={() => setMetaDirty(true)}
+                    onValidationChange={setEchoesValidationIssues}
                   />
                 ) : isVisuals ? (
                   <VisualsEditorBody
@@ -3062,6 +3163,52 @@ export default function RichEditor({
           </button>
         </div>
       )}
+
+      {/* Echo Spot bubble：已插入節點可重新綁曲或刪除。 */}
+      {editor && selectedEchoSpot && (
+        <div className="ned-audio-bubble ned-echo-spot-bubble">
+          <span className="ned-audio-bubble-label">
+            ♫ {selectedEchoSpot.title || selectedEchoSpot.songId}
+          </span>
+          <span className="ned-echo-spot-bubble__meta">
+            {selectedEchoSpot.entityKey || '無 entityKey'}
+          </span>
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={() => setEchoSongPickerOpen(true)}
+          >
+            重新選曲
+          </button>
+          <button
+            type="button"
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
+              if (node?.type.name === 'echoSpot') {
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange({
+                    from: selectedEchoSpot.pos,
+                    to: selectedEchoSpot.pos + node.nodeSize,
+                  })
+                  .run();
+              }
+              setSelectedEchoSpot(null);
+            }}
+          >
+            刪除
+          </button>
+        </div>
+      )}
+
+      <EchoSongPicker
+        apiBase={apiBase}
+        open={echoSongPickerOpen}
+        onClose={() => setEchoSongPickerOpen(false)}
+        onSelect={applyEchoSongChoice}
+      />
 
       {/* 音訊選擇器 Modal */}
       {audioPickerOpen && (

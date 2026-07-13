@@ -42,6 +42,10 @@ export interface MarkerPassedInfo {
   isSentinel: boolean;
   /** 內容標記點總數（不含哨兵） */
   totalMarkers: number;
+  /** 實際通過的 DOM 元素；哨兵事件為 sentinel。 */
+  element: Element;
+  /** 標記種類，額外消費端不必重新查 DOM 索引。 */
+  role: 'hr' | 'progress-marker' | 'echo-spot' | 'sentinel';
 }
 
 export interface ScanlineOptions {
@@ -127,6 +131,8 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
       grantsFlags: allFlags,
       isSentinel: true,
       totalMarkers,
+      element: sentinel,
+      role: 'sentinel',
     });
   };
 
@@ -159,6 +165,8 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
           grantsFlags,
           isSentinel: false,
           totalMarkers,
+          element: markers[idx].el,
+          role: markers[idx].role,
         });
       }
       // max 進度前進立即寫入；單純位置變更節流寫入

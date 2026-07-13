@@ -1063,6 +1063,143 @@
   outline-offset: 2px;
 }
 
+.tiptap-content .tiptap-echo-spot {
+  position: relative;
+  min-height: 42px;
+  margin: 16px 0;
+  border: 1px dashed #6c5b7b;
+  border-radius: 10px;
+  background: color-mix(in srgb, #6c5b7b 7%, transparent);
+  cursor: grab;
+}
+
+.tiptap-content .tiptap-echo-spot::before {
+  content: '♫ ECHO SPOT · ' attr(data-song-title);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #6c5b7b;
+}
+
+.tiptap-content .tiptap-echo-spot.ProseMirror-selectednode {
+  border-style: solid;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6c5b7b 22%, transparent);
+}
+
+.ned-echo-spot-bubble__meta {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ned-echo-song-picker {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+}
+
+.ned-echo-song-picker__hint {
+  margin-top: 4px;
+  color: var(--ink-mute);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.ned-echo-song-picker__search {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ned-echo-song-picker__body {
+  min-height: 180px;
+  overflow-y: auto;
+  padding: 10px 16px 18px;
+}
+
+.ned-echo-song-picker__group-title {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 2px 6px;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ned-echo-song-picker__song {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ned-echo-song-picker__song:hover {
+  border-color: var(--line-strong);
+  background: var(--bg-soft);
+}
+
+.ned-echo-song-picker__orb {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #ddd7cb;
+  color: #6d6759;
+}
+
+.ned-echo-song-picker__song-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ned-echo-song-picker__song-copy small {
+  overflow: hidden;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ned-echo-song-picker__select {
+  color: var(--ink-mute);
+  font-size: 11px;
+}
+
+.ned-picker-empty {
+  padding: 38px 16px;
+  color: var(--ink-mute);
+  text-align: center;
+}
+
+.ned-picker-empty--error,
+.ned-echoes-validation {
+  color: #b94c4c;
+}
+
 /* 進度標記 bubble 的輸入欄 */
 .ned-marker-input {
   width: 150px;
@@ -1844,6 +1981,54 @@
   margin: 0 auto;
 }
 
+.ned-echoes-entity-section,
+.ned-spoiler-revisions {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-soft) 72%, transparent);
+}
+
+.ned-spoiler-revisions__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ned-spoiler-revisions__header p {
+  max-width: 620px;
+  margin: 4px 0 0;
+  color: var(--ink-mute);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.ned-spoiler-revision {
+  margin-top: 9px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.ned-spoiler-revision.is-disabled {
+  opacity: 0.62;
+}
+
+.ned-spoiler-revision__title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ned-echoes-validation {
+  margin: 8px 0 16px;
+  font-size: 11px;
+}
+
 .ned-field-label {
   display: block;
   font-family: var(--font-mono);
@@ -1886,6 +2071,11 @@
   display: block;
   font-size: 9px;
   opacity: 0.7;
+}
+
+.ned-spoiler-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .ned-audio-zone {

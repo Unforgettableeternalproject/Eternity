@@ -183,7 +183,14 @@ describe('createScanline', () => {
 
     sentinelIO.trigger([sentinel]);
     expect(passed).toEqual([
-      { index: 1, grantsFlags: [], isSentinel: true, totalMarkers: 1 },
+      {
+        index: 1,
+        grantsFlags: [],
+        isSentinel: true,
+        totalMarkers: 1,
+        element: sentinel,
+        role: 'sentinel',
+      },
     ]);
   });
 

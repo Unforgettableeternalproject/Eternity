@@ -19,7 +19,13 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
-import { AudioProvider, getAudioStore, useAudio } from '../../audio';
+import {
+  AudioProvider,
+  getAudioStore,
+  resolveSpoilerLevel,
+  useAudio,
+  type SongSpoilerRevision,
+} from '../../audio';
 import { IslandUnlockObject, shouldMountIsland } from '../../islands';
 import { useReaderAuth } from '../../auth';
 import { useProgress } from '../../progress';
@@ -92,6 +98,19 @@ interface ClusterDef {
   uepNote: string;
   subcategories: SubcategoryDef[];
   extraGroups?: string[];
+}
+
+/** 靜態 spoilerLevel 向後相容；有 revision 鏈時改由進度單調求值。 */
+function effectiveSongSpoiler(
+  node: { metadata?: Record<string, unknown> | null },
+  progress: ProgressState
+): 0 | 1 | 2 | 3 {
+  const revisions = node.metadata?.spoilerRevisions;
+  if (Array.isArray(revisions) && revisions.length > 0) {
+    return resolveSpoilerLevel(revisions as SongSpoilerRevision[], progress);
+  }
+  const level = getSpoilerLevel(node);
+  return level === 1 || level === 2 || level === 3 ? level : 0;
 }
 
 interface SubcategoryDef {
@@ -1813,7 +1832,7 @@ function EchoesReaderInner() {
               </div>
               {directSongs.map((song, i) => {
                 const meta = song.metadata as Record<string, unknown>;
-                const sp = getSpoilerLevel(song);
+                const sp = effectiveSongSpoiler(song, progress);
                 const subtitle = (meta?.subtitle as string) || '';
                 // 分級解鎖：解鎖後仍根據等級決定可見範圍
                 const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
@@ -1953,7 +1972,10 @@ function EchoesReaderInner() {
     const parentNode = flatPages.find((p) => {
       return (p.children || []).some((c) => c.id === currentSongPage.id);
     });
-    const spoiler = songData.spoilerLevel || 0;
+    const spoiler =
+      songData.spoilerRevisions.length > 0
+        ? resolveSpoilerLevel(songData.spoilerRevisions, progress)
+        : songData.spoilerLevel || 0;
     const hasUnlocked = spoiler === 0 || isSongUnlocked(currentSongPage.id);
     const locked = spoiler > 0 && !hasUnlocked;
     const audioUrl = buildAudioUrl(songData.audioFile);
@@ -1973,7 +1995,7 @@ function EchoesReaderInner() {
 
     const handlePlayAttempt = () => {
       if (locked) {
-        requestUnlock(currentSongPage.id, spoiler, songData.gate, () => {
+        requestUnlock(currentSongPage.id, spoiler, songData.spoilerGate, () => {
           // L3 確認警告後仍為封印態，不啟動播放
           if (spoiler < 3 && audioUrl) {
             audio.play(
@@ -2228,7 +2250,7 @@ function EchoesReaderInner() {
               prevSong
                 ? {
                     title: (() => {
-                      const pSp = getSpoilerLevel(prevSong);
+                      const pSp = effectiveSongSpoiler(prevSong, progress);
                       const pUnlocked =
                         pSp === 0 || isSongUnlocked(prevSong.id);
                       return (
@@ -2248,7 +2270,7 @@ function EchoesReaderInner() {
               nextSong
                 ? {
                     title: (() => {
-                      const nSp = getSpoilerLevel(nextSong);
+                      const nSp = effectiveSongSpoiler(nextSong, progress);
                       const nUnlocked =
                         nSp === 0 || isSongUnlocked(nextSong.id);
                       return (

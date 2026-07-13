@@ -39,6 +39,8 @@ interface GateConditionEditorProps {
   parentIsProgressContainer?: boolean;
   apiBase: string;
   accent: string;
+  /** 某些專用編輯器（如 Echoes spoiler 鏈）已有自己的範圍說明。 */
+  showScopeHint?: boolean;
 }
 
 /** 正規化：空條件收斂為 null（存檔時整個 gate 鍵移除） */
@@ -60,6 +62,7 @@ export default function GateConditionEditor({
   parentIsProgressContainer = false,
   apiBase,
   accent,
+  showScopeHint = true,
 }: GateConditionEditorProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pageTree, setPageTree] = useState<GatePageNode[]>([]);
@@ -191,9 +194,11 @@ export default function GateConditionEditor({
 
       {/* 範圍提示：gate 資料全區域通用，但前台消費目前只接了 History。
           其他 zone 的 Reader 接上動態 gating 後移除此提示。 */}
-      <div className="ned-gate-scope-hint">
-        ⓘ 條件會隨頁面儲存，但目前前台僅 History 生效
-      </div>
+      {showScopeHint && (
+        <div className="ned-gate-scope-hint">
+          ⓘ 條件會隨頁面儲存，並由各區域 Reader 的 gating 求值器消費
+        </div>
+      )}
       {flags.length > 0 && (
         <div className="ned-gate-flags">
           {flags.map((flag) => (

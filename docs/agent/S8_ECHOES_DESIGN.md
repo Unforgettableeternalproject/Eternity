@@ -913,7 +913,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 
 ---
 
-## 實作進度與交接（S8-C 接手用，諾薇亞 2026-07-11）
+## 實作進度與交接（S8-C/D 完成，2026-07-14）
 
 ### 已完成
 
@@ -939,10 +939,26 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 3. **跨 island bundle 隔離**：任何要跨 Reader/島共享的資料只能走 store（window bridge），module-level map 不共享——accent 進 store 就是這個原因
 4. **echoes 歌曲頁 metadata.gate 是「字串」**（spoiler 警告的提示文案），與 gating 的 GateCondition（平鋪 requiresFlags/pristineOnly 或巢狀 gate 物件）不同——`parseGateCondition` 遇字串 gate 會 fallback 平鋪解析，天然不衝突，但 D 段 admin UI 設計 gate 編輯時要處理這個欄位歧義
 
-### C 段（0.9.13.1~5，原 .56~.60 順移）開工前置
+### C 段（0.9.13.1~5）已完成
 
-- 🔴 **先勘查 `useScanline` API**（progress/useScanline.ts）——確認 FlagMarker 掃描線能否對 `[data-role="echo-spot"]` 額外掛 handler（戴爾標記的相容性風險）
-- C-1 EchoSpotNode（TipTap void node，沿 ProgressMarkerNode 模式）→ C-2 Song Picker（選中一併寫 entityKey 進 node 屬性，免 API 反查）→ C-3 掃描線觸發+sessionStorage 去重+旗標自動推導授予 → C-4 interrupt 恢復接線 → C-5「上次讀到」跳轉保護（scrollend + setTimeout 500ms 雙掛）
-- D 段（0.9.13.6~10）：嵌入展示 + Autoplay 防禦 + Admin Spoiler UI
+- `EchoSpotNode` 已納入 TipTap：保存穩定 `spotId`、完整歌曲頁 id、R2 裸 key、entityKey、分類／時長與 spoiler revision 快照；Song Picker 只列出具音檔的歌曲，支援搜尋與 cluster 分組
+- progress marker 掃描線已擴充 `role + element` callback；echo spot 每次頁面造訪只觸發一次，重新造訪可再觸發，且無論島是否掛載都先授予推導旗標
+- 只有 Echoes 島已掛載且符合直接播放條件時才走 `audioStore.interrupt()`；L3、無使用者手勢、快速捲動、resume jump 或瀏覽器拒絕 autoplay 時降級成曲目卡
+- 插播在離頁時恢復；插播中 next/previous 不再把插播曲誤當使用者佇列狀態
+- 「上次讀到」跳轉以 session 旗標、`scrollend` 與 500ms timeout 雙重解除，避免掃描線沿途觸發 echo spot
+
+### D 段（0.9.13.6~10）已完成
+
+- 288px `SongPreviewCard` 已供 echo spot 與 entity activation 共用；L3 不可播放、只有 L0 可加入佇列，8 秒自動收合
+- IslandHost 新增 Echoes entity activation consumer，會取消過期請求、重查 entity-song、套用可見性 gate 與動態 spoiler resolver；Terminal consumer 保持原行為
+- `/api/echoes/entity-song` 摘要補齊 subtitle、duration、spoilerLevel、GateCondition 與 locked，並排除 hidden 歌曲
+- Echoes 編輯器新增 EntityKeyField 與同 zone 唯一性硬驗證；查核未完成／失敗時阻擋存檔並可重試
+- Spoiler 降級鏈改為 inline L2 → L1 → L0 GateConditionEditor：不可跳級，移除上級會連帶移除後級，啟用鏈時固定由 L3 起算
+- **資料相容修正**：舊 `metadata.gate` 字串只向後相容讀成 `spoilerGate`；真正的 `metadata.gate` 物件保留給全站內容可見性，儲存時不再互相覆寫
+
+### 驗證重點
+
+- Echo Spot HTML round-trip、Picker、marker/scanline、session dedupe、autoplay/interrupt、spoiler resolver、曲目卡 L3/L0 權限與 Echoes metadata round-trip 均有自動測試
+- 若後續新增 spoiler 階段，仍須維持「從嚴格到寬鬆連續宣告」與「第一個未通過 gate 即停止降級」兩個不變量
 
 *文件結束。*

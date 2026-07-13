@@ -15,9 +15,11 @@ import type { ProgressState } from './types';
 
 /** 進度標記在 HTML 中的 data-role 值 */
 export const PROGRESS_MARKER_ROLE = 'progress-marker';
+/** Echoes 插播標記；同樣由掃描線觀察，但不走 grantsFlags 屬性。 */
+export const ECHO_SPOT_ROLE = 'echo-spot';
 
 /** 掃描線監聽的標記點選擇器（hr 自動標記 + 手動標記，文件順序） */
-export const PROGRESS_MARKER_SELECTOR = `hr, [data-role="${PROGRESS_MARKER_ROLE}"]`;
+export const PROGRESS_MARKER_SELECTOR = `hr, [data-role="${PROGRESS_MARKER_ROLE}"], [data-role="${ECHO_SPOT_ROLE}"]`;
 
 /** 解析 data-grants-flags 屬性（逗號分隔 → 去空白、去空值、去重複） */
 export function parseFlagsAttr(value: string | null | undefined): string[] {
@@ -45,6 +47,8 @@ export interface ScanMarker {
   index: number;
   /** 通過時授予的旗標（hr 與一般標記為空陣列） */
   grantsFlags: string[];
+  /** hr / progress-marker / echo-spot，供額外消費端辨識。 */
+  role: 'hr' | typeof PROGRESS_MARKER_ROLE | typeof ECHO_SPOT_ROLE;
 }
 
 /**
@@ -53,14 +57,24 @@ export interface ScanMarker {
  */
 export function collectMarkers(container: Element): ScanMarker[] {
   return Array.from(container.querySelectorAll(PROGRESS_MARKER_SELECTOR)).map(
-    (el, index) => ({
-      el,
-      index,
-      grantsFlags:
-        el.getAttribute('data-role') === PROGRESS_MARKER_ROLE
-          ? parseFlagsAttr(el.getAttribute('data-grants-flags'))
-          : [],
-    })
+    (el, index) => {
+      const dataRole = el.getAttribute('data-role');
+      const role =
+        dataRole === PROGRESS_MARKER_ROLE
+          ? PROGRESS_MARKER_ROLE
+          : dataRole === ECHO_SPOT_ROLE
+            ? ECHO_SPOT_ROLE
+            : 'hr';
+      return {
+        el,
+        index,
+        role,
+        grantsFlags:
+          role === PROGRESS_MARKER_ROLE
+            ? parseFlagsAttr(el.getAttribute('data-grants-flags'))
+            : [],
+      };
+    }
   );
 }
 

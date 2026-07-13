@@ -57,7 +57,11 @@ describe('GET /api/echoes/entity-song', () => {
       {
         entityKey: 'esong-xavier',
         category: 'character',
+        subtitle: '被雨記住的人',
         audioFile: 'audio/xavier-theme.mp3',
+        audioMeta: { duration: 245 },
+        spoilerLevel: 3,
+        gate: { requiresFlags: ['met:esong-xavier'] },
         spoilerRevisions: [
           { targetLevel: 2, gate: { requiresFlags: ['esong-xavier:01'] } },
         ],
@@ -105,6 +109,11 @@ describe('GET /api/echoes/entity-song', () => {
       audioFile: 'audio/xavier-theme.mp3', // 裸 R2 key，不含 API base
       entityKey: 'esong-xavier',
       songType: 'character',
+      subtitle: '被雨記住的人',
+      duration: 245,
+      spoilerLevel: 3,
+      gate: { requiresFlags: ['met:esong-xavier'] },
+      locked: false,
       clusterId: 'characters',
     });
     expect(json.data.song?.spoilerRevisions).toEqual([
