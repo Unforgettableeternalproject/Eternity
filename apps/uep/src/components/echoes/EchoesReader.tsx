@@ -20,9 +20,11 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import { AudioProvider, getAudioStore, useAudio } from '../../audio';
+import { IslandUnlockObject, shouldMountIsland } from '../../islands';
+import { useReaderAuth } from '../../auth';
 import { useProgress } from '../../progress';
 import type { ProgressState } from '../../progress';
-import { isSongUnlockedInZone } from './echoesVisibility';
+import { isSongQueueEligible, isSongUnlockedInZone } from './echoesVisibility';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -419,6 +421,7 @@ function VinylDisc({
 // ──────────────────────────────────────────────────────────────────
 function EchoesAudioPlayer({
   songId,
+  title,
   audioUrl,
   metaDuration,
   color,
@@ -428,6 +431,7 @@ function EchoesAudioPlayer({
   onAddToQueue,
 }: {
   songId: string;
+  title: string;
   audioUrl: string | null;
   metaDuration?: number;
   color: string;
@@ -435,7 +439,7 @@ function EchoesAudioPlayer({
   onLockedClick?: () => void;
   /** L3 封印：已確認 spoiler 警告但等級仍為 3——完全不可播放（S8 取代 30 秒 preview） */
   sealed?: boolean;
-  /** 加入流浪回聲佇列（S8 B-4）：已解鎖且 spoiler < 3 才傳入 */
+  /** 加入流浪回聲佇列（S8 B-4）：僅 spoiler 0 才傳入 */
   onAddToQueue?: () => void;
 }) {
   const a = useAudio();
@@ -495,7 +499,7 @@ function EchoesAudioPlayer({
     }
     // L3 封印：完全不可播放（S8 取代既有 30 秒 preview）
     if (sealed || !audioUrl) return;
-    a.toggle(songId, audioUrl);
+    a.toggle(songId, audioUrl, title, color);
   };
 
   const handleSeekPointerDown = () => {
@@ -518,7 +522,7 @@ function EchoesAudioPlayer({
     a.endSeek(val);
     if (!isMe && audioUrl && !locked) {
       // 歌曲尚未播放：先啟動再 seek
-      a.play(songId, audioUrl);
+      a.play(songId, audioUrl, title, color);
       setTimeout(() => a.seek(val), 50);
     }
   };
@@ -592,58 +596,81 @@ function EchoesAudioPlayer({
         </div>
       </div>
 
-      {/* 加入流浪回聲佇列（S8 B-4：已解鎖且 spoiler < 3 才出現） */}
-      {onAddToQueue && (
-        <button
-          type="button"
-          className="echoes-player-queue-btn"
-          onClick={onAddToQueue}
-          aria-label="加入流浪回聲佇列"
-          title="加入流浪回聲佇列"
-        >
-          +♫
-        </button>
-      )}
-
-      {/* 音量控制（可展開） */}
-      <div className="echoes-player-vol" ref={volRef}>
-        {volMounted && (
-          <div
-            className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}
+      <div className="echoes-player-actions">
+        {/* 加入流浪回聲佇列（S8 B-4：僅 spoiler 0 才出現） */}
+        {onAddToQueue && (
+          <button
+            type="button"
+            className="echoes-player-queue-btn"
+            onClick={onAddToQueue}
+            aria-label="加入流浪回聲佇列"
+            title="加入流浪回聲佇列"
           >
-            <span className="echoes-player-vol-pct">
-              {Math.round(a.volume * 100)}%
-            </span>
-            <input
-              type="range"
-              className="echoes-player-vol-slider"
-              style={{ '--vol': a.volume } as React.CSSProperties}
-              min={0}
-              max={1}
-              step={0.05}
-              value={a.volume}
-              onChange={(e) => a.setVolume(parseFloat(e.target.value))}
-            />
-          </div>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3.5 5.5h7M3.5 10h5M3.5 14.5h7M15 9v6M12 12h6" />
+            </svg>
+          </button>
         )}
-        <button
-          type="button"
-          className="echoes-player-vol-btn"
-          onClick={() => (volMounted ? closeVol() : openVol())}
-          aria-label={`音量 ${Math.round(a.volume * 100)}%`}
-          title={`音量 ${Math.round(a.volume * 100)}%`}
-        >
-          <span
-            className={`echoes-volume-glyph ${
-              a.volume === 0
-                ? 'is-muted'
-                : a.volume < 0.4
-                  ? 'is-low'
-                  : 'is-high'
-            }`}
-            aria-hidden="true"
-          />
-        </button>
+
+        {/* 音量控制（可展開） */}
+        <div className="echoes-player-vol" ref={volRef}>
+          {volMounted && (
+            <div
+              className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}
+            >
+              <span className="echoes-player-vol-pct">
+                {Math.round(a.volume * 100)}%
+              </span>
+              <input
+                type="range"
+                className="echoes-player-vol-slider"
+                style={{ '--vol': a.volume } as React.CSSProperties}
+                min={0}
+                max={1}
+                step={0.05}
+                value={a.volume}
+                onChange={(e) => a.setVolume(parseFloat(e.target.value))}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            className="echoes-player-vol-btn"
+            onClick={() => (volMounted ? closeVol() : openVol())}
+            aria-label={`音量 ${Math.round(a.volume * 100)}%`}
+            title={`音量 ${Math.round(a.volume * 100)}%`}
+          >
+            <svg
+              className="echoes-player-volume-icon"
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <path
+                className="echoes-player-volume-body"
+                d="M3.5 8h3l4-3.25v10.5L6.5 12h-3z"
+              />
+              {a.volume === 0 ? (
+                <path
+                  className="echoes-player-volume-wave"
+                  d="m13.25 7.25 4.5 5.5m0-5.5-4.5 5.5"
+                />
+              ) : (
+                <>
+                  <path
+                    className="echoes-player-volume-wave"
+                    d="M13 7.25c1.2 1.45 1.2 4.05 0 5.5"
+                  />
+                  {a.volume >= 0.4 && (
+                    <path
+                      className="echoes-player-volume-wave"
+                      d="M15.4 5.25c2.35 2.55 2.35 6.95 0 9.5"
+                    />
+                  )}
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       <span
@@ -814,6 +841,9 @@ function EchoesReaderInner() {
 
   // === 進度狀態（S8：歌曲解鎖判定，未解鎖完全隱藏）===
   const progress = useProgress();
+  // auth 純訂閱重渲染——shouldMountIsland 內含登入判定，而 auth 變化
+  // 不保證觸發 progress notify（S7-C 已知陷阱，同 IslandHost 的處理）
+  useReaderAuth();
 
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -997,10 +1027,10 @@ function EchoesReaderInner() {
       {
         param: 'cluster',
         handler: (value) => {
-          const fullId = value.startsWith('echoes/')
-            ? value
-            : `echoes/${value}`;
-          navigateToCluster(fullId, false);
+          // cluster 用 CLUSTERS 常數的短 id（areas/characters/...），
+          // 與 song/page 的完整頁 id 不同——不可補 echoes/ 前綴，
+          // 反而要容錯剝掉舊連結可能帶的前綴
+          navigateToCluster(value.replace(/^echoes\//, ''), false);
         },
       },
     ],
@@ -1053,7 +1083,6 @@ function EchoesReaderInner() {
   // === 導航函式 ===
   function navigateToLanding(pushState = true) {
     saveScroll(currentScrollKey());
-    audio.pause();
     setView('landing');
     setActiveClusterId(null);
     setActiveSongId(null);
@@ -1065,7 +1094,6 @@ function EchoesReaderInner() {
 
   function navigateToCluster(clusterId: string, pushState = true) {
     saveScroll(currentScrollKey());
-    audio.pause();
     setView('cluster');
     setActiveClusterId(clusterId);
     setActiveSongId(null);
@@ -1081,7 +1109,6 @@ function EchoesReaderInner() {
   /** 導航到非 song 的內容頁面（subcategory 等），比照 History 的閱讀視圖 */
   async function navigateToContent(pageId: string, pushState = true) {
     saveScroll(currentScrollKey());
-    audio.pause();
     setView('content');
     setActiveContentId(pageId);
     setActiveSongId(null);
@@ -1114,8 +1141,6 @@ function EchoesReaderInner() {
 
   async function navigateToSong(songId: string, pushState = true) {
     saveScroll(currentScrollKey());
-    // 切換歌曲頁面時停止當前播放
-    audio.pause();
     setView('song');
     setActiveSongId(songId);
     // 從 song ID 推導所屬集群
@@ -1515,6 +1540,12 @@ function EchoesReaderInner() {
             </span>
           ))}
         </div>
+
+        {/* 浮島解鎖小物件（同 S7-C ConceptsReader 的修法）：echoes 的
+            實際入口是 Reader 解析的動態 homepage，ZoneEntryPage 走不到，
+            掛在那裡的小物件是孤兒。position:fixed，浮現條件（登入探索者
+            + visited + 未解鎖）由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
+        <IslandUnlockObject zoneId="echoes" />
       </section>
     );
   }
@@ -1945,11 +1976,21 @@ function EchoesReaderInner() {
         requestUnlock(currentSongPage.id, spoiler, songData.gate, () => {
           // L3 確認警告後仍為封印態，不啟動播放
           if (spoiler < 3 && audioUrl) {
-            audio.play(currentSongPage.id, audioUrl);
+            audio.play(
+              currentSongPage.id,
+              audioUrl,
+              currentSongPage.title,
+              color
+            );
           }
         });
       } else if (spoiler < 3 && audioUrl) {
-        audio.toggle(currentSongPage.id, audioUrl);
+        audio.toggle(
+          currentSongPage.id,
+          audioUrl,
+          currentSongPage.title,
+          color
+        );
       }
     };
 
@@ -2089,6 +2130,7 @@ function EchoesReaderInner() {
               <div onClick={locked ? handlePlayAttempt : undefined}>
                 <EchoesAudioPlayer
                   songId={currentSongPage.id}
+                  title={currentSongPage.title}
                   audioUrl={locked || sealed ? null : audioUrl}
                   metaDuration={songData.audioMeta?.duration}
                   color={color}
@@ -2096,7 +2138,11 @@ function EchoesReaderInner() {
                   onLockedClick={handlePlayAttempt}
                   sealed={sealed}
                   onAddToQueue={
-                    !locked && !sealed && audioUrl
+                    // 臨時解鎖只允許當次聆聽；任何 spoiler 曲目都不可進佇列。
+                    // 島未掛載（未解鎖/停用/非登入探索者）時也不提供入口。
+                    isSongQueueEligible(spoiler, !locked) &&
+                    audioUrl &&
+                    shouldMountIsland(progress, 'echoes')
                       ? () => {
                           const store = getAudioStore();
                           const already = store

@@ -70,6 +70,8 @@ export default function DraggableIsland({
   const [leaving, setLeaving] = useState(false);
   const posRef = useRef<XYPosition>(pos);
   const ratioRef = useRef<PositionRatio>({ lr: 0, tr: 0 });
+  /** 尚未被使用者拖曳時，尺寸改變仍應維持各島的固定預設錨點。 */
+  const usesDefaultPositionRef = useRef(win?.position == null);
   /** close 只觸發一次（animationend 與保底計時器可能都到） */
   const closeFinalizedRef = useRef(false);
 
@@ -104,6 +106,7 @@ export default function DraggableIsland({
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
     const stored = win?.position ?? null;
+    usesDefaultPositionRef.current = stored == null;
     const initial = stored
       ? clampToViewport(stored.left, stored.top, w, h)
       : resolveCornerPosition(def.defaultCorner, w, h);
@@ -112,6 +115,25 @@ export default function DraggableIsland({
     setReady(true);
     // 位置只在 mount 時還原一次；之後以拖曳為準（win.position 由本元件寫入）
   }, [isMobile]);
+
+  /* ---------- 內容尺寸改變：維持預設錨點並避免島被 viewport 截斷 ---------- */
+  useLayoutEffect(() => {
+    if (isMobile || !ref.current || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const element = ref.current;
+    const observer = new ResizeObserver(() => {
+      const w = element.offsetWidth;
+      const h = element.offsetHeight;
+      const next = usesDefaultPositionRef.current
+        ? resolveCornerPosition(def.defaultCorner, w, h)
+        : clampToViewport(posRef.current.left, posRef.current.top, w, h);
+      updatePos(next);
+      ratioRef.current = toRatio(next.left, next.top);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isMobile, def.defaultCorner]);
 
   /* ---------- resize：等比移動 + clamp ---------- */
   useEffect(() => {
@@ -150,6 +172,7 @@ export default function DraggableIsland({
   function endDrag() {
     if (!drag) return;
     setDrag(null);
+    usesDefaultPositionRef.current = false;
     const { left, top } = posRef.current;
     ratioRef.current = toRatio(left, top);
     runtime.setPosition(id, { left, top });

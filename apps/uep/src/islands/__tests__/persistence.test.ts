@@ -31,12 +31,27 @@ describe('normalizeWindowState', () => {
 
   it('完整資料原樣通過', () => {
     const raw = {
-      version: 1,
+      version: ISLAND_SCHEMA_VERSION,
       open: true,
       position: { left: 100, top: 200 },
       updatedAt: '2026-07-05T00:00:00.000Z',
     };
     expect(normalizeWindowState(raw)).toEqual(raw);
+  });
+
+  it('舊版位置會重設，讓既有使用者套用新版固定錨點', () => {
+    const result = normalizeWindowState({
+      version: 1,
+      open: true,
+      position: { left: 100, top: 200 },
+      updatedAt: '2026-07-05T00:00:00.000Z',
+    });
+    expect(result).toEqual({
+      version: ISLAND_SCHEMA_VERSION,
+      open: true,
+      position: null,
+      updatedAt: '2026-07-05T00:00:00.000Z',
+    });
   });
 
   it('欄位缺漏時以初始值補齊（open 預設 false、position 預設 null）', () => {

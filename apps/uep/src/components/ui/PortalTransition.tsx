@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 
@@ -15,12 +15,17 @@ export default function PortalTransition({
   homeMode = false,
 }: PortalTransitionProps) {
   const active = homeMode || !!zone;
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     if (!active) return;
-    const t = setTimeout(() => onDone(), 1200);
+    const t = setTimeout(() => onDoneRef.current(), 1200);
     return () => clearTimeout(t);
-  }, [active, onDone]);
+  }, [active]);
 
   // 轉場期間隱藏浮島層（body class，見 zoneEntryLock）
   useEffect(() => {

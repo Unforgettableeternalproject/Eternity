@@ -219,6 +219,10 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
 - 同一次頁面 session（不跨整頁重載）只觸發一次——用 `sessionStorage` 記錄已觸發的 spot ID，不進 localStorage（頁面重載後允許再次觸發）
 - 掃描線通過 → `uepAudio.interrupt(songId, url)` → 插播
 
+**島未掛載時不播放（艾斯維爾 07/12 定案）**：
+- 插播（與任何 spot 觸發的播放/提示卡）以 `shouldMountIsland(progress, 'echoes')` 為前置條件——**流浪回聲島未解鎖、被停用、或非登入探索者時，echo spot 不觸發播放也不出卡**。理由：島是唯一的播放控制 UI，島不在時播出來的音樂沒有任何可見控制入口
+- **解鎖旗標的授予不受此限**——spot 掃過永遠照常授予推導旗標（歌曲照樣進收藏池），之後解鎖島時收藏已累積。同一原則也適用於 Reader 的「加入佇列」按鈕（島未掛載時不顯示，B 段已實作）與 2-2 互動嵌入的曲目卡
+
 **為什麼用 sessionStorage 而非 ProgressState**：
 - ProgressState 的旗標是持久化的、跨裝置同步的，語意是「認知的永久狀態」
 - echo spot 的「一次觸發」是**單次頁面 session 的體驗保護**，避免重複干擾，重新進入頁面可以再次觸發（合理的劇情重讀體驗）
@@ -548,7 +552,7 @@ EchoesIsland
 │   ├── VinylDisc（可從 EchoesReader 提取共用）
 │   └── 播放控制（play/pause/prev/next/seek/volume）
 ├── 佇列區（可展開）
-│   └── 已解鎖且 spoiler < 3 的曲目清單，可拖曳排序（選填，S8 若時間不足可後置）
+│   └── spoiler 0 的曲目清單，可拖曳排序（選填，S8 若時間不足可後置）
 └── loop 切換
 ```
 
@@ -556,13 +560,13 @@ EchoesIsland
 
 ### 6-5 Reader UI 新增「加入清單」動線
 
-EchoesReader 的 `EchoesAudioPlayer` 元件（現有，L1027:L912 區間）在**已解鎖且 spoiler < 3** 狀態下，新增「加入佇列」按鈕：
+EchoesReader 的 `EchoesAudioPlayer` 元件（現有，L1027:L912 區間）在**spoiler 0 且流浪回聲島可掛載（`shouldMountIsland(progress, 'echoes')`，艾斯維爾 07/12 補充）**狀態下，新增「加入佇列」按鈕。spoiler 1–3 的臨時解鎖只允許當次聆聽，不授予加入持久佇列的資格：
 
 ```typescript
 // EchoesAudioPlayer 新增 prop
 interface EchoesAudioPlayerProps {
   // ... 現有 props
-  onAddToQueue?: () => void; // 已解鎖且 spoiler < 3 才顯示按鈕
+  onAddToQueue?: () => void; // spoiler 0 且島可掛載才顯示按鈕
 }
 ```
 
@@ -922,7 +926,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 | .51 | Echoes 接進度系統：`echoesVisibility.ts` 的 `isSongUnlockedInZone`——未解鎖完全隱藏（列表/計數/prev-next/deep link）+ **L3 封印（sealed）取代 30 秒 preview** + 移除列表 LOCK 佔位 |
 | .52 | ISLAND_DEFINITIONS 改名「流浪回聲」、寬度 292、IslandHost lazy 註冊 |
 | .53 | 島本體 `islands/echoes/`：球=播放鍵 + **accent 分類色管線**（AudioQueueItem.accent / AudioState.currentAccent，沿 title 管線鋪滿 store 含持久化與插播快照）+ 收合即暫停/展開續播 + 佇列 UI |
-| .54 | Reader EchoesAudioPlayer `onAddToQueue`（+♫，已解鎖且 spoiler<3）+ 去重 toast |
+| .54 | Reader EchoesAudioPlayer `onAddToQueue`（+♫，僅 spoiler 0）+ 去重 toast |
 | .55 | content-api `GET /api/echoes/entity-song?key=`（**偏離 §8-1：不回傳 clusterColor**——分類色是前端 CLUSTERS 常數，回 clusterId 由頁面 id 路徑推導；songType 對映既有 metadata.category，不開新欄位） |
 | fix | audioStore 移除 `/* global */`（no-redeclare）；回聲球淡灰+播放染色（視覺定案） |
 

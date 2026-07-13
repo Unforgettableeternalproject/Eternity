@@ -23,7 +23,9 @@ export type IslandCorner =
   | 'bottom-right'
   | 'bottom-left'
   | 'top-right'
-  | 'top-left';
+  | 'top-left'
+  | 'center-right'
+  | 'center-left';
 
 /** 浮島的靜態定義（清單固定，不做動態註冊） */
 export interface IslandDefinition {
@@ -54,7 +56,7 @@ export interface IslandWindowState {
 }
 
 /** 視窗狀態 schema 版本 */
-export const ISLAND_SCHEMA_VERSION = 1;
+export const ISLAND_SCHEMA_VERSION = 2;
 
 /** 浮島 z-index 層帶：2000-2999（Minimap 300 之上、Toast 10000 之下） */
 export const ISLAND_Z_BASE = 2000;
@@ -75,14 +77,14 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     id: 'concepts',
     title: '移動終端',
     icon: '›_',
-    defaultCorner: 'bottom-right',
+    defaultCorner: 'top-right',
     width: 380,
   },
   echoes: {
     id: 'echoes',
     title: '流浪回聲',
     icon: '♫',
-    defaultCorner: 'bottom-right',
+    defaultCorner: 'center-right',
     // 292 = 設計稿定案寬度（黑球=播放鍵、橫排舞台的緊湊格局）
     width: 292,
   },
@@ -90,14 +92,14 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     id: 'visuals',
     title: '掌上畫廊',
     icon: '❏',
-    defaultCorner: 'bottom-right',
+    defaultCorner: 'top-left',
     width: 360,
   },
   storage: {
     id: 'storage',
     title: '便條紙',
     icon: '✎',
-    defaultCorner: 'bottom-right',
+    defaultCorner: 'center-left',
     width: 320,
   },
 };

@@ -162,12 +162,19 @@
   color: #6d6759;
   font-size: 11px;
   line-height: 1;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(1px);
   opacity: 0.9;
   transition: color 0.4s;
 }
 
 .uep-eisland__ball.is-playing .uep-eisland__ball-glyph {
   color: #fffcf0;
+  transform: none;
 }
 
 .uep-eisland__fleck {
@@ -312,10 +319,24 @@
   cursor: pointer;
   display: grid;
   place-items: center;
+  padding: 0;
+  line-height: 0;
   font-size: 10px;
   transition:
     border-color 0.2s,
     color 0.2s;
+}
+
+.uep-eisland__ctl-glyph {
+  display: block;
+  line-height: 1;
+}
+
+.uep-eisland__ctl-svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
 }
 
 .uep-eisland__ctl:hover:not(:disabled) {

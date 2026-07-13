@@ -71,10 +71,16 @@ export function resolveCornerPosition(
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const MARGIN = 20;
-  return {
+  const anchor = {
     'bottom-right': { left: vw - width - MARGIN, top: vh - height - MARGIN },
     'bottom-left': { left: MARGIN, top: vh - height - MARGIN },
     'top-right': { left: vw - width - MARGIN, top: MARGIN },
     'top-left': { left: MARGIN, top: MARGIN },
+    'center-right': {
+      left: vw - width - MARGIN,
+      top: (vh - height) / 2,
+    },
+    'center-left': { left: MARGIN, top: (vh - height) / 2 },
   }[corner];
+  return clampToViewport(anchor.left, anchor.top, width, height);
 }

@@ -56,3 +56,16 @@ export function isSongUnlockedInZone(
   // gate 條件求值（無 gate = 天生解鎖；觀測者 bypass requiresFlags）
   return !isLocked(node, progress);
 }
+
+/**
+ * 曲目是否可加入流浪回聲佇列。
+ *
+ * spoiler 警告的臨時解鎖只授予當次聆聽權，不代表可持久加入佇列；
+ * 因此只有完全無 spoiler 的 L0 曲目合格。
+ */
+export function isSongQueueEligible(
+  spoilerLevel: number,
+  unlocked: boolean
+): boolean {
+  return unlocked && spoilerLevel === 0;
+}

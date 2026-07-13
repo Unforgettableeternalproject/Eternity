@@ -1120,10 +1120,14 @@
 /* === 播放器 === */
 .echoes-player {
   display: grid;
-  grid-template-columns: 40px 1fr 28px 90px;
-  gap: 14px;
+  grid-template-columns: 40px minmax(0, 1fr) 52px;
+  grid-template-areas:
+    'play timeline actions'
+    '. status status';
+  column-gap: 14px;
+  row-gap: 8px;
   align-items: center;
-  padding: 13px 16px;
+  padding: 14px 16px 12px;
   border: 1px solid;
   transition:
     border-color 0.2s,
@@ -1131,6 +1135,7 @@
 }
 
 .echoes-player-btn {
+  grid-area: play;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -1179,6 +1184,7 @@
 }
 
 .echoes-player-bar {
+  grid-area: timeline;
   position: relative;
   /* 將進度條區塊向下偏移，使 track 與播放按鈕、音量圖示垂直對齊 */
   padding-top: 6px;
@@ -1237,10 +1243,23 @@
 }
 
 .echoes-player-status {
+  grid-area: status;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
-  text-align: right;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.echoes-player-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 52px;
+  min-width: 52px;
+  gap: 6px;
+  overflow: visible;
 }
 
 /* 音量控制（可展開） */
@@ -1256,61 +1275,42 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  font-size: 14px;
+  width: 24px;
+  height: 24px;
   cursor: pointer;
   line-height: 1;
-  border-radius: 3px;
-  transition: opacity 0.15s;
+  border-radius: 50%;
+  color: var(--ink);
+  opacity: 0.72;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    opacity 0.15s;
 }
 .echoes-player-vol-btn:hover {
-  opacity: 0.7;
+  color: var(--ink);
+  background: var(--bg-soft);
+  opacity: 1;
 }
 
-.echoes-volume-glyph {
-  position: relative;
+.echoes-player-volume-icon {
   display: block;
-  width: 18px;
+  width: 16px;
   height: 16px;
-  color: currentColor;
+  overflow: visible;
 }
 
-.echoes-volume-glyph::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 5px;
-  width: 5px;
-  height: 6px;
-  border-radius: 1px;
-  background: currentColor;
+.echoes-player-volume-body {
+  fill: currentColor;
+  stroke: none;
 }
 
-.echoes-volume-glyph::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 2px;
-  width: 8px;
-  height: 12px;
-  border: 2px solid currentColor;
-  border-left: 0;
-  border-radius: 0 10px 10px 0;
-}
-
-.echoes-volume-glyph.is-low::after {
-  width: 5px;
-}
-
-.echoes-volume-glyph.is-muted::after {
-  width: 10px;
-  height: 2px;
-  top: 7px;
-  border: 0;
-  border-radius: 1px;
-  background: currentColor;
-  transform: rotate(-35deg);
+.echoes-player-volume-wave {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .echoes-player-vol-popup {
@@ -1649,15 +1649,14 @@
   }
 
   .echoes-player {
-    grid-template-columns: 38px 1fr 28px;
-    gap: 10px;
+    grid-template-columns: 38px minmax(0, 1fr) 52px;
+    column-gap: 10px;
+    row-gap: 8px;
     padding: 12px;
   }
 
   .echoes-player-status {
-    grid-column: 1 / -1;
-    text-align: left;
-    line-height: 1.5;
+    line-height: 1.4;
   }
 
   .echoes-player-vol-popup {
@@ -1673,19 +1672,29 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 22px;
   height: 22px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.06em;
   cursor: pointer;
-  line-height: 1;
   border-radius: 999px;
   border: 1px solid currentColor;
-  opacity: 0.75;
-  transition: opacity 0.15s;
+  color: var(--ink-soft);
+  transition:
+    color 0.15s,
+    background 0.15s;
   flex-shrink: 0;
 }
 .echoes-player-queue-btn:hover {
-  opacity: 1;
+  color: var(--ink);
+  background: var(--bg-soft);
+}
+
+.echoes-player-queue-btn svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }

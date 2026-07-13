@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createInitialState } from '../../../progress';
 import type { ProgressState } from '../../../progress';
-import { isSongUnlockedInZone } from '../echoesVisibility';
+import { isSongQueueEligible, isSongUnlockedInZone } from '../echoesVisibility';
 
 function makeProgress(overrides: Partial<ProgressState> = {}): ProgressState {
   return { ...createInitialState(), ...overrides };
@@ -110,5 +110,15 @@ describe('isSongUnlockedInZone', () => {
     expect(
       isSongUnlockedInZone(makeSong({ requiresFlags: ['x:y'] }), null)
     ).toBe(true);
+  });
+});
+
+describe('isSongQueueEligible', () => {
+  it('只有 L0 可加入佇列，L1-L3 即使臨時解鎖仍不合格', () => {
+    expect(isSongQueueEligible(0, true)).toBe(true);
+    expect(isSongQueueEligible(0, false)).toBe(false);
+    expect(isSongQueueEligible(1, true)).toBe(false);
+    expect(isSongQueueEligible(2, true)).toBe(false);
+    expect(isSongQueueEligible(3, true)).toBe(false);
   });
 });

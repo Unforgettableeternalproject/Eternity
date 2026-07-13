@@ -29,9 +29,14 @@ export interface AudioContextValue {
   currentTime: number;
   duration: number;
   volume: number;
-  play: (songId: string, url: string) => void;
+  play: (songId: string, url: string, title?: string, accent?: string) => void;
   pause: () => void;
-  toggle: (songId: string, url: string) => void;
+  toggle: (
+    songId: string,
+    url: string,
+    title?: string,
+    accent?: string
+  ) => void;
   seek: (fraction: number) => void;
   setVolume: (v: number) => void;
   beginSeek: () => void;
@@ -74,9 +79,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       currentTime: state.currentTime,
       duration: state.duration,
       volume: state.volume,
-      play: (songId, url) => getAudioStore().play(songId, url),
+      play: (songId, url, title, accent) =>
+        getAudioStore().play(songId, url, title, accent),
       pause: () => getAudioStore().pause(),
-      toggle: (songId, url) => getAudioStore().toggle(songId, url),
+      toggle: (songId, url, title, accent) =>
+        getAudioStore().toggle(songId, url, title, accent),
       seek: (fraction) => getAudioStore().seek(fraction),
       setVolume: (v) => getAudioStore().setVolume(v),
       beginSeek: () => getAudioStore().beginSeek(),

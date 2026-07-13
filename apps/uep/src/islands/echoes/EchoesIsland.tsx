@@ -361,7 +361,9 @@ export default function EchoesIsland() {
               : undefined
           }
         >
-          ⟳
+          <span className="uep-eisland__ctl-glyph" aria-hidden>
+            ⟳
+          </span>
           {state.loop === 'one' && (
             <span
               className="uep-eisland__loop-one"
@@ -380,7 +382,9 @@ export default function EchoesIsland() {
           title="重播"
           aria-label="回到曲目開頭"
         >
-          ◀◀
+          <svg className="uep-eisland__ctl-svg" viewBox="0 0 16 16" aria-hidden>
+            <path d="M3 3h1.5v10H3zM13 3.2v9.6L5.5 8z" />
+          </svg>
         </button>
         <button
           type="button"
@@ -390,7 +394,9 @@ export default function EchoesIsland() {
           title="下一首"
           aria-label="下一首"
         >
-          ▶▶
+          <svg className="uep-eisland__ctl-svg" viewBox="0 0 16 16" aria-hidden>
+            <path d="M11.5 3h1.5v10h-1.5zM3 3.2v9.6L10.5 8z" />
+          </svg>
         </button>
         <span className="uep-eisland__flex" />
         <div className="uep-eisland__vol">

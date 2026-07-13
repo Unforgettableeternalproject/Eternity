@@ -26,9 +26,11 @@ export function normalizeWindowState(raw: unknown): IslandWindowState | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const obj = raw as Partial<IslandWindowState>;
   const base = createInitialWindowState();
+  const isCurrentSchema = obj.version === ISLAND_SCHEMA_VERSION;
 
   let position: IslandWindowState['position'] = null;
   if (
+    isCurrentSchema &&
     typeof obj.position === 'object' &&
     obj.position !== null &&
     typeof obj.position.left === 'number' &&
@@ -40,8 +42,7 @@ export function normalizeWindowState(raw: unknown): IslandWindowState | null {
   }
 
   return {
-    version:
-      typeof obj.version === 'number' ? obj.version : ISLAND_SCHEMA_VERSION,
+    version: ISLAND_SCHEMA_VERSION,
     open: obj.open === true,
     position,
     updatedAt:
