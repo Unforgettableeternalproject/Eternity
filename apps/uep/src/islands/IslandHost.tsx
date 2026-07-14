@@ -52,10 +52,9 @@ import {
   echoClusterStyle,
   type EchoPreviewTrack,
 } from './echoes/echoPreview';
+import { getApiBase } from '../lib/apiBase';
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 /**
  * 各島的實體內容元件註冊表（lazy——TopBar 全站掛載，島內容只在

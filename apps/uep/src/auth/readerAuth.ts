@@ -14,6 +14,7 @@
 import { LocalStorageAdapter } from '../progress/adapters';
 import { getProgressManager } from '../progress/progressStore';
 import { ServerAdapter } from '../progress/serverAdapter';
+import { getApiBase } from '../lib/apiBase';
 
 /** 未登入訪客的統一稱呼（與 Worker uep-alias.ts 對齊） */
 export const GUEST_ALIAS = '初入世界的朋友';
@@ -27,9 +28,7 @@ export const READER_SESSION_KEY = 'uep.reader.session.v1';
 /** auth 狀態變更事件名稱 */
 export const AUTH_CHANGE_EVENT = 'uep:auth-change';
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 export interface ReaderSession {
   token: string;

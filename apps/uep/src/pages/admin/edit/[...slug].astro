@@ -1,6 +1,7 @@
 ---
 import DesignLayout from '../../../layouts/DesignLayout.astro';
 import RichEditor from '../../../components/editor/RichEditor';
+import { getApiBase } from '../../../lib/apiBase';
 
 export const prerender = false;
 
@@ -11,8 +12,7 @@ const parts = slug.split('/');
 const area = parts[0];
 const pageSlug = parts.slice(1).join('/');
 
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase();
 
 // pageSlug 為空 → 入口模式（不載入任何頁面）
 const isEntryMode = !pageSlug;

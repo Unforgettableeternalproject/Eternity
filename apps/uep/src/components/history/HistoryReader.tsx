@@ -55,6 +55,7 @@ import type {
   ArchwayCard,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import { getApiBase } from '../../lib/apiBase';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType =
@@ -102,9 +103,7 @@ interface Page {
   updatedAt: string;
 }
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const HISTORY_ZONE = {
   main: '#6B3F2A',

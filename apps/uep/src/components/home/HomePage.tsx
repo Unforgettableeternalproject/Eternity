@@ -29,10 +29,9 @@ import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 import JourneyNav from './JourneyNav';
 import JourneyScene from './JourneyScene';
 import './HomePage.css';
+import { getApiBase } from '../../lib/apiBase';
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 const ZONE_VEIL_DURATION_MS = 1800;
 const ZONE_VEIL_ALIGN_DELAY_MS = 100;
 const DESKTOP_DOWN_GATE_MIN = 0.66;

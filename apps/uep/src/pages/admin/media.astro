@@ -1,11 +1,11 @@
 ---
 import DesignLayout from '../../layouts/DesignLayout.astro';
 import MediaLibrary from '../../components/editor/MediaLibrary';
+import { getApiBase } from '../../lib/apiBase';
 
 export const prerender = false;
 
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase();
 ---
 
 <DesignLayout title="媒體庫 — U.E.P Admin">

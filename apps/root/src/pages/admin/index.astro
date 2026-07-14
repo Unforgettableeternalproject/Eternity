@@ -3,6 +3,7 @@ export const prerender = false;
 
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import RootEditor from '../../components/editor/RootEditor';
+import { getApiBase } from '../../lib/apiBase';
 import {
   getProjects,
   getUpdates,
@@ -15,8 +16,7 @@ import {
 const JWT_COOKIE = 'root-admin-jwt';
 const jwtCookie = Astro.cookies.get(JWT_COOKIE);
 const token = jwtCookie?.value || '';
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase();
 
 // 並行取得所有資料（含 about 雙語及 currently singleton）
 const [

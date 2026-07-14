@@ -2,11 +2,11 @@
 export const prerender = false;
 
 import DesignLayout from '../../layouts/DesignLayout.astro';
+import { getApiBase } from '../../lib/apiBase';
 
 const JWT_COOKIE = 'uep-admin-jwt';
 const ACTIVE_COOKIE = 'uep-admin-active';
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase();
 
 // 安全的 redirect：只允許站內 /admin 路徑
 function safeRedirect(url: string | null | undefined): string {

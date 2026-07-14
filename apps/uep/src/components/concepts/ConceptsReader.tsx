@@ -40,6 +40,7 @@ import {
   clearAllRevisionCache,
 } from './revisionCache';
 import './ConceptsReader.css';
+import { getApiBase } from '../../lib/apiBase';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -68,9 +69,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 function resolveAssetUrl(ref: string): string {
   if (ref.startsWith('/api/assets/')) {

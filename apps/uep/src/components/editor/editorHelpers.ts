@@ -7,12 +7,11 @@ import type { uepToast as UepToastType } from '../ui/UepToast';
 // Singleton fallback：island hydration 順序不保證，全域 manager 可能尚未掛載
 import { uepDialog as dialogSingleton } from '../ui/UepDialog';
 import { uepToast as toastSingleton } from '../ui/UepToast';
+import { getApiBase } from '../../lib/apiBase';
 
 // ── API Base ──────────────────────────────────────────────────
 
-export const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+export const API_BASE = getApiBase();
 
 // ── Dialog / Toast（跨 React island 安全取法）─────────────────
 

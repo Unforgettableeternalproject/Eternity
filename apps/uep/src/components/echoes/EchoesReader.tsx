@@ -40,6 +40,7 @@ import type {
   OrbCluster,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import { getApiBase } from '../../lib/apiBase';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別定義
@@ -124,9 +125,7 @@ interface SubcategoryDef {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const ECHOES_ZONE = { main: '#355C7D', soft: '#6C5B7B', tint: '#F8B195' };
 

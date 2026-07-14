@@ -21,6 +21,7 @@ import {
   isEffectivelyCompleted,
 } from '../../progress';
 import type { ProgressState, ProgressTreeAdapter } from '../../progress';
+import { getApiBase } from '../../lib/apiBase';
 
 /** content API tree 節點（HistoryReader 的 PageTreeNode 同形） */
 export interface HistoryTreeNode {
@@ -346,9 +347,7 @@ export function navigateToHistoryPage(pageId: string): void {
 
 /* ── tree 取得（模組級快取，island 掛載共用） ── */
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 let treeCache: Promise<HistoryTreeNode[]> | null = null;
 

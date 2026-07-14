@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
+import { getApiBase } from '../../../lib/apiBase';
 
 export const prerender = false;
 
-const CONTENT_API =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const CONTENT_API = getApiBase();
 const JWT_COOKIE = 'uep-admin-jwt';
 
 /** 代理到 content-api，從 httpOnly cookie 取得 JWT，轉換為 Bearer token */

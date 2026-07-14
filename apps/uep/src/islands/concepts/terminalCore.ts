@@ -39,6 +39,7 @@ import type {
   DiffEntry,
   DossierEntry,
 } from '../../components/concepts/types';
+import { getApiBase } from '../../lib/apiBase';
 
 // ── 型別 ───────────────────────────────────────────────────────────
 
@@ -100,9 +101,7 @@ export const TERMINAL_STACK_LABELS: Record<TerminalStack, string> = {
 
 // ── API 基底與快取 ─────────────────────────────────────────────────
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 let indexCache: Promise<TerminalIndexEntry[]> | null = null;
 const pageCache = new Map<string, Promise<ConceptsData | null>>();
