@@ -5,6 +5,8 @@
  * Used in SSR pages to read from D1 instead of Keystatic.
  */
 
+import { getApiBase } from './apiBase';
+
 // ───── Types (mirror of root-types.ts from content-api) ─────
 
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
@@ -90,11 +92,7 @@ interface ApiResponse<T> {
   error?: string;
 }
 
-function getApiBase(): string {
-  const raw = import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
-  // 移除尾巴斜線，避免拼接時產生雙斜線
-  return raw.replace(/\/+$/, '');
-}
+// getApiBase 已抽出到 ./apiBase 供全站共用（Issue #41 Test Mode override 需要單一入口）
 
 // ── TTL cache + in-flight dedup ──
 // 跨 SSR 請求快取：60 秒內相同 API 直接回快取，大幅減少頁面切換延遲。
