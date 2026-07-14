@@ -13,6 +13,7 @@
  * 底線條件：探索者視角 + 到過 History Reader + 旅程之書未解鎖。
  */
 
+import { isTestMode } from '../../lib/apiBase';
 import type { ProgressState } from '../../progress';
 import { LOST_BOOKMARK_BASE_PCT, getProgressManager } from '../../progress';
 
@@ -116,11 +117,13 @@ declare global {
 }
 
 /**
- * 掛上 dev 測試 bridge，回傳 cleanup。production build 為 no-op
- * （`import.meta.env.DEV` 為 false 時整段被 tree-shake 掉）。
+ * 掛上 dev 測試 bridge，回傳 cleanup。
+ *
+ * 掛載條件（Issue #41 起放寬）：DEV 或 isTestMode() 兩者其一。
+ * production + prod worker 下 no-op（tree-shake）。
  */
 export function mountLostBookmarkTestBridge(): () => void {
-  if (!import.meta.env.DEV) return () => {};
+  if (!import.meta.env.DEV && !isTestMode()) return () => {};
   const bridge: LostBookmarkTestBridge = {
     force() {
       getProgressManager().updateLostBookmark({ visible: true });

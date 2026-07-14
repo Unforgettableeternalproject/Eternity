@@ -14,6 +14,7 @@
  */
 
 import { getReaderAuth } from '../auth';
+import { isTestMode } from '../lib/apiBase';
 import { getProgressManager } from '../progress';
 
 import { zoneVisitedFlag } from './islandRuntime';
@@ -56,11 +57,15 @@ function assertIslandId(id: string): id is IslandId {
 }
 
 /**
- * 掛上 dev 測試 bridge，回傳 cleanup。production build 為 no-op
- * （`import.meta.env.DEV` 為 false 時整段被 tree-shake 掉）。
+ * 掛上 dev 測試 bridge，回傳 cleanup。
+ *
+ * 掛載條件（Issue #41 起放寬）：
+ *   - `import.meta.env.DEV` — 本地開發永遠掛
+ *   - `isTestMode()` — test worker cookie 觸發或 build-time 綁 test worker
+ * 兩者皆否才 no-op；production + prod worker 下整段仍會被 tree-shake。
  */
 export function mountIslandsTestBridge(): () => void {
-  if (!import.meta.env.DEV) return () => {};
+  if (!import.meta.env.DEV && !isTestMode()) return () => {};
   const bridge: IslandsTestBridge = {
     unlock(id) {
       if (!assertIslandId(id)) return;
