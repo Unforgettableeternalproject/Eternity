@@ -50,7 +50,7 @@ name = "eternity-content-api-test"
 [[env.test.d1_databases]]
 binding = "CONTENT_DB"
 database_name = "eternity-content-test"
-database_id = "<<TEST_D1_UUID>>"
+database_id = "71adde52-e169-452c-bf76-2b710c09586b"
 migrations_dir = "migrations"
 
 # TEST R2（文件站資產）
@@ -75,4 +75,11 @@ ETERNITY_TEST_ENV = "true"
 [[env.test.services]]
 binding = "VISITOR_COUNTER"
 service = "eternity-visitor-counter"
+
+# Cron 覆蓋：test env 不跑 scheduled 任務
+# ⚠️ 特例：wrangler 對 [triggers] 是「繼承頂層再合併」，不是「未宣告即無」。
+# 必須在 [env.test] 明確宣告空 crons 陣列才能真正停掉 cron 部署。
+# （奈也/奈留初版稿假設不宣告 = 無 cron，實測部署後仍會繼承 0 4 * * *，本行為修正。）
+[env.test.triggers]
+crons = []
 
