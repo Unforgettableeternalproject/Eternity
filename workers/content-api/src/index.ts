@@ -1767,6 +1767,55 @@ export default {
       );
     }
 
+    // ═══ Test 環境專屬端點（Issue #41 T-10.5）═══
+    // 僅在 ETERNITY_TEST_ENV === 'true' 時可達（prod 部署 404）。
+    // Auth 走 requireJwt：JWT_SECRET 未設時 dev bypass（測試 worker 目前未設 secret，
+    // 等同 admin dev 模式全通過）；設了則需要 admin JWT。
+    // 清空的表格白名單只包含業務資料，不含 admin_users / sync_log 等帳號類。
+    if (path === '/api/test/reset' && request.method === 'POST') {
+      if (env.ETERNITY_TEST_ENV !== 'true') {
+        return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+      }
+      const jwtUser = await requireJwt(request, env);
+      if (!jwtUser) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const tables = [
+        'pages',
+        'root_projects',
+        'root_links',
+        'root_updates',
+        'root_singletons',
+        'root_cards',
+      ] as const;
+      let totalRows = 0;
+      const cleared: string[] = [];
+      for (const table of tables) {
+        const before = await env.CONTENT_DB.prepare(
+          `SELECT COUNT(*) as cnt FROM ${table}`
+        ).first<{ cnt: number }>();
+        const rows = before?.cnt ?? 0;
+        if (rows > 0) {
+          await env.CONTENT_DB.prepare(`DELETE FROM ${table}`).run();
+          totalRows += rows;
+        }
+        cleared.push(table);
+      }
+      return jsonResponse(
+        {
+          ok: true,
+          data: {
+            tables: cleared,
+            totalRows,
+            clearedAt: new Date().toISOString(),
+          },
+        },
+        200,
+        cors,
+        false
+      );
+    }
+
     return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
   },
 

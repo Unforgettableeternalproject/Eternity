@@ -12,6 +12,11 @@ export interface Env {
   VISITOR_API_URL?: string;
   /** visitor-counter Worker service binding，避免 Worker-to-Worker fetch workers.dev 失敗 */
   VISITOR_COUNTER?: Fetcher;
+  /**
+   * Test env 旗標（wrangler.toml [env.test.vars] 設定為 "true"）。
+   * prod worker 永遠不含此 var，用於啟用 /api/test/reset 等測試專屬端點。
+   */
+  ETERNITY_TEST_ENV?: string;
 }
 
 // ===== 內容區塊系統 =====
