@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readEchoSpot } from '../useEchoSpots';
+import { readEchoSpot, shouldDowngradeEchoSpot } from '../useEchoSpots';
 
 describe('readEchoSpot', () => {
   it('解析完整、安全的 echo spot snapshot', () => {
@@ -11,6 +11,7 @@ describe('readEchoSpot', () => {
     element.dataset.entityKey = 'story-echo';
     element.dataset.songTitle = '最後的誓約';
     element.dataset.clusterId = 'stories';
+    element.dataset.songType = 'story';
     element.dataset.duration = '245';
     element.dataset.spoilerLevel = '3';
     element.dataset.spoilerRevisions = JSON.stringify([
@@ -25,6 +26,7 @@ describe('readEchoSpot', () => {
         entityKey: 'story-echo',
         duration: 245,
         spoilerLevel: 3,
+        songType: 'story',
       })
     );
   });
@@ -44,5 +46,43 @@ describe('readEchoSpot', () => {
     element.dataset.spoilerRevisions = '{bad';
     expect(readEchoSpot(element)?.spoilerRevisions).toEqual([]);
     expect(readEchoSpot(element)?.spoilerLevel).toBe(2);
+  });
+});
+
+describe('shouldDowngradeEchoSpot', () => {
+  it('劇情歌在正常捲動時即使無手勢或已有嘗試也直接走插播', () => {
+    expect(
+      shouldDowngradeEchoSpot({
+        isStory: true,
+        spoilerLevel: 3,
+        interacted: false,
+        autoplayAttempted: true,
+        resumeJump: false,
+        scrollVelocity: 200,
+      })
+    ).toBe(false);
+  });
+
+  it('劇情歌遇到 resume jump 或快速捲動仍視為 misfire', () => {
+    const base = {
+      isStory: true,
+      spoilerLevel: 0 as const,
+      interacted: true,
+      autoplayAttempted: false,
+    };
+    expect(
+      shouldDowngradeEchoSpot({
+        ...base,
+        resumeJump: true,
+        scrollVelocity: 0,
+      })
+    ).toBe(true);
+    expect(
+      shouldDowngradeEchoSpot({
+        ...base,
+        resumeJump: false,
+        scrollVelocity: 2000,
+      })
+    ).toBe(true);
   });
 });

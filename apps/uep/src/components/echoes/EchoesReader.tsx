@@ -105,6 +105,7 @@ function effectiveSongSpoiler(
   node: { metadata?: Record<string, unknown> | null },
   progress: ProgressState
 ): 0 | 1 | 2 | 3 {
+  if (node.metadata?.category === 'story') return 0;
   const revisions = node.metadata?.spoilerRevisions;
   if (Array.isArray(revisions) && revisions.length > 0) {
     return resolveSpoilerLevel(revisions as SongSpoilerRevision[], progress);
@@ -1973,9 +1974,11 @@ function EchoesReaderInner() {
       return (p.children || []).some((c) => c.id === currentSongPage.id);
     });
     const spoiler =
-      songData.spoilerRevisions.length > 0
-        ? resolveSpoilerLevel(songData.spoilerRevisions, progress)
-        : songData.spoilerLevel || 0;
+      songData.category === 'story'
+        ? 0
+        : songData.spoilerRevisions.length > 0
+          ? resolveSpoilerLevel(songData.spoilerRevisions, progress)
+          : songData.spoilerLevel || 0;
     const hasUnlocked = spoiler === 0 || isSongUnlocked(currentSongPage.id);
     const locked = spoiler > 0 && !hasUnlocked;
     const audioUrl = buildAudioUrl(songData.audioFile);

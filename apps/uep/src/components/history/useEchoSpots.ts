@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import {
   deriveSongUnlockFlag,
   getAudioStore,
+  isSongCollected,
   resolveSpoilerLevel,
   type SongSpoilerRevision,
   type SpoilerLevel,
@@ -34,6 +35,7 @@ interface EchoSpotData {
   entityKey: string | null;
   title: string;
   clusterId: string;
+  songType: string;
   duration?: number;
   spoilerLevel: SpoilerLevel;
   spoilerRevisions: SongSpoilerRevision[];
@@ -60,16 +62,20 @@ export function readEchoSpot(element: Element): EchoSpotData | null {
     // 壞 snapshot 退回靜態 spoilerLevel，不讓文章掃描線中斷。
   }
   const duration = Number(element.getAttribute('data-duration'));
+  const clusterId =
+    element.getAttribute('data-cluster-id')?.trim() ||
+    songId.split('/')[1] ||
+    'special';
   return {
     spotId,
     songId,
     songUrlKey,
     entityKey: element.getAttribute('data-entity-key')?.trim() || null,
     title: element.getAttribute('data-song-title')?.trim() || '未命名的回聲',
-    clusterId:
-      element.getAttribute('data-cluster-id')?.trim() ||
-      songId.split('/')[1] ||
-      'special',
+    clusterId,
+    songType:
+      element.getAttribute('data-song-type')?.trim() ||
+      (clusterId === 'stories' ? 'story' : clusterId),
     ...(Number.isFinite(duration) && duration > 0 ? { duration } : {}),
     spoilerLevel: parseSpoilerLevel(element.getAttribute('data-spoiler-level')),
     spoilerRevisions,
@@ -78,6 +84,29 @@ export function readEchoSpot(element: Element): EchoSpotData | null {
 
 function visitStorageKey(pageId: string, spotId: string): string {
   return `uep.echo-spot.triggered.${pageId}.${spotId}`;
+}
+
+interface EchoSpotDowngradeInput {
+  isStory: boolean;
+  spoilerLevel: SpoilerLevel;
+  interacted: boolean;
+  autoplayAttempted: boolean;
+  resumeJump: boolean;
+  scrollVelocity: number;
+}
+
+/** 劇情歌正常掃描必須嘗試插播；只有真正的跳轉誤觸才預先降級。 */
+export function shouldDowngradeEchoSpot({
+  isStory,
+  spoilerLevel,
+  interacted,
+  autoplayAttempted,
+  resumeJump,
+  scrollVelocity,
+}: EchoSpotDowngradeInput): boolean {
+  if (resumeJump || scrollVelocity > FAST_SCROLL_PX_PER_SECOND) return true;
+  if (isStory) return false;
+  return spoilerLevel >= 3 || !interacted || autoplayAttempted;
 }
 
 /**
@@ -139,10 +168,11 @@ export function useEchoSpots({
       const spot = readEchoSpot(info.element);
       if (!spot) return;
 
+      const progressNow = progressRef.current;
+      const unlockFlag = deriveSongUnlockFlag(spot.songId, spot.entityKey);
+      const newlyUnlocked = !isSongCollected(unlockFlag, progressNow);
       // 收藏旗標不受島掛載或 autoplay 限制。
-      getProgressManager().grantFlags([
-        deriveSongUnlockFlag(spot.songId, spot.entityKey),
-      ]);
+      getProgressManager().grantFlags([unlockFlag]);
 
       if (triggeredRef.current.has(spot.spotId)) return;
       triggeredRef.current.add(spot.spotId);
@@ -152,11 +182,14 @@ export function useEchoSpots({
         // 隱私模式下 sessionStorage 可能不可寫；記憶體 Set 仍可去重。
       }
 
-      const progressNow = progressRef.current;
       if (!shouldMountIsland(progressNow, 'echoes')) return;
 
-      const spoilerLevel =
-        spot.spoilerRevisions.length > 0
+      const isStory = spot.songType === 'story' || spot.clusterId === 'stories';
+      // 劇情歌與劇情 CG 同語意：Echo Spot 就是其解鎖與首次呈現入口，
+      // 不再套一般歌曲的 spoiler 分級。
+      const spoilerLevel = isStory
+        ? 0
+        : spot.spoilerRevisions.length > 0
           ? resolveSpoilerLevel(spot.spoilerRevisions, progressNow)
           : spot.spoilerLevel;
       const cluster = echoClusterStyle(spot.clusterId);
@@ -171,12 +204,19 @@ export function useEchoSpots({
         accent: cluster.color,
       };
 
-      const shouldDowngrade =
-        spoilerLevel >= 3 ||
-        !interactedRef.current ||
-        autoplayAttemptedRef.current ||
-        resumeJumpRef.current ||
-        scrollVelocityRef.current > FAST_SCROLL_PX_PER_SECOND;
+      // Echo Spot 的主要行為仍是插播；右下角卡只負責告知本次新收藏。
+      if (newlyUnlocked) {
+        dispatchEchoPreview({ ...preview, source: 'unlock' });
+      }
+
+      const shouldDowngrade = shouldDowngradeEchoSpot({
+        isStory,
+        spoilerLevel,
+        interacted: interactedRef.current,
+        autoplayAttempted: autoplayAttemptedRef.current,
+        resumeJump: resumeJumpRef.current,
+        scrollVelocity: scrollVelocityRef.current,
+      });
       if (shouldDowngrade) {
         dispatchEchoPreview(preview);
         return;

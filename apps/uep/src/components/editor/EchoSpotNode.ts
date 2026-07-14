@@ -11,6 +11,7 @@ export interface EchoSpotAttributes {
   entityKey?: string;
   title?: string;
   clusterId?: string;
+  songType?: string;
   duration?: number;
   spoilerLevel?: number;
   spoilerRevisions?: unknown[];
@@ -74,6 +75,12 @@ const EchoSpotNode = Node.create({
         parseHTML: (el) => el.getAttribute('data-cluster-id') || '',
         renderHTML: (attrs) =>
           attrs.clusterId ? { 'data-cluster-id': attrs.clusterId } : {},
+      },
+      songType: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-song-type') || '',
+        renderHTML: (attrs) =>
+          attrs.songType ? { 'data-song-type': attrs.songType } : {},
       },
       duration: {
         default: 0,

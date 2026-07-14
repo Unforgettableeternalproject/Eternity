@@ -221,7 +221,7 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
 
 **島未掛載時不播放（艾斯維爾 07/12 定案）**：
 - 插播（與任何 spot 觸發的播放/提示卡）以 `shouldMountIsland(progress, 'echoes')` 為前置條件——**流浪回聲島未解鎖、被停用、或非登入探索者時，echo spot 不觸發播放也不出卡**。理由：島是唯一的播放控制 UI，島不在時播出來的音樂沒有任何可見控制入口
-- **解鎖旗標的授予不受此限**——spot 掃過永遠照常授予推導旗標（歌曲照樣進收藏池），之後解鎖島時收藏已累積。同一原則也適用於 Reader 的「加入佇列」按鈕（島未掛載時不顯示，B 段已實作）與 2-2 互動嵌入的曲目卡
+- **解鎖旗標的授予不受此限**——spot 掃過永遠照常授予推導旗標（歌曲照樣進收藏池），之後解鎖島時收藏已累積。互動式嵌入不適用這條規則，永遠不授旗。
 
 **為什麼用 sessionStorage 而非 ProgressState**：
 - ProgressState 的旗標是持久化的、跨裝置同步的，語意是「認知的永久狀態」
@@ -244,40 +244,30 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
 在已有的 FlagMarker 掃描線掃到 `[data-role="echo-spot"]` 時，額外呼叫 echo spot handler。注意：echo spot **不授予 FlagMarker 旗標**，兩者職責分離。解鎖旗標（見第三節）由 echo spot handler 單獨授予。
 
 **Autoplay 防禦（第五節詳述）**：
-掃描線觸發 ≠ 直接呼叫 `audio.play()`。先走防禦邏輯，判斷是否可以自動播放；若不可（上次已被瀏覽器擋、捲速過快、快速跳轉模式），降級為提示卡模式。
+一般曲目在快速捲動、快速跳轉（resume jump）時降級為提示卡。**劇情歌在正常掃描時必須直接嘗試插播**，不因尚無 click/tap 手勢而預先降級；只有實際被瀏覽器拒絕，或屬快速捲動／跳轉誤觸，才顯示播放提示。若本次 spot 新解鎖歌曲，另顯示右下角解鎖通知。
 
 ### 2-2 互動嵌入展示
 
-**定位**：entity 嵌入被點擊（`uep:entity-activate` 事件觸發），若有同 entityKey 對應歌曲且已解鎖，曲目卡浮在播放層之上。**不播放、不插播、不中斷當前播放。**
+**定位**：entity 嵌入被點擊（`uep:entity-activate`）時，查詢同 entityKey 的歌曲。只有**已解鎖、有效 Spoiler 等級為 L0、具有音檔的非劇情歌**可以產生互動；其餘情況靜默忽略。
 
-**資料查詢路徑**：
-1. `EntityActivateDetail.entityKey` 取得 entityKey
-2. 呼叫 `/api/echoes/entity-song?key={entityKey}`（新端點，見第七節）取得對應歌曲
-3. 若對應歌曲存在且已解鎖（見三-1 解鎖判定） → 顯示曲目卡
-4. 若不存在或未解鎖 → 靜默忽略（不顯示任何提示）
+**呈現與操作**：
+1. `IslandHost` 在島尚未 mount 時接住事件並查詢 `/api/echoes/entity-song?key={entityKey}`。
+2. 符合條件時開啟流浪回聲島，透過 window pending bridge 把歌曲交給 `EchoesIsland`。
+3. 提示直接浮在浮島內容中；淡灰回聲球以角色／區域歌的 cluster 色閃爍。
+4. 使用者可選「播放」或「忽略」。播放是一般曲目切換，不使用 `interrupt()`；在使用者選擇前不得影響目前播放。
 
-**曲目卡（SongPreviewCard）**：
-- 浮在 `document.body`（同 IslandHost portal 模式），z-index 在 Island 層帶（2000-2999）上方，或與 Island 同層但焦點置頂
-- 顯示：曲名、所屬 cluster、解鎖狀態（spoiler 降級後的資訊）
-- 操作：「加入佇列」（`uepAudio.enqueue`）、dismiss
-- 存在時間：使用者 dismiss 或點選加入佇列後自動消失
+**不變量**：互動式嵌入不授予任何收藏旗標、不解鎖曲目、不插播，也不使用右下角 `SongPreviewCard`。右下角卡片保留給 Echo Spot 的新解鎖通知或實際 autoplay 失敗提示。
 
-**與 Terminal Island 的類比**：
-Terminal Island 監聽 `uep:entity-activate` 並顯示條目資訊；EchoesIsland 同樣監聽此事件並顯示對應歌曲（如果有）。兩者共享同一個事件，不互相干擾——Terminal 顯示 Concepts 資料，Echoes 顯示歌曲卡。
-
-**監聽位置**：掛在 `IslandHost.tsx`（同 Terminal 的 entity-activate 監聽模式），不在 EchoesIsland 內部——島收合時內容元件沒有 mount，聽不到事件。
-
-**entity 條目出現 ≠ 歌曲解鎖**：entity 被 embed 出現在文章中，不代表對應歌曲解鎖。解鎖狀態獨立判定（三-1 節），嵌入展示只在「已解鎖」時才出現。
-
+**監聽位置**：查詢仍掛在 `IslandHost.tsx`，避免 EchoesIsland 收合／未 mount 時漏接事件；提示的視覺與 Play／Dismiss 操作則由 `EchoesIsland` 負責。
 ### 2-3 歌曲種類與訊號適用矩陣
 
 | 歌曲種類 | Echo Spot 觸發 | 嵌入展示 | 備註 |
 |---------|--------------|---------|------|
-| 劇情歌 | ✓（唯一解鎖路徑） | ✗ | 必須透過 spot，不可直接展示 |
-| 角色歌 | ✓ | ✓（需已解鎖） | spot 解鎖 → 之後嵌入可展示 |
-| 區域歌 | ✓ | ✓（需已解鎖） | spot 解鎖 → 之後嵌入可展示 |
+| 劇情歌 | ✓（插播並解鎖） | ✗ | 不使用 Spoiler Level；類似劇情 CG，收藏狀態只有未解鎖／已解鎖 |
+| 角色歌 | ✓（插播並可解鎖） | ✓（需已解鎖且為 L0） | 嵌入只提示，不解鎖 |
+| 區域歌 | ✓（插播並可解鎖） | ✓（需已解鎖且為 L0） | 嵌入只提示，不解鎖 |
 
-歌曲種類在 Echoes 歌曲頁的 metadata 中標記（`songType: 'story' | 'character' | 'area'`）。嵌入端不需要知道種類，只需知道「是否已解鎖」。
+歌曲種類使用 Echoes 既有 metadata `category: 'story' | 'character' | 'area'`；EchoSpotNode 另保存 `songType` 快照供掃描時判定。劇情歌一律視為 L0，但未透過 Echo Spot／其他 gate 解鎖前仍不可見。
 
 ---
 
@@ -298,9 +288,7 @@ Spoiler 降級鏈決定資訊量。**沒有「讀到詳情頁自動解鎖」這�
    觸發、完成某個章節（`completed:*`）等，走既有 `parseGateCondition` +
    `evaluateGate`（`requiresFlags` / `pristineOnly`）。**無 gate 且無靜態鎖
    的歌 = 天生解鎖**。
-2. **系統推導旗標被授予**（`deriveSongUnlockFlag`）——echo spot 觸發播放、
-   或互動嵌入觸發播放時授予。echo spot 的特殊之處只有「觸發時直接插播
-   （如果可以）」，解鎖機制本身與其他來源無異。
+2. **系統推導旗標被授予**（`deriveSongUnlockFlag`）——只由 Echo Spot 觸發時授予，並同時嘗試插播。互動式嵌入永遠不授旗、不解鎖。
 
 靜態鎖（`metadata.locked === true`，手動封存）凌駕於推導旗標之上。
 觀測者沿既有 `evaluateGate` 語意 bypass `requiresFlags`。
@@ -366,56 +354,29 @@ interface EchoeSongMetadata {
 
 **已解鎖但 spoiler 仍在 L3 → 不可播放**：進入收藏池資格（解鎖）≠ 播放資格（spoiler < 3）。
 
-**Spoiler 降級鏈結構**（近親 Concepts revision，但更簡單）：
+**Spoiler 降級鏈結構**：Gate 表示「達成後離開哪個 Level」，不是「降到哪級」。最高有 Gate 的 Level 就是歌曲起始遮蔽級；未設定任何 Gate 時使用靜態 `spoilerLevel`，不會預設從 L3 開始。劇情歌不使用這套結構。
 
 ```typescript
-// 單一降級條件
 export interface SongSpoilerRevision {
-  /** 降級後達到的 spoiler 等級（0 = 完全解鎖） */
-  targetLevel: 0 | 1 | 2;
-  /** 降級條件（通過 = 可降到此等級） */
+  /** 此條件控制離開哪一級；L0 沒有離開條件 */
+  sourceLevel: 1 | 2 | 3;
   gate: GateCondition;
 }
 
-// 在 EchoeSongMetadata 中：
+// 例：L3 通過後直接前往下一個有 Gate 的 L1，L1 通過後到 L0
 // spoilerRevisions: [
-//   { targetLevel: 2, gate: { requiresFlags: ['xavier-colsono:01'] } },
-//   { targetLevel: 1, gate: { requiresFlags: ['xavier-colsono:02'] } },
-//   { targetLevel: 0, gate: { requiresFlags: ['xavier-colsono:03'] } },
+//   { sourceLevel: 3, gate: { requiresFlags: ['chapter:01'] } },
+//   { sourceLevel: 1, gate: { requiresFlags: ['chapter:03'] } },
 // ]
 ```
 
-**求值規則（單調 AND 鏈）**：從最嚴格等級（初始值 = 3）開始，按 `targetLevel` 升序（或宣告順序，要求設計者保證）逐條判斷，通過則降到對應等級，繼續往後。不可跳躍（若 L2 未達，L1 和 L0 的條件即使通過也不生效）。
-
-```typescript
-// audio/spoilerResolver.ts（新建，純函式）
-
-/**
- * 計算歌曲的有效 spoiler 等級。
- * 純函式——不碰 DOM、不碰 store，方便測試。
- *
- * @param revisions   spoilerRevisions 陣列（從最嚴格到最寬鬆宣告）
- * @param progress    目前 ProgressState
- * @returns           有效 spoiler 等級（0-3）
- */
-export function resolveSpoilerLevel(
-  revisions: SongSpoilerRevision[] | undefined,
-  progress: ProgressState
-): 0 | 1 | 2 | 3 {
-  if (!revisions || revisions.length === 0) return 0; // 無降級鏈 = 完全開放
-  if (progress.view === 'observer') return 0;          // 觀測者 bypass
-  let current: 0 | 1 | 2 | 3 = 3;
-  for (const rev of revisions) {
-    if (rev.targetLevel >= current) continue;          // 防亂序跳躍
-    if (!evaluateGate(progress, rev.gate)) break;      // 單調 AND 鏈：一關不過就停
-    current = rev.targetLevel;
-  }
-  return current;
-}
-```
-
-**為什麼 break 而不是 continue**：降級鏈的語意是「你得先解鎖前面的劇情，才能看到更多資訊」。如果某一關的條件未達，後面的關卡條件即使達到也沒有意義——這是 AND 鏈（`break`），不是 OR 鏈（`continue`）。這與 Concepts `applyRevisions` 的「逐條通過逐條套用」不同，Concepts 是獨立 patch，Spoiler 是嚴格遞進。
-
+**求值規則**：
+- 由最高 `sourceLevel` 起算。
+- 當前 Gate 未通過就停在該級。
+- 通過後前往下一個有設定 Gate 的較低級，因此允許 L3 → L1 這類跳級。
+- 若下方沒有任何 Gate，則只降一級後停止；例如只設定 L3，通過後為 L2。
+- 舊資料的 `targetLevel` 仍可讀取，會正規化為 `sourceLevel = targetLevel + 1`；新資料只寫 `sourceLevel`。
+- 觀測者仍直接視為 L0。
 **`isEntryUnlocked` 的類比**：Echoes 需要對應的 `isSongCollected` 純函式（**不叫 `isSongUnlocked`**——Reader 內已有同名的 spoiler 警告確認狀態，語意不同，見風險 R7）：
 
 ```typescript
@@ -479,21 +440,21 @@ echo spot 掃描線通過
 
 **三層防禦**：
 
-1. **手勢追蹤**：`audioStore` 在初始化時監聽 `click`/`keydown`/`touchstart`，設 `userHasInteracted = true`（module-level 變數，不持久化）。`userHasInteracted = false` 時，所有 spot 觸發一律降級到提示卡模式。
+1. **手勢追蹤**：一般曲目可依 `userHasInteracted` 判斷是否先降級；**劇情歌例外**，正常掃描必須直接嘗試 `interrupt()`，由實際 `audio.play()` 結果決定是否出提示卡。
 
-2. **一次嘗試原則**：同一個頁面 session 只嘗試直接播放一次（`sessionStorage` 記錄 `echo-spot-autoplay-attempted`）。第一次被瀏覽器擋住後，後續 spot 直接跳過嘗試，降級為提示卡。
+2. **一次嘗試紀錄**：一般曲目可沿用 session autoplay attempt 防重試；劇情歌正常掃描不受既有 attempt 紀錄阻擋。
 
 3. **快速捲動偵測**：若捲速超過閾值（如 > 1500px/s，可由測試調整），判定為「快速跳轉」，跳過當下的 spot 觸發（同 sessionStorage 只觸發一次的語意）。實作：`useScanline` 或 echo spot handler 傳入最近的 scroll velocity。
 
 ### 5-2 降級模式：提示卡
 
-提示卡（`EchoSpotToast`）——不中斷現有播放，浮現在頁面右上角（或可配置的位置），顯示：
+提示卡（`SongPreviewCard`）——不中斷現有播放，浮現在頁面右下角，顯示：
 - 曲名（依 spoiler 等級決定顯示多少）
 - 「播放」按鈕（使用者手勢點擊 → `uepAudio.play`）
 - 「加入佇列」按鈕
 - 自動消失：8 秒後或使用者關閉
 
-提示卡與互動嵌入展示的 `SongPreviewCard` **共用同一個視覺元件**，只是觸發來源不同（spot vs embed）。
+提示卡只供 Echo Spot 的實際 autoplay 失敗／誤觸降級使用；若 spot 本次新解鎖曲目，右下角同元件顯示解鎖通知。互動式嵌入不使用此卡，改由 EchoesIsland 內嵌提示。
 
 ### 5-3 「上次讀到」快速跳轉保護
 
@@ -626,7 +587,7 @@ Song Picker
 └── 取消
 ```
 
-實作方式：類 `ConceptsEntityPicker`，API 呼叫 `GET /api/content/echoes/tree`，在前端遍歷取出 `pageType: 'song'` 的節點。Song Picker 只顯示歌曲節點，不顯示 cluster/subcategory 結構（只作分組標頭）。
+實作方式：類 `ConceptsEntityPicker`，API 呼叫 `GET /api/content/echoes/tree`，在前端遍歷取出 `pageType: 'song'` 的節點。Song Picker 排除 special／特殊回憶，也排除尚未設定 entityKey 的非劇情歌；劇情歌可不綁 entityKey。Modal 使用 body portal 與獨立高層級 backdrop，避免被 History 編輯器堆疊上下文穿透。
 
 **預覽**：picker 選中後，在 Node 的 NodeView 中顯示小型 preview（曲名 + 所屬 cluster 色彩），類 FlagMarker 的已選旗標顯示方式。
 
@@ -646,27 +607,16 @@ Echoes 歌曲頁的 Admin 編輯器（`EchoesEditorBody`）新增 `entityKey` �
 
 ### 7-4 Spoiler 降級鏈的編輯 UI
 
-在歌曲頁的 Admin 編輯器新增 Spoiler Revision 時間線（類 Concepts RevisionModal 但更簡單）：
+歌曲頁直接以 L0–L3 四張 Level 卡作為選擇器，不再另設「漸進降級」區塊：
 
-```
-▸ Spoiler 等級設定
-  目前等級：L3（預設，最嚴格）
-  ┌─────────────────────────────────────────────────┐
-  │ 降到 L2（部分遮蔽）                               │
-  │ [Gate 條件編輯器]  ← GateConditionEditor 復用     │
-  └─────────────────────────────────────────────────┘
-  ┌─────────────────────────────────────────────────┐
-  │ 降到 L1（曲名模糊）                               │
-  │ [Gate 條件編輯器]                                │
-  └─────────────────────────────────────────────────┘
-  ┌─────────────────────────────────────────────────┐
-  │ 降到 L0（完全解鎖，可播放）                        │
-  │ [Gate 條件編輯器]                                │
-  └─────────────────────────────────────────────────┘
-```
+- 點選 L1／L2／L3 後，在卡片列下方編輯「離開該 Level 的條件」。
+- L0 沒有離開條件，只顯示說明。
+- 有 Gate 的最高 Level 即為起始遮蔽級；設定 L1、L2 時從 L2 開始，不會因啟用降級而固定從 L3 開始。
+- Level 可以不連續。例如 L3 與 L1 有 Gate、L2 無 Gate，執行路徑為 L3 → L1 → L0。
+- 移除某一級 Gate 不連帶刪除其他級。
+- 劇情歌完全隱藏 Level、Gate 與 spoiler 警告文案，序列化時固定 L0 且不輸出 `spoilerRevisions`。
 
-每格的 `GateConditionEditor` 傳入對應的 `targetLevel`，`onChange` 更新 `spoilerRevisions[i].gate`。不開 modal（只有三格，inline 不爆）。
-
+每張卡顯示是否已設條件；編輯區在窄版 admin 會改為單欄，避免 GateConditionEditor 橫向溢出。
 ---
 
 ## 八、Worker 端點擴充（content-api）
@@ -857,13 +807,13 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 
 **目標**：entity 嵌入展示歌曲卡，autoplay 防禦完整，admin 可設定 spoiler 降級鏈。
 
-- `EchoSpotToast`/`SongPreviewCard` 元件（嵌入展示 + autoplay 降級共用）
+- `SongPreviewCard` 供 Echo Spot autoplay 降級與新解鎖通知；互動嵌入提示改放在 EchoesIsland 內
 - `IslandHost.tsx` 新增 `entity-activate` 的 echoes 消費（類 Terminal 的 pushEntityActivate 模式）
 - Autoplay 防禦三層（手勢追蹤、一次嘗試、快速捲動偵測）
 - 歌曲頁 Admin 編輯器：EntityKeyField + Spoiler 降級鏈 UI（GateConditionEditor 復用）
 - `entityKey` 的 metadata 存取/存檔
 
-**驗收**：點擊已解鎖角色歌的 entity 嵌入 → 曲目卡浮現；autoplay 被擋時降級為提示卡；Admin 可設定 spoiler 降級鏈且前台正確顯示
+**驗收**：點擊已解鎖且為 L0 的角色／區域歌 entity 嵌入 → 流浪回聲島浮現提示與染色回聲球；Play／Dismiss 不解鎖；Echo Spot 可插播並於新解鎖時通知；Admin 可直接在 Level 卡設定離開條件且支援跳級。
 
 ---
 
@@ -941,24 +891,24 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 
 ### C 段（0.9.13.1~5）已完成
 
-- `EchoSpotNode` 已納入 TipTap：保存穩定 `spotId`、完整歌曲頁 id、R2 裸 key、entityKey、分類／時長與 spoiler revision 快照；Song Picker 只列出具音檔的歌曲，支援搜尋與 cluster 分組
+- `EchoSpotNode` 已納入 TipTap：保存穩定 `spotId`、完整歌曲頁 id、R2 裸 key、entityKey、分類／時長與 spoiler revision 快照；Song Picker 只列出具音檔且符合綁定規則的歌曲，排除 special 與缺 entityKey 的非劇情歌
 - progress marker 掃描線已擴充 `role + element` callback；echo spot 每次頁面造訪只觸發一次，重新造訪可再觸發，且無論島是否掛載都先授予推導旗標
-- 只有 Echoes 島已掛載且符合直接播放條件時才走 `audioStore.interrupt()`；L3、無使用者手勢、快速捲動、resume jump 或瀏覽器拒絕 autoplay 時降級成曲目卡
+- 只有 Echoes 島已掛載時才走 `audioStore.interrupt()`；劇情歌正常掃描不因缺少手勢預先降級，快速捲動、resume jump 或瀏覽器實際拒絕播放時才出提示卡
 - 插播在離頁時恢復；插播中 next/previous 不再把插播曲誤當使用者佇列狀態
 - 「上次讀到」跳轉以 session 旗標、`scrollend` 與 500ms timeout 雙重解除，避免掃描線沿途觸發 echo spot
 
 ### D 段（0.9.13.6~10）已完成
 
-- 288px `SongPreviewCard` 已供 echo spot 與 entity activation 共用；L3 不可播放、只有 L0 可加入佇列，8 秒自動收合
+- `SongPreviewCard` 僅供 Echo Spot 的播放降級與新解鎖通知；entity activation 改由 EchoesIsland 內提示，限定已解鎖、L0、非劇情歌，Play／Dismiss 均不授旗
 - IslandHost 新增 Echoes entity activation consumer，會取消過期請求、重查 entity-song、套用可見性 gate 與動態 spoiler resolver；Terminal consumer 保持原行為
 - `/api/echoes/entity-song` 摘要補齊 subtitle、duration、spoilerLevel、GateCondition 與 locked，並排除 hidden 歌曲
 - Echoes 編輯器新增 EntityKeyField 與同 zone 唯一性硬驗證；查核未完成／失敗時阻擋存檔並可重試
-- Spoiler 降級鏈改為 inline L2 → L1 → L0 GateConditionEditor：不可跳級，移除上級會連帶移除後級，啟用鏈時固定由 L3 起算
+- Spoiler Gate 直接整合進 L0–L3 Level 卡：Gate 表示離開該級，可跳過未設定級；最高有 Gate 的 Level 為起點，移除任一 Gate 不連帶刪除其他級
 - **資料相容修正**：舊 `metadata.gate` 字串只向後相容讀成 `spoilerGate`；真正的 `metadata.gate` 物件保留給全站內容可見性，儲存時不再互相覆寫
 
 ### 驗證重點
 
 - Echo Spot HTML round-trip、Picker、marker/scanline、session dedupe、autoplay/interrupt、spoiler resolver、曲目卡 L3/L0 權限與 Echoes metadata round-trip 均有自動測試
-- 若後續新增 spoiler 階段，仍須維持「從嚴格到寬鬆連續宣告」與「第一個未通過 gate 即停止降級」兩個不變量
+- Spoiler 不變量：最高有 Gate 的級別為起點；通過後前往下一個有 Gate 的較低級；若無更低 Gate 才只降一級。禁止重新引入固定 L3 起算或連續級別限制。
 
 *文件結束。*

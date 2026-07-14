@@ -9,7 +9,13 @@
  * store 是 module singleton：vi.resetModules 取全新實例，Audio 以
  * MockAudio 替身、rAF stub 掉（同 audioStore 測試慣例）。
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -96,6 +102,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', () => {});
   window.localStorage.clear();
   delete (window as { __uepAudio?: unknown }).__uepAudio;
+  delete (window as { __uepEchoSuggestion?: unknown }).__uepEchoSuggestion;
   MockAudio.instances.length = 0;
   authMock.reset();
 });
@@ -199,5 +206,34 @@ describe('EchoesIsland', () => {
     expect(s.currentSongId).toBe('q1');
     expect(s.currentAccent).toBe('#B86060');
     expect(s.playlist).toEqual([]);
+  });
+
+  it('interactive embedding 只在島內提示，選擇前不打斷目前播放', async () => {
+    const { store, EchoesIsland } = await setup();
+    await store.play('current', 'https://cdn/current.mp3', '目前播放');
+    render(<EchoesIsland />);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('uep:echo-suggestion', {
+          detail: {
+            source: 'embed',
+            songId: 'related',
+            title: '角色的回聲',
+            url: 'https://cdn/related.mp3',
+            clusterId: 'characters',
+            spoilerLevel: 0,
+            accent: '#B86060',
+          },
+        })
+      );
+    });
+
+    expect(screen.getByText('角色的回聲')).toBeTruthy();
+    expect(store.getState().currentSongId).toBe('current');
+    fireEvent.click(screen.getByRole('button', { name: '播放' }));
+    await flush();
+    expect(store.getState().currentSongId).toBe('related');
+    expect(screen.queryByText('RELATED ECHO')).toBeNull();
   });
 });

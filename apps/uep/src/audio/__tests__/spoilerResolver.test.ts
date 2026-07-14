@@ -18,11 +18,11 @@ function progressWith(overrides: Partial<ProgressState> = {}): ProgressState {
   return { ...createInitialState(), ...overrides };
 }
 
-/** 標準三段降級鏈：xavier:01 → L2、xavier:02 → L1、xavier:03 → L0 */
+/** 標準三段降級鏈：離開 L3、L2、L1。 */
 const CHAIN: SongSpoilerRevision[] = [
-  { targetLevel: 2, gate: { requiresFlags: ['xavier:01'] } },
-  { targetLevel: 1, gate: { requiresFlags: ['xavier:02'] } },
-  { targetLevel: 0, gate: { requiresFlags: ['xavier:03'] } },
+  { sourceLevel: 3, gate: { requiresFlags: ['xavier:01'] } },
+  { sourceLevel: 2, gate: { requiresFlags: ['xavier:02'] } },
+  { sourceLevel: 1, gate: { requiresFlags: ['xavier:03'] } },
 ];
 
 describe('resolveSpoilerLevel', () => {
@@ -74,29 +74,40 @@ describe('resolveSpoilerLevel', () => {
     ).toBe(2);
   });
 
-  it('亂序防禦：targetLevel 不可回升', () => {
-    // 宣告順序反置（L0 在前）——L0 先通過後，L2/L1 因 >= current 被跳過
-    const reversed: SongSpoilerRevision[] = [
-      { targetLevel: 0, gate: { requiresFlags: ['a'] } },
-      { targetLevel: 2, gate: { requiresFlags: ['b'] } },
+  it('允許跳級：只設定 L3 與 L1 時走 L3 → L1 → L0', () => {
+    const skipping: SongSpoilerRevision[] = [
+      { sourceLevel: 1, gate: { requiresFlags: ['b'] } },
+      { sourceLevel: 3, gate: { requiresFlags: ['a'] } },
     ];
-    const p = progressWith({ flags: ['a', 'b'] });
-    expect(resolveSpoilerLevel(reversed, p)).toBe(0);
+    expect(resolveSpoilerLevel(skipping, progressWith())).toBe(3);
+    expect(resolveSpoilerLevel(skipping, progressWith({ flags: ['a'] }))).toBe(
+      1
+    );
+    expect(
+      resolveSpoilerLevel(skipping, progressWith({ flags: ['a', 'b'] }))
+    ).toBe(0);
+  });
+
+  it('只有一個 Gate 時通過後只降一級', () => {
+    const single: SongSpoilerRevision[] = [
+      { sourceLevel: 3, gate: { requiresFlags: ['a'] } },
+    ];
+    expect(resolveSpoilerLevel(single, progressWith({ flags: ['a'] }))).toBe(2);
   });
 
   it('pristineOnly 條件走既有 evaluateGate 語意（觀測者印記者不降級）', () => {
     const chain: SongSpoilerRevision[] = [
-      { targetLevel: 0, gate: { pristineOnly: true } },
+      { sourceLevel: 1, gate: { pristineOnly: true } },
     ];
     // 純潔者：降到 L0
     expect(resolveSpoilerLevel(chain, progressWith())).toBe(0);
-    // 有印記的探索者：L2 那關不過，維持 L3
+    // 有印記的探索者：L1 那關不過，維持 L1
     expect(
       resolveSpoilerLevel(chain, progressWith({ observerEver: true }))
-    ).toBe(3);
+    ).toBe(1);
   });
 
-  it('資料防禦：targetLevel 非數字的條目跳過不炸', () => {
+  it('舊 targetLevel 資料可向後相容，壞資料會跳過', () => {
     const dirty = [
       { targetLevel: undefined, gate: {} },
       { targetLevel: 2, gate: { requiresFlags: ['xavier:01'] } },

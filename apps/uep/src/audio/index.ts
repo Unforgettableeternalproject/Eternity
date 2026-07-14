@@ -31,6 +31,7 @@ export type { AudioContextValue } from './audioContext';
 
 export {
   resolveSpoilerLevel,
+  revisionSourceLevel,
   isSpoilerPlayable,
   isSongCollected,
   deriveSongUnlockFlag,

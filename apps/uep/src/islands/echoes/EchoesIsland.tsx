@@ -25,6 +25,11 @@ import React, {
 
 import { getAudioStore } from '../../audio';
 import type { AudioQueueItem, AudioState } from '../../audio';
+import type { EchoPreviewTrack } from './echoPreview';
+import {
+  consumeEchoSuggestion,
+  UEP_ECHO_SUGGESTION_EVENT,
+} from './echoSuggestionBridge';
 
 import './EchoesIsland.css';
 
@@ -63,6 +68,7 @@ function EchoOrb({
   interruption,
   satellites,
   disabled,
+  suggesting,
   onToggle,
 }: {
   accent: string;
@@ -70,6 +76,7 @@ function EchoOrb({
   interruption: boolean;
   satellites: AudioQueueItem[];
   disabled: boolean;
+  suggesting: boolean;
   onToggle: () => void;
 }) {
   const size = 96;
@@ -121,7 +128,7 @@ function EchoOrb({
       {/* 黑色回聲＝播放鍵 */}
       <button
         type="button"
-        className={`uep-eisland__ball${playing ? ' is-playing' : ''}`}
+        className={`uep-eisland__ball${playing ? ' is-playing' : ''}${suggesting ? ' is-suggesting' : ''}`}
         onClick={onToggle}
         disabled={disabled}
         title={playing ? '暫停' : '播放'}
@@ -129,7 +136,7 @@ function EchoOrb({
         style={{
           width: ball,
           height: ball,
-          background: ballBg(accent, playing),
+          background: ballBg(accent, playing || suggesting),
           boxShadow: `0 0 0 3px var(--bg-card), 0 0 0 4px ${accent}, 0 6px 18px rgba(20, 12, 4, 0.28)${
             playing ? `, 0 0 22px ${accent}55` : ''
           }`,
@@ -163,6 +170,21 @@ export default function EchoesIsland() {
   );
 
   const [queueOpen, setQueueOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState<EchoPreviewTrack | null>(null);
+
+  useEffect(() => {
+    const pending = consumeEchoSuggestion();
+    if (pending) setSuggestion(pending);
+    const onSuggestion = (event: Event) => {
+      const detail = (event as CustomEvent<EchoPreviewTrack>).detail;
+      if (!detail) return;
+      window.__uepEchoSuggestion = null;
+      setSuggestion(detail);
+    };
+    window.addEventListener(UEP_ECHO_SUGGESTION_EVENT, onSuggestion);
+    return () =>
+      window.removeEventListener(UEP_ECHO_SUGGESTION_EVENT, onSuggestion);
+  }, []);
 
   /* 收合即暫停 / 展開續播（島展開本身即使用者手勢，autoplay 安全） */
   const stateRef = useRef(state);
@@ -189,6 +211,7 @@ export default function EchoesIsland() {
   }, [store]);
 
   const accent = state.currentAccent || DEFAULT_ACCENT;
+  const displayAccent = suggestion?.accent || accent;
   const hasSong = state.currentSongId !== null;
   const interrupting = state.interruptionSnapshot !== null;
 
@@ -208,6 +231,19 @@ export default function EchoesIsland() {
     } else {
       store.next(); // 無當前曲：從佇列頭開播
     }
+  }
+
+  function playSuggestion() {
+    if (!suggestion) return;
+    // 使用者主動改播關聯曲，視為手動中斷目前插播；佇列保持原樣。
+    store.clearInterruption();
+    void store.play(
+      suggestion.songId,
+      suggestion.url,
+      suggestion.title,
+      suggestion.accent
+    );
+    setSuggestion(null);
   }
 
   /** 點佇列列：播放該曲並自佇列移除（loop=all 時當前曲回佇列尾，同 next 語意） */
@@ -267,14 +303,38 @@ export default function EchoesIsland() {
         </div>
       )}
 
+      {suggestion && (
+        <div
+          className="uep-eisland__suggestion"
+          style={{ '--suggestion': displayAccent } as React.CSSProperties}
+        >
+          <span className="uep-eisland__suggestion-dot" aria-hidden />
+          <div className="uep-eisland__suggestion-copy">
+            <small>RELATED ECHO</small>
+            <strong>{suggestion.title}</strong>
+          </div>
+          <button type="button" onClick={playSuggestion}>
+            播放
+          </button>
+          <button
+            type="button"
+            className="is-dismiss"
+            onClick={() => setSuggestion(null)}
+          >
+            忽略
+          </button>
+        </div>
+      )}
+
       {/* ── 舞台：黑色回聲（＝播放鍵）橫排曲目資訊 ── */}
       <div className="uep-eisland__stage">
         <EchoOrb
-          accent={accent}
+          accent={displayAccent}
           playing={state.isPlaying}
           interruption={interrupting}
           satellites={state.playlist}
           disabled={!hasSong && state.playlist.length === 0}
+          suggesting={suggestion !== null}
           onToggle={toggleOrb}
         />
         <div className="uep-eisland__info">

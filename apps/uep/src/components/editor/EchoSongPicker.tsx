@@ -1,5 +1,6 @@
 /* global AbortController */
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface EchoSongChoice {
   id: string;
@@ -11,6 +12,7 @@ export interface EchoSongChoice {
   subcategoryTitle?: string;
   duration?: number;
   spoilerLevel: number;
+  songType: string;
   spoilerRevisions?: unknown[];
 }
 
@@ -57,6 +59,26 @@ export function flattenEchoSongs(tree: TreeNode[]): EchoSongChoice[] {
             typeof node.metadata?.entityKey === 'string'
               ? node.metadata.entityKey.trim()
               : '';
+          const clusterId =
+            nextCluster?.id || node.id.split('/')[1] || 'special';
+          const category =
+            typeof node.metadata?.category === 'string'
+              ? node.metadata.category.trim()
+              : '';
+          const songType =
+            category ||
+            (clusterId === 'stories'
+              ? 'story'
+              : clusterId === 'areas'
+                ? 'area'
+                : clusterId === 'characters'
+                  ? 'character'
+                  : 'special');
+          const isStory = songType === 'story' || clusterId === 'stories';
+          // 特殊回憶不由 History Echo Spot 掛載；非劇情歌則必須先有
+          // entityKey，確保 spot 與互動嵌入共用同一實體身分。
+          if (songType === 'special' || clusterId === 'special') continue;
+          if (!isStory && !entityKey) continue;
           const duration = Number(
             (node.metadata?.audioMeta as Record<string, unknown> | undefined)
               ?.duration
@@ -72,17 +94,21 @@ export function flattenEchoSongs(tree: TreeNode[]): EchoSongChoice[] {
             title: node.title,
             audioFile,
             ...(entityKey ? { entityKey } : {}),
-            clusterId: nextCluster?.id || node.id.split('/')[1] || 'special',
+            clusterId,
             clusterTitle: nextCluster?.title || '未分類',
+            songType,
             ...(nextSubcategory ? { subcategoryTitle: nextSubcategory } : {}),
             ...(Number.isFinite(duration) && duration > 0 ? { duration } : {}),
-            spoilerLevel:
-              Number.isInteger(spoilerLevel) &&
-              spoilerLevel >= 0 &&
-              spoilerLevel <= 3
+            spoilerLevel: isStory
+              ? 0
+              : Number.isInteger(spoilerLevel) &&
+                  spoilerLevel >= 0 &&
+                  spoilerLevel <= 3
                 ? spoilerLevel
                 : 0,
-            ...(spoilerRevisions?.length ? { spoilerRevisions } : {}),
+            ...(!isStory && spoilerRevisions?.length
+              ? { spoilerRevisions }
+              : {}),
           });
         }
       }
@@ -150,12 +176,15 @@ export default function EchoSongPicker({
     return [...groups.entries()];
   }, [query, songs]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
-    <div className="ned-modal-backdrop" onMouseDown={onClose}>
+  return createPortal(
+    <div
+      className="ned-modal-backdrop ned-echo-song-picker-backdrop"
+      onMouseDown={onClose}
+    >
       <div
-        className="ned-modal ned-echo-song-picker"
+        className="ned-modal-card ned-echo-song-picker"
         role="dialog"
         aria-modal="true"
         aria-label="選擇 Echoes 曲目"
@@ -165,8 +194,8 @@ export default function EchoSongPicker({
           <div>
             <strong>選擇 Echoes 曲目</strong>
             <div className="ned-echo-song-picker__hint">
-              僅列出已有音檔的歌曲；選取後會保存歌曲 ID、R2 裸 key 與 entityKey
-              快照。
+              僅列出有音檔的劇情歌，或已有 entityKey
+              的角色／區域歌曲；特殊回憶不列入。
             </div>
           </div>
           <button type="button" className="ned-modal-close" onClick={onClose}>
@@ -231,6 +260,7 @@ export default function EchoSongPicker({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

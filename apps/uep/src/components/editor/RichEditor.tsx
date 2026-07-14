@@ -781,6 +781,7 @@ export default function RichEditor({
       ...(song.entityKey ? { entityKey: song.entityKey } : {}),
       title: song.title,
       clusterId: song.clusterId,
+      songType: song.songType,
       ...(song.duration ? { duration: song.duration } : {}),
       spoilerLevel: song.spoilerLevel,
       ...(song.spoilerRevisions

@@ -22,6 +22,7 @@ describe('EchoSpotNode persistence contract', () => {
       entityKey: 'xavier-colsono',
       title: '那道回聲',
       clusterId: 'characters',
+      songType: 'character',
       duration: 92,
       spoilerLevel: 3,
       spoilerRevisions: [
@@ -33,6 +34,7 @@ describe('EchoSpotNode persistence contract', () => {
     expect(html).toContain('data-role="echo-spot"');
     expect(html).toContain('data-spot-id="spot-fixed-id"');
     expect(html).toContain('data-song-url-key="audio/echoes/xavier-theme.mp3"');
+    expect(html).toContain('data-song-type="character"');
 
     const restored = new Editor({
       element: document.createElement('div'),
@@ -47,6 +49,7 @@ describe('EchoSpotNode persistence contract', () => {
         spotId: 'spot-fixed-id',
         entityKey: 'xavier-colsono',
         duration: 92,
+        songType: 'character',
         spoilerLevel: 3,
         spoilerRevisions: [
           { targetLevel: 2, gate: { requiresFlags: ['met:xavier'] } },

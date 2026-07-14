@@ -33,6 +33,16 @@
   }
 }
 
+@keyframes uep-eisland-suggest {
+  0%,
+  100% {
+    filter: saturate(0.85) brightness(1);
+  }
+  50% {
+    filter: saturate(1.25) brightness(1.28);
+  }
+}
+
 .uep-eisland {
   font-family: var(--font-sans);
   user-select: none;
@@ -71,6 +81,71 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 130px;
+}
+
+/* ── Interactive embedding：島內關聯曲提示 ── */
+.uep-eisland__suggestion {
+  --suggestion: #355c7d;
+  margin: 8px 12px 0;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--suggestion) 58%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--suggestion) 8%, var(--bg-card));
+}
+
+.uep-eisland__suggestion-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--suggestion);
+  box-shadow: 0 0 8px var(--suggestion);
+}
+
+.uep-eisland__suggestion-copy {
+  min-width: 0;
+}
+
+.uep-eisland__suggestion-copy small,
+.uep-eisland__suggestion-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uep-eisland__suggestion-copy small {
+  color: var(--suggestion);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.14em;
+}
+
+.uep-eisland__suggestion-copy strong {
+  margin-top: 2px;
+  color: var(--ink-title);
+  font-family: var(--font-serif-tc);
+  font-size: 11px;
+}
+
+.uep-eisland__suggestion button {
+  padding: 4px 7px;
+  border: 1px solid var(--suggestion);
+  border-radius: 999px;
+  background: var(--suggestion);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.uep-eisland__suggestion button.is-dismiss {
+  border-color: var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-mute);
 }
 
 /* ── 舞台：黑球 + 曲目資訊橫排 ── */
@@ -155,6 +230,10 @@
 
 .uep-eisland__ball.is-playing {
   animation: uep-eisland-breathe 3.6s ease-in-out infinite;
+}
+
+.uep-eisland__ball.is-suggesting {
+  animation: uep-eisland-suggest 1.1s ease-in-out infinite;
 }
 
 .uep-eisland__ball-glyph {
@@ -526,7 +605,8 @@
 @media (prefers-reduced-motion: reduce) {
   .uep-eisland__ripple,
   .uep-eisland__orbit,
-  .uep-eisland__ball.is-playing {
+  .uep-eisland__ball.is-playing,
+  .uep-eisland__ball.is-suggesting {
     animation: none;
   }
 }

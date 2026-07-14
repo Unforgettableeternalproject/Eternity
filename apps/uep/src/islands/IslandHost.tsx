@@ -43,9 +43,12 @@ import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
 import SongPreviewCard from './echoes/SongPreviewCard';
 import {
+  isEchoSuggestionEligible,
+  pushEchoSuggestion,
+} from './echoes/echoSuggestionBridge';
+import {
   UEP_ECHO_PREVIEW_EVENT,
   buildEchoAudioUrl,
-  dispatchEchoPreview,
   echoClusterStyle,
   type EchoPreviewTrack,
 } from './echoes/echoPreview';
@@ -102,11 +105,12 @@ export default function IslandHost() {
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
   }, []);
 
-  // Echo spot autoplay 降級與 entity 曲目展示共用同一張卡。
+  // 右下角卡只承接 Echo Spot 解鎖通知或真正 autoplay 失敗。
   useEffect(() => {
     const onPreview = (event: Event) => {
       const detail = (event as CustomEvent<EchoPreviewTrack>).detail;
       if (!detail) return;
+      if (detail.source === 'embed') return;
       if (!shouldMountIsland(progressRef.current, 'echoes')) return;
       setEchoPreview(detail);
     };
@@ -114,7 +118,8 @@ export default function IslandHost() {
     return () => window.removeEventListener(UEP_ECHO_PREVIEW_EVENT, onPreview);
   }, []);
 
-  // entity-activate 的 Echoes 消費：只顯示「已收藏」且非劇情歌的對應曲。
+  // entity-activate 的 Echoes 消費：只把「已收藏、非劇情歌、L0」的對應曲
+  // 推進流浪回聲島內提示；不授旗、不打斷目前播放。
   // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
   useEffect(() => {
     let controller: AbortController | null = null;
@@ -131,23 +136,19 @@ export default function IslandHost() {
         .then((response) => response.json())
         .then((payload) => {
           const song = payload?.data?.song;
-          if (!payload?.ok || !song || song.songType === 'story') return;
+          if (!payload?.ok || !song) return;
           const progressNow = progressRef.current;
-          if (
-            !isSongUnlockedInZone(
-              {
-                id: song.id,
-                metadata: {
-                  entityKey: song.entityKey,
-                  gate: song.gate,
-                  locked: song.locked,
-                },
+          const unlocked = isSongUnlockedInZone(
+            {
+              id: song.id,
+              metadata: {
+                entityKey: song.entityKey,
+                gate: song.gate,
+                locked: song.locked,
               },
-              progressNow
-            )
-          ) {
-            return;
-          }
+            },
+            progressNow
+          );
           const revisions = Array.isArray(song.spoilerRevisions)
             ? song.spoilerRevisions
             : [];
@@ -155,18 +156,27 @@ export default function IslandHost() {
             revisions.length > 0
               ? resolveSpoilerLevel(revisions, progressNow)
               : song.spoilerLevel || 0;
-          if (!song.audioFile) return;
+          if (
+            !isEchoSuggestionEligible({
+              songType: song.songType,
+              unlocked,
+              spoilerLevel,
+              audioFile: song.audioFile,
+            })
+          )
+            return;
           const cluster = echoClusterStyle(song.clusterId || song.songType);
-          dispatchEchoPreview({
+          pushEchoSuggestion({
             source: 'embed',
             songId: song.id,
             title: song.title,
             url: buildEchoAudioUrl(API_BASE, song.audioFile),
             clusterId: song.clusterId || song.songType || 'special',
             ...(song.duration ? { duration: song.duration } : {}),
-            spoilerLevel,
+            spoilerLevel: 0,
             accent: cluster.color,
           });
+          getIslandRuntime().open('echoes');
         })
         .catch((error: unknown) => {
           if ((error as { name?: string }).name !== 'AbortError') {

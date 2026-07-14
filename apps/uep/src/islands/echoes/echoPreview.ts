@@ -1,6 +1,6 @@
 export const UEP_ECHO_PREVIEW_EVENT = 'uep:echo-preview';
 
-export type EchoPreviewSource = 'spot' | 'embed';
+export type EchoPreviewSource = 'spot' | 'embed' | 'unlock';
 
 export interface EchoPreviewTrack {
   source: EchoPreviewSource;

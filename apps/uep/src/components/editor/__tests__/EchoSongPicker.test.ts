@@ -21,6 +21,7 @@ describe('flattenEchoSongs', () => {
                 metadata: {
                   audioFile: 'audio/xavier.mp3',
                   entityKey: 'xavier-colsono',
+                  category: 'character',
                   spoilerLevel: 3,
                   spoilerRevisions: [
                     { targetLevel: 2, gate: { requiresFlags: ['met:x'] } },
@@ -50,8 +51,71 @@ describe('flattenEchoSongs', () => {
         subcategoryTitle: '英雄',
         duration: 123,
         spoilerLevel: 3,
+        songType: 'character',
       }),
     ]);
     expect(songs[0].spoilerRevisions).toHaveLength(1);
+  });
+
+  it('排除特殊回憶及缺 entityKey 的非劇情歌，但保留無 key 劇情歌', () => {
+    const songs = flattenEchoSongs([
+      {
+        id: 'echoes/root',
+        title: 'Echoes',
+        children: [
+          {
+            id: 'echoes/special',
+            title: '特殊回憶',
+            pageType: 'cluster',
+            children: [
+              {
+                id: 'echoes/special/a',
+                title: '不可選',
+                pageType: 'song',
+                metadata: { audioFile: 'audio/special.mp3', entityKey: 'sp' },
+              },
+            ],
+          },
+          {
+            id: 'echoes/characters',
+            title: '角色回憶',
+            pageType: 'cluster',
+            children: [
+              {
+                id: 'echoes/characters/no-key',
+                title: '尚未繫結',
+                pageType: 'song',
+                metadata: { audioFile: 'audio/no-key.mp3' },
+              },
+            ],
+          },
+          {
+            id: 'echoes/stories',
+            title: '劇情回憶',
+            pageType: 'cluster',
+            children: [
+              {
+                id: 'echoes/stories/opening',
+                title: '序章插播',
+                pageType: 'song',
+                metadata: {
+                  audioFile: 'audio/opening.mp3',
+                  category: 'story',
+                  spoilerLevel: 3,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    expect(songs).toEqual([
+      expect.objectContaining({
+        id: 'echoes/stories/opening',
+        songType: 'story',
+        spoilerLevel: 0,
+      }),
+    ]);
   });
 });

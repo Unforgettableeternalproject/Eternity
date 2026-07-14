@@ -19,6 +19,20 @@ const baseTrack = {
 };
 
 describe('SongPreviewCard spoiler actions', () => {
+  it('新解鎖提示只提供收下回聲，不重複播放或排隊', () => {
+    const onDismiss = vi.fn();
+    render(
+      <SongPreviewCard
+        track={{ ...baseTrack, source: 'unlock', spoilerLevel: 0 }}
+        onDismiss={onDismiss}
+      />
+    );
+    expect(screen.getByText(/已收錄一枚回聲/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /播放/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '收下回聲' }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
   it('L3 遮蔽標題並禁止播放與加入佇列', () => {
     render(
       <SongPreviewCard

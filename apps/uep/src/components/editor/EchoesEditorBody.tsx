@@ -1,6 +1,10 @@
 /* global AbortController */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { SongSpoilerRevision } from '../../audio';
+import {
+  revisionSourceLevel,
+  type SongSpoilerRevision,
+  type SpoilerLevel,
+} from '../../audio';
 import type { GateCondition } from '../../progress';
 import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
@@ -49,29 +53,45 @@ export function parseEchoesData(metadata: Record<string, any>): EchoesData {
   // 全站內容可見性，不可當文案讀取。
   const legacySpoilerGate =
     typeof metadata?.gate === 'string' ? metadata.gate : '';
+  const category = metadata?.category || 'character';
+  const spoilerRevisions: SongSpoilerRevision[] = Array.isArray(
+    metadata?.spoilerRevisions
+  )
+    ? metadata.spoilerRevisions
+        .map((revision: unknown): SongSpoilerRevision | null => {
+          if (!revision || typeof revision !== 'object') return null;
+          const candidate = revision as SongSpoilerRevision;
+          const sourceLevel = revisionSourceLevel(candidate);
+          return sourceLevel &&
+            candidate.gate &&
+            typeof candidate.gate === 'object'
+            ? { sourceLevel, gate: candidate.gate }
+            : null;
+        })
+        .filter(
+          (
+            revision: SongSpoilerRevision | null
+          ): revision is SongSpoilerRevision => revision !== null
+        )
+    : [];
+  const highestConfigured = spoilerRevisions.reduce<number>(
+    (highest, revision) =>
+      Math.max(highest, revisionSourceLevel(revision) || 0),
+    0
+  );
   return {
     subtitle: metadata?.subtitle || '',
-    category: metadata?.category || 'character',
-    spoilerLevel: metadata?.spoilerLevel ?? 0,
+    category,
+    spoilerLevel:
+      category === 'story'
+        ? 0
+        : highestConfigured || metadata?.spoilerLevel || 0,
     spoilerGate: metadata?.spoilerGate || legacySpoilerGate,
     entityKey:
       typeof metadata?.entityKey === 'string' && metadata.entityKey.trim()
         ? metadata.entityKey.trim()
         : undefined,
-    spoilerRevisions: Array.isArray(metadata?.spoilerRevisions)
-      ? metadata.spoilerRevisions.filter(
-          (revision: unknown): revision is SongSpoilerRevision => {
-            if (!revision || typeof revision !== 'object') return false;
-            const level = (revision as { targetLevel?: unknown }).targetLevel;
-            const gate = (revision as { gate?: unknown }).gate;
-            return (
-              (level === 0 || level === 1 || level === 2) &&
-              !!gate &&
-              typeof gate === 'object'
-            );
-          }
-        )
-      : [],
+    spoilerRevisions: category === 'story' ? [] : spoilerRevisions,
     audioFile: metadata?.audioFile || null,
     audioMeta: metadata?.audioMeta || null,
     coverImage: metadata?.coverImage || null,
@@ -81,14 +101,16 @@ export function parseEchoesData(metadata: Record<string, any>): EchoesData {
 }
 
 export function serializeEchoesData(data: EchoesData): Record<string, any> {
+  const isStory = data.category === 'story';
   return {
     subtitle: data.subtitle || undefined,
     category: data.category,
-    spoilerLevel: data.spoilerLevel,
-    spoilerGate: data.spoilerGate || undefined,
+    spoilerLevel: isStory ? 0 : data.spoilerLevel,
+    ...(!isStory && data.spoilerGate ? { spoilerGate: data.spoilerGate } : {}),
     entityKey: data.entityKey || undefined,
-    spoilerRevisions:
-      data.spoilerRevisions.length > 0 ? data.spoilerRevisions : undefined,
+    ...(!isStory && data.spoilerRevisions.length > 0
+      ? { spoilerRevisions: data.spoilerRevisions }
+      : {}),
     audioFile: data.audioFile || undefined,
     audioMeta: data.audioMeta || undefined,
     coverImage: data.coverImage || undefined,
@@ -348,6 +370,14 @@ export default function EchoesEditorBody({
   onValidationChange,
 }: EchoesEditorBodyProps) {
   const [data, setData] = useState<EchoesData>(initialData);
+  const [selectedSpoilerLevel, setSelectedSpoilerLevel] =
+    useState<SpoilerLevel>(
+      initialData.spoilerLevel === 1 ||
+        initialData.spoilerLevel === 2 ||
+        initialData.spoilerLevel === 3
+        ? initialData.spoilerLevel
+        : 0
+    );
   const [uploading, setUploading] = useState<'audio' | 'cover' | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -424,12 +454,11 @@ export default function EchoesEditorBody({
     } else if (data.entityKey && otherEntityKeys.has(data.entityKey)) {
       issues.push(`entityKey「${data.entityKey}」已被其他歌曲使用`);
     }
-    const levels = data.spoilerRevisions.map(
-      (revision) => revision.targetLevel
-    );
-    const expected = [2, 1, 0].slice(0, levels.length);
-    if (levels.some((level, index) => level !== expected[index])) {
-      issues.push('Spoiler 降級鏈必須依 L2 → L1 → L0 連續設定');
+    const levels = data.spoilerRevisions
+      .map(revisionSourceLevel)
+      .filter((level): level is 1 | 2 | 3 => level !== null);
+    if (new Set(levels).size !== levels.length) {
+      issues.push('同一個 Spoiler Level 不可設定多組離開條件');
     }
     return issues;
   }, [
@@ -443,28 +472,53 @@ export default function EchoesEditorBody({
     onValidationChange?.(validationIssues);
   }, [onValidationChange, validationIssues]);
 
-  const gateForLevel = (level: 0 | 1 | 2): GateCondition | null =>
-    data.spoilerRevisions.find((revision) => revision.targetLevel === level)
-      ?.gate ?? null;
+  const gateForLevel = (level: 1 | 2 | 3): GateCondition | null =>
+    data.spoilerRevisions.find(
+      (revision) => revisionSourceLevel(revision) === level
+    )?.gate ?? null;
 
-  const setSpoilerGate = (level: 0 | 1 | 2, nextGate: GateCondition | null) => {
-    const ordered: Array<0 | 1 | 2> = [2, 1, 0];
-    const index = ordered.indexOf(level);
+  const setSpoilerGate = (level: 1 | 2 | 3, nextGate: GateCondition | null) => {
+    const ordered: Array<3 | 2 | 1> = [3, 2, 1];
     const byLevel = new Map(
-      data.spoilerRevisions.map((revision) => [revision.targetLevel, revision])
+      data.spoilerRevisions
+        .map((revision) => [revisionSourceLevel(revision), revision] as const)
+        .filter(
+          (entry): entry is readonly [1 | 2 | 3, SongSpoilerRevision] =>
+            entry[0] !== null
+        )
     );
     if (nextGate) {
-      byLevel.set(level, { targetLevel: level, gate: nextGate });
+      byLevel.set(level, { sourceLevel: level, gate: nextGate });
     } else {
-      // AND 鏈不可留洞：移除某級時，其後更寬鬆的等級一併移除。
-      ordered.slice(index).forEach((target) => byLevel.delete(target));
+      byLevel.delete(level);
     }
+    const revisions = ordered
+      .map((sourceLevel) => byLevel.get(sourceLevel))
+      .filter((revision): revision is SongSpoilerRevision => !!revision);
+    const highest = revisions[0] ? revisionSourceLevel(revisions[0]) : null;
     update({
-      spoilerLevel: byLevel.size > 0 ? 3 : data.spoilerLevel,
-      spoilerRevisions: ordered
-        .map((target) => byLevel.get(target))
-        .filter((revision): revision is SongSpoilerRevision => !!revision),
+      spoilerLevel: highest ?? level,
+      spoilerRevisions: revisions,
     });
+  };
+
+  const selectSpoilerLevel = (level: SpoilerLevel) => {
+    setSelectedSpoilerLevel(level);
+    if (data.spoilerRevisions.length === 0) update({ spoilerLevel: level });
+  };
+
+  const updateCategory = (category: string) => {
+    if (category === 'story') {
+      setSelectedSpoilerLevel(0);
+      update({
+        category,
+        spoilerLevel: 0,
+        spoilerGate: '',
+        spoilerRevisions: [],
+      });
+      return;
+    }
+    update({ category });
   };
 
   const updateAudioMeta = (patch: Partial<AudioMeta>) => {
@@ -598,7 +652,7 @@ export default function EchoesEditorBody({
           <select
             className="ned-field"
             value={data.category}
-            onChange={(e) => update({ category: e.target.value })}
+            onChange={(e) => updateCategory(e.target.value)}
           >
             {CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -607,36 +661,73 @@ export default function EchoesEditorBody({
             ))}
           </select>
         </div>
-        <div>
+        <div className="ned-spoiler-level-control">
           <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
-          <div className="ned-spoiler-buttons">
-            {SPOILER_LEVELS.map((o) => (
-              <button
-                key={o.l}
-                className={`ned-spoiler-btn ${data.spoilerLevel === o.l ? 'is-active' : ''}`}
-                style={{
-                  borderColor:
-                    data.spoilerLevel === o.l
-                      ? accent
-                      : 'var(--hairline-strong)',
-                  background:
-                    data.spoilerLevel === o.l ? `${accent}12` : 'transparent',
-                  color: data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
-                }}
-                disabled={data.spoilerRevisions.length > 0}
-                onClick={() => update({ spoilerLevel: o.l })}
-                type="button"
-                title={
-                  data.spoilerRevisions.length > 0
-                    ? '已啟用漸進降級；請先清除降級鏈再修改起始等級'
-                    : undefined
-                }
-              >
-                L{o.l}
-                <span className="ned-spoiler-btn-label">{o.n}</span>
-              </button>
-            ))}
-          </div>
+          {data.category === 'story' ? (
+            <div className="ned-spoiler-story-note">
+              劇情歌由 Echo Spot 觸發時直接解鎖並插播，不使用 Spoiler Level。
+            </div>
+          ) : (
+            <>
+              <div className="ned-spoiler-buttons" role="tablist">
+                {SPOILER_LEVELS.map((o) => (
+                  <button
+                    key={o.l}
+                    className={`ned-spoiler-btn ${selectedSpoilerLevel === o.l ? 'is-active' : ''}${o.l > 0 && gateForLevel(o.l as 1 | 2 | 3) ? ' has-gate' : ''}`}
+                    style={{
+                      borderColor:
+                        selectedSpoilerLevel === o.l
+                          ? accent
+                          : 'var(--hairline-strong)',
+                      background:
+                        selectedSpoilerLevel === o.l
+                          ? `${accent}12`
+                          : 'transparent',
+                      color:
+                        selectedSpoilerLevel === o.l
+                          ? accent
+                          : 'var(--ink-soft)',
+                    }}
+                    onClick={() => selectSpoilerLevel(o.l as SpoilerLevel)}
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedSpoilerLevel === o.l}
+                  >
+                    L{o.l}
+                    <span className="ned-spoiler-btn-label">{o.n}</span>
+                    {o.l > 0 && gateForLevel(o.l as 1 | 2 | 3) && (
+                      <span className="ned-spoiler-btn-gate">已設條件</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="ned-spoiler-inline-gate">
+                {selectedSpoilerLevel === 0 ? (
+                  <div className="ned-gate-scope-hint">
+                    L0 為完全開放，沒有離開條件。
+                  </div>
+                ) : (
+                  <>
+                    <div className="ned-spoiler-inline-gate__heading">
+                      <strong>離開 L{selectedSpoilerLevel} 的條件</strong>
+                      <span>
+                        通過後前往下一個有設定條件的較低 Level；沒有時只降一級。
+                      </span>
+                    </div>
+                    <GateConditionEditor
+                      value={gateForLevel(selectedSpoilerLevel)}
+                      onChange={(next) =>
+                        setSpoilerGate(selectedSpoilerLevel, next)
+                      }
+                      apiBase={apiBase}
+                      accent={accent}
+                      showScopeHint={false}
+                    />
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -662,69 +753,19 @@ export default function EchoesEditorBody({
         )}
       </div>
 
-      {/* 舊 metadata.gate 字串已拆為 spoilerGate，避免覆蓋真正的 GateCondition。 */}
-      <label className="ned-field-label">Spoiler 警告提示文案</label>
-      <input
-        className="ned-field"
-        type="text"
-        value={data.spoilerGate}
-        placeholder="例如：讀過第三章後再聆聽"
-        onChange={(e) => update({ spoilerGate: e.target.value })}
-      />
-
-      <section className="ned-spoiler-revisions">
-        <div className="ned-spoiler-revisions__header">
-          <div>
-            <strong>Spoiler 漸進降級</strong>
-            <p>
-              由 L3 開始，必須依 L2 → L1 → L0 逐級通過；中間任一條件未達，
-              後續等級不會生效。
-            </p>
-          </div>
-          {data.spoilerRevisions.length > 0 && (
-            <button
-              type="button"
-              className="ned-btn-ghost ned-btn-sm"
-              onClick={() => update({ spoilerRevisions: [] })}
-            >
-              清除降級鏈
-            </button>
-          )}
-        </div>
-
-        {(
-          [
-            { level: 2 as const, label: '降到 L2 · 標題遮蔽' },
-            { level: 1 as const, label: '降到 L1 · 部分資訊霧化' },
-            { level: 0 as const, label: '降到 L0 · 完整資訊與佇列資格' },
-          ] as const
-        ).map(({ level, label }, index) => {
-          const previousConfigured =
-            index === 0 ||
-            gateForLevel(([2, 1, 0] as const)[index - 1]) !== null;
-          return (
-            <div
-              className={`ned-spoiler-revision${previousConfigured ? '' : ' is-disabled'}`}
-              key={level}
-            >
-              <div className="ned-spoiler-revision__title">{label}</div>
-              {!previousConfigured ? (
-                <div className="ned-gate-scope-hint">
-                  請先設定上一級，避免產生可跳級的資料。
-                </div>
-              ) : (
-                <GateConditionEditor
-                  value={gateForLevel(level)}
-                  onChange={(next) => setSpoilerGate(level, next)}
-                  apiBase={apiBase}
-                  accent={accent}
-                  showScopeHint={false}
-                />
-              )}
-            </div>
-          );
-        })}
-      </section>
+      {data.category !== 'story' && (
+        <>
+          {/* 舊 metadata.gate 字串已拆為 spoilerGate，避免覆蓋真正的 GateCondition。 */}
+          <label className="ned-field-label">Spoiler 警告提示文案</label>
+          <input
+            className="ned-field"
+            type="text"
+            value={data.spoilerGate}
+            placeholder="例如：讀過第三章後再聆聽"
+            onChange={(e) => update({ spoilerGate: e.target.value })}
+          />
+        </>
+      )}
 
       {validationIssues.length > 0 && (
         <div className="ned-echoes-validation" role="alert">

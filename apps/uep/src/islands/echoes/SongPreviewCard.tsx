@@ -37,9 +37,11 @@ export default function SongPreviewCard({
     >
       <header className="uep-echo-preview__header">
         <span className="uep-echo-preview__dot" />
-        {track.source === 'spot'
-          ? '發現一枚回聲 · echo spot'
-          : '相關回聲 · related echo'}
+        {track.source === 'unlock'
+          ? '已收錄一枚回聲 · unlocked'
+          : track.source === 'spot'
+            ? '回聲等待播放 · echo spot'
+            : '相關回聲 · related echo'}
         <button type="button" aria-label="關閉曲目卡" onClick={onDismiss}>
           ×
         </button>
@@ -54,39 +56,47 @@ export default function SongPreviewCard({
           </small>
         </div>
       </div>
-      <div className="uep-echo-preview__actions">
-        <button
-          type="button"
-          className="is-primary"
-          disabled={track.spoilerLevel >= 3}
-          onClick={() => {
-            void getAudioStore().play(
-              track.songId,
-              track.url,
-              track.title,
-              color
-            );
-            onDismiss();
-          }}
-        >
-          ▶ 播放
-        </button>
-        <button
-          type="button"
-          disabled={track.spoilerLevel !== 0}
-          onClick={() => {
-            getAudioStore().enqueue({
-              songId: track.songId,
-              url: track.url,
-              title: track.title,
-              accent: color,
-            });
-            onDismiss();
-          }}
-        >
-          ＋ 加入佇列
-        </button>
-      </div>
+      {track.source === 'unlock' ? (
+        <div className="uep-echo-preview__actions">
+          <button type="button" className="is-primary" onClick={onDismiss}>
+            收下回聲
+          </button>
+        </div>
+      ) : (
+        <div className="uep-echo-preview__actions">
+          <button
+            type="button"
+            className="is-primary"
+            disabled={track.spoilerLevel >= 3}
+            onClick={() => {
+              void getAudioStore().play(
+                track.songId,
+                track.url,
+                track.title,
+                color
+              );
+              onDismiss();
+            }}
+          >
+            ▶ 播放
+          </button>
+          <button
+            type="button"
+            disabled={track.spoilerLevel !== 0}
+            onClick={() => {
+              getAudioStore().enqueue({
+                songId: track.songId,
+                url: track.url,
+                title: track.title,
+                accent: color,
+              });
+              onDismiss();
+            }}
+          >
+            ＋ 加入佇列
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
