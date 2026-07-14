@@ -56,19 +56,19 @@ describe('apiBase', () => {
     });
 
     it('cookie 存在且為 test worker URL 時使用 override', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
       const { getApiBase } = await import('./apiBase');
       expect(getApiBase()).toBe(TEST_URL);
     });
 
     it('cookie 存在但非 test worker URL 時忽略，回傳環境變數', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent(MALICIOUS_URL)}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent(MALICIOUS_URL)}; Path=/`;
       const { getApiBase } = await import('./apiBase');
       expect(getApiBase()).toBe('https://prod-worker.example.com');
     });
 
     it('cookie 是無法 parse 的字串時忽略', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent('not a url')}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent('not a url')}; Path=/`;
       const { getApiBase } = await import('./apiBase');
       expect(getApiBase()).toBe('https://prod-worker.example.com');
     });
@@ -81,7 +81,7 @@ describe('apiBase', () => {
     });
 
     it('cookie 為合法 test worker URL 時回傳 true', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
       const { isTestMode } = await import('./apiBase');
       expect(isTestMode()).toBe(true);
     });
@@ -93,7 +93,7 @@ describe('apiBase', () => {
     });
 
     it('cookie 為非 test URL 時回傳 false', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent(MALICIOUS_URL)}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent(MALICIOUS_URL)}; Path=/`;
       const { isTestMode } = await import('./apiBase');
       expect(isTestMode()).toBe(false);
     });
@@ -103,7 +103,7 @@ describe('apiBase', () => {
     it('傳入 test worker URL 時寫入 cookie 並回傳 true', async () => {
       const { setTestModeOverride, getApiBase } = await import('./apiBase');
       expect(setTestModeOverride(TEST_URL)).toBe(true);
-      expect(document.cookie).toContain('uep-test-api-url');
+      expect(document.cookie).toContain('root-test-api-url');
       expect(getApiBase()).toBe(TEST_URL);
     });
 
@@ -111,21 +111,21 @@ describe('apiBase', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const { setTestModeOverride, getApiBase } = await import('./apiBase');
       expect(setTestModeOverride(MALICIOUS_URL)).toBe(false);
-      expect(document.cookie).not.toContain('uep-test-api-url');
+      expect(document.cookie).not.toContain('root-test-api-url');
       expect(getApiBase()).toBe('https://prod-worker.example.com');
       expect(warn).toHaveBeenCalled();
       warn.mockRestore();
     });
 
     it('傳入 null 時清除 cookie 並回傳 true', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
       const { setTestModeOverride, getApiBase } = await import('./apiBase');
       expect(setTestModeOverride(null)).toBe(true);
       expect(getApiBase()).toBe('https://prod-worker.example.com');
     });
 
     it('傳入空字串時清除 cookie', async () => {
-      document.cookie = `uep-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
+      document.cookie = `root-test-api-url=${encodeURIComponent(TEST_URL)}; Path=/`;
       const { setTestModeOverride } = await import('./apiBase');
       expect(setTestModeOverride('')).toBe(true);
     });
@@ -138,6 +138,9 @@ describe('apiBase', () => {
   });
 
   describe('SSR-safe（無 document 環境）', () => {
+    // ⚠️ apiBase.ts 內部函式是 lazy 讀取 `typeof document`，不在模組頂層
+    // 讀取，因此在函式呼叫前 delete globalThis.document 即可正確模擬 SSR。
+    // 若未來 apiBase.ts 在頂層新增 document 讀取，這些測試會變成假安全。
     it('getApiBase 在無 document 時只讀 env，不 crash', async () => {
       // 模擬 SSR：document / location 都設為 undefined
       const originalDocument = globalThis.document;
@@ -183,9 +186,9 @@ describe('apiBase', () => {
       expect(TEST_WORKER_BASE_URL).toBe(TEST_URL);
     });
 
-    it('TEST_MODE_COOKIE_NAME 為 uep-test-api-url', async () => {
+    it('TEST_MODE_COOKIE_NAME 為 root-test-api-url', async () => {
       const { TEST_MODE_COOKIE_NAME } = await import('./apiBase');
-      expect(TEST_MODE_COOKIE_NAME).toBe('uep-test-api-url');
+      expect(TEST_MODE_COOKIE_NAME).toBe('root-test-api-url');
     });
   });
 });

@@ -92,7 +92,7 @@ interface ApiResponse<T> {
   error?: string;
 }
 
-// getApiBase 已抽出到 ./apiBase 供全站共用（Issue #41 Test Mode override 需要單一入口）
+// getApiBase 由 ./apiBase 提供 — 負責 Test Mode cookie override，全站 API 請求都經這裡（Issue #41）
 
 // ── TTL cache + in-flight dedup ──
 // 跨 SSR 請求快取：60 秒內相同 API 直接回快取，大幅減少頁面切換延遲。

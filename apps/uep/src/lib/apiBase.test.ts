@@ -138,6 +138,9 @@ describe('apiBase', () => {
   });
 
   describe('SSR-safe（無 document 環境）', () => {
+    // ⚠️ apiBase.ts 內部函式是 lazy 讀取 `typeof document`，不在模組頂層
+    // 讀取，因此在函式呼叫前 delete globalThis.document 即可正確模擬 SSR。
+    // 若未來 apiBase.ts 在頂層新增 document 讀取，這些測試會變成假安全。
     it('getApiBase 在無 document 時只讀 env，不 crash', async () => {
       // 模擬 SSR：document / location 都設為 undefined
       const originalDocument = globalThis.document;

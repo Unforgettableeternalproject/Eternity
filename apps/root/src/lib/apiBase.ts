@@ -2,15 +2,16 @@
  * Content API base URL 解析（Issue #41 隔離測試環境）
  *
  * 優先順序：
- * 1. Cookie `uep-test-api-url` — Test Mode override（僅 Admin 可寫入）
+ * 1. Cookie `root-test-api-url` — Test Mode override（僅 Admin 可寫入）
  * 2. `import.meta.env.PUBLIC_CONTENT_API_URL` — build-time 環境變數
  * 3. 硬編碼 fallback `http://localhost:8788`（本地 wrangler dev）
  *
  * SSR 端（Astro server / API route）：無 `document`，僅讀環境變數。
  * Client 端（React island）：讀環境變數後疊 cookie override。
  *
- * ⚠️ 兩站的 `apiBase.ts` 介面必須完全一致（apps/root 有對應版本）。
- *    未來若要提升到 `packages/` 共用，兩份要能無痛合併。
+ * ⚠️ 兩站的 `apiBase.ts` **介面契約**必須一致（apps/uep 有對應版本），
+ *    但 cookie 名稱各站獨立以區分 namespace（root-* vs uep-*）。
+ *    未來若要升格到 `packages/` 共用，cookie 名稱需改為 factory 參數。
  */
 
 /** 部署後的正式 test worker URL；toggle UI 與 override 驗證會用到 */
@@ -18,7 +19,7 @@ const TEST_WORKER_URL =
   'https://eternity-content-api-test.ptyc4076.workers.dev';
 
 /** Test Mode override cookie 名稱 */
-const TEST_COOKIE_NAME = 'uep-test-api-url';
+const TEST_COOKIE_NAME = 'root-test-api-url';
 
 /** Cookie 保留天數 */
 const TEST_COOKIE_TTL_DAYS = 7;
@@ -80,7 +81,10 @@ function deleteCookie(name: string): void {
 function isTestWorkerUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.hostname.startsWith('eternity-content-api-test');
+    // 比對 hostname 的第一個段，避免 `eternity-content-api-test-preview.xxx`
+    // 這類前綴延伸的網域誤過關（米絲媞 review Mi-1）。
+    const firstSegment = parsed.hostname.split('.')[0];
+    return firstSegment === 'eternity-content-api-test';
   } catch {
     return false;
   }
@@ -114,11 +118,13 @@ export function getApiBase(): string {
  * 判斷目前是否處於 Test Mode。
  *
  * 條件（滿足任一即為 true）：
- * 1. Cookie `uep-test-api-url` 存在且為合法 test worker URL（client-side）
+ * 1. Cookie `root-test-api-url` 存在且為合法 test worker URL（僅 client-side）
  * 2. 環境變數 `PUBLIC_CONTENT_API_URL` 直接指向 test worker
- *    （test Pages 專案部署時預設就會這樣設）
+ *    （test Pages 專案部署時 build-time 綁定；SSR 端也會 true）
  *
- * Server-side 且無合適 env → false。UI 用這個決定要不要顯示 TEST MODE banner。
+ * ⚠️ SSR 端不再永遠回 false（架構稿 ADR-02 原稿如此，實作已調整）：
+ *    若 build-time env 指向 test worker，SSR 首次渲染就會判定 test mode。
+ *    T-07 Banner 可依此在 SSR 渲染時直接輸出，不必等 client hydration。
  */
 export function isTestMode(): boolean {
   const override = readCookie(TEST_COOKIE_NAME);
@@ -158,11 +164,11 @@ export const TEST_WORKER_BASE_URL = TEST_WORKER_URL;
 export const TEST_MODE_COOKIE_NAME = TEST_COOKIE_NAME;
 
 // ── 測試專用 export（僅供單元測試 import；不供業務程式使用） ──
+// FALLBACK_BASE 是實作細節，不 export 讓測試 assert（避免改 fallback 就要同步改測試）。
 export const __internal = {
   readCookie,
   writeCookie,
   deleteCookie,
   isTestWorkerUrl,
   envBase,
-  FALLBACK_BASE,
 };
