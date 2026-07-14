@@ -6,14 +6,18 @@
  * 使用方式：
  *   node scripts/seed-test-env.mjs
  *
- * 資料範圍（不搬葉子內容頁）：
- *   - pages 表：page_type = 'homepage'（5 個 zone 首頁 — history/echoes/concepts/visuals/storage）
- *   - pages 表：page_type = 'zone'（history 的 3 個 passage 子條目「區間」）
- *   - pages 表：depth = 1 且各 zone 的首筆 chapter（概覽用）
+ * 資料範圍（各 zone 全導覽骨架，不搬葉子內容）：
+ *   - pages 表：leaf blacklist — 跳過 section/page/song/type/stuff/gallery
+ *     其餘 homepage / zone / chapter / arc / cluster / subcategory /
+ *     division / clearing / stack 全搬，完整導覽樹
  *   - pages 表：slug = 'history/index'
  *   - root_singletons：18 個已知 keys（見 KNOWN_SINGLETON_KEYS）
  *   - root_cards：全部
  *   - root_links：全部（links 表無葉子之分）
+ *
+ * 各 zone 的葉子命名不同（艾斯維爾提醒）：
+ *   - history: section + page   - echoes: song       - concepts: type
+ *   - storage: stuff             - visuals: gallery
  *
  * 安全性：
  *   - 本腳本為唯讀模式讀取 prod（GET），寫入 test Worker（PUT/POST）
@@ -126,8 +130,31 @@ async function testPost(path, body, token) {
 const ZONES = ['history', 'echoes', 'visuals', 'concepts', 'storage'];
 
 /**
+ * 各 zone 的葉子 page_type 黑名單（Issue #41）
+ *
+ * 艾斯維爾要求「各區域的葉子頁不搬，讓我在測試環境自己塞內容做大膽測試」。
+ * 不同 zone 的葉子命名不同：
+ *   - history: section（rich text 章節內容，avg 8K max 14K）+ page（特殊獨立頁）
+ *   - echoes:  song（108 首歌曲 metadata + audioKey）+ page
+ *   - concepts: type（entity JSON 陣列塞在 type 頁的 content）
+ *   - storage: stuff（雜物條目 rich text）
+ *   - visuals: gallery（相簿圖片清單）
+ *
+ * 中間結構層一律搬（zone/chapter/arc/cluster/subcategory/division/clearing/stack），
+ * 才能在 test env 看到完整導覽樹。homepage 也搬（zone 入口介紹）。
+ */
+const LEAF_PAGE_TYPES = new Set([
+  'section', // history 葉子（真正的長文）
+  'page', // 各 zone 用作特殊獨立頁 / 或葉子
+  'song', // echoes 葉子
+  'type', // concepts 葉子（entity 陣列）
+  'stuff', // storage 葉子
+  'gallery', // visuals 葉子
+]);
+
+/**
  * 從 prod 讀取 pages 表的骨架資料。
- * 回傳要複製的 page 清單（帶完整欄位）。
+ * 策略：leaf blacklist — 明確跳過已知葉子，其他中間層 + homepage 全搬。
  */
 async function fetchSeedPages() {
   const seedPages = [];
@@ -143,34 +170,15 @@ async function fetchSeedPages() {
     for (const page of pages) {
       if (seen.has(page.id)) continue;
 
-      // 條件一：zone entry pages
-      // - page_type='homepage'（各 zone 的入口首頁；depth=0，如 history/homepage）
-      // - page_type='zone'（history 的 passage 子條目「區間」，depth=1）
-      // 兩者都是需要在 test env 看到骨架的頁面。實際 prod 有 5 個 homepage
-      // （history/echoes/concepts/visuals/storage）+ 3 個 history zone 條目。
-      if (page.pageType === 'homepage' || page.pageType === 'zone') {
-        const full = await prodGet(`/api/content/${zone}/${page.slug}`);
-        if (full.data) {
-          seedPages.push(full.data);
-          seen.add(page.id);
-        }
-        continue;
-      }
+      // 葉子頁跳過
+      if (LEAF_PAGE_TYPES.has(page.pageType)) continue;
 
-      // 條件二：depth === 1（首個 chapter，各 zone 只取一筆）
-      if (page.depth === 1 && page.pageType === 'chapter') {
-        // 檢查這個 zone 是否已有 depth=1 的 chapter
-        const alreadyHasChapter = seedPages.some(
-          (p) => p.area === zone && p.depth === 1
-        );
-        if (!alreadyHasChapter) {
-          const full = await prodGet(`/api/content/${zone}/${page.slug}`);
-          if (full.data) {
-            seedPages.push(full.data);
-            seen.add(page.id);
-          }
-        }
-        continue;
+      // 其餘（homepage / zone / chapter / arc / cluster / subcategory / division /
+      //       clearing / stack）通通搬——這是 zone 導覽骨架
+      const full = await prodGet(`/api/content/${zone}/${page.slug}`);
+      if (full.data) {
+        seedPages.push(full.data);
+        seen.add(page.id);
       }
     }
 
