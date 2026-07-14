@@ -37,3 +37,42 @@ VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
 binding = "VISITOR_COUNTER"
 service = "eternity-visitor-counter"
 
+# ─── TEST 環境（Issue #41 隔離測試環境）──────────────────────
+# 部署指令：wrangler deploy --env test
+# Migration：wrangler d1 migrations apply eternity-content-test --remote --env test
+#
+# 注意：wrangler [env.*] 不繼承頂層 binding / vars，每個 binding 必須完整重宣告。
+# 未宣告 [triggers] → test env 不部署 cron（避免干擾 prod 維護邏輯）。
+[env.test]
+name = "eternity-content-api-test"
+
+# TEST D1（獨立資料庫；database_id 於 Cloudflare 建立資源後回填）
+[[env.test.d1_databases]]
+binding = "CONTENT_DB"
+database_name = "eternity-content-test"
+database_id = "<<TEST_D1_UUID>>"
+migrations_dir = "migrations"
+
+# TEST R2（文件站資產）
+[[env.test.r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "eternity-assets-test"
+
+# TEST R2（主站資產）
+[[env.test.r2_buckets]]
+binding = "ROOT_ASSETS_BUCKET"
+bucket_name = "eternity-root-assets-test"
+
+# TEST env 變數
+[env.test.vars]
+# CORS：只允許測試站 / staging preview / localhost，不含正式網域
+ALLOWED_ORIGINS = "https://*.eternity-uep-test.pages.dev,https://*.eternity-root-test.pages.dev,https://*.eternity-uep.pages.dev,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
+# Worker 內部旗標：test env 才啟用 /api/test/reset 等測試專屬端點
+ETERNITY_TEST_ENV = "true"
+
+# TEST env 服務綁定（visitor-counter 共用同一個，不需 test 分身）
+[[env.test.services]]
+binding = "VISITOR_COUNTER"
+service = "eternity-visitor-counter"
+
