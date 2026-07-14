@@ -3,6 +3,7 @@ export const prerender = false;
 
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import RootEditor from '../../components/editor/RootEditor';
+import AdminTestModeControl from '../../components/admin/AdminTestModeControl';
 import { getApiBase } from '../../lib/apiBase';
 import {
   getProjects,
@@ -71,6 +72,9 @@ const [
 ---
 
 <AdminLayout title="Admin · Editor">
+  <div class="adm-test-mode-floating">
+    <AdminTestModeControl client:load />
+  </div>
   <RootEditor
     client:only="react"
     projects={projects || []}
@@ -100,3 +104,29 @@ const [
     visitorApiUrl={import.meta.env.PUBLIC_VISITOR_API_URL || ''}
   />
 </AdminLayout>
+
+<style>
+  /* Test mode 控制卡浮動定位（Issue #41）
+     避開頂端 32px TEST MODE banner；醒目但不擋 RootEditor 主要操作區 */
+  .adm-test-mode-floating {
+    position: fixed;
+    top: 44px;
+    right: 16px;
+    z-index: 100;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    pointer-events: auto;
+  }
+  body.has-test-banner .adm-test-mode-floating {
+    top: 44px;
+  }
+  /* 窄螢幕時退回 inline 感（貼齊右上不擋畫面） */
+  @media (max-width: 640px) {
+    .adm-test-mode-floating {
+      top: 40px;
+      right: 8px;
+      left: 8px;
+      width: auto;
+    }
+  }
+</style>
