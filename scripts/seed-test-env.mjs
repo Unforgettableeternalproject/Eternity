@@ -7,12 +7,13 @@
  *   node scripts/seed-test-env.mjs
  *
  * 資料範圍（不搬葉子內容頁）：
- *   - pages 表：page_type = 'zone'（5 筆）
- *   - pages 表：depth = 1 且各 zone 的首筆 chapter
+ *   - pages 表：page_type = 'homepage'（5 個 zone 首頁 — history/echoes/concepts/visuals/storage）
+ *   - pages 表：page_type = 'zone'（history 的 3 個 passage 子條目「區間」）
+ *   - pages 表：depth = 1 且各 zone 的首筆 chapter（概覽用）
  *   - pages 表：slug = 'history/index'
- *   - root_singletons：全部
+ *   - root_singletons：18 個已知 keys（見 KNOWN_SINGLETON_KEYS）
  *   - root_cards：全部
- *   - root_links：全部（不含葉子內容頁概念，links 表無葉子之分）
+ *   - root_links：全部（links 表無葉子之分）
  *
  * 安全性：
  *   - 本腳本為唯讀模式讀取 prod（GET），寫入 test Worker（PUT/POST）
@@ -142,9 +143,12 @@ async function fetchSeedPages() {
     for (const page of pages) {
       if (seen.has(page.id)) continue;
 
-      // 條件一：page_type === 'zone'（zone entry pages）
-      if (page.pageType === 'zone') {
-        // 取完整內容
+      // 條件一：zone entry pages
+      // - page_type='homepage'（各 zone 的入口首頁；depth=0，如 history/homepage）
+      // - page_type='zone'（history 的 passage 子條目「區間」，depth=1）
+      // 兩者都是需要在 test env 看到骨架的頁面。實際 prod 有 5 個 homepage
+      // （history/echoes/concepts/visuals/storage）+ 3 個 history zone 條目。
+      if (page.pageType === 'homepage' || page.pageType === 'zone') {
         const full = await prodGet(`/api/content/${zone}/${page.slug}`);
         if (full.data) {
           seedPages.push(full.data);
