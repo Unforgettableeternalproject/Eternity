@@ -152,10 +152,7 @@ export default function IslandHost() {
           const revisions = Array.isArray(song.spoilerRevisions)
             ? song.spoilerRevisions
             : [];
-          const spoilerLevel =
-            revisions.length > 0
-              ? resolveSpoilerLevel(revisions, progressNow)
-              : song.spoilerLevel || 0;
+          const spoilerLevel = resolveSpoilerLevel(revisions, progressNow);
           if (
             !isEchoSuggestionEligible({
               songType: song.songType,

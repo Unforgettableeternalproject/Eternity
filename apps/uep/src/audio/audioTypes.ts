@@ -63,6 +63,8 @@ export interface AudioState {
   loop: AudioLoopMode;
   /** 播放佇列（不含當前曲目） */
   playlist: AudioQueueItem[];
+  /** 一般播放歷史（最舊 → 最新；Echo Spot 插播不納入） */
+  history: AudioQueueItem[];
   /** 插播快照；null = 目前不在插播狀態 */
   interruptionSnapshot: AudioInterruptionSnapshot | null;
 }
@@ -83,6 +85,8 @@ export interface AudioPersisted {
   /** 總時長（秒）；重載後在 metadata 就緒前先用來算 progress 顯示 */
   duration: number;
   playlist: AudioQueueItem[];
+  /** 一般播放歷史；舊版持久化資料缺少時視為空陣列 */
+  history?: AudioQueueItem[];
   volume: number;
   loop: AudioLoopMode;
   wasPlaying: boolean;
@@ -114,6 +118,7 @@ export function createInitialAudioState(): AudioState {
     volume: DEFAULT_VOLUME,
     loop: 'none',
     playlist: [],
+    history: [],
     interruptionSnapshot: null,
   };
 }

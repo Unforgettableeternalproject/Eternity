@@ -63,6 +63,18 @@ describe('shouldDowngradeEchoSpot', () => {
     ).toBe(false);
   });
 
+  it('一般歌曲正常掃描不再因無手勢或既有 autoplay 嘗試預先降級', () => {
+    expect(
+      shouldDowngradeEchoSpot({
+        isStory: false,
+        spoilerLevel: 0,
+        interacted: false,
+        autoplayAttempted: true,
+        resumeJump: false,
+        scrollVelocity: 200,
+      })
+    ).toBe(false);
+  });
   it('劇情歌遇到 resume jump 或快速捲動仍視為 misfire', () => {
     const base = {
       isStory: true,

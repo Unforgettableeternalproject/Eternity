@@ -354,6 +354,23 @@ describe('佇列管理', () => {
     expect(uepAudio.getState().currentSongId).toBe('b');
   });
 
+  it('一般換曲會進歷史，previous 返回前曲並讓 next 可再次前進', async () => {
+    const { uepAudio } = await freshStore();
+    await uepAudio.play('a', 'ua', '甲');
+    await uepAudio.play('b', 'ub', '乙');
+
+    expect(uepAudio.getState().history.map((item) => item.songId)).toEqual([
+      'a',
+    ]);
+    uepAudio.previous();
+    await flush();
+    expect(uepAudio.getState().currentSongId).toBe('a');
+    expect(uepAudio.getState().playlist[0]?.songId).toBe('b');
+
+    uepAudio.next();
+    await flush();
+    expect(uepAudio.getState().currentSongId).toBe('b');
+  });
   it('previous：回到當前曲開頭', async () => {
     const { uepAudio } = await freshStore();
     uepAudio.play('a', 'ua');
@@ -420,6 +437,32 @@ describe('插播（echo spot）', () => {
     expect(s.playlist.map((i) => i.songId)).toEqual(['q']); // 佇列保持原樣
   });
 
+  it('Echo Spot 插播不進歷史；插播中手動選歌只記錄原本曲目', async () => {
+    const { uepAudio } = await freshStore();
+    await uepAudio.play('a', 'ua', '甲');
+    await uepAudio.interrupt('spot', 'uspot', '插播');
+    expect(uepAudio.getState().history).toEqual([]);
+
+    await uepAudio.play('embed', 'uembed', '嵌入選歌');
+    expect(uepAudio.getState().history.map((item) => item.songId)).toEqual([
+      'a',
+    ]);
+    expect(uepAudio.getState().history).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ songId: 'spot' })])
+    );
+    expect(uepAudio.getState().interruptionSnapshot).toBeNull();
+  });
+  it('插播中按 next 且佇列為空時恢復原曲，不把插播加入歷史', async () => {
+    const { uepAudio } = await freshStore();
+    await uepAudio.play('a', 'ua');
+    await uepAudio.interrupt('spot', 'uspot');
+    uepAudio.next();
+    await flush();
+
+    expect(uepAudio.getState().currentSongId).toBe('a');
+    expect(uepAudio.getState().history).toEqual([]);
+    expect(uepAudio.getState().interruptionSnapshot).toBeNull();
+  });
   it('插播中再 interrupt：只換曲、快照不重拍（恢復點仍是原曲）', async () => {
     const { uepAudio } = await freshStore();
     uepAudio.play('a', 'ua');

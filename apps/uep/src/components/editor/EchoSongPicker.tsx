@@ -99,13 +99,14 @@ export function flattenEchoSongs(tree: TreeNode[]): EchoSongChoice[] {
             songType,
             ...(nextSubcategory ? { subcategoryTitle: nextSubcategory } : {}),
             ...(Number.isFinite(duration) && duration > 0 ? { duration } : {}),
-            spoilerLevel: isStory
-              ? 0
-              : Number.isInteger(spoilerLevel) &&
-                  spoilerLevel >= 0 &&
-                  spoilerLevel <= 3
-                ? spoilerLevel
-                : 0,
+            spoilerLevel:
+              isStory || !spoilerRevisions?.length
+                ? 0
+                : Number.isInteger(spoilerLevel) &&
+                    spoilerLevel >= 0 &&
+                    spoilerLevel <= 3
+                  ? spoilerLevel
+                  : 0,
             ...(!isStory && spoilerRevisions?.length
               ? { spoilerRevisions }
               : {}),

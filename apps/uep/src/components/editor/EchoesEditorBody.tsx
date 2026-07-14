@@ -82,10 +82,7 @@ export function parseEchoesData(metadata: Record<string, any>): EchoesData {
   return {
     subtitle: metadata?.subtitle || '',
     category,
-    spoilerLevel:
-      category === 'story'
-        ? 0
-        : highestConfigured || metadata?.spoilerLevel || 0,
+    spoilerLevel: category === 'story' ? 0 : highestConfigured || 0,
     spoilerGate: metadata?.spoilerGate || legacySpoilerGate,
     entityKey:
       typeof metadata?.entityKey === 'string' && metadata.entityKey.trim()
@@ -102,10 +99,15 @@ export function parseEchoesData(metadata: Record<string, any>): EchoesData {
 
 export function serializeEchoesData(data: EchoesData): Record<string, any> {
   const isStory = data.category === 'story';
+  const highestConfigured = data.spoilerRevisions.reduce<number>(
+    (highest, revision) =>
+      Math.max(highest, revisionSourceLevel(revision) || 0),
+    0
+  );
   return {
     subtitle: data.subtitle || undefined,
     category: data.category,
-    spoilerLevel: isStory ? 0 : data.spoilerLevel,
+    spoilerLevel: isStory ? 0 : highestConfigured,
     ...(!isStory && data.spoilerGate ? { spoilerGate: data.spoilerGate } : {}),
     entityKey: data.entityKey || undefined,
     ...(!isStory && data.spoilerRevisions.length > 0
@@ -371,13 +373,7 @@ export default function EchoesEditorBody({
 }: EchoesEditorBodyProps) {
   const [data, setData] = useState<EchoesData>(initialData);
   const [selectedSpoilerLevel, setSelectedSpoilerLevel] =
-    useState<SpoilerLevel>(
-      initialData.spoilerLevel === 1 ||
-        initialData.spoilerLevel === 2 ||
-        initialData.spoilerLevel === 3
-        ? initialData.spoilerLevel
-        : 0
-    );
+    useState<SpoilerLevel | null>(null);
   const [uploading, setUploading] = useState<'audio' | 'cover' | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -497,14 +493,13 @@ export default function EchoesEditorBody({
       .filter((revision): revision is SongSpoilerRevision => !!revision);
     const highest = revisions[0] ? revisionSourceLevel(revisions[0]) : null;
     update({
-      spoilerLevel: highest ?? level,
+      spoilerLevel: highest ?? 0,
       spoilerRevisions: revisions,
     });
   };
 
   const selectSpoilerLevel = (level: SpoilerLevel) => {
     setSelectedSpoilerLevel(level);
-    if (data.spoilerRevisions.length === 0) update({ spoilerLevel: level });
   };
 
   const updateCategory = (category: string) => {
@@ -645,30 +640,30 @@ export default function EchoesEditorBody({
         onChange={(e) => update({ subtitle: e.target.value })}
       />
 
-      {/* 分類 + 遮蔽等級 */}
+      {/* 分類與等級放左側；右側只顯示目前選取等級的離開條件。 */}
       <div className="ned-echoes-row">
-        <div>
-          <label className="ned-field-label">分類</label>
-          <select
-            className="ned-field"
-            value={data.category}
-            onChange={(e) => updateCategory(e.target.value)}
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="ned-spoiler-level-control">
-          <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
-          {data.category === 'story' ? (
-            <div className="ned-spoiler-story-note">
-              劇情歌由 Echo Spot 觸發時直接解鎖並插播，不使用 Spoiler Level。
-            </div>
-          ) : (
-            <>
+        <div className="ned-echoes-settings">
+          <div>
+            <label className="ned-field-label">分類</label>
+            <select
+              className="ned-field"
+              value={data.category}
+              onChange={(e) => updateCategory(e.target.value)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="ned-spoiler-level-control">
+            <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
+            {data.category === 'story' ? (
+              <div className="ned-spoiler-story-note">
+                劇情歌由 Echo Spot 觸發時直接解鎖並插播，不使用 Spoiler Level。
+              </div>
+            ) : (
               <div className="ned-spoiler-buttons" role="tablist">
                 {SPOILER_LEVELS.map((o) => (
                   <button
@@ -701,36 +696,43 @@ export default function EchoesEditorBody({
                   </button>
                 ))}
               </div>
-              <div className="ned-spoiler-inline-gate">
-                {selectedSpoilerLevel === 0 ? (
-                  <div className="ned-gate-scope-hint">
-                    L0 為完全開放，沒有離開條件。
-                  </div>
-                ) : (
-                  <>
-                    <div className="ned-spoiler-inline-gate__heading">
-                      <strong>離開 L{selectedSpoilerLevel} 的條件</strong>
-                      <span>
-                        通過後前往下一個有設定條件的較低 Level；沒有時只降一級。
-                      </span>
-                    </div>
-                    <GateConditionEditor
-                      value={gateForLevel(selectedSpoilerLevel)}
-                      onChange={(next) =>
-                        setSpoilerGate(selectedSpoilerLevel, next)
-                      }
-                      apiBase={apiBase}
-                      accent={accent}
-                      showScopeHint={false}
-                    />
-                  </>
-                )}
+            )}
+          </div>
+        </div>
+
+        <div className="ned-spoiler-condition-panel">
+          <label className="ned-field-label">Level 離開條件</label>
+          {data.category === 'story' ? (
+            <div className="ned-spoiler-condition-empty">
+              劇情歌沒有 Spoiler 條件。
+            </div>
+          ) : selectedSpoilerLevel === null ? (
+            <div className="ned-spoiler-condition-empty">
+              選擇左側 Level 後即可設定離開條件；未設定任何條件時，前台視為 L0。
+            </div>
+          ) : selectedSpoilerLevel === 0 ? (
+            <div className="ned-spoiler-condition-empty">
+              L0 為完全開放，沒有離開條件。
+            </div>
+          ) : (
+            <div className="ned-spoiler-inline-gate">
+              <div className="ned-spoiler-inline-gate__heading">
+                <strong>離開 L{selectedSpoilerLevel} 的條件</strong>
+                <span>
+                  通過後前往下一個有設定條件的較低 Level；沒有時只降一級。
+                </span>
               </div>
-            </>
+              <GateConditionEditor
+                value={gateForLevel(selectedSpoilerLevel)}
+                onChange={(next) => setSpoilerGate(selectedSpoilerLevel, next)}
+                apiBase={apiBase}
+                accent={accent}
+                showScopeHint={false}
+              />
+            </div>
           )}
         </div>
       </div>
-
       {/* 跨 zone 實體身分。解鎖條件本身由右側 Inspector 的 gate 編輯器管理。 */}
       <div className="ned-echoes-entity-section">
         <EntityKeyField

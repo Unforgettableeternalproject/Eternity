@@ -51,6 +51,7 @@ let isSeeking = false;
 let rafId = 0;
 let lastPersistAt = 0;
 const listeners: Listener[] = [];
+const MAX_HISTORY_ITEMS = 50;
 let state: AudioState = bootstrapState();
 
 /* ── 持久化 ── */
@@ -65,15 +66,18 @@ function normalizePersisted(raw: unknown): AudioPersisted | null {
   const o = raw as Partial<AudioPersisted>;
   const loop: AudioLoopMode =
     o.loop === 'one' || o.loop === 'all' ? o.loop : 'none';
-  const playlist: AudioQueueItem[] = Array.isArray(o.playlist)
-    ? o.playlist.filter(
-        (it): it is AudioQueueItem =>
-          typeof it === 'object' &&
-          it !== null &&
-          typeof (it as AudioQueueItem).songId === 'string' &&
-          typeof (it as AudioQueueItem).url === 'string'
-      )
-    : [];
+  const normalizeItems = (items: unknown): AudioQueueItem[] =>
+    Array.isArray(items)
+      ? items.filter(
+          (it): it is AudioQueueItem =>
+            typeof it === 'object' &&
+            it !== null &&
+            typeof (it as AudioQueueItem).songId === 'string' &&
+            typeof (it as AudioQueueItem).url === 'string'
+        )
+      : [];
+  const playlist = normalizeItems(o.playlist);
+  const history = normalizeItems(o.history).slice(-MAX_HISTORY_ITEMS);
   return {
     currentSongId: typeof o.currentSongId === 'string' ? o.currentSongId : null,
     currentUrl: typeof o.currentUrl === 'string' ? o.currentUrl : null,
@@ -88,6 +92,7 @@ function normalizePersisted(raw: unknown): AudioPersisted | null {
         ? Math.max(0, o.duration)
         : 0,
     playlist,
+    history,
     volume: clampVolume(
       typeof o.volume === 'number' && Number.isFinite(o.volume)
         ? o.volume
@@ -118,6 +123,7 @@ function toPersisted(s: AudioState): AudioPersisted {
     currentTime: s.currentTime,
     duration: s.duration,
     playlist: s.playlist,
+    history: s.history,
     volume: s.volume,
     loop: s.loop,
     wasPlaying: s.isPlaying,
@@ -185,6 +191,7 @@ function bootstrapState(): AudioState {
         ? Math.min(1, persisted.currentTime / persisted.duration)
         : 0,
     playlist: persisted.playlist,
+    history: persisted.history ?? [],
     volume: persisted.volume,
     loop: persisted.loop,
   };
@@ -260,6 +267,34 @@ function seekWhenReady(audio: HTMLAudioElement, time: number): void {
   audio.addEventListener('loadedmetadata', retry);
 }
 
+/** 將一般播放切換前的曲目加入歷史；Echo Spot 插播本身不列入。 */
+function recordCurrentForHistory(nextSongId: string): void {
+  if (state.currentSongId === nextSongId) return;
+
+  const snapshot = state.interruptionSnapshot;
+  const previous: AudioQueueItem | null =
+    snapshot?.songId && snapshot.url
+      ? {
+          songId: snapshot.songId,
+          url: snapshot.url,
+          ...(snapshot.title ? { title: snapshot.title } : {}),
+          ...(snapshot.accent ? { accent: snapshot.accent } : {}),
+        }
+      : state.currentSongId && state.currentUrl
+        ? {
+            songId: state.currentSongId,
+            url: state.currentUrl,
+            ...(state.currentTitle ? { title: state.currentTitle } : {}),
+            ...(state.currentAccent ? { accent: state.currentAccent } : {}),
+          }
+        : null;
+
+  // 使用者在插播期間主動選歌時，回溯來源是插播前的正常曲目；
+  // Echo Spot 曲目本身不進歷史。
+  if (snapshot) setState({ interruptionSnapshot: null });
+  if (!previous || previous.songId === nextSongId) return;
+  setState({ history: [...state.history, previous].slice(-MAX_HISTORY_ITEMS) });
+}
 /**
  * 載入曲目到 audio 元素（同曲不重載）。
  * 重載恢復場景：state.currentSongId 已有值但元素未載入——此時
@@ -376,8 +411,10 @@ export const uepAudio = {
     songId: string,
     url: string,
     title?: string,
-    accent?: string
+    accent?: string,
+    recordHistory = true
   ): Promise<boolean> {
+    if (recordHistory) recordCurrentForHistory(songId);
     const audio = loadSong(songId, url, title, accent);
     if (!audio) return Promise.resolve(false);
     cancelAnimationFrame(rafId);
@@ -464,27 +501,63 @@ export const uepAudio = {
 
   /** 手動跳下一首（佇列空時 no-op；loop='all' 時當前曲回佇列尾） */
   next(): void {
-    if (state.interruptionSnapshot) {
-      // 使用者主動切曲即結束插播；先回原播放脈絡，再依一般 next 語意走。
-      this.restoreFromInterruption();
-    }
-    playQueueHead();
-  },
-
-  /** 回到當前曲目開頭（無播放歷史紀錄，previous = 重播） */
-  previous(): void {
-    if (state.interruptionSnapshot) {
-      // 插播中的 previous 語意是「回到被中斷的曲目」，不是重播插播曲。
+    if (state.interruptionSnapshot && state.playlist.length === 0) {
       this.restoreFromInterruption();
       return;
     }
+    // playQueueHead 的一般 play 會在插播中改取 interruption snapshot
+    // 作為歷史來源，因此 Echo Spot 本身不會污染歷史。
+    playQueueHead();
+  },
+
+  /** 回到上一首一般播放曲目；沒有歷史時才重播當前曲。 */
+  previous(): void {
+    if (state.interruptionSnapshot) {
+      // 插播中的 previous 語意是「回到被中斷的曲目」。
+      this.restoreFromInterruption();
+      return;
+    }
+
+    const previous = state.history[state.history.length - 1];
+    if (previous) {
+      const current =
+        state.currentSongId && state.currentUrl
+          ? {
+              songId: state.currentSongId,
+              url: state.currentUrl,
+              ...(state.currentTitle ? { title: state.currentTitle } : {}),
+              ...(state.currentAccent ? { accent: state.currentAccent } : {}),
+            }
+          : null;
+      setState({
+        history: state.history.slice(0, -1),
+        playlist: current
+          ? [
+              current,
+              ...state.playlist.filter(
+                (item) => item.songId !== current.songId
+              ),
+            ]
+          : state.playlist,
+      });
+      pendingSeekTime = 0;
+      void this.play(
+        previous.songId,
+        previous.url,
+        previous.title,
+        previous.accent,
+        false
+      );
+      persistNow();
+      return;
+    }
+
     if (!state.currentSongId) return;
     const audio = audioEl;
     if (audio && loadedSongId === state.currentSongId) {
       audio.currentTime = 0;
       setState({ currentTime: 0, progress: 0 });
     } else {
-      // 尚未載入音源（重載恢復的暫停態）：把續播位置歸零
       pendingSeekTime = 0;
       setState({ currentTime: 0, progress: 0 });
     }
@@ -537,7 +610,7 @@ export const uepAudio = {
         },
       });
     }
-    return this.play(songId, url, title, accent);
+    return this.play(songId, url, title, accent, false);
   },
 
   /**

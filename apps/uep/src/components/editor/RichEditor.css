@@ -2046,7 +2046,7 @@
 
 .ned-echoes-row {
   display: grid;
-  grid-template-columns: minmax(150px, 0.55fr) minmax(320px, 1.45fr);
+  grid-template-columns: minmax(250px, 0.8fr) minmax(360px, 1.2fr);
   gap: 20px;
   margin-top: 4px;
 }
@@ -2057,6 +2057,25 @@
   }
 }
 
+.ned-echoes-settings,
+.ned-spoiler-condition-panel {
+  min-width: 0;
+}
+
+.ned-spoiler-condition-empty {
+  min-height: 132px;
+  margin-top: 4px;
+  padding: 18px;
+  border: 1px dashed var(--hairline-strong);
+  background: var(--bg-soft);
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.7;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
 .ned-spoiler-buttons {
   display: flex;
   gap: 6px;
@@ -2095,7 +2114,8 @@
 }
 
 .ned-spoiler-inline-gate {
-  margin-top: 8px;
+  min-height: 132px;
+  margin-top: 4px;
   padding: 12px;
   border: 1px solid var(--hairline);
   background: var(--bg-soft);

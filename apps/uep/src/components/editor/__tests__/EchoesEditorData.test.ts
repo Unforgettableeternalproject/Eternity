@@ -33,6 +33,14 @@ describe('Echoes editor metadata contract', () => {
     );
   });
 
+  it('沒有離開條件時靜態 spoilerLevel 視為 L0', () => {
+    const parsed = parseEchoesData({
+      category: 'character',
+      spoilerLevel: 2,
+    });
+    expect(parsed.spoilerLevel).toBe(0);
+    expect(serializeEchoesData(parsed).spoilerLevel).toBe(0);
+  });
   it('劇情歌不保存 spoiler level、提示文案或降級條件', () => {
     const parsed = parseEchoesData({
       category: 'story',

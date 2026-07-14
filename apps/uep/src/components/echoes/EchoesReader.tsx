@@ -18,7 +18,7 @@ import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
-import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
+import { isHidden, isLocked } from '../zone/contentVisibility';
 import {
   AudioProvider,
   getAudioStore,
@@ -107,11 +107,10 @@ function effectiveSongSpoiler(
 ): 0 | 1 | 2 | 3 {
   if (node.metadata?.category === 'story') return 0;
   const revisions = node.metadata?.spoilerRevisions;
-  if (Array.isArray(revisions) && revisions.length > 0) {
-    return resolveSpoilerLevel(revisions as SongSpoilerRevision[], progress);
-  }
-  const level = getSpoilerLevel(node);
-  return level === 1 || level === 2 || level === 3 ? level : 0;
+  return resolveSpoilerLevel(
+    Array.isArray(revisions) ? (revisions as SongSpoilerRevision[]) : [],
+    progress
+  );
 }
 
 interface SubcategoryDef {
@@ -1976,9 +1975,7 @@ function EchoesReaderInner() {
     const spoiler =
       songData.category === 'story'
         ? 0
-        : songData.spoilerRevisions.length > 0
-          ? resolveSpoilerLevel(songData.spoilerRevisions, progress)
-          : songData.spoilerLevel || 0;
+        : resolveSpoilerLevel(songData.spoilerRevisions, progress);
     const hasUnlocked = spoiler === 0 || isSongUnlocked(currentSongPage.id);
     const locked = spoiler > 0 && !hasUnlocked;
     const audioUrl = buildAudioUrl(songData.audioFile);

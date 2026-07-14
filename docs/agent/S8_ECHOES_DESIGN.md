@@ -77,6 +77,8 @@ export interface AudioState {
   volume: number;
   /** 播放佇列（不含當前曲目） */
   playlist: AudioQueueItem[];
+  /** 一般播放歷史；Echo Spot 插播不納入 */
+  history: AudioQueueItem[];
   /** 循環模式 */
   loop: 'none' | 'one' | 'all';
   /**
@@ -96,6 +98,7 @@ export interface AudioPersisted {
   currentSongId: string | null;
   currentTime: number;
   playlist: AudioQueueItem[];
+  history?: AudioQueueItem[];
   volume: number;
   loop: 'none' | 'one' | 'all';
   wasPlaying: boolean;
@@ -354,7 +357,7 @@ interface EchoeSongMetadata {
 
 **已解鎖但 spoiler 仍在 L3 → 不可播放**：進入收藏池資格（解鎖）≠ 播放資格（spoiler < 3）。
 
-**Spoiler 降級鏈結構**：Gate 表示「達成後離開哪個 Level」，不是「降到哪級」。最高有 Gate 的 Level 就是歌曲起始遮蔽級；未設定任何 Gate 時使用靜態 `spoilerLevel`，不會預設從 L3 開始。劇情歌不使用這套結構。
+**Spoiler 降級鏈結構**：Gate 表示「達成後離開哪個 Level」，不是「降到哪級」。最高有 Gate 的 Level 就是歌曲起始遮蔽級；**未設定任何 Gate 時有效等級一律是 L0**，單獨保存的舊靜態 `spoilerLevel` 不產生遮蔽。劇情歌也不使用這套結構。
 
 ```typescript
 export interface SongSpoilerRevision {
@@ -440,9 +443,9 @@ echo spot 掃描線通過
 
 **三層防禦**：
 
-1. **手勢追蹤**：一般曲目可依 `userHasInteracted` 判斷是否先降級；**劇情歌例外**，正常掃描必須直接嘗試 `interrupt()`，由實際 `audio.play()` 結果決定是否出提示卡。
+1. **實際播放判定**：所有 Echo Spot 在正常掃描時都直接嘗試 `interrupt()`；不因尚無 click/tap 手勢而預先降級，由實際 `audio.play()` 結果決定是否出提示卡。
 
-2. **一次嘗試紀錄**：一般曲目可沿用 session autoplay attempt 防重試；劇情歌正常掃描不受既有 attempt 紀錄阻擋。
+2. **頁面去重**：spot 本身仍維持每次頁面造訪只觸發一次；既有 autoplay attempt 紀錄不得阻止其他正常掃描的 spot 嘗試插播。
 
 3. **快速捲動偵測**：若捲速超過閾值（如 > 1500px/s，可由測試調整），判定為「快速跳轉」，跳過當下的 spot 觸發（同 sessionStorage 只觸發一次的語意）。實作：`useScanline` 或 echo spot handler 傳入最近的 scroll velocity。
 
@@ -867,7 +870,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 
 ### 已完成
 
-**A 段（0.9.12.48~50）**：audioTypes + spoilerResolver / audioStore singleton（播放/佇列/插播/持久化/生命週期）/ AudioProvider 薄殼接線。三處與本文件的實作偏離（艾斯維爾已知）：interrupt 不清佇列（快照不含 playlist）、插播中再 interrupt 不重拍快照、previous() = 重播當前曲。
+**A 段（0.9.12.48~50）**：audioTypes + spoilerResolver / audioStore singleton（播放/佇列/插播/持久化/生命週期）/ AudioProvider 薄殼接線。interrupt 不清佇列（快照不含 playlist）、插播中再 interrupt 不重拍快照。2026-07-14 補上最多 50 首的一般播放歷史：previous() 可返回前曲並讓 next 再前進；Echo Spot 插播不入歷史，互動式嵌入的使用者選歌屬一般播放。
 
 **B 段（0.9.12.51~55 + 2 fix）**：
 
@@ -893,7 +896,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 
 - `EchoSpotNode` 已納入 TipTap：保存穩定 `spotId`、完整歌曲頁 id、R2 裸 key、entityKey、分類／時長與 spoiler revision 快照；Song Picker 只列出具音檔且符合綁定規則的歌曲，排除 special 與缺 entityKey 的非劇情歌
 - progress marker 掃描線已擴充 `role + element` callback；echo spot 每次頁面造訪只觸發一次，重新造訪可再觸發，且無論島是否掛載都先授予推導旗標
-- 只有 Echoes 島已掛載時才走 `audioStore.interrupt()`；劇情歌正常掃描不因缺少手勢預先降級，快速捲動、resume jump 或瀏覽器實際拒絕播放時才出提示卡
+- 只有 Echoes 島已掛載時才走 `audioStore.interrupt()`；所有 Echo Spot 正常掃描都實際嘗試插播，快速捲動、resume jump、L3 封印或瀏覽器實際拒絕播放時才出提示卡
 - 插播在離頁時恢復；插播中 next/previous 不再把插播曲誤當使用者佇列狀態
 - 「上次讀到」跳轉以 session 旗標、`scrollend` 與 500ms timeout 雙重解除，避免掃描線沿途觸發 echo spot
 
@@ -903,7 +906,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 - IslandHost 新增 Echoes entity activation consumer，會取消過期請求、重查 entity-song、套用可見性 gate 與動態 spoiler resolver；Terminal consumer 保持原行為
 - `/api/echoes/entity-song` 摘要補齊 subtitle、duration、spoilerLevel、GateCondition 與 locked，並排除 hidden 歌曲
 - Echoes 編輯器新增 EntityKeyField 與同 zone 唯一性硬驗證；查核未完成／失敗時阻擋存檔並可重試
-- Spoiler Gate 直接整合進 L0–L3 Level 卡：Gate 表示離開該級，可跳過未設定級；最高有 Gate 的 Level 為起點，移除任一 Gate 不連帶刪除其他級
+- Spoiler Gate 直接整合進 L0–L3 Level 卡：分類／Level 在左、條件區在右且有空狀態；Gate 表示離開該級，可跳過未設定級；最高有 Gate 的 Level 為起點，完全無 Gate 時有效 L0
 - **資料相容修正**：舊 `metadata.gate` 字串只向後相容讀成 `spoilerGate`；真正的 `metadata.gate` 物件保留給全站內容可見性，儲存時不再互相覆寫
 
 ### 驗證重點

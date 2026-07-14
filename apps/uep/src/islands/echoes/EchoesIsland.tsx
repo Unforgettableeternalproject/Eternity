@@ -235,8 +235,7 @@ export default function EchoesIsland() {
 
   function playSuggestion() {
     if (!suggestion) return;
-    // 使用者主動改播關聯曲，視為手動中斷目前插播；佇列保持原樣。
-    store.clearInterruption();
+    // 一般 play 會把插播前的正常曲目納入歷史，並排除 Echo Spot 曲目。
     void store.play(
       suggestion.songId,
       suggestion.url,

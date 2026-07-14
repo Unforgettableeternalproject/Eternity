@@ -57,6 +57,23 @@ describe('flattenEchoSongs', () => {
     expect(songs[0].spoilerRevisions).toHaveLength(1);
   });
 
+  it('沒有 spoiler revisions 時忽略靜態等級並以 L0 寫入 spot 快照', () => {
+    const songs = flattenEchoSongs([
+      {
+        id: 'echoes/areas/theme',
+        title: '區域曲',
+        pageType: 'song',
+        metadata: {
+          audioFile: 'audio/area.mp3',
+          entityKey: 'area:test',
+          category: 'area',
+          spoilerLevel: 2,
+        },
+      },
+    ]);
+
+    expect(songs[0]?.spoilerLevel).toBe(0);
+  });
   it('排除特殊回憶及缺 entityKey 的非劇情歌，但保留無 key 劇情歌', () => {
     const songs = flattenEchoSongs([
       {

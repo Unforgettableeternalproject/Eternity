@@ -99,14 +99,12 @@ interface EchoSpotDowngradeInput {
 export function shouldDowngradeEchoSpot({
   isStory,
   spoilerLevel,
-  interacted,
-  autoplayAttempted,
   resumeJump,
   scrollVelocity,
 }: EchoSpotDowngradeInput): boolean {
   if (resumeJump || scrollVelocity > FAST_SCROLL_PX_PER_SECOND) return true;
-  if (isStory) return false;
-  return spoilerLevel >= 3 || !interacted || autoplayAttempted;
+  // 正常掃描一律實際嘗試插播；只有 L3 仍維持防劇透封印。
+  return !isStory && spoilerLevel >= 3;
 }
 
 /**
@@ -189,9 +187,7 @@ export function useEchoSpots({
       // 不再套一般歌曲的 spoiler 分級。
       const spoilerLevel = isStory
         ? 0
-        : spot.spoilerRevisions.length > 0
-          ? resolveSpoilerLevel(spot.spoilerRevisions, progressNow)
-          : spot.spoilerLevel;
+        : resolveSpoilerLevel(spot.spoilerRevisions, progressNow);
       const cluster = echoClusterStyle(spot.clusterId);
       const preview = {
         source: 'spot' as const,
