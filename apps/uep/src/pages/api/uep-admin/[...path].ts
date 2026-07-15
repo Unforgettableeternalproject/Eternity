@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
-import { getApiBase } from '../../../lib/apiBase';
+
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
 
 export const prerender = false;
 
-const CONTENT_API = getApiBase();
 const JWT_COOKIE = 'uep-admin-jwt';
 
 /**
@@ -16,9 +16,10 @@ async function proxyToWorker(
   request: Request,
   jwt: string | undefined,
   subpath: string,
-  search: string
+  search: string,
+  contentApi: string
 ): Promise<Response> {
-  const target = `${CONTENT_API}/api/uep/admin/${subpath}${search}`;
+  const target = `${contentApi}/api/uep/admin/${subpath}${search}`;
   const headers = new Headers();
   if (jwt) headers.set('Authorization', `Bearer ${jwt}`);
   const contentType = request.headers.get('Content-Type');
@@ -44,8 +45,17 @@ async function proxyToWorker(
 function makeHandler(): APIRoute {
   return async ({ request, cookies, params, url }) => {
     const jwt = cookies.get(JWT_COOKIE)?.value;
+    const contentApi = getApiBase(
+      cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+    );
     try {
-      return await proxyToWorker(request, jwt, params.path!, url.search);
+      return await proxyToWorker(
+        request,
+        jwt,
+        params.path!,
+        url.search,
+        contentApi
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Proxy error';
       return new Response(JSON.stringify({ ok: false, error: msg }), {

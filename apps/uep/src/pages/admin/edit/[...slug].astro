@@ -1,7 +1,7 @@
 ---
 import DesignLayout from '../../../layouts/DesignLayout.astro';
 import RichEditor from '../../../components/editor/RichEditor';
-import { getApiBase } from '../../../lib/apiBase';
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
 
 export const prerender = false;
 
@@ -12,7 +12,9 @@ const parts = slug.split('/');
 const area = parts[0];
 const pageSlug = parts.slice(1).join('/');
 
-const apiBase = getApiBase();
+const apiBase = getApiBase(
+  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+);
 
 // pageSlug 為空 → 入口模式（不載入任何頁面）
 const isEntryMode = !pageSlug;

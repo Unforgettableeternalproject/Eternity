@@ -72,6 +72,17 @@ describe('apiBase', () => {
       const { getApiBase } = await import('./apiBase');
       expect(getApiBase()).toBe('https://prod-worker.example.com');
     });
+
+    it('SSR 呼叫端可明確傳入 test cookie 值', async () => {
+      const { getApiBase } = await import('./apiBase');
+      expect(getApiBase(TEST_URL)).toBe(TEST_URL);
+      expect(getApiBase(encodeURIComponent(TEST_URL))).toBe(TEST_URL);
+    });
+
+    it('SSR 傳入非 test URL 時仍回退環境變數', async () => {
+      const { getApiBase } = await import('./apiBase');
+      expect(getApiBase(MALICIOUS_URL)).toBe('https://prod-worker.example.com');
+    });
   });
 
   describe('isTestMode', () => {
@@ -149,6 +160,18 @@ describe('apiBase', () => {
       try {
         const { getApiBase } = await import('./apiBase');
         expect(getApiBase()).toBe('https://prod-worker.example.com');
+      } finally {
+        globalThis.document = originalDocument;
+      }
+    });
+
+    it('getApiBase 在無 document 時可解析 request cookie 值', async () => {
+      const originalDocument = globalThis.document;
+      // @ts-expect-error 測試場景刻意刪掉 global
+      delete globalThis.document;
+      try {
+        const { getApiBase } = await import('./apiBase');
+        expect(getApiBase(TEST_URL)).toBe(TEST_URL);
       } finally {
         globalThis.document = originalDocument;
       }

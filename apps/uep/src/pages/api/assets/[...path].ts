@@ -1,18 +1,19 @@
 import type { APIRoute } from 'astro';
-import { getApiBase } from '../../../lib/apiBase';
+
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
 
 export const prerender = false;
 
-const CONTENT_API = getApiBase();
 const JWT_COOKIE = 'uep-admin-jwt';
 
 /** 代理到 content-api，從 httpOnly cookie 取得 JWT，轉換為 Bearer token */
 async function proxyToWorker(
   request: Request,
   jwt: string | undefined,
-  subpath: string
+  subpath: string,
+  contentApi: string
 ): Promise<Response> {
-  const target = `${CONTENT_API}/api/assets/${subpath}`;
+  const target = `${contentApi}/api/assets/${subpath}`;
   const headers = new Headers();
   if (jwt) headers.set('Authorization', `Bearer ${jwt}`);
   const contentType = request.headers.get('Content-Type');
@@ -52,8 +53,11 @@ async function proxyToWorker(
 function makeHandler(): APIRoute {
   return async ({ request, cookies, params }) => {
     const jwt = cookies.get(JWT_COOKIE)?.value;
+    const contentApi = getApiBase(
+      cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+    );
     try {
-      return await proxyToWorker(request, jwt, params.path!);
+      return await proxyToWorker(request, jwt, params.path!, contentApi);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Proxy error';
       return new Response(JSON.stringify({ ok: false, error: msg }), {

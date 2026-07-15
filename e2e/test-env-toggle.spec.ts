@@ -17,7 +17,7 @@ import { test, expect, type Page } from '@playwright/test';
  * 注意：
  * - dev server 已在背景運行，playwright.config.ts 的 reuseExistingServer: true 會重用
  * - dev mode 下 admin middleware bypass，不需登入
- * - window.confirm 等 native dialog 需用 page.on('dialog') 處理
+ * - 二次確認使用站內 `.uep-dialog`，不再攔截瀏覽器原生 dialog
  */
 
 const TEST_COOKIE = 'uep-test-api-url';
@@ -122,7 +122,7 @@ test.describe('T-14-2：Admin toggle 進入測試環境', () => {
     await clearTestCookie(page);
   });
 
-  test('點擊「切換到測試環境」→ confirm → banner 出現 + cookie 寫入', async ({
+  test('點擊「切換到測試環境」→ Dialog 確認 → banner 出現 + cookie 寫入', async ({
     page,
   }) => {
     await page.goto('/admin');
@@ -135,19 +135,17 @@ test.describe('T-14-2：Admin toggle 進入測試環境', () => {
       .filter({ hasText: '切換到測試環境' });
     await expect(enterBtn).toBeVisible({ timeout: 5000 });
 
-    // 攔截 window.confirm，自動按確認
-    page.on('dialog', (dialog) => {
-      expect(dialog.type()).toBe('confirm');
-      expect(dialog.message()).toContain('測試環境');
-      dialog.accept();
-    });
+    await enterBtn.click();
+    const dialog = page.locator('.uep-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('切換測試環境');
 
-    // 點擊按鈕（會觸發 confirm → reload）
+    // 站內 Dialog 確認後會 reload
     await Promise.all([
       page.waitForNavigation({ timeout: 15000 }).catch(() => {
         // reload 後 URL 不變，waitForNavigation 可能以 timeout 結束
       }),
-      enterBtn.click(),
+      dialog.locator('.uep-dialog__btn--confirm').click(),
     ]);
 
     await page.waitForLoadState('domcontentloaded');
@@ -165,7 +163,9 @@ test.describe('T-14-2：Admin toggle 進入測試環境', () => {
     await expect(banner).toContainText('TEST MODE');
   });
 
-  test('點擊「切換到測試環境」→ cancel → cookie 沒寫入', async ({ page }) => {
+  test('點擊「切換到測試環境」→ Dialog 取消 → cookie 沒寫入', async ({
+    page,
+  }) => {
     await page.goto('/admin');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -173,12 +173,10 @@ test.describe('T-14-2：Admin toggle 進入測試環境', () => {
     const enterBtn = page.locator('.adm-test-mode-card__btn--enter');
     await expect(enterBtn).toBeVisible({ timeout: 5000 });
 
-    // 攔截 confirm，自動按取消
-    page.on('dialog', (dialog) => {
-      dialog.dismiss();
-    });
-
     await enterBtn.click();
+    const dialog = page.locator('.uep-dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.locator('.uep-dialog__btn--cancel').click();
     // 短暫等待（不應 reload）
     await page.waitForTimeout(1000);
 
@@ -191,7 +189,7 @@ test.describe('T-14-2：Admin toggle 進入測試環境', () => {
 //  測項 3 — Admin toggle 退出 test mode
 // ─────────────────────────────────────────────
 test.describe('T-14-3：Admin toggle 退出測試環境', () => {
-  test('帶 test cookie 進 admin → 點「退出測試環境」→ confirm → cookie 清除 + banner 消失', async ({
+  test('帶 test cookie 進 admin → 點「退出測試環境」→ Dialog 確認 → cookie 清除 + banner 消失', async ({
     page,
   }) => {
     // 先設好 cookie
@@ -213,15 +211,12 @@ test.describe('T-14-3：Admin toggle 退出測試環境', () => {
     const exitBtn = page.locator('.adm-test-mode-card__btn--exit');
     await expect(exitBtn).toBeVisible({ timeout: 5000 });
 
-    // 攔截 confirm，自動按確認
-    page.on('dialog', (dialog) => {
-      expect(dialog.type()).toBe('confirm');
-      dialog.accept();
-    });
-
+    await exitBtn.click();
+    const dialog = page.locator('.uep-dialog');
+    await expect(dialog).toBeVisible();
     await Promise.all([
       page.waitForNavigation({ timeout: 15000 }).catch(() => {}),
-      exitBtn.click(),
+      dialog.locator('.uep-dialog__btn--confirm').click(),
     ]);
 
     await page.waitForLoadState('domcontentloaded');
@@ -236,7 +231,7 @@ test.describe('T-14-3：Admin toggle 退出測試環境', () => {
     await expect(banner).toHaveCount(0);
   });
 
-  test('帶 test cookie 進 admin → 點退出 → cancel → cookie 仍存在', async ({
+  test('帶 test cookie 進 admin → 點退出 → Dialog 取消 → cookie 仍存在', async ({
     page,
   }) => {
     await page.context().addCookies([
@@ -256,11 +251,10 @@ test.describe('T-14-3：Admin toggle 退出測試環境', () => {
     const exitBtn = page.locator('.adm-test-mode-card__btn--exit');
     await expect(exitBtn).toBeVisible({ timeout: 5000 });
 
-    page.on('dialog', (dialog) => {
-      dialog.dismiss();
-    });
-
     await exitBtn.click();
+    const dialog = page.locator('.uep-dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.locator('.uep-dialog__btn--cancel').click();
     await page.waitForTimeout(1000);
 
     // cookie 應該還在

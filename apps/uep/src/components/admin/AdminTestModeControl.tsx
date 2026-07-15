@@ -3,7 +3,7 @@
  *
  * 掛在 admin dashboard 供切換到 / 退出測試環境；並提供 test 資料 reset。
  * - 顯示當前 API 目標與 test mode 狀態
- * - 按鈕：進入或離開測試環境（window.confirm 二次確認）
+ * - 按鈕：進入或離開測試環境（站內 Dialog 二次確認）
  * - 切換成功後 location.reload() 讓其他模組讀到最新 base URL
  * - Reset section（T-10）：僅 inTestMode && source==='cookie' 顯示
  *   - 輸入 `RESET TEST`（case-sensitive）才 enabled
@@ -23,33 +23,16 @@ import {
   isTestMode,
   setTestModeOverride,
 } from '../../lib/apiBase';
+import { uepDialog } from '../ui/UepDialog';
 import './AdminTestModeControl.css';
 
 type Source = 'cookie' | 'env' | 'none';
 type ResetState = 'idle' | 'loading' | 'done' | 'error';
 
-/** Admin JWT cookie 名稱（uep 站與 root 站不同，兩者都試以支援共用元件） */
-const JWT_COOKIE_CANDIDATES = ['uep-admin-jwt', 'root-admin-jwt'];
-
 function detectSource(): Source {
   if (typeof document === 'undefined') return 'none';
   if (document.cookie.includes(`${TEST_MODE_COOKIE_NAME}=`)) return 'cookie';
   return isTestMode() ? 'env' : 'none';
-}
-
-/** 從 document.cookie 抓 admin JWT（若沒登入則 undefined） */
-function readAdminJwt(): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const parts = document.cookie.split('; ').filter(Boolean);
-  for (const raw of parts) {
-    const eq = raw.indexOf('=');
-    if (eq < 0) continue;
-    const name = raw.slice(0, eq);
-    if (JWT_COOKIE_CANDIDATES.includes(name)) {
-      return decodeURIComponent(raw.slice(eq + 1));
-    }
-  }
-  return undefined;
 }
 
 export default function AdminTestModeControl(): React.ReactElement {
@@ -73,16 +56,9 @@ export default function AdminTestModeControl(): React.ReactElement {
     setResetState('loading');
     setResetMessage('');
     try {
-      const base = getApiBase();
-      const jwt = readAdminJwt();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
-
-      const res = await fetch(`${base}/api/test/reset`, {
+      const res = await fetch('/api/test/reset', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (!res.ok) {
@@ -107,34 +83,47 @@ export default function AdminTestModeControl(): React.ReactElement {
     }
   }, [resetEnabled]);
 
-  const handleEnter = useCallback(() => {
-    const ok = window.confirm(
+  const handleEnter = useCallback(async () => {
+    const ok = await uepDialog.confirm(
       '即將切換至【測試環境】。\n' +
         '目標：' +
         TEST_WORKER_BASE_URL +
         '\n\n' +
         '⚠ 切換後所有 Reader / Editor 都會讀寫 test D1，\n' +
         '  任何編輯不會影響正式資料。\n\n' +
-        '確認切換？'
+        '確認切換？',
+      {
+        title: '切換測試環境',
+        confirmText: '確認切換',
+      }
     );
     if (!ok) return;
     const written = setTestModeOverride(TEST_WORKER_BASE_URL);
     if (!written) {
-      window.alert('切換失敗：setTestModeOverride 拒絕寫入');
+      await uepDialog.alert('測試環境網址未通過安全驗證，未進行切換。', {
+        title: '切換失敗',
+      });
       return;
     }
     window.location.reload();
   }, []);
 
-  const handleExit = useCallback(() => {
+  const handleExit = useCallback(async () => {
     if (source === 'env') {
-      window.alert(
+      await uepDialog.alert(
         '此站點於 build 時綁定 test worker，無法用 cookie 清除。\n' +
-          '請前往正式站台（不同 URL）以退出測試模式。'
+          '請前往正式站台（不同 URL）以退出測試模式。',
+        { title: '無法退出測試環境' }
       );
       return;
     }
-    const ok = window.confirm('確認退出測試環境並回到正式資料？');
+    const ok = await uepDialog.confirm(
+      '退出後，Reader 與 Editor 將重新讀取正式資料。',
+      {
+        title: '退出測試環境',
+        confirmText: '確認退出',
+      }
+    );
     if (!ok) return;
     setTestModeOverride(null);
     window.location.reload();

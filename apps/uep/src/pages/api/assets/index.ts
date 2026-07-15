@@ -1,17 +1,20 @@
 import type { APIRoute } from 'astro';
-import { getApiBase } from '../../../lib/apiBase';
+
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
 
 export const prerender = false;
 
-const CONTENT_API = getApiBase();
 const JWT_COOKIE = 'uep-admin-jwt';
 
 /** GET /api/assets — 代理到 content-api，從 httpOnly cookie 取得 JWT */
 export const GET: APIRoute = async ({ cookies, url }) => {
   const jwt = cookies.get(JWT_COOKIE)?.value;
+  const contentApi = getApiBase(
+    cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+  );
 
   try {
-    const target = new URL(`${CONTENT_API}/api/assets`);
+    const target = new URL(`${contentApi}/api/assets`);
     url.searchParams.forEach((value, key) =>
       target.searchParams.set(key, value)
     );
@@ -38,6 +41,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 /** POST /api/assets — 上傳檔案，代理到 content-api 並自動帶 JWT */
 export const POST: APIRoute = async ({ cookies, request }) => {
   const jwt = cookies.get(JWT_COOKIE)?.value;
+  const contentApi = getApiBase(
+    cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+  );
 
   try {
     const headers: Record<string, string> = {};
@@ -46,7 +52,7 @@ export const POST: APIRoute = async ({ cookies, request }) => {
     const ct = request.headers.get('Content-Type');
     if (ct) headers['Content-Type'] = ct;
 
-    const res = await fetch(`${CONTENT_API}/api/assets`, {
+    const res = await fetch(`${contentApi}/api/assets`, {
       method: 'POST',
       headers,
       body: await request.arrayBuffer(),

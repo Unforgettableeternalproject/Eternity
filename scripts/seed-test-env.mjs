@@ -166,12 +166,33 @@ async function fetchSeedPages() {
       `/api/content/${zone}?include_deleted=false`
     );
     const pages = listResp.data || [];
+    const pagesById = new Map(pages.map((page) => [page.id, page]));
+    const selectedIds = new Set(
+      pages
+        .filter((page) => !LEAF_PAGE_TYPES.has(page.pageType))
+        .map((page) => page.id)
+    );
+
+    // 被選中的骨架節點可能掛在 page 類型的容器下。若只依類型過濾，
+    // parentId 會指向不存在的資料，D1 外鍵檢查便會讓 reseed 半途失敗。
+    // 因此補齊所有必要祖先，但仍不搬入無關的葉子內容。
+    for (const selectedId of [...selectedIds]) {
+      let parentId = pagesById.get(selectedId)?.parentId;
+      while (parentId) {
+        const parent = pagesById.get(parentId);
+        if (!parent) {
+          throw new Error(
+            `${selectedId} 的父節點 ${parentId} 不在 ${zone} 清單中`
+          );
+        }
+        selectedIds.add(parentId);
+        parentId = parent.parentId;
+      }
+    }
 
     for (const page of pages) {
       if (seen.has(page.id)) continue;
-
-      // 葉子頁跳過
-      if (LEAF_PAGE_TYPES.has(page.pageType)) continue;
+      if (!selectedIds.has(page.id)) continue;
 
       // 其餘（homepage / zone / chapter / arc / cluster / subcategory / division /
       //       clearing / stack）通通搬——這是 zone 導覽骨架
@@ -194,6 +215,26 @@ async function fetchSeedPages() {
         // history/index 不存在則跳過
       }
     }
+  }
+
+  // D1 會檢查 parent_id 外鍵，因此必須由淺至深寫入。
+  seedPages.sort(
+    (a, b) =>
+      (a.depth ?? 0) - (b.depth ?? 0) ||
+      (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+      a.id.localeCompare(b.id)
+  );
+
+  const seedIds = new Set(seedPages.map((page) => page.id));
+  const missingParents = seedPages.filter(
+    (page) => page.parentId && !seedIds.has(page.parentId)
+  );
+  if (missingParents.length > 0) {
+    throw new Error(
+      `種子資料缺少父節點：${missingParents
+        .map((page) => `${page.id} -> ${page.parentId}`)
+        .join(', ')}`
+    );
   }
 
   return seedPages;
@@ -281,18 +322,18 @@ async function writePage(page, token) {
   const slug = page.slug;
   const area = page.area;
 
-  // 建構 PUT body（符合 UpsertPageRequest）
+  // 建構 PUT body（符合 Worker 的 camelCase UpsertPageRequest）。
+  // 這裡不可沿用 D1 snake_case，否則 Worker 會忽略欄位並把所有節點預設成 page。
   const body = {
     title: page.title,
     content: page.content, // 已是物件，API 接受 object 或 string
     metadata: page.metadata,
-    source_file: page.sourceFile || null,
-    base_content_hash: page.baseContentHash || null,
     status: page.status || 'synced',
-    page_type: page.pageType,
-    sort_order: page.sortOrder ?? 0,
-    parent_id: page.parentId || null,
+    pageType: page.pageType,
+    sortOrder: page.sortOrder ?? 0,
+    parentId: page.parentId || null,
     depth: page.depth ?? 0,
+    updatedAt: page.updatedAt,
   };
 
   await testPut(`/api/content/${area}/${slug}`, body, token);

@@ -23,13 +23,12 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { uepDialog } from '../components/ui/UepDialog';
+
 import { isTestMode } from '../lib/apiBase';
+import { getRegistry, type DevToolAction } from './actionRegistry';
 import { registerAllActions } from './actions';
-import {
-  getRegistry,
-  type DevToolAction,
-  type DevToolExecuteResult,
-} from './actionRegistry';
+
 import './UepDevTools.css';
 
 const FORCE_STORAGE_KEY = 'uep-devtools-force';
@@ -107,8 +106,12 @@ function DevToolsPanel({
   const dispatch = useCallback(
     async (action: DevToolAction) => {
       if (action.requiresConfirm) {
-        const ok = window.confirm(
-          action.confirmMessage ?? `確認執行「${action.label}」？`
+        const ok = await uepDialog.confirm(
+          action.confirmMessage ?? `此操作將執行「${action.label}」。`,
+          {
+            title: '確認 DevTools 操作',
+            confirmText: '執行',
+          }
         );
         if (!ok) return;
       }

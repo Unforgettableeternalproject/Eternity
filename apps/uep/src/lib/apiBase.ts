@@ -6,7 +6,7 @@
  * 2. `import.meta.env.PUBLIC_CONTENT_API_URL` — build-time 環境變數
  * 3. 硬編碼 fallback `http://localhost:8788`（本地 wrangler dev）
  *
- * SSR 端（Astro server / API route）：無 `document`，僅讀環境變數。
+ * SSR 端（Astro server / API route）：呼叫端必須明確傳入 test cookie 值。
  * Client 端（React island）：讀環境變數後疊 cookie override。
  *
  * ⚠️ 兩站的 `apiBase.ts` **介面契約**必須一致（apps/root 有對應版本），
@@ -57,7 +57,8 @@ function writeCookie(
   const maxAge = days * 86400;
   const encoded = encodeURIComponent(value);
   const secure =
-    typeof location !== 'undefined' && location.protocol === 'https:'
+    typeof globalThis.location !== 'undefined' &&
+    globalThis.location.protocol === 'https:'
       ? '; Secure'
       : '';
   document.cookie = `${name}=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
@@ -66,10 +67,20 @@ function writeCookie(
 function deleteCookie(name: string): void {
   if (typeof document === 'undefined') return;
   const secure =
-    typeof location !== 'undefined' && location.protocol === 'https:'
+    typeof globalThis.location !== 'undefined' &&
+    globalThis.location.protocol === 'https:'
       ? '; Secure'
       : '';
   document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Strict${secure}`;
+}
+
+function decodeCookieValue(value: string | null): string | null {
+  if (!value) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 /**
@@ -106,8 +117,11 @@ function envBase(): string {
  * Client-side 且 cookie 為合法 test worker URL → 使用 override。
  * 其他情況 → 使用環境變數（或 fallback）。
  */
-export function getApiBase(): string {
-  const override = readCookie(TEST_COOKIE_NAME);
+export function getApiBase(serverCookieValue?: string | null): string {
+  const override =
+    serverCookieValue === undefined
+      ? readCookie(TEST_COOKIE_NAME)
+      : decodeCookieValue(serverCookieValue);
   if (override && isTestWorkerUrl(override)) {
     return override.replace(/\/+$/, '');
   }
@@ -169,6 +183,7 @@ export const __internal = {
   readCookie,
   writeCookie,
   deleteCookie,
+  decodeCookieValue,
   isTestWorkerUrl,
   envBase,
 };
