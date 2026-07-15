@@ -310,6 +310,32 @@ async function fetchSeedLinks() {
   }
 }
 
+/**
+ * 從 prod 讀取 root_projects。
+ */
+async function fetchSeedProjects() {
+  try {
+    const resp = await prodGet('/api/root/projects');
+    return resp.data || [];
+  } catch (err) {
+    console.warn(`  ⚠ 無法讀取 root_projects: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * 從 prod 讀取 root_updates。
+ */
+async function fetchSeedUpdates() {
+  try {
+    const resp = await prodGet('/api/root/updates');
+    return resp.data || [];
+  } catch (err) {
+    console.warn(`  ⚠ 無法讀取 root_updates: ${err.message}`);
+    return [];
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 寫入 test Worker
 // ═══════════════════════════════════════════════════════════════
@@ -398,6 +424,69 @@ async function writeLink(link, token) {
   });
 }
 
+/**
+ * 寫入 root_projects（PUT /api/root/projects/:id）。
+ *
+ * API list 回傳的是 camelCase RootProject（含 links 巢狀物件），
+ * UpsertRootProjectRequest 接受同構欄位，直接原封轉發即可。
+ * 明確帶欄位而非 spread 全物件，避免把 createdAt / deletedAt 之類伺服器管理欄位塞回去。
+ */
+async function writeProject(project, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const body = {
+    titleZh: project.titleZh,
+    titleEn: project.titleEn,
+    descZh: project.descZh,
+    descEn: project.descEn,
+    contentZh: project.contentZh,
+    contentEn: project.contentEn,
+    tags: project.tags,
+    featured: project.featured,
+    sortOrder: project.sortOrder,
+    status: project.status,
+    image: project.image,
+    links: project.links,
+    startDate: project.startDate,
+    endDate: project.endDate,
+    updatedAt: project.updatedAt,
+  };
+
+  await apiFetch(TEST_WORKER_URL, `/api/root/projects/${project.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * 寫入 root_updates（PUT /api/root/updates/:id）。
+ */
+async function writeUpdate(update, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const body = {
+    titleZh: update.titleZh,
+    titleEn: update.titleEn,
+    descZh: update.descZh,
+    descEn: update.descEn,
+    contentZh: update.contentZh,
+    contentEn: update.contentEn,
+    date: update.date,
+    category: update.category,
+    featured: update.featured,
+    updatedAt: update.updatedAt,
+  };
+
+  await apiFetch(TEST_WORKER_URL, `/api/root/updates/${update.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 主入口
 // ═══════════════════════════════════════════════════════════════
@@ -440,9 +529,19 @@ async function main() {
   console.log(`  找到 ${cards.length} 筆 cards`);
 
   // ── 4. 讀取 root_links ──
-  console.log('\n[ 3/4 ] 從 prod 讀取 root_links...');
+  console.log('\n[ 4/6 ] 從 prod 讀取 root_links...');
   const links = await fetchSeedLinks();
   console.log(`  找到 ${links.length} 筆 links`);
+
+  // ── 5. 讀取 root_projects ──
+  console.log('\n[ 5/6 ] 從 prod 讀取 root_projects...');
+  const projects = await fetchSeedProjects();
+  console.log(`  找到 ${projects.length} 筆 projects`);
+
+  // ── 6. 讀取 root_updates ──
+  console.log('\n[ 6/6 ] 從 prod 讀取 root_updates...');
+  const updates = await fetchSeedUpdates();
+  console.log(`  找到 ${updates.length} 筆 updates`);
 
   // ── 寫入 test Worker ──
   console.log('\n=== 開始寫入 test Worker ===\n');
@@ -502,6 +601,32 @@ async function main() {
   }
   console.log(`  links: ${linkOk} 成功, ${linkFail} 失敗`);
 
+  let projectOk = 0,
+    projectFail = 0;
+  for (const p of projects) {
+    try {
+      await writeProject(p, token);
+      projectOk++;
+    } catch (err) {
+      projectFail++;
+      console.error(`  ✘ project ${p.id}: ${err.message}`);
+    }
+  }
+  console.log(`  projects: ${projectOk} 成功, ${projectFail} 失敗`);
+
+  let updateOk = 0,
+    updateFail = 0;
+  for (const u of updates) {
+    try {
+      await writeUpdate(u, token);
+      updateOk++;
+    } catch (err) {
+      updateFail++;
+      console.error(`  ✘ update ${u.id}: ${err.message}`);
+    }
+  }
+  console.log(`  updates: ${updateOk} 成功, ${updateFail} 失敗`);
+
   // ── 摘要 ──
   console.log('\n=== 種子完成摘要 ===\n');
   console.log(
@@ -510,10 +635,15 @@ async function main() {
   console.log(`  singletons  : ${singletonOk} 筆`);
   console.log(`  cards       : ${cardOk} 筆`);
   console.log(`  links       : ${linkOk} 筆`);
+  console.log(`  projects    : ${projectOk} 筆`);
+  console.log(`  updates     : ${updateOk} 筆`);
   console.log(`  目標        : ${TEST_WORKER_URL}`);
   console.log();
 
-  if (pagesFail + singletonFail + cardFail + linkFail > 0) {
+  if (
+    pagesFail + singletonFail + cardFail + linkFail + projectFail + updateFail >
+    0
+  ) {
     console.warn('  ⚠ 部分資料寫入失敗，請檢查上方錯誤訊息。');
     process.exit(1);
   }
