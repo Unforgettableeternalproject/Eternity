@@ -27,6 +27,12 @@ interface EditorPageTreeProps {
   currentSlug: string;
   accent: string;
   refreshKey?: number;
+  /**
+   * 樹狀導航前的守衛。回傳 false → 取消導航（例如使用者在 UepDialog 選了留下）；
+   * 未提供時樹點擊照舊直接跳頁。呼叫端負責清除 dirty 狀態以避免 beforeunload
+   * 二次攔截。
+   */
+  beforeNavigate?: (targetPageId: string) => Promise<boolean>;
 }
 
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
@@ -62,6 +68,7 @@ export default function EditorPageTree({
   currentSlug,
   accent,
   refreshKey,
+  beforeNavigate,
 }: EditorPageTreeProps) {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -571,8 +578,15 @@ export default function EditorPageTree({
             <a
               href={`/admin/edit/${node.id}`}
               className="ned-tree-label"
-              onClick={(e) => {
-                if (isActive) e.preventDefault();
+              onClick={async (e) => {
+                if (isActive) {
+                  e.preventDefault();
+                  return;
+                }
+                if (!beforeNavigate) return; // 未提供守衛 → 原生跳轉
+                e.preventDefault();
+                const ok = await beforeNavigate(node.id);
+                if (ok) window.location.href = `/admin/edit/${node.id}`;
               }}
             >
               {node.title || node.slug}

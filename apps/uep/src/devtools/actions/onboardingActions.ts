@@ -1,0 +1,85 @@
+/**
+ * 入站儀式 DevTools actions（Issue #41 T-19）
+ *
+ * 依賴 `window.__uepOnboardingTest`（OnboardingGate 掛的 bridge，本來就非 dev-only）。
+ * 用於模擬入站儀式的各種階段，測試 IdentCard / ObserverGate 等元件。
+ */
+
+import { getRegistry } from '../actionRegistry';
+
+const GROUP = '入站儀式';
+
+const hasBridge = (): boolean =>
+  typeof window !== 'undefined' && !!window.__uepOnboardingTest;
+
+function warn(): void {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[DevTools] __uepOnboardingTest 尚未掛載（需 OnboardingGate 在頁面上）'
+  );
+}
+
+export function registerOnboardingActions(): void {
+  getRegistry().register([
+    {
+      group: GROUP,
+      id: 'onboarding:show-choice',
+      label: '強制顯示身分選擇儀式',
+      description: '彈出 IdentCard 選擇（探索者 / 觀測者）',
+      available: hasBridge,
+      execute: () => {
+        if (!window.__uepOnboardingTest) return warn();
+        window.__uepOnboardingTest.showChoice();
+      },
+    },
+    {
+      group: GROUP,
+      id: 'onboarding:show-observer-gate',
+      label: '強制顯示觀測者協議',
+      description: '直接開 ObserverGate 條款頁',
+      available: hasBridge,
+      execute: () => {
+        if (!window.__uepOnboardingTest) return warn();
+        window.__uepOnboardingTest.showObserverGate();
+      },
+    },
+    {
+      group: GROUP,
+      id: 'onboarding:hide',
+      label: '關閉目前入站視窗',
+      available: hasBridge,
+      execute: () => {
+        if (!window.__uepOnboardingTest) return warn();
+        window.__uepOnboardingTest.hide();
+      },
+    },
+    {
+      group: GROUP,
+      id: 'onboarding:reset-identity',
+      label: '重置本機身分（模擬全新訪客）',
+      description: '清 onboarded + progress，重新載入首頁',
+      destructive: true,
+      requiresConfirm: true,
+      confirmMessage: '⚠ 清除本機 onboarded/progress 並重新導向首頁。確認？',
+      available: hasBridge,
+      execute: () => {
+        if (!window.__uepOnboardingTest) return warn();
+        window.__uepOnboardingTest.resetLocalIdentity({ reload: true });
+      },
+    },
+    {
+      group: GROUP,
+      id: 'onboarding:dump-status',
+      label: '傾印入站狀態到 console',
+      available: hasBridge,
+      execute: () => {
+        if (!window.__uepOnboardingTest) return warn();
+        // eslint-disable-next-line no-console
+        console.log(
+          '[UEP Onboarding Status]',
+          window.__uepOnboardingTest.status()
+        );
+      },
+    },
+  ]);
+}

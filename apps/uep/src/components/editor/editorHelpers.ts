@@ -7,12 +7,9 @@ import type { uepToast as UepToastType } from '../ui/UepToast';
 // Singleton fallback：island hydration 順序不保證，全域 manager 可能尚未掛載
 import { uepDialog as dialogSingleton } from '../ui/UepDialog';
 import { uepToast as toastSingleton } from '../ui/UepToast';
-
 // ── API Base ──────────────────────────────────────────────────
 
-export const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+export const API_BASE = '';
 
 // ── Dialog / Toast（跨 React island 安全取法）─────────────────
 
@@ -139,4 +136,104 @@ export async function fetchAudioAssets(): Promise<AssetItem[]> {
   } catch {
     return [];
   }
+}
+
+// ── HTML → Markdown 轉換（編輯器匯出用）─────────────────────
+
+/**
+ * 將 TipTap 產生的 HTML 轉為可讀的 Markdown。
+ * 著重文字可讀性，複雜格式（顏色、字型大小、highlight）會被忽略。
+ */
+export function htmlToMarkdown(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  function walk(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent || '';
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    const inner = Array.from(el.childNodes).map(walk).join('');
+
+    switch (tag) {
+      // 區塊元素
+      case 'p':
+        return inner.trim() ? inner + '\n\n' : '\n';
+      case 'h1':
+        return `# ${inner.trim()}\n\n`;
+      case 'h2':
+        return `## ${inner.trim()}\n\n`;
+      case 'h3':
+        return `### ${inner.trim()}\n\n`;
+      case 'blockquote':
+        return (
+          inner
+            .split('\n')
+            .filter((l) => l.trim())
+            .map((l) => `> ${l.trim()}`)
+            .join('\n') + '\n\n'
+        );
+      case 'ul':
+      case 'ol':
+        return inner + '\n';
+      case 'li': {
+        const parent = el.parentElement?.tagName.toLowerCase();
+        const prefix =
+          parent === 'ol'
+            ? `${Array.from(el.parentElement!.children).indexOf(el) + 1}. `
+            : '- ';
+        return prefix + inner.trim() + '\n';
+      }
+      case 'pre':
+        return `\`\`\`\n${inner.trim()}\n\`\`\`\n\n`;
+      case 'hr':
+        return '---\n\n';
+      case 'br':
+        return '\n';
+
+      // 行內格式
+      case 'strong':
+      case 'b':
+        return `**${inner}**`;
+      case 'em':
+      case 'i':
+        return `*${inner}*`;
+      case 's':
+      case 'del':
+        return `~~${inner}~~`;
+      case 'code':
+        return el.parentElement?.tagName.toLowerCase() === 'pre'
+          ? inner
+          : `\`${inner}\``;
+      case 'a':
+        return `[${inner}](${el.getAttribute('href') || ''})`;
+      case 'img':
+        return `![${el.getAttribute('alt') || ''}](${el.getAttribute('src') || ''})`;
+
+      // 格式標籤：保留文字，忽略格式
+      case 'u':
+      case 'mark':
+      case 'span':
+      case 'div':
+        return inner;
+
+      // 自訂 node：提取文字
+      case 'uep-dialogue':
+        return inner.trim() ? inner + '\n\n' : '';
+      case 'inline-audio':
+        return `🎵 ${el.getAttribute('label') || '音訊'}`;
+
+      default:
+        return inner;
+    }
+  }
+
+  return (
+    walk(doc.body)
+      .replace(/\n{3,}/g, '\n\n')
+      .trim() + '\n'
+  );
 }

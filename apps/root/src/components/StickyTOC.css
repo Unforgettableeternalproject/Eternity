@@ -13,10 +13,20 @@
   border-radius: 8px;
   background: var(--q-paper);
   z-index: 30;
+  transition:
+    opacity 0.25s ease,
+    visibility 0.25s ease;
 
   /* 隱藏滾動條 */
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* 滾動超過 main 區域後淡出隱藏 */
+.sticky-toc--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .sticky-toc::-webkit-scrollbar {

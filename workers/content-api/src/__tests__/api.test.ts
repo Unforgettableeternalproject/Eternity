@@ -11,6 +11,7 @@ import worker from '../index';
 const ctx = {
   waitUntil: () => {},
   passThroughOnException: () => {},
+  props: {},
 } as ExecutionContext;
 
 let adminToken: string | undefined;

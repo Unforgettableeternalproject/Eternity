@@ -30,12 +30,9 @@ import {
 } from '../../data/homepage-types';
 
 import './SiteHomepageEditor.css';
-
 // ── API 設定 ──────────────────────────────────────────────────────────────────
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = '';
 
 /** 從 localStorage 取得 JWT token */
 function getToken(): string | null {
@@ -110,6 +107,8 @@ interface MiniEditorProps {
 
 function MiniEditor({ content, onChange, placeholder }: MiniEditorProps) {
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染，會讓工具列 isActive 狀態凍結
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit,
       Underline,

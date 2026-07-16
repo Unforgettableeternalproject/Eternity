@@ -13,10 +13,30 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
+import { Markdown } from '@tiptap/markdown';
+import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
+import ProgressMarkerNode from './ProgressMarkerNode';
+import EchoSpotNode, { type EchoSpotAttributes } from './EchoSpotNode';
+import EchoSongPicker, { type EchoSongChoice } from './EchoSongPicker';
+import { UepEntityMark, UepCueMark } from './UepEmbedMarks';
+import EntityInfoChip from './EntityInfoChip';
+import GateConditionEditor from './GateConditionEditor';
+import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
+import { parseGateCondition } from '../../progress/gating';
+import type { GateCondition } from '../../progress/gating';
+import { ENTITY_KINDS, isValidRef, collectEmbeds } from '../../embed';
+import EntityIndexPicker, { loadEmbeddableEntries } from './EntityIndexPicker';
+import { EntitySuggest } from './EntitySuggestExtension';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getToast, extractAssetKey, deleteAsset } from './editorHelpers';
+import {
+  getToast,
+  getDialog,
+  extractAssetKey,
+  deleteAsset,
+  htmlToMarkdown,
+} from './editorHelpers';
 import { resolveEditorMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
 import EditorPageTree from './EditorPageTree';
@@ -41,6 +61,7 @@ import ConceptsEditorBody, {
   serializeConceptsContent,
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
+import { collectEntityKeyIssues } from './EntityKeyField';
 import StorageDialogueEditor from './StorageDialogueEditor';
 import ChangelogEditorBody, { type ChangelogMeta } from './ChangelogEditorBody';
 import ThoughtStream from './ThoughtStream';
@@ -95,6 +116,16 @@ const FONT_SIZES = [
   { label: '大字', value: '20px' },
   { label: '特大', value: '26px' },
 ];
+
+function createEchoSpotId(): string {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+  return `spot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 // === Props ===
 interface RichEditorProps {
@@ -164,6 +195,40 @@ export default function RichEditor({
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [locked, setLocked] = useState(initialMetadata?.locked === true);
+  // 進度頁：本頁的解鎖倚賴同層前一個進度頁完成（鏈條件由 effectiveGate 動態注入）
+  const [progressPage, setProgressPage] = useState(
+    initialMetadata?.progressPage === true
+  );
+  // 豁免：不繼承容器進度（切斷點，子樹一併豁免）——番外/特別篇提前開放用
+  const [gateExempt, setGateExempt] = useState(
+    initialMetadata?.gateExempt === true
+  );
+  // 父容器繼承偵測：拉一次父頁面 metadata，若 progressPage=true 則本頁
+  // 在 GateConditionEditor 顯示為繼承（toggle 收起、僅剩豁免選項）
+  const [parentIsProgressContainer, setParentIsProgressContainer] =
+    useState(false);
+  useEffect(() => {
+    if (!parentId) {
+      setParentIsProgressContainer(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    fetch(`${apiBase}/api/content/${parentId}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const meta = data?.data?.metadata;
+        setParentIsProgressContainer(meta?.progressPage === true);
+      })
+      .catch(() => {
+        // 靜默失敗：找不到父頁（例如新建頁面）→ 視為未繼承
+      });
+    return () => ctrl.abort();
+  }, [parentId, apiBase]);
+  // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
+  // 存檔時一律正規化為巢狀 metadata.gate
+  const [gate, setGate] = useState<GateCondition | null>(() =>
+    parseGateCondition(initialMetadata || null)
+  );
   const [icon, setIcon] = useState(initialMetadata?.icon || '');
   const [description, setDescription] = useState(
     initialMetadata?.description || ''
@@ -187,6 +252,16 @@ export default function RichEditor({
   const [linkMode, setLinkMode] = useState<'url' | 'page'>('url');
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
+
+  // 嵌入標記 popover 狀態（Epic 2 — entity inline mark；
+  // cue 工具已撤下，等浮島階段以旗標式/浮鈕重新設計）
+  const [entityDraft, setEntityDraft] = useState({ kind: 'term', ref: '' });
+  // 條目級 Reference Picker（S7-D-1：頁面樹改 entity-index 條目清單）
+  const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
+  const [echoSongPickerOpen, setEchoSongPickerOpen] = useState(false);
+  const [echoesValidationIssues, setEchoesValidationIssues] = useState<
+    string[]
+  >([]);
 
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
@@ -246,6 +321,10 @@ export default function RichEditor({
 
   // TipTap editor
   const editor = useEditor({
+    // TipTap v3 預設不在 transaction 時重渲染（v2 預設會），
+    // 導致只移動選取範圍時工具列的 isActive 狀態凍結（粗體按鈕黏住等）。
+    // 開啟後每次 transaction 都重渲染，工具列狀態才會跟著 selection 即時更新。
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -271,6 +350,22 @@ export default function RichEditor({
       TableCell,
       UepDialogueNode,
       InlineAudioNode,
+      ProgressMarkerNode,
+      EchoSpotNode,
+      UepEntityMark,
+      UepCueMark,
+      // entity 自動偵測（S7-D-3）：打字命中匹配詞 → Tab 套 entity mark。
+      // 僅 history——interactive embedding 是 History 文章專屬
+      // （艾斯維爾 2026-07-07 定案），其他區域不掛偵測。
+      ...(area === 'history'
+        ? [
+            EntitySuggest.configure({
+              fetchEntries: () => loadEmbeddableEntries(apiBase),
+            }),
+          ]
+        : []),
+      Markdown,
+      MarkdownPaste,
     ],
     content: isConcepts
       ? initialContentBlocks?.find((b) => b.type === 'rich_text')?.content ||
@@ -311,6 +406,31 @@ export default function RichEditor({
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
     if (editorMode.needsTipTap && !editor) return;
+
+    // entityKey 硬驗證（S7-B 驗收回饋）：輸入層只警告不阻擋打字，
+    // 存檔是資料進 D1 的最後關卡——非法/重複 key 直接擋下
+    if (isConcepts) {
+      const entityKeyIssues = collectEntityKeyIssues(conceptsData.data);
+      if (entityKeyIssues.length > 0) {
+        getToast().error(
+          `entityKey 驗證未通過：${entityKeyIssues[0]}` +
+            (entityKeyIssues.length > 1
+              ? `（共 ${entityKeyIssues.length} 項）`
+              : '')
+        );
+        return;
+      }
+    }
+    if (isEchoes && echoesValidationIssues.length > 0) {
+      getToast().error(
+        `Echoes 資料驗證未通過：${echoesValidationIssues[0]}` +
+          (echoesValidationIssues.length > 1
+            ? `（共 ${echoesValidationIssues.length} 項）`
+            : '')
+      );
+      return;
+    }
+
     setSaveStatus('saving');
     try {
       const content =
@@ -338,10 +458,49 @@ export default function RichEditor({
                   ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
+
+      // 嵌入摘要（Epic 2）：掃描 HTML 中的 entity/cue 標記寫入
+      // metadata.related/cues——island 只讀摘要，不必解析整篇 HTML。
+      // 只在 editor HTML 實際被持久化的模式計算（echoes/visuals/
+      // storage 特化模式不存 editor HTML，摘要會失真）。
+      const persistsEditorHtml =
+        editorMode.needsTipTap &&
+        editor &&
+        !isEchoes &&
+        !isVisuals &&
+        !isStorageDialogue &&
+        !isStorageChangelog;
+      const embedSummary = persistsEditorHtml
+        ? collectEmbeds(
+            new DOMParser().parseFromString(editor.getHTML(), 'text/html').body
+          )
+        : null;
+
       const metadata: Record<string, any> = {
         ...(initialMetadata || {}),
         ...(hidden ? { hidden: true } : { hidden: undefined }),
         ...(locked ? { locked: true } : { locked: undefined }),
+        // 進度頁 toggle：true 才寫入，false 一律清除以維持存檔精簡
+        ...(progressPage
+          ? { progressPage: true }
+          : { progressPage: undefined }),
+        // 豁免 toggle：同上，true 才寫入
+        ...(gateExempt ? { gateExempt: true } : { gateExempt: undefined }),
+        // 進度條件一律存巢狀 gate；平鋪形狀的舊鍵一併清除避免雙重來源
+        gate: gate ?? undefined,
+        requiresFlags: undefined,
+        pristineOnly: undefined,
+        // 嵌入摘要：有標記才寫入；標記全移除時一併清除
+        ...(embedSummary
+          ? {
+              related:
+                embedSummary.related.length > 0
+                  ? embedSummary.related
+                  : undefined,
+              cues:
+                embedSummary.cues.length > 0 ? embedSummary.cues : undefined,
+            }
+          : {}),
         ...(icon ? { icon } : { icon: undefined }),
         ...(description ? { description } : { description: undefined }),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
@@ -406,6 +565,7 @@ export default function RichEditor({
     echoesData,
     visualsData,
     conceptsData,
+    echoesValidationIssues,
     conceptsStackStyle,
     storageDialogueBlocks,
     changelogBlocks,
@@ -420,6 +580,7 @@ export default function RichEditor({
     depth,
     hidden,
     locked,
+    gate,
     icon,
     description,
     layout,
@@ -455,17 +616,40 @@ export default function RichEditor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // beforeunload
+  // dirty state 的同步 ref——beforeunload 讀 ref 而非 state，
+  // 讓 SPA 內守衛（handleBeforeNavigate）在使用者確認捨棄變更後
+  // 立刻 bypass 原生 beforeunload，避免二次跳原生 alert
+  const dirtyRef = useRef(isDirty);
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  // beforeunload — 關瀏覽器 / 換域 / 未經守衛的 hard navigation 才走這裡
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
+      if (dirtyRef.current) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
+  }, []);
+
+  // 樹狀 / 選單導航前的守衛——用 UepDialog 取代瀏覽器原生 alert
+  const handleBeforeNavigate = useCallback(async (): Promise<boolean> => {
+    if (!dirtyRef.current) return true;
+    const ok = await getDialog().confirm(
+      '這頁有未儲存的變更，離開將會捨棄。要繼續嗎？',
+      {
+        title: '未儲存的變更',
+        confirmText: '捨棄變更並離開',
+        cancelText: '留在此頁',
+      }
+    );
+    if (ok) dirtyRef.current = false; // bypass 後續 beforeunload
+    return ok;
+  }, []);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -514,6 +698,20 @@ export default function RichEditor({
   const [audioPickerSearch, setAudioPickerSearch] = useState('');
   const [audioReplaceMode, setAudioReplaceMode] = useState(false);
 
+  // 進度標記 node 選取與編輯草稿（Epic 2 掃描線）
+  const [selectedMarker, setSelectedMarker] = useState<{
+    pos: number;
+    grantsFlags: string;
+    label: string;
+  } | null>(null);
+  const [markerDraft, setMarkerDraft] = useState<{
+    grantsFlags: string;
+    label: string;
+  }>({ grantsFlags: '', label: '' });
+  const [selectedEchoSpot, setSelectedEchoSpot] = useState<
+    (EchoSpotAttributes & { pos: number }) | null
+  >(null);
+
   useEffect(() => {
     if (!editor) return;
 
@@ -544,6 +742,64 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedImage);
     };
   }, [editor]);
+
+  // Echo Spot node 選取追蹤：可重新挑曲或刪除，不把錯綁變成永久資料。
+  useEffect(() => {
+    if (!editor) return;
+    const syncSelectedEchoSpot = () => {
+      const selection = editor.state.selection as any;
+      const next =
+        selection.node?.type?.name === 'echoSpot'
+          ? ({
+              pos: selection.from,
+              ...selection.node.attrs,
+            } as EchoSpotAttributes & {
+              pos: number;
+            })
+          : null;
+      setSelectedEchoSpot((current) =>
+        current?.pos === next?.pos && current?.songId === next?.songId
+          ? current
+          : next
+      );
+    };
+    syncSelectedEchoSpot();
+    editor.on('selectionUpdate', syncSelectedEchoSpot);
+    editor.on('transaction', syncSelectedEchoSpot);
+    return () => {
+      editor.off('selectionUpdate', syncSelectedEchoSpot);
+      editor.off('transaction', syncSelectedEchoSpot);
+    };
+  }, [editor]);
+
+  const applyEchoSongChoice = (song: EchoSongChoice) => {
+    if (!editor) return;
+    const attrs: EchoSpotAttributes = {
+      spotId: selectedEchoSpot?.spotId || createEchoSpotId(),
+      songId: song.id,
+      songUrlKey: song.audioFile,
+      ...(song.entityKey ? { entityKey: song.entityKey } : {}),
+      title: song.title,
+      clusterId: song.clusterId,
+      songType: song.songType,
+      ...(song.duration ? { duration: song.duration } : {}),
+      spoilerLevel: song.spoilerLevel,
+      ...(song.spoilerRevisions
+        ? { spoilerRevisions: song.spoilerRevisions }
+        : {}),
+    };
+    if (selectedEchoSpot) {
+      const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
+      if (node?.type.name === 'echoSpot') {
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(selectedEchoSpot.pos, undefined, attrs)
+        );
+      }
+    } else {
+      editor.chain().focus().setEchoSpot(attrs).run();
+    }
+    setEchoSongPickerOpen(false);
+  };
 
   useEffect(() => {
     if (!editor || !selectedImage || imgDeleteConfirm) return;
@@ -597,6 +853,55 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedAudio);
     };
   }, [editor]);
+
+  // 進度標記 node 選取追蹤
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncSelectedMarker = () => {
+      const selection = editor.state.selection as any;
+      let next: { pos: number; grantsFlags: string; label: string } | null =
+        null;
+
+      if (selection.node?.type?.name === 'progressMarker') {
+        const attrs = selection.node.attrs || {};
+        next = {
+          pos: selection.from,
+          grantsFlags: serializeFlagsAttr(
+            Array.isArray(attrs.grantsFlags) ? attrs.grantsFlags : []
+          ),
+          label: attrs.label || '',
+        };
+      }
+
+      setSelectedMarker((current) =>
+        current?.pos === next?.pos &&
+        current?.grantsFlags === next?.grantsFlags &&
+        current?.label === next?.label
+          ? current
+          : next
+      );
+    };
+
+    syncSelectedMarker();
+    editor.on('selectionUpdate', syncSelectedMarker);
+    editor.on('transaction', syncSelectedMarker);
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedMarker);
+      editor.off('transaction', syncSelectedMarker);
+    };
+  }, [editor]);
+
+  // 選到不同標記時重設編輯草稿
+  useEffect(() => {
+    if (!selectedMarker) return;
+    setMarkerDraft({
+      grantsFlags: selectedMarker.grantsFlags,
+      label: selectedMarker.label,
+    });
+    // 只在切換到不同位置的標記時重設，避免打字中被覆蓋
+  }, [selectedMarker?.pos]);
 
   // 音訊 node Delete/Backspace 攔截
   useEffect(() => {
@@ -867,7 +1172,162 @@ export default function RichEditor({
     }
   };
 
+  // === Import / Export MD ===
+  // 注意：所有 hooks 必須放在下方 early return 之前，
+  // 否則 editor 從 null 變成 instance 時 hooks 數量改變，React 會 throw
+  const importMdInputRef = useRef<HTMLInputElement>(null);
+  const canImportExport = editorMode.needsTipTap && !!editor && !isEntryMode;
+
+  const handleExportMd = useCallback(() => {
+    if (!editor) return;
+
+    // 用自製的 HTML → Markdown 轉換器，保證輸出乾淨的純文字
+    const md = htmlToMarkdown(editor.getHTML());
+
+    const frontmatter = [
+      '---',
+      `title: "${title.replace(/"/g, '\\"')}"`,
+      `slug: "${pageSlug}"`,
+      `area: "${area}"`,
+      `pageType: "${pageType}"`,
+      ...(icon ? [`icon: "${icon}"`] : []),
+      ...(description
+        ? [`description: "${description.replace(/"/g, '\\"')}"`]
+        : []),
+      `exportedAt: "${new Date().toISOString()}"`,
+      '---',
+      '',
+    ].join('\n');
+
+    const blob = new Blob([frontmatter + md], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(pageSlug || 'page').replace(/\//g, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [editor, title, pageSlug, area, pageType, icon, description]);
+
+  const handleImportMd = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !editor) return;
+      e.target.value = '';
+
+      const text = await file.text();
+      let content = text;
+
+      // 解析 YAML frontmatter
+      const fmMatch = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (fmMatch) {
+        const fm = fmMatch[1];
+        content = fmMatch[2];
+
+        const titleMatch = fm.match(/^title:\s*"?([^"\n]+?)"?\s*$/m);
+        if (titleMatch) {
+          setTitle(titleMatch[1]);
+          setDirtyTitle(true);
+        }
+        const iconMatch = fm.match(/^icon:\s*"?([^"\n]+?)"?\s*$/m);
+        if (iconMatch) {
+          setIcon(iconMatch[1]);
+          setDirtyMetadata(true);
+        }
+        const descMatch = fm.match(/^description:\s*"?([^"\n]+?)"?\s*$/m);
+        if (descMatch) {
+          setDescription(descMatch[1]);
+          setDirtyMetadata(true);
+        }
+      }
+
+      // 設定 TipTap 內容——setContent 預設把字串當 JSON/HTML 處理，
+      // 必須指定 contentType: 'markdown' 才會走 Markdown parser
+      const trimmed = content.trim();
+      if (trimmed) {
+        editor.commands.setContent(trimmed, { contentType: 'markdown' });
+      } else {
+        editor.commands.setContent('<p></p>');
+      }
+      setEditorDirty(true);
+      getToast().success(`已匯入：${file.name}`);
+    },
+    [editor]
+  );
+
   if (editorMode.needsTipTap && !editor) return null;
+
+  // ── 選取範圍樣式分析 ──
+  // 分析選取範圍中的 heading level（排除普通段落，多種 level 時回傳「混合」）
+  const getHeadingLabel = (): string => {
+    if (!editor) return '內文';
+    const { from, to } = editor.state.selection;
+    const levels = new Set<number>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (node.isTextblock && node.type.name === 'heading') {
+        levels.add(node.attrs.level as number);
+      }
+    });
+    if (levels.size === 0) return '內文';
+    if (levels.size === 1) return `H${[...levels][0]}`;
+    return '混合';
+  };
+
+  // 分析選取範圍中的字型（排除未設定字型的文字）
+  const getFontLabel = (): string => {
+    if (!editor) return 'Font';
+    const { from, to } = editor.state.selection;
+    // 游標（無選取）：用 getAttributes
+    if (from === to) {
+      const f = editor.getAttributes('textStyle').fontFamily as
+        | string
+        | undefined;
+      if (!f) return 'Font';
+      const entry = FONT_FAMILIES.find((ff) => ff.value === f);
+      return entry ? entry.label : f.split(',')[0].replace(/['"]/g, '');
+    }
+    const fonts = new Set<string>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      const mark = node.marks.find(
+        (m) => m.type.name === 'textStyle' && m.attrs.fontFamily
+      );
+      if (mark) fonts.add(mark.attrs.fontFamily as string);
+    });
+    if (fonts.size === 0) return 'Font';
+    if (fonts.size === 1) {
+      const val = [...fonts][0];
+      const entry = FONT_FAMILIES.find((ff) => ff.value === val);
+      return entry ? entry.label : val.split(',')[0].replace(/['"]/g, '');
+    }
+    return '混合';
+  };
+
+  // 分析選取範圍中的字型大小（排除未設定的文字）
+  const getFontSizeLabel = (): string => {
+    if (!editor) return '大小';
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      const s = editor.getAttributes('textStyle').fontSize as
+        | string
+        | undefined;
+      return s ? s.replace('px', '') : '大小';
+    }
+    const sizes = new Set<string>();
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      const mark = node.marks.find(
+        (m) => m.type.name === 'textStyle' && m.attrs.fontSize
+      );
+      if (mark) sizes.add(mark.attrs.fontSize as string);
+    });
+    if (sizes.size === 0) return '大小';
+    if (sizes.size === 1) return [...sizes][0].replace('px', '');
+    return '混合';
+  };
 
   // Toolbar helpers
   const toggleDropdown = (name: string) => {
@@ -958,6 +1418,17 @@ export default function RichEditor({
     }
     setLinkOpenInNew(editor.getAttributes('link').target === '_blank');
     toggleDropdown('link');
+  };
+
+  // 開啟 entity 嵌入面板（選取在既有標記上時預填屬性）
+  const handleOpenEntityDropdown = () => {
+    const attrs = editor.getAttributes('uepEntity');
+    setEntityDraft({
+      kind: (attrs.kind as string) || 'term',
+      ref: (attrs.ref as string) || '',
+    });
+    setEmbedPickerOpen(false);
+    toggleDropdown('uep-entity');
   };
 
   // 渲染內部頁面選擇器的樹狀結構
@@ -1097,16 +1568,10 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getHeadingLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('heading')}
                   >
-                    {editor.isActive('heading', { level: 1 })
-                      ? 'H1'
-                      : editor.isActive('heading', { level: 2 })
-                        ? 'H2'
-                        : editor.isActive('heading', { level: 3 })
-                          ? 'H3'
-                          : '內文'}
+                    {getHeadingLabel()}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'heading' && (
@@ -1235,11 +1700,11 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getFontLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('font')}
                     title="Font"
                   >
-                    Font <span className="tb-caret">&#9662;</span>
+                    {getFontLabel()} <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'font' && (
                     <div className="tb-dropdown">
@@ -1264,13 +1729,11 @@ export default function RichEditor({
               <div className="tb-group">
                 <div className="tb-dropdown-wrap">
                   <button
-                    className="tb-btn tb-dropdown-trigger"
+                    className={`tb-btn tb-dropdown-trigger${getFontSizeLabel() === '混合' ? ' tb-mixed' : ''}`}
                     onClick={() => toggleDropdown('fontSize')}
                     title="字型大小"
                   >
-                    {editor
-                      .getAttributes('textStyle')
-                      .fontSize?.replace('px', '') || '大小'}
+                    {getFontSizeLabel()}
                     <span className="tb-caret">&#9662;</span>
                   </button>
                   {activeDropdown === 'fontSize' && (
@@ -1773,6 +2236,160 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
+              {/* 進度標記（Epic 2 掃描線） */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn ${editor.isActive('progressMarker') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().setProgressMarker().run()
+                  }
+                  title="插入進度標記（掃描線標記點，前台隱形）"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                    <line x1="4" y1="22" x2="4" y2="15" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* 嵌入工具（Epic 2 — entity 互動式引用，與旗標工具分開）。
+                  僅 history：interactive embedding 是 History 文章專屬
+                  （艾斯維爾 2026-07-07 定案），其他區域不出 ◈ 工具。 */}
+              {area === 'history' && (
+                <>
+                  <div className="tb-sep" />
+
+                  <div className="tb-group">
+                    <button
+                      className={`tb-btn ${editor.isActive('echoSpot') ? 'is-active' : ''}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedEchoSpot(null);
+                        setEchoSongPickerOpen(true);
+                      }}
+                      title="插入回聲點（掃描線通過時解鎖並嘗試插播）"
+                    >
+                      ♫
+                    </button>
+                    {/* Entity 引用 */}
+                    <div className="tb-dropdown-wrap">
+                      <button
+                        className={`tb-btn ${editor.isActive('uepEntity') ? 'is-active' : ''}`}
+                        onClick={handleOpenEntityDropdown}
+                        title="標記 entity 引用（角色/地點/術語）"
+                      >
+                        ◈
+                      </button>
+                      {activeDropdown === 'uep-entity' && (
+                        <div className="tb-dropdown tb-link-panel">
+                          <select
+                            className="tb-embed-kind"
+                            value={entityDraft.kind}
+                            onChange={(e) =>
+                              setEntityDraft((d) => ({
+                                ...d,
+                                kind: e.target.value,
+                              }))
+                            }
+                          >
+                            {ENTITY_KINDS.map((k) => (
+                              <option key={k.value} value={k.value}>
+                                {k.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            className="tb-link-input"
+                            type="text"
+                            placeholder="引用目標（如 concepts/xxx）"
+                            value={entityDraft.ref}
+                            onChange={(e) =>
+                              setEntityDraft((d) => ({
+                                ...d,
+                                ref: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') setActiveDropdown(null);
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            className="tb-embed-browse"
+                            type="button"
+                            onClick={() => setEmbedPickerOpen((v) => !v)}
+                          >
+                            {embedPickerOpen
+                              ? '－ 收合'
+                              : '＋ 從 Concepts 條目選擇…'}
+                          </button>
+                          {embedPickerOpen && (
+                            <EntityIndexPicker
+                              apiBase={apiBase}
+                              onPick={(ref, kind) =>
+                                setEntityDraft({ kind, ref })
+                              }
+                            />
+                          )}
+                          <div className="tb-link-actions">
+                            <button
+                              className="tb-link-apply"
+                              disabled={!isValidRef(entityDraft.ref.trim())}
+                              onClick={() => {
+                                editor
+                                  .chain()
+                                  .focus()
+                                  .setUepEntity({
+                                    kind: entityDraft.kind,
+                                    ref: entityDraft.ref.trim(),
+                                  })
+                                  .run();
+                                setActiveDropdown(null);
+                              }}
+                            >
+                              套用
+                            </button>
+                            {editor.isActive('uepEntity') && (
+                              <button
+                                className="tb-link-remove"
+                                onClick={() => {
+                                  editor.chain().focus().unsetUepEntity().run();
+                                  setActiveDropdown(null);
+                                }}
+                              >
+                                移除標記
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Cue 工具已撤下（艾斯維爾 2026-07-03 驗收定案）：
+                    song 不是嵌入而是旗標式播放觸發點（掃描線經過即播放）、
+                    image 是浮動按鈕（小說插圖式，連動 Visuals 浮島）。
+                    兩者的編輯器應用與浮島行為綁定，拆到浮島階段實作。
+                    UepCueMark extension 與 embed 格式層保留（無內容寫入）。 */}
+                  </div>
+
+                  {/* 點擊已嵌入實體文字的浮動資訊 chip（S7 驗收 #8） */}
+                  <EntityInfoChip
+                    editor={editor}
+                    onEdit={handleOpenEntityDropdown}
+                  />
+                </>
+              )}
+
+              <div className="tb-sep" />
+
               {/* 清除格式 */}
               <div className="tb-group">
                 <button
@@ -1808,6 +2425,55 @@ export default function RichEditor({
           )}
 
           <span className="ned-toolbar-right">
+            <button
+              className="tb-btn ned-io-btn"
+              disabled={!canImportExport}
+              onClick={() => importMdInputRef.current?.click()}
+              title={
+                canImportExport ? '匯入 Markdown (.md)' : '此模式不支援匯入'
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span className="ned-io-label">匯入</span>
+            </button>
+            <button
+              className="tb-btn ned-io-btn"
+              disabled={!canImportExport}
+              onClick={handleExportMd}
+              title={
+                canImportExport ? '匯出為 Markdown (.md)' : '此模式不支援匯出'
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span className="ned-io-label">匯出</span>
+            </button>
+            <span className="ned-io-sep" />
             {editorMode.toolbarLabel}
             {editorMode.needsTipTap && ` | ${charCount.toLocaleString()} chars`}
           </span>
@@ -1838,6 +2504,7 @@ export default function RichEditor({
               currentSlug={pageSlug}
               accent={accentMain}
               refreshKey={treeRefreshKey}
+              beforeNavigate={handleBeforeNavigate}
             />
           </aside>
         )}
@@ -1882,8 +2549,11 @@ export default function RichEditor({
                   <EchoesEditorBody
                     accent={accentMain}
                     initialData={echoesData}
+                    apiBase={apiBase}
+                    songId={`echoes/${pageSlug}`}
                     onDataChange={setEchoesData}
                     onDirty={() => setMetaDirty(true)}
+                    onValidationChange={setEchoesValidationIssues}
                   />
                 ) : isVisuals ? (
                   <VisualsEditorBody
@@ -2068,6 +2738,28 @@ export default function RichEditor({
               pageStatus={pageStatus}
               createdAt={createdAt}
               updatedAt={updatedAt}
+              gateFields={
+                <GateConditionEditor
+                  value={gate}
+                  onChange={(next) => {
+                    setGate(next);
+                    setDirtyMetadata(true);
+                  }}
+                  isProgressPage={progressPage}
+                  onProgressPageChange={(next) => {
+                    setProgressPage(next);
+                    setDirtyMetadata(true);
+                  }}
+                  isGateExempt={gateExempt}
+                  onGateExemptChange={(next) => {
+                    setGateExempt(next);
+                    setDirtyMetadata(true);
+                  }}
+                  parentIsProgressContainer={parentIsProgressContainer}
+                  apiBase={apiBase}
+                  accent={accentMain}
+                />
+              }
               modeFields={
                 <>
                   {modeId === 'visuals.division' && (
@@ -2103,6 +2795,14 @@ export default function RichEditor({
         accept="image/*"
         style={{ display: 'none' }}
         onChange={handleImageUpload}
+      />
+      {/* Hidden file input for MD import */}
+      <input
+        ref={importMdInputRef}
+        type="file"
+        accept=".md,.markdown,.txt"
+        style={{ display: 'none' }}
+        onChange={handleImportMd}
       />
 
       {/* 圖片浮動操作列 */}
@@ -2401,6 +3101,115 @@ export default function RichEditor({
             </div>
           );
         })()}
+
+      {/* 進度標記 bubble menu（Epic 2 掃描線） */}
+      {editor && selectedMarker && (
+        <div className="ned-audio-bubble ned-marker-bubble" key="marker-bubble">
+          <span className="ned-audio-bubble-label">
+            ⚑ {markerDraft.grantsFlags.trim() ? '旗標標記' : '進度標記'}
+          </span>
+          <input
+            className="ned-marker-input"
+            type="text"
+            placeholder="備註（僅編輯器可見）"
+            value={markerDraft.label}
+            onChange={(e) =>
+              setMarkerDraft((d) => ({ ...d, label: e.target.value }))
+            }
+          />
+          <input
+            className="ned-marker-input ned-marker-input--flags"
+            type="text"
+            placeholder="授予旗標（逗號分隔）"
+            value={markerDraft.grantsFlags}
+            onChange={(e) =>
+              setMarkerDraft((d) => ({ ...d, grantsFlags: e.target.value }))
+            }
+          />
+          <button
+            className="ned-img-bubble-btn"
+            title="套用標記設定"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedMarker.pos);
+              if (node?.type.name !== 'progressMarker') return;
+              editor.view.dispatch(
+                editor.state.tr.setNodeMarkup(selectedMarker.pos, undefined, {
+                  grantsFlags: parseFlagsAttr(markerDraft.grantsFlags),
+                  label: markerDraft.label.trim(),
+                })
+              );
+            }}
+          >
+            套用
+          </button>
+          <button
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            title="刪除標記"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedMarker.pos);
+              if (node?.type.name === 'progressMarker') {
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange({
+                    from: selectedMarker.pos,
+                    to: selectedMarker.pos + node.nodeSize,
+                  })
+                  .run();
+              }
+              setSelectedMarker(null);
+            }}
+          >
+            刪除
+          </button>
+        </div>
+      )}
+
+      {/* Echo Spot bubble：已插入節點可重新綁曲或刪除。 */}
+      {editor && selectedEchoSpot && (
+        <div className="ned-audio-bubble ned-echo-spot-bubble">
+          <span className="ned-audio-bubble-label">
+            ♫ {selectedEchoSpot.title || selectedEchoSpot.songId}
+          </span>
+          <span className="ned-echo-spot-bubble__meta">
+            {selectedEchoSpot.entityKey || '無 entityKey'}
+          </span>
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={() => setEchoSongPickerOpen(true)}
+          >
+            重新選曲
+          </button>
+          <button
+            type="button"
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
+              if (node?.type.name === 'echoSpot') {
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange({
+                    from: selectedEchoSpot.pos,
+                    to: selectedEchoSpot.pos + node.nodeSize,
+                  })
+                  .run();
+              }
+              setSelectedEchoSpot(null);
+            }}
+          >
+            刪除
+          </button>
+        </div>
+      )}
+
+      <EchoSongPicker
+        apiBase={apiBase}
+        open={echoSongPickerOpen}
+        onClose={() => setEchoSongPickerOpen(false)}
+        onSelect={applyEchoSongChoice}
+      />
 
       {/* 音訊選擇器 Modal */}
       {audioPickerOpen && (

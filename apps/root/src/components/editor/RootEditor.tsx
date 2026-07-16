@@ -14,8 +14,14 @@ import Image from '@tiptap/extension-image';
 import Highlight from '@tiptap/extension-highlight';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import { Markdown } from '@tiptap/markdown';
+import { MarkdownPaste } from './MarkdownPaste';
 import ImagePickerDialog from './ImagePickerDialog';
 import RootMediaLibrary from './RootMediaLibrary';
+import ConfirmDialog, {
+  type ConfirmDialogState,
+  DIALOG_CLOSED,
+} from './ConfirmDialog';
 import AboutEditor from './AboutEditor';
 import ContactEditor from './ContactEditor';
 import type { ContactData } from './ContactEditor';
@@ -285,6 +291,8 @@ export function TipTapEditor({
         Highlight,
         TextStyle,
         Color,
+        Markdown,
+        MarkdownPaste,
       ],
       content,
       onUpdate: ({ editor: e }) => {
@@ -610,14 +618,78 @@ function ProjectsEditor({
   const [dirty, setDirty] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showCoverPicker, setShowCoverPicker] = useState(false);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
+  const [filterDialog, setFilterDialog] =
+    useState<ConfirmDialogState>(DIALOG_CLOSED);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
+  // ── 排序 + 拖曳 ──
+  const sorted = useMemo(
+    () => [...items].sort((a, b) => a.sortOrder - b.sortOrder),
+    [items]
+  );
   const list =
-    filter === 'all' ? items : items.filter((p) => p.tags.includes(filter));
+    filter === 'all' ? sorted : sorted.filter((p) => p.tags.includes(filter));
   const p = list[idx] || list[0];
+  const canDrag = filter === 'all';
+  const [dragSrcIdx, setDragSrcIdx] = useState(-1);
+  const [dragOverIdx, setDragOverIdx] = useState(-1);
+  const [dragOverHalf, setDragOverHalf] = useState<'top' | 'bottom'>('bottom');
+
+  const handleReorder = useCallback(
+    async (fromIdx: number, toIdx: number) => {
+      if (fromIdx === toIdx) return;
+      const next = [...sorted];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      // 重新分配 sortOrder
+      const updated = next.map((item, i) => ({ ...item, sortOrder: i }));
+      // 追蹤目前選中的項目
+      const selectedId = p?.id;
+      setItems(updated);
+      if (selectedId) {
+        const newIdx = updated.findIndex((x) => x.id === selectedId);
+        if (newIdx >= 0) setIdx(newIdx);
+      }
+      // 批次存檔（只更新 sortOrder 有變化的項目）
+      for (const item of updated) {
+        const orig = sorted.find((s) => s.id === item.id);
+        if (orig && orig.sortOrder !== item.sortOrder) {
+          await api(`/api/root/projects/${item.id}`, 'PUT', {
+            sortOrder: item.sortOrder,
+          });
+        }
+      }
+    },
+    [sorted, p?.id, api, setItems]
+  );
   const allTags = useMemo(
     () => [...new Set(items.flatMap((x) => x.tags))],
     [items]
+  );
+
+  /** 全域重命名標籤：更新所有含此 tag 的專案並批次存檔 */
+  const renameTag = useCallback(
+    async (oldName: string, newName: string) => {
+      const affected = items.filter((x) => x.tags.includes(oldName));
+      if (affected.length === 0) return;
+      // 本地更新
+      setItems((prev) =>
+        prev.map((x) => {
+          if (!x.tags.includes(oldName)) return x;
+          const newTags = x.tags.map((t) => (t === oldName ? newName : t));
+          return { ...x, tags: newTags };
+        })
+      );
+      // 如果正在篩選被重命名的 tag，跟著切換
+      if (filter === oldName) setFilter(newName);
+      // 批次存檔
+      for (const item of affected) {
+        const newTags = item.tags.map((t) => (t === oldName ? newName : t));
+        await api(`/api/root/projects/${item.id}`, 'PUT', { tags: newTags });
+      }
+    },
+    [items, filter, api, setItems]
   );
 
   useEffect(() => {
@@ -642,13 +714,22 @@ function ProjectsEditor({
     if (res.ok) setDirty(false);
   }, [p, api]);
 
-  const remove = useCallback(async () => {
-    if (!p || !window.confirm(`確認刪除 "${p.titleZh || p.id}"？`)) return;
-    const res = await api(`/api/root/projects/${p.id}`, 'DELETE');
-    if (res.ok) {
-      setItems((prev) => prev.filter((x) => x.id !== p.id));
-      setIdx(0);
-    }
+  const remove = useCallback(() => {
+    if (!p) return;
+    setDialog({
+      open: true,
+      title: `確認刪除「${p.titleZh || p.id}」？`,
+      description: '此操作無法復原。',
+      confirmLabel: '刪除',
+      danger: true,
+      onConfirm: async () => {
+        const res = await api(`/api/root/projects/${p.id}`, 'DELETE');
+        if (res.ok) {
+          setItems((prev) => prev.filter((x) => x.id !== p.id));
+          setIdx(0);
+        }
+      },
+    });
   }, [p, api, setItems]);
 
   const create = useCallback(
@@ -727,9 +808,26 @@ function ProjectsEditor({
               <button
                 key={t}
                 className={`qe-filter${filter === t ? ' qe-filter--active' : ''}`}
+                title="雙擊重命名"
                 onClick={() => {
                   setFilter(t);
                   setIdx(0);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setFilterDialog({
+                    open: true,
+                    title: `重命名標籤「${t}」`,
+                    description: '所有使用此標籤的項目都會同步更新',
+                    prompt: true,
+                    promptPlaceholder: '輸入新名稱',
+                    promptDefault: t,
+                    confirmLabel: '重命名',
+                    onPromptConfirm: (v) => {
+                      const newName = v.trim();
+                      if (newName && newName !== t) renameTag(t, newName);
+                    },
+                  });
                 }}
               >
                 {t}
@@ -737,7 +835,9 @@ function ProjectsEditor({
             ))}
           </div>
         )}
-        <div className="qe-left__body">
+        <div
+          className={`qe-left__body${dragSrcIdx >= 0 ? ' qe-left__body--dragging' : ''}`}
+        >
           {list.map((x, i) => (
             <OutlineRow
               key={x.id}
@@ -746,6 +846,51 @@ function ProjectsEditor({
               label={`${x.titleZh || x.id}${x.featured ? ' ★' : ''}`}
               sub={`${x.status} · ${x.tags.join(', ') || '—'}`}
               onClick={() => setIdx(i)}
+              draggable={canDrag}
+              dragClass={
+                dragSrcIdx === i
+                  ? 'qe-row--dragging'
+                  : dragOverIdx === i && dragSrcIdx !== i
+                    ? `qe-row--drop-${dragOverHalf}`
+                    : undefined
+              }
+              onDragStart={(e) => {
+                setDragSrcIdx(i);
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const rect = e.currentTarget.getBoundingClientRect();
+                const mid = rect.top + rect.height / 2;
+                setDragOverHalf(e.clientY < mid ? 'top' : 'bottom');
+                setDragOverIdx(i);
+              }}
+              onDragLeave={() => setDragOverIdx(-1)}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = dragSrcIdx;
+                if (from >= 0 && from !== i) {
+                  const to =
+                    dragOverHalf === 'top'
+                      ? from < i
+                        ? i - 1
+                        : i
+                      : from < i
+                        ? i
+                        : i + 1;
+                  handleReorder(
+                    from,
+                    Math.max(0, Math.min(to, list.length - 1))
+                  );
+                }
+                setDragOverIdx(-1);
+                setDragSrcIdx(-1);
+              }}
+              onDragEnd={() => {
+                setDragOverIdx(-1);
+                setDragSrcIdx(-1);
+              }}
             />
           ))}
         </div>
@@ -861,12 +1006,11 @@ function ProjectsEditor({
             checked={p.featured}
             onChange={(v) => up({ featured: v })}
           />
-          <Field label="sort order">
-            <Input
-              value={String(p.sortOrder)}
-              onChange={(v) => up({ sortOrder: parseInt(v) || 0 })}
-              mono
-            />
+          <Field label="order">
+            <Mono v="fade">
+              #{idx + 1} / {list.length}
+              {canDrag ? ' — 拖曳左側列表排序' : ''}
+            </Mono>
           </Field>
 
           <Divider label="dates" />
@@ -888,7 +1032,11 @@ function ProjectsEditor({
           </Field>
 
           <Divider label="tags" />
-          <TagEditor tags={p.tags} onChange={(t) => up({ tags: t })} />
+          <TagEditor
+            tags={p.tags}
+            onChange={(t) => up({ tags: t })}
+            onRename={renameTag}
+          />
 
           <Divider label="links" />
           <Field label="demo">
@@ -1035,6 +1183,11 @@ function ProjectsEditor({
           onConfirm={create}
         />
       )}
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
+      <ConfirmDialog
+        state={filterDialog}
+        onClose={() => setFilterDialog(DIALOG_CLOSED)}
+      />
     </>
   );
 }
@@ -1059,6 +1212,7 @@ function UpdatesEditor({
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const [dirty, setDirty] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   const u = items[idx] || items[0];
   useEffect(() => {
@@ -1083,13 +1237,22 @@ function UpdatesEditor({
     if (res.ok) setDirty(false);
   }, [u, api]);
 
-  const remove = useCallback(async () => {
-    if (!u || !window.confirm(`確認刪除 "${u.titleZh || u.id}"？`)) return;
-    const res = await api(`/api/root/updates/${u.id}`, 'DELETE');
-    if (res.ok) {
-      setItems((prev) => prev.filter((x) => x.id !== u.id));
-      setIdx(0);
-    }
+  const remove = useCallback(() => {
+    if (!u) return;
+    setDialog({
+      open: true,
+      title: `確認刪除「${u.titleZh || u.id}」？`,
+      description: '此操作無法復原。',
+      confirmLabel: '刪除',
+      danger: true,
+      onConfirm: async () => {
+        const res = await api(`/api/root/updates/${u.id}`, 'DELETE');
+        if (res.ok) {
+          setItems((prev) => prev.filter((x) => x.id !== u.id));
+          setIdx(0);
+        }
+      },
+    });
   }, [u, api, setItems]);
 
   const create = useCallback(
@@ -1299,6 +1462,7 @@ function UpdatesEditor({
           onConfirm={create}
         />
       )}
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </>
   );
 }
@@ -1320,10 +1484,48 @@ function LinksEditor({
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const [dirty, setDirty] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
+  // ── 排序 + 拖曳 ──
+  const sorted = useMemo(
+    () => [...items].sort((a, b) => a.sortOrder - b.sortOrder),
+    [items]
+  );
   const list =
-    catFilter === 'all' ? items : items.filter((l) => l.category === catFilter);
+    catFilter === 'all'
+      ? sorted
+      : sorted.filter((l) => l.category === catFilter);
   const lk = list[idx] || list[0];
+  const canDrag = catFilter === 'all';
+  const [dragSrcIdx, setDragSrcIdx] = useState(-1);
+  const [dragOverIdx, setDragOverIdx] = useState(-1);
+  const [dragOverHalf, setDragOverHalf] = useState<'top' | 'bottom'>('bottom');
+
+  const handleReorder = useCallback(
+    async (fromIdx: number, toIdx: number) => {
+      if (fromIdx === toIdx) return;
+      const next = [...sorted];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      const updated = next.map((item, i) => ({ ...item, sortOrder: i }));
+      const selectedId = lk?.id;
+      setItems(updated);
+      if (selectedId) {
+        const newIdx = updated.findIndex((x) => x.id === selectedId);
+        if (newIdx >= 0) setIdx(newIdx);
+      }
+      for (const item of updated) {
+        const orig = sorted.find((s) => s.id === item.id);
+        if (orig && orig.sortOrder !== item.sortOrder) {
+          await api(`/api/root/links/${item.id}`, 'PUT', {
+            sortOrder: item.sortOrder,
+          });
+        }
+      }
+    },
+    [sorted, lk?.id, api, setItems]
+  );
+
   useEffect(() => {
     setDirty(false);
   }, [lk?.id]);
@@ -1346,13 +1548,22 @@ function LinksEditor({
     if (res.ok) setDirty(false);
   }, [lk, api]);
 
-  const remove = useCallback(async () => {
-    if (!lk || !window.confirm(`確認刪除 "${lk.titleZh || lk.id}"？`)) return;
-    const res = await api(`/api/root/links/${lk.id}`, 'DELETE');
-    if (res.ok) {
-      setItems((prev) => prev.filter((x) => x.id !== lk.id));
-      setIdx(0);
-    }
+  const remove = useCallback(() => {
+    if (!lk) return;
+    setDialog({
+      open: true,
+      title: `確認刪除「${lk.titleZh || lk.id}」？`,
+      description: '此操作無法復原。',
+      confirmLabel: '刪除',
+      danger: true,
+      onConfirm: async () => {
+        const res = await api(`/api/root/links/${lk.id}`, 'DELETE');
+        if (res.ok) {
+          setItems((prev) => prev.filter((x) => x.id !== lk.id));
+          setIdx(0);
+        }
+      },
+    });
   }, [lk, api, setItems]);
 
   const create = useCallback(
@@ -1424,7 +1635,9 @@ function LinksEditor({
             </button>
           ))}
         </div>
-        <div className="qe-left__body">
+        <div
+          className={`qe-left__body${dragSrcIdx >= 0 ? ' qe-left__body--dragging' : ''}`}
+        >
           {list.map((x, i) => (
             <OutlineRow
               key={x.id}
@@ -1433,6 +1646,51 @@ function LinksEditor({
               label={`${x.titleZh || x.id}${x.featured ? ' ★' : ''}`}
               sub={x.url || '—'}
               onClick={() => setIdx(i)}
+              draggable={canDrag}
+              dragClass={
+                dragSrcIdx === i
+                  ? 'qe-row--dragging'
+                  : dragOverIdx === i && dragSrcIdx !== i
+                    ? `qe-row--drop-${dragOverHalf}`
+                    : undefined
+              }
+              onDragStart={(e) => {
+                setDragSrcIdx(i);
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const rect = e.currentTarget.getBoundingClientRect();
+                const mid = rect.top + rect.height / 2;
+                setDragOverHalf(e.clientY < mid ? 'top' : 'bottom');
+                setDragOverIdx(i);
+              }}
+              onDragLeave={() => setDragOverIdx(-1)}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = dragSrcIdx;
+                if (from >= 0 && from !== i) {
+                  const to =
+                    dragOverHalf === 'top'
+                      ? from < i
+                        ? i - 1
+                        : i
+                      : from < i
+                        ? i
+                        : i + 1;
+                  handleReorder(
+                    from,
+                    Math.max(0, Math.min(to, list.length - 1))
+                  );
+                }
+                setDragOverIdx(-1);
+                setDragSrcIdx(-1);
+              }}
+              onDragEnd={() => {
+                setDragOverIdx(-1);
+                setDragSrcIdx(-1);
+              }}
             />
           ))}
         </div>
@@ -1540,12 +1798,11 @@ function LinksEditor({
             checked={lk.featured}
             onChange={(v) => up({ featured: v })}
           />
-          <Field label="sort order">
-            <Input
-              value={String(lk.sortOrder)}
-              onChange={(v) => up({ sortOrder: parseInt(v) || 0 })}
-              mono
-            />
+          <Field label="order">
+            <Mono v="fade">
+              #{idx + 1} / {list.length}
+              {canDrag ? ' — 拖曳左側列表排序' : ''}
+            </Mono>
           </Field>
 
           <Divider label="display" />
@@ -1586,6 +1843,7 @@ function LinksEditor({
           onConfirm={create}
         />
       )}
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </>
   );
 }
@@ -1601,7 +1859,7 @@ function getTokenFromCookie(): string {
 }
 
 export default function RootEditor(props: EditorProps) {
-  const [page, setPage] = useState('projects');
+  const [page, setPage] = useState('pages');
   // 從 cookie 讀 token，不依賴 SSR prop（避免 token 出現在 HTML 中）
   const token = useMemo(
     () => props.token || getTokenFromCookie(),

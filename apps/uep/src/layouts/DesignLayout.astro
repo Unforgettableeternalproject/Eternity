@@ -1,6 +1,9 @@
 ---
 import UepToastContainer from '../components/ui/UepToast';
 import UepDialogContainer from '../components/ui/UepDialog';
+import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
+import TestModeBanner from '../components/ui/TestModeBanner';
+import UepDevTools from '../devtools/UepDevTools';
 
 interface Props {
   title: string;
@@ -12,10 +15,11 @@ interface Props {
 
 const {
   title,
-  description = 'U.E.P · Imaginary Space — 邊際世界 · 觀測誌',
+  description = 'U.E.P · Imaginary Space — 不朽永恆計畫 (UEP) 邊際世界觀測誌',
   zone,
   lobbyBlock = false,
 } = Astro.props;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
@@ -30,6 +34,40 @@ const {
     <link rel="icon" type="image/x-icon" href="/Logo.ico" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:site_name" content="U.E.P's Imaginary Space" />
+    <meta property="og:locale" content="zh_TW" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- JSON-LD 結構化資料 -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: "U.E.P's Imaginary Space",
+        alternateName: [
+          '邊際世界觀測誌',
+          '不朽永恆計畫',
+          'Unforgettable Eternal Project',
+          'UEP',
+        ],
+        url: 'https://uep.unforgettableeternalproject.com',
+        inLanguage: 'zh-TW',
+      })}
+    />
 
     <!-- Preconnect：Content API（首頁 SSR 有 runtime fetch，提前建立連線） -->
     <link
@@ -80,12 +118,47 @@ const {
       initIdleAwareness();
     </script>
 
+    <!-- 內容保護（反白/複製/右鍵攔截，admin 頁面自動跳過） -->
+    <script>
+      import { initContentProtection } from '../scripts/content-protection';
+      initContentProtection();
+    </script>
+
+    <!-- 訪客追蹤：文件站分站計數，透過 visitor-counter Worker 記錄 site=uep -->
+    <script>
+      import { scheduleUepVisitorTrack } from '../scripts/visitor-track';
+      scheduleUepVisitorTrack();
+    </script>
+
     <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {
-        var t = localStorage.getItem('uep-theme') || 'dark';
+        var t = localStorage.getItem('uep-theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
-        if (document.documentElement.hasAttribute('data-lobby')) {
+        /* 剛從 /login 完成 auth 回來：WelcomeCeremony 全屏遮罩自己就是唯一畫面，
+           跳過 lobbyBlock 避免雙層遮罩造成 Welcome 淡出時空白閃現。
+           同時在 body 上加 class，讓需要 skip 入場動畫的元件（主頁 lobby 等）
+           可以檢查這個 class 決定是否播——歡迎儀式作為「特別例外」取代
+           頁面自身的長入場，避免 Welcome 淡出後還看到頁面在跑動畫 */
+        var welcomePending = false;
+        try {
+          welcomePending =
+            sessionStorage.getItem('uep.welcome.pending.v1') !== null;
+        } catch (e) {
+          /* sessionStorage 不可用時走預設分支 */
+        }
+        if (welcomePending) {
+          /* body 尚未存在（script 在 head 執行），先掛到 html 上；DOMContentLoaded
+             後再搬到 body。兩個地方都掛，元件檢查任一即可 */
+          document.documentElement.classList.add('uep-welcome-pending');
+          document.addEventListener('DOMContentLoaded', function () {
+            document.body.classList.add('uep-welcome-pending');
+          });
+        }
+        if (
+          document.documentElement.hasAttribute('data-lobby') &&
+          !welcomePending
+        ) {
           var bg = t === 'dark' ? '#14151a' : '#fafaf7';
           var s = document.createElement('style');
           s.id = 'lobby-block-style';
@@ -99,9 +172,12 @@ const {
     </script>
   </head>
   <body data-zone={zone}>
+    <TestModeBanner client:load />
     <slot />
     <UepToastContainer client:idle />
     <UepDialogContainer client:idle />
+    <GlobalWelcomeHost client:idle />
+    <UepDevTools client:idle />
   </body>
 </html>
 

@@ -6,7 +6,10 @@ import DesignLayout from '../../layouts/DesignLayout.astro';
 const JWT_COOKIE = 'uep-admin-jwt';
 const ACTIVE_COOKIE = 'uep-admin-active';
 const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+  import.meta.env.PUBLIC_PROD_CONTENT_API_URL ||
+  (import.meta.env.DEV
+    ? 'http://localhost:8788'
+    : 'https://eternity-content-api.ptyc4076.workers.dev');
 
 // 安全的 redirect：只允許站內 /admin 路徑
 function safeRedirect(url: string | null | undefined): string {

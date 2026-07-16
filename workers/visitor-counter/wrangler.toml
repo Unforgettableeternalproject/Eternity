@@ -7,6 +7,8 @@ compatibility_date = "2024-01-01"
 binding = "VISITOR_STATS"
 id = "4b8b9e1288e24d9eaf912d2a61ef74fc"
 
-# CORS 設定（支援通配符 *.eternity-8v7.pages.dev）
+# CORS 設定（支援通配符 *.pages.dev）
+# root 站：unforgettableeternalproject.com + eternity-8v7.pages.dev
+# uep 站：uep.unforgettableeternalproject.com + eternity-uep.pages.dev
 [vars]
-ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"

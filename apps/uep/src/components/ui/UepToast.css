@@ -1,11 +1,13 @@
-/* ── UEP Toast 容器 ── */
+/* ── UEP Toast 容器 ──
+   位置：右下角。原本在右上與識別證/記錄按鈕擠在同一側，改到右下角
+   避免遮擋。堆疊方向也要跟著調整——新 toast 從下往上疊 */
 .uep-toast-container {
   position: fixed;
-  top: 1.25rem;
+  bottom: 1.25rem;
   right: 1.25rem;
   z-index: 10000;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse; /* 新 toast 在下、舊的往上退 */
   gap: 0.625rem;
   pointer-events: none;
   max-width: 90vw;
@@ -120,26 +122,28 @@
   height: 0.875rem;
 }
 
-/* ── 動畫 ── */
+/* ── 動畫 ──
+   進場：從下方 + 右側略微滑入；退場：反向。
+   （原本從右側橫向滑入是配合右上位置；改右下後改成從下往上更自然） */
 @keyframes uepToastIn {
   from {
     opacity: 0;
-    transform: translateX(100%) scale(0.95);
+    transform: translateY(30%) translateX(20%) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateY(0) translateX(0) scale(1);
   }
 }
 
 @keyframes uepToastOut {
   from {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateY(0) translateX(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateX(40%) scale(0.95);
+    transform: translateY(20%) translateX(20%) scale(0.95);
   }
 }
 
@@ -154,12 +158,12 @@
   }
 }
 
-/* ── 小螢幕 ── */
+/* ── 小螢幕：仍貼底、左右吃滿避免遮擋主要互動區 ── */
 @media (max-width: 640px) {
   .uep-toast-container {
     left: 0.75rem;
     right: 0.75rem;
-    top: 0.75rem;
+    bottom: 0.75rem;
     max-width: calc(100vw - 1.5rem);
   }
 

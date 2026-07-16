@@ -1,0 +1,302 @@
+/* UEP DevTools：沿用全站設計 token，自動跟隨 data-theme。 */
+
+.uep-devtools-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 8998;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink-title) 16%, transparent);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0.62;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.uep-devtools-fab:hover {
+  transform: scale(1.06);
+  background: var(--bg-card);
+  opacity: 1;
+}
+
+.uep-devtools-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 16px 16px;
+  background: color-mix(in srgb, #000 52%, transparent);
+  backdrop-filter: blur(6px);
+  animation: uep-devtools-fade-in 0.15s ease-out;
+}
+
+@keyframes uep-devtools-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.uep-devtools-panel {
+  --devtools-danger: #c94f4f;
+  width: min(640px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.38);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  animation: uep-devtools-slide-in 0.15s ease-out;
+}
+
+@keyframes uep-devtools-slide-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+}
+
+.uep-devtools-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-soft);
+}
+
+.uep-devtools-panel__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-title);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.uep-devtools-panel__brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--uep-gold-glow);
+}
+
+.uep-devtools-panel__meta {
+  margin-left: auto;
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.uep-devtools-panel__close {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.uep-devtools-panel__close:hover {
+  color: var(--ink-title);
+}
+
+.uep-devtools-panel__search {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.uep-devtools-panel__search input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 5px;
+  outline: none;
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.uep-devtools-panel__search input::placeholder {
+  color: var(--ink-mute);
+}
+
+.uep-devtools-panel__search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.uep-devtools-panel__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px 8px 12px;
+}
+
+.uep-devtools-panel__empty {
+  padding: 32px 16px;
+  color: var(--ink-mute);
+  font-size: 12px;
+  text-align: center;
+}
+
+.uep-devtools-panel__group {
+  margin: 8px 0;
+}
+
+.uep-devtools-panel__group-title {
+  margin: 8px 12px 6px;
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-theme='dark'] .uep-devtools-panel__group-title {
+  color: var(--accent);
+}
+
+.uep-devtools-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.uep-devtools-panel__item {
+  padding: 0 8px;
+}
+
+.uep-devtools-panel__btn {
+  display: grid;
+  grid-template-areas:
+    'label id'
+    'desc id';
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  column-gap: 8px;
+  row-gap: 2px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.uep-devtools-panel__btn:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+  background: var(--bg-soft);
+}
+
+.uep-devtools-panel__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.uep-devtools-panel__btn--destructive {
+  color: var(--devtools-danger);
+}
+
+.uep-devtools-panel__btn--destructive:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--devtools-danger) 40%, var(--hairline));
+  background: color-mix(in srgb, var(--devtools-danger) 10%, var(--bg-card));
+}
+
+.uep-devtools-panel__label {
+  grid-area: label;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.uep-devtools-panel__desc {
+  grid-area: desc;
+  color: var(--ink-mute);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.uep-devtools-panel__id {
+  grid-area: id;
+  align-self: center;
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.uep-devtools-panel__recent {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--hairline);
+  background: var(--bg-soft);
+}
+
+.uep-devtools-panel__recent-title {
+  margin-right: 4px;
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.uep-devtools-panel__recent-item {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #4f8a68 14%, transparent);
+  color: #4f8a68;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.uep-devtools-panel__recent-item--err {
+  background: color-mix(in srgb, var(--devtools-danger) 14%, transparent);
+  color: var(--devtools-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-devtools-overlay,
+  .uep-devtools-panel {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .uep-devtools-overlay {
+    padding: 4vh 8px 8px;
+  }
+
+  .uep-devtools-panel {
+    max-height: 92vh;
+  }
+}

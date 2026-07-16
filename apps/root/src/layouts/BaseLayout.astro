@@ -13,6 +13,7 @@ import ImageViewerModal from '../components/ImageViewerModal';
 import WidgetDataProvider from '../components/WidgetDataProvider.astro';
 import QuartzWidgetSystem from '../components/QuartzWidgetSystem';
 import StickyTOC from '../components/StickyTOC';
+import TestModeBanner from '../components/TestModeBanner';
 import '../components/QuartzWidgetSystem.css';
 import '../components/StickyTOC.css';
 import { getCurrentLocale } from '../i18n/utils';
@@ -27,8 +28,8 @@ interface Props {
 
 const {
   title,
-  description = "Eternity - Bernie's Personal Website",
-  ogImage = '/og-image.png',
+  description = '顏榕嶙 (Bernie Yen) 的個人網站 Eternity。軟體開發專案、創意作品、技術文章，以及不朽永恆計畫 (UEP) 邊際世界的入口。',
+  ogImage,
   ogType = 'website',
 } = Astro.props;
 
@@ -73,8 +74,12 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta property="og:url" content={canonicalURL} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(ogImage, Astro.site)} />
-    <meta property="og:site_name" content="Bernie's Eternity" />
+    {
+      ogImage && (
+        <meta property="og:image" content={new URL(ogImage, Astro.site)} />
+      )
+    }
+    <meta property="og:site_name" content="Eternity — 顏榕嶙 (Bernie Yen)" />
     <meta
       property="og:locale"
       content={locale === 'zh-tw' ? 'zh_TW' : 'en_US'}
@@ -85,7 +90,39 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <meta name="twitter:url" content={canonicalURL} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+    {
+      ogImage && (
+        <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+      )
+    }
+
+    <!-- JSON-LD 結構化資料 -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'WebSite',
+            name: 'Eternity',
+            alternateName: ['不朽永恆計畫', 'Unforgettable Eternal Project'],
+            url: 'https://unforgettableeternalproject.com',
+            inLanguage: ['zh-TW', 'en'],
+          },
+          {
+            '@type': 'Person',
+            name: '顏榕嶙',
+            alternateName: ['Bernie Yen', 'Yen, Jung-Lin', 'Bernie'],
+            url: 'https://unforgettableeternalproject.com',
+            sameAs: [
+              'https://github.com/Unforgettableeternalproject',
+              'https://uep.unforgettableeternalproject.com',
+            ],
+            jobTitle: 'Developer & Creator',
+          },
+        ],
+      })}
+    />
 
     <!-- Google Fonts（非阻塞載入，取代 global.css 的 @import） -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -103,6 +140,42 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Page Title -->
     <title>{title}</title>
 
+    <!-- 首次造訪依瀏覽器語言決定預設語言（手動切換過則永遠尊重使用者選擇） -->
+    <script is:inline>
+      (function () {
+        try {
+          // 已有偏好記錄（手動切換或先前偵測過）→ 不再自動導向
+          if (localStorage.getItem('lang-pref')) return;
+
+          var path = location.pathname;
+          // admin / api 不參與語言導向
+          if (path.indexOf('/admin') === 0 || path.indexOf('/api') === 0)
+            return;
+
+          var nav =
+            (navigator.languages && navigator.languages[0]) ||
+            navigator.language ||
+            'zh';
+          var wantEn = nav.toLowerCase().indexOf('zh') !== 0;
+
+          // 記錄偵測結果，只在第一次造訪時做一次
+          localStorage.setItem('lang-pref', wantEn ? 'en' : 'zh-tw');
+
+          var isEn = path === '/en' || path.indexOf('/en/') === 0;
+          if (wantEn && !isEn) {
+            var target =
+              path.indexOf('/zh-tw') === 0
+                ? '/en' + path.slice('/zh-tw'.length)
+                : '/en' + (path === '/' ? '/' : path);
+            location.replace(target + location.search + location.hash);
+          }
+          // 中文使用者若直接開 /en 連結，多半是刻意點擊，不強制轉回
+        } catch (e) {
+          /* localStorage 不可用時靜默跳過 */
+        }
+      })();
+    </script>
+
     <!-- 防止深色模式閃爍 (FOUC) -->
     <script is:inline>
       // 在頁面載入前立即執行
@@ -113,8 +186,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
         ) {
           return localStorage.getItem('theme');
         }
-        // 預設使用深色模式
-        return 'dark';
+        // 預設使用亮色模式
+        return 'light';
       };
       const isDark = getThemePreference() === 'dark';
       document.documentElement.classList[isDark ? 'add' : 'remove']('dark');
@@ -151,6 +224,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     </script>
   </head>
   <body class="min-h-screen relative">
+    <TestModeBanner client:load />
     <!-- Interactive gradient background -->
     <div class="gradient-bg">
       <!-- Hexagonal Dot Pattern -->
@@ -210,8 +284,8 @@ const alternateURL = new URL(alternatePath, Astro.site);
     <!-- Quartz Widget System（persist 跨頁存活，不重新 mount） -->
     <QuartzWidgetSystem client:only="react" transition:persist />
 
-    <!-- Sticky TOC（右側 margin，僅大螢幕+有標題時顯示，可見才載入） -->
-    <StickyTOC client:visible />
+    <!-- Sticky TOC（右側固定目錄，idle 時 hydrate — client:visible 對 SSR 空殼不觸發） -->
+    <StickyTOC client:idle />
 
     <!-- 手機版不顯示 widget，桌面版由 QuartzWidgetSystem 處理 -->
 

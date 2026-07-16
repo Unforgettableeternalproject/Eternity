@@ -3,6 +3,7 @@
  * Content API Client
  * 與 content-api Worker 通訊的客戶端
  */
+import { getApiBase } from '../lib/apiBase';
 
 // ===== 型別定義（與 Worker 共用） =====
 
@@ -61,8 +62,7 @@ interface ApiResponse<T = unknown> {
 
 // ===== Client =====
 
-const API_BASE =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 async function apiFetch<T>(
   path: string,

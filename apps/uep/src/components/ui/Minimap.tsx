@@ -1,6 +1,15 @@
 import React, { useLayoutEffect, useState, useRef, useEffect } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
+// S6 行為對齊：拖曳定位邏輯與浮島系統共用同一份實作
+// （clamp/ratio/corner 語意一致，Minimap 是這套機制的原始出處）
+import {
+  clampToViewport,
+  fromRatio,
+  resolveCornerPosition,
+  toRatio,
+} from '../../islands/dragPosition';
+import type { PositionRatio, XYPosition } from '../../islands/dragPosition';
 
 interface MinimapProps {
   zones: ZoneData[];
@@ -15,47 +24,9 @@ const MINIMAP_WIDTH = 120;
 const MINIMAP_HEIGHT_APPROX = 140;
 
 // 永遠只用 left/top，不使用 right/bottom，避免四值同時存在時被合併為 inset
-type MinimapPosition = { left: number; top: number };
-
-/** 小地圖在視窗中的比例位置，用於 resize 時等比移動 */
-type PositionRatio = { lr: number; tr: number };
+type MinimapPosition = XYPosition;
 
 /* ────────────────────────── helpers ────────────────────────── */
-
-function clampPosition(
-  left: number,
-  top: number,
-  width: number,
-  height: number
-): MinimapPosition {
-  return {
-    left: Math.max(8, Math.min(window.innerWidth - width - 8, left)),
-    top: Math.max(8, Math.min(window.innerHeight - height - 8, top)),
-  };
-}
-
-/** 從絕對座標算出比例 */
-function toRatio(left: number, top: number): PositionRatio {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  return {
-    lr: vw > 0 ? left / vw : 0,
-    tr: vh > 0 ? top / vh : 0,
-  };
-}
-
-/** 從比例還原為絕對座標（再 clamp） */
-function fromRatio(
-  ratio: PositionRatio,
-  width: number,
-  height: number
-): MinimapPosition {
-  const raw = {
-    left: ratio.lr * window.innerWidth,
-    top: ratio.tr * window.innerHeight,
-  };
-  return clampPosition(raw.left, raw.top, width, height);
-}
 
 function readStoredPosition(): MinimapPosition | null {
   try {
@@ -68,23 +39,6 @@ function readStoredPosition(): MinimapPosition | null {
   } catch {
     return null;
   }
-}
-
-// 根據 position prop 換算 left/top pixel 值（需要知道元件尺寸）
-function resolveDefaultPosition(
-  position: NonNullable<MinimapProps['position']>,
-  w: number,
-  h: number
-): MinimapPosition {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const PAD = 20;
-  return {
-    'bottom-left': { left: PAD, top: vh - h - PAD },
-    'bottom-right': { left: vw - w - PAD, top: vh - h - PAD },
-    'top-left': { left: PAD, top: PAD },
-    'top-right': { left: vw - w - PAD, top: PAD },
-  }[position];
 }
 
 /* ══════════════════════════ Component ══════════════════════════ */
@@ -125,9 +79,9 @@ export default function Minimap({
 
     let initial: MinimapPosition;
     if (stored) {
-      initial = clampPosition(stored.left, stored.top, w, h);
+      initial = clampToViewport(stored.left, stored.top, w, h);
     } else {
-      initial = resolveDefaultPosition(position, w, h);
+      initial = resolveCornerPosition(position, w, h);
     }
     setPositionWithRatio(initial);
     setReady(true);
@@ -164,7 +118,7 @@ export default function Minimap({
     const py = e.clientY - drag.offY;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
-    updatePos(clampPosition(px, py, w, h));
+    updatePos(clampToViewport(px, py, w, h));
   }
 
   function endDrag() {

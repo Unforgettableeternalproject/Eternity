@@ -1,6 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { TipTapEditor } from './RootEditor';
 import ImagePickerDialog from './ImagePickerDialog';
+import ConfirmDialog, {
+  type ConfirmDialogState,
+  DIALOG_CLOSED,
+} from './ConfirmDialog';
 import {
   Mono,
   Divider,
@@ -88,6 +92,26 @@ function SortButtons({
   );
 }
 
+// ─── 圖片 URL 輔助（編輯器內預覽用） ────────────────────────────────
+function editorAssetUrl(apiBase: string, key: string): string {
+  if (!key) return '';
+  if (key.startsWith('http')) return key;
+  let k = key;
+  if (k.startsWith('/api/root/assets/'))
+    k = k.slice('/api/root/assets/'.length);
+  else if (k.startsWith('/')) k = k.slice(1);
+  try {
+    k = decodeURIComponent(k);
+  } catch {
+    /* already decoded */
+  }
+  const encoded = k
+    .split('/')
+    .map((s) => encodeURIComponent(s))
+    .join('/');
+  return `${apiBase}/api/root/assets/${encoded}`;
+}
+
 // ─── Full Bio 區塊編輯器（重用 RootEditor 的 TipTapEditor）──────────
 function FullBioSection({
   data,
@@ -101,6 +125,9 @@ function FullBioSection({
   token: string;
 }) {
   const bio: string = data?.fullBio || '';
+  const bioPhoto: string = data?.bioPhoto || '';
+  const bioPhotoCaption: string = data?.bioPhotoCaption || '';
+  const [showPicker, setShowPicker] = useState(false);
 
   return (
     <div>
@@ -116,6 +143,102 @@ function FullBioSection({
           token={token}
         />
       </Field>
+
+      <Divider label="個人照片" />
+
+      {/* 照片預覽與操作 */}
+      <Field label="bioPhoto（照片）" hint="顯示在自傳右側">
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          {/* 預覽框 */}
+          <div
+            style={{
+              width: 140,
+              aspectRatio: '3/4',
+              border: '1px solid var(--qe-line)',
+              background: 'var(--qe-paper-card)',
+              overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {bioPhoto ? (
+              <img
+                src={editorAssetUrl(apiBase, bioPhoto)}
+                alt="個人照片預覽"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <Mono
+                v="fade"
+                style={{ fontSize: 10, textAlign: 'center', padding: 8 }}
+              >
+                尚未設定
+              </Mono>
+            )}
+          </div>
+
+          {/* 按鈕 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              className="qe-topbar__btn"
+              style={{ padding: '6px 12px' }}
+              onClick={() => setShowPicker(true)}
+            >
+              <Mono>{bioPhoto ? '更換照片' : '選擇照片'}</Mono>
+            </button>
+            {bioPhoto && (
+              <button
+                className="qe-topbar__btn"
+                style={{ padding: '6px 12px' }}
+                onClick={() => onChange({ bioPhoto: '', bioPhotoCaption: '' })}
+              >
+                <Mono style={{ color: 'var(--qe-coral)' }}>移除照片</Mono>
+              </button>
+            )}
+            {bioPhoto && (
+              <div style={{ marginTop: 4 }}>
+                <Mono v="fade" style={{ fontSize: 9, wordBreak: 'break-all' }}>
+                  {bioPhoto}
+                </Mono>
+              </div>
+            )}
+          </div>
+        </div>
+      </Field>
+
+      {/* 照片標題文字 */}
+      {bioPhoto && (
+        <Field
+          label="bioPhotoCaption（照片標題）"
+          hint="留空使用預設「↑ 這是我」"
+        >
+          <Input
+            value={bioPhotoCaption}
+            onChange={(v) => onChange({ bioPhotoCaption: v })}
+            placeholder="↑ 這是我"
+          />
+        </Field>
+      )}
+
+      {/* 圖片選擇對話框 */}
+      {showPicker && (
+        <ImagePickerDialog
+          apiBase={apiBase}
+          token={token}
+          onInsert={(key) => {
+            onChange({ bioPhoto: key });
+            setShowPicker(false);
+          }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
     </div>
   );
 }
@@ -131,6 +254,7 @@ function SkillsSection({
   const skills: Skill[] = data?.skills || [];
   // 追蹤哪個項目展開
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   const updateSkill = (idx: number, patch: Partial<Skill>) => {
     const next = skills.map((s, i) => (i === idx ? { ...s, ...patch } : s));
@@ -200,8 +324,13 @@ function SkillsSection({
               style={{ padding: '3px 8px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`刪除技能「${skill.name}」？`))
-                  removeSkill(idx);
+                setDialog({
+                  open: true,
+                  title: `刪除技能「${skill.name}」？`,
+                  confirmLabel: '刪除',
+                  danger: true,
+                  onConfirm: () => removeSkill(idx),
+                });
               }}
             >
               <Mono style={{ color: 'var(--qe-coral)' }}>✕</Mono>
@@ -291,6 +420,7 @@ function SkillsSection({
       >
         ＋ new skill
       </button>
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </div>
   );
 }
@@ -305,6 +435,7 @@ function ExperienceSection({
 }) {
   const experience: Experience[] = data?.experience || [];
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
 
   const updateExp = (idx: number, patch: Partial<Experience>) => {
     const next = experience.map((e, i) => (i === idx ? { ...e, ...patch } : e));
@@ -387,8 +518,13 @@ function ExperienceSection({
               style={{ padding: '3px 8px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`刪除職位「${exp.title}」？`))
-                  removeExp(idx);
+                setDialog({
+                  open: true,
+                  title: `刪除職位「${exp.title}」？`,
+                  confirmLabel: '刪除',
+                  danger: true,
+                  onConfirm: () => removeExp(idx),
+                });
               }}
             >
               <Mono style={{ color: 'var(--qe-coral)' }}>✕</Mono>
@@ -480,6 +616,7 @@ function ExperienceSection({
       >
         ＋ new experience
       </button>
+      <ConfirmDialog state={dialog} onClose={() => setDialog(DIALOG_CLOSED)} />
     </div>
   );
 }

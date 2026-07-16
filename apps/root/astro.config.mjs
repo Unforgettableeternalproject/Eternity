@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import react from '@astrojs/react';
 import tailwind from '@astrojs/tailwind';
+import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
 import { defineConfig } from 'astro/config';
 
@@ -14,6 +15,16 @@ const integrations = [
     applyBaseStyles: false,
   }),
   react(),
+  sitemap({
+    filter: (page) => !page.includes('/admin'),
+    i18n: {
+      defaultLocale: 'zh-tw',
+      locales: {
+        'zh-tw': 'zh-TW',
+        en: 'en',
+      },
+    },
+  }),
 ];
 
 // https://astro.build/config

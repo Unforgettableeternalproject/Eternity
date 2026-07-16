@@ -3,6 +3,8 @@ export const prerender = false;
 
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import RootEditor from '../../components/editor/RootEditor';
+import AdminTestModeControl from '../../components/admin/AdminTestModeControl';
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../lib/apiBase';
 import {
   getProjects,
   getUpdates,
@@ -15,8 +17,9 @@ import {
 const JWT_COOKIE = 'root-admin-jwt';
 const jwtCookie = Astro.cookies.get(JWT_COOKIE);
 const token = jwtCookie?.value || '';
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase(
+  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+);
 
 // 並行取得所有資料（含 about 雙語及 currently singleton）
 const [
@@ -44,33 +47,36 @@ const [
   pageContactEn,
   cards,
 ] = await Promise.all([
-  getProjects(),
-  getUpdates(),
-  getLinks(),
-  getSingleton('homepage-zh'),
-  getSingleton('about-zh'),
-  getSingleton('about-en'),
-  getSingleton('contact-zh'),
-  getSingleton('contact-en'),
-  getSingleton('currently'),
+  getProjects(apiBase),
+  getUpdates(undefined, apiBase),
+  getLinks(apiBase),
+  getSingleton('homepage-zh', apiBase),
+  getSingleton('about-zh', apiBase),
+  getSingleton('about-en', apiBase),
+  getSingleton('contact-zh', apiBase),
+  getSingleton('contact-en', apiBase),
+  getSingleton('currently', apiBase),
   // 頁面文字
-  getSingleton('page-home-zh'),
-  getSingleton('page-home-en'),
-  getSingleton('page-projects-zh'),
-  getSingleton('page-projects-en'),
-  getSingleton('page-updates-zh'),
-  getSingleton('page-updates-en'),
-  getSingleton('page-links-zh'),
-  getSingleton('page-links-en'),
-  getSingleton('page-about-zh'),
-  getSingleton('page-about-en'),
-  getSingleton('page-contact-zh'),
-  getSingleton('page-contact-en'),
-  getCards(),
+  getSingleton('page-home-zh', apiBase),
+  getSingleton('page-home-en', apiBase),
+  getSingleton('page-projects-zh', apiBase),
+  getSingleton('page-projects-en', apiBase),
+  getSingleton('page-updates-zh', apiBase),
+  getSingleton('page-updates-en', apiBase),
+  getSingleton('page-links-zh', apiBase),
+  getSingleton('page-links-en', apiBase),
+  getSingleton('page-about-zh', apiBase),
+  getSingleton('page-about-en', apiBase),
+  getSingleton('page-contact-zh', apiBase),
+  getSingleton('page-contact-en', apiBase),
+  getCards(apiBase),
 ]);
 ---
 
 <AdminLayout title="Admin · Editor">
+  <div class="adm-test-mode-floating">
+    <AdminTestModeControl client:load />
+  </div>
   <RootEditor
     client:only="react"
     projects={projects || []}
@@ -100,3 +106,29 @@ const [
     visitorApiUrl={import.meta.env.PUBLIC_VISITOR_API_URL || ''}
   />
 </AdminLayout>
+
+<style>
+  /* Test mode 控制卡浮動定位（Issue #41）
+     避開頂端 32px TEST MODE banner；醒目但不擋 RootEditor 主要操作區 */
+  .adm-test-mode-floating {
+    position: fixed;
+    top: 44px;
+    right: 16px;
+    z-index: 100;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    pointer-events: auto;
+  }
+  body.has-test-banner .adm-test-mode-floating {
+    top: 44px;
+  }
+  /* 窄螢幕時退回 inline 感（貼齊右上不擋畫面） */
+  @media (max-width: 640px) {
+    .adm-test-mode-floating {
+      top: 40px;
+      right: 8px;
+      left: 8px;
+      width: auto;
+    }
+  }
+</style>

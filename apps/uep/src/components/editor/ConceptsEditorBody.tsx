@@ -10,7 +10,7 @@
  * 資料流：content[0].content (JSON string) → parsed → 編輯 → onDataChange → save
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   API_BASE,
   getDialog,
@@ -18,9 +18,10 @@ import {
   toAssetPath,
   uploadAsset,
 } from './editorHelpers';
-import { useEditor, EditorContent } from '@tiptap/react';
-import { StarterKit } from '@tiptap/starter-kit';
-import { Placeholder } from '@tiptap/extension-placeholder';
+import EntityKeyField from './EntityKeyField';
+import GateConditionEditor from './GateConditionEditor';
+import MiniEditor from './MiniEditor';
+import RevisionModal from './RevisionModal';
 import type {
   DossierContent,
   DossierVariant,
@@ -169,91 +170,55 @@ function getEmptyData(style: StackStyle): ConceptsData {
   }
 }
 
-// ── 輕量 TipTap 編輯器（用於條目內容） ────────────────────────────
+// ── AliasesField — 匹配別名輸入（S7-D-2） ─────────────────────────
 
-function MiniEditor({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (html: string) => void;
-  placeholder?: string;
-}) {
-  const initialized = useRef(false);
-  const handleUpdate = useCallback(
-    ({ editor: e }: { editor: { getHTML: () => string } }) => {
-      // 跳過初始化時的第一次 onUpdate
-      if (!initialized.current) {
-        initialized.current = true;
-        return;
-      }
-      const html = e.getHTML();
-      onChange(html === '<p></p>' ? '' : html);
-    },
-    [onChange]
-  );
+/** 別名字串解析：頓號/全半形逗號分隔，trim 後去空、去重 */
+export function parseAliases(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(/[,，、]/)) {
+    const alias = part.trim();
+    if (!alias || seen.has(alias)) continue;
+    seen.add(alias);
+    out.push(alias);
+  }
+  return out;
+}
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ heading: false }),
-      Placeholder.configure({ placeholder: placeholder || '輸入內容...' }),
-    ],
-    content: value || '',
-    onUpdate: handleUpdate,
-  });
+interface AliasesFieldProps {
+  value: string[] | undefined;
+  onChange: (aliases: string[] | undefined) => void;
+}
 
-  if (!editor) return null;
-
+/**
+ * 匹配別名輸入欄（EntityKeyField 旁，dossier/diff 條目詳情用）。
+ * 供自動偵測 suggestion 與 terminal 檢索的補充匹配詞（S7-D 定案 3）。
+ *
+ * 本地 raw state 保留使用者輸入中的分隔符——controlled 直接
+ * split→join 會吃掉剛打出的頓號（分類路徑欄位的既有毛病，不沿用）；
+ * 外部值變化（切換條目）時若與本地解析結果不一致才覆蓋顯示值。
+ */
+export function AliasesField({ value, onChange }: AliasesFieldProps) {
+  const [raw, setRaw] = useState(() => (value ?? []).join('、'));
+  useEffect(() => {
+    const external = (value ?? []).join('、');
+    if (external !== parseAliases(raw).join('、')) setRaw(external);
+    // raw 刻意不進 deps：只在外部值換內容（切條目）時覆蓋輸入中的字串
+  }, [value]);
   return (
-    <div className="ced-mini-editor">
-      <div className="ced-mini-toolbar">
-        <button
-          type="button"
-          className={editor.isActive('bold') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleBold().run();
-          }}
-          title="粗體"
-        >
-          <b>B</b>
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('italic') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleItalic().run();
-          }}
-          title="斜體"
-        >
-          <i>I</i>
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('strike') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleStrike().run();
-          }}
-          title="刪除線"
-        >
-          <s>S</s>
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('bulletList') ? 'active' : ''}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleBulletList().run();
-          }}
-          title="列表"
-        >
-          •
-        </button>
-      </div>
-      <EditorContent editor={editor} />
+    <div className="ced-field-row">
+      <label className="ced-label">別名</label>
+      <input
+        className="ced-input"
+        value={raw}
+        onChange={(e) => {
+          setRaw(e.target.value);
+          const parsed = parseAliases(e.target.value);
+          onChange(parsed.length > 0 ? parsed : undefined);
+        }}
+        placeholder="暱稱/異寫，用、分隔（選填）"
+        spellCheck={false}
+      />
     </div>
   );
 }
@@ -511,6 +476,10 @@ function DossierVariantBody({
     groupIdx: number;
     entryIdx: number;
   } | null>(null);
+  const [revModalOpen, setRevModalOpen] = useState(false);
+  // 條目列表結構版本：刪除/拖曳會 shift index，active 索引可能指到
+  // 不同條目但數值不變——進 MiniEditor key 強制 remount 防內容殘留
+  const [listVersion, setListVersion] = useState(0);
 
   function updateSubcats(subcats: DossierSubcat[]) {
     onSubcatsChange(subcats);
@@ -580,9 +549,16 @@ function DossierVariantBody({
     setActiveEntry(group.entries.length);
     setPanelMode('entry');
   }
-  function removeEntry(i: number) {
+  async function removeEntry(i: number) {
     if (!group) return;
+    const target = group.entries[i];
+    const ok = await getDialog().confirm(
+      `確定要刪除條目「${target?.name || '(空條目)'}」嗎？此操作無法復原。`,
+      { title: '刪除條目', confirmText: '刪除', cancelText: '取消' }
+    );
+    if (!ok) return;
     updateEntries(group.entries.filter((_, idx) => idx !== i));
+    setListVersion((v) => v + 1);
     if (activeEntry === i) {
       setActiveEntry(null);
       setPanelMode('group');
@@ -610,6 +586,7 @@ function DossierVariantBody({
       return g;
     });
     updateGroups(newGroups);
+    setListVersion((v) => v + 1);
     if (activeGroup === srcGi && activeEntry === srcEi) {
       setActiveEntry(null);
       setPanelMode('group');
@@ -625,12 +602,29 @@ function DossierVariantBody({
     const [moved] = items.splice(dragEntryInfo.entryIdx, 1);
     items.splice(targetIdx, 0, moved);
     updateEntries(items);
+    setListVersion((v) => v + 1);
     if (activeEntry === dragEntryInfo.entryIdx) setActiveEntry(targetIdx);
     setDragEntryInfo(null);
   }
 
   const entry =
     activeEntry !== null && group ? group.entries[activeEntry] : null;
+
+  // entityKey 唯一性範圍 = 同 variant 內（跨 variant 允許同 key，
+  // 各 variant 的條目維護自己的 revision 鏈——設計文件 §1-3-a）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    subcategories.forEach((sc, sci) =>
+      sc.groups.forEach((g, gi) =>
+        g.entries.forEach((ent, ei) => {
+          if (sci === activeTab && gi === activeGroup && ei === activeEntry)
+            return;
+          if (ent.entityKey) keys.add(ent.entityKey);
+        })
+      )
+    );
+    return keys;
+  }, [subcategories, activeTab, activeGroup, activeEntry]);
 
   React.useEffect(() => {
     if (subcat && subcat.groups.length === 0)
@@ -853,10 +847,36 @@ function DossierVariantBody({
                       }
                     />
                   </div>
+                  <EntityKeyField
+                    value={entry.entityKey}
+                    onChange={(key) =>
+                      updateEntry(activeEntry!, { entityKey: key })
+                    }
+                    existingKeys={usedEntityKeys}
+                  />
+                  <AliasesField
+                    value={entry.aliases}
+                    onChange={(aliases) =>
+                      updateEntry(activeEntry!, { aliases })
+                    }
+                  />
+                  <div className="ced-field-row">
+                    <label className="ced-label">revisions</label>
+                    <button
+                      className="ced-rev-open-btn"
+                      onClick={() => setRevModalOpen(true)}
+                      style={{ color: accent }}
+                    >
+                      進度版本 ({entry.revisions?.length ?? 0})
+                    </button>
+                  </div>
                   <div className="ced-section-header">
                     <span className="ced-section-title">描述</span>
                   </div>
+                  {/* key：TipTap content 只吃初始值，切換條目必須 remount，
+                      否則殘留前一條目內容（編輯還會把舊內容寫進新條目） */}
                   <MiniEditor
+                    key={`${activeTab}-${activeGroup}-${activeEntry}-${listVersion}`}
                     value={entry.content_html || ''}
                     onChange={(html) =>
                       updateEntry(activeEntry!, {
@@ -906,6 +926,29 @@ function DossierVariantBody({
                       : '拖曳左側條目到群組名稱上可移動條目。'}
                   </div>
                   <div className="ced-empty">{group.entries.length} 個條目</div>
+                  {/* 群組解鎖條件（S7 驗收 #3）：未過整組隱藏（含全部條目） */}
+                  <div className="ced-section-header">
+                    <span className="ced-section-title">群組解鎖條件</span>
+                  </div>
+                  <GateConditionEditor
+                    value={group.gate ?? null}
+                    onChange={(gate) =>
+                      updateGroups(
+                        subcat.groups.map((g, i) =>
+                          i === activeGroup
+                            ? { ...g, gate: gate ?? undefined }
+                            : g
+                        )
+                      )
+                    }
+                    apiBase={API_BASE}
+                    accent={accent}
+                  />
+                  {group.gate && (
+                    <div className="ced-rev-hint">
+                      ⓘ 條件未通過時整組隱藏——底下條目自身的 解鎖條件不再求值。
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="ced-browser-empty">
@@ -915,6 +958,27 @@ function DossierVariantBody({
             </div>
           </div>
         </>
+      )}
+
+      {revModalOpen && entry && (
+        <RevisionModal
+          entryLabel={entry.name || '(未命名條目)'}
+          stackStyle="dossier"
+          entityKey={entry.entityKey}
+          baseEntry={entry as unknown as Record<string, unknown>}
+          revisions={entry.revisions ?? []}
+          onChange={(revs) =>
+            updateEntry(activeEntry!, {
+              revisions: revs.length > 0 ? revs : undefined,
+            })
+          }
+          baseGate={entry.gate ?? null}
+          onBaseGateChange={(gate) =>
+            updateEntry(activeEntry!, { gate: gate ?? undefined })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
       )}
     </div>
   );
@@ -948,6 +1012,10 @@ function BrowserEditor({
   >([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [avatarDeleteOpen, setAvatarDeleteOpen] = useState(false);
+  const [revModalOpen, setRevModalOpen] = useState(false);
+  // 列表結構版本：刪除角色/區段、區段拖曳會 shift index——
+  // 進 MiniEditor key 強制 remount 防內容殘留
+  const [listVersion, setListVersion] = useState(0);
 
   function updateProfiles(profiles: CharacterProfile[]) {
     onChange({ ...data, profiles });
@@ -985,6 +1053,16 @@ function BrowserEditor({
 
   const profile = activeIdx !== null ? data.profiles[activeIdx] : null;
 
+  // entityKey 唯一性範圍 = 同頁面內（排除自身）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    data.profiles.forEach((p, i) => {
+      if (i === activeIdx) return;
+      if (p.entityKey) keys.add(p.entityKey);
+    });
+    return keys;
+  }, [data.profiles, activeIdx]);
+
   function updateProfile(patch: Partial<CharacterProfile>) {
     if (activeIdx === null) return;
     updateProfiles(
@@ -999,6 +1077,7 @@ function BrowserEditor({
     );
     if (!ok) return;
     updateProfiles(data.profiles.filter((_, idx) => idx !== i));
+    setListVersion((v) => v + 1);
     if (activeIdx === i) setActiveIdx(null);
   }
   function addProfileHere() {
@@ -1052,6 +1131,7 @@ function BrowserEditor({
   }
   function removeSection(i: number) {
     updateSections((profile?.sections || []).filter((_, idx) => idx !== i));
+    setListVersion((v) => v + 1);
   }
   // 區段拖曳排序
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
@@ -1061,6 +1141,7 @@ function BrowserEditor({
     const [moved] = items.splice(dragSectionIdx, 1);
     items.splice(targetIdx, 0, moved);
     updateSections(items);
+    setListVersion((v) => v + 1);
     setDragSectionIdx(null);
   }
   // 麵包屑 drop handler
@@ -1341,6 +1422,21 @@ function BrowserEditor({
                   </div>
                 </div>
               </div>
+              <EntityKeyField
+                value={profile.entityKey}
+                onChange={(key) => updateProfile({ entityKey: key })}
+                existingKeys={usedEntityKeys}
+              />
+              <div className="ced-field-row">
+                <label className="ced-label">revisions</label>
+                <button
+                  className="ced-rev-open-btn"
+                  onClick={() => setRevModalOpen(true)}
+                  style={{ color: accent }}
+                >
+                  進度版本 ({profile.revisions?.length ?? 0})
+                </button>
+              </div>
               <label className="ced-checkbox-row">
                 <input
                   type="checkbox"
@@ -1457,7 +1553,10 @@ function BrowserEditor({
                           ✕
                         </button>
                       </div>
+                      {/* key 含 activeIdx：換角色時同 index 的區段
+                          會被 React 重用，必須 remount 防內容殘留 */}
                       <MiniEditor
+                        key={`${activeIdx}-${si}-${listVersion}`}
                         value={section.content_html}
                         onChange={(html) => {
                           const next = [...(profile.sections || [])];
@@ -1481,6 +1580,25 @@ function BrowserEditor({
           )}
         </div>
       </div>
+
+      {revModalOpen && profile && (
+        <RevisionModal
+          entryLabel={profile.name || '(未命名角色)'}
+          stackStyle="browser"
+          entityKey={profile.entityKey}
+          baseEntry={profile as unknown as Record<string, unknown>}
+          revisions={profile.revisions ?? []}
+          onChange={(revs) =>
+            updateProfile({ revisions: revs.length > 0 ? revs : undefined })
+          }
+          baseGate={profile.gate ?? null}
+          onBaseGateChange={(gate) =>
+            updateProfile({ gate: gate ?? undefined })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
+      )}
 
       {/* 圖片選取器 overlay */}
       {pickerOpen && (
@@ -1816,6 +1934,7 @@ function ChronoEditor({
   const data = React.useMemo(() => migrateChronoData(rawData), [rawData]);
   const [activePeriod, setActivePeriod] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [revModalOpen, setRevModalOpen] = useState(false);
 
   // 時間點拖曳排序
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -1879,6 +1998,16 @@ function ChronoEditor({
   }
 
   const period = data.periods[activePeriod];
+
+  // entityKey 唯一性範圍 = 同頁面內（排除自身）；chrono 選用不強制（定案 A）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    data.periods.forEach((p, i) => {
+      if (i === activePeriod) return;
+      if (p.entityKey) keys.add(p.entityKey);
+    });
+    return keys;
+  }, [data.periods, activePeriod]);
 
   function updatePeriod(patch: Partial<ChronoPeriod>) {
     updatePeriods(
@@ -2275,6 +2404,22 @@ function ChronoEditor({
                 />
               </div>
 
+              <EntityKeyField
+                value={period.entityKey}
+                onChange={(key) => updatePeriod({ entityKey: key })}
+                existingKeys={usedEntityKeys}
+              />
+              <div className="ced-field-row">
+                <label className="ced-label">revisions</label>
+                <button
+                  className="ced-rev-open-btn"
+                  onClick={() => setRevModalOpen(true)}
+                  style={{ color: accent }}
+                >
+                  進度版本 ({period.revisions?.length ?? 0})
+                </button>
+              </div>
+
               {/* 各欄位類別 */}
               {data.fieldDefs.map((def, di) => {
                 const field = period.fields[def.id];
@@ -2548,6 +2693,26 @@ function ChronoEditor({
           )}
         </div>
       </div>
+
+      {revModalOpen && period && (
+        <RevisionModal
+          entryLabel={
+            period.title ? `${period.year}・${period.title}` : period.year
+          }
+          stackStyle="chrono"
+          entityKey={period.entityKey}
+          baseEntry={period as unknown as Record<string, unknown>}
+          revisions={period.revisions ?? []}
+          onChange={(revs) =>
+            updatePeriod({ revisions: revs.length > 0 ? revs : undefined })
+          }
+          baseGate={period.gate ?? null}
+          onBaseGateChange={(gate) => updatePeriod({ gate: gate ?? undefined })}
+          chronoFieldDefs={data.fieldDefs}
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
+      )}
     </div>
   );
 }
@@ -2573,6 +2738,7 @@ function DiffEditor({
     sectionIdx: number;
     entryIdx: number;
   } | null>(null);
+  const [revModalOpen, setRevModalOpen] = useState(false);
 
   function updateSubcats(subcats: DiffSubcat[]) {
     onChange({ ...data, subcategories: subcats });
@@ -2649,8 +2815,14 @@ function DiffEditor({
     setActiveEntry(section.entries.length);
     setPanelMode('entry');
   }
-  function removeEntry(i: number) {
+  async function removeEntry(i: number) {
     if (!section) return;
+    const target = section.entries[i];
+    const ok = await getDialog().confirm(
+      `確定要刪除詞條「${target?.term || '(空詞條)'}」嗎？此操作無法復原。`,
+      { title: '刪除詞條', confirmText: '刪除', cancelText: '取消' }
+    );
+    if (!ok) return;
     updateEntries(section.entries.filter((_, idx) => idx !== i));
     if (activeEntry === i) {
       setActiveEntry(null);
@@ -2699,6 +2871,21 @@ function DiffEditor({
 
   const entry =
     activeEntry !== null && section ? section.entries[activeEntry] : null;
+
+  // entityKey 唯一性範圍 = 同頁面內（全部分類，排除自身）
+  const usedEntityKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    data.subcategories.forEach((sc, sci) =>
+      sc.sections.forEach((s, si) =>
+        s.entries.forEach((ent, ei) => {
+          if (sci === activeTab && si === activeSection && ei === activeEntry)
+            return;
+          if (ent.entityKey) keys.add(ent.entityKey);
+        })
+      )
+    );
+    return keys;
+  }, [data.subcategories, activeTab, activeSection, activeEntry]);
 
   return (
     <div className="ced-section">
@@ -2923,6 +3110,30 @@ function DiffEditor({
                     />
                   </div>
 
+                  <EntityKeyField
+                    value={entry.entityKey}
+                    onChange={(key) =>
+                      updateEntry(activeEntry!, { entityKey: key })
+                    }
+                    existingKeys={usedEntityKeys}
+                  />
+                  <AliasesField
+                    value={entry.aliases}
+                    onChange={(aliases) =>
+                      updateEntry(activeEntry!, { aliases })
+                    }
+                  />
+                  <div className="ced-field-row">
+                    <label className="ced-label">revisions</label>
+                    <button
+                      className="ced-rev-open-btn"
+                      onClick={() => setRevModalOpen(true)}
+                      style={{ color: accent }}
+                    >
+                      進度版本 ({entry.revisions?.length ?? 0})
+                    </button>
+                  </div>
+
                   {/* 值欄位（可新增/刪除） */}
                   <div className="ced-section-header">
                     <span className="ced-section-title">
@@ -3053,6 +3264,27 @@ function DiffEditor({
             </div>
           </div>
         </>
+      )}
+
+      {revModalOpen && entry && (
+        <RevisionModal
+          entryLabel={entry.term || '(未命名詞條)'}
+          stackStyle="diff"
+          entityKey={entry.entityKey}
+          baseEntry={entry as unknown as Record<string, unknown>}
+          revisions={entry.revisions ?? []}
+          onChange={(revs) =>
+            updateEntry(activeEntry!, {
+              revisions: revs.length > 0 ? revs : undefined,
+            })
+          }
+          baseGate={entry.gate ?? null}
+          onBaseGateChange={(gate) =>
+            updateEntry(activeEntry!, { gate: gate ?? undefined })
+          }
+          onClose={() => setRevModalOpen(false)}
+          accent={accent}
+        />
       )}
     </div>
   );

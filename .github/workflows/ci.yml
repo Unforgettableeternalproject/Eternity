@@ -134,20 +134,20 @@ jobs:
       - name: Detect merge type and version
         id: detect_merge
         run: |
-          # 取得最新的 commit message
-          COMMIT_MSG=$(git log -1 --pretty=%B)
+          # 取得 squash commit 的第一行（即 PR 標題）
+          COMMIT_MSG=$(git log -1 --pretty=%s)
           echo "Commit message: $COMMIT_MSG"
 
-          # 檢測 Release: "Release version v0.8.2 deploy to main"
-          if echo "$COMMIT_MSG" | grep -qE "Release version v[0-9]+\.[0-9]+\.[0-9]+"; then
+          # 檢測 Release: "Release version vX.Y.Z[.N] deploy to main. MM/DD"（第四段為可選流水號）
+          if echo "$COMMIT_MSG" | grep -qE "Release version v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)? deploy to main"; then
             BRANCH_TYPE="release"
-            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
+            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?" | head -1 | sed 's/^v//')
             echo "Detected Release: v$VERSION"
 
-          # 檢測 Hotfix: "Hotfix version v0.8.2 batch #1 sent back to main"
-          elif echo "$COMMIT_MSG" | grep -qE "Hotfix version v[0-9]+\.[0-9]+\.[0-9]+ batch #[0-9]+"; then
+          # 檢測 Hotfix: "Hotfix [version] vX.Y.Z[.N] batch #N: <描述>. MM/DD"
+          elif echo "$COMMIT_MSG" | grep -qE "Hotfix (version )?v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)? batch #[0-9]+"; then
             BRANCH_TYPE="hotfix"
-            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | sed 's/^v//')
+            VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?" | head -1 | sed 's/^v//')
             BATCH_NUM=$(echo "$COMMIT_MSG" | grep -oE "batch #[0-9]+" | grep -oE "[0-9]+")
             echo "Detected Hotfix: v$VERSION batch #$BATCH_NUM"
             echo "hotfix_batch=$BATCH_NUM" >> $GITHUB_OUTPUT
@@ -210,29 +210,40 @@ jobs:
 
       - name: Sync back to develop
         if: steps.detect_merge.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH_TYPE="${{ steps.detect_merge.outputs.branch_type }}"
+          VERSION="${{ steps.detect_merge.outputs.version }}"
 
-          # 切換到 develop 分支
-          git fetch origin develop
-          git checkout develop
+          # 回推 develop（release + hotfix 都做）
+          # 使用 GitHub Merge API 而非本地 git merge：
+          # 伺服器端產生的 merge commit 由 GitHub 自動簽名（Verified），
+          # 本地 CLI merge 的 commit 沒有簽名，會讓後續 release PR
+          # 被 main 的 verified signatures 規則擋下
+          #
+          # 注意：不可加 [skip ci]——auto-merge 可能產生語意錯誤的合併結果
+          # （如 v0.9.8.2 sync-back 曾把 RichEditor 的區塊重複兩份），
+          # 必須讓 CI 在 sync 後完整驗證 develop
+          gh api "repos/${{ github.repository }}/merges" \
+            -f base=develop \
+            -f head=main \
+            -f commit_message="chore: sync from main after ${BRANCH_TYPE} v${VERSION}"
+          echo "✅ Synced changes back to develop (GitHub-signed merge)"
 
-          # 合併 main 的變更
-          git merge origin/main -m "chore: sync from main after production release [skip ci]"
-
-          # 推送回 develop
-          git push origin develop
-          echo "✅ Synced changes back to develop"
+      - name: Sync back to staging (release only)
+        if: steps.detect_merge.outputs.skip != 'true' && steps.detect_merge.outputs.branch_type == 'release'
+        run: |
+          # Release 後 staging 直接對齊 main
+          git push origin main:staging --force
+          echo "✅ Force-reset staging to match main"
 
       - name: Create GitHub Release
         if: steps.detect_merge.outputs.skip != 'true'
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.calc_suffix.outputs.tag_name }}
-          release_name: Release ${{ steps.detect_merge.outputs.version }} (${{ steps.calc_suffix.outputs.suffix }})
+          name: Release ${{ steps.detect_merge.outputs.version }} (${{ steps.calc_suffix.outputs.suffix }})
           body: |
             ## 🚀 Production Release ${{ steps.detect_merge.outputs.version }}
 
@@ -247,4 +258,5 @@ jobs:
             See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
           draft: false
           prerelease: ${{ steps.detect_merge.outputs.branch_type == 'hotfix' }}
-          retention-days: 7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

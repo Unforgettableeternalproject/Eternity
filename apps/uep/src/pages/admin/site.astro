@@ -1,11 +1,13 @@
 ---
 import DesignLayout from '../../layouts/DesignLayout.astro';
 import SiteHomepageEditor from '../../components/editor/SiteHomepageEditor';
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../lib/apiBase';
 
 export const prerender = false;
 
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase(
+  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+);
 ---
 
 <DesignLayout title="網站首頁編輯 · Admin">

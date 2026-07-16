@@ -30,7 +30,17 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
+import IslandUnlockObject from '../../islands/IslandUnlockObject';
+import { useProgress } from '../../progress/useProgress';
+import { evaluateGate, parseGateCondition } from '../../progress/gating';
+import { resolveEffectiveViewForPage } from './revision';
+import {
+  getCachedEffectiveView,
+  invalidatePageCache,
+  clearAllRevisionCache,
+} from './revisionCache';
 import './ConceptsReader.css';
+import { getApiBase } from '../../lib/apiBase';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -59,9 +69,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 function resolveAssetUrl(ref: string): string {
   if (ref.startsWith('/api/assets/')) {
@@ -1176,6 +1184,13 @@ function ReaderDiff({ data }: { data: DiffContent }) {
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function ConceptsReader() {
+  // === 進度狀態（Epic 2 S7：條目級進度閘） ===
+  // 訂閱全域 ProgressState——旗標/視角變化時重渲，effective view 隨之重算。
+  // SSR 時回傳初始狀態（base 內容），hydrate 後才呈現個人化狀態（設計文件 2-4）。
+  const progress = useProgress();
+  // Reader 卸載時清空 revision 快取（頁面間記憶體不殘留）
+  useEffect(() => () => clearAllRevisionCache(), []);
+
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -1378,6 +1393,8 @@ export default function ConceptsReader() {
     const stackDef = STACKS.find((s) => slug.startsWith(s.slug));
     if (stackDef) setActiveStackId(`concepts/${stackDef.slug}`);
     fetchPageData(slug).then((p) => {
+      // 新載入的頁面資料使快取失效（admin 編輯後重訪不吃到舊 view）
+      if (p) invalidatePageCache(p.id);
       setReadingPage(p);
       setView('reading');
       setTransitionKey((k) => k + 1);
@@ -1458,6 +1475,12 @@ export default function ConceptsReader() {
             </div>
           )}
         </div>
+
+        {/* 浮島解鎖小物件（S7-C 修掛載點）：原掛在 ZoneEntryPage，
+            但各 Reader 改自帶動態 homepage 後該元件成為孤兒——
+            小物件從未實際出現。position:fixed，浮現條件（探索者+
+            visited+未解鎖）由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
+        <IslandUnlockObject zoneId="concepts" />
       </section>
     );
   }
@@ -1470,6 +1493,13 @@ export default function ConceptsReader() {
     const stackNode = stackNodes.find((n) => n.id === activeStackId);
     if (!stackDef || !stackNode) return null;
     const children = stackNode.children || [];
+    // 頁面層進度閘（Epic 2 S7）：gate 未通過的子頁完全隱藏
+    // （不顯示 LOCK 佔位，設計文件 3-3）；靜態 locked 仍顯示 sealed
+    const visibleChildren = children.filter(
+      (child) =>
+        !isHidden(child) &&
+        evaluateGate(progress, parseGateCondition(child.metadata))
+    );
 
     // 從 D1 載入的 stackPage 取得動態內容
     const stackTitle = stackPage?.title || stackDef.label;
@@ -1495,7 +1525,7 @@ export default function ConceptsReader() {
           <h1 className="conc-stack-title">{stackTitle}</h1>
           <div className="conc-stack-sync-badge">
             <span className="conc-mod-dot sync" />
-            {children.filter((c) => !isHidden(c)).length} types · sync ok
+            {visibleChildren.length} types · sync ok
           </div>
         </div>
         <div className="conc-stack-path">
@@ -1533,7 +1563,7 @@ export default function ConceptsReader() {
         <div className="conc-dir-listing">
           <div className="conc-dir-bar">
             <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
-            <span>{children.filter((c) => !isHidden(c)).length} entries</span>
+            <span>{visibleChildren.length} entries</span>
           </div>
           <div className="conc-dir-header-row">
             <span>#</span>
@@ -1542,44 +1572,40 @@ export default function ConceptsReader() {
             <span>state</span>
             <span />
           </div>
-          {children
-            .filter((child) => !isHidden(child))
-            .map((child, i) => {
-              const locked = isLocked(child);
-              return (
-                <button
-                  key={child.id}
-                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
-                  onClick={() => !locked && navigateToPage(child.slug)}
-                >
-                  <span className="conc-dir-num">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <div className="conc-dir-name-cell">
-                    <div className="conc-dir-name">{child.title}</div>
-                    <div className="conc-dir-hint">
-                      {locked
-                        ? ''
-                        : typeof child.metadata?.description === 'string'
-                          ? (child.metadata.description as string).slice(0, 50)
-                          : ''}
-                    </div>
+          {visibleChildren.map((child, i) => {
+            const locked = isLocked(child);
+            return (
+              <button
+                key={child.id}
+                className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
+                onClick={() => !locked && navigateToPage(child.slug)}
+              >
+                <span className="conc-dir-num">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div className="conc-dir-name-cell">
+                  <div className="conc-dir-name">{child.title}</div>
+                  <div className="conc-dir-hint">
+                    {locked
+                      ? ''
+                      : typeof child.metadata?.description === 'string'
+                        ? (child.metadata.description as string).slice(0, 50)
+                        : ''}
                   </div>
-                  <span className="conc-dir-en">
-                    {locked ? '—' : child.slug.split('/').pop()}
-                  </span>
-                  <span
-                    className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
-                  >
-                    <span className="conc-mod-dot" />
-                    {locked ? 'sealed' : 'sync'}
-                  </span>
-                  <span className="conc-dir-arrow">
-                    {locked ? 'LOCK' : '›'}
-                  </span>
-                </button>
-              );
-            })}
+                </div>
+                <span className="conc-dir-en">
+                  {locked ? '—' : child.slug.split('/').pop()}
+                </span>
+                <span
+                  className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
+                >
+                  <span className="conc-mod-dot" />
+                  {locked ? 'sealed' : 'sync'}
+                </span>
+                <span className="conc-dir-arrow">{locked ? 'LOCK' : '›'}</span>
+              </button>
+            );
+          })}
           <div className="conc-dir-tip">
             <span className="conc-dir-tip-prompt">$</span>
             <span>
@@ -1604,6 +1630,12 @@ export default function ConceptsReader() {
   // ══════════════════════════════════════════════════════════════
   function renderReading() {
     if (!readingPage) return <ZoneStateDisplay kind="not-found" large />;
+
+    // 頁面層進度閘（deep link 守門）：gate 未通過視同不存在——
+    // 「未解鎖 = 隱藏」語意，不顯示鎖定佔位（設計文件 3-3）
+    if (!evaluateGate(progress, parseGateCondition(readingPage.metadata))) {
+      return <ZoneStateDisplay kind="not-found" large />;
+    }
 
     const meta = readingPage.metadata as Partial<ConceptsVariationMeta>;
     const locked = isLocked(readingPage);
@@ -1631,6 +1663,16 @@ export default function ConceptsReader() {
       } catch {
         /* 靜默 */
       }
+    }
+
+    // 條目級進度閘（Epic 2 S7）：套用 revision effective view——
+    // 未解鎖條目過濾、已解鎖條目按旗標疊加 patch。快取以
+    // (pageId, 進度指紋) 為 key，同頁重渲不重跑疊加。
+    if (parsed) {
+      const source = parsed;
+      parsed = getCachedEffectiveView(readingPage.id, progress, () =>
+        resolveEffectiveViewForPage(source, progress)
+      );
     }
 
     // dossier 的 variant 處理

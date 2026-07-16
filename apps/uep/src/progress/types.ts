@@ -1,0 +1,121 @@
+/**
+ * UEP 進度系統 — 核心型別定義
+ *
+ * Epic 2 的地基：雙視角（探索者/觀測者）+ 旗標系統 + 閱讀進度。
+ * 所有 zone 的內容解鎖判定都以這裡的 ProgressState 為唯一事實來源。
+ */
+
+/** 視角模式：探索者（進度限制）/ 觀測者（全開但無浮島） */
+export type ViewMode = 'explorer' | 'observer';
+
+/** 單一頁面的掃描線閱讀進度（S2 掃描線系統寫入） */
+export interface PageMarkerProgress {
+  /** 曾經到達的最遠標記點索引（進度判定用；哨兵索引 = totalMarkers） */
+  maxMarkerIdx: number;
+  /** 最後閱讀位置的標記點索引（「回到上次位置」用） */
+  lastMarkerIdx: number;
+  /**
+   * 內容標記點總數（不含文末哨兵）。
+   * 完成判定：maxMarkerIdx >= totalMarkers（= 通過哨兵，max 與 total 對齊）
+   */
+  totalMarkers: number;
+  /** 最後更新時間（ISO 8601） */
+  updatedAt: string;
+}
+
+/** 進度狀態 — localStorage / D1 progress 表的儲存單位 */
+export interface ProgressState {
+  /** schema 版本，未來遷移用 */
+  version: number;
+  /** 目前視角 */
+  view: ViewMode;
+  /**
+   * 觀測者印記 — 曾切換至觀測者視角的永久標記，不可逆。
+   * 影響 pristineOnly 內容的可見性（見 gating.ts）。
+   * reset() 不會清除此欄位；註冊使用者以 D1 儲存值為準（S5）。
+   */
+  observerEver: boolean;
+  /** 已授予的旗標（History FlagMarker 標註驅動授予） */
+  flags: string[];
+  /** 已完成閱讀的 History 頁面 id */
+  completedPageIds: string[];
+  /** 已解鎖的浮島 id（zone 首頁解鎖小物件點擊後授予） */
+  islandsUnlocked: string[];
+  /**
+   * 使用者主動停用的浮島 id（S6 設定視窗寫入）。
+   * 與 islandsUnlocked 分開存：停用 ≠ 未解鎖，重新啟用不需要再解鎖。
+   */
+  islandsDisabled: string[];
+  /** 各頁面的掃描線進度，key 為 pageId */
+  pageMarkers: Record<string, PageMarkerProgress>;
+  /**
+   * 最後造訪的 History 頁面 id（S6-2 續讀顯示用）。
+   * 與 pageMarkers 分開存：pageMarker 要通過第一個標記點才建立，
+   * 換頁當下就該更新續讀顯示，所以平鋪一份「最後造訪」。
+   */
+  lastVisitedPageId: string | null;
+  /** 最後造訪時間（ISO 8601），與 lastVisitedPageId 成對 */
+  lastVisitedAt: string | null;
+  /**
+   * 「遺落的書籤」機率狀態（S6-2，History 浮島解鎖儀式）。
+   * 每次首次讀完一篇 roll 一次：中了 visible=true（導航樹浮現條目）；
+   * 沒中 chancePct 遞增；被忽視（導去別頁）時 visible=false 且機率重置。
+   */
+  lostBookmark: {
+    /** 下次 roll 的出現機率（百分比，20 → 100） */
+    chancePct: number;
+    /** 條目目前是否浮現在導航樹 */
+    visible: boolean;
+  };
+  /**
+   * 閱讀時間統計（S6，History Island 的簡單統計用）。
+   * totalMs 為 History 文章的累計停留時間（單次造訪有上限防掛機灌水），
+   * 平均閱讀時間 = totalMs / completedPageIds.length。
+   */
+  readingStats: {
+    totalMs: number;
+  };
+  /**
+   * Terminal Island 已讀水位（S7-C 更動通知）：
+   * key = entityKey，value = 上次確認的「已通過 revision 數」。
+   * 首次遇到的 key 靜默建檔（不通知）；之後數值增加 → terminal
+   * 輸出更動通知。放 ProgressState = 跟登入同步、跨裝置不重複通知。
+   */
+  conceptsReadLevel: Record<string, number>;
+  /** 最後更新時間（ISO 8601） */
+  updatedAt: string;
+}
+
+/** 進度狀態的儲存介面 — LocalStorageAdapter（S1）/ ServerAdapter（S5） */
+export interface ProgressAdapter {
+  /** 讀取狀態；不存在或不可用時回傳 null */
+  load(): Promise<ProgressState | null>;
+  /** 寫入狀態 */
+  save(state: ProgressState): Promise<void>;
+}
+
+/** 目前 schema 版本 */
+export const PROGRESS_SCHEMA_VERSION = 1;
+
+/** 遺落的書籤：初始出現機率（%） */
+export const LOST_BOOKMARK_BASE_PCT = 20;
+
+/** 建立初始狀態（首次進站的探索者） */
+export function createInitialState(): ProgressState {
+  return {
+    version: PROGRESS_SCHEMA_VERSION,
+    view: 'explorer',
+    observerEver: false,
+    flags: [],
+    completedPageIds: [],
+    islandsUnlocked: [],
+    islandsDisabled: [],
+    pageMarkers: {},
+    lastVisitedPageId: null,
+    lastVisitedAt: null,
+    lostBookmark: { chancePct: LOST_BOOKMARK_BASE_PCT, visible: false },
+    readingStats: { totalMs: 0 },
+    conceptsReadLevel: {},
+    updatedAt: new Date().toISOString(),
+  };
+}

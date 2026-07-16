@@ -25,6 +25,8 @@ interface EditorInspectorProps {
   updatedAt?: string;
   /** mode-specific 欄位，由 RichEditor 根據 registry 傳入 */
   modeFields?: React.ReactNode;
+  /** 進度條件編輯器（Epic 2 內容閘門），由 RichEditor 傳入 */
+  gateFields?: React.ReactNode;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +57,7 @@ export default function EditorInspector({
   createdAt,
   updatedAt,
   modeFields,
+  gateFields,
 }: EditorInspectorProps) {
   const handleChange =
     <T,>(setter: (v: T) => void) =>
@@ -142,6 +145,14 @@ export default function EditorInspector({
           onChange={(e) => handleChange(onLockedChange)(e.target.checked)}
         />
       </div>
+
+      {/* 進度條件（Epic 2 內容閘門）——與靜態 Locked 相鄰，語意同屬可見性 */}
+      {gateFields && (
+        <>
+          <div className="ned-inspector-sep" />
+          <Section label="progress gate">{gateFields}</Section>
+        </>
+      )}
 
       <div className="ned-inspector-sep" />
 

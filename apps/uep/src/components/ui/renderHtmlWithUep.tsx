@@ -2,10 +2,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import UepDialogue from './UepDialogue';
 import './InlineAudioPlayer.css';
+import { getApiBase } from '../../lib/apiBase';
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const ASSET_ATTR_RE =
   /\b(src|data-src)=(["'])(https?:\/\/[^"']+\/api\/assets\/|\/api\/assets\/)([^"']+)\2/g;

@@ -1,8 +1,12 @@
 /**
+ * @deprecated 一次性遷移腳本，已完成任務並棄用。
+ * 目前內容源直接以 D1 為主，透過 admin 編輯器維護 + `pnpm sync` 同步。
+ * 保留此檔僅作歷史參考；不應再執行。
+ *
  * 遷移腳本：將 Concepts 區域的 MD 檔案匯入到 Content API (D1)
  * 解析 GitBook 語法為結構化 JSON（Dossier / Browser / Chrono / Diff）
  *
- * 使用方式：
+ * 使用方式（已停用）：
  *   node scripts/migrate-concepts.mjs [--remote] [--clean]
  */
 
@@ -51,8 +55,8 @@ const STACKS = {
         ],
       },
       {
-        slug: 'inversa',
-        typeGroup: 'inversa',
+        slug: 'invera',
+        typeGroup: 'invera',
         variants: [
           { id: 'u', label: 'U', src: 'concepts/server/records/inversa_u.md' },
         ],
@@ -315,8 +319,8 @@ function parseEntries(text, groupLabel) {
   return entries;
 }
 
-// === Inversa 特殊解析（每個角色是 #### heading + 描述） ===
-function parseInversa(body) {
+// === Invera（固有力）特殊解析（每個角色是 #### heading + 描述） ===
+function parseInvera(body) {
   const intro_html = extractIntroHtml(body);
   const tabs = extractTabs(body);
   const subcategories = tabs.map((tab) => {
@@ -761,8 +765,8 @@ function buildDossierPage(stackKey, typeDef) {
     sources.push(v.src);
 
     const parsed =
-      typeDef.typeGroup === 'inversa'
-        ? parseInversa(md.body)
+      typeDef.typeGroup === 'invera'
+        ? parseInvera(md.body)
         : parseDossier(md.body);
     if (!parsed) continue;
 

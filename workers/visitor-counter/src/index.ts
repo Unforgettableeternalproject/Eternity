@@ -12,6 +12,39 @@ interface VisitorData {
   lastVisitTimestamp: number;
 }
 
+/** 支援的分站。無參數視同 root，讓舊 KV key（visitor-data）保持相容。 */
+type SiteKey = 'root' | 'uep';
+
+/**
+ * 從 query 解析分站；未指定或非法值 → 'root'。
+ * 這個預設值讓所有舊 client（不帶 ?site）直接落到 root 桶，與升級前一致。
+ */
+function parseSite(url: URL): SiteKey {
+  const raw = url.searchParams.get('site');
+  if (raw === 'uep') return 'uep';
+  return 'root';
+}
+
+/**
+ * 統計資料的 KV key。
+ * - root（含無參數）：'visitor-data' — 沿用舊 key，繼承歷史計數
+ * - uep：'visitor-data:uep' — 全新獨立桶
+ */
+function statsKey(site: SiteKey): string {
+  return site === 'root' ? 'visitor-data' : `visitor-data:${site}`;
+}
+
+/**
+ * 訪客指紋 KV key。
+ * - root（含無參數）：'visitor:{fp}' — 沿用舊 key
+ * - uep：'visitor:uep:{fp}' — 獨立命名空間，避免與 root 撞 fingerprint 造成互相封鎖
+ */
+function fingerprintKey(site: SiteKey, fingerprint: string): string {
+  return site === 'root'
+    ? `visitor:${fingerprint}`
+    : `visitor:${site}:${fingerprint}`;
+}
+
 /** 簡易 JWT 驗證（只驗簽章，不檢查 exp 等 claims） */
 async function verifyJwt(token: string, secret: string): Promise<boolean> {
   try {
@@ -92,14 +125,15 @@ export default {
 
     // 路由處理
     if (url.pathname === '/api/visitor/count' && request.method === 'GET') {
-      // 獲取總訪客數
+      // 獲取總訪客數（依 site 分桶；無參數=root，沿用舊 key）
+      const site = parseSite(url);
       const data = await env.VISITOR_STATS.get<VisitorData>(
-        'visitor-data',
+        statsKey(site),
         'json'
       );
       const totalVisitors = data?.totalVisitors || 0;
 
-      return new Response(JSON.stringify({ totalVisitors }), {
+      return new Response(JSON.stringify({ site, totalVisitors }), {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
@@ -108,9 +142,11 @@ export default {
     }
 
     if (url.pathname === '/api/visitor/track' && request.method === 'POST') {
-      // 追蹤新訪客（使用簡單指紋識別）
+      // 追蹤新訪客（使用簡單指紋識別，依 site 分桶）
+      const site = parseSite(url);
       const fingerprint = generateFingerprint(request);
-      const visitorKey = `visitor:${fingerprint}`;
+      const visitorKey = fingerprintKey(site, fingerprint);
+      const dataKey = statsKey(site);
 
       // 檢查這個訪客是否已經訪問過（24小時內）
       const lastVisit = await env.VISITOR_STATS.get(visitorKey);
@@ -134,7 +170,7 @@ export default {
       if (shouldCount) {
         // 更新總訪客數
         const data = (await env.VISITOR_STATS.get<VisitorData>(
-          'visitor-data',
+          dataKey,
           'json'
         )) || {
           totalVisitors: 0,
@@ -145,7 +181,7 @@ export default {
         data.lastVisitTimestamp = now;
 
         // 儲存更新後的數據
-        await env.VISITOR_STATS.put('visitor-data', JSON.stringify(data));
+        await env.VISITOR_STATS.put(dataKey, JSON.stringify(data));
 
         // 記錄訪客指紋（保存 30 天）
         await env.VISITOR_STATS.put(visitorKey, now.toString(), {
@@ -154,6 +190,7 @@ export default {
 
         return new Response(
           JSON.stringify({
+            site,
             totalVisitors: data.totalVisitors,
             tracked: true,
           }),
@@ -166,12 +203,10 @@ export default {
         );
       } else {
         // 已經計數過的訪客
-        const data = await env.VISITOR_STATS.get<VisitorData>(
-          'visitor-data',
-          'json'
-        );
+        const data = await env.VISITOR_STATS.get<VisitorData>(dataKey, 'json');
         return new Response(
           JSON.stringify({
+            site,
             totalVisitors: data?.totalVisitors || 0,
             tracked: false,
           }),
@@ -218,6 +253,10 @@ export default {
         }
       }
 
+      // 依 site 分桶重置（無參數=root，沿用舊行為）
+      const site = parseSite(url);
+      const dataKey = statsKey(site);
+
       // 讀取請求 body，支援指定重置值
       let resetTo = 0;
       try {
@@ -232,7 +271,7 @@ export default {
       // 重置計數
       const now = Date.now();
       await env.VISITOR_STATS.put(
-        'visitor-data',
+        dataKey,
         JSON.stringify({
           totalVisitors: resetTo,
           lastVisitTimestamp: now,
@@ -240,7 +279,7 @@ export default {
       );
 
       return new Response(
-        JSON.stringify({ ok: true, totalVisitors: resetTo }),
+        JSON.stringify({ ok: true, site, totalVisitors: resetTo }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

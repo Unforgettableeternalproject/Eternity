@@ -28,6 +28,13 @@ graph LR
 
 從 `develop` 建立 release 分支，命名規則：`release/vX.Y.Z`
 
+**版本號慣例：**
+
+- 一般版本：`vX.Y.Z`（如 `v0.9.8`）
+- 小型更新：`vX.Y.Z.N` 四段流水號（如 `v0.9.8.2`），用於 UI 微調、功能小改等不足以進位 Z 的更新
+- 後綴（`-stable`、`-hotfixN`）由 CI 自動加上，不要手動寫進 package.json
+- ci.yml 的 release/hotfix 偵測 regex 已支援可選第四段（`v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?`）
+
 ```bash
 git checkout develop
 git checkout -b release/vX.Y.Z
