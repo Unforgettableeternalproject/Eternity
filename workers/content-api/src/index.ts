@@ -1797,6 +1797,33 @@ export default {
       );
     }
 
+    // ═══ 臨時診斷端點（Issue #41 unauthorized 排查，確認後移除）═══
+    // 只回傳認證設定的布林/URL 狀態與 requireJwt 結果，不回傳任何 secret/jwt 內容。
+    if (path === '/api/test/auth-debug' && request.method === 'GET') {
+      if (env.ETERNITY_TEST_ENV !== 'true') {
+        return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+      }
+      const authHeader = request.headers.get('Authorization');
+      const jwtResult = await requireJwt(request, env);
+      return jsonResponse(
+        {
+          ok: true,
+          data: {
+            isTestEnv: env.ETERNITY_TEST_ENV ?? null,
+            hasJwtSecret: !!env.JWT_SECRET,
+            hasVerifyUrl: !!env.TEST_AUTH_VERIFY_URL,
+            verifyUrl: env.TEST_AUTH_VERIFY_URL ?? null,
+            receivedAuthHeader: !!authHeader,
+            authScheme: authHeader ? authHeader.split(' ')[0] : null,
+            requireJwtPassed: jwtResult !== null,
+            resolvedRole: jwtResult?.role ?? null,
+          },
+        },
+        200,
+        cors
+      );
+    }
+
     // ═══ Test seed snapshot（正式環境唯讀）═══
     // 資料本來就由公開內容 API 提供；此端點只把 reset 所需骨架一次打包，
     // 避免 Admin reseed 發出上百個 subrequest。test Worker 不提供 snapshot，
