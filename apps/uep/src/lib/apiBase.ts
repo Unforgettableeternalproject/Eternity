@@ -108,7 +108,9 @@ function envBase(): string {
   const raw =
     (import.meta.env.PUBLIC_CONTENT_API_URL as string | undefined) ||
     FALLBACK_BASE;
-  return raw.replace(/\/+$/, '');
+  // trim 防禦：Cloudflare Pages 環境變數常被誤貼前導/尾隨空白，
+  // 帶空白的 URL 雖被 fetch 容忍，但字串比對（isTestWorkerUrl 等）會出錯。
+  return raw.trim().replace(/\/+$/, '');
 }
 
 // ── 公開 API ──
@@ -125,7 +127,7 @@ export function getApiBase(serverCookieValue?: string | null): string {
       ? readCookie(TEST_COOKIE_NAME)
       : decodeCookieValue(serverCookieValue);
   if (override && isTestWorkerUrl(override)) {
-    return override.replace(/\/+$/, '');
+    return override.trim().replace(/\/+$/, '');
   }
   return envBase();
 }

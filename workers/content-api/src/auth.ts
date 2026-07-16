@@ -91,34 +91,13 @@ export async function requireJwt(
   const auth = request.headers.get('Authorization');
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
 
-  if (!env.JWT_SECRET && env.ETERNITY_TEST_ENV === 'true') {
-    if (!token || !env.TEST_AUTH_VERIFY_URL) return null;
-    try {
-      const response = await fetch(env.TEST_AUTH_VERIFY_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return null;
-      const result = (await response.json()) as {
-        ok?: boolean;
-        data?: { username?: string; role?: string; display_name?: string };
-      };
-      if (!result.ok || !result.data?.username) return null;
-      if (result.data.role === 'reader') return null;
-      return {
-        sub: result.data.username,
-        role: result.data.role || 'admin',
-        display_name: result.data.display_name || result.data.username,
-        iat: 0,
-        exp: 0,
-        jti: 'remote-verified',
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  // 僅非 test 的本地開發環境保留無 secret bypass。
-  if (!env.JWT_SECRET)
+  if (!env.JWT_SECRET) {
+    // test worker 必須設定與正式相同的 JWT_SECRET 做本地驗證。
+    // ⚠️ 不可改回「向正式 worker fetch /api/auth/me 遠端驗證」——兩者同屬
+    // 一個 Cloudflare 帳號，worker-to-worker 的 HTTP fetch 會被擋成 error 1042，
+    // 遠端驗證在真實環境永遠失敗。test env 未設 JWT_SECRET 屬部署錯誤，fail closed。
+    if (env.ETERNITY_TEST_ENV === 'true') return null;
+    // 僅非 test 的本地開發環境保留無 secret bypass。
     return {
       sub: 'dev',
       role: 'super_admin',
@@ -127,6 +106,7 @@ export async function requireJwt(
       exp: 0,
       jti: '',
     };
+  }
   if (!token) return null;
   const payload = await verifyJwt(token, env.JWT_SECRET);
   // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，

@@ -31,7 +31,6 @@ declare namespace Cloudflare {
 
     // ===== Test env 旗標 =====
     ETERNITY_TEST_ENV?: string;
-    TEST_AUTH_VERIFY_URL?: string;
 
     // ===== Vitest 測試用（vitest.config.ts 注入） =====
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
