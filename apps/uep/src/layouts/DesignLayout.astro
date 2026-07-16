@@ -1,6 +1,9 @@
 ---
 import UepToastContainer from '../components/ui/UepToast';
 import UepDialogContainer from '../components/ui/UepDialog';
+import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
+import TestModeBanner from '../components/ui/TestModeBanner';
+import UepDevTools from '../devtools/UepDevTools';
 
 interface Props {
   title: string;
@@ -121,12 +124,41 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       initContentProtection();
     </script>
 
+    <!-- 訪客追蹤：文件站分站計數，透過 visitor-counter Worker 記錄 site=uep -->
+    <script>
+      import { scheduleUepVisitorTrack } from '../scripts/visitor-track';
+      scheduleUepVisitorTrack();
+    </script>
+
     <!-- Theme init (no flash) + lobby block -->
     <script is:inline>
       (function () {
         var t = localStorage.getItem('uep-theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
-        if (document.documentElement.hasAttribute('data-lobby')) {
+        /* 剛從 /login 完成 auth 回來：WelcomeCeremony 全屏遮罩自己就是唯一畫面，
+           跳過 lobbyBlock 避免雙層遮罩造成 Welcome 淡出時空白閃現。
+           同時在 body 上加 class，讓需要 skip 入場動畫的元件（主頁 lobby 等）
+           可以檢查這個 class 決定是否播——歡迎儀式作為「特別例外」取代
+           頁面自身的長入場，避免 Welcome 淡出後還看到頁面在跑動畫 */
+        var welcomePending = false;
+        try {
+          welcomePending =
+            sessionStorage.getItem('uep.welcome.pending.v1') !== null;
+        } catch (e) {
+          /* sessionStorage 不可用時走預設分支 */
+        }
+        if (welcomePending) {
+          /* body 尚未存在（script 在 head 執行），先掛到 html 上；DOMContentLoaded
+             後再搬到 body。兩個地方都掛，元件檢查任一即可 */
+          document.documentElement.classList.add('uep-welcome-pending');
+          document.addEventListener('DOMContentLoaded', function () {
+            document.body.classList.add('uep-welcome-pending');
+          });
+        }
+        if (
+          document.documentElement.hasAttribute('data-lobby') &&
+          !welcomePending
+        ) {
           var bg = t === 'dark' ? '#14151a' : '#fafaf7';
           var s = document.createElement('style');
           s.id = 'lobby-block-style';
@@ -140,9 +172,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     </script>
   </head>
   <body data-zone={zone}>
+    <TestModeBanner client:load />
     <slot />
     <UepToastContainer client:idle />
     <UepDialogContainer client:idle />
+    <GlobalWelcomeHost client:idle />
+    <UepDevTools client:idle />
   </body>
 </html>
 

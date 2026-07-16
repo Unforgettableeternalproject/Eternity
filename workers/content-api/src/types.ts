@@ -8,6 +8,17 @@ export interface Env {
   API_TOKEN?: string;
   JWT_SECRET?: string;
   BOOTSTRAP_TOKEN?: string;
+  /** visitor-counter Worker base URL，供 /api/widget/discord-stats 拿文件站訪客數 */
+  VISITOR_API_URL?: string;
+  /** visitor-counter Worker service binding，避免 Worker-to-Worker fetch workers.dev 失敗 */
+  VISITOR_COUNTER?: Fetcher;
+  /**
+   * Test env 旗標（wrangler.toml [env.test.vars] 設定為 "true"）。
+   * prod worker 永遠不含此 var，用於啟用 /api/test/reset 等測試專屬端點。
+   */
+  ETERNITY_TEST_ENV?: string;
+  /** Test Worker 無本地 JWT secret 時，向正式 Worker 驗證 Admin JWT。 */
+  TEST_AUTH_VERIFY_URL?: string;
 }
 
 // ===== 內容區塊系統 =====
@@ -166,6 +177,9 @@ export interface ApiResponse<T = unknown> {
 
 export type AdminRole = 'super_admin' | 'editor' | 'viewer';
 
+/** 讀者角色 — UEP 探索者帳號（Epic 2 S5），與 admin 角色互斥 */
+export type ReaderRole = 'reader';
+
 export interface AdminUserRow {
   id: number;
   username: string;
@@ -179,11 +193,42 @@ export interface AdminUserRow {
 
 export interface JwtPayload {
   sub: string;
-  role: AdminRole;
+  /**
+   * admin 角色或 'reader'（讀者帳號）。
+   * ⚠️ admin 保護路由（requireJwt）必須拒絕 'reader'——
+   * 兩種 token 共用 JWT_SECRET，僅靠 role 區分權限邊界。
+   */
+  role: AdminRole | ReaderRole;
   display_name: string;
   iat: number;
   exp: number;
   jti: string;
+}
+
+// ===== UEP 讀者帳號（Epic 2 S5） =====
+
+export interface UepUserRow {
+  id: number;
+  username: string;
+  password_hash: string;
+  email: string | null;
+  alias: string;
+  observer_ever: number;
+  progress: string | null;
+  is_active: number;
+  admin_note: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UepRegisterRequest {
+  username: string;
+  password: string;
+  /** 可選郵件信箱 */
+  email?: string;
+  /** 註冊 UI roll 出的代稱；未傳則由伺服器 roll。必須是詞庫合法組合 */
+  alias?: string;
 }
 
 export interface LoginRequest {

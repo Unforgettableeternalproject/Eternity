@@ -24,14 +24,14 @@ import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 
 import JourneyNav from './JourneyNav';
 import JourneyScene from './JourneyScene';
 import './HomePage.css';
+import { getApiBase } from '../../lib/apiBase';
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 const ZONE_VEIL_DURATION_MS = 1800;
 const ZONE_VEIL_ALIGN_DELAY_MS = 100;
 const DESKTOP_DOWN_GATE_MIN = 0.66;
@@ -240,6 +240,19 @@ export default function HomePage({
   useEffect(() => {
     setIsDark(document.documentElement.dataset.theme === 'dark');
 
+    // 剛從 /login 完成 auth 回來：WelcomeCeremony 已作為特別入場儀式播出，
+    // 主頁的 4.2s 大廳動畫該跳過——避免 Welcome 淡出後還看到頁面在跑動畫。
+    // 由 DesignLayout inline script 種下 class（html 與 body 各種一份，早於此
+    // effect 執行）；GlobalWelcomeHost 播完儀式才移除
+    const welcomePending =
+      document.documentElement.classList.contains('uep-welcome-pending') ||
+      document.body.classList.contains('uep-welcome-pending');
+    if (welcomePending) {
+      // 移除 head 注入的防閃遮罩（本次流程不會播 lobby，遮罩留著會擋畫面）
+      document.getElementById('lobby-block-style')?.remove();
+      return;
+    }
+
     // TODO: 測試結束後恢復 session 檢查（取消下方註解）
     // let seen = false;
     // try { seen = sessionStorage.getItem('uep-lobby-seen') === '1'; } catch {}
@@ -256,6 +269,14 @@ export default function HomePage({
     if (lobbyPhase !== 'playing') return;
     // 等 React 已掛上 lobby overlay 後，再移除 head 注入的防閃遮罩。
     document.getElementById('lobby-block-style')?.remove();
+  }, [lobbyPhase]);
+
+  // lobby 動畫期間隱藏浮動 UI（S7-C 驗收回饋）：lobby-overlay 的
+  // z-index（400）低於浮島層帶（2000+），與 IntroOverlay/PortalTransition
+  // 同樣走 zoneEntryLock（body class），動畫播畢釋放。
+  useEffect(() => {
+    if (lobbyPhase !== 'playing') return;
+    return acquireZoneEntryLock();
   }, [lobbyPhase]);
 
   // 測量 TopBar 高度，設定 --topbar-h 供 section 高度計算

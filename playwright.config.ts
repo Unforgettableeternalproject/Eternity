@@ -29,6 +29,17 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     navigationTimeout: 15_000,
+    /* 預埋入站儀式標記——否則每個全新 context 都會被身分選擇視窗擋住。
+       要測試儀式本身的 spec 可自行覆寫 storageState。 */
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:4321',
+          localStorage: [{ name: 'uep.onboarded.v1', value: 'e2e' }],
+        },
+      ],
+    },
   },
 
   projects: [

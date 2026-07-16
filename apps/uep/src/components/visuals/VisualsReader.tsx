@@ -30,6 +30,7 @@ import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import './VisualsReader.css';
+import { getApiBase } from '../../lib/apiBase';
 
 // ──────────────────────────────────────────────────────────────
 // 型別
@@ -72,9 +73,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const VISUALS_ZONE = ZONES.find((z) => z.id === 'visuals')!;
 const ACCENT = '#5E548E';
@@ -221,9 +220,7 @@ function spoilerFilter(level: number): string {
 // ──────────────────────────────────────────────────────────────
 // Visuals Monologue Player — 獨白播放器（獨立元件，不依賴 AudioProvider）
 // ──────────────────────────────────────────────────────────────
-const VMONO_API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const VMONO_API_BASE = getApiBase();
 
 function VisualsMonoPlayer({
   audioKey,

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { acquireZoneEntryLock } from './zoneEntryLock';
+
 interface UseZoneBootReadyOptions {
   /** boot 動畫最短顯示時間（ms），預設 1800 */
   minDisplayMs?: number;
@@ -45,6 +47,12 @@ export function useZoneBootReady(opts?: UseZoneBootReadyOptions) {
     },
     [tryBootReady]
   );
+
+  // boot 動畫播放期間隱藏浮島層（body class，見 zoneEntryLock）
+  useEffect(() => {
+    if (contentReady) return;
+    return acquireZoneEntryLock();
+  }, [contentReady]);
 
   useEffect(() => {
     const t = setTimeout(() => {

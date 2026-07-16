@@ -83,4 +83,7 @@ README_Example.zh-tw.md
 settings.local.json
 CLAUDE.md
 AGENTS.md
-.claude/worktrees/**
+.claude/
+
+# entityKey 遷移產物（generate-entity-keys.mjs 輸出，人工確認後另存 entity-key-map.json）
+scripts/entity-key-map.proposed.json

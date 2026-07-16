@@ -1,0 +1,133 @@
+@keyframes uep-echo-preview-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+.uep-echo-preview {
+  --echo: #8e6cb6;
+  position: fixed;
+  right: 20px;
+  bottom: 82px;
+  z-index: 2995;
+  width: min(288px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: 0 14px 34px rgba(20, 12, 4, 0.14);
+  animation: uep-echo-preview-in 0.35s var(--ease, ease) both;
+}
+
+.uep-echo-preview__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px dashed var(--line-strong);
+  color: var(--echo);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.uep-echo-preview__header button {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.uep-echo-preview__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--echo);
+  box-shadow: 0 0 6px var(--echo);
+}
+
+.uep-echo-preview__track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.uep-echo-preview__orb {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, var(--echo), #26221b 140%);
+  box-shadow:
+    0 0 0 2px var(--bg-card),
+    0 0 0 3px var(--echo);
+}
+
+.uep-echo-preview__track div {
+  min-width: 0;
+}
+
+.uep-echo-preview__track strong,
+.uep-echo-preview__track small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uep-echo-preview__track strong {
+  color: var(--ink-title);
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+}
+
+.uep-echo-preview__track small {
+  margin-top: 3px;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.uep-echo-preview__actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.uep-echo-preview__actions button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.uep-echo-preview__actions button.is-primary {
+  border-color: var(--echo);
+  background: var(--echo);
+  color: #fff;
+}
+
+.uep-echo-preview__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 760px) {
+  .uep-echo-preview {
+    right: 16px;
+    bottom: 76px;
+  }
+}

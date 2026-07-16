@@ -28,6 +28,7 @@ import {
   fromContentBlock,
 } from '../editor/homepage/types';
 import './StorageReader.css';
+import { getApiBase } from '../../lib/apiBase';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -61,9 +62,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const STORAGE_ZONE = ZONES.find((z) => z.id === 'storage')!;
 const STO_GOLD = '#D5B618';

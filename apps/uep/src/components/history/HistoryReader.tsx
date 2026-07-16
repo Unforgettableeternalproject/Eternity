@@ -4,6 +4,7 @@ import { ZONES } from '../../data/zones';
 import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import renderInteractiveHtml from '../ui/renderInteractiveHtml';
 import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZonePrevNext } from '../zone/ZonePrevNext';
@@ -15,9 +16,38 @@ import {
   pushUrl as zonePushUrl,
   clearUrl,
 } from '../zone/useZoneRouter';
-import { isHidden, isLocked } from '../zone/contentVisibility';
+import {
+  isHidden,
+  isLocked,
+  getLockKind,
+  isProgressionChainHidden,
+} from '../zone/contentVisibility';
+import {
+  useScanline,
+  useProgress,
+  buildProgressTreeAdapter,
+  collectMarkers,
+  getProgressManager,
+  resolveResumeMarkerIdx,
+  PROGRESS_CHANGE_EVENT,
+} from '../../progress';
+import type { ProgressTreeAdapter, ProgressChangeDetail } from '../../progress';
+import {
+  LOST_BOOKMARK_OPEN_GATE_EVENT,
+  dismissLostBookmark,
+  getIslandRuntime,
+  isLostBookmarkVisible,
+  mountLostBookmarkTestBridge,
+  rollLostBookmark,
+  settleLostBookmark,
+  unlockIsland,
+} from '../../islands';
+import LostBookmarkGate from './LostBookmarkGate';
+import { useEchoSpots } from './useEchoSpots';
+import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
+import { ChapterTimeline } from './ChapterTimeline';
 import type {
   HomepageBlock,
   ZoneHeaderData,
@@ -25,6 +55,7 @@ import type {
   ArchwayCard,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import { getApiBase } from '../../lib/apiBase';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType =
@@ -72,9 +103,7 @@ interface Page {
   updatedAt: string;
 }
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const HISTORY_ZONE = {
   main: '#6B3F2A',
@@ -269,6 +298,11 @@ export default function HistoryReader() {
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 掃描線文末哨兵（通過 = 頁面完成）
+  const scanSentinelRef = useRef<HTMLDivElement>(null);
+  const resumeJumpRef = useRef(false);
+  const resumeJumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollVelocityRef = useRef(0);
   // 跨頁面導航的滾動位置記憶
   const { saveScroll, getSavedPosition, clearSavedPosition } = useScrollMemory(
     scrollRef,
@@ -280,13 +314,181 @@ export default function HistoryReader() {
     pct: number; // 0~100，標記在滾動軸上的百分比位置
     leaving?: boolean; // 消失動畫中
   } | null>(null);
+  // 「一張遺落的書籤」儀式頁是否佔據內容區（S6-2，浮島解鎖儀式）
+  const [bookmarkGateOpen, setBookmarkGateOpen] = useState(false);
+
+  // 進度需先於 echo spot handler 建立：spot 授旗永遠執行，但播放/提示卡
+  // 受 echoes 島掛載與 spoiler 狀態守門。
+  const progress = useProgress();
+  const onEchoMarkerPassed = useEchoSpots({
+    pageId: currentId,
+    progress,
+    apiBase: API_BASE,
+    resumeJumpRef,
+    scrollVelocityRef,
+  });
+
+  // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
+  // 停下閱讀後仍被前一個快速 wheel 事件誤判。
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    let lastTop = element.scrollTop;
+    let lastAt = performance.now();
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      const now = performance.now();
+      const elapsed = Math.max(now - lastAt, 1);
+      scrollVelocityRef.current =
+        (Math.abs(element.scrollTop - lastTop) / elapsed) * 1000;
+      lastTop = element.scrollTop;
+      lastAt = now;
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        scrollVelocityRef.current = 0;
+      }, 180);
+    };
+    element.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      if (settleTimer) clearTimeout(settleTimer);
+    };
+  }, []);
+
+  // 掃描線：追蹤文章閱讀進度（Epic 2）。滾動容器是內層
+  // .history-content div，root 必須指定 scrollRef 而非 viewport；
+  // articleHtml 變更時 observer 整組重建。
+  useScanline({
+    pageId: currentId,
+    containerRef: contentRef,
+    sentinelRef: scanSentinelRef,
+    rootRef: scrollRef,
+    contentKey: articleHtml,
+    enabled: Boolean(
+      currentId &&
+      currentPage &&
+      articleHtml &&
+      !contentLoading &&
+      !contentError &&
+      !bookmarkGateOpen
+    ),
+    onMarkerPassed: onEchoMarkerPassed,
+  });
+
+  const beginResumeJump = () => {
+    resumeJumpRef.current = true;
+    try {
+      sessionStorage.setItem('reading-resume-jump', '1');
+    } catch {
+      // sessionStorage 不可用時 ref 仍足以保護當次跳轉。
+    }
+    const clear = () => {
+      resumeJumpRef.current = false;
+      try {
+        sessionStorage.removeItem('reading-resume-jump');
+      } catch {
+        // no-op
+      }
+      if (resumeJumpTimerRef.current) {
+        clearTimeout(resumeJumpTimerRef.current);
+        resumeJumpTimerRef.current = null;
+      }
+    };
+    scrollRef.current?.addEventListener('scrollend', clear, { once: true });
+    if (resumeJumpTimerRef.current) clearTimeout(resumeJumpTimerRef.current);
+    resumeJumpTimerRef.current = setTimeout(clear, 500);
+  };
+
+  useEffect(
+    () => () => {
+      if (resumeJumpTimerRef.current) clearTimeout(resumeJumpTimerRef.current);
+    },
+    []
+  );
+
+  // 閱讀時間統計（S6，History Island 的簡單統計用）：
+  // 每次文章停留結束（換頁/離開）時累計停留時間，單次造訪上限
+  // 30 分鐘防掛機灌水。粗粒度即可——這只是輔助統計，不是精確計時。
+  useEffect(() => {
+    if (!currentId) return undefined;
+    const start = Date.now();
+    return () => {
+      const READING_TIME_CAP_MS = 30 * 60 * 1000;
+      const elapsed = Math.min(Date.now() - start, READING_TIME_CAP_MS);
+      getProgressManager().addReadingTime(elapsed);
+    };
+  }, [currentId]);
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
+  // pageId → node 索引（進度鏈隱藏判定用）
+  const pagesById = useMemo(() => {
+    const map = new Map<string, PageTreeNode>();
+    for (const page of flatPages) map.set(page.id, page);
+    return map;
+  }, [flatPages]);
+  const resolvePageById = (pageId: string) => pagesById.get(pageId);
+
+  // 遺落的書籤：每次「首次讀完一篇」roll 一次出現機率（S6-2）。
+  // page-completed 信號只在 completedPageIds 首次新增時發出，
+  // 跳章/重讀不會誤觸。
+  useEffect(() => {
+    const onProgressChange = (event: Event) => {
+      const detail = (event as CustomEvent<ProgressChangeDetail>).detail;
+      if (detail?.source !== 'page-completed') return;
+      rollLostBookmark(detail.state);
+    };
+    window.addEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
+    return () =>
+      window.removeEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
+  }, []);
+
+  // 遺落的書籤測試 hook（S6-3，dev only）：機率制難以手動驗收，
+  // 掛 window.__uepLostBookmarkTest 供 console 操作；openGate 事件
+  // 直接開啟儀式頁。production build 為 no-op。
+  useEffect(() => {
+    const unmountBridge = mountLostBookmarkTestBridge();
+    const onOpenGate = () => setBookmarkGateOpen(true);
+    window.addEventListener(LOST_BOOKMARK_OPEN_GATE_EVENT, onOpenGate);
+    return () => {
+      unmountBridge();
+      window.removeEventListener(LOST_BOOKMARK_OPEN_GATE_EVENT, onOpenGate);
+    };
+  }, []);
+
+  // 書籤條目的插入錨點：最後閱讀頁所在的 chapter（跟隨閱讀進度，
+  // 呼應「書架縫隙」——條目渲染在該 chapter 的樹項下方）
+  const lostBookmarkAnchorId = useMemo(() => {
+    if (!isLostBookmarkVisible(progress)) return null;
+    const lastId = progress.lastVisitedPageId;
+    if (!lastId) return null;
+    const self = pagesById.get(lastId);
+    if (!self) return null;
+    if (self.pageType === 'chapter') return self.id;
+    const chapter = (ancestorMap.get(lastId) || []).find(
+      (a) => a.pageType === 'chapter'
+    );
+    return chapter ? chapter.id : self.id;
+  }, [progress, pagesById, ancestorMap]);
+
+  // Progress tree adapter：把 PageTreeNode 樹接進 gating 的 tree 求值層
+  // （effectiveGate / isEffectivelyCompleted 需要 sibling & 父層資訊）。
+  // S6 起抽出為 progress/tree 的 buildProgressTreeAdapter 共用實作——
+  // History Island 需要同一套求值語意（同層前一個進度頁、父容器繼承、
+  // hidden/locked 排除、內容型 pageType 過濾）。
+  const progressTree = useMemo<ProgressTreeAdapter>(
+    () => buildProgressTreeAdapter(tree),
+    [tree]
+  );
+
   const readablePages = useMemo(
     () =>
-      flatPages.filter((page) => page.pageType !== 'page' && !isLocked(page)),
-    [flatPages]
+      flatPages.filter(
+        (page) =>
+          page.pageType !== 'page' &&
+          !isLocked(page, progress, page.id, progressTree)
+      ),
+    [flatPages, progress, progressTree]
   );
   const pageLevelNodes = useMemo(
     () => flatPages.filter((page) => page.pageType === 'page'),
@@ -338,6 +540,10 @@ export default function HistoryReader() {
     void fetchTree();
   }, []);
 
+  // entity 啟動事件的消費端是 Terminal Island（S7-C 接管；
+  // 監聽常駐 IslandHost，經 terminalBridge 轉交）——S4 的 Toast
+  // 佔位 effect 已於此拆除。本元件只負責 dispatch（見 handleContentClick）。
+
   // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
   useZoneRouter({
     routes: [
@@ -362,10 +568,79 @@ export default function HistoryReader() {
     setBootNavPending: setNavPending,
   });
 
+  // 目前頁面的閘門重新驗證：loadPage 只在進入時擋，若使用者已在
+  // gated 頁內而狀態事後變化（觀測者切回探索者、進度重置、登入合併
+  // 後旗標消失），gate 不再滿足時要踢回 landing，不讓內容殘留。
+  useEffect(() => {
+    if (!currentId) return;
+    const node = pagesById.get(currentId);
+    if (node && isLocked(node, progress, node.id, progressTree)) {
+      setCurrentId(null);
+      setCurrentPage(null);
+      setArticleHtml('');
+      setScrollHint(null);
+      clearUrl();
+      scrollRef.current?.scrollTo({ top: 0 });
+    }
+  }, [progress, currentId, pagesById, progressTree]);
+
   useEffect(() => {
     if (!pageLevelNodes.length) return;
     void fetchLandingPages(pageLevelNodes);
   }, [pageLevelNodes]);
+
+  // 孤兒 complete 靜默清理：tree 載入或變動時掃一次，
+  // 清除依賴不成立的 completed:* 旗標（測試模式手動蓋、匯入舊資料、
+  // 靜態鎖遲設等）。sweep 本身冪等，無孤兒時零副作用。
+  useEffect(() => {
+    if (!pagesById.size) return;
+    getProgressManager().sweepOrphanCompletions(progressTree);
+  }, [pagesById, progressTree]);
+
+  // 節點狀態轉換動畫：追蹤上次 render 時每個節點的可見鎖定態，
+  // progress 變化後比對觸發「露出」與「解鎖」入場動畫。第一次
+  // mount 建立基線（不觸發動畫，避免頁面初載時整片亮起）。
+  type NodeStatus = 'hidden' | 'progression' | 'flag' | 'static' | 'open';
+  const prevStatuses = useRef<Map<string, NodeStatus>>(new Map());
+  const [revealAnim, setRevealAnim] = useState<Set<string>>(new Set());
+  const [unlockAnim, setUnlockAnim] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!pagesById.size) return;
+    const nextStatuses = new Map<string, NodeStatus>();
+    const revealed = new Set<string>();
+    const unlocked = new Set<string>();
+    const baseline = prevStatuses.current.size === 0;
+    for (const page of flatPages) {
+      const chainHidden = isProgressionChainHidden(
+        page,
+        progress,
+        resolvePageById,
+        page.id,
+        progressTree
+      );
+      const kind = chainHidden
+        ? null
+        : getLockKind(page, progress, page.id, progressTree);
+      const status: NodeStatus = chainHidden ? 'hidden' : (kind ?? 'open');
+      nextStatuses.set(page.id, status);
+      if (baseline) continue;
+      const prev = prevStatuses.current.get(page.id);
+      if (prev === 'hidden' && status !== 'hidden') revealed.add(page.id);
+      if ((prev === 'progression' || prev === 'flag') && status === 'open')
+        unlocked.add(page.id);
+    }
+    prevStatuses.current = nextStatuses;
+    if (revealed.size === 0 && unlocked.size === 0) return;
+    setRevealAnim(revealed);
+    setUnlockAnim(unlocked);
+    // 動畫長度 ≈ 0.9s；動畫結束後清除 class（重複觸發時
+    // React 會以新 Set 重掛 class，CSS animation 自然重播）
+    const clear = window.setTimeout(() => {
+      setRevealAnim(new Set());
+      setUnlockAnim(new Set());
+    }, 900);
+    return () => window.clearTimeout(clear);
+  }, [progress, flatPages, progressTree, pagesById]);
 
   // 載入首頁區塊資料，完成後通知 boot hook 解除動畫
   useEffect(() => {
@@ -500,8 +775,32 @@ export default function HistoryReader() {
   }
 
   async function loadPage(node: PageTreeNode, pushState = true) {
-    // 導航前先儲存當前頁面的滾動位置
-    saveScroll(currentId || 'landing');
+    // 閘門守衛：所有導航路徑（tree、zone tabs、文內連結、breadcrumb、
+    // prev/next、deep link）都收斂到這裡，鎖定頁一律擋下。
+    // tree/prev/next 各自有 UI 層排除，這裡是統一的最後防線。
+    if (isLocked(node, progress, node.id, progressTree)) return;
+
+    // 遺落的書籤：條目浮現時導航到「其他」頁面 = 忽視 → 消失並重置機率
+    // （S6-2 定案）。回到同一頁（重新整理的 deep link）不算忽視。
+    // 儀式頁若開著則一併關閉。
+    setBookmarkGateOpen(false);
+    const progressSnapshot = getProgressManager().getState();
+    if (node.id !== progressSnapshot.lastVisitedPageId) {
+      dismissLostBookmark(progressSnapshot);
+    }
+
+    // 導航前先儲存當前頁面的滾動位置。chapter 頁是目錄性質不應留紀錄，
+    // 順手也把先前殘留清除，避免使用者切換視角後回到過期位置。
+    const prevPageType = currentId
+      ? pagesById.get(currentId)?.pageType
+      : undefined;
+    if (currentId && prevPageType !== 'chapter') {
+      saveScroll(currentId);
+    } else if (currentId) {
+      clearSavedPosition(currentId);
+    } else {
+      saveScroll('landing');
+    }
     setScrollHint(null);
 
     if (node.pageType === 'page') {
@@ -535,21 +834,24 @@ export default function HistoryReader() {
       const page = await fetchPageById(node.id);
       setCurrentPage(page);
       setArticleHtml(renderBlocks(page.content));
-      // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記
+      // 記錄最後造訪頁（S6-2 續讀顯示；與掃描線 pageMarkers 無關）
+      getProgressManager().markPageVisited(node.id);
+      // 一律先回到頂部，若有已儲存位置則在滾動軸顯示標記。
+      // session 內用精確 scroll 位置；跨 session fallback 到
+      // 掃描線 lastMarkerIdx 對應的標記點位置。
       scrollRef.current?.scrollTo({ top: 0 });
       const saved = getSavedPosition(node.id);
-      if (saved) {
-        // 等 DOM 更新後計算百分比位置
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const el = scrollRef.current;
-            if (!el) return;
-            const scrollable = el.scrollHeight - el.clientHeight;
-            const pct = scrollable > 0 ? (saved / scrollable) * 100 : 0;
-            setScrollHint({ targetTop: saved, pct: Math.min(pct, 95) });
-          });
+          const el = scrollRef.current;
+          if (!el) return;
+          const targetTop = saved ?? resolveMarkerResumeTop(node.id, el);
+          if (targetTop == null || targetTop <= 0) return;
+          const scrollable = el.scrollHeight - el.clientHeight;
+          const pct = scrollable > 0 ? (targetTop / scrollable) * 100 : 0;
+          setScrollHint({ targetTop, pct: Math.min(pct, 95) });
         });
-      }
+      });
 
       if (pushState) zonePushUrl({ page: node.id.replace(/^history\//, '') });
     } catch (err) {
@@ -559,6 +861,27 @@ export default function HistoryReader() {
       setTransitionKey((k) => k + 1);
       setNavPending(false);
     }
+  }
+
+  /**
+   * 跨 session 續讀：由掃描線 lastMarkerIdx 換算滾動位置。
+   * 是否該提示由 resolveResumeMarkerIdx 統一判定（已完成頁面不提示，
+   * 即使讀完後回捲讓 lastMarkerIdx 變小）；內容變動導致索引失效時放棄。
+   */
+  function resolveMarkerResumeTop(
+    pageId: string,
+    scrollEl: HTMLElement
+  ): number | null {
+    const idx = resolveResumeMarkerIdx(getProgressManager().getState(), pageId);
+    if (idx == null || !contentRef.current) return null;
+    const marker = collectMarkers(contentRef.current)[idx];
+    if (!marker) return null;
+    const top =
+      (marker.el as HTMLElement).getBoundingClientRect().top -
+      scrollEl.getBoundingClientRect().top +
+      scrollEl.scrollTop -
+      120; // 標記點上方預留呼吸空間
+    return top > 0 ? top : null;
   }
 
   function toggleSidebar() {
@@ -571,6 +894,15 @@ export default function HistoryReader() {
 
   function onArticleClick(event: React.MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
+
+    // 已解鎖的 entity 標記：dispatch 啟動事件（浮島消費；S4 為 Toast 佔位）
+    const entityEl = target.closest<HTMLElement>(`[${UEP_ENTITY_ACTIVE_ATTR}]`);
+    if (entityEl) {
+      event.preventDefault();
+      dispatchEntityActivate(entityEl, currentId ?? undefined);
+      return;
+    }
+
     const navCard = target.closest<HTMLElement>('.content-card[data-nav-ref]');
     if (navCard) {
       const ref = navCard.dataset.navRef || '';
@@ -617,6 +949,15 @@ export default function HistoryReader() {
     }
   }
 
+  /** entity 標記的鍵盤可及性：Enter / Space 等同點擊 */
+  function onArticleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target as HTMLElement;
+    if (!target.hasAttribute(UEP_ENTITY_ACTIVE_ATTR)) return;
+    event.preventDefault();
+    dispatchEntityActivate(target, currentId ?? undefined);
+  }
+
   function toggleNode(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -627,7 +968,17 @@ export default function HistoryReader() {
   }
 
   function returnToLanding() {
-    saveScroll(currentId || 'landing');
+    // 目錄性質頁面（chapter）不記憶位置
+    const prevPageType = currentId
+      ? pagesById.get(currentId)?.pageType
+      : undefined;
+    if (currentId && prevPageType !== 'chapter') {
+      saveScroll(currentId);
+    } else if (currentId) {
+      clearSavedPosition(currentId);
+    } else {
+      saveScroll('landing');
+    }
     setScrollHint(null);
     setCurrentId(null);
     setCurrentPage(null);
@@ -651,6 +1002,18 @@ export default function HistoryReader() {
     return nodes
       .filter((node) => !isHidden(node) && isNodeVisible(node))
       .flatMap((node) => {
+        // 進度鏈隱藏：依賴頁本身仍鎖定的進度鎖頁面不顯示（循序漸進）
+        if (
+          isProgressionChainHidden(
+            node,
+            progress,
+            resolvePageById,
+            node.id,
+            progressTree
+          )
+        ) {
+          return [];
+        }
         const children = (node.children || []).filter(
           (child) => !isHidden(child)
         );
@@ -661,12 +1024,23 @@ export default function HistoryReader() {
         const hasChildren = children.length > 0;
         const isExpanded = expanded.has(node.id) || Boolean(query.trim());
         const isCurrent = node.id === currentId;
-        const nodeLocked = isLocked(node);
+        // 鎖定三態：static 原樣🔒 / progression 標題模糊 / flag 標題遮蔽
+        const lockKind = getLockKind(node, progress, node.id, progressTree);
+        const nodeLocked = lockKind !== null;
+        // 鎖定容器不展開子樹（子節點已於下方 render 中 guard），
+        // 一併收起 chevron 免得只按下無反應。
+        const showChevron = hasChildren && !nodeLocked;
 
-        return (
-          <div className="history-tree-item" data-depth={depth} key={node.id}>
+        const revealed = revealAnim.has(node.id);
+        const unlocked = unlockAnim.has(node.id);
+        const treeItem = (
+          <div
+            className={`history-tree-item${revealed ? ' is-revealed' : ''}${unlocked ? ' is-unlocked' : ''}`}
+            data-depth={depth}
+            key={node.id}
+          >
             <div className="history-tree-row">
-              {hasChildren ? (
+              {showChevron ? (
                 <button
                   className="history-tree-chevron"
                   type="button"
@@ -684,7 +1058,7 @@ export default function HistoryReader() {
                 className={`history-tree-link ${isCurrent ? 'is-current' : ''}`}
                 style={{
                   paddingLeft: `${Math.min(depth, 5) * 10 + 8}px`,
-                  opacity: nodeLocked ? 0.45 : undefined,
+                  opacity: lockKind === 'static' ? 0.45 : undefined,
                   cursor: nodeLocked ? 'not-allowed' : undefined,
                 }}
                 onClick={() => {
@@ -692,9 +1066,17 @@ export default function HistoryReader() {
                 }}
                 disabled={nodeLocked}
               >
-                {nodeLocked ? (
+                {lockKind === 'static' ? (
                   <span className="history-tree-kind" style={{ opacity: 0.6 }}>
                     🔒
+                  </span>
+                ) : lockKind === 'progression' ? (
+                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>
+                    ◌
+                  </span>
+                ) : lockKind === 'flag' ? (
+                  <span className="history-tree-kind" style={{ opacity: 0.6 }}>
+                    ❖
                   </span>
                 ) : (
                   renderIcon(
@@ -707,17 +1089,73 @@ export default function HistoryReader() {
                     </span>
                   )
                 )}
-                <span className="history-tree-title">{node.title}</span>
+                {lockKind === 'flag' ? (
+                  <span className="history-tree-title history-tree-title--veiled">
+                    ？？？
+                  </span>
+                ) : (
+                  <span
+                    className={`history-tree-title${
+                      lockKind === 'progression'
+                        ? ' history-tree-title--blurred'
+                        : ''
+                    }`}
+                  >
+                    {node.title}
+                  </span>
+                )}
               </button>
             </div>
-            {hasChildren && isExpanded && (
+            {hasChildren && isExpanded && !nodeLocked && (
               <div className="history-tree-children">
                 {renderTree(children, depth + 1)}
               </div>
             )}
           </div>
         );
+
+        // 遺落的書籤（S6-2）：條目插在最後閱讀頁所在 chapter 的下方縫隙
+        if (node.id === lostBookmarkAnchorId) {
+          return [treeItem, renderLostBookmarkEntry(depth)];
+        }
+        return treeItem;
       });
+  }
+
+  /** 「一張遺落的書籤」導航樹條目：特殊樣式，點擊開啟儀式頁 */
+  function renderLostBookmarkEntry(depth: number) {
+    return (
+      <div
+        className="history-tree-item history-tree-item--bookmark"
+        data-depth={depth}
+        key="lost-bookmark-entry"
+      >
+        <div className="history-tree-row">
+          <span className="history-tree-spacer" />
+          <button
+            type="button"
+            className={`history-tree-link history-tree-bookmark${bookmarkGateOpen ? ' is-current' : ''}`}
+            style={{ paddingLeft: `${Math.min(depth, 5) * 10 + 8}px` }}
+            onClick={() => setBookmarkGateOpen(true)}
+            title="書架的縫隙裡，似乎夾著什麼……"
+          >
+            <span className="history-tree-kind" aria-hidden>
+              🔖
+            </span>
+            <span className="history-tree-title">一張遺落的書籤</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /** 儀式完成：解鎖旅程之書並回到閱讀（內容區本來就停在上次閱讀頁） */
+  function handleLostBookmarkOpen() {
+    settleLostBookmark();
+    unlockIsland('history');
+    getIslandRuntime().open('history');
+    window.__uepToastManager?.info('旅程之書甦醒了，加入了你的浮島。');
+    setBookmarkGateOpen(false);
   }
 
   const crumbs = currentId
@@ -860,34 +1298,41 @@ export default function HistoryReader() {
           </button>
         )}
 
+        {/* 滾動軸旁的「上次閱讀位置」標記——掛在 .history-main（不滾動）
+            而非滾動容器內，top:% 對映可視高度，像滾動軸上的書籤不隨內容捲動 */}
+        {scrollHint && (
+          <button
+            type="button"
+            className={`history-scroll-marker${scrollHint.leaving ? ' is-leaving' : ''}`}
+            style={{ top: `${scrollHint.pct}%` }}
+            title="回到上次閱讀位置"
+            onClick={() => {
+              if (scrollHint.leaving) return;
+              beginResumeJump();
+              scrollRef.current?.scrollTo({
+                top: scrollHint.targetTop,
+                behavior: 'smooth',
+              });
+              if (currentId) clearSavedPosition(currentId);
+              // 播放消失動畫後移除
+              setScrollHint((prev) =>
+                prev ? { ...prev, leaving: true } : null
+              );
+              setTimeout(() => setScrollHint(null), 350);
+            }}
+          >
+            <span className="history-scroll-marker-line" />
+            <span className="history-scroll-marker-label">上次位置 ▸</span>
+          </button>
+        )}
+
         <div className="history-content" ref={scrollRef}>
-          {/* 滾動軸旁的「上次閱讀位置」標記 */}
-          {scrollHint && (
-            <button
-              type="button"
-              className={`history-scroll-marker${scrollHint.leaving ? ' is-leaving' : ''}`}
-              style={{ top: `${scrollHint.pct}%` }}
-              title="回到上次閱讀位置"
-              onClick={() => {
-                if (scrollHint.leaving) return;
-                scrollRef.current?.scrollTo({
-                  top: scrollHint.targetTop,
-                  behavior: 'smooth',
-                });
-                if (currentId) clearSavedPosition(currentId);
-                // 播放消失動畫後移除
-                setScrollHint((prev) =>
-                  prev ? { ...prev, leaving: true } : null
-                );
-                setTimeout(() => setScrollHint(null), 350);
-              }}
-            >
-              <span className="history-scroll-marker-line" />
-              <span className="history-scroll-marker-label">上次位置 ▸</span>
-            </button>
-          )}
           <div key={transitionKey} className="history-page-transition">
-            {!currentId ? (
+            {bookmarkGateOpen ? (
+              /* 遺落的書籤儀式頁（S6-2）：暫時佔據內容區，
+                 完成或導航離開後回到原本的頁面 */
+              <LostBookmarkGate onOpen={handleLostBookmarkOpen} />
+            ) : !currentId ? (
               <section className="history-landing">
                 <div className="history-landing-inner">
                   {homepageBlocks.length > 0 ? (
@@ -1138,14 +1583,46 @@ export default function HistoryReader() {
                         {typeof currentPage.metadata?.description ===
                           'string' && <p>{currentPage.metadata.description}</p>}
                       </header>
-                      <div ref={contentRef} onClick={onArticleClick}>
-                        {renderHtmlWithUep(
+                      <div
+                        ref={contentRef}
+                        onClick={onArticleClick}
+                        onKeyDown={onArticleKeyDown}
+                      >
+                        {renderInteractiveHtml(
                           articleHtml ||
                             '<p class="empty-notice">這篇內容目前是空的。</p>',
+                          progress,
                           'article',
                           'history-prose'
                         )}
                       </div>
+                      {/* 掃描線文末哨兵：通過 = 讀完整篇 */}
+                      <div
+                        ref={scanSentinelRef}
+                        className="history-scan-sentinel"
+                        aria-hidden="true"
+                      />
+                      {/* Chapter 頁自動時間軸目錄（列出 arc 子項依進度狀態呈現）。
+                          arc 頁本身已是故事段落層，section 目錄由左側 tree 處理，
+                          不再重複注入目錄——2026-07-03 修 #12。 */}
+                      {currentPage.pageType === 'chapter' &&
+                        (() => {
+                          const containerNode = pagesById.get(currentPage.id);
+                          if (!containerNode) return null;
+                          return (
+                            <ChapterTimeline
+                              containerNode={containerNode}
+                              childType="arc"
+                              progress={progress}
+                              progressTree={progressTree}
+                              resolvePageById={resolvePageById}
+                              onNavigate={(child) =>
+                                void loadPage(child as PageTreeNode)
+                              }
+                              currentId={currentId}
+                            />
+                          );
+                        })()}
                     </>
                   )}
                 </article>
@@ -1172,22 +1649,77 @@ export default function HistoryReader() {
                         </div>
                       ) : (
                         <ul className="history-zone-tab-list">
-                          {zoneTabItems.map((child) => (
-                            <li key={child.id}>
-                              <button
-                                type="button"
-                                className="history-zone-tab-link"
-                                onClick={() => void loadPage(child)}
-                              >
-                                {renderIcon(
-                                  child.metadata?.icon as string,
-                                  14,
-                                  'history-zone-tab-link-icon'
-                                ) || null}
-                                {child.title}
-                              </button>
-                            </li>
-                          ))}
+                          {zoneTabItems
+                            .filter(
+                              (child) =>
+                                !isProgressionChainHidden(
+                                  child,
+                                  progress,
+                                  resolvePageById,
+                                  child.id,
+                                  progressTree
+                                )
+                            )
+                            .map((child) => {
+                              const childKind = getLockKind(
+                                child,
+                                progress,
+                                child.id,
+                                progressTree
+                              );
+                              const childLocked = childKind !== null;
+                              return (
+                                <li key={child.id}>
+                                  <button
+                                    type="button"
+                                    className="history-zone-tab-link"
+                                    style={
+                                      childKind === 'static'
+                                        ? {
+                                            opacity: 0.45,
+                                            cursor: 'not-allowed',
+                                          }
+                                        : childLocked
+                                          ? { cursor: 'not-allowed' }
+                                          : undefined
+                                    }
+                                    disabled={childLocked}
+                                    onClick={() => void loadPage(child)}
+                                  >
+                                    {childLocked ? (
+                                      <span className="history-zone-tab-link-icon">
+                                        {childKind === 'static'
+                                          ? '🔒'
+                                          : childKind === 'progression'
+                                            ? '◌'
+                                            : '❖'}
+                                      </span>
+                                    ) : (
+                                      renderIcon(
+                                        child.metadata?.icon as string,
+                                        14,
+                                        'history-zone-tab-link-icon'
+                                      ) || null
+                                    )}
+                                    {childKind === 'flag' ? (
+                                      <span className="history-tree-title--veiled">
+                                        ？？？
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={
+                                          childKind === 'progression'
+                                            ? 'history-tree-title--blurred'
+                                            : undefined
+                                        }
+                                      >
+                                        {child.title}
+                                      </span>
+                                    )}
+                                  </button>
+                                </li>
+                              );
+                            })}
                         </ul>
                       )}
                     </div>

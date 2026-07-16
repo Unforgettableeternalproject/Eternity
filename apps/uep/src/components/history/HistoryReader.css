@@ -515,7 +515,103 @@
   z-index: 1;
 }
 
-/* === 滾動軸「上次閱讀位置」標記 === */
+/* === 掃描線（Epic 2 進度系統）=== */
+/* 進度標記前台隱形——不能用 display:none，
+   IntersectionObserver 需要 layout box 才會觸發 */
+.history-prose [data-role='progress-marker'],
+.history-prose [data-role='echo-spot'] {
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+/* 文末哨兵：通過即視為讀完整篇 */
+.history-scan-sentinel {
+  height: 1px;
+}
+
+/* === 互動式嵌入（Epic 2 S4）===
+   只有「已解鎖」的 entity 才有樣式與行為；
+   未解鎖的 entity span 不帶啟用屬性，就是普通文字。 */
+.history-prose span[data-uep-entity-active] {
+  cursor: pointer;
+  color: var(--history-main);
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+}
+
+.history-prose span[data-uep-entity-active]:hover {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
+}
+
+.history-prose span[data-uep-entity-active]:focus-visible {
+  outline: 1px dotted var(--history-main);
+  outline-offset: 2px;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
+}
+
+/* === 遺落的書籤 — 導航樹特殊條目（S6-2） === */
+.history-tree-item--bookmark {
+  position: relative;
+}
+
+.history-tree-bookmark {
+  font-family: var(--font-serif-tc);
+  font-style: italic;
+  color: var(--uep-gold);
+  animation: lostBookmarkEntryIn 0.8s var(--ease) both;
+}
+
+.history-tree-bookmark .history-tree-title {
+  background: linear-gradient(
+    100deg,
+    var(--uep-gold) 20%,
+    #fff2c4 50%,
+    var(--uep-gold) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lostBookmarkShimmer 3.2s linear infinite;
+}
+
+.history-tree-bookmark:hover .history-tree-title {
+  animation-duration: 1.4s;
+}
+
+@keyframes lostBookmarkEntryIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes lostBookmarkShimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* === 滾動軸「上次閱讀位置」標記 ===
+ * 掛在 .history-main（position: relative、不滾動）而非 .history-content
+ * 滾動容器內——top:% 對映可視高度，像滾動軸上的書籤，不隨內容捲動（S6-2）。 */
 .history-scroll-marker {
   position: absolute;
   right: 0;
@@ -1272,4 +1368,269 @@
 [data-ring-mask] .history-reading {
   background: var(--bg);
   position: relative;
+}
+
+/* ═══ 鎖定三態標題樣式（Epic 2 內容閘門）═══
+   progression（進度鎖）：輕度模糊，隱約可見——循序漸進的預告感
+   flag（旗標鎖）：完全遮蔽不透字，顯示為？？？ */
+.history-tree-title--blurred {
+  filter: blur(2.5px);
+  opacity: 0.7;
+  user-select: none;
+}
+.history-tree-title--veiled {
+  opacity: 0.5;
+  font-style: italic;
+  letter-spacing: 0.2em;
+  user-select: none;
+}
+
+/* blur 消散為 transition：解鎖時模糊淡出、視覺不會硬切 */
+.history-tree-title {
+  transition:
+    filter 0.7s ease-out,
+    opacity 0.7s ease-out;
+}
+
+/* ═══ 節點狀態轉換入場動畫（Epic 2 打磨輪 2026-07-03）═══
+   露出：hidden → visible，從左緩緩滑入 + 淡入（墨韻鋪展）。
+   解鎖：progression/flag → open，金色高光橫掃標題（豁然開朗）。
+   兩者同時觸發時併行播放。動畫結束後 class 由 React 於 900ms
+   內清除；使用 prefers-reduced-motion 時退回瞬時切換。 */
+@keyframes history-reveal-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+    filter: blur(1px);
+  }
+  60% {
+    opacity: 0.9;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+.history-tree-item.is-revealed {
+  animation: history-reveal-slide 0.6s ease-out;
+}
+
+@keyframes history-unlock-shine {
+  0% {
+    background-position: -120% 0;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 220% 0;
+    opacity: 0;
+  }
+}
+
+.history-tree-item.is-unlocked .history-tree-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.history-tree-item.is-unlocked .history-tree-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 65%, transparent) 45%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 85%, transparent) 50%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 65%, transparent) 55%,
+    transparent 100%
+  );
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  animation: history-unlock-shine 0.85s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-tree-item.is-revealed,
+  .history-tree-item.is-unlocked .history-tree-link::after {
+    animation: none;
+  }
+  .history-tree-title {
+    transition: none;
+  }
+}
+
+/* ═══ Chapter / Arc 頁自動時間軸目錄（D 步驟）═══
+   垂直時間軸，左節點右內容。狀態：completed/available/progression/flag/static。 */
+.history-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 2.5rem 0 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--history-main) 20%, transparent);
+  padding-top: 2rem;
+  position: relative;
+}
+
+.history-timeline-item {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 0;
+}
+
+/* 縱向連線（畫在節點欄中央，穿透每個 item） */
+.history-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 0.9rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--history-main) 30%, transparent);
+}
+.history-timeline-item:first-child::before {
+  top: 50%;
+}
+.history-timeline-item:last-child::before {
+  bottom: 50%;
+}
+
+.history-timeline-button {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  color: inherit;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+  position: relative;
+}
+.history-timeline-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--history-main) 6%, transparent);
+}
+.history-timeline-button:focus-visible {
+  outline: 2px solid var(--history-main);
+  outline-offset: 2px;
+}
+.history-timeline-button:disabled {
+  cursor: not-allowed;
+}
+
+.history-timeline-marker {
+  flex: 0 0 1.8rem;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.15rem;
+}
+
+.history-timeline-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  line-height: 1;
+  background: var(--bg-card);
+  border: 1.5px solid var(--history-main);
+  color: var(--history-main);
+  position: relative;
+  z-index: 1;
+}
+
+/* 已完成：實心金點 */
+.history-timeline-dot.is-completed {
+  background: var(--history-main);
+  border-color: var(--history-main);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--history-main) 18%, transparent);
+}
+
+/* 可讀：空心（default） */
+.history-timeline-dot.is-available {
+  background: var(--bg-card);
+}
+
+/* 當前節點閃爍（僅在 available 時應用；locked 節點不高亮） */
+.history-timeline-dot.is-available.is-current {
+  background: var(--history-soft);
+  border-color: var(--history-main);
+  animation: historyTimelinePulse 1.8s ease-in-out infinite;
+}
+@keyframes historyTimelinePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--history-main) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px
+      color-mix(in srgb, var(--history-main) 10%, transparent);
+  }
+}
+
+/* 進度鎖：虛化實心點 */
+.history-timeline-dot.is-progression {
+  background: color-mix(in srgb, var(--history-main) 35%, transparent);
+  border-color: color-mix(in srgb, var(--history-main) 40%, transparent);
+  opacity: 0.55;
+}
+
+/* 旗標鎖：❖ 符號 */
+.history-timeline-dot.is-flag {
+  background: transparent;
+  border-style: dashed;
+  color: color-mix(in srgb, var(--history-main) 55%, transparent);
+  font-size: 0.75rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* 靜態鎖：🔒 emoji */
+.history-timeline-dot.is-static {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.history-timeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.history-timeline-title {
+  font-family: 'Cinzel', 'Noto Serif TC', serif;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--history-main);
+  line-height: 1.35;
+}
+
+.history-timeline-desc {
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--history-main) 68%, var(--text-body));
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.history-timeline-item.is-static .history-timeline-button,
+.history-timeline-item.is-progression .history-timeline-button {
+  opacity: 0.6;
+}
+.history-timeline-item.is-flag .history-timeline-button {
+  opacity: 0.5;
 }

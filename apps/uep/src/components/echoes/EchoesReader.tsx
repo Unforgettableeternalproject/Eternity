@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -20,7 +18,19 @@ import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
-import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
+import { isHidden, isLocked } from '../zone/contentVisibility';
+import {
+  AudioProvider,
+  getAudioStore,
+  resolveSpoilerLevel,
+  useAudio,
+  type SongSpoilerRevision,
+} from '../../audio';
+import { IslandUnlockObject, shouldMountIsland } from '../../islands';
+import { useReaderAuth } from '../../auth';
+import { useProgress } from '../../progress';
+import type { ProgressState } from '../../progress';
+import { isSongQueueEligible, isSongUnlockedInZone } from './echoesVisibility';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
 import type {
@@ -30,6 +40,7 @@ import type {
   OrbCluster,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import { getApiBase } from '../../lib/apiBase';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別定義
@@ -90,6 +101,19 @@ interface ClusterDef {
   extraGroups?: string[];
 }
 
+/** 靜態 spoilerLevel 向後相容；有 revision 鏈時改由進度單調求值。 */
+function effectiveSongSpoiler(
+  node: { metadata?: Record<string, unknown> | null },
+  progress: ProgressState
+): 0 | 1 | 2 | 3 {
+  if (node.metadata?.category === 'story') return 0;
+  const revisions = node.metadata?.spoilerRevisions;
+  return resolveSpoilerLevel(
+    Array.isArray(revisions) ? (revisions as SongSpoilerRevision[]) : [],
+    progress
+  );
+}
+
 interface SubcategoryDef {
   slug: string;
   label: string;
@@ -101,9 +125,7 @@ interface SubcategoryDef {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const ECHOES_ZONE = { main: '#355C7D', soft: '#6C5B7B', tint: '#F8B195' };
 
@@ -192,229 +214,9 @@ const NOISE_CHARS = '▓░▒█▞▚▙▟▜▛◣◢◤◥░▒▓█@#%&*
 const MUSIC_NOTES = ['♪', '♫', '♩', '♬', '♮', '♭'];
 
 // ──────────────────────────────────────────────────────────────────
-// 音訊系統 (AudioProvider)
+// 音訊系統 — S8 起移至 src/audio/（module singleton，跨頁面持久化）。
+// AudioProvider/useAudio 介面不變，見 audio/audioContext.tsx。
 // ──────────────────────────────────────────────────────────────────
-interface AudioState {
-  currentSongId: string | null;
-  isPlaying: boolean;
-  progress: number;
-  currentTime: number;
-  duration: number;
-  volume: number;
-  play: (songId: string, url: string) => void;
-  pause: () => void;
-  toggle: (songId: string, url: string) => void;
-  seek: (fraction: number) => void;
-  setVolume: (v: number) => void;
-  beginSeek: () => void;
-  endSeek: (fraction: number) => void;
-}
-
-const VOLUME_KEY = 'uep-player-volume';
-
-const AudioCtx = createContext<AudioState>({
-  currentSongId: null,
-  isPlaying: false,
-  progress: 0,
-  currentTime: 0,
-  duration: 0,
-  volume: 1,
-  play: () => {},
-  pause: () => {},
-  toggle: () => {},
-  seek: () => {},
-  setVolume: () => {},
-  beginSeek: () => {},
-  endSeek: () => {},
-});
-
-function AudioProvider({ children }: { children: React.ReactNode }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const rafRef = useRef<number>(0);
-  const isSeekingRef = useRef(false);
-  // 同步 ref：避免 React state 批次更新造成的競態條件
-  // play/toggle 用此 ref 判斷是否需要重新載入音源
-  const currentSongIdRef = useRef<string | null>(null);
-  const [currentSongId, setCurrentSongId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(() => {
-    if (typeof window === 'undefined') return 0.6;
-    return parseFloat(localStorage.getItem(VOLUME_KEY) ?? '0.6');
-  });
-
-  useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.preload = 'metadata';
-    audioRef.current.volume = parseFloat(
-      localStorage.getItem(VOLUME_KEY) ?? '0.6'
-    );
-
-    const audio = audioRef.current;
-    audio.addEventListener('ended', () => {
-      setIsPlaying(false);
-      setProgress(1);
-    });
-    audio.addEventListener('loadedmetadata', () => {
-      setDuration(audio.duration || 0);
-    });
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      audio.pause();
-      audio.src = '';
-    };
-  }, []);
-
-  const updateProgress = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    // 拖曳 seek 期間暫停更新，避免受控 input 被 RAF 覆蓋
-    if (!isSeekingRef.current) {
-      const dur = audio.duration || 0;
-      setCurrentTime(audio.currentTime);
-      setProgress(dur > 0 ? audio.currentTime / dur : 0);
-    }
-    if (!audio.paused) {
-      // 先取消前一個待執行的 RAF，確保同時只有一條鏈在跑
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateProgress);
-    }
-  }, []);
-
-  const play = useCallback(
-    (songId: string, url: string) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-
-      // 使用同步 ref 判斷，避免 React state 延遲造成重複載入音源
-      if (currentSongIdRef.current !== songId) {
-        audio.src = url;
-        audio.load();
-        currentSongIdRef.current = songId;
-        setCurrentSongId(songId);
-        setProgress(0);
-        setCurrentTime(0);
-      }
-
-      // 啟動播放前先清除所有殘存的 RAF 鏈
-      cancelAnimationFrame(rafRef.current);
-
-      audio
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          cancelAnimationFrame(rafRef.current);
-          rafRef.current = requestAnimationFrame(updateProgress);
-        })
-        .catch(() => {
-          // 自動播放被阻擋時靜默處理
-        });
-    },
-    [updateProgress]
-  );
-
-  const pause = useCallback(() => {
-    audioRef.current?.pause();
-    cancelAnimationFrame(rafRef.current);
-    setIsPlaying(false);
-  }, []);
-
-  const toggle = useCallback(
-    (songId: string, url: string) => {
-      if (currentSongIdRef.current === songId && isPlaying) {
-        pause();
-      } else {
-        play(songId, url);
-      }
-    },
-    [isPlaying, pause, play]
-  );
-
-  const seek = useCallback((fraction: number) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const d = audio.duration;
-    if (d && isFinite(d) && d > 0) {
-      audio.currentTime = fraction * d;
-      setCurrentTime(audio.currentTime);
-      setProgress(fraction);
-    }
-  }, []);
-
-  const setVolume = useCallback((v: number) => {
-    const clamped = Math.max(0, Math.min(1, v));
-    if (audioRef.current) audioRef.current.volume = clamped;
-    localStorage.setItem(VOLUME_KEY, String(clamped));
-    setVolumeState(clamped);
-  }, []);
-
-  const beginSeek = useCallback(() => {
-    isSeekingRef.current = true;
-  }, []);
-
-  const endSeek = useCallback((fraction: number) => {
-    isSeekingRef.current = false;
-    const audio = audioRef.current;
-    if (!audio) return;
-    const d = audio.duration;
-    if (d && isFinite(d) && d > 0) {
-      audio.currentTime = fraction * d;
-      setCurrentTime(audio.currentTime);
-      setProgress(fraction);
-    } else {
-      // duration 尚未載入（部分音檔延遲回報），等 metadata 就緒後重試
-      const retry = () => {
-        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-          audio.currentTime = fraction * audio.duration;
-          setCurrentTime(audio.currentTime);
-          setProgress(fraction);
-        }
-        audio.removeEventListener('loadedmetadata', retry);
-      };
-      audio.addEventListener('loadedmetadata', retry);
-    }
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      currentSongId,
-      isPlaying,
-      progress,
-      currentTime,
-      duration,
-      volume,
-      play,
-      pause,
-      toggle,
-      seek,
-      setVolume,
-      beginSeek,
-      endSeek,
-    }),
-    [
-      currentSongId,
-      isPlaying,
-      progress,
-      currentTime,
-      duration,
-      volume,
-      play,
-      pause,
-      toggle,
-      seek,
-      setVolume,
-      beginSeek,
-      endSeek,
-    ]
-  );
-
-  return <AudioCtx.Provider value={value}>{children}</AudioCtx.Provider>;
-}
-
-const useAudio = () => useContext(AudioCtx);
 
 function fmtTime(s: number) {
   const m = Math.floor(s / 60);
@@ -637,20 +439,26 @@ function VinylDisc({
 // ──────────────────────────────────────────────────────────────────
 function EchoesAudioPlayer({
   songId,
+  title,
   audioUrl,
   metaDuration,
   color,
   locked = false,
   onLockedClick,
-  previewLimit,
+  sealed = false,
+  onAddToQueue,
 }: {
   songId: string;
+  title: string;
   audioUrl: string | null;
   metaDuration?: number;
   color: string;
   locked?: boolean;
   onLockedClick?: () => void;
-  previewLimit?: number;
+  /** L3 封印：已確認 spoiler 警告但等級仍為 3——完全不可播放（S8 取代 30 秒 preview） */
+  sealed?: boolean;
+  /** 加入流浪回聲佇列（S8 B-4）：僅 spoiler 0 才傳入 */
+  onAddToQueue?: () => void;
 }) {
   const a = useAudio();
   const isMe = a.currentSongId === songId;
@@ -658,37 +466,12 @@ function EchoesAudioPlayer({
   const cur = isMe ? a.currentTime : 0;
   const prog = isMe ? a.progress : 0;
   const dur = isMe && a.duration > 0 ? a.duration : metaDuration || 0;
-  const disabled = locked || !audioUrl;
-
-  // === 預覽模式（L3 解鎖：僅播放前 N 秒）===
-  const isPreview = previewLimit != null && previewLimit > 0;
-  const previewFraction =
-    isPreview && dur > 0 ? Math.min(1, previewLimit / dur) : 1;
-  const [previewEnded, setPreviewEnded] = useState(false);
-
-  // 超過預覽上限時自動暫停
-  useEffect(() => {
-    if (!isPreview || !isMe || !a.isPlaying) return;
-    if (a.currentTime >= previewLimit) {
-      a.pause();
-      setPreviewEnded(true);
-    }
-  }, [isPreview, isMe, a.currentTime, a.isPlaying, previewLimit]);
-
-  // 切換歌曲時重置預覽狀態
-  useEffect(() => {
-    if (!isMe) setPreviewEnded(false);
-  }, [isMe]);
+  const disabled = locked || sealed || !audioUrl;
 
   // 本地拖曳進度（避免 RAF 在拖曳期間覆蓋受控 input）
   const [seekProg, setSeekProg] = useState<number | null>(null);
   const isSeeking = seekProg !== null;
-  // 預覽模式：將進度正規化到 0–1 代表 0–previewLimit 秒
-  const normalProg =
-    isPreview && previewFraction > 0
-      ? Math.min(1, prog / previewFraction)
-      : prog;
-  const displayProg = isSeeking ? seekProg : normalProg;
+  const displayProg = isSeeking ? seekProg : prog;
 
   // 音量面板開關（雙狀態：mounted 控制 DOM 存在，open 控制動畫）
   const [volMounted, setVolMounted] = useState(false);
@@ -732,15 +515,9 @@ function EchoesAudioPlayer({
       onLockedClick?.();
       return;
     }
-    if (!audioUrl) return;
-    // 預覽結束後重新從頭播放
-    if (isPreview && previewEnded) {
-      setPreviewEnded(false);
-      a.play(songId, audioUrl);
-      setTimeout(() => a.seek(0), 50);
-      return;
-    }
-    a.toggle(songId, audioUrl);
+    // L3 封印：完全不可播放（S8 取代既有 30 秒 preview）
+    if (sealed || !audioUrl) return;
+    a.toggle(songId, audioUrl, title, color);
   };
 
   const handleSeekPointerDown = () => {
@@ -758,18 +535,13 @@ function EchoesAudioPlayer({
       setSeekProg(null);
       return;
     }
-    // 預覽模式：val 是正規化座標 (0–1 → 0–previewLimit)，轉回實際音頻比例
-    const actual = isPreview ? Math.min(val, 1) * previewFraction : val;
     setSeekProg(null);
-    if (isPreview && val < 1) {
-      setPreviewEnded(false);
-    }
     // 一律呼叫 endSeek 重置 isSeekingRef，避免殘留阻塞 RAF 進度更新
-    a.endSeek(actual);
+    a.endSeek(val);
     if (!isMe && audioUrl && !locked) {
       // 歌曲尚未播放：先啟動再 seek
-      a.play(songId, audioUrl);
-      setTimeout(() => a.seek(actual), 50);
+      a.play(songId, audioUrl, title, color);
+      setTimeout(() => a.seek(val), 50);
     }
   };
 
@@ -784,8 +556,8 @@ function EchoesAudioPlayer({
       style={{
         borderColor: isMe ? color : 'var(--line)',
         background: isMe ? `${color}10` : 'var(--bg-card)',
-        filter: locked ? 'grayscale(0.6)' : 'none',
-        opacity: locked ? 0.5 : 1,
+        filter: locked || sealed ? 'grayscale(0.6)' : 'none',
+        opacity: locked || sealed ? 0.5 : 1,
       }}
     >
       <button
@@ -838,74 +610,100 @@ function EchoesAudioPlayer({
         />
         <div className="echoes-player-times">
           <span>{fmtTime(cur)}</span>
-          <span>
-            {isPreview
-              ? fmtTime(previewLimit)
-              : dur > 0
-                ? fmtTime(dur)
-                : '--:--'}
-          </span>
+          <span>{dur > 0 ? fmtTime(dur) : '--:--'}</span>
         </div>
       </div>
 
-      {/* 音量控制（可展開） */}
-      <div className="echoes-player-vol" ref={volRef}>
-        {volMounted && (
-          <div
-            className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}
+      <div className="echoes-player-actions">
+        {/* 加入流浪回聲佇列（S8 B-4：僅 spoiler 0 才出現） */}
+        {onAddToQueue && (
+          <button
+            type="button"
+            className="echoes-player-queue-btn"
+            onClick={onAddToQueue}
+            aria-label="加入流浪回聲佇列"
+            title="加入流浪回聲佇列"
           >
-            <span className="echoes-player-vol-pct">
-              {Math.round(a.volume * 100)}%
-            </span>
-            <input
-              type="range"
-              className="echoes-player-vol-slider"
-              style={{ '--vol': a.volume } as React.CSSProperties}
-              min={0}
-              max={1}
-              step={0.05}
-              value={a.volume}
-              onChange={(e) => a.setVolume(parseFloat(e.target.value))}
-            />
-          </div>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3.5 5.5h7M3.5 10h5M3.5 14.5h7M15 9v6M12 12h6" />
+            </svg>
+          </button>
         )}
-        <button
-          type="button"
-          className="echoes-player-vol-btn"
-          onClick={() => (volMounted ? closeVol() : openVol())}
-          aria-label={`音量 ${Math.round(a.volume * 100)}%`}
-          title={`音量 ${Math.round(a.volume * 100)}%`}
-        >
-          <span
-            className={`echoes-volume-glyph ${
-              a.volume === 0
-                ? 'is-muted'
-                : a.volume < 0.4
-                  ? 'is-low'
-                  : 'is-high'
-            }`}
-            aria-hidden="true"
-          />
-        </button>
+
+        {/* 音量控制（可展開） */}
+        <div className="echoes-player-vol" ref={volRef}>
+          {volMounted && (
+            <div
+              className={`echoes-player-vol-popup${volOpen ? ' is-open' : ''}`}
+            >
+              <span className="echoes-player-vol-pct">
+                {Math.round(a.volume * 100)}%
+              </span>
+              <input
+                type="range"
+                className="echoes-player-vol-slider"
+                style={{ '--vol': a.volume } as React.CSSProperties}
+                min={0}
+                max={1}
+                step={0.05}
+                value={a.volume}
+                onChange={(e) => a.setVolume(parseFloat(e.target.value))}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            className="echoes-player-vol-btn"
+            onClick={() => (volMounted ? closeVol() : openVol())}
+            aria-label={`音量 ${Math.round(a.volume * 100)}%`}
+            title={`音量 ${Math.round(a.volume * 100)}%`}
+          >
+            <svg
+              className="echoes-player-volume-icon"
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <path
+                className="echoes-player-volume-body"
+                d="M3.5 8h3l4-3.25v10.5L6.5 12h-3z"
+              />
+              {a.volume === 0 ? (
+                <path
+                  className="echoes-player-volume-wave"
+                  d="m13.25 7.25 4.5 5.5m0-5.5-4.5 5.5"
+                />
+              ) : (
+                <>
+                  <path
+                    className="echoes-player-volume-wave"
+                    d="M13 7.25c1.2 1.45 1.2 4.05 0 5.5"
+                  />
+                  {a.volume >= 0.4 && (
+                    <path
+                      className="echoes-player-volume-wave"
+                      d="M15.4 5.25c2.35 2.55 2.35 6.95 0 9.5"
+                    />
+                  )}
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       <span
         className="echoes-player-status"
         style={{
-          color: previewEnded ? 'crimson' : isMe ? color : 'var(--ink-mute)',
+          color: sealed ? 'crimson' : isMe ? color : 'var(--ink-mute)',
         }}
       >
         {locked
           ? 'LOCKED'
-          : previewEnded
-            ? 'PREVIEW ENDED · 目前你還無法接觸到後續的內容'
-            : isPreview
-              ? playing
-                ? `PREVIEW · ${fmtTime(previewLimit)}`
-                : `PREVIEW · ${fmtTime(previewLimit)}`
-              : playing
-                ? 'NOW PLAYING'
-                : 'STANDBY'}
+          : sealed
+            ? 'SEALED · 現在的你還無法聆聽這首回聲'
+            : playing
+              ? 'NOW PLAYING'
+              : 'STANDBY'}
       </span>
     </div>
   );
@@ -915,25 +713,39 @@ function EchoesAudioPlayer({
 // 工具函式（遞迴遍歷，支援任意深度巢狀）
 // ──────────────────────────────────────────────────────────────────
 
-/** 遞迴收集節點下所有 song（排除 hidden 與 locked） */
-function collectSongs(node: PageTreeNode): PageTreeNode[] {
+/**
+ * 遞迴收集節點下所有 song。
+ * S8：未解鎖歌曲完全隱藏（解鎖凌駕於所有 spoiler 之上，同 Concepts
+ * dossier 語意）；容器維持既有 hidden / 靜態鎖語意。
+ */
+function collectSongs(
+  node: PageTreeNode,
+  progress: ProgressState | null
+): PageTreeNode[] {
   const songs: PageTreeNode[] = [];
   for (const child of node.children || []) {
     if (isHidden(child)) continue;
-    if (isLocked(child)) continue;
-    if (child.pageType === 'song') songs.push(child);
-    else songs.push(...collectSongs(child));
+    if (child.pageType === 'song') {
+      if (isSongUnlockedInZone(child, progress)) songs.push(child);
+    } else {
+      if (isLocked(child)) continue;
+      songs.push(...collectSongs(child, progress));
+    }
   }
   return songs;
 }
 
-/** 遞迴計算節點下所有可見 song 數量 */
-function countSongs(node: PageTreeNode): number {
+/** 遞迴計算節點下所有可見（已解鎖）song 數量 */
+function countSongs(
+  node: PageTreeNode,
+  progress: ProgressState | null
+): number {
   let count = 0;
   for (const child of node.children || []) {
     if (isHidden(child)) continue;
-    if (child.pageType === 'song') count++;
-    else count += countSongs(child);
+    if (child.pageType === 'song') {
+      if (isSongUnlockedInZone(child, progress)) count++;
+    } else count += countSongs(child, progress);
   }
   return count;
 }
@@ -975,14 +787,15 @@ function getClusterDef(id: string): ClusterDef | undefined {
 /** 從樹中取得指定節點 ID 所屬的最近 subcategory 的所有歌曲（用於 prev/next）*/
 function getSongsInParentSubcat(
   tree: PageTreeNode[],
-  songId: string
+  songId: string,
+  progress: ProgressState | null
 ): PageTreeNode[] {
   // 從 songId 往上找到 parent subcategory
   function findParentAndCollect(node: PageTreeNode): PageTreeNode[] | null {
     for (const child of node.children || []) {
       if (child.id === songId) {
         // 找到了，收集同層的所有 songs
-        return collectSongs(node);
+        return collectSongs(node, progress);
       }
       const result = findParentAndCollect(child);
       if (result) return result;
@@ -998,9 +811,13 @@ function getSongsInParentSubcat(
 }
 
 /** 從 tree 取得 cluster 下的歌曲總數 */
-function countSongsInCluster(tree: PageTreeNode[], clusterId: string): number {
+function countSongsInCluster(
+  tree: PageTreeNode[],
+  clusterId: string,
+  progress: ProgressState | null
+): number {
   const cluster = findClusterNode(tree, clusterId);
-  return cluster ? countSongs(cluster) : 0;
+  return cluster ? countSongs(cluster, progress) : 0;
 }
 
 /** 渲染 landing HTML：把 card-grid 替換為集群卡片插入標記 */
@@ -1039,6 +856,12 @@ function buildAudioUrl(audioFile: string | null): string | null {
 // ──────────────────────────────────────────────────────────────────
 function EchoesReaderInner() {
   const echoesZone = ZONES.find((z) => z.id === 'echoes') || ZONES[0];
+
+  // === 進度狀態（S8：歌曲解鎖判定，未解鎖完全隱藏）===
+  const progress = useProgress();
+  // auth 純訂閱重渲染——shouldMountIsland 內含登入判定，而 auth 變化
+  // 不保證觸發 progress notify（S7-C 已知陷阱，同 IslandHost 的處理）
+  useReaderAuth();
 
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -1222,10 +1045,10 @@ function EchoesReaderInner() {
       {
         param: 'cluster',
         handler: (value) => {
-          const fullId = value.startsWith('echoes/')
-            ? value
-            : `echoes/${value}`;
-          navigateToCluster(fullId, false);
+          // cluster 用 CLUSTERS 常數的短 id（areas/characters/...），
+          // 與 song/page 的完整頁 id 不同——不可補 echoes/ 前綴，
+          // 反而要容錯剝掉舊連結可能帶的前綴
+          navigateToCluster(value.replace(/^echoes\//, ''), false);
         },
       },
     ],
@@ -1278,7 +1101,6 @@ function EchoesReaderInner() {
   // === 導航函式 ===
   function navigateToLanding(pushState = true) {
     saveScroll(currentScrollKey());
-    audio.pause();
     setView('landing');
     setActiveClusterId(null);
     setActiveSongId(null);
@@ -1290,7 +1112,6 @@ function EchoesReaderInner() {
 
   function navigateToCluster(clusterId: string, pushState = true) {
     saveScroll(currentScrollKey());
-    audio.pause();
     setView('cluster');
     setActiveClusterId(clusterId);
     setActiveSongId(null);
@@ -1306,7 +1127,6 @@ function EchoesReaderInner() {
   /** 導航到非 song 的內容頁面（subcategory 等），比照 History 的閱讀視圖 */
   async function navigateToContent(pageId: string, pushState = true) {
     saveScroll(currentScrollKey());
-    audio.pause();
     setView('content');
     setActiveContentId(pageId);
     setActiveSongId(null);
@@ -1339,8 +1159,6 @@ function EchoesReaderInner() {
 
   async function navigateToSong(songId: string, pushState = true) {
     saveScroll(currentScrollKey());
-    // 切換歌曲頁面時停止當前播放
-    audio.pause();
     setView('song');
     setActiveSongId(songId);
     // 從 song ID 推導所屬集群
@@ -1395,8 +1213,8 @@ function EchoesReaderInner() {
   // === Prev/Next 歌曲 (同一 parent subcategory) ===
   const subcatSongs = useMemo(() => {
     if (!activeSongId || !tree.length) return [];
-    return getSongsInParentSubcat(tree, activeSongId);
-  }, [tree, activeSongId]);
+    return getSongsInParentSubcat(tree, activeSongId, progress);
+  }, [tree, activeSongId, progress]);
 
   const songIndex = activeSongId
     ? subcatSongs.findIndex((s) => s.id === activeSongId)
@@ -1458,7 +1276,11 @@ function EchoesReaderInner() {
                         const hp = clusters[idx];
                         const color = hp?.color || cluster.color;
                         const label = hp?.label || cluster.label;
-                        const songCount = countSongsInCluster(tree, cluster.id);
+                        const songCount = countSongsInCluster(
+                          tree,
+                          cluster.id,
+                          progress
+                        );
                         const orbCount = Math.max(songCount, 6);
                         // 內圈最多 40 個，超出的到外圈
                         const innerCount = Math.min(orbCount, 40);
@@ -1597,7 +1419,11 @@ function EchoesReaderInner() {
               )}
               <div className="echoes-cluster-grid">
                 {CLUSTERS.map((cluster) => {
-                  const songCount = countSongsInCluster(tree, cluster.id);
+                  const songCount = countSongsInCluster(
+                    tree,
+                    cluster.id,
+                    progress
+                  );
                   const orbCount = Math.max(songCount, 6);
                   const innerCount = Math.min(orbCount, 40);
                   const outerCount = Math.max(orbCount - 40, 0);
@@ -1732,6 +1558,12 @@ function EchoesReaderInner() {
             </span>
           ))}
         </div>
+
+        {/* 浮島解鎖小物件（同 S7-C ConceptsReader 的修法）：echoes 的
+            實際入口是 Reader 解析的動態 homepage，ZoneEntryPage 走不到，
+            掛在那裡的小物件是孤兒。position:fixed，浮現條件（登入探索者
+            + visited + 未解鎖）由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
+        <IslandUnlockObject zoneId="echoes" />
       </section>
     );
   }
@@ -1749,7 +1581,7 @@ function EchoesReaderInner() {
     const subcatNodes = (clusterNode?.children || []).filter(
       (n) => n.pageType !== 'song' && n.pageType !== 'page' && !isHidden(n)
     );
-    const totalSongs = clusterNode ? countSongs(clusterNode) : 0;
+    const totalSongs = clusterNode ? countSongs(clusterNode, progress) : 0;
 
     return (
       <section className="echoes-cluster-page">
@@ -1804,11 +1636,11 @@ function EchoesReaderInner() {
           {/* 子分類卡片列表 — 從 tree 讀取 */}
           <div className="echoes-subcat-list">
             {subcatNodes.map((subcatNode, i) => {
-              const songCount = countSongs(subcatNode);
+              const songCount = countSongs(subcatNode, progress);
               const subcatHidden = isHidden(subcatNode);
               const subcatLocked = isLocked(subcatNode);
               const inaccessible = subcatHidden || subcatLocked;
-              const songs = collectSongs(subcatNode);
+              const songs = collectSongs(subcatNode, progress);
               return (
                 <button
                   key={subcatNode.id}
@@ -1918,8 +1750,12 @@ function EchoesReaderInner() {
     const childSubcats = allChildren.filter(
       (c) => c.pageType !== 'song' && c.pageType !== 'page' && !isHidden(c)
     );
+    // S8：未解鎖歌曲完全隱藏（不是 LOCK 佔位）
     const directSongs = allChildren.filter(
-      (c) => c.pageType === 'song' && !isHidden(c)
+      (c) =>
+        c.pageType === 'song' &&
+        !isHidden(c) &&
+        isSongUnlockedInZone(c, progress)
     );
 
     return (
@@ -1975,7 +1811,7 @@ function EchoesReaderInner() {
                     <div className="echoes-subcat-name">{child.title}</div>
                   </div>
                   <span className="echoes-subcat-count">
-                    {countSongs(child)} echoes
+                    {countSongs(child, progress)} echoes
                   </span>
                   <span className="echoes-subcat-arrow" style={{ color }}>
                     →
@@ -1995,9 +1831,8 @@ function EchoesReaderInner() {
               </div>
               {directSongs.map((song, i) => {
                 const meta = song.metadata as Record<string, unknown>;
-                const sp = getSpoilerLevel(song);
+                const sp = effectiveSongSpoiler(song, progress);
                 const subtitle = (meta?.subtitle as string) || '';
-                const isPageLocked = isLocked(song);
                 // 分級解鎖：解鎖後仍根據等級決定可見範圍
                 const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
                 const songCanSeeTitle = songHasUnlocked && sp <= 2;
@@ -2007,15 +1842,8 @@ function EchoesReaderInner() {
                     key={song.id}
                     type="button"
                     className="echoes-playlist-item"
-                    style={{
-                      ['--accent' as string]: color,
-                      opacity: isPageLocked ? 0.5 : 1,
-                      cursor: isPageLocked ? 'not-allowed' : 'pointer',
-                    }}
-                    onClick={() => {
-                      if (!isPageLocked) void navigateToSong(song.id);
-                    }}
-                    disabled={isPageLocked}
+                    style={{ ['--accent' as string]: color }}
+                    onClick={() => void navigateToSong(song.id)}
                   >
                     <span className="echoes-playlist-num">
                       {String(i + 1).padStart(2, '0')}
@@ -2056,21 +1884,6 @@ function EchoesReaderInner() {
                       )}
                     </div>
                     {/* 狀態標籤 */}
-                    {isPageLocked && (
-                      <span
-                        style={{
-                          flexShrink: 0,
-                          fontSize: '0.7em',
-                          padding: '2px 7px',
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          color: 'var(--ink-mute)',
-                          border: '1px solid var(--ink-mute)',
-                        }}
-                      >
-                        LOCK
-                      </span>
-                    )}
                     {sp > 0 && !songHasUnlocked && (
                       <span
                         style={{
@@ -2089,7 +1902,7 @@ function EchoesReaderInner() {
                       </span>
                     )}
                     <span className="echoes-subcat-arrow" style={{ color }}>
-                      {isPageLocked ? 'LOCK' : '→'}
+                      →
                     </span>
                   </button>
                 );
@@ -2138,6 +1951,19 @@ function EchoesReaderInner() {
     }
     if (!currentSongPage || !songData) return null;
 
+    // S8：未解鎖歌曲的 deep link → not-found（同 Concepts 語意，不是鎖定佔位）
+    const songNode = flatPages.find((p) => p.id === currentSongPage.id);
+    if (
+      tree.length > 0 &&
+      (!songNode ||
+        isHidden(songNode) ||
+        !isSongUnlockedInZone(songNode, progress))
+    ) {
+      return (
+        <ZoneStateDisplay kind="not-found" message="找不到這枚回聲" large />
+      );
+    }
+
     const cluster = activeSongCluster;
     const color = cluster?.color || ECHOES_ZONE.main;
 
@@ -2145,7 +1971,10 @@ function EchoesReaderInner() {
     const parentNode = flatPages.find((p) => {
       return (p.children || []).some((c) => c.id === currentSongPage.id);
     });
-    const spoiler = songData.spoilerLevel || 0;
+    const spoiler =
+      songData.category === 'story'
+        ? 0
+        : resolveSpoilerLevel(songData.spoilerRevisions, progress);
     const hasUnlocked = spoiler === 0 || isSongUnlocked(currentSongPage.id);
     const locked = spoiler > 0 && !hasUnlocked;
     const audioUrl = buildAudioUrl(songData.audioFile);
@@ -2153,11 +1982,11 @@ function EchoesReaderInner() {
     // 分級解鎖可見性
     // L1 解鎖：標題、副標題、metadata 可見，賞析標記為非完整版
     // L2 解鎖：僅標題可見，其餘隱藏
-    // L3 解鎖：全部隱藏，音檔僅播放前 30 秒
+    // L3 解鎖：全部隱藏，完全不可播放（S8 取代既有 30 秒 preview）
     const canSeeTitle = hasUnlocked && spoiler <= 2;
     const canSeeSubtitle = hasUnlocked && spoiler <= 1;
     const canSeeMetadata = hasUnlocked && spoiler <= 1;
-    const previewOnly = hasUnlocked && spoiler >= 3;
+    const sealed = hasUnlocked && spoiler >= 3;
     const isPartialAppreciation = hasUnlocked && spoiler >= 1;
 
     const isPlaying =
@@ -2165,11 +1994,24 @@ function EchoesReaderInner() {
 
     const handlePlayAttempt = () => {
       if (locked) {
-        requestUnlock(currentSongPage.id, spoiler, songData.gate, () => {
-          if (audioUrl) audio.play(currentSongPage.id, audioUrl);
+        requestUnlock(currentSongPage.id, spoiler, songData.spoilerGate, () => {
+          // L3 確認警告後仍為封印態，不啟動播放
+          if (spoiler < 3 && audioUrl) {
+            audio.play(
+              currentSongPage.id,
+              audioUrl,
+              currentSongPage.title,
+              color
+            );
+          }
         });
-      } else if (audioUrl) {
-        audio.toggle(currentSongPage.id, audioUrl);
+      } else if (spoiler < 3 && audioUrl) {
+        audio.toggle(
+          currentSongPage.id,
+          audioUrl,
+          currentSongPage.title,
+          color
+        );
       }
     };
 
@@ -2234,7 +2076,7 @@ function EchoesReaderInner() {
                     ? '✓ unlocked'
                     : spoiler === 2
                       ? '✓ partial · L2'
-                      : '✓ preview · L3'}
+                      : '✓ sealed · L3'}
               </span>
             )}
             {meta?.format && (
@@ -2254,7 +2096,7 @@ function EchoesReaderInner() {
           <div className="echoes-song-hero">
             <VinylDisc
               isPlaying={isPlaying}
-              isLocked={locked}
+              isLocked={locked || sealed}
               color={color}
               coverImage={songData.coverImage}
             />
@@ -2309,12 +2151,44 @@ function EchoesReaderInner() {
               <div onClick={locked ? handlePlayAttempt : undefined}>
                 <EchoesAudioPlayer
                   songId={currentSongPage.id}
-                  audioUrl={locked ? null : audioUrl}
+                  title={currentSongPage.title}
+                  audioUrl={locked || sealed ? null : audioUrl}
                   metaDuration={songData.audioMeta?.duration}
                   color={color}
                   locked={locked}
                   onLockedClick={handlePlayAttempt}
-                  previewLimit={previewOnly ? 30 : undefined}
+                  sealed={sealed}
+                  onAddToQueue={
+                    // 臨時解鎖只允許當次聆聽；任何 spoiler 曲目都不可進佇列。
+                    // 島未掛載（未解鎖/停用/非登入探索者）時也不提供入口。
+                    isSongQueueEligible(spoiler, !locked) &&
+                    audioUrl &&
+                    shouldMountIsland(progress, 'echoes')
+                      ? () => {
+                          const store = getAudioStore();
+                          const already = store
+                            .getState()
+                            .playlist.some(
+                              (it) => it.songId === currentSongPage.id
+                            );
+                          if (already) {
+                            window.__uepToastManager?.info(
+                              '這枚回聲已經在佇列裡了。'
+                            );
+                            return;
+                          }
+                          store.enqueue({
+                            songId: currentSongPage.id,
+                            url: audioUrl,
+                            title: currentSongPage.title,
+                            accent: color,
+                          });
+                          window.__uepToastManager?.success(
+                            '已加入流浪回聲佇列。'
+                          );
+                        }
+                      : undefined
+                  }
                 />
               </div>
             </div>
@@ -2375,7 +2249,7 @@ function EchoesReaderInner() {
               prevSong
                 ? {
                     title: (() => {
-                      const pSp = getSpoilerLevel(prevSong);
+                      const pSp = effectiveSongSpoiler(prevSong, progress);
                       const pUnlocked =
                         pSp === 0 || isSongUnlocked(prevSong.id);
                       return (
@@ -2395,7 +2269,7 @@ function EchoesReaderInner() {
               nextSong
                 ? {
                     title: (() => {
-                      const nSp = getSpoilerLevel(nextSong);
+                      const nSp = effectiveSongSpoiler(nextSong, progress);
                       const nUnlocked =
                         nSp === 0 || isSongUnlocked(nextSong.id);
                       return (

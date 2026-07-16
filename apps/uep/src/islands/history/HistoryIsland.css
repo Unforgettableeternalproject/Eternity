@@ -1,0 +1,310 @@
+/*
+ * History Island —「旅程之書」視覺
+ *
+ * history zone 的書卷/羊皮紙語彙：暖褐底、襯線標題、書籤緞帶。
+ * 視窗外殼（拖曳/收合）由 DraggableIsland 提供，這裡只管內容。
+ */
+
+.uep-hisland {
+  padding: 12px 14px 10px;
+  font-family: var(--font-serif-tc);
+  font-size: 12.5px;
+  background:
+    linear-gradient(160deg, rgba(139, 105, 60, 0.06) 0%, transparent 45%),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 27px,
+      rgba(139, 105, 60, 0.07) 28px
+    );
+}
+
+.uep-hisland--empty {
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-style: italic;
+  line-height: 1.7;
+}
+
+.uep-hisland__begin {
+  all: unset;
+  display: block;
+  margin: 10px auto 0;
+  padding: 5px 14px;
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  font-style: normal;
+  color: var(--ink-title);
+  border: 1px solid rgba(139, 105, 60, 0.45);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease);
+}
+
+.uep-hisland__begin:hover {
+  border-color: var(--uep-gold);
+}
+
+/* ── 續讀卡（書籤） ── */
+.uep-hisland__resume {
+  position: relative;
+  padding: 10px 12px 12px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(139, 105, 60, 0.3);
+  border-radius: 2px;
+  background: rgba(139, 105, 60, 0.05);
+}
+
+/* 書籤緞帶 */
+.uep-hisland__resume::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: 14px;
+  width: 10px;
+  height: 22px;
+  background: var(--uep-gold);
+  opacity: 0.75;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+}
+
+.uep-hisland__resume-kicker {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  margin-bottom: 6px;
+}
+
+.uep-hisland__resume-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-title);
+  line-height: 1.45;
+}
+
+.uep-hisland__resume-volume {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.uep-hisland__resume-pct {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  margin-top: 4px;
+}
+
+.uep-hisland__resume-btn {
+  all: unset;
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 12px;
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  color: var(--ink-title);
+  border: 1px solid rgba(139, 105, 60, 0.5);
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.uep-hisland__resume-btn:hover {
+  border-color: var(--uep-gold);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.uep-hisland__resume-btn:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+/* ── 章節列表（目錄頁） ── */
+.uep-hisland__chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.uep-hisland__chapters-kicker {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-mute);
+  padding: 0 2px 6px;
+  border-bottom: 1px dashed rgba(139, 105, 60, 0.3);
+  margin-bottom: 4px;
+}
+
+/* ── 兩層目錄（S6-2）：chapter 群組 + arcs 縮排 ── */
+.uep-hisland__chapter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.uep-hisland__chapter-group.is-current {
+  box-shadow: inset 2px 0 0 var(--uep-gold);
+}
+
+.uep-hisland__chapter-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.uep-hisland__chapter-caret {
+  all: unset;
+  box-sizing: border-box;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: color 0.18s var(--ease);
+}
+
+.uep-hisland__chapter-caret:hover {
+  color: var(--uep-gold);
+}
+
+.uep-hisland__chapter-caret:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: -1px;
+}
+
+.uep-hisland__chapter-caret.is-leaf {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.uep-hisland__arcs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 20px;
+  border-left: 1px dashed rgba(139, 105, 60, 0.25);
+  margin-left: 9px;
+}
+
+.uep-hisland__arc {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.18s var(--ease);
+}
+
+.uep-hisland__arc:hover:not(:disabled) {
+  background: rgba(139, 105, 60, 0.1);
+}
+
+.uep-hisland__arc:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: -1px;
+}
+
+.uep-hisland__arc.is-current {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.uep-hisland__arc.is-locked {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.uep-hisland__chapter {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.18s var(--ease);
+}
+
+.uep-hisland__chapter:hover:not(:disabled) {
+  background: rgba(139, 105, 60, 0.1);
+}
+
+.uep-hisland__chapter:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: -1px;
+}
+
+.uep-hisland__chapter.is-current {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.uep-hisland__chapter.is-locked {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.uep-hisland__chapter-title {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uep-hisland__chapter-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.uep-hisland__chapter-bar {
+  display: block;
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(139, 105, 60, 0.2);
+  overflow: hidden;
+}
+
+.uep-hisland__chapter-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--uep-gold);
+  transition: width 0.3s var(--ease);
+}
+
+.uep-hisland__chapter-count {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-mute);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ── 統計 footer ── */
+.uep-hisland__footer {
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(139, 105, 60, 0.3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+}

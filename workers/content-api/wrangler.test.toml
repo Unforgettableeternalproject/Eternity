@@ -1,0 +1,39 @@
+name = "eternity-content-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[dev]
+port = 8788
+
+# D1 資料庫綁定
+[[d1_databases]]
+binding = "CONTENT_DB"
+database_name = "eternity-content"
+database_id = "1f31587a-6cc7-441b-bbfb-eb99cba8a51b"
+migrations_dir = "migrations"
+
+# R2 圖片儲存（文件站）
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "eternity-assets"
+
+# R2 圖片儲存（主站）
+[[r2_buckets]]
+binding = "ROOT_ASSETS_BUCKET"
+bucket_name = "eternity-root-assets"
+
+# 定期維護排程（Cron Triggers）
+# - 每天 UTC 04:00（台灣中午 12:00）重排 sort_order + 清理軟刪除
+[triggers]
+crons = ["0 4 * * *"]
+
+# 環境變數
+[vars]
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+# visitor-counter Worker base URL — /api/widget/discord-stats 由此拿文件站訪客數
+# 缺失時該欄位回 null，端點仍 200
+VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
+# T-10.5：啟用 test env 專屬路由（/api/test/reset）
+# vitest 使用此 wrangler.test.toml，故所有 Worker 測試在 test env 下執行
+ETERNITY_TEST_ENV = "true"
+
