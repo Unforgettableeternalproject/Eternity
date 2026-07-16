@@ -30,9 +30,13 @@ export const POST: APIRoute = async ({ cookies }) => {
     );
   }
 
+  const jwt = cookies.get(JWT_COOKIE)?.value;
+
   try {
+    // seed-snapshot 端點需 admin JWT 授權；SSR 轉送 httpOnly JWT，不經瀏覽器端。
     const snapshotResponse = await fetch(
-      `${PROD_CONTENT_API}/api/test/seed-snapshot`
+      `${PROD_CONTENT_API}/api/test/seed-snapshot`,
+      jwt ? { headers: { Authorization: `Bearer ${jwt}` } } : undefined
     );
     if (!snapshotResponse.ok) {
       throw new Error(
@@ -50,7 +54,6 @@ export const POST: APIRoute = async ({ cookies }) => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    const jwt = cookies.get(JWT_COOKIE)?.value;
     if (jwt) headers.Authorization = `Bearer ${jwt}`;
 
     const response = await fetch(`${contentApi}/api/test/reset`, {

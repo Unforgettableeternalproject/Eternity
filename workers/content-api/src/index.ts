@@ -1801,9 +1801,16 @@ export default {
     // 資料本來就由公開內容 API 提供；此端點只把 reset 所需骨架一次打包，
     // 避免 Admin reseed 發出上百個 subrequest。test Worker 不提供 snapshot，
     // 防止誤把測試資料當成正式 baseline。
+    // 需授權：唯一呼叫端是兩站 reset proxy（SSR 轉送 admin JWT），
+    // 用 requireJwt 而非 isAuthorized——正式 worker 的 isAuthorized 只認
+    // API_TOKEN、不認 admin JWT，會誤擋 proxy。requireJwt 驗證 admin JWT
+    // 並拒絕 reader/匿名，避免任何人一次打包帶走全站骨架、降低批量鏡像成本。
     if (path === '/api/test/seed-snapshot' && request.method === 'GET') {
       if (env.ETERNITY_TEST_ENV === 'true') {
         return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+      }
+      if ((await requireJwt(request, env)) === null) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const snapshot = await buildTestSeedSnapshot(env.CONTENT_DB);
       return jsonResponse({ ok: true, data: snapshot }, 200, cors, false);

@@ -12,6 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const TEST_URL = 'https://eternity-content-api-test.ptyc4076.workers.dev';
 const MALICIOUS_URL = 'https://malicious.example.com/api';
+// 第一段刻意等於 test worker 名稱、後面接攻擊者網域——完整 hostname 比對必須擋下
+const SPOOFED_SUBDOMAIN_URL = 'https://eternity-content-api-test.evil.com/api';
 
 /**
  * jsdom 環境下重置 cookie 與 stub 環境變數。
@@ -69,6 +71,12 @@ describe('apiBase', () => {
 
     it('cookie 是無法 parse 的字串時忽略', async () => {
       document.cookie = `uep-test-api-url=${encodeURIComponent('not a url')}; Path=/`;
+      const { getApiBase } = await import('./apiBase');
+      expect(getApiBase()).toBe('https://prod-worker.example.com');
+    });
+
+    it('cookie 是偽造子網域（第一段等於 test worker 名稱）時忽略', async () => {
+      document.cookie = `uep-test-api-url=${encodeURIComponent(SPOOFED_SUBDOMAIN_URL)}; Path=/`;
       const { getApiBase } = await import('./apiBase');
       expect(getApiBase()).toBe('https://prod-worker.example.com');
     });
@@ -145,6 +153,13 @@ describe('apiBase', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const { setTestModeOverride } = await import('./apiBase');
       expect(setTestModeOverride('not-a-url')).toBe(false);
+    });
+
+    it('偽造子網域（第一段等於 test worker 名稱）被拒', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { setTestModeOverride } = await import('./apiBase');
+      expect(setTestModeOverride(SPOOFED_SUBDOMAIN_URL)).toBe(false);
+      expect(document.cookie).not.toContain('uep-test-api-url');
     });
   });
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '../pages/api/test/reset';
 
 const TEST_URL = 'https://eternity-content-api-test.ptyc4076.workers.dev';
+const PROD_URL = 'https://eternity-content-api.ptyc4076.workers.dev';
 type RouteContext = Parameters<typeof POST>[0];
 
 function makeContext(values: Record<string, string>): RouteContext {
@@ -61,6 +62,11 @@ describe('root POST /api/test/reset proxy', () => {
 
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `${PROD_URL}/api/test/seed-snapshot`,
+      { headers: { Authorization: 'Bearer admin-token' } }
+    );
     expect(fetchMock).toHaveBeenLastCalledWith(`${TEST_URL}/api/test/reset`, {
       method: 'POST',
       headers: {

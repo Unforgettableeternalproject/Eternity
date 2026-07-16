@@ -92,7 +92,8 @@ describe('POST /api/test/reset proxy', () => {
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      `${PROD_URL}/api/test/seed-snapshot`
+      `${PROD_URL}/api/test/seed-snapshot`,
+      { headers: { Authorization: 'Bearer admin-token' } }
     );
     expect(fetchMock).toHaveBeenNthCalledWith(2, `${TEST_URL}/api/test/reset`, {
       method: 'POST',

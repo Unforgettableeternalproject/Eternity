@@ -31,8 +31,10 @@ export const POST: APIRoute = async ({ cookies }) => {
   }
 
   try {
+    // seed-snapshot 端點需 admin JWT 授權；SSR 轉送 httpOnly JWT，不經瀏覽器端。
     const snapshotResponse = await fetch(
-      `${PROD_CONTENT_API}/api/test/seed-snapshot`
+      `${PROD_CONTENT_API}/api/test/seed-snapshot`,
+      jwt ? { headers: { Authorization: `Bearer ${jwt}` } } : undefined
     );
     if (!snapshotResponse.ok) {
       return new Response(

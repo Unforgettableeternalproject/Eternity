@@ -18,6 +18,9 @@
 const TEST_WORKER_URL =
   'https://eternity-content-api-test.ptyc4076.workers.dev';
 
+/** test worker 的完整 hostname；override 驗證用完整比對，不可只看第一段 */
+const TEST_WORKER_HOST = new URL(TEST_WORKER_URL).hostname;
+
 /** Test Mode override cookie 名稱 */
 const TEST_COOKIE_NAME = 'uep-test-api-url';
 
@@ -86,16 +89,15 @@ function decodeCookieValue(value: string | null): string | null {
 /**
  * 判斷一個 URL 是否為合法 test worker URL。
  *
- * 規則：可 parse 為 URL 且 hostname 以 `eternity-content-api-test` 開頭。
- * 這比字串 `includes` 更嚴格，避免路徑或 query string 誤觸。
+ * 規則：可 parse 為 URL 且 hostname **完整等於** test worker hostname。
+ * 必須完整比對，不能只看第一段——`eternity-content-api-test.evil.com`
+ * 的第一段同樣是 test worker 名稱，只比對 `split('.')[0]` 會讓偽造網域過關，
+ * 使 SSR proxy 把 admin JWT 轉送到攻擊者網域（hostname 完整比對，取代前綴判斷）。
  */
 function isTestWorkerUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    // 比對 hostname 的第一個段，避免 `eternity-content-api-test-preview.xxx`
-    // 這類前綴延伸的網域誤過關（米絲媞 review Mi-1）。
-    const firstSegment = parsed.hostname.split('.')[0];
-    return firstSegment === 'eternity-content-api-test';
+    return parsed.hostname === TEST_WORKER_HOST;
   } catch {
     return false;
   }

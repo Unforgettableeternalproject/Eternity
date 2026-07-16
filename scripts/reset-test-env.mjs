@@ -184,9 +184,14 @@ async function main() {
   );
   console.log();
 
+  // fail closed，與 seed-test-env 一致：部署後的 test Worker 需授權，
+  // 無 token 呼叫會被 401 擋下，不存在「開發模式全通過」路徑。
   const token = getApiToken();
   if (!token) {
-    console.log('  ℹ API_TOKEN 未設定，以開發模式（全通過）執行\n');
+    console.error(
+      '\n[ERROR] API_TOKEN 未設定；Test Worker 已 fail closed，CLI reset 必須提供 test API token。\n'
+    );
+    process.exit(1);
   }
 
   // ── 步驟 3：呼叫 test Worker 的 /api/test/reset 清空 D1 ──
