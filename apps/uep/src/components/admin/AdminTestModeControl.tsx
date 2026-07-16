@@ -70,12 +70,16 @@ export default function AdminTestModeControl(): React.ReactElement {
 
       const json = (await res.json()) as {
         ok: boolean;
-        data?: { tables: string[]; totalRows: number; clearedAt: string };
+        data?: {
+          tables: string[];
+          totalRows: number;
+          seeded?: { pages?: number };
+        };
       };
       setResetState('done');
-      const tables = json.data?.tables?.join(', ') ?? '（未知）';
       const rows = json.data?.totalRows ?? 0;
-      setResetMessage(`完成：清除 ${rows} 筆（表格：${tables}）`);
+      const pages = json.data?.seeded?.pages ?? 0;
+      setResetMessage(`完成：清除 ${rows} 筆並重新建立 ${pages} 個頁面骨架`);
       setResetConfirmInput('');
     } catch (err) {
       setResetState('error');
@@ -199,8 +203,8 @@ export default function AdminTestModeControl(): React.ReactElement {
         <div className="adm-test-mode-card__reset-section">
           <div className="adm-test-mode-card__reset-label">重置測試資料</div>
           <div className="adm-test-mode-card__reset-hint">
-            輸入 <code>RESET TEST</code> 以啟用按鈕。此操作清空 test D1
-            所有業務資料，無法復原。
+            輸入 <code>RESET TEST</code> 以啟用按鈕。此操作會清除 test D1
+            業務資料，並依正式 D1 的種子規則重新建立測試資料。
           </div>
           <div className="adm-test-mode-card__reset-row">
             <input

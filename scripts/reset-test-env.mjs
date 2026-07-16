@@ -114,7 +114,12 @@ async function callTestReset(token) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { method: 'POST', headers });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    // CLI 會在下一步執行 seed-test-env.mjs；避免 Worker 先 reseed 一次。
+    body: JSON.stringify({ clearOnly: true }),
+  });
 
   if (res.status === 404) {
     throw new Error(

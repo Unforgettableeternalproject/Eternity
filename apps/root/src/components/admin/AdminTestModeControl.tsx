@@ -28,28 +28,10 @@ import './AdminTestModeControl.css';
 type Source = 'cookie' | 'env' | 'none';
 type ResetState = 'idle' | 'loading' | 'done' | 'error';
 
-/** Admin JWT cookie 名稱（uep 站與 root 站不同，兩者都試以支援共用元件） */
-const JWT_COOKIE_CANDIDATES = ['uep-admin-jwt', 'root-admin-jwt'];
-
 function detectSource(): Source {
   if (typeof document === 'undefined') return 'none';
   if (document.cookie.includes(`${TEST_MODE_COOKIE_NAME}=`)) return 'cookie';
   return isTestMode() ? 'env' : 'none';
-}
-
-/** 從 document.cookie 抓 admin JWT（若沒登入則 undefined） */
-function readAdminJwt(): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const parts = document.cookie.split('; ').filter(Boolean);
-  for (const raw of parts) {
-    const eq = raw.indexOf('=');
-    if (eq < 0) continue;
-    const name = raw.slice(0, eq);
-    if (JWT_COOKIE_CANDIDATES.includes(name)) {
-      return decodeURIComponent(raw.slice(eq + 1));
-    }
-  }
-  return undefined;
 }
 
 export default function AdminTestModeControl(): React.ReactElement {
@@ -73,16 +55,9 @@ export default function AdminTestModeControl(): React.ReactElement {
     setResetState('loading');
     setResetMessage('');
     try {
-      const base = getApiBase();
-      const jwt = readAdminJwt();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
-
-      const res = await fetch(`${base}/api/test/reset`, {
+      const res = await fetch('/api/test/reset', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (!res.ok) {
@@ -94,12 +69,16 @@ export default function AdminTestModeControl(): React.ReactElement {
 
       const json = (await res.json()) as {
         ok: boolean;
-        data?: { tables: string[]; totalRows: number; clearedAt: string };
+        data?: {
+          tables: string[];
+          totalRows: number;
+          seeded?: { pages?: number };
+        };
       };
       setResetState('done');
-      const tables = json.data?.tables?.join(', ') ?? '（未知）';
       const rows = json.data?.totalRows ?? 0;
-      setResetMessage(`完成：清除 ${rows} 筆（表格：${tables}）`);
+      const pages = json.data?.seeded?.pages ?? 0;
+      setResetMessage(`完成：清除 ${rows} 筆並重新建立 ${pages} 個頁面骨架`);
       setResetConfirmInput('');
     } catch (err) {
       setResetState('error');
@@ -210,8 +189,8 @@ export default function AdminTestModeControl(): React.ReactElement {
         <div className="adm-test-mode-card__reset-section">
           <div className="adm-test-mode-card__reset-label">重置測試資料</div>
           <div className="adm-test-mode-card__reset-hint">
-            輸入 <code>RESET TEST</code> 以啟用按鈕。此操作清空 test D1
-            所有業務資料，無法復原。
+            輸入 <code>RESET TEST</code> 以啟用按鈕。此操作會清除 test D1
+            業務資料，並依正式 D1 的種子規則重新建立測試資料。
           </div>
           <div className="adm-test-mode-card__reset-row">
             <input

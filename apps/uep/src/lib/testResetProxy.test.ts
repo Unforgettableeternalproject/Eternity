@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '../pages/api/test/reset';
 
 const TEST_URL = 'https://eternity-content-api-test.ptyc4076.workers.dev';
+const PROD_URL = 'https://eternity-content-api.ptyc4076.workers.dev';
 
 type RouteContext = Parameters<typeof POST>[0];
 
@@ -35,12 +36,29 @@ describe('POST /api/test/reset proxy', () => {
   });
 
   it('使用 test cookie 路由並轉發 httpOnly JWT', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
+    const snapshot = {
+      version: 1,
+      pages: [],
+      rootProjects: [],
+      rootLinks: [],
+      rootUpdates: [],
+      rootSingletons: [],
+      rootCards: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, data: snapshot }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const response = await POST(
@@ -51,12 +69,34 @@ describe('POST /api/test/reset proxy', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledWith(`${TEST_URL}/api/test/reset`, {
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `${PROD_URL}/api/test/seed-snapshot`
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2, `${TEST_URL}/api/test/reset`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer admin-token',
       },
+      body: JSON.stringify({ snapshot }),
     });
+  });
+
+  it('snapshot 取得失敗時不會呼叫 reset', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await POST(
+      makeContext({
+        'uep-test-api-url': TEST_URL,
+        'uep-admin-jwt': 'admin-token',
+      })
+    );
+
+    expect(response.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

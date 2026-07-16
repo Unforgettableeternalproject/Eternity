@@ -28,6 +28,12 @@ import { findEntitySong } from './echoes-song';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
 import { buildDiscordStats } from './widget-stats';
+import {
+  buildTestSeedSnapshot,
+  isTestSeedSnapshot,
+  resetAndSeedTestData,
+  type TestSeedSnapshot,
+} from './test-seed';
 
 // ===== 工具函式 =====
 
@@ -1767,11 +1773,21 @@ export default {
       );
     }
 
+    // ═══ Test seed snapshot（正式環境唯讀）═══
+    // 資料本來就由公開內容 API 提供；此端點只把 reset 所需骨架一次打包，
+    // 避免 Admin reseed 發出上百個 subrequest。test Worker 不提供 snapshot，
+    // 防止誤把測試資料當成正式 baseline。
+    if (path === '/api/test/seed-snapshot' && request.method === 'GET') {
+      if (env.ETERNITY_TEST_ENV === 'true') {
+        return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+      }
+      const snapshot = await buildTestSeedSnapshot(env.CONTENT_DB);
+      return jsonResponse({ ok: true, data: snapshot }, 200, cors, false);
+    }
+
     // ═══ Test 環境專屬端點（Issue #41 T-10.5）═══
-    // 僅在 ETERNITY_TEST_ENV === 'true' 時可達（prod 部署 404）。
-    // Auth 走 requireJwt：JWT_SECRET 未設時 dev bypass（測試 worker 目前未設 secret，
-    // 等同 admin dev 模式全通過）；設了則需要 admin JWT。
-    // 清空的表格白名單只包含業務資料，不含 admin_users / sync_log 等帳號類。
+    // reset 預設必須攜帶正式環境產生的 seed snapshot；clearOnly 僅保留給
+    // CLI 的「先清再由本機腳本 seed」流程。兩者都只清業務表，不動帳號類。
     if (path === '/api/test/reset' && request.method === 'POST') {
       if (env.ETERNITY_TEST_ENV !== 'true') {
         return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
@@ -1780,35 +1796,46 @@ export default {
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
-      const tables = [
-        'pages',
-        'root_projects',
-        'root_links',
-        'root_updates',
-        'root_singletons',
-        'root_cards',
-      ] as const;
-      let totalRows = 0;
-      const cleared: string[] = [];
-      for (const table of tables) {
-        const before = await env.CONTENT_DB.prepare(
-          `SELECT COUNT(*) as cnt FROM ${table}`
-        ).first<{ cnt: number }>();
-        const rows = before?.cnt ?? 0;
-        if (rows > 0) {
-          await env.CONTENT_DB.prepare(`DELETE FROM ${table}`).run();
-          totalRows += rows;
-        }
-        cleared.push(table);
+
+      let body: { clearOnly?: boolean; snapshot?: unknown } = {};
+      try {
+        const text = await request.text();
+        if (text) body = JSON.parse(text) as typeof body;
+      } catch {
+        return jsonResponse(
+          { ok: false, error: 'Invalid JSON body' },
+          400,
+          cors
+        );
       }
+
+      let snapshot: TestSeedSnapshot;
+      if (body.clearOnly === true) {
+        snapshot = {
+          version: 1,
+          generatedAt: new Date().toISOString(),
+          pages: [],
+          rootProjects: [],
+          rootLinks: [],
+          rootUpdates: [],
+          rootSingletons: [],
+          rootCards: [],
+        };
+      } else if (isTestSeedSnapshot(body.snapshot)) {
+        snapshot = body.snapshot;
+      } else {
+        return jsonResponse(
+          { ok: false, error: 'A valid seed snapshot is required' },
+          400,
+          cors
+        );
+      }
+
+      const result = await resetAndSeedTestData(env.CONTENT_DB, snapshot);
       return jsonResponse(
         {
           ok: true,
-          data: {
-            tables: cleared,
-            totalRows,
-            clearedAt: new Date().toISOString(),
-          },
+          data: result,
         },
         200,
         cors,
