@@ -28,7 +28,19 @@
  */
 
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
 import { pathToFileURL } from 'url';
+
+// 葉子頁黑名單的單一來源；Admin reset 走 workers/content-api/src/test-seed.ts
+// import 同一份。改任一 zone 葉子型別只需改該 JSON。
+const pageTypeConfig = JSON.parse(
+  readFileSync(
+    new URL(
+      '../workers/content-api/src/test-seed-page-types.json',
+      import.meta.url
+    )
+  )
+);
 
 // ═══════════════════════════════════════════════════════════════
 // 資源常數
@@ -147,13 +159,9 @@ const ZONES = ['history', 'echoes', 'visuals', 'concepts', 'storage'];
  * 中間結構層一律搬（zone/chapter/arc/cluster/subcategory/division/clearing/stack），
  * 才能在 test env 看到完整導覽樹。homepage 也搬（zone 入口介紹）。
  */
-const LEAF_PAGE_TYPES = new Set([
-  'section', // history 葉子（真正的長文）
-  'page', // 各 zone 用作特殊獨立頁 / 或葉子
-  'song', // echoes 葉子
-  'stuff', // storage 葉子
-  'gallery', // visuals 葉子
-]);
+// history: section（長文）/ page（特殊獨立頁），echoes: song，
+// storage: stuff，visuals: gallery——來源見上方 pageTypeConfig。
+const LEAF_PAGE_TYPES = new Set(pageTypeConfig.leafPageTypes);
 
 /**
  * 需要保留 row、但不可把正式內容帶進測試環境的頁面殼。
@@ -162,7 +170,7 @@ const LEAF_PAGE_TYPES = new Set([
  * 若整頁略過，Concepts 導覽和 Admin tree 會缺層；若原樣搬入，又會把正式
  * entity 一起帶入。Storage 的 stuff 則是葉子資料，整列排除。
  */
-const CONTENT_SHELL_PAGE_TYPES = new Set(['concepts:type']);
+const CONTENT_SHELL_PAGE_TYPES = new Set(pageTypeConfig.contentShellTypes);
 
 export function sanitizeSeedPage(page) {
   const key = `${page.area}:${page.pageType}`;

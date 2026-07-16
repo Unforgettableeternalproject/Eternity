@@ -1,0 +1,5 @@
+{
+  "_comment": "各 zone 葉子頁 page_type 黑名單的單一來源（Issue #41）。Admin reset 走 workers/content-api/src/test-seed.ts，CLI seed/reset 走 scripts/seed-test-env.mjs，兩者都 import 此檔，避免各自維護一份導致種子範圍不一致。改任一 zone 葉子型別只需改這裡。",
+  "leafPageTypes": ["section", "page", "song", "stuff", "gallery"],
+  "contentShellTypes": ["concepts:type"]
+}

@@ -6,15 +6,11 @@ import type {
   RootSingletonRow,
   RootUpdateRow,
 } from './root-types';
+// 葉子頁黑名單的單一來源；CLI scripts/seed-test-env.mjs 也 import 同一份。
+import pageTypeConfig from './test-seed-page-types.json';
 
-const OMITTED_PAGE_TYPES = new Set([
-  'section',
-  'page',
-  'song',
-  'stuff',
-  'gallery',
-]);
-const CONTENT_SHELL_TYPES = new Set(['concepts:type']);
+const OMITTED_PAGE_TYPES = new Set(pageTypeConfig.leafPageTypes);
+const CONTENT_SHELL_TYPES = new Set(pageTypeConfig.contentShellTypes);
 
 export interface TestSeedSnapshot {
   version: 1;
