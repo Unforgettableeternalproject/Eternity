@@ -7,11 +7,11 @@
  *   node scripts/seed-test-env.mjs
  *
  * 資料範圍（各 zone 全導覽骨架，不搬葉子內容）：
- *   - pages 表：leaf blacklist — 跳過 section/page/song/gallery
+ *   - pages 表：leaf blacklist — 跳過 section/page/song/stuff/gallery
  *     其餘 homepage / zone / chapter / arc / cluster / subcategory /
  *     division / clearing / stack 全搬，完整導覽樹
- *   - concepts/type、storage/stuff 保留 row 骨架，但清空 content：前者的
- *     真正內容是結構化 entity，後者需要 row 才能保留 clearing 下的條目列表
+ *   - concepts/type 保留 row 骨架但清空 content；真正內容是其中的 entity
+ *   - storage/stuff 是葉子資料，整列略過
  *   - pages 表：slug = 'history/index'
  *   - root_singletons：18 個已知 keys（見 KNOWN_SINGLETON_KEYS）
  *   - root_cards：全部
@@ -20,7 +20,7 @@
  * 各 zone 的葉子命名不同（艾斯維爾提醒）：
  *   - history: section + page   - echoes: song       - visuals: gallery
  *   - concepts: type row 保留，清空其中 entity content
- *   - storage: stuff row 保留，清空其中正文 content
+ *   - storage: stuff 整列略過
  *
  * 安全性：
  *   - 本腳本為唯讀模式讀取 prod（GET），寫入 test Worker（PUT/POST）
@@ -141,7 +141,7 @@ const ZONES = ['history', 'echoes', 'visuals', 'concepts', 'storage'];
  *   - history: section（rich text 章節內容，avg 8K max 14K）+ page（特殊獨立頁）
  *   - echoes:  song（108 首歌曲 metadata + audioKey）+ page
  *   - concepts: type 的 row 是 stack 下的列表項，真正內容才是 content 裡的 entity
- *   - storage: stuff 的 row 是 clearing 下的列表項，真正內容才是 content blocks
+ *   - storage: stuff 本身就是應由測試環境自行建立的葉子資料
  *   - visuals: gallery（相簿圖片清單）
  *
  * 中間結構層一律搬（zone/chapter/arc/cluster/subcategory/division/clearing/stack），
@@ -151,6 +151,7 @@ const LEAF_PAGE_TYPES = new Set([
   'section', // history 葉子（真正的長文）
   'page', // 各 zone 用作特殊獨立頁 / 或葉子
   'song', // echoes 葉子
+  'stuff', // storage 葉子
   'gallery', // visuals 葉子
 ]);
 
@@ -158,14 +159,18 @@ const LEAF_PAGE_TYPES = new Set([
  * 需要保留 row、但不可把正式內容帶進測試環境的頁面殼。
  *
  * concepts/type 的 title、parentId、metadata 決定 stack 內的子列表與編輯模式；
- * storage/stuff 的 row 則決定 clearing 內有哪些可供測試的條目。兩者若整頁略過，
- * 導覽和 Admin tree 都會缺層；若原樣搬入，又會把正式 entity／正文一起帶入。
+ * 若整頁略過，Concepts 導覽和 Admin tree 會缺層；若原樣搬入，又會把正式
+ * entity 一起帶入。Storage 的 stuff 則是葉子資料，整列排除。
  */
-const CONTENT_SHELL_PAGE_TYPES = new Set(['concepts:type', 'storage:stuff']);
+const CONTENT_SHELL_PAGE_TYPES = new Set(['concepts:type']);
 
 export function sanitizeSeedPage(page) {
   const key = `${page.area}:${page.pageType}`;
-  if (!CONTENT_SHELL_PAGE_TYPES.has(key)) return page;
+  const isRequiredLeafAncestor =
+    LEAF_PAGE_TYPES.has(page.pageType) && page.id !== 'history/index';
+  if (!CONTENT_SHELL_PAGE_TYPES.has(key) && !isRequiredLeafAncestor) {
+    return page;
+  }
 
   return {
     ...page,
@@ -357,6 +362,20 @@ async function fetchSeedUpdates() {
   }
 }
 
+async function fetchSeedSiteHomepage() {
+  try {
+    const resp = await prodGet('/api/homepage');
+    return Object.entries(resp.data || {}).map(([sectionId, value]) => ({
+      sectionId,
+      content: value.content,
+      updatedAt: value.updatedAt,
+    }));
+  } catch (err) {
+    console.warn(`  ⚠ 無法讀取 site_homepage: ${err.message}`);
+    return [];
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 寫入 test Worker
 // ═══════════════════════════════════════════════════════════════
@@ -508,6 +527,16 @@ async function writeUpdate(update, token) {
   });
 }
 
+async function writeSiteHomepage(section, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  headers['Authorization'] = `Bearer ${token}`;
+  await apiFetch(TEST_WORKER_URL, `/api/homepage/${section.sectionId}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ content: section.content }),
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 主入口
 // ═══════════════════════════════════════════════════════════════
@@ -523,7 +552,9 @@ async function main() {
 
   const token = getApiToken();
   if (!token) {
-    console.log('  ℹ API_TOKEN 未設定，以開發模式（全通過）執行\n');
+    throw new Error(
+      'API_TOKEN 未設定；Test Worker 已 fail closed，CLI seed 必須提供 test API token。'
+    );
   }
 
   // ── 1. 讀取 prod 骨架 pages ──
@@ -563,6 +594,10 @@ async function main() {
   console.log('\n[ 6/6 ] 從 prod 讀取 root_updates...');
   const updates = await fetchSeedUpdates();
   console.log(`  找到 ${updates.length} 筆 updates`);
+
+  console.log('\n[ 7/7 ] 從 prod 讀取 site_homepage...');
+  const siteHomepage = await fetchSeedSiteHomepage();
+  console.log(`  找到 ${siteHomepage.length} 筆 site_homepage`);
 
   // ── 寫入 test Worker ──
   console.log('\n=== 開始寫入 test Worker ===\n');
@@ -648,6 +683,19 @@ async function main() {
   }
   console.log(`  updates: ${updateOk} 成功, ${updateFail} 失敗`);
 
+  let homepageOk = 0,
+    homepageFail = 0;
+  for (const section of siteHomepage) {
+    try {
+      await writeSiteHomepage(section, token);
+      homepageOk++;
+    } catch (err) {
+      homepageFail++;
+      console.error(`  ✘ site_homepage ${section.sectionId}: ${err.message}`);
+    }
+  }
+  console.log(`  site_homepage: ${homepageOk} 成功, ${homepageFail} 失敗`);
+
   // ── 摘要 ──
   console.log('\n=== 種子完成摘要 ===\n');
   console.log(
@@ -658,11 +706,18 @@ async function main() {
   console.log(`  links       : ${linkOk} 筆`);
   console.log(`  projects    : ${projectOk} 筆`);
   console.log(`  updates     : ${updateOk} 筆`);
+  console.log(`  homepage    : ${homepageOk} 筆`);
   console.log(`  目標        : ${TEST_WORKER_URL}`);
   console.log();
 
   if (
-    pagesFail + singletonFail + cardFail + linkFail + projectFail + updateFail >
+    pagesFail +
+      singletonFail +
+      cardFail +
+      linkFail +
+      projectFail +
+      updateFail +
+      homepageFail >
     0
   ) {
     console.warn('  ⚠ 部分資料寫入失敗，請檢查上方錯誤訊息。');

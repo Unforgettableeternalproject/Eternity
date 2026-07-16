@@ -65,8 +65,9 @@ bucket_name = "eternity-root-assets-test"
 
 # TEST env 變數
 [env.test.vars]
-# CORS：只允許測試站 / staging preview / localhost，不含正式網域
-ALLOWED_ORIGINS = "https://*.eternity-uep-test.pages.dev,https://*.eternity-root-test.pages.dev,https://*.eternity-uep.pages.dev,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+# CORS：允許正式站切換 test mode、實際 staging/test Pages 與 localhost
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-uep-staging.pages.dev,https://*.eternity-root-staging.pages.dev,https://*.eternity-uep-test.pages.dev,https://*.eternity-root-test.pages.dev,https://*.eternity-uep.pages.dev,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+TEST_AUTH_VERIFY_URL = "https://eternity-content-api.ptyc4076.workers.dev/api/auth/me"
 VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
 # Worker 內部旗標：test env 才啟用 /api/test/reset 等測試專屬端點
 ETERNITY_TEST_ENV = "true"

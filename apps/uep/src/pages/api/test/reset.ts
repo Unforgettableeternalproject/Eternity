@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ cookies }) => {
   const contentApi = getApiBase(testCookie);
   const jwt = cookies.get(JWT_COOKIE)?.value;
 
-  if (!testCookie || contentApi !== TEST_WORKER_BASE_URL) {
+  if (contentApi !== TEST_WORKER_BASE_URL) {
     return new Response(
       JSON.stringify({ ok: false, error: 'Test mode cookie is required' }),
       {

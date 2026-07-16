@@ -88,7 +88,36 @@ export async function requireJwt(
   request: Request,
   env: Env
 ): Promise<JwtPayload | null> {
-  // 開發模式（無 JWT_SECRET）：允許所有請求
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+
+  if (!env.JWT_SECRET && env.ETERNITY_TEST_ENV === 'true') {
+    if (!token || !env.TEST_AUTH_VERIFY_URL) return null;
+    try {
+      const response = await fetch(env.TEST_AUTH_VERIFY_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return null;
+      const result = (await response.json()) as {
+        ok?: boolean;
+        data?: { username?: string; role?: string; display_name?: string };
+      };
+      if (!result.ok || !result.data?.username) return null;
+      if (result.data.role === 'reader') return null;
+      return {
+        sub: result.data.username,
+        role: result.data.role || 'admin',
+        display_name: result.data.display_name || result.data.username,
+        iat: 0,
+        exp: 0,
+        jti: 'remote-verified',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // 僅非 test 的本地開發環境保留無 secret bypass。
   if (!env.JWT_SECRET)
     return {
       sub: 'dev',
@@ -98,8 +127,6 @@ export async function requireJwt(
       exp: 0,
       jti: '',
     };
-  const auth = request.headers.get('Authorization');
-  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
   if (!token) return null;
   const payload = await verifyJwt(token, env.JWT_SECRET);
   // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，

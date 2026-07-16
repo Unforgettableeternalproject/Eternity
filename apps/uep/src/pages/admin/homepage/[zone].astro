@@ -1,7 +1,6 @@
 ---
 import DesignLayout from '../../../layouts/DesignLayout.astro';
 import HomepageEditor from '../../../components/editor/homepage/HomepageEditor';
-import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
 
 // 動態 SSR 路由，不預先渲染
 export const prerender = false;
@@ -22,10 +21,6 @@ const zoneInfo = zone ? ZONE_MAP[zone] : null;
 if (!zoneInfo) {
   return Astro.redirect('/admin');
 }
-
-const apiBase = getApiBase(
-  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
-);
 ---
 
 <DesignLayout title={`首頁編輯 · ${zoneInfo.label} - U.E.P Admin`}>
@@ -34,6 +29,6 @@ const apiBase = getApiBase(
     area={zone!}
     zoneLabel={zoneInfo.label}
     zoneColor={zoneInfo.color}
-    apiBase={apiBase}
+    apiBase={Astro.url.origin}
   />
 </DesignLayout>

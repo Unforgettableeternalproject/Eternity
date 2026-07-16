@@ -17,6 +17,8 @@ export interface Env {
    * prod worker 永遠不含此 var，用於啟用 /api/test/reset 等測試專屬端點。
    */
   ETERNITY_TEST_ENV?: string;
+  /** Test Worker 無本地 JWT secret 時，向正式 Worker 驗證 Admin JWT。 */
+  TEST_AUTH_VERIFY_URL?: string;
 }
 
 // ===== 內容區塊系統 =====

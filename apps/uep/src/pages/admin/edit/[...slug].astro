@@ -12,7 +12,7 @@ const parts = slug.split('/');
 const area = parts[0];
 const pageSlug = parts.slice(1).join('/');
 
-const apiBase = getApiBase(
+const contentApi = getApiBase(
   Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
 );
 
@@ -24,7 +24,7 @@ let fetchError: string | null = null;
 
 if (!isEntryMode) {
   try {
-    const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+    const res = await fetch(`${contentApi}/api/content/${area}/${pageSlug}`);
     const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
       throw new Error('Content API not available (received non-JSON response)');
@@ -90,7 +90,7 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
         client:only="react"
         initialContent={isEntryMode ? '' : initialHtml}
         initialTitle={page?.title || ''}
-        apiBase={apiBase}
+        apiBase={Astro.url.origin}
         area={area}
         pageSlug={pageSlug}
         pageStatus={page?.status || ''}

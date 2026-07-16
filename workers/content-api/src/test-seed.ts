@@ -7,8 +7,14 @@ import type {
   RootUpdateRow,
 } from './root-types';
 
-const OMITTED_PAGE_TYPES = new Set(['section', 'page', 'song', 'gallery']);
-const CONTENT_SHELL_TYPES = new Set(['concepts:type', 'storage:stuff']);
+const OMITTED_PAGE_TYPES = new Set([
+  'section',
+  'page',
+  'song',
+  'stuff',
+  'gallery',
+]);
+const CONTENT_SHELL_TYPES = new Set(['concepts:type']);
 
 export interface TestSeedSnapshot {
   version: 1;
@@ -19,6 +25,11 @@ export interface TestSeedSnapshot {
   rootUpdates: RootUpdateRow[];
   rootSingletons: RootSingletonRow[];
   rootCards: RootCardRow[];
+  siteHomepage: Array<{
+    section_id: string;
+    content: string;
+    updated_at: string;
+  }>;
 }
 
 export interface TestResetResult {
@@ -32,7 +43,9 @@ export interface TestResetResult {
     rootUpdates: number;
     rootSingletons: number;
     rootCards: number;
+    siteHomepage: number;
   };
+  resetUserProgress: number;
 }
 
 function selectSeedPages(rows: PageRow[]): PageRow[] {
@@ -60,11 +73,14 @@ function selectSeedPages(rows: PageRow[]): PageRow[] {
 
   return rows
     .filter((row) => selectedIds.has(row.id))
-    .map((row) =>
-      CONTENT_SHELL_TYPES.has(`${row.area}:${row.page_type}`)
+    .map((row) => {
+      const isRequiredLeafAncestor =
+        OMITTED_PAGE_TYPES.has(row.page_type) && row.id !== 'history/index';
+      return CONTENT_SHELL_TYPES.has(`${row.area}:${row.page_type}`) ||
+        isRequiredLeafAncestor
         ? { ...row, content: '[]' }
-        : row
-    )
+        : row;
+    })
     .sort(
       (a, b) =>
         a.depth - b.depth ||
@@ -76,7 +92,7 @@ function selectSeedPages(rows: PageRow[]): PageRow[] {
 export async function buildTestSeedSnapshot(
   db: D1Database
 ): Promise<TestSeedSnapshot> {
-  const [pages, projects, links, updates, singletons, cards] =
+  const [pages, projects, links, updates, singletons, cards, siteHomepage] =
     await Promise.all([
       db.prepare('SELECT * FROM pages WHERE deleted_at IS NULL').all<PageRow>(),
       db
@@ -90,6 +106,9 @@ export async function buildTestSeedSnapshot(
         .all<RootUpdateRow>(),
       db.prepare('SELECT * FROM root_singletons').all<RootSingletonRow>(),
       db.prepare('SELECT * FROM root_cards').all<RootCardRow>(),
+      db
+        .prepare('SELECT section_id, content, updated_at FROM site_homepage')
+        .all<{ section_id: string; content: string; updated_at: string }>(),
     ]);
 
   return {
@@ -101,6 +120,7 @@ export async function buildTestSeedSnapshot(
     rootUpdates: updates.results || [],
     rootSingletons: singletons.results || [],
     rootCards: cards.results || [],
+    siteHomepage: siteHomepage.results || [],
   };
 }
 
@@ -114,7 +134,9 @@ export function isTestSeedSnapshot(value: unknown): value is TestSeedSnapshot {
     Array.isArray(snapshot.rootLinks) &&
     Array.isArray(snapshot.rootUpdates) &&
     Array.isArray(snapshot.rootSingletons) &&
-    Array.isArray(snapshot.rootCards)
+    Array.isArray(snapshot.rootCards) &&
+    (snapshot.siteHomepage === undefined ||
+      Array.isArray(snapshot.siteHomepage))
   );
 }
 
@@ -125,6 +147,9 @@ const BUSINESS_TABLES = [
   'root_updates',
   'root_singletons',
   'root_cards',
+  'site_homepage',
+  'deleted_assets',
+  'root_deleted_assets',
 ] as const;
 
 export async function resetAndSeedTestData(
@@ -141,6 +166,13 @@ export async function resetAndSeedTestData(
   const totalRows = counts.reduce((sum, row) => sum + (row?.cnt ?? 0), 0);
   const statements: D1PreparedStatement[] = BUSINESS_TABLES.map((table) =>
     db.prepare(`DELETE FROM ${table}`)
+  );
+  statements.push(
+    db.prepare(
+      `UPDATE uep_users
+       SET progress = NULL, observer_ever = 0, updated_at = datetime('now')
+       WHERE progress IS NOT NULL OR observer_ever != 0`
+    )
   );
 
   for (const row of snapshot.pages) {
@@ -286,7 +318,19 @@ export async function resetAndSeedTestData(
     );
   }
 
-  await db.batch(statements);
+  for (const row of snapshot.siteHomepage ?? []) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO site_homepage (section_id, content, updated_at)
+           VALUES (?, ?, ?)`
+        )
+        .bind(row.section_id, row.content, row.updated_at)
+    );
+  }
+
+  const results = await db.batch(statements);
+  const resetUserProgress = results[BUSINESS_TABLES.length]?.meta.changes ?? 0;
 
   return {
     tables: [...BUSINESS_TABLES],
@@ -299,6 +343,8 @@ export async function resetAndSeedTestData(
       rootUpdates: snapshot.rootUpdates.length,
       rootSingletons: snapshot.rootSingletons.length,
       rootCards: snapshot.rootCards.length,
+      siteHomepage: snapshot.siteHomepage?.length ?? 0,
     },
+    resetUserProgress,
   };
 }

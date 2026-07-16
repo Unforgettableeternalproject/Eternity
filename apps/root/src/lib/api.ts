@@ -102,8 +102,11 @@ const SSR_CACHE_TTL = 60_000; // 60 秒
 const _ttlCache = new Map<string, { data: unknown; expiry: number }>();
 const _inflightCache = new Map<string, Promise<unknown>>();
 
-async function apiFetch<T>(path: string): Promise<T | null> {
-  const url = `${getApiBase()}${path}`;
+async function apiFetch<T>(
+  path: string,
+  apiBase = getApiBase()
+): Promise<T | null> {
+  const url = `${apiBase}${path}`;
 
   // 1. TTL 快取命中 → 直接回傳（0ms）
   const cached = _ttlCache.get(url);
@@ -141,8 +144,8 @@ async function apiFetch<T>(path: string): Promise<T | null> {
 
 // ───── Projects ─────
 
-export async function getProjects(): Promise<RootProject[]> {
-  return (await apiFetch<RootProject[]>('/api/root/projects')) ?? [];
+export async function getProjects(apiBase?: string): Promise<RootProject[]> {
+  return (await apiFetch<RootProject[]>('/api/root/projects', apiBase)) ?? [];
 }
 
 export async function getProject(id: string): Promise<RootProject | null> {
@@ -151,15 +154,18 @@ export async function getProject(id: string): Promise<RootProject | null> {
 
 // ───── Links ─────
 
-export async function getLinks(): Promise<RootLink[]> {
-  return (await apiFetch<RootLink[]>('/api/root/links')) ?? [];
+export async function getLinks(apiBase?: string): Promise<RootLink[]> {
+  return (await apiFetch<RootLink[]>('/api/root/links', apiBase)) ?? [];
 }
 
 // ───── Updates ─────
 
-export async function getUpdates(limit?: number): Promise<RootUpdate[]> {
+export async function getUpdates(
+  limit?: number,
+  apiBase?: string
+): Promise<RootUpdate[]> {
   const q = limit ? `?limit=${limit}` : '';
-  return (await apiFetch<RootUpdate[]>(`/api/root/updates${q}`)) ?? [];
+  return (await apiFetch<RootUpdate[]>(`/api/root/updates${q}`, apiBase)) ?? [];
 }
 
 export async function getUpdate(id: string): Promise<RootUpdate | null> {
@@ -168,14 +174,17 @@ export async function getUpdate(id: string): Promise<RootUpdate | null> {
 
 // ───── Singletons ─────
 
-export async function getSingleton(key: string): Promise<RootSingleton | null> {
-  return apiFetch<RootSingleton>(`/api/root/singletons/${key}`);
+export async function getSingleton(
+  key: string,
+  apiBase?: string
+): Promise<RootSingleton | null> {
+  return apiFetch<RootSingleton>(`/api/root/singletons/${key}`, apiBase);
 }
 
 // ───── Cards ─────
 
-export async function getCards(): Promise<RootCard[]> {
-  return (await apiFetch<RootCard[]>('/api/root/cards')) ?? [];
+export async function getCards(apiBase?: string): Promise<RootCard[]> {
+  return (await apiFetch<RootCard[]>('/api/root/cards', apiBase)) ?? [];
 }
 
 export async function getCard(key: string): Promise<RootCard | null> {

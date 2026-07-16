@@ -30,11 +30,9 @@ import {
 } from '../../data/homepage-types';
 
 import './SiteHomepageEditor.css';
-import { getApiBase } from '../../lib/apiBase';
-
 // ── API 設定 ──────────────────────────────────────────────────────────────────
 
-const API_BASE = getApiBase();
+const API_BASE = '';
 
 /** 從 localStorage 取得 JWT token */
 function getToken(): string | null {

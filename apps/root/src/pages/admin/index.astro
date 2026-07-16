@@ -4,7 +4,7 @@ export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import RootEditor from '../../components/editor/RootEditor';
 import AdminTestModeControl from '../../components/admin/AdminTestModeControl';
-import { getApiBase } from '../../lib/apiBase';
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../lib/apiBase';
 import {
   getProjects,
   getUpdates,
@@ -17,7 +17,9 @@ import {
 const JWT_COOKIE = 'root-admin-jwt';
 const jwtCookie = Astro.cookies.get(JWT_COOKIE);
 const token = jwtCookie?.value || '';
-const apiBase = getApiBase();
+const apiBase = getApiBase(
+  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+);
 
 // 並行取得所有資料（含 about 雙語及 currently singleton）
 const [
@@ -45,29 +47,29 @@ const [
   pageContactEn,
   cards,
 ] = await Promise.all([
-  getProjects(),
-  getUpdates(),
-  getLinks(),
-  getSingleton('homepage-zh'),
-  getSingleton('about-zh'),
-  getSingleton('about-en'),
-  getSingleton('contact-zh'),
-  getSingleton('contact-en'),
-  getSingleton('currently'),
+  getProjects(apiBase),
+  getUpdates(undefined, apiBase),
+  getLinks(apiBase),
+  getSingleton('homepage-zh', apiBase),
+  getSingleton('about-zh', apiBase),
+  getSingleton('about-en', apiBase),
+  getSingleton('contact-zh', apiBase),
+  getSingleton('contact-en', apiBase),
+  getSingleton('currently', apiBase),
   // 頁面文字
-  getSingleton('page-home-zh'),
-  getSingleton('page-home-en'),
-  getSingleton('page-projects-zh'),
-  getSingleton('page-projects-en'),
-  getSingleton('page-updates-zh'),
-  getSingleton('page-updates-en'),
-  getSingleton('page-links-zh'),
-  getSingleton('page-links-en'),
-  getSingleton('page-about-zh'),
-  getSingleton('page-about-en'),
-  getSingleton('page-contact-zh'),
-  getSingleton('page-contact-en'),
-  getCards(),
+  getSingleton('page-home-zh', apiBase),
+  getSingleton('page-home-en', apiBase),
+  getSingleton('page-projects-zh', apiBase),
+  getSingleton('page-projects-en', apiBase),
+  getSingleton('page-updates-zh', apiBase),
+  getSingleton('page-updates-en', apiBase),
+  getSingleton('page-links-zh', apiBase),
+  getSingleton('page-links-en', apiBase),
+  getSingleton('page-about-zh', apiBase),
+  getSingleton('page-about-en', apiBase),
+  getSingleton('page-contact-zh', apiBase),
+  getSingleton('page-contact-en', apiBase),
+  getCards(apiBase),
 ]);
 ---
 

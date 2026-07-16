@@ -5,7 +5,7 @@
  * - 顯示當前 API 目標與 test mode 狀態
  * - 按鈕：進入或離開測試環境（站內 Dialog 二次確認）
  * - 切換成功後 location.reload() 讓其他模組讀到最新 base URL
- * - Reset section（T-10）：僅 inTestMode && source==='cookie' 顯示
+ * - Reset section（T-10）：所有 test mode 來源皆顯示
  *   - 輸入 `RESET TEST`（case-sensitive）才 enabled
  *   - 呼叫 POST /api/test/reset（帶 cookie JWT）
  *
@@ -48,7 +48,7 @@ export default function AdminTestModeControl(): React.ReactElement {
   }, []);
 
   const inTestMode = source !== 'none';
-  const canReset = inTestMode && source === 'cookie';
+  const canReset = inTestMode;
   const resetEnabled = resetConfirmInput === 'RESET TEST';
 
   const handleReset = useCallback(async () => {

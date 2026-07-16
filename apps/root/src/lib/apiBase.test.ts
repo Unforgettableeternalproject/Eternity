@@ -72,6 +72,11 @@ describe('apiBase', () => {
       const { getApiBase } = await import('./apiBase');
       expect(getApiBase()).toBe('https://prod-worker.example.com');
     });
+
+    it('SSR 呼叫端可明確傳入 percent-encoded test cookie', async () => {
+      const { getApiBase } = await import('./apiBase');
+      expect(getApiBase(encodeURIComponent(TEST_URL))).toBe(TEST_URL);
+    });
   });
 
   describe('isTestMode', () => {

@@ -176,9 +176,19 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
   const isAllowed = allowedOrigins.some((allowed) => {
     allowed = allowed.trim();
     if (allowed === origin) return true;
-    if (allowed.includes('*.')) {
-      const domain = allowed.split('*.')[1];
-      return origin.endsWith(domain);
+    const wildcard = /^([a-z]+:\/\/)\*\.(.+)$/i.exec(allowed);
+    if (wildcard) {
+      try {
+        const parsedOrigin = new URL(origin);
+        const domain = wildcard[2].toLowerCase();
+        return (
+          `${parsedOrigin.protocol}//` === wildcard[1].toLowerCase() &&
+          (parsedOrigin.hostname.toLowerCase() === domain ||
+            parsedOrigin.hostname.toLowerCase().endsWith(`.${domain}`))
+        );
+      } catch {
+        return false;
+      }
     }
     return false;
   });
@@ -196,15 +206,30 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
 // ===== 驗證 =====
 
-function isAuthorized(request: Request, env: Env): boolean {
-  // 如果沒設定 API_TOKEN，允許所有請求（開發模式）
-  if (!env.API_TOKEN) return true;
-
+async function isAuthorized(request: Request, env: Env): Promise<boolean> {
   const auth = request.headers.get('Authorization');
-  if (!auth) return false;
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (env.API_TOKEN && token === env.API_TOKEN) return true;
+  if (env.ETERNITY_TEST_ENV === 'true') {
+    return (await requireJwt(request, env)) !== null;
+  }
+  // 非 test 的本地開發環境維持既有 bypass。
+  return !env.API_TOKEN;
+}
 
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  return token === env.API_TOKEN;
+async function clearR2Bucket(bucket: R2Bucket): Promise<number> {
+  let cursor: string | undefined;
+  let cleared = 0;
+  do {
+    const listed = await bucket.list({ cursor });
+    const keys = listed.objects.map((object) => object.key);
+    if (keys.length > 0) {
+      await bucket.delete(keys);
+      cleared += keys.length;
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+  return cleared;
 }
 
 // ===== 路由處理 =====
@@ -1275,7 +1300,7 @@ export default {
 
     // GET /api/assets/deleted — 列出已刪除的資產紀錄（同步用，需認證）
     if (path === '/api/assets/deleted' && request.method === 'GET') {
-      if (!isAuthorized(request, env)) {
+      if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const result = await env.CONTENT_DB.prepare(
@@ -1368,7 +1393,7 @@ export default {
     // ---- 內容路由授權檢查 ----
     const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
 
-    if (isWriteMethod && !isAuthorized(request, env)) {
+    if (isWriteMethod && !(await isAuthorized(request, env))) {
       return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
     }
 
@@ -1522,8 +1547,7 @@ export default {
 
     if (path === '/api/assets' && request.method === 'POST') {
       // JWT 驗證：上傳檔案需要管理員權限
-      const jwtUser = await requireJwt(request, env);
-      if (!jwtUser) {
+      if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const formData = await request.formData();
@@ -1792,8 +1816,7 @@ export default {
       if (env.ETERNITY_TEST_ENV !== 'true') {
         return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
       }
-      const jwtUser = await requireJwt(request, env);
-      if (!jwtUser) {
+      if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
 
@@ -1820,6 +1843,7 @@ export default {
           rootUpdates: [],
           rootSingletons: [],
           rootCards: [],
+          siteHomepage: [],
         };
       } else if (isTestSeedSnapshot(body.snapshot)) {
         snapshot = body.snapshot;
@@ -1832,10 +1856,17 @@ export default {
       }
 
       const result = await resetAndSeedTestData(env.CONTENT_DB, snapshot);
+      const [assets, rootAssets] = await Promise.all([
+        clearR2Bucket(env.ASSETS_BUCKET),
+        clearR2Bucket(env.ROOT_ASSETS_BUCKET),
+      ]);
       return jsonResponse(
         {
           ok: true,
-          data: result,
+          data: {
+            ...result,
+            clearedAssets: { uep: assets, root: rootAssets },
+          },
         },
         200,
         cors,

@@ -15,9 +15,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
-import { getApiBase } from '../../../lib/apiBase';
-
-const RT_API_BASE = getApiBase();
+const RT_API_BASE = '';
 import type {
   HomepageBlock,
   HomepageBlockType,

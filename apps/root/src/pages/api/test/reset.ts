@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 
 import {
+  getApiBase,
   TEST_MODE_COOKIE_NAME,
   TEST_WORKER_BASE_URL,
 } from '../../../lib/apiBase';
@@ -21,7 +22,8 @@ function decodeCookie(value: string | undefined): string | undefined {
 
 export const POST: APIRoute = async ({ cookies }) => {
   const testCookie = decodeCookie(cookies.get(TEST_MODE_COOKIE_NAME)?.value);
-  if (testCookie !== TEST_WORKER_BASE_URL) {
+  const contentApi = getApiBase(testCookie ?? null);
+  if (contentApi !== TEST_WORKER_BASE_URL) {
     return new Response(
       JSON.stringify({ ok: false, error: 'Test mode cookie is required' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }
@@ -51,7 +53,7 @@ export const POST: APIRoute = async ({ cookies }) => {
     const jwt = cookies.get(JWT_COOKIE)?.value;
     if (jwt) headers.Authorization = `Bearer ${jwt}`;
 
-    const response = await fetch(`${TEST_WORKER_BASE_URL}/api/test/reset`, {
+    const response = await fetch(`${contentApi}/api/test/reset`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ snapshot: snapshotJson.data }),

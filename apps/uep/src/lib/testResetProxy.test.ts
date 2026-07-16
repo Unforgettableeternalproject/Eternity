@@ -21,6 +21,27 @@ function makeContext(values: Record<string, string>): RouteContext {
 describe('POST /api/test/reset proxy', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('build-time env 指向 test Worker 時不需要 override cookie', async () => {
+    vi.stubEnv('PUBLIC_CONTENT_API_URL', TEST_URL);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, data: { version: 1 } }))
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await POST(
+      makeContext({ 'uep-admin-jwt': 'admin-token' })
+    );
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `${TEST_URL}/api/test/reset`,
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 
   it('沒有 test mode cookie 時拒絕轉發', async () => {

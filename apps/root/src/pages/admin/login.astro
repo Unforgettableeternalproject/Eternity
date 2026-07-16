@@ -1,11 +1,13 @@
 ---
 export const prerender = false;
 
-import { getApiBase } from '../../lib/apiBase';
-
 const JWT_COOKIE = 'root-admin-jwt';
 const ACTIVE_COOKIE = 'root-admin-active';
-const apiBase = getApiBase();
+const apiBase =
+  import.meta.env.PUBLIC_PROD_CONTENT_API_URL ||
+  (import.meta.env.DEV
+    ? 'http://localhost:8788'
+    : 'https://eternity-content-api.ptyc4076.workers.dev');
 
 function safeRedirect(url: string | null | undefined): string {
   if (!url || !url.startsWith('/admin')) return '/admin';

@@ -348,7 +348,7 @@ test.describe('T-14-5：Reset 輸入匹配 → 按鈕 enabled → 呼叫 API', (
             tables: ['pages', 'root_projects'],
             totalRows: 42,
             clearedAt: new Date().toISOString(),
-            seeded: { pages: 102 },
+            seeded: { pages: 96 },
           },
         }),
       });
@@ -392,7 +392,7 @@ test.describe('T-14-5：Reset 輸入匹配 → 按鈕 enabled → 呼叫 API', (
     await expect(okMsg).toBeVisible({ timeout: 3000 });
     await expect(okMsg).toContainText('清除');
     await expect(okMsg).toContainText('42');
-    await expect(okMsg).toContainText('重新建立 102 個頁面骨架');
+    await expect(okMsg).toContainText('重新建立 96 個頁面骨架');
 
     // 輸入框應該被清空
     await expect(input).toHaveValue('');

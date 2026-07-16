@@ -17,7 +17,10 @@ function makeContext(values: Record<string, string>): RouteContext {
 }
 
 describe('root POST /api/test/reset proxy', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
 
   it('拒絕缺少 test cookie 的請求', async () => {
     const fetchMock = vi.fn();
@@ -66,5 +69,25 @@ describe('root POST /api/test/reset proxy', () => {
       },
       body: JSON.stringify({ snapshot }),
     });
+  });
+
+  it('build-time env 指向 test Worker 時不需要 override cookie', async () => {
+    vi.stubEnv('PUBLIC_CONTENT_API_URL', TEST_URL);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, data: { version: 1 } }))
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await POST(
+      makeContext({ 'root-admin-jwt': 'admin-token' })
+    );
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `${TEST_URL}/api/test/reset`,
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 });

@@ -2,13 +2,14 @@
 export const prerender = false;
 
 import DesignLayout from '../../layouts/DesignLayout.astro';
-import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../lib/apiBase';
 
 const JWT_COOKIE = 'uep-admin-jwt';
 const ACTIVE_COOKIE = 'uep-admin-active';
-const apiBase = getApiBase(
-  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
-);
+const apiBase =
+  import.meta.env.PUBLIC_PROD_CONTENT_API_URL ||
+  (import.meta.env.DEV
+    ? 'http://localhost:8788'
+    : 'https://eternity-content-api.ptyc4076.workers.dev');
 
 // 安全的 redirect：只允許站內 /admin 路徑
 function safeRedirect(url: string | null | undefined): string {

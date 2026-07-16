@@ -124,6 +124,73 @@ describe('POST /api/test/reset', () => {
     expect(await countRows('pages')).toBe(0);
   });
 
+  it('reset 同時重建 site homepage、清除刪除紀錄與兩個 test R2，並歸零讀者進度', async () => {
+    const now = new Date().toISOString();
+    await env.CONTENT_DB.batch([
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO site_homepage (section_id, content, updated_at)
+         VALUES ('old', '{"old":true}', ?)`
+      ).bind(now),
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO deleted_assets (key, deleted_at)
+         VALUES ('images/old.png', ?)`
+      ).bind(now),
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO root_deleted_assets (key, deleted_at)
+         VALUES ('images/root-old.png', ?)`
+      ).bind(now),
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO uep_users
+         (username, password_hash, alias, observer_ever, progress)
+         VALUES ('reset-reader', 'hash', 'reader', 1, '{"level":3}')`
+      ),
+    ]);
+    await env.ASSETS_BUCKET.put('images/test.png', 'asset');
+    await env.ROOT_ASSETS_BUCKET.put('images/root-test.png', 'asset');
+
+    const token = await signWith('super_admin');
+    const res = await worker.fetch(
+      createRequest('/api/test/reset', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          snapshot: {
+            version: 1,
+            generatedAt: now,
+            pages: [],
+            rootProjects: [],
+            rootLinks: [],
+            rootUpdates: [],
+            rootSingletons: [],
+            rootCards: [],
+            siteHomepage: [
+              {
+                section_id: 'hero',
+                content: '{"title":"seed"}',
+                updated_at: now,
+              },
+            ],
+          },
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    expect(res.status).toBe(200);
+    expect(await countRows('site_homepage')).toBe(1);
+    expect(await countRows('deleted_assets')).toBe(0);
+    expect(await countRows('root_deleted_assets')).toBe(0);
+    expect(await env.ASSETS_BUCKET.head('images/test.png')).toBeNull();
+    expect(
+      await env.ROOT_ASSETS_BUCKET.head('images/root-test.png')
+    ).toBeNull();
+    const reader = await env.CONTENT_DB.prepare(
+      `SELECT observer_ever, progress FROM uep_users WHERE username = 'reset-reader'`
+    ).first<{ observer_ever: number; progress: string | null }>();
+    expect(reader).toEqual({ observer_ever: 0, progress: null });
+  });
+
   it('沒有 snapshot 或 clearOnly 時拒絕，且不先清空資料', async () => {
     const before = await countRows('pages');
     const token = await signWith('super_admin');
@@ -210,9 +277,10 @@ describe('POST /api/test/reset', () => {
       snapshot.rootSingletons.length
     );
     expect(await countRows('root_cards')).toBe(snapshot.rootCards.length);
+    expect(await countRows('site_homepage')).toBe(snapshot.siteHomepage.length);
   });
 
-  it('正式 snapshot 保留 type/stuff row、清空內容並略過真正葉頁', async () => {
+  it('正式 snapshot 保留空的 concept type、略過 storage stuff 與其他葉頁', async () => {
     const now = new Date().toISOString();
     const insert = env.CONTENT_DB.prepare(
       `INSERT OR REPLACE INTO pages
@@ -281,14 +349,42 @@ describe('POST /api/test/reset', () => {
         now,
         now
       ),
+      insert.bind(
+        'history/container',
+        'history',
+        'Container',
+        'container',
+        '[{"content":"正式頁面內容"}]',
+        null,
+        0,
+        'page',
+        now,
+        now
+      ),
+      insert.bind(
+        'history/container/chapter',
+        'history',
+        'Chapter',
+        'container/chapter',
+        '[{"content":"導覽內容"}]',
+        'history/container',
+        1,
+        'chapter',
+        now,
+        now
+      ),
     ]);
 
     const snapshot = await buildTestSeedSnapshot(env.CONTENT_DB);
     const byId = new Map(snapshot.pages.map((page) => [page.id, page]));
     expect(byId.get('concepts/records/list')?.content).toBe('[]');
-    expect(byId.get('storage/boxes/item')?.content).toBe('[]');
+    expect(byId.has('storage/boxes/item')).toBe(false);
     expect(byId.get('concepts/records')?.content).toContain('intro');
     expect(byId.has('history/leaf')).toBe(false);
+    expect(byId.get('history/container')?.content).toBe('[]');
+    expect(byId.get('history/container/chapter')?.content).toContain(
+      '導覽內容'
+    );
   });
 
   it('reader role JWT → 401（requireJwt 拒絕 reader）', async () => {
