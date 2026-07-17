@@ -14,7 +14,7 @@
 import { LocalStorageAdapter } from '../progress/adapters';
 import { getProgressManager } from '../progress/progressStore';
 import { ServerAdapter } from '../progress/serverAdapter';
-import { getApiBase } from '../lib/apiBase';
+import { getApiBase, isTestMode } from '../lib/apiBase';
 
 /** 未登入訪客的統一稱呼（與 Worker uep-alias.ts 對齊） */
 export const GUEST_ALIAS = '初入世界的朋友';
@@ -22,8 +22,17 @@ export const GUEST_ALIAS = '初入世界的朋友';
 /** 觀測者印記持有者的顯示前綴（與 Worker uep-alias.ts 對齊） */
 export const WITNESSED_PREFIX = '已見證的';
 
-/** localStorage key（含 schema 版本） */
-export const READER_SESSION_KEY = 'uep.reader.session.v1';
+/**
+ * localStorage key（含 schema 版本）。
+ *
+ * Test Mode 下加 `:test` 後綴做環境隔離——正式環境的讀者 token 因兩
+ * worker 共用 JWT_SECRET 會被 test worker 接受，若跨環境殘留會讓
+ * ServerAdapter 把另一環境的進度上傳進當前環境的帳號。
+ * mode 切換必伴隨 reload，module 載入時計算一次即可。
+ */
+export const READER_SESSION_KEY = isTestMode()
+  ? 'uep.reader.session.v1:test'
+  : 'uep.reader.session.v1';
 
 /** auth 狀態變更事件名稱 */
 export const AUTH_CHANGE_EVENT = 'uep:auth-change';

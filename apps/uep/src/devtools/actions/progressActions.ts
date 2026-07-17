@@ -6,6 +6,7 @@
  * 通常 hydrate 完就會有。
  */
 
+import { PROGRESS_STORAGE_KEY } from '../../progress/adapters';
 import { getRegistry } from '../actionRegistry';
 
 const GROUP = '進度系統';
@@ -42,14 +43,15 @@ export function registerProgressActions(): void {
       id: 'progress:full-wipe',
       label: '完全重置（含 onboarding + audio）',
       description:
-        '清 uep.progress.v1 / uep.onboarded.v1 / uep.audio.v1 後重載',
+        '清當前環境 progress key / uep.onboarded.v1 / uep.audio.v1 後重載',
       destructive: true,
       requiresConfirm: true,
       confirmMessage:
         '⚠ 這會完全清空所有本機狀態（包含 onboarding 決定），重載後就像全新訪客。確認？',
       execute: () => {
         try {
-          localStorage.removeItem('uep.progress.v1');
+          // progress key 依環境 namespace（正式／測試），只清當前環境
+          localStorage.removeItem(PROGRESS_STORAGE_KEY);
           localStorage.removeItem('uep.onboarded.v1');
           localStorage.removeItem('uep.audio.v1');
         } catch {
