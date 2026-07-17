@@ -13,6 +13,7 @@ import { registerOnboardingActions } from './onboardingActions';
 import { registerAudioActions } from './audioActions';
 import { registerAnimationActions } from './animationActions';
 import { registerEchoesActions } from './echoesActions';
+import { registerProtectionActions } from './protectionActions';
 
 export function registerAllActions(): void {
   registerProgressActions();
@@ -21,4 +22,5 @@ export function registerAllActions(): void {
   registerAudioActions();
   registerAnimationActions();
   registerEchoesActions();
+  registerProtectionActions();
 }
