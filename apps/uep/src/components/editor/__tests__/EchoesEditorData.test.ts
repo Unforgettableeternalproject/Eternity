@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseEchoesData, serializeEchoesData } from '../EchoesEditorBody';
+import {
+  collectOtherEchoesEntityKeys,
+  parseEchoesData,
+  serializeEchoesData,
+} from '../EchoesEditorBody';
 
 describe('Echoes editor metadata contract', () => {
   it('舊 gate 字串只遷移為 spoilerGate，不再覆蓋 GateCondition', () => {
@@ -57,5 +61,31 @@ describe('Echoes editor metadata contract', () => {
     );
     expect(serializeEchoesData(parsed)).not.toHaveProperty('spoilerGate');
     expect(serializeEchoesData(parsed)).not.toHaveProperty('spoilerRevisions');
+  });
+
+  it('唯一性查核會排除 encoded tree id 對應的 decoded 當前歌曲', () => {
+    const keys = collectOtherEchoesEntityKeys(
+      [
+        {
+          id: 'echoes/characters/core_chara',
+          pageType: 'subcategory',
+          children: [
+            {
+              id: 'echoes/characters/core_chara/%E6%B8%AC%E8%A9%A6%E6%AD%8C%E6%9B%B2',
+              pageType: 'song',
+              metadata: { entityKey: 'a-man' },
+            },
+            {
+              id: 'echoes/characters/core_chara/another-song',
+              pageType: 'song',
+              metadata: { entityKey: 'another-entity' },
+            },
+          ],
+        },
+      ],
+      'echoes/characters/core_chara/測試歌曲'
+    );
+
+    expect([...keys]).toEqual(['another-entity']);
   });
 });

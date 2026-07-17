@@ -41,6 +41,7 @@ import type {
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
 import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別定義
@@ -1027,18 +1028,18 @@ function EchoesReaderInner() {
         param: 'song',
         handler: (value) => {
           // 統一用 slug（不帶 area prefix），向後相容帶 prefix 的舊連結
-          const fullId = value.startsWith('echoes/')
-            ? value
-            : `echoes/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('echoes/') ? value : ['echoes', value].join('/')
+          );
           void navigateToSong(fullId, false);
         },
       },
       {
         param: 'page',
         handler: (value) => {
-          const fullId = value.startsWith('echoes/')
-            ? value
-            : `echoes/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('echoes/') ? value : ['echoes', value].join('/')
+          );
           void navigateToContent(fullId, false);
         },
       },

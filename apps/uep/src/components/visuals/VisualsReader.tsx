@@ -31,6 +31,7 @@ import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import './VisualsReader.css';
 import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────
 // 型別
@@ -513,18 +514,18 @@ function VisualsReaderInner() {
         param: 'page',
         handler: (value) => {
           // 統一用 slug（不帶 area prefix），向後相容帶 prefix 的舊連結
-          const fullId = value.startsWith('visuals/')
-            ? value
-            : `visuals/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('visuals/') ? value : ['visuals', value].join('/')
+          );
           navigateToGallery(fullId, false);
         },
       },
       {
         param: 'subcat',
         handler: (value) => {
-          const fullId = value.startsWith('visuals/')
-            ? value
-            : `visuals/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('visuals/') ? value : ['visuals', value].join('/')
+          );
           const group = new URLSearchParams(window.location.search).get(
             'group'
           );
@@ -534,9 +535,9 @@ function VisualsReaderInner() {
       {
         param: 'division',
         handler: (value) => {
-          const fullId = value.startsWith('visuals/')
-            ? value
-            : `visuals/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('visuals/') ? value : ['visuals', value].join('/')
+          );
           navigateToDivision(fullId, false);
         },
       },

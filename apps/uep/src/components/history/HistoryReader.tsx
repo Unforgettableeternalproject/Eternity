@@ -1,6 +1,7 @@
 /* global HTMLAnchorElement */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
+import { canonicalizePagePath, isSamePagePath } from '../../lib/pagePath';
 import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
@@ -238,6 +239,7 @@ function resolveInternalLink(
 ) {
   let clean = href.replace(/\.md$/, '').replace(/\/$/, '');
   clean = clean.replace(/\/README$/, '').replace(/^\.?\//, '');
+  clean = canonicalizePagePath(clean);
 
   const currentDir = currentPageId.includes('/')
     ? currentPageId.substring(0, currentPageId.lastIndexOf('/'))
@@ -554,9 +556,9 @@ export default function HistoryReader() {
         param: 'page',
         handler: (value) => {
           // 統一用 slug（不帶 area prefix），同時向後相容帶 prefix 的舊連結
-          const fullId = value.startsWith('history/')
-            ? value
-            : `history/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('history/') ? value : ['history', value].join('/')
+          );
           const target = readablePages.find((p) => p.id === fullId);
           if (target) void loadPage(target, false);
         },
@@ -909,11 +911,12 @@ export default function HistoryReader() {
     const navCard = target.closest<HTMLElement>('.content-card[data-nav-ref]');
     if (navCard) {
       const ref = navCard.dataset.navRef || '';
+      const canonicalRef = canonicalizePagePath(ref.replace(/\/$/, ''));
       const match = flatPages.find(
         (page) =>
-          page.id.endsWith(`/${ref.replace(/\/$/, '')}`) ||
-          page.slug.endsWith(`/${ref.replace(/\/$/, '')}`) ||
-          page.slug === ref.replace(/\/$/, '')
+          page.id.endsWith(`/${canonicalRef}`) ||
+          page.slug.endsWith(`/${canonicalRef}`) ||
+          page.slug === canonicalRef
       );
       if (match && match.pageType !== 'page') {
         event.preventDefault();
@@ -937,7 +940,7 @@ export default function HistoryReader() {
     // 處理編輯器插入的內部頁面連結（@page:{pageId} 格式）
     if (href.startsWith('@page:')) {
       const pageId = href.slice(6);
-      const target = flatPages.find((p) => p.id === pageId);
+      const target = flatPages.find((p) => isSamePagePath(p.id, pageId));
       if (target && target.pageType !== 'page') {
         event.preventDefault();
         void loadPage(target);

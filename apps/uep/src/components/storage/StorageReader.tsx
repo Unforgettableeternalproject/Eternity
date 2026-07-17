@@ -29,6 +29,7 @@ import {
 } from '../editor/homepage/types';
 import './StorageReader.css';
 import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -458,6 +459,7 @@ export default function StorageReader() {
 
   async function navigateToClearing(clearingSlug: string, push = true) {
     saveScroll(currentScrollKey());
+    clearingSlug = canonicalizePagePath(clearingSlug);
     setActiveClearingId(clearingSlug);
     setActivePageId(null);
     setReadingPage(null);
@@ -473,6 +475,7 @@ export default function StorageReader() {
 
   async function navigateToPage(pageSlug: string, push = true) {
     saveScroll(currentScrollKey());
+    pageSlug = canonicalizePagePath(pageSlug);
     setOpenSubcatId(null);
     setActivePageId(pageSlug);
     const page = await fetchPageData(pageSlug);

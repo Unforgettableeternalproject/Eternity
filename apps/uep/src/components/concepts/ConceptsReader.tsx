@@ -41,6 +41,7 @@ import {
 } from './revisionCache';
 import './ConceptsReader.css';
 import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -1394,9 +1395,11 @@ export default function ConceptsReader() {
 
   function navigateToStack(stackSlug: string, push = true) {
     saveScroll(currentScrollKey());
-    const fullId = stackSlug.startsWith('concepts/')
-      ? stackSlug
-      : `concepts/${stackSlug}`;
+    const fullId = canonicalizePagePath(
+      stackSlug.startsWith('concepts/')
+        ? stackSlug
+        : ['concepts', stackSlug].join('/')
+    );
     const slug = fullId.replace('concepts/', '');
     setActiveStackId(fullId);
     setActivePageId(null);
@@ -1413,9 +1416,11 @@ export default function ConceptsReader() {
 
   function navigateToPage(pageSlug: string, push = true) {
     saveScroll(currentScrollKey());
-    const fullId = pageSlug.startsWith('concepts/')
-      ? pageSlug
-      : `concepts/${pageSlug}`;
+    const fullId = canonicalizePagePath(
+      pageSlug.startsWith('concepts/')
+        ? pageSlug
+        : ['concepts', pageSlug].join('/')
+    );
     const slug = fullId.replace('concepts/', '');
     setActivePageId(fullId);
     if (push) pushUrl({ page: slug });
