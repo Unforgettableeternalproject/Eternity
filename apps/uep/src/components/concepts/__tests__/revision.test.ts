@@ -280,6 +280,22 @@ describe('isEntryUnlocked', () => {
       )
     ).toBe(true);
   });
+
+  it('baseVisible=true → 無視 base gate 與 revision gate，一律可見', () => {
+    // 全部 revision gate 未過（無 baseVisible 會隱藏）
+    expect(
+      isEntryUnlocked([XAVIER_R1, XAVIER_R2], stateWith({}), null, true)
+    ).toBe(true);
+    // base gate 未過也一樣可見
+    const baseGate = { requiresFlags: ['met:xavier'] };
+    expect(isEntryUnlocked(undefined, stateWith({}), baseGate, true)).toBe(
+      true
+    );
+    // baseVisible=false 走原語意
+    expect(
+      isEntryUnlocked([XAVIER_R1, XAVIER_R2], stateWith({}), null, false)
+    ).toBe(false);
+  });
 });
 
 // ── type guards + resolveEffectiveViewForPage ─────────────────────
@@ -572,5 +588,60 @@ describe('resolveEffectiveViewForPage', () => {
       stateWith({ view: 'observer', observerEver: true })
     );
     expect(observer.variants[0].subcategories[0].groups).toHaveLength(2);
+  });
+
+  it('dossier：baseVisible=true 的條目即使全 revision gate 未過仍可見（base 預設顯示）', () => {
+    const data: DossierContent = {
+      variants: [
+        {
+          id: 'u',
+          label: 'U',
+          subcategories: [
+            {
+              label: '三區',
+              groups: [
+                {
+                  label: '',
+                  entries: [
+                    {
+                      name: '一個人',
+                      entityKey: 'a-man',
+                      baseVisible: true,
+                      content_html: '<p>他是一個普通人</p>',
+                      revisions: [
+                        {
+                          id: 'a-man:01',
+                          gate: { requiresFlags: ['progress:man'] },
+                          patch: {
+                            set: {
+                              content_html: '<p>他現在是一個更好的人</p>',
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    // 無旗標：base 內容可見、patch 未套用、baseVisible 剝除
+    const locked = resolveEffectiveViewForPage(data, stateWith({}));
+    const entry = locked.variants[0].subcategories[0].groups[0].entries[0];
+    expect(entry.name).toBe('一個人');
+    expect(entry.content_html).toBe('<p>他是一個普通人</p>');
+    expect(entry.baseVisible).toBeUndefined();
+
+    // 旗標到位：patch 照常套用
+    const unlocked = resolveEffectiveViewForPage(
+      data,
+      stateWith({ flags: ['progress:man'] })
+    );
+    expect(
+      unlocked.variants[0].subcategories[0].groups[0].entries[0].content_html
+    ).toBe('<p>他現在是一個更好的人</p>');
   });
 });

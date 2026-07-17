@@ -56,6 +56,8 @@ export interface TerminalIndexEntry {
   aliases?: string[];
   /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
   baseGate?: GateCondition | null;
+  /** base 預設顯示：true 時條目不受 base/revision gate 影響（群組 gate 仍前置） */
+  baseVisible?: boolean;
   /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
   groupGate?: GateCondition | null;
   revisionGates?: { id: string; gate: GateCondition | null }[];
@@ -168,6 +170,7 @@ function loadPageData(pageId: string): Promise<ConceptsData | null> {
 /**
  * 索引條目是否已解鎖——與 revision.ts 的求值語意一致：
  * - 群組 gate（S7 驗收 #3）未過 → 整組隱藏（前置 AND，條目層不再看）
+ * - baseVisible = true → 無條件解鎖（base 預設顯示；群組 gate 仍前置）
  * - base gate（S7 驗收 #4）：通過即解鎖；未過時任一 revision gate
  *   通過仍解鎖（後期揭露）
  * - 皆無 → 無 gate 摘要 = 無進度閘；否則任一 revision gate 通過即解鎖
@@ -179,6 +182,7 @@ export function isIndexEntryUnlocked(
   if (entry.groupGate && !evaluateGate(progress, entry.groupGate)) {
     return false;
   }
+  if (entry.baseVisible) return true;
   const gates = entry.revisionGates;
   if (entry.baseGate) {
     if (evaluateGate(progress, entry.baseGate)) return true;

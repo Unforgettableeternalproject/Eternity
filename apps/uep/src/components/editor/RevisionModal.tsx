@@ -51,6 +51,10 @@ interface RevisionModalProps {
   baseGate?: GateCondition | null;
   /** base gate 變更回寫（未提供時 base 卡不顯示條件編輯器） */
   onBaseGateChange?: (gate: GateCondition | null) => void;
+  /** base 預設顯示：true 時條目不受任何 gate 影響，一開始就可見 */
+  baseVisible?: boolean;
+  /** base 預設顯示變更回寫（未提供時 base 卡不顯示此開關） */
+  onBaseVisibleChange?: (visible: boolean) => void;
   /** chrono 專用（S7 驗收 #7）：pool fieldDefs，事件列 patch 下拉選擇 */
   chronoFieldDefs?: ChronoFieldDef[];
   onClose: () => void;
@@ -75,6 +79,8 @@ export default function RevisionModal({
   onChange,
   baseGate,
   onBaseGateChange,
+  baseVisible,
+  onBaseVisibleChange,
   chronoFieldDefs,
   onClose,
   accent,
@@ -182,7 +188,11 @@ export default function RevisionModal({
             >
               <span className="ced-rev-item-id">base</span>
               <span className="ced-rev-item-note">
-                {baseGate ? '⚑ 有解鎖條件' : '條目現有內容'}
+                {baseVisible
+                  ? '◉ 預設顯示'
+                  : baseGate
+                    ? '⚑ 有解鎖條件'
+                    : '條目現有內容'}
               </span>
             </button>
 
@@ -272,11 +282,23 @@ export default function RevisionModal({
                   ) : (
                     <>
                       base 可直接設定解鎖條件（下方）——條目在條件通過前
-                      整條隱藏，不需要再用首個 revision 硬擋；無條件時
-                      條目一開始就可見。
+                      整條隱藏，不需要再用首個 revision 硬擋。未設定 base
+                      條件但掛有 revision 時，首個 revision 的條件即為
+                      初次解鎖點（通過前條目隱藏）；要讓 base
+                      一開始就可見，請勾選「預設顯示」。
                     </>
                   )}
                 </p>
+                {onBaseVisibleChange && (
+                  <label className="ced-rev-base-visible">
+                    <input
+                      type="checkbox"
+                      checked={baseVisible === true}
+                      onChange={(e) => onBaseVisibleChange(e.target.checked)}
+                    />
+                    <span>預設顯示（base 不受任何條件影響，一開始就可見）</span>
+                  </label>
+                )}
                 {onBaseGateChange && (
                   <>
                     <div className="ced-rev-section-title">BASE 解鎖條件</div>
@@ -288,7 +310,14 @@ export default function RevisionModal({
                         accent={accent}
                       />
                     </div>
-                    {baseGate && revisions.length > 0 && (
+                    {baseVisible && (baseGate || revisions.length > 0) && (
+                      <div className="ced-rev-hint">
+                        ⓘ 已勾選「預設顯示」——base 條件與 revision
+                        條件都不影響條目可見性，僅影響 revision patch
+                        的套用時機。
+                      </div>
+                    )}
+                    {!baseVisible && baseGate && revisions.length > 0 && (
                       <div className="ced-rev-hint">
                         ⓘ base 條件未通過但任一 revision 條件通過時，
                         條目仍會可見（後期揭露）——請確認 revision 鏈的條件不早於
@@ -389,6 +418,7 @@ export default function RevisionModal({
             baseEntry={baseEntry}
             revisions={revisions}
             baseGate={baseGate}
+            baseVisible={baseVisible}
             accent={accent}
           />
         )}

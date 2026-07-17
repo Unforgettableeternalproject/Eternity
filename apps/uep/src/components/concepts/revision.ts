@@ -135,6 +135,8 @@ export function applyRevisions<T extends Record<string, unknown>>(
 /**
  * 條目是否已解鎖（「未解鎖條目 = 隱藏」的守門判定）。
  *
+ * - baseVisible = true：無條件可見（「條目公開、之後隨進度演進」的
+ *   資料形狀；revision patch 的套用時機照常由各自 gate 決定）
  * - 有 base gate（S7 驗收 #4）：base gate 通過 → true；未過時
  *   任一 revision gate 通過仍 → true（後期揭露），全部未過 → false
  * - 無 base gate 時維持舊語意：
@@ -147,8 +149,10 @@ export function applyRevisions<T extends Record<string, unknown>>(
 export function isEntryUnlocked(
   revisions: ConceptsRevision[] | undefined,
   progress: ProgressState,
-  baseGate?: GateCondition | null
+  baseGate?: GateCondition | null,
+  baseVisible?: boolean
 ): boolean {
+  if (baseVisible) return true;
   if (baseGate) {
     if (evaluateGate(progress, baseGate)) return true;
     return (revisions ?? []).some((r) => evaluateGate(progress, r.gate));
@@ -199,10 +203,12 @@ function resolveEntries<T extends Record<string, unknown>>(
   for (const entry of entries) {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
     const baseGate = entry.gate as GateCondition | null | undefined;
-    if (!isEntryUnlocked(revisions, progress, baseGate)) continue;
+    const baseVisible = entry.baseVisible === true;
+    if (!isEntryUnlocked(revisions, progress, baseGate, baseVisible)) continue;
     const resolved = applyRevisions(entry, revisions, progress);
     delete (resolved as Record<string, unknown>).revisions;
     delete (resolved as Record<string, unknown>).gate;
+    delete (resolved as Record<string, unknown>).baseVisible;
     out.push(resolved);
   }
   return out;

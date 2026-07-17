@@ -210,7 +210,21 @@ function normalizeDossierVariants(data: unknown): DossierVariant[] {
 function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
-  const subcat = subcategories[activeTab];
+
+  // effective view 過濾後可能留下空群組/空分類（條目全部未解鎖）——
+  // 一律不渲染（含預設「未分類」群組），整頁無可見條目時走 empty fallback
+  const visibleSubcats = useMemo(
+    () =>
+      subcategories
+        .map((sc) => ({
+          ...sc,
+          groups: sc.groups.filter((g) => g.entries.length > 0),
+        }))
+        .filter((sc) => sc.groups.length > 0),
+    [subcategories]
+  );
+
+  const subcat = visibleSubcats[activeTab];
   const groups = subcat?.groups || [];
   const currentGroup = groups[activeGroup];
 
@@ -219,22 +233,37 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
     setActiveGroup(0);
   }, [activeTab]);
 
-  // 若 activeTab 超出範圍（variant 切換後 subcats 變少），重置
+  // 若 activeTab 超出範圍（variant 切換 / 解鎖狀態變化後 subcats 變少），重置
   useEffect(() => {
-    if (activeTab >= subcategories.length) setActiveTab(0);
-  }, [subcategories.length, activeTab]);
+    if (activeTab >= visibleSubcats.length) setActiveTab(0);
+  }, [visibleSubcats.length, activeTab]);
+
+  // 整頁沒有任何可見條目：終端風格 empty fallback
+  if (visibleSubcats.length === 0) {
+    return (
+      <div className="conc-dossier-empty-page">
+        <div className="conc-dossier-list-bar">
+          <span>$ ls ./records/</span>
+          <span>0 records</span>
+        </div>
+        <div className="conc-dossier-empty-msg">
+          目前沒有可讀取的記錄——隨著閱讀進度推進，這裡會逐漸浮現內容。
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {/* Subcat 選擇器 — 終端路徑風格 */}
-      {subcategories.length > 1 && (
+      {visibleSubcats.length > 1 && (
         <div className="conc-subcat-selector">
           <div className="conc-subcat-prompt">
             <span className="conc-subcat-prompt-symbol">$</span>
             <span className="conc-subcat-prompt-text">cd ~/records/</span>
           </div>
           <div className="conc-subcat-options">
-            {subcategories.map((sc, i) => (
+            {visibleSubcats.map((sc, i) => (
               <button
                 key={i}
                 className={`conc-subcat-option ${i === activeTab ? 'active' : ''}`}

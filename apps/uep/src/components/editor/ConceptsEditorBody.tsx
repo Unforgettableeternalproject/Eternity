@@ -976,6 +976,10 @@ function DossierVariantBody({
           onBaseGateChange={(gate) =>
             updateEntry(activeEntry!, { gate: gate ?? undefined })
           }
+          baseVisible={entry.baseVisible === true}
+          onBaseVisibleChange={(visible) =>
+            updateEntry(activeEntry!, { baseVisible: visible || undefined })
+          }
           onClose={() => setRevModalOpen(false)}
           accent={accent}
         />
@@ -2708,6 +2712,10 @@ function ChronoEditor({
           }
           baseGate={period.gate ?? null}
           onBaseGateChange={(gate) => updatePeriod({ gate: gate ?? undefined })}
+          baseVisible={period.baseVisible === true}
+          onBaseVisibleChange={(visible) =>
+            updatePeriod({ baseVisible: visible || undefined })
+          }
           chronoFieldDefs={data.fieldDefs}
           onClose={() => setRevModalOpen(false)}
           accent={accent}
@@ -3281,6 +3289,10 @@ function DiffEditor({
           baseGate={entry.gate ?? null}
           onBaseGateChange={(gate) =>
             updateEntry(activeEntry!, { gate: gate ?? undefined })
+          }
+          baseVisible={entry.baseVisible === true}
+          onBaseVisibleChange={(visible) =>
+            updateEntry(activeEntry!, { baseVisible: visible || undefined })
           }
           onClose={() => setRevModalOpen(false)}
           accent={accent}

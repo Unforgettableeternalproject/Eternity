@@ -43,6 +43,8 @@ export interface EntityIndexEntry {
   aliases?: string[];
   /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
   baseGate?: unknown;
+  /** base 預設顯示：true 時條目不受 base/revision gate 影響，一開始就可見 */
+  baseVisible?: boolean;
   /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
   groupGate?: unknown;
   /** revision gate 摘要（條目有 revision 鏈才有） */
@@ -71,16 +73,16 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-/** 從條目物件抽出 entityKey / aliases / baseGate / revisionGates（共用形狀 WithRevision + S7-D aliases） */
+/** 從條目物件抽出 entityKey / aliases / baseGate / baseVisible / revisionGates（共用形狀 WithRevision + S7-D aliases） */
 function withRevisionFields(
   entry: Dict
 ): Pick<
   EntityIndexEntry,
-  'entityKey' | 'aliases' | 'baseGate' | 'revisionGates'
+  'entityKey' | 'aliases' | 'baseGate' | 'baseVisible' | 'revisionGates'
 > {
   const out: Pick<
     EntityIndexEntry,
-    'entityKey' | 'aliases' | 'baseGate' | 'revisionGates'
+    'entityKey' | 'aliases' | 'baseGate' | 'baseVisible' | 'revisionGates'
   > = {};
   if (typeof entry.entityKey === 'string' && entry.entityKey) {
     out.entityKey = entry.entityKey;
@@ -88,6 +90,10 @@ function withRevisionFields(
   // base 解鎖條件（S7 驗收 #4）——null 視為無條件，不進摘要
   if (entry.gate != null && typeof entry.gate === 'object') {
     out.baseGate = entry.gate;
+  }
+  // base 預設顯示——僅 true 時進摘要（前端解鎖判定據此無條件放行）
+  if (entry.baseVisible === true) {
+    out.baseVisible = true;
   }
   const aliases = asArray(entry.aliases).filter(
     (a): a is string => typeof a === 'string' && a.trim().length > 0

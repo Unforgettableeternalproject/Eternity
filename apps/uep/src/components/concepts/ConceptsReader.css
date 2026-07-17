@@ -1238,6 +1238,21 @@
   font-size: 12px;
 }
 
+/* 整頁無可見條目的 empty fallback（條目全部未解鎖時） */
+.conc-dossier-empty-page {
+  border: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+
+.conc-dossier-empty-msg {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
 .conc-dossier-entry-card {
   padding: 14px 18px;
   border-bottom: 1px solid var(--hairline);

@@ -88,6 +88,34 @@ describe('RevisionModal — 基本結構', () => {
   });
 });
 
+describe('RevisionModal — base 預設顯示', () => {
+  it('未提供 onBaseVisibleChange 時不顯示開關', () => {
+    setup();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('勾選開關回寫 true、取消回寫 false', () => {
+    const onBaseVisibleChange = vi.fn();
+    setup({ onBaseVisibleChange });
+    const checkbox = screen.getByRole('checkbox');
+    fireEvent.click(checkbox);
+    expect(onBaseVisibleChange).toHaveBeenCalledWith(true);
+  });
+
+  it('baseVisible=true 時 base 卡標示「預設顯示」且開關已勾', () => {
+    setup({
+      baseVisible: true,
+      onBaseVisibleChange: vi.fn(),
+      baseGate: { requiresFlags: ['met:x'] },
+      onBaseGateChange: vi.fn(),
+    });
+    expect(screen.getByText('◉ 預設顯示')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { checked: true })).toBeInTheDocument();
+    // 提示：條件不影響可見性
+    expect(screen.getByText(/不影響條目可見性/)).toBeInTheDocument();
+  });
+});
+
 describe('RevisionModal — 增刪排序', () => {
   it('新增 revision：有 entityKey 走旗標慣例預設 id', () => {
     const { onChange } = setup();

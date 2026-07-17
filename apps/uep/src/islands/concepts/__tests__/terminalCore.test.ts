@@ -157,6 +157,34 @@ describe('isIndexEntryUnlocked / passedRevisionCount', () => {
     ).toBe(true);
   });
 
+  it('baseVisible：無視 base/revision gate 一律解鎖，但群組 gate 仍前置', () => {
+    const visibleButGated = indexEntry({
+      name: '一個人',
+      entityKey: 'a-man',
+      baseVisible: true,
+      revisionGates: [
+        { id: 'a-man:01', gate: { requiresFlags: ['progress:man'] } },
+      ],
+    });
+    expect(isIndexEntryUnlocked(visibleButGated, stateWith({}))).toBe(true);
+
+    // baseGate 未過也一樣解鎖
+    const visibleWithBaseGate = indexEntry({
+      name: '丁',
+      baseVisible: true,
+      baseGate: { requiresFlags: ['met:d'] },
+    });
+    expect(isIndexEntryUnlocked(visibleWithBaseGate, stateWith({}))).toBe(true);
+
+    // 群組 gate 是前置 AND，baseVisible 不豁免
+    const inLockedGroup = indexEntry({
+      name: '戊',
+      baseVisible: true,
+      groupGate: { requiresFlags: ['sec:01'] },
+    });
+    expect(isIndexEntryUnlocked(inLockedGroup, stateWith({}))).toBe(false);
+  });
+
   it('baseGate（S7 驗收 #4）：未過隱藏、通過解鎖、revision 後期揭露仍解鎖', () => {
     const baseGated = indexEntry({
       name: '甲',

@@ -84,6 +84,19 @@ describe('GET /api/concepts/entity-index', () => {
                         ],
                       },
                       { name: '無鑰條目' },
+                      {
+                        // base 預設顯示 + gated revision（base visible 語意）
+                        name: '公開演進條目',
+                        entityKey: 'a-man',
+                        baseVisible: true,
+                        revisions: [
+                          {
+                            id: 'a-man:01',
+                            gate: { requiresFlags: ['progress:man'] },
+                            patch: { set: { content_html: '<p>更新</p>' } },
+                          },
+                        ],
+                      },
                     ],
                   },
                   // S7 驗收 #3/#4：群組 gate + 條目 base gate 帶進摘要
@@ -292,6 +305,18 @@ describe('GET /api/concepts/entity-index', () => {
     const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
     expect(xavier!.baseGate).toBeUndefined();
     expect(xavier!.groupGate).toBeUndefined();
+  });
+
+  it('baseVisible=true 帶進摘要；未設定的條目不落欄位', async () => {
+    const entries = await fetchIndex();
+    const aman = entries.find((e) => e.entityKey === 'a-man');
+    expect(aman).toBeDefined();
+    expect(aman!.baseVisible).toBe(true);
+    expect(aman!.revisionGates).toEqual([
+      { id: 'a-man:01', gate: { requiresFlags: ['progress:man'] } },
+    ]);
+    const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
+    expect(xavier!.baseVisible).toBeUndefined();
   });
 
   it('browser profile 帶 entityKey 納入', async () => {

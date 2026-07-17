@@ -24,6 +24,8 @@ interface RevisionSimulatorProps {
   revisions: ConceptsRevision[];
   /** base 解鎖條件（S7 驗收 #4）——影響「條目狀態」求值與可模擬旗標 */
   baseGate?: GateCondition | null;
+  /** base 預設顯示——true 時條目狀態恆為可見 */
+  baseVisible?: boolean;
   accent: string;
 }
 
@@ -43,6 +45,7 @@ export default function RevisionSimulator({
   baseEntry,
   revisions,
   baseGate,
+  baseVisible,
   accent,
 }: RevisionSimulatorProps) {
   const [activeFlags, setActiveFlags] = useState<string[]>([]);
@@ -71,7 +74,7 @@ export default function RevisionSimulator({
     [revisions, progress]
   );
 
-  const unlocked = isEntryUnlocked(revisions, progress, baseGate);
+  const unlocked = isEntryUnlocked(revisions, progress, baseGate, baseVisible);
   /** base gate 自身的求值結果（有設定才顯示） */
   const baseGatePass = useMemo(
     () => (baseGate ? evaluateGate(progress, baseGate) : null),
