@@ -3,11 +3,22 @@ export const prerender = false;
 
 import DesignLayout from '../../layouts/DesignLayout.astro';
 
+import {
+  isTestModeOverrideValue,
+  TEST_MODE_COOKIE_NAME,
+} from '../../lib/apiBase';
+
 const JWT_COOKIE = 'uep-admin-jwt';
 const ACTIVE_COOKIE = 'uep-admin-active';
+// Test Mode 下登入一律打正式 worker：test worker 與正式共用 JWT_SECRET，
+// 但 test D1 的 admin_users 刻意保持空——帳密只能由正式 worker 驗證，
+// 簽出的 JWT 在 test worker 上同樣有效（與 staging 行為一致）。
+const isTestModeLogin = isTestModeOverrideValue(
+  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value
+);
 const apiBase =
   import.meta.env.PUBLIC_PROD_CONTENT_API_URL ||
-  (import.meta.env.DEV
+  (import.meta.env.DEV && !isTestModeLogin
     ? 'http://localhost:8788'
     : 'https://eternity-content-api.ptyc4076.workers.dev');
 

@@ -157,6 +157,44 @@ describe('apiBase', () => {
     });
   });
 
+  describe('isTestModeOverrideValue', () => {
+    it('合法 test worker URL 回傳 true（含 URL-encoded 值）', async () => {
+      const { isTestModeOverrideValue } = await import('./apiBase');
+      expect(isTestModeOverrideValue(TEST_URL)).toBe(true);
+      expect(isTestModeOverrideValue(encodeURIComponent(TEST_URL))).toBe(true);
+    });
+
+    it('null / undefined / 空字串回傳 false', async () => {
+      const { isTestModeOverrideValue } = await import('./apiBase');
+      expect(isTestModeOverrideValue(null)).toBe(false);
+      expect(isTestModeOverrideValue(undefined)).toBe(false);
+      expect(isTestModeOverrideValue('')).toBe(false);
+    });
+
+    it('非 test worker URL 回傳 false', async () => {
+      const { isTestModeOverrideValue } = await import('./apiBase');
+      expect(isTestModeOverrideValue(MALICIOUS_URL)).toBe(false);
+      expect(isTestModeOverrideValue('not a url')).toBe(false);
+    });
+
+    it('偽造子網域（第一段等於 test worker 名稱）回傳 false', async () => {
+      const { isTestModeOverrideValue } = await import('./apiBase');
+      expect(isTestModeOverrideValue(SPOOFED_SUBDOMAIN_URL)).toBe(false);
+    });
+
+    it('無 document 環境（SSR / middleware）不 crash', async () => {
+      const originalDocument = globalThis.document;
+      // @ts-expect-error 測試場景刻意刪掉 global
+      delete globalThis.document;
+      try {
+        const { isTestModeOverrideValue } = await import('./apiBase');
+        expect(isTestModeOverrideValue(TEST_URL)).toBe(true);
+      } finally {
+        globalThis.document = originalDocument;
+      }
+    });
+  });
+
   describe('SSR-safe（無 document 環境）', () => {
     // ⚠️ apiBase.ts 內部函式是 lazy 讀取 `typeof document`，不在模組頂層
     // 讀取，因此在函式呼叫前 delete globalThis.document 即可正確模擬 SSR。

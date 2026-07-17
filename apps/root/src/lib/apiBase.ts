@@ -151,6 +151,19 @@ export function isTestMode(): boolean {
 }
 
 /**
+ * SSR 端判斷：傳入的 test cookie 值是否構成合法 Test Mode override。
+ *
+ * `isTestMode()` 的 cookie 讀取僅限 client-side（依賴 document），
+ * middleware / SSR 頁面需自行從 `Astro.cookies` 取值後傳入本函式判斷。
+ */
+export function isTestModeOverrideValue(
+  value: string | null | undefined
+): boolean {
+  const decoded = decodeCookieValue(value ?? null);
+  return !!decoded && isTestWorkerUrl(decoded);
+}
+
+/**
  * 寫入或清除 Test Mode override cookie（僅供 Admin 呼叫）。
  *
  * @param testUrl test worker URL；`null` 或空字串代表清除 override。
