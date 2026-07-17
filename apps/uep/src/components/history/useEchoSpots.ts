@@ -86,6 +86,70 @@ function visitStorageKey(pageId: string, spotId: string): string {
   return `uep.echo-spot.triggered.${pageId}.${spotId}`;
 }
 
+/** `/api/echoes/song` 回傳的現行歌曲摘要（僅列快照刷新會用到的欄位） */
+interface EchoSongRefreshPayload {
+  audioFile?: unknown;
+  title?: unknown;
+  clusterId?: unknown;
+  songType?: unknown;
+  duration?: unknown;
+  spoilerLevel?: unknown;
+  spoilerRevisions?: unknown;
+}
+
+/**
+ * 以 songId 反查現行歌曲資料，刷新過期快照。
+ *
+ * 文章 node 的 songUrlKey/title/spoilerRevisions 是編輯器插入當下的
+ * 快照——歌曲換音檔或改 spoiler 後即過期，D1 才是真相。反查失敗
+ * （離線/端點錯誤）或歌曲已無音檔時退回快照，行為不劣於反查前。
+ */
+export async function refreshEchoSpot(
+  apiBase: string,
+  spot: EchoSpotData
+): Promise<EchoSpotData> {
+  try {
+    const res = await fetch(
+      `${apiBase}/api/echoes/song?id=${encodeURIComponent(spot.songId)}`
+    );
+    if (!res.ok) return spot;
+    const json = (await res.json()) as {
+      ok: boolean;
+      data?: { found: boolean; song?: EchoSongRefreshPayload };
+    };
+    const song = json.ok && json.data?.found ? json.data.song : null;
+    if (!song || typeof song.audioFile !== 'string' || !song.audioFile) {
+      return spot;
+    }
+    const level = song.spoilerLevel;
+    return {
+      ...spot,
+      songUrlKey: song.audioFile,
+      title:
+        typeof song.title === 'string' && song.title ? song.title : spot.title,
+      clusterId:
+        typeof song.clusterId === 'string' && song.clusterId
+          ? song.clusterId
+          : spot.clusterId,
+      songType:
+        typeof song.songType === 'string' && song.songType
+          ? song.songType
+          : spot.songType,
+      ...(typeof song.duration === 'number' && song.duration > 0
+        ? { duration: song.duration }
+        : {}),
+      // spoiler 欄位以現行資料為準——快照過期會誤判防劇透 gate，
+      // 這裡不 fallback（端點永遠回傳 spoilerLevel；revisions 空即無降級鏈）
+      spoilerLevel: level === 1 || level === 2 || level === 3 ? level : 0,
+      spoilerRevisions: Array.isArray(song.spoilerRevisions)
+        ? (song.spoilerRevisions as SongSpoilerRevision[])
+        : [],
+    };
+  } catch {
+    return spot;
+  }
+}
+
 interface EchoSpotDowngradeInput {
   isStory: boolean;
   spoilerLevel: SpoilerLevel;
@@ -182,52 +246,70 @@ export function useEchoSpots({
 
       if (!shouldMountIsland(progressNow, 'echoes')) return;
 
-      const isStory = spot.songType === 'story' || spot.clusterId === 'stories';
-      // 劇情歌與劇情 CG 同語意：Echo Spot 就是其解鎖與首次呈現入口，
-      // 不再套一般歌曲的 spoiler 分級。
-      const spoilerLevel = isStory
-        ? 0
-        : resolveSpoilerLevel(spot.spoilerRevisions, progressNow);
-      const cluster = echoClusterStyle(spot.clusterId);
-      const preview = {
-        source: 'spot' as const,
-        songId: spot.songId,
-        title: spot.title,
-        url: buildEchoAudioUrl(apiBase, spot.songUrlKey),
-        clusterId: spot.clusterId,
-        ...(spot.duration ? { duration: spot.duration } : {}),
-        spoilerLevel,
-        accent: cluster.color,
-      };
-
-      // Echo Spot 的主要行為是插播；提示卡等插播結果確定後才發——
-      // 成功只告知（無動作按鈕），降級/失敗才給手動播放入口。
-      // 本次新收藏以 justCollected 併入同一張卡，不另發 unlock 卡。
-      const shouldDowngrade = shouldDowngradeEchoSpot({
-        isStory,
-        spoilerLevel,
-        interacted: interactedRef.current,
-        autoplayAttempted: autoplayAttemptedRef.current,
-        resumeJump: resumeJumpRef.current,
-        scrollVelocity: scrollVelocityRef.current,
-      });
-      if (shouldDowngrade) {
-        dispatchEchoPreview({ ...preview, justCollected: newlyUnlocked });
-        return;
-      }
-
-      autoplayAttemptedRef.current = true;
+      // 誤觸判定輸入在觸發當下同步擷取——反查有網路延遲，
+      // 事後再讀 scrollVelocity 會讓快速捲動的誤觸判定失真。
+      const resumeJump = resumeJumpRef.current;
+      const scrollVelocity = scrollVelocityRef.current;
       const visitToken = visitTokenRef.current;
-      void getAudioStore()
-        .interrupt(spot.songId, preview.url, spot.title, cluster.color)
-        .then((played) => {
-          if (visitTokenRef.current !== visitToken) return;
-          dispatchEchoPreview({
-            ...preview,
-            ...(played ? { source: 'played' as const } : {}),
-            justCollected: newlyUnlocked,
-          });
+
+      void refreshEchoSpot(apiBase, spot).then((effective) => {
+        if (visitTokenRef.current !== visitToken) return;
+
+        const isStory =
+          effective.songType === 'story' || effective.clusterId === 'stories';
+        // 劇情歌與劇情 CG 同語意：Echo Spot 就是其解鎖與首次呈現入口，
+        // 不再套一般歌曲的 spoiler 分級。
+        const spoilerLevel = isStory
+          ? 0
+          : resolveSpoilerLevel(
+              effective.spoilerRevisions,
+              progressRef.current
+            );
+        const cluster = echoClusterStyle(effective.clusterId);
+        const preview = {
+          source: 'spot' as const,
+          songId: effective.songId,
+          title: effective.title,
+          url: buildEchoAudioUrl(apiBase, effective.songUrlKey),
+          clusterId: effective.clusterId,
+          ...(effective.duration ? { duration: effective.duration } : {}),
+          spoilerLevel,
+          accent: cluster.color,
+        };
+
+        // Echo Spot 的主要行為是插播；提示卡等插播結果確定後才發——
+        // 成功只告知（無動作按鈕），降級/失敗才給手動播放入口。
+        // 本次新收藏以 justCollected 併入同一張卡，不另發 unlock 卡。
+        const shouldDowngrade = shouldDowngradeEchoSpot({
+          isStory,
+          spoilerLevel,
+          interacted: interactedRef.current,
+          autoplayAttempted: autoplayAttemptedRef.current,
+          resumeJump,
+          scrollVelocity,
         });
+        if (shouldDowngrade) {
+          dispatchEchoPreview({ ...preview, justCollected: newlyUnlocked });
+          return;
+        }
+
+        autoplayAttemptedRef.current = true;
+        void getAudioStore()
+          .interrupt(
+            effective.songId,
+            preview.url,
+            effective.title,
+            cluster.color
+          )
+          .then((played) => {
+            if (visitTokenRef.current !== visitToken) return;
+            dispatchEchoPreview({
+              ...preview,
+              ...(played ? { source: 'played' as const } : {}),
+              justCollected: newlyUnlocked,
+            });
+          });
+      });
     },
     [apiBase, pageId, resumeJumpRef, scrollVelocityRef]
   );

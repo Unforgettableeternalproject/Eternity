@@ -657,6 +657,23 @@ interface EntitySongResponse {
 
 實作：D1 查詢 `pages` 表，條件 `area = 'echoes' AND page_type = 'song' AND json_extract(metadata, '$.entityKey') = {key}`，回傳 metadata 解析結果。
 
+### 8-2 Song by-id 查詢端點（2026-07-17 追加）
+
+```
+GET /api/echoes/song?id={songId}
+```
+
+回傳格式與 8-1 相同（`entityKey` 可為 null）。
+
+**動機（修訂 C-3「免 API 反查」決策）**：echo spot node 的
+`songUrlKey`/`title`/`spoilerRevisions` 是編輯器插入當下的快照，歌曲
+換音檔或改 spoiler 後即過期——實測換音檔後舊 spot 仍播舊檔。前台
+`useEchoSpots` 觸發時改以本端點反查現行資料，**快照降級為離線
+fallback**（fetch 失敗時行為不劣於反查前）。
+
+與 8-1 的差異：**不排除 hidden**——spot 是對歌曲的明確引用，而劇情歌
+以 hidden 從列表隱藏是常態設計，排除會讓劇情 spot 永遠退回過期快照。
+
 此端點**不回傳音檔 URL**（只回傳 `audioFile` 裸 key），前端由 `buildAudioUrl` 組合。
 
 ### 8-2 解鎖旗標授予

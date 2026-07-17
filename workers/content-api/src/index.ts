@@ -24,7 +24,7 @@ import {
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
-import { findEntitySong } from './echoes-song';
+import { findEntitySong, findSongById } from './echoes-song';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
 import { buildDiscordStats } from './widget-stats';
@@ -1635,6 +1635,25 @@ export default {
         );
       }
       const song = await findEntitySong(env.CONTENT_DB, key);
+      return jsonResponse(
+        { ok: true, data: song ? { found: true, song } : { found: false } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- Echoes 曲目 by-id 反查（echo spot 觸發時刷新過期快照）----
+    if (path === '/api/echoes/song' && request.method === 'GET') {
+      const id = url.searchParams.get('id')?.trim() ?? '';
+      if (!id) {
+        return jsonResponse(
+          { ok: false, error: 'Missing id parameter' },
+          400,
+          cors
+        );
+      }
+      const song = await findSongById(env.CONTENT_DB, id);
       return jsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
         200,
