@@ -11,7 +11,7 @@
  * - 索引未載入 / 載入失敗 → entity-key 嵌入一律不可點（安全預設：
  *   terminal 此時也查不到內容，不變量仍成立）；載入完成觸發重繪
  * - 判定本體 = terminalCore.isEntityRefUnlocked（與 query/ls 的
- *   隱藏過濾同一套 isIndexEntryUnlocked 語意，含 baseVisible）
+ *   隱藏過濾同一套 isIndexEntryUnlocked 語意）
  */
 
 import { useEffect, useMemo, useState } from 'react';

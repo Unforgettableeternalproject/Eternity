@@ -135,30 +135,26 @@ export function applyRevisions<T extends Record<string, unknown>>(
 /**
  * 條目是否已解鎖（「未解鎖條目 = 隱藏」的守門判定）。
  *
- * - baseVisible = true：無條件可見（「條目公開、之後隨進度演進」的
- *   資料形狀；revision patch 的套用時機照常由各自 gate 決定）
- * - 有 base gate（S7 驗收 #4）：base gate 通過 → true；未過時
- *   任一 revision gate 通過仍 → true（後期揭露），全部未過 → false
- * - 無 base gate 時維持舊語意：
- *   - 無 revisions 或空陣列 → true（無進度閘）
- *   - 首個 revision gate 為 null → true（base 無條件可見）
- *   - 否則：任一 revision 的 gate 通過 → true
+ * 2026-07-17 語意修正（艾斯維爾定案）：**條目可見性由 baseGate 單獨
+ * 決定**——revision gate 只控制 patch 的套用時機，對條目本身的可見性
+ * 零影響（不能鎖住條目、也不能反向開鎖）。
+ *
+ * - 無 baseGate → 永遠可見（revision 只是後續內容演進）
+ * - 有 baseGate → 通過即可見、未過即隱藏
+ *
+ * 取代的舊語意（S7 oversight，已作廢）：「無 baseGate 時首個 revision
+ * 的 gate = 初次解鎖點」與「baseGate 未過但 revision 通過的後期揭露」
+ * ——兩者都讓 revision 干涉條目可見性，與 baseGate 的設計初衷矛盾；
+ * baseVisible 欄位是為該 oversight 打的補丁，隨之廢除。
+ *
  * （觀測者 bypass requiresFlags 沿用 evaluateGate 語意；
  * pristineOnly 條目對觀測者/印記者依然隱藏）
  */
 export function isEntryUnlocked(
-  revisions: ConceptsRevision[] | undefined,
   progress: ProgressState,
-  baseGate?: GateCondition | null,
-  baseVisible?: boolean
+  baseGate?: GateCondition | null
 ): boolean {
-  if (baseVisible) return true;
-  if (baseGate) {
-    if (evaluateGate(progress, baseGate)) return true;
-    return (revisions ?? []).some((r) => evaluateGate(progress, r.gate));
-  }
-  if (!revisions || revisions.length === 0) return true;
-  return revisions.some((r) => evaluateGate(progress, r.gate));
+  return evaluateGate(progress, baseGate ?? null);
 }
 
 // ── 頁面級 effective view ──────────────────────────────────────────
@@ -203,11 +199,11 @@ function resolveEntries<T extends Record<string, unknown>>(
   for (const entry of entries) {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
     const baseGate = entry.gate as GateCondition | null | undefined;
-    const baseVisible = entry.baseVisible === true;
-    if (!isEntryUnlocked(revisions, progress, baseGate, baseVisible)) continue;
+    if (!isEntryUnlocked(progress, baseGate)) continue;
     const resolved = applyRevisions(entry, revisions, progress);
     delete (resolved as Record<string, unknown>).revisions;
     delete (resolved as Record<string, unknown>).gate;
+    // baseVisible 為已廢除欄位（2026-07-17）——舊資料殘留照樣剝除
     delete (resolved as Record<string, unknown>).baseVisible;
     out.push(resolved);
   }

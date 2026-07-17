@@ -58,11 +58,11 @@ function setup(
 }
 
 describe('RevisionModal — 基本結構', () => {
-  it('顯示條目名稱與 base 虛擬項', () => {
+  it('顯示條目名稱與 base 虛擬項（無 baseGate = 預設可見）', () => {
     setup();
     expect(screen.getByText('艾斯維爾')).toBeInTheDocument();
     expect(screen.getByText('base')).toBeInTheDocument();
-    expect(screen.getByText('條目現有內容')).toBeInTheDocument();
+    expect(screen.getByText('◉ 預設可見')).toBeInTheDocument();
   });
 
   it('無 revision 時顯示引導提示', () => {
@@ -85,34 +85,6 @@ describe('RevisionModal — 基本結構', () => {
     const { onClose } = setup();
     fireEvent.click(screen.getByText('✕'));
     expect(onClose).toHaveBeenCalled();
-  });
-});
-
-describe('RevisionModal — base 預設顯示', () => {
-  it('未提供 onBaseVisibleChange 時不顯示開關', () => {
-    setup();
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-  });
-
-  it('勾選開關回寫 true、取消回寫 false', () => {
-    const onBaseVisibleChange = vi.fn();
-    setup({ onBaseVisibleChange });
-    const checkbox = screen.getByRole('checkbox');
-    fireEvent.click(checkbox);
-    expect(onBaseVisibleChange).toHaveBeenCalledWith(true);
-  });
-
-  it('baseVisible=true 時 base 卡標示「預設顯示」且開關已勾', () => {
-    setup({
-      baseVisible: true,
-      onBaseVisibleChange: vi.fn(),
-      baseGate: { requiresFlags: ['met:x'] },
-      onBaseGateChange: vi.fn(),
-    });
-    expect(screen.getByText('◉ 預設顯示')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { checked: true })).toBeInTheDocument();
-    // 提示：條件不影響可見性
-    expect(screen.getByText(/不影響條目可見性/)).toBeInTheDocument();
   });
 });
 
@@ -233,7 +205,7 @@ describe('RevisionModal — base gate（S7 驗收 #4）', () => {
       onBaseGateChange: vi.fn(),
     });
     expect(screen.getAllByText('⚑ 有解鎖條件').length).toBeGreaterThan(0);
-    expect(screen.queryByText('條目現有內容')).not.toBeInTheDocument();
+    expect(screen.queryByText('◉ 預設可見')).not.toBeInTheDocument();
   });
 
   it('未提供 onBaseGateChange 時 base 卡不顯示條件編輯器', () => {

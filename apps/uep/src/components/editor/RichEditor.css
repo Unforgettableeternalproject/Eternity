@@ -3235,22 +3235,6 @@
 .ced-rev-base-info p {
   margin: 0 0 10px;
 }
-/* base 預設顯示開關（RevisionModal base 卡） */
-.ced-rev-base-visible {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--ink-body);
-  padding: 8px 10px;
-  border: 1px solid var(--hairline);
-  margin-bottom: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-.ced-rev-base-visible input {
-  accent-color: var(--ced-accent, currentColor);
-}
 .ced-rev-hint {
   font-size: 11px;
   color: var(--ink-mute);

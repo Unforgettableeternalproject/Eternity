@@ -7,11 +7,11 @@
  * - 右欄：選中 revision 的 id / GateConditionEditor / PatchEditor
  * - 四 stack 共用同一骨架，PatchEditor 依 stackStyle 動態渲染
  *
- * 語意備忘：
+ * 語意備忘（2026-07-17 修正）：
  * - base 不是 revisions[0]——條目自身欄位就是 base 內容，時間線上的
  *   base 卡片是唯讀說明項
- * - revisions[0] 帶 gate ⇒ 條目在該 gate 通過前整條隱藏
- *   （browser profile 例外：placeholder 佔位，見設計定案 C）
+ * - 條目可見性由 base gate 單獨決定（未設 = 永遠可見）；revision gate
+ *   只控制 patch 套用時機，不鎖條目也不反向開鎖
  * - gate 為 null 的 revision = 無條件套用
  * - 宣告順序 = 劇情揭露順序，resolver 不重排（亂序防禦見 revision.ts）
  */
@@ -47,14 +47,10 @@ interface RevisionModalProps {
   baseEntry: Record<string, unknown>;
   revisions: ConceptsRevision[];
   onChange: (revisions: ConceptsRevision[]) => void;
-  /** base 解鎖條件（S7 驗收 #4）：條目本身的可見閘門 */
+  /** base 解鎖條件（S7 驗收 #4）：條目可見性的唯一閘門（未設 = 永遠可見） */
   baseGate?: GateCondition | null;
   /** base gate 變更回寫（未提供時 base 卡不顯示條件編輯器） */
   onBaseGateChange?: (gate: GateCondition | null) => void;
-  /** base 預設顯示：true 時條目不受任何 gate 影響，一開始就可見 */
-  baseVisible?: boolean;
-  /** base 預設顯示變更回寫（未提供時 base 卡不顯示此開關） */
-  onBaseVisibleChange?: (visible: boolean) => void;
   /** chrono 專用（S7 驗收 #7）：pool fieldDefs，事件列 patch 下拉選擇 */
   chronoFieldDefs?: ChronoFieldDef[];
   onClose: () => void;
@@ -79,8 +75,6 @@ export default function RevisionModal({
   onChange,
   baseGate,
   onBaseGateChange,
-  baseVisible,
-  onBaseVisibleChange,
   chronoFieldDefs,
   onClose,
   accent,
@@ -188,11 +182,7 @@ export default function RevisionModal({
             >
               <span className="ced-rev-item-id">base</span>
               <span className="ced-rev-item-note">
-                {baseVisible
-                  ? '◉ 預設顯示'
-                  : baseGate
-                    ? '⚑ 有解鎖條件'
-                    : '條目現有內容'}
+                {baseGate ? '⚑ 有解鎖條件' : '◉ 預設可見'}
               </span>
             </button>
 
@@ -281,24 +271,13 @@ export default function RevisionModal({
                     </>
                   ) : (
                     <>
-                      base 可直接設定解鎖條件（下方）——條目在條件通過前
-                      整條隱藏，不需要再用首個 revision 硬擋。未設定 base
-                      條件但掛有 revision 時，首個 revision 的條件即為
-                      初次解鎖點（通過前條目隱藏）；要讓 base
-                      一開始就可見，請勾選「預設顯示」。
+                      條目的可見性由 base 解鎖條件（下方）單獨決定——
+                      未設定條件時條目一開始就可見；設定後在條件通過前
+                      整條隱藏。revision 只影響內容演進（patch
+                      的套用時機），不會鎖住條目、也不會提前開鎖。
                     </>
                   )}
                 </p>
-                {onBaseVisibleChange && (
-                  <label className="ced-rev-base-visible">
-                    <input
-                      type="checkbox"
-                      checked={baseVisible === true}
-                      onChange={(e) => onBaseVisibleChange(e.target.checked)}
-                    />
-                    <span>預設顯示（base 不受任何條件影響，一開始就可見）</span>
-                  </label>
-                )}
                 {onBaseGateChange && (
                   <>
                     <div className="ced-rev-section-title">BASE 解鎖條件</div>
@@ -310,20 +289,6 @@ export default function RevisionModal({
                         accent={accent}
                       />
                     </div>
-                    {baseVisible && (baseGate || revisions.length > 0) && (
-                      <div className="ced-rev-hint">
-                        ⓘ 已勾選「預設顯示」——base 條件與 revision
-                        條件都不影響條目可見性，僅影響 revision patch
-                        的套用時機。
-                      </div>
-                    )}
-                    {!baseVisible && baseGate && revisions.length > 0 && (
-                      <div className="ced-rev-hint">
-                        ⓘ base 條件未通過但任一 revision 條件通過時，
-                        條目仍會可見（後期揭露）——請確認 revision 鏈的條件不早於
-                        base。
-                      </div>
-                    )}
                   </>
                 )}
                 {revisions.length === 0 && (
@@ -418,7 +383,6 @@ export default function RevisionModal({
             baseEntry={baseEntry}
             revisions={revisions}
             baseGate={baseGate}
-            baseVisible={baseVisible}
             accent={accent}
           />
         )}

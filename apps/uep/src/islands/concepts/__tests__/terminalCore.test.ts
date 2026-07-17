@@ -121,6 +121,8 @@ describe('loadEntityIndex', () => {
 // ── 解鎖判定 ───────────────────────────────────────────────────────
 
 describe('isIndexEntryUnlocked / passedRevisionCount', () => {
+  // 2026-07-17 語意修正：可見性 = groupGate + baseGate；
+  // revisionGates 只供更動通知水位，不影響可見性
   const gated = indexEntry({
     name: '艾斯維爾',
     entityKey: 'xavier-colsono',
@@ -130,10 +132,6 @@ describe('isIndexEntryUnlocked / passedRevisionCount', () => {
       { id: 'xavier:02', gate: { requiresFlags: ['xavier:02'] } },
     ],
   });
-  const fullyGated = indexEntry({
-    name: '隱藏人物',
-    revisionGates: [{ id: 'r1', gate: { requiresFlags: ['secret:01'] } }],
-  });
 
   it('無 gate 摘要 = 無進度閘', () => {
     expect(
@@ -141,52 +139,16 @@ describe('isIndexEntryUnlocked / passedRevisionCount', () => {
     ).toBe(true);
   });
 
-  it('base 無 gate → 初始即解鎖；全 gated 條目未持旗標 → 隱藏', () => {
+  it('revision gate 不影響可見性：全 gated revisions 且零旗標仍可見', () => {
     expect(isIndexEntryUnlocked(gated, stateWith({}))).toBe(true);
-    expect(isIndexEntryUnlocked(fullyGated, stateWith({}))).toBe(false);
-    expect(
-      isIndexEntryUnlocked(fullyGated, stateWith({ flags: ['secret:01'] }))
-    ).toBe(true);
+    const fullyGatedRevisions = indexEntry({
+      name: '演進條目',
+      revisionGates: [{ id: 'r1', gate: { requiresFlags: ['secret:01'] } }],
+    });
+    expect(isIndexEntryUnlocked(fullyGatedRevisions, stateWith({}))).toBe(true);
   });
 
-  it('觀測者 bypass requiresFlags', () => {
-    expect(
-      isIndexEntryUnlocked(
-        fullyGated,
-        stateWith({ view: 'observer', observerEver: true })
-      )
-    ).toBe(true);
-  });
-
-  it('baseVisible：無視 base/revision gate 一律解鎖，但群組 gate 仍前置', () => {
-    const visibleButGated = indexEntry({
-      name: '一個人',
-      entityKey: 'a-man',
-      baseVisible: true,
-      revisionGates: [
-        { id: 'a-man:01', gate: { requiresFlags: ['progress:man'] } },
-      ],
-    });
-    expect(isIndexEntryUnlocked(visibleButGated, stateWith({}))).toBe(true);
-
-    // baseGate 未過也一樣解鎖
-    const visibleWithBaseGate = indexEntry({
-      name: '丁',
-      baseVisible: true,
-      baseGate: { requiresFlags: ['met:d'] },
-    });
-    expect(isIndexEntryUnlocked(visibleWithBaseGate, stateWith({}))).toBe(true);
-
-    // 群組 gate 是前置 AND，baseVisible 不豁免
-    const inLockedGroup = indexEntry({
-      name: '戊',
-      baseVisible: true,
-      groupGate: { requiresFlags: ['sec:01'] },
-    });
-    expect(isIndexEntryUnlocked(inLockedGroup, stateWith({}))).toBe(false);
-  });
-
-  it('baseGate（S7 驗收 #4）：未過隱藏、通過解鎖、revision 後期揭露仍解鎖', () => {
+  it('baseGate（S7 驗收 #4）：未過隱藏、通過解鎖、觀測者 bypass', () => {
     const baseGated = indexEntry({
       name: '甲',
       baseGate: { requiresFlags: ['met:a'] },
@@ -195,15 +157,24 @@ describe('isIndexEntryUnlocked / passedRevisionCount', () => {
     expect(
       isIndexEntryUnlocked(baseGated, stateWith({ flags: ['met:a'] }))
     ).toBe(true);
+    expect(
+      isIndexEntryUnlocked(
+        baseGated,
+        stateWith({ view: 'observer', observerEver: true })
+      )
+    ).toBe(true);
+  });
 
-    // base 未過但 revision gate 通過 → 解鎖（後期揭露）
+  it('baseGate 未過時 revision gate 通過也不反向開鎖（可見性只看 baseGate）', () => {
     const withRev = indexEntry({
       name: '乙',
       baseGate: { requiresFlags: ['met:b'] },
       revisionGates: [{ id: 'b:01', gate: { requiresFlags: ['b:01'] } }],
     });
-    expect(isIndexEntryUnlocked(withRev, stateWith({}))).toBe(false);
     expect(isIndexEntryUnlocked(withRev, stateWith({ flags: ['b:01'] }))).toBe(
+      false
+    );
+    expect(isIndexEntryUnlocked(withRev, stateWith({ flags: ['met:b'] }))).toBe(
       true
     );
   });
@@ -255,7 +226,7 @@ describe('queryIndex', () => {
     }),
     indexEntry({
       name: '未解鎖角色',
-      revisionGates: [{ id: 'r1', gate: { requiresFlags: ['no:01'] } }],
+      baseGate: { requiresFlags: ['no:01'] },
     }),
     indexEntry({ name: '原質', stack: 'diff' }),
     indexEntry({ name: '月桂 Laurel', stack: 'browser' }),
@@ -345,7 +316,7 @@ describe('resolveStackAlias / listStackEntries', () => {
       indexEntry({ name: '甲' }),
       indexEntry({
         name: '乙（未解鎖）',
-        revisionGates: [{ id: 'r1', gate: { requiresFlags: ['no:01'] } }],
+        baseGate: { requiresFlags: ['no:01'] },
       }),
       indexEntry({ name: '丙', stack: 'diff' }),
     ];
@@ -381,7 +352,7 @@ describe('summarizePages / pageId 過濾 / formatEntryLabel', () => {
       name: '丁（未解鎖）',
       pageId: 'concepts/b',
       pageTitle: '地點列表',
-      revisionGates: [{ id: 'r', gate: { requiresFlags: ['no:01'] } }],
+      baseGate: { requiresFlags: ['no:01'] },
     }),
   ];
 
@@ -646,9 +617,9 @@ describe('resolveEntryDetails', () => {
     expect(details).toEqual([]);
   });
 
-  it('baseVisible：掛 gated revisions 且零旗標仍不 restricted（2026-07-17 修）', async () => {
-    // 截圖重現：base 勾「預設顯示」+ 一條 gated revision，讀者零旗標
-    // ——索引層放行但內容解析層漏傳 baseVisible 曾誤判 ACCESS RESTRICTED
+  it('無 baseGate 掛 gated revisions 仍不 restricted（2026-07-17 語意修正）', async () => {
+    // 「一個人」重現：無 baseGate + 一條 gated revision，讀者零旗標
+    // ——條目永遠可見（revision 不鎖條目），base 內容照常呈現
     const pageId = 'concepts/server/records/characters';
     stubFetch({
       [`/api/content/${pageId}`]: {
@@ -672,7 +643,6 @@ describe('resolveEntryDetails', () => {
                               {
                                 name: '一個人',
                                 entityKey: 'a-man',
-                                baseVisible: true,
                                 content_html: '<p>base 敘述。</p>',
                                 revisions: [
                                   {
@@ -717,17 +687,17 @@ describe('isEntityRefUnlocked', () => {
     indexEntry({
       name: '一個人',
       entityKey: 'a-man',
-      baseVisible: true,
+      // 無 baseGate + gated revisions：永遠可見（revision 不鎖條目）
       revisionGates: [{ id: 'a-man:01', gate: { requiresFlags: ['a:01'] } }],
     }),
     indexEntry({
       name: '隱藏人物',
       entityKey: 'hidden-man',
-      revisionGates: [{ id: 'h:01', gate: { requiresFlags: ['h:01'] } }],
+      baseGate: { requiresFlags: ['h:01'] },
     }),
   ];
 
-  it('entity-key：索引中任一條目已解鎖 → true（含 baseVisible）', () => {
+  it('entity-key：索引中任一條目已解鎖 → true（gated revisions 不影響）', () => {
     expect(
       isEntityRefUnlocked(entries, 'entity:xavier-colsono', stateWith({}))
     ).toBe(true);
@@ -736,7 +706,7 @@ describe('isEntityRefUnlocked', () => {
     );
   });
 
-  it('entity-key：全 gated 未持旗標 → false；授旗後 → true', () => {
+  it('entity-key：baseGate 未過 → false；授旗後 → true', () => {
     expect(
       isEntityRefUnlocked(entries, 'entity:hidden-man', stateWith({}))
     ).toBe(false);
@@ -852,13 +822,14 @@ describe('resolveBrowserExpand', () => {
     expect(detail!.sections).toEqual([]);
   });
 
-  it('revision gate 未過 → restricted；通過後 patch 生效', async () => {
+  it('baseGate 未過 → restricted；通過後 patch 照旗標生效（2026-07-17 語意）', async () => {
     const profiles = [
       {
         name: '諾薇亞 (Novia)',
         entityKey: 'novia',
         placeholder: false,
         basic: { 職務: '???' },
+        gate: { requiresFlags: ['novia:01'] },
         revisions: [
           {
             id: 'novia:01',
@@ -880,6 +851,27 @@ describe('resolveBrowserExpand', () => {
     );
     expect(passed!.restricted).toBeUndefined();
     expect(passed!.basic).toEqual(['職務：程式碼執行者']);
+  });
+
+  it('無 baseGate 掛 gated revision → 可見且顯示 base 內容（revision 不鎖條目）', async () => {
+    stubBrowserPage([
+      {
+        name: '諾薇亞 (Novia)',
+        entityKey: 'novia',
+        placeholder: false,
+        basic: { 職務: '???' },
+        revisions: [
+          {
+            id: 'novia:01',
+            gate: { requiresFlags: ['novia:01'] },
+            patch: { set: { 'basic.職務': '程式碼執行者' } },
+          },
+        ],
+      },
+    ]);
+    const detail = await resolveBrowserExpand(target, stateWith({}));
+    expect(detail!.restricted).toBeUndefined();
+    expect(detail!.basic).toEqual(['職務：???']);
   });
 
   it('非 browser 目標 / profile 消失 → null', async () => {
@@ -906,7 +898,7 @@ describe('groupStackEntries', () => {
       name: '被鎖條目',
       category: '人物',
       group: '命運織者',
-      revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
+      baseGate: { requiresFlags: ['nope'] },
     }),
     indexEntry({ name: '別棧條目', stack: 'diff', category: '術語' }),
   ];
@@ -941,14 +933,14 @@ describe('significantChronoPeriods', () => {
   const chrono = (
     name: string,
     eventCount: number,
-    gates?: TerminalIndexEntry['revisionGates']
+    baseGate?: TerminalIndexEntry['baseGate']
   ) =>
     indexEntry({
       name,
       stack: 'chrono',
       pageId: 'concepts/server/time_logs/chronicles',
       eventCount,
-      revisionGates: gates,
+      baseGate,
     });
 
   it('按 eventCount 降序取前 limit 個；0 事件不列', () => {
@@ -971,7 +963,7 @@ describe('significantChronoPeriods', () => {
   it('未解鎖 period 不進顯著時代', () => {
     const entries = [
       chrono('公開年', 4),
-      chrono('隱藏年', 99, [{ id: 'g', gate: { requiresFlags: ['nope'] } }]),
+      chrono('隱藏年', 99, { requiresFlags: ['nope'] }),
     ];
     const top = significantChronoPeriods(entries, stateWith({}), 5);
     expect(top.map((e) => e.name)).toEqual(['公開年']);
@@ -1013,7 +1005,7 @@ describe('completeInput', () => {
     indexEntry({ name: '舊礦山 Old Mine Site' }),
     indexEntry({
       name: '未解鎖角色',
-      revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
+      baseGate: { requiresFlags: ['nope'] },
     }),
     indexEntry({ name: '諾薇亞 Novia', stack: 'browser' }), // 同名跨 stack
   ];
@@ -1102,7 +1094,7 @@ describe('summarizeCategories', () => {
     indexEntry({
       name: '鎖',
       category: '人物',
-      revisionGates: [{ id: 'g', gate: { requiresFlags: ['nope'] } }],
+      baseGate: { requiresFlags: ['nope'] },
     }),
   ];
 

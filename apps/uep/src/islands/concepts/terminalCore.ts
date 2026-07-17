@@ -55,12 +55,11 @@ export interface TerminalIndexEntry {
   entityKey?: string;
   /** 匹配別名（S7-D-2：query / 補全的補充匹配詞） */
   aliases?: string[];
-  /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
+  /** base 解鎖條件（S7 驗收 #4：條目可見性的唯一閘門，未設 = 永遠可見） */
   baseGate?: GateCondition | null;
-  /** base 預設顯示：true 時條目不受 base/revision gate 影響（群組 gate 仍前置） */
-  baseVisible?: boolean;
   /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
   groupGate?: GateCondition | null;
+  /** revision gate 摘要——只供更動通知水位（passedRevisionCount），不影響可見性 */
   revisionGates?: { id: string; gate: GateCondition | null }[];
   /** 分類標籤（dossier=subcategory、diff=subcat）——ls 分組用 */
   category?: string;
@@ -169,12 +168,12 @@ function loadPageData(pageId: string): Promise<ConceptsData | null> {
 // ── 解鎖判定（索引層） ─────────────────────────────────────────────
 
 /**
- * 索引條目是否已解鎖——與 revision.ts 的求值語意一致：
+ * 索引條目是否已解鎖——與 revision.ts 的求值語意一致
+ * （2026-07-17 修正：可見性 = groupGate + baseGate，revision gate
+ * 只控制 patch 套用時機，不影響可見性）：
  * - 群組 gate（S7 驗收 #3）未過 → 整組隱藏（前置 AND，條目層不再看）
- * - baseVisible = true → 無條件解鎖（base 預設顯示；群組 gate 仍前置）
- * - base gate（S7 驗收 #4）：通過即解鎖；未過時任一 revision gate
- *   通過仍解鎖（後期揭露）
- * - 皆無 → 無 gate 摘要 = 無進度閘；否則任一 revision gate 通過即解鎖
+ * - base gate（S7 驗收 #4）：通過即解鎖、未過即隱藏
+ * - 無 baseGate → 永遠可見
  */
 export function isIndexEntryUnlocked(
   entry: TerminalIndexEntry,
@@ -183,14 +182,7 @@ export function isIndexEntryUnlocked(
   if (entry.groupGate && !evaluateGate(progress, entry.groupGate)) {
     return false;
   }
-  if (entry.baseVisible) return true;
-  const gates = entry.revisionGates;
-  if (entry.baseGate) {
-    if (evaluateGate(progress, entry.baseGate)) return true;
-    return (gates ?? []).some((g) => evaluateGate(progress, g.gate));
-  }
-  if (!gates || gates.length === 0) return true;
-  return gates.some((g) => evaluateGate(progress, g.gate));
+  return evaluateGate(progress, entry.baseGate ?? null);
 }
 
 /**
@@ -685,10 +677,7 @@ export async function resolveEntryDetails(
   const resolve = <T extends Record<string, unknown>>(entry: T): T | null => {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
     const baseGate = entry.gate as GateCondition | null | undefined;
-    const baseVisible = entry.baseVisible === true;
-    if (!isEntryUnlocked(revisions, progress, baseGate, baseVisible)) {
-      return null;
-    }
+    if (!isEntryUnlocked(progress, baseGate)) return null;
     return applyRevisions(entry, revisions, progress);
   };
 
@@ -798,13 +787,7 @@ export async function resolveBrowserExpand(
       pageTitle: target.pageTitle,
     };
     const revisions = profile.revisions;
-    const unlocked = isEntryUnlocked(
-      revisions,
-      progress,
-      profile.gate,
-      profile.baseVisible === true
-    );
-    if (!unlocked) {
+    if (!isEntryUnlocked(progress, profile.gate)) {
       return { ...base, basic: [], sections: [], restricted: true };
     }
     const resolved = applyRevisions(

@@ -206,95 +206,44 @@ describe('applyRevisions', () => {
 });
 
 // ── isEntryUnlocked ───────────────────────────────────────────────
+// 2026-07-17 語意修正：可見性 = baseGate 單獨決定，revision gate 不參與
 
 describe('isEntryUnlocked', () => {
-  it('無 revisions / 空陣列 → 永遠解鎖', () => {
-    expect(isEntryUnlocked(undefined, stateWith({}))).toBe(true);
-    expect(isEntryUnlocked([], stateWith({}))).toBe(true);
+  it('無 baseGate（null / 未定義）→ 永遠可見', () => {
+    expect(isEntryUnlocked(stateWith({}))).toBe(true);
+    expect(isEntryUnlocked(stateWith({}), null)).toBe(true);
   });
 
-  it('首個 revision gate=null → base 無條件可見', () => {
-    const revs: ConceptsRevision[] = [{ id: 'base', gate: null, patch: {} }];
-    expect(isEntryUnlocked(revs, stateWith({}))).toBe(true);
-  });
-
-  it('全部 gate 未通過 → 隱藏；任一通過 → 可見', () => {
-    const revs = [XAVIER_R1, XAVIER_R2];
-    expect(isEntryUnlocked(revs, stateWith({}))).toBe(false);
-    expect(
-      isEntryUnlocked(revs, stateWith({ flags: ['xavier-colsono:02'] }))
-    ).toBe(true);
-  });
-
-  it('觀測者 bypass requiresFlags → 可見', () => {
-    expect(
-      isEntryUnlocked(
-        [XAVIER_R1],
-        stateWith({ view: 'observer', observerEver: true })
-      )
-    ).toBe(true);
-  });
-
-  it('pristineOnly 條目：觀測者不 bypass（印記代價）', () => {
-    const revs: ConceptsRevision[] = [
-      { id: 'p', gate: { pristineOnly: true }, patch: {} },
-    ];
-    expect(isEntryUnlocked(revs, stateWith({}))).toBe(true);
-    expect(
-      isEntryUnlocked(revs, stateWith({ view: 'observer', observerEver: true }))
-    ).toBe(false);
-    expect(isEntryUnlocked(revs, stateWith({ observerEver: true }))).toBe(
-      false
-    );
-  });
-
-  it('base gate（S7 驗收 #4）：未過隱藏、通過可見', () => {
+  it('baseGate（S7 驗收 #4）：未過隱藏、通過可見', () => {
     const baseGate = { requiresFlags: ['met:xavier'] };
-    expect(isEntryUnlocked(undefined, stateWith({}), baseGate)).toBe(false);
+    expect(isEntryUnlocked(stateWith({}), baseGate)).toBe(false);
     expect(
-      isEntryUnlocked(undefined, stateWith({ flags: ['met:xavier'] }), baseGate)
+      isEntryUnlocked(stateWith({ flags: ['met:xavier'] }), baseGate)
     ).toBe(true);
-    // null / 未定義 = 無 base gate（舊語意）
-    expect(isEntryUnlocked(undefined, stateWith({}), null)).toBe(true);
   });
 
-  it('base gate 未過但任一 revision gate 通過 → 仍可見（後期揭露）', () => {
+  it('baseGate：觀測者 bypass requiresFlags → 可見', () => {
     const baseGate = { requiresFlags: ['met:xavier'] };
     expect(
       isEntryUnlocked(
-        [XAVIER_R2],
-        stateWith({ flags: ['xavier-colsono:02'] }),
-        baseGate
-      )
-    ).toBe(true);
-    expect(isEntryUnlocked([XAVIER_R2], stateWith({}), baseGate)).toBe(false);
-  });
-
-  it('base gate：觀測者 bypass requiresFlags → 可見', () => {
-    const baseGate = { requiresFlags: ['met:xavier'] };
-    expect(
-      isEntryUnlocked(
-        undefined,
         stateWith({ view: 'observer', observerEver: true }),
         baseGate
       )
     ).toBe(true);
   });
 
-  it('baseVisible=true → 無視 base gate 與 revision gate，一律可見', () => {
-    // 全部 revision gate 未過（無 baseVisible 會隱藏）
+  it('pristineOnly baseGate：觀測者不 bypass（印記代價）', () => {
+    const baseGate = { pristineOnly: true };
+    expect(isEntryUnlocked(stateWith({}), baseGate)).toBe(true);
     expect(
-      isEntryUnlocked([XAVIER_R1, XAVIER_R2], stateWith({}), null, true)
-    ).toBe(true);
-    // base gate 未過也一樣可見
-    const baseGate = { requiresFlags: ['met:xavier'] };
-    expect(isEntryUnlocked(undefined, stateWith({}), baseGate, true)).toBe(
-      true
-    );
-    // baseVisible=false 走原語意
-    expect(
-      isEntryUnlocked([XAVIER_R1, XAVIER_R2], stateWith({}), null, false)
+      isEntryUnlocked(
+        stateWith({ view: 'observer', observerEver: true }),
+        baseGate
+      )
     ).toBe(false);
+    expect(isEntryUnlocked(stateWith({ observerEver: true }), baseGate)).toBe(
+      false
+    );
   });
 });
 
@@ -316,6 +265,8 @@ const dossierData = (): DossierContent => ({
                 {
                   name: '艾斯維爾·科索諾 Xavier Colsono',
                   entityKey: 'xavier-colsono',
+                  // 條目可見性由 baseGate 決定（2026-07-17 語意修正）
+                  gate: { requiresFlags: ['xavier-colsono:01'] },
                   revisions: [XAVIER_R1],
                 },
               ],
@@ -390,6 +341,8 @@ const diffData = (): DiffContent => ({
               term: '原質',
               values: ['？？？'],
               entityKey: 'essence',
+              // 條目可見性由 baseGate 決定（2026-07-17 語意修正）
+              gate: { requiresFlags: ['essence:01'] },
               revisions: [
                 {
                   id: 'essence:01',
@@ -590,7 +543,7 @@ describe('resolveEffectiveViewForPage', () => {
     expect(observer.variants[0].subcategories[0].groups).toHaveLength(2);
   });
 
-  it('dossier：baseVisible=true 的條目即使全 revision gate 未過仍可見（base 預設顯示）', () => {
+  it('dossier：無 baseGate 的條目掛 gated revisions 仍可見（revision 不鎖條目，2026-07-17 修正）', () => {
     const data: DossierContent = {
       variants: [
         {
@@ -606,6 +559,7 @@ describe('resolveEffectiveViewForPage', () => {
                     {
                       name: '一個人',
                       entityKey: 'a-man',
+                      // 舊 baseVisible 欄位殘留（已廢除）——應被剝除且不影響行為
                       baseVisible: true,
                       content_html: '<p>他是一個普通人</p>',
                       revisions: [
@@ -619,7 +573,7 @@ describe('resolveEffectiveViewForPage', () => {
                           },
                         },
                       ],
-                    },
+                    } as unknown as DossierContent['variants'][0]['subcategories'][0]['groups'][0]['entries'][0],
                   ],
                 },
               ],
@@ -628,12 +582,15 @@ describe('resolveEffectiveViewForPage', () => {
         },
       ],
     };
-    // 無旗標：base 內容可見、patch 未套用、baseVisible 剝除
+    // 無旗標：base 內容可見（revision gate 不鎖條目）、patch 未套用、
+    // 廢除欄位 baseVisible 剝除
     const locked = resolveEffectiveViewForPage(data, stateWith({}));
     const entry = locked.variants[0].subcategories[0].groups[0].entries[0];
     expect(entry.name).toBe('一個人');
     expect(entry.content_html).toBe('<p>他是一個普通人</p>');
-    expect(entry.baseVisible).toBeUndefined();
+    expect(
+      (entry as unknown as Record<string, unknown>).baseVisible
+    ).toBeUndefined();
 
     // 旗標到位：patch 照常套用
     const unlocked = resolveEffectiveViewForPage(

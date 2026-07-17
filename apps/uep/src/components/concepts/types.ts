@@ -51,26 +51,20 @@ export interface WithRevision {
    */
   entityKey?: string;
   /**
-   * Base 解鎖條件（S7 驗收 #4）：條目本身的可見閘門——
-   * 未通過前條目整條隱藏，不需要再用「首個 revision 掛 gate」硬擋。
-   * null / 未定義 = 走舊語意：無 revisions 時可見；有 revisions 時
-   * 任一 revision gate 通過才可見（首個 revision 的 gate 即初次解鎖點）。
-   * 與 revision 鏈為聯集：base gate 未過但任一 revision gate 通過時
-   * 條目仍可見（後期揭露的資料形狀，resolver 照宣告順序疊 patch）。
+   * Base 解鎖條件（S7 驗收 #4，2026-07-17 語意修正）：條目可見性的
+   * **唯一**閘門——未通過前條目整條隱藏，通過即可見。
+   * null / 未定義 = 條目永遠可見。
+   * revision gate 對可見性零影響（不能鎖條目、也不能反向開鎖）；
+   * dossier 群組 gate 仍為前置 AND。
+   * （舊的 baseVisible 欄位已廢除——「無 baseGate = 永遠可見」後
+   * 該開關失去意義，舊資料殘留的 key 由 resolver 剝除。）
    */
   gate?: GateCondition | null;
   /**
-   * Base 預設顯示：true 時 base 內容一開始就可見，不受 base gate
-   * 與 revision gate 影響（revision patch 的套用時機照常由各自 gate
-   * 決定）。用於「條目本身公開、之後隨進度演進」的資料形狀。
-   * 不豁免 dossier 群組 gate（群組層仍是前置 AND）。
-   */
-  baseVisible?: boolean;
-  /**
    * Revision 鏈（宣告順序 = 劇情揭露順序）。
-   * 未定義或空陣列 = 無進度閘（條目永遠以 base 資料顯示）。
-   * revisions[0].gate 若非 null，條目在該 gate 通過前整條隱藏
-   * （Browser profile 例外：placeholder 佔位語意，見設計文件定案 C）。
+   * 未定義或空陣列 = 內容不隨進度演進。
+   * revision gate 只控制各自 patch 的套用時機（通過就疊），
+   * 不影響條目本身的可見性（2026-07-17 語意修正）。
    */
   revisions?: ConceptsRevision[];
 }
