@@ -425,7 +425,13 @@ export default function TerminalIsland() {
         continue;
       }
       anyVisible = true;
-      const variant = d.variantId ? ` [${d.variantId.toUpperCase()}]` : '';
+      // 'default' 是條目未分時代視角時的 fallback variant，對讀者無意義
+      // 且會洩漏內部 base/revision 狀態，故不顯示標籤；U/E/P 等實際時代視角才標。
+      const variantId = d.variantId?.trim();
+      const variant =
+        variantId && variantId.toLowerCase() !== 'default'
+          ? ` [${variantId.toUpperCase()}]`
+          : '';
       out.push({
         kind: 'ok',
         text: `✓ ${d.name}${variant} · ${TERMINAL_STACK_LABELS[d.stack]}`,
