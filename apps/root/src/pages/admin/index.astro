@@ -109,23 +109,29 @@ const [
 
 <style>
   /* Test mode 控制卡浮動定位（Issue #41）
-     避開頂端 32px TEST MODE banner；醒目但不擋 RootEditor 主要操作區 */
+     錨在右下角，避開頂端 TEST MODE banner 與 header 的 SITE / LOGOUT 按鈕。
+     容器本身不吃 pointer events，只有卡片 / 收合藥丸吃，
+     收合時才不會有隱形區塊擋住 Inspector 欄 */
   .adm-test-mode-floating {
     position: fixed;
-    top: 44px;
+    bottom: 16px;
     right: 16px;
     z-index: 100;
     width: 380px;
     max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-end;
+    pointer-events: none;
+  }
+  .adm-test-mode-floating > :global(*) {
     pointer-events: auto;
   }
-  body.has-test-banner .adm-test-mode-floating {
-    top: 44px;
-  }
-  /* 窄螢幕時退回 inline 感（貼齊右上不擋畫面） */
+  /* 窄螢幕時退回 inline 感（貼齊右下不擋畫面） */
   @media (max-width: 640px) {
     .adm-test-mode-floating {
-      top: 40px;
+      bottom: 8px;
       right: 8px;
       left: 8px;
       width: auto;

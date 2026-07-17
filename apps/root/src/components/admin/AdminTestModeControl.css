@@ -5,6 +5,9 @@
  */
 
 .adm-test-mode-card {
+  width: 100%;
+  /* 浮動容器為 pointer-events: none，卡片本體要收回事件 */
+  pointer-events: auto;
   border: 1px solid rgba(80, 90, 110, 0.35);
   border-radius: 8px;
   padding: 16px 18px;
@@ -19,6 +22,47 @@
     border-color 0.2s ease;
 }
 
+/* ── 收合藥丸（浮動掛載時的預設型態） ── */
+
+.adm-test-mode-pill {
+  display: inline-flex;
+  pointer-events: auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(80, 90, 110, 0.45);
+  background: rgba(20, 24, 32, 0.85);
+  color: rgba(230, 232, 238, 0.92);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.adm-test-mode-pill:hover {
+  background: rgba(35, 42, 55, 0.9);
+}
+
+.adm-test-mode-pill--active {
+  border-color: #cc0000;
+  background: rgba(60, 12, 12, 0.85);
+  box-shadow: 0 0 0 1px rgba(204, 0, 0, 0.25);
+}
+
+.adm-test-mode-pill--active:hover {
+  background: rgba(85, 18, 18, 0.9);
+}
+
+.adm-test-mode-pill__chevron {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
 .adm-test-mode-card--active {
   border-color: #cc0000;
   background: rgba(60, 12, 12, 0.55);
@@ -29,6 +73,44 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.adm-test-mode-card__header--draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.adm-test-mode-card__header--draggable:active {
+  cursor: grabbing;
+}
+
+.adm-test-mode-card__collapse {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(230, 232, 238, 0.75);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.adm-test-mode-card__collapse:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* badge 已用 margin-left: auto 靠右，收合鈕跟在後面時不再推擠 */
+.adm-test-mode-card__badge + .adm-test-mode-card__collapse {
+  margin-left: 8px;
 }
 
 .adm-test-mode-card__dot {
