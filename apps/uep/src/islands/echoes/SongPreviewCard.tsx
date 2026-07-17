@@ -39,9 +39,15 @@ export default function SongPreviewCard({
         <span className="uep-echo-preview__dot" />
         {track.source === 'unlock'
           ? '已收錄一枚回聲 · unlocked'
-          : track.source === 'spot'
-            ? '回聲等待播放 · echo spot'
-            : '相關回聲 · related echo'}
+          : track.source === 'played'
+            ? track.justCollected
+              ? '已收錄一枚回聲 · 插播中'
+              : '回聲插播中 · echo spot'
+            : track.source === 'spot'
+              ? track.justCollected
+                ? '已收錄一枚回聲 · 等待播放'
+                : '回聲等待播放 · echo spot'
+              : '相關回聲 · related echo'}
         <button type="button" aria-label="關閉曲目卡" onClick={onDismiss}>
           ×
         </button>
@@ -56,13 +62,9 @@ export default function SongPreviewCard({
           </small>
         </div>
       </div>
-      {track.source === 'unlock' ? (
-        <div className="uep-echo-preview__actions">
-          <button type="button" className="is-primary" onClick={onDismiss}>
-            收下回聲
-          </button>
-        </div>
-      ) : (
+      {/* 插播已在響（played）純告知；等待播放（spot）與
+          非 Echo Spot 解鎖（unlock）才需要動作入口。 */}
+      {track.source !== 'played' && (
         <div className="uep-echo-preview__actions">
           <button
             type="button"

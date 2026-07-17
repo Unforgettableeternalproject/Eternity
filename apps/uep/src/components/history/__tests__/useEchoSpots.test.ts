@@ -1,5 +1,42 @@
-import { describe, expect, it } from 'vitest';
-import { readEchoSpot, shouldDowngradeEchoSpot } from '../useEchoSpots';
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MarkerPassedInfo, ProgressState } from '../../../progress';
+import {
+  readEchoSpot,
+  shouldDowngradeEchoSpot,
+  useEchoSpots,
+} from '../useEchoSpots';
+
+/* ── hook 層 mock：audio/進度/島守門全替身，echoPreview 只換 dispatch ── */
+const audioMock = vi.hoisted(() => ({
+  interruptResult: true,
+  collected: false,
+  interrupt: vi.fn(() => Promise.resolve(audioMock.interruptResult)),
+}));
+const grantFlags = vi.hoisted(() => vi.fn());
+const dispatchSpy = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../audio', () => ({
+  deriveSongUnlockFlag: (songId: string) => `song:${songId}`,
+  getAudioStore: () => ({
+    interrupt: audioMock.interrupt,
+    getState: () => ({ interruptionSnapshot: null }),
+  }),
+  isSongCollected: () => audioMock.collected,
+  resolveSpoilerLevel: () => 0,
+}));
+vi.mock('../../../islands/islandRuntime', () => ({
+  shouldMountIsland: () => true,
+}));
+vi.mock('../../../progress', () => ({
+  getProgressManager: () => ({ grantFlags }),
+}));
+vi.mock('../../../islands/echoes/echoPreview', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../../islands/echoes/echoPreview')
+  >()),
+  dispatchEchoPreview: dispatchSpy,
+}));
 
 describe('readEchoSpot', () => {
   it('解析完整、安全的 echo spot snapshot', () => {
@@ -96,5 +133,100 @@ describe('shouldDowngradeEchoSpot', () => {
         scrollVelocity: 2000,
       })
     ).toBe(true);
+  });
+});
+
+describe('useEchoSpots 提示卡發送時機', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    audioMock.interrupt.mockClear();
+    audioMock.interruptResult = true;
+    audioMock.collected = false;
+    grantFlags.mockClear();
+    dispatchSpy.mockClear();
+  });
+
+  function spotElement(): Element {
+    const element = document.createElement('div');
+    element.dataset.spotId = 'spot-hook';
+    element.dataset.songId = 'echoes/characters/x/theme';
+    element.dataset.songUrlKey = 'audio/x.mp3';
+    element.dataset.songTitle = '主題曲';
+    element.dataset.clusterId = 'characters';
+    return element;
+  }
+
+  function markerInfo(element: Element): MarkerPassedInfo {
+    return {
+      index: 0,
+      grantsFlags: [],
+      isSentinel: false,
+      totalMarkers: 1,
+      element,
+      role: 'echo-spot',
+    };
+  }
+
+  function renderSpots(resumeJump = false) {
+    return renderHook(() =>
+      useEchoSpots({
+        pageId: 'history/p1',
+        progress: {} as ProgressState,
+        apiBase: 'http://localhost:8788',
+        resumeJumpRef: { current: resumeJump },
+        scrollVelocityRef: { current: 0 },
+      })
+    );
+  }
+
+  it('插播成功只發一張 played 卡（純告知），並帶本次新收藏資訊', async () => {
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).toHaveBeenCalledOnce();
+    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'played', justCollected: true })
+    );
+    unmount();
+  });
+
+  it('已收藏曲目插播成功 → played 卡 justCollected=false', async () => {
+    audioMock.collected = true;
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'played', justCollected: false })
+    );
+    unmount();
+  });
+
+  it('autoplay 被擋（interrupt 失敗）→ 發 spot 卡提供手動入口', async () => {
+    audioMock.interruptResult = false;
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot', justCollected: true })
+    );
+    unmount();
+  });
+
+  it('resume jump 誤觸 → 不嘗試插播，直接發 spot 卡', async () => {
+    const { result, unmount } = renderSpots(true);
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot' })
+    );
+    unmount();
   });
 });

@@ -200,11 +200,9 @@ export function useEchoSpots({
         accent: cluster.color,
       };
 
-      // Echo Spot 的主要行為仍是插播；右下角卡只負責告知本次新收藏。
-      if (newlyUnlocked) {
-        dispatchEchoPreview({ ...preview, source: 'unlock' });
-      }
-
+      // Echo Spot 的主要行為是插播；提示卡等插播結果確定後才發——
+      // 成功只告知（無動作按鈕），降級/失敗才給手動播放入口。
+      // 本次新收藏以 justCollected 併入同一張卡，不另發 unlock 卡。
       const shouldDowngrade = shouldDowngradeEchoSpot({
         isStory,
         spoilerLevel,
@@ -214,7 +212,7 @@ export function useEchoSpots({
         scrollVelocity: scrollVelocityRef.current,
       });
       if (shouldDowngrade) {
-        dispatchEchoPreview(preview);
+        dispatchEchoPreview({ ...preview, justCollected: newlyUnlocked });
         return;
       }
 
@@ -223,9 +221,12 @@ export function useEchoSpots({
       void getAudioStore()
         .interrupt(spot.songId, preview.url, spot.title, cluster.color)
         .then((played) => {
-          if (!played && visitTokenRef.current === visitToken) {
-            dispatchEchoPreview(preview);
-          }
+          if (visitTokenRef.current !== visitToken) return;
+          dispatchEchoPreview({
+            ...preview,
+            ...(played ? { source: 'played' as const } : {}),
+            justCollected: newlyUnlocked,
+          });
         });
     },
     [apiBase, pageId, resumeJumpRef, scrollVelocityRef]

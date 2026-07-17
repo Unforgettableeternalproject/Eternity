@@ -104,7 +104,8 @@ export default function IslandHost() {
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
   }, []);
 
-  // 右下角卡只承接 Echo Spot 解鎖通知或真正 autoplay 失敗。
+  // 右下角卡承接 Echo Spot 結果通知：插播成功（played，純告知）、
+  // 等待播放（spot，帶手動入口）或非 Spot 解鎖（unlock）。
   useEffect(() => {
     const onPreview = (event: Event) => {
       const detail = (event as CustomEvent<EchoPreviewTrack>).detail;

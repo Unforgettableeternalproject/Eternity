@@ -19,18 +19,45 @@ const baseTrack = {
 };
 
 describe('SongPreviewCard spoiler actions', () => {
-  it('新解鎖提示只提供收下回聲，不重複播放或排隊', () => {
-    const onDismiss = vi.fn();
+  it('非 Spot 解鎖（unlock）提供播放與加入佇列入口', () => {
     render(
       <SongPreviewCard
         track={{ ...baseTrack, source: 'unlock', spoilerLevel: 0 }}
-        onDismiss={onDismiss}
+        onDismiss={vi.fn()}
       />
     );
     expect(screen.getByText(/已收錄一枚回聲/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /播放/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /加入佇列/ })).toBeEnabled();
+  });
+
+  it('插播成功（played）純告知：顯示曲名、無任何動作按鈕', () => {
+    render(
+      <SongPreviewCard
+        track={{ ...baseTrack, source: 'played', spoilerLevel: 0 }}
+        onDismiss={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/回聲插播中/)).toBeTruthy();
+    expect(screen.getByText(baseTrack.title)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /播放/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '收下回聲' }));
-    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: /加入佇列/ })).toBeNull();
+  });
+
+  it('插播成功且同時新收藏 → 標頭改為已收錄，仍無動作按鈕', () => {
+    render(
+      <SongPreviewCard
+        track={{
+          ...baseTrack,
+          source: 'played',
+          spoilerLevel: 0,
+          justCollected: true,
+        }}
+        onDismiss={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/已收錄一枚回聲 · 插播中/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /播放/ })).toBeNull();
   });
 
   it('L3 遮蔽標題並禁止播放與加入佇列', () => {
