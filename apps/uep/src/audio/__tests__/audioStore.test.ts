@@ -476,6 +476,51 @@ describe('插播（echo spot）', () => {
     expect(s.interruptionSnapshot?.songId).toBe('a');
   });
 
+  it('插播曲已是當前曲（暫停中）→ 仍從頭插播，restore 回原位置維持暫停', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua', '甲');
+    await flush();
+    const audio = lastAudio();
+    audio.duration = 200;
+    uepAudio.seek(0.25); // currentTime 50
+    uepAudio.pause();
+    uepAudio.interrupt('a', 'ua', '甲');
+    await flush();
+    expect(audio.currentTime).toBe(0);
+    expect(uepAudio.getState().isPlaying).toBe(true);
+    expect(uepAudio.getState().interruptionSnapshot).toEqual(
+      expect.objectContaining({
+        songId: 'a',
+        currentTime: 50,
+        wasPlaying: false,
+      })
+    );
+    uepAudio.restoreFromInterruption();
+    await flush();
+    expect(audio.currentTime).toBe(50);
+    expect(uepAudio.getState().isPlaying).toBe(false);
+  });
+
+  it('插播曲已是當前曲（播放中）→ 從頭重播，不從當前位置續播', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua', '甲');
+    await flush();
+    const audio = lastAudio();
+    audio.duration = 200;
+    uepAudio.seek(0.25); // currentTime 50
+    uepAudio.interrupt('a', 'ua', '甲');
+    await flush();
+    expect(audio.currentTime).toBe(0);
+    expect(uepAudio.getState().isPlaying).toBe(true);
+    expect(uepAudio.getState().interruptionSnapshot).toEqual(
+      expect.objectContaining({
+        songId: 'a',
+        currentTime: 50,
+        wasPlaying: true,
+      })
+    );
+  });
+
   it('restoreFromInterruption：wasPlaying=true → 回原曲原位置續播', async () => {
     const { uepAudio } = await freshStore();
     uepAudio.play('a', 'ua', '甲');
