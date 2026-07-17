@@ -20,6 +20,7 @@
  * - access restricted 是資料失誤的 fallback（劇情節奏理論上不會觸發）
  */
 
+import { metFlag, parseEntityRef } from '../../embed/marks';
 import { evaluateGate } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
 import type { ProgressState } from '../../progress/types';
@@ -190,6 +191,33 @@ export function isIndexEntryUnlocked(
   }
   if (!gates || gates.length === 0) return true;
   return gates.some((g) => evaluateGate(progress, g.gate));
+}
+
+/**
+ * 嵌入 ref 是否已解鎖（decorate 可點守門用，2026-07-17 定案：
+ * 「可點 ⟺ terminal 查得到內容」不變量——未解鎖 entity 維持普通文字，
+ * 不再出現「可點但 ACCESS RESTRICTED」的矛盾）。
+ *
+ * - 新格式 `entity:{entityKey}`：索引中同 key 任一條目已解鎖 → true；
+ *   索引未載入（null）或查無此 key（資料失誤）→ false（不可點）
+ * - 舊格式路徑 ref：持有 `met:{ref}` 旗標或觀測者 bypass（向後相容，
+ *   與 embed/interactive 的 isEntityUnlocked fallback 同語意）
+ * - 無效 ref 一律 false
+ */
+export function isEntityRefUnlocked(
+  entries: TerminalIndexEntry[] | null,
+  ref: string,
+  progress: ProgressState
+): boolean {
+  const parsed = parseEntityRef(ref);
+  if (parsed.type === 'invalid') return false;
+  if (parsed.type === 'entity-key') {
+    if (!entries) return false;
+    const hits = entries.filter((e) => e.entityKey === parsed.entityKey);
+    if (hits.length === 0) return false;
+    return hits.some((e) => isIndexEntryUnlocked(e, progress));
+  }
+  return evaluateGate(progress, { requiresFlags: [metFlag(ref)] });
 }
 
 /**
@@ -657,7 +685,10 @@ export async function resolveEntryDetails(
   const resolve = <T extends Record<string, unknown>>(entry: T): T | null => {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
     const baseGate = entry.gate as GateCondition | null | undefined;
-    if (!isEntryUnlocked(revisions, progress, baseGate)) return null;
+    const baseVisible = entry.baseVisible === true;
+    if (!isEntryUnlocked(revisions, progress, baseGate, baseVisible)) {
+      return null;
+    }
     return applyRevisions(entry, revisions, progress);
   };
 
@@ -767,7 +798,13 @@ export async function resolveBrowserExpand(
       pageTitle: target.pageTitle,
     };
     const revisions = profile.revisions;
-    if (!isEntryUnlocked(revisions, progress, profile.gate)) {
+    const unlocked = isEntryUnlocked(
+      revisions,
+      progress,
+      profile.gate,
+      profile.baseVisible === true
+    );
+    if (!unlocked) {
       return { ...base, basic: [], sections: [], restricted: true };
     }
     const resolved = applyRevisions(

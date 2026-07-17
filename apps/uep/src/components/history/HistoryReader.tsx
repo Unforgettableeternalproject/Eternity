@@ -45,6 +45,7 @@ import {
 import LostBookmarkGate from './LostBookmarkGate';
 import { useEchoSpots } from './useEchoSpots';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
+import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import { ChapterTimeline } from './ChapterTimeline';
@@ -320,6 +321,8 @@ export default function HistoryReader() {
   // 進度需先於 echo spot handler 建立：spot 授旗永遠執行，但播放/提示卡
   // 受 echoes 島掛載與 spoiler 狀態守門。
   const progress = useProgress();
+  // entity 嵌入的條目級可點守門（「可點 ⟺ terminal 查得到內容」不變量）
+  const isEntityRefUnlocked = useEntityRefUnlockChecker(progress);
   const onEchoMarkerPassed = useEchoSpots({
     pageId: currentId,
     progress,
@@ -1593,7 +1596,8 @@ export default function HistoryReader() {
                             '<p class="empty-notice">這篇內容目前是空的。</p>',
                           progress,
                           'article',
-                          'history-prose'
+                          'history-prose',
+                          isEntityRefUnlocked
                         )}
                       </div>
                       {/* 掃描線文末哨兵：通過 = 讀完整篇 */}

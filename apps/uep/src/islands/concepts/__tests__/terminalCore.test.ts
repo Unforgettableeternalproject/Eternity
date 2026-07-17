@@ -15,6 +15,7 @@ import type { ProgressState } from '../../../progress/types';
 import {
   loadEntityIndex,
   invalidateTerminalCache,
+  isEntityRefUnlocked,
   isIndexEntryUnlocked,
   passedRevisionCount,
   resolveStackAlias,
@@ -643,6 +644,134 @@ describe('resolveEntryDetails', () => {
     stubFetch({});
     const details = await resolveEntryDetails(xavierIndex, stateWith({}));
     expect(details).toEqual([]);
+  });
+
+  it('baseVisible：掛 gated revisions 且零旗標仍不 restricted（2026-07-17 修）', async () => {
+    // 截圖重現：base 勾「預設顯示」+ 一條 gated revision，讀者零旗標
+    // ——索引層放行但內容解析層漏傳 baseVisible 曾誤判 ACCESS RESTRICTED
+    const pageId = 'concepts/server/records/characters';
+    stubFetch({
+      [`/api/content/${pageId}`]: {
+        ok: true,
+        data: {
+          content: [
+            {
+              type: 'dossier',
+              content: JSON.stringify({
+                variants: [
+                  {
+                    id: 'u',
+                    label: 'U',
+                    subcategories: [
+                      {
+                        label: '人物',
+                        groups: [
+                          {
+                            label: '',
+                            entries: [
+                              {
+                                name: '一個人',
+                                entityKey: 'a-man',
+                                baseVisible: true,
+                                content_html: '<p>base 敘述。</p>',
+                                revisions: [
+                                  {
+                                    id: 'a-man:01',
+                                    gate: { requiresFlags: ['a-man:01'] },
+                                    patch: {
+                                      set: {
+                                        content_html: '<p>揭露敘述。</p>',
+                                      },
+                                    },
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      },
+    });
+    const details = await resolveEntryDetails(
+      indexEntry({ name: '一個人', entityKey: 'a-man', pageId }),
+      stateWith({})
+    );
+    expect(details).toHaveLength(1);
+    expect(details[0].restricted).toBeUndefined();
+    expect(details[0].summary[0]).toBe('base 敘述。');
+  });
+});
+
+// ── 嵌入 ref 可點守門（2026-07-17：可點 ⟺ terminal 查得到內容） ────
+
+describe('isEntityRefUnlocked', () => {
+  const entries = [
+    indexEntry({ name: '艾斯維爾', entityKey: 'xavier-colsono' }),
+    indexEntry({
+      name: '一個人',
+      entityKey: 'a-man',
+      baseVisible: true,
+      revisionGates: [{ id: 'a-man:01', gate: { requiresFlags: ['a:01'] } }],
+    }),
+    indexEntry({
+      name: '隱藏人物',
+      entityKey: 'hidden-man',
+      revisionGates: [{ id: 'h:01', gate: { requiresFlags: ['h:01'] } }],
+    }),
+  ];
+
+  it('entity-key：索引中任一條目已解鎖 → true（含 baseVisible）', () => {
+    expect(
+      isEntityRefUnlocked(entries, 'entity:xavier-colsono', stateWith({}))
+    ).toBe(true);
+    expect(isEntityRefUnlocked(entries, 'entity:a-man', stateWith({}))).toBe(
+      true
+    );
+  });
+
+  it('entity-key：全 gated 未持旗標 → false；授旗後 → true', () => {
+    expect(
+      isEntityRefUnlocked(entries, 'entity:hidden-man', stateWith({}))
+    ).toBe(false);
+    expect(
+      isEntityRefUnlocked(
+        entries,
+        'entity:hidden-man',
+        stateWith({ flags: ['h:01'] })
+      )
+    ).toBe(true);
+  });
+
+  it('索引未載入（null）/ 查無此 key（資料失誤）→ false 不可點', () => {
+    expect(
+      isEntityRefUnlocked(null, 'entity:xavier-colsono', stateWith({}))
+    ).toBe(false);
+    expect(isEntityRefUnlocked(entries, 'entity:nobody', stateWith({}))).toBe(
+      false
+    );
+  });
+
+  it('舊格式路徑 ref：met:{ref} fallback + 觀測者 bypass；無效 ref false', () => {
+    const ref = 'concepts/server/records/characters#entry:abc';
+    expect(isEntityRefUnlocked(entries, ref, stateWith({}))).toBe(false);
+    expect(
+      isEntityRefUnlocked(entries, ref, stateWith({ flags: [`met:${ref}`] }))
+    ).toBe(true);
+    expect(
+      isEntityRefUnlocked(
+        entries,
+        ref,
+        stateWith({ view: 'observer', observerEver: true })
+      )
+    ).toBe(true);
+    expect(isEntityRefUnlocked(entries, 'badref', stateWith({}))).toBe(false);
   });
 });
 

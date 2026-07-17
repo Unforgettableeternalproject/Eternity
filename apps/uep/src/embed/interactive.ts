@@ -79,17 +79,24 @@ export function isEntityUnlocked(state: ProgressState, ref: string): boolean {
 }
 
 /**
- * 前台渲染前處理（S7-C 新語意）：concepts 島掛載時，所有合法 ref 的
- * entity 一律附加啟用屬性 + a11y 屬性——旗標不卡點擊，內容進度由
- * Concepts revision 卡控。島未掛載／觀測者時全部維持普通文字。
+ * 前台渲染前處理（S7-C 語意 + 2026-07-17 修正）：concepts 島掛載時，
+ * 合法 ref 的 entity 附加啟用屬性 + a11y 屬性。島未掛載／觀測者時
+ * 全部維持普通文字。
+ *
+ * isRefUnlocked（選填）：條目級解鎖判定——「可點 ⟺ terminal 查得到
+ * 內容」不變量，未解鎖 entity 維持普通文字，杜絕「可點卻 ACCESS
+ * RESTRICTED」的矛盾。判定來源是 Concepts 條目索引（terminalCore
+ * isEntityRefUnlocked），由呼叫端注入以維持 embed → islands 的單向
+ * 依賴。未注入時沿用 S7-C 全可點語意（向後相容）。
  *
  * 冪等：無論輸入是否殘留啟用屬性（防禦外部資料），
  * 一律先清除再依當前進度重算——進度變化（含觀測者切回探索者、
- * 島解鎖/停用切換）時重跑即得正確結果。
+ * 島解鎖/停用切換、條目解鎖）時重跑即得正確結果。
  */
 export function decorateInteractiveHtml(
   html: string,
-  state: ProgressState
+  state: ProgressState,
+  isRefUnlocked?: (ref: string) => boolean
 ): string {
   if (!html || !html.includes(UEP_ENTITY_ATTR)) return html;
   if (typeof DOMParser === 'undefined') return html; // SSR 防禦
@@ -105,6 +112,7 @@ export function decorateInteractiveHtml(
 
     const ref = el.getAttribute(UEP_REF_ATTR) || '';
     if (!terminalMounted || !isValidRef(ref)) return;
+    if (isRefUnlocked && !isRefUnlocked(ref)) return;
 
     el.setAttribute(UEP_ENTITY_ACTIVE_ATTR, 'true');
     el.setAttribute('role', 'button');
