@@ -564,6 +564,60 @@ describe('插播（echo spot）', () => {
     expect(uepAudio.getState().isPlaying).toBe(false);
   });
 
+  it('插播被 autoplay 拒絕 → 回傳 false、回滾快照並恢復原曲原位置', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua', '甲');
+    await flush();
+    const audio = lastAudio();
+    audio.duration = 200;
+    uepAudio.seek(0.25); // currentTime 50
+    uepAudio.pause();
+    audio.play.mockImplementationOnce(() =>
+      Promise.reject(new Error('NotAllowedError'))
+    );
+    const played = await uepAudio.interrupt('spot', 'uspot', '插播曲');
+    await flush();
+    expect(played).toBe(false);
+    const s = uepAudio.getState();
+    expect(s.interruptionSnapshot).toBeNull();
+    expect(s.currentSongId).toBe('a');
+    expect(s.isPlaying).toBe(false);
+    // metadata 就緒後 seek 回原位置
+    audio.emit('loadedmetadata');
+    expect(audio.currentTime).toBe(50);
+  });
+
+  it('插播前無曲且被 autoplay 拒絕 → 回到無曲目狀態', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua');
+    await flush();
+    uepAudio.stop(); // 清空至無曲目，但 audio 元素已存在
+    lastAudio().play.mockImplementationOnce(() =>
+      Promise.reject(new Error('NotAllowedError'))
+    );
+    const played = await uepAudio.interrupt('spot', 'uspot');
+    await flush();
+    expect(played).toBe(false);
+    expect(uepAudio.getState().interruptionSnapshot).toBeNull();
+    expect(uepAudio.getState().currentSongId).toBeNull();
+    expect(uepAudio.getState().isPlaying).toBe(false);
+  });
+
+  it('插播中再 interrupt 被拒 → 既有快照不回滾（恢復點仍是原曲）', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua');
+    await flush();
+    uepAudio.interrupt('spot1', 'u1');
+    await flush();
+    lastAudio().play.mockImplementationOnce(() =>
+      Promise.reject(new Error('NotAllowedError'))
+    );
+    const played = await uepAudio.interrupt('spot2', 'u2');
+    await flush();
+    expect(played).toBe(false);
+    expect(uepAudio.getState().interruptionSnapshot?.songId).toBe('a');
+  });
+
   it('插播曲播畢自動恢復快照', async () => {
     const { uepAudio } = await freshStore();
     uepAudio.play('a', 'ua');
