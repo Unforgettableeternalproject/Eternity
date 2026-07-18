@@ -2,6 +2,8 @@
 import UepToastContainer from '../components/ui/UepToast';
 import UepDialogContainer from '../components/ui/UepDialog';
 import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
+import TestModeBanner from '../components/ui/TestModeBanner';
+import UepDevTools from '../devtools/UepDevTools';
 
 interface Props {
   title: string;
@@ -170,10 +172,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     </script>
   </head>
   <body data-zone={zone}>
+    <TestModeBanner client:load />
     <slot />
     <UepToastContainer client:idle />
     <UepDialogContainer client:idle />
     <GlobalWelcomeHost client:idle />
+    <UepDevTools client:idle />
   </body>
 </html>
 

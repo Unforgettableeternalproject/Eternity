@@ -39,6 +39,7 @@ import {
 } from './editorHelpers';
 import { resolveEditorMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
+import { canonicalizePagePath } from '../../lib/pagePath';
 import EditorPageTree from './EditorPageTree';
 import EditorInspector, {
   Section as InspectorSection,
@@ -166,6 +167,9 @@ export default function RichEditor({
   const zone = ZONES.find((z) => z.id === zoneId || z.slug === zoneId);
   const accentMain = zone?.main ?? '#3A3A3A';
   const isEntryMode = !pageSlug;
+  const currentPageId = canonicalizePagePath(
+    pageSlug ? [area, pageSlug].join('/') : area
+  );
 
   // State — dirty 由多來源聯合判斷
   const initialContentRef = useRef(initialContent || '<p></p>');
@@ -2550,7 +2554,7 @@ export default function RichEditor({
                     accent={accentMain}
                     initialData={echoesData}
                     apiBase={apiBase}
-                    songId={`echoes/${pageSlug}`}
+                    songId={currentPageId}
                     onDataChange={setEchoesData}
                     onDirty={() => setMetaDirty(true)}
                     onValidationChange={setEchoesValidationIssues}
@@ -2673,7 +2677,7 @@ export default function RichEditor({
                       <EchoesSubcatEditor
                         area={area}
                         apiBase={apiBase}
-                        pageId={`${area}/${pageSlug}`}
+                        pageId={currentPageId}
                         pageSlug={pageSlug}
                         accent={accentMain}
                         onDirty={() => setMetaDirty(true)}
@@ -2684,7 +2688,7 @@ export default function RichEditor({
                       <VisualsSubcatEditor
                         area={area}
                         apiBase={apiBase}
-                        pageId={`${area}/${pageSlug}`}
+                        pageId={currentPageId}
                         pageSlug={pageSlug}
                         accent={accentMain}
                         onDirty={() => setMetaDirty(true)}
@@ -2695,7 +2699,7 @@ export default function RichEditor({
                       <ZoneTabsEditor
                         area={area}
                         apiBase={apiBase}
-                        pageId={`${area}/${pageSlug}`}
+                        pageId={currentPageId}
                         accent={accentMain}
                         zoneTabs={zoneTabs}
                         onZoneTabsChange={(tabs) => {

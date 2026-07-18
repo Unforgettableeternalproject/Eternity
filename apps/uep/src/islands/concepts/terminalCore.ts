@@ -20,6 +20,7 @@
  * - access restricted 是資料失誤的 fallback（劇情節奏理論上不會觸發）
  */
 
+import { metFlag, parseEntityRef } from '../../embed/marks';
 import { evaluateGate } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
 import type { ProgressState } from '../../progress/types';
@@ -39,6 +40,7 @@ import type {
   DiffEntry,
   DossierEntry,
 } from '../../components/concepts/types';
+import { getApiBase } from '../../lib/apiBase';
 
 // ── 型別 ───────────────────────────────────────────────────────────
 
@@ -53,10 +55,11 @@ export interface TerminalIndexEntry {
   entityKey?: string;
   /** 匹配別名（S7-D-2：query / 補全的補充匹配詞） */
   aliases?: string[];
-  /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
+  /** base 解鎖條件（S7 驗收 #4：條目可見性的唯一閘門，未設 = 永遠可見） */
   baseGate?: GateCondition | null;
   /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
   groupGate?: GateCondition | null;
+  /** revision gate 摘要——只供更動通知水位（passedRevisionCount），不影響可見性 */
   revisionGates?: { id: string; gate: GateCondition | null }[];
   /** 分類標籤（dossier=subcategory、diff=subcat）——ls 分組用 */
   category?: string;
@@ -100,9 +103,7 @@ export const TERMINAL_STACK_LABELS: Record<TerminalStack, string> = {
 
 // ── API 基底與快取 ─────────────────────────────────────────────────
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 let indexCache: Promise<TerminalIndexEntry[]> | null = null;
 const pageCache = new Map<string, Promise<ConceptsData | null>>();
@@ -167,11 +168,12 @@ function loadPageData(pageId: string): Promise<ConceptsData | null> {
 // ── 解鎖判定（索引層） ─────────────────────────────────────────────
 
 /**
- * 索引條目是否已解鎖——與 revision.ts 的求值語意一致：
+ * 索引條目是否已解鎖——與 revision.ts 的求值語意一致
+ * （2026-07-17 修正：可見性 = groupGate + baseGate，revision gate
+ * 只控制 patch 套用時機，不影響可見性）：
  * - 群組 gate（S7 驗收 #3）未過 → 整組隱藏（前置 AND，條目層不再看）
- * - base gate（S7 驗收 #4）：通過即解鎖；未過時任一 revision gate
- *   通過仍解鎖（後期揭露）
- * - 皆無 → 無 gate 摘要 = 無進度閘；否則任一 revision gate 通過即解鎖
+ * - base gate（S7 驗收 #4）：通過即解鎖、未過即隱藏
+ * - 無 baseGate → 永遠可見
  */
 export function isIndexEntryUnlocked(
   entry: TerminalIndexEntry,
@@ -180,13 +182,34 @@ export function isIndexEntryUnlocked(
   if (entry.groupGate && !evaluateGate(progress, entry.groupGate)) {
     return false;
   }
-  const gates = entry.revisionGates;
-  if (entry.baseGate) {
-    if (evaluateGate(progress, entry.baseGate)) return true;
-    return (gates ?? []).some((g) => evaluateGate(progress, g.gate));
+  return evaluateGate(progress, entry.baseGate ?? null);
+}
+
+/**
+ * 嵌入 ref 是否已解鎖（decorate 可點守門用，2026-07-17 定案：
+ * 「可點 ⟺ terminal 查得到內容」不變量——未解鎖 entity 維持普通文字，
+ * 不再出現「可點但 ACCESS RESTRICTED」的矛盾）。
+ *
+ * - 新格式 `entity:{entityKey}`：索引中同 key 任一條目已解鎖 → true；
+ *   索引未載入（null）或查無此 key（資料失誤）→ false（不可點）
+ * - 舊格式路徑 ref：持有 `met:{ref}` 旗標或觀測者 bypass（向後相容，
+ *   與 embed/interactive 的 isEntityUnlocked fallback 同語意）
+ * - 無效 ref 一律 false
+ */
+export function isEntityRefUnlocked(
+  entries: TerminalIndexEntry[] | null,
+  ref: string,
+  progress: ProgressState
+): boolean {
+  const parsed = parseEntityRef(ref);
+  if (parsed.type === 'invalid') return false;
+  if (parsed.type === 'entity-key') {
+    if (!entries) return false;
+    const hits = entries.filter((e) => e.entityKey === parsed.entityKey);
+    if (hits.length === 0) return false;
+    return hits.some((e) => isIndexEntryUnlocked(e, progress));
   }
-  if (!gates || gates.length === 0) return true;
-  return gates.some((g) => evaluateGate(progress, g.gate));
+  return evaluateGate(progress, { requiresFlags: [metFlag(ref)] });
 }
 
 /**
@@ -654,7 +677,7 @@ export async function resolveEntryDetails(
   const resolve = <T extends Record<string, unknown>>(entry: T): T | null => {
     const revisions = entry.revisions as ConceptsRevision[] | undefined;
     const baseGate = entry.gate as GateCondition | null | undefined;
-    if (!isEntryUnlocked(revisions, progress, baseGate)) return null;
+    if (!isEntryUnlocked(progress, baseGate)) return null;
     return applyRevisions(entry, revisions, progress);
   };
 
@@ -764,7 +787,7 @@ export async function resolveBrowserExpand(
       pageTitle: target.pageTitle,
     };
     const revisions = profile.revisions;
-    if (!isEntryUnlocked(revisions, progress, profile.gate)) {
+    if (!isEntryUnlocked(progress, profile.gate)) {
       return { ...base, basic: [], sections: [], restricted: true };
     }
     const resolved = applyRevisions(

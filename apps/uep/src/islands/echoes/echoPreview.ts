@@ -1,6 +1,12 @@
 export const UEP_ECHO_PREVIEW_EVENT = 'uep:echo-preview';
 
-export type EchoPreviewSource = 'spot' | 'embed' | 'unlock';
+/**
+ * spot：插播未成（autoplay 被擋/降級），卡片提供手動播放入口。
+ * played：插播已在響，卡片純告知、不帶動作按鈕。
+ * unlock：Echo Spot 以外的解鎖來源（旗標達成等），提供播放/佇列入口。
+ * embed：entity 嵌入的相關回聲（不進右下角卡，由回聲島承接）。
+ */
+export type EchoPreviewSource = 'spot' | 'embed' | 'unlock' | 'played';
 
 export interface EchoPreviewTrack {
   source: EchoPreviewSource;
@@ -11,6 +17,8 @@ export interface EchoPreviewTrack {
   duration?: number;
   spoilerLevel: 0 | 1 | 2 | 3;
   accent?: string;
+  /** 本次觸發是否同時完成收藏（spot/played 卡的標頭據此改寫） */
+  justCollected?: boolean;
 }
 
 export function dispatchEchoPreview(track: EchoPreviewTrack): void {

@@ -1,0 +1,335 @@
+/*
+ * Admin Test Mode 控制卡樣式（Issue #41 T-06）
+ * 樣式取向：與 uep admin dashboard 一致的字型與線條感，
+ * test 狀態下用紅色強化辨識。
+ */
+
+.adm-test-mode-card {
+  width: 100%;
+  /* 浮動容器為 pointer-events: none，卡片本體要收回事件 */
+  pointer-events: auto;
+  border: 1px solid rgba(80, 90, 110, 0.35);
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: rgba(20, 24, 32, 0.55);
+  color: rgba(230, 232, 238, 0.92);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* ── 收合藥丸（浮動掛載時的預設型態） ── */
+
+.adm-test-mode-pill {
+  display: inline-flex;
+  pointer-events: auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(80, 90, 110, 0.45);
+  background: rgba(20, 24, 32, 0.85);
+  color: rgba(230, 232, 238, 0.92);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.adm-test-mode-pill:hover {
+  background: rgba(35, 42, 55, 0.9);
+}
+
+.adm-test-mode-pill--active {
+  border-color: #cc0000;
+  background: rgba(60, 12, 12, 0.85);
+  box-shadow: 0 0 0 1px rgba(204, 0, 0, 0.25);
+}
+
+.adm-test-mode-pill--active:hover {
+  background: rgba(85, 18, 18, 0.9);
+}
+
+.adm-test-mode-pill__chevron {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+.adm-test-mode-card--active {
+  border-color: #cc0000;
+  background: rgba(60, 12, 12, 0.55);
+  box-shadow: 0 0 0 1px rgba(204, 0, 0, 0.25);
+}
+
+.adm-test-mode-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-test-mode-card__header--draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.adm-test-mode-card__header--draggable:active {
+  cursor: grabbing;
+}
+
+.adm-test-mode-card__collapse {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(230, 232, 238, 0.75);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.adm-test-mode-card__collapse:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* badge 已用 margin-left: auto 靠右，收合鈕跟在後面時不再推擠 */
+.adm-test-mode-card__badge + .adm-test-mode-card__collapse {
+  margin-left: 8px;
+}
+
+.adm-test-mode-card__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.55);
+}
+
+.adm-test-mode-card__dot--test {
+  background: #ff3333;
+  box-shadow: 0 0 6px rgba(255, 51, 51, 0.6);
+  animation: adm-test-mode-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes adm-test-mode-dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px rgba(255, 51, 51, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(255, 51, 51, 0.9);
+  }
+}
+
+.adm-test-mode-card__title {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.adm-test-mode-card__badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
+
+.adm-test-mode-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adm-test-mode-card__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adm-test-mode-card__label {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  min-width: 82px;
+}
+
+.adm-test-mode-card__value {
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.adm-test-mode-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.adm-test-mode-card__btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adm-test-mode-card__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.adm-test-mode-card__btn--enter {
+  background: #cc0000;
+  color: #ffffff;
+  border-color: #ff3333;
+}
+
+.adm-test-mode-card__btn--enter:hover:not(:disabled) {
+  background: #ff1a1a;
+}
+
+.adm-test-mode-card__btn--exit {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(230, 232, 238, 0.92);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.adm-test-mode-card__btn--exit:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.adm-test-mode-card__hint {
+  font-size: 11px;
+  opacity: 0.55;
+  letter-spacing: 0.02em;
+}
+
+/* ── T-10：重置測試資料區塊 ── */
+
+.adm-test-mode-card__reset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(204, 0, 0, 0.3);
+}
+
+.adm-test-mode-card__reset-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 100, 100, 0.85);
+}
+
+.adm-test-mode-card__reset-hint {
+  font-size: 11px;
+  opacity: 0.6;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+.adm-test-mode-card__reset-hint code {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.adm-test-mode-card__reset-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.adm-test-mode-card__reset-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(204, 0, 0, 0.4);
+  border-radius: 5px;
+  padding: 6px 10px;
+  color: rgba(230, 232, 238, 0.92);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.adm-test-mode-card__reset-input::placeholder {
+  opacity: 0.35;
+}
+
+.adm-test-mode-card__reset-input:focus {
+  border-color: rgba(255, 51, 51, 0.7);
+}
+
+.adm-test-mode-card__reset-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.adm-test-mode-card__btn--reset {
+  background: rgba(120, 0, 0, 0.7);
+  color: rgba(255, 180, 180, 0.9);
+  border-color: rgba(204, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.adm-test-mode-card__btn--reset:hover:not(:disabled) {
+  background: rgba(180, 0, 0, 0.8);
+  color: #ffffff;
+}
+
+.adm-test-mode-card__btn--reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.adm-test-mode-card__reset-msg {
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
+.adm-test-mode-card__reset-msg--ok {
+  background: rgba(0, 80, 0, 0.4);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  color: rgba(74, 222, 128, 0.9);
+}
+
+.adm-test-mode-card__reset-msg--err {
+  background: rgba(80, 0, 0, 0.4);
+  border: 1px solid rgba(255, 51, 51, 0.3);
+  color: rgba(255, 150, 150, 0.9);
+}

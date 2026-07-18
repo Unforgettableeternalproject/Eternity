@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { isSamePagePath } from '../../lib/pagePath';
 import { getDialog, getToast } from './editorHelpers';
 import {
   TYPE_LETTERS,
@@ -384,7 +385,7 @@ export default function EditorPageTree({
       });
       const json = await res.json();
       if (json.ok) {
-        if (node.id === `${area}/${currentSlug}`) {
+        if (isSamePagePath(node.id, [area, currentSlug].join('/'))) {
           window.location.href = '/admin';
         } else {
           fetchTree();
@@ -514,7 +515,7 @@ export default function EditorPageTree({
     }
     if (TREE_HIDDEN_TYPES[area]?.has(node.pageType)) return null;
 
-    const isActive = node.id === `${area}/${currentSlug}`;
+    const isActive = isSamePagePath(node.id, [area, currentSlug].join('/'));
     const hiddenSet = TREE_HIDDEN_TYPES[area];
     const visibleChildren = hiddenSet
       ? (node.children || []).filter(

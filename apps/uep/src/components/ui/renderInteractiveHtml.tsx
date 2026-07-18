@@ -5,10 +5,12 @@ import type { ProgressState } from '../../progress';
 import renderHtmlWithUep from './renderHtmlWithUep';
 
 /**
- * History 前台渲染器（Epic 2 S4，S7-C 新語意）：在 renderHtmlWithUep
- * 之上追加 entity 互動啟用——concepts 島掛載時所有合法 entity 標記
- * 附加啟用屬性（可點、可鍵盤操作），島未掛載/觀測者維持普通文字。
- * 旗標不卡點擊，內容進度由 Concepts revision 卡控。
+ * History 前台渲染器（Epic 2 S4，S7-C 語意 + 2026-07-17 修正）：
+ * 在 renderHtmlWithUep 之上追加 entity 互動啟用——concepts 島掛載時
+ * 合法 entity 標記附加啟用屬性（可點、可鍵盤操作），島未掛載/觀測者
+ * 維持普通文字。isRefUnlocked（選填）做條目級守門：未解鎖 entity
+ * 不啟用（「可點 ⟺ terminal 查得到內容」不變量），來源見
+ * islands/concepts/useEntityUnlock。
  *
  * 只追加不刪除：UEP 對話、音訊播放器、資產 URL 正規化
  * 全部沿用 renderHtmlWithUep，行為不退化。
@@ -20,10 +22,11 @@ export default function renderInteractiveHtml(
   html: string,
   progress: ProgressState,
   keyPrefix: string | number = 0,
-  proseClass = 'sto-prose'
+  proseClass = 'sto-prose',
+  isRefUnlocked?: (ref: string) => boolean
 ): React.ReactNode[] {
   return renderHtmlWithUep(
-    decorateInteractiveHtml(html, progress),
+    decorateInteractiveHtml(html, progress, isRefUnlocked),
     keyPrefix,
     proseClass
   );

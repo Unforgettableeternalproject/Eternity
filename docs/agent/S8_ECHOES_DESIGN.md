@@ -416,6 +416,10 @@ echo spot 掃描線通過
 
 **快照記錄只做一層**：如果已在插播狀態，新的插播覆蓋快照（不做巢狀快照），理由：多重插播的「恢復到哪裡」在 UX 上很難清晰，覆蓋是最可預期的行為。
 
+**插播一律從頭播放（2026-07-17 修訂）**：插播曲恰好已是播放器當前曲（無論播放中、暫停中或重載恢復中）時，不得從當前位置續播——`interrupt()` 歸零 `pendingSeekTime`，`loadSong` 同曲早退路徑也要消化 seek。快照仍記錄使用者原本的位置與播放狀態，插播結束後照常恢復。
+
+**插播被拒即回滾（2026-07-18 修訂）**：`interrupt()` 的 `play()` 被瀏覽器 autoplay 政策拒絕時，若快照是本次呼叫拍的，立即 `restoreFromInterruption()` 回滾——插播沒發生，島不得停留在「插播中」假象（此情境 wasPlaying 幾乎必為 false：原曲在播代表頁面已有手勢、插播不會被拒，故回滾即恢復原曲暫停態，無二次 autoplay 問題）。巢狀插播（快照非本次拍的）失敗不回滾，恢復點永遠是使用者自己的狀態。降級提示卡（source: 'spot'）維持手動入口語意不變。
+
 ### 4-2 插播恢復條件
 
 任一條件達成即觸發 `uepAudio.restoreFromInterruption()`：
@@ -457,7 +461,12 @@ echo spot 掃描線通過
 - 「加入佇列」按鈕
 - 自動消失：8 秒後或使用者關閉
 
-提示卡只供 Echo Spot 的實際 autoplay 失敗／誤觸降級使用；若 spot 本次新解鎖曲目，右下角同元件顯示解鎖通知。互動式嵌入不使用此卡，改由 EchoesIsland 內嵌提示。
+**提示卡語意（2026-07-17 修訂）**：提示卡在插播結果確定後才發送，依 `source` 分三種：
+- `played`（插播成功）：純告知卡——只顯示曲名與分類，**無任何動作按鈕**；本次同時新收藏時標頭改為「已收錄一枚回聲 · 插播中」（`justCollected`）。
+- `spot`（autoplay 失敗／誤觸降級）：帶「播放」「加入佇列」按鈕的手動入口。
+- `unlock`（保留給 Echo Spot 以外的解鎖來源，如旗標達成）：同樣帶動作按鈕。
+
+新收藏不再另發一張 unlock 卡——收藏資訊以 `justCollected` 併入結果卡。互動式嵌入不使用此卡，改由 EchoesIsland 內嵌提示。
 
 ### 5-3 「上次讀到」快速跳轉保護
 
@@ -649,6 +658,23 @@ interface EntitySongResponse {
 ```
 
 實作：D1 查詢 `pages` 表，條件 `area = 'echoes' AND page_type = 'song' AND json_extract(metadata, '$.entityKey') = {key}`，回傳 metadata 解析結果。
+
+### 8-2 Song by-id 查詢端點（2026-07-17 追加）
+
+```
+GET /api/echoes/song?id={songId}
+```
+
+回傳格式與 8-1 相同（`entityKey` 可為 null）。
+
+**動機（修訂 C-3「免 API 反查」決策）**：echo spot node 的
+`songUrlKey`/`title`/`spoilerRevisions` 是編輯器插入當下的快照，歌曲
+換音檔或改 spoiler 後即過期——實測換音檔後舊 spot 仍播舊檔。前台
+`useEchoSpots` 觸發時改以本端點反查現行資料，**快照降級為離線
+fallback**（fetch 失敗時行為不劣於反查前）。
+
+與 8-1 的差異：**不排除 hidden**——spot 是對歌曲的明確引用，而劇情歌
+以 hidden 從列表隱藏是常態設計，排除會讓劇情 spot 永遠退回過期快照。
 
 此端點**不回傳音檔 URL**（只回傳 `audioFile` 裸 key），前端由 `buildAudioUrl` 組合。
 

@@ -1,5 +1,68 @@
-import { describe, expect, it } from 'vitest';
-import { readEchoSpot, shouldDowngradeEchoSpot } from '../useEchoSpots';
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MarkerPassedInfo, ProgressState } from '../../../progress';
+import {
+  readEchoSpot,
+  refreshEchoSpot,
+  shouldDowngradeEchoSpot,
+  useEchoSpots,
+} from '../useEchoSpots';
+
+/** 建立 fetch stub：回傳 by-id 反查的成功 payload */
+function stubSongFetch(song: Record<string, unknown> | null): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            data: song ? { found: true, song } : { found: false },
+          }),
+      })
+    )
+  );
+}
+
+/** 建立 fetch stub：模擬離線／網路失敗 */
+function stubOfflineFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.reject(new Error('offline')))
+  );
+}
+
+/* ── hook 層 mock：audio/進度/島守門全替身，echoPreview 只換 dispatch ── */
+const audioMock = vi.hoisted(() => ({
+  interruptResult: true,
+  collected: false,
+  interrupt: vi.fn(() => Promise.resolve(audioMock.interruptResult)),
+}));
+const grantFlags = vi.hoisted(() => vi.fn());
+const dispatchSpy = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../audio', () => ({
+  deriveSongUnlockFlag: (songId: string) => `song:${songId}`,
+  getAudioStore: () => ({
+    interrupt: audioMock.interrupt,
+    getState: () => ({ interruptionSnapshot: null }),
+  }),
+  isSongCollected: () => audioMock.collected,
+  resolveSpoilerLevel: () => 0,
+}));
+vi.mock('../../../islands/islandRuntime', () => ({
+  shouldMountIsland: () => true,
+}));
+vi.mock('../../../progress', () => ({
+  getProgressManager: () => ({ grantFlags }),
+}));
+vi.mock('../../../islands/echoes/echoPreview', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../../islands/echoes/echoPreview')
+  >()),
+  dispatchEchoPreview: dispatchSpy,
+}));
 
 describe('readEchoSpot', () => {
   it('解析完整、安全的 echo spot snapshot', () => {
@@ -96,5 +159,182 @@ describe('shouldDowngradeEchoSpot', () => {
         scrollVelocity: 2000,
       })
     ).toBe(true);
+  });
+});
+
+describe('refreshEchoSpot 快照刷新', () => {
+  function snapshotSpot() {
+    const element = document.createElement('div');
+    element.dataset.spotId = 'spot-r';
+    element.dataset.songId = 'echoes/characters/x/theme';
+    element.dataset.songUrlKey = 'audio/old.mp3';
+    element.dataset.songTitle = '舊曲名';
+    element.dataset.spoilerLevel = '2';
+    element.dataset.spoilerRevisions = JSON.stringify([
+      { targetLevel: 1, gate: { requiresFlags: ['stale'] } },
+    ]);
+    return readEchoSpot(element)!;
+  }
+
+  it('反查成功 → 音檔/標題/spoiler 全以現行資料為準', async () => {
+    stubSongFetch({
+      audioFile: 'audio/new.mp3',
+      title: '新曲名',
+      spoilerLevel: 0,
+    });
+    const refreshed = await refreshEchoSpot('http://api', snapshotSpot());
+    expect(refreshed.songUrlKey).toBe('audio/new.mp3');
+    expect(refreshed.title).toBe('新曲名');
+    expect(refreshed.spoilerLevel).toBe(0);
+    // 過期的降級鏈快照不得殘留（現行資料無 revisions = 無降級鏈）
+    expect(refreshed.spoilerRevisions).toEqual([]);
+  });
+
+  it('反查失敗（離線）→ 完整退回快照', async () => {
+    stubOfflineFetch();
+    const spot = snapshotSpot();
+    expect(await refreshEchoSpot('http://api', spot)).toEqual(spot);
+  });
+
+  it('歌曲已不存在（found:false）→ 退回快照', async () => {
+    stubSongFetch(null);
+    const spot = snapshotSpot();
+    expect(await refreshEchoSpot('http://api', spot)).toEqual(spot);
+  });
+
+  it('歌曲現行無音檔 → 退回快照（不刷新任何欄位）', async () => {
+    stubSongFetch({ audioFile: null, title: '新曲名' });
+    const spot = snapshotSpot();
+    expect(await refreshEchoSpot('http://api', spot)).toEqual(spot);
+  });
+});
+
+describe('useEchoSpots 提示卡發送時機', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    audioMock.interrupt.mockClear();
+    audioMock.interruptResult = true;
+    audioMock.collected = false;
+    grantFlags.mockClear();
+    dispatchSpy.mockClear();
+    // 預設離線：反查退回快照，既有案例行為與反查前一致
+    stubOfflineFetch();
+  });
+
+  function spotElement(): Element {
+    const element = document.createElement('div');
+    element.dataset.spotId = 'spot-hook';
+    element.dataset.songId = 'echoes/characters/x/theme';
+    element.dataset.songUrlKey = 'audio/x.mp3';
+    element.dataset.songTitle = '主題曲';
+    element.dataset.clusterId = 'characters';
+    return element;
+  }
+
+  function markerInfo(element: Element): MarkerPassedInfo {
+    return {
+      index: 0,
+      grantsFlags: [],
+      isSentinel: false,
+      totalMarkers: 1,
+      element,
+      role: 'echo-spot',
+    };
+  }
+
+  function renderSpots(resumeJump = false) {
+    return renderHook(() =>
+      useEchoSpots({
+        pageId: 'history/p1',
+        progress: {} as ProgressState,
+        apiBase: 'http://localhost:8788',
+        resumeJumpRef: { current: resumeJump },
+        scrollVelocityRef: { current: 0 },
+      })
+    );
+  }
+
+  it('插播成功只發一張 played 卡（純告知），並帶本次新收藏資訊', async () => {
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).toHaveBeenCalledOnce();
+    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'played', justCollected: true })
+    );
+    unmount();
+  });
+
+  it('已收藏曲目插播成功 → played 卡 justCollected=false', async () => {
+    audioMock.collected = true;
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'played', justCollected: false })
+    );
+    unmount();
+  });
+
+  it('autoplay 被擋（interrupt 失敗）→ 發 spot 卡提供手動入口', async () => {
+    audioMock.interruptResult = false;
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot', justCollected: true })
+    );
+    unmount();
+  });
+
+  it('歌曲已換音檔 → 插播使用現行 URL 而非快照（換檔 bug 回歸）', async () => {
+    stubSongFetch({
+      audioFile: 'audio/x-v2.mp3',
+      title: '主題曲（重錄版）',
+      spoilerLevel: 0,
+    });
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).toHaveBeenCalledWith(
+      'echoes/characters/x/theme',
+      'http://localhost:8788/api/assets/audio/x-v2.mp3',
+      '主題曲（重錄版）',
+      expect.any(String)
+    );
+    unmount();
+  });
+
+  it('反查離線 → 插播退回快照 URL', async () => {
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).toHaveBeenCalledWith(
+      'echoes/characters/x/theme',
+      'http://localhost:8788/api/assets/audio/x.mp3',
+      '主題曲',
+      expect.any(String)
+    );
+    unmount();
+  });
+
+  it('resume jump 誤觸 → 不嘗試插播，直接發 spot 卡', async () => {
+    const { result, unmount } = renderSpots(true);
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot' })
+    );
+    unmount();
   });
 });

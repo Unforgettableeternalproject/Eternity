@@ -84,6 +84,19 @@ describe('GET /api/concepts/entity-index', () => {
                         ],
                       },
                       { name: '無鑰條目' },
+                      {
+                        // 舊 baseVisible 殘留資料（已廢除）——不得進摘要
+                        name: '公開演進條目',
+                        entityKey: 'a-man',
+                        baseVisible: true,
+                        revisions: [
+                          {
+                            id: 'a-man:01',
+                            gate: { requiresFlags: ['progress:man'] },
+                            patch: { set: { content_html: '<p>更新</p>' } },
+                          },
+                        ],
+                      },
                     ],
                   },
                   // S7 驗收 #3/#4：群組 gate + 條目 base gate 帶進摘要
@@ -292,6 +305,19 @@ describe('GET /api/concepts/entity-index', () => {
     const xavier = entries.find((e) => e.entityKey === 'xavier-colsono');
     expect(xavier!.baseGate).toBeUndefined();
     expect(xavier!.groupGate).toBeUndefined();
+  });
+
+  it('已廢除的 baseVisible 欄位不再進摘要（2026-07-17 語意修正）', async () => {
+    const entries = await fetchIndex();
+    const aman = entries.find((e) => e.entityKey === 'a-man');
+    expect(aman).toBeDefined();
+    // 資料殘留 baseVisible: true 也不輸出——可見性由 baseGate 單獨決定
+    expect(
+      (aman as unknown as Record<string, unknown>).baseVisible
+    ).toBeUndefined();
+    expect(aman!.revisionGates).toEqual([
+      { id: 'a-man:01', gate: { requiresFlags: ['progress:man'] } },
+    ]);
   });
 
   it('browser profile 帶 entityKey 納入', async () => {

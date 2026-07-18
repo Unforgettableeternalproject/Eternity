@@ -194,6 +194,40 @@ describe('decorateInteractiveHtml（S7-C：島掛載守門，全可點）', () =
     expect(container.querySelectorAll('hr')).toHaveLength(1);
     expect(container.textContent).toContain('結尾');
   });
+
+  it('isRefUnlocked 守門（2026-07-17）：未解鎖 ref 維持普通文字', () => {
+    const html = `<p>${entitySpan(KEY_REF)}${entitySpan('entity:hidden-man', '隱藏人物')}</p>`;
+    const out = decorateInteractiveHtml(
+      html,
+      mountedState(),
+      (ref) => ref === KEY_REF // 只有 xavier 解鎖
+    );
+    const spans = parseHtml(out).querySelectorAll('span');
+    expect(spans[0].getAttribute(UEP_ENTITY_ACTIVE_ATTR)).toBe('true');
+    expect(spans[1].hasAttribute(UEP_ENTITY_ACTIVE_ATTR)).toBe(false);
+    expect(spans[1].hasAttribute('role')).toBe(false);
+  });
+
+  it('isRefUnlocked 全拒（索引未載入的安全預設）：全部普通文字', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan(KEY_REF)}</p>`,
+      mountedState(),
+      () => false
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).toBeNull();
+  });
+
+  it('未注入 isRefUnlocked：沿用全可點語意（向後相容）', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan('entity:hidden-man', '隱藏人物')}</p>`,
+      mountedState()
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).not.toBeNull();
+  });
 });
 
 describe('dispatchEntityActivate', () => {

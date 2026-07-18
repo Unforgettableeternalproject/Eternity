@@ -22,7 +22,7 @@ interface RevisionSimulatorProps {
   /** 條目 base 資料（含 entityKey/revisions 也無妨，預覽前會剝除） */
   baseEntry: Record<string, unknown>;
   revisions: ConceptsRevision[];
-  /** base 解鎖條件（S7 驗收 #4）——影響「條目狀態」求值與可模擬旗標 */
+  /** base 解鎖條件（S7 驗收 #4）——條目可見性的唯一閘門 */
   baseGate?: GateCondition | null;
   accent: string;
 }
@@ -71,7 +71,8 @@ export default function RevisionSimulator({
     [revisions, progress]
   );
 
-  const unlocked = isEntryUnlocked(revisions, progress, baseGate);
+  // 條目可見性 = baseGate 單獨決定（2026-07-17 語意修正）
+  const unlocked = isEntryUnlocked(progress, baseGate);
   /** base gate 自身的求值結果（有設定才顯示） */
   const baseGatePass = useMemo(
     () => (baseGate ? evaluateGate(progress, baseGate) : null),

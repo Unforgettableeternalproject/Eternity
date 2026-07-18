@@ -8,11 +8,22 @@
  * progressStore 與所有消費端完全不用改。
  */
 
+import { isTestMode } from '../lib/apiBase';
+
 import type { ProgressAdapter, ProgressState } from './types';
 import { PROGRESS_SCHEMA_VERSION, createInitialState } from './types';
 
-/** localStorage key，含 schema 版本以利未來遷移 */
-export const PROGRESS_STORAGE_KEY = 'uep.progress.v1';
+/**
+ * localStorage key，含 schema 版本以利未來遷移。
+ *
+ * Test Mode 下加 `:test` 後綴做環境隔離——同 origin 用 test-mode cookie
+ * 切換正式／測試 API 時，進度不得跨環境殘留，也不得被 ServerAdapter
+ * 「遠端空則上傳本地」的初始合併寫進另一環境的帳號。
+ * mode 切換必伴隨 reload，module 載入時計算一次即可。
+ */
+export const PROGRESS_STORAGE_KEY = isTestMode()
+  ? 'uep.progress.v1:test'
+  : 'uep.progress.v1';
 
 /** 驗證並正規化從儲存層讀回的資料，欄位缺漏時以初始值補齊 */
 export function normalizeState(raw: unknown): ProgressState | null {

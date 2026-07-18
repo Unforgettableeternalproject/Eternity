@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { getCurrentLocale } from '../i18n/utils';
+import TestModeBanner from '../components/TestModeBanner';
 
 interface Props {
   title: string;
@@ -91,6 +92,7 @@ const alternateURL = new URL(alternatePath, Astro.site);
     </script>
   </head>
   <body class="min-h-screen">
+    <TestModeBanner client:load />
     <main>
       <slot />
     </main>

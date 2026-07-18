@@ -177,3 +177,90 @@ describe('GET /api/echoes/entity-song', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('GET /api/echoes/song（by-id 快照刷新）', () => {
+  beforeAll(async () => {
+    // 隱藏的劇情歌（未掛 entityKey）：列表隱藏是常態，by-id 必須命中
+    await insertPage(
+      'echoes/stories/arc/esong-hidden-story',
+      '隱藏的劇情曲',
+      'song',
+      {
+        category: 'story',
+        hidden: true,
+        audioFile: 'audio/hidden-story.mp3',
+      }
+    );
+  });
+
+  it('id 命中 → found + 現行 audioFile／spoiler 摘要', async () => {
+    const res = await worker.fetch(
+      createRequest(
+        `/api/echoes/song?id=${encodeURIComponent('echoes/characters/heroes/esong-xavier')}`
+      ),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: { found: boolean; song?: Record<string, unknown> };
+    };
+    expect(json.ok).toBe(true);
+    expect(json.data.found).toBe(true);
+    expect(json.data.song).toMatchObject({
+      id: 'echoes/characters/heroes/esong-xavier',
+      audioFile: 'audio/xavier-theme.mp3',
+      entityKey: 'esong-xavier',
+      spoilerLevel: 3,
+      clusterId: 'characters',
+    });
+  });
+
+  it('hidden 歌曲仍可命中，未掛 entityKey 回 null（劇情 spot 引用）', async () => {
+    const res = await worker.fetch(
+      createRequest(
+        `/api/echoes/song?id=${encodeURIComponent('echoes/stories/arc/esong-hidden-story')}`
+      ),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as {
+      data: { found: boolean; song?: Record<string, unknown> };
+    };
+    expect(json.data.found).toBe(true);
+    expect(json.data.song).toMatchObject({
+      audioFile: 'audio/hidden-story.mp3',
+      entityKey: null,
+      songType: 'story',
+      clusterId: 'stories',
+    });
+  });
+
+  it('軟刪除曲目 → found:false', async () => {
+    const res = await worker.fetch(
+      createRequest(
+        `/api/echoes/song?id=${encodeURIComponent('echoes/characters/heroes/esong-deleted')}`
+      ),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as { data: { found: boolean } };
+    expect(json.data.found).toBe(false);
+  });
+
+  it('未知 id → found:false', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/echoes/song?id=echoes/nope'),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as { data: { found: boolean } };
+    expect(json.data.found).toBe(false);
+  });
+
+  it('缺 id 參數 → 400', async () => {
+    const res = await worker.fetch(createRequest('/api/echoes/song'), env, ctx);
+    expect(res.status).toBe(400);
+  });
+});

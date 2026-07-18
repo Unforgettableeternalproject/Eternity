@@ -24,10 +24,16 @@ import {
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
-import { findEntitySong } from './echoes-song';
+import { findEntitySong, findSongById } from './echoes-song';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
 import { buildDiscordStats } from './widget-stats';
+import {
+  buildTestSeedSnapshot,
+  isTestSeedSnapshot,
+  resetAndSeedTestData,
+  type TestSeedSnapshot,
+} from './test-seed';
 
 // ===== 工具函式 =====
 
@@ -170,9 +176,19 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
   const isAllowed = allowedOrigins.some((allowed) => {
     allowed = allowed.trim();
     if (allowed === origin) return true;
-    if (allowed.includes('*.')) {
-      const domain = allowed.split('*.')[1];
-      return origin.endsWith(domain);
+    const wildcard = /^([a-z]+:\/\/)\*\.(.+)$/i.exec(allowed);
+    if (wildcard) {
+      try {
+        const parsedOrigin = new URL(origin);
+        const domain = wildcard[2].toLowerCase();
+        return (
+          `${parsedOrigin.protocol}//` === wildcard[1].toLowerCase() &&
+          (parsedOrigin.hostname.toLowerCase() === domain ||
+            parsedOrigin.hostname.toLowerCase().endsWith(`.${domain}`))
+        );
+      } catch {
+        return false;
+      }
     }
     return false;
   });
@@ -190,15 +206,31 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
 // ===== 驗證 =====
 
-function isAuthorized(request: Request, env: Env): boolean {
-  // 如果沒設定 API_TOKEN，允許所有請求（開發模式）
-  if (!env.API_TOKEN) return true;
-
+async function isAuthorized(request: Request, env: Env): Promise<boolean> {
   const auth = request.headers.get('Authorization');
-  if (!auth) return false;
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+  // CLI / sync 腳本用 API_TOKEN。
+  if (env.API_TOKEN && token === env.API_TOKEN) return true;
+  // 其餘一律真正驗證 admin JWT（與 assets 端點一致）：
+  // 正式與 test worker 都設 JWT_SECRET → requireJwt 走本地 verifyJwt。
+  // 本機 dev（無 JWT_SECRET 無 API_TOKEN）時 requireJwt 回 dev user → 放行。
+  // ⚠️ 不再有「正式 worker 無 API_TOKEN 即全放行」的裸奔路徑。
+  return (await requireJwt(request, env)) !== null;
+}
 
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  return token === env.API_TOKEN;
+async function clearR2Bucket(bucket: R2Bucket): Promise<number> {
+  let cursor: string | undefined;
+  let cleared = 0;
+  do {
+    const listed = await bucket.list({ cursor });
+    const keys = listed.objects.map((object) => object.key);
+    if (keys.length > 0) {
+      await bucket.delete(keys);
+      cleared += keys.length;
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+  return cleared;
 }
 
 // ===== 路由處理 =====
@@ -1269,7 +1301,7 @@ export default {
 
     // GET /api/assets/deleted — 列出已刪除的資產紀錄（同步用，需認證）
     if (path === '/api/assets/deleted' && request.method === 'GET') {
-      if (!isAuthorized(request, env)) {
+      if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const result = await env.CONTENT_DB.prepare(
@@ -1362,7 +1394,7 @@ export default {
     // ---- 內容路由授權檢查 ----
     const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
 
-    if (isWriteMethod && !isAuthorized(request, env)) {
+    if (isWriteMethod && !(await isAuthorized(request, env))) {
       return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
     }
 
@@ -1516,8 +1548,7 @@ export default {
 
     if (path === '/api/assets' && request.method === 'POST') {
       // JWT 驗證：上傳檔案需要管理員權限
-      const jwtUser = await requireJwt(request, env);
-      if (!jwtUser) {
+      if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
       const formData = await request.formData();
@@ -1604,6 +1635,25 @@ export default {
         );
       }
       const song = await findEntitySong(env.CONTENT_DB, key);
+      return jsonResponse(
+        { ok: true, data: song ? { found: true, song } : { found: false } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- Echoes 曲目 by-id 反查（echo spot 觸發時刷新過期快照）----
+    if (path === '/api/echoes/song' && request.method === 'GET') {
+      const id = url.searchParams.get('id')?.trim() ?? '';
+      if (!id) {
+        return jsonResponse(
+          { ok: false, error: 'Missing id parameter' },
+          400,
+          cors
+        );
+      }
+      const song = await findSongById(env.CONTENT_DB, id);
       return jsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
         200,
@@ -1764,6 +1814,90 @@ export default {
         200,
         cors,
         true
+      );
+    }
+
+    // ═══ Test seed snapshot（正式環境唯讀）═══
+    // 資料本來就由公開內容 API 提供；此端點只把 reset 所需骨架一次打包，
+    // 避免 Admin reseed 發出上百個 subrequest。test Worker 不提供 snapshot，
+    // 防止誤把測試資料當成正式 baseline。
+    // 需授權：唯一呼叫端是兩站 reset proxy（SSR 轉送 admin JWT），
+    // 用 requireJwt 而非 isAuthorized——正式 worker 的 isAuthorized 只認
+    // API_TOKEN、不認 admin JWT，會誤擋 proxy。requireJwt 驗證 admin JWT
+    // 並拒絕 reader/匿名，避免任何人一次打包帶走全站骨架、降低批量鏡像成本。
+    if (path === '/api/test/seed-snapshot' && request.method === 'GET') {
+      if (env.ETERNITY_TEST_ENV === 'true') {
+        return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+      }
+      if ((await requireJwt(request, env)) === null) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const snapshot = await buildTestSeedSnapshot(env.CONTENT_DB);
+      return jsonResponse({ ok: true, data: snapshot }, 200, cors, false);
+    }
+
+    // ═══ Test 環境專屬端點（Issue #41 T-10.5）═══
+    // reset 預設必須攜帶正式環境產生的 seed snapshot；clearOnly 僅保留給
+    // CLI 的「先清再由本機腳本 seed」流程。兩者都只清業務表，不動帳號類。
+    if (path === '/api/test/reset' && request.method === 'POST') {
+      if (env.ETERNITY_TEST_ENV !== 'true') {
+        return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+      }
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+
+      let body: { clearOnly?: boolean; snapshot?: unknown } = {};
+      try {
+        const text = await request.text();
+        if (text) body = JSON.parse(text) as typeof body;
+      } catch {
+        return jsonResponse(
+          { ok: false, error: 'Invalid JSON body' },
+          400,
+          cors
+        );
+      }
+
+      let snapshot: TestSeedSnapshot;
+      if (body.clearOnly === true) {
+        snapshot = {
+          version: 1,
+          generatedAt: new Date().toISOString(),
+          pages: [],
+          rootProjects: [],
+          rootLinks: [],
+          rootUpdates: [],
+          rootSingletons: [],
+          rootCards: [],
+          siteHomepage: [],
+        };
+      } else if (isTestSeedSnapshot(body.snapshot)) {
+        snapshot = body.snapshot;
+      } else {
+        return jsonResponse(
+          { ok: false, error: 'A valid seed snapshot is required' },
+          400,
+          cors
+        );
+      }
+
+      const result = await resetAndSeedTestData(env.CONTENT_DB, snapshot);
+      const [assets, rootAssets] = await Promise.all([
+        clearR2Bucket(env.ASSETS_BUCKET),
+        clearR2Bucket(env.ROOT_ASSETS_BUCKET),
+      ]);
+      return jsonResponse(
+        {
+          ok: true,
+          data: {
+            ...result,
+            clearedAssets: { uep: assets, root: rootAssets },
+          },
+        },
+        200,
+        cors,
+        false
       );
     }
 

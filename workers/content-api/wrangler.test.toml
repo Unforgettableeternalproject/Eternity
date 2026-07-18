@@ -33,4 +33,7 @@ ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgett
 # visitor-counter Worker base URL — /api/widget/discord-stats 由此拿文件站訪客數
 # 缺失時該欄位回 null，端點仍 200
 VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
+# T-10.5：啟用 test env 專屬路由（/api/test/reset）
+# vitest 使用此 wrangler.test.toml，故所有 Worker 測試在 test env 下執行
+ETERNITY_TEST_ENV = "true"
 

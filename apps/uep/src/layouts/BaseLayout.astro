@@ -1,5 +1,7 @@
 ---
 import Navbar from '../components/Navbar.astro';
+import TestModeBanner from '../components/ui/TestModeBanner';
+import UepDevTools from '../devtools/UepDevTools';
 
 interface Props {
   title: string;
@@ -62,6 +64,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     />
   </head>
   <body>
+    <TestModeBanner client:load />
     <!-- 背景裝飾層 -->
     <div class="bg-gradient"></div>
     <div class="bg-grid"></div>
@@ -100,6 +103,8 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
         </div>
       </footer>
     </div>
+
+    <UepDevTools client:idle />
 
     <!-- 鼠標跟隨光效 -->
     <div class="cursor-glow" id="cursorGlow"></div>

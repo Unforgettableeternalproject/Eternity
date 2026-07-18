@@ -28,6 +28,8 @@ import {
   fromContentBlock,
 } from '../editor/homepage/types';
 import './StorageReader.css';
+import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -61,9 +63,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const STORAGE_ZONE = ZONES.find((z) => z.id === 'storage')!;
 const STO_GOLD = '#D5B618';
@@ -459,6 +459,7 @@ export default function StorageReader() {
 
   async function navigateToClearing(clearingSlug: string, push = true) {
     saveScroll(currentScrollKey());
+    clearingSlug = canonicalizePagePath(clearingSlug);
     setActiveClearingId(clearingSlug);
     setActivePageId(null);
     setReadingPage(null);
@@ -474,6 +475,7 @@ export default function StorageReader() {
 
   async function navigateToPage(pageSlug: string, push = true) {
     saveScroll(currentScrollKey());
+    pageSlug = canonicalizePagePath(pageSlug);
     setOpenSubcatId(null);
     setActivePageId(pageSlug);
     const page = await fetchPageData(pageSlug);

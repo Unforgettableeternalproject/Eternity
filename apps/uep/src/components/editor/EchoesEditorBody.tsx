@@ -5,6 +5,7 @@ import {
   type SongSpoilerRevision,
   type SpoilerLevel,
 } from '../../audio';
+import { isSamePagePath } from '../../lib/pagePath';
 import type { GateCondition } from '../../progress';
 import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
@@ -31,6 +32,32 @@ export interface AudioMeta {
   genre?: string;
   bitrate?: number;
   format?: string;
+}
+
+interface EchoesTreeNodeForEntityKey {
+  id: string;
+  pageType?: string;
+  metadata?: { entityKey?: unknown };
+  children?: EchoesTreeNodeForEntityKey[];
+}
+
+/** 收集同 zone 其他歌曲的 entityKey；page id 比較須容忍 encoded/decoded 差異。 */
+export function collectOtherEchoesEntityKeys(
+  nodes: EchoesTreeNodeForEntityKey[],
+  songId: string
+): Set<string> {
+  const keys = new Set<string>();
+  const walk = (items: EchoesTreeNodeForEntityKey[]) => {
+    for (const node of items) {
+      if (node.pageType === 'song' && !isSamePagePath(node.id, songId)) {
+        const key = node.metadata?.entityKey;
+        if (typeof key === 'string' && key.trim()) keys.add(key.trim());
+      }
+      if (Array.isArray(node.children)) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return keys;
 }
 
 export interface EchoesData {
@@ -419,18 +446,7 @@ export default function EchoesEditorBody({
         if (!payload?.ok || !Array.isArray(payload.data)) {
           throw new Error('Echoes tree payload 格式錯誤');
         }
-        const keys = new Set<string>();
-        const walk = (nodes: Array<Record<string, any>>) => {
-          for (const node of nodes) {
-            if (node.id !== songId && node.pageType === 'song') {
-              const key = node.metadata?.entityKey;
-              if (typeof key === 'string' && key.trim()) keys.add(key.trim());
-            }
-            if (Array.isArray(node.children)) walk(node.children);
-          }
-        };
-        walk(payload.data);
-        setOtherEntityKeys(keys);
+        setOtherEntityKeys(collectOtherEchoesEntityKeys(payload.data, songId));
         setEntityKeyCheckStatus('ready');
       })
       .catch(() => {

@@ -35,11 +35,15 @@ const revisions: ConceptsRevision[] = [
   },
 ];
 
-function setup(revs: ConceptsRevision[] = revisions) {
+function setup(
+  revs: ConceptsRevision[] = revisions,
+  baseGate?: React.ComponentProps<typeof RevisionSimulator>['baseGate']
+) {
   render(
     <RevisionSimulator
       baseEntry={baseEntry}
       revisions={revs}
+      baseGate={baseGate}
       accent="#2d6a4f"
     />
   );
@@ -56,12 +60,21 @@ describe('RevisionSimulator', () => {
     ).toBeInTheDocument();
   });
 
-  it('首個 revision 帶 gate 且未通過 → 條目隱藏', () => {
+  it('無 baseGate → 條目可見（revision gate 不鎖條目，2026-07-17 語意）', () => {
     setup();
-    expect(screen.getByText(/隱藏（未解鎖）/)).toBeInTheDocument();
+    expect(screen.getByText('可見')).toBeInTheDocument();
   });
 
-  it('勾選旗標後條目可見且 effective view 套用 patch', () => {
+  it('baseGate 未過 → 隱藏；勾旗標後可見', () => {
+    setup(revisions, { requiresFlags: ['met:xavier'] });
+    expect(screen.getByText(/隱藏（未解鎖）/)).toBeInTheDocument();
+    const input = screen.getByPlaceholderText(/自訂旗標/);
+    fireEvent.change(input, { target: { value: 'met:xavier' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByText('可見')).toBeInTheDocument();
+  });
+
+  it('勾選旗標後 effective view 套用 patch', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'xavier-colsono:01' }));
     expect(screen.getByText('可見')).toBeInTheDocument();

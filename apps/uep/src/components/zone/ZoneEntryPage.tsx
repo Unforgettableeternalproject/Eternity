@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import { getApiBase } from '../../lib/apiBase';
 import { ZONES } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import IslandUnlockObject from '../../islands/IslandUnlockObject';
@@ -1432,9 +1433,7 @@ export default function ZoneEntryPage({ zoneId }: ZoneEntryPageProps) {
   useEffect(() => {
     if (!zone) return;
     const area = ZONE_TO_AREA[zoneId] || zoneId;
-    const apiBase =
-      (import.meta as unknown as { env?: Record<string, string> }).env
-        ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+    const apiBase = getApiBase();
 
     fetch(`${apiBase}/api/content/${area}/homepage`)
       .then((r) => {

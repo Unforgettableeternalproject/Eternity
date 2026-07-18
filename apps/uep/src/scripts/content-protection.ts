@@ -3,9 +3,12 @@
  * 防止 Reader 頁面的文字被反白複製、右鍵抓取、截圖等
  * - 只在 Reader 頁面（body[data-reader-page="true"]）啟用
  * - /admin/ 路徑下永遠不啟用
- * - 正式環境：全部啟用
- * - 開發環境：預設全部關閉，可透過 __uepProtection.enable() 強制開啟
+ * - 正式環境（非 dev、非測試模式）：全部啟用，不可關閉
+ * - 開發環境 / 測試模式（staging build-bound 或 test cookie）：
+ *   預設全部關閉，可透過 __uepProtection.enable() 或 DevTools 面板強制開啟
  */
+
+import { isTestMode } from '../lib/apiBase';
 
 /** 是否為管理頁面 */
 const isAdmin = () => window.location.pathname.startsWith('/admin');
@@ -13,11 +16,11 @@ const isAdmin = () => window.location.pathname.startsWith('/admin');
 /** 是否為開發模式（Astro dev server 注入的 flag） */
 const isDev = import.meta.env.DEV;
 
-/** 開發環境強制啟用內容保護的 localStorage key */
-const FORCE_PROTECTION_KEY = 'uep-protection-force';
+/** 非正式環境強制啟用內容保護的 localStorage key */
+export const FORCE_PROTECTION_KEY = 'uep-protection-force';
 
-/** 是否在開發環境強制啟用內容保護 */
-const isProtectionForced = (): boolean => {
+/** 是否強制啟用內容保護（dev / 測試模式的 opt-in 開關） */
+export const isProtectionForced = (): boolean => {
   try {
     return localStorage.getItem(FORCE_PROTECTION_KEY) === 'true';
   } catch {
@@ -25,8 +28,16 @@ const isProtectionForced = (): boolean => {
   }
 };
 
-/** 是否應啟用所有內容保護（正式環境永遠啟用；開發環境需 opt-in） */
-const shouldEnableProtection = (): boolean => !isDev || isProtectionForced();
+/**
+ * 非正式環境判定：本地 dev 或測試模式（staging 前端 build-bound
+ * 指向 test worker、或 test cookie override）。這些環境保護預設關閉，
+ * 讓 DevTools / 驗收操作不被自己擋住；只有真正式環境不可關閉。
+ */
+const isNonProdEnv = (): boolean => isDev || isTestMode();
+
+/** 是否應啟用所有內容保護（正式環境永遠啟用；dev / 測試模式需 opt-in） */
+const shouldEnableProtection = (): boolean =>
+  isNonProdEnv() ? isProtectionForced() : true;
 
 /** 目前頁面是否為 Reader 頁面（由 ReaderShell 掛載時設定 body attribute） */
 const isReaderPage = (): boolean =>
@@ -71,7 +82,7 @@ export function initContentProtection(): void {
 
 /**
  * 暴露開發者控制介面到 window
- * 用法（在瀏覽器 console）：
+ * 用法（在瀏覽器 console，僅 dev / 測試模式有效——正式環境永遠開啟）：
  *   __uepProtection.enable()   // 開啟強制模式（重新載入生效）
  *   __uepProtection.disable()  // 關閉強制模式
  *   __uepProtection.status()   // 查看目前狀態
@@ -90,6 +101,11 @@ function exposeDevToolkit(): void {
       }
     },
     disable() {
+      if (!isNonProdEnv()) {
+        // eslint-disable-next-line no-console
+        console.warn('[UEP Protection] 正式環境的內容保護不可關閉。');
+        return;
+      }
       try {
         localStorage.removeItem(FORCE_PROTECTION_KEY);
         // eslint-disable-next-line no-console
@@ -101,14 +117,15 @@ function exposeDevToolkit(): void {
     },
     status() {
       const forced = isProtectionForced();
+      const testMode = isTestMode();
       const active = shouldEnableProtection();
       const readerPage = isReaderPage();
       const effective = active && readerPage;
       // eslint-disable-next-line no-console
       console.info(
-        `[UEP Protection] isDev=${isDev} forced=${forced} readerPage=${readerPage} protection=${active ? 'ON' : 'OFF'} effective=${effective ? 'YES' : 'NO'}`
+        `[UEP Protection] isDev=${isDev} testMode=${testMode} forced=${forced} readerPage=${readerPage} protection=${active ? 'ON' : 'OFF'} effective=${effective ? 'YES' : 'NO'}`
       );
-      return { isDev, forced, readerPage, active, effective };
+      return { isDev, testMode, forced, readerPage, active, effective };
     },
     test() {
       // 即時測試遮罩外觀——若尚未 setup 則臨時 setup

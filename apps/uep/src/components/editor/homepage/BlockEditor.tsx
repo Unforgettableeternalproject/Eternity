@@ -15,10 +15,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
-
-const RT_API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const RT_API_BASE = '';
 import type {
   HomepageBlock,
   HomepageBlockType,

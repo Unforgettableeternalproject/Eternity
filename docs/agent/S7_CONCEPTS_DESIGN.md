@@ -927,6 +927,23 @@ S7 引入 revision 後，解鎖一個 browser profile 有兩種可能語意：
 | 視覺策略 | 比照 History 島：功能優先，設計稿原型只取語彙參考，視覺驗收時調 |
 | 島解鎖入口 | 沿用現成 IslandUnlockObject（zone 首頁小物件）；UnlockRitualGate 通用化仍留白（等整體框架定案） |
 
+> ⚠️ **2026-07-17 修訂一（艾斯維爾定案）**：「嵌入全可點」收緊為**條目級守門**——
+> 「可點 ⟺ terminal 查得到內容」不變量。`decorateInteractiveHtml` 增加選填
+> `isRefUnlocked` 判定（HistoryReader 經 `islands/concepts/useEntityUnlock` 注入，
+> 判定本體 = `terminalCore.isEntityRefUnlocked`，與 query/ls 的 `isIndexEntryUnlocked`
+> 同語意）。未解鎖 entity 維持普通文字不可點；索引未載入/查無 key（資料失誤）
+> 也不可點。`access restricted` 仍保留為 terminal 端 fallback，但正常流程不再出現
+> 「可點卻 restricted」的矛盾。
+>
+> ⚠️ **2026-07-17 修訂二（艾斯維爾定案）**：**條目可見性由 baseGate 單獨決定**。
+> 原 S7 語意「無 baseGate 時首個 revision 的 gate = 初次解鎖點」與「baseGate
+> 未過但 revision 通過的後期揭露」皆為 oversight，一併作廢——revision gate
+> 只控制 patch 的套用時機，不鎖條目、不反向開鎖。判定收斂為：
+> `可見 = groupGate（dossier 前置 AND）&& (baseGate ? evaluateGate : true)`。
+> S7 驗收 #4 的 `baseVisible` 開關（為舊 oversight 打的補丁）隨之**廢除**：
+> 型別、編輯器 checkbox、worker 索引摘要全數移除，舊資料殘留的 key 由
+> resolver / 索引端安靜剝除。改動時 prod 86 條目零依賴舊語意，無需資料遷移。
+
 **連動效果**：
 - `metFlag` / `met:*` 在嵌入判定線完全退役（只停增不刪除，舊旗標無害殘留）
 - 觀測者視角無浮島 → 嵌入自然不 decorate，語意一致，不需額外防禦

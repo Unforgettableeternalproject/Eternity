@@ -58,11 +58,11 @@ function setup(
 }
 
 describe('RevisionModal — 基本結構', () => {
-  it('顯示條目名稱與 base 虛擬項', () => {
+  it('顯示條目名稱與 base 虛擬項（無 baseGate = 預設可見）', () => {
     setup();
     expect(screen.getByText('艾斯維爾')).toBeInTheDocument();
     expect(screen.getByText('base')).toBeInTheDocument();
-    expect(screen.getByText('條目現有內容')).toBeInTheDocument();
+    expect(screen.getByText('◉ 預設可見')).toBeInTheDocument();
   });
 
   it('無 revision 時顯示引導提示', () => {
@@ -205,7 +205,7 @@ describe('RevisionModal — base gate（S7 驗收 #4）', () => {
       onBaseGateChange: vi.fn(),
     });
     expect(screen.getAllByText('⚑ 有解鎖條件').length).toBeGreaterThan(0);
-    expect(screen.queryByText('條目現有內容')).not.toBeInTheDocument();
+    expect(screen.queryByText('◉ 預設可見')).not.toBeInTheDocument();
   });
 
   it('未提供 onBaseGateChange 時 base 卡不顯示條件編輯器', () => {

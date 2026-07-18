@@ -1,6 +1,7 @@
 /* global HTMLAnchorElement */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
+import { canonicalizePagePath, isSamePagePath } from '../../lib/pagePath';
 import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
@@ -45,6 +46,7 @@ import {
 import LostBookmarkGate from './LostBookmarkGate';
 import { useEchoSpots } from './useEchoSpots';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
+import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import { ChapterTimeline } from './ChapterTimeline';
@@ -55,6 +57,7 @@ import type {
   ArchwayCard,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import { getApiBase } from '../../lib/apiBase';
 
 type PageStatus = 'synced' | 'modified' | 'local_only';
 type PageType =
@@ -102,9 +105,7 @@ interface Page {
   updatedAt: string;
 }
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const HISTORY_ZONE = {
   main: '#6B3F2A',
@@ -238,6 +239,7 @@ function resolveInternalLink(
 ) {
   let clean = href.replace(/\.md$/, '').replace(/\/$/, '');
   clean = clean.replace(/\/README$/, '').replace(/^\.?\//, '');
+  clean = canonicalizePagePath(clean);
 
   const currentDir = currentPageId.includes('/')
     ? currentPageId.substring(0, currentPageId.lastIndexOf('/'))
@@ -321,6 +323,8 @@ export default function HistoryReader() {
   // 進度需先於 echo spot handler 建立：spot 授旗永遠執行，但播放/提示卡
   // 受 echoes 島掛載與 spoiler 狀態守門。
   const progress = useProgress();
+  // entity 嵌入的條目級可點守門（「可點 ⟺ terminal 查得到內容」不變量）
+  const isEntityRefUnlocked = useEntityRefUnlockChecker(progress);
   const onEchoMarkerPassed = useEchoSpots({
     pageId: currentId,
     progress,
@@ -552,9 +556,9 @@ export default function HistoryReader() {
         param: 'page',
         handler: (value) => {
           // 統一用 slug（不帶 area prefix），同時向後相容帶 prefix 的舊連結
-          const fullId = value.startsWith('history/')
-            ? value
-            : `history/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('history/') ? value : ['history', value].join('/')
+          );
           const target = readablePages.find((p) => p.id === fullId);
           if (target) void loadPage(target, false);
         },
@@ -907,11 +911,12 @@ export default function HistoryReader() {
     const navCard = target.closest<HTMLElement>('.content-card[data-nav-ref]');
     if (navCard) {
       const ref = navCard.dataset.navRef || '';
+      const canonicalRef = canonicalizePagePath(ref.replace(/\/$/, ''));
       const match = flatPages.find(
         (page) =>
-          page.id.endsWith(`/${ref.replace(/\/$/, '')}`) ||
-          page.slug.endsWith(`/${ref.replace(/\/$/, '')}`) ||
-          page.slug === ref.replace(/\/$/, '')
+          page.id.endsWith(`/${canonicalRef}`) ||
+          page.slug.endsWith(`/${canonicalRef}`) ||
+          page.slug === canonicalRef
       );
       if (match && match.pageType !== 'page') {
         event.preventDefault();
@@ -935,7 +940,7 @@ export default function HistoryReader() {
     // 處理編輯器插入的內部頁面連結（@page:{pageId} 格式）
     if (href.startsWith('@page:')) {
       const pageId = href.slice(6);
-      const target = flatPages.find((p) => p.id === pageId);
+      const target = flatPages.find((p) => isSamePagePath(p.id, pageId));
       if (target && target.pageType !== 'page') {
         event.preventDefault();
         void loadPage(target);
@@ -1594,7 +1599,8 @@ export default function HistoryReader() {
                             '<p class="empty-notice">這篇內容目前是空的。</p>',
                           progress,
                           'article',
-                          'history-prose'
+                          'history-prose',
+                          isEntityRefUnlocked
                         )}
                       </div>
                       {/* 掃描線文末哨兵：通過 = 讀完整篇 */}

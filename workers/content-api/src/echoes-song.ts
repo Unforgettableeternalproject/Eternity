@@ -1,10 +1,16 @@
 /**
- * echoes-song.ts — Echoes entity↔曲目反查（Epic 2 S8 B-5）
+ * echoes-song.ts — Echoes 曲目反查（Epic 2 S8 B-5）
  *
  * GET /api/echoes/entity-song?key={entityKey}
+ * GET /api/echoes/song?id={songId}
  *
- * 互動嵌入的消費端（`uep:entity-activate` → 曲目卡展示，D 段接線）：
- * 以 S7 統一實體身分（entityKey）反查掛同 key 的 Echoes 歌曲。
+ * entity-song：互動嵌入的消費端（`uep:entity-activate` → 曲目卡展示，
+ * D 段接線）：以 S7 統一實體身分（entityKey）反查掛同 key 的 Echoes 歌曲。
+ *
+ * song（by-id）：echo spot 觸發時的快照刷新——文章 node 保存的
+ * songUrlKey/title/spoilerRevisions 是插入當下的快照，換音檔或改
+ * spoiler 後會過期；前台觸發時以 songId 反查現行資料，快照僅作
+ * 離線 fallback。
  *
  * 設計約束（docs/agent/S8_ECHOES_DESIGN.md §8-1）：
  * - `audioFile` 回傳裸 R2 key，不組完整 URL——API base 隨環境變動，
@@ -24,7 +30,8 @@ export interface EntitySongPayload {
   title: string;
   /** 音檔裸 R2 key；無音檔 = null */
   audioFile: string | null;
-  entityKey: string;
+  /** by-id 反查時歌曲可能未掛 entityKey */
+  entityKey: string | null;
   /** metadata.category 原值（area/character/story/special） */
   songType: string | null;
   subtitle: string | null;
@@ -45,23 +52,8 @@ interface SongRow {
   metadata: string;
 }
 
-/** 以 entityKey 反查 Echoes 歌曲；找不到回傳 null */
-export async function findEntitySong(
-  db: D1Database,
-  key: string
-): Promise<EntitySongPayload | null> {
-  const row = await db
-    .prepare(
-      `SELECT id, title, metadata FROM pages
-       WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
-         AND json_extract(metadata, '$.entityKey') = ?
-         AND COALESCE(json_extract(metadata, '$.hidden'), 0) = 0
-       LIMIT 1`
-    )
-    .bind(key)
-    .first<SongRow>();
-  if (!row) return null;
-
+/** SongRow → payload（entity-song 與 by-id 反查共用同一份摘要邏輯） */
+function buildSongPayload(row: SongRow): EntitySongPayload {
   let meta: Record<string, unknown> = {};
   try {
     meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
@@ -74,7 +66,7 @@ export async function findEntitySong(
     id: row.id,
     title: row.title,
     audioFile: typeof meta.audioFile === 'string' ? meta.audioFile : null,
-    entityKey: key,
+    entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
     songType: typeof meta.category === 'string' ? meta.category : null,
     subtitle: typeof meta.subtitle === 'string' ? meta.subtitle : null,
     duration:
@@ -97,4 +89,47 @@ export async function findEntitySong(
       : {}),
     clusterId: segments.length >= 2 ? segments[1] : null,
   };
+}
+
+/** 以 entityKey 反查 Echoes 歌曲；找不到回傳 null */
+export async function findEntitySong(
+  db: D1Database,
+  key: string
+): Promise<EntitySongPayload | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, title, metadata FROM pages
+       WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
+         AND json_extract(metadata, '$.entityKey') = ?
+         AND COALESCE(json_extract(metadata, '$.hidden'), 0) = 0
+       LIMIT 1`
+    )
+    .bind(key)
+    .first<SongRow>();
+  if (!row) return null;
+  return buildSongPayload(row);
+}
+
+/**
+ * 以歌曲頁 id 反查現行資料；找不到（含軟刪除）回傳 null。
+ *
+ * 與 entity-song 不同，**刻意不排除 hidden**——echo spot 是對歌曲的
+ * 明確引用，而劇情歌以 hidden 從 Echoes 列表隱藏是常態設計，
+ * 排除會讓劇情 spot 永遠退回過期快照。
+ */
+export async function findSongById(
+  db: D1Database,
+  id: string
+): Promise<EntitySongPayload | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, title, metadata FROM pages
+       WHERE id = ? AND area = 'echoes' AND page_type = 'song'
+         AND deleted_at IS NULL
+       LIMIT 1`
+    )
+    .bind(id)
+    .first<SongRow>();
+  if (!row) return null;
+  return buildSongPayload(row);
 }

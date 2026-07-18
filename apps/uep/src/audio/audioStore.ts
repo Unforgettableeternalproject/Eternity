@@ -308,7 +308,16 @@ function loadSong(
 ): HTMLAudioElement | null {
   const audio = ensureAudio();
   if (!audio) return null;
-  if (loadedSongId === songId) return audio;
+  if (loadedSongId === songId) {
+    // 同曲已載入仍要消化 pendingSeekTime——插播從頭（interrupt 設 0）
+    // 與同曲插播後恢復原位置（restoreFromInterruption 設快照時間）都靠這裡。
+    if (pendingSeekTime !== null) {
+      const seekTime = pendingSeekTime;
+      pendingSeekTime = null;
+      seekWhenReady(audio, seekTime);
+    }
+    return audio;
+  }
 
   const resumeTime =
     state.currentSongId === songId && pendingSeekTime !== null
@@ -591,6 +600,10 @@ export const uepAudio = {
    * 快照不巢狀——已在插播中再次呼叫只換曲、不重拍快照，
    * 恢復點永遠是使用者自己的播放狀態（不會恢復到上一個插播）。
    * 佇列在插播期間保持原樣（整頁重載不遺失佇列）。
+   * 插播一律從頭播放——插播曲恰是當前曲（已載入或重載恢復中）時
+   * 也不續播，快照仍保住使用者原本的位置。
+   * 播放被瀏覽器拒絕（autoplay 政策）時回滾本次拍的快照——
+   * 插播沒發生，島不得停留在「插播中」假象。
    */
   interrupt(
     songId: string,
@@ -598,7 +611,8 @@ export const uepAudio = {
     title?: string,
     accent?: string
   ): Promise<boolean> {
-    if (!state.interruptionSnapshot) {
+    const tookSnapshot = !state.interruptionSnapshot;
+    if (tookSnapshot) {
       setState({
         interruptionSnapshot: {
           songId: state.currentSongId,
@@ -610,7 +624,15 @@ export const uepAudio = {
         },
       });
     }
-    return this.play(songId, url, title, accent, false);
+    pendingSeekTime = 0;
+    return this.play(songId, url, title, accent, false).then((played) => {
+      // 快照非本次拍的（插播中再插播失敗）不動——恢復點仍是使用者狀態；
+      // 期間快照已被他處消化（如離頁 restore）也不重複回滾。
+      if (!played && tookSnapshot && state.interruptionSnapshot) {
+        this.restoreFromInterruption();
+      }
+      return played;
+    });
   },
 
   /**

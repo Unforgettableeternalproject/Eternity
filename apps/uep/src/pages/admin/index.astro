@@ -1,10 +1,13 @@
 ---
 import DesignLayout from '../../layouts/DesignLayout.astro';
+import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../lib/apiBase';
+import AdminTestModeControl from '../../components/admin/AdminTestModeControl';
 
 export const prerender = false;
 
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const apiBase = getApiBase(
+  Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
+);
 
 async function safeFetchJson(url: string): Promise<any> {
   try {
@@ -486,6 +489,12 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
               <div class="adm-tool-sub">主題 · 解鎖規則</div>
             </div>
           </a>
+        </div>
+
+        <!-- 測試環境控制（Issue #41） -->
+        <div class="adm-section-title">· 測試環境 ·</div>
+        <div class="adm-test-mode-section">
+          <AdminTestModeControl client:load />
         </div>
       </div>
     </main>

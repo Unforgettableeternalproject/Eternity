@@ -41,11 +41,11 @@ export interface EntityIndexEntry {
   entityKey?: string;
   /** 匹配別名（S7-D-2：編輯器選填，自動偵測 + terminal query 兩用） */
   aliases?: string[];
-  /** base 解鎖條件（S7 驗收 #4：條目本身的可見閘門） */
+  /** base 解鎖條件（S7 驗收 #4：條目可見性的唯一閘門，未設 = 永遠可見） */
   baseGate?: unknown;
   /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
   groupGate?: unknown;
-  /** revision gate 摘要（條目有 revision 鏈才有） */
+  /** revision gate 摘要（條目有 revision 鏈才有；只供更動通知水位，不影響可見性） */
   revisionGates?: RevisionGateSummary[];
   /** 分類標籤（dossier=subcategory label、diff=subcat label）——ls 分組用 */
   category?: string;
@@ -86,6 +86,7 @@ function withRevisionFields(
     out.entityKey = entry.entityKey;
   }
   // base 解鎖條件（S7 驗收 #4）——null 視為無條件，不進摘要
+  // （舊 baseVisible 欄位已廢除，2026-07-17：無 baseGate 即永遠可見）
   if (entry.gate != null && typeof entry.gate === 'object') {
     out.baseGate = entry.gate;
   }

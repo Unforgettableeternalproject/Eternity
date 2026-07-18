@@ -40,6 +40,8 @@ import type {
   OrbCluster,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
+import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別定義
@@ -124,9 +126,7 @@ interface SubcategoryDef {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const ECHOES_ZONE = { main: '#355C7D', soft: '#6C5B7B', tint: '#F8B195' };
 
@@ -1028,18 +1028,18 @@ function EchoesReaderInner() {
         param: 'song',
         handler: (value) => {
           // 統一用 slug（不帶 area prefix），向後相容帶 prefix 的舊連結
-          const fullId = value.startsWith('echoes/')
-            ? value
-            : `echoes/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('echoes/') ? value : ['echoes', value].join('/')
+          );
           void navigateToSong(fullId, false);
         },
       },
       {
         param: 'page',
         handler: (value) => {
-          const fullId = value.startsWith('echoes/')
-            ? value
-            : `echoes/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('echoes/') ? value : ['echoes', value].join('/')
+          );
           void navigateToContent(fullId, false);
         },
       },

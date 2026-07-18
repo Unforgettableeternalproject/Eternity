@@ -1,0 +1,201 @@
+/* Admin Test Mode 控制卡：沿用後台既有 surface、字色與線框 token。 */
+
+.adm-test-mode-card {
+  border: 1px solid var(--hairline);
+  padding: 18px;
+  background: var(--bg-card);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.adm-test-mode-card--active {
+  border-color: var(--hairline-strong);
+}
+
+.adm-test-mode-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-test-mode-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5b9c7a;
+}
+
+.adm-test-mode-card__dot--test {
+  background: #d64545;
+  animation: adm-test-mode-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes adm-test-mode-dot-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.adm-test-mode-card__title {
+  color: var(--ink-title);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.adm-test-mode-card__badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-mute);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.adm-test-mode-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.adm-test-mode-card__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adm-test-mode-card__label {
+  min-width: 82px;
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adm-test-mode-card__value,
+.adm-test-mode-card__reset-hint code {
+  padding: 2px 6px;
+  background: var(--bg-sunken);
+  color: var(--ink-soft);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.adm-test-mode-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.adm-test-mode-card__btn {
+  padding: 8px 13px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg-soft);
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.adm-test-mode-card__btn:hover:not(:disabled) {
+  border-color: var(--ink-mute);
+  background: var(--bg-sunken);
+  color: var(--ink-title);
+}
+
+.adm-test-mode-card__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.adm-test-mode-card__btn--enter,
+.adm-test-mode-card__btn--reset {
+  border-color: color-mix(in srgb, #d64545 45%, var(--hairline));
+  color: color-mix(in srgb, #d64545 75%, var(--ink));
+}
+
+.adm-test-mode-card__hint,
+.adm-test-mode-card__reset-hint {
+  color: var(--ink-mute);
+  font-family: var(--font-serif-tc);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.adm-test-mode-card__reset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.adm-test-mode-card__reset-label {
+  color: #d64545;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.adm-test-mode-card__reset-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.adm-test-mode-card__reset-input {
+  min-width: 0;
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  outline: none;
+}
+
+.adm-test-mode-card__reset-input:focus {
+  border-color: var(--ink-mute);
+}
+
+.adm-test-mode-card__reset-input::placeholder {
+  color: var(--ink-mute);
+}
+
+.adm-test-mode-card__reset-msg {
+  padding: 6px 8px;
+  border-left: 2px solid currentColor;
+  background: var(--bg-soft);
+  font-size: 10px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.adm-test-mode-card__reset-msg--ok {
+  color: #4f8a68;
+}
+
+.adm-test-mode-card__reset-msg--err {
+  color: #d64545;
+}
+
+@media (max-width: 640px) {
+  .adm-test-mode-card__reset-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
