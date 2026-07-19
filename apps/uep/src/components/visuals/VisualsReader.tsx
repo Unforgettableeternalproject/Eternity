@@ -29,6 +29,7 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
+import { useProgress, buildProgressTreeAdapter } from '../../progress';
 import './VisualsReader.css';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
@@ -415,6 +416,11 @@ function VisualsReaderInner() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
+
+  // 進度 + tree-aware gating 求值器（S8 下半場 V-A.14：Visuals 接入
+  // 進度系統，一開始就走 effectiveGate——progressPage 鏈 + 父容器繼承）
+  const progress = useProgress();
+  const progressTree = useMemo(() => buildProgressTreeAdapter(tree), [tree]);
 
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
@@ -1231,7 +1237,7 @@ function VisualsReaderInner() {
             <div className="visuals-div-corridor-axis" />
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
-              const locked = isLocked(sc);
+              const locked = isLocked(sc, progress, sc.id, progressTree);
               const side = i % 2 === 0 ? 'left' : 'right';
               return (
                 <div
@@ -1268,7 +1274,7 @@ function VisualsReaderInner() {
           <div className="visuals-div-museum">
             {subcats.map((sc) => {
               const count = countGalleries(sc);
-              const locked = isLocked(sc);
+              const locked = isLocked(sc, progress, sc.id, progressTree);
               return (
                 <button
                   key={sc.id}
@@ -1302,7 +1308,7 @@ function VisualsReaderInner() {
           <div className="visuals-div-pinboard">
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
-              const locked = isLocked(sc);
+              const locked = isLocked(sc, progress, sc.id, progressTree);
               // 用 sin/cos 產生自然的隨機傾斜與偏移（同 gallery pinboard）
               const rot = Math.sin(i * 2.34 + 0.7) * 6;
               const yOff = Math.cos(i * 1.87 + 0.3) * 6;
@@ -1342,7 +1348,7 @@ function VisualsReaderInner() {
             <div className="visuals-div-gridpaper-cards">
               {subcats.map((sc) => {
                 const count = countGalleries(sc);
-                const locked = isLocked(sc);
+                const locked = isLocked(sc, progress, sc.id, progressTree);
                 return (
                   <button
                     key={sc.id}
