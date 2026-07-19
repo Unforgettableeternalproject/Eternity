@@ -90,8 +90,8 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
   },
   visuals: {
     id: 'visuals',
-    title: '掌上畫廊',
-    icon: '❏',
+    title: '浮動幻影',
+    icon: '🖼',
     defaultCorner: 'top-left',
     width: 360,
   },
