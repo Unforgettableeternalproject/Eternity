@@ -8,6 +8,8 @@ import {
   fetchImageAssets,
   type AssetItem as ImagePickerItem,
 } from './editorHelpers';
+import type { GateCondition } from '../../progress';
+import type { ImageDisplayState } from '../../visuals';
 
 // ──────────────────────────────────────────────────────────────
 //  型別定義
@@ -47,6 +49,16 @@ export interface ImageItem {
   animations?: SpriteAnimations;
   /** 基準像素大小（展示縮放用） */
   basePixelSize?: number;
+
+  // ── 三態解鎖欄位（S8 下半場 §1-2；未設定＝天生解鎖）──
+  // 第一張圖（sortOrder 排序後）不吃這些欄位——恆等於 gallery 解鎖。
+  // 精靈圖（isSpriteSheet）本輪不接三態。
+  /** 初始狀態：locked / partial / unlocked（預設 unlocked） */
+  initialState?: ImageDisplayState;
+  /** 鎖定條件：離開鎖定態的閘 */
+  lockGate?: GateCondition | null;
+  /** 部分鎖定條件：離開部分解鎖態的閘 */
+  partialGate?: GateCondition | null;
 }
 
 export interface VisualsData {
@@ -54,12 +66,51 @@ export interface VisualsData {
   images: ImageItem[];
   /** 分組標籤（同 group 的 gallery 在 subcat 中歸在一起）*/
   group: string;
-  /** 遮蔽等級 0-3 */
+  /** 遮蔽等級 0-3（V-B 盤點去留） */
   spoilerLevel: number;
-  /** 解鎖條件 */
-  gate: string;
+  /**
+   * gallery 解鎖閘（GateCondition 物件；null = 無條件）。
+   * 寫入 metadata.gate 後由各 Reader 的 gating 求值器（tree-aware）消費。
+   * V-B 起由 GateConditionEditor 編輯。
+   */
+  gate: GateCondition | null;
+  /**
+   * 舊自由文字 gate（2026-07-19 拍板：靜默失效）——僅向後相容保留
+   * 作提示文案，不參與條件求值。設定結構化 gate 後即被取代。
+   */
+  legacyGateHint: string;
+  /**
+   * entityKey（僅陳列走廊 profiles）：Interactive Embedding 反查用，
+   * 同 zone 唯一（V-B 編輯器驗證）
+   */
+  entityKey: string;
+  /**
+   * 插圖 ID（僅鑲框室 illustrations）：Visual Clue 引用用，
+   * 同 zone 唯一（V-B 編輯器驗證）
+   */
+  illustrationId: string;
   /** 展示風格 */
   layout: string;
+}
+
+/**
+ * 正規化 metadata.gate 的物件形狀為 GateCondition。
+ * 非物件（含舊自由文字字串）、空條件一律回 null。
+ */
+export function normalizeGateObject(value: unknown): GateCondition | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const requiresFlags = Array.isArray(raw.requiresFlags)
+    ? raw.requiresFlags.filter(
+        (f): f is string => typeof f === 'string' && f.trim().length > 0
+      )
+    : [];
+  const pristineOnly = raw.pristineOnly === true;
+  if (requiresFlags.length === 0 && !pristineOnly) return null;
+  const gate: GateCondition = {};
+  if (requiresFlags.length > 0) gate.requiresFlags = requiresFlags;
+  if (pristineOnly) gate.pristineOnly = true;
+  return gate;
 }
 
 export const LAYOUT_OPTIONS = [
@@ -72,11 +123,20 @@ export const LAYOUT_OPTIONS = [
 ] as const;
 
 export function parseVisualsData(metadata: Record<string, any>): VisualsData {
+  const rawGate = metadata?.gate;
   return {
     images: Array.isArray(metadata?.images) ? metadata.images : [],
     group: metadata?.group || '',
     spoilerLevel: metadata?.spoilerLevel ?? 0,
-    gate: metadata?.gate || '',
+    // 物件 → 結構化閘；字串 → 舊資料靜默失效（僅留作提示文案）
+    gate: normalizeGateObject(rawGate),
+    legacyGateHint: typeof rawGate === 'string' ? rawGate : '',
+    entityKey:
+      typeof metadata?.entityKey === 'string' ? metadata.entityKey : '',
+    illustrationId:
+      typeof metadata?.illustrationId === 'string'
+        ? metadata.illustrationId
+        : '',
     layout: metadata?.layout || '',
   };
 }
@@ -86,7 +146,10 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
     images: data.images,
     group: data.group || undefined,
     spoilerLevel: data.spoilerLevel,
-    gate: data.gate || undefined,
+    // 結構化閘優先；未設定時保留舊字串（不破壞既有資料 round-trip）
+    gate: data.gate ?? (data.legacyGateHint || undefined),
+    entityKey: data.entityKey.trim() || undefined,
+    illustrationId: data.illustrationId.trim() || undefined,
     layout: data.layout || undefined,
   };
 }
@@ -790,14 +853,15 @@ export default function VisualsEditorBody({
         ))}
       </div>
 
-      {/* 解鎖條件 */}
+      {/* 解鎖條件——舊自由文字欄位（僅提示文案，不參與求值）。
+          V-B 將以 GateConditionEditor 取代此輸入框 */}
       <label className="ned-field-label">解鎖條件 (劇情前置)</label>
       <input
         className="ned-field"
         type="text"
-        value={data.gate}
+        value={data.legacyGateHint}
         placeholder="哪段劇情解鎖此畫廊"
-        onChange={(e) => update({ gate: e.target.value })}
+        onChange={(e) => update({ legacyGateHint: e.target.value })}
       />
 
       {/* 展示風格 */}
