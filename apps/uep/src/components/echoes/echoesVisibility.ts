@@ -20,7 +20,7 @@
  */
 
 import { deriveSongUnlockFlag } from '../../audio';
-import type { ProgressState } from '../../progress';
+import type { ProgressState, ProgressTreeAdapter } from '../../progress';
 import { isLocked } from '../zone/contentVisibility';
 
 interface SongNodeLike {
@@ -33,17 +33,23 @@ interface SongNodeLike {
  *
  * @param node     歌曲節點（tree node 或 page，需有 id 與 metadata）
  * @param progress 進度狀態；null 時向後相容只判靜態鎖（SSR / 載入前）
+ * @param tree     ProgressTreeAdapter；傳入時 gate 走 tree-aware 求值
+ *                 （progressPage 鏈 + 父容器繼承）。IslandHost 的
+ *                 entity-song 路徑無 zone tree 可用，維持本頁 gate 求值
+ *                 ——容器繼承的 gate 在該路徑不生效（已知限制）
  */
 export function isSongUnlockedInZone(
   node: SongNodeLike,
-  progress: ProgressState | null | undefined
+  progress: ProgressState | null | undefined,
+  tree?: ProgressTreeAdapter
 ): boolean {
   // 靜態封存凌駕一切（含推導旗標與觀測者）
   if (node.metadata?.locked === true) return false;
 
   if (!progress) return !isLocked(node);
 
-  // 系統推導旗標（echo spot / 嵌入觸發播放時授予）
+  // 系統推導旗標（echo spot / 嵌入觸發播放時授予）——
+  // 已被授權聽過即解鎖，凌駕容器 gate
   const entityKey =
     typeof node.metadata?.entityKey === 'string' &&
     node.metadata.entityKey.trim()
@@ -54,7 +60,7 @@ export function isSongUnlockedInZone(
   }
 
   // gate 條件求值（無 gate = 天生解鎖；觀測者 bypass requiresFlags）
-  return !isLocked(node, progress);
+  return !isLocked(node, progress, tree ? node.id : undefined, tree);
 }
 
 /**

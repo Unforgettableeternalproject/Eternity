@@ -28,8 +28,8 @@ import {
 } from '../../audio';
 import { IslandUnlockObject, shouldMountIsland } from '../../islands';
 import { useReaderAuth } from '../../auth';
-import { useProgress } from '../../progress';
-import type { ProgressState } from '../../progress';
+import { useProgress, buildProgressTreeAdapter } from '../../progress';
+import type { ProgressState, ProgressTreeAdapter } from '../../progress';
 import { isSongQueueEligible, isSongUnlockedInZone } from './echoesVisibility';
 import './EchoesReader.css';
 import { parseEchoesData, type EchoesData } from '../editor/EchoesEditorBody';
@@ -721,32 +721,54 @@ function EchoesAudioPlayer({
  */
 function collectSongs(
   node: PageTreeNode,
-  progress: ProgressState | null
+  progress: ProgressState | null,
+  progressTree?: ProgressTreeAdapter
 ): PageTreeNode[] {
   const songs: PageTreeNode[] = [];
   for (const child of node.children || []) {
     if (isHidden(child)) continue;
     if (child.pageType === 'song') {
-      if (isSongUnlockedInZone(child, progress)) songs.push(child);
+      if (isSongUnlockedInZone(child, progress, progressTree))
+        songs.push(child);
     } else {
-      if (isLocked(child)) continue;
-      songs.push(...collectSongs(child, progress));
+      if (
+        isLocked(
+          child,
+          progress,
+          progressTree ? child.id : undefined,
+          progressTree
+        )
+      )
+        continue;
+      songs.push(...collectSongs(child, progress, progressTree));
     }
   }
   return songs;
 }
 
-/** 遞迴計算節點下所有可見（已解鎖）song 數量 */
+/** 遞迴計算節點下所有可見（已解鎖）song 數量——容器鎖定語意與 collectSongs 一致 */
 function countSongs(
   node: PageTreeNode,
-  progress: ProgressState | null
+  progress: ProgressState | null,
+  progressTree?: ProgressTreeAdapter
 ): number {
   let count = 0;
   for (const child of node.children || []) {
     if (isHidden(child)) continue;
     if (child.pageType === 'song') {
-      if (isSongUnlockedInZone(child, progress)) count++;
-    } else count += countSongs(child, progress);
+      if (isSongUnlockedInZone(child, progress, progressTree)) count++;
+    } else {
+      if (
+        isLocked(
+          child,
+          progress,
+          progressTree ? child.id : undefined,
+          progressTree
+        )
+      )
+        continue;
+      count += countSongs(child, progress, progressTree);
+    }
   }
   return count;
 }
@@ -789,14 +811,15 @@ function getClusterDef(id: string): ClusterDef | undefined {
 function getSongsInParentSubcat(
   tree: PageTreeNode[],
   songId: string,
-  progress: ProgressState | null
+  progress: ProgressState | null,
+  progressTree?: ProgressTreeAdapter
 ): PageTreeNode[] {
   // 從 songId 往上找到 parent subcategory
   function findParentAndCollect(node: PageTreeNode): PageTreeNode[] | null {
     for (const child of node.children || []) {
       if (child.id === songId) {
         // 找到了，收集同層的所有 songs
-        return collectSongs(node, progress);
+        return collectSongs(node, progress, progressTree);
       }
       const result = findParentAndCollect(child);
       if (result) return result;
@@ -815,10 +838,11 @@ function getSongsInParentSubcat(
 function countSongsInCluster(
   tree: PageTreeNode[],
   clusterId: string,
-  progress: ProgressState | null
+  progress: ProgressState | null,
+  progressTree?: ProgressTreeAdapter
 ): number {
   const cluster = findClusterNode(tree, clusterId);
-  return cluster ? countSongs(cluster, progress) : 0;
+  return cluster ? countSongs(cluster, progress, progressTree) : 0;
 }
 
 /** 渲染 landing HTML：把 card-grid 替換為集群卡片插入標記 */
@@ -933,6 +957,10 @@ function EchoesReaderInner() {
     walk(tree);
     return acc;
   }, [tree]);
+
+  // tree-aware gating 求值器（progressPage 鏈 + 父容器繼承）——
+  // 與 HistoryReader 同一套 adapter，歌曲解鎖判定據此消費
+  const progressTree = useMemo(() => buildProgressTreeAdapter(tree), [tree]);
 
   const pageLevelNodes = useMemo(
     () => flatPages.filter((p) => p.pageType === 'page'),
@@ -1214,7 +1242,7 @@ function EchoesReaderInner() {
   // === Prev/Next 歌曲 (同一 parent subcategory) ===
   const subcatSongs = useMemo(() => {
     if (!activeSongId || !tree.length) return [];
-    return getSongsInParentSubcat(tree, activeSongId, progress);
+    return getSongsInParentSubcat(tree, activeSongId, progress, progressTree);
   }, [tree, activeSongId, progress]);
 
   const songIndex = activeSongId
@@ -1280,7 +1308,8 @@ function EchoesReaderInner() {
                         const songCount = countSongsInCluster(
                           tree,
                           cluster.id,
-                          progress
+                          progress,
+                          progressTree
                         );
                         const orbCount = Math.max(songCount, 6);
                         // 內圈最多 40 個，超出的到外圈
@@ -1423,7 +1452,8 @@ function EchoesReaderInner() {
                   const songCount = countSongsInCluster(
                     tree,
                     cluster.id,
-                    progress
+                    progress,
+                    progressTree
                   );
                   const orbCount = Math.max(songCount, 6);
                   const innerCount = Math.min(orbCount, 40);
@@ -1582,7 +1612,9 @@ function EchoesReaderInner() {
     const subcatNodes = (clusterNode?.children || []).filter(
       (n) => n.pageType !== 'song' && n.pageType !== 'page' && !isHidden(n)
     );
-    const totalSongs = clusterNode ? countSongs(clusterNode, progress) : 0;
+    const totalSongs = clusterNode
+      ? countSongs(clusterNode, progress, progressTree)
+      : 0;
 
     return (
       <section className="echoes-cluster-page">
@@ -1637,11 +1669,11 @@ function EchoesReaderInner() {
           {/* 子分類卡片列表 — 從 tree 讀取 */}
           <div className="echoes-subcat-list">
             {subcatNodes.map((subcatNode, i) => {
-              const songCount = countSongs(subcatNode, progress);
+              const songCount = countSongs(subcatNode, progress, progressTree);
               const subcatHidden = isHidden(subcatNode);
               const subcatLocked = isLocked(subcatNode);
               const inaccessible = subcatHidden || subcatLocked;
-              const songs = collectSongs(subcatNode, progress);
+              const songs = collectSongs(subcatNode, progress, progressTree);
               return (
                 <button
                   key={subcatNode.id}
@@ -1756,7 +1788,7 @@ function EchoesReaderInner() {
       (c) =>
         c.pageType === 'song' &&
         !isHidden(c) &&
-        isSongUnlockedInZone(c, progress)
+        isSongUnlockedInZone(c, progress, progressTree)
     );
 
     return (
@@ -1812,7 +1844,7 @@ function EchoesReaderInner() {
                     <div className="echoes-subcat-name">{child.title}</div>
                   </div>
                   <span className="echoes-subcat-count">
-                    {countSongs(child, progress)} echoes
+                    {countSongs(child, progress, progressTree)} echoes
                   </span>
                   <span className="echoes-subcat-arrow" style={{ color }}>
                     →
@@ -1958,7 +1990,7 @@ function EchoesReaderInner() {
       tree.length > 0 &&
       (!songNode ||
         isHidden(songNode) ||
-        !isSongUnlockedInZone(songNode, progress))
+        !isSongUnlockedInZone(songNode, progress, progressTree))
     ) {
       return (
         <ZoneStateDisplay kind="not-found" message="找不到這枚回聲" large />

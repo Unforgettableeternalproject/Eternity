@@ -48,7 +48,9 @@ export function isHidden(node: HasMetadata): boolean {
  * 只有等鏈條件通過（前置全部 completed）後才顯示 static 🔒 表示
  * 「進度到了，但這一節被手動封存」。混合旗標與進度時以旗標鎖為主。
  *
- * 向後相容：無 progress 時只判靜態鎖（Visuals/Echoes 尚未接進度系統）。
+ * 向後相容：無 progress 時只判靜態鎖（SSR / 載入前，或 Storage 這類
+ * 尚未接進度系統的 zone）。Echoes 已接（tree-aware，經 echoesVisibility）；
+ * Visuals 於 S8 下半場接入。
  *
  * @param nodeId 傳入時啟用 tree-aware 求值（含 progressPage 鏈 + 容器繼承 + 遞迴 completed）
  * @param tree tree 適配器，與 nodeId 一同傳入才生效

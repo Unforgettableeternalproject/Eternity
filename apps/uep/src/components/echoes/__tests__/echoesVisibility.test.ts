@@ -6,7 +6,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { createInitialState } from '../../../progress';
+import {
+  buildProgressTreeAdapter,
+  createInitialState,
+} from '../../../progress';
 import type { ProgressState } from '../../../progress';
 import { isSongQueueEligible, isSongUnlockedInZone } from '../echoesVisibility';
 
@@ -110,6 +113,76 @@ describe('isSongUnlockedInZone', () => {
     expect(
       isSongUnlockedInZone(makeSong({ requiresFlags: ['x:y'] }), null)
     ).toBe(true);
+  });
+});
+
+describe('isSongUnlockedInZone — tree-aware（段 0 補修迴歸）', () => {
+  /**
+   * 07/13 finding 場景：cluster 標 progressPage → 歌曲經父容器繼承
+   * 排進同層完成鏈。舊版 isSongUnlockedInZone 不傳 tree，此鏈完全
+   * 不生效（歌曲提前曝光）。
+   */
+  function makeTree() {
+    const songA = {
+      id: 'echoes/areas/song-a',
+      pageType: 'song',
+      metadata: {},
+      children: [],
+    };
+    const songB = {
+      id: 'echoes/areas/song-b',
+      pageType: 'song',
+      metadata: {},
+      children: [],
+    };
+    const cluster = {
+      id: 'echoes/areas',
+      metadata: { progressPage: true },
+      children: [songA, songB],
+    };
+    const root = { id: 'echoes', metadata: {}, children: [cluster] };
+    return { songA, songB, tree: buildProgressTreeAdapter([root]) };
+  }
+
+  it('progressPage 容器的完成鏈：後曲未達成前曲 completion → 鎖定', () => {
+    const { songB, tree } = makeTree();
+    // 無 tree：本頁無 gate → 天生解鎖（舊行為，即 finding 所指缺陷）
+    expect(isSongUnlockedInZone(songB, makeProgress())).toBe(true);
+    // 有 tree：繼承進度鏈（依賴 completed:song-a）→ 鎖定
+    expect(isSongUnlockedInZone(songB, makeProgress(), tree)).toBe(false);
+  });
+
+  it('前曲 completion 達成（完整鏈）→ 後曲解鎖', () => {
+    const { songB, tree } = makeTree();
+    // 孤兒偵測語意：song-a 的 completion 合法需其自身鏈也成立
+    // （首曲依賴父 landing completed），故需給完整鏈
+    const progress = makeProgress({
+      flags: ['completed:echoes/areas', 'completed:echoes/areas/song-a'],
+      completedPageIds: ['echoes/areas', 'echoes/areas/song-a'],
+    });
+    expect(isSongUnlockedInZone(songB, progress, tree)).toBe(true);
+  });
+
+  it('首曲 fallback 依賴父 landing completion', () => {
+    const { songA, tree } = makeTree();
+    expect(isSongUnlockedInZone(songA, makeProgress(), tree)).toBe(false);
+    const progress = makeProgress({
+      flags: ['completed:echoes/areas'],
+      completedPageIds: ['echoes/areas'],
+    });
+    expect(isSongUnlockedInZone(songA, progress, tree)).toBe(true);
+  });
+
+  it('推導旗標凌駕進度鏈（已被授權聽過即解鎖）', () => {
+    const { songB, tree } = makeTree();
+    const progress = makeProgress({ flags: ['song:echoes/areas/song-b'] });
+    expect(isSongUnlockedInZone(songB, progress, tree)).toBe(true);
+  });
+
+  it('觀測者 bypass 進度鏈', () => {
+    const { songB, tree } = makeTree();
+    const progress = makeProgress({ view: 'observer', observerEver: true });
+    expect(isSongUnlockedInZone(songB, progress, tree)).toBe(true);
   });
 });
 
