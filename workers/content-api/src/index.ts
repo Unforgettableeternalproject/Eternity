@@ -25,6 +25,11 @@ import {
 import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
 import { findEntitySong, findSongById } from './echoes-song';
+import {
+  findEntityGallery,
+  findGalleryById,
+  findGalleryByIllustrationId,
+} from './visuals-gallery';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
 import { buildDiscordStats } from './widget-stats';
@@ -1656,6 +1661,55 @@ export default {
       const song = await findSongById(env.CONTENT_DB, id);
       return jsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- Visuals entity↔gallery 反查（S8 下半場 V-A.13：浮動幻影提示卡消費）----
+    // 同 echoes-song：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
+    if (path === '/api/visuals/entity-gallery' && request.method === 'GET') {
+      const key = url.searchParams.get('key')?.trim() ?? '';
+      if (!key) {
+        return jsonResponse(
+          { ok: false, error: 'Missing key parameter' },
+          400,
+          cors
+        );
+      }
+      const gallery = await findEntityGallery(env.CONTENT_DB, key);
+      return jsonResponse(
+        {
+          ok: true,
+          data: gallery ? { found: true, gallery } : { found: false },
+        },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- Visuals gallery 反查（Visual Clue 觸發時刷新過期快照）----
+    // ?id={pageId} 或 ?illustration={鑲框室插圖 ID}，擇一必填
+    if (path === '/api/visuals/gallery' && request.method === 'GET') {
+      const id = url.searchParams.get('id')?.trim() ?? '';
+      const illustration = url.searchParams.get('illustration')?.trim() ?? '';
+      if (!id && !illustration) {
+        return jsonResponse(
+          { ok: false, error: 'Missing id or illustration parameter' },
+          400,
+          cors
+        );
+      }
+      const gallery = id
+        ? await findGalleryById(env.CONTENT_DB, id)
+        : await findGalleryByIllustrationId(env.CONTENT_DB, illustration);
+      return jsonResponse(
+        {
+          ok: true,
+          data: gallery ? { found: true, gallery } : { found: false },
+        },
         200,
         cors,
         true
