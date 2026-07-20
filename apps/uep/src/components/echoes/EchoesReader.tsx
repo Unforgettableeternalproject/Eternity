@@ -1737,15 +1737,18 @@ function EchoesReaderInner() {
           <div className="echoes-subcat-list">
             {subcatNodes.map((subcatNode, i) => {
               const songCount = countSongs(subcatNode, progress, progressTree);
-              const subcatHidden = isHidden(subcatNode);
-              const subcatLocked = isLocked(subcatNode);
-              const inaccessible = subcatHidden || subcatLocked;
-              const songs = collectSongs(subcatNode, progress, progressTree);
+              const subcatLocked = !isContentNodeViewable(
+                subcatNode,
+                progress,
+                progressTree
+              );
+              const inaccessible = subcatLocked;
               return (
                 <button
                   key={subcatNode.id}
                   type="button"
                   className="echoes-subcat-card"
+                  disabled={inaccessible}
                   style={{
                     borderLeftColor: inaccessible
                       ? 'var(--line)'
@@ -1774,11 +1777,7 @@ function EchoesReaderInner() {
                     )}
                   </div>
                   <span className="echoes-subcat-count">
-                    {subcatHidden
-                      ? '— sealed —'
-                      : subcatLocked
-                        ? 'locked'
-                        : `${songCount} echoes`}
+                    {subcatLocked ? 'locked' : `${songCount} echoes`}
                   </span>
                   <span
                     className="echoes-subcat-arrow"
@@ -1926,28 +1925,54 @@ function EchoesReaderInner() {
           {/* 子分類列表 */}
           {childSubcats.length > 0 && (
             <div className="echoes-child-list">
-              {childSubcats.map((child) => (
-                <button
-                  key={child.id}
-                  type="button"
-                  className="echoes-subcat-card"
-                  style={{ borderLeftColor: color }}
-                  onClick={() => void navigateToContent(child.id)}
-                >
-                  <span className="echoes-subcat-num" style={{ color }}>
-                    →
-                  </span>
-                  <div className="echoes-subcat-info">
-                    <div className="echoes-subcat-name">{child.title}</div>
-                  </div>
-                  <span className="echoes-subcat-count">
-                    {countSongs(child, progress, progressTree)} echoes
-                  </span>
-                  <span className="echoes-subcat-arrow" style={{ color }}>
-                    →
-                  </span>
-                </button>
-              ))}
+              {childSubcats.map((child) => {
+                const childLocked = !isContentNodeViewable(
+                  child,
+                  progress,
+                  progressTree
+                );
+                return (
+                  <button
+                    key={child.id}
+                    type="button"
+                    className="echoes-subcat-card"
+                    disabled={childLocked}
+                    style={{
+                      borderLeftColor: childLocked ? 'var(--line)' : color,
+                      opacity: childLocked ? 0.5 : 1,
+                      fontStyle: childLocked ? 'italic' : 'normal',
+                      cursor: childLocked ? 'not-allowed' : 'pointer',
+                    }}
+                    onClick={() => {
+                      if (childLocked) return;
+                      void navigateToContent(child.id);
+                    }}
+                  >
+                    <span
+                      className="echoes-subcat-num"
+                      style={{ color: childLocked ? 'var(--ink-mute)' : color }}
+                    >
+                      {childLocked ? 'LOCK' : '→'}
+                    </span>
+                    <div className="echoes-subcat-info">
+                      <div className="echoes-subcat-name">{child.title}</div>
+                    </div>
+                    <span className="echoes-subcat-count">
+                      {childLocked
+                        ? 'locked'
+                        : `${countSongs(child, progress, progressTree)} echoes`}
+                    </span>
+                    <span
+                      className="echoes-subcat-arrow"
+                      style={{
+                        color: childLocked ? 'var(--ink-mute)' : color,
+                      }}
+                    >
+                      {childLocked ? 'LOCK' : '→'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 

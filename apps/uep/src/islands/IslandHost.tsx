@@ -132,7 +132,7 @@ export default function IslandHost() {
   // 推進流浪回聲島內提示；不授旗、不打斷目前播放。
   // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
   // 解鎖判定搭配 zone tree（fetchZoneProgressTree）走 tree-aware gate
-  // ——父容器 gate/progressPage 鏈生效；tree 取不到時降級本頁求值。
+  // ——父容器 gate/progressPage 鏈生效；tree 取不到時 fail-closed。
   useEffect(() => {
     let controller: AbortController | null = null;
     const onActivate = (event: Event) => {
@@ -170,7 +170,7 @@ export default function IslandHost() {
               },
             },
             progressNow,
-            zoneTree ?? undefined
+            zoneTree
           );
           const revisions = Array.isArray(song.spoilerRevisions)
             ? song.spoilerRevisions
@@ -220,7 +220,7 @@ export default function IslandHost() {
   // ——提示為主，按「展示」才切換投射（比照 Echoes 嵌入提示，不直接展示）。
   // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
   // gallery 閘搭配 zone tree（fetchZoneProgressTree）走 tree-aware 求值
-  // ——容器繼承生效；tree 取不到時降級本頁求值。
+  // ——容器繼承生效；tree 取不到時 fail-closed。
   useEffect(() => {
     let controller: AbortController | null = null;
     const onActivate = (event: Event) => {
@@ -257,7 +257,7 @@ export default function IslandHost() {
               },
             },
             progressRef.current,
-            zoneTree ?? undefined
+            zoneTree
           );
           // worker 回摘要欄位 → PhantomImage（V-D 起與 Visual Clue 共用）
           const images = parsePhantomImages(gallery.images);
