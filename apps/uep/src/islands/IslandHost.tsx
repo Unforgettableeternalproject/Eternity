@@ -50,9 +50,11 @@ import {
   pushPhantomSuggestion,
 } from './visuals/phantomBridge';
 import {
+  clearEchoSuggestion,
   isEchoSuggestionEligible,
   pushEchoSuggestion,
 } from './echoes/echoSuggestionBridge';
+import { fetchZoneProgressTree } from './zoneProgressTree';
 import {
   UEP_ECHO_PREVIEW_EVENT,
   buildEchoAudioUrl,
@@ -129,6 +131,8 @@ export default function IslandHost() {
   // entity-activate 的 Echoes 消費：只把「已收藏、非劇情歌、L0」的對應曲
   // 推進流浪回聲島內提示；不授旗、不打斷目前播放。
   // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
+  // 解鎖判定搭配 zone tree（fetchZoneProgressTree）走 tree-aware gate
+  // ——父容器 gate/progressPage 鏈生效；tree 取不到時降級本頁求值。
   useEffect(() => {
     let controller: AbortController | null = null;
     const onActivate = (event: Event) => {
@@ -137,14 +141,24 @@ export default function IslandHost() {
       if (!shouldMountIsland(progressRef.current, 'echoes')) return;
       controller?.abort();
       controller = new AbortController();
-      void fetch(
-        `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`,
-        { signal: controller.signal }
-      )
-        .then((response) => response.json())
-        .then((payload) => {
+      void Promise.all([
+        fetch(
+          `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`,
+          { signal: controller.signal }
+        ).then((response) => response.json()),
+        fetchZoneProgressTree('echoes'),
+      ])
+        .then(([payload, zoneTree]) => {
+          // async 落地後重驗——等待期間可能登出/停用 Echoes，此時不得
+          // 再推提示或展開島
+          if (!shouldMountIsland(progressRef.current, 'echoes')) return;
           const song = payload?.data?.song;
-          if (!payload?.ok || !song) return;
+          // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED ECHO
+          // 會殘留，誤導使用者以為與這次點擊的 entity 有關
+          if (!payload?.ok || !song) {
+            clearEchoSuggestion();
+            return;
+          }
           const progressNow = progressRef.current;
           const unlocked = isSongUnlockedInZone(
             {
@@ -155,7 +169,8 @@ export default function IslandHost() {
                 locked: song.locked,
               },
             },
-            progressNow
+            progressNow,
+            zoneTree ?? undefined
           );
           const revisions = Array.isArray(song.spoilerRevisions)
             ? song.spoilerRevisions
@@ -168,8 +183,10 @@ export default function IslandHost() {
               spoilerLevel,
               audioFile: song.audioFile,
             })
-          )
+          ) {
+            clearEchoSuggestion();
             return;
+          }
           const cluster = echoClusterStyle(song.clusterId || song.songType);
           pushEchoSuggestion({
             source: 'embed',
@@ -186,6 +203,8 @@ export default function IslandHost() {
         .catch((error: unknown) => {
           if ((error as { name?: string }).name !== 'AbortError') {
             // 對使用者靜默；entity 本身仍由 Terminal 正常處理。
+            // 反查失敗同樣清掉舊提示卡，避免殘留誤導。
+            clearEchoSuggestion();
           }
         });
     };
@@ -200,8 +219,8 @@ export default function IslandHost() {
   // gallery，只把「進島分館 + 已解鎖 + 有圖片」者推進浮動幻影島內提示卡
   // ——提示為主，按「展示」才切換投射（比照 Echoes 嵌入提示，不直接展示）。
   // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
-  // 此路徑無 zone tree：gallery 閘僅本頁 gate 求值（容器繼承不生效，
-  // 同 echoes entity-song 已知限制）。
+  // gallery 閘搭配 zone tree（fetchZoneProgressTree）走 tree-aware 求值
+  // ——容器繼承生效；tree 取不到時降級本頁求值。
   useEffect(() => {
     let controller: AbortController | null = null;
     const onActivate = (event: Event) => {
@@ -210,12 +229,16 @@ export default function IslandHost() {
       if (!shouldMountIsland(progressRef.current, 'visuals')) return;
       controller?.abort();
       controller = new AbortController();
-      void fetch(
-        `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`,
-        { signal: controller.signal }
-      )
-        .then((response) => response.json())
-        .then((payload) => {
+      void Promise.all([
+        fetch(
+          `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`,
+          { signal: controller.signal }
+        ).then((response) => response.json()),
+        fetchZoneProgressTree('visuals'),
+      ])
+        .then(([payload, zoneTree]) => {
+          // async 落地後重驗——等待期間可能登出/停用 Visuals
+          if (!shouldMountIsland(progressRef.current, 'visuals')) return;
           const gallery = payload?.data?.gallery;
           // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED VISUAL
           // 會殘留，誤導使用者以為與這次點擊的 entity 有關
@@ -233,7 +256,8 @@ export default function IslandHost() {
                 locked: gallery.locked,
               },
             },
-            progressRef.current
+            progressRef.current,
+            zoneTree ?? undefined
           );
           // worker 回摘要欄位 → PhantomImage（V-D 起與 Visual Clue 共用）
           const images = parsePhantomImages(gallery.images);
@@ -294,7 +318,8 @@ export default function IslandHost() {
   return createPortal(
     <>
       <IslandDock unlockedIds={activeIds} />
-      {echoPreview && (
+      {/* 通知卡限定 Echoes 島可用——事件落地後 Echoes 被停用時不得殘留 */}
+      {echoPreview && shouldMountIsland(progress, 'echoes') && (
         <SongPreviewCard track={echoPreview} onDismiss={dismissEchoPreview} />
       )}
       {openIds.map((id) => {

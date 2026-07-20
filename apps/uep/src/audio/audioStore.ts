@@ -245,6 +245,31 @@ function updateProgress(): void {
   }
 }
 
+/** 等 metadata 就緒後定位到比例位置（playAtFraction 用，沿 endSeek retry 模式） */
+function seekFractionWhenReady(
+  audio: HTMLAudioElement,
+  fraction: number
+): void {
+  const apply = (): boolean => {
+    if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+      audio.currentTime = fraction * audio.duration;
+      setState({
+        currentTime: audio.currentTime,
+        duration: audio.duration,
+        progress: fraction,
+      });
+      return true;
+    }
+    return false;
+  };
+  if (apply()) return;
+  const retry = () => {
+    apply();
+    audio.removeEventListener('loadedmetadata', retry);
+  };
+  audio.addEventListener('loadedmetadata', retry);
+}
+
 /** 等 metadata 就緒後定位（重載/插播恢復用，沿 endSeek retry 模式） */
 function seekWhenReady(audio: HTMLAudioElement, time: number): void {
   const apply = (): boolean => {
@@ -346,23 +371,40 @@ function loadSong(
   return audio;
 }
 
-/** 播放佇列頭；loop='all' 時當前曲回到佇列尾。回傳是否有曲可播 */
-function playQueueHead(): boolean {
-  const [next, ...rest] = state.playlist;
-  if (!next) return false;
-  let playlist = rest;
-  if (state.loop === 'all' && state.currentSongId && state.currentUrl) {
-    playlist = [
-      ...rest,
-      {
+/**
+ * loop='all' 換曲時要回到佇列尾的曲目。插播中「當前曲」是 Echo Spot
+ * 插播曲，不得污染正常佇列——回填來源改用快照裡使用者自己的曲目
+ * （與 recordCurrentForHistory 的歷史來源同語意）。
+ */
+function loopRequeueItem(): AudioQueueItem | null {
+  if (state.loop !== 'all') return null;
+  const snapshot = state.interruptionSnapshot;
+  if (snapshot) {
+    return snapshot.songId && snapshot.url
+      ? {
+          songId: snapshot.songId,
+          url: snapshot.url,
+          ...(snapshot.title ? { title: snapshot.title } : {}),
+          ...(snapshot.accent ? { accent: snapshot.accent } : {}),
+        }
+      : null;
+  }
+  return state.currentSongId && state.currentUrl
+    ? {
         songId: state.currentSongId,
         url: state.currentUrl,
         ...(state.currentTitle ? { title: state.currentTitle } : {}),
         ...(state.currentAccent ? { accent: state.currentAccent } : {}),
-      },
-    ];
-  }
-  setState({ playlist });
+      }
+    : null;
+}
+
+/** 播放佇列頭；loop='all' 時當前曲回到佇列尾。回傳是否有曲可播 */
+function playQueueHead(): boolean {
+  const [next, ...rest] = state.playlist;
+  if (!next) return false;
+  const requeue = loopRequeueItem();
+  setState({ playlist: requeue ? [...rest, requeue] : rest });
   uepAudio.play(next.songId, next.url, next.title, next.accent);
   return true;
 }
@@ -426,6 +468,41 @@ export const uepAudio = {
     if (recordHistory) recordCurrentForHistory(songId);
     const audio = loadSong(songId, url, title, accent);
     if (!audio) return Promise.resolve(false);
+    cancelAnimationFrame(rafId);
+    return audio
+      .play()
+      .then(() => {
+        setState({ isPlaying: true });
+        persistNow();
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(updateProgress);
+        return true;
+      })
+      .catch(() => {
+        setState({ isPlaying: false });
+        return false;
+      });
+  },
+
+  /**
+   * 從指定比例位置開始播放（原子 play-at-position）。
+   * Reader 對「非當前歌曲」拖 seek 用：舊做法（endSeek 舊曲 → play 新曲
+   * → 50ms 後 seek）會先動到舊曲位置，且 metadata 晚於 50ms 時新曲
+   * seek 遺失——這裡改用 loadedmetadata retry，定位不再依賴固定延遲。
+   */
+  playAtFraction(
+    songId: string,
+    url: string,
+    fraction: number,
+    title?: string,
+    accent?: string
+  ): Promise<boolean> {
+    // 呼叫端可能在拖曳手勢中切換目標曲，先重置 seek 旗標避免 RAF 卡住
+    isSeeking = false;
+    recordCurrentForHistory(songId);
+    const audio = loadSong(songId, url, title, accent);
+    if (!audio) return Promise.resolve(false);
+    seekFractionWhenReady(audio, Math.max(0, Math.min(1, fraction)));
     cancelAnimationFrame(rafId);
     return audio
       .play()

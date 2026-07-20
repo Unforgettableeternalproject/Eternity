@@ -39,6 +39,21 @@ export function pushEchoSuggestion(track: EchoPreviewTrack): void {
   );
 }
 
+/**
+ * 清除提示（detail null）：entity 反查查無對應曲、不合格或失敗時呼叫
+ * ——否則上一張 RELATED ECHO 卡殘留，誤導使用者以為與新點擊的
+ * entity 有關（對位 visuals 的 clearPhantomSuggestion）。
+ */
+export function clearEchoSuggestion(): void {
+  if (typeof window === 'undefined') return;
+  window.__uepEchoSuggestion = null;
+  window.dispatchEvent(
+    new CustomEvent<EchoPreviewTrack | null>(UEP_ECHO_SUGGESTION_EVENT, {
+      detail: null,
+    })
+  );
+}
+
 export function consumeEchoSuggestion(): EchoPreviewTrack | null {
   if (typeof window === 'undefined') return null;
   const track = window.__uepEchoSuggestion || null;

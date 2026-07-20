@@ -35,8 +35,8 @@ interface SongNodeLike {
  * @param progress 進度狀態；null 時向後相容只判靜態鎖（SSR / 載入前）
  * @param tree     ProgressTreeAdapter；傳入時 gate 走 tree-aware 求值
  *                 （progressPage 鏈 + 父容器繼承）。IslandHost 的
- *                 entity-song 路徑無 zone tree 可用，維持本頁 gate 求值
- *                 ——容器繼承的 gate 在該路徑不生效（已知限制）
+ *                 entity-song 路徑經 fetchZoneProgressTree 取得 zone
+ *                 tree；tree 取不到時降級本頁 gate 求值
  */
 export function isSongUnlockedInZone(
   node: SongNodeLike,

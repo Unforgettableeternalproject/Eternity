@@ -90,6 +90,7 @@ function visitStorageKey(pageId: string, spotId: string): string {
 interface EchoSongRefreshPayload {
   audioFile?: unknown;
   title?: unknown;
+  entityKey?: unknown;
   clusterId?: unknown;
   songType?: unknown;
   duration?: unknown;
@@ -125,6 +126,13 @@ export async function refreshEchoSpot(
     return {
       ...spot,
       songUrlKey: song.audioFile,
+      // entityKey 以現行資料為準——授旗必須用現行值，否則 Admin 改綁
+      // entityKey 後會授出對不上收藏判定的舊旗（假成功）；API 回 null
+      // 代表現已無綁定，同樣以現行為準
+      entityKey:
+        typeof song.entityKey === 'string' && song.entityKey.trim()
+          ? song.entityKey
+          : null,
       title:
         typeof song.title === 'string' && song.title ? song.title : spot.title,
       clusterId:
@@ -174,8 +182,12 @@ export function shouldDowngradeEchoSpot({
 /**
  * History 掃描線的 Echo Spot 消費端。
  *
- * 不變量：授旗永遠先做；播放與提示卡才受島掛載、手勢、快速捲動與
- * resume jump 限制。這確保讀者尚未解鎖島時，收藏進度仍會累積。
+ * 不變量：授旗永遠無條件執行（不受島掛載、手勢、快速捲動與 resume
+ * jump 限制），確保讀者尚未解鎖島時收藏進度仍會累積——但授旗必須
+ * 等 by-id 反查落地後以**現行 entityKey** 進行（Admin 改綁後快照
+ * entityKey 會授出對不上收藏判定的舊旗）；反查失敗才退回快照值。
+ * 播放與提示卡另在反查落地後重驗島掛載——等待期間登出/停用 Echoes
+ * 時不得再插播。
  */
 export function useEchoSpots({
   pageId,
@@ -230,12 +242,6 @@ export function useEchoSpots({
       const spot = readEchoSpot(info.element);
       if (!spot) return;
 
-      const progressNow = progressRef.current;
-      const unlockFlag = deriveSongUnlockFlag(spot.songId, spot.entityKey);
-      const newlyUnlocked = !isSongCollected(unlockFlag, progressNow);
-      // 收藏旗標不受島掛載或 autoplay 限制。
-      getProgressManager().grantFlags([unlockFlag]);
-
       if (triggeredRef.current.has(spot.spotId)) return;
       triggeredRef.current.add(spot.spotId);
       try {
@@ -244,8 +250,6 @@ export function useEchoSpots({
         // 隱私模式下 sessionStorage 可能不可寫；記憶體 Set 仍可去重。
       }
 
-      if (!shouldMountIsland(progressNow, 'echoes')) return;
-
       // 誤觸判定輸入在觸發當下同步擷取——反查有網路延遲，
       // 事後再讀 scrollVelocity 會讓快速捲動的誤觸判定失真。
       const resumeJump = resumeJumpRef.current;
@@ -253,7 +257,20 @@ export function useEchoSpots({
       const visitToken = visitTokenRef.current;
 
       void refreshEchoSpot(apiBase, spot).then((effective) => {
+        // 授旗以反查後的**現行 entityKey** 進行（反查失敗 effective
+        // 退回快照，行為不劣於前）；不受島掛載、visitToken 限制——
+        // 通過 spot 即算收藏，離頁也不取消。
+        const unlockFlag = deriveSongUnlockFlag(
+          effective.songId,
+          effective.entityKey
+        );
+        const newlyUnlocked = !isSongCollected(unlockFlag, progressRef.current);
+        getProgressManager().grantFlags([unlockFlag]);
+
         if (visitTokenRef.current !== visitToken) return;
+        // 反查落地後重驗島掛載——等待期間登出/停用 Echoes 時，audio
+        // 已被 stop()，此時再 interrupt 等於復活播放
+        if (!shouldMountIsland(progressRef.current, 'echoes')) return;
 
         const isStory =
           effective.songType === 'story' || effective.clusterId === 'stories';

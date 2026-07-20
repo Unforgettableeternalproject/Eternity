@@ -537,12 +537,13 @@ function EchoesAudioPlayer({
       return;
     }
     setSeekProg(null);
-    // 一律呼叫 endSeek 重置 isSeekingRef，避免殘留阻塞 RAF 進度更新
-    a.endSeek(val);
-    if (!isMe && audioUrl && !locked) {
-      // 歌曲尚未播放：先啟動再 seek
-      a.play(songId, audioUrl, title, color);
-      setTimeout(() => a.seek(val), 50);
+    if (isMe) {
+      // endSeek 同時重置 isSeekingRef，避免殘留阻塞 RAF 進度更新
+      a.endSeek(val);
+    } else if (audioUrl && !locked) {
+      // 非當前歌曲：原子 play-at-position——不得先 endSeek 動到
+      // 全域當前曲，也不依賴固定延遲 seek（metadata 晚到會遺失定位）
+      a.playAtFraction(songId, audioUrl, val, title, color);
     }
   };
 
@@ -807,6 +808,32 @@ function getClusterDef(id: string): ClusterDef | undefined {
   return CLUSTERS.find((c) => c.id === id);
 }
 
+/**
+ * content 視圖守門：`?page=` deep link 可帶任意 echoes ID，必須集中驗
+ * node 存在、pageType、hidden 與 tree-aware gate——song 一律拒絕
+ * （song 有自己的 `?song=` 防護，經 content 路徑渲染等於繞過解鎖判定）。
+ */
+export function isContentNodeViewable(
+  node: PageTreeNode | undefined,
+  progress: ProgressState | null,
+  progressTree?: ProgressTreeAdapter
+): boolean {
+  if (!node) return false;
+  if (
+    node.pageType === 'song' ||
+    node.pageType === 'homepage' ||
+    node.pageType === 'zone'
+  )
+    return false;
+  if (isHidden(node)) return false;
+  return !isLocked(
+    node,
+    progress,
+    progressTree ? node.id : undefined,
+    progressTree
+  );
+}
+
 /** 從樹中取得指定節點 ID 所屬的最近 subcategory 的所有歌曲（用於 prev/next）*/
 function getSongsInParentSubcat(
   tree: PageTreeNode[],
@@ -908,7 +935,11 @@ function EchoesReaderInner() {
   const [songLoading, setSongLoading] = useState(false);
   const [songError, setSongError] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
   const [transitionKey, setTransitionKey] = useState(0);
+  // request identity（快速導航時舊回應不得覆蓋新頁）——song/content 各一條序號
+  const songFetchSeq = useRef(0);
+  const contentFetchSeq = useRef(0);
 
   // === Spoiler ===
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -1108,22 +1139,29 @@ function EchoesReaderInner() {
   }
 
   async function fetchSong(id: string) {
+    const seq = ++songFetchSeq.current;
     setSongLoading(true);
     setSongError(null);
+    // 換曲先清舊頁——快速導航時舊回應不得以 stale 內容頂著新 URL
+    setCurrentSongPage(null);
     try {
       const res = await fetch(`${API_BASE}/api/content/${id}`);
+      if (seq !== songFetchSeq.current) return;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as {
         ok: boolean;
         data: Page;
         error?: string;
       };
+      if (seq !== songFetchSeq.current) return;
       if (!json.ok) throw new Error(json.error || 'API returned ok=false');
       setCurrentSongPage(json.data);
     } catch (err) {
-      setSongError(err instanceof Error ? err.message : String(err));
+      if (seq === songFetchSeq.current) {
+        setSongError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
-      setSongLoading(false);
+      if (seq === songFetchSeq.current) setSongLoading(false);
     }
   }
 
@@ -1160,24 +1198,53 @@ function EchoesReaderInner() {
     setActiveContentId(pageId);
     setActiveSongId(null);
     setCurrentSongPage(null);
+    // 換頁先清舊頁與錯誤——B 載入失敗不得在 B 的 URL 下殘留 A 的內容
+    setCurrentContentPage(null);
+    setContentError(null);
     // 推導所屬 cluster
     const clusterId = findClusterForNode(tree, pageId);
     if (clusterId) {
       setActiveClusterId(clusterId);
     }
     restoreScroll(`content:${pageId}`);
-    setContentLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/content/${pageId}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { ok: boolean; data: Page };
-      if (json.ok) setCurrentContentPage(json.data);
-    } catch (err) {
-      console.error('Failed to load content page:', err);
-    } finally {
+    // deep link 守門：不可視 node（song/hidden/locked/不存在）不 fetch
+    // ——公開內容端點不擋 hidden，先 fetch 再判等於已洩漏。
+    // renderContent 另有同規則的渲染層防禦（progress 變化即時反應）。
+    const targetNode = flatPages.find((p) => p.id === pageId);
+    if (
+      tree.length > 0 &&
+      !isContentNodeViewable(targetNode, progress, progressTree)
+    ) {
       setContentLoading(false);
       setTransitionKey((k) => k + 1);
       setNavPending(false);
+      if (pushState) pushUrl({ page: pageId.replace(/^echoes\//, '') });
+      return;
+    }
+    const seq = ++contentFetchSeq.current;
+    setContentLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/content/${pageId}`);
+      if (seq !== contentFetchSeq.current) return; // 已導航到其他頁
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        ok: boolean;
+        data: Page;
+        error?: string;
+      };
+      if (seq !== contentFetchSeq.current) return;
+      if (!json.ok) throw new Error(json.error || 'API returned ok=false');
+      setCurrentContentPage(json.data);
+    } catch (err) {
+      if (seq === contentFetchSeq.current) {
+        setContentError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      if (seq === contentFetchSeq.current) {
+        setContentLoading(false);
+        setTransitionKey((k) => k + 1);
+        setNavPending(false);
+      }
     }
     if (pushState)
       pushUrl({
@@ -1764,9 +1831,39 @@ function EchoesReaderInner() {
   // Content 視圖（subcategory / cluster — 比照 History 的閱讀視圖）
   // ────────────────────────────────────────────────────────────────
   function renderContent() {
+    // 渲染層守門（與 navigateToContent 的 deep link 守門同規則）：
+    // song / hidden / tree-aware locked / 不存在的 node 一律 not-found，
+    // progress 變化（如鎖回）時即時反應
+    if (
+      tree.length > 0 &&
+      activeContentId &&
+      !isContentNodeViewable(
+        flatPages.find((p) => p.id === activeContentId),
+        progress,
+        progressTree
+      )
+    ) {
+      return (
+        <ZoneStateDisplay kind="not-found" message="找不到這個頁面" large />
+      );
+    }
     if (contentLoading) {
       return (
         <ZoneStateDisplay kind="loading" message="正在讀取頁面..." large />
+      );
+    }
+    if (contentError) {
+      return (
+        <ZoneStateDisplay
+          kind="error"
+          message={`頁面讀取失敗：${contentError}`}
+          onRetry={
+            activeContentId
+              ? () => void navigateToContent(activeContentId, false)
+              : undefined
+          }
+          large
+        />
       );
     }
     if (!currentContentPage) return null;

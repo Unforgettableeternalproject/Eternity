@@ -30,6 +30,14 @@ export interface AudioContextValue {
   duration: number;
   volume: number;
   play: (songId: string, url: string, title?: string, accent?: string) => void;
+  /** 從指定比例位置原子啟動播放（非當前曲拖 seek 用） */
+  playAtFraction: (
+    songId: string,
+    url: string,
+    fraction: number,
+    title?: string,
+    accent?: string
+  ) => void;
   pause: () => void;
   toggle: (
     songId: string,
@@ -51,6 +59,7 @@ const AudioCtx = createContext<AudioContextValue>({
   duration: 0,
   volume: 1,
   play: () => {},
+  playAtFraction: () => {},
   pause: () => {},
   toggle: () => {},
   seek: () => {},
@@ -81,6 +90,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       volume: state.volume,
       play: (songId, url, title, accent) =>
         getAudioStore().play(songId, url, title, accent),
+      playAtFraction: (songId, url, fraction, title, accent) =>
+        void getAudioStore().playAtFraction(
+          songId,
+          url,
+          fraction,
+          title,
+          accent
+        ),
       pause: () => getAudioStore().pause(),
       toggle: (songId, url, title, accent) =>
         getAudioStore().toggle(songId, url, title, accent),

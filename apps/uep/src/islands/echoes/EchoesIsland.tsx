@@ -176,8 +176,12 @@ export default function EchoesIsland() {
     const pending = consumeEchoSuggestion();
     if (pending) setSuggestion(pending);
     const onSuggestion = (event: Event) => {
-      const detail = (event as CustomEvent<EchoPreviewTrack>).detail;
-      if (!detail) return;
+      const detail = (event as CustomEvent<EchoPreviewTrack | null>).detail;
+      // detail null = 清空提示（entity 反查查無/不合格/失敗）
+      if (!detail) {
+        setSuggestion(null);
+        return;
+      }
       window.__uepEchoSuggestion = null;
       setSuggestion(detail);
     };
@@ -250,16 +254,28 @@ export default function EchoesIsland() {
     const item = state.playlist[index];
     if (!item) return;
     let playlist = state.playlist.filter((_, i) => i !== index);
-    if (state.loop === 'all' && state.currentSongId && state.currentUrl) {
-      playlist = [
-        ...playlist,
-        {
-          songId: state.currentSongId,
-          url: state.currentUrl,
-          ...(state.currentTitle ? { title: state.currentTitle } : {}),
-          ...(state.currentAccent ? { accent: state.currentAccent } : {}),
-        },
-      ];
+    if (state.loop === 'all') {
+      // 插播中「當前曲」是 Echo Spot 插播曲，不得污染正常佇列——
+      // 回填來源改用快照裡使用者自己的曲目（同 store playQueueHead 語意）
+      const snap = state.interruptionSnapshot;
+      const requeue = snap
+        ? snap.songId && snap.url
+          ? {
+              songId: snap.songId,
+              url: snap.url,
+              ...(snap.title ? { title: snap.title } : {}),
+              ...(snap.accent ? { accent: snap.accent } : {}),
+            }
+          : null
+        : state.currentSongId && state.currentUrl
+          ? {
+              songId: state.currentSongId,
+              url: state.currentUrl,
+              ...(state.currentTitle ? { title: state.currentTitle } : {}),
+              ...(state.currentAccent ? { accent: state.currentAccent } : {}),
+            }
+          : null;
+      if (requeue) playlist = [...playlist, requeue];
     }
     store.setPlaylist(playlist);
     store.play(item.songId, item.url, item.title, item.accent);
@@ -449,8 +465,11 @@ export default function EchoesIsland() {
           type="button"
           className="uep-eisland__ctl"
           onClick={() => store.next()}
-          disabled={state.playlist.length === 0}
-          title="下一首"
+          // 插播中佇列空仍可按——store.next() 此時的語意是恢復被中斷的曲目
+          disabled={state.playlist.length === 0 && !interrupting}
+          title={
+            interrupting && state.playlist.length === 0 ? '結束插播' : '下一首'
+          }
           aria-label="下一首"
         >
           <svg className="uep-eisland__ctl-svg" viewBox="0 0 16 16" aria-hidden>

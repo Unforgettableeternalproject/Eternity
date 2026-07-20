@@ -651,6 +651,86 @@ describe('插播（echo spot）', () => {
     expect(raw).not.toBeNull();
     expect('interruptionSnapshot' in (raw as object)).toBe(false);
   });
+
+  it('【回歸 #8】插播中 next 且 loop=all → 回填快照原曲，Echo Spot 不進佇列', async () => {
+    const { uepAudio } = await freshStore();
+    await uepAudio.play('a', 'ua', '甲');
+    uepAudio.setLoop('all');
+    uepAudio.enqueue({ songId: 'b', url: 'ub' });
+    await uepAudio.interrupt('spot', 'uspot', '插播曲');
+    uepAudio.next();
+    await flush();
+    const s = uepAudio.getState();
+    expect(s.currentSongId).toBe('b');
+    // 回到佇列尾的是使用者原曲 a，不是插播曲 spot
+    expect(s.playlist.map((i) => i.songId)).toEqual(['a']);
+    expect(s.playlist).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ songId: 'spot' })])
+    );
+    expect(s.interruptionSnapshot).toBeNull();
+  });
+
+  it('【回歸 #8】插播前無曲且 loop=all → next 不回填任何曲目', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.setLoop('all');
+    uepAudio.enqueue({ songId: 'b', url: 'ub' });
+    await uepAudio.interrupt('spot', 'uspot');
+    uepAudio.next();
+    await flush();
+    const s = uepAudio.getState();
+    expect(s.currentSongId).toBe('b');
+    expect(s.playlist).toEqual([]);
+  });
+});
+
+describe('playAtFraction（原子 play-at-position）', () => {
+  it('metadata 已就緒 → 立即定位並播放', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua');
+    await flush();
+    const audio = lastAudio();
+    audio.duration = 200;
+    await uepAudio.playAtFraction('a', 'ua', 0.5);
+    expect(audio.currentTime).toBe(100);
+    expect(uepAudio.getState().progress).toBe(0.5);
+    expect(uepAudio.getState().isPlaying).toBe(true);
+  });
+
+  it('【回歸 #7】對非當前曲定位 → 不動舊曲，metadata 晚到仍套用定位', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua', '甲');
+    await flush();
+    const audio = lastAudio();
+    audio.duration = 200;
+    uepAudio.seek(0.25); // 舊曲 a 在 50 秒
+    const oldTime = audio.currentTime;
+
+    // 換播 b 並定位到 0.8——載入瞬間 duration 尚未回報
+    audio.duration = 0;
+    void uepAudio.playAtFraction('b', 'ub', 0.8, '乙');
+    await flush();
+    expect(uepAudio.getState().currentSongId).toBe('b');
+    // 舊做法會先 endSeek 動到 a 的 currentTime；新做法完全不碰
+    expect(oldTime).toBe(50);
+
+    // metadata 晚到（超過舊做法的 50ms 視窗）→ 定位仍套用
+    audio.duration = 300;
+    audio.emit('loadedmetadata');
+    expect(audio.currentTime).toBe(240);
+    expect(uepAudio.getState().progress).toBe(0.8);
+  });
+
+  it('播放被 autoplay 拒絕 → 回傳 false 且 isPlaying=false', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.play('a', 'ua');
+    await flush();
+    lastAudio().play.mockImplementationOnce(() =>
+      Promise.reject(new Error('NotAllowedError'))
+    );
+    const played = await uepAudio.playAtFraction('b', 'ub', 0.3);
+    expect(played).toBe(false);
+    expect(uepAudio.getState().isPlaying).toBe(false);
+  });
 });
 
 describe('生命週期', () => {

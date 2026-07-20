@@ -18,7 +18,10 @@ import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import ProgressMarkerNode from './ProgressMarkerNode';
-import EchoSpotNode, { type EchoSpotAttributes } from './EchoSpotNode';
+import EchoSpotNode, {
+  collectEchoSpotIssues,
+  type EchoSpotAttributes,
+} from './EchoSpotNode';
 import EchoSongPicker, { type EchoSongChoice } from './EchoSongPicker';
 import VisualClueNode, {
   collectVisualClueIssues,
@@ -483,6 +486,16 @@ export default function RichEditor({
         getToast().error(
           `視覺線索驗證未通過：${clueIssues[0].message}` +
             (clueIssues.length > 1 ? `（共 ${clueIssues.length} 項）` : '')
+        );
+        return;
+      }
+      // Echo Spot spotId 唯一性驗證（S8 全區驗證 #9）：複製貼上沿用同
+      // spotId，前台單次造訪去重會誤併兩個 spot——存檔前擋下
+      const spotIssues = collectEchoSpotIssues(editor.state.doc);
+      if (spotIssues.length > 0) {
+        getToast().error(
+          `回聲點驗證未通過：${spotIssues[0]}` +
+            (spotIssues.length > 1 ? `（共 ${spotIssues.length} 項）` : '')
         );
         return;
       }

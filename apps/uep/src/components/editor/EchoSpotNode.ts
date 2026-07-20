@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { ECHO_SPOT_ROLE } from '../../progress/markers';
 
 /** Echo Spot 在持久化 HTML 中的 data-role。 */
@@ -24,6 +25,37 @@ declare module '@tiptap/core' {
       setEchoSpot: (attrs: EchoSpotAttributes) => ReturnType;
     };
   }
+}
+
+/**
+ * 掃描文件收集 Echo Spot 問題（存檔前呼叫，阻擋壞資料進 D1）：
+ * spotId 必須非空且全文唯一——複製貼上會複製 spotId，重複時前台
+ * useEchoSpots 的單次造訪去重會把兩個 spot 當同一個，第二個永遠
+ * 不觸發。沿 collectVisualClueIssues 的存檔閘模式。
+ */
+export function collectEchoSpotIssues(doc: PMNode): string[] {
+  const issues: string[] = [];
+  const seen = new Map<string, number>();
+  doc.descendants((node) => {
+    if (node.type.name !== 'echoSpot') return true;
+    const spotId =
+      typeof node.attrs.spotId === 'string' ? node.attrs.spotId.trim() : '';
+    if (!spotId) {
+      issues.push('有回聲點缺少 spotId，請刪除後重新插入');
+      return true;
+    }
+    seen.set(spotId, (seen.get(spotId) ?? 0) + 1);
+    return true;
+  });
+  for (const [spotId, count] of seen) {
+    if (count > 1) {
+      issues.push(
+        `回聲點 spotId「${spotId.slice(0, 12)}」重複（${count} 個）——` +
+          '複製貼上會沿用同一 id，請刪除重複的回聲點後重新插入'
+      );
+    }
+  }
+  return issues;
 }
 
 /**

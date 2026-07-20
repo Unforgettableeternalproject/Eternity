@@ -41,9 +41,12 @@ const audioMock = vi.hoisted(() => ({
 }));
 const grantFlags = vi.hoisted(() => vi.fn());
 const dispatchSpy = vi.hoisted(() => vi.fn());
+const islandMock = vi.hoisted(() => ({ mounted: true }));
 
 vi.mock('../../../audio', () => ({
-  deriveSongUnlockFlag: (songId: string) => `song:${songId}`,
+  // 帶 entityKey 的旗標格式——驗證授旗用「現行」entityKey（#2 回歸）
+  deriveSongUnlockFlag: (songId: string, entityKey?: string | null) =>
+    entityKey ? `entity:${entityKey}` : `song:${songId}`,
   getAudioStore: () => ({
     interrupt: audioMock.interrupt,
     getState: () => ({ interruptionSnapshot: null }),
@@ -52,7 +55,7 @@ vi.mock('../../../audio', () => ({
   resolveSpoilerLevel: () => 0,
 }));
 vi.mock('../../../islands/islandRuntime', () => ({
-  shouldMountIsland: () => true,
+  shouldMountIsland: () => islandMock.mounted,
 }));
 vi.mock('../../../progress', () => ({
   getProgressManager: () => ({ grantFlags }),
@@ -215,6 +218,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
     audioMock.interrupt.mockClear();
     audioMock.interruptResult = true;
     audioMock.collected = false;
+    islandMock.mounted = true;
     grantFlags.mockClear();
     dispatchSpy.mockClear();
     // 預設離線：反查退回快照，既有案例行為與反查前一致
@@ -335,6 +339,50 @@ describe('useEchoSpots 提示卡發送時機', () => {
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'spot' })
     );
+    unmount();
+  });
+
+  it('【回歸 #2】Admin 改綁 entityKey → 授旗用反查後的現行值，不用快照', async () => {
+    stubSongFetch({
+      audioFile: 'audio/x.mp3',
+      entityKey: 'current-key',
+      spoilerLevel: 0,
+    });
+    const element = spotElement();
+    (element as HTMLElement).dataset.entityKey = 'stale-key';
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(element));
+    });
+    expect(grantFlags).toHaveBeenCalledWith(['entity:current-key']);
+    unmount();
+  });
+
+  it('【回歸 #2】現行已解除 entityKey 綁定 → 授旗退回 songId 旗標', async () => {
+    stubSongFetch({
+      audioFile: 'audio/x.mp3',
+      entityKey: null,
+      spoilerLevel: 0,
+    });
+    const element = spotElement();
+    (element as HTMLElement).dataset.entityKey = 'stale-key';
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(element));
+    });
+    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    unmount();
+  });
+
+  it('【回歸 #3】島不可掛載（登出/停用）→ 授旗仍發生，但不插播不發卡', async () => {
+    islandMock.mounted = false;
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(dispatchSpy).not.toHaveBeenCalled();
     unmount();
   });
 });
