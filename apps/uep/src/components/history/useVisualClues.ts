@@ -70,12 +70,21 @@ export function collectVisualClues(container: Element): VisualClueEntry[] {
     if ((position & Node.DOCUMENT_POSITION_FOLLOWING) === 0) continue;
     const targetKey = startEl.getAttribute('data-target-key')?.trim() || '';
     if (!targetKey) continue;
+    const targetType: VisualClueEntry['targetType'] =
+      startEl.getAttribute('data-target-type') === 'illustration'
+        ? 'illustration'
+        : 'entity';
+    // 起訖目標必須一致（同編輯器 collectVisualClueIssues 規則）——
+    // 不一致代表資料損壞（如手改 HTML），整組略過而非照 start 執行
+    const endKey = endEl.getAttribute('data-target-key')?.trim() || '';
+    const endType =
+      endEl.getAttribute('data-target-type') === 'illustration'
+        ? 'illustration'
+        : 'entity';
+    if (endKey !== targetKey || endType !== targetType) continue;
     entries.push({
       clueId,
-      targetType:
-        startEl.getAttribute('data-target-type') === 'illustration'
-          ? 'illustration'
-          : 'entity',
+      targetType,
       targetKey,
       galleryId: startEl.getAttribute('data-gallery-id')?.trim() || '',
       title: startEl.getAttribute('data-gallery-title')?.trim() || '',

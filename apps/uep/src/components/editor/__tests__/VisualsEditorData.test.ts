@@ -67,6 +67,28 @@ describe('parseVisualsData — gate 遷移', () => {
     expect(data.gateHint).toBe('');
   });
 
+  it('images 依 sortOrder 正規化——編輯器 index 0 與 runtime 排序後第一張一致', () => {
+    // 匯入/舊資料的陣列順序可能與 sortOrder 不一致；未正規化時
+    // 編輯器會把「第一張恆等式」鎖在錯的圖片上
+    const data = parseVisualsData({
+      images: [
+        { id: 'b', file: 'images/b.png', caption: '', sortOrder: 1 },
+        { id: 'a', file: 'images/a.png', caption: '', sortOrder: 0 },
+      ],
+    });
+    expect(data.images.map((img) => img.id)).toEqual(['a', 'b']);
+  });
+
+  it('images 無 sortOrder（視為 0）時穩定排序保持原順序', () => {
+    const data = parseVisualsData({
+      images: [
+        { id: 'x', file: 'images/x.png', caption: '' },
+        { id: 'y', file: 'images/y.png', caption: '' },
+      ],
+    });
+    expect(data.images.map((img) => img.id)).toEqual(['x', 'y']);
+  });
+
   it('entityKey / illustrationId 解析（非字串防禦）', () => {
     expect(parseVisualsData({ entityKey: 'xavier' }).entityKey).toBe('xavier');
     expect(parseVisualsData({ illustrationId: 'scene-1' }).illustrationId).toBe(

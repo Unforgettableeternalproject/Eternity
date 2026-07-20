@@ -129,7 +129,15 @@ export const LAYOUT_OPTIONS = [
 export function parseVisualsData(metadata: Record<string, any>): VisualsData {
   const rawGate = metadata?.gate;
   return {
-    images: Array.isArray(metadata?.images) ? metadata.images : [],
+    // 依 sortOrder 正規化陣列順序（穩定排序，與 runtime 的
+    // resolveGalleryImages 同構）——編輯器以 index 0 落實「第一張圖
+    // 恆等式」，匯入/舊資料的陣列順序與 sortOrder 不一致時，未正規化
+    // 會鎖錯圖片
+    images: Array.isArray(metadata?.images)
+      ? [...metadata.images].sort(
+          (a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0)
+        )
+      : [],
     group: metadata?.group || '',
     // 物件 → 結構化閘（唯讀鏡像）；字串 → 舊資料靜默失效
     gate: normalizeGateObject(rawGate),

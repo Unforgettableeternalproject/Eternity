@@ -20,6 +20,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { isGalleryUnlockedInZone } from '../../components/visuals/visualsVisibility';
 import { getApiBase } from '../../lib/apiBase';
 import { useProgress } from '../../progress';
 import { resolveGalleryImages } from '../../visuals';
@@ -93,10 +94,11 @@ export default function VisualsIsland() {
     const pending = consumePhantomSuggestion();
     if (pending) setSuggestion(pending);
     const onSuggestion = (event: Event) => {
-      const detail = (event as CustomEvent<PhantomGallery>).detail;
-      if (!detail) return;
+      // detail null = 清除提示（entity 啟用反查失敗／不合格時，避免
+      // 舊卡殘留誤導與新 entity 有關）
+      const detail = (event as CustomEvent<PhantomGallery | null>).detail;
       window.__uepPhantomSuggestion = null;
-      setSuggestion(detail);
+      setSuggestion(detail ?? null);
     };
     window.addEventListener(UEP_PHANTOM_SUGGESTION_EVENT, onSuggestion);
     return () =>
@@ -110,10 +112,37 @@ export default function VisualsIsland() {
     setSuggestion(null);
   }
 
+  /**
+   * gallery 閘再驗證（進度變化即時重算）：投射只在來源端把關一次，
+   * pristineOnly 這類條件可在投射後失效——閘不再通過時整島呈封印態，
+   * 不繼續展示圖片。無 zone tree，本頁 gate 求值（同 entity-song
+   * 已知限制）；推導旗標（clue 授旗）可維持解鎖、static locked 優先。
+   * 缺 gate/locked 快照的舊投射視為無條件（向後相容）。
+   */
+  const galleryUnlocked = useMemo(
+    () =>
+      !gallery ||
+      isGalleryUnlockedInZone(
+        {
+          id: gallery.id,
+          metadata: {
+            entityKey: gallery.entityKey ?? null,
+            gate: gallery.gate ?? null,
+            locked: gallery.locked === true,
+          },
+        },
+        progress
+      ),
+    [gallery, progress]
+  );
+
   /** 三態求值（同 Reader 路徑；進度變化即時重算） */
   const items: PhantomImageView[] = useMemo(
-    () => (gallery ? resolveGalleryImages(gallery.images, progress) : []),
-    [gallery, progress]
+    () =>
+      gallery && galleryUnlocked
+        ? resolveGalleryImages(gallery.images, progress)
+        : [],
+    [gallery, galleryUnlocked, progress]
   );
 
   /** 提示卡（有無投射都要能出現——嵌入提示可能先於任何投射） */
@@ -172,7 +201,11 @@ export default function VisualsIsland() {
         </span>
       </div>
 
-      {items.length === 0 ? (
+      {!galleryUnlocked ? (
+        <div className="uep-visland__placeholder">
+          <span aria-hidden>⛉</span> 這個畫廊的封印又閉合了，畫框暫時蒙上了霧。
+        </div>
+      ) : items.length === 0 ? (
         <div className="uep-visland__placeholder">這個畫廊還沒有影像。</div>
       ) : (
         <>

@@ -60,6 +60,7 @@ import { useVisualClues, type VisualClueEntry } from './useVisualClues';
 import VisualClueBookmarks from './VisualClueBookmarks';
 import { fetchClueGallery } from './visualClueGallery';
 import { deriveGalleryUnlockFlag } from '../../visuals';
+import { isGalleryUnlockedInZone } from '../visuals/visualsVisibility';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
 import './HistoryReader.css';
@@ -390,10 +391,17 @@ export default function HistoryReader() {
   // 書籤點擊 → 反查現行 gallery → 快照目前投射 → 強制展示（V-D.30）
   const handleVisualClueClick = (clue: VisualClueEntry) => {
     const pageIdAtClick = currentId;
+    // 點擊當下即登記——反查回應前就通過訖點時，end callback 才看得到
+    // 這筆點擊（dismiss 正常落定），回應落地時亦以此判斷展示時機是否已過
+    clickedCluesRef.current.add(clue.clueId);
     void fetchClueGallery(API_BASE, clue).then((gallery) => {
       // 反查期間換頁：不再屬於這次閱讀情境，放棄展示
       if (pageIdAtClick !== currentIdRef.current) return;
+      // 反查期間已通過訖點（end callback 已 dismiss 這筆點擊）：
+      // 展示時機已過，不再插播——投射不會殘留到離頁才恢復
+      if (!clickedCluesRef.current.has(clue.clueId)) return;
       if (!gallery) {
+        clickedCluesRef.current.delete(clue.clueId);
         window.__uepToastManager?.info('這個線索指向的畫廊已不存在。');
         return;
       }
@@ -402,15 +410,23 @@ export default function HistoryReader() {
         !isPhantomEligibleDivision(gallery.divisionId) ||
         images.length === 0
       ) {
+        clickedCluesRef.current.delete(clue.clueId);
         window.__uepToastManager?.info('這個線索指向的畫廊目前無法展示。');
         return;
       }
       // clue 授旗（V-D.32，對位 echo spot 推導旗標）：展示即授予
       // gallery 解鎖旗標；原未解鎖（本頁 gate 求值，無 tree——同
-      // entity-song 已知限制）則附解鎖提示通知
+      // entity-song 已知限制；推導旗標已解鎖者不重複通知）則附解鎖提示
       const progressNow = getProgressManager().getState();
-      const wasLocked = isLocked(
-        { metadata: { gate: gallery.gate, locked: gallery.locked } },
+      const wasLocked = !isGalleryUnlockedInZone(
+        {
+          id: gallery.id,
+          metadata: {
+            entityKey: gallery.entityKey ?? null,
+            gate: gallery.gate,
+            locked: gallery.locked,
+          },
+        },
         progressNow
       );
       getProgressManager().grantFlags([
@@ -421,12 +437,14 @@ export default function HistoryReader() {
           `「${gallery.title}」的封印解開了，收入浮動幻影的畫框。`
         );
       }
-      clickedCluesRef.current.add(clue.clueId);
       pushClueGallery({
         id: gallery.id,
         title: gallery.title,
         entityKey: gallery.entityKey ?? null,
         divisionId: gallery.divisionId ?? null,
+        // gallery 閘快照——島依 progress 變化重驗（pristineOnly 可失效）
+        gate: gallery.gate ?? null,
+        locked: gallery.locked === true,
         images,
         source: 'clue',
         relatedHistoryIds: pageIdAtClick ? [pageIdAtClick] : [],

@@ -19,8 +19,13 @@ const START = (
   extra = 'data-target-type="entity" data-gallery-id="visuals/profiles/x" data-gallery-title="艾斯維爾"'
 ) =>
   `<div data-role="visual-clue-start" data-clue-id="${clueId}" data-target-key="${targetKey}" ${extra}></div>`;
-const END = (clueId: string) =>
-  `<div data-role="visual-clue-end" data-clue-id="${clueId}"></div>`;
+// 真實持久化 HTML 的訖點錨點同樣帶目標屬性（renderHTML 起訖共用 attrs）
+const END = (
+  clueId: string,
+  targetKey = 'xavier-colsono',
+  extra = 'data-target-type="entity"'
+) =>
+  `<div data-role="visual-clue-end" data-clue-id="${clueId}" data-target-key="${targetKey}" ${extra}></div>`;
 
 describe('collectVisualClues — 配對與孤兒容錯', () => {
   it('正常成對回傳完整 entry（目標引用讀自起點錨點）', () => {
@@ -46,9 +51,24 @@ describe('collectVisualClues — 配對與孤兒容錯', () => {
         'c1',
         'scene-1',
         'data-target-type="illustration" data-gallery-title="初光"'
-      ) + END('c1')
+      ) + END('c1', 'scene-1', 'data-target-type="illustration"')
     );
     expect(collectVisualClues(container)[0].targetType).toBe('illustration');
+  });
+
+  it('起訖目標 key 不一致（資料損壞）整組略過', () => {
+    const container = makeContainer(
+      `${START('c1', 'xavier-colsono')}${END('c1', 'someone-else')}`
+    );
+    expect(collectVisualClues(container)).toEqual([]);
+  });
+
+  it('起訖目標種類不一致整組略過', () => {
+    const container = makeContainer(
+      `${START('c1', 'scene-1', 'data-target-type="illustration"')}` +
+        END('c1', 'scene-1', 'data-target-type="entity"')
+    );
+    expect(collectVisualClues(container)).toEqual([]);
   });
 
   it('孤兒起點（無訖點）整組略過', () => {

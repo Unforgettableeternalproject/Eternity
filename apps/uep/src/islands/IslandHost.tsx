@@ -28,7 +28,7 @@ import type { EntityActivateDetail } from '../embed';
 import { useProgress } from '../progress';
 import { resolveSpoilerLevel } from '../audio';
 import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
-import { isLocked } from '../components/zone/contentVisibility';
+import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
@@ -44,6 +44,7 @@ import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
 import SongPreviewCard from './echoes/SongPreviewCard';
 import {
+  clearPhantomSuggestion,
   isPhantomSuggestionEligible,
   parsePhantomImages,
   pushPhantomSuggestion,
@@ -216,9 +217,22 @@ export default function IslandHost() {
         .then((response) => response.json())
         .then((payload) => {
           const gallery = payload?.data?.gallery;
-          if (!payload?.ok || !gallery) return;
-          const unlocked = !isLocked(
-            { metadata: { gate: gallery.gate, locked: gallery.locked } },
+          // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED VISUAL
+          // 會殘留，誤導使用者以為與這次點擊的 entity 有關
+          if (!payload?.ok || !gallery) {
+            clearPhantomSuggestion();
+            return;
+          }
+          // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
+          const unlocked = isGalleryUnlockedInZone(
+            {
+              id: gallery.id,
+              metadata: {
+                entityKey: gallery.entityKey ?? null,
+                gate: gallery.gate,
+                locked: gallery.locked,
+              },
+            },
             progressRef.current
           );
           // worker 回摘要欄位 → PhantomImage（V-D 起與 Visual Clue 共用）
@@ -229,13 +243,18 @@ export default function IslandHost() {
               unlocked,
               imageCount: images.length,
             })
-          )
+          ) {
+            clearPhantomSuggestion();
             return;
+          }
           pushPhantomSuggestion({
             id: gallery.id,
             title: gallery.title,
             entityKey: gallery.entityKey ?? null,
             divisionId: gallery.divisionId ?? null,
+            // gallery 閘快照——島依 progress 變化重驗（pristineOnly 可失效）
+            gate: gallery.gate ?? null,
+            locked: gallery.locked === true,
             images,
             source: 'embed',
           });
@@ -244,6 +263,8 @@ export default function IslandHost() {
         .catch((error: unknown) => {
           if ((error as { name?: string }).name !== 'AbortError') {
             // 對使用者靜默；entity 本身仍由 Terminal 正常處理。
+            // 反查失敗同樣清掉舊提示卡，避免殘留誤導。
+            clearPhantomSuggestion();
           }
         });
     };

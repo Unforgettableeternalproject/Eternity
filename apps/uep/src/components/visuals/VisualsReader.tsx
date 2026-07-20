@@ -42,6 +42,7 @@ import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 
 import SpriteViewer from './SpriteViewer';
 import VisualsPhantom from './VisualsPhantom';
+import { isGalleryUnlockedInZone } from './visualsVisibility';
 import type { PhantomVariant } from './VisualsPhantom';
 
 import './VisualsReader.css';
@@ -427,6 +428,7 @@ function VisualsReaderInner() {
   const [activeGalleryId, setActiveGalleryId] = useState<string | null>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
   const [galleryPage, setGalleryPage] = useState<Page | null>(null);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
   const [divisionPage, setDivisionPage] = useState<Page | null>(null);
   const [subcatPage, setSubcatPage] = useState<Page | null>(null);
 
@@ -657,25 +659,46 @@ function VisualsReaderInner() {
     setBootNavPending(false);
   }
 
+  /** gallery fetch 請求序號——快速切換時只有最新請求可落地 */
+  const galleryFetchSeq = useRef(0);
+
   async function navigateToGallery(pageId: string, push = true) {
     saveScroll();
     setView('gallery');
     setActiveGalleryId(pageId);
     setCorridorIdx(0);
+    // 先清上一頁資料——避免以新 gallery 的閘搭配舊 gallery 的內容渲染
+    setGalleryPage(null);
+    setGalleryError(null);
     const divDef = findParentDivision(tree, pageId);
     if (divDef) setActiveDivisionId(divDef.id);
     restoreScroll(`gallery:${pageId}`);
     if (push) pushUrl({ page: pageId.replace(/^visuals\//, '') });
+    // hidden 完全不對前台公開（contentVisibility 契約）：不 fetch 內容，
+    // renderGallery 依 tree node 呈「不存在」
+    const node = findNodeById(tree, pageId);
+    if (node && isHidden(node)) {
+      setBootNavPending(false);
+      return;
+    }
     // Fetch page
+    const seq = ++galleryFetchSeq.current;
     try {
       const slug = pageId.replace('visuals/', '');
       const res = await fetch(`${API_BASE}/api/content/visuals/${slug}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.ok) setGalleryPage(json.data);
+      if (seq !== galleryFetchSeq.current) return;
+      if (!res.ok) {
+        setGalleryError(`伺服器回應異常 (${res.status})`);
+        return;
       }
-    } catch {
-      /* ignore */
+      const json = await res.json();
+      if (seq !== galleryFetchSeq.current) return;
+      if (json.ok) setGalleryPage(json.data);
+      else setGalleryError('畫廊資料載入失敗');
+    } catch (err) {
+      if (seq === galleryFetchSeq.current) {
+        setGalleryError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setBootNavPending(false);
     }
@@ -1541,8 +1564,13 @@ function VisualsReaderInner() {
                     : [];
 
                   // gallery 閘（tree-aware）：未過時一切不可見——
-                  // 連縮圖與張數都不外洩，整卡呈鎖定態（不變量 1）
-                  const gateLocked = isLocked(g, progress, g.id, progressTree);
+                  // 連縮圖與張數都不外洩，整卡呈鎖定態（不變量 1）。
+                  // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
+                  const gateLocked = !isGalleryUnlockedInZone(
+                    g,
+                    progress,
+                    progressTree
+                  );
                   if (gateLocked) {
                     return (
                       <button
@@ -1696,6 +1724,9 @@ function VisualsReaderInner() {
       title: galleryPage.title,
       entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
       divisionId: galleryPage.id.split('/')[1] ?? null,
+      // gallery 閘快照——島依 progress 變化重驗（pristineOnly 可失效）
+      gate: meta.gate ?? null,
+      locked: meta.locked === true,
       images,
       source: 'mirror',
     });
@@ -1704,18 +1735,54 @@ function VisualsReaderInner() {
 
   // ─── RENDER: Gallery ───
   function renderGallery() {
+    const galleryNode = activeGalleryId
+      ? findNodeById(tree, activeGalleryId)
+      : null;
+
+    // hidden 完全不對前台公開（contentVisibility 契約）：列表已排除，
+    // 這裡擋 `?page=` deep link 直達——一律視為不存在，不洩漏內容
+    if (galleryNode && isHidden(galleryNode)) {
+      return (
+        <div className="visuals-gallery-page">
+          <ZoneStateDisplay kind="error" message="這個畫廊不存在。" large />
+          <div className="visuals-back-bar">
+            <button
+              className="visuals-back-btn"
+              onClick={() => navigateToLanding()}
+            >
+              ← 返回幻影重現室
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // 載入失敗：顯示錯誤與重試，不殘留上一頁內容
+    if (galleryError) {
+      return (
+        <div className="visuals-gallery-page">
+          <ZoneStateDisplay
+            kind="error"
+            message={galleryError}
+            onRetry={() =>
+              activeGalleryId && void navigateToGallery(activeGalleryId, false)
+            }
+            large
+          />
+        </div>
+      );
+    }
+
     if (!galleryPage) return <ZoneStateDisplay kind="loading" />;
 
     const meta = galleryPage.metadata || {};
 
     // gallery 閘 deep-link 守門（不變量 1）：閘未過時整個 gallery 呈鎖定態
     // ——不渲染任何圖片（含鎖定佔位）。列表入口已擋，這裡擋 URL 直達。
-    const galleryNode = activeGalleryId
-      ? findNodeById(tree, activeGalleryId)
-      : null;
+    // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
     if (
       galleryNode &&
-      isLocked(galleryNode, progress, galleryNode.id, progressTree)
+      !isGalleryUnlockedInZone(galleryNode, progress, progressTree)
     ) {
       return (
         <div className="visuals-gallery-page">

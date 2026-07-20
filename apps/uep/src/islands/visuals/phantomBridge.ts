@@ -39,6 +39,15 @@ export interface PhantomGallery {
   entityKey?: string | null;
   /** 頁面 id 第二段（profiles/illustrations/...） */
   divisionId?: string | null;
+  /**
+   * gallery 閘快照（投射當下的 metadata.gate；unknown——worker 回寬鬆
+   * 型別，narrowing 交給 parseGateCondition）。島依 progress 變化重驗
+   * gallery 閘（pristineOnly 可在投射後失效）——缺快照的舊投射視為
+   * 無條件（向後相容）。
+   */
+  gate?: unknown;
+  /** 靜態鎖快照（metadata.locked）——重驗時凌駕推導旗標 */
+  locked?: boolean;
   images: PhantomImage[];
   /** 展示來源：映照 / entity 嵌入 / Visual Clue（V-D） */
   source: 'mirror' | 'embed' | 'clue';
@@ -283,4 +292,19 @@ export function consumePhantomSuggestion(): PhantomGallery | null {
   const pending = window.__uepPhantomSuggestion || null;
   window.__uepPhantomSuggestion = null;
   return pending;
+}
+
+/**
+ * 清除 pending 提示並廣播（detail null）。entity 啟用反查失敗／不合格
+ * 時呼叫——否則島上一張 RELATED VISUAL 卡仍留著，會讓使用者誤以為
+ * 舊 gallery 與新點擊的 entity 有關。
+ */
+export function clearPhantomSuggestion(): void {
+  if (typeof window === 'undefined') return;
+  window.__uepPhantomSuggestion = null;
+  window.dispatchEvent(
+    new CustomEvent<PhantomGallery | null>(UEP_PHANTOM_SUGGESTION_EVENT, {
+      detail: null,
+    })
+  );
 }
