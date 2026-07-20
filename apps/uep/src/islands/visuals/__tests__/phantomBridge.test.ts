@@ -7,10 +7,14 @@ import {
   clearPhantomGallery,
   consumePhantomSuggestion,
   getPhantomGallery,
+  hasClueSnapshot,
   isPhantomEligibleDivision,
   isPhantomSuggestionEligible,
+  parsePhantomImages,
+  pushClueGallery,
   pushPhantomGallery,
   pushPhantomSuggestion,
+  restoreFromClueSnapshot,
 } from '../phantomBridge';
 import type { PhantomGallery } from '../phantomBridge';
 
@@ -145,6 +149,117 @@ describe('目前投射（current）', () => {
     clearPhantomGallery();
     expect(getPhantomGallery()).toBeNull();
     expect(consumePhantomSuggestion()).toBeNull();
+  });
+});
+
+describe('Visual Clue 快照/復原（V-D，沿 interruptionSnapshot 語意）', () => {
+  const clueGallery = (id = 'visuals/illustrations/scenes/dawn') =>
+    makeGallery({ id, source: 'clue', relatedHistoryIds: ['history/u/1-1'] });
+
+  it('插播快照目前投射，恢復時回到原投射', () => {
+    const original = makeGallery();
+    pushPhantomGallery(original);
+    pushClueGallery(clueGallery());
+    expect(getPhantomGallery()?.source).toBe('clue');
+    expect(hasClueSnapshot()).toBe(true);
+    restoreFromClueSnapshot();
+    expect(getPhantomGallery()?.id).toBe(original.id);
+    expect(hasClueSnapshot()).toBe(false);
+  });
+
+  it('插播前一片空白 → 恢復回空狀態並廣播 null（島清空）', () => {
+    pushClueGallery(clueGallery());
+    const listener = vi.fn();
+    window.addEventListener(UEP_PHANTOM_SHOW_EVENT, listener);
+    restoreFromClueSnapshot();
+    window.removeEventListener(UEP_PHANTOM_SHOW_EVENT, listener);
+    expect(getPhantomGallery()).toBeNull();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toBeNull();
+  });
+
+  it('快照不巢狀：clue 插播中再點另一個 clue 不重拍快照', () => {
+    const original = makeGallery();
+    pushPhantomGallery(original);
+    pushClueGallery(clueGallery('visuals/illustrations/scenes/a'));
+    pushClueGallery(clueGallery('visuals/illustrations/scenes/b'));
+    restoreFromClueSnapshot();
+    // 恢復點是使用者自己的投射，不是上一個 clue
+    expect(getPhantomGallery()?.id).toBe(original.id);
+  });
+
+  it('插播中手動接管（映照/嵌入）= 快照丟棄，恢復 no-op', () => {
+    pushPhantomGallery(makeGallery());
+    pushClueGallery(clueGallery());
+    const takeover = makeGallery({
+      id: 'visuals/profiles/cast/rival',
+      source: 'mirror',
+    });
+    pushPhantomGallery(takeover);
+    expect(hasClueSnapshot()).toBe(false);
+    restoreFromClueSnapshot();
+    expect(getPhantomGallery()?.id).toBe(takeover.id);
+  });
+
+  it('無快照時恢復 no-op（從未插播）', () => {
+    const current = makeGallery();
+    pushPhantomGallery(current);
+    restoreFromClueSnapshot();
+    expect(getPhantomGallery()?.id).toBe(current.id);
+  });
+
+  it('pushClueGallery 一律以 clue 來源展示', () => {
+    pushClueGallery(makeGallery({ source: 'mirror' }));
+    expect(getPhantomGallery()?.source).toBe('clue');
+  });
+
+  it('clearPhantomGallery（登出/reset）一併清除快照', () => {
+    pushPhantomGallery(makeGallery());
+    pushClueGallery(clueGallery());
+    clearPhantomGallery();
+    expect(hasClueSnapshot()).toBe(false);
+  });
+});
+
+describe('parsePhantomImages — worker payload 摘要防禦解析', () => {
+  it('正常摘要轉為 PhantomImage（含三態欄位）', () => {
+    const images = parsePhantomImages([
+      {
+        id: 'img-1',
+        file: 'images/a.png',
+        caption: '正面',
+        sortOrder: 0,
+        initialState: 'partial',
+        partialGate: { requiresFlags: ['met:heroine'] },
+      },
+    ]);
+    expect(images).toEqual([
+      {
+        id: 'img-1',
+        file: 'images/a.png',
+        caption: '正面',
+        sortOrder: 0,
+        initialState: 'partial',
+        partialGate: { requiresFlags: ['met:heroine'] },
+      },
+    ]);
+  });
+
+  it('壞項過濾：非物件、缺 file、非法 initialState', () => {
+    const images = parsePhantomImages([
+      null,
+      'oops',
+      { id: 'no-file', caption: 'x' },
+      { file: 'images/ok.png', initialState: 'weird' },
+    ]);
+    expect(images).toHaveLength(1);
+    expect(images[0].file).toBe('images/ok.png');
+    expect(images[0].initialState).toBeUndefined();
+  });
+
+  it('非陣列輸入回傳空陣列', () => {
+    expect(parsePhantomImages(undefined)).toEqual([]);
+    expect(parsePhantomImages({})).toEqual([]);
   });
 });
 

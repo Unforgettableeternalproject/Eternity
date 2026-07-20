@@ -45,9 +45,9 @@ import { useIslandRuntimeState } from './useIslands';
 import SongPreviewCard from './echoes/SongPreviewCard';
 import {
   isPhantomSuggestionEligible,
+  parsePhantomImages,
   pushPhantomSuggestion,
 } from './visuals/phantomBridge';
-import type { PhantomImage } from './visuals/phantomBridge';
 import {
   isEchoSuggestionEligible,
   pushEchoSuggestion,
@@ -221,40 +221,8 @@ export default function IslandHost() {
             { metadata: { gate: gallery.gate, locked: gallery.locked } },
             progressRef.current
           );
-          const rawImages: unknown[] = Array.isArray(gallery.images)
-            ? gallery.images
-            : [];
-          // worker 回摘要欄位（initialState 為寬鬆 string），narrowing 交給
-          // resolveImageState 的防禦性解析——這裡只組型別相容的圖片清單
-          const images = rawImages
-            .filter(
-              (img): img is Record<string, unknown> =>
-                !!img && typeof img === 'object'
-            )
-            .map(
-              (img): PhantomImage => ({
-                id: typeof img.id === 'string' ? img.id : '',
-                file: typeof img.file === 'string' ? img.file : '',
-                caption: typeof img.caption === 'string' ? img.caption : '',
-                sortOrder:
-                  typeof img.sortOrder === 'number' ? img.sortOrder : 0,
-                ...(img.initialState === 'locked' ||
-                img.initialState === 'partial' ||
-                img.initialState === 'unlocked'
-                  ? { initialState: img.initialState }
-                  : {}),
-                ...(img.lockGate && typeof img.lockGate === 'object'
-                  ? { lockGate: img.lockGate as PhantomImage['lockGate'] }
-                  : {}),
-                ...(img.partialGate && typeof img.partialGate === 'object'
-                  ? {
-                      partialGate:
-                        img.partialGate as PhantomImage['partialGate'],
-                    }
-                  : {}),
-              })
-            )
-            .filter((img) => img.file);
+          // worker 回摘要欄位 → PhantomImage（V-D 起與 Visual Clue 共用）
+          const images = parsePhantomImages(gallery.images);
           if (
             !isPhantomSuggestionEligible({
               divisionId: gallery.divisionId,

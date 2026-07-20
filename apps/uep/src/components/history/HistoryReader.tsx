@@ -32,7 +32,11 @@ import {
   resolveResumeMarkerIdx,
   PROGRESS_CHANGE_EVENT,
 } from '../../progress';
-import type { ProgressTreeAdapter, ProgressChangeDetail } from '../../progress';
+import type {
+  ProgressTreeAdapter,
+  ProgressChangeDetail,
+  MarkerPassedInfo,
+} from '../../progress';
 import {
   LOST_BOOKMARK_OPEN_GATE_EVENT,
   dismissLostBookmark,
@@ -41,6 +45,10 @@ import {
   mountLostBookmarkTestBridge,
   rollLostBookmark,
   settleLostBookmark,
+  isPhantomEligibleDivision,
+  parsePhantomImages,
+  pushClueGallery,
+  restoreFromClueSnapshot,
   shouldMountIsland,
   unlockIsland,
   useIslandRuntimeState,
@@ -49,6 +57,7 @@ import LostBookmarkGate from './LostBookmarkGate';
 import { useEchoSpots } from './useEchoSpots';
 import { useVisualClues, type VisualClueEntry } from './useVisualClues';
 import VisualClueBookmarks from './VisualClueBookmarks';
+import { fetchClueGallery } from './visualClueGallery';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
 import './HistoryReader.css';
@@ -364,6 +373,64 @@ export default function HistoryReader() {
     };
   }, []);
 
+  // 本次頁面造訪中「已點擊、尚未通過訖點」的 clue——通過訖點時觸發
+  // 快照恢復；換頁時整組重置（恢復由 unmount 路徑兜底）。
+  const clickedCluesRef = useRef(new Set<string>());
+  // 反查回應落地時檢查是否仍在同一頁（非同步競態防禦）
+  const currentIdRef = useRef(currentId);
+  currentIdRef.current = currentId;
+
+  // 書籤點擊 → 反查現行 gallery → 快照目前投射 → 強制展示（V-D.30）
+  const handleVisualClueClick = (clue: VisualClueEntry) => {
+    const pageIdAtClick = currentId;
+    void fetchClueGallery(API_BASE, clue).then((gallery) => {
+      // 反查期間換頁：不再屬於這次閱讀情境，放棄展示
+      if (pageIdAtClick !== currentIdRef.current) return;
+      if (!gallery) {
+        window.__uepToastManager?.info('這個線索指向的畫廊已不存在。');
+        return;
+      }
+      const images = parsePhantomImages(gallery.images);
+      if (
+        !isPhantomEligibleDivision(gallery.divisionId) ||
+        images.length === 0
+      ) {
+        window.__uepToastManager?.info('這個線索指向的畫廊目前無法展示。');
+        return;
+      }
+      clickedCluesRef.current.add(clue.clueId);
+      pushClueGallery({
+        id: gallery.id,
+        title: gallery.title,
+        entityKey: gallery.entityKey ?? null,
+        divisionId: gallery.divisionId ?? null,
+        images,
+        source: 'clue',
+        relatedHistoryIds: pageIdAtClick ? [pageIdAtClick] : [],
+      });
+      // 島已展開（書籤僅於展開時渲染）——把焦點推到最上層
+      getIslandRuntime().open('visuals');
+    });
+  };
+
+  // 通過訖點 = clue 結束：已點擊者恢復快照（掃描線 role callback 驅動）
+  const onVisualClueMarkerPassed = (info: MarkerPassedInfo) => {
+    if (info.role !== 'visual-clue-end') return;
+    const clueId = info.element.getAttribute('data-clue-id')?.trim() || '';
+    if (!clueId || !clickedCluesRef.current.has(clueId)) return;
+    clickedCluesRef.current.delete(clueId);
+    restoreFromClueSnapshot();
+  };
+
+  // 換頁/離開文章：clue 插播中一律恢復快照（同 echo spot 離頁恢復），
+  // 已點擊集合重置——「重新造訪頁面可再現」的邊界即是頁面活動
+  useEffect(() => {
+    clickedCluesRef.current = new Set();
+    return () => {
+      restoreFromClueSnapshot();
+    };
+  }, [currentId]);
+
   // 掃描線：追蹤文章閱讀進度（Epic 2）。滾動容器是內層
   // .history-content div，root 必須指定 scrollRef 而非 viewport；
   // articleHtml 變更時 observer 整組重建。
@@ -381,7 +448,11 @@ export default function HistoryReader() {
       !contentError &&
       !bookmarkGateOpen
     ),
-    onMarkerPassed: onEchoMarkerPassed,
+    // echo spot 插播與 visual clue 訖點恢復共用同一條掃描線
+    onMarkerPassed: (info) => {
+      onEchoMarkerPassed(info);
+      onVisualClueMarkerPassed(info);
+    },
   });
 
   // Visual Clue 側邊書籤（S8 下半場 V-D）：掃描線在起訖區間內時浮現。
@@ -405,11 +476,6 @@ export default function HistoryReader() {
       !bookmarkGateOpen
     ),
   });
-
-  // 書籤點擊 → 強制展示 gallery（快照/復原 + 授旗於 V-D.30/.32 接線）
-  const handleVisualClueClick = (clue: VisualClueEntry) => {
-    void clue; // V-D.30：反查現行 gallery → 快照目前投射 → pushPhantomGallery
-  };
 
   const beginResumeJump = () => {
     resumeJumpRef.current = true;

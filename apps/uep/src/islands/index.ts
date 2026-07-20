@@ -84,6 +84,10 @@ export {
   clearPhantomGallery,
   pushPhantomSuggestion,
   consumePhantomSuggestion,
+  pushClueGallery,
+  restoreFromClueSnapshot,
+  hasClueSnapshot,
+  parsePhantomImages,
 } from './visuals/phantomBridge';
 export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
 

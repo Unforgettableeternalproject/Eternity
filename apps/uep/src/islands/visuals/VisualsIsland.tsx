@@ -80,9 +80,9 @@ export default function VisualsIsland() {
 
   useEffect(() => {
     const onShow = (event: Event) => {
-      const detail = (event as CustomEvent<PhantomGallery>).detail;
-      if (!detail) return;
-      setGallery(detail);
+      // detail null = 清空投射（clue 插播前一片空白的恢復路徑，V-D）
+      const detail = (event as CustomEvent<PhantomGallery | null>).detail;
+      setGallery(detail ?? null);
       setIdx(0);
     };
     window.addEventListener(UEP_PHANTOM_SHOW_EVENT, onShow);

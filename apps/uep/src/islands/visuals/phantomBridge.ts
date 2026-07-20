@@ -50,15 +50,25 @@ export interface PhantomGallery {
   relatedHistoryIds?: string[];
 }
 
-/** 目前投射變更事件（島展開中時的即時更新） */
+/** 目前投射變更事件（島展開中時的即時更新；detail null = 清空投射） */
 export const UEP_PHANTOM_SHOW_EVENT = 'uep:phantom-show';
 /** entity 嵌入提示事件 */
 export const UEP_PHANTOM_SUGGESTION_EVENT = 'uep:phantom-suggestion';
+
+/**
+ * Visual Clue 插播快照（V-D）：強制展示前的目前投射。
+ * wrapper 物件才能區分「沒有快照」與「快照 = 插播前一片空白」
+ * （對位 audioStore interruptionSnapshot 的 songId:null 語意）。
+ */
+interface PhantomClueSnapshot {
+  gallery: PhantomGallery | null;
+}
 
 declare global {
   interface Window {
     __uepPhantomGallery?: PhantomGallery | null;
     __uepPhantomSuggestion?: PhantomGallery | null;
+    __uepPhantomClueSnapshot?: PhantomClueSnapshot | null;
   }
 }
 
@@ -108,9 +118,14 @@ export function isPhantomSuggestionEligible(args: {
 /**
  * 設定目前投射並廣播。島未展開時值留在 window，展開後 mount 讀取；
  * 已展開時經事件即時切換。
+ *
+ * 手動接管語意（V-D）：clue 插播中若使用者以映照/嵌入切換投射，
+ * clue 快照直接丟棄——恢復點是使用者「自己的」檢視狀態，主動換過
+ * 就沒有要回去的地方（沿 audioStore 插播中手動接管定案）。
  */
 export function pushPhantomGallery(gallery: PhantomGallery): void {
   if (typeof window === 'undefined') return;
+  if (gallery.source !== 'clue') window.__uepPhantomClueSnapshot = null;
   window.__uepPhantomGallery = gallery;
   window.dispatchEvent(
     new CustomEvent<PhantomGallery>(UEP_PHANTOM_SHOW_EVENT, {
@@ -142,6 +157,89 @@ export function clearPhantomGallery(): void {
   if (typeof window === 'undefined') return;
   window.__uepPhantomGallery = null;
   window.__uepPhantomSuggestion = null;
+  window.__uepPhantomClueSnapshot = null;
+}
+
+/**
+ * Visual Clue 強制展示（V-D）：快照目前投射 → 切換到 clue gallery。
+ * 快照不巢狀——clue 插播中再點另一個 clue 只換投射、不重拍快照，
+ * 恢復點永遠是使用者自己的檢視狀態（沿 audioStore interrupt 定案）。
+ */
+export function pushClueGallery(gallery: PhantomGallery): void {
+  if (typeof window === 'undefined') return;
+  if (!window.__uepPhantomClueSnapshot) {
+    window.__uepPhantomClueSnapshot = {
+      gallery: window.__uepPhantomGallery ?? null,
+    };
+  }
+  pushPhantomGallery({ ...gallery, source: 'clue' });
+}
+
+/**
+ * 結束 clue 插播並恢復快照。恢復條件（呼叫端負責）：
+ * 通過訖點錨點 / 離開文章頁。
+ *
+ * - 快照不存在（從未插播或已被手動接管丟棄）→ no-op
+ * - 目前投射已非 clue 來源（防禦：接管時快照理應已丟棄）→ 只清快照
+ * - 快照 = 插播前一片空白 → 回到島的空狀態（廣播 null）
+ */
+export function restoreFromClueSnapshot(): void {
+  if (typeof window === 'undefined') return;
+  const snapshot = window.__uepPhantomClueSnapshot;
+  if (!snapshot) return;
+  window.__uepPhantomClueSnapshot = null;
+  if (window.__uepPhantomGallery?.source !== 'clue') return;
+
+  if (snapshot.gallery) {
+    pushPhantomGallery(snapshot.gallery);
+    return;
+  }
+  window.__uepPhantomGallery = null;
+  window.dispatchEvent(
+    new CustomEvent<PhantomGallery | null>(UEP_PHANTOM_SHOW_EVENT, {
+      detail: null,
+    })
+  );
+}
+
+/** 是否正處於 clue 插播（有快照待恢復） */
+export function hasClueSnapshot(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean(window.__uepPhantomClueSnapshot);
+}
+
+/**
+ * worker gallery payload 的 images 摘要 → PhantomImage 清單。
+ * worker 回寬鬆型別（initialState 為 string、gate 為 unknown），
+ * narrowing 交給 resolveImageState 的防禦性解析；這裡只組型別相容的
+ * 圖片清單並過濾壞項（IslandHost 嵌入提示與 Visual Clue 觸發共用）。
+ */
+export function parsePhantomImages(rawImages: unknown): PhantomImage[] {
+  if (!Array.isArray(rawImages)) return [];
+  return rawImages
+    .filter(
+      (img): img is Record<string, unknown> => !!img && typeof img === 'object'
+    )
+    .map(
+      (img): PhantomImage => ({
+        id: typeof img.id === 'string' ? img.id : '',
+        file: typeof img.file === 'string' ? img.file : '',
+        caption: typeof img.caption === 'string' ? img.caption : '',
+        sortOrder: typeof img.sortOrder === 'number' ? img.sortOrder : 0,
+        ...(img.initialState === 'locked' ||
+        img.initialState === 'partial' ||
+        img.initialState === 'unlocked'
+          ? { initialState: img.initialState }
+          : {}),
+        ...(img.lockGate && typeof img.lockGate === 'object'
+          ? { lockGate: img.lockGate as PhantomImage['lockGate'] }
+          : {}),
+        ...(img.partialGate && typeof img.partialGate === 'object'
+          ? { partialGate: img.partialGate as PhantomImage['partialGate'] }
+          : {}),
+      })
+    )
+    .filter((img) => img.file);
 }
 
 /** 發出 entity 嵌入提示（島未 mount 時 pending 於 window） */
