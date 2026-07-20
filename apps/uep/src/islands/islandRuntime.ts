@@ -14,6 +14,7 @@ import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../progress';
 import type { ProgressChangeDetail, ProgressState } from '../progress';
 
 import { clearTerminalLog } from './concepts/terminalLog';
+import { clearPhantomGallery } from './visuals/phantomBridge';
 import {
   clearAllWindowStates,
   loadWindowState,
@@ -173,6 +174,9 @@ export const uepIslands = {
   resetAll(): void {
     clearAllWindowStates();
     clearTerminalLog();
+    // 浮動幻影的目前投射與 pending 提示一併清除（同瀏覽器換帳號
+    // 不得看到上一個帳號投射的畫廊——同 terminal 歷史語意）
+    clearPhantomGallery();
     state = { windows: {}, focusOrder: [] };
     notify('reset');
   },

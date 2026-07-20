@@ -1,0 +1,56 @@
+/**
+ * VisualsIsland —「浮動幻影」樣式（S8 下半場 V-C）
+ *
+ * 前綴 uep-visland-*。第一版功能骨架優先（艾斯維爾 07/19：除 Concepts
+ * 外各島後續統一重調更 immersive），語彙沿 Visuals zone 的幻影紫
+ * （--visuals-main #5E548E）與畫框意象。
+ */
+
+.uep-visland {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  font-family: var(--font-body, sans-serif);
+  color: var(--text-primary, #2c2620);
+}
+
+.uep-visland--empty {
+  padding: 22px 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text-secondary, #7a7267);
+}
+
+.uep-visland__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.uep-visland__kicker {
+  flex: none;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  color: #5e548e;
+  opacity: 0.75;
+}
+
+.uep-visland__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.uep-visland__placeholder {
+  padding: 18px 12px;
+  border: 1px dashed color-mix(in srgb, #5e548e 40%, transparent);
+  border-radius: 6px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #7a7267);
+}

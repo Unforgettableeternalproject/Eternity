@@ -1,0 +1,111 @@
+/**
+ * 浮動幻影 — 資料橋（S8 下半場 V-C）
+ *
+ * 島的內容來源全部事件驅動（設計文件 §3-3）：映照（Reader 按鈕）、
+ * entity 嵌入提示、Visual Clue（V-D）。三種來源與島本體分屬不同
+ * React root/bundle，module-level 變數跨不過去（S8-B 教訓：分類色
+ * 跨 island 只能靠 window/store 內資料）——pending 值一律放 window，
+ * 沿 echoSuggestionBridge 前例。
+ *
+ * 「目前投射」與「提示」語意刻意不同：
+ * - 目前投射（current）：持續狀態，島收合 unmount 再展開仍要續示，
+ *   讀取**不**清除；登出/進度 reset 由 islandRuntime.resetAll 清除
+ * - 提示（suggestion）：一次性 pending，島 mount 時消費即清（同 echo）
+ */
+
+import type { GateCondition } from '../../progress';
+import type { ImageDisplayState } from '../../visuals';
+
+/** 島內展示的單張圖片（ImageItem 的三態子集；file 為裸 R2 key） */
+export interface PhantomImage {
+  id: string;
+  file: string;
+  caption: string;
+  sortOrder: number;
+  isSpriteSheet?: boolean;
+  initialState?: ImageDisplayState;
+  lockGate?: GateCondition | null;
+  partialGate?: GateCondition | null;
+}
+
+/** 投射進浮動幻影的 gallery 快照 */
+export interface PhantomGallery {
+  /** Visuals gallery 頁 id（`visuals/...`） */
+  id: string;
+  title: string;
+  /** 陳列走廊的統一實體身分；鑲框室等為 null */
+  entityKey?: string | null;
+  /** 頁面 id 第二段（profiles/illustrations/...） */
+  divisionId?: string | null;
+  images: PhantomImage[];
+  /** 展示來源：映照 / entity 嵌入 / Visual Clue（V-D） */
+  source: 'mirror' | 'embed' | 'clue';
+}
+
+/** 目前投射變更事件（島展開中時的即時更新） */
+export const UEP_PHANTOM_SHOW_EVENT = 'uep:phantom-show';
+/** entity 嵌入提示事件 */
+export const UEP_PHANTOM_SUGGESTION_EVENT = 'uep:phantom-suggestion';
+
+declare global {
+  interface Window {
+    __uepPhantomGallery?: PhantomGallery | null;
+    __uepPhantomSuggestion?: PhantomGallery | null;
+  }
+}
+
+/**
+ * 進島分館白名單：只有陳列走廊（profiles）+ 鑲框室（illustrations）；
+ * 抽象萃取間、基底實驗室屬額外內容不列入（設計文件 §3-3）。
+ */
+export function isPhantomEligibleDivision(
+  divisionId: string | null | undefined
+): boolean {
+  return divisionId === 'profiles' || divisionId === 'illustrations';
+}
+
+/**
+ * 設定目前投射並廣播。島未展開時值留在 window，展開後 mount 讀取；
+ * 已展開時經事件即時切換。
+ */
+export function pushPhantomGallery(gallery: PhantomGallery): void {
+  if (typeof window === 'undefined') return;
+  window.__uepPhantomGallery = gallery;
+  window.dispatchEvent(
+    new CustomEvent<PhantomGallery>(UEP_PHANTOM_SHOW_EVENT, {
+      detail: gallery,
+    })
+  );
+}
+
+/** 讀取目前投射（不清除——收合再展開續示） */
+export function getPhantomGallery(): PhantomGallery | null {
+  if (typeof window === 'undefined') return null;
+  return window.__uepPhantomGallery ?? null;
+}
+
+/** 清除目前投射與 pending 提示（登出/進度 reset，islandRuntime 呼叫） */
+export function clearPhantomGallery(): void {
+  if (typeof window === 'undefined') return;
+  window.__uepPhantomGallery = null;
+  window.__uepPhantomSuggestion = null;
+}
+
+/** 發出 entity 嵌入提示（島未 mount 時 pending 於 window） */
+export function pushPhantomSuggestion(gallery: PhantomGallery): void {
+  if (typeof window === 'undefined') return;
+  window.__uepPhantomSuggestion = gallery;
+  window.dispatchEvent(
+    new CustomEvent<PhantomGallery>(UEP_PHANTOM_SUGGESTION_EVENT, {
+      detail: gallery,
+    })
+  );
+}
+
+/** 消費 pending 提示（讀取即清，同 echoSuggestionBridge） */
+export function consumePhantomSuggestion(): PhantomGallery | null {
+  if (typeof window === 'undefined') return null;
+  const pending = window.__uepPhantomSuggestion || null;
+  window.__uepPhantomSuggestion = null;
+  return pending;
+}
