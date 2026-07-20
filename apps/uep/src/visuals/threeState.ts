@@ -108,6 +108,33 @@ export function resolveImageState(
   return evaluateGate(progress, partialGate) ? 'unlocked' : 'partial';
 }
 
+/** 圖片 + 已求值的顯示狀態（Reader renderer / lightbox / 浮島共用單位） */
+export interface ResolvedGalleryImage<T> {
+  img: T;
+  state: ImageDisplayState;
+}
+
+/**
+ * 依 sortOrder 排序並逐張求值三態。index 0 = 第一張圖恆等式
+ * （gallery 閘由呼叫端把關——gallery 鎖定時不會走到這裡）。
+ * 泛型：Reader 的 ImageItem 與浮島的 PhantomImage 都是
+ * ImageGateData 的超集，共用同一條求值路徑。
+ * 精靈圖 gallery 本輪不接三態，呼叫端直接跳過。
+ */
+export function resolveGalleryImages<
+  T extends ImageGateData & { sortOrder?: number },
+>(
+  images: T[],
+  progress: ProgressState | null | undefined
+): ResolvedGalleryImage<T>[] {
+  return [...images]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((img, i) => ({
+      img,
+      state: resolveImageState(img, i === 0, progress),
+    }));
+}
+
 /**
  * 自動推導 gallery 的解鎖旗標（對位 deriveSongUnlockFlag 的雙命名空間）：
  * - 有 entityKey 的 gallery（陳列走廊）→ `{entityKey}:gallery`

@@ -6,13 +6,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
+
 import { ZONES } from '../../data/zones';
-import { ReaderShell } from '../zone/ReaderShell';
-import UepDialogue from '../ui/UepDialogue';
-import renderHtmlWithUep from '../ui/renderHtmlWithUep';
-import ZoneAtmosphere from '../ui/ZoneAtmosphere';
-import VisualsPhantom from './VisualsPhantom';
-import type { PhantomVariant } from './VisualsPhantom';
+import { useProgress, buildProgressTreeAdapter } from '../../progress';
+import { resolveGalleryImages } from '../../visuals';
+import type { ResolvedGalleryImage } from '../../visuals';
+import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
 import type {
   HomepageBlock,
   ZoneHeaderData,
@@ -20,19 +19,23 @@ import type {
   CrossRoad,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
-import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
-import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
-import SpriteViewer from './SpriteViewer';
+import UepDialogue from '../ui/UepDialogue';
+import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import { ReaderShell } from '../zone/ReaderShell';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
+import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
+
 import { useScrollMemory } from '../zone/useScrollMemory';
+import SpriteViewer from './SpriteViewer';
+import VisualsPhantom from './VisualsPhantom';
+import type { PhantomVariant } from './VisualsPhantom';
+
+
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
-import { useProgress, buildProgressTreeAdapter } from '../../progress';
-import type { ProgressState } from '../../progress';
-import { resolveImageState } from '../../visuals';
-import type { ImageDisplayState } from '../../visuals';
 import './VisualsReader.css';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
@@ -214,30 +217,10 @@ function findFirstThumb(node: PageTreeNode): string | null {
   return null;
 }
 
-// ── 三態解鎖（S8 下半場 V-B.19）──────────────────────────────
+// ── 三態解鎖（S8 下半場 V-B.19；求值搬入 visuals/ 模組與浮島共用）──
 
 /** 圖片 + 已求值的顯示狀態（renderer 與 lightbox 共用單位） */
-interface GalleryImageView {
-  img: ImageItem;
-  state: ImageDisplayState;
-}
-
-/**
- * 依 sortOrder 排序並逐張求值三態。index 0 = 第一張圖恆等式
- * （gallery 閘由呼叫端把關——gallery 鎖定時不會走到這裡）。
- * 精靈圖 gallery 本輪不接三態，呼叫端直接跳過。
- */
-export function resolveGalleryImages(
-  images: ImageItem[],
-  progress: ProgressState | null | undefined
-): GalleryImageView[] {
-  return [...images]
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-    .map((img, i) => ({
-      img,
-      state: resolveImageState(img, i === 0, progress),
-    }));
-}
+type GalleryImageView = ResolvedGalleryImage<ImageItem>;
 
 /** A 鎖定佔位格——不載入實際圖片（劇透保護），格子存在讓總張數可見 */
 function LockedImageCell({ label }: { label?: string }) {
@@ -304,7 +287,7 @@ function VisualsMonoPlayer({
       a.pause();
       a.src = '';
     };
-    // eslint-disable-next-line
+     
   }, [audioUrl]);
 
   const updateProgress = useCallback(() => {

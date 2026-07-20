@@ -8,5 +8,13 @@
  * - 旗標推導：`deriveGalleryUnlockFlag`（V-D Visual Clue 授旗）
  */
 
-export type { ImageDisplayState, ImageGateData } from './threeState';
-export { resolveImageState, deriveGalleryUnlockFlag } from './threeState';
+export type {
+  ImageDisplayState,
+  ImageGateData,
+  ResolvedGalleryImage,
+} from './threeState';
+export {
+  resolveImageState,
+  resolveGalleryImages,
+  deriveGalleryUnlockFlag,
+} from './threeState';

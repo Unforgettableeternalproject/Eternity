@@ -23,6 +23,8 @@
   color: var(--text-secondary, #7a7267);
 }
 
+/* ── 標頭 ── */
+
 .uep-visland__header {
   display: flex;
   align-items: baseline;
@@ -53,4 +55,188 @@
   text-align: center;
   font-size: 0.78rem;
   color: var(--text-secondary, #7a7267);
+}
+
+/* ── 大圖舞台 ── */
+
+.uep-visland__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.uep-visland__frame {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  height: 208px;
+  border: 1px solid color-mix(in srgb, #5e548e 35%, transparent);
+  border-radius: 6px;
+  background:
+    radial-gradient(
+      circle at 50% 40%,
+      color-mix(in srgb, #5e548e 14%, transparent),
+      transparent 70%
+    ),
+    #17141f;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45);
+}
+
+.uep-visland__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* B 部分解鎖：模糊遮罩（放大檢視不屬於島，遮罩不解除） */
+.uep-visland__frame.is-partial img {
+  filter: blur(14px) saturate(0.7);
+  transform: scale(1.06); /* 遮住模糊邊緣的透出 */
+}
+
+.uep-visland__frame.is-partial::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(94, 84, 142, 0.18),
+    rgba(23, 20, 31, 0.42)
+  );
+  pointer-events: none;
+}
+
+.uep-visland__arrow {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 44px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(23, 20, 31, 0.55);
+  color: #e8e4f4;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.uep-visland__arrow:hover {
+  background: rgba(94, 84, 142, 0.75);
+}
+
+.uep-visland__arrow.is-left {
+  left: 6px;
+}
+
+.uep-visland__arrow.is-right {
+  right: 6px;
+}
+
+/* ── A 鎖定格 ── */
+
+.uep-visland__locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: color-mix(in srgb, #5e548e 55%, #9a93b5);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 10px,
+      rgba(94, 84, 142, 0.08) 10px 20px
+    ),
+    #1b1826;
+}
+
+.uep-visland__locked span {
+  font-size: 1.3rem;
+}
+
+.uep-visland__locked small {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+}
+
+.uep-visland__locked.is-compact span {
+  font-size: 0.85rem;
+}
+
+/* ── caption 列 ── */
+
+.uep-visland__caption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.76rem;
+}
+
+.uep-visland__counter {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: #5e548e;
+}
+
+.uep-visland__caption-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary, #2c2620);
+}
+
+.uep-visland__partial-tag {
+  font-style: normal;
+  font-size: 0.66rem;
+  color: var(--text-secondary, #7a7267);
+}
+
+/* ── 縮圖快切列 ── */
+
+.uep-visland__strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.uep-visland__thumb {
+  flex: none;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #5e548e 30%, transparent);
+  border-radius: 4px;
+  background: #17141f;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.uep-visland__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.uep-visland__thumb.is-partial img {
+  filter: blur(6px) saturate(0.7);
+}
+
+.uep-visland__thumb.is-active {
+  border-color: #5e548e;
+  box-shadow: 0 0 0 1px #5e548e;
 }
