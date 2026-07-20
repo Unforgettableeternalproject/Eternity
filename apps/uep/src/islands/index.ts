@@ -88,6 +88,9 @@ export {
   restoreFromClueSnapshot,
   hasClueSnapshot,
   parsePhantomImages,
+  UEP_CLUE_WAITING_EVENT,
+  setClueWaitingCount,
+  getClueWaitingCount,
 } from './visuals/phantomBridge';
 export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
 

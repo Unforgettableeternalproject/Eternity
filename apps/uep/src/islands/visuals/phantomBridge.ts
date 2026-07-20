@@ -64,11 +64,15 @@ interface PhantomClueSnapshot {
   gallery: PhantomGallery | null;
 }
 
+/** clue 等待計數變更事件（dock chip 閃爍提示用） */
+export const UEP_CLUE_WAITING_EVENT = 'uep:visual-clue-waiting';
+
 declare global {
   interface Window {
     __uepPhantomGallery?: PhantomGallery | null;
     __uepPhantomSuggestion?: PhantomGallery | null;
     __uepPhantomClueSnapshot?: PhantomClueSnapshot | null;
+    __uepVisualClueWaiting?: number;
   }
 }
 
@@ -206,6 +210,26 @@ export function restoreFromClueSnapshot(): void {
 export function hasClueSnapshot(): boolean {
   if (typeof window === 'undefined') return false;
   return Boolean(window.__uepPhantomClueSnapshot);
+}
+
+/**
+ * 設定「島收合中、區間內等待的 clue 數」並廣播（V-D.31）。
+ * HistoryReader 是生產者（島收合時才計數）、IslandDock 是消費者
+ * （chip 閃爍提示）——分屬不同 React root，一律走 window bridge。
+ */
+export function setClueWaitingCount(count: number): void {
+  if (typeof window === 'undefined') return;
+  if ((window.__uepVisualClueWaiting ?? 0) === count) return;
+  window.__uepVisualClueWaiting = count;
+  window.dispatchEvent(
+    new CustomEvent<number>(UEP_CLUE_WAITING_EVENT, { detail: count })
+  );
+}
+
+/** 讀取目前等待中的 clue 數（IslandDock mount 時的初始值） */
+export function getClueWaitingCount(): number {
+  if (typeof window === 'undefined') return 0;
+  return window.__uepVisualClueWaiting ?? 0;
 }
 
 /**

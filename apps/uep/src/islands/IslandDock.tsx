@@ -11,13 +11,17 @@
  * badge 隨之自動熄滅。
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { useTerminalUnread } from './concepts/useTerminalUnread';
 import { getIslandRuntime } from './islandRuntime';
 import { ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
+import {
+  UEP_CLUE_WAITING_EVENT,
+  getClueWaitingCount,
+} from './visuals/phantomBridge';
 
 import './islands.css';
 
@@ -34,6 +38,15 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
   // hook 順序穩定：collapsed 為空時 enabled=false，不觸發索引載入
   const conceptsUnread = useTerminalUnread(collapsed.includes('concepts'));
 
+  // Visual Clue 等待提示（V-D.31）：島收合中、閱讀位置在 clue 區間內
+  // → visuals chip 閃爍。HistoryReader 經 phantomBridge 廣播計數。
+  const [clueWaiting, setClueWaiting] = useState(() => getClueWaitingCount());
+  useEffect(() => {
+    const onChange = () => setClueWaiting(getClueWaitingCount());
+    window.addEventListener(UEP_CLUE_WAITING_EVENT, onChange);
+    return () => window.removeEventListener(UEP_CLUE_WAITING_EVENT, onChange);
+  }, []);
+
   if (collapsed.length === 0) return null;
 
   return (
@@ -41,18 +54,25 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
       {collapsed.map((id) => {
         const def = ISLAND_DEFINITIONS[id];
         const unread = id === 'concepts' ? conceptsUnread : 0;
+        const waiting = id === 'visuals' && clueWaiting > 0;
         return (
           <button
             key={id}
-            className="uep-island-dock__chip"
+            className={`uep-island-dock__chip${waiting ? ' is-clue-waiting' : ''}`}
             onClick={() => runtime.open(id)}
             aria-label={
-              unread > 0
-                ? `展開${def.title}（${unread} 項未讀更新）`
-                : `展開${def.title}`
+              waiting
+                ? `展開${def.title}（有視覺線索等待中）`
+                : unread > 0
+                  ? `展開${def.title}（${unread} 項未讀更新）`
+                  : `展開${def.title}`
             }
             title={
-              unread > 0 ? `${def.title} · ${unread} 項未讀更新` : def.title
+              waiting
+                ? `${def.title} · 有視覺線索等待中`
+                : unread > 0
+                  ? `${def.title} · ${unread} 項未讀更新`
+                  : def.title
             }
           >
             <span aria-hidden>{def.icon}</span>

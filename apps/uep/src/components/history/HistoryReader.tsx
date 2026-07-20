@@ -49,6 +49,7 @@ import {
   parsePhantomImages,
   pushClueGallery,
   restoreFromClueSnapshot,
+  setClueWaitingCount,
   shouldMountIsland,
   unlockIsland,
   useIslandRuntimeState,
@@ -376,6 +377,11 @@ export default function HistoryReader() {
   // 本次頁面造訪中「已點擊、尚未通過訖點」的 clue——通過訖點時觸發
   // 快照恢復；換頁時整組重置（恢復由 unmount 路徑兜底）。
   const clickedCluesRef = useRef(new Set<string>());
+  // session dedupe（V-D.31）：點擊過且通過訖點的 clue 本次頁面活動
+  // 不再出現；重新造訪頁面可再現（同 echo spot 手法）。
+  const [dismissedClueIds, setDismissedClueIds] = useState<Set<string>>(
+    () => new Set()
+  );
   // 反查回應落地時檢查是否仍在同一頁（非同步競態防禦）
   const currentIdRef = useRef(currentId);
   currentIdRef.current = currentId;
@@ -413,19 +419,44 @@ export default function HistoryReader() {
     });
   };
 
-  // 通過訖點 = clue 結束：已點擊者恢復快照（掃描線 role callback 驅動）
+  // 通過訖點 = clue 結束：已點擊者恢復快照 + session dedupe 落定
+  // （掃描線 role callback 驅動）
   const onVisualClueMarkerPassed = (info: MarkerPassedInfo) => {
     if (info.role !== 'visual-clue-end') return;
     const clueId = info.element.getAttribute('data-clue-id')?.trim() || '';
     if (!clueId || !clickedCluesRef.current.has(clueId)) return;
     clickedCluesRef.current.delete(clueId);
+    setDismissedClueIds((prev) => new Set(prev).add(clueId));
+    if (currentIdRef.current) {
+      try {
+        sessionStorage.setItem(
+          `uep.visual-clue.dismissed.${currentIdRef.current}.${clueId}`,
+          '1'
+        );
+      } catch {
+        // 隱私模式下 sessionStorage 可能不可寫；state Set 仍可去重。
+      }
+    }
     restoreFromClueSnapshot();
   };
 
   // 換頁/離開文章：clue 插播中一律恢復快照（同 echo spot 離頁恢復），
-  // 已點擊集合重置——「重新造訪頁面可再現」的邊界即是頁面活動
+  // 已點擊集合與 dedupe 重置——「重新造訪頁面可再現」的邊界即是
+  // 頁面活動（sessionStorage 鍵一併清掉，同 echo spot 手法）
   useEffect(() => {
     clickedCluesRef.current = new Set();
+    setDismissedClueIds(new Set());
+    if (currentId) {
+      const prefix = `uep.visual-clue.dismissed.${currentId}.`;
+      try {
+        for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+          const key = sessionStorage.key(index);
+          if (key?.startsWith(prefix)) sessionStorage.removeItem(key);
+        }
+      } catch {
+        // sessionStorage 不可用時 state 重置已足夠。
+      }
+    }
     return () => {
       restoreFromClueSnapshot();
     };
@@ -476,6 +507,19 @@ export default function HistoryReader() {
       !bookmarkGateOpen
     ),
   });
+  // session dedupe 過濾後實際可見的 clue（V-D.31）
+  const visibleVisualClues = activeVisualClues.filter(
+    (clue) => !dismissedClueIds.has(clue.clueId)
+  );
+
+  // 島收合中（已掛載但未展開）且區間內有 clue → dock chip 閃爍提示；
+  // 展開瞬間計數歸零（chip 本來也會離開 dock），書籤自動重現
+  const clueWaitingCount =
+    canShowVisualClues && !visualsIslandOpen ? visibleVisualClues.length : 0;
+  useEffect(() => {
+    setClueWaitingCount(clueWaitingCount);
+  }, [clueWaitingCount]);
+  useEffect(() => () => setClueWaitingCount(0), []);
 
   const beginResumeJump = () => {
     resumeJumpRef.current = true;
@@ -1433,7 +1477,7 @@ export default function HistoryReader() {
             .history-main 右緣；島展開中才渲染（收合走 dock chip 提示） */}
         {visualsIslandOpen && (
           <VisualClueBookmarks
-            clues={activeVisualClues}
+            clues={visibleVisualClues}
             onClueClick={handleVisualClueClick}
           />
         )}

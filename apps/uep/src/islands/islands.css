@@ -252,6 +252,35 @@ body.uep-zone-entry-active .uep-minimap {
   outline-offset: 2px;
 }
 
+/* Visual Clue 等待中（V-D.31）：島收合、閱讀位置在 clue 區間內
+   → visuals chip 閃爍提示（幻影紫呼吸光） */
+.uep-island-dock__chip.is-clue-waiting {
+  border-color: #5e548e;
+  animation: uepCluePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes uepCluePulse {
+  0%,
+  100% {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.12),
+      0 0 0 4px rgba(94, 84, 142, 0.28),
+      0 0 14px rgba(94, 84, 142, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-island-dock__chip.is-clue-waiting {
+    animation: none;
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.12),
+      0 0 0 3px rgba(94, 84, 142, 0.35);
+  }
+}
+
 @media (max-width: 760px) {
   .uep-island-dock {
     flex-direction: row;

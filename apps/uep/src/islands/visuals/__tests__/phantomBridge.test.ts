@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  UEP_CLUE_WAITING_EVENT,
   UEP_PHANTOM_SHOW_EVENT,
   UEP_PHANTOM_SUGGESTION_EVENT,
+  getClueWaitingCount,
+  setClueWaitingCount,
   canMirrorGallery,
   clearPhantomGallery,
   consumePhantomSuggestion,
@@ -35,6 +38,7 @@ function makeGallery(overrides: Partial<PhantomGallery> = {}): PhantomGallery {
 
 afterEach(() => {
   clearPhantomGallery();
+  setClueWaitingCount(0);
 });
 
 describe('isPhantomEligibleDivision', () => {
@@ -218,6 +222,27 @@ describe('Visual Clue 快照/復原（V-D，沿 interruptionSnapshot 語意）',
     pushClueGallery(clueGallery());
     clearPhantomGallery();
     expect(hasClueSnapshot()).toBe(false);
+  });
+});
+
+describe('clue 等待計數（dock chip 閃爍 bridge，V-D.31）', () => {
+  it('set 後可讀回，並廣播 UEP_CLUE_WAITING_EVENT', () => {
+    const listener = vi.fn();
+    window.addEventListener(UEP_CLUE_WAITING_EVENT, listener);
+    setClueWaitingCount(2);
+    window.removeEventListener(UEP_CLUE_WAITING_EVENT, listener);
+    expect(getClueWaitingCount()).toBe(2);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toBe(2);
+  });
+
+  it('同值不重複廣播（scroll 高頻呼叫防抖）', () => {
+    setClueWaitingCount(1);
+    const listener = vi.fn();
+    window.addEventListener(UEP_CLUE_WAITING_EVENT, listener);
+    setClueWaitingCount(1);
+    window.removeEventListener(UEP_CLUE_WAITING_EVENT, listener);
+    expect(listener).not.toHaveBeenCalled();
   });
 });
 
