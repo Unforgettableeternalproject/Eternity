@@ -20,6 +20,13 @@ import InlineAudioNode from './InlineAudioNode';
 import ProgressMarkerNode from './ProgressMarkerNode';
 import EchoSpotNode, { type EchoSpotAttributes } from './EchoSpotNode';
 import EchoSongPicker, { type EchoSongChoice } from './EchoSongPicker';
+import VisualClueNode, {
+  collectVisualClueIssues,
+  type VisualClueAttributes,
+} from './VisualClueNode';
+import VisualsGalleryPicker, {
+  type VisualsGalleryChoice,
+} from './VisualsGalleryPicker';
 import { UepEntityMark, UepCueMark } from './UepEmbedMarks';
 import EntityInfoChip from './EntityInfoChip';
 import GateConditionEditor from './GateConditionEditor';
@@ -126,6 +133,16 @@ function createEchoSpotId(): string {
     return crypto.randomUUID();
   }
   return `spot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createVisualClueId(): string {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+  return `clue-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 // === Props ===
@@ -263,6 +280,8 @@ export default function RichEditor({
   // 條目級 Reference Picker（S7-D-1：頁面樹改 entity-index 條目清單）
   const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
   const [echoSongPickerOpen, setEchoSongPickerOpen] = useState(false);
+  const [visualsGalleryPickerOpen, setVisualsGalleryPickerOpen] =
+    useState(false);
   const [echoesValidationIssues, setEchoesValidationIssues] = useState<
     string[]
   >([]);
@@ -367,6 +386,7 @@ export default function RichEditor({
       InlineAudioNode,
       ProgressMarkerNode,
       EchoSpotNode,
+      VisualClueNode,
       UepEntityMark,
       UepCueMark,
       // entity 自動偵測（S7-D-3）：打字命中匹配詞 → Tab 套 entity mark。
@@ -454,6 +474,18 @@ export default function RichEditor({
             : '')
       );
       return;
+    }
+    // Visual Clue 成對錨點配對驗證（S8 下半場 V-D.28）：孤兒/亂序/
+    // 目標缺失直接擋存檔——第一層防禦，前台另有孤兒容錯
+    if (editorMode.needsTipTap && editor) {
+      const clueIssues = collectVisualClueIssues(editor.state.doc);
+      if (clueIssues.length > 0) {
+        getToast().error(
+          `視覺線索驗證未通過：${clueIssues[0].message}` +
+            (clueIssues.length > 1 ? `（共 ${clueIssues.length} 項）` : '')
+        );
+        return;
+      }
     }
 
     setSaveStatus('saving');
@@ -737,6 +769,9 @@ export default function RichEditor({
   const [selectedEchoSpot, setSelectedEchoSpot] = useState<
     (EchoSpotAttributes & { pos: number }) | null
   >(null);
+  const [selectedVisualClue, setSelectedVisualClue] = useState<
+    (VisualClueAttributes & { pos: number }) | null
+  >(null);
 
   useEffect(() => {
     if (!editor) return;
@@ -797,6 +832,117 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedEchoSpot);
     };
   }, [editor]);
+
+  // Visual Clue node 選取追蹤（S8 下半場 V-D）：可重選畫廊、跳到對應
+  // 錨點、成對刪除——孤兒錨點不該由使用者手動收拾。
+  useEffect(() => {
+    if (!editor) return;
+    const syncSelectedVisualClue = () => {
+      const selection = editor.state.selection as any;
+      const next =
+        selection.node?.type?.name === 'visualClue'
+          ? ({
+              pos: selection.from,
+              ...selection.node.attrs,
+            } as VisualClueAttributes & { pos: number })
+          : null;
+      setSelectedVisualClue((current) =>
+        current?.pos === next?.pos &&
+        current?.clueId === next?.clueId &&
+        current?.targetKey === next?.targetKey
+          ? current
+          : next
+      );
+    };
+    syncSelectedVisualClue();
+    editor.on('selectionUpdate', syncSelectedVisualClue);
+    editor.on('transaction', syncSelectedVisualClue);
+    return () => {
+      editor.off('selectionUpdate', syncSelectedVisualClue);
+      editor.off('transaction', syncSelectedVisualClue);
+    };
+  }, [editor]);
+
+  /** 找出同 clueId 的所有錨點位置（文件順序） */
+  const findVisualCluePositions = (clueId: string) => {
+    if (!editor || !clueId) return [];
+    const found: { pos: number; edge: 'start' | 'end'; size: number }[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'visualClue' && node.attrs.clueId === clueId) {
+        found.push({
+          pos,
+          edge: node.attrs.edge === 'end' ? 'end' : 'start',
+          size: node.nodeSize,
+        });
+      }
+      return true;
+    });
+    return found;
+  };
+
+  const applyVisualsGalleryChoice = (gallery: VisualsGalleryChoice) => {
+    if (!editor) return;
+    if (selectedVisualClue) {
+      // 重選目標：同 clueId 的起訖錨點一起改，配對不變
+      const anchors = findVisualCluePositions(selectedVisualClue.clueId);
+      if (anchors.length > 0) {
+        let tr = editor.state.tr;
+        for (const anchor of anchors) {
+          const node = editor.state.doc.nodeAt(anchor.pos);
+          if (node?.type.name !== 'visualClue') continue;
+          tr = tr.setNodeMarkup(anchor.pos, undefined, {
+            ...node.attrs,
+            targetType: gallery.targetType,
+            targetKey: gallery.targetKey,
+            galleryId: gallery.id,
+            title: gallery.title,
+          });
+        }
+        editor.view.dispatch(tr);
+      }
+    } else {
+      editor
+        .chain()
+        .focus()
+        .insertVisualCluePair({
+          clueId: createVisualClueId(),
+          targetType: gallery.targetType,
+          targetKey: gallery.targetKey,
+          galleryId: gallery.id,
+          title: gallery.title,
+        })
+        .run();
+    }
+    setVisualsGalleryPickerOpen(false);
+  };
+
+  /** 成對刪除：孤兒錨點是資料錯誤，刪除一律連同對應錨點 */
+  const deleteVisualCluePair = () => {
+    if (!editor || !selectedVisualClue) return;
+    const anchors = findVisualCluePositions(selectedVisualClue.clueId);
+    // 位置由後往前刪，前面的 pos 不受影響
+    let tr = editor.state.tr;
+    for (const anchor of [...anchors].sort((a, b) => b.pos - a.pos)) {
+      tr = tr.delete(anchor.pos, anchor.pos + anchor.size);
+    }
+    editor.view.dispatch(tr);
+    setSelectedVisualClue(null);
+  };
+
+  /** 跳到同 clueId 的另一端錨點（選取 + 捲到可見） */
+  const jumpToVisualCluePartner = () => {
+    if (!editor || !selectedVisualClue) return;
+    const partner = findVisualCluePositions(selectedVisualClue.clueId).find(
+      (anchor) => anchor.pos !== selectedVisualClue.pos
+    );
+    if (!partner) return;
+    editor
+      .chain()
+      .focus()
+      .setNodeSelection(partner.pos)
+      .scrollIntoView()
+      .run();
+  };
 
   const applyEchoSongChoice = (song: EchoSongChoice) => {
     if (!editor) return;
@@ -2306,6 +2452,17 @@ export default function RichEditor({
                     >
                       ♫
                     </button>
+                    <button
+                      className={`tb-btn ${editor.isActive('visualClue') ? 'is-active' : ''}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedVisualClue(null);
+                        setVisualsGalleryPickerOpen(true);
+                      }}
+                      title="插入視覺線索（成對起訖錨點，區間內側邊浮現書籤按鈕）"
+                    >
+                      ❏
+                    </button>
                     {/* Entity 引用 */}
                     <div className="tb-dropdown-wrap">
                       <button
@@ -3243,11 +3400,54 @@ export default function RichEditor({
         </div>
       )}
 
+      {/* Visual Clue bubble：重選畫廊、跳到對應錨點、成對刪除。 */}
+      {editor && selectedVisualClue && (
+        <div className="ned-audio-bubble ned-echo-spot-bubble">
+          <span className="ned-audio-bubble-label">
+            ❏ {selectedVisualClue.edge === 'end' ? '訖點' : '起點'} ·{' '}
+            {selectedVisualClue.title || selectedVisualClue.targetKey || '未綁定'}
+          </span>
+          <span className="ned-echo-spot-bubble__meta">
+            {selectedVisualClue.targetType === 'illustration'
+              ? `插圖 ${selectedVisualClue.targetKey}`
+              : selectedVisualClue.targetKey || '無目標'}
+          </span>
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={() => setVisualsGalleryPickerOpen(true)}
+          >
+            重選畫廊
+          </button>
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={jumpToVisualCluePartner}
+          >
+            對應錨點
+          </button>
+          <button
+            type="button"
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            onClick={deleteVisualCluePair}
+          >
+            成對刪除
+          </button>
+        </div>
+      )}
+
       <EchoSongPicker
         apiBase={apiBase}
         open={echoSongPickerOpen}
         onClose={() => setEchoSongPickerOpen(false)}
         onSelect={applyEchoSongChoice}
+      />
+
+      <VisualsGalleryPicker
+        apiBase={apiBase}
+        open={visualsGalleryPickerOpen}
+        onClose={() => setVisualsGalleryPickerOpen(false)}
+        onSelect={applyVisualsGalleryChoice}
       />
 
       {/* 音訊選擇器 Modal */}
