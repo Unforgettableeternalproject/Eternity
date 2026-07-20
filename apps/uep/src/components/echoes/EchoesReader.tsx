@@ -872,27 +872,6 @@ function countSongsInCluster(
   return cluster ? countSongs(cluster, progress, progressTree) : 0;
 }
 
-/** 渲染 landing HTML：把 card-grid 替換為集群卡片插入標記 */
-function renderLandingHtml(blocks: Page['content']): string {
-  if (!blocks?.length) return '';
-  const html = blocks.map((b) => b.content || '').join('\n');
-  // 將 card-grid（GitBook 匯入的導航卡片）替換為插入點
-  return html.replace(
-    /<div class="card-grid">[\s\S]*?<\/div>/,
-    '<div data-echoes-cluster-slot="true"></div>'
-  );
-}
-
-function splitLandingHtml(html: string) {
-  const marker = '<div data-echoes-cluster-slot="true"></div>';
-  const idx = html.indexOf(marker);
-  if (idx < 0) return { before: html, after: '' };
-  return {
-    before: html.slice(0, idx),
-    after: html.slice(idx + marker.length),
-  };
-}
-
 function buildAudioUrl(audioFile: string | null): string | null {
   if (!audioFile) return null;
   // 音檔存在 content-api 的 assets 端點；檔名可能含空白或特殊字元需要 encode
@@ -919,8 +898,6 @@ function EchoesReaderInner() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
-  const [landingPages, setLandingPages] = useState<Record<string, Page>>({});
-  const [landingLoading, setLandingLoading] = useState(false);
 
   // === 導航狀態 ===
   type View = 'landing' | 'cluster' | 'content' | 'song';
@@ -993,26 +970,10 @@ function EchoesReaderInner() {
   // 與 HistoryReader 同一套 adapter，歌曲解鎖判定據此消費
   const progressTree = useMemo(() => buildProgressTreeAdapter(tree), [tree]);
 
-  const pageLevelNodes = useMemo(
-    () => flatPages.filter((p) => p.pageType === 'page'),
-    [flatPages]
-  );
-
-  const plazaNode = pageLevelNodes.find((p) => p.id === 'echoes/plaza') || null;
-  const photoNode = pageLevelNodes.find((p) => p.id === 'echoes/photo') || null;
-  const plazaPage = plazaNode ? landingPages[plazaNode.id] : null;
-  const photoPage = photoNode ? landingPages[photoNode.id] : null;
-
   // 首頁區塊資料
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
   // 使用統一的 boot ready hook 管理開機動畫解除時機
   const { contentReady, markContentReady, setNavPending } = useZoneBootReady();
-
-  // === 載入 landing 頁面內容 ===
-  useEffect(() => {
-    if (!pageLevelNodes.length) return;
-    void fetchLandingPages(pageLevelNodes);
-  }, [pageLevelNodes]);
 
   // 載入首頁區塊資料；完成後交由 hook 計算最短顯示時間與安全超時
   useEffect(() => {
@@ -1034,51 +995,6 @@ function EchoesReaderInner() {
         markContentReady();
       });
   }, [markContentReady]);
-
-  const hpHeader = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'zone-header');
-    return b ? (b.data as ZoneHeaderData) : null;
-  }, [homepageBlocks]);
-
-  const hpDialogues = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'uep-dialogue');
-    return b ? (b.data as UepDialogueItem[]) : null;
-  }, [homepageBlocks]);
-
-  const hpClusters = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'orb-cluster-grid');
-    return b ? (b.data as { clusters: OrbCluster[] }).clusters : null;
-  }, [homepageBlocks]);
-
-  const hpRichTexts = useMemo(() => {
-    return homepageBlocks
-      .filter((b) => b.type === 'rich-text')
-      .map((b) => (b.data as { html: string }).html);
-  }, [homepageBlocks]);
-
-  async function fetchLandingPages(nodes: PageTreeNode[]) {
-    setLandingLoading(true);
-    try {
-      const entries = await Promise.all(
-        nodes.map(async (node) => {
-          const res = await fetch(`${API_BASE}/api/content/${node.id}`);
-          if (!res.ok) return [node.id, null] as const;
-          const json = (await res.json()) as { ok: boolean; data: Page };
-          return [node.id, json.ok ? json.data : null] as const;
-        })
-      );
-      setLandingPages(
-        Object.fromEntries(entries.filter(([, v]) => v !== null)) as Record<
-          string,
-          Page
-        >
-      );
-    } catch (err) {
-      console.error('Failed to load echoes landing pages:', err);
-    } finally {
-      setLandingLoading(false);
-    }
-  }
 
   // === URL 路由（useZoneRouter 統一管理 deep link 與 popstate）===
   useZoneRouter({
@@ -1325,9 +1241,6 @@ function EchoesReaderInner() {
   // Landing 視圖
   // ────────────────────────────────────────────────────────────────
   function renderLanding() {
-    const landingHtml = plazaPage ? renderLandingHtml(plazaPage.content) : '';
-    const landingParts = splitLandingHtml(landingHtml);
-
     return (
       <section className="echoes-landing">
         <div className="echoes-landing-inner">
@@ -1485,158 +1398,16 @@ function EchoesReaderInner() {
                   return null;
               }
             })
+          ) : treeError ? (
+            /* ── homepage 區塊未就緒：目錄讀取失敗時顯示錯誤 ── */
+            <ZoneStateDisplay
+              kind="error"
+              message={`目錄讀取失敗：${treeError}`}
+              onRetry={() => void fetchTree()}
+            />
           ) : (
-            /* ── Fallback：舊版固定佈局 ── */
-            <>
-              <div className="echoes-kicker">Volume II · ECHOES</div>
-              <h2 className="echoes-landing-title">
-                {plazaPage?.title || plazaNode?.title || '空白廣場'}
-              </h2>
-              {(treeLoading || landingLoading) && !plazaPage && (
-                <ZoneStateDisplay
-                  kind="loading"
-                  message="正在讀取空白廣場..."
-                />
-              )}
-              {treeError && (
-                <ZoneStateDisplay
-                  kind="error"
-                  message={`目錄讀取失敗：${treeError}`}
-                  onRetry={() => void fetchTree()}
-                />
-              )}
-              {landingParts.before && (
-                <>
-                  {renderHtmlWithUep(
-                    landingParts.before,
-                    'landing-before',
-                    'echoes-prose echoes-landing-prose'
-                  )}
-                </>
-              )}
-              <div className="echoes-cluster-grid">
-                {CLUSTERS.map((cluster) => {
-                  const songCount = countSongsInCluster(
-                    tree,
-                    cluster.id,
-                    progress,
-                    progressTree
-                  );
-                  const orbCount = Math.max(songCount, 6);
-                  const innerCount = Math.min(orbCount, 40);
-                  const outerCount = Math.max(orbCount - 40, 0);
-                  return (
-                    <button
-                      key={cluster.id}
-                      type="button"
-                      className="echoes-cluster-card"
-                      style={{
-                        ['--cluster-color' as string]: cluster.color,
-                        borderTopColor: cluster.color,
-                      }}
-                      onClick={() => navigateToCluster(cluster.id)}
-                    >
-                      <div className="echoes-orb-field">
-                        {Array.from({ length: innerCount }, (_, k) => {
-                          const angle = (k / innerCount) * Math.PI * 2;
-                          const r = 36 + (k % 2) * 8;
-                          return (
-                            <span
-                              key={k}
-                              className="echoes-orb-particle"
-                              style={{
-                                left: 55 + Math.cos(angle) * r - 5,
-                                top: 55 + Math.sin(angle) * r - 5,
-                                background: cluster.color,
-                                opacity: 0.4 + (k % 3) * 0.2,
-                                boxShadow: `0 0 8px ${cluster.color}`,
-                                animationDelay: `${k * 0.2}s`,
-                              }}
-                            />
-                          );
-                        })}
-                        {/* 外圈（超過 40 時） */}
-                        {Array.from({ length: outerCount }, (_, k) => {
-                          const angle = (k / outerCount) * Math.PI * 2;
-                          const r = 56 + (k % 2) * 8;
-                          return (
-                            <span
-                              key={`o${k}`}
-                              className="echoes-orb-particle"
-                              style={{
-                                left: 55 + Math.cos(angle) * r - 4,
-                                top: 55 + Math.sin(angle) * r - 4,
-                                width: 8,
-                                height: 8,
-                                background: cluster.color,
-                                opacity: 0.25 + (k % 3) * 0.12,
-                                boxShadow: `0 0 6px ${cluster.color}`,
-                                animationDelay: `${k * 0.15}s`,
-                              }}
-                            />
-                          );
-                        })}
-                        <span
-                          className="echoes-orb-center"
-                          style={{
-                            background: `radial-gradient(circle, ${cluster.color} 0%, ${cluster.color}80 60%, transparent 100%)`,
-                            boxShadow: `0 0 20px ${cluster.color}`,
-                          }}
-                        />
-                      </div>
-                      <div className="echoes-cluster-text">
-                        <div
-                          className="echoes-cluster-name"
-                          style={{ color: cluster.color }}
-                        >
-                          「{cluster.label}」
-                        </div>
-                        <div className="echoes-cluster-desc">
-                          {cluster.id === 'areas' && '藍色的，記憶著場景與環境'}
-                          {cluster.id === 'characters' &&
-                            '紅色的，封存著一個又一個的角色'}
-                          {cluster.id === 'stories' &&
-                            '綠色的，紀錄著故事的轉折'}
-                          {cluster.id === 'special' &&
-                            '紫色的，獨立於其他族群之外'}
-                        </div>
-                      </div>
-                      <span className="echoes-cluster-meta">
-                        {songCount > 0 ? `${songCount} echoes` : '—'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {landingParts.after && (
-                <>
-                  {renderHtmlWithUep(
-                    landingParts.after,
-                    'landing-after',
-                    'echoes-prose echoes-landing-prose'
-                  )}
-                </>
-              )}
-              <div className="echoes-landing-uep">
-                <UepDialogue
-                  text="歡迎來到充滿了世界之聲的蒐藏間，這裡聽到的全部都是實際存在的對話喔!"
-                  effects={['shimmer', 'halo']}
-                />
-              </div>
-              {photoPage && (
-                <section className="echoes-photo-section">
-                  <div className="echoes-kicker">Loose Note / Page</div>
-                  <h3>{photoPage.title}</h3>
-                  <>
-                    {renderHtmlWithUep(
-                      photoPage.content.map((b) => b.content || '').join('\n'),
-                      'photo-page',
-                      'echoes-prose echoes-photo-prose'
-                    )}
-                  </>
-                </section>
-              )}
-            </>
+            /* ── homepage 區塊載入中 ── */
+            <ZoneStateDisplay kind="loading" message="正在讀取空白廣場..." />
           )}
         </div>
 

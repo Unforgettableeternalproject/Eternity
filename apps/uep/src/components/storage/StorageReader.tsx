@@ -302,10 +302,10 @@ export default function StorageReader() {
     activeClearingId,
     activePageId,
   ]);
+  const [extrasFilter, setExtrasFilter] = useState<string>('all');
   // Changelog reading state
   const [logFilterType, setLogFilterType] = useState<string>('all');
   const [logCollapsed, setLogCollapsed] = useState<Record<string, boolean>>({});
-  const [extrasFilter, setExtrasFilter] = useState<string>('all');
   const [openSubcatId, setOpenSubcatId] = useState<string | null>(null);
   const [openSubcatStyle, setOpenSubcatStyle] = useState<string>('dialogue');
   const [subcatModalClosing, setSubcatModalClosing] = useState(false);
@@ -335,22 +335,6 @@ export default function StorageReader() {
     })(tree);
     return acc;
   }, [tree]);
-
-  const hpHeader = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'zone-header');
-    return b ? (b.data as ZoneHeaderData) : null;
-  }, [homepageBlocks]);
-  const hpDialogues = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'uep-dialogue');
-    return b ? (b.data as UepDialogueItem[]) : null;
-  }, [homepageBlocks]);
-  const hpRichTexts = useMemo(
-    () =>
-      homepageBlocks
-        .filter((b) => b.type === 'rich-text')
-        .map((b) => (b.data as { html: string }).html),
-    [homepageBlocks]
-  );
 
   // ── 初始化（tree + homepage 並行載入，兩者都完成後才 markContentReady）──
   const homepageDoneRef = useRef(false);

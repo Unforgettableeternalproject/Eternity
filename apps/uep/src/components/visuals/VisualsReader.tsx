@@ -1074,103 +1074,14 @@ function VisualsReaderInner() {
       );
     }
 
-    // Fallback：靜態十字路口
+    // homepage 區塊載入中（資料就緒後由上方資料驅動分支接手）
     return (
       <div className="visuals-landing-page">
-        <div className="visuals-landing-kicker">Volume III · VISUALS</div>
-        <h1 className="visuals-landing-title">幻影重現室</h1>
-        <div className="visuals-landing-subtitle">
-          畫作、插圖、視覺作品。半透明的人物像在水面盪漾。
-        </div>
-
-        <div className="visuals-landing-uep">
-          {VISUALS_ZONE.uep.map((text, i) => (
-            <UepDialogue
-              key={i}
-              side="left"
-              effects={i === 0 ? ['shimmer', 'halo'] : []}
-              text={text}
-            />
-          ))}
-        </div>
-
-        <div
-          className="visuals-crossroad"
-          data-hover={crossroadHover || undefined}
-          onMouseLeave={() => setCrossroadHover(null)}
-        >
-          {renderCrossroadSvg()}
-          <div className="visuals-crossroad-center">
-            <svg width={110} height={110} viewBox="0 0 110 110">
-              <circle
-                cx={55}
-                cy={55}
-                r={48}
-                fill="none"
-                stroke={ACCENT}
-                strokeOpacity={0.3}
-                strokeWidth={1}
-              />
-              <circle
-                cx={55}
-                cy={55}
-                r={36}
-                fill="none"
-                stroke={ACCENT}
-                strokeOpacity={0.15}
-                strokeWidth={0.5}
-                strokeDasharray="3 4"
-              />
-              <line
-                x1={55}
-                y1={7}
-                x2={55}
-                y2={103}
-                stroke={ACCENT}
-                strokeOpacity={0.4}
-                strokeWidth={0.5}
-              />
-              <line
-                x1={7}
-                y1={55}
-                x2={103}
-                y2={55}
-                stroke={ACCENT}
-                strokeOpacity={0.4}
-                strokeWidth={0.5}
-              />
-              <text
-                x={55}
-                y={59}
-                textAnchor="middle"
-                fill={ACCENT}
-                fontSize={18}
-                fontFamily="var(--font-display)"
-              >
-                ✦
-              </text>
-            </svg>
-          </div>
-          {DIVISIONS.map((div, i) => {
-            const areas = ['fwd', 'lft', 'rgt', 'bck'] as const;
-            const dirs = ['前方', '左方', '右方', '後方'];
-            return (
-              <button
-                key={div.id}
-                className="visuals-crossroad-card"
-                data-area={areas[i]}
-                onClick={() => navigateToDivision(div.id)}
-                onMouseEnter={() => setCrossroadHover(areas[i])}
-              >
-                <span className="visuals-crossroad-dir">{dirs[i]}</span>
-                <span className="visuals-crossroad-name">{div.label}</span>
-                <span className="visuals-crossroad-hint">
-                  {div.intro.slice(0, 30)}...
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <ZoneStateDisplay
+          kind="loading"
+          message="正在讀取幻影重現室..."
+          large
+        />
       </div>
     );
   }

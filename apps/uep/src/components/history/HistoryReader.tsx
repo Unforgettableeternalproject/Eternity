@@ -123,12 +123,6 @@ interface Page {
 
 const API_BASE = getApiBase();
 
-const HISTORY_ZONE = {
-  main: '#6B3F2A',
-  soft: '#C8A46A',
-  tint: 'var(--history-tint)',
-};
-
 function flattenTree(nodes: PageTreeNode[], acc: PageTreeNode[] = []) {
   for (const node of nodes) {
     if (isHidden(node)) continue;
@@ -216,38 +210,6 @@ function renderBlocks(blocks: ContentBlock[] | undefined) {
     .join('\n');
 }
 
-function renderLandingBlocks(blocks: ContentBlock[] | undefined) {
-  const html = renderBlocks(blocks);
-  if (!html) return '';
-
-  return html.replace(
-    /<h3><strong>告示板上分別寫著:<\/strong><\/h3>\s*<div class="card-grid">[\s\S]*?<\/div><\/div>/,
-    '<div data-history-arch-slot="true"></div>'
-  );
-}
-
-function splitLandingHtml(html: string) {
-  const marker = '<div data-history-arch-slot="true"></div>';
-  const index = html.indexOf(marker);
-  if (index < 0) return { before: html, after: '' };
-  return {
-    before: html.slice(0, index),
-    after: html.slice(index + marker.length),
-  };
-}
-
-function findNodeInTree(
-  nodes: PageTreeNode[],
-  id: string
-): PageTreeNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    const found = findNodeInTree(node.children || [], id);
-    if (found) return found;
-  }
-  return null;
-}
-
 function resolveInternalLink(
   currentPageId: string,
   href: string,
@@ -302,8 +264,6 @@ export default function HistoryReader() {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<Page | null>(null);
   const [articleHtml, setArticleHtml] = useState('');
-  const [landingPages, setLandingPages] = useState<Record<string, Page>>({});
-  const [landingLoading, setLandingLoading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [transitionKey, setTransitionKey] = useState(0);
@@ -687,19 +647,7 @@ export default function HistoryReader() {
     pageLevelNodes.find((page) => page.id === 'history/passage') ||
     pageLevelNodes[0] ||
     null;
-  const noteNode =
-    pageLevelNodes.find((page) => page.id === 'history/note') || null;
-  const passagePage = passageNode ? landingPages[passageNode.id] : null;
-  const notePage = noteNode ? landingPages[noteNode.id] : null;
   const historyZone = ZONES.find((zone) => zone.id === 'history') || ZONES[0];
-  const landingHtml = useMemo(
-    () => (passagePage ? renderLandingBlocks(passagePage.content) : ''),
-    [passagePage]
-  );
-  const landingParts = useMemo(
-    () => splitLandingHtml(landingHtml),
-    [landingHtml]
-  );
   const archNodes = useMemo(
     () =>
       (passageNode?.children || [])
@@ -764,11 +712,6 @@ export default function HistoryReader() {
       scrollRef.current?.scrollTo({ top: 0 });
     }
   }, [progress, currentId, pagesById, progressTree]);
-
-  useEffect(() => {
-    if (!pageLevelNodes.length) return;
-    void fetchLandingPages(pageLevelNodes);
-  }, [pageLevelNodes]);
 
   // 孤兒 complete 靜默清理：tree 載入或變動時掃一次，
   // 清除依賴不成立的 completed:* 旗標（測試模式手動蓋、匯入舊資料、
@@ -844,33 +787,6 @@ export default function HistoryReader() {
       });
   }, [markContentReady]);
 
-  // 從首頁區塊中提取特定類型的資料
-  const hpHeader = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'zone-header');
-    return b ? (b.data as ZoneHeaderData) : null;
-  }, [homepageBlocks]);
-
-  const hpDialogues = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'uep-dialogue');
-    return b ? (b.data as UepDialogueItem[]) : null;
-  }, [homepageBlocks]);
-
-  const hpArchCards = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'archway-grid');
-    return b ? (b.data as { cards: ArchwayCard[] }).cards : null;
-  }, [homepageBlocks]);
-
-  const hpHintBox = useMemo(() => {
-    const b = homepageBlocks.find((b) => b.type === 'hint-box');
-    return b ? (b.data as { text: string }).text : null;
-  }, [homepageBlocks]);
-
-  const hpRichTexts = useMemo(() => {
-    return homepageBlocks
-      .filter((b) => b.type === 'rich-text')
-      .map((b) => (b.data as { html: string }).html);
-  }, [homepageBlocks]);
-
   useEffect(() => {
     if (!contentRef.current) return;
     const root = contentRef.current;
@@ -937,22 +853,6 @@ export default function HistoryReader() {
     };
     if (!json.ok) throw new Error(json.error || 'API returned ok=false');
     return json.data;
-  }
-
-  async function fetchLandingPages(nodes: PageTreeNode[]) {
-    setLandingLoading(true);
-    try {
-      const entries = await Promise.all(
-        nodes.map(
-          async (node) => [node.id, await fetchPageById(node.id)] as const
-        )
-      );
-      setLandingPages(Object.fromEntries(entries));
-    } catch (err) {
-      console.error('Failed to load history landing pages:', err);
-    } finally {
-      setLandingLoading(false);
-    }
   }
 
   async function loadPage(node: PageTreeNode, pushState = true) {
@@ -1649,78 +1549,14 @@ export default function HistoryReader() {
                           return null;
                       }
                     })
+                  ) : treeError ? (
+                    /* ── homepage 區塊未就緒：目錄讀取失敗時顯示錯誤 ── */
+                    <div className="history-state">
+                      目錄讀取失敗：{treeError}
+                    </div>
                   ) : (
-                    /* ── Fallback：舊版固定佈局 ── */
-                    <>
-                      <div className="history-kicker">History / Passage</div>
-                      <h2>
-                        {passagePage?.title || passageNode?.title || '三向通道'}
-                      </h2>
-                      {(treeLoading || landingLoading) && !passagePage && (
-                        <div className="history-state">正在讀取三向通道...</div>
-                      )}
-                      {landingParts.before && (
-                        <>
-                          {renderHtmlWithUep(
-                            landingParts.before,
-                            'landing-before',
-                            'history-prose history-landing-prose'
-                          )}
-                        </>
-                      )}
-                      <div className="history-arch-grid">
-                        {archNodes.map((node, index) => (
-                          <button
-                            className="history-arch-card"
-                            type="button"
-                            key={node.id}
-                            onClick={() => void loadPage(node)}
-                          >
-                            <span className="history-arch-index">
-                              {['U', 'E', 'P'][index] ||
-                                String(index + 1).padStart(2, '0')}
-                            </span>
-                            <span className="history-arch-title">
-                              {node.title}
-                            </span>
-                            <span className="history-arch-meta">
-                              {node.children.length} entries /{' '}
-                              {pageTypeLabel(node.pageType)}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      {landingParts.after && (
-                        <>
-                          {renderHtmlWithUep(
-                            landingParts.after,
-                            'landing-after',
-                            'history-prose history-landing-prose'
-                          )}
-                        </>
-                      )}
-                      <div className="history-uep-note">
-                        <UepDialogue
-                          text="這裡是歷史典藏庫的三向通道。選擇 U、E、P 其中一扇門，就會進入對應區段的閱讀頁。"
-                          effects={['shimmer', 'halo']}
-                        />
-                      </div>
-                      {notePage && (
-                        <section className="history-note-section">
-                          <div className="history-kicker">
-                            Loose Note / Page
-                          </div>
-                          <h3>{notePage.title}</h3>
-                          <>
-                            {renderHtmlWithUep(
-                              renderBlocks(notePage.content),
-                              'note-page',
-                              'history-prose history-note-prose'
-                            )}
-                          </>
-                        </section>
-                      )}
-                    </>
+                    /* ── homepage 區塊載入中 ── */
+                    <div className="history-state">正在讀取三向通道...</div>
                   )}
                 </div>
               </section>
