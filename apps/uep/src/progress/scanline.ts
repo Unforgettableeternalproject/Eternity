@@ -45,7 +45,13 @@ export interface MarkerPassedInfo {
   /** 實際通過的 DOM 元素；哨兵事件為 sentinel。 */
   element: Element;
   /** 標記種類，額外消費端不必重新查 DOM 索引。 */
-  role: 'hr' | 'progress-marker' | 'echo-spot' | 'sentinel';
+  role:
+    | 'hr'
+    | 'progress-marker'
+    | 'echo-spot'
+    | 'visual-clue-start'
+    | 'visual-clue-end'
+    | 'sentinel';
 }
 
 export interface ScanlineOptions {

@@ -63,6 +63,8 @@ export type {
 export {
   PROGRESS_MARKER_ROLE,
   PROGRESS_MARKER_SELECTOR,
+  VISUAL_CLUE_START_ROLE,
+  VISUAL_CLUE_END_ROLE,
   parseFlagsAttr,
   serializeFlagsAttr,
   collectMarkers,

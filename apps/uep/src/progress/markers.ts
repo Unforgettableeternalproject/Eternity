@@ -17,9 +17,16 @@ import type { ProgressState } from './types';
 export const PROGRESS_MARKER_ROLE = 'progress-marker';
 /** Echoes 插播標記；同樣由掃描線觀察，但不走 grantsFlags 屬性。 */
 export const ECHO_SPOT_ROLE = 'echo-spot';
+/**
+ * Visual Clue 成對錨點（S8 下半場 V-D）：同 data-clue-id 的起訖兩個
+ * 隱形標記，界定書籤按鈕浮現的橋段區間。同樣由掃描線觀察、
+ * 不走 grantsFlags；區間內外判定由 useVisualClues 消費端負責。
+ */
+export const VISUAL_CLUE_START_ROLE = 'visual-clue-start';
+export const VISUAL_CLUE_END_ROLE = 'visual-clue-end';
 
 /** 掃描線監聽的標記點選擇器（hr 自動標記 + 手動標記，文件順序） */
-export const PROGRESS_MARKER_SELECTOR = `hr, [data-role="${PROGRESS_MARKER_ROLE}"], [data-role="${ECHO_SPOT_ROLE}"]`;
+export const PROGRESS_MARKER_SELECTOR = `hr, [data-role="${PROGRESS_MARKER_ROLE}"], [data-role="${ECHO_SPOT_ROLE}"], [data-role="${VISUAL_CLUE_START_ROLE}"], [data-role="${VISUAL_CLUE_END_ROLE}"]`;
 
 /** 解析 data-grants-flags 屬性（逗號分隔 → 去空白、去空值、去重複） */
 export function parseFlagsAttr(value: string | null | undefined): string[] {
@@ -47,8 +54,13 @@ export interface ScanMarker {
   index: number;
   /** 通過時授予的旗標（hr 與一般標記為空陣列） */
   grantsFlags: string[];
-  /** hr / progress-marker / echo-spot，供額外消費端辨識。 */
-  role: 'hr' | typeof PROGRESS_MARKER_ROLE | typeof ECHO_SPOT_ROLE;
+  /** hr / progress-marker / echo-spot / visual-clue-*，供額外消費端辨識。 */
+  role:
+    | 'hr'
+    | typeof PROGRESS_MARKER_ROLE
+    | typeof ECHO_SPOT_ROLE
+    | typeof VISUAL_CLUE_START_ROLE
+    | typeof VISUAL_CLUE_END_ROLE;
 }
 
 /**
@@ -64,7 +76,11 @@ export function collectMarkers(container: Element): ScanMarker[] {
           ? PROGRESS_MARKER_ROLE
           : dataRole === ECHO_SPOT_ROLE
             ? ECHO_SPOT_ROLE
-            : 'hr';
+            : dataRole === VISUAL_CLUE_START_ROLE
+              ? VISUAL_CLUE_START_ROLE
+              : dataRole === VISUAL_CLUE_END_ROLE
+                ? VISUAL_CLUE_END_ROLE
+                : 'hr';
       return {
         el,
         index,
