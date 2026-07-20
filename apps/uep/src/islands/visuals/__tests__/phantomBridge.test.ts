@@ -8,6 +8,7 @@ import {
   consumePhantomSuggestion,
   getPhantomGallery,
   isPhantomEligibleDivision,
+  isPhantomSuggestionEligible,
   pushPhantomGallery,
   pushPhantomSuggestion,
 } from '../phantomBridge';
@@ -67,6 +68,22 @@ describe('canMirrorGallery', () => {
     [{ ...base, imageCount: 0 }, '空 gallery'],
   ])('排除 %j（%s）', (input) => {
     expect(canMirrorGallery(input)).toBe(false);
+  });
+});
+
+describe('isPhantomSuggestionEligible', () => {
+  const base = { divisionId: 'profiles', unlocked: true, imageCount: 2 };
+
+  it('進島分館且已解鎖且有圖片 → 可提示', () => {
+    expect(isPhantomSuggestionEligible(base)).toBe(true);
+  });
+
+  it.each([
+    [{ ...base, divisionId: 'sketchs' }, '分館不進島'],
+    [{ ...base, unlocked: false }, '未解鎖 gallery（提示不授旗）'],
+    [{ ...base, imageCount: 0 }, '空 gallery'],
+  ])('排除 %j（%s）', (input) => {
+    expect(isPhantomSuggestionEligible(input)).toBe(false);
   });
 });
 

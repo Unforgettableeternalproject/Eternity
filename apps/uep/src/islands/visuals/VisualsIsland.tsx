@@ -25,7 +25,13 @@ import { useProgress } from '../../progress';
 import { resolveGalleryImages } from '../../visuals';
 import type { ResolvedGalleryImage } from '../../visuals';
 
-import { getPhantomGallery, UEP_PHANTOM_SHOW_EVENT } from './phantomBridge';
+import {
+  consumePhantomSuggestion,
+  getPhantomGallery,
+  pushPhantomGallery,
+  UEP_PHANTOM_SHOW_EVENT,
+  UEP_PHANTOM_SUGGESTION_EVENT,
+} from './phantomBridge';
 import type { PhantomGallery, PhantomImage } from './phantomBridge';
 
 import './VisualsIsland.css';
@@ -69,6 +75,9 @@ export default function VisualsIsland() {
   /** 檢視索引（依 sortOrder 排序後的序位） */
   const [idx, setIdx] = useState(0);
 
+  /** entity 嵌入提示卡（V-C .25）：pending 消費 + 展開中即時接收 */
+  const [suggestion, setSuggestion] = useState<PhantomGallery | null>(null);
+
   useEffect(() => {
     const onShow = (event: Event) => {
       const detail = (event as CustomEvent<PhantomGallery>).detail;
@@ -80,18 +89,63 @@ export default function VisualsIsland() {
     return () => window.removeEventListener(UEP_PHANTOM_SHOW_EVENT, onShow);
   }, []);
 
+  useEffect(() => {
+    const pending = consumePhantomSuggestion();
+    if (pending) setSuggestion(pending);
+    const onSuggestion = (event: Event) => {
+      const detail = (event as CustomEvent<PhantomGallery>).detail;
+      if (!detail) return;
+      window.__uepPhantomSuggestion = null;
+      setSuggestion(detail);
+    };
+    window.addEventListener(UEP_PHANTOM_SUGGESTION_EVENT, onSuggestion);
+    return () =>
+      window.removeEventListener(UEP_PHANTOM_SUGGESTION_EVENT, onSuggestion);
+  }, []);
+
+  /** 按「展示」：提示轉正式投射（push 的事件迴路會更新 gallery state） */
+  function showSuggestion() {
+    if (!suggestion) return;
+    pushPhantomGallery(suggestion);
+    setSuggestion(null);
+  }
+
   /** 三態求值（同 Reader 路徑；進度變化即時重算） */
   const items: PhantomImageView[] = useMemo(
     () => (gallery ? resolveGalleryImages(gallery.images, progress) : []),
     [gallery, progress]
   );
 
+  /** 提示卡（有無投射都要能出現——嵌入提示可能先於任何投射） */
+  const suggestionCard = suggestion && (
+    <div className="uep-visland__suggestion">
+      <span className="uep-visland__suggestion-dot" aria-hidden />
+      <div className="uep-visland__suggestion-copy">
+        <small>RELATED VISUAL</small>
+        <strong title={suggestion.title}>{suggestion.title}</strong>
+      </div>
+      <button type="button" onClick={showSuggestion}>
+        展示
+      </button>
+      <button
+        type="button"
+        className="is-dismiss"
+        onClick={() => setSuggestion(null)}
+      >
+        忽略
+      </button>
+    </div>
+  );
+
   if (!gallery) {
     return (
-      <div className="uep-visland uep-visland--empty">
-        畫框裡還是一片空白。
-        <br />
-        去幻影重現室把畫作映照過來吧。
+      <div className="uep-visland">
+        {suggestionCard}
+        <div className="uep-visland--empty">
+          畫框裡還是一片空白。
+          <br />
+          去幻影重現室把畫作映照過來吧。
+        </div>
       </div>
     );
   }
@@ -106,6 +160,8 @@ export default function VisualsIsland() {
 
   return (
     <div className="uep-visland">
+      {suggestionCard}
+
       {/* ── 標頭：投射中的 gallery ── */}
       <div className="uep-visland__header">
         <span className="uep-visland__kicker">

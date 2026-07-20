@@ -77,6 +77,7 @@ export {
   UEP_PHANTOM_SHOW_EVENT,
   UEP_PHANTOM_SUGGESTION_EVENT,
   isPhantomEligibleDivision,
+  isPhantomSuggestionEligible,
   canMirrorGallery,
   pushPhantomGallery,
   getPhantomGallery,

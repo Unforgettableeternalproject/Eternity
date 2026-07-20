@@ -21,7 +21,11 @@ import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import VisualsIsland from '../VisualsIsland';
-import { clearPhantomGallery, pushPhantomGallery } from '../phantomBridge';
+import {
+  clearPhantomGallery,
+  pushPhantomGallery,
+  pushPhantomSuggestion,
+} from '../phantomBridge';
 import type { PhantomGallery } from '../phantomBridge';
 
 function makeGallery(overrides: Partial<PhantomGallery> = {}): PhantomGallery {
@@ -138,6 +142,67 @@ describe('VisualsIsland 檢視器', () => {
     );
     render(<VisualsIsland />);
     expect(screen.queryByLabelText('下一張')).toBeNull();
+  });
+});
+
+describe('VisualsIsland entity 嵌入提示', () => {
+  it('mount 時消費 pending 提示（Host 先推、島後開的順序）', () => {
+    pushPhantomSuggestion(makeGallery({ source: 'embed', title: '相關畫廊' }));
+    render(<VisualsIsland />);
+    expect(screen.getByText('相關畫廊')).toBeTruthy();
+    expect(screen.getByText('展示')).toBeTruthy();
+  });
+
+  it('無投射時提示卡仍出現（嵌入可先於任何投射）', () => {
+    pushPhantomSuggestion(makeGallery({ source: 'embed', title: '相關畫廊' }));
+    render(<VisualsIsland />);
+    expect(screen.getByText(/畫框裡還是一片空白/)).toBeTruthy();
+    expect(screen.getByText('相關畫廊')).toBeTruthy();
+  });
+
+  it('展開中即時接收提示', () => {
+    pushPhantomGallery(makeGallery());
+    render(<VisualsIsland />);
+    act(() => {
+      pushPhantomSuggestion(
+        makeGallery({
+          id: 'visuals/profiles/cast/rival',
+          title: '對手設定集',
+          source: 'embed',
+        })
+      );
+    });
+    expect(screen.getByText('對手設定集')).toBeTruthy();
+    // 提示不影響目前投射
+    expect(screen.getByText('女主角設定集')).toBeTruthy();
+  });
+
+  it('按「展示」提示轉為正式投射並收卡', () => {
+    pushPhantomSuggestion(
+      makeGallery({
+        id: 'visuals/profiles/cast/rival',
+        title: '對手設定集',
+        source: 'embed',
+      })
+    );
+    render(<VisualsIsland />);
+    fireEvent.click(screen.getByText('展示'));
+    expect(screen.queryByText('展示')).toBeNull();
+    expect(screen.getByText('對手設定集')).toBeTruthy();
+    expect(screen.getByText(/01 \//)).toBeTruthy();
+  });
+
+  it('按「忽略」收卡且不換投射', () => {
+    pushPhantomGallery(makeGallery());
+    render(<VisualsIsland />);
+    act(() => {
+      pushPhantomSuggestion(
+        makeGallery({ id: 'visuals/profiles/cast/rival', title: '對手設定集' })
+      );
+    });
+    fireEvent.click(screen.getByText('忽略'));
+    expect(screen.queryByText('對手設定集')).toBeNull();
+    expect(screen.getByText('女主角設定集')).toBeTruthy();
   });
 });
 

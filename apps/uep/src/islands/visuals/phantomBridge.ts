@@ -81,6 +81,23 @@ export function canMirrorGallery(args: {
 }
 
 /**
+ * 互動式嵌入只提示「進島分館 ∧ 已解鎖 ∧ 有圖片」的 gallery
+ * （§3-3 原則 1：只展示已解鎖的 gallery；提示不授旗——授旗屬
+ * Visual Clue 的 V-D 接線）。
+ */
+export function isPhantomSuggestionEligible(args: {
+  divisionId: string | null | undefined;
+  unlocked: boolean;
+  imageCount: number;
+}): boolean {
+  return (
+    isPhantomEligibleDivision(args.divisionId) &&
+    args.unlocked &&
+    args.imageCount > 0
+  );
+}
+
+/**
  * 設定目前投射並廣播。島未展開時值留在 window，展開後 mount 讀取；
  * 已展開時經事件即時切換。
  */

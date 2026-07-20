@@ -28,6 +28,7 @@ import type { EntityActivateDetail } from '../embed';
 import { useProgress } from '../progress';
 import { resolveSpoilerLevel } from '../audio';
 import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
+import { isLocked } from '../components/zone/contentVisibility';
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
@@ -42,6 +43,11 @@ import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
 import SongPreviewCard from './echoes/SongPreviewCard';
+import {
+  isPhantomSuggestionEligible,
+  pushPhantomSuggestion,
+} from './visuals/phantomBridge';
+import type { PhantomImage } from './visuals/phantomBridge';
 import {
   isEchoSuggestionEligible,
   pushEchoSuggestion,
@@ -175,6 +181,97 @@ export default function IslandHost() {
             accent: cluster.color,
           });
           getIslandRuntime().open('echoes');
+        })
+        .catch((error: unknown) => {
+          if ((error as { name?: string }).name !== 'AbortError') {
+            // 對使用者靜默；entity 本身仍由 Terminal 正常處理。
+          }
+        });
+    };
+    window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+    return () => {
+      controller?.abort();
+      window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+    };
+  }, []);
+
+  // entity-activate 的 Visuals 消費（V-C）：以 entityKey 反查陳列走廊
+  // gallery，只把「進島分館 + 已解鎖 + 有圖片」者推進浮動幻影島內提示卡
+  // ——提示為主，按「展示」才切換投射（比照 Echoes 嵌入提示，不直接展示）。
+  // AbortController 防止快速點擊不同 entity 時舊回應覆蓋新卡。
+  // 此路徑無 zone tree：gallery 閘僅本頁 gate 求值（容器繼承不生效，
+  // 同 echoes entity-song 已知限制）。
+  useEffect(() => {
+    let controller: AbortController | null = null;
+    const onActivate = (event: Event) => {
+      const detail = (event as CustomEvent<EntityActivateDetail>).detail;
+      if (!detail?.entityKey) return;
+      if (!shouldMountIsland(progressRef.current, 'visuals')) return;
+      controller?.abort();
+      controller = new AbortController();
+      void fetch(
+        `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`,
+        { signal: controller.signal }
+      )
+        .then((response) => response.json())
+        .then((payload) => {
+          const gallery = payload?.data?.gallery;
+          if (!payload?.ok || !gallery) return;
+          const unlocked = !isLocked(
+            { metadata: { gate: gallery.gate, locked: gallery.locked } },
+            progressRef.current
+          );
+          const rawImages: unknown[] = Array.isArray(gallery.images)
+            ? gallery.images
+            : [];
+          // worker 回摘要欄位（initialState 為寬鬆 string），narrowing 交給
+          // resolveImageState 的防禦性解析——這裡只組型別相容的圖片清單
+          const images = rawImages
+            .filter(
+              (img): img is Record<string, unknown> =>
+                !!img && typeof img === 'object'
+            )
+            .map(
+              (img): PhantomImage => ({
+                id: typeof img.id === 'string' ? img.id : '',
+                file: typeof img.file === 'string' ? img.file : '',
+                caption: typeof img.caption === 'string' ? img.caption : '',
+                sortOrder:
+                  typeof img.sortOrder === 'number' ? img.sortOrder : 0,
+                ...(img.initialState === 'locked' ||
+                img.initialState === 'partial' ||
+                img.initialState === 'unlocked'
+                  ? { initialState: img.initialState }
+                  : {}),
+                ...(img.lockGate && typeof img.lockGate === 'object'
+                  ? { lockGate: img.lockGate as PhantomImage['lockGate'] }
+                  : {}),
+                ...(img.partialGate && typeof img.partialGate === 'object'
+                  ? {
+                      partialGate:
+                        img.partialGate as PhantomImage['partialGate'],
+                    }
+                  : {}),
+              })
+            )
+            .filter((img) => img.file);
+          if (
+            !isPhantomSuggestionEligible({
+              divisionId: gallery.divisionId,
+              unlocked,
+              imageCount: images.length,
+            })
+          )
+            return;
+          pushPhantomSuggestion({
+            id: gallery.id,
+            title: gallery.title,
+            entityKey: gallery.entityKey ?? null,
+            divisionId: gallery.divisionId ?? null,
+            images,
+            source: 'embed',
+          });
+          getIslandRuntime().open('visuals');
         })
         .catch((error: unknown) => {
           if ((error as { name?: string }).name !== 'AbortError') {
