@@ -112,6 +112,33 @@ describe('目前投射（current）', () => {
     expect(getPhantomGallery()?.id).toBe('visuals/illustrations/scenes/dawn');
   });
 
+  it('push 同時廣播 ISLAND_RELATED_EVENT（跨島關聯基礎接通）', async () => {
+    const { ISLAND_RELATED_EVENT } = await import('../../types');
+    const listener = vi.fn();
+    window.addEventListener(ISLAND_RELATED_EVENT, listener);
+    pushPhantomGallery(makeGallery());
+    window.removeEventListener(ISLAND_RELATED_EVENT, listener);
+    expect(listener).toHaveBeenCalledTimes(1);
+    const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
+    expect(detail).toEqual({
+      sourceZone: 'visuals',
+      historyPageIds: [],
+      label: '女主角設定集',
+    });
+  });
+
+  it('relatedHistoryIds 透傳進 ISLAND_RELATED_EVENT（V-D clue 用）', async () => {
+    const { ISLAND_RELATED_EVENT } = await import('../../types');
+    const listener = vi.fn();
+    window.addEventListener(ISLAND_RELATED_EVENT, listener);
+    pushPhantomGallery(
+      makeGallery({ relatedHistoryIds: ['history/u/1-1'], source: 'clue' })
+    );
+    window.removeEventListener(ISLAND_RELATED_EVENT, listener);
+    const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
+    expect(detail.historyPageIds).toEqual(['history/u/1-1']);
+  });
+
   it('clearPhantomGallery 同時清除投射與 pending 提示（登出/reset）', () => {
     pushPhantomGallery(makeGallery());
     pushPhantomSuggestion(makeGallery({ source: 'embed' }));

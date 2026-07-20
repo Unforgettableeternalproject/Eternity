@@ -11,6 +11,7 @@ import { ZONES } from '../../data/zones';
 import {
   canMirrorGallery,
   getIslandRuntime,
+  IslandUnlockObject,
   pushPhantomGallery,
   shouldMountIsland,
 } from '../../islands';
@@ -2196,6 +2197,12 @@ function VisualsReaderInner() {
           </div>
         </div>
       </div>
+
+      {/* 浮島解鎖小物件（同 EchoesReader 的修法）：visuals 入口是
+          visuals.astro 直掛的 Reader，ZoneEntryPage 走不到。
+          position:fixed，浮現條件（登入探索者 + visited + 未解鎖）
+          由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
+      {view === 'landing' && <IslandUnlockObject zoneId="visuals" />}
 
       {renderLightbox()}
     </ReaderShell>

@@ -15,6 +15,8 @@
 
 import type { GateCondition } from '../../progress';
 import type { ImageDisplayState } from '../../visuals';
+import { ISLAND_RELATED_EVENT } from '../types';
+import type { IslandRelatedDetail } from '../types';
 
 /** 島內展示的單張圖片（ImageItem 的三態子集；file 為裸 R2 key） */
 export interface PhantomImage {
@@ -40,6 +42,12 @@ export interface PhantomGallery {
   images: PhantomImage[];
   /** 展示來源：映照 / entity 嵌入 / Visual Clue（V-D） */
   source: 'mirror' | 'embed' | 'clue';
+  /**
+   * 關聯的 History 頁面 id（ISLAND_RELATED_EVENT 廣播用）。
+   * 映照/嵌入來源沒有此資訊（空陣列）；V-D Visual Clue 觸發時帶入
+   * clue 所在的 History 頁。
+   */
+  relatedHistoryIds?: string[];
 }
 
 /** 目前投射變更事件（島展開中時的即時更新） */
@@ -107,6 +115,18 @@ export function pushPhantomGallery(gallery: PhantomGallery): void {
   window.dispatchEvent(
     new CustomEvent<PhantomGallery>(UEP_PHANTOM_SHOW_EVENT, {
       detail: gallery,
+    })
+  );
+  // 跨島關聯事件基礎接通（S6 預留合約的第一個真實生產者）：
+  // 映照/嵌入展示/clue 都經此廣播來源 gallery 與關聯 History 頁
+  // （映照/嵌入無關聯頁資訊＝空陣列；V-D clue 帶入所在頁）。
+  window.dispatchEvent(
+    new CustomEvent<IslandRelatedDetail>(ISLAND_RELATED_EVENT, {
+      detail: {
+        sourceZone: 'visuals',
+        historyPageIds: gallery.relatedHistoryIds ?? [],
+        label: gallery.title,
+      },
     })
   );
 }

@@ -30,6 +30,7 @@ import {
   progressRatio,
 } from './historyIslandData';
 import type { ChapterEntry, HistoryTreeIndex } from './historyIslandData';
+import RelatedEventChip from './RelatedEventChip';
 
 import './HistoryIsland.css';
 
@@ -115,6 +116,9 @@ export default function HistoryIsland() {
 
   return (
     <div className="uep-hisland">
+      {/* 跨島關聯 chip（V-C 基礎版）：其他島展示內容時的迴響 */}
+      <RelatedEventChip />
+
       {/* 續讀卡：夾在書裡的書籤 */}
       <div className="uep-hisland__resume">
         <div className="uep-hisland__resume-kicker">─ 書籤停在 ─</div>
