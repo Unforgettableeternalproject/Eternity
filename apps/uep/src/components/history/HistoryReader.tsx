@@ -59,6 +59,7 @@ import { useEchoSpots } from './useEchoSpots';
 import { useVisualClues, type VisualClueEntry } from './useVisualClues';
 import VisualClueBookmarks from './VisualClueBookmarks';
 import { fetchClueGallery } from './visualClueGallery';
+import { deriveGalleryUnlockFlag } from '../../visuals';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
 import './HistoryReader.css';
@@ -403,6 +404,22 @@ export default function HistoryReader() {
       ) {
         window.__uepToastManager?.info('這個線索指向的畫廊目前無法展示。');
         return;
+      }
+      // clue 授旗（V-D.32，對位 echo spot 推導旗標）：展示即授予
+      // gallery 解鎖旗標；原未解鎖（本頁 gate 求值，無 tree——同
+      // entity-song 已知限制）則附解鎖提示通知
+      const progressNow = getProgressManager().getState();
+      const wasLocked = isLocked(
+        { metadata: { gate: gallery.gate, locked: gallery.locked } },
+        progressNow
+      );
+      getProgressManager().grantFlags([
+        deriveGalleryUnlockFlag(gallery.id, gallery.entityKey),
+      ]);
+      if (wasLocked) {
+        window.__uepToastManager?.success(
+          `「${gallery.title}」的封印解開了，收入浮動幻影的畫框。`
+        );
       }
       clickedCluesRef.current.add(clue.clueId);
       pushClueGallery({

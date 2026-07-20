@@ -62,9 +62,7 @@ describe('collectVisualClues — 配對與孤兒容錯', () => {
   });
 
   it('重複起點（同 clueId 兩個 start）整組略過', () => {
-    const container = makeContainer(
-      `${START('c1')}${START('c1')}${END('c1')}`
-    );
+    const container = makeContainer(`${START('c1')}${START('c1')}${END('c1')}`);
     expect(collectVisualClues(container)).toEqual([]);
   });
 

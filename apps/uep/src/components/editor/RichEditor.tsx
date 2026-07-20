@@ -936,12 +936,7 @@ export default function RichEditor({
       (anchor) => anchor.pos !== selectedVisualClue.pos
     );
     if (!partner) return;
-    editor
-      .chain()
-      .focus()
-      .setNodeSelection(partner.pos)
-      .scrollIntoView()
-      .run();
+    editor.chain().focus().setNodeSelection(partner.pos).scrollIntoView().run();
   };
 
   const applyEchoSongChoice = (song: EchoSongChoice) => {
@@ -3405,7 +3400,9 @@ export default function RichEditor({
         <div className="ned-audio-bubble ned-echo-spot-bubble">
           <span className="ned-audio-bubble-label">
             ❏ {selectedVisualClue.edge === 'end' ? '訖點' : '起點'} ·{' '}
-            {selectedVisualClue.title || selectedVisualClue.targetKey || '未綁定'}
+            {selectedVisualClue.title ||
+              selectedVisualClue.targetKey ||
+              '未綁定'}
           </span>
           <span className="ned-echo-spot-bubble__meta">
             {selectedVisualClue.targetType === 'illustration'
