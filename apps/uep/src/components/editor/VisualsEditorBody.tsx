@@ -70,7 +70,11 @@ export interface VisualsData {
   images: ImageItem[];
   /** 分組標籤（同 group 的 gallery 在 subcat 中歸在一起）*/
   group: string;
-  /** 遮蔽等級 0-3（V-B 盤點去留） */
+  /**
+   * 遮蔽等級 0-3（V-B.20 盤點定案：保留）——gallery 級「劇透警告確認框」
+   * 的 UX 閘，與進度 gating（系統求值）正交；per-image 三態接手的是
+   * 階段鎖職責，不取代讀者主動確認的警告機制。
+   */
   spoilerLevel: number;
   /**
    * gallery 解鎖閘（GateCondition 物件；null = 無條件）的唯讀鏡像。

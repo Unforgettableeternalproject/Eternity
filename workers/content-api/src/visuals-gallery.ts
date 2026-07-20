@@ -50,7 +50,7 @@ export interface EntityGalleryPayload {
   /** gallery 解鎖閘；舊自由文字 gate 不回傳為條件（靜默失效定案） */
   gate?: unknown;
   locked: boolean;
-  /** 舊遮蔽等級（V-B 盤點去留，先照實回傳） */
+  /** 遮蔽等級（V-B.20 盤點定案：保留——gallery 級劇透警告確認框） */
   spoilerLevel: number;
   /** 依 sortOrder 升冪 */
   images: GalleryImagePayload[];

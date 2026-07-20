@@ -1614,7 +1614,15 @@ function VisualsReaderInner() {
                   }
 
                   const spoiler = getSpoilerLevel(g);
-                  const gate = (g.metadata?.gate as string) || '';
+                  // 警告提示文案：新 key gateHint 優先；舊字串 gate 讀取
+                  // 相容（V-A 起 metadata.gate 可能是 GateCondition 物件，
+                  // 不可再無條件當字串塞進 JSX）
+                  const gate =
+                    typeof g.metadata?.gateHint === 'string'
+                      ? g.metadata.gateHint
+                      : typeof g.metadata?.gate === 'string'
+                        ? g.metadata.gate
+                        : '';
                   const firstImg = images.length > 0 ? images[0] : null;
                   const thumbUrl = firstImg ? buildImageUrl(firstImg.file) : '';
                   const spoilerLocked = spoiler > 0 && !isUnlocked(g.id);
