@@ -65,6 +65,22 @@ export function isPhantomEligibleDivision(
 }
 
 /**
+ * gallery 是否可映照到島：分館白名單 ∧ 非精靈圖 gallery ∧ 有圖片。
+ * gallery 閘由呼叫端把關（Reader 只在已解鎖 gallery 頁提供映照入口）。
+ */
+export function canMirrorGallery(args: {
+  divisionId: string | null | undefined;
+  layout?: string | null;
+  imageCount: number;
+}): boolean {
+  return (
+    isPhantomEligibleDivision(args.divisionId) &&
+    args.layout !== 'sprite' &&
+    args.imageCount > 0
+  );
+}
+
+/**
  * 設定目前投射並廣播。島未展開時值留在 window，展開後 mount 讀取；
  * 已展開時經事件即時切換。
  */

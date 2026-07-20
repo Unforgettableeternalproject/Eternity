@@ -1567,6 +1567,34 @@
   margin-bottom: 8px;
 }
 
+/* 映照入口（V-C）：投射 gallery 到浮動幻影 */
+.visuals-mirror-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+  padding: 4px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--visuals-main, #5e548e) 45%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--visuals-main, #5e548e);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.visuals-mirror-btn:hover {
+  background: color-mix(in srgb, var(--visuals-main, #5e548e) 12%, transparent);
+  box-shadow: 0 0 10px
+    color-mix(in srgb, var(--visuals-main, #5e548e) 25%, transparent);
+}
+
 /* --- Corridor --- */
 .visuals-gallery-corridor {
   border: 1px solid var(--line);

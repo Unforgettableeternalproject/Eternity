@@ -8,6 +8,14 @@ import React, {
 } from 'react';
 
 import { ZONES } from '../../data/zones';
+import {
+  canMirrorGallery,
+  getIslandRuntime,
+  pushPhantomGallery,
+  shouldMountIsland,
+} from '../../islands';
+import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 import { useProgress, buildProgressTreeAdapter } from '../../progress';
 import { resolveGalleryImages } from '../../visuals';
 import type { ResolvedGalleryImage } from '../../visuals';
@@ -25,20 +33,17 @@ import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import { ReaderShell } from '../zone/ReaderShell';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
-
+import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { isHidden, isLocked } from '../zone/contentVisibility';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
+import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+
 import SpriteViewer from './SpriteViewer';
 import VisualsPhantom from './VisualsPhantom';
 import type { PhantomVariant } from './VisualsPhantom';
 
-
-import { useZoneBootReady } from '../zone/useZoneBootReady';
-import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
-import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
-import { isHidden, isLocked } from '../zone/contentVisibility';
 import './VisualsReader.css';
-import { getApiBase } from '../../lib/apiBase';
-import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────
 // 型別
@@ -287,7 +292,6 @@ function VisualsMonoPlayer({
       a.pause();
       a.src = '';
     };
-     
   }, [audioUrl]);
 
   const updateProgress = useCallback(() => {
@@ -1678,6 +1682,25 @@ function VisualsReaderInner() {
     );
   }
 
+  /**
+   * 映照（V-C）：把目前 gallery 投射到浮動幻影並展開島。
+   * 只在已解鎖 gallery 頁提供入口（sealed 分支先 return），
+   * bridge 值放 window——島收合 unmount 後展開仍續示。
+   */
+  function mirrorGalleryToIsland(images: ImageItem[]) {
+    if (!galleryPage) return;
+    const meta = galleryPage.metadata || {};
+    pushPhantomGallery({
+      id: galleryPage.id,
+      title: galleryPage.title,
+      entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
+      divisionId: galleryPage.id.split('/')[1] ?? null,
+      images,
+      source: 'mirror',
+    });
+    getIslandRuntime().open('visuals');
+  }
+
   // ─── RENDER: Gallery ───
   function renderGallery() {
     if (!galleryPage) return <ZoneStateDisplay kind="loading" />;
@@ -1766,6 +1789,24 @@ function VisualsReaderInner() {
         <div className="visuals-gallery-header">
           <h2>{galleryPage.title}</h2>
           <div className="visuals-gallery-count">{images.length} pieces</div>
+          {/* 映照入口（V-C）：投射整個 gallery 到浮動幻影。掛載守門同
+              Echoes 加入佇列按鈕——島不可用（未解鎖/停用/觀測者）時不
+              顯示；gallery 閘已由上方 sealed 分支把關（只投已解鎖）。 */}
+          {shouldMountIsland(progress, 'visuals') &&
+            canMirrorGallery({
+              divisionId: galleryPage.id.split('/')[1] ?? null,
+              layout: style,
+              imageCount: images.length,
+            }) && (
+              <button
+                type="button"
+                className="visuals-mirror-btn"
+                title="將此畫廊映照到浮動幻影"
+                onClick={() => mirrorGalleryToIsland(images)}
+              >
+                <span aria-hidden>❏</span> 映照
+              </button>
+            )}
         </div>
         <div className="visuals-gradient-divider" />
 

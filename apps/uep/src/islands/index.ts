@@ -73,6 +73,19 @@ export {
   mountLostBookmarkTestBridge,
 } from './history/lostBookmark';
 
+export {
+  UEP_PHANTOM_SHOW_EVENT,
+  UEP_PHANTOM_SUGGESTION_EVENT,
+  isPhantomEligibleDivision,
+  canMirrorGallery,
+  pushPhantomGallery,
+  getPhantomGallery,
+  clearPhantomGallery,
+  pushPhantomSuggestion,
+  consumePhantomSuggestion,
+} from './visuals/phantomBridge';
+export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
+
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';
 export { default as IslandHost } from './IslandHost';

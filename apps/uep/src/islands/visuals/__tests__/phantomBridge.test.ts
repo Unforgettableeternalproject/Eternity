@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   UEP_PHANTOM_SHOW_EVENT,
   UEP_PHANTOM_SUGGESTION_EVENT,
+  canMirrorGallery,
   clearPhantomGallery,
   consumePhantomSuggestion,
   getPhantomGallery,
@@ -43,6 +44,30 @@ describe('isPhantomEligibleDivision', () => {
       expect(isPhantomEligibleDivision(divisionId)).toBe(false);
     }
   );
+});
+
+describe('canMirrorGallery', () => {
+  const base = { divisionId: 'profiles', layout: 'corridor', imageCount: 3 };
+
+  it('陳列走廊/鑲框室、非精靈圖、有圖片 → 可映照', () => {
+    expect(canMirrorGallery(base)).toBe(true);
+    expect(
+      canMirrorGallery({
+        ...base,
+        divisionId: 'illustrations',
+        layout: 'museum',
+      })
+    ).toBe(true);
+  });
+
+  it.each([
+    [{ ...base, divisionId: 'sketchs' }, '分館不進島'],
+    [{ ...base, divisionId: 'pixel' }, '基底實驗室不進島'],
+    [{ ...base, layout: 'sprite' }, '精靈圖 gallery 本輪排除'],
+    [{ ...base, imageCount: 0 }, '空 gallery'],
+  ])('排除 %j（%s）', (input) => {
+    expect(canMirrorGallery(input)).toBe(false);
+  });
 });
 
 describe('目前投射（current）', () => {
