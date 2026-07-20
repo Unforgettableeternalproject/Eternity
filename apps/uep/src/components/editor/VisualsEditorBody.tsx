@@ -10,6 +10,7 @@ import {
   type AssetItem as ImagePickerItem,
 } from './editorHelpers';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
+import GateConditionEditor from './GateConditionEditor';
 import { isSamePagePath } from '../../lib/pagePath';
 import type { GateCondition } from '../../progress';
 import type { ImageDisplayState } from '../../visuals';
@@ -167,6 +168,61 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
 }
 
 // ──────────────────────────────────────────────────────────────
+//  圖片三態行為鏈描述（S8 下半場 V-B.17）
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * 依 8 案狀態機（設計文件 §1-3）描述當前組合的行為鏈，
+ * 讓編輯者所見即所得。warn = 案 8（partialGate 形同虛設，
+ * 拍板：提示不阻擋）。
+ */
+export function describeImageChain(
+  initialState: ImageDisplayState,
+  hasLockGate: boolean,
+  hasPartialGate: boolean
+): { text: string; warn: boolean } {
+  if (initialState === 'unlocked') {
+    // 案 7
+    return { text: '永遠解鎖——條件全部不生效', warn: false };
+  }
+  if (initialState === 'partial') {
+    if (hasPartialGate) {
+      // 案 4/5 前者
+      return {
+        text: hasLockGate
+          ? '部分解鎖 →(部分條件)→ 解鎖（鎖定條件不生效）'
+          : '部分解鎖 →(部分條件)→ 解鎖',
+        warn: false,
+      };
+    }
+    if (hasLockGate) {
+      // 案 5
+      return {
+        text: '部分解鎖 →(鎖定條件視為離開條件)→ 解鎖',
+        warn: false,
+      };
+    }
+    // 案 6
+    return { text: '永遠部分解鎖', warn: false };
+  }
+  // initialState === 'locked'
+  if (hasLockGate) {
+    return hasPartialGate
+      ? { text: '鎖定 →(鎖定條件)→ 部分解鎖 →(部分條件)→ 解鎖', warn: false } // 案 1
+      : { text: '鎖定 →(鎖定條件)→ 解鎖（跳過部分解鎖）', warn: false }; // 案 2
+  }
+  if (hasPartialGate) {
+    // 案 8：提示不阻擋
+    return {
+      text: '永遠鎖定——沒有鎖定條件就無法離開鎖定態，部分條件不會生效',
+      warn: true,
+    };
+  }
+  // 案 3
+  return { text: '永遠鎖定（未釋出內容）', warn: false };
+}
+
+// ──────────────────────────────────────────────────────────────
 //  分館規則與唯一性收集（S8 下半場 V-B.16）
 // ──────────────────────────────────────────────────────────────
 
@@ -227,6 +283,17 @@ const SPOILER_LEVELS = [
   { l: 1, n: '霧化' },
   { l: 2, n: '遮罩' },
   { l: 3, n: '雜訊' },
+];
+
+/** 三態初始狀態選項（A/B/C，設計文件 §1-2） */
+const IMAGE_STATE_OPTIONS: {
+  value: ImageDisplayState;
+  code: string;
+  label: string;
+}[] = [
+  { value: 'locked', code: 'A', label: '鎖定' },
+  { value: 'partial', code: 'B', label: '部分解鎖' },
+  { value: 'unlocked', code: 'C', label: '解鎖' },
 ];
 
 // ──────────────────────────────────────────────────────────────
@@ -965,6 +1032,121 @@ export default function VisualsEditorBody({
                           })
                         }
                       />
+
+                      {/* 三態解鎖（S8 下半場 V-B.17）。
+                          第一張圖恆等式：欄位鎖定；重排時約束跟著新的
+                          第一張走，原第一張的既有資料保留但不生效
+                          （resolver 只認 index 0）。 */}
+                      {i === 0 ? (
+                        <div
+                          className="ned-gate-scope-hint"
+                          style={{ marginTop: 10 }}
+                        >
+                          ⓘ 第一張圖恆等於 gallery
+                          解鎖狀態，不設自身條件；重排圖片後此約束跟隨新的第一張。
+                          {(img.initialState === 'locked' ||
+                            img.initialState === 'partial' ||
+                            normalizeGateObject(img.lockGate) ||
+                            normalizeGateObject(img.partialGate)) &&
+                            ' 此圖先前設定的三態資料保留但不生效。'}
+                        </div>
+                      ) : (
+                        (() => {
+                          const effectiveInitial: ImageDisplayState =
+                            img.initialState === 'locked' ||
+                            img.initialState === 'partial'
+                              ? img.initialState
+                              : 'unlocked';
+                          const chain = describeImageChain(
+                            effectiveInitial,
+                            !!normalizeGateObject(img.lockGate),
+                            !!normalizeGateObject(img.partialGate)
+                          );
+                          return (
+                            <div style={{ marginTop: 12 }}>
+                              <label className="ned-field-label ned-field-label--sm">
+                                初始狀態 (三態解鎖)
+                              </label>
+                              <div className="ned-spoiler-buttons">
+                                {IMAGE_STATE_OPTIONS.map((o) => {
+                                  const active = effectiveInitial === o.value;
+                                  return (
+                                    <button
+                                      key={o.value}
+                                      type="button"
+                                      className={`ned-spoiler-btn ${active ? 'is-active' : ''}`}
+                                      style={{
+                                        borderColor: active
+                                          ? accent
+                                          : 'var(--hairline-strong)',
+                                        background: active
+                                          ? `${accent}12`
+                                          : 'transparent',
+                                        color: active
+                                          ? accent
+                                          : 'var(--ink-soft)',
+                                      }}
+                                      onClick={() =>
+                                        updateImage(img.id, {
+                                          // C（解鎖）＝預設語意，省略欄位保持
+                                          // metadata 精簡
+                                          initialState:
+                                            o.value === 'unlocked'
+                                              ? undefined
+                                              : o.value,
+                                        })
+                                      }
+                                    >
+                                      {o.code}
+                                      <span className="ned-spoiler-btn-label">
+                                        {o.label}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div
+                                className="ned-gate-scope-hint"
+                                style={
+                                  chain.warn
+                                    ? { color: 'goldenrod' }
+                                    : undefined
+                                }
+                              >
+                                {chain.warn ? '⚠' : 'ⓘ'} {chain.text}
+                              </div>
+                              {effectiveInitial !== 'unlocked' && (
+                                <>
+                                  <label className="ned-field-label ned-field-label--sm">
+                                    鎖定條件（離開 A 的閘）
+                                  </label>
+                                  <GateConditionEditor
+                                    value={normalizeGateObject(img.lockGate)}
+                                    onChange={(next) =>
+                                      updateImage(img.id, { lockGate: next })
+                                    }
+                                    apiBase={apiBase}
+                                    accent={accent}
+                                    showScopeHint={false}
+                                  />
+                                  <label className="ned-field-label ned-field-label--sm">
+                                    部分條件（離開 B 的閘）
+                                  </label>
+                                  <GateConditionEditor
+                                    value={normalizeGateObject(img.partialGate)}
+                                    onChange={(next) =>
+                                      updateImage(img.id, { partialGate: next })
+                                    }
+                                    apiBase={apiBase}
+                                    accent={accent}
+                                    showScopeHint={false}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   )}
                 </div>

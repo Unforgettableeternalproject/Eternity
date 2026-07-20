@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collectOtherVisualsGalleryKeys,
   deriveDivisionId,
+  describeImageChain,
   normalizeGateObject,
   parseVisualsData,
   serializeVisualsData,
@@ -226,5 +227,55 @@ describe('collectOtherVisualsGalleryKeys — 唯一性收集（V-B.16）', () =>
     );
     expect(keys.entityKeys.size).toBe(0);
     expect(keys.illustrationIds.size).toBe(0);
+  });
+});
+
+describe('describeImageChain — 8 案行為鏈描述（V-B.17）', () => {
+  it('案 1：A + lock + partial → 完整鏈', () => {
+    const r = describeImageChain('locked', true, true);
+    expect(r.text).toContain('鎖定 →(鎖定條件)→ 部分解鎖');
+    expect(r.warn).toBe(false);
+  });
+
+  it('案 2：A + lock → 跳過 B', () => {
+    const r = describeImageChain('locked', true, false);
+    expect(r.text).toContain('跳過部分解鎖');
+    expect(r.warn).toBe(false);
+  });
+
+  it('案 3：A 無條件 → 永遠鎖定（未釋出）', () => {
+    const r = describeImageChain('locked', false, false);
+    expect(r.text).toContain('未釋出');
+    expect(r.warn).toBe(false);
+  });
+
+  it('案 8：A + 僅 partial → 永遠鎖定 + 警告', () => {
+    const r = describeImageChain('locked', false, true);
+    expect(r.text).toContain('永遠鎖定');
+    expect(r.warn).toBe(true);
+  });
+
+  it('案 4：B + lock + partial → partial 為主，lock 不生效', () => {
+    const r = describeImageChain('partial', true, true);
+    expect(r.text).toContain('鎖定條件不生效');
+    expect(r.warn).toBe(false);
+  });
+
+  it('案 5：B + 僅 lock → lock 視為離開條件', () => {
+    const r = describeImageChain('partial', true, false);
+    expect(r.text).toContain('視為離開條件');
+    expect(r.warn).toBe(false);
+  });
+
+  it('案 6：B 無條件 → 永遠部分解鎖', () => {
+    expect(describeImageChain('partial', false, false).text).toBe(
+      '永遠部分解鎖'
+    );
+  });
+
+  it('案 7：C → 條件全不生效', () => {
+    const r = describeImageChain('unlocked', true, true);
+    expect(r.text).toContain('永遠解鎖');
+    expect(r.warn).toBe(false);
   });
 });
