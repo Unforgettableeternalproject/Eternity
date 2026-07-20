@@ -106,12 +106,21 @@ interface EntityKeyFieldProps {
   onChange: (key: string | undefined) => void;
   /** 同範圍其他條目已用的 entityKey（排除自身），用於唯一性即時警告 */
   existingKeys: Set<string>;
+  /** 欄位標籤；預設 entityKey。Visuals 插圖 ID 等同構欄位沿用本元件 */
+  label?: string;
+  /** 輸入框 placeholder；預設 entityKey 範例 */
+  placeholder?: string;
+  /** 重複時的警告文案；預設 entityKey 文案 */
+  duplicateMessage?: string;
 }
 
 export default function EntityKeyField({
   value,
   onChange,
   existingKeys,
+  label = 'entityKey',
+  placeholder = '如 xavier-colsono（選填）',
+  duplicateMessage = '此 entityKey 已被同範圍的其他條目使用',
 }: EntityKeyFieldProps) {
   const raw = value ?? '';
   const invalidFormat = raw.length > 0 && !ENTITY_KEY_PATTERN.test(raw);
@@ -120,7 +129,7 @@ export default function EntityKeyField({
   return (
     <div className="ced-entity-key">
       <div className="ced-field-row">
-        <label className="ced-label">entityKey</label>
+        <label className="ced-label">{label}</label>
         <input
           className={`ced-input ced-entity-key-input${
             invalidFormat || duplicate ? ' ced-entity-key-input--error' : ''
@@ -130,7 +139,7 @@ export default function EntityKeyField({
             const next = e.target.value.trim();
             onChange(next.length > 0 ? next : undefined);
           }}
-          placeholder="如 xavier-colsono（選填）"
+          placeholder={placeholder}
           spellCheck={false}
         />
       </div>
@@ -140,9 +149,7 @@ export default function EntityKeyField({
         </div>
       )}
       {duplicate && (
-        <div className="ced-entity-key-error">
-          此 entityKey 已被同範圍的其他條目使用
-        </div>
+        <div className="ced-entity-key-error">{duplicateMessage}</div>
       )}
     </div>
   );

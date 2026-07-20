@@ -8,6 +8,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  collectOtherVisualsGalleryKeys,
+  deriveDivisionId,
   normalizeGateObject,
   parseVisualsData,
   serializeVisualsData,
@@ -39,24 +41,29 @@ describe('normalizeGateObject', () => {
 });
 
 describe('parseVisualsData — gate 遷移', () => {
-  it('舊自由文字 gate → 靜默失效：gate null + 保留為提示文案', () => {
+  it('舊自由文字 gate → 靜默失效：gate null + 承接為提示文案', () => {
     const data = parseVisualsData({ gate: '讀完 1-4 後解鎖' });
     expect(data.gate).toBeNull();
-    expect(data.legacyGateHint).toBe('讀完 1-4 後解鎖');
+    expect(data.gateHint).toBe('讀完 1-4 後解鎖');
   });
 
-  it('結構化 gate 物件 → 正常解析，legacyGateHint 空', () => {
+  it('gateHint key 優先於舊字串 gate', () => {
+    const data = parseVisualsData({ gate: '舊字串', gateHint: '新提示' });
+    expect(data.gateHint).toBe('新提示');
+  });
+
+  it('結構化 gate 物件 → 正常解析（唯讀鏡像），gateHint 空', () => {
     const data = parseVisualsData({
       gate: { requiresFlags: ['completed:history/ch1'] },
     });
     expect(data.gate).toEqual({ requiresFlags: ['completed:history/ch1'] });
-    expect(data.legacyGateHint).toBe('');
+    expect(data.gateHint).toBe('');
   });
 
   it('無 gate → 兩者皆空', () => {
     const data = parseVisualsData({});
     expect(data.gate).toBeNull();
-    expect(data.legacyGateHint).toBe('');
+    expect(data.gateHint).toBe('');
   });
 
   it('entityKey / illustrationId 解析（非字串防禦）', () => {
@@ -70,7 +77,7 @@ describe('parseVisualsData — gate 遷移', () => {
 });
 
 describe('serializeVisualsData — round-trip 相容', () => {
-  it('舊字串 gate round-trip 不變（未設結構化閘時保留原字串）', () => {
+  it('舊字串 gate → 承接進 gateHint，不再輸出 gate（Inspector 單一來源）', () => {
     const metadata = {
       images: [],
       group: 'x',
@@ -79,17 +86,19 @@ describe('serializeVisualsData — round-trip 相容', () => {
       layout: 'museum',
     };
     const out = serializeVisualsData(parseVisualsData(metadata));
-    expect(out.gate).toBe('讀完 1-4 後解鎖');
+    expect(out.gate).toBeUndefined();
+    expect(out.gateHint).toBe('讀完 1-4 後解鎖');
     expect(out.group).toBe('x');
     expect(out.spoilerLevel).toBe(2);
     expect(out.layout).toBe('museum');
   });
 
-  it('設定結構化閘後取代舊字串', () => {
-    const data = parseVisualsData({ gate: '舊提示' });
-    data.gate = { requiresFlags: ['completed:history/ch1'] };
+  it('結構化 gate 物件存在時 serialize 亦不輸出 gate——由 Inspector 面板保存', () => {
+    const data = parseVisualsData({
+      gate: { requiresFlags: ['completed:history/ch1'] },
+    });
     const out = serializeVisualsData(data);
-    expect(out.gate).toEqual({ requiresFlags: ['completed:history/ch1'] });
+    expect(out.gate).toBeUndefined();
   });
 
   it('entityKey / illustrationId trim 後寫出，空值省略', () => {
@@ -124,5 +133,98 @@ describe('serializeVisualsData — round-trip 相容', () => {
     const out = serializeVisualsData(parseVisualsData({ images }));
     expect(out.images).toEqual(images);
     expect(out.images[0].initialState).toBeUndefined();
+  });
+});
+
+describe('deriveDivisionId — 分館推導（V-B.16）', () => {
+  it('pageSlug 第一段即分館 id', () => {
+    expect(deriveDivisionId('profiles/characters/xavier')).toBe('profiles');
+    expect(deriveDivisionId('illustrations/scenes/finale')).toBe(
+      'illustrations'
+    );
+    expect(deriveDivisionId('sketchs/drafts/a')).toBe('sketchs');
+  });
+
+  it('空 slug 回空字串', () => {
+    expect(deriveDivisionId('')).toBe('');
+  });
+});
+
+describe('collectOtherVisualsGalleryKeys — 唯一性收集（V-B.16）', () => {
+  const tree = [
+    {
+      id: 'visuals/profiles',
+      pageType: 'division',
+      children: [
+        {
+          id: 'visuals/profiles/characters',
+          pageType: 'subcategory',
+          children: [
+            {
+              id: 'visuals/profiles/characters/xavier',
+              pageType: 'gallery',
+              metadata: { entityKey: 'xavier-colsono' },
+            },
+            {
+              id: 'visuals/profiles/characters/novia',
+              pageType: 'gallery',
+              metadata: { entityKey: 'novia' },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'visuals/illustrations',
+      pageType: 'division',
+      children: [
+        {
+          id: 'visuals/illustrations/scenes/finale',
+          pageType: 'gallery',
+          metadata: { illustrationId: 'rain-sea-finale' },
+        },
+      ],
+    },
+  ];
+
+  it('收集其他 gallery 的 entityKey 與插圖 ID，排除自身', () => {
+    const keys = collectOtherVisualsGalleryKeys(
+      tree,
+      'visuals/profiles/characters/xavier'
+    );
+    expect(keys.entityKeys.has('xavier-colsono')).toBe(false);
+    expect(keys.entityKeys.has('novia')).toBe(true);
+    expect(keys.illustrationIds.has('rain-sea-finale')).toBe(true);
+  });
+
+  it('自身 id 比較容忍 encoded/decoded 差異', () => {
+    const keys = collectOtherVisualsGalleryKeys(
+      tree,
+      'visuals/profiles/characters/%78avier'
+    );
+    // canonicalize 後視為同一頁 → 排除
+    expect(keys.entityKeys.has('xavier-colsono')).toBe(false);
+  });
+
+  it('非 gallery 節點與空白 key 不收', () => {
+    const keys = collectOtherVisualsGalleryKeys(
+      [
+        {
+          id: 'visuals/profiles',
+          pageType: 'division',
+          metadata: { entityKey: 'should-ignore' },
+          children: [
+            {
+              id: 'visuals/profiles/blank',
+              pageType: 'gallery',
+              metadata: { entityKey: '   ' },
+            },
+          ],
+        },
+      ],
+      'visuals/other'
+    );
+    expect(keys.entityKeys.size).toBe(0);
+    expect(keys.illustrationIds.size).toBe(0);
   });
 });

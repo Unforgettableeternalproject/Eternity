@@ -266,6 +266,9 @@ export default function RichEditor({
   const [echoesValidationIssues, setEchoesValidationIssues] = useState<
     string[]
   >([]);
+  const [visualsValidationIssues, setVisualsValidationIssues] = useState<
+    string[]
+  >([]);
 
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
@@ -434,6 +437,16 @@ export default function RichEditor({
       );
       return;
     }
+    // Visuals entityKey/插圖 ID 唯一性硬驗證（S8 下半場 V-B.16，同 Echoes）
+    if (isVisuals && visualsValidationIssues.length > 0) {
+      getToast().error(
+        `Visuals 資料驗證未通過：${visualsValidationIssues[0]}` +
+          (visualsValidationIssues.length > 1
+            ? `（共 ${visualsValidationIssues.length} 項）`
+            : '')
+      );
+      return;
+    }
 
     setSaveStatus('saving');
     try {
@@ -570,6 +583,7 @@ export default function RichEditor({
     visualsData,
     conceptsData,
     echoesValidationIssues,
+    visualsValidationIssues,
     conceptsStackStyle,
     storageDialogueBlocks,
     changelogBlocks,
@@ -2563,8 +2577,12 @@ export default function RichEditor({
                   <VisualsEditorBody
                     accent={accentMain}
                     initialData={visualsData}
+                    apiBase={apiBase}
+                    galleryId={currentPageId}
+                    pageSlug={pageSlug}
                     onDataChange={setVisualsData}
                     onDirty={() => setMetaDirty(true)}
+                    onValidationChange={setVisualsValidationIssues}
                   />
                 ) : isStorageDialogue ? (
                   <>

@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+/* global AbortController */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SpriteEditorModal from './SpriteEditorModal';
 import {
   getDialog,
@@ -8,6 +9,8 @@ import {
   fetchImageAssets,
   type AssetItem as ImagePickerItem,
 } from './editorHelpers';
+import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
+import { isSamePagePath } from '../../lib/pagePath';
 import type { GateCondition } from '../../progress';
 import type { ImageDisplayState } from '../../visuals';
 
@@ -69,16 +72,18 @@ export interface VisualsData {
   /** 遮蔽等級 0-3（V-B 盤點去留） */
   spoilerLevel: number;
   /**
-   * gallery 解鎖閘（GateCondition 物件；null = 無條件）。
-   * 寫入 metadata.gate 後由各 Reader 的 gating 求值器（tree-aware）消費。
-   * V-B 起由 GateConditionEditor 編輯。
+   * gallery 解鎖閘（GateCondition 物件；null = 無條件）的唯讀鏡像。
+   * 單一寫入來源是 Inspector 的 PROGRESS GATE 面板（RichEditor `gate`
+   * state → metadata.gate）——serializeVisualsData 不再輸出 gate，
+   * 避免 Echoes D 段踩過的「兩個編輯器互相覆蓋 metadata.gate」bug。
    */
   gate: GateCondition | null;
   /**
-   * 舊自由文字 gate（2026-07-19 拍板：靜默失效）——僅向後相容保留
-   * 作提示文案，不參與條件求值。設定結構化 gate 後即被取代。
+   * 解鎖提示文案（metadata.gateHint）：spoiler 警告視窗顯示的劇情提示，
+   * 不參與條件求值。讀取相容舊自由文字 gate 字串（2026-07-19 拍板：
+   * 靜默失效，僅承接為提示文案）——同 Echoes spoilerGate 的相容手法。
    */
-  legacyGateHint: string;
+  gateHint: string;
   /**
    * entityKey（僅陳列走廊 profiles）：Interactive Embedding 反查用，
    * 同 zone 唯一（V-B 編輯器驗證）
@@ -128,9 +133,15 @@ export function parseVisualsData(metadata: Record<string, any>): VisualsData {
     images: Array.isArray(metadata?.images) ? metadata.images : [],
     group: metadata?.group || '',
     spoilerLevel: metadata?.spoilerLevel ?? 0,
-    // 物件 → 結構化閘；字串 → 舊資料靜默失效（僅留作提示文案）
+    // 物件 → 結構化閘（唯讀鏡像）；字串 → 舊資料靜默失效
     gate: normalizeGateObject(rawGate),
-    legacyGateHint: typeof rawGate === 'string' ? rawGate : '',
+    // 提示文案：新 key gateHint 優先，舊字串 gate 讀取相容
+    gateHint:
+      typeof metadata?.gateHint === 'string'
+        ? metadata.gateHint
+        : typeof rawGate === 'string'
+          ? rawGate
+          : '',
     entityKey:
       typeof metadata?.entityKey === 'string' ? metadata.entityKey : '',
     illustrationId:
@@ -146,12 +157,59 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
     images: data.images,
     group: data.group || undefined,
     spoilerLevel: data.spoilerLevel,
-    // 結構化閘優先；未設定時保留舊字串（不破壞既有資料 round-trip）
-    gate: data.gate ?? (data.legacyGateHint || undefined),
+    // 不輸出 gate——結構化閘由 Inspector PROGRESS GATE 面板單一來源保存；
+    // 舊自由文字 gate 承接進 gateHint 後即從 metadata.gate 卸下
+    gateHint: data.gateHint.trim() || undefined,
     entityKey: data.entityKey.trim() || undefined,
     illustrationId: data.illustrationId.trim() || undefined,
     layout: data.layout || undefined,
   };
+}
+
+// ──────────────────────────────────────────────────────────────
+//  分館規則與唯一性收集（S8 下半場 V-B.16）
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * 從 pageSlug（不含 area 前綴，如 `profiles/characters/xxx`）推導
+ * gallery 所屬分館 id——與 content-api 的 divisionId 推導同構
+ * （`visuals/{division}/...` 第二段）。
+ */
+export function deriveDivisionId(pageSlug: string): string {
+  return pageSlug.split('/')[0] || '';
+}
+
+interface VisualsTreeNodeForKeys {
+  id: string;
+  pageType?: string;
+  metadata?: { entityKey?: unknown; illustrationId?: unknown };
+  children?: VisualsTreeNodeForKeys[];
+}
+
+/**
+ * 收集同 zone 其他 gallery 的 entityKey / 插圖 ID（排除自身），
+ * 唯一性硬驗證用——比照 Echoes collectOtherEchoesEntityKeys。
+ */
+export function collectOtherVisualsGalleryKeys(
+  nodes: VisualsTreeNodeForKeys[],
+  galleryId: string
+): { entityKeys: Set<string>; illustrationIds: Set<string> } {
+  const entityKeys = new Set<string>();
+  const illustrationIds = new Set<string>();
+  const walk = (items: VisualsTreeNodeForKeys[]) => {
+    for (const node of items) {
+      if (node.pageType === 'gallery' && !isSamePagePath(node.id, galleryId)) {
+        const key = node.metadata?.entityKey;
+        if (typeof key === 'string' && key.trim()) entityKeys.add(key.trim());
+        const ill = node.metadata?.illustrationId;
+        if (typeof ill === 'string' && ill.trim())
+          illustrationIds.add(ill.trim());
+      }
+      if (Array.isArray(node.children)) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return { entityKeys, illustrationIds };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -178,20 +236,116 @@ const SPOILER_LEVELS = [
 interface VisualsEditorBodyProps {
   accent: string;
   initialData: VisualsData;
+  apiBase: string;
+  /** gallery 頁 id（含 area 前綴，如 visuals/profiles/...） */
+  galleryId: string;
+  /** 頁 slug（不含 area 前綴）——分館推導用 */
+  pageSlug: string;
   onDataChange: (data: VisualsData) => void;
   onDirty: () => void;
+  /** 驗證問題回報——存檔前 RichEditor 據此阻擋（同 Echoes 模式） */
+  onValidationChange?: (issues: string[]) => void;
 }
 
 export default function VisualsEditorBody({
   accent,
   initialData,
+  apiBase,
+  galleryId,
+  pageSlug,
   onDataChange,
   onDirty,
+  onValidationChange,
 }: VisualsEditorBodyProps) {
   const [data, setData] = useState<VisualsData>(initialData);
   const [uploading, setUploading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 分館規則：entityKey 僅陳列走廊（profiles）、插圖 ID 僅鑲框室
+  // （illustrations）——依 division 顯隱（§1-1）
+  const divisionId = deriveDivisionId(pageSlug);
+  const showEntityKey = divisionId === 'profiles';
+  const showIllustrationId = divisionId === 'illustrations';
+
+  // 唯一性硬驗證：同 zone 唯一，查核失敗阻擋存檔可重試（比照 Echoes）
+  const [otherKeys, setOtherKeys] = useState<{
+    entityKeys: Set<string>;
+    illustrationIds: Set<string>;
+  }>(() => ({ entityKeys: new Set(), illustrationIds: new Set() }));
+  const [keyCheckStatus, setKeyCheckStatus] = useState<
+    'loading' | 'ready' | 'error'
+  >('loading');
+  const [keyCheckReload, setKeyCheckReload] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setKeyCheckStatus('loading');
+    fetch(`${apiBase}/api/content/visuals/tree`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => {
+        if (!payload?.ok || !Array.isArray(payload.data)) {
+          throw new Error('Visuals tree payload 格式錯誤');
+        }
+        setOtherKeys(collectOtherVisualsGalleryKeys(payload.data, galleryId));
+        setKeyCheckStatus('ready');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setKeyCheckStatus('error');
+      });
+    return () => controller.abort();
+  }, [apiBase, galleryId, keyCheckReload]);
+
+  const validationIssues = useMemo(() => {
+    const issues: string[] = [];
+    const checkKey = (
+      label: string,
+      value: string,
+      taken: Set<string>,
+      takenMessage: string
+    ) => {
+      const key = value.trim();
+      if (!key) return;
+      if (!ENTITY_KEY_PATTERN.test(key)) {
+        issues.push(`${label}「${key}」不是合法 kebab-case`);
+      } else if (keyCheckStatus === 'loading') {
+        issues.push(`正在查核${label}唯一性，請稍候`);
+      } else if (keyCheckStatus === 'error') {
+        issues.push(`無法查核${label}唯一性，請重試後再儲存`);
+      } else if (taken.has(key)) {
+        issues.push(takenMessage.replace('{key}', key));
+      }
+    };
+    if (showEntityKey)
+      checkKey(
+        'entityKey',
+        data.entityKey,
+        otherKeys.entityKeys,
+        'entityKey「{key}」已被其他 gallery 使用'
+      );
+    if (showIllustrationId)
+      checkKey(
+        '插圖 ID',
+        data.illustrationId,
+        otherKeys.illustrationIds,
+        '插圖 ID「{key}」已被其他 gallery 使用'
+      );
+    return issues;
+  }, [
+    data.entityKey,
+    data.illustrationId,
+    keyCheckStatus,
+    otherKeys,
+    showEntityKey,
+    showIllustrationId,
+  ]);
+
+  useEffect(() => {
+    onValidationChange?.(validationIssues);
+  }, [onValidationChange, validationIssues]);
 
   // 編輯器模式：普通圖片 / 精靈圖
   type EditorMode = 'image' | 'sprite';
@@ -853,16 +1007,77 @@ export default function VisualsEditorBody({
         ))}
       </div>
 
-      {/* 解鎖條件——舊自由文字欄位（僅提示文案，不參與求值）。
-          V-B 將以 GateConditionEditor 取代此輸入框 */}
-      <label className="ned-field-label">解鎖條件 (劇情前置)</label>
+      {/* 解鎖提示文案——spoiler 警告視窗顯示的劇情提示，不參與求值。
+          解鎖條件本身由右側 Inspector 的 PROGRESS GATE 面板管理。 */}
+      <label className="ned-field-label">解鎖提示文案</label>
       <input
         className="ned-field"
         type="text"
-        value={data.legacyGateHint}
-        placeholder="哪段劇情解鎖此畫廊"
-        onChange={(e) => update({ legacyGateHint: e.target.value })}
+        value={data.gateHint}
+        placeholder="例如：讀完第三章後再觀看"
+        onChange={(e) => update({ gateHint: e.target.value })}
       />
+      <div className="ned-gate-scope-hint">
+        ⓘ 僅為警告視窗的提示文字；gallery 的解鎖條件請在右側 PROGRESS GATE
+        面板設定。
+      </div>
+
+      {/* 跨 zone 識別欄位：entityKey（陳列走廊）/ 插圖 ID（鑲框室），
+          依分館顯隱（S8 下半場 §1-1），同 zone 唯一 */}
+      {(showEntityKey || showIllustrationId) && (
+        <div className="ned-echoes-entity-section">
+          {showEntityKey && (
+            <>
+              <EntityKeyField
+                value={data.entityKey || undefined}
+                existingKeys={otherKeys.entityKeys}
+                onChange={(entityKey) => update({ entityKey: entityKey || '' })}
+                duplicateMessage="此 entityKey 已被其他 gallery 使用"
+              />
+              <div className="ned-gate-scope-hint">
+                entityKey 用於角色／區域嵌入反查設定圖 gallery（浮動幻影提示
+                卡）；未綁定的 gallery 不參與嵌入反查。
+              </div>
+            </>
+          )}
+          {showIllustrationId && (
+            <>
+              <EntityKeyField
+                value={data.illustrationId || undefined}
+                existingKeys={otherKeys.illustrationIds}
+                onChange={(illustrationId) =>
+                  update({ illustrationId: illustrationId || '' })
+                }
+                label="插圖 ID"
+                placeholder="如 rain-sea-finale（選填）"
+                duplicateMessage="此插圖 ID 已被其他 gallery 使用"
+              />
+              <div className="ned-gate-scope-hint">
+                插圖 ID 供 History 文中的 Visual Clue 引用此 gallery；未設定
+                即無法被 clue 指向。
+              </div>
+            </>
+          )}
+          {(data.entityKey || data.illustrationId) &&
+            keyCheckStatus === 'error' && (
+              <button
+                type="button"
+                className="ned-btn-ghost ned-btn-sm"
+                onClick={() => setKeyCheckReload((value) => value + 1)}
+              >
+                重試唯一性查核
+              </button>
+            )}
+        </div>
+      )}
+
+      {validationIssues.length > 0 && (
+        <div className="ned-echoes-validation" role="alert">
+          {validationIssues.map((issue) => (
+            <div key={issue}>⚠ {issue}</div>
+          ))}
+        </div>
+      )}
 
       {/* 展示風格 */}
       <label className="ned-field-label">展示風格 (Layout)</label>
