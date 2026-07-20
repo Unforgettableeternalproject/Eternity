@@ -2986,3 +2986,110 @@
     animation: none !important;
   }
 }
+
+/* === 三態解鎖（S8 下半場 V-B.19）=== */
+
+/* A 鎖定佔位格：格子存在（總張數可見）但整張擋住，不載入實際圖片 */
+.visuals-img-locked-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--visuals-main, #5e548e) 8%, transparent),
+      color-mix(in srgb, var(--visuals-main, #5e548e) 8%, transparent) 10px,
+      transparent 10px,
+      transparent 22px
+    ),
+    var(--bg-elevated, #17141f);
+  border: 1px dashed
+    color-mix(in srgb, var(--visuals-main, #5e548e) 45%, transparent);
+  color: color-mix(in srgb, var(--visuals-main, #5e548e) 70%, #aaa);
+}
+
+.visuals-img-locked-icon {
+  font-size: 1.6rem;
+  opacity: 0.75;
+}
+
+.visuals-img-locked-text {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  opacity: 0.6;
+}
+
+.visuals-museum-frame.is-locked,
+.visuals-pinboard-card.is-locked,
+.visuals-pixel-cell.is-locked,
+.visuals-corridor-main.is-locked {
+  cursor: not-allowed;
+}
+
+/* B 部分解鎖：模糊遮罩——可窺不可視；hover 放大提示照常（可進 lightbox） */
+.visuals-img-partial img {
+  filter: blur(16px) saturate(0.55) brightness(0.72);
+  transform: scale(1.06); /* 遮住模糊邊緣的清晰帶 */
+}
+
+/* B 放大仍遮罩：lightbox 中的模糊不解除 */
+.visuals-lightbox-img.is-partial {
+  filter: blur(26px) saturate(0.55) brightness(0.7);
+}
+
+.visuals-lightbox-partial-tag {
+  margin-left: 8px;
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--visuals-main, #5e548e) 65%, #ccc);
+  letter-spacing: 0.06em;
+}
+
+/* gallery 閘鎖定：列表卡與 deep-link 封印面板 */
+.visuals-gallery-card--sealed {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.visuals-gallery-card--sealed .visuals-img-locked-cell {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+  border: none;
+  border-bottom: 1px dashed
+    color-mix(in srgb, var(--visuals-main, #5e548e) 45%, transparent);
+}
+
+.visuals-gallery-sealed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 72px 24px;
+  text-align: center;
+  border: 1px dashed
+    color-mix(in srgb, var(--visuals-main, #5e548e) 40%, transparent);
+  background: color-mix(in srgb, var(--visuals-main, #5e548e) 5%, transparent);
+}
+
+.visuals-gallery-sealed .visuals-img-locked-icon {
+  font-size: 2.2rem;
+}
+
+.visuals-gallery-sealed-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  color: var(--ink, #ddd);
+}
+
+.visuals-gallery-sealed-hint {
+  font-size: 0.82rem;
+  color: var(--ink-mute, #888);
+  max-width: 420px;
+  line-height: 1.7;
+}

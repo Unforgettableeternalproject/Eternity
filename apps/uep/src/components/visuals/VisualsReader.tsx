@@ -30,6 +30,9 @@ import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
 import { useProgress, buildProgressTreeAdapter } from '../../progress';
+import type { ProgressState } from '../../progress';
+import { resolveImageState } from '../../visuals';
+import type { ImageDisplayState } from '../../visuals';
 import './VisualsReader.css';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
@@ -217,6 +220,41 @@ function spoilerFilter(level: number): string {
     return 'blur(14px) grayscale(1) contrast(0.3) brightness(0.5)';
   if (level === 3) return 'blur(24px) saturate(0) brightness(0.12)';
   return 'none';
+}
+
+// ── 三態解鎖（S8 下半場 V-B.19）──────────────────────────────
+
+/** 圖片 + 已求值的顯示狀態（renderer 與 lightbox 共用單位） */
+interface GalleryImageView {
+  img: ImageItem;
+  state: ImageDisplayState;
+}
+
+/**
+ * 依 sortOrder 排序並逐張求值三態。index 0 = 第一張圖恆等式
+ * （gallery 閘由呼叫端把關——gallery 鎖定時不會走到這裡）。
+ * 精靈圖 gallery 本輪不接三態，呼叫端直接跳過。
+ */
+export function resolveGalleryImages(
+  images: ImageItem[],
+  progress: ProgressState | null | undefined
+): GalleryImageView[] {
+  return [...images]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((img, i) => ({
+      img,
+      state: resolveImageState(img, i === 0, progress),
+    }));
+}
+
+/** A 鎖定佔位格——不載入實際圖片（劇透保護），格子存在讓總張數可見 */
+function LockedImageCell({ label }: { label?: string }) {
+  return (
+    <div className="visuals-img-locked-cell" aria-label="尚未解鎖的圖片">
+      <span className="visuals-img-locked-icon">⛉</span>
+      <span className="visuals-img-locked-text">{label || 'LOCKED'}</span>
+    </div>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -439,9 +477,9 @@ function VisualsReaderInner() {
     onConfirm: () => void;
   } | null>(null);
 
-  // Lightbox
+  // Lightbox（三態感知：A 不進 lightbox、B 放大仍遮罩）
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
+  const [lightboxItems, setLightboxItems] = useState<GalleryImageView[]>([]);
   const [lbZoom, setLbZoom] = useState(1);
   const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
   const [lbClosing, setLbClosing] = useState(false);
@@ -694,11 +732,26 @@ function VisualsReaderInner() {
   }
 
   // === Lightbox ===
-  function openLightbox(images: ImageItem[], idx: number) {
-    setLightboxImages(images);
-    setLightboxIdx(idx);
+  /**
+   * 開啟 lightbox：A 鎖定圖不可放大（點擊直接無效），
+   * 且不進入導航序列（prev/next 不會落在鎖定圖上）。
+   */
+  function openLightbox(items: GalleryImageView[], clickedIdx: number) {
+    const target = items[clickedIdx];
+    if (!target || target.state === 'locked') return;
+    const viewable = items.filter((it) => it.state !== 'locked');
+    setLightboxItems(viewable);
+    setLightboxIdx(viewable.indexOf(target));
     setLbZoom(1);
     setLbPan({ x: 0, y: 0 });
+  }
+
+  /** 無三態情境（精靈圖 gallery）沿用原始序列 */
+  function openLightboxPlain(images: ImageItem[], idx: number) {
+    openLightbox(
+      images.map((img) => ({ img, state: 'unlocked' as const })),
+      idx
+    );
   }
 
   function closeLightbox() {
@@ -707,7 +760,7 @@ function VisualsReaderInner() {
     setLbClosing(true);
     setTimeout(() => {
       setLightboxIdx(null);
-      setLightboxImages([]);
+      setLightboxItems([]);
       setLbClosing(false);
       lbClosingRef.current = false;
     }, 250);
@@ -722,7 +775,7 @@ function VisualsReaderInner() {
         setLbZoom(1);
         setLbPan({ x: 0, y: 0 });
       }
-      if (e.key === 'ArrowRight' && lightboxIdx < lightboxImages.length - 1) {
+      if (e.key === 'ArrowRight' && lightboxIdx < lightboxItems.length - 1) {
         setLightboxIdx(lightboxIdx + 1);
         setLbZoom(1);
         setLbPan({ x: 0, y: 0 });
@@ -730,7 +783,7 @@ function VisualsReaderInner() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [lightboxIdx, lightboxImages.length]);
+  }, [lightboxIdx, lightboxItems.length]);
 
   // === 十字路口道路 SVG ===
   function renderCrossroadSvg() {
@@ -1536,6 +1589,30 @@ function VisualsReaderInner() {
                   const images = Array.isArray(g.metadata?.images)
                     ? (g.metadata.images as ImageItem[])
                     : [];
+
+                  // gallery 閘（tree-aware）：未過時一切不可見——
+                  // 連縮圖與張數都不外洩，整卡呈鎖定態（不變量 1）
+                  const gateLocked = isLocked(g, progress, g.id, progressTree);
+                  if (gateLocked) {
+                    return (
+                      <button
+                        key={g.id}
+                        className="visuals-gallery-card visuals-gallery-card--sealed"
+                        disabled
+                      >
+                        <LockedImageCell label="SEALED" />
+                        <div className="visuals-gallery-card-body">
+                          <div className="visuals-gallery-card-title">
+                            🔒 {g.title}
+                          </div>
+                          <div className="visuals-gallery-card-meta">
+                            — sealed —
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  }
+
                   const spoiler = getSpoilerLevel(g);
                   const gate = (g.metadata?.gate as string) || '';
                   const firstImg = images.length > 0 ? images[0] : null;
@@ -1688,6 +1765,52 @@ function VisualsReaderInner() {
     if (!galleryPage) return <ZoneStateDisplay kind="loading" />;
 
     const meta = galleryPage.metadata || {};
+
+    // gallery 閘 deep-link 守門（不變量 1）：閘未過時整個 gallery 呈鎖定態
+    // ——不渲染任何圖片（含鎖定佔位）。列表入口已擋，這裡擋 URL 直達。
+    const galleryNode = activeGalleryId
+      ? findNodeById(tree, activeGalleryId)
+      : null;
+    if (
+      galleryNode &&
+      isLocked(galleryNode, progress, galleryNode.id, progressTree)
+    ) {
+      return (
+        <div className="visuals-gallery-page">
+          <ZoneBreadcrumb
+            segments={[
+              { label: '幻影重現室', onClick: () => navigateToLanding() },
+              { label: galleryPage.title },
+            ]}
+            color="var(--visuals-main)"
+          />
+          <div className="visuals-gallery-sealed">
+            <span className="visuals-img-locked-icon">⛉</span>
+            <div className="visuals-gallery-sealed-title">此畫廊尚未解鎖</div>
+            <div className="visuals-gallery-sealed-hint">
+              {typeof meta.gateHint === 'string' && meta.gateHint
+                ? meta.gateHint
+                : '繼續閱讀故事以解開封印。'}
+            </div>
+          </div>
+          <div className="visuals-back-bar">
+            <button
+              className="visuals-back-btn"
+              onClick={() =>
+                activeSubcatId
+                  ? navigateToSubcat(activeSubcatId)
+                  : activeDivision
+                    ? navigateToDivision(activeDivision.id)
+                    : navigateToLanding()
+              }
+            >
+              ← 返回
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     const images: ImageItem[] = Array.isArray(meta.images)
       ? (meta.images as ImageItem[])
       : [];
@@ -1754,28 +1877,31 @@ function VisualsReaderInner() {
 
   // ─── Gallery Styles ───
   function renderGalleryByStyle(style: string, images: ImageItem[]) {
+    // 精靈圖 gallery 本輪不接三態（設計文件定案）
+    if (style === 'sprite') return renderSprite(images);
+    const items = resolveGalleryImages(images, progress);
     switch (style) {
       case 'corridor':
-        return renderCorridor(images);
+        return renderCorridor(items);
       case 'museum':
-        return renderMuseum(images);
+        return renderMuseum(items);
       case 'pinboard':
-        return renderPinboard(images);
+        return renderPinboard(items);
       case 'pixel':
-        return renderPixel(images);
-      case 'sprite':
-        return renderSprite(images);
+        return renderPixel(items);
       default:
-        return renderMuseum(images);
+        return renderMuseum(items);
     }
   }
 
-  function renderCorridor(images: ImageItem[]) {
-    const art = images[corridorIdx] || images[0];
-    if (!art) return null;
+  function renderCorridor(items: GalleryImageView[]) {
+    const item = items[corridorIdx] || items[0];
+    if (!item) return null;
     const prev = () =>
-      setCorridorIdx((corridorIdx - 1 + images.length) % images.length);
-    const next = () => setCorridorIdx((corridorIdx + 1) % images.length);
+      setCorridorIdx((corridorIdx - 1 + items.length) % items.length);
+    const next = () => setCorridorIdx((corridorIdx + 1) % items.length);
+    const locked = item.state === 'locked';
+    const partial = item.state === 'partial';
 
     return (
       <div className="visuals-gallery-corridor">
@@ -1783,15 +1909,24 @@ function VisualsReaderInner() {
           <button className="visuals-corridor-arrow" onClick={prev}>
             ‹
           </button>
-          <div
-            className="visuals-corridor-main"
-            onClick={() => openLightbox(images, corridorIdx)}
-          >
-            <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-            <div className="visuals-gallery-hover-overlay">
-              <span className="visuals-gallery-hover-icon">⤢</span>
+          {locked ? (
+            <div className="visuals-corridor-main is-locked">
+              <LockedImageCell />
             </div>
-          </div>
+          ) : (
+            <div
+              className={`visuals-corridor-main${partial ? ' visuals-img-partial' : ''}`}
+              onClick={() => openLightbox(items, corridorIdx)}
+            >
+              <img
+                src={buildImageUrl(item.img.file)}
+                alt={item.img.caption || ''}
+              />
+              <div className="visuals-gallery-hover-overlay">
+                <span className="visuals-gallery-hover-icon">⤢</span>
+              </div>
+            </div>
+          )}
           <button className="visuals-corridor-arrow" onClick={next}>
             ›
           </button>
@@ -1799,20 +1934,24 @@ function VisualsReaderInner() {
         <div className="visuals-corridor-caption">
           <div className="visuals-corridor-counter">
             {String(corridorIdx + 1).padStart(2, '0')} /{' '}
-            {String(images.length).padStart(2, '0')}
+            {String(items.length).padStart(2, '0')}
           </div>
           <div className="visuals-corridor-title">
-            {art.caption || galleryPage?.title}
+            {locked ? '？？？' : item.img.caption || galleryPage?.title}
           </div>
         </div>
         <div className="visuals-corridor-strip">
-          {images.map((img, i) => (
+          {items.map((it, i) => (
             <button
-              key={img.id}
-              className={`visuals-corridor-thumb ${i === corridorIdx ? 'is-active' : ''}`}
+              key={it.img.id}
+              className={`visuals-corridor-thumb ${i === corridorIdx ? 'is-active' : ''}${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
               onClick={() => setCorridorIdx(i)}
             >
-              <img src={buildImageUrl(img.file)} alt="" />
+              {it.state === 'locked' ? (
+                <LockedImageCell label="" />
+              ) : (
+                <img src={buildImageUrl(it.img.file)} alt="" />
+              )}
             </button>
           ))}
         </div>
@@ -1820,23 +1959,36 @@ function VisualsReaderInner() {
     );
   }
 
-  function renderMuseum(images: ImageItem[]) {
+  function renderMuseum(items: GalleryImageView[]) {
     return (
       <div className="visuals-gallery-museum">
-        {images.map((art, i) => (
+        {items.map((it, i) => (
           <div
-            key={art.id}
-            className="visuals-museum-frame"
-            onClick={() => openLightbox(images, i)}
+            key={it.img.id}
+            className={`visuals-museum-frame${it.state === 'locked' ? ' is-locked' : ''}`}
+            onClick={
+              it.state === 'locked' ? undefined : () => openLightbox(items, i)
+            }
           >
-            <div className="visuals-gallery-img-container">
-              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-              <div className="visuals-gallery-hover-overlay">
-                <span className="visuals-gallery-hover-icon">⤢</span>
+            {it.state === 'locked' ? (
+              <div className="visuals-gallery-img-container">
+                <LockedImageCell />
               </div>
-            </div>
+            ) : (
+              <div
+                className={`visuals-gallery-img-container${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
+              >
+                <img
+                  src={buildImageUrl(it.img.file)}
+                  alt={it.img.caption || ''}
+                />
+                <div className="visuals-gallery-hover-overlay">
+                  <span className="visuals-gallery-hover-icon">⤢</span>
+                </div>
+              </div>
+            )}
             <div className="visuals-museum-label">
-              「{art.caption || '無題'}」
+              「{it.state === 'locked' ? '？？？' : it.img.caption || '無題'}」
             </div>
           </div>
         ))}
@@ -1844,34 +1996,49 @@ function VisualsReaderInner() {
     );
   }
 
-  function renderPinboard(images: ImageItem[]) {
+  function renderPinboard(items: GalleryImageView[]) {
     return (
       <div className="visuals-gallery-pinboard">
-        {images.map((art, i) => {
+        {items.map((it, i) => {
           // 用 sin 函式產生更自然的隨機傾斜角度（±7°）
           const rot = Math.sin(i * 2.34 + 0.7) * 7;
           // 輕微的垂直偏移讓排列更有散落感
           const yOff = Math.cos(i * 1.87 + 0.3) * 8;
           return (
             <div
-              key={art.id}
-              className="visuals-pinboard-card"
+              key={it.img.id}
+              className={`visuals-pinboard-card${it.state === 'locked' ? ' is-locked' : ''}`}
               style={
                 {
                   '--pin-rot': `${rot.toFixed(1)}deg`,
                   '--pin-y': `${yOff.toFixed(1)}px`,
                 } as React.CSSProperties
               }
-              onClick={() => openLightbox(images, i)}
+              onClick={
+                it.state === 'locked' ? undefined : () => openLightbox(items, i)
+              }
             >
               <span className="visuals-pinboard-pin" />
-              <div className="visuals-pinboard-photo">
-                <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-                <div className="visuals-gallery-hover-overlay">
-                  <span className="visuals-gallery-hover-icon">⤢</span>
-                </div>
+              <div
+                className={`visuals-pinboard-photo${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
+              >
+                {it.state === 'locked' ? (
+                  <LockedImageCell />
+                ) : (
+                  <>
+                    <img
+                      src={buildImageUrl(it.img.file)}
+                      alt={it.img.caption || ''}
+                    />
+                    <div className="visuals-gallery-hover-overlay">
+                      <span className="visuals-gallery-hover-icon">⤢</span>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="visuals-pinboard-label">{art.caption || ''}</div>
+              <div className="visuals-pinboard-label">
+                {it.state === 'locked' ? '？？？' : it.img.caption || ''}
+              </div>
             </div>
           );
         })}
@@ -1879,23 +2046,38 @@ function VisualsReaderInner() {
     );
   }
 
-  function renderPixel(images: ImageItem[]) {
+  function renderPixel(items: GalleryImageView[]) {
     return (
       <div className="visuals-gallery-pixel">
-        {images.map((art, i) => (
+        {items.map((it, i) => (
           <div
-            key={art.id}
-            className="visuals-pixel-cell"
-            onClick={() => openLightbox(images, i)}
+            key={it.img.id}
+            className={`visuals-pixel-cell${it.state === 'locked' ? ' is-locked' : ''}`}
+            onClick={
+              it.state === 'locked' ? undefined : () => openLightbox(items, i)
+            }
           >
-            <div className="visuals-gallery-img-container is-pixel">
-              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-              <div className="visuals-gallery-hover-overlay">
-                <span className="visuals-gallery-hover-icon">⤢</span>
+            {it.state === 'locked' ? (
+              <div className="visuals-gallery-img-container is-pixel">
+                <LockedImageCell />
               </div>
-            </div>
+            ) : (
+              <div
+                className={`visuals-gallery-img-container is-pixel${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
+              >
+                <img
+                  src={buildImageUrl(it.img.file)}
+                  alt={it.img.caption || ''}
+                />
+                <div className="visuals-gallery-hover-overlay">
+                  <span className="visuals-gallery-hover-icon">⤢</span>
+                </div>
+              </div>
+            )}
             <div className="visuals-pixel-label">
-              {art.caption || art.file.split('/').pop()}
+              {it.state === 'locked'
+                ? '？？？'
+                : it.img.caption || it.img.file.split('/').pop()}
             </div>
           </div>
         ))}
@@ -1906,21 +2088,27 @@ function VisualsReaderInner() {
   // ─── RENDER: Sprite ───
   function renderSprite(images: ImageItem[]) {
     const sprite = images.find((img) => img.isSpriteSheet);
-    if (!sprite) return renderMuseum(images);
+    if (!sprite)
+      return renderMuseum(
+        images.map((img) => ({ img, state: 'unlocked' as const }))
+      );
     return (
       <SpriteViewer
         sprite={sprite}
         spriteUrl={buildImageUrl(sprite.file)}
-        onOpenLightbox={() => openLightbox(images, images.indexOf(sprite))}
+        onOpenLightbox={() => openLightboxPlain(images, images.indexOf(sprite))}
       />
     );
   }
 
   // ─── RENDER: Lightbox ───
   function renderLightbox() {
-    if (lightboxIdx === null || lightboxImages.length === 0) return null;
-    const art = lightboxImages[lightboxIdx];
-    if (!art) return null;
+    if (lightboxIdx === null || lightboxItems.length === 0) return null;
+    const current = lightboxItems[lightboxIdx];
+    if (!current) return null;
+    const art = current.img;
+    // B 部分解鎖：放大仍遮罩（模糊不解除）
+    const isPartial = current.state === 'partial';
 
     const handleWheel = (e: React.WheelEvent) => {
       e.stopPropagation();
@@ -1964,7 +2152,7 @@ function VisualsReaderInner() {
             關閉 ✕
           </button>
           <img
-            className={`visuals-lightbox-img ${lbZoom > 1 ? 'is-panning' : ''}`}
+            className={`visuals-lightbox-img ${lbZoom > 1 ? 'is-panning' : ''}${isPartial ? ' is-partial' : ''}`}
             src={buildImageUrl(art.file)}
             alt={art.caption || ''}
             style={{
@@ -1975,7 +2163,14 @@ function VisualsReaderInner() {
             draggable={false}
           />
           <div className="visuals-lightbox-meta">
-            <div className="visuals-lightbox-caption">{art.caption || ''}</div>
+            <div className="visuals-lightbox-caption">
+              {art.caption || ''}
+              {isPartial && (
+                <span className="visuals-lightbox-partial-tag">
+                  · 部分解鎖：影像尚未完全顯現
+                </span>
+              )}
+            </div>
             <div className="visuals-lightbox-nav">
               <button
                 className="visuals-lightbox-btn"
@@ -1990,7 +2185,7 @@ function VisualsReaderInner() {
               </button>
               <button
                 className="visuals-lightbox-btn"
-                disabled={lightboxIdx >= lightboxImages.length - 1}
+                disabled={lightboxIdx >= lightboxItems.length - 1}
                 onClick={() => {
                   setLightboxIdx(lightboxIdx + 1);
                   setLbZoom(1);
