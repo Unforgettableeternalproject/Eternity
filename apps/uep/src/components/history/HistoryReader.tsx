@@ -41,10 +41,14 @@ import {
   mountLostBookmarkTestBridge,
   rollLostBookmark,
   settleLostBookmark,
+  shouldMountIsland,
   unlockIsland,
+  useIslandRuntimeState,
 } from '../../islands';
 import LostBookmarkGate from './LostBookmarkGate';
 import { useEchoSpots } from './useEchoSpots';
+import { useVisualClues, type VisualClueEntry } from './useVisualClues';
+import VisualClueBookmarks from './VisualClueBookmarks';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
 import './HistoryReader.css';
@@ -379,6 +383,33 @@ export default function HistoryReader() {
     ),
     onMarkerPassed: onEchoMarkerPassed,
   });
+
+  // Visual Clue 側邊書籤（S8 下半場 V-D）：掃描線在起訖區間內時浮現。
+  // 守門：浮動幻影已掛載（探索者+已解鎖+未停用）才觀察；展開中才
+  // 渲染書籤，收合時走 dock chip 閃爍提示；觀測者/未解鎖完全不出現。
+  const islandState = useIslandRuntimeState();
+  const visualsIslandOpen = Boolean(islandState.windows.visuals?.open);
+  const canShowVisualClues = shouldMountIsland(progress, 'visuals');
+  const activeVisualClues = useVisualClues({
+    pageId: currentId,
+    containerRef: contentRef,
+    scrollRef,
+    contentKey: articleHtml,
+    enabled: Boolean(
+      canShowVisualClues &&
+      currentId &&
+      currentPage &&
+      articleHtml &&
+      !contentLoading &&
+      !contentError &&
+      !bookmarkGateOpen
+    ),
+  });
+
+  // 書籤點擊 → 強制展示 gallery（快照/復原 + 授旗於 V-D.30/.32 接線）
+  const handleVisualClueClick = (clue: VisualClueEntry) => {
+    void clue; // V-D.30：反查現行 gallery → 快照目前投射 → pushPhantomGallery
+  };
 
   const beginResumeJump = () => {
     resumeJumpRef.current = true;
@@ -1330,6 +1361,15 @@ export default function HistoryReader() {
             <span className="history-scroll-marker-line" />
             <span className="history-scroll-marker-label">上次位置 ▸</span>
           </button>
+        )}
+
+        {/* Visual Clue 側邊書籤（V-D）：同 scroll marker 掛在不滾動的
+            .history-main 右緣；島展開中才渲染（收合走 dock chip 提示） */}
+        {visualsIslandOpen && (
+          <VisualClueBookmarks
+            clues={activeVisualClues}
+            onClueClick={handleVisualClueClick}
+          />
         )}
 
         <div className="history-content" ref={scrollRef}>

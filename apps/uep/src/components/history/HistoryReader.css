@@ -519,7 +519,9 @@
 /* 進度標記前台隱形——不能用 display:none，
    IntersectionObserver 需要 layout box 才會觸發 */
 .history-prose [data-role='progress-marker'],
-.history-prose [data-role='echo-spot'] {
+.history-prose [data-role='echo-spot'],
+.history-prose [data-role='visual-clue-start'],
+.history-prose [data-role='visual-clue-end'] {
   display: block;
   height: 0;
   margin: 0;

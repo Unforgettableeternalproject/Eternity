@@ -1,0 +1,113 @@
+/* Visual Clue 側邊書籤（S8 下半場 V-D）——幻影紫，書籤隱喻沿
+   「遺落的書籤」語彙。掛在 .history-main 右緣，z-index 低於
+   「上次位置」scroll marker（20）避免互蓋。 */
+
+.uep-clue-rail {
+  position: absolute;
+  top: 46%;
+  right: 0;
+  z-index: 19;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.uep-clue-bookmark {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: clueBookmarkIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 連接線：指向內容方向、懸在文章右緣外側，不碰字 */
+.uep-clue-bookmark__line {
+  display: block;
+  width: 26px;
+  height: 1px;
+  background: linear-gradient(to left, #5e548e, transparent);
+  opacity: 0.75;
+}
+
+.uep-clue-bookmark__tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 168px;
+  padding: 7px 10px 7px 9px;
+  border: 1px solid color-mix(in srgb, #5e548e 55%, transparent);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background: color-mix(in srgb, #5e548e 16%, #131120);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 35%);
+  color: #cfc7ee;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.uep-clue-bookmark:hover .uep-clue-bookmark__tab,
+.uep-clue-bookmark:focus-visible .uep-clue-bookmark__tab {
+  background: color-mix(in srgb, #5e548e 30%, #131120);
+  transform: translateX(-2px);
+}
+
+.uep-clue-bookmark:focus-visible .uep-clue-bookmark__tab {
+  outline: 2px solid #5e548e;
+  outline-offset: 2px;
+}
+
+.uep-clue-bookmark__icon {
+  font-size: 13px;
+  line-height: 1;
+  color: #8f83c9;
+}
+
+.uep-clue-bookmark__label {
+  overflow: hidden;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes clueBookmarkIn {
+  0% {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 窄視窗：只留圖示書籤，label 收起，避免壓到內文 */
+@media (max-width: 760px) {
+  .uep-clue-bookmark__label {
+    display: none;
+  }
+
+  .uep-clue-bookmark__line {
+    width: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-clue-bookmark {
+    animation: none;
+  }
+
+  .uep-clue-bookmark:hover .uep-clue-bookmark__tab,
+  .uep-clue-bookmark:focus-visible .uep-clue-bookmark__tab {
+    transform: none;
+  }
+}
