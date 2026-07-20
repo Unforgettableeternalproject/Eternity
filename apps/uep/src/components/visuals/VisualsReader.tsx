@@ -41,9 +41,8 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 
 import SpriteViewer from './SpriteViewer';
-import VisualsPhantom from './VisualsPhantom';
+import VisualsPhantom, { resolvePhantomVariant } from './VisualsPhantom';
 import { isGalleryUnlockedInZone } from './visualsVisibility';
-import type { PhantomVariant } from './VisualsPhantom';
 
 import './VisualsReader.css';
 
@@ -597,17 +596,20 @@ function VisualsReaderInner() {
 
   async function navigateToDivision(divId: string, push = true) {
     saveScroll();
+    // 深連結／popstate 會傳完整路徑（visuals/profiles），統一正規化為裸分館 id，
+    // 讓 activeDivision 查找、scroll key 與 Phantom variant 都拿到一致的值
+    const defId = divId.replace(/^visuals\//, '');
     setView('division');
-    setActiveDivisionId(divId);
+    setActiveDivisionId(defId);
     setActiveSubcatId(null);
     setActiveGalleryId(null);
     setGalleryPage(null);
     setDivisionPage(null);
     setSubcatPage(null);
-    restoreScroll(`division:${divId}`);
-    if (push) pushUrl({ division: divId.replace(/^visuals\//, '') });
+    restoreScroll(`division:${defId}`);
+    if (push) pushUrl({ division: defId });
     // 載入 division 頁面內容
-    const divNode = findDivisionNode(tree, divId);
+    const divNode = findDivisionNode(tree, defId);
     if (divNode) {
       try {
         const slug = divNode.id.replace('visuals/', '');
@@ -2247,11 +2249,9 @@ function VisualsReaderInner() {
         <ZoneAtmosphere zone={VISUALS_ZONE} intensity="subtle" skipGlyphs />
         <div className="visuals-content" ref={scrollRef}>
           <VisualsPhantom
-            variant={
-              (view === 'landing'
-                ? 'landing'
-                : (activeDivisionId ?? 'landing')) as PhantomVariant
-            }
+            variant={resolvePhantomVariant(
+              view === 'landing' ? 'landing' : activeDivisionId
+            )}
           />
           <div
             key={`${view}-${activeDivisionId}-${activeSubcatId}-${activeGalleryId}`}

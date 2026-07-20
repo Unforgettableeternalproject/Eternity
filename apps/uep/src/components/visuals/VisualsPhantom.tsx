@@ -98,6 +98,19 @@ const CFG: Record<PhantomVariant, Cfg> = {
   },
 };
 
+/**
+ * 將任意字串解析為合法的 PhantomVariant。
+ * 深連結／popstate 可能傳入完整路徑（如 visuals/profiles）或未知值，
+ * 不在 CFG 內的一律退回 'landing'，避免元件因查無設定而崩潰。
+ */
+export function resolvePhantomVariant(
+  value: string | null | undefined
+): PhantomVariant {
+  return value && Object.prototype.hasOwnProperty.call(CFG, value)
+    ? (value as PhantomVariant)
+    : 'landing';
+}
+
 // ──────────────────────────────────────────────────────────────
 // 射線系統
 // ──────────────────────────────────────────────────────────────
@@ -183,7 +196,8 @@ const SVG_ICONS: React.ReactNode[] = [
 // 元件
 // ──────────────────────────────────────────────────────────────
 export default function VisualsPhantom({ variant = 'landing' }: Props) {
-  const c = CFG[variant];
+  // 第二層防禦：即使呼叫端未經 resolvePhantomVariant，也不因未知 variant 崩潰
+  const c = CFG[variant] ?? CFG.landing;
 
   /* ── 確定性框架 ── */
   const frames = useMemo(() => {
