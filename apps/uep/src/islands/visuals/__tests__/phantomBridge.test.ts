@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  PHANTOM_STATE_STORAGE_KEY,
   UEP_CLUE_WAITING_EVENT,
   UEP_PHANTOM_SHOW_EVENT,
   UEP_PHANTOM_SUGGESTION_EVENT,
@@ -120,6 +121,26 @@ describe('目前投射（current）', () => {
     expect(getPhantomGallery()?.id).toBe('visuals/illustrations/scenes/dawn');
   });
 
+  it('跨頁重建 window bridge 後可從 localStorage 還原投射', () => {
+    const gallery = makeGallery();
+    pushPhantomGallery(gallery);
+    expect(
+      window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY)
+    ).not.toBeNull();
+
+    delete window.__uepPhantomGallery;
+    delete window.__uepPhantomClueSnapshot;
+
+    expect(getPhantomGallery()).toEqual(gallery);
+  });
+
+  it('毀損的持久資料靜默回到空狀態', () => {
+    window.localStorage.setItem(PHANTOM_STATE_STORAGE_KEY, '{broken');
+    delete window.__uepPhantomGallery;
+    delete window.__uepPhantomClueSnapshot;
+    expect(getPhantomGallery()).toBeNull();
+  });
+
   it('push 同時廣播 ISLAND_RELATED_EVENT（跨島關聯基礎接通）', async () => {
     const { ISLAND_RELATED_EVENT } = await import('../../types');
     const listener = vi.fn();
@@ -153,6 +174,7 @@ describe('目前投射（current）', () => {
     clearPhantomGallery();
     expect(getPhantomGallery()).toBeNull();
     expect(consumePhantomSuggestion()).toBeNull();
+    expect(window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY)).toBeNull();
   });
 });
 
@@ -189,6 +211,20 @@ describe('Visual Clue 快照/復原（V-D，沿 interruptionSnapshot 語意）',
     pushClueGallery(clueGallery('visuals/illustrations/scenes/b'));
     restoreFromClueSnapshot();
     // 恢復點是使用者自己的投射，不是上一個 clue
+    expect(getPhantomGallery()?.id).toBe(original.id);
+  });
+
+  it('跨頁重建 window bridge 後仍可恢復 clue 前的原投射', () => {
+    const original = makeGallery();
+    pushPhantomGallery(original);
+    pushClueGallery(clueGallery());
+
+    delete window.__uepPhantomGallery;
+    delete window.__uepPhantomClueSnapshot;
+
+    expect(getPhantomGallery()?.source).toBe('clue');
+    expect(hasClueSnapshot()).toBe(true);
+    restoreFromClueSnapshot();
     expect(getPhantomGallery()?.id).toBe(original.id);
   });
 

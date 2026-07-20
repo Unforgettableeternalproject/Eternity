@@ -73,6 +73,19 @@ interface PhantomClueSnapshot {
   gallery: PhantomGallery | null;
 }
 
+/**
+ * 目前投射與 clue 快照需要跨頁存活；window bridge 只負責同頁不同
+ * React root，同一份資料另寫 localStorage 才能承接一般頁面導覽。
+ * suggestion 仍是一次性提示，不進持久化。
+ */
+export const PHANTOM_STATE_STORAGE_KEY = 'uep.phantom.v1';
+
+interface PersistedPhantomState {
+  version: 1;
+  gallery: PhantomGallery | null;
+  clueSnapshot: PhantomClueSnapshot | null;
+}
+
 /** clue 等待計數變更事件（dock chip 閃爍提示用） */
 export const UEP_CLUE_WAITING_EVENT = 'uep:visual-clue-waiting';
 
@@ -83,6 +96,100 @@ declare global {
     __uepPhantomClueSnapshot?: PhantomClueSnapshot | null;
     __uepVisualClueWaiting?: number;
   }
+}
+
+function normalizeGallery(raw: unknown): PhantomGallery | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Partial<PhantomGallery>;
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.title !== 'string' ||
+    !Array.isArray(value.images) ||
+    !['mirror', 'embed', 'clue'].includes(value.source ?? '')
+  ) {
+    return null;
+  }
+
+  const images = value.images.filter(
+    (image): image is PhantomImage =>
+      !!image &&
+      typeof image === 'object' &&
+      typeof image.id === 'string' &&
+      typeof image.file === 'string' &&
+      typeof image.caption === 'string' &&
+      typeof image.sortOrder === 'number' &&
+      Number.isFinite(image.sortOrder)
+  );
+  if (images.length !== value.images.length) return null;
+
+  return {
+    ...value,
+    id: value.id,
+    title: value.title,
+    images,
+    source: value.source as PhantomGallery['source'],
+    relatedHistoryIds: Array.isArray(value.relatedHistoryIds)
+      ? value.relatedHistoryIds.filter(
+          (pageId): pageId is string => typeof pageId === 'string'
+        )
+      : undefined,
+  };
+}
+
+function loadPersistedPhantomState(): PersistedPhantomState | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<PersistedPhantomState>;
+    if (value.version !== 1) return null;
+    const gallery =
+      value.gallery === null ? null : normalizeGallery(value.gallery);
+    if (value.gallery !== null && !gallery) return null;
+    const snapshotGallery =
+      value.clueSnapshot?.gallery === null
+        ? null
+        : normalizeGallery(value.clueSnapshot?.gallery);
+    if (value.clueSnapshot?.gallery && !snapshotGallery) return null;
+    return {
+      version: 1,
+      gallery,
+      clueSnapshot: value.clueSnapshot ? { gallery: snapshotGallery } : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistPhantomState(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const value: PersistedPhantomState = {
+      version: 1,
+      gallery: window.__uepPhantomGallery ?? null,
+      clueSnapshot: window.__uepPhantomClueSnapshot ?? null,
+    };
+    window.localStorage.setItem(
+      PHANTOM_STATE_STORAGE_KEY,
+      JSON.stringify(value)
+    );
+  } catch {
+    // localStorage 滿載或被禁用時靜默失敗，浮島仍可在當頁運作。
+  }
+}
+
+/** 新頁面／新 bundle 首次讀取時，把持久狀態灌回 window bridge。 */
+function hydratePhantomState(): void {
+  if (typeof window === 'undefined') return;
+  if (
+    window.__uepPhantomGallery !== undefined ||
+    window.__uepPhantomClueSnapshot !== undefined
+  ) {
+    return;
+  }
+  const persisted = loadPersistedPhantomState();
+  window.__uepPhantomGallery = persisted?.gallery ?? null;
+  window.__uepPhantomClueSnapshot = persisted?.clueSnapshot ?? null;
 }
 
 /**
@@ -140,6 +247,7 @@ export function pushPhantomGallery(gallery: PhantomGallery): void {
   if (typeof window === 'undefined') return;
   if (gallery.source !== 'clue') window.__uepPhantomClueSnapshot = null;
   window.__uepPhantomGallery = gallery;
+  persistPhantomState();
   window.dispatchEvent(
     new CustomEvent<PhantomGallery>(UEP_PHANTOM_SHOW_EVENT, {
       detail: gallery,
@@ -162,6 +270,7 @@ export function pushPhantomGallery(gallery: PhantomGallery): void {
 /** 讀取目前投射（不清除——收合再展開續示） */
 export function getPhantomGallery(): PhantomGallery | null {
   if (typeof window === 'undefined') return null;
+  hydratePhantomState();
   return window.__uepPhantomGallery ?? null;
 }
 
@@ -171,6 +280,11 @@ export function clearPhantomGallery(): void {
   window.__uepPhantomGallery = null;
   window.__uepPhantomSuggestion = null;
   window.__uepPhantomClueSnapshot = null;
+  try {
+    window.localStorage?.removeItem(PHANTOM_STATE_STORAGE_KEY);
+  } catch {
+    // 靜默失敗
+  }
 }
 
 /**
@@ -180,6 +294,7 @@ export function clearPhantomGallery(): void {
  */
 export function pushClueGallery(gallery: PhantomGallery): void {
   if (typeof window === 'undefined') return;
+  hydratePhantomState();
   if (!window.__uepPhantomClueSnapshot) {
     window.__uepPhantomClueSnapshot = {
       gallery: window.__uepPhantomGallery ?? null,
@@ -198,6 +313,7 @@ export function pushClueGallery(gallery: PhantomGallery): void {
  */
 export function restoreFromClueSnapshot(): void {
   if (typeof window === 'undefined') return;
+  hydratePhantomState();
   const snapshot = window.__uepPhantomClueSnapshot;
   if (!snapshot) return;
   window.__uepPhantomClueSnapshot = null;
@@ -208,6 +324,7 @@ export function restoreFromClueSnapshot(): void {
     return;
   }
   window.__uepPhantomGallery = null;
+  persistPhantomState();
   window.dispatchEvent(
     new CustomEvent<PhantomGallery | null>(UEP_PHANTOM_SHOW_EVENT, {
       detail: null,
@@ -218,6 +335,7 @@ export function restoreFromClueSnapshot(): void {
 /** 是否正處於 clue 插播（有快照待恢復） */
 export function hasClueSnapshot(): boolean {
   if (typeof window === 'undefined') return false;
+  hydratePhantomState();
   return Boolean(window.__uepPhantomClueSnapshot);
 }
 

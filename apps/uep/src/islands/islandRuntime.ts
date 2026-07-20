@@ -248,6 +248,15 @@ export function getIslandRuntime(): typeof uepIslands {
 /** zone 足跡旗標前綴（進到過該 zone 的 Reader 即授予） */
 export const ZONE_VISITED_FLAG_PREFIX = 'zone:visited:';
 
+/** 浮島是桌面版專屬功能；與既有 RWD 斷點保持一致。 */
+export const ISLAND_DESKTOP_MIN_WIDTH = 761;
+
+/** SSR 先放行，client hydration 後再依實際 viewport 守門。 */
+export function isDesktopIslandViewport(): boolean {
+  if (typeof window === 'undefined') return true;
+  return window.innerWidth >= ISLAND_DESKTOP_MIN_WIDTH;
+}
+
 /** 組出 zone 足跡旗標，如 `zone:visited:history` */
 export function zoneVisitedFlag(zone: IslandId): string {
   return `${ZONE_VISITED_FLAG_PREFIX}${zone}`;
@@ -277,7 +286,11 @@ export function hasVisitedZone(
  * 已接）。
  */
 export function canUseIslands(progress: ProgressState): boolean {
-  return progress.view === 'explorer' && getReaderAuth().isLoggedIn();
+  return (
+    isDesktopIslandViewport() &&
+    progress.view === 'explorer' &&
+    getReaderAuth().isLoggedIn()
+  );
 }
 
 /** 指定浮島是否已解鎖（zone 首頁小物件點擊後授予） */

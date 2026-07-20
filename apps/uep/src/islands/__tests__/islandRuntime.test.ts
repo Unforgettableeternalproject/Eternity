@@ -37,6 +37,10 @@ beforeEach(() => {
   authMock.loggedIn = true;
   authMock.listeners = [];
   window.localStorage.clear();
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: 1024,
+  });
   delete window.__uepIslands;
   delete window.__uepProgress;
 });
@@ -358,6 +362,21 @@ describe('gating helpers', () => {
     // S7-C 定案：未登入（訪客/登出後）無浮島——鏡像殘留的解鎖狀態不復活
     authMock.loggedIn = false;
     expect(canUseIslands(explorer)).toBe(false);
+  });
+
+  it('手機 viewport 完全停用浮島共同守門', async () => {
+    const { canUseIslands, shouldMountIsland } = await freshRuntime();
+    const { createInitialState } = await import('../../progress');
+    const progress = {
+      ...createInitialState(),
+      islandsUnlocked: ['visuals'],
+    };
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 760,
+    });
+    expect(canUseIslands(progress)).toBe(false);
+    expect(shouldMountIsland(progress, 'visuals')).toBe(false);
   });
 
   it('shouldMountIsland：已登入探索者 + 已解鎖', async () => {
