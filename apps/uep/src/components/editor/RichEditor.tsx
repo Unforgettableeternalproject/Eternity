@@ -37,7 +37,7 @@ import {
   deleteAsset,
   htmlToMarkdown,
 } from './editorHelpers';
-import { resolveEditorMode } from './editorModeRegistry';
+import { resolveEditorMode, resolveGatePanelMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
 import { canonicalizePagePath } from '../../lib/pagePath';
 import EditorPageTree from './EditorPageTree';
@@ -273,6 +273,14 @@ export default function RichEditor({
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
   const modeId = editorMode.id;
+  // PROGRESS GATE 面板分級（S8 下半場 V-B.18）：full 全套／minimal 只留
+  // 條件欄位／none 整塊移除。僅動 UI，metadata 求值行為不變。
+  const gatePanelMode = resolveGatePanelMode({
+    area,
+    zoneId,
+    pageType,
+    pageSlug,
+  });
 
   // 相容用 shorthand（供渲染判斷使用）
   const isEchoes = modeId === 'echoes.song';
@@ -2761,26 +2769,35 @@ export default function RichEditor({
               createdAt={createdAt}
               updatedAt={updatedAt}
               gateFields={
-                <GateConditionEditor
-                  value={gate}
-                  onChange={(next) => {
-                    setGate(next);
-                    setDirtyMetadata(true);
-                  }}
-                  isProgressPage={progressPage}
-                  onProgressPageChange={(next) => {
-                    setProgressPage(next);
-                    setDirtyMetadata(true);
-                  }}
-                  isGateExempt={gateExempt}
-                  onGateExemptChange={(next) => {
-                    setGateExempt(next);
-                    setDirtyMetadata(true);
-                  }}
-                  parentIsProgressContainer={parentIsProgressContainer}
-                  apiBase={apiBase}
-                  accent={accentMain}
-                />
+                gatePanelMode === 'none' ? undefined : (
+                  <GateConditionEditor
+                    value={gate}
+                    onChange={(next) => {
+                      setGate(next);
+                      setDirtyMetadata(true);
+                    }}
+                    // minimal：progress page / exempt from container 是
+                    // History tree 專屬欄位，媒體 zone 不顯示（不傳
+                    // callback 即收起 toggle）；既有 metadata 值原樣保留
+                    {...(gatePanelMode === 'full'
+                      ? {
+                          isProgressPage: progressPage,
+                          onProgressPageChange: (next: boolean) => {
+                            setProgressPage(next);
+                            setDirtyMetadata(true);
+                          },
+                          isGateExempt: gateExempt,
+                          onGateExemptChange: (next: boolean) => {
+                            setGateExempt(next);
+                            setDirtyMetadata(true);
+                          },
+                          parentIsProgressContainer,
+                        }
+                      : {})}
+                    apiBase={apiBase}
+                    accent={accentMain}
+                  />
+                )
               }
               modeFields={
                 <>

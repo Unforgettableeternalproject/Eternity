@@ -20,6 +20,18 @@ export interface EditorModeContext {
   pageSlug: string;
 }
 
+/**
+ * Inspector PROGRESS GATE 面板分級（S8 下半場 V-B.18，艾斯維爾 07/19 定案）：
+ * - full    — 全套（progress page / exempt from container / 條件欄位）
+ * - minimal — 只留必要條件欄位（requires completion / custom flag /
+ *             pristine only）；progressPage 與容器繼承是 tree 專屬欄位，
+ *             對媒體 zone 無意義
+ * - none    — 整塊移除
+ *
+ * 僅動 UI：各 Reader 對既有 metadata.gate 的求值行為不變。
+ */
+export type GatePanelMode = 'full' | 'minimal' | 'none';
+
 export interface EditorModeDefinition {
   id: string;
   /** 比對函式：給定 context，回傳是否匹配 */
@@ -30,6 +42,8 @@ export interface EditorModeDefinition {
   toolbarLabel: string;
   /** 是否需要 subcategory 選擇器（Storage stuff 頁面） */
   needsSubcatSelector?: boolean;
+  /** PROGRESS GATE 面板分級；未設定時依 area 規則 fallback */
+  gatePanelMode?: GatePanelMode;
 }
 
 // ── Mode 定義 ────────────────────────────────────────────────
@@ -42,6 +56,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'song',
     needsTipTap: false,
     toolbarLabel: 'song mode',
+    gatePanelMode: 'minimal',
   },
   {
     id: 'echoes.subcategory',
@@ -50,6 +65,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'subcategory',
     needsTipTap: true,
     toolbarLabel: 'playlist mode',
+    gatePanelMode: 'minimal',
   },
   {
     id: 'visuals.gallery',
@@ -58,6 +74,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'gallery',
     needsTipTap: false,
     toolbarLabel: 'gallery mode',
+    gatePanelMode: 'minimal',
   },
   {
     id: 'visuals.subcategory',
@@ -66,6 +83,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'subcategory',
     needsTipTap: true,
     toolbarLabel: 'subcategory mode',
+    gatePanelMode: 'minimal',
   },
   {
     id: 'visuals.division',
@@ -74,6 +92,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'division',
     needsTipTap: true,
     toolbarLabel: 'division mode',
+    gatePanelMode: 'minimal',
   },
   {
     id: 'concepts.type',
@@ -82,6 +101,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'type',
     needsTipTap: true,
     toolbarLabel: 'concepts type mode',
+    gatePanelMode: 'none',
   },
   {
     id: 'storage.dialogue',
@@ -91,6 +111,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageSlug.startsWith('boxes/'),
     needsTipTap: false,
     toolbarLabel: 'dialogue mode',
+    gatePanelMode: 'none',
     needsSubcatSelector: true,
   },
   {
@@ -101,6 +122,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageSlug.startsWith('changelog/'),
     needsTipTap: false,
     toolbarLabel: 'changelog mode',
+    gatePanelMode: 'none',
   },
   {
     id: 'storage.extras',
@@ -110,6 +132,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageSlug.startsWith('extras/'),
     needsTipTap: true,
     toolbarLabel: 'extras mode',
+    gatePanelMode: 'none',
     needsSubcatSelector: true,
   },
   {
@@ -119,6 +142,7 @@ const modes: EditorModeDefinition[] = [
       ctx.pageType === 'clearing',
     needsTipTap: true,
     toolbarLabel: 'clearing mode',
+    gatePanelMode: 'none',
   },
   {
     id: 'zone',
@@ -145,6 +169,32 @@ export function resolveEditorMode(
   ctx: EditorModeContext
 ): EditorModeDefinition {
   return modes.find((m) => m.match(ctx)) || modes[modes.length - 1];
+}
+
+/**
+ * 各 area 的 PROGRESS GATE 面板分級 fallback（共用 mode——zone/homepage/
+ * default——依所屬 area 分派）。未列出的 area（如站台 homepage）維持
+ * full，行為與分級前一致。
+ */
+const AREA_GATE_PANEL_MODES: Record<string, GatePanelMode> = {
+  history: 'full',
+  echoes: 'minimal',
+  visuals: 'minimal',
+  concepts: 'none',
+  storage: 'none',
+};
+
+/**
+ * 解析 PROGRESS GATE 面板分級：mode 自身的 gatePanelMode 優先，
+ * 否則依 area 規則，最後 fallback full（不影響未分級的區域）。
+ * RichEditor gateFields 是唯一注入點；Echoes Spoiler Gate 卡與
+ * Concepts baseGate 的獨立 GateConditionEditor 呼叫不受影響。
+ */
+export function resolveGatePanelMode(ctx: EditorModeContext): GatePanelMode {
+  const mode = resolveEditorMode(ctx);
+  if (mode.gatePanelMode) return mode.gatePanelMode;
+  const area = ctx.area || ctx.zoneId;
+  return AREA_GATE_PANEL_MODES[area] ?? 'full';
 }
 
 // ── 輔助查詢 ────────────────────────────────────────────────
