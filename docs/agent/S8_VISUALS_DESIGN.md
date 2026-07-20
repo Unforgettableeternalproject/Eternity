@@ -104,10 +104,9 @@ interface ImageGateData {
 - 部分解鎖（B）：模糊/遮罩效果，可窺不可視
 - gallery 鎖定判定 = gallery 閘（等價於第一張不可見）；鎖定的 gallery 在列表呈鎖定態（樣式待設計）
 - lightbox 尊重三態：A 不可放大、B 放大仍遮罩
-- 既有 spoilerFilter / gate 警告字串機制的去留 → **V-B.20 盤點定案（2026-07-20）**：
-  - **gallery 級 spoilerLevel（L0-3）+ 警告確認框：保留**。它是「讀者主動確認」的 UX 閘，與進度 gating（系統求值）正交——per-image 三態接手的是階段鎖職責，不取代劇透警告。spoilerFilter 續用於警告未確認時的縮圖遮蔽
-  - **gate 警告字串 → `metadata.gateHint`**（V-B.16 已遷移，比照 Echoes spoilerGate 手法）：讀取相容舊字串 gate；serialize 寫 gateHint、不再輸出 gate——`metadata.gate` 完全讓位給 GateCondition 物件（單一寫入來源 = Inspector PROGRESS GATE 面板，避免 Echoes D 段的互相覆蓋 bug）
-  - Reader 端所有 gate 字串讀取點改為 gateHint 優先 + 舊字串 fallback（物件 gate 不可再當字串塞進 JSX）
+- 既有 spoilerFilter / gate 警告字串機制的去留 → **定案（2026-07-20，兩輪）**：
+  - **gallery 級 spoilerLevel（L0-3）+ 警告確認框：全面退場**（艾斯維爾 07/20 驗收定案，推翻 .20 初版「保留為警告閘」結論）——Visuals 已排除 spoiler 降級鏈，劇透防護由 per-image 三態承擔。編輯器 L0~L3 按鈕、Reader 警告對話框/濾鏡、SubcatEditor 徽章、worker payload 欄位全數移除；serialize 不輸出 spoilerLevel，舊值於下次存檔時卸下（.21）
+  - **gate 警告字串 → `metadata.gateHint`**（V-B.16 已遷移，比照 Echoes spoilerGate 手法）：讀取相容舊字串 gate；serialize 寫 gateHint、不再輸出 gate——`metadata.gate` 完全讓位給 GateCondition 物件（單一寫入來源 = Inspector PROGRESS GATE 面板，避免 Echoes D 段的互相覆蓋 bug）。gateHint 的展示位是**未解鎖 gallery 的封印面板**（警告視窗已不存在）
 
 ---
 

@@ -105,8 +105,6 @@ export default function VisualsSubcatEditor({
           metadata: {
             images: [],
             group: '',
-            spoilerLevel: 0,
-            gate: '',
           },
         }),
       });
@@ -205,7 +203,6 @@ export default function VisualsSubcatEditor({
         <div className="ned-subcat-song-list">
           {galleries.map((gallery, i) => {
             const meta = gallery.metadata || {};
-            const spoiler = (meta.spoilerLevel as number) || 0;
             const group = (meta.group as string) || '';
             const images = Array.isArray(meta.images) ? meta.images : [];
             const isDragging = dragIdx === i;
@@ -264,16 +261,6 @@ export default function VisualsSubcatEditor({
                       鎖定
                     </span>
                   ) : null}
-                  {spoiler > 0 && (
-                    <span
-                      className="ned-subcat-song-spoiler"
-                      style={{
-                        color: spoiler === 3 ? 'crimson' : 'goldenrod',
-                      }}
-                    >
-                      L{spoiler}
-                    </span>
-                  )}
                 </span>
                 <a
                   href={`/admin/edit/${gallery.id}`}

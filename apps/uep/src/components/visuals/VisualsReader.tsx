@@ -28,7 +28,7 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
-import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
+import { isHidden, isLocked } from '../zone/contentVisibility';
 import { useProgress, buildProgressTreeAdapter } from '../../progress';
 import type { ProgressState } from '../../progress';
 import { resolveImageState } from '../../visuals';
@@ -212,14 +212,6 @@ function findFirstThumb(node: PageTreeNode): string | null {
     if (found) return found;
   }
   return null;
-}
-
-function spoilerFilter(level: number): string {
-  if (level === 1) return 'blur(8px)';
-  if (level === 2)
-    return 'blur(14px) grayscale(1) contrast(0.3) brightness(0.5)';
-  if (level === 3) return 'blur(24px) saturate(0) brightness(0.12)';
-  return 'none';
 }
 
 // ── 三態解鎖（S8 下半場 V-B.19）──────────────────────────────
@@ -468,15 +460,6 @@ function VisualsReaderInner() {
     setNavPending: setBootNavPending,
   } = useZoneBootReady();
 
-  // Spoiler
-  const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
-  const [spoilerWarning, setSpoilerWarning] = useState<{
-    id: string;
-    level: number;
-    gate: string;
-    onConfirm: () => void;
-  } | null>(null);
-
   // Lightbox（三態感知：A 不進 lightbox、B 放大仍遮罩）
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [lightboxItems, setLightboxItems] = useState<GalleryImageView[]>([]);
@@ -708,27 +691,6 @@ function VisualsReaderInner() {
     } finally {
       setBootNavPending(false);
     }
-  }
-
-  // === Spoiler unlock ===
-  function requestUnlock(
-    id: string,
-    level: number,
-    gate: string,
-    onConfirm: () => void
-  ) {
-    setSpoilerWarning({ id, level, gate, onConfirm });
-  }
-
-  function confirmUnlock() {
-    if (!spoilerWarning) return;
-    setUnlocked((prev) => new Set(prev).add(spoilerWarning.id));
-    spoilerWarning.onConfirm();
-    setSpoilerWarning(null);
-  }
-
-  function isUnlocked(id: string): boolean {
-    return unlocked.has(id);
   }
 
   // === Lightbox ===
@@ -1613,28 +1575,11 @@ function VisualsReaderInner() {
                     );
                   }
 
-                  const spoiler = getSpoilerLevel(g);
-                  // 警告提示文案：新 key gateHint 優先；舊字串 gate 讀取
-                  // 相容（V-A 起 metadata.gate 可能是 GateCondition 物件，
-                  // 不可再無條件當字串塞進 JSX）
-                  const gate =
-                    typeof g.metadata?.gateHint === 'string'
-                      ? g.metadata.gateHint
-                      : typeof g.metadata?.gate === 'string'
-                        ? g.metadata.gate
-                        : '';
                   const firstImg = images.length > 0 ? images[0] : null;
                   const thumbUrl = firstImg ? buildImageUrl(firstImg.file) : '';
-                  const spoilerLocked = spoiler > 0 && !isUnlocked(g.id);
 
                   const handleClick = () => {
-                    if (spoilerLocked) {
-                      requestUnlock(g.id, spoiler, gate, () => {
-                        void navigateToGallery(g.id);
-                      });
-                    } else {
-                      void navigateToGallery(g.id);
-                    }
+                    void navigateToGallery(g.id);
                   };
 
                   // 精靈圖縮圖：顯示第一個動畫的第一幀
@@ -1647,7 +1592,7 @@ function VisualsReaderInner() {
                   return (
                     <button
                       key={g.id}
-                      className={`visuals-gallery-card${spoilerLocked && spoiler >= 3 ? ' vis-spoiler-corrupt' : spoilerLocked && spoiler >= 2 ? ' vis-spoiler-silhouette' : ''}`}
+                      className="visuals-gallery-card"
                       onClick={handleClick}
                     >
                       {thumbUrl && isSpriteThumb ? (
@@ -1679,9 +1624,6 @@ function VisualsReaderInner() {
                                 backgroundPosition: `${bgPosX}% ${bgPosY}%`,
                                 backgroundRepeat: 'no-repeat',
                                 imageRendering: 'pixelated',
-                                filter: spoilerLocked
-                                  ? spoilerFilter(spoiler)
-                                  : 'none',
                               }}
                             />
                           );
@@ -1691,11 +1633,6 @@ function VisualsReaderInner() {
                           className="visuals-gallery-card-thumb"
                           src={thumbUrl}
                           alt={g.title}
-                          style={{
-                            filter: spoilerLocked
-                              ? spoilerFilter(spoiler)
-                              : 'none',
-                          }}
                         />
                       ) : (
                         <div
@@ -1713,16 +1650,6 @@ function VisualsReaderInner() {
                         </div>
                         <div className="visuals-gallery-card-meta">
                           {images.length} 張圖片
-                          {spoiler > 0 && (
-                            <span
-                              style={{
-                                color: spoiler === 3 ? 'crimson' : 'goldenrod',
-                                marginLeft: 8,
-                              }}
-                            >
-                              L{spoiler}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </button>
@@ -2209,43 +2136,6 @@ function VisualsReaderInner() {
     );
   }
 
-  // ─── RENDER: Spoiler Dialog ───
-  function renderSpoilerDialog() {
-    if (!spoilerWarning) return null;
-    return (
-      <div
-        className="visuals-spoiler-dialog"
-        onClick={() => setSpoilerWarning(null)}
-      >
-        <div
-          className="visuals-spoiler-dialog-inner"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="visuals-spoiler-dialog-title">
-            ⚠ SPOILER WARNING · LEVEL {spoilerWarning.level}
-          </div>
-          <div className="visuals-spoiler-dialog-gate">
-            {spoilerWarning.gate || '此內容包含劇透，確定要繼續嗎？'}
-          </div>
-          <div className="visuals-spoiler-dialog-actions">
-            <button
-              className="visuals-spoiler-dialog-confirm"
-              onClick={confirmUnlock}
-            >
-              我已知情，繼續
-            </button>
-            <button
-              className="visuals-spoiler-dialog-cancel"
-              onClick={() => setSpoilerWarning(null)}
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // === Main render ===
   return (
     <ReaderShell zoneId="visuals" className="visuals-reader">
@@ -2284,7 +2174,6 @@ function VisualsReaderInner() {
       </div>
 
       {renderLightbox()}
-      {renderSpoilerDialog()}
     </ReaderShell>
   );
 }

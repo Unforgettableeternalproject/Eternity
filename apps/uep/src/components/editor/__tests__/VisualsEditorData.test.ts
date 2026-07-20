@@ -90,7 +90,8 @@ describe('serializeVisualsData — round-trip 相容', () => {
     expect(out.gate).toBeUndefined();
     expect(out.gateHint).toBe('讀完 1-4 後解鎖');
     expect(out.group).toBe('x');
-    expect(out.spoilerLevel).toBe(2);
+    // spoilerLevel 已退場（07/20 驗收定案）：舊值於存檔時卸下
+    expect(out.spoilerLevel).toBeUndefined();
     expect(out.layout).toBe('museum');
   });
 

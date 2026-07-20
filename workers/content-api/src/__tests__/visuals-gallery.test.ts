@@ -114,8 +114,9 @@ describe('GET /api/visuals/entity-gallery', () => {
       divisionId: 'profiles',
       gate: { requiresFlags: ['met:vgal-xavier'] },
       locked: false,
-      spoilerLevel: 1,
     });
+    // spoilerLevel 已退場（07/20 驗收定案）——舊資料仍在 metadata 也不回傳
+    expect(json.data.gallery?.spoilerLevel).toBeUndefined();
     // 後端排序：sortOrder 0 在前；缺 file 的壞項目剔除
     expect(json.data.gallery?.images).toEqual([
       {

@@ -50,8 +50,6 @@ export interface EntityGalleryPayload {
   /** gallery 解鎖閘；舊自由文字 gate 不回傳為條件（靜默失效定案） */
   gate?: unknown;
   locked: boolean;
-  /** 遮蔽等級（V-B.20 盤點定案：保留——gallery 級劇透警告確認框） */
-  spoilerLevel: number;
   /** 依 sortOrder 升冪 */
   images: GalleryImagePayload[];
 }
@@ -111,12 +109,7 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
       ? { gate: meta.gate }
       : {}),
     locked: meta.locked === true,
-    spoilerLevel:
-      typeof meta.spoilerLevel === 'number' &&
-      meta.spoilerLevel >= 0 &&
-      meta.spoilerLevel <= 3
-        ? meta.spoilerLevel
-        : 0,
+    // spoilerLevel 不回傳——Visuals 已排除 spoiler 降級鏈（07/20 驗收定案）
     images: buildImages(meta),
   };
 }

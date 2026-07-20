@@ -71,12 +71,6 @@ export interface VisualsData {
   /** 分組標籤（同 group 的 gallery 在 subcat 中歸在一起）*/
   group: string;
   /**
-   * 遮蔽等級 0-3（V-B.20 盤點定案：保留）——gallery 級「劇透警告確認框」
-   * 的 UX 閘，與進度 gating（系統求值）正交；per-image 三態接手的是
-   * 階段鎖職責，不取代讀者主動確認的警告機制。
-   */
-  spoilerLevel: number;
-  /**
    * gallery 解鎖閘（GateCondition 物件；null = 無條件）的唯讀鏡像。
    * 單一寫入來源是 Inspector 的 PROGRESS GATE 面板（RichEditor `gate`
    * state → metadata.gate）——serializeVisualsData 不再輸出 gate，
@@ -84,9 +78,9 @@ export interface VisualsData {
    */
   gate: GateCondition | null;
   /**
-   * 解鎖提示文案（metadata.gateHint）：spoiler 警告視窗顯示的劇情提示，
-   * 不參與條件求值。讀取相容舊自由文字 gate 字串（2026-07-19 拍板：
-   * 靜默失效，僅承接為提示文案）——同 Echoes spoilerGate 的相容手法。
+   * 解鎖提示文案（metadata.gateHint）：鎖定 gallery 的封印面板顯示的
+   * 劇情提示，不參與條件求值。讀取相容舊自由文字 gate 字串（2026-07-19
+   * 拍板：靜默失效，僅承接為提示文案）——同 Echoes spoilerGate 手法。
    */
   gateHint: string;
   /**
@@ -137,7 +131,6 @@ export function parseVisualsData(metadata: Record<string, any>): VisualsData {
   return {
     images: Array.isArray(metadata?.images) ? metadata.images : [],
     group: metadata?.group || '',
-    spoilerLevel: metadata?.spoilerLevel ?? 0,
     // 物件 → 結構化閘（唯讀鏡像）；字串 → 舊資料靜默失效
     gate: normalizeGateObject(rawGate),
     // 提示文案：新 key gateHint 優先，舊字串 gate 讀取相容
@@ -161,7 +154,9 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
   return {
     images: data.images,
     group: data.group || undefined,
-    spoilerLevel: data.spoilerLevel,
+    // 不輸出 spoilerLevel——Visuals 已排除 spoiler 降級鏈（艾斯維爾 07/20
+    // 驗收定案：gallery 級遮蔽等級整個退場，劇透防護由 per-image 三態
+    // 承擔），舊值於下次存檔時卸下
     // 不輸出 gate——結構化閘由 Inspector PROGRESS GATE 面板單一來源保存；
     // 舊自由文字 gate 承接進 gateHint 後即從 metadata.gate 卸下
     gateHint: data.gateHint.trim() || undefined,
@@ -281,13 +276,6 @@ function generateId(): string {
 }
 
 // uploadAsset, fetchImageAssets, buildImageUrl, deleteAsset 已移至 editorHelpers.ts
-
-const SPOILER_LEVELS = [
-  { l: 0, n: '無' },
-  { l: 1, n: '霧化' },
-  { l: 2, n: '遮罩' },
-  { l: 3, n: '雜訊' },
-];
 
 /** 三態初始狀態選項（A/B/C，設計文件 §1-2） */
 const IMAGE_STATE_OPTIONS: {
@@ -1170,31 +1158,8 @@ export default function VisualsEditorBody({
         onChange={(e) => update({ group: e.target.value })}
       />
 
-      {/* 遮蔽等級 */}
-      <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
-      <div className="ned-spoiler-buttons">
-        {SPOILER_LEVELS.map((o) => (
-          <button
-            key={o.l}
-            className={`ned-spoiler-btn ${data.spoilerLevel === o.l ? 'is-active' : ''}`}
-            style={{
-              borderColor:
-                data.spoilerLevel === o.l ? accent : 'var(--hairline-strong)',
-              background:
-                data.spoilerLevel === o.l ? `${accent}12` : 'transparent',
-              color: data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
-            }}
-            onClick={() => update({ spoilerLevel: o.l })}
-            type="button"
-          >
-            L{o.l}
-            <span className="ned-spoiler-btn-label">{o.n}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* 解鎖提示文案——spoiler 警告視窗顯示的劇情提示，不參與求值。
-          解鎖條件本身由右側 Inspector 的 PROGRESS GATE 面板管理。 */}
+      {/* 解鎖提示文案——鎖定 gallery 的封印面板顯示的劇情提示，不參與
+          求值。解鎖條件本身由右側 Inspector 的 PROGRESS GATE 面板管理。 */}
       <label className="ned-field-label">解鎖提示文案</label>
       <input
         className="ned-field"
@@ -1204,8 +1169,8 @@ export default function VisualsEditorBody({
         onChange={(e) => update({ gateHint: e.target.value })}
       />
       <div className="ned-gate-scope-hint">
-        ⓘ 僅為警告視窗的提示文字；gallery 的解鎖條件請在右側 PROGRESS GATE
-        面板設定。
+        ⓘ 顯示在未解鎖 gallery 的封印面板上；gallery 的解鎖條件請在右側 PROGRESS
+        GATE 面板設定。
       </div>
 
       {/* 跨 zone 識別欄位：entityKey（陳列走廊）/ 插圖 ID（鑲框室），
