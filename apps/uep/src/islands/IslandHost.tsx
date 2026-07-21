@@ -54,6 +54,7 @@ import {
   isEchoSuggestionEligible,
   pushEchoSuggestion,
 } from './echoes/echoSuggestionBridge';
+import PinnedNoteLayer from './storage/PinnedNoteLayer';
 import { fetchZoneProgressTree } from './zoneProgressTree';
 import {
   UEP_ECHO_PREVIEW_EVENT,
@@ -322,6 +323,9 @@ export default function IslandHost() {
   return createPortal(
     <>
       <IslandDock unlockedIds={activeIds} />
+      {/* 釘選便條層（S9-A.5）——storage 島已解鎖即掛載，不受島開合影響。
+          手機 / 未登入探索者 / 停用時本外層守門已擋（activeIds 不含 storage）。 */}
+      {shouldMountIsland(progress, 'storage') && <PinnedNoteLayer />}
       {/* 通知卡限定 Echoes 島可用——事件落地後 Echoes 被停用時不得殘留 */}
       {echoPreview && shouldMountIsland(progress, 'echoes') && (
         <SongPreviewCard track={echoPreview} onDismiss={dismissEchoPreview} />

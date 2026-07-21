@@ -1,0 +1,173 @@
+/**
+ * PinnedNoteLayer — 釘選便條樣式
+ *
+ * 沿用 StorageIsland 的便條紙語彙（暖黃色系、傾斜、紙質陰影），
+ * 但釘在頁面上的便條稍微更「實體」——陰影深、有膠帶感、可拆除鈕更明顯。
+ *
+ * z-index 落在浮島層帶下面（Minimap:300 之上、島:2000 之下 → 500-999）——
+ * 內容捲動時便條要跟著內容走，不搶浮島互動；使用者要編輯就上前一層。
+ */
+
+.uep-pinned-note {
+  position: absolute;
+  width: 200px;
+  background: #fff1ba;
+  color: #3a2f08;
+  padding: 10px 30px 10px 12px;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  z-index: 500;
+  transition:
+    box-shadow 180ms ease,
+    z-index 0s ease 180ms;
+  cursor: default;
+}
+
+/* 上緣膠帶條——強化「貼在頁面上」的實體感 */
+.uep-pinned-note::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 60px;
+  height: 10px;
+  background: rgba(231, 220, 178, 0.9);
+  border-left: 1px dashed rgba(0, 0, 0, 0.1);
+  border-right: 1px dashed rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.uep-pinned-note:hover {
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  z-index: 900; /* hover 提前層堆到浮島下方頂端 */
+  transition:
+    box-shadow 120ms ease,
+    z-index 0s;
+}
+
+/* 內容文字（按鈕包起來，點擊進編輯） */
+.uep-pinned-note__text {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.uep-pinned-note__text:focus-visible {
+  outline: 1px dashed rgba(58, 47, 8, 0.5);
+  outline-offset: 2px;
+}
+
+/* 拆除鈕（右上角） */
+.uep-pinned-note__unpin {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: rgba(58, 47, 8, 0.5);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 0;
+  transition: color 120ms ease;
+}
+
+.uep-pinned-note__unpin:hover {
+  color: rgba(58, 47, 8, 0.95);
+}
+
+/* 編輯態 */
+.uep-pinned-note.is-editing {
+  transform: rotate(0deg) !important; /* 打直方便輸入 */
+  background: #fff8d4;
+  z-index: 1500;
+}
+
+.uep-pinned-note__textarea {
+  width: 100%;
+  min-height: 60px;
+  border: none;
+  outline: 1px dashed rgba(58, 47, 8, 0.4);
+  outline-offset: 2px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+  padding: 2px;
+}
+
+/* 錨點失效提示 */
+.uep-pinned-note.is-stale {
+  background: #ffd8a8;
+}
+
+.uep-pinned-note__stale {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  color: rgba(122, 29, 10, 0.9);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* nearest 命中——輕微色差提示「大致位置」 */
+.uep-pinned-note.is-nearest {
+  background: #fff0a8;
+}
+
+/* page 級（互動頁降級）與 fixed（錨點失效退路）——viewport 固定角落 */
+.uep-pinned-note--page,
+.uep-pinned-note--fixed {
+  /* 已在 style 裡設 position:fixed，這裡只做視覺提示 */
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* 深色主題適配 */
+[data-theme='dark'] .uep-pinned-note {
+  background: #e8d78a;
+}
+
+[data-theme='dark'] .uep-pinned-note.is-stale {
+  background: #d9b070;
+}
+
+[data-theme='dark'] .uep-pinned-note.is-nearest {
+  background: #e8d178;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-pinned-note {
+    transition: none;
+  }
+}
+
+/* 手機一律不掛（外部守門），但保底：即使誤 render，用 media query 隱藏 */
+@media (max-width: 760px) {
+  .uep-pinned-note {
+    display: none !important;
+  }
+}
