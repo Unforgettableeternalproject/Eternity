@@ -30,7 +30,9 @@ import {
   clearPhantomGallery,
   consumePhantomSuggestion,
   getPhantomGallery,
+  hasClueSnapshot,
   pushPhantomGallery,
+  requestClueClear,
   UEP_PHANTOM_SHOW_EVENT,
   UEP_PHANTOM_SUGGESTION_EVENT,
 } from './phantomBridge';
@@ -111,6 +113,19 @@ export default function VisualsIsland() {
     if (!suggestion) return;
     pushPhantomGallery(suggestion);
     setSuggestion(null);
+  }
+
+  /**
+   * 清除目前投射（#4 追加）：clue 插播中 → 只取消這次插播、復原插播前的
+   * 快照，並請 HistoryReader 撤下對應的進行中書籤（雙向對應）；非插播 →
+   * 全清（clearPhantomGallery 廣播空狀態）。
+   */
+  function clearProjection() {
+    if (hasClueSnapshot()) {
+      requestClueClear();
+      return;
+    }
+    clearPhantomGallery();
   }
 
   /**
@@ -203,7 +218,7 @@ export default function VisualsIsland() {
         <button
           type="button"
           className="uep-visland__clear"
-          onClick={clearPhantomGallery}
+          onClick={clearProjection}
           title="清除目前投射"
           aria-label="清除目前投射"
         >

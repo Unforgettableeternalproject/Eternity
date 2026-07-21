@@ -90,6 +90,8 @@ export {
   hasClueSnapshot,
   parsePhantomImages,
   UEP_CLUE_WAITING_EVENT,
+  UEP_PHANTOM_CLUE_CLEAR_EVENT,
+  requestClueClear,
   setClueWaitingCount,
   getClueWaitingCount,
 } from './visuals/phantomBridge';

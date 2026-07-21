@@ -19,6 +19,8 @@ import {
   pushPhantomGallery,
   pushPhantomSuggestion,
   restoreFromClueSnapshot,
+  requestClueClear,
+  UEP_PHANTOM_CLUE_CLEAR_EVENT,
 } from '../phantomBridge';
 import type { PhantomGallery } from '../phantomBridge';
 
@@ -235,6 +237,14 @@ describe('Visual Clue 快照/復原（V-D，沿 interruptionSnapshot 語意）',
     restoreFromClueSnapshot();
     // 恢復點是使用者自己的投射，不是上一個 clue
     expect(getPhantomGallery()?.id).toBe(original.id);
+  });
+
+  it('#4：requestClueClear 廣播 UEP_PHANTOM_CLUE_CLEAR_EVENT（島 × 請 Reader 撤書籤）', () => {
+    const listener = vi.fn();
+    window.addEventListener(UEP_PHANTOM_CLUE_CLEAR_EVENT, listener);
+    requestClueClear();
+    window.removeEventListener(UEP_PHANTOM_CLUE_CLEAR_EVENT, listener);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it('跨頁重建 window bridge 後仍可恢復 clue 前的原投射', () => {

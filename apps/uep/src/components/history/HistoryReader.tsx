@@ -1,5 +1,5 @@
 /* global HTMLAnchorElement */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ZONES } from '../../data/zones';
 import { canonicalizePagePath, isSamePagePath } from '../../lib/pagePath';
 import { ReaderShell } from '../zone/ReaderShell';
@@ -49,6 +49,7 @@ import {
   parsePhantomImages,
   pushClueGallery,
   restoreFromClueSnapshot,
+  UEP_PHANTOM_CLUE_CLEAR_EVENT,
   setClueWaitingCount,
   shouldMountIsland,
   unlockIsland,
@@ -414,26 +415,54 @@ export default function HistoryReader() {
     });
   };
 
+  // 撤下 clue 書籤（session dedupe 落定）：從已點擊集合移除、加入
+  // dismissedClueIds（書籤即消失）、寫入 sessionStorage 去重鍵。
+  // 通過訖點與島 × 手動清除插播（#4 追加）共用。
+  const dismissClues = useCallback((clueIds: string[]) => {
+    if (clueIds.length === 0) return;
+    for (const id of clueIds) clickedCluesRef.current.delete(id);
+    setDismissedClueIds((prev) => {
+      const next = new Set(prev);
+      clueIds.forEach((id) => next.add(id));
+      return next;
+    });
+    const pageId = currentIdRef.current;
+    if (pageId) {
+      for (const id of clueIds) {
+        try {
+          sessionStorage.setItem(
+            `uep.visual-clue.dismissed.${pageId}.${id}`,
+            '1'
+          );
+        } catch {
+          // 隱私模式下 sessionStorage 可能不可寫；state Set 仍可去重。
+        }
+      }
+    }
+  }, []);
+
   // 通過訖點 = clue 結束：已點擊者恢復快照 + session dedupe 落定
   // （掃描線 role callback 驅動）
   const onVisualClueMarkerPassed = (info: MarkerPassedInfo) => {
     if (info.role !== 'visual-clue-end') return;
     const clueId = info.element.getAttribute('data-clue-id')?.trim() || '';
     if (!clueId || !clickedCluesRef.current.has(clueId)) return;
-    clickedCluesRef.current.delete(clueId);
-    setDismissedClueIds((prev) => new Set(prev).add(clueId));
-    if (currentIdRef.current) {
-      try {
-        sessionStorage.setItem(
-          `uep.visual-clue.dismissed.${currentIdRef.current}.${clueId}`,
-          '1'
-        );
-      } catch {
-        // 隱私模式下 sessionStorage 可能不可寫；state Set 仍可去重。
-      }
-    }
+    dismissClues([clueId]);
     restoreFromClueSnapshot();
   };
+
+  // 島「清除投射」在 clue 插播中被按（#4 追加：雙向對應）：撤下所有
+  // 進行中的 clue 書籤 + 復原插播前快照。復原邏輯集中在此（clue 生命
+  // 週期擁有者），島端只透過 window 事件發請求。
+  useEffect(() => {
+    const onClueClear = () => {
+      dismissClues(Array.from(clickedCluesRef.current));
+      restoreFromClueSnapshot();
+    };
+    window.addEventListener(UEP_PHANTOM_CLUE_CLEAR_EVENT, onClueClear);
+    return () =>
+      window.removeEventListener(UEP_PHANTOM_CLUE_CLEAR_EVENT, onClueClear);
+  }, [dismissClues]);
 
   // 換頁/離開文章：clue 插播中一律恢復快照（同 echo spot 離頁恢復），
   // 已點擊集合與 dedupe 重置——「重新造訪頁面可再現」的邊界即是

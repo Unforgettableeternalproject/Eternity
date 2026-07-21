@@ -225,6 +225,24 @@ describe('EchoesIsland', () => {
     expect(screen.getByText(/還沒有回聲跟著你/)).toBeTruthy();
   });
 
+  it('#4：插播中按清除→復原插播前的回聲，佇列保留（不全清）', async () => {
+    const { store, EchoesIsland } = await setup();
+    await store.play('base', 'https://cdn/base.mp3', '原本的回聲');
+    store.enqueue({ songId: 'q1', url: 'https://cdn/q1.mp3', title: '佇列曲' });
+    await store.interrupt('spot1', 'https://cdn/spot.mp3', '插播曲');
+    render(<EchoesIsland />);
+    expect(store.getState().interruptionSnapshot).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '清除回聲狀態' }));
+    await flush();
+
+    const s = store.getState();
+    // 復原到插播前的原曲、快照清空；佇列不被全清
+    expect(s.currentSongId).toBe('base');
+    expect(s.interruptionSnapshot).toBeNull();
+    expect(s.playlist.length).toBe(1);
+  });
+
   it('黑球＝播放鍵：無當前曲時從佇列頭開播', async () => {
     const { store, EchoesIsland } = await setup();
     store.enqueue({

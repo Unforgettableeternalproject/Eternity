@@ -293,6 +293,12 @@ export default function EchoesIsland() {
   }
 
   function clearEchoState() {
+    // 插播中（#4 追加）：× 單純取消這次插播、復原插播前的快照，
+    // 不全清佇列/歷史（restoreFromInterruption 帶回插播前的播放狀態）。
+    if (state.interruptionSnapshot) {
+      store.restoreFromInterruption();
+      return;
+    }
     store.clearPlayback();
     clearEchoSuggestion();
     setSuggestion(null);

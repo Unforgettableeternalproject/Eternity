@@ -89,6 +89,14 @@ interface PersistedPhantomState {
 /** clue 等待計數變更事件（dock chip 閃爍提示用） */
 export const UEP_CLUE_WAITING_EVENT = 'uep:visual-clue-waiting';
 
+/**
+ * 島內「清除投射」在 clue 插播中被按下時，請 HistoryReader 撤下進行中的
+ * clue 書籤並復原快照（#4 追加：雙向對應）。生產者＝VisualsIsland 的 ×，
+ * 消費者＝HistoryReader——分屬不同 React root，走 window bridge。
+ * 復原與書籤 dedupe 由 Reader（clue 生命週期單一擁有者）統一處理。
+ */
+export const UEP_PHANTOM_CLUE_CLEAR_EVENT = 'uep:phantom-clue-clear';
+
 declare global {
   interface Window {
     __uepPhantomGallery?: PhantomGallery | null;
@@ -359,6 +367,16 @@ export function hasClueSnapshot(): boolean {
   if (typeof window === 'undefined') return false;
   hydratePhantomState();
   return Boolean(window.__uepPhantomClueSnapshot);
+}
+
+/**
+ * 島 × 在 clue 插播中請求清除（#4 追加）：廣播事件讓 HistoryReader 撤下
+ * 進行中的 clue 書籤並復原快照。復原本身交給 Reader 統一處理（clue 生命
+ * 週期擁有者），島端只發請求，避免快照與書籤 dedupe 兩處各自為政。
+ */
+export function requestClueClear(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(UEP_PHANTOM_CLUE_CLEAR_EVENT));
 }
 
 /**

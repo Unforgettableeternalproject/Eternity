@@ -18,15 +18,18 @@ import {
   screen,
 } from '@testing-library/react';
 import React from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import VisualsIsland from '../VisualsIsland';
 import {
   clearPhantomGallery,
   getPhantomGallery,
+  hasClueSnapshot,
   PHANTOM_STATE_STORAGE_KEY,
+  pushClueGallery,
   pushPhantomGallery,
   pushPhantomSuggestion,
+  UEP_PHANTOM_CLUE_CLEAR_EVENT,
 } from '../phantomBridge';
 import type { PhantomGallery } from '../phantomBridge';
 
@@ -94,6 +97,25 @@ describe('VisualsIsland 資料鏈', () => {
     expect(screen.getByText(/畫框裡還是一片空白/)).toBeTruthy();
     expect(getPhantomGallery()).toBeNull();
     expect(window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY)).toBeNull();
+  });
+
+  it('#4：clue 插播中按清除→發清除請求事件、島端不逕自全清（復原交 Reader）', () => {
+    pushPhantomGallery(makeGallery({ id: 'visuals/profiles/cast/base' }));
+    pushClueGallery(
+      makeGallery({ id: 'visuals/illustrations/scenes/dawn', source: 'clue' })
+    );
+    expect(hasClueSnapshot()).toBe(true);
+    render(<VisualsIsland />);
+
+    const listener = vi.fn();
+    window.addEventListener(UEP_PHANTOM_CLUE_CLEAR_EVENT, listener);
+    fireEvent.click(screen.getByRole('button', { name: '清除目前投射' }));
+    window.removeEventListener(UEP_PHANTOM_CLUE_CLEAR_EVENT, listener);
+
+    // 島端只發請求（Reader 負責復原＋撤書籤）；不逕自 clearPhantomGallery
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(getPhantomGallery()).not.toBeNull();
+    expect(hasClueSnapshot()).toBe(true);
   });
 
   it('展開中 push 新投射即時切換並重設索引', () => {
