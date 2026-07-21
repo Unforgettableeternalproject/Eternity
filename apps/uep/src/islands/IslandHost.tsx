@@ -77,6 +77,7 @@ const ISLAND_COMPONENTS: Partial<
   concepts: React.lazy(() => import('./concepts/TerminalIsland')),
   echoes: React.lazy(() => import('./echoes/EchoesIsland')),
   visuals: React.lazy(() => import('./visuals/VisualsIsland')),
+  storage: React.lazy(() => import('./storage/StorageIsland')),
 };
 
 export default function IslandHost() {

@@ -1,0 +1,371 @@
+/**
+ * Storage Island —「便條紙」視覺語彙
+ *
+ * 設計稿參照：Eternity-Design/components/storage-base.jsx:244 Scratchpad
+ * 主色：#FCF5DE 底 / #FFF1BA 便條 / #FBEFCB 輸入列 / #3a2f08 墨色
+ * 便條紙特徵：膠帶條、傾斜、紙質陰影、圓角極小（近乎銳角）
+ *
+ * DraggableIsland 已提供外框（uep-island）與 header（uep-island__header）；
+ * 本 CSS 只覆寫必要的深色主題適配與內容區樣式。
+ */
+
+.uep-island--storage .uep-island__body {
+  padding: 0;
+  background: #fcf5de;
+  color: #3a2f08;
+  font-family: var(--font-serif-tc, serif);
+  position: relative;
+  border-radius: 0;
+}
+
+/* 便條紙頂端的膠帶條（設計稿元素——貼在 header 下緣） */
+.uep-island--storage .uep-island__body::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 100px;
+  height: 14px;
+  background: rgba(231, 220, 178, 0.9);
+  border-left: 1px dashed rgba(0, 0, 0, 0.1);
+  border-right: 1px dashed rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.uep-stoland {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 60vh;
+}
+
+/* ── 當前位置條 ── */
+.uep-stoland__location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px dashed rgba(58, 47, 8, 0.2);
+  font-family: var(--font-display, sans-serif);
+  font-size: 11px;
+  color: rgba(58, 47, 8, 0.8);
+  letter-spacing: 0.04em;
+}
+
+.uep-stoland__location-icon {
+  font-size: 10px;
+  color: rgba(58, 47, 8, 0.5);
+}
+
+.uep-stoland__location-label {
+  font-weight: 500;
+}
+
+.uep-stoland__location-page {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(58, 47, 8, 0.6);
+  font-size: 10.5px;
+}
+
+.uep-stoland__location-page::before {
+  content: '·';
+  margin: 0 6px;
+  opacity: 0.5;
+}
+
+/* ── 便條列表 ── */
+.uep-stoland__list {
+  padding: 12px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 60px;
+}
+
+.uep-stoland__empty {
+  padding: 20px 8px;
+  text-align: center;
+  color: rgba(58, 47, 8, 0.55);
+  font-style: italic;
+  font-size: 12.5px;
+}
+
+/* ── 單張便條 ── */
+.uep-stoland__note {
+  background: #fff1ba;
+  color: #3a2f08;
+  padding: 8px 26px 8px 10px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  position: relative;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/* 最新編輯放大——文字加粗、稍大、陰影加深 */
+.uep-stoland__note.is-latest {
+  background: #ffe98a;
+  font-size: 13.5px;
+  transform: scale(1.02) rotate(var(--tilt, 0deg));
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* hover / focus 提示可互動 */
+.uep-stoland__note:not(.is-confirming):not(.is-editing):hover {
+  background: #ffeb9c;
+}
+
+/* 便條內容按鈕（點擊進編輯） */
+.uep-stoland__note-text {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.uep-stoland__note-text:focus-visible {
+  outline: 1px dashed rgba(58, 47, 8, 0.5);
+  outline-offset: 2px;
+}
+
+/* 刪除鈕（右上角 ×） */
+.uep-stoland__note-delete {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: rgba(58, 47, 8, 0.45);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 0;
+  transition: color 120ms ease;
+}
+
+.uep-stoland__note-delete:hover {
+  color: rgba(58, 47, 8, 0.85);
+}
+
+/* ── 編輯態 textarea ── */
+.uep-stoland__note.is-editing {
+  padding: 6px 10px;
+  background: #fff8d4;
+  transform: rotate(0deg); /* 編輯時打直，方便輸入 */
+}
+
+.uep-stoland__note-textarea {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  outline: 1px dashed rgba(58, 47, 8, 0.4);
+  outline-offset: 2px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+  padding: 2px;
+}
+
+/* ── 島內局部刪除確認 ── */
+.uep-stoland__note.is-confirming {
+  background: #f3d5c0;
+  padding: 8px 10px;
+  transform: rotate(0deg);
+}
+
+.uep-stoland__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.uep-stoland__confirm-msg {
+  font-size: 12px;
+  color: #5a2a08;
+  font-weight: 500;
+}
+
+.uep-stoland__confirm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.uep-stoland__confirm-yes,
+.uep-stoland__confirm-no {
+  flex: 1;
+  padding: 3px 10px;
+  border: 1px solid rgba(58, 47, 8, 0.4);
+  background: transparent;
+  color: #3a2f08;
+  cursor: pointer;
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.uep-stoland__confirm-yes {
+  background: rgba(180, 60, 40, 0.15);
+  border-color: rgba(180, 60, 40, 0.6);
+  color: #7a1d0a;
+}
+
+.uep-stoland__confirm-yes:hover {
+  background: rgba(180, 60, 40, 0.35);
+}
+
+.uep-stoland__confirm-no:hover {
+  background: rgba(58, 47, 8, 0.1);
+}
+
+/* ── 便條計數 + 錯誤 ── */
+.uep-stoland__meta {
+  padding: 4px 14px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: rgba(58, 47, 8, 0.55);
+  letter-spacing: 0.1em;
+}
+
+.uep-stoland__meta-error {
+  color: #7a1d0a;
+  font-weight: 500;
+}
+
+/* ── 輸入區 ── */
+.uep-stoland__form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px dashed rgba(58, 47, 8, 0.2);
+  background: #fbefcb;
+}
+
+.uep-stoland__prompt {
+  color: #7a5e0a;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+}
+
+.uep-stoland__input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #3a2f08;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  padding: 2px 0;
+}
+
+.uep-stoland__input::placeholder {
+  color: rgba(58, 47, 8, 0.4);
+}
+
+.uep-stoland__input:disabled {
+  color: rgba(58, 47, 8, 0.35);
+  cursor: not-allowed;
+}
+
+.uep-stoland__submit {
+  background: transparent;
+  border: 1px solid rgba(58, 47, 8, 0.5);
+  color: #3a2f08;
+  cursor: pointer;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  padding: 3px 10px;
+  letter-spacing: 0.16em;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.uep-stoland__submit:hover:not(:disabled) {
+  background: rgba(58, 47, 8, 0.1);
+}
+
+.uep-stoland__submit:disabled {
+  border-color: rgba(58, 47, 8, 0.2);
+  color: rgba(58, 47, 8, 0.35);
+  cursor: not-allowed;
+}
+
+/* ── 暗色主題（DesignLayout data-theme="dark"）適配 ──
+ * 便條紙本質是實體物件，深色主題下降低亮度但保留暖黃質感，避免刺眼。
+ */
+[data-theme='dark'] .uep-island--storage .uep-island__body {
+  background: #d9c99e;
+}
+
+[data-theme='dark'] .uep-island--storage .uep-island__body::before {
+  background: rgba(180, 165, 120, 0.85);
+}
+
+[data-theme='dark'] .uep-stoland__note {
+  background: #e8d78a;
+}
+
+[data-theme='dark'] .uep-stoland__note.is-latest {
+  background: #e6c862;
+}
+
+[data-theme='dark'] .uep-stoland__form {
+  background: #d3c28e;
+}
+
+/* ── 手機 bottom sheet ── */
+.uep-island--sheet.uep-island--storage .uep-island__body {
+  max-height: 55vh;
+  overflow: hidden;
+}
+
+.uep-island--sheet.uep-island--storage .uep-stoland {
+  max-height: none;
+}
+
+/* ── prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .uep-stoland__note {
+    transition: none;
+  }
+}
