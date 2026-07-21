@@ -78,9 +78,7 @@ describe('useEntityRefUnlockChecker — 跨島聯集', () => {
     const progress = stateWith({ islandsUnlocked: ['echoes'] });
     const { result } = renderHook(() => useChecker(progress));
 
-    await waitFor(() =>
-      expect(result.current('entity:hero')).toBe(true)
-    );
+    await waitFor(() => expect(result.current('entity:hero')).toBe(true));
     // Echoes 沒有的 key 仍不可點
     expect(result.current('entity:ghost')).toBe(false);
   });
@@ -93,9 +91,7 @@ describe('useEntityRefUnlockChecker — 跨島聯集', () => {
     const progress = stateWith({ islandsUnlocked: ['visuals'] });
     const { result } = renderHook(() => useChecker(progress));
 
-    await waitFor(() =>
-      expect(result.current('entity:hero')).toBe(true)
-    );
+    await waitFor(() => expect(result.current('entity:hero')).toBe(true));
   });
 
   it('聯集：Echoes 有、Concepts/Visuals 無 → 仍可點', async () => {
@@ -110,9 +106,7 @@ describe('useEntityRefUnlockChecker — 跨島聯集', () => {
     });
     const { result } = renderHook(() => useChecker(progress));
 
-    await waitFor(() =>
-      expect(result.current('entity:hero')).toBe(true)
-    );
+    await waitFor(() => expect(result.current('entity:hero')).toBe(true));
   });
 
   it('三島皆未掛載 → 一律不可點，且不發索引請求', async () => {

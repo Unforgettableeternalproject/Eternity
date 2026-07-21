@@ -62,7 +62,10 @@ export function isVisualsEntityUnlocked(
     (e) =>
       e.entityKey === key &&
       isGalleryUnlockedInZone(
-        { id: e.id, metadata: { entityKey: e.entityKey, gate: e.gate, locked: e.locked } },
+        {
+          id: e.id,
+          metadata: { entityKey: e.entityKey, gate: e.gate, locked: e.locked },
+        },
         progress
       )
   );

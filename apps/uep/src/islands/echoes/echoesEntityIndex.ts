@@ -64,7 +64,10 @@ export function isEchoesEntityUnlocked(
     (e) =>
       e.entityKey === key &&
       isSongUnlockedInZone(
-        { id: e.id, metadata: { entityKey: e.entityKey, gate: e.gate, locked: e.locked } },
+        {
+          id: e.id,
+          metadata: { entityKey: e.entityKey, gate: e.gate, locked: e.locked },
+        },
         progress
       )
   );
