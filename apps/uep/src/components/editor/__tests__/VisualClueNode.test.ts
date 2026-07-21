@@ -24,6 +24,9 @@ describe('VisualClueNode persistence contract', () => {
       targetKey: 'scene-first-light',
       galleryId: 'visuals/illustrations/first-light',
       title: '初光',
+      imageId: 'dawn',
+      imageTitle: '黎明',
+      imageFile: 'images/first-light/dawn.png',
     });
 
     const html = editor.getHTML();
@@ -35,6 +38,7 @@ describe('VisualClueNode persistence contract', () => {
     expect(html).toContain(
       'data-gallery-id="visuals/illustrations/first-light"'
     );
+    expect(html).toContain('data-image-file="images/first-light/dawn.png"');
 
     const restored = makeEditor(html);
     const clues = restored
@@ -49,6 +53,7 @@ describe('VisualClueNode persistence contract', () => {
         targetKey: 'scene-first-light',
         galleryId: 'visuals/illustrations/first-light',
         title: '初光',
+        imageFile: 'images/first-light/dawn.png',
       })
     );
     restored.destroy();
@@ -124,5 +129,12 @@ describe('collectVisualClueIssues — 配對驗證（存檔閘第一層防禦）
     const issues = collectVisualClueIssues(editor.state.doc);
     expect(issues).toHaveLength(1);
     expect(issues[0].clueId).toBe('c2');
+  });
+
+  it('gallery 模式允許區間內指定圖片 gate', () => {
+    editor = makeEditor(
+      `${START('c1')}<p></p><div data-role="visual-clue-gate" data-clue-id="c1" data-target-type="entity" data-target-key="k1" data-image-id="img-2"></div><p></p>${END('c1')}`
+    );
+    expect(collectVisualClueIssues(editor.state.doc)).toEqual([]);
   });
 });

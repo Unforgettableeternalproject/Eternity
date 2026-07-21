@@ -163,6 +163,7 @@ interface ImageGateData {
 - 掃描線的 role + element callback（S8-C 已擴充）直接驅動浮現/消失與定位
 - **多 clue 區間重疊**：書籤要能跟著堆疊擴展（多顆書籤並列/展開）
 - 視覺可參考「遺落的書籤」既有語彙（同為書籤隱喻）
+- **#6 補充（2026-07-21）**：書籤畫框顯示 Gallery Clue 的預設圖片縮圖；Image Gate 不建立獨立書籤。新資料保存 `data-image-file` R2 key 快照，舊資料缺值時以 gallery 反查補回，反查失敗才顯示 placeholder。
 
 ### 4-4 生命週期（艾斯維爾 2026-07-19 定案）
 
@@ -179,6 +180,22 @@ interface ImageGateData {
 - 點擊 → 發信號給浮動幻影，**強制展示**該 gallery
 - 若讀者原本正在檢視別的 gallery：**快照保存，clue 結束後復原**——語意完全沿用 audioStore 的 interruptionSnapshot 定案（含「插播中手動接管 = 快照丟棄」等 S8 已定細則，「其餘快照同 echo 語意」為艾斯維爾原話）
 - **經 clue 展示 gallery 時，若該 gallery 原未解鎖則同時解鎖 + 提示通知**（對位 echo spot 的推導旗標授予）——需要 gallery 解鎖旗標推導函式（對位 `deriveSongUnlockFlag`，命名暫定 `deriveGalleryUnlockFlag`）
+
+### 4-5 #8：Gallery 預設圖片與區間 Image Gate（2026-07-21 定案）
+
+Visual Clue 維持單一 Gallery 模式：
+
+1. **預設圖片**
+   - start 指定 gallery，並可選一張 `imageId` 作為浮動幻影的預設圖；未選時沿用排序後第一張。編輯器同步保存圖片 `file` 快照供 #6 書籤縮圖使用。
+2. **區間 Image Gate**
+   - start/end 區間內可插入任意數量 `visual-clue-gate` 子錨點。掃描線通過 gate 時，若同一 clue 仍在插播，切換到 gate 指定的圖片。
+   - gate 必須位於同一 clue 起訖之間、引用同一 gallery 且指定有效 imageId；編輯器存檔閘阻擋壞資料，runtime 另以 activeClueId/galleryId fail-closed。
+3. **解鎖**
+   - 展示指定圖片時同時授予 gallery 推導旗標與 `image:{encodedGalleryId}:{encodedImageId}`。
+   - image 旗標凌駕該圖片 initialState/lockGate/partialGate，使尚未解鎖的 A/B 圖直接成為 C；第一張恆等式不變。
+4. **向後相容**
+   - 舊 clue 缺 `data-image-id` 時展示第一張。
+   - 切換 gallery 目標會移除原 gallery 的 image gates，避免舊 imageId 污染新目標。
 
 ---
 

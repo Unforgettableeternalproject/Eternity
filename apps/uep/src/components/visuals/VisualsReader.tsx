@@ -1819,7 +1819,7 @@ function VisualsReaderInner() {
   function renderGalleryByStyle(style: string, images: ImageItem[]) {
     // 精靈圖 gallery 本輪不接三態（設計文件定案）
     if (style === 'sprite') return renderSprite(images);
-    const items = resolveGalleryImages(images, progress);
+    const items = resolveGalleryImages(images, progress, galleryPage?.id);
     switch (style) {
       case 'corridor':
         return renderCorridor(items);

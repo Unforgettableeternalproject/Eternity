@@ -289,6 +289,13 @@ export default function RichEditor({
   const [echoSongPickerOpen, setEchoSongPickerOpen] = useState(false);
   const [visualsGalleryPickerOpen, setVisualsGalleryPickerOpen] =
     useState(false);
+  const [visualsPickerIntent, setVisualsPickerIntent] = useState<
+    | 'insert-gallery'
+    | 'retarget'
+    | 'default-image'
+    | 'insert-gate'
+    | 'retarget-gate'
+  >('insert-gallery');
   const [echoesValidationIssues, setEchoesValidationIssues] = useState<
     string[]
   >([]);
@@ -883,12 +890,21 @@ export default function RichEditor({
   /** 找出同 clueId 的所有錨點位置（文件順序） */
   const findVisualCluePositions = (clueId: string) => {
     if (!editor || !clueId) return [];
-    const found: { pos: number; edge: 'start' | 'end'; size: number }[] = [];
+    const found: {
+      pos: number;
+      edge: 'start' | 'gate' | 'end';
+      size: number;
+    }[] = [];
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === 'visualClue' && node.attrs.clueId === clueId) {
         found.push({
           pos,
-          edge: node.attrs.edge === 'end' ? 'end' : 'start',
+          edge:
+            node.attrs.edge === 'end'
+              ? 'end'
+              : node.attrs.edge === 'gate'
+                ? 'gate'
+                : 'start',
           size: node.nodeSize,
         });
       }
@@ -899,21 +915,100 @@ export default function RichEditor({
 
   const applyVisualsGalleryChoice = (gallery: VisualsGalleryChoice) => {
     if (!editor) return;
-    if (selectedVisualClue) {
+    const requiresImage = [
+      'default-image',
+      'insert-gate',
+      'retarget-gate',
+    ].includes(visualsPickerIntent);
+    if (requiresImage && !gallery.selectedImageId) {
+      getToast().info('請選擇 gallery 內的一張圖片。');
+      return;
+    }
+
+    if (
+      visualsPickerIntent === 'insert-gate' &&
+      selectedVisualClue &&
+      selectedVisualClue.edge !== 'gate'
+    ) {
+      if (selectedVisualClue.galleryId !== gallery.id) {
+        getToast().error('切圖 Gate 必須選擇目前 clue gallery 內的圖片。');
+        return;
+      }
+      const selectedNode = editor.state.doc.nodeAt(selectedVisualClue.pos);
+      if (!selectedNode) return;
+      const insertPos =
+        selectedVisualClue.edge === 'end'
+          ? selectedVisualClue.pos
+          : selectedVisualClue.pos + selectedNode.nodeSize;
+      const gate = editor.schema.nodes.visualClue.create({
+        ...selectedVisualClue,
+        edge: 'gate',
+        imageId: gallery.selectedImageId,
+        imageTitle: gallery.selectedImageTitle || '',
+        imageFile: gallery.selectedImageFile || '',
+      });
+      editor.view.dispatch(editor.state.tr.insert(insertPos, gate));
+    } else if (
+      visualsPickerIntent === 'retarget-gate' &&
+      selectedVisualClue?.edge === 'gate'
+    ) {
+      if (selectedVisualClue.galleryId !== gallery.id) {
+        getToast().error('切圖 Gate 必須留在原本的 gallery。');
+        return;
+      }
+      const node = editor.state.doc.nodeAt(selectedVisualClue.pos);
+      if (node?.type.name === 'visualClue') {
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(selectedVisualClue.pos, undefined, {
+            ...node.attrs,
+            imageId: gallery.selectedImageId,
+            imageTitle: gallery.selectedImageTitle || '',
+            imageFile: gallery.selectedImageFile || '',
+          })
+        );
+      }
+    } else if (
+      selectedVisualClue &&
+      ['retarget', 'default-image'].includes(visualsPickerIntent)
+    ) {
+      if (
+        visualsPickerIntent === 'default-image' &&
+        selectedVisualClue.galleryId !== gallery.id
+      ) {
+        getToast().error('預設圖片必須來自目前 clue 的 gallery。');
+        return;
+      }
       // 重選目標：同 clueId 的起訖錨點一起改，配對不變
       const anchors = findVisualCluePositions(selectedVisualClue.clueId);
       if (anchors.length > 0) {
         let tr = editor.state.tr;
         for (const anchor of anchors) {
+          if (anchor.edge === 'gate') continue;
           const node = editor.state.doc.nodeAt(anchor.pos);
           if (node?.type.name !== 'visualClue') continue;
           tr = tr.setNodeMarkup(anchor.pos, undefined, {
             ...node.attrs,
-            targetType: gallery.targetType,
-            targetKey: gallery.targetKey,
-            galleryId: gallery.id,
-            title: gallery.title,
+            ...(visualsPickerIntent === 'retarget'
+              ? {
+                  targetType: gallery.targetType,
+                  targetKey: gallery.targetKey,
+                  galleryId: gallery.id,
+                  title: gallery.title,
+                }
+              : {}),
+            imageId: gallery.selectedImageId || '',
+            imageTitle: gallery.selectedImageTitle || '',
+            imageFile: gallery.selectedImageFile || '',
           });
+        }
+        // 重選 gallery 後舊 gate 的 imageId 已不再可靠；明確移除，避免
+        // 保存出「目標已換但切圖點仍引用舊 gallery 圖片」的壞資料。
+        if (visualsPickerIntent === 'retarget') {
+          for (const anchor of [...anchors]
+            .filter((item) => item.edge === 'gate')
+            .sort((a, b) => b.pos - a.pos)) {
+            tr = tr.delete(anchor.pos, anchor.pos + anchor.size);
+          }
         }
         editor.view.dispatch(tr);
       }
@@ -927,6 +1022,9 @@ export default function RichEditor({
           targetKey: gallery.targetKey,
           galleryId: gallery.id,
           title: gallery.title,
+          imageId: gallery.selectedImageId,
+          imageTitle: gallery.selectedImageTitle,
+          imageFile: gallery.selectedImageFile,
         })
         .run();
     }
@@ -936,6 +1034,19 @@ export default function RichEditor({
   /** 成對刪除：孤兒錨點是資料錯誤，刪除一律連同對應錨點 */
   const deleteVisualCluePair = () => {
     if (!editor || !selectedVisualClue) return;
+    if (selectedVisualClue.edge === 'gate') {
+      const node = editor.state.doc.nodeAt(selectedVisualClue.pos);
+      if (node?.type.name === 'visualClue') {
+        editor.view.dispatch(
+          editor.state.tr.delete(
+            selectedVisualClue.pos,
+            selectedVisualClue.pos + node.nodeSize
+          )
+        );
+      }
+      setSelectedVisualClue(null);
+      return;
+    }
     const anchors = findVisualCluePositions(selectedVisualClue.clueId);
     // 位置由後往前刪，前面的 pos 不受影響
     let tr = editor.state.tr;
@@ -2469,6 +2580,7 @@ export default function RichEditor({
                       type="button"
                       onClick={() => {
                         setSelectedVisualClue(null);
+                        setVisualsPickerIntent('insert-gallery');
                         setVisualsGalleryPickerOpen(true);
                       }}
                       title="插入視覺線索（成對起訖錨點，區間內側邊浮現書籤按鈕）"
@@ -3416,7 +3528,13 @@ export default function RichEditor({
       {editor && selectedVisualClue && (
         <div className="ned-audio-bubble ned-echo-spot-bubble">
           <span className="ned-audio-bubble-label">
-            ❏ {selectedVisualClue.edge === 'end' ? '訖點' : '起點'} ·{' '}
+            ❏{' '}
+            {selectedVisualClue.edge === 'end'
+              ? '訖點'
+              : selectedVisualClue.edge === 'gate'
+                ? 'IMAGE GATE'
+                : 'GALLERY CLUE'}{' '}
+            ·{' '}
             {selectedVisualClue.title ||
               selectedVisualClue.targetKey ||
               '未綁定'}
@@ -3425,14 +3543,47 @@ export default function RichEditor({
             {selectedVisualClue.targetType === 'illustration'
               ? `插圖 ${selectedVisualClue.targetKey}`
               : selectedVisualClue.targetKey || '無目標'}
+            {selectedVisualClue.imageTitle &&
+              ` · ${selectedVisualClue.imageTitle}`}
           </span>
           <button
             type="button"
             className="ned-img-bubble-btn"
-            onClick={() => setVisualsGalleryPickerOpen(true)}
+            onClick={() => {
+              setVisualsPickerIntent(
+                selectedVisualClue.edge === 'gate'
+                  ? 'retarget-gate'
+                  : 'retarget'
+              );
+              setVisualsGalleryPickerOpen(true);
+            }}
           >
-            重選畫廊
+            {selectedVisualClue.edge === 'gate' ? '重選圖片' : '重選目標'}
           </button>
+          {selectedVisualClue.edge !== 'gate' && (
+            <>
+              <button
+                type="button"
+                className="ned-img-bubble-btn"
+                onClick={() => {
+                  setVisualsPickerIntent('default-image');
+                  setVisualsGalleryPickerOpen(true);
+                }}
+              >
+                預設圖片
+              </button>
+              <button
+                type="button"
+                className="ned-img-bubble-btn"
+                onClick={() => {
+                  setVisualsPickerIntent('insert-gate');
+                  setVisualsGalleryPickerOpen(true);
+                }}
+              >
+                插入切圖 Gate
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="ned-img-bubble-btn"
@@ -3445,7 +3596,7 @@ export default function RichEditor({
             className="ned-img-bubble-btn ned-img-bubble-btn--danger"
             onClick={deleteVisualCluePair}
           >
-            成對刪除
+            {selectedVisualClue.edge === 'gate' ? '刪除 Gate' : '成對刪除'}
           </button>
         </div>
       )}
@@ -3462,6 +3613,12 @@ export default function RichEditor({
         open={visualsGalleryPickerOpen}
         onClose={() => setVisualsGalleryPickerOpen(false)}
         onSelect={applyVisualsGalleryChoice}
+        selectionMode={
+          visualsPickerIntent === 'insert-gallery' ||
+          visualsPickerIntent === 'retarget'
+            ? 'gallery'
+            : 'image'
+        }
       />
 
       {/* 音訊選擇器 Modal */}

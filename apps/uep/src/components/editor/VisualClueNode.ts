@@ -2,11 +2,12 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import {
   VISUAL_CLUE_END_ROLE,
+  VISUAL_CLUE_GATE_ROLE,
   VISUAL_CLUE_START_ROLE,
 } from '../../progress/markers';
 
 /** Visual Clue 錨點在持久化 HTML 中的 data-role（起訖各一）。 */
-export const VISUAL_CLUE_SELECTOR = `[data-role="${VISUAL_CLUE_START_ROLE}"], [data-role="${VISUAL_CLUE_END_ROLE}"]`;
+export const VISUAL_CLUE_SELECTOR = `[data-role="${VISUAL_CLUE_START_ROLE}"], [data-role="${VISUAL_CLUE_GATE_ROLE}"], [data-role="${VISUAL_CLUE_END_ROLE}"]`;
 
 /** 引用目標種類：陳列走廊走 entityKey、鑲框室走插圖 ID。 */
 export type VisualClueTargetType = 'entity' | 'illustration';
@@ -14,8 +15,8 @@ export type VisualClueTargetType = 'entity' | 'illustration';
 export interface VisualClueAttributes {
   /** 同一 clue 的起訖錨點共用 id；穩定值，session dedupe 依賴它。 */
   clueId: string;
-  /** start = 書籤浮現點、end = 離場點。 */
-  edge: 'start' | 'end';
+  /** start = 書籤浮現點、gate = 區間切圖點、end = 離場點。 */
+  edge: 'start' | 'gate' | 'end';
   targetType: VisualClueTargetType;
   /** entityKey 或插圖 ID（依 targetType）。 */
   targetKey: string;
@@ -23,6 +24,12 @@ export interface VisualClueAttributes {
   galleryId?: string;
   /** 目標 gallery 標題快照（編輯器顯示用）。 */
   title?: string;
+  /** 預設展示圖（start）或切換目標（gate）的 gallery 內 image id。 */
+  imageId?: string;
+  /** 圖片 caption 快照（編輯器顯示用，不作身分判定）。 */
+  imageTitle?: string;
+  /** 圖片 R2 key 快照（前台書籤縮圖用，不作身分判定）。 */
+  imageFile?: string;
 }
 
 declare module '@tiptap/core' {
@@ -30,6 +37,10 @@ declare module '@tiptap/core' {
     visualClue: {
       /** 在游標處插入成對起訖錨點（start 在前、end 緊隨其後）。 */
       insertVisualCluePair: (
+        attrs: Omit<VisualClueAttributes, 'edge'>
+      ) => ReturnType;
+      /** 在 gallery clue 區間內插入指定圖片切換點。 */
+      insertVisualClueGate: (
         attrs: Omit<VisualClueAttributes, 'edge'>
       ) => ReturnType;
     };
@@ -53,6 +64,7 @@ export interface VisualCluePairIssue {
 export function collectVisualClueIssues(doc: PMNode): VisualCluePairIssue[] {
   interface ClueRecord {
     starts: { pos: number; attrs: VisualClueAttributes }[];
+    gates: { pos: number; attrs: VisualClueAttributes }[];
     ends: { pos: number; attrs: VisualClueAttributes }[];
   }
   const clues = new Map<string, ClueRecord>();
@@ -60,8 +72,14 @@ export function collectVisualClueIssues(doc: PMNode): VisualCluePairIssue[] {
     if (node.type.name !== 'visualClue') return true;
     const attrs = node.attrs as VisualClueAttributes;
     const clueId = attrs.clueId || '';
-    const record = clues.get(clueId) ?? { starts: [], ends: [] };
-    (attrs.edge === 'end' ? record.ends : record.starts).push({ pos, attrs });
+    const record = clues.get(clueId) ?? { starts: [], gates: [], ends: [] };
+    const bucket =
+      attrs.edge === 'end'
+        ? record.ends
+        : attrs.edge === 'gate'
+          ? record.gates
+          : record.starts;
+    bucket.push({ pos, attrs });
     clues.set(clueId, record);
     return true;
   });
@@ -104,6 +122,21 @@ export function collectVisualClueIssues(doc: PMNode): VisualCluePairIssue[] {
         message: `${label}起訖錨點的目標不一致，請重新指定目標`,
       });
     }
+    for (const gate of record.gates) {
+      if (
+        gate.pos <= start.pos ||
+        gate.pos >= end.pos ||
+        gate.attrs.targetKey !== start.attrs.targetKey ||
+        gate.attrs.targetType !== start.attrs.targetType ||
+        gate.attrs.galleryId !== start.attrs.galleryId ||
+        !gate.attrs.imageId?.trim()
+      ) {
+        issues.push({
+          clueId,
+          message: `${label}含有無效的切圖 Gate（必須位於同一 gallery 區間內並指定圖片）`,
+        });
+      }
+    }
   }
   return issues;
 }
@@ -135,7 +168,9 @@ const VisualClueNode = Node.create({
         parseHTML: (el) =>
           el.getAttribute('data-role') === VISUAL_CLUE_END_ROLE
             ? 'end'
-            : 'start',
+            : el.getAttribute('data-role') === VISUAL_CLUE_GATE_ROLE
+              ? 'gate'
+              : 'start',
         // data-role 由 renderHTML 統一輸出（依 edge），此處不重複
         renderHTML: () => ({}),
       },
@@ -168,26 +203,51 @@ const VisualClueNode = Node.create({
         renderHTML: (attrs) =>
           attrs.title ? { 'data-gallery-title': attrs.title } : {},
       },
+      imageId: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-image-id') || '',
+        renderHTML: (attrs) =>
+          attrs.imageId ? { 'data-image-id': attrs.imageId } : {},
+      },
+      imageTitle: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-image-title') || '',
+        renderHTML: (attrs) =>
+          attrs.imageTitle ? { 'data-image-title': attrs.imageTitle } : {},
+      },
+      imageFile: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-image-file') || '',
+        renderHTML: (attrs) =>
+          attrs.imageFile ? { 'data-image-file': attrs.imageFile } : {},
+      },
     };
   },
 
   parseHTML() {
     return [
       { tag: `div[data-role="${VISUAL_CLUE_START_ROLE}"]` },
+      { tag: `div[data-role="${VISUAL_CLUE_GATE_ROLE}"]` },
       { tag: `div[data-role="${VISUAL_CLUE_END_ROLE}"]` },
     ];
   },
 
   renderHTML({ node, HTMLAttributes }) {
     const isEnd = node.attrs.edge === 'end';
+    const isGate = node.attrs.edge === 'gate';
+    const edgeLabel = isEnd ? 'clear' : isGate ? 'gate' : 'start';
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
-        'data-role': isEnd ? VISUAL_CLUE_END_ROLE : VISUAL_CLUE_START_ROLE,
-        class: `tiptap-visual-clue is-${isEnd ? 'end' : 'start'}`,
+        'data-role': isEnd
+          ? VISUAL_CLUE_END_ROLE
+          : isGate
+            ? VISUAL_CLUE_GATE_ROLE
+            : VISUAL_CLUE_START_ROLE,
+        class: `tiptap-visual-clue is-${edgeLabel}`,
         'aria-label':
-          `視覺線索${isEnd ? '訖點' : '起點'}：` +
-          `${node.attrs.title || node.attrs.targetKey || '未綁定'}`,
+          `視覺線索${isEnd ? '訖點' : isGate ? '切圖 Gate' : '起點'}：` +
+          `${node.attrs.imageTitle || node.attrs.title || node.attrs.targetKey || '未綁定'}`,
       }),
     ];
   },
@@ -201,6 +261,13 @@ const VisualClueNode = Node.create({
             { type: this.name, attrs: { ...attrs, edge: 'start' } },
             { type: this.name, attrs: { ...attrs, edge: 'end' } },
           ]),
+      insertVisualClueGate:
+        (attrs) =>
+        ({ commands }) =>
+          commands.insertContent({
+            type: this.name,
+            attrs: { ...attrs, edge: 'gate' },
+          }),
     };
   },
 });

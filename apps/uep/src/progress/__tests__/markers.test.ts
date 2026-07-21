@@ -100,12 +100,14 @@ describe('collectMarkers', () => {
     expect(markers[2].grantsFlags).toEqual(['met:x']);
   });
 
-  it('visual clue 起訖錨點納入文件順序，role 各自正確、不授旗（V-D）', () => {
+  it('visual clue 起點、切圖 gate、訖點納入文件順序且不授旗', () => {
     const container = makeContainer(`
       <hr>
       <div data-role="visual-clue-start" data-clue-id="clue-1"
         data-grants-flags="should:ignore"></div>
       <p>橋段內容</p>
+      <div data-role="visual-clue-gate" data-clue-id="clue-1"
+        data-image-id="img-2"></div>
       <div data-role="visual-clue-end" data-clue-id="clue-1"></div>
       <div data-role="progress-marker" data-grants-flags="met:x"></div>
     `);
@@ -113,13 +115,15 @@ describe('collectMarkers', () => {
     expect(markers.map((marker) => marker.role)).toEqual([
       'hr',
       'visual-clue-start',
+      'visual-clue-gate',
       'visual-clue-end',
       'progress-marker',
     ]);
     // 起訖錨點不走 grantsFlags——授旗屬 Visual Clue 點擊行為（V-D .32）
     expect(markers[1].grantsFlags).toEqual([]);
     expect(markers[2].grantsFlags).toEqual([]);
-    expect(markers.map((marker) => marker.index)).toEqual([0, 1, 2, 3]);
+    expect(markers[3].grantsFlags).toEqual([]);
+    expect(markers.map((marker) => marker.index)).toEqual([0, 1, 2, 3, 4]);
   });
 });
 

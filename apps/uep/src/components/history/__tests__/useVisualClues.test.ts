@@ -16,7 +16,7 @@ function makeContainer(html: string): HTMLElement {
 const START = (
   clueId: string,
   targetKey = 'xavier-colsono',
-  extra = 'data-target-type="entity" data-gallery-id="visuals/profiles/x" data-gallery-title="艾斯維爾"'
+  extra = 'data-target-type="entity" data-gallery-id="visuals/profiles/x" data-gallery-title="艾斯維爾" data-image-id="portrait" data-image-title="肖像" data-image-file="images/profiles/x/portrait.png"'
 ) =>
   `<div data-role="visual-clue-start" data-clue-id="${clueId}" data-target-key="${targetKey}" ${extra}></div>`;
 // 真實持久化 HTML 的訖點錨點同樣帶目標屬性（renderHTML 起訖共用 attrs）
@@ -40,6 +40,9 @@ describe('collectVisualClues — 配對與孤兒容錯', () => {
       targetKey: 'xavier-colsono',
       galleryId: 'visuals/profiles/x',
       title: '艾斯維爾',
+      imageId: 'portrait',
+      imageTitle: '肖像',
+      imageFile: 'images/profiles/x/portrait.png',
     });
     expect(clues[0].startEl).toBeInstanceOf(Element);
     expect(clues[0].endEl).toBeInstanceOf(Element);

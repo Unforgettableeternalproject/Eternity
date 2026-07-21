@@ -1115,16 +1115,28 @@
 }
 
 .tiptap-content .tiptap-visual-clue.is-start::before {
-  content: '❏ VISUAL CLUE 起 · ' attr(data-gallery-title);
+  content: '❏ GALLERY CLUE · ' attr(data-gallery-title) ' · '
+    attr(data-image-title);
 }
 
 .tiptap-content .tiptap-visual-clue.is-end::before {
-  content: '❏ VISUAL CLUE 訖 · ' attr(data-gallery-title);
+  content: '◇ VISUAL CLUE 訖 · ' attr(data-gallery-title);
+}
+
+.tiptap-content .tiptap-visual-clue.is-gate::before {
+  content: '▣ IMAGE GATE · ' attr(data-image-title);
 }
 
 .tiptap-content .tiptap-visual-clue.ProseMirror-selectednode {
   border-style: solid;
   box-shadow: 0 0 0 2px color-mix(in srgb, #5e548e 22%, transparent);
+}
+
+.ned-echo-song-picker__image-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 12px 12px 52px;
 }
 
 .ned-echo-spot-bubble__meta {

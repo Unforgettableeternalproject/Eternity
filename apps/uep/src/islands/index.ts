@@ -86,6 +86,7 @@ export {
   consumePhantomSuggestion,
   clearPhantomSuggestion,
   pushClueGallery,
+  focusClueImage,
   restoreFromClueSnapshot,
   hasClueSnapshot,
   parsePhantomImages,

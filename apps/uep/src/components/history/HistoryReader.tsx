@@ -1,5 +1,11 @@
 /* global HTMLAnchorElement */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ZONES } from '../../data/zones';
 import { canonicalizePagePath, isSamePagePath } from '../../lib/pagePath';
 import { ReaderShell } from '../zone/ReaderShell';
@@ -47,6 +53,7 @@ import {
   settleLostBookmark,
   isPhantomEligibleDivision,
   parsePhantomImages,
+  focusClueImage,
   pushClueGallery,
   restoreFromClueSnapshot,
   UEP_PHANTOM_CLUE_CLEAR_EVENT,
@@ -60,7 +67,7 @@ import { useEchoSpots } from './useEchoSpots';
 import { useVisualClues, type VisualClueEntry } from './useVisualClues';
 import VisualClueBookmarks from './VisualClueBookmarks';
 import { fetchClueGallery } from './visualClueGallery';
-import { deriveGalleryUnlockFlag } from '../../visuals';
+import { deriveGalleryUnlockFlag, deriveImageUnlockFlag } from '../../visuals';
 import { isGalleryUnlockedInZone } from '../visuals/visualsVisibility';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/useEntityRefUnlock';
@@ -375,6 +382,11 @@ export default function HistoryReader() {
         window.__uepToastManager?.info('這個線索指向的畫廊目前無法展示。');
         return;
       }
+      if (clue.imageId && !images.some((image) => image.id === clue.imageId)) {
+        clickedCluesRef.current.delete(clue.clueId);
+        window.__uepToastManager?.info('這個線索指定的圖片已不存在。');
+        return;
+      }
       // clue 授旗（V-D.32，對位 echo spot 推導旗標）：展示即授予
       // gallery 解鎖旗標；原未解鎖（本頁 gate 求值，無 tree——同
       // entity-song 已知限制；推導旗標已解鎖者不重複通知）則附解鎖提示
@@ -390,12 +402,22 @@ export default function HistoryReader() {
         },
         progressNow
       );
-      getProgressManager().grantFlags([
+      const grantedFlags = [
         deriveGalleryUnlockFlag(gallery.id, gallery.entityKey),
-      ]);
+      ];
+      const imageFlag = clue.imageId
+        ? deriveImageUnlockFlag(gallery.id, clue.imageId)
+        : null;
+      if (imageFlag) grantedFlags.push(imageFlag);
+      getProgressManager().grantFlags(grantedFlags);
       if (wasLocked) {
         window.__uepToastManager?.success(
           `「${gallery.title}」的封印解開了，收入浮動幻影的畫框。`
+        );
+      }
+      if (imageFlag && !progressNow.flags.includes(imageFlag)) {
+        window.__uepToastManager?.success(
+          `「${clue.imageTitle || '指定圖片'}」已收入這座畫廊。`
         );
       }
       pushClueGallery({
@@ -407,6 +429,8 @@ export default function HistoryReader() {
         gate: gallery.gate ?? null,
         locked: gallery.locked === true,
         images,
+        initialImageId: clue.imageId || null,
+        activeClueId: clue.clueId,
         source: 'clue',
         relatedHistoryIds: pageIdAtClick ? [pageIdAtClick] : [],
       });
@@ -444,6 +468,31 @@ export default function HistoryReader() {
   // 通過訖點 = clue 結束：已點擊者恢復快照 + session dedupe 落定
   // （掃描線 role callback 驅動）
   const onVisualClueMarkerPassed = (info: MarkerPassedInfo) => {
+    if (info.role === 'visual-clue-gate') {
+      const clueId = info.element.getAttribute('data-clue-id')?.trim() || '';
+      const galleryId =
+        info.element.getAttribute('data-gallery-id')?.trim() || '';
+      const imageId = info.element.getAttribute('data-image-id')?.trim() || '';
+      if (
+        !clueId ||
+        !galleryId ||
+        !imageId ||
+        !clickedCluesRef.current.has(clueId)
+      ) {
+        return;
+      }
+      const imageFlag = deriveImageUnlockFlag(galleryId, imageId);
+      const progressNow = getProgressManager().getState();
+      getProgressManager().grantFlags([imageFlag]);
+      if (focusClueImage(clueId, galleryId, imageId)) {
+        if (!progressNow.flags.includes(imageFlag)) {
+          const label =
+            info.element.getAttribute('data-image-title')?.trim() || '指定圖片';
+          window.__uepToastManager?.success(`「${label}」已顯現。`);
+        }
+      }
+      return;
+    }
     if (info.role !== 'visual-clue-end') return;
     const clueId = info.element.getAttribute('data-clue-id')?.trim() || '';
     if (!clueId || !clickedCluesRef.current.has(clueId)) return;
@@ -503,7 +552,7 @@ export default function HistoryReader() {
       !contentError &&
       !bookmarkGateOpen
     ),
-    // echo spot 插播與 visual clue 訖點恢復共用同一條掃描線
+    // echo spot 插播、visual clue 切圖 gate 與訖點共用同一條掃描線
     onMarkerPassed: (info) => {
       onEchoMarkerPassed(info);
       onVisualClueMarkerPassed(info);

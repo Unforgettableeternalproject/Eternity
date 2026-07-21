@@ -50,6 +50,7 @@ export interface MarkerPassedInfo {
     | 'progress-marker'
     | 'echo-spot'
     | 'visual-clue-start'
+    | 'visual-clue-gate'
     | 'visual-clue-end'
     | 'sentinel';
 }

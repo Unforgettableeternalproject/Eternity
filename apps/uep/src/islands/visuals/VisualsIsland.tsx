@@ -82,12 +82,26 @@ export default function VisualsIsland() {
   /** entity 嵌入提示卡（V-C .25）：pending 消費 + 展開中即時接收 */
   const [suggestion, setSuggestion] = useState<PhantomGallery | null>(null);
 
+  // 跨頁／收合後重建 island 時，持久化投射的指定圖片仍要成為目前畫面。
+  useEffect(() => {
+    if (!gallery?.initialImageId) return;
+    const targetIndex = [...gallery.images]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .findIndex((image) => image.id === gallery.initialImageId);
+    if (targetIndex >= 0) setIdx(targetIndex);
+  }, [gallery?.id, gallery?.initialImageId]);
+
   useEffect(() => {
     const onShow = (event: Event) => {
       // detail null = 清空投射（clue 插播前一片空白的恢復路徑，V-D）
       const detail = (event as CustomEvent<PhantomGallery | null>).detail;
       setGallery(detail ?? null);
-      setIdx(0);
+      const targetIndex = detail?.initialImageId
+        ? [...detail.images]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .findIndex((image) => image.id === detail.initialImageId)
+        : 0;
+      setIdx(targetIndex >= 0 ? targetIndex : 0);
     };
     window.addEventListener(UEP_PHANTOM_SHOW_EVENT, onShow);
     return () => window.removeEventListener(UEP_PHANTOM_SHOW_EVENT, onShow);
@@ -156,7 +170,7 @@ export default function VisualsIsland() {
   const items: PhantomImageView[] = useMemo(
     () =>
       gallery && galleryUnlocked
-        ? resolveGalleryImages(gallery.images, progress)
+        ? resolveGalleryImages(gallery.images, progress, gallery.id)
         : [],
     [gallery, galleryUnlocked, progress]
   );

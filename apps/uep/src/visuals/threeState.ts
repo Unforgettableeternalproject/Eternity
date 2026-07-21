@@ -68,14 +68,23 @@ function hasGate(
  * @param progress     進度狀態；null（SSR/載入前）採保守值：停在初始
  *                     狀態不求值任何閘（圖片比歌曲更易劇透，不做
  *                     Echoes 式「無 progress 即可見」的向後相容）
+ * @param unlockFlag   image 級推導解鎖旗標（deriveImageUnlockFlag）；已授予
+ *                     時無條件解鎖，凌駕 initialState 與所有閘——對位
+ *                     gallery 授旗旁路（S8 #8：Visual Clue 指定圖片直接解鎖，
+ *                     艾斯維爾定案不做「永遠鎖」防禦，clue 不會指到未釋出內容）
  */
 export function resolveImageState(
   gateData: ImageGateData | null | undefined,
   isFirstImage: boolean,
-  progress: ProgressState | null | undefined
+  progress: ProgressState | null | undefined,
+  unlockFlag?: string | null
 ): ImageDisplayState {
   // 不變量 2：第一張圖恆等於 gallery 解鎖狀態（呼叫端已把關 gallery 閘）
   if (isFirstImage) return 'unlocked';
+
+  // image 級授旗旁路：Visual Clue 指定並展示過的圖片直接解鎖（無條件
+  // 凌駕 initialState，同 gallery 的 isGalleryUnlockedInZone 推導旗標旁路）
+  if (unlockFlag && progress?.flags?.includes(unlockFlag)) return 'unlocked';
 
   // 防禦性解析：未設定或非法值一律視為解鎖（2026-07-19 拍板的預設，
   // 防外部資料異常時把既有圖片誤鎖）
@@ -125,14 +134,36 @@ export function resolveGalleryImages<
   T extends ImageGateData & { sortOrder?: number },
 >(
   images: T[],
-  progress: ProgressState | null | undefined
+  progress: ProgressState | null | undefined,
+  galleryId?: string | null
 ): ResolvedGalleryImage<T>[] {
   return [...images]
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map((img, i) => ({
       img,
-      state: resolveImageState(img, i === 0, progress),
+      state: resolveImageState(
+        img,
+        i === 0,
+        progress,
+        galleryId && 'id' in img && typeof img.id === 'string'
+          ? deriveImageUnlockFlag(galleryId, img.id)
+          : null
+      ),
     }));
+}
+
+/**
+ * 自動推導單張圖片的解鎖旗標。
+ *
+ * 圖片 id 只保證在頁面內唯一，因此命名空間必須同時包含 gallery id；
+ * `encodeURIComponent` 避免 id 中的 `:` 與層級分隔混淆。Visual Clue
+ * 指定圖片或 image gate 切圖時授予，Reader 與浮動幻影共用此判定。
+ */
+export function deriveImageUnlockFlag(
+  galleryId: string,
+  imageId: string
+): string {
+  return `image:${encodeURIComponent(galleryId.trim())}:${encodeURIComponent(imageId.trim())}`;
 }
 
 /**

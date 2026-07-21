@@ -135,6 +135,23 @@ describe('VisualsIsland 資料鏈', () => {
     expect(screen.getByText(/01 \//)).toBeTruthy();
     expect(container.querySelector('.uep-visland__frame img')).toBeTruthy();
   });
+
+  it('#8 指定 initialImageId 時 mount 與即時投射都直接聚焦該圖', () => {
+    pushPhantomGallery(makeGallery({ initialImageId: 'img-2' }));
+    render(<VisualsIsland />);
+    expect(screen.getByText('側面')).toBeTruthy();
+    act(() => {
+      pushPhantomGallery(
+        makeGallery({
+          id: 'visuals/illustrations/scenes/dawn',
+          title: '黎明',
+          source: 'clue',
+          initialImageId: 'img-1',
+        })
+      );
+    });
+    expect(screen.getByText('正面')).toBeTruthy();
+  });
 });
 
 describe('VisualsIsland 檢視器', () => {

@@ -49,6 +49,13 @@ export interface PhantomGallery {
   /** 靜態鎖快照（metadata.locked）——重驗時凌駕推導旗標 */
   locked?: boolean;
   images: PhantomImage[];
+  /**
+   * 浮動幻影首次展示／切換時應聚焦的圖片 id。未設定或找不到時回第一張；
+   * gallery clue 的預設圖與區間內 image gate 共用此欄位。
+   */
+  initialImageId?: string | null;
+  /** 觸發目前 clue 投射的 id；image gate 只可切換同一 clue。 */
+  activeClueId?: string | null;
   /** 展示來源：映照 / entity 嵌入 / Visual Clue（V-D） */
   source: 'mirror' | 'embed' | 'clue';
   /**
@@ -135,6 +142,12 @@ function normalizeGallery(raw: unknown): PhantomGallery | null {
     id: value.id,
     title: value.title,
     images,
+    ...(typeof value.initialImageId === 'string' && value.initialImageId.trim()
+      ? { initialImageId: value.initialImageId }
+      : {}),
+    ...(typeof value.activeClueId === 'string' && value.activeClueId.trim()
+      ? { activeClueId: value.activeClueId }
+      : {}),
     source: value.source as PhantomGallery['source'],
     relatedHistoryIds: Array.isArray(value.relatedHistoryIds)
       ? value.relatedHistoryIds.filter(
@@ -331,6 +344,33 @@ export function pushClueGallery(gallery: PhantomGallery): void {
     };
   }
   pushPhantomGallery({ ...gallery, source: 'clue' });
+}
+
+/**
+ * 將進行中的 clue 投射切到 gallery 內指定圖片。
+ *
+ * 只接受目前的 clue 投射，避免過期 gate 改動使用者手動映照／嵌入接管
+ * 後的 gallery。回傳 false 代表目前情境或 imageId 不合格。
+ */
+export function focusClueImage(
+  clueId: string,
+  galleryId: string,
+  imageId: string
+): boolean {
+  if (typeof window === 'undefined') return false;
+  hydratePhantomState();
+  const current = window.__uepPhantomGallery;
+  if (
+    !current ||
+    current.source !== 'clue' ||
+    current.id !== galleryId ||
+    current.activeClueId !== clueId ||
+    !current.images.some((image) => image.id === imageId)
+  ) {
+    return false;
+  }
+  pushPhantomGallery({ ...current, initialImageId: imageId });
+  return true;
 }
 
 /**

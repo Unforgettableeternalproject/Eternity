@@ -11,6 +11,7 @@ import {
   clearPhantomGallery,
   consumePhantomSuggestion,
   getPhantomGallery,
+  focusClueImage,
   hasClueSnapshot,
   isPhantomEligibleDivision,
   isPhantomSuggestionEligible,
@@ -284,6 +285,26 @@ describe('Visual Clue 快照/復原（V-D，沿 interruptionSnapshot 語意）',
   it('pushClueGallery 一律以 clue 來源展示', () => {
     pushClueGallery(makeGallery({ source: 'mirror' }));
     expect(getPhantomGallery()?.source).toBe('clue');
+  });
+
+  it('同一 clue 的 image gate 可切到指定圖並持久化；過期 clue 不可誤切', () => {
+    pushClueGallery(clueGallery('visuals/illustrations/scenes/dawn'));
+    // 舊 fixture 沒 activeClueId，先以完整 #8 payload 重投射。
+    pushClueGallery(
+      makeGallery({
+        id: 'visuals/illustrations/scenes/dawn',
+        source: 'clue',
+        activeClueId: 'clue-1',
+      })
+    );
+    expect(
+      focusClueImage('clue-1', 'visuals/illustrations/scenes/dawn', 'img-2')
+    ).toBe(true);
+    expect(getPhantomGallery()?.initialImageId).toBe('img-2');
+    expect(
+      focusClueImage('old-clue', 'visuals/illustrations/scenes/dawn', 'img-1')
+    ).toBe(false);
+    expect(getPhantomGallery()?.initialImageId).toBe('img-2');
   });
 
   it('clearPhantomGallery（登出/reset）一併清除快照', () => {

@@ -8,7 +8,12 @@ import { describe, expect, it } from 'vitest';
 
 import { createInitialState } from '../../progress';
 import type { GateCondition, ProgressState } from '../../progress';
-import { deriveGalleryUnlockFlag, resolveImageState } from '../threeState';
+import {
+  deriveGalleryUnlockFlag,
+  deriveImageUnlockFlag,
+  resolveGalleryImages,
+  resolveImageState,
+} from '../threeState';
 import type { ImageDisplayState, ImageGateData } from '../threeState';
 
 function makeProgress(overrides: Partial<ProgressState> = {}): ProgressState {
@@ -296,6 +301,31 @@ describe('deriveGalleryUnlockFlag — 雙命名空間（對位 deriveSongUnlockF
   it('entityKey 空白字串 → fallback 到 gallery:{pageId}', () => {
     expect(deriveGalleryUnlockFlag('visuals/profiles/x', '  ')).toBe(
       'gallery:visuals/profiles/x'
+    );
+  });
+});
+
+describe('deriveImageUnlockFlag — gallery 內單圖授旗（S8 #8）', () => {
+  it('gallery id 與 image id 一起構成穩定且可安全分隔的旗標', () => {
+    expect(
+      deriveImageUnlockFlag('visuals/illustrations/scene:1', 'img:night')
+    ).toBe('image:visuals%2Fillustrations%2Fscene%3A1:img%3Anight');
+  });
+
+  it('授旗後 resolveGalleryImages 將原鎖定圖片直接解鎖', () => {
+    const galleryId = 'visuals/illustrations/scene-1';
+    const images = [
+      { id: 'first', sortOrder: 0 },
+      { id: 'secret', sortOrder: 1, initialState: 'locked' as const },
+    ];
+    expect(resolveGalleryImages(images, PASS_NONE, galleryId)[1].state).toBe(
+      'locked'
+    );
+    const unlocked = makeProgress({
+      flags: [deriveImageUnlockFlag(galleryId, 'secret')],
+    });
+    expect(resolveGalleryImages(images, unlocked, galleryId)[1].state).toBe(
+      'unlocked'
     );
   });
 });

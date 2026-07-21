@@ -28,6 +28,11 @@ export interface VisualClueEntry {
   galleryId: string;
   /** gallery 標題快照（書籤顯示用） */
   title: string;
+  /** Gallery Clue 的預設圖片。 */
+  imageId: string;
+  imageTitle: string;
+  /** 預設圖片的 R2 key 快照；舊資料可能缺少。 */
+  imageFile: string;
   startEl: Element;
   endEl: Element;
 }
@@ -82,12 +87,16 @@ export function collectVisualClues(container: Element): VisualClueEntry[] {
         ? 'illustration'
         : 'entity';
     if (endKey !== targetKey || endType !== targetType) continue;
+    const imageId = startEl.getAttribute('data-image-id')?.trim() || '';
     entries.push({
       clueId,
       targetType,
       targetKey,
       galleryId: startEl.getAttribute('data-gallery-id')?.trim() || '',
       title: startEl.getAttribute('data-gallery-title')?.trim() || '',
+      imageId,
+      imageTitle: startEl.getAttribute('data-image-title')?.trim() || '',
+      imageFile: startEl.getAttribute('data-image-file')?.trim() || '',
       startEl,
       endEl,
     });

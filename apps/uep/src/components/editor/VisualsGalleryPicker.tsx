@@ -14,6 +14,11 @@ export interface VisualsGalleryChoice {
   targetKey: string;
   divisionId: string;
   imageCount: number;
+  images: { id: string; file: string; title: string; sortOrder: number }[];
+  /** 本次選擇指定的預設／直接展示圖片；只存在於 image 選擇結果。 */
+  selectedImageId?: string;
+  selectedImageTitle?: string;
+  selectedImageFile?: string;
 }
 
 interface TreeNode {
@@ -29,6 +34,7 @@ interface VisualsGalleryPickerProps {
   open: boolean;
   onClose: () => void;
   onSelect: (gallery: VisualsGalleryChoice) => void;
+  selectionMode?: 'gallery' | 'image';
 }
 
 const DIVISION_TITLES: Record<string, string> = {
@@ -53,6 +59,29 @@ export function flattenClueGalleries(tree: TreeNode[]): VisualsGalleryChoice[] {
         const divisionId = node.id.split('/')[1] || '';
         const meta = node.metadata || {};
         const imageCount = Array.isArray(meta.images) ? meta.images.length : 0;
+        const images = Array.isArray(meta.images)
+          ? meta.images
+              .filter(
+                (image): image is Record<string, unknown> =>
+                  !!image &&
+                  typeof image === 'object' &&
+                  typeof (image as Record<string, unknown>).id === 'string' &&
+                  Boolean(
+                    ((image as Record<string, unknown>).id as string).trim()
+                  )
+              )
+              .map((image, index) => ({
+                id: image.id as string,
+                file: typeof image.file === 'string' ? image.file : '',
+                title:
+                  typeof image.caption === 'string' && image.caption.trim()
+                    ? image.caption
+                    : `第 ${index + 1} 張`,
+                sortOrder:
+                  typeof image.sortOrder === 'number' ? image.sortOrder : index,
+              }))
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+          : [];
         const entityKey =
           typeof meta.entityKey === 'string' ? meta.entityKey.trim() : '';
         const illustrationId =
@@ -70,6 +99,7 @@ export function flattenClueGalleries(tree: TreeNode[]): VisualsGalleryChoice[] {
               targetKey: entityKey,
               divisionId,
               imageCount,
+              images,
             });
           } else if (divisionId === 'illustrations' && illustrationId) {
             result.push({
@@ -79,6 +109,7 @@ export function flattenClueGalleries(tree: TreeNode[]): VisualsGalleryChoice[] {
               targetKey: illustrationId,
               divisionId,
               imageCount,
+              images,
             });
           }
         }
@@ -96,6 +127,7 @@ export default function VisualsGalleryPicker({
   open,
   onClose,
   onSelect,
+  selectionMode = 'gallery',
 }: VisualsGalleryPickerProps) {
   const [galleries, setGalleries] = useState<VisualsGalleryChoice[]>([]);
   const [query, setQuery] = useState('');
@@ -162,7 +194,11 @@ export default function VisualsGalleryPicker({
       >
         <div className="ned-modal-header">
           <div>
-            <strong>選擇 Visuals 畫廊</strong>
+            <strong>
+              {selectionMode === 'image'
+                ? '選擇 Visuals 圖片'
+                : '選擇 Visuals 畫廊與預設圖'}
+            </strong>
             <div className="ned-echo-song-picker__hint">
               僅列出可進浮動幻影的畫廊：陳列走廊需 entityKey、鑲框室需插圖
               ID；精靈圖與空畫廊不列入。
@@ -204,24 +240,62 @@ export default function VisualsGalleryPicker({
                   <span>{entries.length}</span>
                 </div>
                 {entries.map((gallery) => (
-                  <button
-                    type="button"
-                    className="ned-echo-song-picker__song"
-                    key={gallery.id}
-                    onClick={() => onSelect(gallery)}
-                  >
-                    <span className="ned-echo-song-picker__orb">❏</span>
-                    <span className="ned-echo-song-picker__song-copy">
-                      <strong>{gallery.title}</strong>
-                      <small>
-                        {[
-                          gallery.targetKey,
-                          `${gallery.imageCount} 張圖片`,
-                        ].join(' · ')}
-                      </small>
-                    </span>
-                    <span className="ned-echo-song-picker__select">選取</span>
-                  </button>
+                  <div key={gallery.id}>
+                    <button
+                      type="button"
+                      className="ned-echo-song-picker__song"
+                      onClick={() => {
+                        if (selectionMode !== 'gallery') return;
+                        const first = gallery.images[0];
+                        onSelect({
+                          ...gallery,
+                          ...(first
+                            ? {
+                                selectedImageId: first.id,
+                                selectedImageTitle: first.title,
+                                selectedImageFile: first.file,
+                              }
+                            : {}),
+                        });
+                      }}
+                      disabled={selectionMode === 'image'}
+                    >
+                      <span className="ned-echo-song-picker__orb">❏</span>
+                      <span className="ned-echo-song-picker__song-copy">
+                        <strong>{gallery.title}</strong>
+                        <small>
+                          {[
+                            gallery.targetKey,
+                            `${gallery.imageCount} 張圖片`,
+                          ].join(' · ')}
+                        </small>
+                      </span>
+                      {selectionMode === 'gallery' && (
+                        <span className="ned-echo-song-picker__select">
+                          第一張開始
+                        </span>
+                      )}
+                    </button>
+                    <div className="ned-echo-song-picker__image-choices">
+                      {gallery.images.map((image, index) => (
+                        <button
+                          type="button"
+                          className="ned-img-bubble-btn"
+                          key={image.id}
+                          onClick={() =>
+                            onSelect({
+                              ...gallery,
+                              selectedImageId: image.id,
+                              selectedImageTitle: image.title,
+                              selectedImageFile: image.file,
+                            })
+                          }
+                        >
+                          {String(index + 1).padStart(2, '0')} · {image.title}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </section>
             ))
