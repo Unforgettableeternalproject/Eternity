@@ -30,6 +30,7 @@ import {
 import './StorageReader.css';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
+import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -302,6 +303,14 @@ export default function StorageReader() {
     activeClearingId,
     activePageId,
   ]);
+
+  // S9-A.3：便條釘選錨點——每次換頁後掃 .sto-prose 補 data-uep-anchor-id
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current
+      .querySelectorAll<HTMLElement>('.sto-prose')
+      .forEach((el) => ensureContentAnchors(el));
+  }, [view, activePageId, activeClearingId, readingPage]);
   const [extrasFilter, setExtrasFilter] = useState<string>('all');
   // Changelog reading state
   const [logFilterType, setLogFilterType] = useState<string>('all');

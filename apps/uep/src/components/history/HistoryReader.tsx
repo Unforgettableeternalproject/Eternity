@@ -72,6 +72,7 @@ import { deriveGalleryUnlockFlag, deriveImageUnlockFlag } from '../../visuals';
 import { isGalleryUnlockedInZone } from '../visuals/visualsVisibility';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/useEntityRefUnlock';
+import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import { ChapterTimeline } from './ChapterTimeline';
@@ -877,6 +878,10 @@ export default function HistoryReader() {
       if (!heading.id)
         heading.id = slugifyHeading(heading.textContent || '', index);
     });
+
+    // S9-A.3：便條釘選錨點——補段落層級 data-uep-anchor-id
+    // （h2/h3 slugify 的 id 是 URL 錨點語意，錨點 id 另一套 data-* 避免衝突）
+    ensureContentAnchors(root);
 
     root
       .querySelectorAll<HTMLElement>('.tabs-container')

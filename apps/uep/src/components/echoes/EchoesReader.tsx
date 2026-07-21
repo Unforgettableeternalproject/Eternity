@@ -45,6 +45,7 @@ import type {
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
 import { getApiBase } from '../../lib/apiBase';
+import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
 import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
@@ -944,6 +945,14 @@ function EchoesReaderInner() {
     activeContentId,
     activeSongId,
   ]);
+
+  // S9-A.3：便條釘選錨點——每次換 content 頁後掃 .echoes-prose 補 data-uep-anchor-id
+  useEffect(() => {
+    if (view !== 'content' || !scrollRef.current) return;
+    scrollRef.current
+      .querySelectorAll<HTMLElement>('.echoes-prose')
+      .forEach((el) => ensureContentAnchors(el));
+  }, [view, activeContentId]);
 
   /** 根據目前視圖狀態回傳唯一的捲軸記憶 key */
   function currentScrollKey(): string {
