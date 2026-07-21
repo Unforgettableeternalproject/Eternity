@@ -79,15 +79,16 @@ export function isEntityUnlocked(state: ProgressState, ref: string): boolean {
 }
 
 /**
- * 前台渲染前處理（S7-C 語意 + 2026-07-17 修正）：concepts 島掛載時，
- * 合法 ref 的 entity 附加啟用屬性 + a11y 屬性。島未掛載／觀測者時
- * 全部維持普通文字。
+ * 前台渲染前處理（S7-C 語意 + 2026-07-17 修正 + S8 驗收 #2 跨島聯集）：
+ * 相應浮島（Concepts / Echoes / Visuals）任一掛載時，合法 ref 的 entity
+ * 附加啟用屬性 + a11y 屬性。三島全數未掛載／觀測者時全部維持普通文字。
  *
- * isRefUnlocked（選填）：條目級解鎖判定——「可點 ⟺ terminal 查得到
- * 內容」不變量，未解鎖 entity 維持普通文字，杜絕「可點卻 ACCESS
- * RESTRICTED」的矛盾。判定來源是 Concepts 條目索引（terminalCore
- * isEntityRefUnlocked），由呼叫端注入以維持 embed → islands 的單向
- * 依賴。未注入時沿用 S7-C 全可點語意（向後相容）。
+ * isRefUnlocked（選填）：條目級解鎖判定——「可點 ⟺ 相應浮島查得到
+ * 內容」不變量，未在任一相應浮島解鎖的 entity 維持普通文字，杜絕
+ * 「可點卻查無內容」的矛盾。判定來源是跨島聯集索引（見
+ * islands/useEntityRefUnlock：Concepts + Echoes + Visuals），由呼叫端
+ * 注入以維持 embed → islands 的單向依賴。未注入時沿用全可點語意
+ * （向後相容）。
  *
  * 冪等：無論輸入是否殘留啟用屬性（防禦外部資料），
  * 一律先清除再依當前進度重算——進度變化（含觀測者切回探索者、
@@ -101,7 +102,11 @@ export function decorateInteractiveHtml(
   if (!html || !html.includes(UEP_ENTITY_ATTR)) return html;
   if (typeof DOMParser === 'undefined') return html; // SSR 防禦
 
-  const terminalMounted = shouldMountIsland(state, 'concepts');
+  // 跨島聯集：任一相應浮島掛載即開放啟用（逐 ref 解鎖由 isRefUnlocked 聯集把關）
+  const anyIslandMounted =
+    shouldMountIsland(state, 'concepts') ||
+    shouldMountIsland(state, 'echoes') ||
+    shouldMountIsland(state, 'visuals');
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
   doc.body.querySelectorAll(UEP_ENTITY_SELECTOR).forEach((el) => {
@@ -111,7 +116,7 @@ export function decorateInteractiveHtml(
     el.removeAttribute('aria-label');
 
     const ref = el.getAttribute(UEP_REF_ATTR) || '';
-    if (!terminalMounted || !isValidRef(ref)) return;
+    if (!anyIslandMounted || !isValidRef(ref)) return;
     if (isRefUnlocked && !isRefUnlocked(ref)) return;
 
     el.setAttribute(UEP_ENTITY_ACTIVE_ATTR, 'true');

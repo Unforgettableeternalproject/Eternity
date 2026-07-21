@@ -3,7 +3,8 @@
  *
  * 驗證三件事：
  * 1. isEntityUnlocked：新格式一律解鎖；舊格式 met:{ref} fallback + 觀測者 bypass
- * 2. decorateInteractiveHtml：concepts 島掛載 → 全部啟用；未掛載/觀測者 → 普通文字
+ * 2. decorateInteractiveHtml：相應浮島（concepts/echoes/visuals）任一掛載 → 啟用；
+ *    三島全數未掛載/觀測者 → 普通文字（S8 驗收 #2 跨島聯集）
  * 3. dispatchEntityActivate：事件 detail 合約（新格式帶 entityKey、舊格式帶 pageId）
  */
 
@@ -89,7 +90,7 @@ describe('isEntityUnlocked（S7-C：僅剩舊格式 fallback 語意）', () => {
   });
 });
 
-describe('decorateInteractiveHtml（S7-C：島掛載守門，全可點）', () => {
+describe('decorateInteractiveHtml（S8 #2：跨島聯集島掛載守門，全可點）', () => {
   it('無 entity 標記的 HTML 原樣返回（不經 DOMParser）', () => {
     const html = '<p>普通段落，<strong>沒有</strong>嵌入。</p>';
     expect(decorateInteractiveHtml(html, mountedState())).toBe(html);
@@ -138,6 +139,26 @@ describe('decorateInteractiveHtml（S7-C：島掛載守門，全可點）', () =
     expect(
       parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
     ).toBeNull();
+  });
+
+  it('#2 聯集：只掛載 Echoes 島（未掛 Concepts）也啟用', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan(KEY_REF)}</p>`,
+      stateWith({ islandsUnlocked: ['echoes'] })
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).not.toBeNull();
+  });
+
+  it('#2 聯集：只掛載 Visuals 島（未掛 Concepts）也啟用', () => {
+    const out = decorateInteractiveHtml(
+      `<p>${entitySpan(KEY_REF)}</p>`,
+      stateWith({ islandsUnlocked: ['visuals'] })
+    );
+    expect(
+      parseHtml(out).querySelector(`[${UEP_ENTITY_ACTIVE_ATTR}]`)
+    ).not.toBeNull();
   });
 
   it('未登入不啟用（浮島限已登入探索者，S7-C 定案）', () => {

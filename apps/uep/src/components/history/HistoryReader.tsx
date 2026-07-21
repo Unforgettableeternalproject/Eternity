@@ -62,7 +62,7 @@ import { fetchClueGallery } from './visualClueGallery';
 import { deriveGalleryUnlockFlag } from '../../visuals';
 import { isGalleryUnlockedInZone } from '../visuals/visualsVisibility';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
-import { useEntityRefUnlockChecker } from '../../islands/concepts/useEntityUnlock';
+import { useEntityRefUnlockChecker } from '../../islands/useEntityRefUnlock';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import { ChapterTimeline } from './ChapterTimeline';

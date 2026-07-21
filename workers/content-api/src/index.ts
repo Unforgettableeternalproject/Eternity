@@ -24,6 +24,8 @@ import {
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
+import { buildEchoesEntityIndex } from './echoes-index';
+import { buildVisualsEntityIndex } from './visuals-index';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
   findEntityGallery,
@@ -1628,6 +1630,18 @@ export default {
       );
     }
 
+    // ---- Echoes 條目索引（S8 驗收 #2：互動嵌入跨島聯集啟用判定）----
+    // 同 concepts/entity-index：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
+    if (path === '/api/echoes/entity-index' && request.method === 'GET') {
+      const entries = await buildEchoesEntityIndex(env.CONTENT_DB);
+      return jsonResponse(
+        { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
+        200,
+        cors,
+        true
+      );
+    }
+
     // ---- Echoes entity↔曲目反查（S8 B-5：互動嵌入的曲目卡消費）----
     // 同 entity-index：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
     if (path === '/api/echoes/entity-song' && request.method === 'GET') {
@@ -1661,6 +1675,18 @@ export default {
       const song = await findSongById(env.CONTENT_DB, id);
       return jsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- Visuals 條目索引（S8 驗收 #2：互動嵌入跨島聯集啟用判定）----
+    // 同 concepts/entity-index：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
+    if (path === '/api/visuals/entity-index' && request.method === 'GET') {
+      const entries = await buildVisualsEntityIndex(env.CONTENT_DB);
+      return jsonResponse(
+        { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
         200,
         cors,
         true
