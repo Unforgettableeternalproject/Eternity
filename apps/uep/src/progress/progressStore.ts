@@ -12,8 +12,17 @@
 import { LocalStorageAdapter } from './adapters';
 import { COMPLETION_FLAG_PREFIX, isEffectivelyCompleted } from './gating';
 import type { ProgressTreeAdapter } from './tree';
-import type { ProgressAdapter, ProgressState, ViewMode } from './types';
-import { createInitialState } from './types';
+import type {
+  ProgressAdapter,
+  ProgressState,
+  StorageNote,
+  ViewMode,
+} from './types';
+import {
+  STORAGE_NOTE_MAX,
+  STORAGE_NOTE_TEXT_MAX,
+  createInitialState,
+} from './types';
 
 /** 進度變更事件名稱（CustomEvent<ProgressChangeDetail>） */
 export const PROGRESS_CHANGE_EVENT = 'uep:progress-change';
@@ -36,6 +45,7 @@ export interface ProgressChangeDetail {
     | 'lost-bookmark'
     | 'reading-time'
     | 'concepts-read-level'
+    | 'storage-note'
     | 'hydrate'
     | 'reset'
     | 'sweep';
@@ -53,6 +63,24 @@ declare global {
 let adapter: ProgressAdapter = new LocalStorageAdapter();
 let state: ProgressState = bootstrap();
 const listeners: Listener[] = [];
+
+/** 便條 id 遞增序號（module 生命週期內單調，配時間戳前綴保證跨 session 唯一） */
+let storageNoteSeq = 0;
+/** 便條傾斜角輪替值——不用亂數以利 SSR/測試可預期，視覺上仍夠散 */
+const STORAGE_NOTE_TILTS = [-1.6, 1.2, -0.6, 1.8, -1.1, 0.7];
+
+/** 建立一張新便條（id/tilt/時間戳一次算好） */
+function makeStorageNote(text: string): StorageNote {
+  const now = new Date().toISOString();
+  const seq = storageNoteSeq++;
+  return {
+    id: `note-${Date.now().toString(36)}-${seq.toString(36)}`,
+    text,
+    tilt: STORAGE_NOTE_TILTS[seq % STORAGE_NOTE_TILTS.length],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 /** 初始化：同步從 localStorage 讀取，避免 first paint 閃爍 */
 function bootstrap(): ProgressState {
@@ -255,6 +283,52 @@ export const uepProgress = {
     mutate('reading-time', (prev) => ({
       ...prev,
       readingStats: { totalMs: prev.readingStats.totalMs + ms },
+    }));
+  },
+
+  /**
+   * 新增便條（S9 便條島）。text 前後空白 trim、截斷 STORAGE_NOTE_TEXT_MAX 字；
+   * trim 後為空則忽略。達 STORAGE_NOTE_MAX 上限時不新增，回傳 false 供呼叫端提示。
+   */
+  addStorageNote(text: string): boolean {
+    const clean = text.trim().slice(0, STORAGE_NOTE_TEXT_MAX);
+    if (!clean) return false;
+    if (state.storageNotes.length >= STORAGE_NOTE_MAX) return false;
+    const note = makeStorageNote(clean);
+    mutate('storage-note', (prev) => ({
+      ...prev,
+      storageNotes: [...prev.storageNotes, note],
+    }));
+    return true;
+  },
+
+  /**
+   * 編輯便條文字（S9）。trim + 截斷；trim 後為空則忽略（要清空請改用刪除）。
+   * 更新該便條的 updatedAt（便條列表據此重排至最上）；內容未變或找不到 id 忽略。
+   */
+  updateStorageNote(id: string, text: string): void {
+    const clean = text.trim().slice(0, STORAGE_NOTE_TEXT_MAX);
+    if (!clean) return;
+    const target = state.storageNotes.find((n) => n.id === id);
+    if (!target || target.text === clean) return;
+    const now = new Date().toISOString();
+    mutate('storage-note', (prev) => ({
+      ...prev,
+      storageNotes: prev.storageNotes.map((n) =>
+        n.id === id ? { ...n, text: clean, updatedAt: now } : n
+      ),
+    }));
+  },
+
+  /**
+   * 刪除便條（S9）。釘選態的連帶清理由 pinnedStore 監聽 progress-change
+   * 自動處理（解耦，progressStore 不 import islands 層）。找不到 id 忽略。
+   */
+  removeStorageNote(id: string): void {
+    if (!state.storageNotes.some((n) => n.id === id)) return;
+    mutate('storage-note', (prev) => ({
+      ...prev,
+      storageNotes: prev.storageNotes.filter((n) => n.id !== id),
     }));
   },
 

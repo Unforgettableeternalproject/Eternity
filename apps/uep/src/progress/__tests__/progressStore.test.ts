@@ -302,6 +302,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       lostBookmark: { chancePct: 20, visible: false },
       readingStats: { totalMs: 0 },
       conceptsReadLevel: {},
+      storageNotes: [],
       updatedAt: '2026-07-03T00:00:00.000Z',
     };
     await uepProgress.setAdapter({

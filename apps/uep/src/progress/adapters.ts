@@ -10,8 +10,13 @@
 
 import { isTestMode } from '../lib/apiBase';
 
-import type { ProgressAdapter, ProgressState } from './types';
-import { PROGRESS_SCHEMA_VERSION, createInitialState } from './types';
+import type { ProgressAdapter, ProgressState, StorageNote } from './types';
+import {
+  PROGRESS_SCHEMA_VERSION,
+  STORAGE_NOTE_MAX,
+  STORAGE_NOTE_TEXT_MAX,
+  createInitialState,
+} from './types';
 
 /**
  * localStorage key，含 schema 版本以利未來遷移。
@@ -94,6 +99,24 @@ export function normalizeState(raw: unknown): ProgressState | null {
             )
           )
         : base.conceptsReadLevel,
+    // S9 新增欄位：便條島本體，舊 blob 沒有時補空陣列。
+    // 逐筆驗證（欄位型別齊全才留），text 截斷、整體 cap 防外部塞超量。
+    storageNotes: Array.isArray(obj.storageNotes)
+      ? obj.storageNotes
+          .filter(
+            (n): n is StorageNote =>
+              typeof n === 'object' &&
+              n !== null &&
+              typeof (n as StorageNote).id === 'string' &&
+              typeof (n as StorageNote).text === 'string' &&
+              typeof (n as StorageNote).tilt === 'number' &&
+              Number.isFinite((n as StorageNote).tilt) &&
+              typeof (n as StorageNote).createdAt === 'string' &&
+              typeof (n as StorageNote).updatedAt === 'string'
+          )
+          .slice(0, STORAGE_NOTE_MAX)
+          .map((n) => ({ ...n, text: n.text.slice(0, STORAGE_NOTE_TEXT_MAX) }))
+      : base.storageNotes,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : base.updatedAt,
   };

@@ -23,6 +23,29 @@ export interface PageMarkerProgress {
   updatedAt: string;
 }
 
+/**
+ * 便條島的單張便條（S9）。本體隨 ProgressState 跨裝置同步；
+ * 釘選態（貼在哪頁哪個位置）另存 localStorage（見 islands/storage/pinnedNotes），
+ * 因為「把便利貼貼在這台螢幕這個位置」是本機物理概念，不跨裝置。
+ */
+export interface StorageNote {
+  /** 建立時生成的穩定 id（時間戳 + 序號，不用亂數以利 SSR/測試可預期） */
+  id: string;
+  /** 便條文字（trim 後，上限 STORAGE_NOTE_TEXT_MAX 字） */
+  text: string;
+  /** 紙張傾斜角度，建立時算一次存下（不每次 render 亂數，SSR/測試穩定） */
+  tilt: number;
+  /** 建立時間（ISO 8601） */
+  createdAt: string;
+  /** 最後編輯時間（ISO 8601），便條列表排序鍵（最近編輯排最上） */
+  updatedAt: string;
+}
+
+/** 便條數量上限（進 ProgressState blob，避免撐爆 128KB 額度） */
+export const STORAGE_NOTE_MAX = 30;
+/** 單張便條字數上限 */
+export const STORAGE_NOTE_TEXT_MAX = 200;
+
 /** 進度狀態 — localStorage / D1 progress 表的儲存單位 */
 export interface ProgressState {
   /** schema 版本，未來遷移用 */
@@ -82,6 +105,11 @@ export interface ProgressState {
    * 輸出更動通知。放 ProgressState = 跟登入同步、跨裝置不重複通知。
    */
   conceptsReadLevel: Record<string, number>;
+  /**
+   * 便條島的便條本體（S9）。跨裝置同步；釘選態另存 localStorage。
+   * 排序在消費端做（updatedAt desc），此處保留寫入順序即可。
+   */
+  storageNotes: StorageNote[];
   /** 最後更新時間（ISO 8601） */
   updatedAt: string;
 }
@@ -116,6 +144,7 @@ export function createInitialState(): ProgressState {
     lostBookmark: { chancePct: LOST_BOOKMARK_BASE_PCT, visible: false },
     readingStats: { totalMs: 0 },
     conceptsReadLevel: {},
+    storageNotes: [],
     updatedAt: new Date().toISOString(),
   };
 }
