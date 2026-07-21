@@ -38,6 +38,7 @@ import { parseGateCondition } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
 import { ENTITY_KINDS, isValidRef, collectEmbeds } from '../../embed';
 import EntityIndexPicker, { loadEmbeddableEntries } from './EntityIndexPicker';
+import { useDragAutoScroll } from './useDragAutoScroll';
 import { EntitySuggest } from './EntitySuggestExtension';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -266,6 +267,9 @@ export default function RichEditor({
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // 編輯器中欄 scroll 容器：供 draggable atom 拖曳靠近上下緣自動捲動（#5）
+  const editorSurfaceRef = useRef<HTMLElement>(null);
+  useDragAutoScroll(editorSurfaceRef);
 
   // 字型大小自訂輸入
   const [customFontSize, setCustomFontSize] = useState('');
@@ -2701,7 +2705,7 @@ export default function RichEditor({
         )}
 
         {/* Middle — Editor */}
-        <main className="ned-editor">
+        <main className="ned-editor" ref={editorSurfaceRef}>
           {isEntryMode ? (
             <div className="ned-empty-state">
               <div className="ned-empty-icon" style={{ color: accentMain }}>
