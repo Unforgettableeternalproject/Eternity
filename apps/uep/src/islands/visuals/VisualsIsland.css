@@ -123,11 +123,40 @@
 }
 
 .uep-visland__title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.uep-visland__clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #5e548e 28%, transparent);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, #7a7267);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.uep-visland__clear:hover,
+.uep-visland__clear:focus-visible {
+  border-color: #5e548e;
+  background: color-mix(in srgb, #5e548e 12%, transparent);
+  color: #8f83c9;
 }
 
 .uep-visland__placeholder {

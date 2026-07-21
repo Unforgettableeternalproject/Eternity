@@ -27,6 +27,7 @@ import { getAudioStore } from '../../audio';
 import type { AudioQueueItem, AudioState } from '../../audio';
 import type { EchoPreviewTrack } from './echoPreview';
 import {
+  clearEchoSuggestion,
   consumeEchoSuggestion,
   UEP_ECHO_SUGGESTION_EVENT,
 } from './echoSuggestionBridge';
@@ -291,6 +292,15 @@ export default function EchoesIsland() {
     );
   }
 
+  function clearEchoState() {
+    store.clearPlayback();
+    clearEchoSuggestion();
+    setSuggestion(null);
+    setQueueOpen(false);
+    setSeekProg(null);
+    wasPlayingBeforeCollapse = false;
+  }
+
   /* ── seek（沿 Reader 的 input-range 覆蓋模式） ── */
   const [seekProg, setSeekProg] = useState<number | null>(null);
   const isSeeking = seekProg !== null;
@@ -424,6 +434,24 @@ export default function EchoesIsland() {
 
       {/* ── 控制列：⟳ ◀◀ ▶▶ ♪（播放/暫停在黑球上） ── */}
       <div className="uep-eisland__controls">
+        <button
+          type="button"
+          className="uep-eisland__ctl uep-eisland__clear"
+          onClick={clearEchoState}
+          disabled={
+            !hasSong &&
+            state.playlist.length === 0 &&
+            state.history.length === 0 &&
+            !interrupting &&
+            suggestion === null
+          }
+          title="清除回聲狀態"
+          aria-label="清除回聲狀態"
+        >
+          <span className="uep-eisland__ctl-glyph" aria-hidden>
+            ×
+          </span>
+        </button>
         <button
           type="button"
           className={`uep-eisland__ctl uep-eisland__loop${state.loop !== 'none' ? ' is-on' : ''}`}

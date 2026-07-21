@@ -427,6 +427,17 @@
   cursor: default;
 }
 
+.uep-eisland__clear {
+  color: var(--ink-mute);
+  font-size: 16px;
+}
+
+.uep-eisland__clear:hover:not(:disabled),
+.uep-eisland__clear:focus-visible:not(:disabled) {
+  border-color: color-mix(in srgb, #8f4d58 70%, var(--hairline-strong));
+  color: #8f4d58;
+}
+
 .uep-eisland__loop {
   width: 26px;
   height: 26px;

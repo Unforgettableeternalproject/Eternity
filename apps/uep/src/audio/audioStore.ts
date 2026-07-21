@@ -774,6 +774,26 @@ export const uepAudio = {
   /* ── 生命週期 ── */
 
   /**
+   * 使用者主動清除島內播放狀態：停止目前曲目並清空佇列、歷史與
+   * 插播快照，但保留音量和循環偏好。與登出/reset 的 stop() 不同，
+   * 這是同一帳號內可恢復到乾淨播放器的操作。
+   */
+  clearPlayback(): void {
+    cancelAnimationFrame(rafId);
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.src = '';
+    }
+    loadedSongId = null;
+    pendingSeekTime = null;
+    isSeeking = false;
+    const { volume, loop } = state;
+    state = { ...createInitialAudioState(), volume, loop };
+    notify();
+    persistNow();
+  },
+
+  /**
    * 全面停止：登出 / 進度 reset / echoes 島被停用時呼叫。
    * 停止播放、清空全部狀態（含音量回預設）、清除持久化——
    * 同瀏覽器換帳號不得殘留上一個帳號的播放狀態。

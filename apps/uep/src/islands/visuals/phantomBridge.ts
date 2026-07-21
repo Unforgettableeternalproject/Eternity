@@ -274,7 +274,11 @@ export function getPhantomGallery(): PhantomGallery | null {
   return window.__uepPhantomGallery ?? null;
 }
 
-/** 清除目前投射與 pending 提示（登出/進度 reset，islandRuntime 呼叫） */
+/**
+ * 清除目前投射、pending 提示與 clue 快照。
+ * 除登出/reset 外也供島內「清除投射」使用，因此同步廣播空狀態，
+ * 讓已展開的 React island 不必重開就立即回到空畫框。
+ */
 export function clearPhantomGallery(): void {
   if (typeof window === 'undefined') return;
   window.__uepPhantomGallery = null;
@@ -285,6 +289,16 @@ export function clearPhantomGallery(): void {
   } catch {
     // 靜默失敗
   }
+  window.dispatchEvent(
+    new CustomEvent<PhantomGallery | null>(UEP_PHANTOM_SHOW_EVENT, {
+      detail: null,
+    })
+  );
+  window.dispatchEvent(
+    new CustomEvent<PhantomGallery | null>(UEP_PHANTOM_SUGGESTION_EVENT, {
+      detail: null,
+    })
+  );
 }
 
 /**

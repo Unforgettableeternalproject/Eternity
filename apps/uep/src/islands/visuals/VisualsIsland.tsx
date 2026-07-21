@@ -27,6 +27,7 @@ import { resolveGalleryImages } from '../../visuals';
 import type { ResolvedGalleryImage } from '../../visuals';
 
 import {
+  clearPhantomGallery,
   consumePhantomSuggestion,
   getPhantomGallery,
   pushPhantomGallery,
@@ -199,6 +200,15 @@ export default function VisualsIsland() {
         <span className="uep-visland__title" title={gallery.title}>
           {gallery.title}
         </span>
+        <button
+          type="button"
+          className="uep-visland__clear"
+          onClick={clearPhantomGallery}
+          title="清除目前投射"
+          aria-label="清除目前投射"
+        >
+          <span aria-hidden>×</span>
+        </button>
       </div>
 
       {!galleryUnlocked ? (

@@ -190,6 +190,41 @@ describe('EchoesIsland', () => {
     expect(screen.getByText(/佇列是空的/)).toBeTruthy();
   });
 
+  it('清除回聲狀態會清空播放內容與提示，但保留偏好', async () => {
+    const { store, EchoesIsland } = await setup();
+    store.setVolume(0.4);
+    store.setLoop('one');
+    await store.play('s1', 'https://cdn/u1.mp3', '曲一');
+    store.enqueue({ songId: 'q1', url: 'https://cdn/q1.mp3', title: '甲' });
+    render(<EchoesIsland />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('uep:echo-suggestion', {
+          detail: {
+            source: 'embed',
+            songId: 'related',
+            title: '角色的回聲',
+            url: 'https://cdn/related.mp3',
+            clusterId: 'characters',
+            spoilerLevel: 0,
+            accent: '#B86060',
+          },
+        })
+      );
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '清除回聲狀態' }));
+
+    const s = store.getState();
+    expect(s.currentSongId).toBeNull();
+    expect(s.playlist).toEqual([]);
+    expect(s.history).toEqual([]);
+    expect(s.volume).toBe(0.4);
+    expect(s.loop).toBe('one');
+    expect(screen.queryByText('RELATED ECHO')).toBeNull();
+    expect(screen.getByText(/還沒有回聲跟著你/)).toBeTruthy();
+  });
+
   it('黑球＝播放鍵：無當前曲時從佇列頭開播', async () => {
     const { store, EchoesIsland } = await setup();
     store.enqueue({

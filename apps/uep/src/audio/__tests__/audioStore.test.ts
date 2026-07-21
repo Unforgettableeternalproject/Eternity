@@ -734,6 +734,27 @@ describe('playAtFraction（原子 play-at-position）', () => {
 });
 
 describe('生命週期', () => {
+  it('clearPlayback：清空播放內容但保留音量與循環偏好', async () => {
+    const { uepAudio } = await freshStore();
+    uepAudio.setVolume(0.35);
+    uepAudio.setLoop('all');
+    uepAudio.play('a', 'ua', '甲');
+    await flush();
+    uepAudio.enqueue({ songId: 'b', url: 'ub', title: '乙' });
+
+    uepAudio.clearPlayback();
+
+    const s = uepAudio.getState();
+    expect(s.currentSongId).toBeNull();
+    expect(s.isPlaying).toBe(false);
+    expect(s.playlist).toEqual([]);
+    expect(s.history).toEqual([]);
+    expect(s.interruptionSnapshot).toBeNull();
+    expect(s.volume).toBe(0.35);
+    expect(s.loop).toBe('all');
+    expect(window.localStorage.getItem(AUDIO_STORAGE_KEY)).not.toBeNull();
+  });
+
   it('stop：清空狀態與持久化', async () => {
     const { uepAudio } = await freshStore();
     uepAudio.play('a', 'ua');

@@ -23,6 +23,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import VisualsIsland from '../VisualsIsland';
 import {
   clearPhantomGallery,
+  getPhantomGallery,
+  PHANTOM_STATE_STORAGE_KEY,
   pushPhantomGallery,
   pushPhantomSuggestion,
 } from '../phantomBridge';
@@ -81,6 +83,17 @@ describe('VisualsIsland 資料鏈', () => {
     pushPhantomGallery(makeGallery());
     render(<VisualsIsland />);
     expect(screen.getByText('女主角設定集')).toBeTruthy();
+  });
+
+  it('清除目前投射後立即回到空畫框並移除持久狀態', () => {
+    pushPhantomGallery(makeGallery());
+    render(<VisualsIsland />);
+
+    fireEvent.click(screen.getByRole('button', { name: '清除目前投射' }));
+
+    expect(screen.getByText(/畫框裡還是一片空白/)).toBeTruthy();
+    expect(getPhantomGallery()).toBeNull();
+    expect(window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY)).toBeNull();
   });
 
   it('展開中 push 新投射即時切換並重設索引', () => {

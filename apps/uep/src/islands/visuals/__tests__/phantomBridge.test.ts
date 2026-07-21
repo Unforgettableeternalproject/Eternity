@@ -169,12 +169,27 @@ describe('目前投射（current）', () => {
   });
 
   it('clearPhantomGallery 同時清除投射與 pending 提示（登出/reset）', () => {
+    const showListener = vi.fn();
+    const suggestionListener = vi.fn();
+    window.addEventListener(UEP_PHANTOM_SHOW_EVENT, showListener);
+    window.addEventListener(UEP_PHANTOM_SUGGESTION_EVENT, suggestionListener);
     pushPhantomGallery(makeGallery());
     pushPhantomSuggestion(makeGallery({ source: 'embed' }));
+    showListener.mockClear();
+    suggestionListener.mockClear();
     clearPhantomGallery();
+    window.removeEventListener(UEP_PHANTOM_SHOW_EVENT, showListener);
+    window.removeEventListener(
+      UEP_PHANTOM_SUGGESTION_EVENT,
+      suggestionListener
+    );
     expect(getPhantomGallery()).toBeNull();
     expect(consumePhantomSuggestion()).toBeNull();
     expect(window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY)).toBeNull();
+    expect((showListener.mock.calls[0][0] as CustomEvent).detail).toBeNull();
+    expect(
+      (suggestionListener.mock.calls[0][0] as CustomEvent).detail
+    ).toBeNull();
   });
 });
 
