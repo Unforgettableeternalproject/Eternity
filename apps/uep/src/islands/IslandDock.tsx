@@ -14,6 +14,10 @@
 import React, { useEffect, useState } from 'react';
 
 import { useTerminalUnread } from './concepts/useTerminalUnread';
+import {
+  UEP_ECHO_SPOT_WAITING_EVENT,
+  getEchoSpotWaiting,
+} from './echoes/echoPreview';
 import { getIslandRuntime } from './islandRuntime';
 import { ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
@@ -46,6 +50,15 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
     window.addEventListener(UEP_CLUE_WAITING_EVENT, onChange);
     return () => window.removeEventListener(UEP_CLUE_WAITING_EVENT, onChange);
   }, []);
+  const [echoSpotWaiting, setEchoSpotWaitingState] = useState(() =>
+    getEchoSpotWaiting()
+  );
+  useEffect(() => {
+    const onChange = () => setEchoSpotWaitingState(getEchoSpotWaiting());
+    window.addEventListener(UEP_ECHO_SPOT_WAITING_EVENT, onChange);
+    return () =>
+      window.removeEventListener(UEP_ECHO_SPOT_WAITING_EVENT, onChange);
+  }, []);
 
   if (collapsed.length === 0) return null;
 
@@ -55,24 +68,29 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
         const def = ISLAND_DEFINITIONS[id];
         const unread = id === 'concepts' ? conceptsUnread : 0;
         const waiting = id === 'visuals' && clueWaiting > 0;
+        const echoWaiting = id === 'echoes' && echoSpotWaiting;
         return (
           <button
             key={id}
-            className={`uep-island-dock__chip${waiting ? ' is-clue-waiting' : ''}`}
+            className={`uep-island-dock__chip${waiting ? ' is-clue-waiting' : ''}${echoWaiting ? ' is-echo-waiting' : ''}`}
             onClick={() => runtime.open(id)}
             aria-label={
               waiting
                 ? `展開${def.title}（有視覺線索等待中）`
-                : unread > 0
-                  ? `展開${def.title}（${unread} 項未讀更新）`
-                  : `展開${def.title}`
+                : echoWaiting
+                  ? `展開${def.title}（有回聲等待插播）`
+                  : unread > 0
+                    ? `展開${def.title}（${unread} 項未讀更新）`
+                    : `展開${def.title}`
             }
             title={
               waiting
                 ? `${def.title} · 有視覺線索等待中`
-                : unread > 0
-                  ? `${def.title} · ${unread} 項未讀更新`
-                  : def.title
+                : echoWaiting
+                  ? `${def.title} · 有回聲等待插播`
+                  : unread > 0
+                    ? `${def.title} · ${unread} 項未讀更新`
+                    : def.title
             }
           >
             <span aria-hidden>{def.icon}</span>

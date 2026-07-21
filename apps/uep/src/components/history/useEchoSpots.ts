@@ -7,11 +7,16 @@ import {
   type SongSpoilerRevision,
   type SpoilerLevel,
 } from '../../audio';
-import { shouldMountIsland } from '../../islands/islandRuntime';
+import {
+  getIslandRuntime,
+  shouldMountIsland,
+} from '../../islands/islandRuntime';
 import {
   buildEchoAudioUrl,
   dispatchEchoPreview,
   echoClusterStyle,
+  setEchoSpotWaiting,
+  type EchoPreviewTrack,
 } from '../../islands/echoes/echoPreview';
 import { getProgressManager, type MarkerPassedInfo } from '../../progress';
 import type { ProgressState } from '../../progress';
@@ -39,6 +44,14 @@ interface EchoSpotData {
   duration?: number;
   spoilerLevel: SpoilerLevel;
   spoilerRevisions: SongSpoilerRevision[];
+}
+
+interface PendingEchoSpot {
+  effective: EchoSpotData;
+  preview: EchoPreviewTrack;
+  accent: string;
+  newlyUnlocked: boolean;
+  visitToken: number;
 }
 
 function parseSpoilerLevel(value: string | null): SpoilerLevel {
@@ -202,6 +215,48 @@ export function useEchoSpots({
   const triggeredRef = useRef(new Set<string>());
   const autoplayAttemptedRef = useRef(false);
   const visitTokenRef = useRef(0);
+  const pendingRef = useRef<PendingEchoSpot | null>(null);
+
+  const clearPending = useCallback(() => {
+    pendingRef.current = null;
+    setEchoSpotWaiting(false);
+  }, []);
+
+  const attemptInterrupt = useCallback((pending: PendingEchoSpot) => {
+    if (visitTokenRef.current !== pending.visitToken) return;
+    autoplayAttemptedRef.current = true;
+    void getAudioStore()
+      .interrupt(
+        pending.effective.songId,
+        pending.preview.url,
+        pending.effective.title,
+        pending.accent
+      )
+      .then((played) => {
+        if (visitTokenRef.current !== pending.visitToken) return;
+        dispatchEchoPreview({
+          ...pending.preview,
+          ...(played ? { source: 'played' as const } : {}),
+          justCollected: pending.newlyUnlocked,
+        });
+      });
+  }, []);
+
+  // 島展開是明確使用者手勢：消費收合期間暫存的 Echo Spot，這時才插播。
+  useEffect(
+    () =>
+      getIslandRuntime().subscribe((state, detail) => {
+        if (detail.source === 'reset') {
+          clearPending();
+          return;
+        }
+        if (!state.windows.echoes?.open || !pendingRef.current) return;
+        const pending = pendingRef.current;
+        clearPending();
+        attemptInterrupt(pending);
+      }),
+    [attemptInterrupt, clearPending]
+  );
 
   useEffect(() => {
     const markInteracted = () => {
@@ -219,6 +274,7 @@ export function useEchoSpots({
 
   useEffect(() => {
     visitTokenRef.current += 1;
+    clearPending();
     triggeredRef.current = new Set();
     autoplayAttemptedRef.current = false;
     if (pageId) {
@@ -229,12 +285,18 @@ export function useEchoSpots({
       }
     }
     return () => {
+      clearPending();
       // 離開文章是插播恢復條件；一般播放狀態不受影響。
       if (getAudioStore().getState().interruptionSnapshot) {
         getAudioStore().restoreFromInterruption();
       }
     };
-  }, [pageId]);
+  }, [clearPending, pageId]);
+
+  // 登出、停用或失去探索者資格時，等待事件不可跨守門殘留。
+  useEffect(() => {
+    if (!shouldMountIsland(progress, 'echoes')) clearPending();
+  }, [clearPending, progress]);
 
   return useCallback(
     (info: MarkerPassedInfo) => {
@@ -306,28 +368,36 @@ export function useEchoSpots({
           scrollVelocity,
         });
         if (shouldDowngrade) {
+          clearPending();
           dispatchEchoPreview({ ...preview, justCollected: newlyUnlocked });
           return;
         }
 
-        autoplayAttemptedRef.current = true;
-        void getAudioStore()
-          .interrupt(
-            effective.songId,
-            preview.url,
-            effective.title,
-            cluster.color
-          )
-          .then((played) => {
-            if (visitTokenRef.current !== visitToken) return;
-            dispatchEchoPreview({
-              ...preview,
-              ...(played ? { source: 'played' as const } : {}),
-              justCollected: newlyUnlocked,
-            });
-          });
+        const pending: PendingEchoSpot = {
+          effective,
+          preview,
+          accent: cluster.color,
+          newlyUnlocked,
+          visitToken,
+        };
+        // Echoes 島收合時不得偷播；只讓 dock chip 閃爍。使用者展開後
+        // 由 runtime 訂閱同步消費，離開文章則由 page effect 直接丟棄。
+        if (!getIslandRuntime().getWindow('echoes')?.open) {
+          pendingRef.current = pending;
+          setEchoSpotWaiting(true);
+          return;
+        }
+        clearPending();
+        attemptInterrupt(pending);
       });
     },
-    [apiBase, pageId, resumeJumpRef, scrollVelocityRef]
+    [
+      apiBase,
+      attemptInterrupt,
+      clearPending,
+      pageId,
+      resumeJumpRef,
+      scrollVelocityRef,
+    ]
   );
 }

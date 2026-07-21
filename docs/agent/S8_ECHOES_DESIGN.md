@@ -226,6 +226,11 @@ function AudioProvider({ children }: { children: React.ReactNode }) {
 - 插播（與任何 spot 觸發的播放/提示卡）以 `shouldMountIsland(progress, 'echoes')` 為前置條件——**流浪回聲島未解鎖、被停用、或非登入探索者時，echo spot 不觸發播放也不出卡**。理由：島是唯一的播放控制 UI，島不在時播出來的音樂沒有任何可見控制入口
 - **解鎖旗標的授予不受此限**——spot 掃過永遠照常授予推導旗標（歌曲照樣進收藏池），之後解鎖島時收藏已累積。互動式嵌入不適用這條規則，永遠不授旗。
 
+**島已掛載但收合時延遲插播（艾斯維爾 07/21 定案）**：
+- Echoes 視窗 `open=false` 時，正常 Echo Spot 不得直接呼叫 `interrupt()`；改為保存本頁 pending 事件，右下 dock 的 Echoes chip 閃爍。
+- 使用者展開 Echoes 島時（明確手勢）才消費 pending 並嘗試插播；離開文章、登出／reset、停用島時直接丟棄，不跨頁追播。
+- 快速捲動、resume jump 與 L3 等既有誤觸降級仍直接走 `SongPreviewCard`，不建立等待插播。
+
 **為什麼用 sessionStorage 而非 ProgressState**：
 - ProgressState 的旗標是持久化的、跨裝置同步的，語意是「認知的永久狀態」
 - echo spot 的「一次觸發」是**單次頁面 session 的體驗保護**，避免重複干擾，重新進入頁面可以再次觸發（合理的劇情重讀體驗）
@@ -447,7 +452,7 @@ echo spot 掃描線通過
 
 **三層防禦**：
 
-1. **實際播放判定**：所有 Echo Spot 在正常掃描時都直接嘗試 `interrupt()`；不因尚無 click/tap 手勢而預先降級，由實際 `audio.play()` 結果決定是否出提示卡。
+1. **實際播放判定**：Echoes 島展開時，所有正常 Echo Spot 都直接嘗試 `interrupt()`；島收合時只進 pending，待使用者展開後再嘗試。不因尚無其他 click/tap 手勢而預先降級，由實際 `audio.play()` 結果決定是否出提示卡。
 
 2. **頁面去重**：spot 本身仍維持每次頁面造訪只觸發一次；既有 autoplay attempt 紀錄不得阻止其他正常掃描的 spot 嘗試插播。
 
@@ -922,7 +927,7 @@ S8 初期：EchoesReader 保留 `AudioProvider`（改為薄殼），`EchoesAudio
 
 - `EchoSpotNode` 已納入 TipTap：保存穩定 `spotId`、完整歌曲頁 id、R2 裸 key、entityKey、分類／時長與 spoiler revision 快照；Song Picker 只列出具音檔且符合綁定規則的歌曲，排除 special 與缺 entityKey 的非劇情歌
 - progress marker 掃描線已擴充 `role + element` callback；echo spot 每次頁面造訪只觸發一次，重新造訪可再觸發，且無論島是否掛載都先授予推導旗標
-- 只有 Echoes 島已掛載時才走 `audioStore.interrupt()`；所有 Echo Spot 正常掃描都實際嘗試插播，快速捲動、resume jump、L3 封印或瀏覽器實際拒絕播放時才出提示卡
+- Echoes 島須已掛載且展開才立即走 `audioStore.interrupt()`；收合時 dock chip 閃爍，展開後才消費 pending，離頁／reset／停用即丟棄。快速捲動、resume jump、L3 封印或瀏覽器實際拒絕播放時才出提示卡
 - 插播在離頁時恢復；插播中 next/previous 不再把插播曲誤當使用者佇列狀態
 - 「上次讀到」跳轉以 session 旗標、`scrollend` 與 500ms timeout 雙重解除，避免掃描線沿途觸發 echo spot
 

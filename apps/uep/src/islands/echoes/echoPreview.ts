@@ -1,4 +1,11 @@
 export const UEP_ECHO_PREVIEW_EVENT = 'uep:echo-preview';
+export const UEP_ECHO_SPOT_WAITING_EVENT = 'uep:echo-spot-waiting';
+
+declare global {
+  interface Window {
+    __uepEchoSpotWaiting?: boolean;
+  }
+}
 
 /**
  * spot：插播未成（autoplay 被擋/降級），卡片提供手動播放入口。
@@ -28,6 +35,21 @@ export function dispatchEchoPreview(track: EchoPreviewTrack): void {
       detail: track,
     })
   );
+}
+
+/** Echo Spot 在島收合時等待使用者展開；只保存提示狀態，播放資料由 hook 擁有。 */
+export function setEchoSpotWaiting(waiting: boolean): void {
+  if (typeof window === 'undefined') return;
+  if (window.__uepEchoSpotWaiting === waiting) return;
+  window.__uepEchoSpotWaiting = waiting;
+  window.dispatchEvent(
+    new CustomEvent<boolean>(UEP_ECHO_SPOT_WAITING_EVENT, { detail: waiting })
+  );
+}
+
+export function getEchoSpotWaiting(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.__uepEchoSpotWaiting === true;
 }
 
 export const ECHO_CLUSTER_STYLE: Record<

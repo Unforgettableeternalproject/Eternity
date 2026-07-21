@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MarkerPassedInfo, ProgressState } from '../../../progress';
+import { getEchoSpotWaiting } from '../../../islands/echoes/echoPreview';
 import {
   readEchoSpot,
   refreshEchoSpot,
@@ -41,7 +42,21 @@ const audioMock = vi.hoisted(() => ({
 }));
 const grantFlags = vi.hoisted(() => vi.fn());
 const dispatchSpy = vi.hoisted(() => vi.fn());
-const islandMock = vi.hoisted(() => ({ mounted: true }));
+const islandMock = vi.hoisted(() => ({
+  mounted: true,
+  open: true,
+  listeners: new Set<
+    (
+      state: { windows: { echoes: { open: boolean } } },
+      detail: { source: string }
+    ) => void
+  >(),
+  emit(source = 'open') {
+    for (const listener of this.listeners) {
+      listener({ windows: { echoes: { open: this.open } } }, { source });
+    }
+  },
+}));
 
 vi.mock('../../../audio', () => ({
   // 帶 entityKey 的旗標格式——驗證授旗用「現行」entityKey（#2 回歸）
@@ -56,6 +71,15 @@ vi.mock('../../../audio', () => ({
 }));
 vi.mock('../../../islands/islandRuntime', () => ({
   shouldMountIsland: () => islandMock.mounted,
+  getIslandRuntime: () => ({
+    getWindow: () => ({ open: islandMock.open }),
+    subscribe: (
+      listener: typeof islandMock.listeners extends Set<infer T> ? T : never
+    ) => {
+      islandMock.listeners.add(listener);
+      return () => islandMock.listeners.delete(listener);
+    },
+  }),
 }));
 vi.mock('../../../progress', () => ({
   getProgressManager: () => ({ grantFlags }),
@@ -219,6 +243,8 @@ describe('useEchoSpots 提示卡發送時機', () => {
     audioMock.interruptResult = true;
     audioMock.collected = false;
     islandMock.mounted = true;
+    islandMock.open = true;
+    islandMock.listeners.clear();
     grantFlags.mockClear();
     dispatchSpy.mockClear();
     // 預設離線：反查退回快照，既有案例行為與反查前一致
@@ -327,6 +353,52 @@ describe('useEchoSpots 提示卡發送時機', () => {
       '主題曲',
       expect.any(String)
     );
+    unmount();
+  });
+
+  it('Echoes 島收合 → 不偷播、dock 進等待；展開後才插播一次', async () => {
+    islandMock.open = false;
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(true);
+
+    await act(async () => {
+      islandMock.open = true;
+      islandMock.emit('open');
+    });
+    expect(audioMock.interrupt).toHaveBeenCalledOnce();
+    expect(getEchoSpotWaiting()).toBe(false);
+    unmount();
+  });
+
+  it('Echoes 島收合後離開文章 → 丟棄等待事件，之後展開不插播', async () => {
+    islandMock.open = false;
+    const { result, rerender, unmount } = renderHook(
+      ({ pageId }) =>
+        useEchoSpots({
+          pageId,
+          progress: {} as ProgressState,
+          apiBase: 'http://localhost:8788',
+          resumeJumpRef: { current: false },
+          scrollVelocityRef: { current: 0 },
+        }),
+      { initialProps: { pageId: 'history/p1' as string | null } }
+    );
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(getEchoSpotWaiting()).toBe(true);
+
+    rerender({ pageId: 'history/p2' });
+    expect(getEchoSpotWaiting()).toBe(false);
+    await act(async () => {
+      islandMock.open = true;
+      islandMock.emit('open');
+    });
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
     unmount();
   });
 
