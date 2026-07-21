@@ -1408,8 +1408,10 @@ export default function HistoryReader() {
           </button>
         )}
 
-        {/* Visual Clue 側邊書籤（V-D）：同 scroll marker 掛在不滾動的
-            .history-main 右緣；島展開中才渲染（收合走 dock chip 提示） */}
+        {/* Visual Clue 側邊插卡（V-D，#6 重新設計）：掛在不滾動的
+            .history-main，內縮至文章右側留白、連接線探向內文右緣；
+            多 clue 折疊成一疊 hover 展開。島展開中才渲染（收合走
+            dock chip 提示） */}
         {visualsIslandOpen && (
           <VisualClueBookmarks
             clues={visibleVisualClues}

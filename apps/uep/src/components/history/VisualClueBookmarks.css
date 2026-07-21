@@ -1,88 +1,212 @@
-/* Visual Clue 側邊書籤（S8 下半場 V-D）——幻影紫，書籤隱喻沿
-   「遺落的書籤」語彙。掛在 .history-main 右緣，z-index 低於
-   「上次位置」scroll marker（20）避免互蓋。 */
+/* Visual Clue 側邊插卡（S8 下半場 V-D，#6 重新設計）——幻影紫的
+   線索卡，畫框縮圖 + 連接線末端針腳，刻意與史學紅「上次位置」scroll
+   marker（細線小標籤、right:0）拉開語彙區隔。卡片坐落文章右側留白、
+   連接線撐長到文章右緣。多 clue 縮小錯位疊成一落，hover / focus 展開。 */
 
 .uep-clue-rail {
   position: absolute;
-  top: 46%;
-  right: 0;
-  z-index: 19;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
+  top: 40%;
+  right: clamp(40px, 4.5vw, 96px);
+  z-index: 21;
   pointer-events: none;
 }
 
-.uep-clue-bookmark {
+/* ── 堆疊容器：連續 hover 區（展開後滑鼠移動不斷、卡片可穩定點擊） ── */
+.uep-clue-stack {
+  --card-h: 62px;
+  --stack-gap: 10px;
+  --fold-peek: 12px;
+  position: relative;
+  width: clamp(272px, 30vw, 460px);
+  height: calc(var(--card-h) + (var(--clue-count) - 1) * var(--fold-peek));
+  pointer-events: auto;
+  transition: height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.uep-clue-stack:hover,
+.uep-clue-stack:focus-within {
+  height: calc(
+    var(--clue-count) * var(--card-h) + (var(--clue-count) - 1) *
+      var(--stack-gap)
+  );
+}
+
+/* ── 插卡按鈕（line + frame） ── */
+.uep-clue-card {
+  position: absolute;
+  top: calc(var(--clue-i) * var(--fold-peek));
+  right: 0;
   display: flex;
   align-items: center;
-  gap: 0;
+  width: 100%;
+  height: var(--card-h);
   padding: 0;
   margin: 0;
   background: none;
   border: none;
   cursor: pointer;
-  pointer-events: auto;
-  animation: clueBookmarkIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform: scale(calc(1 - var(--clue-i) * 0.05));
+  transform-origin: top right;
+  opacity: calc(1 - var(--clue-i) * 0.16);
+  z-index: calc(50 - var(--clue-i));
+  transition:
+    top 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.24s ease;
 }
 
-/* 連接線：指向內容方向、懸在文章右緣外側，不碰字 */
-.uep-clue-bookmark__line {
-  display: block;
-  width: 26px;
+.uep-clue-card:first-child {
+  animation: clueCardIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 展開態：卡片排開成列，回到滿版不透明 */
+.uep-clue-stack:hover .uep-clue-card,
+.uep-clue-stack:focus-within .uep-clue-card {
+  top: calc(var(--clue-i) * (var(--card-h) + var(--stack-gap)));
+  transform: none;
+  opacity: 1;
+}
+
+/* ── 連接線：flex 撐長，末端針腳圓點落到文章右緣 ── */
+.uep-clue-card__line {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 36px;
   height: 1px;
-  background: linear-gradient(to left, #5e548e, transparent);
-  opacity: 0.75;
+  background: linear-gradient(
+    to left,
+    color-mix(in srgb, #5e548e 85%, transparent),
+    transparent
+  );
 }
 
-.uep-clue-bookmark__tab {
+.uep-clue-card__line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8f83c9;
+  box-shadow: 0 0 6px color-mix(in srgb, #8f83c9 70%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+/* ── 插卡本體 ── */
+.uep-clue-card__frame {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  max-width: 168px;
-  padding: 7px 10px 7px 9px;
+  gap: 10px;
+  flex: 0 0 auto;
+  width: 208px;
+  height: 100%;
+  padding: 0 13px 0 8px;
   border: 1px solid color-mix(in srgb, #5e548e 55%, transparent);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  background: color-mix(in srgb, #5e548e 16%, #131120);
-  box-shadow: 0 2px 12px rgb(0 0 0 / 35%);
+  border-radius: 11px;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #5e548e 22%, #131120),
+    #131120
+  );
+  box-shadow:
+    0 6px 20px rgb(0 0 0 / 40%),
+    inset 0 1px 0 color-mix(in srgb, #8f83c9 20%, transparent);
   color: #cfc7ee;
   transition:
     background 0.2s ease,
+    border-color 0.2s ease,
     transform 0.2s ease;
 }
 
-.uep-clue-bookmark:hover .uep-clue-bookmark__tab,
-.uep-clue-bookmark:focus-visible .uep-clue-bookmark__tab {
-  background: color-mix(in srgb, #5e548e 30%, #131120);
-  transform: translateX(-2px);
+.uep-clue-card:hover .uep-clue-card__frame,
+.uep-clue-card:focus-visible .uep-clue-card__frame {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #5e548e 34%, #131120),
+    #17142a
+  );
+  border-color: color-mix(in srgb, #8f83c9 70%, transparent);
+  transform: translateX(-3px);
 }
 
-.uep-clue-bookmark:focus-visible .uep-clue-bookmark__tab {
-  outline: 2px solid #5e548e;
+.uep-clue-card:focus-visible {
+  outline: none;
+}
+
+.uep-clue-card:focus-visible .uep-clue-card__frame {
+  outline: 2px solid #8f83c9;
   outline-offset: 2px;
 }
 
-.uep-clue-bookmark__icon {
-  font-size: 13px;
+/* ── 畫框縮圖（#8 起始圖片預留，目前為模糊佔位） ── */
+.uep-clue-card__thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, #5e548e 45%, transparent);
+  border-radius: 7px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #5e548e 42%, #131120),
+    color-mix(in srgb, #8f83c9 28%, #131120)
+  );
+}
+
+/* 模糊柔光斑——待 #8 換成真實起始圖片的模糊縮圖 */
+.uep-clue-card__thumb::before {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #cfc7ee 40%, transparent);
+  filter: blur(9px);
+  opacity: 0.7;
+}
+
+.uep-clue-card__glyph {
+  position: relative;
+  font-size: 15px;
   line-height: 1;
+  color: color-mix(in srgb, #f0ecff 80%, transparent);
+}
+
+/* ── 文字 ── */
+.uep-clue-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.uep-clue-card__label {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.16em;
   color: #8f83c9;
 }
 
-.uep-clue-bookmark__label {
+.uep-clue-card__title {
   overflow: hidden;
-  font-family: var(--font-mono, monospace);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  max-width: 132px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #cfc7ee;
 }
 
-@keyframes clueBookmarkIn {
+@keyframes clueCardIn {
   0% {
     opacity: 0;
-    transform: translateX(22px);
+    transform: translateX(20px);
   }
   100% {
     opacity: 1;
@@ -90,24 +214,40 @@
   }
 }
 
-/* 窄視窗：只留圖示書籤，label 收起，避免壓到內文 */
-@media (max-width: 760px) {
-  .uep-clue-bookmark__label {
-    display: none;
+/* 中等視窗：連接線收短、標題收窄，避免壓到內文 */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .uep-clue-rail {
+    right: 24px;
   }
 
-  .uep-clue-bookmark__line {
-    width: 14px;
+  .uep-clue-stack {
+    width: clamp(212px, 26vw, 300px);
+  }
+
+  .uep-clue-card__title {
+    max-width: 96px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uep-clue-bookmark {
+  .uep-clue-card:first-child {
     animation: none;
   }
 
-  .uep-clue-bookmark:hover .uep-clue-bookmark__tab,
-  .uep-clue-bookmark:focus-visible .uep-clue-bookmark__tab {
+  .uep-clue-card {
+    transform: none;
+    transition:
+      top 0.2s ease,
+      opacity 0.2s ease;
+  }
+
+  .uep-clue-stack:hover .uep-clue-card,
+  .uep-clue-stack:focus-within .uep-clue-card {
+    transform: none;
+  }
+
+  .uep-clue-card:hover .uep-clue-card__frame,
+  .uep-clue-card:focus-visible .uep-clue-card__frame {
     transform: none;
   }
 }
