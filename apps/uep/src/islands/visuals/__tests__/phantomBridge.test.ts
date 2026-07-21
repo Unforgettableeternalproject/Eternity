@@ -61,7 +61,7 @@ describe('isPhantomEligibleDivision', () => {
 describe('canMirrorGallery', () => {
   const base = { divisionId: 'profiles', layout: 'corridor', imageCount: 3 };
 
-  it('陳列走廊/鑲框室、非精靈圖、有圖片 → 可映照', () => {
+  it('四分館、非精靈圖、有圖片 → 可映照（#3 放寬）', () => {
     expect(canMirrorGallery(base)).toBe(true);
     expect(
       canMirrorGallery({
@@ -70,11 +70,13 @@ describe('canMirrorGallery', () => {
         layout: 'museum',
       })
     ).toBe(true);
+    // 抽象萃取間／基底實驗室的非精靈圖 gallery 亦可映照（1e1aaea 放寬）
+    expect(canMirrorGallery({ ...base, divisionId: 'sketchs' })).toBe(true);
+    expect(canMirrorGallery({ ...base, divisionId: 'pixel' })).toBe(true);
   });
 
   it.each([
-    [{ ...base, divisionId: 'sketchs' }, '分館不進島'],
-    [{ ...base, divisionId: 'pixel' }, '基底實驗室不進島'],
+    [{ ...base, divisionId: 'unknown' }, '非白名單分館不進島'],
     [{ ...base, layout: 'sprite' }, '精靈圖 gallery 本輪排除'],
     [{ ...base, imageCount: 0 }, '空 gallery'],
   ])('排除 %j（%s）', (input) => {
