@@ -2,7 +2,8 @@
 
 .uep-devtools-fab {
   position: fixed;
-  right: 16px;
+  /* dock（right:14px + 44px chip）在右下角，往左讓開避免重疊 */
+  right: 72px;
   bottom: 16px;
   z-index: 8998;
   display: grid;
