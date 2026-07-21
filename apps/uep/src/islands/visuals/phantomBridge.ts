@@ -193,13 +193,21 @@ function hydratePhantomState(): void {
 }
 
 /**
- * 進島分館白名單：只有陳列走廊（profiles）+ 鑲框室（illustrations）；
- * 抽象萃取間、基底實驗室屬額外內容不列入（設計文件 §3-3）。
+ * 進島分館白名單：陳列走廊（profiles）+ 鑲框室（illustrations）+
+ * 抽象萃取間（sketchs）+ 基底實驗室（pixel）四個 Visuals 分館皆可映照
+ * （S8 手動驗收 #3 放寬——島展示端 VisualsPhantom 已支援四分館 framing，
+ * 入口一併開放）。精靈圖 gallery 不靠分館排除，改由 canMirrorGallery 以
+ * layout='sprite' 過濾（基底實驗室的非精靈圖 gallery 可進島）。
  */
 export function isPhantomEligibleDivision(
   divisionId: string | null | undefined
 ): boolean {
-  return divisionId === 'profiles' || divisionId === 'illustrations';
+  return (
+    divisionId === 'profiles' ||
+    divisionId === 'illustrations' ||
+    divisionId === 'sketchs' ||
+    divisionId === 'pixel'
+  );
 }
 
 /**

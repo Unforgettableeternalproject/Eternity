@@ -43,13 +43,15 @@ afterEach(() => {
 });
 
 describe('isPhantomEligibleDivision', () => {
-  it('只有陳列走廊與鑲框室進島', () => {
-    expect(isPhantomEligibleDivision('profiles')).toBe(true);
-    expect(isPhantomEligibleDivision('illustrations')).toBe(true);
-  });
+  it.each([['profiles'], ['illustrations'], ['sketchs'], ['pixel']])(
+    '四分館 %s 皆進島（#3 放寬）',
+    (divisionId) => {
+      expect(isPhantomEligibleDivision(divisionId)).toBe(true);
+    }
+  );
 
-  it.each([['sketchs'], ['pixel'], [null], [undefined], ['']])(
-    '排除 %s',
+  it.each([[null], [undefined], [''], ['unknown']])(
+    '非白名單分館 %s 排除',
     (divisionId) => {
       expect(isPhantomEligibleDivision(divisionId)).toBe(false);
     }
@@ -83,12 +85,16 @@ describe('canMirrorGallery', () => {
 describe('isPhantomSuggestionEligible', () => {
   const base = { divisionId: 'profiles', unlocked: true, imageCount: 2 };
 
-  it('進島分館且已解鎖且有圖片 → 可提示', () => {
-    expect(isPhantomSuggestionEligible(base)).toBe(true);
+  it.each([
+    [{ ...base }, '陳列走廊'],
+    [{ ...base, divisionId: 'sketchs' }, '抽象萃取間'],
+    [{ ...base, divisionId: 'pixel' }, '基底實驗室'],
+  ])('進島分館且已解鎖且有圖片 → 可提示（%s）', (input) => {
+    expect(isPhantomSuggestionEligible(input)).toBe(true);
   });
 
   it.each([
-    [{ ...base, divisionId: 'sketchs' }, '分館不進島'],
+    [{ ...base, divisionId: 'unknown' }, '非白名單分館'],
     [{ ...base, unlocked: false }, '未解鎖 gallery（提示不授旗）'],
     [{ ...base, imageCount: 0 }, '空 gallery'],
   ])('排除 %j（%s）', (input) => {
