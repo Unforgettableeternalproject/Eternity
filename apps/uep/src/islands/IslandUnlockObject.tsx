@@ -25,6 +25,7 @@ import {
 } from './islandRuntime';
 import { ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
+import { useDesktopIslandViewport } from './useIslands';
 
 import './islands.css';
 
@@ -50,6 +51,8 @@ export default function IslandUnlockObject({
   const progress = useProgress();
   // 訂閱 auth 變化——canUseIslands 含登入判定（浮島限已登入探索者）
   useReaderAuth();
+  // resize／裝置旋轉即時重渲染，同 IslandHost（S8 手動驗收 #9 追加修復）
+  const desktopViewport = useDesktopIslandViewport();
   const [awakening, setAwakening] = useState(false);
 
   // zoneId 不是浮島 zone（如 portal）時不渲染
@@ -59,6 +62,7 @@ export default function IslandUnlockObject({
 
   // 浮現三關：探索者 + 已到訪 + 尚未解鎖（甦醒動畫進行中例外保留）
   const visible =
+    desktopViewport &&
     canUseIslands(progress) &&
     hasVisitedZone(progress, id) &&
     (!isIslandUnlocked(progress, id) || awakening);

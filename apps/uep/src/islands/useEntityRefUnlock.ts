@@ -33,6 +33,7 @@ import {
   type EchoesEntityIndexEntry,
 } from './echoes/echoesEntityIndex';
 import { shouldMountIsland } from './islandRuntime';
+import { useDesktopIslandViewport } from './useIslands';
 import {
   isVisualsEntityUnlocked,
   loadVisualsEntityIndex,
@@ -46,9 +47,14 @@ import {
 export function useEntityRefUnlockChecker(
   progress: ProgressState
 ): (ref: string) => boolean {
-  const conceptsMounted = shouldMountIsland(progress, 'concepts');
-  const echoesMounted = shouldMountIsland(progress, 'echoes');
-  const visualsMounted = shouldMountIsland(progress, 'visuals');
+  // resize／裝置旋轉即時重渲染（S8 手動驗收 #9 追加修復，同 IslandHost）
+  const desktopViewport = useDesktopIslandViewport();
+  const conceptsMounted =
+    desktopViewport && shouldMountIsland(progress, 'concepts');
+  const echoesMounted =
+    desktopViewport && shouldMountIsland(progress, 'echoes');
+  const visualsMounted =
+    desktopViewport && shouldMountIsland(progress, 'visuals');
 
   const [conceptsIndex, setConceptsIndex] = useState<
     TerminalIndexEntry[] | null
@@ -103,17 +109,31 @@ export function useEntityRefUnlockChecker(
 
   return useMemo(
     () => (ref: string) => {
+      // 各分支額外疊 Mounted 旗標：索引一旦 fetch 過會留在 state 裡，
+      // 島之後才變成不可用（resize 到手機寬度／使用者停用／視角切換）
+      // 時，若只靠 Mounted 控制要不要 fetch，舊索引仍會讓已抓過的 ref
+      // 誤判可點——必須在判定當下也重驗 Mounted（S8 手動驗收 #9 追加
+      // 修復，發現的既有問題，不只是 viewport 新增的缺口）。
       // Concepts 分支（含舊格式路徑 ref 的 met 旗標相容）
-      if (isEntityRefUnlocked(conceptsIndex, ref, progress)) return true;
+      if (conceptsMounted && isEntityRefUnlocked(conceptsIndex, ref, progress))
+        return true;
       // Echoes / Visuals 只認新格式 entity-key ref
       const parsed = parseEntityRef(ref);
       if (parsed.type !== 'entity-key') return false;
       const key = parsed.entityKey;
       return (
-        isEchoesEntityUnlocked(echoesIndex, key, progress) ||
-        isVisualsEntityUnlocked(visualsIndex, key, progress)
+        (echoesMounted && isEchoesEntityUnlocked(echoesIndex, key, progress)) ||
+        (visualsMounted && isVisualsEntityUnlocked(visualsIndex, key, progress))
       );
     },
-    [conceptsIndex, echoesIndex, visualsIndex, progress]
+    [
+      conceptsMounted,
+      echoesMounted,
+      visualsMounted,
+      conceptsIndex,
+      echoesIndex,
+      visualsIndex,
+      progress,
+    ]
   );
 }

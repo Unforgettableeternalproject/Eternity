@@ -58,7 +58,7 @@ export {
 } from './dragPosition';
 export type { XYPosition, PositionRatio } from './dragPosition';
 
-export { useIslandRuntimeState } from './useIslands';
+export { useIslandRuntimeState, useDesktopIslandViewport } from './useIslands';
 
 export { mountIslandsTestBridge } from './testBridge';
 

@@ -41,7 +41,7 @@ import {
 import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
-import { useIslandRuntimeState } from './useIslands';
+import { useDesktopIslandViewport, useIslandRuntimeState } from './useIslands';
 import SongPreviewCard from './echoes/SongPreviewCard';
 import {
   clearPhantomSuggestion,
@@ -84,6 +84,9 @@ export default function IslandHost() {
   // 訂閱 auth 變化（S7-C 定案：浮島限已登入探索者）——登入/登出時
   // 重新求值守門；canUseIslands 內部讀 auth singleton，此 hook 純為重渲染
   useReaderAuth();
+  // resize／裝置旋轉即時重渲染——canUseIslands 內部的桌面寬度判定只在
+  // 呼叫當下同步讀值，不會自己觸發重渲染（S8 手動驗收 #9 追加修復）
+  const desktopViewport = useDesktopIslandViewport();
   const runtimeState = useIslandRuntimeState();
   const [mounted, setMounted] = useState(false);
   const [echoPreview, setEchoPreview] = useState<EchoPreviewTrack | null>(null);
@@ -304,8 +307,8 @@ export default function IslandHost() {
   // SSR / 首次 render 前不輸出（portal 需要 document）
   if (!mounted) return null;
 
-  // 守門 1：只有探索者有浮島
-  if (!canUseIslands(progress)) return null;
+  // 守門 1：只有探索者有浮島（+ 桌面視窗，即時反映 resize/旋轉）
+  if (!desktopViewport || !canUseIslands(progress)) return null;
 
   // 守門 2 + 3 + 4：已解鎖、未停用、且有實體元件
   const activeIds = ISLAND_IDS.filter(

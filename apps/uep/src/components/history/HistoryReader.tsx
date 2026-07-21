@@ -60,6 +60,7 @@ import {
   setClueWaitingCount,
   shouldMountIsland,
   unlockIsland,
+  useDesktopIslandViewport,
   useIslandRuntimeState,
 } from '../../islands';
 import LostBookmarkGate from './LostBookmarkGate';
@@ -564,7 +565,10 @@ export default function HistoryReader() {
   // 渲染書籤，收合時走 dock chip 閃爍提示；觀測者/未解鎖完全不出現。
   const islandState = useIslandRuntimeState();
   const visualsIslandOpen = Boolean(islandState.windows.visuals?.open);
-  const canShowVisualClues = shouldMountIsland(progress, 'visuals');
+  // resize／裝置旋轉即時重渲染（S8 手動驗收 #9 追加修復，同 IslandHost）
+  const desktopViewport = useDesktopIslandViewport();
+  const canShowVisualClues =
+    desktopViewport && shouldMountIsland(progress, 'visuals');
   const activeVisualClues = useVisualClues({
     pageId: currentId,
     containerRef: contentRef,
@@ -678,7 +682,7 @@ export default function HistoryReader() {
   // 書籤條目的插入錨點：最後閱讀頁所在的 chapter（跟隨閱讀進度，
   // 呼應「書架縫隙」——條目渲染在該 chapter 的樹項下方）
   const lostBookmarkAnchorId = useMemo(() => {
-    if (!isLostBookmarkVisible(progress)) return null;
+    if (!desktopViewport || !isLostBookmarkVisible(progress)) return null;
     const lastId = progress.lastVisitedPageId;
     if (!lastId) return null;
     const self = pagesById.get(lastId);
@@ -688,7 +692,7 @@ export default function HistoryReader() {
       (a) => a.pageType === 'chapter'
     );
     return chapter ? chapter.id : self.id;
-  }, [progress, pagesById, ancestorMap]);
+  }, [progress, pagesById, ancestorMap, desktopViewport]);
 
   // Progress tree adapter：把 PageTreeNode 樹接進 gating 的 tree 求值層
   // （effectiveGate / isEffectivelyCompleted 需要 sibling & 父層資訊）。

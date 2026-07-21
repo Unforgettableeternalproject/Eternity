@@ -26,7 +26,11 @@ import {
   useAudio,
   type SongSpoilerRevision,
 } from '../../audio';
-import { IslandUnlockObject, shouldMountIsland } from '../../islands';
+import {
+  IslandUnlockObject,
+  shouldMountIsland,
+  useDesktopIslandViewport,
+} from '../../islands';
 import { useReaderAuth } from '../../auth';
 import { useProgress, buildProgressTreeAdapter } from '../../progress';
 import type { ProgressState, ProgressTreeAdapter } from '../../progress';
@@ -893,6 +897,9 @@ function EchoesReaderInner() {
   // auth 純訂閱重渲染——shouldMountIsland 內含登入判定，而 auth 變化
   // 不保證觸發 progress notify（S7-C 已知陷阱，同 IslandHost 的處理）
   useReaderAuth();
+  // resize／裝置旋轉即時重渲染——加入佇列按鈕守門同 IslandHost（S8
+  // 手動驗收 #9 追加修復）
+  const desktopViewport = useDesktopIslandViewport();
 
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
@@ -2086,9 +2093,11 @@ function EchoesReaderInner() {
                   sealed={sealed}
                   onAddToQueue={
                     // 臨時解鎖只允許當次聆聽；任何 spoiler 曲目都不可進佇列。
-                    // 島未掛載（未解鎖/停用/非登入探索者）時也不提供入口。
+                    // 島未掛載（未解鎖/停用/非登入探索者）或非桌面視窗時
+                    // 也不提供入口。
                     isSongQueueEligible(spoiler, !locked) &&
                     audioUrl &&
+                    desktopViewport &&
                     shouldMountIsland(progress, 'echoes')
                       ? () => {
                           const store = getAudioStore();

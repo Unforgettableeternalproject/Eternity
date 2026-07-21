@@ -133,4 +133,52 @@ describe('useEntityRefUnlockChecker — 跨島聯集', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(result.current('entity:hero')).toBe(false);
   });
+
+  it('索引已載入後島變成不可用（停用/resize 到手機寬）→ 立即變回不可點，不是只擋 fetch（S8 手動驗收 #9 追加修復）', async () => {
+    stubIndexFetch({
+      echoes: [{ id: 'echoes/x/song-a', entityKey: 'hero', locked: false }],
+    });
+    const useChecker = await freshChecker();
+    const unlocked = stateWith({ islandsUnlocked: ['echoes'] });
+    const { result, rerender } = renderHook(
+      ({ progress }) => useChecker(progress),
+      { initialProps: { progress: unlocked } }
+    );
+    await waitFor(() => expect(result.current('entity:hero')).toBe(true));
+
+    // 索引已快取在 state；使用者停用 Echoes 島，不重新 fetch，
+    // 但判定當下要重驗 mounted，不能沿用舊索引誤判可點。
+    const disabled = stateWith({
+      islandsUnlocked: ['echoes'],
+      islandsDisabled: ['echoes'],
+    });
+    rerender({ progress: disabled });
+    expect(result.current('entity:hero')).toBe(false);
+  });
+
+  it('手機寬度視窗（<761px）→ 即使島已解鎖也不視為 mounted，不觸發索引請求', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 375,
+    });
+    try {
+      const fetchFn = stubIndexFetch({
+        echoes: [{ id: 'echoes/x/song-a', entityKey: 'hero', locked: false }],
+      });
+      const useChecker = await freshChecker();
+      const progress = stateWith({ islandsUnlocked: ['echoes'] });
+      const { result } = renderHook(() => useChecker(progress));
+
+      expect(result.current('entity:hero')).toBe(false);
+      expect(fetchFn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: originalWidth,
+      });
+    }
+  });
 });

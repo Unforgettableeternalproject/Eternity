@@ -14,6 +14,7 @@ import {
   IslandUnlockObject,
   pushPhantomGallery,
   shouldMountIsland,
+  useDesktopIslandViewport,
 } from '../../islands';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
@@ -439,6 +440,10 @@ function VisualsReaderInner() {
   // 進度 + tree-aware gating 求值器（S8 下半場 V-A.14：Visuals 接入
   // 進度系統，一開始就走 effectiveGate——progressPage 鏈 + 父容器繼承）
   const progress = useProgress();
+  // resize／裝置旋轉即時重渲染——映照按鈕守門同 IslandHost（S8 手動
+  // 驗收 #9 追加修復：shouldMountIsland 內部的桌面寬度判定只在渲染
+  // 當下同步讀值，viewport 變化不會自己觸發重渲染）
+  const desktopViewport = useDesktopIslandViewport();
   const progressTree = useMemo(() => buildProgressTreeAdapter(tree), [tree]);
 
   // Homepage blocks
@@ -1773,7 +1778,8 @@ function VisualsReaderInner() {
           {/* 映照入口（V-C）：投射整個 gallery 到浮動幻影。掛載守門同
               Echoes 加入佇列按鈕——島不可用（未解鎖/停用/觀測者）時不
               顯示；gallery 閘已由上方 sealed 分支把關（只投已解鎖）。 */}
-          {shouldMountIsland(progress, 'visuals') &&
+          {desktopViewport &&
+            shouldMountIsland(progress, 'visuals') &&
             canMirrorGallery({
               divisionId: galleryPage.id.split('/')[1] ?? null,
               layout: style,
