@@ -69,6 +69,11 @@ function patchHistoryOnce() {
 export interface CurrentLocation {
   /** location.pathname；SSR 期間為空字串 */
   pathname: string;
+  /**
+   * location.search（含前導 `?`；無 query 則 `''`）；SSR 期間為空字串。
+   * S9-A Codex #1：各 Reader 用 query string 切子頁，pinned 過濾必須聯合比對。
+   */
+  search: string;
   /** 當前所在 zone（history/echoes/concepts/visuals/storage），不在浮島 zone 時 null */
   zone: string | null;
   /** document.title 當前值；SSR 期間為空字串 */
@@ -77,11 +82,12 @@ export interface CurrentLocation {
 
 function snapshot(): CurrentLocation {
   if (typeof window === 'undefined') {
-    return { pathname: '', zone: null, pageLabel: '' };
+    return { pathname: '', search: '', zone: null, pageLabel: '' };
   }
   const pathname = window.location.pathname;
   return {
     pathname,
+    search: window.location.search || '',
     zone: extractZone(pathname),
     pageLabel: document.title || '',
   };

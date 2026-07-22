@@ -22,6 +22,7 @@ function makePinned(overrides: Partial<PinnedNote> = {}): PinnedNote {
   return {
     noteId: 'note-1',
     pagePath: '/history',
+    pageSearch: '',
     zone: 'history',
     pageLabel: '歷史典藏庫 - 邊際世界',
     anchorKind: 'element',
@@ -177,6 +178,87 @@ describe('pin / unpin / getForPage', () => {
     expect(uepStoragePins.getForPage('/history')).toHaveLength(1);
     expect(uepStoragePins.getForPage('/history')[0].noteId).toBe('h');
     expect(uepStoragePins.getForPage('/visuals')).toEqual([]);
+  });
+
+  // 【回歸：S9-A Codex #1】各 Reader 用 query string 切子頁，
+  // 只靠 pathname 會把同 zone 別文章的釘選誤顯示。
+  it('getForPage 同 pathname 不同 search → 只回對應子頁的釘選', async () => {
+    const { uepStoragePins } = await freshStores();
+    uepStoragePins.pin(
+      makePinned({
+        noteId: 'a',
+        pagePath: '/history',
+        pageSearch: '?page=one',
+      })
+    );
+    uepStoragePins.pin(
+      makePinned({
+        noteId: 'b',
+        pagePath: '/history',
+        pageSearch: '?page=two',
+      })
+    );
+    expect(uepStoragePins.getForPage('/history', '?page=one')).toHaveLength(1);
+    expect(uepStoragePins.getForPage('/history', '?page=one')[0].noteId).toBe(
+      'a'
+    );
+    expect(uepStoragePins.getForPage('/history', '?page=two')[0].noteId).toBe(
+      'b'
+    );
+    expect(uepStoragePins.getForPage('/history')).toEqual([]); // 無 search 精確比對
+  });
+
+  it('normalizePins 對舊資料補 pageSearch 空字串', async () => {
+    const legacy = [
+      {
+        noteId: 'legacy',
+        pagePath: '/history',
+        // pageSearch 缺席
+        zone: 'history',
+        pageLabel: 'X',
+        anchorKind: 'element',
+        anchorId: 'p-0',
+        offsetX: 0,
+        offsetY: 0,
+        createdAt: '2026-07-21T00:00:00.000Z',
+      },
+    ];
+    window.localStorage.setItem(
+      'uep.storage.pinned.v1',
+      JSON.stringify(legacy)
+    );
+    window.localStorage.setItem(
+      'uep.progress.v1',
+      JSON.stringify({
+        version: 1,
+        view: 'explorer',
+        observerEver: false,
+        flags: [],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        islandsDisabled: [],
+        pageMarkers: {},
+        lastVisitedPageId: null,
+        lastVisitedAt: null,
+        lostBookmark: { chancePct: 20, visible: false },
+        readingStats: { totalMs: 0 },
+        conceptsReadLevel: {},
+        storageNotes: [
+          {
+            id: 'legacy',
+            text: 'X',
+            tilt: 0,
+            createdAt: '2026-07-21T00:00:00.000Z',
+            updatedAt: '2026-07-21T00:00:00.000Z',
+          },
+        ],
+        updatedAt: '2026-07-21T00:00:00.000Z',
+      })
+    );
+    const { uepStoragePins } = await freshStores();
+    const all = uepStoragePins.getAll();
+    expect(all).toHaveLength(1);
+    expect(all[0].pageSearch).toBe('');
   });
 
   it('getPinnedMeta 回釘選詳細，找不到回 null', async () => {

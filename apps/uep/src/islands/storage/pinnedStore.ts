@@ -22,6 +22,7 @@
  * （避免循環依賴，同 audioStore 慣例）。
  */
 
+import { isTestMode } from '../../lib/apiBase';
 import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../../progress';
 import type { ProgressChangeDetail } from '../../progress';
 
@@ -68,8 +69,21 @@ export type PinAnchorKind = 'element' | 'page';
 export interface PinnedNote {
   /** 對應 ProgressState.storageNotes 的 id */
   noteId: string;
-  /** 釘在哪頁（location.pathname） */
+  /**
+   * 釘在哪頁（location.pathname）。
+   *
+   * ⚠️ 各 Reader（History/Echoes/Storage）用 query string（`?page=…` /
+   * `?cluster=…` / `?song=…`）在同一 pathname 下切子頁，只靠 pathname 過濾
+   * 會讓釘選跨同 zone 的不同文章錯誤出現。因此比對時要與 `pageSearch`
+   * 聯合使用——見 `matchesLocation()`。
+   */
   pagePath: string;
+  /**
+   * 釘在哪個子頁（location.search，含前導 `?`；無 query 則 `''`）。
+   * S9-A Codex 審 #1 修復：canonical page location = pathname + search。
+   * 舊資料（無此欄位）於 `normalizePins` 補空字串。
+   */
+  pageSearch: string;
   /** 用來導向 + 島 header 顯示（釘選時快照，避免導向時查不到） */
   zone: string | null;
   /** 頁面標籤（暗掉便條顯示「釘在 XXX」，導向 toast 用） */
@@ -90,8 +104,32 @@ export interface PinnedNote {
   createdAt: string;
 }
 
-/** localStorage key，含 schema 版本以利未來遷移（Test Mode 環境隔離同 progress 慣例） */
-export const PINNED_STORAGE_KEY = 'uep.storage.pinned.v1';
+/**
+ * localStorage key，含 schema 版本以利未來遷移。
+ *
+ * ⚠️ Test Mode 下加 `:test` 後綴做環境隔離——同 origin 用 test-mode cookie
+ * 切換正式／測試 API 時，釘選不得跨環境殘留。若 pinned 用固定 key、progress
+ * 用 test-mode key，切到 test reload 後 boot 的 orphan sweep 會拿 test
+ * `storageNotes` 掃 production pins，ID 不符時直接持久化刪除；切回正式便條
+ * 已失去。與 `PROGRESS_STORAGE_KEY` 用同一 pattern（`adapters.ts:29`）。
+ * mode 切換必伴隨 reload，module 載入時計算一次即可。
+ * S9-A Codex 審 #2 修復。
+ */
+export const PINNED_STORAGE_KEY = isTestMode()
+  ? 'uep.storage.pinned.v1:test'
+  : 'uep.storage.pinned.v1';
+
+/**
+ * 頁面位置比對——當前 pathname + search 是否對應到釘選的位置。
+ * pageSearch 缺席（舊資料）視同 `''`。
+ */
+export function matchesLocation(
+  pinned: PinnedNote,
+  pathname: string,
+  search: string
+): boolean {
+  return pinned.pagePath === pathname && (pinned.pageSearch || '') === search;
+}
 
 type Listener = (pins: PinnedNote[]) => void;
 
@@ -117,26 +155,35 @@ function bootstrap(): PinnedNote[] {
   }
 }
 
-/** 從 localStorage 讀回的資料格式驗證，剔除壞值 */
+/**
+ * 從 localStorage 讀回的資料格式驗證，剔除壞值。
+ * `pageSearch` 為 S9-A Codex #1 新增欄位——舊資料缺此欄位時補 `''`
+ * （語意：舊釘選視為釘在無 query 的 pathname 上）。
+ */
 function normalizePins(raw: unknown): PinnedNote[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (p): p is PinnedNote =>
-      typeof p === 'object' &&
-      p !== null &&
-      typeof (p as PinnedNote).noteId === 'string' &&
-      typeof (p as PinnedNote).pagePath === 'string' &&
-      typeof (p as PinnedNote).pageLabel === 'string' &&
-      ((p as PinnedNote).anchorKind === 'element' ||
-        (p as PinnedNote).anchorKind === 'page') &&
-      (typeof (p as PinnedNote).anchorId === 'string' ||
-        (p as PinnedNote).anchorId === null) &&
-      typeof (p as PinnedNote).offsetX === 'number' &&
-      Number.isFinite((p as PinnedNote).offsetX) &&
-      typeof (p as PinnedNote).offsetY === 'number' &&
-      Number.isFinite((p as PinnedNote).offsetY) &&
-      typeof (p as PinnedNote).createdAt === 'string'
-  );
+  return raw
+    .filter(
+      (p): p is PinnedNote =>
+        typeof p === 'object' &&
+        p !== null &&
+        typeof (p as PinnedNote).noteId === 'string' &&
+        typeof (p as PinnedNote).pagePath === 'string' &&
+        typeof (p as PinnedNote).pageLabel === 'string' &&
+        ((p as PinnedNote).anchorKind === 'element' ||
+          (p as PinnedNote).anchorKind === 'page') &&
+        (typeof (p as PinnedNote).anchorId === 'string' ||
+          (p as PinnedNote).anchorId === null) &&
+        typeof (p as PinnedNote).offsetX === 'number' &&
+        Number.isFinite((p as PinnedNote).offsetX) &&
+        typeof (p as PinnedNote).offsetY === 'number' &&
+        Number.isFinite((p as PinnedNote).offsetY) &&
+        typeof (p as PinnedNote).createdAt === 'string'
+    )
+    .map((p) => ({
+      ...p,
+      pageSearch: typeof p.pageSearch === 'string' ? p.pageSearch : '',
+    }));
 }
 
 function persist(): void {
@@ -173,9 +220,14 @@ export const uepStoragePins = {
     return pins;
   },
 
-  /** 取當前頁的釘選（PinnedNoteLayer 逐頁過濾用） */
-  getForPage(pagePath: string): PinnedNote[] {
-    return pins.filter((p) => p.pagePath === pagePath);
+  /**
+   * 取當前頁的釘選（PinnedNoteLayer 逐頁過濾用）。
+   * pathname + search 聯合比對——各 Reader 用 query string 切子頁，
+   * 只靠 pathname 會跨頁誤顯示（S9-A Codex 審 #1）。
+   * `search` 未傳時預設 `''`（向後相容純 pathname 呼叫）。
+   */
+  getForPage(pagePath: string, search = ''): PinnedNote[] {
+    return pins.filter((p) => matchesLocation(p, pagePath, search));
   },
 
   /** 該便條是否已釘選（島 pool 判暗掉） */

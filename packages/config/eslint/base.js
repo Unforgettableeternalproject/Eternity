@@ -63,6 +63,18 @@ export default [
         MouseEvent: 'readonly',
         KeyboardEvent: 'readonly',
         TouchEvent: 'readonly',
+        PopStateEvent: 'readonly',
+        // Form elements
+        HTMLTextAreaElement: 'readonly',
+        HTMLSelectElement: 'readonly',
+        HTMLFormElement: 'readonly',
+        HTMLAnchorElement: 'readonly',
+        HTMLSpanElement: 'readonly',
+        HTMLParagraphElement: 'readonly',
+        HTMLHeadingElement: 'readonly',
+        // Geometry / CSS API
+        DOMRect: 'readonly',
+        CSS: 'readonly',
         // Fetch API
         fetch: 'readonly',
         Request: 'readonly',

@@ -21,6 +21,8 @@ const PROD_PROGRESS_KEY = 'uep.progress.v1';
 const TEST_PROGRESS_KEY = 'uep.progress.v1:test';
 const PROD_SESSION_KEY = 'uep.reader.session.v1';
 const TEST_SESSION_KEY = 'uep.reader.session.v1:test';
+const PROD_PINNED_KEY = 'uep.storage.pinned.v1';
+const TEST_PINNED_KEY = 'uep.storage.pinned.v1:test';
 
 function enterTestMode(): void {
   document.cookie = `${TEST_COOKIE}=${encodeURIComponent(TEST_URL)}; Path=/`;
@@ -150,6 +152,101 @@ describe('環境隔離（正式 ↔ 測試模式）', () => {
       enterTestMode();
       const { uepReaderAuth } = await reloadReaderAuth();
       expect(uepReaderAuth.getSession()).toBeNull();
+    });
+  });
+
+  // 【回歸：S9-A Codex #2】pinned localStorage key 也要 test-mode 隔離，
+  // 否則切到 test reload 後，boot orphan sweep 會拿 test storageNotes 掃
+  // production pins，ID 不符時直接持久化刪除；切回正式便條已失去。
+  describe('釘選 pinned key 不跨環境殘留', () => {
+    async function reloadPinned() {
+      // 真實環境中 mode 切換伴隨整頁 reload，window bridge 也全新；
+      // 測試以 vi.resetModules() 模擬 module reload，須手動清 bridge。
+      vi.resetModules();
+      delete (window as unknown as { __uepProgress?: unknown }).__uepProgress;
+      delete (window as unknown as { __uepStoragePins?: unknown })
+        .__uepStoragePins;
+      return await import('../../islands/storage/pinnedStore');
+    }
+
+    it('正式模式使用基底 key', async () => {
+      const { PINNED_STORAGE_KEY } = await reloadPinned();
+      expect(PINNED_STORAGE_KEY).toBe(PROD_PINNED_KEY);
+    });
+
+    it('測試模式使用 :test 後綴 key', async () => {
+      enterTestMode();
+      const { PINNED_STORAGE_KEY } = await reloadPinned();
+      expect(PINNED_STORAGE_KEY).toBe(TEST_PINNED_KEY);
+    });
+
+    it('prod 釘選存在 → 切 test 讀不到 → prod blob 不被 test 掃孤兒動到', async () => {
+      // 1. prod 釘選存在（跟對應便條）
+      window.localStorage.setItem(
+        PROD_PINNED_KEY,
+        JSON.stringify([
+          {
+            noteId: 'prod-note',
+            pagePath: '/history',
+            pageSearch: '',
+            zone: 'history',
+            pageLabel: 'X',
+            anchorKind: 'element',
+            anchorId: 'p-0',
+            offsetX: 0,
+            offsetY: 0,
+            createdAt: '2026-07-21T00:00:00.000Z',
+          },
+        ])
+      );
+      window.localStorage.setItem(
+        PROD_PROGRESS_KEY,
+        JSON.stringify({
+          version: 1,
+          view: 'explorer',
+          observerEver: false,
+          flags: [],
+          completedPageIds: [],
+          islandsUnlocked: [],
+          islandsDisabled: [],
+          pageMarkers: {},
+          lastVisitedPageId: null,
+          lastVisitedAt: null,
+          lostBookmark: { chancePct: 20, visible: false },
+          readingStats: { totalMs: 0 },
+          conceptsReadLevel: {},
+          storageNotes: [
+            {
+              id: 'prod-note',
+              text: 'A',
+              tilt: 0,
+              createdAt: '2026-07-21T00:00:00.000Z',
+              updatedAt: '2026-07-21T00:00:00.000Z',
+            },
+          ],
+          updatedAt: '2026-07-21T00:00:00.000Z',
+        })
+      );
+
+      // 2. 切 test，pinned key 應切換為 :test → prod 釘選讀不到
+      enterTestMode();
+      const { uepStoragePins, PINNED_STORAGE_KEY } = await reloadPinned();
+      expect(PINNED_STORAGE_KEY).toBe(TEST_PINNED_KEY);
+      expect(uepStoragePins.getAll()).toEqual([]);
+
+      // 3. 而且 prod key 的原始資料不能被 test 環境動到
+      //    （若 pinned 沒隔離，test boot 掃孤兒會拿 test storageNotes 空集掃
+      //    prod pins，把 prod-note 刪掉）
+      const prodPinnedRaw = window.localStorage.getItem(PROD_PINNED_KEY);
+      expect(prodPinnedRaw).not.toBeNull();
+      expect(JSON.parse(prodPinnedRaw!)).toHaveLength(1);
+
+      // 4. 切回 prod 應能讀到原釘選
+      exitTestMode();
+      const back = await reloadPinned();
+      expect(back.PINNED_STORAGE_KEY).toBe(PROD_PINNED_KEY);
+      expect(back.uepStoragePins.getAll()).toHaveLength(1);
+      expect(back.uepStoragePins.getAll()[0].noteId).toBe('prod-note');
     });
   });
 });

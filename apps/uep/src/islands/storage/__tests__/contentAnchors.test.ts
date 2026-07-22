@@ -86,6 +86,35 @@ describe('ensureContentAnchors', () => {
       root.querySelectorAll(`[${ANCHOR_ATTR}]`).length
     ).toBeGreaterThanOrEqual(4);
   });
+
+  // 【回歸：S9-A Codex #3】多容器 counter 跨容器共用，
+  // 避免同一頁多 rich-text block 各自從 0 開始 → `p-0` 重複。
+  it('傳入 NodeList / 陣列 → counter 跨容器共用，id 全域唯一', () => {
+    root.innerHTML = `
+      <div class="sto-prose"><p>A1</p><p>A2</p></div>
+      <div class="sto-prose"><p>B1</p><h2>標</h2></div>
+    `;
+    const proses = root.querySelectorAll<HTMLElement>('.sto-prose');
+    ensureContentAnchors(proses);
+    const ids = Array.from(
+      root.querySelectorAll<HTMLElement>(`[${ANCHOR_ATTR}]`)
+    ).map((el) => el.getAttribute(ANCHOR_ATTR));
+    // A1=p-0, A2=p-1, B1=p-2, 標=h2-0 —— 沒有 p-0 重複
+    expect(ids).toEqual(['p-0', 'p-1', 'p-2', 'h2-0']);
+    // 反面驗證：p-0 全頁只有一個
+    expect(root.querySelectorAll(`[${ANCHOR_ATTR}="p-0"]`)).toHaveLength(1);
+  });
+
+  it('陣列 root 也可用（不限 NodeList）', () => {
+    const a = document.createElement('div');
+    a.innerHTML = `<p>A</p>`;
+    const b = document.createElement('div');
+    b.innerHTML = `<p>B</p>`;
+    root.append(a, b);
+    ensureContentAnchors([a, b]);
+    expect(a.querySelector('p')?.getAttribute(ANCHOR_ATTR)).toBe('p-0');
+    expect(b.querySelector('p')?.getAttribute(ANCHOR_ATTR)).toBe('p-1');
+  });
 });
 
 /* ────────────────────────────────────────

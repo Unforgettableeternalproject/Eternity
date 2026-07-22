@@ -46,6 +46,7 @@ import type {
 import { fromContentBlock } from '../editor/homepage/types';
 import { getApiBase } from '../../lib/apiBase';
 import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
+import { useSubpageTitle } from '../../utils/useSubpageTitle';
 import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
@@ -947,12 +948,26 @@ function EchoesReaderInner() {
   ]);
 
   // S9-A.3：便條釘選錨點——每次換 content 頁後掃 .echoes-prose 補 data-uep-anchor-id
+  // S9-A Codex #3：一次傳所有 prose 容器讓 counter 跨容器共用（避免 p-0 重複）。
+  // S9-A Codex #4：加 currentContentPage 依賴——navigateToContent 先設 view+id
+  // 再清 currentContentPage，等 fetch 回來才 setState，若不依賴這個訊號 effect
+  // 不會在內容真正落地後重跑，錨點永遠沒補上。
   useEffect(() => {
     if (view !== 'content' || !scrollRef.current) return;
-    scrollRef.current
-      .querySelectorAll<HTMLElement>('.echoes-prose')
-      .forEach((el) => ensureContentAnchors(el));
-  }, [view, activeContentId]);
+    const proses =
+      scrollRef.current.querySelectorAll<HTMLElement>('.echoes-prose');
+    ensureContentAnchors(proses);
+  }, [view, activeContentId, currentContentPage]);
+
+  // S9-A Codex #5：載入子頁時更新 document.title——讓便條 pool「釘在 XXX」
+  // 與瀏覽器分頁能反映實際文章。優先序：content > song > cluster；view=landing 還原。
+  useSubpageTitle(
+    view === 'content'
+      ? (currentContentPage?.title ?? null)
+      : view === 'song'
+        ? (currentSongPage?.title ?? null)
+        : null
+  );
 
   /** 根據目前視圖狀態回傳唯一的捲軸記憶 key */
   function currentScrollKey(): string {

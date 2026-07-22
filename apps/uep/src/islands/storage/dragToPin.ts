@@ -83,7 +83,8 @@ export function resolveDropTarget(
 
 /**
  * 把 drop 解析結果轉成 PinnedNote 並寫入 pinnedStore。
- * pathname / zone / pageLabel 從當前 location 快照。
+ * pathname / search / zone / pageLabel 從當前 location 快照——
+ * search 讓釘選能對回到正確的 Reader 子頁（S9-A Codex #1）。
  */
 export function commitPin(
   noteId: string,
@@ -91,6 +92,8 @@ export function commitPin(
 ): PinnedNote {
   const pathname =
     typeof window !== 'undefined' ? window.location.pathname : '';
+  const search =
+    typeof window !== 'undefined' ? window.location.search || '' : '';
   const zone = extractZone(pathname);
   const pageLabel = typeof document !== 'undefined' ? document.title || '' : '';
   const now = new Date().toISOString();
@@ -100,6 +103,7 @@ export function commitPin(
       ? {
           noteId,
           pagePath: pathname,
+          pageSearch: search,
           zone,
           pageLabel,
           anchorKind: 'element',
@@ -111,6 +115,7 @@ export function commitPin(
       : {
           noteId,
           pagePath: pathname,
+          pageSearch: search,
           zone,
           pageLabel,
           anchorKind: 'page',
@@ -147,6 +152,14 @@ export function takeJumpToPinned(): string | null {
 /**
  * 點暗掉便條 → 導向到該便條的釘選頁 + 記錄 noteId 供到頁後跳。
  * 同頁不重載（用 replaceState + scrollIntoView）；跨頁 assign。
+ *
+ * canonical location = pathname + search（S9-A Codex #1）——各 Reader 的
+ * `useZoneRouter` 用 pushState/replaceState 在同 pathname 下切 query，
+ * 若釘選在別的子頁（`?page=…`），必須：
+ *  - 同 pathname 但 query 不同 → pushState 到目標 query，讓 Reader 內部
+ *    react 到 URL 變化並載入對應內容；到內容 render 完 PinnedNoteLayer
+ *    scrollIntoView 接手。
+ *  - 不同 pathname → 整頁 assign（跨 zone 只能重載）。
  */
 export function navigateToPinned(pinned: PinnedNote): void {
   if (typeof window === 'undefined') return;
@@ -155,10 +168,18 @@ export function navigateToPinned(pinned: PinnedNote): void {
   } catch {
     // 靜默；到頁後找不到便條也不影響 PinnedNoteLayer 正常渲染
   }
-  if (window.location.pathname === pinned.pagePath) {
-    // 同頁——不整頁重載，由 PinnedNoteLayer scrollIntoView 接手
+  const targetSearch = pinned.pageSearch || '';
+  const currentPath = window.location.pathname;
+  const currentSearch = window.location.search || '';
+  if (currentPath === pinned.pagePath) {
+    if (currentSearch !== targetSearch) {
+      // 同 pathname 但子頁不同 —— pushState 觸發 Reader 內部路由
+      // （useZoneRouter 監聽 popstate + 我們 patch 過的 pushState）
+      window.history.pushState({}, '', pinned.pagePath + targetSearch);
+    }
+    // 同頁 / 子頁切換 —— 讓 PinnedNoteLayer scrollIntoView 接手
     window.dispatchEvent(new CustomEvent('uep:storage-jump'));
   } else {
-    window.location.assign(pinned.pagePath);
+    window.location.assign(pinned.pagePath + targetSearch);
   }
 }

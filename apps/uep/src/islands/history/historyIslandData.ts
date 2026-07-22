@@ -9,7 +9,6 @@
  * gating 求值與 HistoryReader 完全同源（buildProgressTreeAdapter +
  * contentVisibility），語意不可分岔。
  */
-/* global PopStateEvent */
 
 import {
   isHidden,

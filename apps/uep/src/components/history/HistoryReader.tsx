@@ -1,4 +1,3 @@
-/* global HTMLAnchorElement */
 import React, {
   useCallback,
   useEffect,
@@ -73,6 +72,7 @@ import { isGalleryUnlockedInZone } from '../visuals/visualsVisibility';
 import { UEP_ENTITY_ACTIVE_ATTR, dispatchEntityActivate } from '../../embed';
 import { useEntityRefUnlockChecker } from '../../islands/useEntityRefUnlock';
 import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
+import { useSubpageTitle } from '../../utils/useSubpageTitle';
 import './HistoryReader.css';
 import { renderIcon } from '../editor/IconLibrary';
 import { ChapterTimeline } from './ChapterTimeline';
@@ -273,6 +273,9 @@ export default function HistoryReader() {
 
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<Page | null>(null);
+  // S9-A Codex #5：載入子頁時把 document.title 更新為 `子頁 - zone`，
+  // 讓便條 pool 的「釘在 XXX」與瀏覽器分頁能反映實際文章。
+  useSubpageTitle(currentPage?.title ?? null);
   const [articleHtml, setArticleHtml] = useState('');
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);

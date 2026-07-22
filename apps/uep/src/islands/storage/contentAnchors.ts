@@ -31,19 +31,43 @@ export const ANCHOR_ATTR = 'data-uep-anchor-id';
  * 冪等：已有 anchorId 的元素不重寫（未來 admin 改內容順序時，
  * 序號雖會偏移但至少不會在同次 render 內重算兩次）。
  *
+ * ⚠️ 支援單一 root 或多個 root（NodeList / 陣列）——**多個 root 時
+ * counter 跨容器共用**，避免同一頁多 rich-text block 各自從 0 開始造成
+ * `p-0` 重複（S9-A Codex #3）。呼叫端一頁呼叫一次，把所有 prose 容器
+ * 一起傳進來，錨點 id 就在該頁全域唯一。
+ *
  * 呼叫時機：文字頁 Reader 內容 render 完成後（依 articleHtml/content dep）。
  */
-export function ensureContentAnchors(root: HTMLElement | null): void {
+export function ensureContentAnchors(
+  root:
+    | HTMLElement
+    | null
+    | ArrayLike<HTMLElement | null | undefined>
+    | undefined
+): void {
   if (!root) return;
-  const counters: Record<string, number> = {};
-  root.querySelectorAll<HTMLElement>(ANCHOR_SELECTOR).forEach((el) => {
-    const tag = el.tagName.toLowerCase();
-    const idx = counters[tag] ?? 0;
-    counters[tag] = idx + 1;
-    if (!el.getAttribute(ANCHOR_ATTR)) {
-      el.setAttribute(ANCHOR_ATTR, `${tag}-${idx}`);
+  const roots: HTMLElement[] = [];
+  if (root instanceof HTMLElement) {
+    roots.push(root);
+  } else if (typeof (root as ArrayLike<unknown>).length === 'number') {
+    const list = root as ArrayLike<HTMLElement | null | undefined>;
+    for (let i = 0; i < list.length; i++) {
+      const el = list[i];
+      if (el) roots.push(el);
     }
-  });
+  }
+  if (roots.length === 0) return;
+  const counters: Record<string, number> = {};
+  for (const r of roots) {
+    r.querySelectorAll<HTMLElement>(ANCHOR_SELECTOR).forEach((el) => {
+      const tag = el.tagName.toLowerCase();
+      const idx = counters[tag] ?? 0;
+      counters[tag] = idx + 1;
+      if (!el.getAttribute(ANCHOR_ATTR)) {
+        el.setAttribute(ANCHOR_ATTR, `${tag}-${idx}`);
+      }
+    });
+  }
 }
 
 /** drop 時抓到的錨定結果 */

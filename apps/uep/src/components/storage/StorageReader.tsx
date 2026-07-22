@@ -31,6 +31,7 @@ import './StorageReader.css';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
 import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
+import { useSubpageTitle } from '../../utils/useSubpageTitle';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -305,12 +306,23 @@ export default function StorageReader() {
   ]);
 
   // S9-A.3：便條釘選錨點——每次換頁後掃 .sto-prose 補 data-uep-anchor-id
+  // S9-A Codex #3 修：一次把所有 prose 容器塞給 ensureContentAnchors，
+  // counter 跨容器共用，錨點 id 全頁唯一（避免多 rich-text block 各自 p-0）
   useEffect(() => {
     if (!scrollRef.current) return;
-    scrollRef.current
-      .querySelectorAll<HTMLElement>('.sto-prose')
-      .forEach((el) => ensureContentAnchors(el));
+    const proses =
+      scrollRef.current.querySelectorAll<HTMLElement>('.sto-prose');
+    ensureContentAnchors(proses);
   }, [view, activePageId, activeClearingId, readingPage]);
+
+  // S9-A Codex #5：載入子頁時更新 document.title——優先 reading > clearing。
+  useSubpageTitle(
+    view === 'reading'
+      ? (readingPage?.title ?? null)
+      : view === 'clearing'
+        ? (clearingPage?.title ?? null)
+        : null
+  );
   const [extrasFilter, setExtrasFilter] = useState<string>('all');
   // Changelog reading state
   const [logFilterType, setLogFilterType] = useState<string>('all');

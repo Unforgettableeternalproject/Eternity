@@ -27,7 +27,6 @@
  * mount 由呼叫端（IslandHost）自行守門，本元件只負責畫。
  */
 
-/* global HTMLElement, HTMLTextAreaElement */
 import React, {
   useCallback,
   useEffect,
@@ -44,13 +43,18 @@ import {
 import type { StorageNote } from '../../progress';
 import { useCurrentLocation } from '../useCurrentLocation';
 
-import { getPinnedStore } from './pinnedStore';
-import type { PinnedNote } from './pinnedStore';
 import { resolveAnchorRect } from './contentAnchors';
 import type { ResolvedAnchor } from './contentAnchors';
-import { findContentContainers } from './zoneContentTargets';
-import { takeJumpToPinned } from './dragToPin';
+import {
+  DRAG_THRESHOLD,
+  commitPin,
+  resolveDropTarget,
+  takeJumpToPinned,
+} from './dragToPin';
+import { getPinnedStore, matchesLocation } from './pinnedStore';
+import type { PinnedNote } from './pinnedStore';
 import { usePinnedNotes } from './usePinnedNotes';
+import { findContentContainers } from './zoneContentTargets';
 
 import './PinnedNoteLayer.css';
 
@@ -100,8 +104,12 @@ function computePlacement(
     };
   }
 
-  // 掃所有容器找 exact 命中（同一頁可能多 prose 塊）；沒 exact 用 nearest；都無用 top
-  let bestKind: ResolvedAnchor['kind'] = 'top';
+  // 掃所有容器找 exact 命中（同一頁可能多 prose 塊——S9-A Codex #3
+  // 頁級一次編號後，錨點跨容器唯一，理論上最多一個 exact）；沒 exact 就
+  // 記下最後一個 nearest；都無 → top。用 union 型別包含 'unmatched' 初值
+  // 讓 exact 短路 + nearest 蓋值的流程不觸發 TS2367 不可能比較（S9-A
+  // Codex 品質門檻）。
+  let bestKind: 'exact' | 'nearest' | 'unmatched' = 'unmatched';
   let bestContainer: HTMLElement = containers[0];
   let bestElement: HTMLElement | null = null;
   for (const container of containers) {
@@ -112,14 +120,15 @@ function computePlacement(
       bestElement = resolved.element;
       break;
     }
-    if (resolved.kind === 'nearest' && bestKind !== 'exact') {
+    if (resolved.kind === 'nearest') {
+      // exact 會 break 出去，走到這一定尚未定 exact；直接蓋 nearest
       bestKind = 'nearest';
       bestContainer = container;
       bestElement = resolved.element;
     }
   }
 
-  if (bestKind === 'top') {
+  if (bestKind === 'unmatched') {
     // 沒任何容器有此錨點 → 退第一個容器頂端 + 提示
     const containerRect = bestContainer.getBoundingClientRect();
     return {
@@ -162,10 +171,14 @@ export default function PinnedNoteLayer() {
   /** 尚未消化的 jump-to 目標——rAF/timeout 內 scrollIntoView 後清除 */
   const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
 
-  // 依當前 path 過濾（跨頁自動更新——location 變則過濾集變）
+  // 依當前 path + search 過濾——各 Reader 用 query string 切子頁，
+  // 只靠 pathname 會跨同 zone 的不同文章錯誤顯示（S9-A Codex #1）
   const currentPins = useMemo(
-    () => pinnedAll.filter((p) => p.pagePath === location.pathname),
-    [pinnedAll, location.pathname]
+    () =>
+      pinnedAll.filter((p) =>
+        matchesLocation(p, location.pathname, location.search)
+      ),
+    [pinnedAll, location.pathname, location.search]
   );
 
   /* 捲動 / resize 時重算位置（rAF throttle 避免高頻重繪） */
@@ -247,13 +260,15 @@ export default function PinnedNoteLayer() {
     };
   }, [pendingJumpId, refreshTick]);
 
-  // 位置計算——refreshTick 依賴讓每次重算重新執行 findContentContainers
+  // 位置計算——refreshTick 依賴讓每次重算重新執行 findContentContainers。
+  // refreshTick 本身在 body 內沒讀，只當 dep 訊號用；顯式 void 一次讓
+  // future react-hooks/exhaustive-deps 啟用時不會被抓為 missing dep。
   const placements = useMemo(() => {
+    void refreshTick;
     return currentPins.map((p) => ({
       pinned: p,
       placement: computePlacement(p, location.zone),
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPins, location.zone, refreshTick]);
 
   return (
@@ -296,7 +311,13 @@ function PinnedNoteCard({
 }: PinnedNoteCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [dragging, setDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** pointer 起點 + 是否已觸發拖曳（S9-A Codex #6 場上便條 reposition） */
+  const pointerStart = useRef<{ x: number; y: number; id: number } | null>(
+    null
+  );
+  const pointerDragged = useRef(false);
 
   useEffect(() => {
     if (editing && note) {
@@ -331,6 +352,73 @@ function PinnedNoteCard({
     [pinned.noteId]
   );
 
+  /* ── S9-A Codex #6 場上便條 pointer drag reposition ──
+   * pool 拖曳沿用 dragToPin 的 pointer pattern；場上便條同套流程：
+   *  - pointerdown 記起點 + setPointerCapture
+   *  - pointermove > DRAG_THRESHOLD 才進拖曳態（否則走 click / edit）
+   *  - pointerup 解析新 drop target → commitPin 覆蓋原釘選（同 noteId
+   *    語意上就是搬家；createdAt / pageLabel / pageSearch 一起更新）
+   * 編輯中或按 × 拆除不啟動拖曳。
+   */
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (editing) return;
+      // 拆除鈕內部 pointerdown 不啟動拖曳（讓它自己吃 click）
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.uep-pinned-note__unpin')) return;
+      pointerStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      pointerDragged.current = false;
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      } catch {
+        // 某些瀏覽器/測試環境不支援；下面的 pointermove 仍可靠 pointerStart 判定
+      }
+    },
+    [editing]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const start = pointerStart.current;
+      if (!start || start.id !== e.pointerId) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!pointerDragged.current && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+        pointerDragged.current = true;
+        setDragging(true);
+      }
+    },
+    []
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const start = pointerStart.current;
+      pointerStart.current = null;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch {
+        // ignore
+      }
+      if (!pointerDragged.current) {
+        setDragging(false);
+        return; // 沒動 → click 語意（讓 button 的 onClick 進 edit）
+      }
+      setDragging(false);
+      if (!start) return;
+      // 落點解析——不改 zone/pathname/search（釘選本頁移位不跨頁）
+      const resolution = resolveDropTarget(e.clientX, e.clientY);
+      commitPin(pinned.noteId, resolution);
+    },
+    [pinned.noteId]
+  );
+
+  const handlePointerCancel = useCallback(() => {
+    pointerStart.current = null;
+    pointerDragged.current = false;
+    setDragging(false);
+  }, []);
+
   const showStaleHint = placement.kind === 'top' || placement.kind === 'fixed';
 
   const className = [
@@ -339,6 +427,7 @@ function PinnedNoteCard({
     placement.kind === 'nearest' ? 'is-nearest' : '',
     editing ? 'is-editing' : '',
     showStaleHint ? 'is-stale' : '',
+    dragging ? 'is-dragging' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -353,6 +442,10 @@ function PinnedNoteCard({
       }}
       role="note"
       aria-label={`釘選便條：${note.text}`}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       {editing ? (
         <textarea

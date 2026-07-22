@@ -16,6 +16,7 @@ function makePinned(overrides: Partial<PinnedNote> = {}): PinnedNote {
   return {
     noteId: 'note-1',
     pagePath: '/history',
+    pageSearch: '',
     zone: 'history',
     pageLabel: '歷史典藏庫 - 邊際世界',
     anchorKind: 'element',
@@ -61,6 +62,34 @@ describe('跨頁過濾', () => {
     render(<PinnedNoteLayer />);
     expect(screen.getByText('這頁的')).toBeInTheDocument();
     expect(screen.queryByText('別頁的')).not.toBeInTheDocument();
+  });
+
+  // 【回歸：S9-A Codex #1】同 pathname 下 query string 切子頁，
+  // pinned 過濾必須依 pathname+search 聯合比對，否則會跨子頁誤顯示。
+  it('同 pathname 不同 search → 只渲染對應子頁的釘選', async () => {
+    window.history.replaceState({}, '', '/history?page=alpha');
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('alpha 的');
+    uepProgress.addStorageNote('beta 的');
+    const [alpha, beta] = uepProgress.getState().storageNotes;
+    uepStoragePins.pin(
+      makePinned({
+        noteId: alpha.id,
+        pagePath: '/history',
+        pageSearch: '?page=alpha',
+      })
+    );
+    uepStoragePins.pin(
+      makePinned({
+        noteId: beta.id,
+        pagePath: '/history',
+        pageSearch: '?page=beta',
+      })
+    );
+
+    render(<PinnedNoteLayer />);
+    expect(screen.getByText('alpha 的')).toBeInTheDocument();
+    expect(screen.queryByText('beta 的')).not.toBeInTheDocument();
   });
 });
 

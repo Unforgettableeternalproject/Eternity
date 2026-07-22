@@ -273,6 +273,7 @@ describe('已釘便條的暗掉與導向（S9-A.6）', () => {
     uepStoragePins.pin({
       noteId,
       pagePath: '/history',
+      pageSearch: '',
       zone: 'history',
       pageLabel: 'X',
       anchorKind: 'element',
@@ -300,6 +301,7 @@ describe('已釘便條的暗掉與導向（S9-A.6）', () => {
     uepStoragePins.pin({
       noteId,
       pagePath: '/history',
+      pageSearch: '',
       zone: 'history',
       pageLabel: 'X',
       anchorKind: 'page',
@@ -320,6 +322,7 @@ describe('已釘便條的暗掉與導向（S9-A.6）', () => {
     uepStoragePins.pin({
       noteId,
       pagePath: '/history',
+      pageSearch: '',
       zone: 'history',
       pageLabel: 'X',
       anchorKind: 'page',

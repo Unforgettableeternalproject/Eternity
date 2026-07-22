@@ -12,7 +12,6 @@
  * 指令集（設計文件 6-3）：
  *   ?/help、query <kw>（裸關鍵字同 query）、ls <log|browser|clock|compare>、clear
  */
-/* global PopStateEvent */
 
 import React, { useEffect, useRef, useState } from 'react';
 

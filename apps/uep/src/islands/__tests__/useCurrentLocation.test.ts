@@ -60,6 +60,27 @@ describe('useCurrentLocation', () => {
     expect(result.current.pageLabel).toBe('歷史典藏庫 - 邊際世界');
   });
 
+  // 【回歸：S9-A Codex #1】search 欄位需一起快照，pushState 到同 pathname 不同
+  // query 時 hook 也要更新，否則 pinned 過濾會誤把別的子頁釘選顯示到當前頁。
+  it('快照含 search；純 query 變更也觸發更新', () => {
+    window.history.replaceState({}, '', '/history?page=abc');
+    const { result } = renderHook(() => useCurrentLocation());
+    expect(result.current.pathname).toBe('/history');
+    expect(result.current.search).toBe('?page=abc');
+
+    act(() => {
+      window.history.pushState({}, '', '/history?page=xyz');
+    });
+    expect(result.current.pathname).toBe('/history');
+    expect(result.current.search).toBe('?page=xyz');
+  });
+
+  it('無 query 時 search 為空字串', () => {
+    window.history.replaceState({}, '', '/echoes');
+    const { result } = renderHook(() => useCurrentLocation());
+    expect(result.current.search).toBe('');
+  });
+
   it('pushState 觸發 uep:location-change 事件並更新快照', () => {
     const { result } = renderHook(() => useCurrentLocation());
     act(() => {
