@@ -30,6 +30,14 @@ import {
 import type { StorageNote } from '../../progress';
 import { ZONE_LABELS, useCurrentLocation } from '../useCurrentLocation';
 
+import {
+  DRAG_THRESHOLD,
+  commitPin,
+  navigateToPinned,
+  resolveDropTarget,
+} from './dragToPin';
+import { usePinnedNotes } from './usePinnedNotes';
+
 import './StorageIsland.css';
 
 /** 便條排序：updatedAt desc（最近編輯排最上） */
@@ -40,6 +48,11 @@ function sortNotes(notes: StorageNote[]): StorageNote[] {
 export default function StorageIsland() {
   const progress = useProgress();
   const location = useCurrentLocation();
+  const pinned = usePinnedNotes();
+  const pinnedIds = useMemo(
+    () => new Set(pinned.map((p) => p.noteId)),
+    [pinned]
+  );
   const notes = useMemo(
     () => sortNotes(progress.storageNotes),
     [progress.storageNotes]
@@ -102,24 +115,32 @@ export default function StorageIsland() {
         {notes.length === 0 && (
           <div className="uep-stoland__empty">還沒寫下任何東西。</div>
         )}
-        {notes.map((note, i) => (
-          <NoteCard
-            key={note.id}
-            note={note}
-            isLatest={i === 0}
-            isEditing={editingId === note.id}
-            isConfirmingDelete={confirmDeleteId === note.id}
-            onStartEdit={() => setEditingId(note.id)}
-            onEndEdit={() => setEditingId(null)}
-            onRequestDelete={() => setConfirmDeleteId(note.id)}
-            onCancelDelete={() => setConfirmDeleteId(null)}
-            onConfirmDelete={() => {
-              getProgressManager().removeStorageNote(note.id);
-              setConfirmDeleteId(null);
-              if (editingId === note.id) setEditingId(null);
-            }}
-          />
-        ))}
+        {notes.map((note, i) => {
+          const isPinned = pinnedIds.has(note.id);
+          const pinnedMeta = isPinned
+            ? (pinned.find((p) => p.noteId === note.id) ?? null)
+            : null;
+          return (
+            <NoteCard
+              key={note.id}
+              note={note}
+              isLatest={i === 0}
+              isPinned={isPinned}
+              pinnedMeta={pinnedMeta}
+              isEditing={editingId === note.id}
+              isConfirmingDelete={confirmDeleteId === note.id}
+              onStartEdit={() => setEditingId(note.id)}
+              onEndEdit={() => setEditingId(null)}
+              onRequestDelete={() => setConfirmDeleteId(note.id)}
+              onCancelDelete={() => setConfirmDeleteId(null)}
+              onConfirmDelete={() => {
+                getProgressManager().removeStorageNote(note.id);
+                setConfirmDeleteId(null);
+                if (editingId === note.id) setEditingId(null);
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* 便條數量與 cap 提示 */}
@@ -169,6 +190,8 @@ export default function StorageIsland() {
 interface NoteCardProps {
   note: StorageNote;
   isLatest: boolean;
+  isPinned: boolean;
+  pinnedMeta: import('./pinnedStore').PinnedNote | null;
   isEditing: boolean;
   isConfirmingDelete: boolean;
   onStartEdit: () => void;
@@ -181,6 +204,8 @@ interface NoteCardProps {
 function NoteCard({
   note,
   isLatest,
+  isPinned,
+  pinnedMeta,
   isEditing,
   isConfirmingDelete,
   onStartEdit,
@@ -191,6 +216,13 @@ function NoteCard({
 }: NoteCardProps) {
   const [draft, setDraft] = useState(note.text);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  /* ── 拖曳釘選（未編輯 / 未確認刪除 / 未釘 才可拖） ── */
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
 
   /* 進入編輯時同步 draft + 自動 focus + 選取全文 */
   useEffect(() => {
@@ -216,11 +248,63 @@ function NoteCard({
     onEndEdit();
   }
 
+  /* ── pointer 拖曳（未編輯 / 未確認 / 未釘 才可觸發） ── */
+  function handlePointerDown(e: React.PointerEvent) {
+    if (isEditing || isConfirmingDelete || isPinned) return;
+    // 讓 delete 鈕與內文按鈕仍能收到 click——這邊只記錄起點
+    dragOriginRef.current = { x: e.clientX, y: e.clientY };
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const origin = dragOriginRef.current;
+    if (!origin) return;
+    const dx = e.clientX - origin.x;
+    const dy = e.clientY - origin.y;
+    if (!dragging && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return;
+    if (!dragging) {
+      // 超過門檻 → 進入拖曳態，捕獲 pointer 避免離開卡片就斷
+      setDragging(true);
+      try {
+        (e.target as Element).setPointerCapture?.(e.pointerId);
+      } catch {
+        /* 靜默；捕獲失敗仍能繼續追 pointermove（會較不精準） */
+      }
+    }
+    setGhostPos({ x: e.clientX, y: e.clientY });
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    const origin = dragOriginRef.current;
+    dragOriginRef.current = null;
+    if (!dragging) return; // 沒進入拖曳態 → 走原本的 click（進編輯）
+    setDragging(false);
+    setGhostPos(null);
+    // 落地
+    if (!origin) return;
+    const resolution = resolveDropTarget(e.clientX, e.clientY);
+    commitPin(note.id, resolution);
+  }
+
+  function handlePointerCancel() {
+    dragOriginRef.current = null;
+    setDragging(false);
+    setGhostPos(null);
+  }
+
+  /* ── 點暗掉便條 → 導向釘選頁 ── */
+  function handlePinnedClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!pinnedMeta) return;
+    navigateToPinned(pinnedMeta);
+  }
+
   const classes = [
     'uep-stoland__note',
     isLatest ? 'is-latest' : '',
     isEditing ? 'is-editing' : '',
     isConfirmingDelete ? 'is-confirming' : '',
+    isPinned ? 'is-pinned' : '',
+    dragging ? 'is-dragging' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -230,7 +314,28 @@ function NoteCard({
       role="listitem"
       className={classes}
       style={{ transform: `rotate(${note.tilt}deg)` }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
+      {/* 拖曳中的 ghost：跟隨 pointer 的視覺回饋 */}
+      {dragging && ghostPos && (
+        <div
+          className="uep-stoland__note-ghost"
+          style={{
+            position: 'fixed',
+            left: ghostPos.x - 60,
+            top: ghostPos.y - 20,
+            pointerEvents: 'none',
+          }}
+          aria-hidden
+        >
+          {note.text.slice(0, 30)}
+          {note.text.length > 30 && '…'}
+        </div>
+      )}
+
       {isConfirmingDelete ? (
         /* 島內局部刪除確認——不用 __uepDialogManager（那是全螢幕） */
         <div className="uep-stoland__confirm">
@@ -275,24 +380,36 @@ function NoteCard({
         <>
           <button
             type="button"
-            onClick={onStartEdit}
+            onClick={isPinned ? handlePinnedClick : onStartEdit}
             className="uep-stoland__note-text"
-            aria-label={`編輯便條：${note.text}`}
+            aria-label={
+              isPinned
+                ? `前往釘選位置：${note.text}（${pinnedMeta?.pageLabel ?? ''}）`
+                : `編輯便條：${note.text}`
+            }
+            title={
+              isPinned
+                ? `這張已釘在「${pinnedMeta?.pageLabel ?? '某頁'}」，點擊前往`
+                : undefined
+            }
           >
             {note.text}
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRequestDelete();
-            }}
-            className="uep-stoland__note-delete"
-            aria-label="刪除便條"
-            title="刪除"
-          >
-            ×
-          </button>
+          {/* 已釘的便條不再顯示刪除鈕（要拆需先在頁面上拆除） */}
+          {!isPinned && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRequestDelete();
+              }}
+              className="uep-stoland__note-delete"
+              aria-label="刪除便條"
+              title="刪除"
+            >
+              ×
+            </button>
+          )}
         </>
       )}
     </div>

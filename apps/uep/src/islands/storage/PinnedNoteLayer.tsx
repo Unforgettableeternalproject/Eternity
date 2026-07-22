@@ -49,6 +49,7 @@ import type { PinnedNote } from './pinnedStore';
 import { resolveAnchorRect } from './contentAnchors';
 import type { ResolvedAnchor } from './contentAnchors';
 import { findContentContainers } from './zoneContentTargets';
+import { takeJumpToPinned } from './dragToPin';
 import { usePinnedNotes } from './usePinnedNotes';
 
 import './PinnedNoteLayer.css';
@@ -156,6 +157,10 @@ export default function PinnedNoteLayer() {
   const location = useCurrentLocation();
   /** 觸發 rect 重算（換頁、捲動、視窗 resize） */
   const [refreshTick, setRefreshTick] = useState(0);
+  /** 便條 DOM ref 池（jump-to 用） */
+  const noteRefs = useRef<Map<string, HTMLElement>>(new Map());
+  /** 尚未消化的 jump-to 目標——rAF/timeout 內 scrollIntoView 後清除 */
+  const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
 
   // 依當前 path 過濾（跨頁自動更新——location 變則過濾集變）
   const currentPins = useMemo(
@@ -198,6 +203,50 @@ export default function PinnedNoteLayer() {
     };
   }, [location.pathname]);
 
+  /* jump-to：換頁後或同頁事件 → 讀 sessionStorage flag → scrollIntoView */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    function tryJump() {
+      const id = takeJumpToPinned();
+      if (id) setPendingJumpId(id);
+    }
+
+    // 掛載時檢查（跨頁導向到頁後的情境）
+    tryJump();
+    // 同頁點暗掉便條時 dragToPin.navigateToPinned 派 uep:storage-jump
+    window.addEventListener('uep:storage-jump', tryJump);
+    return () => window.removeEventListener('uep:storage-jump', tryJump);
+  }, []);
+
+  /* pendingJumpId 有值 → 等到該 note 的 DOM 存在 → scrollIntoView */
+  useEffect(() => {
+    if (!pendingJumpId || typeof window === 'undefined') return;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 12; // 6s (500ms * 12) 內容還沒 mount 就放棄
+    const tick = () => {
+      const el = noteRefs.current.get(pendingJumpId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 短暫高亮視覺（沿 CSS class 一次性）
+        el.classList.add('is-jump-target');
+        window.setTimeout(() => el.classList.remove('is-jump-target'), 1600);
+        setPendingJumpId(null);
+        return;
+      }
+      attempts++;
+      if (attempts >= MAX_ATTEMPTS) {
+        setPendingJumpId(null);
+        return;
+      }
+      window.setTimeout(tick, 500);
+    };
+    const raf = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(raf);
+    };
+  }, [pendingJumpId, refreshTick]);
+
   // 位置計算——refreshTick 依賴讓每次重算重新執行 findContentContainers
   const placements = useMemo(() => {
     return currentPins.map((p) => ({
@@ -217,6 +266,10 @@ export default function PinnedNoteLayer() {
           note={
             progress.storageNotes.find((n) => n.id === pinned.noteId) ?? null
           }
+          registerRef={(el) => {
+            if (el) noteRefs.current.set(pinned.noteId, el);
+            else noteRefs.current.delete(pinned.noteId);
+          }}
         />
       ))}
     </>
@@ -231,9 +284,16 @@ interface PinnedNoteCardProps {
   pinned: PinnedNote;
   placement: PinnedPlacement;
   note: StorageNote | null;
+  /** 給 PinnedNoteLayer 註冊 DOM ref 供 jump-to 用 */
+  registerRef?: (el: HTMLElement | null) => void;
 }
 
-function PinnedNoteCard({ pinned, placement, note }: PinnedNoteCardProps) {
+function PinnedNoteCard({
+  pinned,
+  placement,
+  note,
+  registerRef,
+}: PinnedNoteCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -285,6 +345,7 @@ function PinnedNoteCard({ pinned, placement, note }: PinnedNoteCardProps) {
 
   return (
     <div
+      ref={registerRef}
       className={className}
       style={{
         ...placement.style,

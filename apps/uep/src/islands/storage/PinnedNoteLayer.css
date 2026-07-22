@@ -137,6 +137,38 @@
   background: #fff0a8;
 }
 
+/* jump-to 高亮：導向剛捲到這張時的短暫脈動 */
+.uep-pinned-note.is-jump-target {
+  animation: uep-pinned-jump 1.4s ease-out;
+  z-index: 1200;
+}
+
+@keyframes uep-pinned-jump {
+  0% {
+    box-shadow:
+      0 0 0 4px rgba(180, 130, 40, 0.9),
+      0 12px 30px rgba(0, 0, 0, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(180, 130, 40, 0.5),
+      0 12px 30px rgba(0, 0, 0, 0.28);
+  }
+  100% {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-pinned-note.is-jump-target {
+    animation: none;
+    outline: 3px solid rgba(180, 130, 40, 0.7);
+    outline-offset: 4px;
+  }
+}
+
 /* page 級（互動頁降級）與 fixed（錨點失效退路）——viewport 固定角落 */
 .uep-pinned-note--page,
 .uep-pinned-note--fixed {

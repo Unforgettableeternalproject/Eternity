@@ -158,17 +158,26 @@ export interface PinnedNote {
 
 ## 9. 拆卡（版號續 0.9.14.0，分支 feature/epic2-progress-foundation）
 
-| # | 版號 | 內容 |
-|---|---|---|
-| 1 | .1 | 資料層：ProgressState `storageNotes` schema + normalizeState 容舊 + store actions（add/update/remove + 刪除連帶 unpin）+ cap 常數 + 測試 |
-| 2 | .2 | `StorageIsland` pool：DraggableIsland 殼 + 列表/排序/最新放大 + inline 編輯 + 島內局部刪除確認 + header 區域標註 + IslandHost lazy 註冊 + 便條紙 CSS + 測試 |
-| 3 | .3 | `contentAnchors` 工具（ensureContentAnchors/findNearestAnchor/resolveAnchorRect + 容錯）+ 三文字頁 Reader 接 ensureContentAnchors + 測試 |
-| 4 | .4 | `pinnedStore`（localStorage singleton + bridge）+ 登出/reset 清場上（PROGRESS_CHANGE reset 接線）+ 測試 |
-| 5 | .5 | `PinnedNoteLayer` 全站掛載（獨立守門）+ element/page 定位 + 釘選便條 inline 編輯/拆除 + 錨點失效 fallback + 跨頁 path 重算 + 測試 |
-| 6 | .6 | 拖曳釘選互動（pool 拖出 → 抓錨點 → pin）+ pool 暗掉同步 + 點暗掉便條導向 + 測試 |
-| 7 | .7 | 收尾：跨區事件合約預留（常數 + 註解）+ mobile/RWD 守門 + Visuals/Concepts page 級降級驗證 + 全站 test:all 綠 + pnpm check |
+| # | 版號 | 狀態 | 內容 |
+|---|---|---|---|
+| 1 | .1 | ✅ `1b2ac93` | 資料層：ProgressState `storageNotes` schema + normalizeState 容舊 + store actions（add/update/remove）+ cap 常數 + 12 測試 |
+| 2 | .2 | ✅ `09cbffa` | `StorageIsland` pool：DraggableIsland 殼 + 列表/排序/最新放大 + inline 編輯 + 島內局部刪除確認 + header 區域標註 + `useCurrentLocation` + IslandHost lazy 註冊 + 便條紙 CSS + 22 測試 |
+| 3 | .3 | ✅ `0d04a22` | `contentAnchors` 工具（ensureContentAnchors/findNearestAnchor/resolveAnchorRect + 四層容錯鏈 exact→nearest→top→fixed）+ 三文字頁 Reader 接 ensureContentAnchors + 15 測試 |
+| 4 | .4 | ✅ `4b76d9c` | `pinnedStore`（localStorage singleton + `window.__uepStoragePins` bridge）+ 登出/reset 清場上（PROGRESS_CHANGE 接線）+ 便條刪除連帶 unpin（sweepOrphans 通用掃描）+ 16 測試 |
+| 5 | .5 | ✅ `ae02372` | `PinnedNoteLayer` 全站掛載（獨立守門，storage 島解鎖即掛）+ element/page 定位 + 釘選便條 inline 編輯/拆除 + 錨點失效 top/fixed fallback + 跨頁 path 重算 + `zoneContentTargets` registry + 19 測試 |
+| 6 | .6 | ✅（本批） | 拖曳釘選互動（pointer drag + DRAG_THRESHOLD + ghost）+ pool 暗掉同步（is-pinned class）+ 點暗掉便條 → `navigateToPinned` + PinnedNoteLayer jump-to（scrollIntoView + 高亮）+ 15 測試 |
+| 7 | .7 | ✅（本批） | 跨區事件合約 `UEP_STORAGE_PIN_EVENT` + `StoragePinChangeDetail`（pin/unpin/clear/sweep）+ islands/index.ts 對外匯出 + 4 測試 |
 
-依賴鏈：.1 → .2（島能記便條，可獨立驗收）；.3 → .4 → .5 → .6（釘選鏈）；.7 收尾。.2 完成後 pool 即可用，釘選鏈疊上。
+依賴鏈：.1 → .2（島能記便條，可獨立驗收）；.3 → .4 → .5 → .6（釘選鏈）；.7 收尾。
+
+## 11. 完成總結（2026-07-21）
+
+- **6 commits + 1 fix commit（DevTools.css）+ 1 docs commit**，全在 `feature/epic2-progress-foundation`
+- **1050+ 測試全綠**（新增約 103 個），typecheck 綠，pnpm check 綠
+- 版號 0.9.14.0 → **0.9.14.7**（S9-A 完成——待 S9-B「各浮島專屬解鎖儀式」）
+- 手機守門：`isDesktopIslandViewport` + `@media (max-width:760px) display:none` 雙層
+- Visuals/Concepts 降級：`supportsElementAnchor` 判斷、走 page 級 fallback（右下角 viewport 固定）
+- 未來擴充鉤子：`UEP_STORAGE_PIN_EVENT` CustomEvent 已預留（消費端待需要時實作）
 
 ## 10. 待決 / 預留
 

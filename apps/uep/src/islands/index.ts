@@ -103,3 +103,16 @@ export { default as IslandDock } from './IslandDock';
 export { default as IslandHost } from './IslandHost';
 export { default as IslandUnlockObject } from './IslandUnlockObject';
 export { default as IslandSettingsPanel } from './IslandSettingsPanel';
+
+/* ── Storage 便條島（S9-A） ── */
+export {
+  uepStoragePins,
+  getPinnedStore,
+  PINNED_STORAGE_KEY,
+  UEP_STORAGE_PIN_EVENT,
+} from './storage/pinnedStore';
+export type {
+  PinnedNote,
+  PinAnchorKind,
+  StoragePinChangeDetail,
+} from './storage/pinnedStore';

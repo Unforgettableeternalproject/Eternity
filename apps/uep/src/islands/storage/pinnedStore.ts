@@ -25,6 +25,39 @@
 import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../../progress';
 import type { ProgressChangeDetail } from '../../progress';
 
+/* ─────────────────────────────────────────────────────────
+ * 跨區事件合約（S9-A.7）
+ *
+ * 目前 storage 便條是純本地隨手記，不與其他 zone 互動。艾斯維爾 07/21
+ * 定案：合約先預留、消費端未來再實作，避免屆時要在 pinnedStore 追加
+ * 事件時破壞既有訂閱者。
+ *
+ * 派發時機：pin/unpin/clearAll（每次 pinnedStore mutation）
+ * detail 型別：`StoragePinChangeDetail`
+ *
+ * 未來可能的消費場景（先不做）：
+ *  - Concepts terminal：便條映照 dossier 條目（entityKey 對應）
+ *  - History Island：便條對應章節時的旅程之書標記
+ *  - visitor-counter Worker：便條使用量統計
+ * ───────────────────────────────────────────────────────── */
+export const UEP_STORAGE_PIN_EVENT = 'uep:storage-pin-change';
+
+export interface StoragePinChangeDetail {
+  /** 本次變更的類型 */
+  source: 'pin' | 'unpin' | 'clear' | 'sweep';
+  /** 影響的便條 id；clear 時為 null（全部） */
+  noteId: string | null;
+  /** 若為 pin，附上完整 PinnedNote 快照供消費端讀 */
+  pinned: PinnedNote | null;
+}
+
+function dispatchPinChange(detail: StoragePinChangeDetail): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent<StoragePinChangeDetail>(UEP_STORAGE_PIN_EVENT, { detail })
+  );
+}
+
 /** 錨定方式：element = 錨在內容元素；page = 頁面級（互動頁降級 or 錨點失效退路） */
 export type PinAnchorKind = 'element' | 'page';
 
@@ -168,6 +201,7 @@ export const uepStoragePins = {
     }
     persist();
     notify();
+    dispatchPinChange({ source: 'pin', noteId: pinned.noteId, pinned });
   },
 
   /** 拆除釘選（該便條回到 pool 恢復可用） */
@@ -177,6 +211,7 @@ export const uepStoragePins = {
     if (pins.length === before) return; // 未動 → 不通知
     persist();
     notify();
+    dispatchPinChange({ source: 'unpin', noteId, pinned: null });
   },
 
   /**
@@ -188,6 +223,7 @@ export const uepStoragePins = {
     pins = [];
     persist();
     notify();
+    dispatchPinChange({ source: 'clear', noteId: null, pinned: null });
   },
 
   /** 訂閱變更；回傳取消訂閱函式 */
@@ -224,6 +260,7 @@ if (typeof window !== 'undefined') {
     if (sweepOrphans(existing)) {
       persist();
       notify();
+      dispatchPinChange({ source: 'sweep', noteId: null, pinned: null });
     }
   };
   window.addEventListener(PROGRESS_CHANGE_EVENT, handler);

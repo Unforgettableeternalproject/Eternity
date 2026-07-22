@@ -132,6 +132,52 @@
   background: #ffeb9c;
 }
 
+/* 已釘：暗掉、標示「已在頁面上」，點擊 → 導向 */
+.uep-stoland__note.is-pinned {
+  opacity: 0.42;
+  background: #ede1a5;
+  cursor: pointer;
+  position: relative;
+}
+
+.uep-stoland__note.is-pinned::after {
+  content: '↗';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 12px;
+  color: rgba(58, 47, 8, 0.5);
+  pointer-events: none;
+}
+
+.uep-stoland__note.is-pinned:hover {
+  opacity: 0.65;
+  background: #ede1a5;
+}
+
+/* 拖曳中：略微淡出，游標變 grabbing */
+.uep-stoland__note.is-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+/* 拖曳 ghost（跟隨 pointer） */
+.uep-stoland__note-ghost {
+  background: #fff1ba;
+  color: #3a2f08;
+  padding: 6px 10px;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: rotate(-3deg);
+  max-width: 180px;
+  z-index: 2500;
+  border-left: 3px solid rgba(180, 130, 40, 0.6);
+}
+
 /* 便條內容按鈕（點擊進編輯） */
 .uep-stoland__note-text {
   display: block;

@@ -27,7 +27,9 @@ async function freshStore() {
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   delete window.__uepProgress;
+  delete window.__uepStoragePins;
   window.history.replaceState({}, '', '/history');
   document.title = '歷史典藏庫 - 邊際世界';
 });
@@ -253,5 +255,83 @@ describe('cap 邊界', () => {
     const ok = uepProgress.addStorageNote('第 31 條');
     expect(ok).toBe(false);
     expect(uepProgress.getState().storageNotes).toHaveLength(30);
+  });
+});
+
+describe('已釘便條的暗掉與導向（S9-A.6）', () => {
+  async function freshWithPinned() {
+    vi.resetModules();
+    const progressMod = await import('../../../progress/progressStore');
+    const pinnedMod = await import('../pinnedStore');
+    return { ...progressMod, ...pinnedMod };
+  }
+
+  it('已釘便條顯示 is-pinned class、點擊 → 派 uep:storage-jump（同頁）', async () => {
+    const { uepProgress, uepStoragePins } = await freshWithPinned();
+    uepProgress.addStorageNote('已釘的');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin({
+      noteId,
+      pagePath: '/history',
+      zone: 'history',
+      pageLabel: 'X',
+      anchorKind: 'element',
+      anchorId: 'p-0',
+      offsetX: 0,
+      offsetY: 0,
+      createdAt: '2026-07-21T00:00:00.000Z',
+    });
+
+    const { container } = render(<StorageIsland />);
+    const note = container.querySelector('.uep-stoland__note');
+    expect(note?.classList.contains('is-pinned')).toBe(true);
+
+    const jumpSpy = vi.fn();
+    window.addEventListener('uep:storage-jump', jumpSpy);
+    fireEvent.click(screen.getByText('已釘的'));
+    expect(jumpSpy).toHaveBeenCalledTimes(1);
+    window.removeEventListener('uep:storage-jump', jumpSpy);
+  });
+
+  it('已釘便條不顯示刪除鈕（要拆需在頁面上拆）', async () => {
+    const { uepProgress, uepStoragePins } = await freshWithPinned();
+    uepProgress.addStorageNote('X');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin({
+      noteId,
+      pagePath: '/history',
+      zone: 'history',
+      pageLabel: 'X',
+      anchorKind: 'page',
+      anchorId: null,
+      offsetX: 0,
+      offsetY: 0,
+      createdAt: '2026-07-21T00:00:00.000Z',
+    });
+
+    render(<StorageIsland />);
+    expect(screen.queryByLabelText('刪除便條')).not.toBeInTheDocument();
+  });
+
+  it('已釘便條 pool 中點擊不進 inline 編輯', async () => {
+    const { uepProgress, uepStoragePins } = await freshWithPinned();
+    uepProgress.addStorageNote('已釘的');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin({
+      noteId,
+      pagePath: '/history',
+      zone: 'history',
+      pageLabel: 'X',
+      anchorKind: 'page',
+      anchorId: null,
+      offsetX: 0,
+      offsetY: 0,
+      createdAt: '2026-07-21T00:00:00.000Z',
+    });
+
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('已釘的'));
+    // 不進編輯 → textarea 不出現
+    expect(screen.queryByLabelText('編輯便條')).not.toBeInTheDocument();
   });
 });

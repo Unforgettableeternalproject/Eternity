@@ -264,6 +264,81 @@ describe('生命週期接線', () => {
   });
 });
 
+describe('跨區事件合約（S9-A.7）', () => {
+  it('pin 派 uep:storage-pin-change source=pin，帶 pinned 快照', async () => {
+    const { uepStoragePins } = await freshStores();
+    const details: unknown[] = [];
+    const handler = (e: Event) => {
+      details.push((e as CustomEvent).detail);
+    };
+    window.addEventListener('uep:storage-pin-change', handler);
+    try {
+      uepStoragePins.pin(makePinned({ noteId: 'a' }));
+      expect(details).toHaveLength(1);
+      const d = details[0] as {
+        source: string;
+        noteId: string;
+        pinned: unknown;
+      };
+      expect(d.source).toBe('pin');
+      expect(d.noteId).toBe('a');
+      expect(d.pinned).not.toBeNull();
+    } finally {
+      window.removeEventListener('uep:storage-pin-change', handler);
+    }
+  });
+
+  it('unpin 派 source=unpin', async () => {
+    const { uepStoragePins } = await freshStores();
+    uepStoragePins.pin(makePinned({ noteId: 'a' }));
+    let source = '';
+    const handler = (e: Event) => {
+      source = (e as CustomEvent).detail.source;
+    };
+    window.addEventListener('uep:storage-pin-change', handler);
+    try {
+      uepStoragePins.unpin('a');
+      expect(source).toBe('unpin');
+    } finally {
+      window.removeEventListener('uep:storage-pin-change', handler);
+    }
+  });
+
+  it('clearAll 派 source=clear', async () => {
+    const { uepStoragePins } = await freshStores();
+    uepStoragePins.pin(makePinned({ noteId: 'a' }));
+    let source = '';
+    const handler = (e: Event) => {
+      source = (e as CustomEvent).detail.source;
+    };
+    window.addEventListener('uep:storage-pin-change', handler);
+    try {
+      uepStoragePins.clearAll();
+      expect(source).toBe('clear');
+    } finally {
+      window.removeEventListener('uep:storage-pin-change', handler);
+    }
+  });
+
+  it('sweepOrphans（便條被刪 → 對應釘選一併清）派 source=sweep', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('X');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin(makePinned({ noteId }));
+    let source = '';
+    const handler = (e: Event) => {
+      source = (e as CustomEvent).detail.source;
+    };
+    window.addEventListener('uep:storage-pin-change', handler);
+    try {
+      uepProgress.removeStorageNote(noteId);
+      expect(source).toBe('sweep');
+    } finally {
+      window.removeEventListener('uep:storage-pin-change', handler);
+    }
+  });
+});
+
 describe('subscribe', () => {
   it('pin/unpin 觸發 listener', async () => {
     const { uepStoragePins } = await freshStores();
