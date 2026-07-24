@@ -38,7 +38,9 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-height: 60vh;
+  /* 固定高度不隨便條增長（艾斯維爾 07/24：輸入框要釘在底部，
+   * 便條多了只有列表捲動，不能把整座島撐高） */
+  height: min(440px, 60vh);
 }
 
 /* ── 當前位置條 ── */
@@ -103,6 +105,9 @@
 .uep-stoland__note {
   background: #fff1ba;
   color: #3a2f08;
+  /* 拖曳與原生文字選取互搶會讓拖曳體感卡頓；便條內文不開放選取
+   *（編輯走 textarea） */
+  user-select: none;
   padding: 8px 26px 8px 10px;
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.1),
@@ -161,8 +166,14 @@
   cursor: grabbing;
 }
 
-/* 拖曳 ghost（跟隨 pointer） */
+/* 拖曳 ghost（跟隨 pointer）——portal 到 body，transform 定位（compositor
+ * 層，拖曳零卡頓）；translate + rotate 由 JS 直寫，這裡只給視覺 */
 .uep-stoland__note-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
   background: #fff1ba;
   color: #3a2f08;
   padding: 6px 10px;
@@ -172,7 +183,6 @@
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transform: rotate(-3deg);
   max-width: 180px;
   z-index: 2500;
   border-left: 3px solid rgba(180, 130, 40, 0.6);
@@ -226,6 +236,7 @@
   padding: 6px 10px;
   background: #fff8d4;
   transform: rotate(0deg); /* 編輯時打直，方便輸入 */
+  user-select: text; /* 還回選取權——textarea 要能選字 */
 }
 
 .uep-stoland__note-textarea {
@@ -241,6 +252,28 @@
   line-height: 1.55;
   resize: vertical;
   padding: 2px;
+  cursor: text;
+  /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋） */
+  caret-color: #a02810;
+}
+
+.uep-stoland__note-textarea:focus {
+  outline: 1.5px solid rgba(160, 40, 16, 0.55);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.uep-stoland__note-textarea::selection {
+  background: rgba(160, 40, 16, 0.25);
+}
+
+/* 編輯中的操作提示（Esc 還原不明顯——07/24 驗收回饋） */
+.uep-stoland__edit-hint {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgba(58, 47, 8, 0.5);
 }
 
 /* ── 島內局部刪除確認 ── */
