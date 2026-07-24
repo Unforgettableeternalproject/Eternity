@@ -95,11 +95,28 @@
   color: rgba(58, 47, 8, 0.95);
 }
 
+/* 拖曳中（reposition）：跟指標走、穿透 hit-test 讓落點解析看到內容。
+ * pointer capture 讓事件持續送到卡片，pointer-events:none 不影響拖曳。 */
+.uep-pinned-note.is-dragging {
+  pointer-events: none;
+  opacity: 0.85;
+  cursor: grabbing;
+  z-index: 1500;
+  transition: none;
+}
+
+/* 便條是「貼上去的實體」，內文不開放選取（編輯走 textarea）——
+ * 同時避免拖曳跟原生文字選取互搶 */
+.uep-pinned-note {
+  user-select: none;
+}
+
 /* 編輯態 */
 .uep-pinned-note.is-editing {
   transform: rotate(0deg) !important; /* 打直方便輸入 */
   background: #fff8d4;
   z-index: 1500;
+  user-select: text; /* 還回選取權——textarea 要能選字 */
 }
 
 .uep-pinned-note__textarea {
@@ -115,6 +132,14 @@
   line-height: 1.55;
   resize: vertical;
   padding: 2px;
+  cursor: text;
+  /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋） */
+  caret-color: #a02810;
+}
+
+.uep-pinned-note__textarea:focus {
+  outline: 1.5px solid rgba(160, 40, 16, 0.55);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* 錨點失效提示 */

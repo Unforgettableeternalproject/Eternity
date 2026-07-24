@@ -12,7 +12,9 @@
 body.uep-zone-entry-active .uep-island,
 body.uep-zone-entry-active .uep-island-dock,
 body.uep-zone-entry-active .uep-unlock-object,
-body.uep-zone-entry-active .uep-minimap {
+body.uep-zone-entry-active .uep-minimap,
+body.uep-zone-entry-active .uep-pinned-note,
+body.uep-zone-entry-active .uep-stoland__note-ghost {
   display: none !important;
 }
 

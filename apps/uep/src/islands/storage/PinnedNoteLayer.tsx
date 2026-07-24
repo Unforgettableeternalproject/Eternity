@@ -14,10 +14,17 @@
  *  1. `anchorKind: 'element'`：
  *     a. 找 zone 內容容器（`.history-prose` 等）——可能多個
  *     b. 逐個容器 `resolveAnchorRect(container, anchorId)`
- *     c. exact/nearest 命中 → absolute 相對容器定位（隨捲動、跟著段落）
+ *     c. exact/nearest 命中 → fixed（viewport 座標）+ 捲動時追蹤錨點元素
  *     d. 全部 top → 退容器頂端 + 顯示「原位置已變動」小提示
  *     e. 全部找不到（fixed） → viewport 固定右下（page 級 fallback）
  *  2. `anchorKind: 'page'`：viewport 相對固定位置
+ *
+ * ⚠️ 定位一律 `position: fixed`（viewport 座標）而非 absolute + window
+ * scroll offset——各 Reader 是**內層容器捲動**（`.history-content` 等
+ * overflow auto），window 從不捲動，用 window.scrollX/Y 換算會讓便條
+ * 永遠停在初算的 viewport 位置（S9-A 驗收根因 C）。element 錨點的追蹤
+ * 走 capture-phase scroll 監聽（scroll 不冒泡，但 capture 會經過 window）
+ * + rAF 直寫 style，不進 React state，避免捲動高頻 re-render。
  *
  * 錨點會隨頁面重排失效——`refreshTick` 每次 `useCurrentLocation` 變化 +
  * mount 時遞增，觸發 rect 重算；不用 mutation observer（成本高、大部分
@@ -69,6 +76,12 @@ interface PinnedPlacement {
   kind: ResolvedAnchor['kind'] | 'page';
   /** page 級（viewport）或 element 錨點命中 */
   origin: 'element' | 'page' | 'fixed';
+  /**
+   * 捲動追蹤目標：exact/nearest = 錨點元素、top = 容器；page/fixed 為
+   * null（viewport 固定不追）。捲動 sync 直接讀此元素的 rect 更新便條
+   * style，不重跑 React render。
+   */
+  trackEl: HTMLElement | null;
 }
 
 /** 由 PinnedNote 算出位置 style（每次 refresh 重算） */
@@ -86,6 +99,7 @@ function computePlacement(
       },
       kind: 'page',
       origin: 'page',
+      trackEl: null,
     };
   }
 
@@ -101,6 +115,7 @@ function computePlacement(
       },
       kind: 'fixed',
       origin: 'fixed',
+      trackEl: null,
     };
   }
 
@@ -129,30 +144,32 @@ function computePlacement(
   }
 
   if (bestKind === 'unmatched') {
-    // 沒任何容器有此錨點 → 退第一個容器頂端 + 提示
+    // 沒任何容器有此錨點 → 退第一個容器頂端 + 提示；捲動時追容器
     const containerRect = bestContainer.getBoundingClientRect();
     return {
       style: {
-        position: 'absolute',
-        left: containerRect.left + window.scrollX + pinned.offsetX,
-        top: containerRect.top + window.scrollY + pinned.offsetY,
+        position: 'fixed',
+        left: containerRect.left + pinned.offsetX,
+        top: containerRect.top + pinned.offsetY,
       },
       kind: 'top',
       origin: 'element',
+      trackEl: bestContainer,
     };
   }
 
-  // exact / nearest：抓命中元素的 rect
+  // exact / nearest：抓命中元素的 rect（viewport 座標，fixed 直接用）
   const el = bestElement!;
   const rect = el.getBoundingClientRect();
   return {
     style: {
-      position: 'absolute',
-      left: rect.left + window.scrollX + pinned.offsetX,
-      top: rect.top + window.scrollY + pinned.offsetY,
+      position: 'fixed',
+      left: rect.left + pinned.offsetX,
+      top: rect.top + pinned.offsetY,
     },
     kind: bestKind,
     origin: 'element',
+    trackEl: el,
   };
 }
 
@@ -181,40 +198,22 @@ export default function PinnedNoteLayer() {
     [pinnedAll, location.pathname, location.search]
   );
 
-  /* 捲動 / resize 時重算位置（rAF throttle 避免高頻重繪） */
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let raf = 0;
-    let pending = false;
-    const trigger = () => {
-      if (pending) return;
-      pending = true;
-      raf = window.requestAnimationFrame(() => {
-        pending = false;
-        setRefreshTick((t) => t + 1);
-      });
-    };
-    window.addEventListener('scroll', trigger, { passive: true });
-    window.addEventListener('resize', trigger);
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', trigger);
-      window.removeEventListener('resize', trigger);
-    };
-  }, []);
-
-  /* 換頁後補一次遲延重算——內容 DOM 可能還在 mount，直接算會抓不到 */
+  /* 換頁後補幾次遲延重算——內容 DOM 可能還在 mount / fetch 中，直接算
+   * 會抓不到錨點而誤退 fixed fallback。search 也要當 dep：Reader 用
+   * pushState 切 query 子頁不換 pathname。 */
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raf = window.requestAnimationFrame(() =>
       setRefreshTick((t) => t + 1)
     );
-    const t = window.setTimeout(() => setRefreshTick((t) => t + 1), 250);
+    const timers = [250, 800, 2000].map((ms) =>
+      window.setTimeout(() => setRefreshTick((t) => t + 1), ms)
+    );
     return () => {
       window.cancelAnimationFrame(raf);
-      window.clearTimeout(t);
+      timers.forEach((t) => window.clearTimeout(t));
     };
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   /* jump-to：換頁後或同頁事件 → 讀 sessionStorage flag → scrollIntoView */
   useEffect(() => {
@@ -232,15 +231,23 @@ export default function PinnedNoteLayer() {
     return () => window.removeEventListener('uep:storage-jump', tryJump);
   }, []);
 
-  /* pendingJumpId 有值 → 等到該 note 的 DOM 存在 → scrollIntoView */
+  /* pendingJumpId 有值 → 等到該 note 的 DOM 存在 → 捲到釘選位置。
+   * ⚠️ 便條卡是 fixed（viewport 座標），對它 scrollIntoView 捲不動內層
+   * 容器——要捲的是它追蹤的錨點元素（trackEl）；page 級只做高亮。 */
   useEffect(() => {
     if (!pendingJumpId || typeof window === 'undefined') return;
     let attempts = 0;
     const MAX_ATTEMPTS = 12; // 6s (500ms * 12) 內容還沒 mount 就放棄
     const tick = () => {
       const el = noteRefs.current.get(pendingJumpId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const entry = placementsRef.current.find(
+        (p) => p.pinned.noteId === pendingJumpId
+      );
+      if (el && entry) {
+        entry.placement.trackEl?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
         // 短暫高亮視覺（沿 CSS class 一次性）
         el.classList.add('is-jump-target');
         window.setTimeout(() => el.classList.remove('is-jump-target'), 1600);
@@ -270,6 +277,45 @@ export default function PinnedNoteLayer() {
       placement: computePlacement(p, location.zone),
     }));
   }, [currentPins, location.zone, refreshTick]);
+
+  /** 捲動 sync 與 jump 共用的最新 placements（不觸發 re-render） */
+  const placementsRef = useRef(placements);
+  placementsRef.current = placements;
+
+  /* 捲動 / resize：直寫 style 追蹤錨點元素。
+   * capture-phase 監聽——Reader 是內層容器捲動，scroll 不冒泡但 capture
+   * 會經過 window；同步執行（scroll handler 在 paint 前跑）便條與內容
+   * 零延遲貼合，不進 React state 避免高頻 re-render。 */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let staleRefreshQueued = false;
+    const sync = () => {
+      for (const { pinned, placement } of placementsRef.current) {
+        const track = placement.trackEl;
+        if (!track) continue; // page / fixed：viewport 固定不追
+        const el = noteRefs.current.get(pinned.noteId);
+        if (!el) continue;
+        if (!track.isConnected) {
+          // 內容重繪把錨點元素換掉了 → 排一次重解析（防抖避免迴圈）
+          if (!staleRefreshQueued) {
+            staleRefreshQueued = true;
+            setRefreshTick((t) => t + 1);
+          }
+          continue;
+        }
+        const rect = track.getBoundingClientRect();
+        el.style.left = `${rect.left + pinned.offsetX}px`;
+        el.style.top = `${rect.top + pinned.offsetY}px`;
+      }
+    };
+    sync();
+    window.addEventListener('scroll', sync, { capture: true, passive: true });
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [placements]);
 
   return (
     <>
@@ -318,6 +364,8 @@ function PinnedNoteCard({
     null
   );
   const pointerDragged = useRef(false);
+  /** 拖曳起點時卡片的 viewport 位置——move 時直寫 style 讓卡片跟指標走 */
+  const dragBase = useRef<{ left: number; top: number } | null>(null);
 
   useEffect(() => {
     if (editing && note) {
@@ -383,9 +431,20 @@ function PinnedNoteCard({
       if (!start || start.id !== e.pointerId) return;
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
+      const el = e.currentTarget as HTMLElement;
       if (!pointerDragged.current && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
         pointerDragged.current = true;
         setDragging(true);
+        // 記下拖曳起點的 viewport 位置（卡片是 fixed，rect 即座標）
+        const rect = el.getBoundingClientRect();
+        dragBase.current = { left: rect.left, top: rect.top };
+      }
+      // 拖曳中：卡片直接跟指標走（直寫 style，不進 React state）
+      if (pointerDragged.current && dragBase.current) {
+        el.style.left = `${dragBase.current.left + dx}px`;
+        el.style.top = `${dragBase.current.top + dy}px`;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
       }
     },
     []
@@ -405,8 +464,11 @@ function PinnedNoteCard({
         return; // 沒動 → click 語意（讓 button 的 onClick 進 edit）
       }
       setDragging(false);
+      dragBase.current = null;
       if (!start) return;
-      // 落點解析——不改 zone/pathname/search（釘選本頁移位不跨頁）
+      // 落點解析——不改 zone/pathname/search（釘選本頁移位不跨頁）。
+      // 拖曳中卡片 pointer-events: none（CSS .is-dragging），
+      // elementFromPoint 才不會命中卡片自己而誤判 page 級。
       const resolution = resolveDropTarget(e.clientX, e.clientY);
       commitPin(pinned.noteId, resolution);
     },
@@ -416,6 +478,7 @@ function PinnedNoteCard({
   const handlePointerCancel = useCallback(() => {
     pointerStart.current = null;
     pointerDragged.current = false;
+    dragBase.current = null;
     setDragging(false);
   }, []);
 
