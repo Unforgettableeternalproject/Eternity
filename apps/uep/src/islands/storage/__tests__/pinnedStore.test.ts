@@ -322,27 +322,47 @@ describe('生命週期接線', () => {
     expect(uepStoragePins.getPinnedMeta(noteId)?.offsetX).toBe(42);
   });
 
-  it('hydrate（setAdapter）→ 場上釘選清空（切帳號同語意）', async () => {
+  // 【回歸：S9-A 驗收根因 A】setAdapter 每次整頁載入都派 hydrate，
+  // 若 hydrate 走 clearAll，釘選撐不過任何一次換頁/F5。
+  it('hydrate（同帳號重載）→ 便條仍在的釘選存活', async () => {
     const { uepProgress, uepStoragePins } = await freshStores();
-    uepStoragePins.pin(makePinned({ noteId: 'x' }));
+    uepProgress.addStorageNote('同步中的便條');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin(makePinned({ noteId }));
+
+    // 模擬同帳號整頁重載：remote 回傳含同一張便條的 state
+    const current = uepProgress.getState();
     await uepProgress.setAdapter({
-      load: async () => null, // 遠端無資料
+      load: async () => ({ ...current, flags: ['remote'] }),
       save: async () => {},
     });
-    // setAdapter 遠端無資料時走 persist 分支不派 hydrate；但遠端有資料時派 hydrate
-    // 這裡驗有資料版
-    const { uepStoragePins: pins2 } = await freshStores();
-    pins2.pin(makePinned({ noteId: 'y' }));
-    const initialProgress = (
-      await import('../../../progress/progressStore')
-    ).uepProgress.getState();
-    await (
-      await import('../../../progress/progressStore')
-    ).uepProgress.setAdapter({
-      load: async () => ({ ...initialProgress, flags: ['remote'] }),
+    expect(uepStoragePins.getAll()).toHaveLength(1);
+    expect(uepStoragePins.isPinned(noteId)).toBe(true);
+  });
+
+  it('hydrate（切帳號）→ 新帳號沒有的便條釘選被掃掉', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepStoragePins.pin(makePinned({ noteId: 'old-account-note' }));
+
+    // 模擬切帳號：remote state 的 storageNotes 是另一組 id
+    const current = uepProgress.getState();
+    await uepProgress.setAdapter({
+      load: async () => ({
+        ...current,
+        flags: ['remote'],
+        storageNotes: [
+          {
+            id: 'new-account-note',
+            text: 'B 帳號的便條',
+            tilt: 0,
+            createdAt: '2026-07-24T00:00:00.000Z',
+            updatedAt: '2026-07-24T00:00:00.000Z',
+          },
+        ],
+      }),
       save: async () => {},
     });
-    expect(pins2.getAll()).toEqual([]);
+    expect(uepStoragePins.getAll()).toEqual([]);
   });
 });
 

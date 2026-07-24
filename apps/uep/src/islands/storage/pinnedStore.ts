@@ -23,7 +23,7 @@
  */
 
 import { isTestMode } from '../../lib/apiBase';
-import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../../progress';
+import { PROGRESS_CHANGE_EVENT } from '../../progress';
 import type { ProgressChangeDetail } from '../../progress';
 
 /* ─────────────────────────────────────────────────────────
@@ -294,20 +294,24 @@ export const uepStoragePins = {
   },
 };
 
-/* ── 生命週期接線（PROGRESS_CHANGE：reset 清空、任何 mutation 掃孤兒） ── */
+/* ── 生命週期接線（PROGRESS_CHANGE：reset 清空、hydrate/mutation 掃孤兒） ── */
 if (typeof window !== 'undefined') {
   const handler = (e: Event) => {
     const detail = (e as CustomEvent<ProgressChangeDetail>).detail;
     if (!detail) return;
 
-    // 1. reset / hydrate（切帳號）→ 直接清空場上釘選（便條本體也全換）
-    if (detail.source === 'reset' || detail.source === 'hydrate') {
+    // 1. reset（登出/重置）→ 直接清空場上釘選（便條本體也全清）
+    if (detail.source === 'reset') {
       uepStoragePins.clearAll();
       return;
     }
 
-    // 2. storage-note 或其他 mutation → 掃孤兒
-    //    便條刪除時 pinned 的那張也一起 drop
+    // 2. hydrate / storage-note / 其他 mutation → 掃孤兒。
+    //    ⚠️ hydrate 不可 clearAll——setAdapter 在**每次整頁載入**（登入
+    //    使用者 remote load 成功）都派 hydrate，clearAll 會讓釘選撐不過
+    //    任何一次換頁/F5（S9-A 驗收根因 A）。切帳號的情境靠掃孤兒天然
+    //    收斂：新帳號的 storageNotes id 集合不同，舊帳號的釘選全數視為
+    //    孤兒被 drop；同帳號重載則 id 相同、釘選存活。
     const existing = new Set(detail.state.storageNotes.map((n) => n.id));
     if (sweepOrphans(existing)) {
       persist();
@@ -317,15 +321,10 @@ if (typeof window !== 'undefined') {
   };
   window.addEventListener(PROGRESS_CHANGE_EVENT, handler);
 
-  // Boot 時也掃一次——localStorage 有殘留但 progress 沒有對應便條的話（如
-  // 上次 session 刪了便條，那時剛好無法 persist）
-  try {
-    const currentNotes = getProgressManager().getState().storageNotes;
-    const existing = new Set(currentNotes.map((n) => n.id));
-    if (sweepOrphans(existing)) persist();
-  } catch {
-    // getProgressManager 尚未就緒 → 忽略，之後 progress-change 會補掃
-  }
+  // ⚠️ 刻意不在 module load 時掃孤兒——此時 progress 可能尚未 hydrate
+  // （本地空、server 有資料），拿殘缺的 storageNotes 掃會誤刪合法釘選並
+  // persist（S9-A 驗收根因 A 的次要 race）。孤兒清理交給 hydrate 與
+  // mutation 的 progress-change 路徑。
 }
 
 /* ── window bridge（跨 React island 單例保證） ── */
