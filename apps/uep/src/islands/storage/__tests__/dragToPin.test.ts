@@ -100,6 +100,119 @@ describe('resolveDropTarget', () => {
     const result = resolveDropTarget(50, 50);
     expect(result.kind).toBe('page');
   });
+
+  //【回歸:07/25 三驗+】anchor-first：drop 落在 prose 外但頁面有 prose
+  // → 掃全頁找最近 anchor 綁定，不再直接走 page 級（原本 page 級是
+  // fixed 相對 viewport 不隨頁面捲，是艾斯維爾三驗回饋的主 UX 問題）
+  it('drop 落在 prose 外但頁面有 prose → 綁最近 anchor', () => {
+    document.body.innerHTML = `
+      <div class="sidebar">邊欄</div>
+      <div class="history-prose">
+        <p data-uep-anchor-id="p-0">A</p>
+        <p data-uep-anchor-id="p-1">B</p>
+      </div>
+    `;
+    // drop 點正上方是邊欄（非 prose）
+    const sidebar = document.querySelector('.sidebar')!;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(sidebar);
+    // 兩個 p 的 rect：drop 點 (50, 120) 離 p-0 (top=100) 較近
+    const [p0, p1] = Array.from(document.querySelectorAll('p'));
+    p0.getBoundingClientRect = () =>
+      ({
+        left: 200,
+        right: 500,
+        top: 100,
+        bottom: 150,
+        width: 300,
+        height: 50,
+        x: 200,
+        y: 100,
+        toJSON: () => {},
+      }) as DOMRect;
+    p1.getBoundingClientRect = () =>
+      ({
+        left: 200,
+        right: 500,
+        top: 400,
+        bottom: 450,
+        width: 300,
+        height: 50,
+        x: 200,
+        y: 400,
+        toJSON: () => {},
+      }) as DOMRect;
+
+    const result = resolveDropTarget(50, 120);
+    expect(result.kind).toBe('element');
+    if (result.kind === 'element') {
+      expect(result.anchorId).toBe('p-0');
+      expect(result.container.className).toBe('history-prose');
+    }
+  });
+
+  it('drop 落在 prose 外且頁面完全沒 prose → 仍走 page 級 fallback', () => {
+    document.body.innerHTML = `<div class="only-interactive">互動頁</div>`;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('.only-interactive')
+    );
+    Object.defineProperty(window, 'innerWidth', {
+      value: 1024,
+      configurable: true,
+    });
+    Object.defineProperty(window, 'innerHeight', {
+      value: 768,
+      configurable: true,
+    });
+
+    const result = resolveDropTarget(100, 100);
+    expect(result.kind).toBe('page');
+  });
+
+  //【回歸:07/25 三驗+】page 級 offset 語意改為「相對 scroll container
+  // 內容左上角座標」（原本是「相對 viewport 右下角」）——這樣便條會
+  // 附著在頁面內容上、隨 container scroll 一起走。
+  it('page 級 offset 是內容座標：scrollLeft+clientX-containerLeft', () => {
+    window.history.replaceState({}, '', '/storage/room');
+    document.body.innerHTML = `
+      <div class="sto-content" style="position:absolute;left:100px;top:80px;">
+        <div class="only-interactive">互動頁</div>
+      </div>
+    `;
+    const container = document.querySelector('.sto-content') as HTMLElement;
+    container.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 80,
+        right: 900,
+        bottom: 700,
+        width: 800,
+        height: 620,
+        x: 100,
+        y: 80,
+        toJSON: () => {},
+      }) as DOMRect;
+    Object.defineProperty(container, 'scrollLeft', {
+      value: 0,
+      configurable: true,
+    });
+    Object.defineProperty(container, 'scrollTop', {
+      value: 200,
+      configurable: true,
+    });
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('.only-interactive')
+    );
+
+    // drop 點 (300, 250) - 沒 prose → page 級，offset 應為內容座標：
+    // contentX = 0 + 300 - 100 = 200
+    // contentY = 200 + 250 - 80 = 370
+    const result = resolveDropTarget(300, 250);
+    expect(result.kind).toBe('page');
+    if (result.kind === 'page') {
+      expect(result.offsetX).toBe(200);
+      expect(result.offsetY).toBe(370);
+    }
+  });
 });
 
 describe('commitPin', () => {

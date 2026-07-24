@@ -61,7 +61,10 @@ import {
 import { getPinnedStore, matchesLocation } from './pinnedStore';
 import type { PinnedNote } from './pinnedStore';
 import { usePinnedNotes } from './usePinnedNotes';
-import { findContentContainers } from './zoneContentTargets';
+import {
+  findContentContainers,
+  findScrollContainer,
+} from './zoneContentTargets';
 
 import './PinnedNoteLayer.css';
 
@@ -89,13 +92,32 @@ function computePlacement(
   pinned: PinnedNote,
   zone: string | null
 ): PinnedPlacement {
-  // page 級釘選：viewport 固定右下（未來若有精細語意化錨點再擴充）
+  // page 級釘選（07/25 三驗+ 語意）：offsetX/Y 是相對於 scroll container
+  // 內容左上角的座標；render 用 fixed 定位 + 減去 container.scrollLeft/Top
+  // 補償，這樣便條會附著在頁面內容上、隨 container scroll 一起走。
+  // trackEl 設為 container 供 sync effect 追它的 scroll 事件。
   if (pinned.anchorKind === 'page') {
+    const container = findScrollContainer(zone);
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      return {
+        style: {
+          position: 'fixed',
+          left: rect.left + pinned.offsetX - container.scrollLeft,
+          top: rect.top + pinned.offsetY - container.scrollTop,
+        },
+        kind: 'page',
+        origin: 'page',
+        trackEl: container,
+      };
+    }
+    // 找不到 container（非 Reader 頁的極端 fallback）→ 用 offset 當
+    // viewport 座標，至少能顯示出來（雖然不會跟頁面走，但也沒得追）
     return {
       style: {
         position: 'fixed',
-        right: 16 + pinned.offsetX,
-        bottom: 16 + pinned.offsetY,
+        left: pinned.offsetX,
+        top: pinned.offsetY,
       },
       kind: 'page',
       origin: 'page',
@@ -304,8 +326,16 @@ export default function PinnedNoteLayer() {
           continue;
         }
         const rect = track.getBoundingClientRect();
-        el.style.left = `${rect.left + pinned.offsetX}px`;
-        el.style.top = `${rect.top + pinned.offsetY}px`;
+        if (placement.origin === 'page') {
+          // page 級（07/25 三驗+）：track 是 scroll container，offset 是
+          // 內容座標；viewport 位置 = containerRect + 內容座標 - scrollTop/Left
+          el.style.left = `${rect.left + pinned.offsetX - track.scrollLeft}px`;
+          el.style.top = `${rect.top + pinned.offsetY - track.scrollTop}px`;
+        } else {
+          // element 錨點：track 是 anchor 元素，offset 是相對 anchor 左上
+          el.style.left = `${rect.left + pinned.offsetX}px`;
+          el.style.top = `${rect.top + pinned.offsetY}px`;
+        }
       }
     };
     sync();

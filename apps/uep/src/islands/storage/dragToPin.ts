@@ -17,8 +17,10 @@ import { getPageContext } from '../../utils/pageContext';
 import { extractZone } from '../useCurrentLocation';
 
 import { findNearestAnchor } from './contentAnchors';
+import type { AnchorHit } from './contentAnchors';
 import { getPinnedStore } from './pinnedStore';
 import type { PinnedNote } from './pinnedStore';
+import { findScrollContainer } from './zoneContentTargets';
 
 /** 拖曳判定門檻（px）——低於這個位移量還原成 click */
 export const DRAG_THRESHOLD = 6;
@@ -56,7 +58,7 @@ export function resolveDropTarget(
     return { kind: 'page', offsetX: 0, offsetY: 0 };
   }
 
-  // 找命中元素 → 找容器
+  // 1. 先試 drop 點正上方：落在 prose 容器內 → 綁該容器最近 anchor
   const target = document.elementFromPoint(clientX, clientY);
   const container = target?.closest<HTMLElement>(CONTENT_CONTAINER_SELECTOR);
 
@@ -73,12 +75,54 @@ export function resolveDropTarget(
     }
   }
 
-  // page 級 fallback：drop 點相對 viewport 右下角的偏移（PinnedNoteLayer 用同角落定位）
+  // 2. 07/25 三驗+：drop 落在 prose 外 → 掃全頁 prose 容器，取整體
+  //    距離最近的 anchor 綁定（不局限於 drop 點正上方的容器）。這樣
+  //    「拖到螢幕邊緣、圖片區、邊欄」等 prose 外的位置也能綁 anchor，
+  //    scroll sync 自然跟著內容捲；否則走 page 級固定 viewport 不動，
+  //    使用者向下捲時便條不會跟著頁面走（艾斯維爾三驗回饋）。
+  // for-of 而非 forEach——TS 追不到 forEach 閉包內的 mutation，會把
+  // outer let 收窄回 null，用 for-of 才能正常 narrow。
+  const allContainers = document.querySelectorAll<HTMLElement>(
+    CONTENT_CONTAINER_SELECTOR
+  );
+  let bestContainer: HTMLElement | null = null;
+  let bestHit: AnchorHit | null = null;
+  for (const c of allContainers) {
+    const hit = findNearestAnchor(c, clientX, clientY);
+    if (!hit) continue;
+    if (!bestHit || hit.distance < bestHit.distance) {
+      bestHit = hit;
+      bestContainer = c;
+    }
+  }
+  if (bestContainer && bestHit) {
+    return {
+      kind: 'element',
+      container: bestContainer,
+      anchorId: bestHit.anchorId,
+      offsetX: bestHit.offsetX,
+      offsetY: bestHit.offsetY,
+    };
+  }
+
+  // 3. 頁面完全沒 prose（storage stuff、concepts 互動頁）→ page 級 fallback
+  //    07/25 三驗+ 語意調整：改用「相對 scroll container 內容左上角的座標」
+  //    （scrollLeft+clientX-containerLeft, scrollTop+clientY-containerTop）
+  //    ——這樣便條會附著在頁面內容上、隨 container scroll 跟著捲；
+  //    舊語意「相對 viewport 右下角」讓便條固定在螢幕角落，違反艾斯維爾
+  //    三驗要求的「附著頁面」行為。找不到 container 時退為 client 座標
+  //    加當前 scroll 相當於「當前 viewport 位置對應的內容座標」。
+  const zone = extractZone(window.location.pathname);
+  const scrollContainer = findScrollContainer(zone);
+  const scrollRect = scrollContainer?.getBoundingClientRect();
+  const contentX =
+    (scrollContainer?.scrollLeft ?? 0) + clientX - (scrollRect?.left ?? 0);
+  const contentY =
+    (scrollContainer?.scrollTop ?? 0) + clientY - (scrollRect?.top ?? 0);
   return {
     kind: 'page',
-    // right/bottom 座標的正向偏移——右下角基準
-    offsetX: Math.max(0, window.innerWidth - clientX - 16),
-    offsetY: Math.max(0, window.innerHeight - clientY - 16),
+    offsetX: Math.max(0, contentX),
+    offsetY: Math.max(0, contentY),
   };
 }
 

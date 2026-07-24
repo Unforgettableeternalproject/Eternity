@@ -77,6 +77,12 @@ export interface AnchorHit {
   /** drop 點相對錨點左上角的偏移（釘選時存下，還原時直接用） */
   offsetX: number;
   offsetY: number;
+  /**
+   * 錨點 rect 到 (clientX, clientY) 的曼哈頓距離（0 = drop 點落在錨點內）。
+   * 07/25 三驗+：dragToPin 拓寬 anchor-first 判定跨多個 prose 容器選最近時，
+   * 需要此距離做排序。單容器呼叫忽略即可。
+   */
+  distance: number;
 }
 
 /**
@@ -104,6 +110,7 @@ export function findNearestAnchor(
           anchorId: anchor.getAttribute(ANCHOR_ATTR)!,
           offsetX: clientX - rect.left,
           offsetY: clientY - rect.top,
+          distance: 0,
         };
       }
     }
@@ -134,6 +141,7 @@ export function findNearestAnchor(
     anchorId: bestEl.getAttribute(ANCHOR_ATTR)!,
     offsetX: clientX - rect.left,
     offsetY: clientY - rect.top,
+    distance: bestDist,
   };
 }
 

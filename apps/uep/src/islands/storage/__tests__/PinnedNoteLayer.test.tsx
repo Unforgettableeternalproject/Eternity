@@ -238,6 +238,56 @@ describe('page 級 fallback', () => {
     expect(container.querySelector('.uep-pinned-note--page')).not.toBeNull();
   });
 
+  //【回歸:07/25 三驗+】page 級 offset 語意改為內容座標——render 位置
+  // 要用 containerRect + offset - scrollLeft/Top 補償（附著頁面內容，
+  // 而非固定 viewport 右下角）。
+  it('page 級：style.left/top 由 containerRect + offset - scroll 補償', async () => {
+    window.history.replaceState({}, '', '/storage/room');
+    document.body.innerHTML = `<div class="sto-content"></div>`;
+    const container = document.querySelector('.sto-content') as HTMLElement;
+    container.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 80,
+        right: 900,
+        bottom: 700,
+        width: 800,
+        height: 620,
+        x: 100,
+        y: 80,
+        toJSON: () => {},
+      }) as DOMRect;
+    Object.defineProperty(container, 'scrollLeft', {
+      value: 0,
+      configurable: true,
+    });
+    Object.defineProperty(container, 'scrollTop', {
+      value: 200,
+      configurable: true,
+    });
+
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('附著頁面的');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin(
+      makePinned({
+        noteId,
+        pagePath: '/storage/room',
+        anchorKind: 'page',
+        anchorId: null,
+        offsetX: 200,
+        offsetY: 370,
+      })
+    );
+
+    const { container: rendered } = render(<PinnedNoteLayer />);
+    const note = rendered.querySelector<HTMLElement>('.uep-pinned-note--page');
+    expect(note).not.toBeNull();
+    // left = 100 + 200 - 0 = 300; top = 80 + 370 - 200 = 250
+    expect(note!.style.left).toBe('300px');
+    expect(note!.style.top).toBe('250px');
+  });
+
   it('element 錨點但容器缺失 → fixed fallback', async () => {
     // 移除 prose 容器
     document.body.innerHTML = '';

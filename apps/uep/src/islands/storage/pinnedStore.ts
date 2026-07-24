@@ -96,7 +96,15 @@ export interface PinnedNote {
    */
   anchorId: string | null;
   /**
-   * element：drop 點相對錨點左上角的偏移；page：相對容器頂端 / viewport 的偏移。
+   * 07/25 三驗+ 語意調整：
+   * - `element`：drop 點相對錨點左上角的偏移（不變）
+   * - `page`：**相對於 scroll container 內容左上角的座標**
+   *   （scrollLeft+clientX-containerLeft, scrollTop+clientY-containerTop）
+   *   —— 舊語意是「相對 viewport 右下角」讓便條固定在螢幕角落，
+   *   艾斯維爾三驗回饋：便條應「附著在頁面內容上」而非螢幕。
+   *
+   * 舊 pin 資料（0.9.14.x 之前）用舊語意存的 page 便條位置會顯示錯位，
+   * 使用者拆除重釘即可修正（釘選是純本地資料）。
    */
   offsetX: number;
   offsetY: number;
