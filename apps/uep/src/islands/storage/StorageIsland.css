@@ -16,6 +16,11 @@
   font-family: var(--font-serif-tc, serif);
   position: relative;
   border-radius: 0;
+  /* 高度與 scroll 全交給內部 .uep-stoland 處理——body 若走 auto，
+   * stoland flex 布局失效，form 會被推到 body 底部隨捲動走
+   *（艾斯維爾 07/24 二次驗收） */
+  max-height: none;
+  overflow: hidden;
 }
 
 /* 便條紙頂端的膠帶條（設計稿元素——貼在 header 下緣） */
@@ -38,9 +43,10 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  /* 固定高度不隨便條增長（艾斯維爾 07/24：輸入框要釘在底部，
-   * 便條多了只有列表捲動，不能把整座島撐高） */
-  height: min(440px, 60vh);
+  /* 固定像素高度（艾斯維爾 07/24 二次驗收：60vh 對高解析度太長；
+   * 便條多了只有列表捲動，輸入框天然黏在 flex 底部不受滾動影響） */
+  height: 420px;
+  max-height: 80vh;
 }
 
 /* ── 當前位置條 ── */

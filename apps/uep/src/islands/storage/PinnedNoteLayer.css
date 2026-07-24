@@ -11,9 +11,16 @@
 .uep-pinned-note {
   position: absolute;
   width: 200px;
+  min-height: 44px;
   background: #fff1ba;
   color: #3a2f08;
   padding: 10px 30px 10px 12px;
+  /* 中文無空格 word-wrap 斷不了字（07/24 二次驗收：長串一行硬撐出邊界）
+   * → 用 overflow-wrap: anywhere 強制任意位置斷行；box-sizing 讓 width
+   * 含 padding，落點/rect 計算才對齊視覺 */
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-family: var(--font-serif-tc, serif);
   font-size: 12.5px;
   line-height: 1.55;
@@ -64,7 +71,9 @@
   color: inherit;
   font: inherit;
   cursor: text;
-  word-wrap: break-word;
+  /* overflow-wrap: anywhere 才能斷中文；white-space: pre-wrap 保留原生換行 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
   white-space: pre-wrap;
 }
 
@@ -111,34 +120,39 @@
   user-select: none;
 }
 
-/* 編輯態 */
+/* 編輯態：打直 + 適應 textarea 內容（min-height 撐開），padding 收緊
+ * 讓 textarea 塞得進來（07/24 二次驗收：textarea 超出便條紙外框） */
 .uep-pinned-note.is-editing {
   transform: rotate(0deg) !important; /* 打直方便輸入 */
   background: #fff8d4;
   z-index: 1500;
+  min-height: 92px;
+  padding: 8px 30px 8px 10px;
   user-select: text; /* 還回選取權——textarea 要能選字 */
 }
 
 .uep-pinned-note__textarea {
+  /* box-sizing 讓 width:100% 含 border/padding；resize:none 禁止使用者
+   * 手動拖大 textarea 超出便條紙——高度由 min-height + 文字自然撐開 */
+  box-sizing: border-box;
   width: 100%;
-  min-height: 60px;
-  border: none;
-  outline: 1px dashed rgba(58, 47, 8, 0.4);
-  outline-offset: 2px;
+  min-height: 68px;
+  border: 1px dashed rgba(58, 47, 8, 0.4);
+  outline: none;
   background: transparent;
   color: inherit;
   font-family: var(--font-serif-tc, serif);
   font-size: 12.5px;
   line-height: 1.55;
-  resize: vertical;
-  padding: 2px;
+  resize: none;
+  padding: 4px 6px;
   cursor: text;
   /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋） */
   caret-color: #a02810;
 }
 
 .uep-pinned-note__textarea:focus {
-  outline: 1.5px solid rgba(160, 40, 16, 0.55);
+  border-color: rgba(160, 40, 16, 0.6);
   background: rgba(255, 255, 255, 0.35);
 }
 

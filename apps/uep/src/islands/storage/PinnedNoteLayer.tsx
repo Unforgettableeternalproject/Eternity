@@ -416,11 +416,10 @@ function PinnedNoteCard({
       if (target?.closest('.uep-pinned-note__unpin')) return;
       pointerStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
       pointerDragged.current = false;
-      try {
-        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      } catch {
-        // 某些瀏覽器/測試環境不支援；下面的 pointermove 仍可靠 pointerStart 判定
-      }
+      /* ⚠️ 不在 pointerdown 立刻 setPointerCapture——這會讓後續 click
+       * 事件的 target 被鎖在此 div 而不會分派到內部 button，變成「點
+       * 下去完全沒反應」（艾斯維爾 07/24 二次驗收）。改成超過
+       * DRAG_THRESHOLD 才捕獲，比照 StorageIsland.NoteCard 的模式。 */
     },
     [editing]
   );
@@ -438,6 +437,12 @@ function PinnedNoteCard({
         // 記下拖曳起點的 viewport 位置（卡片是 fixed，rect 即座標）
         const rect = el.getBoundingClientRect();
         dragBase.current = { left: rect.left, top: rect.top };
+        // 超過閾值才捕獲，避免離開卡片就斷（click 語意在此之前已放行）
+        try {
+          el.setPointerCapture?.(e.pointerId);
+        } catch {
+          /* 靜默；捕獲失敗仍可靠 pointerStart 追 move */
+        }
       }
       // 拖曳中：卡片直接跟指標走（直寫 style，不進 React state）
       if (pointerDragged.current && dragBase.current) {
@@ -454,14 +459,15 @@ function PinnedNoteCard({
     (e: React.PointerEvent<HTMLDivElement>) => {
       const start = pointerStart.current;
       pointerStart.current = null;
+      if (!pointerDragged.current) {
+        setDragging(false);
+        return; // 沒動 → click 語意（讓 button 的 onClick 進 edit）
+      }
+      // 拖曳態才 release 捕獲（pointerdown 已不再無條件 capture）
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
       } catch {
         // ignore
-      }
-      if (!pointerDragged.current) {
-        setDragging(false);
-        return; // 沒動 → click 語意（讓 button 的 onClick 進 edit）
       }
       setDragging(false);
       dragBase.current = null;

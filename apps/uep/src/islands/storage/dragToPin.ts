@@ -178,9 +178,14 @@ export function navigateToPinned(pinned: PinnedNote): void {
   const currentSearch = window.location.search || '';
   if (currentPath === pinned.pagePath) {
     if (currentSearch !== targetSearch) {
-      // 同 pathname 但子頁不同 —— pushState 觸發 Reader 內部路由
-      // （useZoneRouter 監聽 popstate + 我們 patch 過的 pushState）
+      // 同 pathname 但子頁不同——pushState 只改 URL，**不會**產生 popstate
+      // 事件（規範限制，只有瀏覽器 back/forward 才觸發）。useZoneRouter 只
+      // 監聽 popstate 決定切子頁——必須手動派 PopStateEvent 讓它接手載入
+      // 對應內容，否則 URL 換了但頁面不切（07/25 三驗根因）。
+      // 沿 historyIslandData.navigateToHistoryPage / TerminalIsland
+      // 已建立的模式。
       window.history.pushState({}, '', pinned.pagePath + targetSearch);
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
     // 同頁 / 子頁切換 —— 讓 PinnedNoteLayer scrollIntoView 接手
     window.dispatchEvent(new CustomEvent('uep:storage-jump'));

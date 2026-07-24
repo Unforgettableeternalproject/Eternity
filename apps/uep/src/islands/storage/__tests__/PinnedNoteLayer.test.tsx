@@ -64,6 +64,66 @@ describe('跨頁過濾', () => {
     expect(screen.queryByText('別頁的')).not.toBeInTheDocument();
   });
 
+  // 【回歸:07/24 二次驗收】艾斯維爾定案「同一便條紙釘選一次」——
+  // 語意是**每張便條各自能釘一次**，多張不同便條可同時在同頁釘選並顯示。
+  it('同頁多張不同便條 → 全部渲染', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('第一張');
+    uepProgress.addStorageNote('第二張');
+    uepProgress.addStorageNote('第三張');
+    const notes = uepProgress.getState().storageNotes;
+    // 三張都釘在 /history，不同 anchorId 避免完全視覺重疊
+    notes.forEach((n, i) => {
+      uepStoragePins.pin(
+        makePinned({ noteId: n.id, pagePath: '/history', anchorId: `p-${i}` })
+      );
+    });
+
+    const { container } = render(<PinnedNoteLayer />);
+    expect(container.querySelectorAll('.uep-pinned-note')).toHaveLength(3);
+    expect(screen.getByText('第一張')).toBeInTheDocument();
+    expect(screen.getByText('第二張')).toBeInTheDocument();
+    expect(screen.getByText('第三張')).toBeInTheDocument();
+  });
+
+  // 【回歸:07/25 三驗】storage stuff / concepts 等互動頁沒有 .sto-prose 容器
+  // →  drop 都走 page 級 fallback。實測「第二張蓋掉第一張」——本測試
+  // 模擬同頁兩張都 page 級，確認 render 端仍全部渲染出來。
+  it('同頁多張 page 級 fallback → 全部渲染（不會互相蓋掉）', async () => {
+    window.history.replaceState({}, '', '/storage/room');
+    // 刻意不建 .sto-prose 容器，模擬互動頁
+    document.body.innerHTML = '';
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('先釘的');
+    uepProgress.addStorageNote('後釘的');
+    const notes = uepProgress.getState().storageNotes;
+    uepStoragePins.pin(
+      makePinned({
+        noteId: notes[0].id,
+        pagePath: '/storage/room',
+        anchorKind: 'page',
+        anchorId: null,
+        offsetX: 100,
+        offsetY: 100,
+      })
+    );
+    uepStoragePins.pin(
+      makePinned({
+        noteId: notes[1].id,
+        pagePath: '/storage/room',
+        anchorKind: 'page',
+        anchorId: null,
+        offsetX: 400,
+        offsetY: 200,
+      })
+    );
+
+    const { container } = render(<PinnedNoteLayer />);
+    expect(container.querySelectorAll('.uep-pinned-note')).toHaveLength(2);
+    expect(screen.getByText('先釘的')).toBeInTheDocument();
+    expect(screen.getByText('後釘的')).toBeInTheDocument();
+  });
+
   // 【回歸：S9-A Codex #1】同 pathname 下 query string 切子頁，
   // pinned 過濾必須依 pathname+search 聯合比對，否則會跨子頁誤顯示。
   it('同 pathname 不同 search → 只渲染對應子頁的釘選', async () => {

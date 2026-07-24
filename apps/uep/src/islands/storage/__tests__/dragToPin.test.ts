@@ -183,10 +183,15 @@ describe('navigateToPinned', () => {
 
   // 【回歸：S9-A Codex #1】同 pathname 但 pageSearch 不同時，需 pushState
   // 到目標 query 觸發 Reader 內部路由，再派同頁 jump 事件由 layer 接手。
-  it('同 pathname 不同 search → pushState + 派同頁 jump', () => {
+  //【回歸:07/25 三驗】useZoneRouter 只監聽 popstate；pushState 依規範
+  // 不會產生 popstate 事件，Reader 不會自動 react → 必須手動派
+  // PopStateEvent。漏派時 URL 換了但頁面不切（艾斯維爾親自 DevTools 抓到）。
+  it('同 pathname 不同 search → pushState + 派 popstate + 派同頁 jump', () => {
     window.history.replaceState({}, '', '/history?page=alpha');
     const jumpSpy = vi.fn();
+    const popSpy = vi.fn();
     window.addEventListener('uep:storage-jump', jumpSpy);
+    window.addEventListener('popstate', popSpy);
     try {
       navigateToPinned(
         makePinned({
@@ -197,10 +202,12 @@ describe('navigateToPinned', () => {
       );
       expect(window.location.pathname).toBe('/history');
       expect(window.location.search).toBe('?page=beta');
+      expect(popSpy).toHaveBeenCalledTimes(1);
       expect(jumpSpy).toHaveBeenCalledTimes(1);
       expect(window.sessionStorage.getItem(JUMP_TO_PINNED_KEY)).toBe('c');
     } finally {
       window.removeEventListener('uep:storage-jump', jumpSpy);
+      window.removeEventListener('popstate', popSpy);
     }
   });
 
