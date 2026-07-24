@@ -5,17 +5,26 @@
  * 「該顯示在這頁」的釘選便條。兩者共用同一份感知：
  *  - `pathname` 當前 URL path
  *  - `zone` 從 pathname 第一段推斷（history/echoes/concepts/visuals/storage 或 null）
- *  - `pageLabel` 讀 document.title（各 Reader / astro layout 已負責更新）
+ *  - `pageLabel` / `pageTrail` 讀 pageContext（Reader 路由解析後發佈；
+ *    艾斯維爾 07/24 定案：不可從 document.title 倒推——各 zone layout 只
+ *    給主層 title，倒推永遠指不出實際文章）。無 Reader 發佈時退
+ *    document.title（admin / 非 Reader 頁）。
  *
  * 訂閱來源：`popstate`（瀏覽器返回 / useZoneRouter pushState）
- * + 我們主動包一層 pushState/replaceState monkey patch 派事件——
- * pushState 本身不觸發 popstate，各 Reader 內部換頁我們也需要感知。
+ * + 我們主動包一層 pushState/replaceState monkey patch 派事件
+ * + `uep:page-context-change`（Reader fetch 完成後才知道子頁標題，
+ *   沒有伴隨任何導航事件）。
  * monkey patch 只掛一次（module-level flag），跨 island 共用單例。
  *
  * SSR 安全：所有 window 存取都有防禦；SSR 回傳空值，client 掛載後補齊。
  */
 
 import { useEffect, useState } from 'react';
+
+import {
+  PAGE_CONTEXT_CHANGE_EVENT,
+  getPageContext,
+} from '../utils/pageContext';
 
 const ZONE_IDS = new Set([
   'history',
@@ -76,28 +85,33 @@ export interface CurrentLocation {
   search: string;
   /** 當前所在 zone（history/echoes/concepts/visuals/storage），不在浮島 zone 時 null */
   zone: string | null;
-  /** document.title 當前值；SSR 期間為空字串 */
+  /**
+   * 當前子頁標籤——pageContext（Reader 路由解析發佈）優先，
+   * 無發佈時退 document.title（zone 主層 / 非 Reader 頁）；SSR 期間空字串
+   */
   pageLabel: string;
+  /** 祖先鏈標題（history 的 chapter/arc 等）；無發佈時空陣列 */
+  pageTrail: string[];
 }
 
 function snapshot(): CurrentLocation {
   if (typeof window === 'undefined') {
-    return { pathname: '', search: '', zone: null, pageLabel: '' };
+    return { pathname: '', search: '', zone: null, pageLabel: '', pageTrail: [] };
   }
   const pathname = window.location.pathname;
+  const ctx = getPageContext();
   return {
     pathname,
     search: window.location.search || '',
     zone: extractZone(pathname),
-    pageLabel: document.title || '',
+    pageLabel: ctx.label ?? document.title ?? '',
+    pageTrail: ctx.trail,
   };
 }
 
 /**
- * 訂閱當前位置——popstate + 本模組派的 uep:location-change 事件都會觸發重讀。
- * document.title 變更沒有標準事件，若各 Reader 邊看邊改 title 這裡不會即時更新
- * ——目前所有 Reader 換頁時 title 已由 astro layout / Reader 早期 effect 設定完成，
- * 之後不會再變，實務上夠用。真的需要細粒度可另建 MutationObserver 監聽 <title>。
+ * 訂閱當前位置——popstate、本模組派的 uep:location-change、以及
+ * uep:page-context-change（Reader fetch 完成後發佈子頁標題）都觸發重讀。
  */
 export function useCurrentLocation(): CurrentLocation {
   const [loc, setLoc] = useState<CurrentLocation>(() => snapshot());
@@ -109,9 +123,11 @@ export function useCurrentLocation(): CurrentLocation {
     const onChange = () => setLoc(snapshot());
     window.addEventListener('popstate', onChange);
     window.addEventListener(LOCATION_CHANGE_EVENT, onChange);
+    window.addEventListener(PAGE_CONTEXT_CHANGE_EVENT, onChange);
     return () => {
       window.removeEventListener('popstate', onChange);
       window.removeEventListener(LOCATION_CHANGE_EVENT, onChange);
+      window.removeEventListener(PAGE_CONTEXT_CHANGE_EVENT, onChange);
     };
   }, []);
 

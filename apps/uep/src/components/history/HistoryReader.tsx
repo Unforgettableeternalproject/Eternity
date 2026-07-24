@@ -273,9 +273,6 @@ export default function HistoryReader() {
 
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<Page | null>(null);
-  // S9-A Codex #5：載入子頁時把 document.title 更新為 `子頁 - zone`，
-  // 讓便條 pool 的「釘在 XXX」與瀏覽器分頁能反映實際文章。
-  useSubpageTitle(currentPage?.title ?? null);
   const [articleHtml, setArticleHtml] = useState('');
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -648,6 +645,16 @@ export default function HistoryReader() {
 
   const flatPages = useMemo(() => flattenTree(tree, []), [tree]);
   const ancestorMap = useMemo(() => buildAncestorMap(tree), [tree]);
+
+  // S9-A Codex #5 → 07/24 擴充：載入子頁時發佈 pageContext（label +
+  // chapter/arc 祖先鏈）並更新 document.title——島 header 位置條與釘選
+  // pageLabel 由路由解析而來，不從 title 倒推。放在 ancestorMap 之後
+  // 才拿得到祖先鏈。
+  useSubpageTitle(currentPage?.title ?? null, {
+    trail: currentId
+      ? (ancestorMap.get(currentId) ?? []).map((n) => n.title)
+      : [],
+  });
   // pageId → node 索引（進度鏈隱藏判定用）
   const pagesById = useMemo(() => {
     const map = new Map<string, PageTreeNode>();

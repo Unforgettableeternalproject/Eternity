@@ -13,6 +13,7 @@
  * 拖曳門檻：pointerdown → 移動 > `DRAG_THRESHOLD` 才算拖（避免跟 click 衝突）。
  */
 
+import { getPageContext } from '../../utils/pageContext';
 import { extractZone } from '../useCurrentLocation';
 
 import { findNearestAnchor } from './contentAnchors';
@@ -95,7 +96,11 @@ export function commitPin(
   const search =
     typeof window !== 'undefined' ? window.location.search || '' : '';
   const zone = extractZone(pathname);
-  const pageLabel = typeof document !== 'undefined' ? document.title || '' : '';
+  // pageLabel 以 pageContext（Reader 路由解析發佈）為準——document.title
+  // 只有 zone 主層資訊，倒推指不出實際文章（艾斯維爾 07/24 定案）
+  const pageLabel =
+    getPageContext().label ??
+    (typeof document !== 'undefined' ? document.title || '' : '');
   const now = new Date().toISOString();
 
   const pinned: PinnedNote =
