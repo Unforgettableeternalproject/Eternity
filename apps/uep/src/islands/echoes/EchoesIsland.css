@@ -72,8 +72,9 @@
   /* 槽緣與水面都在文件流內，內容自然接在水面之下——不再靠 padding-top
      幫絕對定位的水面讓位（S9-C.10 前的作法，水面一動就得同步改三處
      magic number）。水面高度仍以變數暴露，回聲球要據此避開水面。 */
-  --brim-h: 45px;
+  --brim-h: 40px;
   --surface-h: 26px;
+  --island-close-top: 16px; /* = 槽緣內距 13 + 3 */
 
   padding: 0;
   /* 4px 對齊其他四座島（2~6px）。16px 的大圓角是這座島看起來像 macOS
@@ -181,7 +182,7 @@
   z-index: 4;
   box-sizing: border-box;
   height: var(--brim-h);
-  padding: 15px 16px 0;
+  padding: 13px 16px 0;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--uep-pool-accent) 12%, var(--brim-hi)),

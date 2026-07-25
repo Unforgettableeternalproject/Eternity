@@ -75,8 +75,10 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
  * 明體、終端的該是等寬）。收合鈕一律用**該島語彙的短詞**而非符號——
  * 符號在材質上永遠像是異物（× 在水面上的下場見 S9-C.6）。
  */
+/* 15px：18px 在一座 300~380 寬的島上會壓過內容（艾斯維爾 2026-07-25 二驗
+   「這麼大有點嚇人」）。島名要能一眼看到，但它不是島的主角。 */
 .uep-island-title {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: 0.05em;
@@ -85,8 +87,10 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 .uep-island-close {
   all: unset;
   position: absolute;
-  /* right 由各島覆寫：history 要讓開緞帶、visuals 要讓開光錐 */
-  top: var(--island-close-top, 20px);
+  /* 兩者都由各島覆寫：收合鈕要與該島島名同一行，而各島的島頭內距不同
+     （紙有天頭、槽緣與機殼標頭較窄），所以對齊的是島名而非絕對座標。
+     公式：島頭 padding-top + 3。right 則是讓開緞帶／光錐用。 */
+  top: var(--island-close-top, 19px);
   right: var(--island-close-right, 20px);
   z-index: 6;
   cursor: pointer;

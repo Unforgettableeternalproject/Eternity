@@ -30,6 +30,7 @@
   --tm-soft-rgb: 39 107 76;
   --tm-ink-rgb: 36 80 59;
   --tm-cast: rgba(30, 60, 45, 0.28);
+  --island-close-top: 16px; /* = 機殼標頭內距 13 + 3 */
 
   position: relative;
   border: 1px solid var(--tm-main);
@@ -68,27 +69,31 @@
   position: relative;
   z-index: 2;
   box-sizing: border-box;
-  height: 45px;
-  padding: 14px 16px 0;
+  height: 40px;
+  padding: 13px 16px 0;
   background: var(--tm-bg-head);
   border-bottom: 1px solid rgb(var(--tm-main-rgb) / 0.45);
 }
 
+/* 島名跟著另外四座島用 display 字體。等寬字型沒有中文字符，「移動終端」
+   四個字會 fallback 到系統等寬中文，跟其他島擺在一起明顯格格不入
+   （艾斯維爾 2026-07-25 二驗）。等寬只留給前面的提示符。 */
 .uep-terminal__name {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-family: var(--font-mono);
+  font-family: var(--font-display, serif);
   color: var(--tm-soft);
 }
 
 .uep-terminal__name-sign {
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 12px;
   opacity: 0.8;
 }
 
+/* 「離線」同理不吃 mono，字體走共用的 .uep-island-close */
 .uep-terminal__close {
-  font-family: var(--font-mono);
   color: rgb(var(--tm-ink-rgb) / 0.7);
 }
 

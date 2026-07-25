@@ -41,6 +41,8 @@
   --st-warn-rgb: 180 60 40;
   --st-grain-blend: multiply;
 
+  --island-close-top: 25px; /* = 紙的天頭 22 + 3 */
+
   position: relative;
   display: flex;
   flex-direction: column;

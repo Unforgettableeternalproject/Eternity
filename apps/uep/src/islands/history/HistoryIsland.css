@@ -38,6 +38,7 @@
 
   /* 緞帶垂在 right:26 寬 13，收合鈕要讓開它 */
   --island-close-right: 52px;
+  --island-close-top: 23px; /* = 紙的天頭 20 + 3 */
 
   position: relative;
   padding: 20px 22px 16px;
