@@ -169,6 +169,28 @@ export interface ApiResponse<T = unknown> {
   ok: boolean;
   data?: T;
   error?: string;
+  /**
+   * 附帶的非資料欄位（目前只有進度同步用）。
+   * 放在 `data` 之外，尚未更新的客戶端照舊只讀 `data`、完全不受影響。
+   */
+  meta?: ProgressMeta;
+}
+
+/** GET/PUT /api/uep/progress 的附帶欄位 */
+export interface ProgressMeta {
+  /**
+   * 伺服器發放的進度版本號（單調遞增）。
+   * 客戶端 PUT 時以 `X-Progress-Rev` 帶回做 compare-and-swap。
+   */
+  rev: number;
+  /**
+   * DB `observer_ever` 欄位的當前值——**canonical 事實**。
+   *
+   * 必須隨 GET 一起回傳：admin 清空 progress 時 blob 變 NULL 但
+   * `observer_ever` 保留，若客戶端只看 blob 就會把印記歸零，
+   * 使 `pristineOnly`（純潔者限定）內容對印記者誤判為可見而外洩劇透。
+   */
+  observerEver: boolean;
 }
 
 // ===== 認證 =====
@@ -224,6 +246,11 @@ export interface UepUserRow {
    * 不限於「重置」。
    */
   progress_reset_at: string | null;
+  /**
+   * 伺服器發放的進度版本號，每次寫入（讀者或 admin）+1。
+   * 讀者端 PUT 以 compare-and-swap 比對，不符即 409。見 migration 0021。
+   */
+  progress_rev: number;
   is_active: number;
   admin_note: string | null;
   deleted_at: string | null;

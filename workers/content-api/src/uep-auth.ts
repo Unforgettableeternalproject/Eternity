@@ -294,22 +294,31 @@ async function handleGetProgress(
   }
   const row = await db
     .prepare(
-      'SELECT progress FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+      'SELECT progress, progress_rev, observer_ever FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
-    .first<Pick<UepUserRow, 'progress'>>();
+    .first<Pick<UepUserRow, 'progress' | 'progress_rev' | 'observer_ever'>>();
   if (!row) {
     return json({ ok: false, error: '帳號不存在或已停用' }, 401, cors);
   }
 
+  /* meta 與 data 平行回傳，尚未更新的客戶端只讀 data、完全不受影響。
+     observerEver 取自 DB 欄位而非 blob——admin 清空 progress 時 blob 變
+     NULL 但印記保留，只看 blob 會把印記歸零，讓 pristineOnly
+     （純潔者限定）內容對印記者誤判為可見而外洩劇透。 */
+  const meta = {
+    rev: row.progress_rev,
+    observerEver: row.observer_ever === 1,
+  };
+
   if (!row.progress) {
-    return json({ ok: true, data: null }, 200, cors);
+    return json({ ok: true, data: null, meta }, 200, cors);
   }
   try {
-    return json({ ok: true, data: JSON.parse(row.progress) }, 200, cors);
+    return json({ ok: true, data: JSON.parse(row.progress), meta }, 200, cors);
   } catch {
     // 資料毀損：視為無進度（客戶端會以本地資料重新上傳）
-    return json({ ok: true, data: null }, 200, cors);
+    return json({ ok: true, data: null, meta }, 200, cors);
   }
 }
 
@@ -336,35 +345,63 @@ async function handlePutProgress(
 
   const row = await db
     .prepare(
-      'SELECT observer_ever, progress_reset_at FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+      'SELECT observer_ever, progress_reset_at, progress_rev, progress FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
-    .first<Pick<UepUserRow, 'observer_ever' | 'progress_reset_at'>>();
+    .first<
+      Pick<
+        UepUserRow,
+        'observer_ever' | 'progress_reset_at' | 'progress_rev' | 'progress'
+      >
+    >();
   if (!row) {
     return json({ ok: false, error: '帳號不存在或已停用' }, 401, cors);
   }
 
-  /* ── 樂觀鎖：拒收 admin 重置之前產生的快照（2026-07-26）──
-     使用者分頁還開著時，ServerAdapter 的 debounce PUT 與 pagehide flush
-     會把重置前的本地鏡像整包送上來，把 admin 的重置悄悄復原。
-     blob 的 updatedAt 早於重置時刻即視為過期，回 409 要求客戶端改為
-     重新 hydrate。progress_reset_at 為 NULL（從未重置）時完全略過。
+  /** 版本衝突回應：帶上最新 rev 與 progress，客戶端可直接收斂不必再 GET */
+  const conflict = (): Response => {
+    let current: unknown = null;
+    if (row.progress) {
+      try {
+        current = JSON.parse(row.progress);
+      } catch {
+        current = null;
+      }
+    }
+    return json(
+      {
+        ok: false,
+        error: '進度已被更新，請重新載入',
+        data: current,
+        meta: { rev: row.progress_rev, observerEver: row.observer_ever === 1 },
+      },
+      409,
+      cors
+    );
+  };
 
-     ⚠️ 已知限制：updatedAt 由**客戶端時鐘**產生，裝置時間顯著超前的
-     使用者，其過期快照會被誤判為新資料而放行。要根除得改成伺服器端
-     發放的版本號（PUT 需帶回上次 GET 的 version），那會動到讀寫協定。
-     目前接受此風險——重置與 flush 之間的窗口是秒級，而時鐘偏差要達到
-     分鐘級才會漏擋，且漏擋的後果僅是 admin 需再重置一次。 */
-  if (row.progress_reset_at) {
+  const revHeader = request.headers.get('X-Progress-Rev');
+
+  /* ── 併發控制：優先走 compare-and-swap（2026-07-26）──
+     帶了 X-Progress-Rev 就用伺服器發放的版本號比對；沒帶則退回舊的
+     時間戳檢查，讓尚未更新的前端仍有基本保護。
+
+     ⚠️ 時間戳那條路是弱鎖，**擋不住真正的衝突**：admin 改寫後，舊分頁
+     只要再發生任何 mutation（滑一下觸發 marker-update 就夠），blob 的
+     updatedAt 便刷新成當下、比 progress_reset_at 新而直接通過，整份舊
+     state 照樣覆蓋 admin 的編輯。它只擋得住「完全沒動作的過期分頁」。
+     待兩站前端全面上線後，此分支應改為一律拒絕（要求帶 rev）。 */
+  if (revHeader !== null) {
+    const clientRev = Number(revHeader);
+    if (!Number.isInteger(clientRev) || clientRev < 0) {
+      return json({ ok: false, error: 'X-Progress-Rev 格式錯誤' }, 400, cors);
+    }
+    if (clientRev !== row.progress_rev) return conflict();
+  } else if (row.progress_reset_at) {
     const clientUpdatedAt =
       typeof body.updatedAt === 'string' ? body.updatedAt : null;
     if (!clientUpdatedAt || clientUpdatedAt <= row.progress_reset_at) {
-      // 409 本身即是客戶端的判斷依據（ServerAdapter.flush 只看 status）
-      return json(
-        { ok: false, error: '進度已被管理者重置，請重新載入' },
-        409,
-        cors
-      );
+      return conflict();
     }
   }
 
@@ -377,15 +414,27 @@ async function handlePutProgress(
     return json({ ok: false, error: '進度資料過大' }, 413, cors);
   }
 
+  /* compare-and-swap：WHERE 帶上剛讀到的 rev，寫入才 +1。
+     即使客戶端沒送 X-Progress-Rev 也有這層保護——它擋的是本次
+     read-modify-write 之間插進來的另一個寫入（admin 或另一個分頁）。 */
   const now = new Date().toISOString();
-  await db
+  const result = await db
     .prepare(
-      'UPDATE uep_users SET progress = ?, observer_ever = ?, updated_at = ? WHERE username = ?'
+      'UPDATE uep_users SET progress = ?, observer_ever = ?, progress_rev = progress_rev + 1, updated_at = ? WHERE username = ? AND progress_rev = ?'
     )
-    .bind(serialized, observerEver ? 1 : 0, now, payload.sub)
+    .bind(serialized, observerEver ? 1 : 0, now, payload.sub, row.progress_rev)
     .run();
+  if (result.meta.changes === 0) return conflict();
 
-  return json({ ok: true, data: { observerEver, savedAt: now } }, 200, cors);
+  return json(
+    {
+      ok: true,
+      data: { observerEver, savedAt: now },
+      meta: { rev: row.progress_rev + 1, observerEver },
+    },
+    200,
+    cors
+  );
 }
 
 // ===== Admin 使用者管理（JWT admin 保護）=====
@@ -587,6 +636,8 @@ async function handleAdminUpdateUser(
          不是 reset——後者會把空 state 推回去蓋掉 admin 存的內容。 */
       updates.push('progress_reset_at = ?');
       values.push(new Date().toISOString());
+      // 版本 +1：一次讓所有在飛的舊 rev 失效，讀者端的 CAS 會落空回 409
+      updates.push('progress_rev = progress_rev + 1');
     }
     updates.push('observer_ever = ?');
     values.push(finalObserver ? 1 : 0);

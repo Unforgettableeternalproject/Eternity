@@ -159,7 +159,7 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
       headers['Access-Control-Allow-Methods'] =
         'GET, HEAD, POST, PUT, DELETE, OPTIONS';
       headers['Access-Control-Allow-Headers'] =
-        'Content-Type, Authorization, Range';
+        'Content-Type, Authorization, Range, X-Progress-Rev';
     }
     return headers;
   }
@@ -174,7 +174,7 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
     headers['Access-Control-Allow-Methods'] =
       'GET, HEAD, POST, PUT, DELETE, OPTIONS';
     headers['Access-Control-Allow-Headers'] =
-      'Content-Type, Authorization, Range';
+      'Content-Type, Authorization, Range, X-Progress-Rev';
     return headers;
   }
 
@@ -205,7 +205,7 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
     headers['Access-Control-Allow-Methods'] =
       'GET, HEAD, POST, PUT, DELETE, OPTIONS';
     headers['Access-Control-Allow-Headers'] =
-      'Content-Type, Authorization, Range';
+      'Content-Type, Authorization, Range, X-Progress-Rev';
   }
 
   return headers;

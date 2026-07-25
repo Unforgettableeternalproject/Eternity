@@ -484,15 +484,29 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     });
   });
 
-  /* ── 伺服器權威 hydrate（admin 改寫後的 409 收斂）────────────────── */
+  /* ── 伺服器權威 hydrate（版本衝突後的收斂）─────────────────────── */
   describe('hydrateAuthoritative', () => {
+    /** 帶 loadAuthoritative 的假 server adapter，快照可隨時抽換 */
+    function serverAdapter(
+      snapshot: () => {
+        state: ProgressState | null;
+        observerEver: boolean;
+      } | null
+    ) {
+      return {
+        load: () => Promise.resolve(snapshot()?.state ?? null),
+        save: vi.fn(() => Promise.resolve()),
+        loadAuthoritative: () => Promise.resolve(snapshot()),
+      };
+    }
+
     it('遠端有資料 → 直接採用，不與本地聯集', async () => {
       const { uepProgress } = await freshStore();
-      uepProgress.grantFlags(['stale-local']);
-      await uepProgress.setAdapter({
-        load: () => Promise.resolve(makeRemote({ flags: ['admin-edited'] })),
-        save: () => Promise.resolve(),
-      });
+      const adapter = serverAdapter(() => ({
+        state: makeRemote({ flags: ['admin-edited'] }),
+        observerEver: false,
+      }));
+      await uepProgress.setAdapter(adapter);
 
       uepProgress.grantFlags(['even-more-local']);
       await uepProgress.hydrateAuthoritative();
@@ -504,27 +518,86 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     /**
      * 【回歸 2026-07-26，Codex 複核 blocker 3】
      * admin 清空後遠端是 null，此時**不得**把本地推上去——那等於原地
-     * 復原他的重置，而且會再撞一次樂觀鎖形成 409 循環。
+     * 復原他的清除，而且會再撞一次版本檢查形成 409 循環。
      */
     it('遠端為 null → 歸零且不上傳本地', async () => {
       const { uepProgress } = await freshStore();
-      const save = vi.fn(() => Promise.resolve());
-      let remote: ProgressState | null = makeRemote({
-        flags: ['before-admin'],
-      });
-      await uepProgress.setAdapter({
-        load: () => Promise.resolve(remote),
-        save,
-      });
+      let snap: { state: ProgressState | null; observerEver: boolean } | null =
+        { state: makeRemote({ flags: ['before-admin'] }), observerEver: false };
+      const adapter = serverAdapter(() => snap);
+      await uepProgress.setAdapter(adapter);
       expect(uepProgress.getState().flags).toEqual(['before-admin']);
 
       // admin 清空了這個帳號的進度
-      remote = null;
-      save.mockClear();
+      snap = { state: null, observerEver: false };
+      adapter.save.mockClear();
       await uepProgress.hydrateAuthoritative();
 
       expect(uepProgress.getState().flags).toEqual([]);
-      expect(save).not.toHaveBeenCalled();
+      expect(adapter.save).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 【回歸 2026-07-26，Codex re-review #2】
+     * 讀不到伺服器時必須保持現狀。舊實作走 `load()`，它在 GET 失敗時
+     * fallback 本地鏡像，等於把過期資料當成伺服器事實採用，下一次
+     * mutation 再帶著新版本號寫回去，繞過整個衝突偵測。
+     */
+    it('讀不到伺服器 → 保持現狀，不歸零也不採用本地鏡像', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => ({
+        state: makeRemote({ flags: ['server-truth'] }),
+        observerEver: false,
+      }));
+      await uepProgress.setAdapter(adapter);
+      uepProgress.grantFlags(['local-since']);
+
+      // 伺服器讀取失敗
+      const failing = {
+        load: () => Promise.resolve(null),
+        save: vi.fn(() => Promise.resolve()),
+        loadAuthoritative: () => Promise.resolve(null),
+      };
+      await uepProgress.setAdapter(failing, { hydrate: false });
+      const before = uepProgress.getState();
+
+      await uepProgress.hydrateAuthoritative();
+
+      expect(uepProgress.getState()).toBe(before);
+      expect(failing.save).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 【回歸 2026-07-26，Codex re-review #3】內容洩漏防線。
+     * admin 清空 progress 時 blob 變 null 但 DB 的 observer_ever 保留。
+     * 若跟著 blob 把 observerEver 歸零，前端會誤判使用者是純潔者，
+     * 讓 pristineOnly（純潔者限定）內容對印記者顯示出來。
+     */
+    it('遠端為 null 但伺服器仍有印記 → observerEver 必須保留', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => ({
+        state: null,
+        observerEver: true,
+      }));
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+
+      await uepProgress.hydrateAuthoritative();
+
+      expect(uepProgress.getState().flags).toEqual([]);
+      expect(uepProgress.getState().observerEver).toBe(true);
+    });
+
+    it('伺服器印記為準——blob 說有、伺服器說沒有時以伺服器為準', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => ({
+        state: makeRemote({ observerEver: true }),
+        observerEver: false,
+      }));
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+
+      await uepProgress.hydrateAuthoritative();
+
+      expect(uepProgress.getState().observerEver).toBe(false);
     });
   });
 });

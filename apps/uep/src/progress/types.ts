@@ -120,6 +120,32 @@ export interface ProgressAdapter {
   load(): Promise<ProgressState | null>;
   /** 寫入狀態 */
   save(state: ProgressState): Promise<void>;
+  /**
+   * 嚴格遠端讀取——**不得** fallback 本地鏡像。
+   *
+   * 用於「伺服器端資料已被第三方改寫」後的權威 hydrate。此時本地鏡像
+   * 正是被判定過期的東西，`load()` 在網路失敗時退回它會讓呼叫端把過期
+   * 資料當成伺服器事實，下一次 mutation 再帶著新時間戳覆蓋回去。
+   *
+   * @returns 快照；`null` 代表**讀不到**（網路/伺服器錯誤），呼叫端應
+   *   保持現狀而非歸零。未實作此方法的 adapter（LocalStorageAdapter）
+   *   本來就沒有遠端概念，呼叫端會略過。
+   */
+  loadAuthoritative?(): Promise<AuthoritativeSnapshot | null>;
+}
+
+/** 伺服器權威快照 */
+export interface AuthoritativeSnapshot {
+  /** 遠端進度；`null` 代表帳號目前沒有雲端進度（含 admin 剛清空） */
+  state: ProgressState | null;
+  /**
+   * 伺服器 `observer_ever` 欄位的當前值。
+   *
+   * 必須獨立於 `state` 帶回：admin 清空 progress 時 blob 是 null 但印記
+   * 保留，只看 blob 會把 observerEver 歸零，使 `pristineOnly`
+   * （純潔者限定）內容對印記者誤判為可見而外洩劇透。
+   */
+  observerEver: boolean;
 }
 
 /** 目前 schema 版本 */

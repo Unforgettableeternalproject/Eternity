@@ -131,7 +131,13 @@ async function attachServerAdapter(): Promise<void> {
            2 秒後 PUT 上去，反過來蓋掉 admin 剛存的東西。
          - setAdapter() 重新 hydrate：遠端為 null 時它會「上傳本地作為
            初始值」，把同一份過期快照再送一次 → 又 409 → 無限重試。 */
-      void getProgressManager().hydrateAuthoritative();
+      /* hydrate 完再 refresh：progress 的 observerEver 已由 meta 校正成
+         伺服器值，但顯示用的「已見證的」前綴讀的是 session。admin 若
+         **清除**了印記，session 仍是舊的 true，得靠 /auth/me 下修。
+         （反向的「印記剛落下」由下方 progress 訂閱即時升級，不需等這裡。） */
+      void getProgressManager()
+        .hydrateAuthoritative()
+        .then(() => uepReaderAuth.refresh());
       window.__uepToastManager?.info('閱讀進度已由管理者更新。');
     },
   });

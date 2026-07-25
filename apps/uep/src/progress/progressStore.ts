@@ -498,16 +498,27 @@ export const uepProgress = {
    *    正是被判定為過期的東西。
    *
    * 刻意不呼叫 `persist()`：這份資料剛從伺服器來，推回去只會再撞一次
-   * 樂觀鎖（blob 的 updatedAt 早於 admin 的寫入時刻）而陷入 409 循環。
-   * 只同步本地鏡像；等使用者真的有新動作時，那次 mutation 自然會帶著
-   * 新的 updatedAt 上傳。
+   * 版本檢查而陷入 409 循環。只同步本地鏡像；等使用者真的有新動作時，
+   * 那次 mutation 自然會帶著新版本號上傳。
+   *
+   * 三個必要條件，缺一就會把 admin 的操作蓋掉或洩漏內容：
+   * 1. 走 `loadAuthoritative()` 而非 `load()`——後者在 GET 失敗時會
+   *    fallback 本地鏡像，而那正是被判定過期的資料。
+   * 2. 讀不到就**保持現狀**（不歸零）。歸零會讓使用者平白失去進度顯示，
+   *    且下次 mutation 會把空狀態寫回伺服器。
+   * 3. `observerEver` 取伺服器欄位而非 blob——admin 清空 progress 時
+   *    blob 是 null 但印記保留，跟著歸零會讓 `pristineOnly`
+   *    （純潔者限定）內容對印記者誤判為可見而外洩劇透。
    */
   async hydrateAuthoritative(): Promise<void> {
+    if (!adapter.loadAuthoritative) return; // 本地 adapter 沒有遠端概念
     const generation = adapterGeneration;
-    const remote = await adapter.load();
+    const snapshot = await adapter.loadAuthoritative();
     if (generation !== adapterGeneration) return; // adapter 已更替，作廢
+    if (!snapshot) return; // 讀不到伺服器，維持現狀等下一次
 
-    state = remote ?? createInitialState();
+    const base = snapshot.state ?? createInitialState();
+    state = { ...base, observerEver: snapshot.observerEver };
     void new LocalStorageAdapter().save(state);
     notify('hydrate');
   },

@@ -724,6 +724,125 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
       });
       expect(res.status).toBe(200);
     });
+
+    /**
+     * 【回歸 2026-07-26，Codex re-review #1】時間戳不是版本鎖。
+     *
+     * 舊分頁只要再發生任何 mutation（滑一下觸發 marker-update 就夠），
+     * blob 的 updatedAt 就刷新成當下、比 progress_reset_at 新而直接通過，
+     * 整份舊 state 照樣覆蓋 admin 的編輯。這是 compare-and-swap 存在的
+     * 全部理由——沒有它，0020 的樂觀鎖只擋得住完全沒動作的過期分頁。
+     */
+    it('帶舊 rev 的分頁即使更新了 updatedAt 也必須被擋下', async () => {
+      const adminToken = await getAdminToken();
+      const { token } = await registerUser('um-cas-stale-rev');
+      const user = await findUser(adminToken, 'um-cas-stale-rev');
+
+      // 使用者同步一次，記下當時的 rev
+      const first = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({ view: 'explorer', flags: ['mine'] }),
+      });
+      expect(first.status).toBe(200);
+      const staleRev = (first.body as { meta?: { rev: number } }).meta!.rev;
+
+      // admin 在後台存入自己的版本
+      await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({
+          progress: { view: 'explorer', flags: ['admin-authored'] },
+        }),
+      });
+
+      // 舊分頁帶著**全新的** updatedAt（模擬使用者又動了一下）+ 舊 rev
+      const stale = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        headers: { 'X-Progress-Rev': String(staleRev) },
+        body: JSON.stringify({
+          view: 'explorer',
+          flags: ['mine'],
+          updatedAt: new Date(Date.now() + 600_000).toISOString(),
+        }),
+      });
+      expect(stale.status).toBe(409);
+
+      // admin 的版本必須毫髮無傷
+      const after = await fetchJson<{ flags: string[] }>(
+        `/api/uep/admin/users/${user!.id}/progress`,
+        { token: adminToken }
+      );
+      expect(after.body.data!.flags).toEqual(['admin-authored']);
+    });
+
+    it('rev 正確時放行並回傳遞增後的 rev', async () => {
+      const { token } = await registerUser('um-cas-happy');
+      const get = await fetchJson('/api/uep/progress', { token });
+      const rev0 = (get.body as { meta?: { rev: number } }).meta!.rev;
+
+      const put = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        headers: { 'X-Progress-Rev': String(rev0) },
+        body: JSON.stringify({ view: 'explorer', flags: ['ok'] }),
+      });
+      expect(put.status).toBe(200);
+      expect((put.body as { meta?: { rev: number } }).meta!.rev).toBe(rev0 + 1);
+
+      // 同一個 rev 不能用第二次
+      const replay = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        headers: { 'X-Progress-Rev': String(rev0) },
+        body: JSON.stringify({ view: 'explorer', flags: ['replay'] }),
+      });
+      expect(replay.status).toBe(409);
+    });
+
+    it('rev 格式非法回 400', async () => {
+      const { token } = await registerUser('um-cas-badrev');
+      const res = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        headers: { 'X-Progress-Rev': 'abc' },
+        body: JSON.stringify({ view: 'explorer', flags: [] }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    /**
+     * 【回歸 2026-07-26，Codex re-review #3】內容洩漏防線。
+     * admin 清空 progress 時 blob 變 NULL 但 observer_ever 保留；
+     * GET 必須把 canonical 的 observerEver 帶回去，否則客戶端會把印記
+     * 歸零，讓 pristineOnly（純潔者限定）內容對印記者顯示出來。
+     */
+    it('GET 在 progress 為 null 時仍回傳 canonical observerEver', async () => {
+      const adminToken = await getAdminToken();
+      const { token } = await registerUser('um-meta-observer');
+      const user = await findUser(adminToken, 'um-meta-observer');
+
+      // 使用者成為觀測者
+      await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({ view: 'observer', observerEver: true }),
+      });
+
+      // admin 只清 progress，不動印記
+      await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ progress: null }),
+      });
+
+      const get = await fetchJson('/api/uep/progress', { token });
+      expect(get.body.data).toBeNull();
+      expect(
+        (get.body as { meta?: { observerEver: boolean } }).meta!.observerEver
+      ).toBe(true);
+    });
   });
 
   it('GET /users/:id/progress 需 admin token；不存在 404', async () => {

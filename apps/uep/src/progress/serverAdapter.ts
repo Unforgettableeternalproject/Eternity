@@ -11,10 +11,21 @@
  */
 
 import { LocalStorageAdapter, normalizeState } from './adapters';
-import type { ProgressAdapter, ProgressState } from './types';
+import type {
+  AuthoritativeSnapshot,
+  ProgressAdapter,
+  ProgressState,
+} from './types';
 
 /** debounce 預設間隔（毫秒） */
 const DEFAULT_DEBOUNCE_MS = 2000;
+
+/** `/api/uep/progress` 的回應形狀（meta 與 data 平行） */
+interface ProgressResponse {
+  ok: boolean;
+  data?: unknown;
+  meta?: { rev?: number; observerEver?: boolean };
+}
 
 export interface ServerAdapterOptions {
   /** content-api base URL */
@@ -41,6 +52,11 @@ export class ServerAdapter implements ProgressAdapter {
 
   private pending: ProgressState | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * 伺服器發放的進度版本號，PUT 時以 `X-Progress-Rev` 帶回做 CAS。
+   * null = 尚未從伺服器讀過（首次 PUT 不帶 header，退回時間戳弱鎖）。
+   */
+  private rev: number | null = null;
   private readonly onPageHide = () => {
     void this.flush(true);
   };
@@ -92,8 +108,9 @@ export class ServerAdapter implements ProgressAdapter {
         // 伺服器暫時性錯誤：fallback 本地鏡像，不阻斷閱讀
         return this.local.loadSync();
       }
-      const json = (await res.json()) as { ok: boolean; data?: unknown };
+      const json = (await res.json()) as ProgressResponse;
       if (!json.ok) return this.local.loadSync();
+      if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
       // data === null 代表帳號尚無雲端進度（store 會上傳本地作為初始值）
       if (json.data === null || json.data === undefined) return null;
       return normalizeState(json.data);
@@ -127,12 +144,17 @@ export class ServerAdapter implements ProgressAdapter {
     const body = JSON.stringify(this.pending);
     this.pending = null;
     try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      // 帶上手上的版本號做 compare-and-swap；沒有（還沒 GET 過）就不帶，
+      // 由 worker 退回時間戳弱鎖。
+      if (this.rev !== null) headers['X-Progress-Rev'] = String(this.rev);
+
       const res = await fetch(`${this.opts.apiBase}/api/uep/progress`, {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body,
         keepalive,
       });
@@ -140,17 +162,57 @@ export class ServerAdapter implements ProgressAdapter {
         this.opts.onAuthExpired?.();
         return;
       }
-      /* 409 = admin 已重置此帳號的進度，我們手上這份是重置前的快照
-         （worker 端樂觀鎖，見 uep-auth.ts handlePutProgress）。
-         繼續重試只會一直被拒，且本地鏡像已經是過期資料——直接改為
-         從伺服器重新拉一份覆蓋本地，讓兩邊對齊。 */
+      /* 409 = 版本衝突：伺服器上的進度在我們讀取之後被改寫過
+         （admin 後台編輯／清空，或另一個分頁搶先寫入）。
+         手上這份必然過期，繼續重試只會一直被拒——交給呼叫端做權威
+         hydrate 收斂。rev 一併作廢，避免下次又拿舊版本去撞。 */
       if (res.status === 409) {
+        this.rev = null;
         this.opts.onProgressReset?.();
         return;
+      }
+      if (res.ok) {
+        const json = (await res.json()) as ProgressResponse;
+        if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
       }
       // 其他錯誤：靜默——下次 save 會帶著最新狀態重試
     } catch {
       // 網路失敗：靜默，本地鏡像已是最新，之後的 save 會重試
+    }
+  }
+
+  /**
+   * 嚴格遠端讀取——與 `load()` 的關鍵差異是**任何失敗都回 null**，
+   * 絕不 fallback 本地鏡像。
+   *
+   * 權威 hydrate 的前提是「以伺服器為準」，而此刻本地鏡像正是被判定過期
+   * 的那份。若在 GET 失敗時把它當成伺服器事實採用，下一次 mutation 會帶
+   * 著新版本號把過期資料寫回去，等於繞過整個衝突偵測。
+   */
+  async loadAuthoritative(): Promise<AuthoritativeSnapshot | null> {
+    const token = this.opts.getToken();
+    if (!token) return null;
+    try {
+      const res = await fetch(`${this.opts.apiBase}/api/uep/progress`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) {
+        this.opts.onAuthExpired?.();
+        return null;
+      }
+      if (!res.ok) return null; // 讀不到就說讀不到，不拿本地充數
+      const json = (await res.json()) as ProgressResponse;
+      if (!json.ok) return null;
+      if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
+      return {
+        state:
+          json.data === null || json.data === undefined
+            ? null
+            : normalizeState(json.data),
+        observerEver: json.meta?.observerEver === true,
+      };
+    } catch {
+      return null; // 離線同理
     }
   }
 }
