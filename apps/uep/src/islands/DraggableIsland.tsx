@@ -2,11 +2,12 @@
 /**
  * UEP 浮島系統 — 可拖曳視窗外殼
  *
- * 只負責「視窗」行為：拖曳、收合、焦點置頂、位置持久化、手機 bottom sheet。
+ * 只負責「視窗」行為：拖曳、收合、焦點置頂、位置持久化。
  * 內容 UI 由各島元件（children）自理——視覺語彙本質不同，不強行共用。
  *
  * 拖曳機制沿用 Minimap：pointer capture + viewport clamp + 比例式 resize。
- * 手機（<=760px）不拖曳，改為底部固定的 bottom sheet。
+ * 浮島只在桌面（>=761px）掛載，根守門在 IslandHost 的 useDesktopIslandViewport，
+ * 因此本元件不需要任何手機分支。
  *
  * S9-C.1 起支援 bare 外殼：不畫 header 與底框，改用 IslandChromeContext
  * 把把手與收合交給島自畫（見 islandChrome.ts）。視窗行為完全不變。
@@ -37,21 +38,6 @@ interface DraggableIslandProps {
   className?: string;
 }
 
-/** 手機判定斷點（與 Minimap 隱藏斷點一致） */
-const MOBILE_QUERY = '(max-width: 760px)';
-
-function useIsMobile(): boolean {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY);
-    setMobile(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setMobile(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return mobile;
-}
-
 export default function DraggableIsland({
   id,
   children,
@@ -60,9 +46,7 @@ export default function DraggableIsland({
   const def = ISLAND_DEFINITIONS[id];
   const runtime = getIslandRuntime();
   const runtimeState = useIslandRuntimeState();
-  const isMobile = useIsMobile();
-  /** 手機仍走中性 bottom sheet（設計稿未涵蓋手機，且島在手機不掛載） */
-  const bare = def.shell === 'bare' && !isMobile;
+  const bare = def.shell === 'bare';
   const leaveMs = def.leaveMs ?? DEFAULT_LEAVE_ANIM_MS;
 
   const win = runtimeState.windows[id];
@@ -109,7 +93,7 @@ export default function DraggableIsland({
 
   /* ---------- mount：還原持久化位置或用預設角落 ---------- */
   useLayoutEffect(() => {
-    if (isMobile || !ref.current) return;
+    if (!ref.current) return;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
     const stored = win?.position ?? null;
@@ -121,11 +105,11 @@ export default function DraggableIsland({
     ratioRef.current = toRatio(initial.left, initial.top);
     setReady(true);
     // 位置只在 mount 時還原一次；之後以拖曳為準（win.position 由本元件寫入）
-  }, [isMobile]);
+  }, []);
 
   /* ---------- 內容尺寸改變：維持預設錨點並避免島被 viewport 截斷 ---------- */
   useLayoutEffect(() => {
-    if (isMobile || !ref.current || typeof ResizeObserver === 'undefined') {
+    if (!ref.current || typeof ResizeObserver === 'undefined') {
       return;
     }
     const element = ref.current;
@@ -140,11 +124,10 @@ export default function DraggableIsland({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isMobile, def.defaultCorner]);
+  }, [def.defaultCorner]);
 
   /* ---------- resize：等比移動 + clamp ---------- */
   useEffect(() => {
-    if (isMobile) return;
     function onResize() {
       const w = ref.current?.offsetWidth || def.width;
       const h = ref.current?.offsetHeight || 200;
@@ -153,11 +136,11 @@ export default function DraggableIsland({
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [isMobile, def.width]);
+  }, [def.width]);
 
   /* ---------- drag handlers（header 專用） ---------- */
   function startDrag(e: React.PointerEvent) {
-    if (isMobile || !ref.current) return;
+    if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     setDrag({ offX: e.clientX - rect.left, offY: e.clientY - rect.top });
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -200,39 +183,7 @@ export default function DraggableIsland({
     leaving,
   };
 
-  /* ---------- 手機：bottom sheet ---------- */
-  if (isMobile) {
-    return (
-      <IslandChromeContext.Provider value={chrome}>
-        <div
-          className={`uep-island uep-island--sheet${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
-          style={{ zIndex }}
-          onPointerDown={() => runtime.focus(id)}
-          onAnimationEnd={handleLeaveAnimationEnd}
-          role="dialog"
-          aria-label={def.title}
-        >
-          <div className="uep-island__header">
-            <span className="uep-island__icon" aria-hidden>
-              {def.icon}
-            </span>
-            <span className="uep-island__title">{def.title}</span>
-            <button
-              className="uep-island__collapse"
-              onClick={requestClose}
-              aria-label={`收合${def.title}`}
-              title="收合"
-            >
-              —
-            </button>
-          </div>
-          <div className="uep-island__body">{children}</div>
-        </div>
-      </IslandChromeContext.Provider>
-    );
-  }
-
-  /* ---------- 桌面：浮動視窗 ---------- */
+  /* ---------- 浮動視窗 ---------- */
   return (
     <IslandChromeContext.Provider value={chrome}>
       <div

@@ -70,9 +70,6 @@ import {
 
 import './PinnedNoteLayer.css';
 
-/** 手機/窄視窗守門值——與其他浮島相關功能一致（IslandHost 也用同值） */
-const DESKTOP_MIN_WIDTH = 761;
-
 /** 定位計算的結果 */
 interface PinnedPlacement {
   /** 便條要用的 style（left/top/position），呼叫端直接展開 */
@@ -728,10 +725,4 @@ function PinnedNoteCard({
       )}
     </div>
   );
-}
-
-/** export helper for external mount guard checks */
-export function isPinnedLayerDesktopViewport(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.innerWidth >= DESKTOP_MIN_WIDTH;
 }

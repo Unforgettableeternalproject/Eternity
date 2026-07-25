@@ -193,57 +193,6 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   overflow: visible;
 }
 
-/* ── 手機 bottom sheet ── */
-.uep-island--sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: auto;
-  border-radius: 10px 10px 0 0;
-  border-bottom: none;
-  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2);
-  animation: uep-island-sheet-in 0.28s var(--ease);
-}
-
-.uep-island--sheet .uep-island__header {
-  cursor: default;
-  touch-action: auto;
-  padding: 10px 14px;
-}
-
-.uep-island--sheet .uep-island__body {
-  max-height: 55vh;
-}
-
-/* 手機 sheet 的離場：進場反向（往下滑出） */
-.uep-island--sheet.uep-island--leaving {
-  transform-origin: center bottom;
-  animation: uep-island-sheet-out 0.24s var(--ease) forwards;
-}
-
-@keyframes uep-island-sheet-in {
-  from {
-    transform: translateY(24px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes uep-island-sheet-out {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateY(24px);
-    opacity: 0;
-  }
-}
-
 /* ── Island Dock（收合島的停靠列） ── */
 .uep-island-dock {
   position: fixed;
@@ -384,19 +333,6 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
     box-shadow:
       0 6px 16px rgba(0, 0, 0, 0.12),
       0 0 0 3px rgba(91, 127, 179, 0.38);
-  }
-}
-
-@media (max-width: 760px) {
-  .uep-island-dock {
-    flex-direction: row;
-    right: 12px;
-    bottom: 12px;
-  }
-
-  .uep-island-dock__chip {
-    width: 40px;
-    height: 40px;
   }
 }
 
@@ -675,7 +611,6 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 /* 動畫偏好：全部關閉 */
 @media (prefers-reduced-motion: reduce) {
   .uep-island,
-  .uep-island--sheet,
   .uep-island-dock__chip,
   .uep-unlock-object,
   .uep-unlock-object__glow,
