@@ -83,40 +83,58 @@
   overflow: hidden;
   font-family: var(--font-sans);
   user-select: none;
-  color: #eaf6ff;
+  color: var(--ink);
 
-  /* 水下白色系（覆寫站內深色 token，作用範圍僅此島） */
-  --ink: rgba(255, 255, 255, 0.88);
-  --ink-title: #f4fbff;
-  --ink-soft: rgba(255, 255, 255, 0.76);
-  --ink-mute: rgba(255, 255, 255, 0.6);
-  --hairline: rgba(255, 255, 255, 0.26);
-  --hairline-strong: rgba(255, 255, 255, 0.4);
-  --bg-card: rgba(255, 255, 255, 0.14);
+  /* ── 亮色：日光下的淺水 ──
+   * S9-C.10 的亮色版只把水體淺了一階，卻整座島沿用「水下白色系」的白字，
+   * 於是水必須夠深字才讀得到——兩個模式看起來幾乎一樣
+   * （艾斯維爾 2026-07-25 三驗）。要真的變淺就得連墨一起翻面：淺水配深墨。 */
+  --ink: rgba(16, 42, 56, 0.9);
+  --ink-title: #0d2632;
+  --ink-soft: rgba(16, 42, 56, 0.74);
+  --ink-mute: rgba(16, 42, 56, 0.54);
+  --hairline: rgba(16, 42, 56, 0.2);
+  --hairline-strong: rgba(16, 42, 56, 0.34);
+  --bg-card: rgba(255, 255, 255, 0.44);
+  --ink-shadow: 0 1px 2px rgba(255, 255, 255, 0.55);
 
-  /* 水體深淺的兩端（亮色模式：整體壓淺一階，深色文字段落才不會太沉重） */
-  --pool-hi: #eef2f5;
-  --pool-mid: #99a1a8;
-  --pool-lo: #333d45;
-  --pool-base-hi: #4a545c;
-  --pool-base-lo: #2b333a;
-  --pool-rim: rgba(255, 255, 255, 0.42);
-  --pool-cast: rgba(15, 30, 45, 0.34);
+  /* 水體深淺的兩端 */
+  --pool-hi: #fbfdfe;
+  --pool-mid: #dae6ef;
+  --pool-lo: #a6bfd1;
+  --pool-base-hi: #b4c6d3;
+  --pool-base-lo: #8fa6b7;
+  --pool-rim: rgba(255, 255, 255, 0.85);
+  --pool-cast: rgba(40, 70, 95, 0.22);
+  --pool-sheen: rgba(255, 255, 255, 0.75);
 
   /* 槽緣（盛著水的容器邊）——石質偏中性，只吃一點池色當作被水浸潤 */
-  --brim-hi: #7f8890;
-  --brim-lo: #5d666e;
-  --brim-edge: rgba(255, 255, 255, 0.34);
-  --brim-ink: #f3f8fb;
+  --brim-hi: #edf2f6;
+  --brim-lo: #ccd8e0;
+  --brim-edge: rgba(255, 255, 255, 0.9);
+  --brim-ink: #0d2632;
+  --brim-sheen: rgba(255, 255, 255, 0.7);
+  --brim-cast: rgba(40, 70, 95, 0.16);
+
+  /* 水面波紋／水下焦散／回聲球——在淺水上白色會整個消失，各自換一組 */
+  --wave-a: rgba(101, 140, 168, 0.34);
+  --wave-b: rgba(101, 140, 168, 0.2);
+  --caustic: rgba(70, 116, 148, 0.3);
+  --caustic-blend: multiply;
+  --orb-core: rgba(255, 255, 255, 0.85);
+  --orb-edge: rgba(255, 255, 255, 0.24);
 
   /* 整池依當前回聲染色，上淺下深（淺藍→深藍、淺紅→深紅）。
      水面不再保留灰——灰只剩「池裡一枚回聲都沒有」這一種情況。
-     深淺兩端由 --pool-hi / --pool-lo 決定，深色模式各自換一組。 */
+     ⚠️ 兩個模式的混色比例不同（亮色低得多）：#355C7D 這種中深色 accent
+     混 74% 進淺底照樣會把水拉回深藍，淺水就白做了。亮色改靠色相辨識，
+     不靠明度。比例寫在 background 裡而非變數——color-mix 的百分比吃
+     var() 的瀏覽器支援不如兩段各寫一次來得穩。 */
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--uep-pool-accent) 26%, var(--pool-hi)) 0%,
-    color-mix(in srgb, var(--uep-pool-accent) 58%, var(--pool-mid)) 30%,
-    color-mix(in srgb, var(--uep-pool-accent) 74%, var(--pool-lo)) 100%
+    color-mix(in srgb, var(--uep-pool-accent) 12%, var(--pool-hi)) 0%,
+    color-mix(in srgb, var(--uep-pool-accent) 26%, var(--pool-mid)) 30%,
+    color-mix(in srgb, var(--uep-pool-accent) 40%, var(--pool-lo)) 100%
   );
   transition: --uep-pool-accent 0.6s var(--ease);
   backdrop-filter: blur(6px);
@@ -124,11 +142,20 @@
   border: 1px solid var(--pool-rim);
   box-shadow:
     0 20px 44px var(--pool-cast),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    inset 0 1px 0 var(--pool-sheen);
 }
 
-/* 深色模式：水沉下去，不再是頁面上最亮的東西 */
+/* ── 深色：夜裡的深水，水下白色系 ── */
 [data-theme='dark'] .uep-eisland {
+  --ink: rgba(255, 255, 255, 0.88);
+  --ink-title: #f4fbff;
+  --ink-soft: rgba(255, 255, 255, 0.76);
+  --ink-mute: rgba(255, 255, 255, 0.6);
+  --hairline: rgba(255, 255, 255, 0.26);
+  --hairline-strong: rgba(255, 255, 255, 0.4);
+  --bg-card: rgba(255, 255, 255, 0.14);
+  --ink-shadow: 0 1px 3px rgba(5, 20, 35, 0.5);
+
   --pool-hi: #6a747c;
   --pool-mid: #38424a;
   --pool-lo: #0d1318;
@@ -136,10 +163,28 @@
   --pool-base-lo: #0a0f13;
   --pool-rim: rgba(255, 255, 255, 0.16);
   --pool-cast: rgba(0, 0, 0, 0.5);
+  --pool-sheen: rgba(255, 255, 255, 0.28);
+
   --brim-hi: #39424a;
   --brim-lo: #232b32;
   --brim-edge: rgba(255, 255, 255, 0.14);
   --brim-ink: #e4eef5;
+  --brim-sheen: rgba(255, 255, 255, 0.26);
+  --brim-cast: rgba(0, 0, 0, 0.26);
+
+  --wave-a: rgba(255, 255, 255, 0.34);
+  --wave-b: rgba(255, 255, 255, 0.2);
+  --caustic: rgba(255, 255, 255, 0.28);
+  --caustic-blend: soft-light;
+  --orb-core: rgba(255, 255, 255, 0.55);
+  --orb-edge: rgba(255, 255, 255, 0.12);
+
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 26%, var(--pool-hi)) 0%,
+    color-mix(in srgb, var(--uep-pool-accent) 58%, var(--pool-mid)) 30%,
+    color-mix(in srgb, var(--uep-pool-accent) 74%, var(--pool-lo)) 100%
+  );
 }
 
 /* ── 水下焦散（S9-C.10）──
@@ -153,18 +198,18 @@
   pointer-events: none;
   z-index: 0;
   opacity: 0.5;
-  mix-blend-mode: soft-light;
+  mix-blend-mode: var(--caustic-blend);
   background:
     repeating-linear-gradient(
       104deg,
       transparent 0 22px,
-      rgba(255, 255, 255, 0.28) 22px 24px,
+      var(--caustic) 22px 24px,
       transparent 24px 46px
     ),
     repeating-linear-gradient(
       -98deg,
       transparent 0 31px,
-      rgba(255, 255, 255, 0.2) 31px 33px,
+      var(--caustic) 31px 33px,
       transparent 33px 62px
     );
   /* 越深的水折射紋越少——不淡出的話整池會像磨砂玻璃 */
@@ -190,15 +235,15 @@
   );
   border-bottom: 1px solid var(--brim-edge);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.26),
-    0 2px 8px rgba(0, 0, 0, 0.26);
+    inset 0 1px 0 var(--brim-sheen),
+    0 2px 8px var(--brim-cast);
   transition: --uep-pool-accent 0.6s var(--ease);
 }
 
 .uep-eisland__name {
   font-family: var(--font-display, serif);
   color: var(--brim-ink);
-  text-shadow: 0 1px 3px rgba(5, 20, 35, 0.45);
+  text-shadow: var(--ink-shadow);
 }
 
 /* ── 水面 ──
@@ -233,6 +278,16 @@
   animation: uep-eisland-wave 9s linear infinite;
 }
 
+/* 波形填色由 CSS 覆蓋 SVG 的 fill 屬性：白色波浪在淺水上會整片消失，
+   兩個模式各需一組（presentation attribute 的優先度低於 CSS 宣告）。 */
+.uep-eisland__surface svg:first-child path {
+  fill: var(--wave-a);
+}
+
+.uep-eisland__surface svg:nth-child(2) path {
+  fill: var(--wave-b);
+}
+
 .uep-eisland__surface svg:nth-child(2) {
   animation-duration: 14s;
   animation-direction: reverse;
@@ -249,12 +304,12 @@
  * 曾經是水珠（不像按鈕）、再改成 ×（在材質上像異物）。現在落在石緣上，
  * 跟其他四座島一樣是該島語彙的一個短詞（位置與字級走 .uep-island-close）。 */
 .uep-eisland__close {
-  color: rgba(255, 255, 255, 0.72);
-  text-shadow: 0 1px 3px rgba(5, 20, 35, 0.5);
+  color: var(--ink-soft);
+  text-shadow: var(--ink-shadow);
 }
 
 .uep-eisland__close:hover {
-  color: #fff;
+  color: var(--ink-title);
 }
 
 /* ── 球的水面倒影 ── */
@@ -281,7 +336,7 @@
     color-mix(in srgb, var(--uep-pool-accent) 20%, var(--pool-base-lo))
   );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 1px 0 var(--pool-sheen),
     inset 0 -2px 6px rgba(0, 0, 0, 0.28);
   transition: --uep-pool-accent 0.6s var(--ease);
 }
@@ -306,8 +361,8 @@
   border-radius: 50%;
   background: radial-gradient(
     circle at 36% 30%,
-    rgba(255, 255, 255, 0.55),
-    rgba(255, 255, 255, 0.12) 65%,
+    var(--orb-core),
+    var(--orb-edge) 65%,
     transparent
   );
   opacity: 0;
