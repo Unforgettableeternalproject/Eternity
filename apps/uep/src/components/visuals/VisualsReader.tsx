@@ -495,6 +495,13 @@ function VisualsReaderInner() {
     setPhantomSlot(null);
   }, [activeSubcatId]);
 
+  // 失去資格就把已浮現的假卡收掉（Codex 2026-07-25 review）。
+  // 假卡一旦浮現就留在網格裡，中間登出／切成觀測者／視窗縮到手機寬度都不會
+  // 讓它消失——resize 不 unmount Reader，那張過期的卡仍然直接可點。
+  useEffect(() => {
+    if (!visualsUnlock.eligible) setPhantomSlot(null);
+  }, [visualsUnlock.eligible]);
+
   // 切換分類標籤時擲骰（規則見 phantomCardRoll.shouldRevealPhantomCard）
   useEffect(() => {
     const prev = lastGroupSlotRef.current;

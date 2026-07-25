@@ -140,6 +140,24 @@ export default function EchoesRipple({
     });
   }, []);
 
+  /**
+   * 失去資格就把灰球收掉（Codex 2026-07-25 review）。
+   *
+   * 灰球一旦浮現就常駐到暫停為止，中間登出／切成觀測者／視窗縮到手機寬度
+   * 都不會讓它消失（resize 不 unmount Reader）。捕捉動畫原本刻意不被打斷，
+   * 但那個設計的前提是「動畫播完就會解鎖」——收束端加上資格重驗之後，
+   * 讓動畫演完再什麼都沒發生反而更難懂，不如當場收走。
+   */
+  useEffect(() => {
+    if (unlockEligible) return;
+    if (catchTidRef.current !== null) {
+      clearTimeout(catchTidRef.current);
+      catchTidRef.current = null;
+    }
+    setCatching(false);
+    setLostOrb(null);
+  }, [unlockEligible]);
+
   /** 捕捉：播完收束動畫才把解鎖交給呼叫端 */
   const handleCatchLostOrb = useCallback(() => {
     if (catchTidRef.current !== null) return;

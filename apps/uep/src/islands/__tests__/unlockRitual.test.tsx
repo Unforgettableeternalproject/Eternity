@@ -24,13 +24,20 @@ vi.mock('../../auth', () => ({
 }));
 
 /* useProgress 直接餵狀態，不碰真的 store。其餘 progress 匯出保持原樣——
-   islandRuntime 也從這個模組取 PROGRESS_CHANGE_EVENT 等常數。 */
+   islandRuntime 也從這個模組取 PROGRESS_CHANGE_EVENT 等常數。
+   getProgressManager 也要餵：completeUnlockRitual 的完成時資格重驗走的是
+   它而不是 hook（收束發生在 React 渲染之外的計時器裡）。 */
 const progressMock = vi.hoisted(() => ({
   state: null as ProgressState | null,
+  unlockIsland: vi.fn(),
 }));
 vi.mock('../../progress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../progress')>()),
   useProgress: () => progressMock.state,
+  getProgressManager: () => ({
+    getState: () => progressMock.state,
+    unlockIsland: progressMock.unlockIsland,
+  }),
 }));
 
 import { completeUnlockRitual, useUnlockEligibility } from '../unlockRitual';
@@ -134,7 +141,7 @@ describe('useUnlockEligibility', () => {
 });
 
 describe('completeUnlockRitual', () => {
-  const unlockIsland = vi.fn();
+  const unlockIsland = progressMock.unlockIsland;
   const open = vi.fn();
   const info = vi.fn();
 
@@ -142,6 +149,17 @@ describe('completeUnlockRitual', () => {
     unlockIsland.mockClear();
     open.mockClear();
     info.mockClear();
+    // 收束會重驗「到訪過該 zone」，各 case 解鎖的島不同，一次全給
+    progressMock.state = stateWith({
+      view: 'explorer',
+      flags: [
+        'zone:visited:concepts',
+        'zone:visited:echoes',
+        'zone:visited:visuals',
+        'zone:visited:storage',
+      ],
+      islandsUnlocked: [],
+    });
     vi.stubGlobal('__uepProgress', { unlockIsland });
     vi.stubGlobal('__uepIslands', {
       open,
@@ -173,5 +191,51 @@ describe('completeUnlockRitual', () => {
   it('toast 可覆寫文案', () => {
     completeUnlockRitual('visuals', { toast: '畫框裡浮現了什麼。' });
     expect(info).toHaveBeenCalledWith('畫框裡浮現了什麼。');
+  });
+
+  it('資格齊備時回報成功', () => {
+    expect(completeUnlockRitual('concepts')).toBe(true);
+  });
+
+  /* 發現與收束之間隔著對話框與 1.4 秒動畫，這段時間資格可能已經消失。
+     resize 甚至不會 unmount Reader，計時器照樣走完（Codex 2026-07-25 review）。 */
+  describe('完成時資格已失效 → 拒絕解鎖', () => {
+    it('中途登出', () => {
+      authMock.loggedIn = false;
+      expect(completeUnlockRitual('concepts')).toBe(false);
+      expect(unlockIsland).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+      expect(info).not.toHaveBeenCalled();
+    });
+
+    it('中途切成觀測者', () => {
+      progressMock.state = stateWith({
+        view: 'observer',
+        flags: ['zone:visited:concepts'],
+      });
+      expect(completeUnlockRitual('concepts')).toBe(false);
+      expect(unlockIsland).not.toHaveBeenCalled();
+    });
+
+    it('中途縮到手機寬度', () => {
+      vi.stubGlobal('innerWidth', 640);
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }));
+      expect(completeUnlockRitual('concepts')).toBe(false);
+      expect(unlockIsland).not.toHaveBeenCalled();
+    });
+
+    it('沒到訪過該 zone（旗標只認自己那個）', () => {
+      progressMock.state = stateWith({
+        view: 'explorer',
+        flags: ['zone:visited:concepts'],
+      });
+      expect(completeUnlockRitual('storage')).toBe(false);
+      expect(unlockIsland).not.toHaveBeenCalled();
+    });
   });
 });

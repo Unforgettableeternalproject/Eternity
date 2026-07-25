@@ -55,7 +55,10 @@ export default function ConceptsTerminalBadge() {
     if (!ok) return;
     setConnecting(true);
     timerRef.current = window.setTimeout(() => {
-      // 晶片回到 CONNECTED 本身就是回饋，但浮島解鎖仍照常報喜
+      // 晶片回到 CONNECTED 本身就是回饋，但浮島解鎖仍照常報喜。
+      // 對話框與這 1.4 秒之間可能已經登出／切成觀測者／縮到手機寬度，
+      // 收束端會據此拒絕；拒絕時 chip 靠 eligible 自己退回對應狀態，
+      // 這裡只要把 CONNECTING… 收掉即可（Codex 2026-07-25 review）。
       completeUnlockRitual('concepts');
       setConnecting(false);
       timerRef.current = null;

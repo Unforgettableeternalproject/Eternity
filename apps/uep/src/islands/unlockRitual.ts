@@ -15,7 +15,7 @@
  */
 
 import { useReaderAuth } from '../auth';
-import { useProgress } from '../progress';
+import { getProgressManager, useProgress } from '../progress';
 
 import {
   canUseIslands,
@@ -99,10 +99,19 @@ export interface UnlockRitualOptions {
 }
 
 /**
- * 儀式收束：解鎖 + 展開 + 報喜。
+ * 儀式收束：解鎖 + 展開 + 報喜。回傳是否真的解鎖了。
  *
  * 四 zone 的儀式無論長什麼樣，最後都打進這裡。呼叫端負責在此之前播完
  * 自己的甦醒動畫（時長可用 `AWAKEN_MS`）。
+ *
+ * ⚠️ **完成時會重驗一次資格**（Codex 2026-07-25 review）。`useUnlockEligibility`
+ * 只在渲染發現 UI 的那一刻判過，而發現與收束之間隔著對話框與 1.4 秒動畫——
+ * 這段時間足夠使用者登出、切成觀測者、或把視窗縮到手機寬度（resize 甚至
+ * 不會 unmount Reader，計時器照樣走完）。少了這道檢查，儀式會在已經沒有
+ * 資格的情況下照樣寫進 progress 並彈出浮島。
+ *
+ * 呼叫端拿到 `false` 時該把 pending 的儀式 UI 收掉（該亮的狀態早已因
+ * `eligible` 轉 false 而改變，不收就會留下一張點了沒反應的卡）。
  *
  * 重複呼叫是安全的（`unlockIsland` 走 progress store 的冪等寫入），但已解鎖
  * 時仍會再次展開視窗與報喜，所以儀式端該自己守門（多半靠 `eligible`）。
@@ -110,9 +119,15 @@ export interface UnlockRitualOptions {
 export function completeUnlockRitual(
   zoneId: IslandId,
   opts: UnlockRitualOptions = {}
-): void {
+): boolean {
   const def = ISLAND_DEFINITIONS[zoneId];
-  if (!def) return;
+  if (!def) return false;
+
+  const progress = getProgressManager().getState();
+  // canUseIslands 本身已含桌面視窗判定 + explorer + 已登入
+  if (!canUseIslands(progress) || !hasVisitedZone(progress, def.id)) {
+    return false;
+  }
 
   unlockIsland(zoneId);
   if (opts.open !== false) {
@@ -126,4 +141,5 @@ export function completeUnlockRitual(
   if (message) {
     window.__uepToastManager?.info(message);
   }
+  return true;
 }
