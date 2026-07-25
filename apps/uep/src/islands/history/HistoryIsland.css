@@ -1,121 +1,195 @@
 /*
- * History Island —「旅程之書」視覺
+ * History Island —「旅程之書」視覺（S9-C.2，v2 設計稿提案 A「一頁書」）
  *
- * history zone 的書卷/羊皮紙語彙：暖褐底、襯線標題、書籤緞帶。
- * 視窗外殼（拖曳/收合）由 DraggableIsland 提供，這裡只管內容。
+ * 整座島是一張書頁：紙色漸層 + 四層堆疊陰影（像壓著好幾張紙）、左緣裝訂
+ * 暗影、紙紋壓在最上層。中性白框 header 由 bare 外殼取消，書名與雙線規
+ * 直接印在紙上，書名列同時是拖曳把手。
+ *
+ * 目錄不再用進度條：引導點 + 虛線 leader + 篇數頁碼，一行說完同一件事，
+ * 垂直空間省下近一半。
  */
 
 .uep-hisland {
-  padding: 12px 14px 10px;
+  position: relative;
+  padding: 20px 22px 16px;
   font-family: var(--font-serif-tc);
   font-size: 12.5px;
-  background:
-    linear-gradient(160deg, rgba(139, 105, 60, 0.06) 0%, transparent 45%),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0px,
-      transparent 27px,
-      rgba(139, 105, 60, 0.07) 28px
-    );
+  color: #3d2c14;
+  background: linear-gradient(168deg, #f8f0da, #eee1c0 70%, #e9dab5);
+  border: 1px solid #d9c9a2;
+  border-radius: 2px 3px 3px 2px;
+  /* 前四層 = 底下壓著的紙，最後一層才是投影 */
+  box-shadow:
+    0 1px 0 #e8dcbb,
+    0 3px 0 #e2d4ae,
+    0 5px 0 #dbcda4,
+    0 7px 0 #d3c497,
+    0 14px 26px rgba(50, 32, 10, 0.32);
 }
 
-.uep-hisland--empty {
-  padding: 22px 16px;
+/* 左緣裝訂暗影 */
+.uep-hisland::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(90, 58, 20, 0.26),
+    rgba(90, 58, 20, 0.04) 60%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* 紙紋：壓在內容最上層（紙是實體，字印在紙裡） */
+.uep-hisland::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    92deg,
+    rgba(120, 90, 40, 0.045) 0 2px,
+    transparent 2px 5px
+  );
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* ── 緞帶書籤：從頁緣真的垂下來 ── */
+.uep-hisland__ribbon {
+  position: absolute;
+  top: -7px;
+  right: 26px;
+  width: 13px;
+  height: 58px;
+  background: linear-gradient(180deg, #dcb92a, #b8931a);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
+  box-shadow: 0 2px 5px rgba(50, 32, 10, 0.35);
+  z-index: 3;
+}
+
+/* ── 書名列（＝拖曳把手） ── */
+.uep-hisland__masthead {
+  position: relative;
+  z-index: 2;
+}
+
+.uep-hisland__title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #4a3116;
+}
+
+.uep-hisland__rule {
+  height: 0;
+  border-top: 1px solid rgba(90, 62, 26, 0.5);
+  border-bottom: 1px solid rgba(90, 62, 26, 0.22);
+  margin: 7px 0 12px;
+}
+
+/* ── 闔上（取代白框 header 的收合鈕，讓開緞帶） ── */
+.uep-hisland__close {
+  all: unset;
+  position: absolute;
+  top: 22px;
+  right: 52px;
+  z-index: 4;
+  cursor: pointer;
+  font-family: var(--font-serif-tc);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: rgba(90, 62, 26, 0.6);
+}
+
+.uep-hisland__close:hover {
+  color: #6b3f2a;
+}
+
+.uep-hisland__close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+/* ── 空/載入/錯誤：仍然是印在紙上的一段話 ── */
+.uep-hisland__note {
+  margin: 18px 0 8px;
   text-align: center;
-  color: var(--ink-mute);
   font-style: italic;
-  line-height: 1.7;
+  line-height: 1.8;
+  color: rgba(61, 44, 20, 0.72);
 }
 
 .uep-hisland__begin {
   all: unset;
   display: block;
   margin: 10px auto 0;
-  padding: 5px 14px;
-  font-family: var(--font-serif-tc);
   font-size: 12px;
   font-style: normal;
-  color: var(--ink-title);
-  border: 1px solid rgba(139, 105, 60, 0.45);
-  border-radius: 2px;
+  color: #6b3f2a;
+  border-bottom: 1px dotted rgba(107, 63, 42, 0.7);
   cursor: pointer;
-  transition: border-color 0.2s var(--ease);
 }
 
 .uep-hisland__begin:hover {
-  border-color: var(--uep-gold);
+  color: #8a4423;
+  border-bottom-style: solid;
 }
 
-/* ── 續讀卡（書籤） ── */
-.uep-hisland__resume {
-  position: relative;
-  padding: 10px 12px 12px;
-  margin-bottom: 12px;
-  border: 1px solid rgba(139, 105, 60, 0.3);
-  border-radius: 2px;
-  background: rgba(139, 105, 60, 0.05);
+.uep-hisland__begin:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
 }
 
-/* 書籤緞帶 */
-.uep-hisland__resume::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  right: 14px;
-  width: 10px;
-  height: 22px;
-  background: var(--uep-gold);
-  opacity: 0.75;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+/* ── 續讀（書籤停在…） ── */
+.uep-hisland__pct {
+  float: right;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: rgba(61, 44, 20, 0.6);
+  margin-top: 2px;
 }
 
 .uep-hisland__resume-kicker {
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  color: var(--ink-mute);
-  margin-bottom: 6px;
+  font-size: 8.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(90, 62, 26, 0.55);
 }
 
 .uep-hisland__resume-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--ink-title);
-  line-height: 1.45;
+  line-height: 1.4;
+  margin-top: 5px;
+  color: #2f2109;
 }
 
 .uep-hisland__resume-volume {
-  font-size: 11px;
-  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-style: italic;
+  color: rgba(61, 44, 20, 0.72);
   margin-top: 2px;
-}
-
-.uep-hisland__resume-pct {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-mute);
-  margin-top: 4px;
 }
 
 .uep-hisland__resume-btn {
   all: unset;
   display: inline-block;
   margin-top: 8px;
-  padding: 4px 12px;
-  font-family: var(--font-serif-tc);
   font-size: 12px;
-  color: var(--ink-title);
-  border: 1px solid rgba(139, 105, 60, 0.5);
-  border-radius: 2px;
+  color: #6b3f2a;
+  border-bottom: 1px dotted rgba(107, 63, 42, 0.7);
   cursor: pointer;
-  transition:
-    border-color 0.2s var(--ease),
-    background 0.2s var(--ease);
 }
 
 .uep-hisland__resume-btn:hover {
-  border-color: var(--uep-gold);
-  background: rgba(212, 175, 55, 0.08);
+  color: #8a4423;
+  border-bottom-style: solid;
 }
 
 .uep-hisland__resume-btn:focus-visible {
@@ -123,188 +197,169 @@
   outline-offset: 2px;
 }
 
-/* ── 章節列表（目錄頁） ── */
+/* ── 典藏目錄 ── */
 .uep-hisland__chapters {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 10px;
+  margin-top: 14px;
+  /* 章多時只讓目錄捲動——書頁本身要維持一張紙的比例，
+     捲動整張紙會讓緞帶與版心頁碼跟著跑掉 */
+  max-height: 268px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(90, 62, 26, 0.35) transparent;
+}
+
+.uep-hisland__chapters::-webkit-scrollbar {
+  width: 5px;
+}
+
+.uep-hisland__chapters::-webkit-scrollbar-thumb {
+  background: rgba(90, 62, 26, 0.3);
+  border-radius: 3px;
 }
 
 .uep-hisland__chapters-kicker {
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  color: var(--ink-mute);
-  padding: 0 2px 6px;
-  border-bottom: 1px dashed rgba(139, 105, 60, 0.3);
-  margin-bottom: 4px;
+  font-size: 8.5px;
+  letter-spacing: 0.24em;
+  color: rgba(90, 62, 26, 0.6);
+  margin-bottom: 6px;
 }
 
-/* ── 兩層目錄（S6-2）：chapter 群組 + arcs 縮排 ── */
-.uep-hisland__chapter-group {
+.uep-hisland__toc-row {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
 }
 
-.uep-hisland__chapter-group.is-current {
-  box-shadow: inset 2px 0 0 var(--uep-gold);
+.uep-hisland__toc-row.is-sub {
+  padding-left: 16px;
 }
 
-.uep-hisland__chapter-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-}
-
-.uep-hisland__chapter-caret {
+.uep-hisland__toc-bullet {
   all: unset;
   box-sizing: border-box;
-  width: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: var(--ink-mute);
+  width: 11px;
+  flex: none;
+  font-size: 8px;
+  line-height: 1;
+  color: rgba(90, 62, 26, 0.5);
   cursor: pointer;
-  border-radius: 2px;
-  transition: color 0.18s var(--ease);
 }
 
-.uep-hisland__chapter-caret:hover {
+.uep-hisland__toc-bullet:hover {
+  color: #8a4423;
+}
+
+.uep-hisland__toc-bullet:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 1px;
+}
+
+.uep-hisland__toc-bullet.is-leaf {
+  cursor: default;
+}
+
+.uep-hisland__chapter-group[data-current] .uep-hisland__toc-bullet {
   color: var(--uep-gold);
 }
 
-.uep-hisland__chapter-caret:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: -1px;
-}
-
-.uep-hisland__chapter-caret.is-leaf {
-  cursor: default;
-  opacity: 0.4;
-}
-
-.uep-hisland__arcs {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding-left: 20px;
-  border-left: 1px dashed rgba(139, 105, 60, 0.25);
-  margin-left: 9px;
-}
-
-.uep-hisland__arc {
+.uep-hisland__toc {
   all: unset;
-  box-sizing: border-box;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 8px;
-  border-radius: 2px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background 0.18s var(--ease);
-}
-
-.uep-hisland__arc:hover:not(:disabled) {
-  background: rgba(139, 105, 60, 0.1);
-}
-
-.uep-hisland__arc:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: -1px;
-}
-
-.uep-hisland__arc.is-current {
-  background: rgba(212, 175, 55, 0.1);
-}
-
-.uep-hisland__arc.is-locked {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.uep-hisland__chapter {
-  all: unset;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background 0.18s var(--ease);
-}
-
-.uep-hisland__chapter:hover:not(:disabled) {
-  background: rgba(139, 105, 60, 0.1);
-}
-
-.uep-hisland__chapter:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: -1px;
-}
-
-.uep-hisland__chapter.is-current {
-  background: rgba(212, 175, 55, 0.1);
-}
-
-.uep-hisland__chapter.is-locked {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.uep-hisland__chapter-title {
+  align-items: baseline;
+  gap: 5px;
   flex: 1;
+  min-width: 0;
+  padding: 3px 0;
+  cursor: pointer;
   font-size: 12.5px;
-  color: var(--ink);
+  color: #3d2c14;
+}
+
+.uep-hisland__toc:hover .uep-hisland__toc-title {
+  color: #8a4423;
+}
+
+.uep-hisland__toc:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 1px;
+}
+
+.uep-hisland__toc.is-current {
+  font-weight: 600;
+}
+
+.uep-hisland__toc.is-locked {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.uep-hisland__toc-row.is-sub .uep-hisland__toc {
+  font-size: 12px;
+}
+
+.uep-hisland__toc-title {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 198px;
 }
 
-.uep-hisland__chapter-progress {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+/* 虛線 leader：把標題與頁碼連起來，取代原本的進度條 */
+.uep-hisland__toc-leader {
+  flex: 1;
+  border-bottom: 1px dotted rgba(90, 62, 26, 0.5);
+  transform: translateY(-4px);
 }
 
-.uep-hisland__chapter-bar {
-  display: block;
-  width: 46px;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(139, 105, 60, 0.2);
-  overflow: hidden;
-}
-
-.uep-hisland__chapter-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--uep-gold);
-  transition: width 0.3s var(--ease);
-}
-
-.uep-hisland__chapter-count {
+.uep-hisland__toc-count {
   font-family: var(--font-mono);
   font-size: 9.5px;
-  color: var(--ink-mute);
-  min-width: 28px;
-  text-align: right;
+  color: rgba(61, 44, 20, 0.68);
+  letter-spacing: 0.04em;
+  flex: none;
 }
 
-/* ── 統計 footer ── */
+/* ── 版心頁腳 ── */
 .uep-hisland__footer {
-  display: flex;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(139, 105, 60, 0.3);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: var(--ink-mute);
+  margin-top: 16px;
+  text-align: center;
+  font-size: 10.5px;
+  color: rgba(61, 44, 20, 0.6);
+  letter-spacing: 0.1em;
+}
+
+.uep-hisland__folio {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-style: normal;
+  color: rgba(90, 62, 26, 0.75);
+  margin-bottom: 3px;
+}
+
+/* ── 離場：書頁往左對摺闔上 ── */
+.uep-island--history.uep-island--leaving {
+  transform-origin: left center;
+  animation: uep-hisland-shut 0.38s var(--ease) forwards;
+}
+
+@keyframes uep-hisland-shut {
+  0% {
+    transform: perspective(900px) rotateY(0deg);
+    opacity: 1;
+  }
+  70% {
+    transform: perspective(900px) rotateY(-74deg);
+    opacity: 0.9;
+  }
+  100% {
+    transform: perspective(900px) rotateY(-96deg) scale(0.94);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-island--history.uep-island--leaving {
+    animation: none;
+  }
 }
