@@ -28,8 +28,10 @@ import {
 } from '../../audio';
 import {
   IslandUnlockObject,
+  completeUnlockRitual,
   shouldMountIsland,
   useDesktopIslandViewport,
+  useUnlockEligibility,
 } from '../../islands';
 import { useReaderAuth } from '../../auth';
 import { useProgress, buildProgressTreeAdapter } from '../../progress';
@@ -1253,6 +1255,14 @@ function EchoesReaderInner() {
   // === Audio hook（必須在元件頂層呼叫）===
   const audio = useAudio();
 
+  // === 解鎖儀式「迷失的回聲」（S9-B）===
+  // 灰球只在播放中擲骰浮現，所以資格判定要跟著 Reader 全程活著，
+  // 不能像 IslandUnlockObject 那樣只掛在 landing。
+  const echoesUnlock = useUnlockEligibility('echoes');
+  const handleLostEchoCatch = useCallback(() => {
+    completeUnlockRitual('echoes');
+  }, []);
+
   // === Prev/Next 歌曲 (同一 parent subcategory) ===
   const subcatSongs = useMemo(() => {
     if (!activeSongId || !tree.length) return [];
@@ -2292,6 +2302,8 @@ function EchoesReaderInner() {
           color={
             activeClusterId ? getClusterDef(activeClusterId)?.color : undefined
           }
+          unlockEligible={echoesUnlock.eligible}
+          onLostOrbCatch={handleLostEchoCatch}
         />
 
         {/* 氛圍裝飾環 */}

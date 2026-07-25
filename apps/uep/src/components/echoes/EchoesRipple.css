@@ -207,9 +207,167 @@
   border-color: rgba(var(--er-r), var(--er-g), var(--er-b), 0.35);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   迷失的回聲（S9-B 解鎖儀式）
+
+   刻意獨立於 .echoes-ripple 之外：特效層是 pointer-events:none +
+   aria-hidden 的純裝飾，而這顆球是真的要被點的。灰調——它不屬於這裡的
+   任何一個 cluster 色，那正是它「不合群」的視覺說法。
+   ══════════════════════════════════════════════════════════════ */
+.echoes-lost-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  /* 層本身不吃事件，只有球吃——否則整片會擋住底下的文字與按鈕 */
+  pointer-events: none;
+  z-index: 2;
+}
+
+.er-lost-orb {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  animation:
+    er-lost-in 1.6s ease-out both,
+    er-lost-drift 11s ease-in-out 1.6s infinite;
+}
+
+.er-lost-orb__core,
+.er-lost-orb__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: block;
+}
+
+.er-lost-orb__core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(214, 214, 208, 0.42),
+    rgba(150, 150, 145, 0.16) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 22px rgba(170, 170, 164, 0.18);
+  animation: er-core-pulse 4.5s ease-in-out infinite;
+}
+
+.er-lost-orb__halo {
+  border: 1px solid rgba(190, 190, 184, 0.28);
+  animation: er-lost-halo 4.5s ease-in-out infinite;
+}
+
+.er-lost-orb:hover .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(228, 228, 222, 0.6),
+    rgba(170, 170, 165, 0.24) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 34px rgba(190, 190, 184, 0.3);
+}
+
+.er-lost-orb:focus-visible {
+  outline: 2px solid rgba(214, 214, 208, 0.75);
+  outline-offset: 6px;
+}
+
+/* 浮現：比一般球慢，像是慢慢從別處飄進來的 */
+@keyframes er-lost-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* 常駐期間的緩慢漂移——靜止不動會像 UI 元件，飄著才像回聲 */
+@keyframes er-lost-drift {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate(0, 0);
+  }
+  33% {
+    transform: translate(-50%, -50%) translate(10px, -14px);
+  }
+  66% {
+    transform: translate(-50%, -50%) translate(-8px, 8px);
+  }
+}
+
+@keyframes er-lost-halo {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.12;
+  }
+}
+
+/* 捕捉：吸進去 → 亮起 → 收束 */
+.er-lost-orb.is-catching {
+  animation: er-lost-catch 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  cursor: default;
+}
+.er-lost-orb.is-catching .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(248, 248, 244, 0.9),
+    rgba(200, 200, 194, 0.4) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 46px rgba(230, 230, 224, 0.5);
+}
+
+@keyframes er-lost-catch {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.05);
+    opacity: 0;
+  }
+}
+
+[data-theme='dark'] .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(196, 196, 190, 0.34),
+    rgba(130, 130, 126, 0.1) 60%,
+    transparent 100%
+  );
+}
+
 /* ── 減少動態偏好 ── */
 @media (prefers-reduced-motion: reduce) {
   .echoes-ripple {
     display: none;
+  }
+  /* 灰球是解鎖途徑，不能跟著整層隱藏——只把動態拿掉，留一顆靜態可點的球。
+     （關掉動畫偏好的使用者本來就看不到 .echoes-ripple 的球群，所以這顆
+     灰球在他們眼裡不會是「灰的那顆」，title/aria-label 是唯一線索。） */
+  .er-lost-orb,
+  .er-lost-orb__core,
+  .er-lost-orb__halo {
+    animation: none;
+  }
+  .er-lost-orb.is-catching {
+    animation: none;
+    opacity: 0;
   }
 }
