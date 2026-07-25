@@ -268,13 +268,6 @@ export interface ChronoFieldGroup {
   items: string[];
 }
 
-/** @deprecated 舊格式相容，遷移後移除 */
-export interface ChronoSection {
-  icon: string;
-  label: string;
-  events: string[];
-}
-
 // ── 4. Compare — Diff Tables ─────────────────────────────────────
 
 /** 對照表/術語解釋頁面的內容 */

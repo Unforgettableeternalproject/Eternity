@@ -193,14 +193,3 @@ export const TEST_WORKER_BASE_URL = TEST_WORKER_URL;
 
 /** Test Mode override cookie 名稱（供 E2E 測試 / SSR 端讀取判斷用） */
 export const TEST_MODE_COOKIE_NAME = TEST_COOKIE_NAME;
-
-// ── 測試專用 export（僅供單元測試 import；不供業務程式使用） ──
-// FALLBACK_BASE 是實作細節，不 export 讓測試 assert（避免改 fallback 就要同步改測試）。
-export const __internal = {
-  readCookie,
-  writeCookie,
-  deleteCookie,
-  decodeCookieValue,
-  isTestWorkerUrl,
-  envBase,
-};

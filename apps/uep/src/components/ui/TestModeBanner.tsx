@@ -11,7 +11,7 @@
  * 若目前是 build-time env 綁定，清 cookie 也不會退出 test mode——這是刻意的：
  * env 綁定情境下退出只能從 URL 換站，banner 會告知使用者。
  *
- * 掛點：DesignLayout / BaseLayout 的 `<body>` 開頭，`client:load` 立即 hydrate。
+ * 掛點：DesignLayout 的 `<body>` 開頭，`client:load` 立即 hydrate。
  */
 
 import { useCallback, useEffect, useState } from 'react';
