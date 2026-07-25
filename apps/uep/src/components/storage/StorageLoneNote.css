@@ -16,6 +16,16 @@
  */
 
 .sto-lone-note {
+  /* 塵封 → 乾淨的兩端。深色模式下起點是白紙：頁面本身就是暗的，
+     灰紙條會直接沉進背景裡看不見（艾斯維爾 2026-07-25） */
+  --lone-dusty: #b0aea5;
+  --lone-clean: #fff1ba;
+  --lone-ink-dusty: #7a7669;
+  --lone-ink-clean: #3a2f08;
+  --lone-tape: rgba(214, 210, 194, 0.85);
+  --lone-mote: rgba(168, 163, 148, 0.85);
+  --lone-grime-rgb: 132 128 116;
+
   position: fixed;
   right: 7%;
   top: 46%;
@@ -24,8 +34,17 @@
   padding: 12px 14px;
   box-sizing: border-box;
 
-  background: var(--sto-lone-paper, #b0aea5);
-  color: var(--sto-lone-ink, #7a7669);
+  /* 兩端顏色在 CSS 決定，JS 只給「回暖了幾成」（--sto-lone-mix） */
+  background: color-mix(
+    in srgb,
+    var(--lone-clean) var(--sto-lone-mix, 0%),
+    var(--lone-dusty)
+  );
+  color: color-mix(
+    in srgb,
+    var(--lone-ink-clean) var(--sto-lone-mix, 0%),
+    var(--lone-ink-dusty)
+  );
   font-family: var(--font-serif-tc, serif);
   font-size: 13px;
   line-height: 1.6;
@@ -68,6 +87,14 @@
   z-index: 1899;
 }
 
+[data-theme='dark'] .sto-lone-note {
+  --lone-dusty: #dcd9d0;
+  --lone-ink-dusty: #6f6b60;
+  --lone-tape: rgba(176, 172, 158, 0.8);
+  --lone-mote: rgba(206, 202, 188, 0.85);
+  --lone-grime-rgb: 150 146 134;
+}
+
 /* 上緣膠帶條 */
 .sto-lone-note__tape {
   position: absolute;
@@ -76,7 +103,7 @@
   transform: translateX(-50%) rotate(-2deg);
   width: 58px;
   height: 10px;
-  background: rgba(214, 210, 194, 0.85);
+  background: var(--lone-tape);
   border-left: 1px dashed rgba(0, 0, 0, 0.12);
   border-right: 1px dashed rgba(0, 0, 0, 0.12);
   pointer-events: none;
@@ -96,17 +123,17 @@
   background:
     radial-gradient(
       circle at 22% 30%,
-      rgba(120, 116, 104, 0.5),
+      rgb(var(--lone-grime-rgb) / 0.5),
       transparent 55%
     ),
     radial-gradient(
       circle at 74% 66%,
-      rgba(136, 132, 120, 0.42),
+      rgb(var(--lone-grime-rgb) / 0.42),
       transparent 52%
     ),
     radial-gradient(
       circle at 52% 12%,
-      rgba(150, 146, 134, 0.3),
+      rgb(var(--lone-grime-rgb) / 0.3),
       transparent 46%
     );
   transition: opacity 420ms ease;
@@ -127,7 +154,7 @@
   left: 0;
   top: 0;
   border-radius: 50%;
-  background: rgba(168, 163, 148, 0.85);
+  background: var(--lone-mote);
   animation-name: sto-lone-mote;
   animation-timing-function: cubic-bezier(0.25, 0.6, 0.4, 1);
   animation-fill-mode: forwards;

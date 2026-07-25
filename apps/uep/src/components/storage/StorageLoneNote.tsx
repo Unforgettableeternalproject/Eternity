@@ -39,21 +39,6 @@ const SETTLE_MS = 1400;
 /** 每次點擊噴出的灰塵顆數 */
 const DUST_PER_BURST = 10;
 
-/** 塵封時的紙色 → 乾淨時的便條黃（與 PinnedNoteLayer 的 #fff1ba 對齊） */
-const PAPER_DUSTY: [number, number, number] = [176, 174, 165];
-const PAPER_CLEAN: [number, number, number] = [255, 241, 186];
-const INK_DUSTY: [number, number, number] = [122, 118, 105];
-const INK_CLEAN: [number, number, number] = [58, 47, 8];
-
-function mix(
-  from: [number, number, number],
-  to: [number, number, number],
-  t: number
-): string {
-  const c = from.map((v, i) => Math.round(v + (to[i] - v) * t));
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-}
-
 interface DustParticle {
   id: number;
   /** 噴發角度（deg）與距離（px），交給 CSS 變數 */
@@ -191,9 +176,10 @@ export default function StorageLoneNote({ onCleaned }: Props) {
           // animation 會蓋掉 inline transform，用變數才不會拖曳位置被歸零）
           '--sto-lone-dx': `${offset.dx}px`,
           '--sto-lone-dy': `${offset.dy}px`,
-          // 紙色與字色隨抖落進度回暖
-          '--sto-lone-paper': mix(PAPER_DUSTY, PAPER_CLEAN, t),
-          '--sto-lone-ink': mix(INK_DUSTY, INK_CLEAN, t),
+          // 紙色與字色隨抖落進度回暖。這裡只給「回暖了幾成」，兩端的顏色
+          // 由 CSS 決定——深色模式的塵封態是白紙而不是灰紙，色值不能寫死在
+          // 元件裡（艾斯維爾 2026-07-25）
+          '--sto-lone-mix': `${Math.round(t * 100)}%`,
           '--sto-lone-dust': String(1 - t),
         } as React.CSSProperties
       }

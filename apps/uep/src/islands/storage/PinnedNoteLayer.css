@@ -8,12 +8,24 @@
  * 內容捲動時便條要跟著內容走，不搶浮島互動；使用者要編輯就上前一層。
  */
 
+/* 便條拖出島以後仍然是同一張紙——兩套色跟著 StorageIsland 走，
+   否則同一張便條在深色模式下會從島內的暗黃跳成頁面上的亮黃。 */
 .uep-pinned-note {
+  --pn-slip: #fff1ba;
+  --pn-slip-edit: #fff8d4;
+  --pn-slip-target: #fff0a8;
+  --pn-slip-warn: #ffd8a8;
+  --pn-tape: rgba(231, 220, 178, 0.9);
+  --pn-ink: #3a2f08;
+  --pn-ink-rgb: 58 47 8;
+  --pn-glow-rgb: 180 130 40;
+  --pn-warn-rgb: 160 40 16;
+
   position: absolute;
   width: 200px;
   min-height: 44px;
-  background: #fff1ba;
-  color: #3a2f08;
+  background: var(--pn-slip);
+  color: var(--pn-ink);
   padding: 10px 30px 10px 12px;
   /* 中文無空格 word-wrap 斷不了字（07/24 二次驗收：長串一行硬撐出邊界）
    * → 用 overflow-wrap: anywhere 強制任意位置斷行；box-sizing 讓 width
@@ -38,6 +50,18 @@
   touch-action: none;
 }
 
+[data-theme='dark'] .uep-pinned-note {
+  --pn-slip: #4d4524;
+  --pn-slip-edit: #665a2c;
+  --pn-slip-target: #6b5f2b;
+  --pn-slip-warn: #5e4324;
+  --pn-tape: rgba(120, 112, 82, 0.85);
+  --pn-ink: #e8dcae;
+  --pn-ink-rgb: 232 220 174;
+  --pn-glow-rgb: 226 190 96;
+  --pn-warn-rgb: 255 140 108;
+}
+
 /* 上緣膠帶條——強化「貼在頁面上」的實體感 */
 .uep-pinned-note::before {
   content: '';
@@ -47,7 +71,7 @@
   transform: translateX(-50%) rotate(-2deg);
   width: 60px;
   height: 10px;
-  background: rgba(231, 220, 178, 0.9);
+  background: var(--pn-tape);
   border-left: 1px dashed rgba(0, 0, 0, 0.1);
   border-right: 1px dashed rgba(0, 0, 0, 0.1);
   pointer-events: none;
@@ -82,7 +106,7 @@
 }
 
 .uep-pinned-note__text:focus-visible {
-  outline: 1px dashed rgba(58, 47, 8, 0.5);
+  outline: 1px dashed rgb(var(--pn-ink-rgb) / 0.5);
   outline-offset: 2px;
 }
 
@@ -95,7 +119,7 @@
   height: 20px;
   border: none;
   background: transparent;
-  color: rgba(58, 47, 8, 0.5);
+  color: rgb(var(--pn-ink-rgb) / 0.5);
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
@@ -105,7 +129,7 @@
 }
 
 .uep-pinned-note__unpin:hover {
-  color: rgba(58, 47, 8, 0.95);
+  color: rgb(var(--pn-ink-rgb) / 0.95);
 }
 
 /* 拖曳中（reposition）：跟指標走、穿透 hit-test 讓落點解析看到內容。
@@ -156,7 +180,7 @@ body.uep-pin-unpin-hover .uep-island--storage {
  * 讓 textarea 塞得進來（07/24 二次驗收：textarea 超出便條紙外框） */
 .uep-pinned-note.is-editing {
   transform: rotate(0deg) !important; /* 打直方便輸入 */
-  background: #fff8d4;
+  background: var(--pn-slip-edit);
   z-index: 1500;
   min-height: 92px;
   padding: 8px 30px 8px 10px;
@@ -169,7 +193,7 @@ body.uep-pin-unpin-hover .uep-island--storage {
   box-sizing: border-box;
   width: 100%;
   min-height: 68px;
-  border: 1px dashed rgba(58, 47, 8, 0.4);
+  border: 1px dashed rgb(var(--pn-ink-rgb) / 0.4);
   outline: none;
   background: transparent;
   color: inherit;
@@ -184,13 +208,13 @@ body.uep-pin-unpin-hover .uep-island--storage {
 }
 
 .uep-pinned-note__textarea:focus {
-  border-color: rgba(160, 40, 16, 0.6);
+  border-color: rgb(var(--pn-warn-rgb) / 0.6);
   background: rgba(255, 255, 255, 0.35);
 }
 
 /* 錨點失效提示 */
 .uep-pinned-note.is-stale {
-  background: #ffd8a8;
+  background: var(--pn-slip-warn);
 }
 
 .uep-pinned-note__stale {
@@ -198,14 +222,14 @@ body.uep-pin-unpin-hover .uep-island--storage {
   margin-top: 6px;
   font-family: var(--font-mono, monospace);
   font-size: 9.5px;
-  color: rgba(122, 29, 10, 0.9);
+  color: rgb(var(--pn-warn-rgb) / 0.9);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 /* nearest 命中——輕微色差提示「大致位置」 */
 .uep-pinned-note.is-nearest {
-  background: #fff0a8;
+  background: var(--pn-slip-target);
 }
 
 /* jump-to 高亮：導向剛捲到這張時的短暫脈動 */
@@ -217,12 +241,12 @@ body.uep-pin-unpin-hover .uep-island--storage {
 @keyframes uep-pinned-jump {
   0% {
     box-shadow:
-      0 0 0 4px rgba(180, 130, 40, 0.9),
+      0 0 0 4px rgb(var(--pn-glow-rgb) / 0.9),
       0 12px 30px rgba(0, 0, 0, 0.35);
   }
   50% {
     box-shadow:
-      0 0 0 8px rgba(180, 130, 40, 0.5),
+      0 0 0 8px rgb(var(--pn-glow-rgb) / 0.5),
       0 12px 30px rgba(0, 0, 0, 0.28);
   }
   100% {
@@ -235,7 +259,7 @@ body.uep-pin-unpin-hover .uep-island--storage {
 @media (prefers-reduced-motion: reduce) {
   .uep-pinned-note.is-jump-target {
     animation: none;
-    outline: 3px solid rgba(180, 130, 40, 0.7);
+    outline: 3px solid rgb(var(--pn-glow-rgb) / 0.7);
     outline-offset: 4px;
   }
 }

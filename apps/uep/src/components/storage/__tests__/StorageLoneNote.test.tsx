@@ -63,10 +63,10 @@ describe('抖落灰塵', () => {
   it('紙色隨進度往暖黃回', () => {
     render(<StorageLoneNote onCleaned={vi.fn()} />);
     const note = screen.getByRole('button', { name: NOTE });
-    const dusty = note.style.getPropertyValue('--sto-lone-paper');
+    const dusty = note.style.getPropertyValue('--sto-lone-mix');
 
     for (let i = 0; i < 5; i++) tap(note);
-    const halfway = note.style.getPropertyValue('--sto-lone-paper');
+    const halfway = note.style.getPropertyValue('--sto-lone-mix');
 
     expect(halfway).not.toBe(dusty);
     // 灰塵濃度同步下降
