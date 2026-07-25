@@ -199,8 +199,6 @@ export default function HomePage({
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
-  // TODO: 恢復 session 檢查時需復原 ready state
-  // const [ready, setReady] = useState(false);
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
   const [veilZone, setVeilZone] = useState<ZoneData | null>(null);
   const [sectionVeil, setSectionVeil] = useState<{
@@ -253,15 +251,9 @@ export default function HomePage({
       return;
     }
 
-    // TODO: 測試結束後恢復 session 檢查（取消下方註解）
-    // let seen = false;
-    // try { seen = sessionStorage.getItem('uep-lobby-seen') === '1'; } catch {}
-    // if (seen) {
-    //   const t = setTimeout(() => setReady(true), 80);
-    //   return () => clearTimeout(t);
-    // }
-
-    // ── 啟用大廳動畫（直接播放，4.2s 足夠讓資源載完） ──
+    // ── 啟用大廳動畫 ──
+    // 刻意每次進站都播（不做 session 「看過就跳過」判定）：4.2s 是入場儀式的
+    // 一部分，也剛好讓資源載完。唯一的例外是上方 welcomePending 那條。
     setLobbyPhase('playing');
   }, []);
 
@@ -359,26 +351,13 @@ export default function HomePage({
   const handleLobbyAnimEnd = useCallback((e: React.AnimationEvent) => {
     if (e.animationName !== 'lobby-shell') return;
     setLobbyPhase('done');
-    try {
-      sessionStorage.setItem('uep-lobby-seen', '1');
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   // 安全閥：lobby 動畫 6 秒後強制結束（防止 CSS animationName 比對失敗導致白屏）
   useEffect(() => {
     if (lobbyPhase !== 'playing') return;
     const timer = setTimeout(() => {
-      setLobbyPhase((prev) => {
-        if (prev !== 'playing') return prev;
-        try {
-          sessionStorage.setItem('uep-lobby-seen', '1');
-        } catch {
-          /* ignore */
-        }
-        return 'done';
-      });
+      setLobbyPhase((prev) => (prev === 'playing' ? 'done' : prev));
     }, 6000);
     return () => clearTimeout(timer);
   }, [lobbyPhase]);
