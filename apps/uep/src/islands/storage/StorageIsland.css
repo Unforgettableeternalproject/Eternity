@@ -1,52 +1,175 @@
 /**
  * Storage Island —「便條紙」視覺語彙
  *
- * 設計稿參照：Eternity-Design/components/storage-base.jsx:244 Scratchpad
- * 主色：#FCF5DE 底 / #FFF1BA 便條 / #FBEFCB 輸入列 / #3a2f08 墨色
- * 便條紙特徵：膠帶條、傾斜、紙質陰影、圓角極小（近乎銳角）
+ * S9-C.5（v2 設計稿提案 A「一整張紙」）：整座島＝一張貼在頁面上的紙。
+ * 頂端膠帶固定、底緣撕開的鋸齒、紙紋壓在最上層，白框 header 由 bare
+ * 外殼取消，標題直接寫在紙上並兼任拖曳把手。
  *
- * DraggableIsland 已提供外框（uep-island）與 header（uep-island__header）；
- * 本 CSS 只覆寫必要的深色主題適配與內容區樣式。
+ * ⚠️ 設計稿的手寫體（Long Cang）不採用——艾斯維爾 2026-07-25 指定不要
+ * 特殊字體，全部走站內既有的 --font-serif-tc。
+ *
+ * 主色：#fdf7e0 紙 / #fff1ba 便條 / #ffe98a 最新 / #3a2f08 墨色
  */
 
 .uep-island--storage .uep-island__body {
   padding: 0;
-  background: #fcf5de;
-  color: #3a2f08;
-  font-family: var(--font-serif-tc, serif);
-  position: relative;
-  border-radius: 0;
-  /* 高度與 scroll 全交給內部 .uep-stoland 處理——body 若走 auto，
-   * stoland flex 布局失效，form 會被推到 body 底部隨捲動走
-   *（艾斯維爾 07/24 二次驗收） */
-  max-height: none;
-  overflow: hidden;
+  /* 紙的材質改掛在 .uep-stoland 本體（bare 外殼不再有可依附的白框），
+   * 但撕邊要能超出邊界，這層不能裁切 */
+  overflow: visible;
 }
 
-/* 便條紙頂端的膠帶條（設計稿元素——貼在 header 下緣） */
-.uep-island--storage .uep-island__body::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%) rotate(-2deg);
-  width: 100px;
-  height: 14px;
-  background: rgba(231, 220, 178, 0.9);
-  border-left: 1px dashed rgba(0, 0, 0, 0.1);
-  border-right: 1px dashed rgba(0, 0, 0, 0.1);
-  pointer-events: none;
-  z-index: 1;
-}
-
+/* ── 整座島＝一張紙 ── */
 .uep-stoland {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
-  /* 固定像素高度（艾斯維爾 07/25 三驗+：五座浮島時 420 佔太多空間，
-   * 縮到 320；便條多了列表自捲，輸入框天然黏 flex 底部不受滾動影響） */
-  height: 200px;
+  padding: 22px 20px 16px;
   max-height: 80vh;
+  color: #3a2f08;
+  font-family: var(--font-serif-tc, serif);
+  background: linear-gradient(172deg, #fdf7e0, #f6ecca 70%, #f2e6c0);
+  box-shadow:
+    0 16px 34px rgba(45, 32, 5, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 紙紋（壓在最上層——字是印在紙裡的） */
+.uep-stoland::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    96deg,
+    rgba(140, 110, 40, 0.05) 0 2px,
+    transparent 2px 6px
+  );
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 4;
+}
+
+/* 底緣：撕開的鋸齒 */
+.uep-stoland::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -9px;
+  height: 10px;
+  background: #f2e6c0;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 42%,
+    96% 12%,
+    92% 58%,
+    88% 18%,
+    84% 66%,
+    79% 22%,
+    74% 60%,
+    69% 16%,
+    64% 62%,
+    59% 20%,
+    54% 58%,
+    49% 14%,
+    44% 64%,
+    39% 22%,
+    34% 56%,
+    29% 16%,
+    24% 62%,
+    19% 20%,
+    14% 58%,
+    9% 14%,
+    4% 60%,
+    0 20%
+  );
+  box-shadow: 0 4px 8px rgba(45, 32, 5, 0.2);
+  pointer-events: none;
+}
+
+/* 貼住紙頭的膠帶 */
+.uep-stoland__tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 74px;
+  height: 19px;
+  background: linear-gradient(
+    180deg,
+    rgba(240, 232, 196, 0.85),
+    rgba(222, 212, 170, 0.8)
+  );
+  box-shadow: 0 1px 3px rgba(60, 45, 5, 0.18);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.uep-stoland__tape::before,
+.uep-stoland__tape::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.08) 0 2px,
+    transparent 2px 4px
+  );
+}
+
+.uep-stoland__tape::before {
+  left: 0;
+}
+
+.uep-stoland__tape::after {
+  right: 0;
+}
+
+/* ── 紙上的標題（＝拖曳把手） ── */
+.uep-stoland__masthead {
+  position: relative;
+  z-index: 2;
+}
+
+.uep-stoland__hand {
+  font-family: var(--font-serif-tc, serif);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #5b4a12;
+}
+
+.uep-stoland__rule {
+  height: 1px;
+  background: rgba(58, 47, 8, 0.22);
+  margin: 10px 0 8px;
+}
+
+/* ── 收起 ── */
+.uep-stoland__close {
+  all: unset;
+  position: absolute;
+  top: 22px;
+  right: 20px;
+  z-index: 6;
+  cursor: pointer;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: rgba(58, 47, 8, 0.55);
+}
+
+.uep-stoland__close:hover {
+  color: #3a2f08;
+}
+
+.uep-stoland__close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
 }
 
 /* ── 當前位置條 ── */
@@ -452,5 +575,72 @@
 @media (prefers-reduced-motion: reduce) {
   .uep-stoland__note {
     transition: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * S9-C.5 — 版面貼合紙面
+ * 內距統一交給 .uep-stoland 的紙緣，內部區塊不再各自留左右內距，
+ * 否則字會離撕邊太遠、看起來像紙裡又有一張紙。
+ * ════════════════════════════════════════════════════════════════ */
+
+.uep-stoland__location {
+  position: relative;
+  z-index: 2;
+  padding: 0 0 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  border-bottom: none;
+}
+
+.uep-stoland__list {
+  position: relative;
+  z-index: 2;
+  padding: 10px 0 6px;
+  /* 紙不能無限長：便條多了列表自捲，膠帶與撕邊維持在原位 */
+  max-height: 152px;
+}
+
+.uep-stoland__meta {
+  position: relative;
+  z-index: 2;
+  padding: 4px 0 0;
+}
+
+/* 輸入列＝紙上的一行，不是另一塊色塊 */
+.uep-stoland__form {
+  position: relative;
+  z-index: 2;
+  padding: 8px 0 0;
+  margin-top: 6px;
+  background: transparent;
+  border-top: 1px dashed rgba(58, 47, 8, 0.32);
+}
+
+/* ── 離場：紙被撕離膠帶 ── */
+.uep-island--storage.uep-island--leaving {
+  transform-origin: top center;
+  animation: uep-stoland-tear 0.4s var(--ease) forwards;
+}
+
+@keyframes uep-stoland-tear {
+  0% {
+    transform: rotate(0deg) translateY(0);
+    opacity: 1;
+  }
+  35% {
+    transform: rotate(-3deg) translateY(-4px);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(9deg) translateY(56px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-island--storage.uep-island--leaving {
+    animation: none;
   }
 }

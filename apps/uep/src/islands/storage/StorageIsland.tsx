@@ -6,11 +6,12 @@
  * - 便條本體走 ProgressState 跨裝置同步（S9-A.1 已落地）
  * - 釘選功能（拖出到頁面內容）分在 S9-A.4/.5/.6 逐步接上
  *
- * 島 header 由 DraggableIsland 提供（便條紙 title + ✎ icon + 收合鈕）。
- * 本元件負責 body：位置條 + 便條列表 + 輸入區。
+ * 視覺（S9-C.5，v2 設計稿提案 A「一整張紙」）：整座島就是一張貼在頁面上
+ * 的紙——頂端膠帶固定、底緣是撕開的鋸齒、紙紋壓在最上層，白框 header
+ * 消失，標題直接寫在紙上並兼任拖曳把手。
  *
- * 便條紙視覺語彙移植自 Eternity-Design/components/storage-base.jsx:244
- * Scratchpad 原型：膠帶條、傾斜便條、紙質陰影、暖黃色系。
+ * ⚠️ 設計稿的手寫體（Long Cang）不採用——艾斯維爾 2026-07-25 指定不要
+ * 特殊字體，標題與輸入都走站內既有的 --font-serif-tc。
  */
 
 import React, {
@@ -29,6 +30,7 @@ import {
   useProgress,
 } from '../../progress';
 import type { StorageNote } from '../../progress';
+import { useIslandChrome } from '../islandChrome';
 import { ZONE_LABELS, useCurrentLocation } from '../useCurrentLocation';
 
 import {
@@ -69,6 +71,7 @@ function sortNotes(
 
 export default function StorageIsland() {
   const progress = useProgress();
+  const chrome = useIslandChrome();
   const location = useCurrentLocation();
   const pinned = usePinnedNotes();
   const pinnedIds = useMemo(
@@ -132,6 +135,28 @@ export default function StorageIsland() {
 
   return (
     <div className="uep-stoland">
+      {/* 把整張紙貼在頁面上的膠帶（純裝飾） */}
+      <span className="uep-stoland__tape" aria-hidden />
+
+      {/* 紙上的標題＝拖曳把手（設計稿沒有白框 header） */}
+      <div className="uep-stoland__masthead" {...chrome.dragHandleProps}>
+        <div className="uep-stoland__hand">便條紙</div>
+        <div className="uep-stoland__rule" aria-hidden />
+      </div>
+
+      {chrome.bare && (
+        <button
+          type="button"
+          className="uep-stoland__close"
+          onClick={chrome.requestClose}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label="收合便條紙"
+          title="收合"
+        >
+          收起
+        </button>
+      )}
+
       {/* 當前位置條——便條島跨區共用，讓使用者一眼認出「在哪一 zone 記」 */}
       <div className="uep-stoland__location" aria-live="polite">
         <span className="uep-stoland__location-icon" aria-hidden>
