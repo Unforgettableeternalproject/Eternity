@@ -10,11 +10,13 @@ import React, {
 import { ZONES } from '../../data/zones';
 import {
   canMirrorGallery,
+  completeUnlockRitual,
   getIslandRuntime,
   IslandUnlockObject,
   pushPhantomGallery,
   shouldMountIsland,
   useDesktopIslandViewport,
+  useUnlockEligibility,
 } from '../../islands';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
@@ -36,6 +38,9 @@ import { ReaderShell } from '../zone/ReaderShell';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import VisualsPhantomCard from './VisualsPhantomCard';
+import { shouldRevealPhantomCard } from './phantomCardRoll';
+import type { GroupSlot } from './phantomCardRoll';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
@@ -174,6 +179,31 @@ function findNodeById(tree: PageTreeNode[], id: string): PageTreeNode | null {
     if (found) return found;
   }
   return null;
+}
+
+/**
+ * 把 subcat 底下的 gallery 依 `metadata.group` 分桶。
+ *
+ * 抽成檔案層級函式是為了讓元件頂層也算得到「這個 subcat 有幾個分組」——
+ * S9-B 的解鎖儀式只在**兩個以上分組**的區塊觸發，而那個判定要在 effect 裡
+ * 用，不能只活在 renderSubcat 的區域變數裡。
+ */
+function buildGalleryGroups(subcatNode: PageTreeNode): {
+  galleries: PageTreeNode[];
+  groupMap: Map<string, PageTreeNode[]>;
+  groupList: string[];
+} {
+  const galleries = (subcatNode.children || [])
+    .filter((c) => c.pageType === 'gallery' && !isHidden(c))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const groupMap = new Map<string, PageTreeNode[]>();
+  for (const g of galleries) {
+    const group = (g.metadata?.group as string) || '全部';
+    if (!groupMap.has(group)) groupMap.set(group, []);
+    groupMap.get(group)!.push(g);
+  }
+  return { galleries, groupMap, groupList: [...groupMap.keys()] };
 }
 
 function findParentDivision(
@@ -445,6 +475,57 @@ function VisualsReaderInner() {
   // 當下同步讀值，viewport 變化不會自己觸發重渲染）
   const desktopViewport = useDesktopIslandViewport();
   const progressTree = useMemo(() => buildProgressTreeAdapter(tree), [tree]);
+
+  // ── 解鎖儀式「不在目錄中的畫廊」（S9-B）──
+  const visualsUnlock = useUnlockEligibility('visuals');
+  /** 中獎的位置。null = 尚未中；不持久化，離開 subcat 或重整就沒了。 */
+  const [phantomSlot, setPhantomSlot] = useState<GroupSlot | null>(null);
+  /** 上一次停留的位置——用來分辨「切換標籤」與「剛進來」 */
+  const lastGroupSlotRef = useRef<GroupSlot | null>(null);
+
+  /** 這個 subcat 有幾個分類標籤（儀式只在兩個以上的區塊觸發） */
+  const subcatGroupCount = useMemo(() => {
+    if (!activeSubcatId) return 0;
+    const node = findNodeById(tree, activeSubcatId);
+    return node ? buildGalleryGroups(node).groupList.length : 0;
+  }, [tree, activeSubcatId]);
+
+  // 換 subcat 就重置：中獎位置不跨區塊，也不持久化
+  useEffect(() => {
+    setPhantomSlot(null);
+  }, [activeSubcatId]);
+
+  // 切換分類標籤時擲骰（規則見 phantomCardRoll.shouldRevealPhantomCard）
+  useEffect(() => {
+    const prev = lastGroupSlotRef.current;
+    const current: GroupSlot | null = activeSubcatId
+      ? { subcatId: activeSubcatId, groupIdx: activeGroupIdx }
+      : null;
+    lastGroupSlotRef.current = current;
+
+    if (
+      shouldRevealPhantomCard({
+        prev,
+        current,
+        eligible: visualsUnlock.eligible,
+        groupCount: subcatGroupCount,
+        alreadyWon: phantomSlot !== null,
+      })
+    ) {
+      setPhantomSlot(current);
+    }
+  }, [
+    activeSubcatId,
+    activeGroupIdx,
+    subcatGroupCount,
+    visualsUnlock.eligible,
+    phantomSlot,
+  ]);
+
+  const handlePhantomCardOpen = useCallback(() => {
+    setPhantomSlot(null);
+    completeUnlockRitual('visuals');
+  }, []);
 
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
@@ -1376,18 +1457,7 @@ function VisualsReaderInner() {
     const subcatNode = findNodeById(tree, activeSubcatId);
     if (!subcatNode) return <ZoneStateDisplay kind="loading" />;
 
-    const galleries = (subcatNode.children || [])
-      .filter((c) => c.pageType === 'gallery' && !isHidden(c))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-
-    // Build group list
-    const groupMap = new Map<string, PageTreeNode[]>();
-    for (const g of galleries) {
-      const group = (g.metadata?.group as string) || '全部';
-      if (!groupMap.has(group)) groupMap.set(group, []);
-      groupMap.get(group)!.push(g);
-    }
-    const groupList = [...groupMap.keys()];
+    const { galleries, groupMap, groupList } = buildGalleryGroups(subcatNode);
     const safeGroupIdx = Math.min(
       activeGroupIdx,
       Math.max(0, groupList.length - 1)
@@ -1589,6 +1659,14 @@ function VisualsReaderInner() {
                     </button>
                   );
                 })}
+
+                {/* 解鎖儀式（S9-B）：獨立渲染在網格末尾，不混進上面那個由
+                    伺服器 tree 驅動的清單——那條路徑會先過 gate 閘（鎖定
+                    即 disabled 死卡），點擊又會打真 API。 */}
+                {phantomSlot?.subcatId === activeSubcatId &&
+                  phantomSlot?.groupIdx === safeGroupIdx && (
+                    <VisualsPhantomCard onOpen={handlePhantomCardOpen} />
+                  )}
               </div>
             )}
 

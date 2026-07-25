@@ -1,0 +1,179 @@
+/* ══════════════════════════════════════════════════════════════
+   不在目錄中的畫廊（S9-B 解鎖儀式）
+
+   沿用 .visuals-gallery-card 的外框尺寸，內容換成流動的幻影紫——
+   它要看起來像同一疊卡片裡的一張，但內容明顯不對勁。
+   ══════════════════════════════════════════════════════════════ */
+
+.vis-phantom-card {
+  position: relative;
+  cursor: pointer;
+  animation: vis-phantom-in 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.vis-phantom-card__art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 30% 30%,
+      rgba(159, 134, 192, 0.45),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 70% 70%,
+      rgba(224, 177, 203, 0.3),
+      transparent 55%
+    ),
+    linear-gradient(135deg, #3c3357, #5e548e);
+  background-size: 180% 180%;
+  animation: vis-phantom-drift 9s ease-in-out infinite;
+}
+
+.vis-phantom-card__glow {
+  position: absolute;
+  inset: -30%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.16),
+    transparent 62%
+  );
+  animation: vis-phantom-sweep 5.5s ease-in-out infinite;
+}
+
+.vis-phantom-card__mark {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.66);
+  text-shadow: 0 0 18px rgba(224, 177, 203, 0.7);
+  animation: vis-phantom-flicker 3.4s steps(1, end) infinite;
+}
+
+.vis-phantom-card__title {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.vis-phantom-card:hover .vis-phantom-card__art {
+  filter: brightness(1.15);
+}
+
+.vis-phantom-card:focus-visible {
+  outline: 2px solid var(--visuals-soft, #9f86c0);
+  outline-offset: 3px;
+}
+
+/* 浮現：從無到有，像慢慢對上焦 */
+@keyframes vis-phantom-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes vis-phantom-drift {
+  0%,
+  100% {
+    background-position:
+      0% 50%,
+      100% 50%,
+      0% 0%;
+  }
+  50% {
+    background-position:
+      100% 50%,
+      0% 50%,
+      100% 100%;
+  }
+}
+
+@keyframes vis-phantom-sweep {
+  0%,
+  100% {
+    transform: translate(-16%, -10%);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(16%, 12%);
+    opacity: 0.85;
+  }
+}
+
+/* 問號的訊號不穩——偶爾閃掉一拍 */
+@keyframes vis-phantom-flicker {
+  0%,
+  42%,
+  46%,
+  70%,
+  74%,
+  100% {
+    opacity: 0.66;
+  }
+  44%,
+  72% {
+    opacity: 0.16;
+  }
+}
+
+/* 點擊後顯影 */
+.vis-phantom-card.is-opening {
+  cursor: default;
+  animation: vis-phantom-open 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.vis-phantom-card.is-opening .vis-phantom-card__art {
+  animation:
+    vis-phantom-drift 2s ease-in-out infinite,
+    vis-phantom-bloom 1.4s ease-out forwards;
+}
+
+@keyframes vis-phantom-open {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(0.97);
+    opacity: 0;
+  }
+}
+
+@keyframes vis-phantom-bloom {
+  0% {
+    filter: brightness(1);
+  }
+  55% {
+    filter: brightness(2.1) saturate(1.4);
+  }
+  100% {
+    filter: brightness(3.4) saturate(0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vis-phantom-card,
+  .vis-phantom-card__art,
+  .vis-phantom-card__glow,
+  .vis-phantom-card__mark,
+  .vis-phantom-card.is-opening,
+  .vis-phantom-card.is-opening .vis-phantom-card__art {
+    animation: none;
+  }
+  .vis-phantom-card.is-opening {
+    opacity: 0.5;
+  }
+}
