@@ -32,6 +32,11 @@ import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
 import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
 import IslandUnlockObject from '../../islands/IslandUnlockObject';
+import {
+  completeUnlockRitual,
+  useUnlockEligibility,
+} from '../../islands/unlockRitual';
+import StorageLoneNote from './StorageLoneNote';
 import { useSubpageTitle } from '../../utils/useSubpageTitle';
 
 // ──────────────────────────────────────────────────────────────────
@@ -305,6 +310,12 @@ export default function StorageReader() {
     activeClearingId,
     activePageId,
   ]);
+
+  // ── 解鎖儀式「一張孤零零的紙條」（S9-B）──
+  const storageUnlock = useUnlockEligibility('storage');
+  const handleLoneNoteCleaned = useCallback(() => {
+    completeUnlockRitual('storage');
+  }, []);
 
   // S9-A.3：便條釘選錨點——每次換頁後掃 .sto-prose 補 data-uep-anchor-id
   // S9-A Codex #3 修：一次把所有 prose 容器塞給 ensureContentAnchors，
@@ -822,6 +833,12 @@ export default function StorageReader() {
             ← 返回某人的置物空間
           </button>
         </div>
+
+        {/* 解鎖儀式「一張孤零零的紙條」（S9-B）：只在 boxes 這一區。
+            進度不落地——這個元件卸載（換頁／離開／重整）就從頭來。 */}
+        {activeClearingId === 'boxes' && storageUnlock.eligible && (
+          <StorageLoneNote onCleaned={handleLoneNoteCleaned} />
+        )}
       </div>
     );
   }
