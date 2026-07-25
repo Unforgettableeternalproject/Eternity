@@ -445,6 +445,59 @@
   padding: 4px 10px;
   border: 1px solid var(--concepts-main);
 }
+
+/* ── 解鎖儀式：斷線的終端（S9-B）── */
+
+/* 未連線＝可解鎖。用區域內變數而非 token——站上沒有共用的紅色 design
+   token，這是唯一使用處，不值得為它開一顆全域變數。 */
+.conc-terminal-badge.is-disconnected {
+  --conc-offline: #c0524a;
+  color: var(--conc-offline);
+  border-color: var(--conc-offline);
+  background: transparent;
+  cursor: pointer;
+  animation: concTerminalOffline 2.4s ease-in-out infinite;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.conc-terminal-badge.is-disconnected:hover {
+  background: rgba(192, 82, 74, 0.1);
+  box-shadow: 0 0 14px rgba(192, 82, 74, 0.22);
+}
+.conc-terminal-badge.is-disconnected:focus-visible {
+  outline: 2px solid var(--conc-offline);
+  outline-offset: 2px;
+}
+
+/* 訊號不穩的呼吸——比恆亮更像「等著被接上的節點」 */
+@keyframes concTerminalOffline {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.55;
+  }
+}
+
+.conc-terminal-badge.is-connecting {
+  color: var(--concepts-soft);
+  border-color: var(--concepts-soft);
+  animation: concTerminalOffline 0.9s ease-in-out infinite;
+}
+
+/* 無資格：只剩提示符，不透露有東西可解鎖 */
+.conc-terminal-badge.is-idle {
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conc-terminal-badge.is-disconnected,
+  .conc-terminal-badge.is-connecting {
+    animation: none;
+  }
+}
 .conc-landing-subtitle {
   font-family: var(--font-serif-tc);
   font-size: 16px;

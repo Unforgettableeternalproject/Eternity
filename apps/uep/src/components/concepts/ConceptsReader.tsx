@@ -31,6 +31,7 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import IslandUnlockObject from '../../islands/IslandUnlockObject';
+import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import { useProgress } from '../../progress/useProgress';
 import { evaluateGate, parseGateCondition } from '../../progress/gating';
 import { resolveEffectiveViewForPage } from './revision';
@@ -1451,9 +1452,7 @@ export default function ConceptsReader() {
             <h1 className="conc-landing-title">
               {hpHeader?.title || '概念調整房'}
             </h1>
-            <span className="conc-terminal-badge">
-              $ root@uep:~ · CONNECTED
-            </span>
+            <ConceptsTerminalBadge />
           </div>
           {(hpHeader?.subtitle || '') && (
             <p className="conc-landing-subtitle">{hpHeader?.subtitle}</p>
