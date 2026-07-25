@@ -47,12 +47,35 @@ export interface DropTargetPage {
 export type DropResolution = DropTarget | DropTargetPage;
 
 /**
+ * 拖曳時「便條左上角相對指標」的偏移（通常為負值——抓在便條中間拖時，
+ * 左上角在指標的左上方）。
+ *
+ * 為什麼需要它：釘選存的 offset 是「便條左上角相對錨點」，還原時
+ * `left = anchorRect.left + offsetX` 直接把**左上角**貼到該座標。若落點
+ * 解析拿指標座標當 offset，放開瞬間便條就會往右下跳一整個抓取偏移量
+ * ——艾斯維爾 07/25 四驗回報的「拖曳卡卡」主因。
+ *
+ * 落點**判定**（命中哪個容器 / 哪個錨點）仍用指標座標：使用者感知的
+ * 落點是游標，不是便條的角。只有存下來的**偏移**改用左上角。
+ */
+export interface GrabOffset {
+  dx: number;
+  dy: number;
+}
+
+/** 無抓取偏移（呼叫端本來就傳左上角座標時用） */
+const NO_GRAB: GrabOffset = { dx: 0, dy: 0 };
+
+/**
  * 依 drop 點在頁面上的座標，解析出應該建立的釘選型態。
  * 純函式（依賴 DOM 但不修改）——測試可用 stubbed elementFromPoint。
+ *
+ * `grab` 為便條左上角相對 (clientX, clientY) 的偏移，見 {@link GrabOffset}。
  */
 export function resolveDropTarget(
   clientX: number,
-  clientY: number
+  clientY: number,
+  grab: GrabOffset = NO_GRAB
 ): DropResolution {
   if (typeof document === 'undefined') {
     return { kind: 'page', offsetX: 0, offsetY: 0 };
@@ -69,8 +92,8 @@ export function resolveDropTarget(
         kind: 'element',
         container,
         anchorId: hit.anchorId,
-        offsetX: hit.offsetX,
-        offsetY: hit.offsetY,
+        offsetX: hit.offsetX + grab.dx,
+        offsetY: hit.offsetY + grab.dy,
       };
     }
   }
@@ -100,8 +123,8 @@ export function resolveDropTarget(
       kind: 'element',
       container: bestContainer,
       anchorId: bestHit.anchorId,
-      offsetX: bestHit.offsetX,
-      offsetY: bestHit.offsetY,
+      offsetX: bestHit.offsetX + grab.dx,
+      offsetY: bestHit.offsetY + grab.dy,
     };
   }
 
@@ -116,14 +139,41 @@ export function resolveDropTarget(
   const scrollContainer = findScrollContainer(zone);
   const scrollRect = scrollContainer?.getBoundingClientRect();
   const contentX =
-    (scrollContainer?.scrollLeft ?? 0) + clientX - (scrollRect?.left ?? 0);
+    (scrollContainer?.scrollLeft ?? 0) +
+    clientX +
+    grab.dx -
+    (scrollRect?.left ?? 0);
   const contentY =
-    (scrollContainer?.scrollTop ?? 0) + clientY - (scrollRect?.top ?? 0);
+    (scrollContainer?.scrollTop ?? 0) +
+    clientY +
+    grab.dy -
+    (scrollRect?.top ?? 0);
   return {
     kind: 'page',
     offsetX: Math.max(0, contentX),
     offsetY: Math.max(0, contentY),
   };
+}
+
+/**
+ * 展開中的便條島根元素 selector（`DraggableIsland` 根 class
+ * `uep-island` + `IslandHost` 傳入的 `uep-island--${id}`）。
+ * 收合成 dock chip 時這個元素不存在——艾斯維爾 07/25 定案：**只有展開的
+ * 便條島**是拆除目標，收合狀態下拖曳仍照常釘到頁面上。
+ */
+const STORAGE_ISLAND_SELECTOR = '.uep-island--storage';
+
+/**
+ * 判定放開點是否落在展開的便條島上 → 語意為「把便條收回島裡」（解除釘選）。
+ *
+ * ⚠️ 呼叫端必須確保拖曳中的卡片是 `pointer-events: none`（CSS `.is-dragging`），
+ * 否則 `elementFromPoint` 會命中卡片自己而永遠判不到島。
+ */
+export function isUnpinDropTarget(clientX: number, clientY: number): boolean {
+  if (typeof document === 'undefined') return false;
+  if (typeof document.elementFromPoint !== 'function') return false;
+  const target = document.elementFromPoint(clientX, clientY);
+  return target?.closest(STORAGE_ISLAND_SELECTOR) != null;
 }
 
 /**

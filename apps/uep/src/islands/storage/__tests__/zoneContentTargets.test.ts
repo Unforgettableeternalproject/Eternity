@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   findContentContainers,
+  findScrollContainer,
   getContentSelector,
   getContentSelectorForPath,
   supportsElementAnchor,
@@ -78,5 +79,33 @@ describe('findContentContainers', () => {
 
   it('null zone → 回空陣列', () => {
     expect(findContentContainers(null)).toEqual([]);
+  });
+});
+
+/*【回歸:07/25 四驗】首頁的區塊轉場只是**呈現**模式不同——不論 wheel delta
+ * 累積後的 scrollTo 瞬跳、還是 Verse 內部手動推進，寫的都是同一個
+ * `.journey-scroll.scrollTop`。因此首頁必須登記捲動容器，否則
+ * findScrollContainer 會退到 document.scrollingElement，而首頁外層是
+ * `height:100dvh; overflow:hidden`、document 的 scrollTop 恆為 0
+ * → page 級便條的補償公式失效，便條凍結在螢幕座標不跟頁面走。 */
+describe('首頁捲動容器（07/25 四驗）', () => {
+  it('home zone → .journey-scroll', () => {
+    document.body.innerHTML = `<div class="journey-scroll">首頁內容</div>`;
+    const found = findScrollContainer('home');
+    expect(found?.className).toBe('journey-scroll');
+  });
+
+  it('首頁不支援 element 錨點 → 只走 page 級', () => {
+    expect(supportsElementAnchor('home')).toBe(false);
+    expect(getContentSelector('home')).toBeNull();
+    expect(getContentSelectorForPath('/')).toBeNull();
+  });
+
+  it('根路徑會解析到 home 的捲動容器（走 extractZone 那條鏈）', () => {
+    document.body.innerHTML = `<div class="journey-scroll">首頁內容</div>`;
+    // getContentSelectorForPath 內部走 extractZone('/') → 'home'
+    expect(getContentSelectorForPath('/')).toBeNull(); // element 錨點不支援
+    // 但捲動容器要查得到（page 級定位靠這個）
+    expect(findScrollContainer('home')).not.toBeNull();
   });
 });

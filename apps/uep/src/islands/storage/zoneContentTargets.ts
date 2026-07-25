@@ -6,6 +6,9 @@
  *  - Echoes content 頁：`.echoes-prose`
  *  - Storage blog/dialogue/log 頁：`.sto-prose`
  *  - Concepts / Visuals：互動元件頁，**沒有連續文字流**——降級為頁面級
+ *  - 首頁：視覺敘事 section，同樣沒有 prose 容器——降級為頁面級。便條的
+ *    語意是「貼在這個區塊的版面上」而非「貼在某段文字上」；section 內部的
+ *    `[data-reading-scroll]` 次級捲動容器**不追**（艾斯維爾 07/25 定案）
  *
  * 釘選層依 zone 查對照表：
  *  - `element` 錨點：找得到容器 → 相對容器 absolute 定位
@@ -16,7 +19,7 @@
  * 找到真正該掛的容器。
  */
 
-import { extractZone } from '../useCurrentLocation';
+import { HOME_ZONE_ID, extractZone } from '../useCurrentLocation';
 
 /** 「文字頁」zone → 內容容器 CSS selector（同一 zone 同 selector） */
 const ELEMENT_ANCHOR_SELECTORS: Record<string, string> = {
@@ -39,10 +42,18 @@ const ELEMENT_ANCHOR_SELECTORS: Record<string, string> = {
  * - concepts:`.conc-content`    (`ConceptsReader.css:22`)
  * - visuals: `.visuals-content` (`VisualsReader.css:131`)
  *
+ * **首頁同理**（07/25 四驗）：`.journey-scroll`（`HomePage.tsx:1703`），
+ * 外層 `height:100dvh; overflow:hidden` 讓 document 永不捲動。首頁的
+ * 「一區塊一區塊跳轉」只是**呈現**模式不同——不論 wheel delta 累積後的
+ * `scrollTo` 瞬跳、還是 Verse 內部的手動推進，寫的都是同一個
+ * `.journey-scroll.scrollTop`，位置狀態的載體與 Reader 頁完全一致，
+ * 定位公式（containerRect + offset - scrollTop）原封不動適用。
+ *
  * 若 zone 未登記或 selector 找不到 → 回退 document.scrollingElement
  * （非 Reader 頁的極端 fallback）。
  */
 const SCROLL_CONTAINER_SELECTORS: Record<string, string> = {
+  [HOME_ZONE_ID]: '.journey-scroll',
   history: '.history-content',
   echoes: '.echoes-content',
   storage: '.sto-content',

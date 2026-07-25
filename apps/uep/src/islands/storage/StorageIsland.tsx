@@ -34,12 +34,22 @@ import { ZONE_LABELS, useCurrentLocation } from '../useCurrentLocation';
 import {
   DRAG_THRESHOLD,
   commitPin,
+  isUnpinDropTarget,
   navigateToPinned,
   resolveDropTarget,
 } from './dragToPin';
 import { usePinnedNotes } from './usePinnedNotes';
 
+import type { GrabOffset } from './dragToPin';
+
 import './StorageIsland.css';
+
+/**
+ * 拖曳 ghost 左上角相對指標的偏移——ghost 大致在指標的左上方，讓使用者
+ * 看得見游標下方的落點。放開時 `resolveDropTarget` 要吃同一組偏移，
+ * 釘上去的便條左上角才會落在 ghost 剛剛的位置（見 {@link GrabOffset}）。
+ */
+const GHOST_GRAB: GrabOffset = { dx: -60, dy: -20 };
 
 /**
  * 便條排序：已釘選永遠在最上（艾斯維爾 07/24 驗收定案），
@@ -128,9 +138,11 @@ export default function StorageIsland() {
           ◈
         </span>
         <span className="uep-stoland__location-label">
+          {/* 首頁自 07/25 起有專屬 zone id（'home' → 「世界的軸心」），
+              null 分支剩下 /admin 等非區域頁，不再是「起始頁」 */}
           {location.zone
             ? (ZONE_LABELS[location.zone] ?? location.zone)
-            : '起始頁'}
+            : '其他頁面'}
         </span>
         {location.pageLabel && (
           <span
@@ -268,7 +280,7 @@ function NoteCard({
     const g = ghostRef.current;
     if (g) {
       // translate 走 compositor，不觸發 layout；-3deg 傾斜沿設計稿
-      g.style.transform = `translate(${x - 60}px, ${y - 20}px) rotate(-3deg)`;
+      g.style.transform = `translate(${x + GHOST_GRAB.dx}px, ${y + GHOST_GRAB.dy}px) rotate(-3deg)`;
     }
   }, []);
 
@@ -341,7 +353,14 @@ function NoteCard({
     lastPointRef.current = null;
     // 落地
     if (!origin) return;
-    const resolution = resolveDropTarget(e.clientX, e.clientY);
+    /* 放開點還在便條島上 → 取消本次拖曳，不釘選。
+     * 拖曳起點本來就在島內，小幅移動後放開（已過 DRAG_THRESHOLD 但沒拖
+     * 出島）若照常 commitPin，會在島**後面**留一張看不見的 page 級釘選。
+     * 與「把場上便條拖回島上 = 解除釘選」是同一組語意。 */
+    if (isUnpinDropTarget(e.clientX, e.clientY)) return;
+    // 帶上 GHOST_GRAB：釘上去的便條左上角要對齊放開瞬間 ghost 的左上角，
+    // 否則會往右下跳一個抓取偏移量（艾斯維爾 07/25 四驗）
+    const resolution = resolveDropTarget(e.clientX, e.clientY, GHOST_GRAB);
     commitPin(note.id, resolution);
   }
 
@@ -393,7 +412,7 @@ function NoteCard({
               // mount 當下就對到最後的 pointer 位置（進拖曳態的那一步）
               const p = lastPointRef.current;
               if (el && p) {
-                el.style.transform = `translate(${p.x - 60}px, ${p.y - 20}px) rotate(-3deg)`;
+                el.style.transform = `translate(${p.x + GHOST_GRAB.dx}px, ${p.y + GHOST_GRAB.dy}px) rotate(-3deg)`;
               }
             }}
             className="uep-stoland__note-ghost"

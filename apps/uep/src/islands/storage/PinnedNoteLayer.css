@@ -32,6 +32,10 @@
     box-shadow 180ms ease,
     z-index 0s ease 180ms;
   cursor: default;
+  /* 便條本身是可拖曳元素——不讓瀏覽器把 pointer 手勢解讀成捲動/縮放而
+   * 中途搶走（觸控螢幕筆電上會直接讓拖曳斷掉）。手機一律不掛，桌面
+   * 觸控裝置想捲頁在便條外操作即可。 */
+  touch-action: none;
 }
 
 /* 上緣膠帶條——強化「貼在頁面上」的實體感 */
@@ -110,8 +114,36 @@
   pointer-events: none;
   opacity: 0.85;
   cursor: grabbing;
-  z-index: 1500;
+  /* 浮島層帶是 2000-2999（runtime 動態指定）——拖曳中的便條必須在它們
+   * **之上**，否則拖到便條島上方時整張卡被島蓋住，「即將拆除」的樣式
+   * 看不見，使用者只會覺得便條莫名消失。 */
+  z-index: 3000;
   transition: none;
+}
+
+/* ── 拖回便條島 = 解除釘選（艾斯維爾 07/25 UX）──
+ * 懸在展開的便條島上方時，便條淡出並縮小，像被吸回島裡；
+ * 島本身的高亮由 body class 驅動（見下方）。 */
+.uep-pinned-note.is-unpin-pending {
+  opacity: 0.45;
+  filter: grayscale(0.5);
+  transform: scale(0.88) rotate(0deg) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* 島的「可接收」高亮。掛在 body 而非島本身——島的 className 由
+ * DraggableIsland 每次 render 用模板字串重算，直接加 class 會被覆蓋。 */
+body.uep-pin-unpin-hover .uep-island--storage {
+  outline: 2px dashed rgba(213, 182, 24, 0.85);
+  outline-offset: 3px;
+  box-shadow: 0 0 26px rgba(213, 182, 24, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-pinned-note.is-unpin-pending {
+    /* 動態縮放拿掉，只保留辨識度足夠的透明度與去色 */
+    transform: rotate(0deg) !important;
+  }
 }
 
 /* 便條是「貼上去的實體」，內文不開放選取（編輯走 textarea）——
@@ -206,6 +238,26 @@
     outline: 3px solid rgba(180, 130, 40, 0.7);
     outline-offset: 4px;
   }
+}
+
+/* ── 首頁（07/25 四驗）──
+ * 首頁的區塊轉場靠兩層 fixed 全螢幕覆蓋：`.home-fade-overlay`（wheel delta
+ * 累積時漸暗，z-index 199）與 `.home-global-veil`（切換瞬間的黑幕，200）。
+ * 便條預設 z-index 500 會浮在兩者**上面**，轉場時整張便條懸在黑幕上很突兀
+ * ——壓到覆蓋層之下，便條就會跟著頁面一起淡出。
+ * 首頁內容本身 z-index 為 1（`HomePage.css:233/1301`），所以 190 仍在內容之上。
+ *
+ * 編輯態與拖曳態**不降**：那是使用者主動操作的當下，本來就該在最上層，
+ * 且該狀態下不會觸發區塊轉場。
+ * ⚠️ 必須寫 `:not(.is-dragging):not(.is-editing)`——這條規則位置在
+ * `.is-dragging` / `.is-editing`（皆 z-index 1500）**之後**，若只寫
+ * `.uep-pinned-note.is-home` 會是同特異性後定義者勝，把那兩態一起壓低。 */
+.uep-pinned-note.is-home:not(.is-dragging):not(.is-editing) {
+  z-index: 190;
+}
+
+.uep-pinned-note.is-home:not(.is-dragging):not(.is-editing):hover {
+  z-index: 195;
 }
 
 /* page 級（互動頁降級）與 fixed（錨點失效退路）——viewport 固定角落 */

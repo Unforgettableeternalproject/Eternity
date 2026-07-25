@@ -34,8 +34,21 @@ const ZONE_IDS = new Set([
   'storage',
 ]);
 
+/**
+ * 首頁的 zone id。首頁不是五大區域之一，但**釘選便條需要它有 zone 身分**
+ * ——page 級便條靠 `findScrollContainer(zone)` 找捲動容器做 scrollTop 補償，
+ * zone 為 null 時會 fallback 到 `document.scrollingElement`，而首頁外層是
+ * `height:100dvh; overflow:hidden`、真正捲動在 `.journey-scroll`，document
+ * 的 scrollTop 恆為 0 → 便條凍結在螢幕座標、不跟頁面走（艾斯維爾 07/25 回報）。
+ *
+ * ⚠️ 首頁**不支援** element 錨點（沒有 prose 容器，內容是視覺敘事 section），
+ * 只走 page 級——見 `zoneContentTargets.ELEMENT_ANCHOR_SELECTORS`。
+ */
+export const HOME_ZONE_ID = 'home';
+
 /** zone id → 人性化中文名（沿用各 astro 頁 DesignLayout 的 title 前綴） */
 export const ZONE_LABELS: Record<string, string> = {
+  [HOME_ZONE_ID]: '世界的軸心',
   history: '歷史典藏庫',
   echoes: '回音蒐藏間',
   concepts: '概念調整房',
@@ -45,11 +58,15 @@ export const ZONE_LABELS: Record<string, string> = {
 
 const LOCATION_CHANGE_EVENT = 'uep:location-change';
 
-/** 從 pathname 抽 zone（第一段落）；不是浮島 zone 回 null */
+/**
+ * 從 pathname 抽 zone（第一段落）；不是浮島 zone 回 null。
+ * 根路徑（`/`）回 {@link HOME_ZONE_ID}——首頁也要能釘便條。
+ */
 export function extractZone(pathname: string): string | null {
   if (!pathname) return null;
   const first = pathname.split('/').filter(Boolean)[0];
-  return first && ZONE_IDS.has(first) ? first : null;
+  if (!first) return HOME_ZONE_ID;
+  return ZONE_IDS.has(first) ? first : null;
 }
 
 /** pushState / replaceState monkey patch：派 uep:location-change 事件 */
@@ -96,7 +113,13 @@ export interface CurrentLocation {
 
 function snapshot(): CurrentLocation {
   if (typeof window === 'undefined') {
-    return { pathname: '', search: '', zone: null, pageLabel: '', pageTrail: [] };
+    return {
+      pathname: '',
+      search: '',
+      zone: null,
+      pageLabel: '',
+      pageTrail: [],
+    };
   }
   const pathname = window.location.pathname;
   const ctx = getPageContext();

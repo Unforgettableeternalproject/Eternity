@@ -25,8 +25,14 @@ describe('extractZone', () => {
     expect(extractZone('/storage')).toBe('storage');
   });
 
-  it('非浮島 zone / 起始頁 / 空字串 → null', () => {
-    expect(extractZone('/')).toBeNull();
+  //【07/25 四驗】首頁改為有專屬 zone id——page 級便條要靠它查到
+  // `.journey-scroll` 捲動容器，zone 為 null 會誤退 document.scrollingElement
+  // （首頁 document 永不捲，便條會凍結在螢幕座標）
+  it('根路徑 → home', () => {
+    expect(extractZone('/')).toBe('home');
+  });
+
+  it('非浮島 zone / 空字串 → null', () => {
     expect(extractZone('')).toBeNull();
     expect(extractZone('/admin')).toBeNull();
     expect(extractZone('/portal')).toBeNull();

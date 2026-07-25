@@ -50,12 +50,21 @@ describe('位置條', () => {
     expect(page?.textContent).toBe('歷史典藏庫');
   });
 
-  it('非浮島 zone 顯示「起始頁」', async () => {
+  //【07/25 四驗】首頁不再落到 null 分支，有專屬 zone id 與中文名
+  it('首頁顯示「世界的軸心」', async () => {
     window.history.replaceState({}, '', '/');
     document.title = '';
     await freshStore();
     render(<StorageIsland />);
-    expect(screen.getByText('起始頁')).toBeInTheDocument();
+    expect(screen.getByText('世界的軸心')).toBeInTheDocument();
+  });
+
+  it('非區域頁（/admin）顯示「其他頁面」', async () => {
+    window.history.replaceState({}, '', '/admin');
+    document.title = '';
+    await freshStore();
+    render(<StorageIsland />);
+    expect(screen.getByText('其他頁面')).toBeInTheDocument();
   });
 });
 
@@ -336,5 +345,54 @@ describe('已釘便條的暗掉與導向（S9-A.6）', () => {
     fireEvent.click(screen.getByText('已釘的'));
     // 不進編輯 → textarea 不出現
     expect(screen.queryByLabelText('編輯便條')).not.toBeInTheDocument();
+  });
+});
+
+/*【07/25 UX】pool 便條拖出去釘選時，若放開點還在便條島上 → 取消本次拖曳。
+ * 拖曳起點本來就在島內，小幅移動後放開（已過 DRAG_THRESHOLD 但沒拖出島）
+ * 若照常 commitPin，會在島**後面**留一張看不見的 page 級釘選。 */
+describe('pool 拖曳放回島上 → 不建立釘選', () => {
+  async function freshWithPinned() {
+    vi.resetModules();
+    const progressMod = await import('../../../progress/progressStore');
+    const pinnedMod = await import('../pinnedStore');
+    return { ...progressMod, ...pinnedMod };
+  }
+
+  function stubPointAt(className: string) {
+    const el = document.createElement('div');
+    el.className = className;
+    (
+      document as unknown as { elementFromPoint: () => Element | null }
+    ).elementFromPoint = () => el;
+    return el;
+  }
+
+  it('放開點仍在便條島上 → 不 commitPin', async () => {
+    stubPointAt('uep-island uep-island--storage');
+    const { uepProgress, uepStoragePins } = await freshWithPinned();
+    uepProgress.addStorageNote('沒拖出去的');
+
+    const { container } = render(<StorageIsland />);
+    const note = container.querySelector('.uep-stoland__note') as HTMLElement;
+    fireEvent.pointerDown(note, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(note, { clientX: 140, clientY: 130, pointerId: 1 });
+    fireEvent.pointerUp(note, { clientX: 140, clientY: 130, pointerId: 1 });
+
+    expect(uepStoragePins.getAll()).toEqual([]);
+  });
+
+  it('拖出島外放開 → 照常建立釘選', async () => {
+    stubPointAt('history-prose');
+    const { uepProgress, uepStoragePins } = await freshWithPinned();
+    uepProgress.addStorageNote('拖出去的');
+
+    const { container } = render(<StorageIsland />);
+    const note = container.querySelector('.uep-stoland__note') as HTMLElement;
+    fireEvent.pointerDown(note, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(note, { clientX: 600, clientY: 400, pointerId: 1 });
+    fireEvent.pointerUp(note, { clientX: 600, clientY: 400, pointerId: 1 });
+
+    expect(uepStoragePins.getAll()).toHaveLength(1);
   });
 });

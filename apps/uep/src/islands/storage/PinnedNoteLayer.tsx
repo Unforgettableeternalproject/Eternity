@@ -48,16 +48,18 @@ import {
   useProgress,
 } from '../../progress';
 import type { StorageNote } from '../../progress';
-import { useCurrentLocation } from '../useCurrentLocation';
+import { HOME_ZONE_ID, useCurrentLocation } from '../useCurrentLocation';
 
 import { resolveAnchorRect } from './contentAnchors';
 import type { ResolvedAnchor } from './contentAnchors';
 import {
   DRAG_THRESHOLD,
   commitPin,
+  isUnpinDropTarget,
   resolveDropTarget,
   takeJumpToPinned,
 } from './dragToPin';
+import type { GrabOffset } from './dragToPin';
 import { getPinnedStore, matchesLocation } from './pinnedStore';
 import type { PinnedNote } from './pinnedStore';
 import { usePinnedNotes } from './usePinnedNotes';
@@ -195,6 +197,66 @@ function computePlacement(
   };
 }
 
+/**
+ * 拖曳中的便條懸在便條島上方時掛在 `<body>` 的 class，讓 CSS 把島高亮成
+ * 「可接收」狀態。
+ *
+ * ⚠️ 為什麼掛 body 而不是直接 `島.classList.add()`：島的根 className 是
+ * `DraggableIsland` 用模板字串每次 render 重算的，直接加 class 會在島的
+ * 任何一次 re-render（pool 內容變動、拖曳位置更新…）被整串覆蓋掉。
+ * 掛 body + 後代選擇器不受 React 重繪影響，沿用專案既有的
+ * `zoneEntryLock` body class 模式。
+ */
+const UNPIN_HOVER_BODY_CLASS = 'uep-pin-unpin-hover';
+
+function setUnpinHover(on: boolean): void {
+  if (typeof document === 'undefined') return;
+  document.body.classList.toggle(UNPIN_HOVER_BODY_CLASS, on);
+}
+
+/**
+ * 取得元素「未旋轉」的 layout 左上角（viewport 座標）。
+ *
+ * ⚠️ 便條卡帶 `transform: rotate(tilt)`，`getBoundingClientRect()` 回的是
+ * 旋轉後的**外接矩形**——直接拿 `rect.left/top` 當拖曳基準，卡片一按下
+ * 就會偏掉幾 px 並在拖曳全程維持該誤差。rotate 以中心為 origin（CSS 未
+ * 覆寫 `transform-origin`），而 `offsetWidth/Height` 不受 transform 影響，
+ * 所以由外接矩形中心減去 offset 尺寸的一半即可還原真正的左上角。
+ */
+function getLayoutTopLeft(el: HTMLElement): { left: number; top: number } {
+  const rect = el.getBoundingClientRect();
+  return {
+    left: rect.left + rect.width / 2 - el.offsetWidth / 2,
+    top: rect.top + rect.height / 2 - el.offsetHeight / 2,
+  };
+}
+
+/**
+ * 點浮島 pool 內的暗掉便條 → 導向後把釘選位置捲進視野。
+ *
+ * ⚠️ element 錨點與 page 級要走**不同**路徑：
+ *  - element：`trackEl` 是錨點元素本身，`scrollIntoView` 正確。
+ *  - page 級：`trackEl` 是**捲動容器自己**，對它 scrollIntoView 只會把
+ *    容器捲進「它父層」的視野，完全不會改它自己的 scrollTop——摺線下方
+ *    建立的 page pin 點下去仍在畫面外（07/25 code review finding 1）。
+ *    page 級的 offset 是「相對容器內容左上角」的座標（07/25 三驗+ 語意），
+ *    所以直接 scrollTo 該座標、並置中在視野內。
+ */
+function scrollToPin(pinned: PinnedNote, placement: PinnedPlacement): void {
+  const track = placement.trackEl;
+  if (!track) return;
+  if (placement.origin === 'page') {
+    if (typeof track.scrollTo !== 'function') return; // jsdom / 舊環境
+    track.scrollTo({
+      left: Math.max(0, pinned.offsetX - track.clientWidth / 2),
+      top: Math.max(0, pinned.offsetY - track.clientHeight / 2),
+      behavior: 'smooth',
+    });
+    return;
+  }
+  track.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 /* ─────────────────────────────────────────────────────────
  * 主體
  * ───────────────────────────────────────────────────────── */
@@ -255,7 +317,7 @@ export default function PinnedNoteLayer() {
 
   /* pendingJumpId 有值 → 等到該 note 的 DOM 存在 → 捲到釘選位置。
    * ⚠️ 便條卡是 fixed（viewport 座標），對它 scrollIntoView 捲不動內層
-   * 容器——要捲的是它追蹤的錨點元素（trackEl）；page 級只做高亮。 */
+   * 容器——要捲的是它追蹤的錨點元素（trackEl）。 */
   useEffect(() => {
     if (!pendingJumpId || typeof window === 'undefined') return;
     let attempts = 0;
@@ -266,10 +328,7 @@ export default function PinnedNoteLayer() {
         (p) => p.pinned.noteId === pendingJumpId
       );
       if (el && entry) {
-        entry.placement.trackEl?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
+        scrollToPin(entry.pinned, entry.placement);
         // 短暫高亮視覺（沿 CSS class 一次性）
         el.classList.add('is-jump-target');
         window.setTimeout(() => el.classList.remove('is-jump-target'), 1600);
@@ -388,6 +447,8 @@ function PinnedNoteCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [dragging, setDragging] = useState(false);
+  /** 拖曳中懸在便條島上 → 放開即解除釘選（艾斯維爾 07/25 UX） */
+  const [overIsland, setOverIsland] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   /** pointer 起點 + 是否已觸發拖曳（S9-A Codex #6 場上便條 reposition） */
   const pointerStart = useRef<{ x: number; y: number; id: number } | null>(
@@ -396,6 +457,10 @@ function PinnedNoteCard({
   const pointerDragged = useRef(false);
   /** 拖曳起點時卡片的 viewport 位置——move 時直寫 style 讓卡片跟指標走 */
   const dragBase = useRef<{ left: number; top: number } | null>(null);
+  /** 卡片左上角相對指標的偏移（進拖曳態時算一次，整段拖曳為定值） */
+  const grabOffset = useRef<GrabOffset | null>(null);
+  /** overIsland 的同步鏡像——pointermove 每 frame 讀，不能靠 state 回讀 */
+  const overIslandRef = useRef(false);
 
   useEffect(() => {
     if (editing && note) {
@@ -404,10 +469,12 @@ function PinnedNoteCard({
     }
   }, [editing, note?.text]);
 
-  // 便條本體被刪（且 sweepOrphans 尚未處理完 UI 這一 tick）→ 不 render
-  if (!note) return null;
-
+  /* ⚠️ 所有 hook 一律在條件式 early return **之前**宣告——便條本體可能
+   * 從無到有（本機釘選 metadata 先在、ProgressState 尚未 hydrate 完），
+   * 若 `if (!note) return null` 擋在 hook 前面，該次轉換會改變 hook 數量
+   * 讓 React 直接 crash（07/25 code review finding 2）。 */
   const commitEdit = useCallback(() => {
+    if (!note) return;
     const text = draft.trim();
     if (!text || text === note.text) {
       setEditing(false);
@@ -415,12 +482,12 @@ function PinnedNoteCard({
     }
     getProgressManager().updateStorageNote(note.id, text);
     setEditing(false);
-  }, [draft, note.id, note.text]);
+  }, [draft, note?.id, note?.text]);
 
   const cancelEdit = useCallback(() => {
-    setDraft(note.text);
+    setDraft(note?.text ?? '');
     setEditing(false);
-  }, [note.text]);
+  }, [note?.text]);
 
   const handleUnpin = useCallback(
     (e: React.MouseEvent) => {
@@ -433,7 +500,7 @@ function PinnedNoteCard({
   /* ── S9-A Codex #6 場上便條 pointer drag reposition ──
    * pool 拖曳沿用 dragToPin 的 pointer pattern；場上便條同套流程：
    *  - pointerdown 記起點 + setPointerCapture
-   *  - pointermove > DRAG_THRESHOLD 才進拖曳態（否則走 click / edit）
+   *  - pointermove > DRAG_THRESHOLD 才進拖曳態（否則算 click / edit）
    *  - pointerup 解析新 drop target → commitPin 覆蓋原釘選（同 noteId
    *    語意上就是搬家；createdAt / pageLabel / pageSearch 一起更新）
    * 編輯中或按 × 拆除不啟動拖曳。
@@ -446,10 +513,20 @@ function PinnedNoteCard({
       if (target?.closest('.uep-pinned-note__unpin')) return;
       pointerStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
       pointerDragged.current = false;
-      /* ⚠️ 不在 pointerdown 立刻 setPointerCapture——這會讓後續 click
-       * 事件的 target 被鎖在此 div 而不會分派到內部 button，變成「點
-       * 下去完全沒反應」（艾斯維爾 07/24 二次驗收）。改成超過
-       * DRAG_THRESHOLD 才捕獲，比照 StorageIsland.NoteCard 的模式。 */
+      grabOffset.current = null;
+      /* pointerdown 就捕獲——便條只有 200px 寬，快速甩動時指標常常在
+       * 超過 DRAG_THRESHOLD 之前就已經飛出卡片邊界，pointermove 只掛在
+       * 卡片上會直接斷線，主觀感受就是「拖不太動」（艾斯維爾 07/25 四驗）。
+       *
+       * ⚠️ 捕獲後原生 click 的 target 被鎖在此 div，不會分派到內部
+       * `.uep-pinned-note__text` button——07/24 二次驗收「點下去沒反應」
+       * 就是這樣來的。因此點擊進編輯的語意改由 handlePointerUp 自行判定，
+       * 不再依賴 click 事件分派；button 的 onClick 只留給鍵盤操作。 */
+      try {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* 靜默；捕獲失敗仍可靠 pointerStart 追 move（只是可能中途斷） */
+      }
     },
     [editing]
   );
@@ -464,15 +541,14 @@ function PinnedNoteCard({
       if (!pointerDragged.current && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
         pointerDragged.current = true;
         setDragging(true);
-        // 記下拖曳起點的 viewport 位置（卡片是 fixed，rect 即座標）
-        const rect = el.getBoundingClientRect();
-        dragBase.current = { left: rect.left, top: rect.top };
-        // 超過閾值才捕獲，避免離開卡片就斷（click 語意在此之前已放行）
-        try {
-          el.setPointerCapture?.(e.pointerId);
-        } catch {
-          /* 靜默；捕獲失敗仍可靠 pointerStart 追 move */
-        }
+        // 記下拖曳起點的 layout 左上角（不能直接用 rect——卡片有 rotate）
+        const base = getLayoutTopLeft(el);
+        dragBase.current = base;
+        // 抓取偏移在整段拖曳中是定值：卡片左上角一直跟著指標平移
+        grabOffset.current = {
+          dx: base.left - start.x,
+          dy: base.top - start.y,
+        };
       }
       // 拖曳中：卡片直接跟指標走（直寫 style，不進 React state）
       if (pointerDragged.current && dragBase.current) {
@@ -480,6 +556,15 @@ function PinnedNoteCard({
         el.style.top = `${dragBase.current.top + dy}px`;
         el.style.right = 'auto';
         el.style.bottom = 'auto';
+        /* 懸在便條島上 → 放開即「收回島裡」。用 ref 比較只在**跨越邊界**
+         * 時才進 state（不是每個 frame）；side effect 不能寫在 setState 的
+         * updater 裡——StrictMode 會 double-invoke updater。 */
+        const over = isUnpinDropTarget(e.clientX, e.clientY);
+        if (over !== overIslandRef.current) {
+          overIslandRef.current = over;
+          setOverIsland(over);
+          setUnpinHover(over);
+        }
       }
     },
     []
@@ -488,24 +573,48 @@ function PinnedNoteCard({
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const start = pointerStart.current;
+      const grab = grabOffset.current;
       pointerStart.current = null;
-      if (!pointerDragged.current) {
-        setDragging(false);
-        return; // 沒動 → click 語意（讓 button 的 onClick 進 edit）
-      }
-      // 拖曳態才 release 捕獲（pointerdown 已不再無條件 capture）
+      grabOffset.current = null;
+      // pointerdown 一律捕獲，這裡也一律歸還（未捕獲時 catch 吞掉）
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
       } catch {
         // ignore
       }
+      // start 為 null → 這次 pointer 沒從卡片本體起手（拆除鈕等），不接管
+      if (!start) return;
+      if (!pointerDragged.current) {
+        setDragging(false);
+        // 沒動 → click 語意。pointer 已被捕獲，原生 click 不會走到內部
+        // button，所以在這裡自己進編輯態。
+        setEditing(true);
+        return;
+      }
       setDragging(false);
       dragBase.current = null;
-      if (!start) return;
-      // 落點解析——不改 zone/pathname/search（釘選本頁移位不跨頁）。
-      // 拖曳中卡片 pointer-events: none（CSS .is-dragging），
-      // elementFromPoint 才不會命中卡片自己而誤判 page 級。
-      const resolution = resolveDropTarget(e.clientX, e.clientY);
+      // 離開拖曳態一律清掉島的高亮（不論落在哪）
+      overIslandRef.current = false;
+      setOverIsland(false);
+      setUnpinHover(false);
+
+      /* 放開在展開的便條島上 → 語意是「把便條收回島裡」= 解除釘選。
+       * 便條本體不刪，只是回到 pool 的未釘選狀態（艾斯維爾 07/25 UX）。 */
+      if (isUnpinDropTarget(e.clientX, e.clientY)) {
+        getPinnedStore().unpin(pinned.noteId);
+        return;
+      }
+
+      /* 落點解析——不改 zone/pathname/search（釘選本頁移位不跨頁）。
+       * 拖曳中卡片 pointer-events: none（CSS .is-dragging），
+       * elementFromPoint 才不會命中卡片自己而誤判 page 級。
+       * 帶上 grab：存的 offset 要對齊卡片左上角，否則放開瞬間便條會
+       * 往右下跳一個抓取偏移量（艾斯維爾 07/25 四驗主訴）。 */
+      const resolution = resolveDropTarget(
+        e.clientX,
+        e.clientY,
+        grab ?? undefined
+      );
       commitPin(pinned.noteId, resolution);
     },
     [pinned.noteId]
@@ -515,18 +624,39 @@ function PinnedNoteCard({
     pointerStart.current = null;
     pointerDragged.current = false;
     dragBase.current = null;
+    grabOffset.current = null;
+    overIslandRef.current = false;
+    setOverIsland(false);
+    setUnpinHover(false);
     setDragging(false);
   }, []);
+
+  /* 卡片在拖曳中被卸載（換頁、便條被刪、島狀態變動）時，body 上的高亮
+   * class 沒人清 → 島會一直亮著。掛一個 unmount 清理。 */
+  useEffect(() => {
+    return () => {
+      if (overIslandRef.current) setUnpinHover(false);
+    };
+  }, []);
+
+  // 便條本體被刪（且 sweepOrphans 尚未處理完 UI 這一 tick）→ 不 render。
+  // ⚠️ 必須在所有 hook 之後（見上方 commitEdit 的註解）
+  if (!note) return null;
 
   const showStaleHint = placement.kind === 'top' || placement.kind === 'fixed';
 
   const className = [
     'uep-pinned-note',
     `uep-pinned-note--${placement.origin}`,
+    // 首頁的轉場漸暗層（z-index 199）與黑幕（200）是 fixed 全螢幕覆蓋，
+    // 便條預設 z-index 500 會浮在它們**上面**；掛 zone class 讓 CSS 把
+    // 首頁便條壓到覆蓋層之下，轉場時跟著頁面一起淡出（07/25 四驗）
+    pinned.zone === HOME_ZONE_ID ? 'is-home' : '',
     placement.kind === 'nearest' ? 'is-nearest' : '',
     editing ? 'is-editing' : '',
     showStaleHint ? 'is-stale' : '',
     dragging ? 'is-dragging' : '',
+    overIsland ? 'is-unpin-pending' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -569,6 +699,9 @@ function PinnedNoteCard({
         <button
           type="button"
           className="uep-pinned-note__text"
+          /* 滑鼠點擊走 handlePointerUp（pointer 被捕獲，click 不會分派到
+             這裡）；這個 onClick 是留給鍵盤 focus + Enter/Space 的無障礙
+             路徑。兩條路都只是 setEditing(true)，重複觸發也冪等。 */
           onClick={() => setEditing(true)}
           aria-label={`編輯便條：${note.text}`}
         >

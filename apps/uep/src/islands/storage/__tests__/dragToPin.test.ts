@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   JUMP_TO_PINNED_KEY,
   commitPin,
+  isUnpinDropTarget,
   navigateToPinned,
   resolveDropTarget,
   takeJumpToPinned,
@@ -92,6 +93,58 @@ describe('resolveDropTarget', () => {
       // offsetX/offsetY 都 >= 0（右下角基準）
       expect(result.offsetX).toBeGreaterThanOrEqual(0);
       expect(result.offsetY).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  //【回歸:07/25 四驗】抓取偏移：使用者抓在便條中間拖曳時，便條左上角
+  // 在指標的左上方。存下的 offset 若直接用指標座標，還原時 left =
+  // anchorRect.left + offsetX 會把「左上角」貼到指標位置 → 放開瞬間
+  // 便條往右下跳一個抓取偏移量。grab 參數就是用來扣掉這段。
+  it('帶 grab → element 錨點 offset 對齊便條左上角而非指標', () => {
+    document.body.innerHTML = `
+      <div class="history-prose">
+        <p data-uep-anchor-id="p-0">A</p>
+      </div>
+    `;
+    const p = document.querySelector('p')!;
+    p.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        right: 300,
+        top: 100,
+        bottom: 150,
+        width: 300,
+        height: 50,
+        x: 0,
+        y: 100,
+        toJSON: () => {},
+      }) as DOMRect;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(p);
+
+    const bare = resolveDropTarget(150, 120);
+    const grabbed = resolveDropTarget(150, 120, { dx: -40, dy: -15 });
+    expect(grabbed.kind).toBe('element');
+    if (bare.kind === 'element' && grabbed.kind === 'element') {
+      // 判定不變（同一個錨點），只有偏移被 grab 平移
+      expect(grabbed.anchorId).toBe(bare.anchorId);
+      expect(grabbed.offsetX).toBe(bare.offsetX - 40);
+      expect(grabbed.offsetY).toBe(bare.offsetY - 15);
+      expect(grabbed.offsetX).toBe(110); // 150 - 0 - 40
+      expect(grabbed.offsetY).toBe(5); // 120 - 100 - 15
+    }
+  });
+
+  it('帶 grab → page 級 offset 同樣對齊便條左上角', () => {
+    document.body.innerHTML = `<div class="other">X</div>`;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('.other')
+    );
+    // /history 但沒有 .history-content scroll container → 退為 client 座標
+    const grabbed = resolveDropTarget(200, 300, { dx: -60, dy: -20 });
+    expect(grabbed.kind).toBe('page');
+    if (grabbed.kind === 'page') {
+      expect(grabbed.offsetX).toBe(140);
+      expect(grabbed.offsetY).toBe(280);
     }
   });
 
@@ -344,5 +397,113 @@ describe('navigateToPinned', () => {
     } finally {
       window.removeEventListener('uep:storage-jump', jumpSpy);
     }
+  });
+});
+
+/*【07/25 四驗】首頁釘選：首頁沒有 prose 容器 → 一律 page 級，
+ * 座標語意是「相對 .journey-scroll 內容左上角」，這樣便條才會附著在
+ * 頁面內容上、隨區塊跳轉一起走，而不是凍結在螢幕座標。 */
+describe('首頁落點（07/25 四驗）', () => {
+  function mountHome(scrollTop: number) {
+    window.history.replaceState({}, '', '/');
+    document.body.innerHTML = `<div class="journey-scroll"></div>`;
+    const scroller = document.querySelector('.journey-scroll') as HTMLElement;
+    scroller.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        right: 1280,
+        bottom: 800,
+        width: 1280,
+        height: 800,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      }) as DOMRect;
+    Object.defineProperty(scroller, 'scrollTop', {
+      value: scrollTop,
+      configurable: true,
+    });
+    Object.defineProperty(scroller, 'scrollLeft', {
+      value: 0,
+      configurable: true,
+    });
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(scroller);
+    return scroller;
+  }
+
+  it('drop → page 級，offset 是相對 .journey-scroll 的內容座標', () => {
+    mountHome(2000);
+    const result = resolveDropTarget(400, 300);
+    expect(result.kind).toBe('page');
+    if (result.kind === 'page') {
+      // contentY = scrollTop(2000) + clientY(300) - containerTop(0)
+      expect(result.offsetY).toBe(2300);
+      expect(result.offsetX).toBe(400);
+    }
+  });
+
+  it('commitPin 在首頁存 zone=home / pagePath=/', async () => {
+    mountHome(0);
+    const { uepProgress, uepStoragePins, commitPin } = await freshStores();
+    uepProgress.addStorageNote('首頁便條');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    commitPin(noteId, { kind: 'page', offsetX: 100, offsetY: 900 });
+
+    const [pin] = uepStoragePins.getAll();
+    expect(pin.zone).toBe('home');
+    expect(pin.pagePath).toBe('/');
+    expect(pin.anchorKind).toBe('page');
+  });
+});
+
+/*【07/25 UX】拖回展開的便條島 = 解除釘選。
+ * 艾斯維爾定案：**只有展開的島**（`.uep-island--storage`）算拆除目標，
+ * 收合成 dock chip 時不算，拖曳仍照常釘到頁面上。 */
+describe('isUnpinDropTarget', () => {
+  it('放開點落在展開的便條島上 → true', () => {
+    document.body.innerHTML = `
+      <div class="uep-island uep-island--storage">
+        <div class="uep-island__body"><span class="deep">便條列表</span></div>
+      </div>
+    `;
+    // 命中島內深層元素也算（closest 往上找）
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('.deep')
+    );
+    expect(isUnpinDropTarget(500, 400)).toBe(true);
+  });
+
+  it('放開點落在其他浮島上 → false（只有便條島是家）', () => {
+    document.body.innerHTML = `<div class="uep-island uep-island--history">歷史島</div>`;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('.uep-island--history')
+    );
+    expect(isUnpinDropTarget(500, 400)).toBe(false);
+  });
+
+  it('島收合成 dock chip → false（照常釘到頁面上）', () => {
+    document.body.innerHTML = `
+      <div class="uep-island-dock">
+        <button class="uep-island-dock__chip">◈</button>
+      </div>
+    `;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('.uep-island-dock__chip')
+    );
+    expect(isUnpinDropTarget(500, 400)).toBe(false);
+  });
+
+  it('放開點落在頁面內容上 → false', () => {
+    document.body.innerHTML = `<div class="history-prose"><p>內容</p></div>`;
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(
+      document.querySelector('p')
+    );
+    expect(isUnpinDropTarget(500, 400)).toBe(false);
+  });
+
+  it('elementFromPoint 回 null → false', () => {
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(null);
+    expect(isUnpinDropTarget(500, 400)).toBe(false);
   });
 });
