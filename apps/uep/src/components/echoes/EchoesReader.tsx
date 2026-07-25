@@ -27,7 +27,6 @@ import {
   type SongSpoilerRevision,
 } from '../../audio';
 import {
-  IslandUnlockObject,
   completeUnlockRitual,
   shouldMountIsland,
   useDesktopIslandViewport,
@@ -1257,7 +1256,7 @@ function EchoesReaderInner() {
 
   // === 解鎖儀式「迷失的回聲」（S9-B）===
   // 灰球只在播放中擲骰浮現，所以資格判定要跟著 Reader 全程活著，
-  // 不能像 IslandUnlockObject 那樣只掛在 landing。
+  // 不能只掛在 landing。
   const echoesUnlock = useUnlockEligibility('echoes');
   const handleLostEchoCatch = useCallback(() => {
     completeUnlockRitual('echoes');
@@ -1468,12 +1467,6 @@ function EchoesReaderInner() {
             </span>
           ))}
         </div>
-
-        {/* 浮島解鎖小物件（同 S7-C ConceptsReader 的修法）：echoes 的
-            實際入口是 Reader 解析的動態 homepage，ZoneEntryPage 走不到，
-            掛在那裡的小物件是孤兒。position:fixed，浮現條件（登入探索者
-            + visited + 未解鎖）由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
-        <IslandUnlockObject zoneId="echoes" />
       </section>
     );
   }

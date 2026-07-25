@@ -30,7 +30,6 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
-import IslandUnlockObject from '../../islands/IslandUnlockObject';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import { useProgress } from '../../progress/useProgress';
 import { evaluateGate, parseGateCondition } from '../../progress/gating';
@@ -1508,12 +1507,6 @@ export default function ConceptsReader() {
             </div>
           )}
         </div>
-
-        {/* 浮島解鎖小物件（S7-C 修掛載點）：原掛在 ZoneEntryPage，
-            但各 Reader 改自帶動態 homepage 後該元件成為孤兒——
-            小物件從未實際出現。position:fixed，浮現條件（探索者+
-            visited+未解鎖）由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
-        <IslandUnlockObject zoneId="concepts" />
       </section>
     );
   }

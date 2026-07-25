@@ -282,7 +282,7 @@ export function hasVisitedZone(
  *
  * ⚠️ 消費端注意：auth 變化不保證觸發 progress notify（logout 的
  * setAdapter 在 localStorage 鏡像為空時不 notify）——React 消費端需
- * 另以 useReaderAuth() 訂閱 auth 變化（IslandHost / IslandUnlockObject
+ * 另以 useReaderAuth() 訂閱 auth 變化（IslandHost / useUnlockEligibility
  * 已接）。
  */
 export function canUseIslands(progress: ProgressState): boolean {

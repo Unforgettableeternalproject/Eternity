@@ -1118,8 +1118,9 @@ function renderSingleBlock(
  * 讀取 HomepageBlock[] 並渲染完整的視覺區域入口頁面內容，
  * 取代原本硬編碼的 HistoryEntry / EchoesEntry 等元件。
  *
- * 注意：ZoneAtmosphere 及裝飾粒子等背景效果應由外層的
- * ZoneEntryPage 負責渲染，本元件只處理主要內容區塊。
+ * 注意：ZoneAtmosphere 及裝飾粒子等背景效果由外層各 zone 的 Reader
+ * （ConceptsReader / EchoesReader / …）負責渲染，本元件只處理主要內容
+ * 區塊。舊的 ZoneEntryPage 外層已於 2026-07-25 移除。
  */
 export default function ZoneHomepageRenderer({
   blocks,

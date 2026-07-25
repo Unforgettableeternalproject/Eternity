@@ -109,7 +109,6 @@ export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';
 export { default as IslandHost } from './IslandHost';
-export { default as IslandUnlockObject } from './IslandUnlockObject';
 export { default as IslandSettingsPanel } from './IslandSettingsPanel';
 
 /* ── Storage 便條島（S9-A） ── */

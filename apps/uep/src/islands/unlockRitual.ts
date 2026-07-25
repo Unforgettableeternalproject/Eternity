@@ -64,8 +64,8 @@ const NOT_AN_ISLAND: UnlockEligibility = {
  * ⚠️ 註記：`visited` 這關實質恆真——`zone:visited:*` 在 ReaderShell mount 時
  * 就授予，而 S9-B 的四條儀式全發生在 Reader 內部（concepts chip 在 landing、
  * echoes 在播放中、visuals 在 subcat、storage 在 boxes），使用者看得到儀式的
- * 那一刻旗必然已插上。保留它是為了語意清楚，以及 fallback 的
- * `IslandUnlockObject` 仍以它為浮現條件。
+ * 那一刻旗必然已插上。保留它是為了語意清楚——收束時的重驗也一併驗它，
+ * 那裡不是恆真：計時器可以活過使用者離開 Reader 的那一刻。
  */
 export function useUnlockEligibility(zoneId: string): UnlockEligibility {
   const progress = useProgress();

@@ -241,7 +241,7 @@ export function registerAnimationActions(): void {
       group: GROUP_CEREMONY,
       id: 'anim:island-unlock-history',
       label: '觸發 history 島解鎖動畫',
-      description: '呼叫 unlock 產生 IslandUnlockObject 上浮動畫',
+      description: '直接授予 history 島（跳過遺落書籤儀式）',
       execute: () => {
         window.__uepIslandsTest?.unlock('history');
       },

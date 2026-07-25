@@ -31,7 +31,6 @@ import './StorageReader.css';
 import { getApiBase } from '../../lib/apiBase';
 import { canonicalizePagePath } from '../../lib/pagePath';
 import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
-import IslandUnlockObject from '../../islands/IslandUnlockObject';
 import {
   completeUnlockRitual,
   useUnlockEligibility,
@@ -1821,11 +1820,6 @@ export default function StorageReader() {
       </div>
 
       {renderSubcatModal()}
-
-      {/* 浮島解鎖小物件（一疊泛黃的便條）——storage.astro 直掛的 Reader，
-          ZoneEntryPage 走不到，要自己掛（S9-A 驗收：此前漏放，storage 主頁
-          解鎖入口缺席）。僅 landing 顯示（zone 首頁語意），浮現條件由元件自理。 */}
-      {view === 'landing' && <IslandUnlockObject zoneId="storage" />}
     </ReaderShell>
   );
 }
