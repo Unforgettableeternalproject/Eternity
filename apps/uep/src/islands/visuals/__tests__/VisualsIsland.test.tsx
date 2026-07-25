@@ -79,7 +79,7 @@ afterEach(() => {
 describe('VisualsIsland 資料鏈', () => {
   it('無投射時顯示空狀態', () => {
     render(<VisualsIsland />);
-    expect(screen.getByText(/畫框裡還是一片空白/)).toBeTruthy();
+    expect(screen.getByText(/畫框還空著/)).toBeTruthy();
   });
 
   it('mount 時讀回 window 目前投射（收合後展開續示）', () => {
@@ -94,7 +94,7 @@ describe('VisualsIsland 資料鏈', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '清除目前投射' }));
 
-    expect(screen.getByText(/畫框裡還是一片空白/)).toBeTruthy();
+    expect(screen.getByText(/畫框還空著/)).toBeTruthy();
     expect(getPhantomGallery()).toBeNull();
     expect(window.localStorage.getItem(PHANTOM_STATE_STORAGE_KEY)).toBeNull();
   });
@@ -208,7 +208,7 @@ describe('VisualsIsland entity 嵌入提示', () => {
   it('無投射時提示卡仍出現（嵌入可先於任何投射）', () => {
     pushPhantomSuggestion(makeGallery({ source: 'embed', title: '相關畫廊' }));
     render(<VisualsIsland />);
-    expect(screen.getByText(/畫框裡還是一片空白/)).toBeTruthy();
+    expect(screen.getByText(/畫框還空著/)).toBeTruthy();
     expect(screen.getByText('相關畫廊')).toBeTruthy();
   });
 

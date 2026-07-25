@@ -25,6 +25,7 @@ import { getApiBase } from '../../lib/apiBase';
 import { useProgress } from '../../progress';
 import { resolveGalleryImages } from '../../visuals';
 import type { ResolvedGalleryImage } from '../../visuals';
+import { useIslandChrome } from '../islandChrome';
 
 import {
   clearPhantomGallery,
@@ -71,6 +72,7 @@ function LockedCell({ compact }: { compact?: boolean }) {
 
 export default function VisualsIsland() {
   const progress = useProgress();
+  const chrome = useIslandChrome();
 
   /** 目前投射的 gallery：mount 時讀回 window 值（收合後展開續示） */
   const [gallery, setGallery] = useState<PhantomGallery | null>(() =>
@@ -196,112 +198,157 @@ export default function VisualsIsland() {
     </div>
   );
 
-  if (!gallery) {
-    return (
-      <div className="uep-visland">
-        {suggestionCard}
-        <div className="uep-visland--empty">
-          畫框裡還是一片空白。
-          <br />
-          去幻影重現室把畫作映照過來吧。
-        </div>
-      </div>
-    );
-  }
-
   const safeIdx = items.length > 0 ? Math.min(idx, items.length - 1) : 0;
   const current = items[safeIdx] ?? null;
   const locked = current?.state === 'locked';
   const partial = current?.state === 'partial';
+  /** 有畫可放才進舞台模式；其餘一律走「空畫框 + ghost」 */
+  const projecting = gallery !== null && galleryUnlocked && items.length > 0;
 
   const prev = () => setIdx((safeIdx - 1 + items.length) % items.length);
   const next = () => setIdx((safeIdx + 1) % items.length);
 
+  /**
+   * 空畫框內的說明。
+   * 設計稿定的原則：**畫框與縮圖格永遠在，只是空的**——空狀態時島仍然是
+   * 一件投影裝置，不是一行灰字。三種空法（沒投射／封印關上／畫廊無圖）
+   * 共用同一個畫框，只換裡面的字。
+   */
+  const ghost =
+    gallery === null ? (
+      <>
+        <b>EMPTY FRAME</b>
+        畫框還空著。
+        <br />
+        去幻影重現室
+        <br />
+        把畫作映照過來。
+      </>
+    ) : !galleryUnlocked ? (
+      <>
+        <b>SEALED</b>
+        這個畫廊的封印又閉合了，
+        <br />
+        畫框暫時蒙上了霧。
+      </>
+    ) : (
+      <>
+        <b>NO IMAGE</b>
+        這個畫廊還沒有影像。
+      </>
+    );
+
   return (
     <div className="uep-visland">
-      {suggestionCard}
+      {/* ── 投影裝置的光學層（純裝飾） ── */}
+      <span className="uep-visland__cone" aria-hidden />
+      <span className="uep-visland__scan" aria-hidden />
+      <span className="uep-visland__haze" aria-hidden />
 
-      {/* ── 標頭：投射中的 gallery ── */}
-      <div className="uep-visland__header">
-        <span className="uep-visland__kicker">
-          {SOURCE_LABELS[gallery.source]}
-        </span>
-        <span className="uep-visland__title" title={gallery.title}>
-          {gallery.title}
-        </span>
+      {chrome.bare && (
         <button
           type="button"
-          className="uep-visland__clear"
-          onClick={clearProjection}
-          title="清除目前投射"
-          aria-label="清除目前投射"
+          className="uep-visland__dismiss"
+          onClick={chrome.requestClose}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label="收合浮動幻影"
+          title="收合"
         >
-          <span aria-hidden>×</span>
+          散去
         </button>
+      )}
+
+      {suggestionCard}
+
+      {/* ── 標頭（＝拖曳把手）：投射中的 gallery ── */}
+      <div className="uep-visland__header" {...chrome.dragHandleProps}>
+        <span className="uep-visland__kicker">
+          {gallery ? SOURCE_LABELS[gallery.source] : 'NO PROJECTION'}
+        </span>
+        <span
+          className={`uep-visland__title${gallery ? '' : ' is-empty'}`}
+          title={gallery?.title}
+        >
+          {gallery ? gallery.title : '—'}
+        </span>
+        {gallery && (
+          <button
+            type="button"
+            className="uep-visland__clear"
+            onClick={clearProjection}
+            onPointerDown={(e) => e.stopPropagation()}
+            title="清除目前投射"
+            aria-label="清除目前投射"
+          >
+            <span aria-hidden>×</span>
+          </button>
+        )}
       </div>
 
-      {!galleryUnlocked ? (
-        <div className="uep-visland__placeholder">
-          <span aria-hidden>⛉</span> 這個畫廊的封印又閉合了，畫框暫時蒙上了霧。
+      {/* ── 大圖舞台（左右箭頭）／空畫框 ── */}
+      <div className="uep-visland__stage">
+        {projecting && items.length > 1 && (
+          <button
+            type="button"
+            className="uep-visland__arrow is-left"
+            onClick={prev}
+            aria-label="上一張"
+          >
+            ‹
+          </button>
+        )}
+        <div
+          className={`uep-visland__frame${partial ? ' is-partial' : ''}${locked ? ' is-locked' : ''}${projecting ? '' : ' is-empty'}`}
+        >
+          {!projecting ? (
+            <p className="uep-visland__ghost">{ghost}</p>
+          ) : locked ? (
+            <LockedCell />
+          ) : (
+            <img
+              src={imageUrl(current!.img.file)}
+              alt={current!.img.caption || gallery!.title}
+              draggable={false}
+            />
+          )}
         </div>
-      ) : items.length === 0 ? (
-        <div className="uep-visland__placeholder">這個畫廊還沒有影像。</div>
-      ) : (
-        <>
-          {/* ── 大圖舞台（左右箭頭） ── */}
-          <div className="uep-visland__stage">
-            {items.length > 1 && (
-              <button
-                type="button"
-                className="uep-visland__arrow is-left"
-                onClick={prev}
-                aria-label="上一張"
-              >
-                ‹
-              </button>
-            )}
-            <div
-              className={`uep-visland__frame${partial ? ' is-partial' : ''}${locked ? ' is-locked' : ''}`}
-            >
-              {locked ? (
-                <LockedCell />
-              ) : (
-                <img
-                  src={imageUrl(current!.img.file)}
-                  alt={current!.img.caption || gallery.title}
-                  draggable={false}
-                />
-              )}
-            </div>
-            {items.length > 1 && (
-              <button
-                type="button"
-                className="uep-visland__arrow is-right"
-                onClick={next}
-                aria-label="下一張"
-              >
-                ›
-              </button>
-            )}
-          </div>
+        {projecting && items.length > 1 && (
+          <button
+            type="button"
+            className="uep-visland__arrow is-right"
+            onClick={next}
+            aria-label="下一張"
+          >
+            ›
+          </button>
+        )}
+      </div>
 
-          {/* ── caption 列 ── */}
-          <div className="uep-visland__caption">
-            <span className="uep-visland__counter">
-              {String(safeIdx + 1).padStart(2, '0')} /{' '}
-              {String(items.length).padStart(2, '0')}
-            </span>
-            <span className="uep-visland__caption-text">
-              {locked ? '？？？' : current!.img.caption || gallery.title}
-              {partial && (
-                <em className="uep-visland__partial-tag">・尚未完全顯現</em>
-              )}
-            </span>
-          </div>
+      {/* ── caption 列 ── */}
+      <div className="uep-visland__caption">
+        <span className="uep-visland__counter">
+          {projecting
+            ? `${String(safeIdx + 1).padStart(2, '0')} / ${String(items.length).padStart(2, '0')}`
+            : '00 / 00'}
+        </span>
+        <span
+          className={`uep-visland__caption-text${projecting ? '' : ' is-empty'}`}
+        >
+          {!projecting
+            ? '尚無影像'
+            : locked
+              ? '？？？'
+              : current!.img.caption || gallery!.title}
+          {projecting && partial && (
+            <em className="uep-visland__partial-tag">・尚未完全顯現</em>
+          )}
+        </span>
+      </div>
 
-          {/* ── 三態縮圖快切列 ── */}
-          <div className="uep-visland__strip" role="list">
-            {items.map((it, i) => (
+      {/* ── 三態縮圖快切列（空狀態留空格，畫框感不斷） ── */}
+      <div className="uep-visland__strip" role="list">
+        {projecting
+          ? items.map((it, i) => (
               <button
                 key={it.img.id || `${it.img.file}-${i}`}
                 type="button"
@@ -320,10 +367,16 @@ export default function VisualsIsland() {
                   <img src={imageUrl(it.img.file)} alt="" draggable={false} />
                 )}
               </button>
+            ))
+          : [0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="uep-visland__thumb is-ghost"
+                aria-hidden
+                style={{ opacity: 0.35 - i * 0.07 }}
+              />
             ))}
-          </div>
-        </>
-      )}
+      </div>
     </div>
   );
 }
