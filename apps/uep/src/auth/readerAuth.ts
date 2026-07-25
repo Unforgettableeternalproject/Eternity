@@ -121,6 +121,16 @@ async function attachServerAdapter(): Promise<void> {
       // token 過期：清 session、退回本地儲存（鏡像是新的，無縫）
       void uepReaderAuth.logout(true);
     },
+    onProgressReset: () => {
+      /* admin 重置了這個帳號的進度，我們手上的是重置前的快照。
+         這裡必須 reset() 而不是重新 hydrate——admin 重置後遠端是 NULL，
+         re-hydrate 會走 setAdapter 的「遠端無資料則上傳本地」分支，
+         把同一份過期快照再送一次，又被 409 擋下，變成無限重試。
+         reset() 讓本地歸零並把 updatedAt 推進到重置時刻之後，
+         隨後的 persist 才會被伺服器接受。 */
+      getProgressManager().reset();
+      window.__uepToastManager?.info('閱讀進度已被管理者重置。');
+    },
   });
   await getProgressManager().setAdapter(serverAdapter);
 }
@@ -241,8 +251,23 @@ export const uepReaderAuth = {
   },
 
   /**
-   * 登出：清 session、進度退回 LocalStorageAdapter。
-   * ServerAdapter 一直 write-through 本地鏡像，切回無縫。
+   * 登出：清 session、進度退回 LocalStorageAdapter 並**清空本機進度**。
+   *
+   * 本機進度為何要清（艾斯維爾 2026-07-26 定案）：ServerAdapter 一路
+   * write-through 本地鏡像，登出後那份鏡像仍完整保有上一位登入者的
+   * flags／完成頁／便條／閱讀時數。共用瀏覽器的下一位訪客會直接繼承
+   * 別人的閱讀足跡——這是隱私缺口，優先於「同一人登出再登入很無縫」。
+   *
+   * ⚠️ **四個步驟的順序不可對調**，每一步都在擋一個具體事故：
+   * 1. `destroy()` 先跑——它會 flush 殘留進度，此時 token 仍有效，
+   *    這些資料屬於原帳號，本來就該上傳。
+   * 2. 清 session。**必須在 reset 之前**：`flush()` 靠 `getToken()` 回 null
+   *    才放棄上傳，順序反過來會把重置後的空進度 PUT 上去，
+   *    **直接清空伺服器上的帳號進度**。
+   * 3. 換 LocalStorageAdapter，且 `hydrate: false`——下一步就要 reset，
+   *    讀回舊帳號鏡像只是白做工兼畫面閃爍。
+   * 4. `reset()`，此時 persist 走的已是本地 adapter，安全。
+   *
    * @param expired token 過期觸發時為 true（UI 可顯示不同訊息）
    */
   async logout(expired = false): Promise<void> {
@@ -250,7 +275,9 @@ export const uepReaderAuth = {
     serverAdapter = null;
     session = null;
     persistSession();
-    await getProgressManager().setAdapter(new LocalStorageAdapter());
+    const progress = getProgressManager();
+    await progress.setAdapter(new LocalStorageAdapter(), { hydrate: false });
+    progress.reset();
     notify();
     if (expired && typeof window !== 'undefined') {
       window.__uepToastManager?.info('記錄憑證已過期，請重新登入。');

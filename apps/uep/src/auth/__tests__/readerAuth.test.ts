@@ -138,6 +138,74 @@ describe('登出', () => {
     expect(window.localStorage.getItem(SESSION_KEY)).toBeNull();
     expect(listener).toHaveBeenCalledWith(null);
   });
+
+  /**
+   * 【回歸 2026-07-26】登出必須清空本機進度（艾斯維爾定案）。
+   *
+   * ServerAdapter 一路 write-through 本地鏡像，登出後那份鏡像仍完整
+   * 保有上一位登入者的 flags／完成頁／便條／閱讀時數。不清的話，
+   * 共用瀏覽器的下一位訪客會直接繼承別人的閱讀足跡。
+   */
+  it('登出清空本機進度，但保留觀測者印記', async () => {
+    const { uepReaderAuth } = await freshAuth();
+    const { getProgressManager } = await import('../../progress');
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/api/uep/auth/login')) {
+        return Promise.resolve(jsonResponse({ ok: true, data: AUTH_DATA }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: null }));
+    });
+    await uepReaderAuth.login('reader-one', 'password-123');
+
+    const progress = getProgressManager();
+    progress.grantFlags(['met:asvere']);
+    progress.markPageCompleted('history/1-1');
+    progress.unlockIsland('history');
+    progress.setView('observer');
+
+    await uepReaderAuth.logout();
+
+    const state = progress.getState();
+    expect(state.flags).toEqual([]);
+    expect(state.completedPageIds).toEqual([]);
+    expect(state.islandsUnlocked).toEqual([]);
+    // 觀測者印記是永久標記，reset 刻意不清
+    expect(state.observerEver).toBe(true);
+  });
+
+  /**
+   * 【回歸 2026-07-26】順序不可對調。
+   *
+   * `flush()` 靠 `getToken()` 回 null 才放棄上傳。若 reset 排在清 session
+   * 之前，重置後的空進度會被 PUT 上去，**直接清空伺服器上的帳號進度**。
+   */
+  it('登出不得把重置後的空進度上傳到伺服器', async () => {
+    const { uepReaderAuth } = await freshAuth();
+    const { getProgressManager } = await import('../../progress');
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/api/uep/auth/login')) {
+        return Promise.resolve(jsonResponse({ ok: true, data: AUTH_DATA }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: null }));
+    });
+    await uepReaderAuth.login('reader-one', 'password-123');
+    getProgressManager().grantFlags(['met:asvere']);
+
+    fetchMock.mockClear();
+    await uepReaderAuth.logout();
+
+    // 區域結構型別：DOM 的 RequestInit 在本專案 eslint 下會被 no-undef 判死
+    type FetchInit = { method?: string; body?: unknown };
+    const progressPuts = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        String(url).includes('/api/uep/progress') &&
+        (init as FetchInit | undefined)?.method === 'PUT'
+    );
+    for (const [, init] of progressPuts) {
+      const body = JSON.parse(String((init as FetchInit).body));
+      expect(body.flags).not.toEqual([]);
+    }
+  });
 });
 
 describe('顯示代稱', () => {

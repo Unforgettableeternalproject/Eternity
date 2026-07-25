@@ -22,6 +22,7 @@
  * （避免循環依賴，同 audioStore 慣例）。
  */
 
+import { getReaderAuth } from '../../auth/readerAuth';
 import { isTestMode } from '../../lib/apiBase';
 import { PROGRESS_CHANGE_EVENT } from '../../progress';
 import type { ProgressChangeDetail } from '../../progress';
@@ -328,6 +329,25 @@ if (typeof window !== 'undefined') {
     }
   };
   window.addEventListener(PROGRESS_CHANGE_EVENT, handler);
+
+  // 登出（session → null）→ 清空釘選。
+  //
+  // 2026-07-26 補：本檔頭部一直寫著「登出/reset 會 clearAll」，但實作只
+  // 監聽了 PROGRESS_CHANGE 的 reset，而生產環境唯一發出 reset 的路徑是
+  // DevTools——真實使用者從識別證登出永遠不會觸發，釘選原地殘留給下一
+  // 個人看。islandRuntime 與 audioStore 兩個姊妹子系統都是直接訂閱 auth，
+  // 這裡補齊以保持一致。
+  //
+  // 註：登出現在也會 reset 進度（readerAuth.logout），因此這條路徑與
+  // 上面的 reset handler 會雙重觸發——clearAll 是冪等的，無害；保留兩者
+  // 是因為「登出要清釘選」不該依賴「登出剛好會 reset」這個間接事實。
+  const auth = getReaderAuth();
+  let wasLoggedIn = auth.isLoggedIn();
+  auth.subscribe((session) => {
+    const loggedIn = session !== null;
+    if (!loggedIn && wasLoggedIn) uepStoragePins.clearAll();
+    wasLoggedIn = loggedIn;
+  });
 
   // ⚠️ 刻意不在 module load 時掃孤兒——此時 progress 可能尚未 hydrate
   // （本地空、server 有資料），拿殘缺的 storageNotes 掃會誤刪合法釘選並

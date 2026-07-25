@@ -322,6 +322,31 @@ describe('生命週期接線', () => {
     expect(uepStoragePins.getPinnedMeta(noteId)?.offsetX).toBe(42);
   });
 
+  /**
+   * 【回歸 2026-07-26】真實登出必須清空釘選。
+   *
+   * 本檔頭部一直寫著「登出/reset 會 clearAll」，但實作只監聽了
+   * PROGRESS_CHANGE 的 `source:'reset'`，而生產環境唯一發出 reset 的
+   * 路徑是 DevTools——真實使用者從識別證登出永遠不會觸發，釘選就
+   * 原地殘留給共用瀏覽器的下一個人看。islandRuntime 與 audioStore
+   * 兩個姊妹子系統都是直接訂閱 auth，這裡補齊以保持一致。
+   */
+  it('真實登出（auth session → null）→ 釘選清空', async () => {
+    vi.resetModules();
+    const { uepReaderAuth } = await import('../../../auth/readerAuth');
+    const { uepProgress } = await import('../../../progress/progressStore');
+    const { uepStoragePins } = await import('../pinnedStore');
+
+    uepProgress.addStorageNote('登出前的便條');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin(makePinned({ noteId }));
+    expect(uepStoragePins.getAll()).toHaveLength(1);
+
+    await uepReaderAuth.logout();
+
+    expect(uepStoragePins.getAll()).toHaveLength(0);
+  });
+
   // 【回歸：S9-A 驗收根因 A】setAdapter 每次整頁載入都派 hydrate，
   // 若 hydrate 走 clearAll，釘選撐不過任何一次換頁/F5。
   it('hydrate（同帳號重載）→ 便條仍在的釘選存活', async () => {

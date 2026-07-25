@@ -23,6 +23,11 @@ export interface ServerAdapterOptions {
   getToken: () => string | null;
   /** token 失效（401）時的回呼——由 auth 層清除 session */
   onAuthExpired?: () => void;
+  /**
+   * 進度被 admin 重置（409）時的回呼。
+   * 手上的快照已過期，呼叫端應改為從伺服器重新 hydrate。
+   */
+  onProgressReset?: () => void;
   /** debounce 間隔，測試用 */
   debounceMs?: number;
 }
@@ -32,7 +37,7 @@ export class ServerAdapter implements ProgressAdapter {
   private readonly opts: Required<
     Pick<ServerAdapterOptions, 'apiBase' | 'getToken' | 'debounceMs'>
   > &
-    Pick<ServerAdapterOptions, 'onAuthExpired'>;
+    Pick<ServerAdapterOptions, 'onAuthExpired' | 'onProgressReset'>;
 
   private pending: ProgressState | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -45,6 +50,7 @@ export class ServerAdapter implements ProgressAdapter {
       apiBase: options.apiBase.replace(/\/$/, ''),
       getToken: options.getToken,
       onAuthExpired: options.onAuthExpired,
+      onProgressReset: options.onProgressReset,
       debounceMs: options.debounceMs ?? DEFAULT_DEBOUNCE_MS,
     };
     // 離開頁面時把未上傳的進度沖出去（keepalive 讓請求在 unload 後存活）
@@ -132,6 +138,15 @@ export class ServerAdapter implements ProgressAdapter {
       });
       if (res.status === 401) {
         this.opts.onAuthExpired?.();
+        return;
+      }
+      /* 409 = admin 已重置此帳號的進度，我們手上這份是重置前的快照
+         （worker 端樂觀鎖，見 uep-auth.ts handlePutProgress）。
+         繼續重試只會一直被拒，且本地鏡像已經是過期資料——直接改為
+         從伺服器重新拉一份覆蓋本地，讓兩邊對齊。 */
+      if (res.status === 409) {
+        this.opts.onProgressReset?.();
+        return;
       }
       // 其他錯誤：靜默——下次 save 會帶著最新狀態重試
     } catch {

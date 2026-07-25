@@ -625,6 +625,107 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
     expect(arr.status).toBe(400);
   });
 
+  /* ── Admin 重置的樂觀鎖（2026-07-26）──────────────────────────────
+   * admin 把 progress 設為 NULL 之後，若該使用者當下還開著分頁，
+   * ServerAdapter 的 debounce PUT／pagehide flush 會把重置前的本地鏡像
+   * 整包寫回來，admin 的重置被悄悄復原且雙方都不知情。
+   * 靠 progress_reset_at 戳記擋掉所有更早的快照。
+   */
+  describe('admin 重置後的過期快照防護', () => {
+    /**
+     * 明確早於重置時刻的時間戳。
+     * ⚠️ 不可用「今天」——測試執行當下的 UTC 時鐘可能還沒跨到那一天，
+     * 快照反而會比 progress_reset_at 新而被放行（第一版就踩了這個坑）。
+     */
+    const STALE_STAMP = '2020-01-01T00:00:00.000Z';
+
+    it('重置前的快照被 409 拒收，重置後的新快照放行', async () => {
+      const adminToken = await getAdminToken();
+      const { token } = await registerUser('um-stale-put');
+      const user = await findUser(adminToken, 'um-stale-put');
+
+      // 使用者先正常同步一次
+      const early = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({
+          view: 'explorer',
+          flags: ['before-reset'],
+          updatedAt: STALE_STAMP,
+        }),
+      });
+      expect(early.status).toBe(200);
+
+      // admin 重置
+      const resetRes = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ progress: null }),
+      });
+      expect(resetRes.status).toBe(200);
+
+      // 還開著的分頁把重置前的鏡像 flush 上來 → 必須被擋
+      const stale = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({
+          view: 'explorer',
+          flags: ['before-reset'],
+          updatedAt: STALE_STAMP,
+        }),
+      });
+      expect(stale.status).toBe(409);
+
+      // 重置仍然有效——沒有被那份過期快照復原
+      const after = await fetchJson(
+        `/api/uep/admin/users/${user!.id}/progress`,
+        { token: adminToken }
+      );
+      expect(after.body.data).toBeNull();
+
+      // 客戶端 reset() 後帶著新的 updatedAt 重送 → 放行
+      const fresh = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({
+          view: 'explorer',
+          flags: [],
+          updatedAt: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      });
+      expect(fresh.status).toBe(200);
+    });
+
+    it('沒有 updatedAt 的 payload 在重置後一律拒收', async () => {
+      const adminToken = await getAdminToken();
+      const { token } = await registerUser('um-stale-noupdated');
+      const user = await findUser(adminToken, 'um-stale-noupdated');
+
+      await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ progress: null }),
+      });
+
+      const res = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({ view: 'explorer', flags: ['no-stamp'] }),
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it('從未被 admin 動過的帳號不受影響（向後相容）', async () => {
+      const { token } = await registerUser('um-never-reset');
+      const res = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({ view: 'explorer', flags: ['fine'] }),
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
   it('GET /users/:id/progress 需 admin token；不存在 404', async () => {
     const noToken = await fetchJson('/api/uep/admin/users/1/progress');
     expect(noToken.status).toBe(401);

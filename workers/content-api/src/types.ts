@@ -213,6 +213,13 @@ export interface UepUserRow {
   alias: string;
   observer_ever: number;
   progress: string | null;
+  /**
+   * admin 最後一次改寫 progress 的時刻（ISO）。
+   * 讀者端 PUT 的樂觀鎖依據——更早的快照一律拒收，避免使用者還開著的
+   * 分頁把重置前的鏡像 debounce 回寫、悄悄復原 admin 的操作。
+   * NULL = 從未被 admin 動過。
+   */
+  progress_reset_at: string | null;
   is_active: number;
   admin_note: string | null;
   deleted_at: string | null;

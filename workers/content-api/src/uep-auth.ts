@@ -336,12 +336,36 @@ async function handlePutProgress(
 
   const row = await db
     .prepare(
-      'SELECT observer_ever FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+      'SELECT observer_ever, progress_reset_at FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
-    .first<Pick<UepUserRow, 'observer_ever'>>();
+    .first<Pick<UepUserRow, 'observer_ever' | 'progress_reset_at'>>();
   if (!row) {
     return json({ ok: false, error: '帳號不存在或已停用' }, 401, cors);
+  }
+
+  /* ── 樂觀鎖：拒收 admin 重置之前產生的快照（2026-07-26）──
+     使用者分頁還開著時，ServerAdapter 的 debounce PUT 與 pagehide flush
+     會把重置前的本地鏡像整包送上來，把 admin 的重置悄悄復原。
+     blob 的 updatedAt 早於重置時刻即視為過期，回 409 要求客戶端改為
+     重新 hydrate。progress_reset_at 為 NULL（從未重置）時完全略過。
+
+     ⚠️ 已知限制：updatedAt 由**客戶端時鐘**產生，裝置時間顯著超前的
+     使用者，其過期快照會被誤判為新資料而放行。要根除得改成伺服器端
+     發放的版本號（PUT 需帶回上次 GET 的 version），那會動到讀寫協定。
+     目前接受此風險——重置與 flush 之間的窗口是秒級，而時鐘偏差要達到
+     分鐘級才會漏擋，且漏擋的後果僅是 admin 需再重置一次。 */
+  if (row.progress_reset_at) {
+    const clientUpdatedAt =
+      typeof body.updatedAt === 'string' ? body.updatedAt : null;
+    if (!clientUpdatedAt || clientUpdatedAt <= row.progress_reset_at) {
+      // 409 本身即是客戶端的判斷依據（ServerAdapter.flush 只看 status）
+      return json(
+        { ok: false, error: '進度已被管理者重置，請重新載入' },
+        409,
+        cors
+      );
+    }
   }
 
   // 觀測者印記單向遞增：DB 已標記者不可透過上傳復原為 false
@@ -550,6 +574,11 @@ async function handleAdminUpdateUser(
       }
       updates.push('progress = ?');
       values.push(serialized);
+      // 樂觀鎖戳記：admin 動過 progress 之後，使用者端所有更早的快照
+      // 一律失效（handlePutProgress 回 409）。否則還開著的分頁會把
+      // 重置前的鏡像 debounce PUT 回來，悄悄復原這次的操作。
+      updates.push('progress_reset_at = ?');
+      values.push(new Date().toISOString());
     }
     updates.push('observer_ever = ?');
     values.push(finalObserver ? 1 : 0);
