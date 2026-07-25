@@ -7,6 +7,9 @@
  *
  * 拖曳機制沿用 Minimap：pointer capture + viewport clamp + 比例式 resize。
  * 手機（<=760px）不拖曳，改為底部固定的 bottom sheet。
+ *
+ * S9-C.1 起支援 bare 外殼：不畫 header 與底框，改用 IslandChromeContext
+ * 把把手與收合交給島自畫（見 islandChrome.ts）。視窗行為完全不變。
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -18,8 +21,10 @@ import {
   toRatio,
 } from './dragPosition';
 import type { PositionRatio, XYPosition } from './dragPosition';
+import { IslandChromeContext } from './islandChrome';
+import type { IslandChromeValue } from './islandChrome';
 import { getIslandRuntime } from './islandRuntime';
-import { ISLAND_DEFINITIONS } from './types';
+import { DEFAULT_LEAVE_ANIM_MS, ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState } from './useIslands';
 
@@ -34,9 +39,6 @@ interface DraggableIslandProps {
 
 /** 手機判定斷點（與 Minimap 隱藏斷點一致） */
 const MOBILE_QUERY = '(max-width: 760px)';
-
-/** 收合動畫時長（ms）——與 islands.css 的 uep-island-leave 對齊 */
-const LEAVE_ANIM_MS = 260;
 
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(false);
@@ -59,6 +61,9 @@ export default function DraggableIsland({
   const runtime = getIslandRuntime();
   const runtimeState = useIslandRuntimeState();
   const isMobile = useIsMobile();
+  /** 手機仍走中性 bottom sheet（設計稿未涵蓋手機，且島在手機不掛載） */
+  const bare = def.shell === 'bare' && !isMobile;
+  const leaveMs = def.leaveMs ?? DEFAULT_LEAVE_ANIM_MS;
 
   const win = runtimeState.windows[id];
   const zIndex = runtime.zIndexOf(id);
@@ -87,8 +92,9 @@ export default function DraggableIsland({
     if (leaving) return;
     setLeaving(true);
     /* 保底：prefers-reduced-motion 會把 animation 關掉（animationend
-       不觸發），計時器確保無論如何都會關閉 */
-    window.setTimeout(finalizeClose, LEAVE_ANIM_MS + 80);
+       不觸發），計時器確保無論如何都會關閉。各島離場動畫長短不同，
+       時長由 def.leaveMs 指定，必須與該島 CSS 對齊。 */
+    window.setTimeout(finalizeClose, leaveMs + 80);
   }
 
   function handleLeaveAnimationEnd(e: React.AnimationEvent) {
@@ -179,78 +185,103 @@ export default function DraggableIsland({
     runtime.setPosition(id, { left, top });
   }
 
+  /* 交給島自畫外殼的控制權（bare 模式才會被用到，但一律提供，
+     島不必判斷有沒有 provider） */
+  const chrome: IslandChromeValue = {
+    bare,
+    dragHandleProps: {
+      'data-island-grip': '',
+      onPointerDown: startDrag,
+      onPointerMove: moveDrag,
+      onPointerUp: endDrag,
+      onPointerCancel: endDrag,
+    },
+    requestClose,
+    leaving,
+  };
+
   /* ---------- 手機：bottom sheet ---------- */
   if (isMobile) {
     return (
-      <div
-        className={`uep-island uep-island--sheet${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
-        style={{ zIndex }}
-        onPointerDown={() => runtime.focus(id)}
-        onAnimationEnd={handleLeaveAnimationEnd}
-        role="dialog"
-        aria-label={def.title}
-      >
-        <div className="uep-island__header">
-          <span className="uep-island__icon" aria-hidden>
-            {def.icon}
-          </span>
-          <span className="uep-island__title">{def.title}</span>
-          <button
-            className="uep-island__collapse"
-            onClick={requestClose}
-            aria-label={`收合${def.title}`}
-            title="收合"
-          >
-            —
-          </button>
+      <IslandChromeContext.Provider value={chrome}>
+        <div
+          className={`uep-island uep-island--sheet${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
+          style={{ zIndex }}
+          onPointerDown={() => runtime.focus(id)}
+          onAnimationEnd={handleLeaveAnimationEnd}
+          role="dialog"
+          aria-label={def.title}
+        >
+          <div className="uep-island__header">
+            <span className="uep-island__icon" aria-hidden>
+              {def.icon}
+            </span>
+            <span className="uep-island__title">{def.title}</span>
+            <button
+              className="uep-island__collapse"
+              onClick={requestClose}
+              aria-label={`收合${def.title}`}
+              title="收合"
+            >
+              —
+            </button>
+          </div>
+          <div className="uep-island__body">{children}</div>
         </div>
-        <div className="uep-island__body">{children}</div>
-      </div>
+      </IslandChromeContext.Provider>
     );
   }
 
   /* ---------- 桌面：浮動視窗 ---------- */
   return (
-    <div
-      ref={ref}
-      className={`uep-island${drag ? ' uep-island--dragging' : ''}${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
-      style={{
-        left: pos.left,
-        top: pos.top,
-        width: def.width,
-        zIndex,
-        opacity: ready ? 1 : 0,
-      }}
-      onPointerDown={() => runtime.focus(id)}
-      onAnimationEnd={handleLeaveAnimationEnd}
-      role="dialog"
-      aria-label={def.title}
-    >
+    <IslandChromeContext.Provider value={chrome}>
       <div
-        className="uep-island__header"
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        ref={ref}
+        className={`uep-island${bare ? ' uep-island--bare' : ''}${drag ? ' uep-island--dragging' : ''}${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
+        style={{
+          left: pos.left,
+          top: pos.top,
+          width: def.width,
+          zIndex,
+          opacity: ready ? 1 : 0,
+        }}
+        onPointerDown={() => runtime.focus(id)}
+        onAnimationEnd={handleLeaveAnimationEnd}
+        role="dialog"
+        aria-label={def.title}
       >
-        <span className="uep-island__icon" aria-hidden>
-          {def.icon}
-        </span>
-        <span className="uep-island__title">{def.title}</span>
-        <button
-          className="uep-island__collapse"
-          onClick={(e) => {
-            e.stopPropagation();
-            requestClose();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          aria-label={`收合${def.title}`}
-          title="收合"
+        {!bare && (
+          <div
+            className="uep-island__header"
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          >
+            <span className="uep-island__icon" aria-hidden>
+              {def.icon}
+            </span>
+            <span className="uep-island__title">{def.title}</span>
+            <button
+              className="uep-island__collapse"
+              onClick={(e) => {
+                e.stopPropagation();
+                requestClose();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label={`收合${def.title}`}
+              title="收合"
+            >
+              —
+            </button>
+          </div>
+        )}
+        <div
+          className={`uep-island__body${bare ? ' uep-island__body--bare' : ''}`}
         >
-          —
-        </button>
+          {children}
+        </div>
       </div>
-      <div className="uep-island__body">{children}</div>
-    </div>
+    </IslandChromeContext.Provider>
   );
 }

@@ -27,6 +27,13 @@ export type IslandCorner =
   | 'center-right'
   | 'center-left';
 
+/**
+ * 視窗外殼樣式（S9-C.1）
+ * - `default`：中性白框 + 圖示標頭（concepts 終端沿用）
+ * - `bare`：外殼不畫任何東西，材質／標頭／收合鈕全由島自理
+ */
+export type IslandShell = 'default' | 'bare';
+
 /** 浮島的靜態定義（清單固定，不做動態註冊） */
 export interface IslandDefinition {
   id: IslandId;
@@ -38,7 +45,18 @@ export interface IslandDefinition {
   defaultCorner: IslandCorner;
   /** 展開視窗寬度（px，桌面） */
   width: number;
+  /** 外殼樣式（預設 default） */
+  shell?: IslandShell;
+  /**
+   * 離場動畫時長（ms）。必須與該島 CSS 的收合動畫對齊——
+   * DraggableIsland 以此設定保底計時器（reduced-motion 下 animationend
+   * 不會觸發，只剩計時器負責收束）。未指定用 DEFAULT_LEAVE_ANIM_MS。
+   */
+  leaveMs?: number;
 }
+
+/** 預設離場動畫時長（ms）——與 islands.css 的 uep-island-leave 對齊 */
+export const DEFAULT_LEAVE_ANIM_MS = 260;
 
 /** 單一浮島的視窗狀態（localStorage 持久化單位） */
 export interface IslandWindowState {
@@ -63,7 +81,10 @@ export const ISLAND_Z_BASE = 2000;
 
 /**
  * 五座浮島的靜態定義。
- * S6 只有 history 有實體元件；其餘定義先就位，S7/S8 接上元件即可。
+ *
+ * S9-C 起除 concepts 外全走 bare 外殼——v2 設計稿的四座島各自是一件物品
+ * （紙／水／投影／便條），中性白框會把材質切斷。concepts 終端機的視覺
+ * 本來就自成一格，維持 default。
  */
 export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
   history: {
@@ -72,6 +93,8 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     icon: '📖',
     defaultCorner: 'bottom-right',
     width: 340,
+    shell: 'bare',
+    leaveMs: 380,
   },
   concepts: {
     id: 'concepts',
@@ -85,8 +108,10 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     title: '流浪回聲',
     icon: '♫',
     defaultCorner: 'center-right',
-    // 292 = 設計稿定案寬度（黑球=播放鍵、橫排舞台的緊湊格局）
-    width: 292,
+    // 300 = v2 水面提案的版面寬度（原 292 的緊湊橫排格局已由水池取代）
+    width: 300,
+    shell: 'bare',
+    leaveMs: 420,
   },
   visuals: {
     id: 'visuals',
@@ -94,6 +119,8 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     icon: '🖼',
     defaultCorner: 'top-left',
     width: 360,
+    shell: 'bare',
+    leaveMs: 460,
   },
   storage: {
     id: 'storage',
@@ -101,6 +128,8 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     icon: '✎',
     defaultCorner: 'center-left',
     width: 320,
+    shell: 'bare',
+    leaveMs: 400,
   },
 };
 

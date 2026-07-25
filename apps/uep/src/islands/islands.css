@@ -38,6 +38,32 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.26);
 }
 
+/* ── bare 外殼（S9-C.1）──
+ * 島本身就是一件物品（紙／水／投影／便條），外殼不能再套一層白框，
+ * 否則材質在邊緣被切斷。背景、邊框、陰影全部歸零，交給各島 CSS。 */
+.uep-island--bare {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.uep-island--bare.uep-island--dragging {
+  box-shadow: none;
+}
+
+/* 島自畫的拖曳把手。用 data 屬性而非 class：把手長在各島自己的元素上
+   （書名列／水面／膠帶），className 傳遞需要島端手動合併字串，漏掉
+   就是「拖不動」這種無聲失效。 */
+.uep-island [data-island-grip] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.uep-island--dragging [data-island-grip] {
+  cursor: grabbing;
+}
+
 /* ── 收合離場（S6-3）：縮往右下（dock 方向）淡出 ──
  * 純 CSS 版：固定右下方向縮小，不精算 dock chip 座標。
  * 播完由 DraggableIsland 的 animationend（+ 保底計時器）真正 close。 */
@@ -113,6 +139,13 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   user-select: text;
   overflow-y: auto;
   max-height: min(420px, 60vh);
+}
+
+/* bare 模式的捲動由島自理——外層若限高並捲動，會把紙的撕邊、卷軸木軸、
+   水面波浪這些長在容器邊緣的材質切掉。 */
+.uep-island__body--bare {
+  max-height: none;
+  overflow: visible;
 }
 
 /* ── 手機 bottom sheet ── */
