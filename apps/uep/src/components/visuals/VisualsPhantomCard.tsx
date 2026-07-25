@@ -51,18 +51,21 @@ export default function VisualsPhantomCard({ onOpen }: Props) {
       className={`visuals-gallery-card vis-phantom-card${opening ? ' is-opening' : ''}`}
       onClick={handleClick}
       disabled={opening}
-      aria-label="一個不在目錄中的畫廊。點擊以窺看。"
+      aria-label="未知幻影。一個不在目錄中的畫廊，點擊以窺看。"
       title="這個分組裡多了一張你沒見過的卡……"
     >
       <div className="vis-phantom-card__art" aria-hidden>
         <span className="vis-phantom-card__glow" />
+        <span className="vis-phantom-card__scan" />
         <span className="vis-phantom-card__mark">?</span>
       </div>
-      <div className="visuals-gallery-card-body">
+      <div className="visuals-gallery-card-body vis-phantom-card__body">
         <div className="visuals-gallery-card-title vis-phantom-card__title">
-          {opening ? '正在顯影……' : '未命名的畫廊'}
+          {opening ? '正在顯影……' : '未知幻影'}
         </div>
-        <div className="visuals-gallery-card-meta">— 不在目錄中 —</div>
+        <div className="visuals-gallery-card-meta vis-phantom-card__meta">
+          — 不在目錄中 —
+        </div>
       </div>
     </button>
   );

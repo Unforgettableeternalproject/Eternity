@@ -8,7 +8,45 @@
 .vis-phantom-card {
   position: relative;
   cursor: pointer;
-  animation: vis-phantom-in 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* 整張卡吃幻影紫的底與描邊——它要一眼就跟旁邊的正常卡不同類
+     （07/25 一驗：只換內容不夠，要有專屬樣式） */
+  background: linear-gradient(
+    160deg,
+    rgba(94, 84, 142, 0.16),
+    rgba(224, 177, 203, 0.08)
+  );
+  border: 1px solid rgba(159, 134, 192, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(224, 177, 203, 0.12),
+    0 6px 26px rgba(94, 84, 142, 0.28);
+  animation:
+    vis-phantom-in 1.1s cubic-bezier(0.16, 1, 0.3, 1) both,
+    vis-phantom-breathe 4.6s ease-in-out 1.1s infinite;
+  transition:
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+
+.vis-phantom-card:hover {
+  border-color: rgba(224, 177, 203, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(224, 177, 203, 0.3),
+    0 10px 34px rgba(94, 84, 142, 0.42);
+}
+
+/* 卡片邊緣的幻影暈——正常卡沒有這層 */
+@keyframes vis-phantom-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(224, 177, 203, 0.12),
+      0 6px 26px rgba(94, 84, 142, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(224, 177, 203, 0.34),
+      0 6px 34px rgba(94, 84, 142, 0.48);
+  }
 }
 
 .vis-phantom-card__art {
@@ -56,9 +94,45 @@
   animation: vis-phantom-flicker 3.4s steps(1, end) infinite;
 }
 
+/* 掃描線——幻影是「訊號」不是「畫」 */
+.vis-phantom-card__scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 34%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(255, 255, 255, 0.14),
+    transparent
+  );
+  animation: vis-phantom-scan 3.8s linear infinite;
+}
+
+@keyframes vis-phantom-scan {
+  0% {
+    transform: translateY(-120%);
+  }
+  100% {
+    transform: translateY(400%);
+  }
+}
+
+.vis-phantom-card__body {
+  background: rgba(60, 51, 87, 0.28);
+}
+
 .vis-phantom-card__title {
   font-style: italic;
-  opacity: 0.9;
+  letter-spacing: 0.08em;
+  color: var(--visuals-tint, #e0b1cb);
+  text-shadow: 0 0 12px rgba(224, 177, 203, 0.45);
+}
+
+.vis-phantom-card__meta {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  color: rgba(159, 134, 192, 0.9);
 }
 
 .vis-phantom-card:hover .vis-phantom-card__art {
@@ -168,10 +242,15 @@
   .vis-phantom-card,
   .vis-phantom-card__art,
   .vis-phantom-card__glow,
+  .vis-phantom-card__scan,
   .vis-phantom-card__mark,
   .vis-phantom-card.is-opening,
   .vis-phantom-card.is-opening .vis-phantom-card__art {
     animation: none;
+  }
+  /* 掃描線靜止時停在中間比停在畫面外好認 */
+  .vis-phantom-card__scan {
+    transform: translateY(100%);
   }
   .vis-phantom-card.is-opening {
     opacity: 0.5;

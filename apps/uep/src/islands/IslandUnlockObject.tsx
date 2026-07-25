@@ -7,11 +7,12 @@
  * 浮現條件（三關）：探索者視角 + 已到訪 + 尚未解鎖。
  * 解鎖後小物件消失——它「變成」了浮島。
  *
- * **S9-B 起本元件是 fallback**：各 zone 已有專屬解鎖儀式（concepts 斷線終端、
- * echoes 迷失灰球、visuals 特別畫廊、storage 孤零零紙條），但那些儀式多半帶
- * 機率或特定頁面條件，使用者有可能長期遇不到（最明顯的是 visuals——該區塊
- * 沒有兩個以上分類標籤就不會觸發）。艾斯維爾 2026-07-25 定案保留本元件當
- * 保底入口，不移除。
+ * **S9-B 起本元件是 fallback，且預設關閉**：各 zone 已有專屬解鎖儀式
+ * （concepts 斷線終端、echoes 迷失灰球、visuals 特別畫廊、storage 孤零零
+ * 紙條）。那些儀式多半帶機率或特定頁面條件，使用者有可能長期遇不到
+ * （最明顯的是 visuals——該區塊沒有兩個以上分類標籤就不會觸發），所以
+ * 保底機制留著；但小物件與專屬儀式並存時，同一頁會有兩個入口做同一件事，
+ * 艾斯維爾 07/25 一驗要求先隱藏。改 `UNLOCK_OBJECT_ENABLED` 即可復活。
  */
 
 import React, { useState } from 'react';
@@ -25,6 +26,15 @@ import {
 } from './unlockRitual';
 
 import './islands.css';
+
+/**
+ * 保底小物件的總開關（艾斯維爾 2026-07-25 一驗：先隱藏）。
+ *
+ * 各 zone 專屬儀式上線後，小物件與儀式並存會讓同一頁出現兩個做同一件事的
+ * 入口。等儀式的觸發率驗過一輪、確定沒人會被卡死，再決定是永久移除還是
+ * 改成「久久沒觸發才浮現」的真保底。
+ */
+const UNLOCK_OBJECT_ENABLED = false;
 
 /** 各島解鎖物件的意象文案（hover 提示） */
 const UNLOCK_HINTS: Record<IslandId, { object: string; hint: string }> = {
@@ -51,8 +61,9 @@ export default function IslandUnlockObject({
   if (!def) return null;
   const id = def.id;
 
-  // 浮現＝有資格；甦醒動畫進行中例外保留（此時已解鎖、eligible 已翻假）
-  const visible = eligible || (awakening && canUse && visited);
+  // 浮現＝開關開著且有資格；甦醒動畫進行中例外保留（此時已解鎖、eligible 已翻假）
+  const visible =
+    UNLOCK_OBJECT_ENABLED && (eligible || (awakening && canUse && visited));
   if (!visible) return null;
 
   const lore = UNLOCK_HINTS[id];

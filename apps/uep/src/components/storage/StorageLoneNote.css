@@ -7,6 +7,12 @@
  *
  * position: fixed 是刻意的：boxes 頁的內容欄是 920px 置中且祖先有
  * overflow-x: hidden，掛在裡面往右擺會被裁掉。
+ *
+ * ⚠️ 拖曳位移一律走 --sto-lone-dx/dy 兩顆變數，**不要改成 left/top**：
+ * .sto-page-transition 帶 will-change: transform，會建立 containing block，
+ * 裡面的 fixed 元素不是相對 viewport 定位，設絕對座標會讓便條飛出畫面。
+ * 每一條動到 transform 的規則（含 keyframes）都要把這兩顆變數帶上，
+ * 漏掉的那條會在該狀態下把拖曳位置吃掉。
  */
 
 .sto-lone-note {
@@ -27,7 +33,8 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 
-  transform: rotate(-2.5deg);
+  transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+    rotate(-2.5deg);
   box-shadow:
     0 4px 14px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
@@ -55,7 +62,8 @@
 
 .sto-lone-note.is-dragging {
   cursor: grabbing;
-  transform: rotate(-1deg) scale(1.03);
+  transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+    rotate(-1deg) scale(1.03);
   transition: none;
   z-index: 1899;
 }
@@ -148,20 +156,23 @@
 
 @keyframes sto-lone-settle {
   0% {
-    transform: rotate(-2.5deg) scale(1);
+    transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+      rotate(-2.5deg) scale(1);
     box-shadow:
       0 4px 14px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.28);
   }
   45% {
-    transform: rotate(1.5deg) scale(1.09);
+    transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+      rotate(1.5deg) scale(1.09);
     box-shadow:
       0 12px 32px rgba(0, 0, 0, 0.24),
       0 0 30px rgba(213, 182, 24, 0.42),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
   100% {
-    transform: rotate(-1deg) scale(0.9);
+    transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+      rotate(-1deg) scale(0.9);
     opacity: 0;
   }
 }

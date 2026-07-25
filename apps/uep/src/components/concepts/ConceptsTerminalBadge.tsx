@@ -40,15 +40,18 @@ export default function ConceptsTerminalBadge() {
 
   async function handleConnect() {
     if (connecting) return;
-    const ok = await uepDialog.confirm(
-      '偵測到未連線的終端節點。要建立連線嗎？',
-      {
-        title: 'connection required',
-        variant: 'terminal',
-        confirmText: 'connect',
-        cancelText: 'abort',
-      }
-    );
+    // ⚠️ 必須走 window bridge，不能直接用 import 進來的 uepDialog：
+    // ConceptsReader 是 client:only 的 React island，而 UepDialogContainer
+    // 掛在 DesignLayout 的 client:idle——**兩個不同的 bundle**，各自有一份
+    // module-level 的 uepDialog 單例。直接呼叫 import 的那份，訂閱在另一份
+    // 上的 container 永遠收不到，promise 就這麼掛著、畫面毫無反應。
+    const dialog = window.__uepDialogManager ?? uepDialog;
+    const ok = await dialog.confirm('偵測到未連線的終端節點。要建立連線嗎？', {
+      title: 'connection required',
+      variant: 'terminal',
+      confirmText: 'connect',
+      cancelText: 'abort',
+    });
     if (!ok) return;
     setConnecting(true);
     timerRef.current = window.setTimeout(() => {

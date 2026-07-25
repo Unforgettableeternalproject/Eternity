@@ -246,29 +246,54 @@
 }
 
 .er-lost-orb__core {
+  /* 07/25 一驗：原本太淡到不會被注意到。整體提亮、加一圈實邊，
+     並靠 er-lost-attention 的間歇脈衝把視線拉過來——它是可互動物件，
+     不是背景裝飾，跟一般球用同一種存在感就等於藏起來。 */
   background: radial-gradient(
-    circle at 40% 35%,
-    rgba(214, 214, 208, 0.42),
-    rgba(150, 150, 145, 0.16) 60%,
-    transparent 100%
+    circle at 38% 32%,
+    rgba(246, 246, 240, 0.92),
+    rgba(198, 198, 190, 0.5) 55%,
+    rgba(150, 150, 144, 0.14) 100%
   );
-  box-shadow: 0 0 22px rgba(170, 170, 164, 0.18);
-  animation: er-core-pulse 4.5s ease-in-out infinite;
+  border: 1px solid rgba(236, 236, 228, 0.5);
+  box-shadow:
+    0 0 26px rgba(228, 228, 220, 0.45),
+    0 0 60px rgba(200, 200, 194, 0.22),
+    inset 0 0 12px rgba(255, 255, 255, 0.3);
+  animation:
+    er-core-pulse 4.5s ease-in-out infinite,
+    er-lost-attention 3.2s ease-in-out infinite;
 }
 
 .er-lost-orb__halo {
-  border: 1px solid rgba(190, 190, 184, 0.28);
-  animation: er-lost-halo 4.5s ease-in-out infinite;
+  border: 1px solid rgba(230, 230, 222, 0.6);
+  box-shadow: 0 0 18px rgba(224, 224, 216, 0.28);
+  animation: er-lost-halo 3.6s ease-in-out infinite;
+}
+
+/* 間歇性的「這裡有東西」——比恆亮更容易在餘光中被抓到 */
+@keyframes er-lost-attention {
+  0%,
+  70%,
+  100% {
+    filter: brightness(1);
+  }
+  85% {
+    filter: brightness(1.45);
+  }
 }
 
 .er-lost-orb:hover .er-lost-orb__core {
   background: radial-gradient(
-    circle at 40% 35%,
-    rgba(228, 228, 222, 0.6),
-    rgba(170, 170, 165, 0.24) 60%,
-    transparent 100%
+    circle at 38% 32%,
+    rgba(255, 255, 252, 1),
+    rgba(222, 222, 214, 0.68) 55%,
+    rgba(170, 170, 164, 0.2) 100%
   );
-  box-shadow: 0 0 34px rgba(190, 190, 184, 0.3);
+  box-shadow:
+    0 0 40px rgba(244, 244, 236, 0.6),
+    0 0 84px rgba(214, 214, 208, 0.32),
+    inset 0 0 14px rgba(255, 255, 255, 0.45);
 }
 
 .er-lost-orb:focus-visible {
@@ -344,13 +369,37 @@
   }
 }
 
+/* 深色模式下反而要更淺——底色暗，灰球得往白靠才浮得出來（艾斯維爾 07/25） */
 [data-theme='dark'] .er-lost-orb__core {
   background: radial-gradient(
-    circle at 40% 35%,
-    rgba(196, 196, 190, 0.34),
-    rgba(130, 130, 126, 0.1) 60%,
-    transparent 100%
+    circle at 38% 32%,
+    rgba(255, 255, 255, 0.96),
+    rgba(226, 226, 220, 0.58) 55%,
+    rgba(180, 180, 174, 0.16) 100%
   );
+  border-color: rgba(255, 255, 255, 0.62);
+  box-shadow:
+    0 0 30px rgba(255, 255, 255, 0.5),
+    0 0 72px rgba(232, 232, 226, 0.26),
+    inset 0 0 14px rgba(255, 255, 255, 0.4);
+}
+
+[data-theme='dark'] .er-lost-orb__halo {
+  border-color: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 0 22px rgba(255, 255, 255, 0.32);
+}
+
+[data-theme='dark'] .er-lost-orb:hover .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 38% 32%,
+    #ffffff,
+    rgba(240, 240, 234, 0.76) 55%,
+    rgba(196, 196, 190, 0.22) 100%
+  );
+  box-shadow:
+    0 0 46px rgba(255, 255, 255, 0.68),
+    0 0 96px rgba(240, 240, 234, 0.36),
+    inset 0 0 16px rgba(255, 255, 255, 0.55);
 }
 
 /* ── 減少動態偏好 ── */

@@ -148,17 +148,38 @@ describe('拖曳', () => {
     expect(note.getAttribute('aria-label')).toContain('還要再拍 9 下');
   });
 
-  it('拖曳會改變位置（但不寫進任何持久層）', () => {
+  it('拖曳走 transform 位移變數，不碰 left/top', () => {
     render(<StorageLoneNote onCleaned={vi.fn()} />);
     const note = screen.getByRole('button', { name: NOTE });
-    expect(note.style.left).toBe('');
 
     fireEvent.pointerDown(note, { clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(note, { clientX: 200, clientY: 180, pointerId: 1 });
     fireEvent.pointerUp(note, { clientX: 200, clientY: 180, pointerId: 1 });
 
-    expect(note.style.left).not.toBe('');
+    expect(note.style.getPropertyValue('--sto-lone-dx')).toBe('100px');
+    expect(note.style.getPropertyValue('--sto-lone-dy')).toBe('80px');
+    // ⚠️ 絕不能改用 left/top：.sto-page-transition 的 will-change:transform
+    // 會建立 containing block，fixed 元素不是相對 viewport 定位，
+    // 設絕對座標會讓便條飛出畫面（07/25 一驗「拖曳就直接消失」的根因）
+    expect(note.style.left).toBe('');
+    expect(note.style.top).toBe('');
     // localStorage 完全沒被碰過——這張紙條不是真便條
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it('第二次拖曳從上次的位置接續，不會跳回原點', () => {
+    render(<StorageLoneNote onCleaned={vi.fn()} />);
+    const note = screen.getByRole('button', { name: NOTE });
+
+    fireEvent.pointerDown(note, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(note, { clientX: 150, clientY: 130, pointerId: 1 });
+    fireEvent.pointerUp(note, { clientX: 150, clientY: 130, pointerId: 1 });
+
+    fireEvent.pointerDown(note, { clientX: 300, clientY: 300, pointerId: 2 });
+    fireEvent.pointerMove(note, { clientX: 340, clientY: 320, pointerId: 2 });
+    fireEvent.pointerUp(note, { clientX: 340, clientY: 320, pointerId: 2 });
+
+    expect(note.style.getPropertyValue('--sto-lone-dx')).toBe('90px');
+    expect(note.style.getPropertyValue('--sto-lone-dy')).toBe('50px');
   });
 });

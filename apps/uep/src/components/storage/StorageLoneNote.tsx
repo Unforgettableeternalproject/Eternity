@@ -12,9 +12,16 @@
  * 2. **可拖曳但不記錄位置**——手感照真便條（同一組 pointer 事件、同一個
  *    `DRAG_THRESHOLD`），但落點只存在元件內部。它還不是一張真的便條，
  *    釘選對它沒有意義。
- * 3. **position: fixed**——boxes 頁的 `.sto-clearing-page` 是 920px 置中窄欄，
- *    而祖先 `.sto-content` 有 `overflow-x: hidden`，用負值 offset 往右掛會
- *    被裁掉。改用 viewport 座標，與 `IslandUnlockObject` 同一套做法。
+ * 3. **position: fixed + transform 位移**——boxes 頁的 `.sto-clearing-page` 是
+ *    920px 置中窄欄，祖先 `.sto-content` 有 `overflow-x: hidden`，用負值 offset
+ *    往右掛會被裁掉，所以定位走 fixed。
+ *
+ *    但拖曳**不能**改 `left/top`：`.sto-page-transition` 帶 `will-change:
+ *    transform`，那會建立 containing block——裡面的 fixed 元素其實是相對
+ *    那個容器定位，而 `getBoundingClientRect()` 給的是 viewport 座標，兩者
+ *    對不上，一設值元素就飛出畫面（07/25 一驗：「拖曳就直接消失」）。
+ *    改成累積位移灌進 CSS 變數、由 `transform: translate()` 消化，
+ *    containing block 是誰都不影響。
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -65,8 +72,8 @@ export default function StorageLoneNote({ onCleaned }: Props) {
   const [level, setLevel] = useState(0);
   const [particles, setParticles] = useState<DustParticle[]>([]);
   const [settling, setSettling] = useState(false);
-  /** null = 還沒被搬動過，用 CSS 的預設位置 */
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  /** 相對初始位置的累積位移（不是絕對座標，理由見檔頭第 3 點） */
+  const [offset, setOffset] = useState({ dx: 0, dy: 0 });
   const [dragging, setDragging] = useState(false);
 
   const particleIdRef = useRef(0);
@@ -74,8 +81,8 @@ export default function StorageLoneNote({ onCleaned }: Props) {
   const dragStateRef = useRef<{
     startX: number;
     startY: number;
-    originX: number;
-    originY: number;
+    baseDx: number;
+    baseDy: number;
     moved: boolean;
   } | null>(null);
   const noteRef = useRef<HTMLDivElement>(null);
@@ -128,12 +135,11 @@ export default function StorageLoneNote({ onCleaned }: Props) {
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (settling) return;
-    const rect = noteRef.current?.getBoundingClientRect();
     dragStateRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      originX: rect?.left ?? 0,
-      originY: rect?.top ?? 0,
+      baseDx: offset.dx,
+      baseDy: offset.dy,
       moved: false,
     };
   }
@@ -152,7 +158,7 @@ export default function StorageLoneNote({ onCleaned }: Props) {
       // 當成拖曳手勢，click 就再也發不出來（S9-A 07/24 二次驗收的教訓）
       e.currentTarget.setPointerCapture(e.pointerId);
     }
-    setPos({ x: st.originX + dx, y: st.originY + dy });
+    setOffset({ dx: st.baseDx + dx, dy: st.baseDy + dy });
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -179,13 +185,18 @@ export default function StorageLoneNote({ onCleaned }: Props) {
       className={`sto-lone-note${dragging ? ' is-dragging' : ''}${
         settling ? ' is-settling' : ''
       }`}
-      style={{
-        ...(pos ? { left: pos.x, top: pos.y, right: 'auto' } : null),
-        // 紙色與字色隨抖落進度回暖
-        ['--sto-lone-paper' as string]: mix(PAPER_DUSTY, PAPER_CLEAN, t),
-        ['--sto-lone-ink' as string]: mix(INK_DUSTY, INK_CLEAN, t),
-        ['--sto-lone-dust' as string]: String(1 - t),
-      }}
+      style={
+        {
+          // 位移交給 CSS 變數，transform 在 CSS 裡組（含 settling keyframes——
+          // animation 會蓋掉 inline transform，用變數才不會拖曳位置被歸零）
+          '--sto-lone-dx': `${offset.dx}px`,
+          '--sto-lone-dy': `${offset.dy}px`,
+          // 紙色與字色隨抖落進度回暖
+          '--sto-lone-paper': mix(PAPER_DUSTY, PAPER_CLEAN, t),
+          '--sto-lone-ink': mix(INK_DUSTY, INK_CLEAN, t),
+          '--sto-lone-dust': String(1 - t),
+        } as React.CSSProperties
+      }
       role="button"
       tabIndex={0}
       aria-label={

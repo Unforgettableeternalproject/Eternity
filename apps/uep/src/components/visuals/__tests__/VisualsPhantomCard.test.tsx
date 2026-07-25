@@ -18,11 +18,12 @@ afterEach(() => {
 });
 
 describe('VisualsPhantomCard', () => {
-  it('渲染成一張可點的卡片', () => {
+  it('渲染成一張可點的卡片，標題是「未知幻影」', () => {
     render(<VisualsPhantomCard onOpen={vi.fn()} />);
     const card = screen.getByRole('button', { name: CARD });
     expect(card).toBeTruthy();
     expect(card).not.toBeDisabled();
+    expect(screen.getByText('未知幻影')).toBeTruthy();
   });
 
   it('點擊 → 播完顯影動畫才通知呼叫端', () => {

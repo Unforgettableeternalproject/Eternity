@@ -4,7 +4,7 @@
  * 四態呈現 + 確認流程（接受／取消）。
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -117,6 +117,25 @@ describe('ConceptsTerminalBadge — 連線儀式', () => {
     });
     expect(ritualMock.complete).not.toHaveBeenCalled();
     expect(screen.getByRole('button')).toHaveTextContent('DISCONNECTED');
+  });
+
+  it('優先走 window bridge 的 dialog manager，而不是 import 進來的那份', async () => {
+    // 這是 07/25 一驗「點了沒反應」的根因：ConceptsReader 是 client:only 的
+    // island，UepDialogContainer 掛在 DesignLayout 的 client:idle——兩個
+    // bundle 各有一份 module-level 單例。呼叫 import 的那份，訂閱在另一份上的
+    // container 永遠收不到，promise 就這麼掛著。
+    const bridgeConfirm = vi.fn().mockResolvedValue(false);
+    vi.stubGlobal('__uepDialogManager', { confirm: bridgeConfirm });
+
+    render(<ConceptsTerminalBadge />);
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(bridgeConfirm).toHaveBeenCalled();
+    });
+    expect(dialogMock.confirm).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
   });
 
   it('確認對話框走終端機變體', async () => {

@@ -135,7 +135,8 @@ export default function EchoesRipple({
       id: idRef.current++,
       x,
       y,
-      size: 30 + Math.random() * 10,
+      // 比一般球（播放中 20~36px）明顯大一圈——它要被注意到
+      size: 38 + Math.random() * 12,
     });
   }, []);
 
