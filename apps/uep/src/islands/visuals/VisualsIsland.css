@@ -130,7 +130,31 @@
   color: var(--text-secondary, #7a7267);
 }
 
-/* ── 標頭 ── */
+/* ── 島頭（島名 → 分隔線 → 投射中的 gallery） ── */
+
+.uep-visland__masthead {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.uep-visland__name {
+  font-family: var(--font-display, serif);
+  color: #f2f0fa;
+}
+
+/* 分隔線用光學語彙：中段亮、兩端散開，像投影機打出來的一道光 */
+.uep-visland__rule {
+  height: 1px;
+  margin: 7px 0 9px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(176, 164, 232, 0.5) 22%,
+    rgba(176, 164, 232, 0.5) 78%,
+    transparent
+  );
+}
 
 .uep-visland__header {
   display: flex;
@@ -156,19 +180,22 @@
   font-weight: 600;
 }
 
+/* 清除投射：浮在畫框右上角（stage 為定位基準），與島頭的收合鈕徹底分開 */
 .uep-visland__clear {
-  flex: none;
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  right: 6px;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  margin-left: auto;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, #5e548e 28%, transparent);
+  border: 1px solid color-mix(in srgb, #5e548e 34%, transparent);
   border-radius: 50%;
-  background: transparent;
-  color: var(--text-secondary, #7a7267);
-  font-size: 16px;
+  background: rgba(23, 20, 31, 0.55);
+  color: rgba(226, 222, 244, 0.72);
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
   transition:
@@ -441,40 +468,25 @@
   }
 }
 
-/* 散去（收合）——右上角，讓開標頭的清除鈕 */
+/* 散去（收合）——位置與字級走 .uep-island-close，這裡只給幻影的墨色 */
 .uep-visland__dismiss {
-  all: unset;
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  z-index: 5;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.2em;
-  color: rgba(220, 216, 238, 0.55);
+  color: rgba(220, 216, 238, 0.62);
 }
 
 .uep-visland__dismiss:hover {
   color: #cfc7f5;
 }
 
-.uep-visland__dismiss:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: 2px;
-}
-
-/* 標頭改直排（kicker 一行、標題一行），右側留出散去鈕的位置 */
+/* gallery 資訊改直排（kicker 一行、標題一行）；清除鈕已移到畫框上，
+   這裡不再需要為它留欄位 */
 .uep-visland__header {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto;
   grid-template-areas:
-    'kicker clear'
-    'title title';
+    'kicker'
+    'title';
   align-items: center;
-  gap: 2px 8px;
-  padding-right: 34px;
+  gap: 2px;
   border-bottom: none;
 }
 
@@ -497,10 +509,6 @@
 
 .uep-visland__counter {
   color: #b0a4e8;
-}
-
-.uep-visland__clear {
-  grid-area: clear;
 }
 
 /* 畫框：投影中的畫面會不定時閃動 */

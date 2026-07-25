@@ -248,7 +248,7 @@ export default function VisualsIsland() {
       {chrome.bare && (
         <button
           type="button"
-          className="uep-visland__dismiss"
+          className="uep-island-close uep-visland__dismiss"
           onClick={chrome.requestClose}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label="收合浮動幻影"
@@ -258,19 +258,34 @@ export default function VisualsIsland() {
         </button>
       )}
 
+      {/* ── 島頭（＝拖曳把手）：島名在上、投射中的 gallery 在下 ──
+          島名與內容標題分層，是為了讓五座島「叫什麼」都落在同一處
+          （之前這裡只有 gallery 標題，島本身沒有名字）。
+          ⚠️ 必須排在 suggestion 卡之前：島頭是固定物，收合鈕又是相對島
+          絕對定位的，若被提示卡往下推，兩者會錯開甚至疊住。 */}
+      <div className="uep-visland__masthead" {...chrome.dragHandleProps}>
+        <div className="uep-island-title uep-visland__name">浮動幻影</div>
+        <div className="uep-visland__rule" aria-hidden />
+        <div className="uep-visland__header">
+          <span className="uep-visland__kicker">
+            {gallery ? SOURCE_LABELS[gallery.source] : 'NO PROJECTION'}
+          </span>
+          <span
+            className={`uep-visland__title${gallery ? '' : ' is-empty'}`}
+            title={gallery?.title}
+          >
+            {gallery ? gallery.title : '—'}
+          </span>
+        </div>
+      </div>
+
       {suggestionCard}
 
-      {/* ── 標頭（＝拖曳把手）：投射中的 gallery ── */}
-      <div className="uep-visland__header" {...chrome.dragHandleProps}>
-        <span className="uep-visland__kicker">
-          {gallery ? SOURCE_LABELS[gallery.source] : 'NO PROJECTION'}
-        </span>
-        <span
-          className={`uep-visland__title${gallery ? '' : ' is-empty'}`}
-          title={gallery?.title}
-        >
-          {gallery ? gallery.title : '—'}
-        </span>
+      {/* ── 大圖舞台（左右箭頭）／空畫框 ── */}
+      <div className="uep-visland__stage">
+        {/* 清除投射：貼在畫框自己的角上。放島頭右端時與收合鈕僅差幾像素，
+            會被讀成「收合」（艾斯維爾 2026-07-25 回饋）——關掉的是這張
+            投影，按鈕就該長在投影上。 */}
         {gallery && (
           <button
             type="button"
@@ -283,10 +298,6 @@ export default function VisualsIsland() {
             <span aria-hidden>×</span>
           </button>
         )}
-      </div>
-
-      {/* ── 大圖舞台（左右箭頭）／空畫框 ── */}
-      <div className="uep-visland__stage">
         {projecting && items.length > 1 && (
           <button
             type="button"
