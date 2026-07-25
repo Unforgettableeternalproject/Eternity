@@ -25,6 +25,7 @@ import React, {
 
 import { getAudioStore } from '../../audio';
 import type { AudioQueueItem, AudioState } from '../../audio';
+import { useIslandChrome } from '../islandChrome';
 import type { EchoPreviewTrack } from './echoPreview';
 import {
   clearEchoSuggestion,
@@ -155,6 +156,16 @@ function EchoOrb({
           transform: `translate(${-ball / 2 + 11}px, ${-ball / 2 + 9}px)`,
         }}
       />
+      {/* 水面倒影：球半浮在水線上，下半是自己的影子 */}
+      <span
+        className="uep-eisland__orb-mirror"
+        aria-hidden
+        style={{
+          width: ball,
+          height: ball * 0.55,
+          background: ballBg(accent, playing || suggesting),
+        }}
+      />
     </div>
   );
 }
@@ -164,6 +175,7 @@ function EchoOrb({
  * ──────────────────────────────────────────────────────────────── */
 export default function EchoesIsland() {
   const store = getAudioStore();
+  const chrome = useIslandChrome();
   const state: AudioState = useSyncExternalStore(
     useCallback((onChange) => store.subscribe(onChange), [store]),
     () => store.getState(),
@@ -315,8 +327,52 @@ export default function EchoesIsland() {
   const dur = state.duration;
   const curTime = isSeeking && dur > 0 ? displayProg * dur : state.currentTime;
 
+  /**
+   * 水線以下是否被回聲染色。條件是「島裡有沒有回聲」而不是「正在不在播」
+   * ——暫停只是停下來，回聲還在水裡，顏色不該退回灰
+   * （艾斯維爾 2026-07-25 回饋）。清空播放狀態才回灰。
+   * 水面（波浪層）恆為灰白，不參與染色。
+   */
+  const tinted = hasSong || suggestion !== null;
+
   return (
-    <div className="uep-eisland">
+    <div
+      className="uep-eisland"
+      style={{ '--uep-pool-accent': displayAccent } as React.CSSProperties}
+    >
+      {/* 水線以下的染色層（mask 讓上緣水面保持灰白） */}
+      <span
+        className={`uep-eisland__tint${tinted ? ' is-on' : ''}`}
+        aria-hidden
+      />
+
+      {/* 水面＝拖曳把手：抓住水面拖動整池水 */}
+      <div className="uep-eisland__surface" {...chrome.dragHandleProps}>
+        <svg viewBox="0 0 1200 26" preserveAspectRatio="none" aria-hidden>
+          <path
+            d="M0 15C150 3 300 25 600 15S1050 3 1200 15V0H0Z"
+            fill="rgba(255,255,255,.34)"
+          />
+        </svg>
+        <svg viewBox="0 0 1200 26" preserveAspectRatio="none" aria-hidden>
+          <path
+            d="M0 13C200 25 380 2 600 13S1000 25 1200 13V0H0Z"
+            fill="rgba(255,255,255,.2)"
+          />
+        </svg>
+      </div>
+
+      {chrome.bare && (
+        <button
+          type="button"
+          className="uep-eisland__close"
+          onClick={chrome.requestClose}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label="收合流浪回聲"
+          title="收起"
+        />
+      )}
+
       {/* ── echo spot 插播 banner ── */}
       {interrupting && (
         <div
@@ -606,6 +662,13 @@ export default function EchoesIsland() {
             )}
           </div>
         )}
+      </div>
+
+      {/* 池底泡沫（純裝飾，輕彈） */}
+      <div className="uep-eisland__foam" aria-hidden>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <span key={i} style={{ animationDelay: `${i * 0.4}s` }} />
+        ))}
       </div>
     </div>
   );

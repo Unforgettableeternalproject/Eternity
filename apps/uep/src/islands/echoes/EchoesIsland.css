@@ -43,9 +43,207 @@
   }
 }
 
+/* ────────────────────────────────────────────────────────────────
+ * S9-C.3 — v2 設計稿提案 B「水面」外殼
+ *
+ * 整座島是一池水：上緣是真的在流動的水面（兩層波峰反向漂移），黑球半浮
+ * 在水線上、下方帶倒影，佇列是沉在水裡的回聲球。
+ *
+ * 配色策略：**水線以下**依當前播放的 cluster 染色，未播放為灰
+ * （艾斯維爾 2026-07-25 定案）。水面與波浪恆為灰白——那是「水」本身，
+ * 不是回聲的顏色。
+ *
+ * 深色化不逐條改寫：整座島區域性重新定義 --ink* / --hairline* token，
+ * 既有 600 行版面樣式全部跟著翻成水下白色系。這是當初把配色寫成 token
+ * 而不是硬編碼的回報。
+ * ──────────────────────────────────────────────────────────────── */
+
 .uep-eisland {
+  position: relative;
+  isolation: isolate; /* 供 tint 層 mix-blend-mode 使用，避免影響頁面 */
+  padding: 26px 0 0;
+  border-radius: 16px;
+  overflow: hidden;
   font-family: var(--font-sans);
   user-select: none;
+  color: #eaf6ff;
+
+  /* 水下白色系（覆寫站內深色 token，作用範圍僅此島） */
+  --ink: rgba(255, 255, 255, 0.88);
+  --ink-title: #f4fbff;
+  --ink-soft: rgba(255, 255, 255, 0.76);
+  --ink-mute: rgba(255, 255, 255, 0.6);
+  --hairline: rgba(255, 255, 255, 0.26);
+  --hairline-strong: rgba(255, 255, 255, 0.4);
+  --bg-card: rgba(255, 255, 255, 0.14);
+
+  /* 灰階水體：上淺下深。染色由 __tint 疊上去，這層永遠是灰的。
+     上緣不能太亮——波浪本身是半透明白，底色再淺就會糊成同一塊 */
+  background: linear-gradient(
+    180deg,
+    rgba(196, 203, 209, 0.6),
+    rgba(120, 127, 133, 0.56) 42%,
+    rgba(28, 33, 38, 0.66)
+  );
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow:
+    0 20px 44px rgba(15, 30, 45, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 染色層：mix-blend-mode: color 只換色相不動明暗——灰水被回聲「染」了，
+   而不是蓋上一層有顏色的膜。mask 讓水線（38%）以上完全不受影響。 */
+.uep-eisland__tint {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--uep-pool-accent, #6d6f72);
+  mix-blend-mode: color;
+  opacity: 0;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0 38%,
+    rgba(0, 0, 0, 0.7) 60%,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0 38%,
+    rgba(0, 0, 0, 0.7) 60%,
+    #000 100%
+  );
+  transition:
+    background-color 0.6s var(--ease),
+    opacity 0.6s var(--ease);
+}
+
+.uep-eisland__tint.is-on {
+  opacity: 1;
+}
+
+/* ── 水面（＝拖曳把手） ──
+ * 波浪往下淡出融進水裡。不淡出的話上緣會變成一塊亮度均勻的淺色板，
+ * 和水體之間出現一條與波形無關的硬邊（艾斯維爾 2026-07-25 回饋）。 */
+.uep-eisland__surface {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 26px;
+  overflow: hidden;
+  z-index: 3;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0 35%,
+    rgba(0, 0, 0, 0.45) 72%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0 35%,
+    rgba(0, 0, 0, 0.45) 72%,
+    transparent 100%
+  );
+}
+
+.uep-eisland__surface svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 26px;
+  animation: uep-eisland-wave 9s linear infinite;
+}
+
+.uep-eisland__surface svg:nth-child(2) {
+  animation-duration: 14s;
+  animation-direction: reverse;
+  opacity: 0.5;
+}
+
+@keyframes uep-eisland-wave {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ── 收合：一顆浮在水面的小水珠 ── */
+.uep-eisland__close {
+  all: unset;
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 6;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(255, 255, 255, 0.9),
+    rgba(150, 165, 175, 0.75)
+  );
+  box-shadow: 0 1px 4px rgba(10, 30, 45, 0.35);
+}
+
+.uep-eisland__close:hover {
+  filter: brightness(1.15);
+}
+
+.uep-eisland__close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 3px;
+}
+
+/* ── 球的水面倒影 ── */
+.uep-eisland__orb-mirror {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 26px);
+  transform: translateX(-50%) scaleY(-1);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  filter: blur(2px);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+/* ── 池底泡沫 ── */
+.uep-eisland__foam {
+  display: flex;
+  gap: 5px;
+  padding: 2px 18px 12px;
+}
+
+.uep-eisland__foam span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(255, 255, 255, 0.85),
+    rgba(200, 215, 225, 0.5)
+  );
+  box-shadow: 0 1px 3px rgba(0, 20, 40, 0.3);
+  animation: uep-eisland-bob 3.2s ease-in-out infinite;
+}
+
+@keyframes uep-eisland-bob {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.08);
+  }
+}
+
+/* 內容層要浮在染色層之上 */
+.uep-eisland > *:not(.uep-eisland__tint) {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── 插播 banner ── */
@@ -612,12 +810,77 @@
   color: var(--ink-mute);
 }
 
+/* ── 佇列＝沉在水裡的回聲（S9-C.3） ──
+ * 越後面的曲目沉得越深、越模糊，順序不必再靠數字說明。
+ * 只糊到第三列為止且 hover 立刻清晰——中文字模糊過頭就不是效果是障礙。 */
+.uep-eisland__row {
+  transition:
+    padding-left 0.2s var(--ease),
+    opacity 0.2s var(--ease),
+    filter 0.2s var(--ease);
+}
+
+.uep-eisland__row:nth-child(2) {
+  padding-left: 24px;
+  opacity: 0.86;
+}
+
+.uep-eisland__row:nth-child(3) {
+  padding-left: 36px;
+  opacity: 0.72;
+  filter: blur(0.3px);
+}
+
+.uep-eisland__row:nth-child(n + 4) {
+  padding-left: 48px;
+  opacity: 0.6;
+  filter: blur(0.5px);
+}
+
+.uep-eisland__row:hover,
+.uep-eisland__row:focus-within {
+  padding-left: 12px;
+  opacity: 1;
+  filter: none;
+}
+
+/* 清除鍵的暗紅在深水裡幾乎看不見，提亮成珊瑚色 */
+.uep-eisland__clear:hover:not(:disabled),
+.uep-eisland__clear:focus-visible:not(:disabled) {
+  border-color: rgba(255, 160, 160, 0.7);
+  color: #ffb0ae;
+}
+
+/* ── 離場：水位退去 ── */
+.uep-island--echoes.uep-island--leaving {
+  transform-origin: center bottom;
+  animation: uep-eisland-drain 0.42s var(--ease) forwards;
+}
+
+@keyframes uep-eisland-drain {
+  0% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  55% {
+    transform: scaleY(0.62) translateY(6px);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scaleY(0.06) translateY(18px);
+    opacity: 0;
+  }
+}
+
 /* ── reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .uep-eisland__ripple,
   .uep-eisland__orbit,
   .uep-eisland__ball.is-playing,
-  .uep-eisland__ball.is-suggesting {
+  .uep-eisland__ball.is-suggesting,
+  .uep-eisland__surface svg,
+  .uep-eisland__foam span,
+  .uep-island--echoes.uep-island--leaving {
     animation: none;
   }
 }
