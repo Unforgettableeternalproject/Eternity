@@ -23,20 +23,29 @@
   overflow: hidden;
   font-family: var(--font-body, sans-serif);
   color: #e6e3f2;
-  background: linear-gradient(
-    180deg,
-    rgba(58, 54, 78, 0.72),
-    rgba(30, 28, 42, 0.78)
-  );
+  background: linear-gradient(180deg, var(--ph-shell-a), var(--ph-shell-b));
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
-  border: 1px solid rgba(160, 152, 200, 0.28);
+  border: 1px solid var(--ph-rim);
   box-shadow:
-    0 22px 50px rgba(10, 8, 20, 0.45),
+    0 22px 50px var(--ph-cast),
     inset 0 1px 0 rgba(200, 195, 230, 0.22);
 
+  /* 投影裝置本來就是深色物件，兩套色的差別在「多沉」：亮色模式下不能沉到
+     像一塊黑洞，深色模式下則要壓得比頁面更暗，才不會自己在發光 */
+  --ph-shell-a: rgba(72, 67, 96, 0.7);
+  --ph-shell-b: rgba(44, 41, 60, 0.76);
+  --ph-rim: rgba(170, 162, 210, 0.32);
+  --ph-cast: rgba(10, 8, 20, 0.4);
   --text-primary: #f2f0fa;
   --text-secondary: rgba(226, 222, 244, 0.62);
+}
+
+[data-theme='dark'] .uep-visland {
+  --ph-shell-a: rgba(38, 35, 52, 0.82);
+  --ph-shell-b: rgba(18, 17, 26, 0.88);
+  --ph-rim: rgba(140, 132, 180, 0.24);
+  --ph-cast: rgba(0, 0, 0, 0.6);
 }
 
 /* ── entity 嵌入提示卡 ── */

@@ -9,22 +9,79 @@
  * 垂直空間省下近一半。
  */
 
+/* ── 紙的兩套色（S9-C.7）──
+ * 材質色全部走區域變數，透明度變體用「通道變數 + rgb(x / a)」表達，
+ * 一組 rgb 就涵蓋所有濃淡——否則深色模式要逐條複製十幾行 rgba。
+ * 深色模式不是把紙變黑，是同一張紙在燭光下：暖褐紙、米色墨。 */
 .uep-hisland {
+  --hb-paper-a: #f8f0da;
+  --hb-paper-b: #eee1c0;
+  --hb-paper-c: #e9dab5;
+  --hb-edge: #d9c9a2;
+  --hb-stack-a: #e8dcbb;
+  --hb-stack-b: #e2d4ae;
+  --hb-stack-c: #dbcda4;
+  --hb-stack-d: #d3c497;
+  --hb-ribbon-a: #dcb92a;
+  --hb-ribbon-b: #b8931a;
+  --hb-ink: #3d2c14;
+  --hb-ink-strong: #2f2109;
+  --hb-title: #4a3116;
+  --hb-accent: #6b3f2a;
+  --hb-accent-hi: #8a4423;
+  --hb-ink-rgb: 61 44 20;
+  --hb-line-rgb: 90 62 26;
+  --hb-accent-rgb: 107 63 42;
+  --hb-grain-rgb: 120 90 40;
+  --hb-cast-rgb: 50 32 10;
+  --hb-grain-blend: multiply;
+
   position: relative;
   padding: 20px 22px 16px;
   font-family: var(--font-serif-tc);
   font-size: 12.5px;
-  color: #3d2c14;
-  background: linear-gradient(168deg, #f8f0da, #eee1c0 70%, #e9dab5);
-  border: 1px solid #d9c9a2;
+  color: var(--hb-ink);
+  background: linear-gradient(
+    168deg,
+    var(--hb-paper-a),
+    var(--hb-paper-b) 70%,
+    var(--hb-paper-c)
+  );
+  border: 1px solid var(--hb-edge);
   border-radius: 2px 3px 3px 2px;
   /* 前四層 = 底下壓著的紙，最後一層才是投影 */
   box-shadow:
-    0 1px 0 #e8dcbb,
-    0 3px 0 #e2d4ae,
-    0 5px 0 #dbcda4,
-    0 7px 0 #d3c497,
-    0 14px 26px rgba(50, 32, 10, 0.32);
+    0 1px 0 var(--hb-stack-a),
+    0 3px 0 var(--hb-stack-b),
+    0 5px 0 var(--hb-stack-c),
+    0 7px 0 var(--hb-stack-d),
+    0 14px 26px rgb(var(--hb-cast-rgb) / 0.32);
+}
+
+/* 深色模式：同一張紙在燭光下——暖褐紙面、米色墨、金緞帶降亮。
+   紙紋改 overlay：multiply 疊在暗紙上只會變成一片黑，紋理整個消失。 */
+[data-theme='dark'] .uep-hisland {
+  --hb-paper-a: #3b3329;
+  --hb-paper-b: #332c23;
+  --hb-paper-c: #2c261e;
+  --hb-edge: #4b4133;
+  --hb-stack-a: #362f26;
+  --hb-stack-b: #312a22;
+  --hb-stack-c: #2c261f;
+  --hb-stack-d: #26211a;
+  --hb-ribbon-a: #b8971f;
+  --hb-ribbon-b: #8a7016;
+  --hb-ink: #ddd0b4;
+  --hb-ink-strong: #f2e8d0;
+  --hb-title: #e6d4a8;
+  --hb-accent: #d9a441;
+  --hb-accent-hi: #f0bb5c;
+  --hb-ink-rgb: 221 208 180;
+  --hb-line-rgb: 196 174 132;
+  --hb-accent-rgb: 217 164 65;
+  --hb-grain-rgb: 255 240 205;
+  --hb-cast-rgb: 0 0 0;
+  --hb-grain-blend: overlay;
 }
 
 /* 左緣裝訂暗影 */
@@ -37,8 +94,8 @@
   width: 16px;
   background: linear-gradient(
     90deg,
-    rgba(90, 58, 20, 0.26),
-    rgba(90, 58, 20, 0.04) 60%,
+    rgb(var(--hb-line-rgb) / 0.26),
+    rgb(var(--hb-line-rgb) / 0.04) 60%,
     transparent
   );
   pointer-events: none;
@@ -51,11 +108,11 @@
   inset: 0;
   background: repeating-linear-gradient(
     92deg,
-    rgba(120, 90, 40, 0.045) 0 2px,
+    rgb(var(--hb-grain-rgb) / 0.045) 0 2px,
     transparent 2px 5px
   );
   pointer-events: none;
-  mix-blend-mode: multiply;
+  mix-blend-mode: var(--hb-grain-blend);
 }
 
 /* ── 緞帶書籤：從頁緣真的垂下來 ── */
@@ -65,9 +122,9 @@
   right: 26px;
   width: 13px;
   height: 58px;
-  background: linear-gradient(180deg, #dcb92a, #b8931a);
+  background: linear-gradient(180deg, var(--hb-ribbon-a), var(--hb-ribbon-b));
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
-  box-shadow: 0 2px 5px rgba(50, 32, 10, 0.35);
+  box-shadow: 0 2px 5px rgb(var(--hb-cast-rgb) / 0.35);
   z-index: 3;
 }
 
@@ -82,13 +139,13 @@
   font-size: 19px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: #4a3116;
+  color: var(--hb-title);
 }
 
 .uep-hisland__rule {
   height: 0;
-  border-top: 1px solid rgba(90, 62, 26, 0.5);
-  border-bottom: 1px solid rgba(90, 62, 26, 0.22);
+  border-top: 1px solid rgb(var(--hb-line-rgb) / 0.5);
+  border-bottom: 1px solid rgb(var(--hb-line-rgb) / 0.22);
   margin: 7px 0 12px;
 }
 
@@ -103,11 +160,11 @@
   font-family: var(--font-serif-tc);
   font-size: 10.5px;
   letter-spacing: 0.14em;
-  color: rgba(90, 62, 26, 0.6);
+  color: rgb(var(--hb-line-rgb) / 0.6);
 }
 
 .uep-hisland__close:hover {
-  color: #6b3f2a;
+  color: var(--hb-accent);
 }
 
 .uep-hisland__close:focus-visible {
@@ -121,7 +178,7 @@
   text-align: center;
   font-style: italic;
   line-height: 1.8;
-  color: rgba(61, 44, 20, 0.72);
+  color: rgb(var(--hb-ink-rgb) / 0.72);
 }
 
 .uep-hisland__begin {
@@ -130,13 +187,13 @@
   margin: 10px auto 0;
   font-size: 12px;
   font-style: normal;
-  color: #6b3f2a;
-  border-bottom: 1px dotted rgba(107, 63, 42, 0.7);
+  color: var(--hb-accent);
+  border-bottom: 1px dotted rgb(var(--hb-accent-rgb) / 0.7);
   cursor: pointer;
 }
 
 .uep-hisland__begin:hover {
-  color: #8a4423;
+  color: var(--hb-accent-hi);
   border-bottom-style: solid;
 }
 
@@ -150,7 +207,7 @@
   float: right;
   font-family: var(--font-mono);
   font-size: 9.5px;
-  color: rgba(61, 44, 20, 0.6);
+  color: rgb(var(--hb-ink-rgb) / 0.6);
   margin-top: 2px;
 }
 
@@ -159,7 +216,7 @@
   font-size: 8.5px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: rgba(90, 62, 26, 0.55);
+  color: rgb(var(--hb-line-rgb) / 0.55);
 }
 
 .uep-hisland__resume-title {
@@ -167,13 +224,13 @@
   font-weight: 600;
   line-height: 1.4;
   margin-top: 5px;
-  color: #2f2109;
+  color: var(--hb-ink-strong);
 }
 
 .uep-hisland__resume-volume {
   font-size: 11.5px;
   font-style: italic;
-  color: rgba(61, 44, 20, 0.72);
+  color: rgb(var(--hb-ink-rgb) / 0.72);
   margin-top: 2px;
 }
 
@@ -182,13 +239,13 @@
   display: inline-block;
   margin-top: 8px;
   font-size: 12px;
-  color: #6b3f2a;
-  border-bottom: 1px dotted rgba(107, 63, 42, 0.7);
+  color: var(--hb-accent);
+  border-bottom: 1px dotted rgb(var(--hb-accent-rgb) / 0.7);
   cursor: pointer;
 }
 
 .uep-hisland__resume-btn:hover {
-  color: #8a4423;
+  color: var(--hb-accent-hi);
   border-bottom-style: solid;
 }
 
@@ -205,7 +262,7 @@
   max-height: 268px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(90, 62, 26, 0.35) transparent;
+  scrollbar-color: rgb(var(--hb-line-rgb) / 0.35) transparent;
 }
 
 .uep-hisland__chapters::-webkit-scrollbar {
@@ -213,7 +270,7 @@
 }
 
 .uep-hisland__chapters::-webkit-scrollbar-thumb {
-  background: rgba(90, 62, 26, 0.3);
+  background: rgb(var(--hb-line-rgb) / 0.3);
   border-radius: 3px;
 }
 
@@ -221,7 +278,7 @@
   font-family: var(--font-mono);
   font-size: 8.5px;
   letter-spacing: 0.24em;
-  color: rgba(90, 62, 26, 0.6);
+  color: rgb(var(--hb-line-rgb) / 0.6);
   margin-bottom: 6px;
 }
 
@@ -241,12 +298,12 @@
   flex: none;
   font-size: 8px;
   line-height: 1;
-  color: rgba(90, 62, 26, 0.5);
+  color: rgb(var(--hb-line-rgb) / 0.5);
   cursor: pointer;
 }
 
 .uep-hisland__toc-bullet:hover {
-  color: #8a4423;
+  color: var(--hb-accent-hi);
 }
 
 .uep-hisland__toc-bullet:focus-visible {
@@ -272,11 +329,11 @@
   padding: 3px 0;
   cursor: pointer;
   font-size: 12.5px;
-  color: #3d2c14;
+  color: var(--hb-ink);
 }
 
 .uep-hisland__toc:hover .uep-hisland__toc-title {
-  color: #8a4423;
+  color: var(--hb-accent-hi);
 }
 
 .uep-hisland__toc:focus-visible {
@@ -307,14 +364,14 @@
 /* 虛線 leader：把標題與頁碼連起來，取代原本的進度條 */
 .uep-hisland__toc-leader {
   flex: 1;
-  border-bottom: 1px dotted rgba(90, 62, 26, 0.5);
+  border-bottom: 1px dotted rgb(var(--hb-line-rgb) / 0.5);
   transform: translateY(-4px);
 }
 
 .uep-hisland__toc-count {
   font-family: var(--font-mono);
   font-size: 9.5px;
-  color: rgba(61, 44, 20, 0.68);
+  color: rgb(var(--hb-ink-rgb) / 0.68);
   letter-spacing: 0.04em;
   flex: none;
 }
@@ -324,7 +381,7 @@
   margin-top: 16px;
   text-align: center;
   font-size: 10.5px;
-  color: rgba(61, 44, 20, 0.6);
+  color: rgb(var(--hb-ink-rgb) / 0.6);
   letter-spacing: 0.1em;
 }
 
@@ -333,7 +390,7 @@
   font-family: var(--font-display);
   font-size: 13px;
   font-style: normal;
-  color: rgba(90, 62, 26, 0.75);
+  color: rgb(var(--hb-line-rgb) / 0.75);
   margin-bottom: 3px;
 }
 

@@ -396,7 +396,9 @@ export default function EchoesIsland() {
           onPointerDown={(e) => e.stopPropagation()}
           aria-label="收合流浪回聲"
           title="收起"
-        />
+        >
+          ×
+        </button>
       )}
 
       {/* ── echo spot 插播 banner ── */}

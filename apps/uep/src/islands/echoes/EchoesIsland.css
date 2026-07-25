@@ -88,22 +88,42 @@
   --hairline-strong: rgba(255, 255, 255, 0.4);
   --bg-card: rgba(255, 255, 255, 0.14);
 
+  /* 水體深淺的兩端（亮色模式：整體壓淺一階，深色文字段落才不會太沉重） */
+  --pool-hi: #eef2f5;
+  --pool-mid: #99a1a8;
+  --pool-lo: #333d45;
+  --pool-base-hi: #4a545c;
+  --pool-base-lo: #2b333a;
+  --pool-rim: rgba(255, 255, 255, 0.42);
+  --pool-cast: rgba(15, 30, 45, 0.34);
+
   /* 整池依當前回聲染色，上淺下深（淺藍→深藍、淺紅→深紅）。
      水面不再保留灰——灰只剩「池裡一枚回聲都沒有」這一種情況。
-     28% 就轉深：內容從 26px 開始，白字必須落在深色段才讀得清楚。 */
+     深淺兩端由 --pool-hi / --pool-lo 決定，深色模式各自換一組。 */
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--uep-pool-accent) 30%, #eef2f5) 0%,
-    color-mix(in srgb, var(--uep-pool-accent) 72%, #6f777f) 28%,
-    color-mix(in srgb, var(--uep-pool-accent) 90%, #0b1219) 100%
+    color-mix(in srgb, var(--uep-pool-accent) 26%, var(--pool-hi)) 0%,
+    color-mix(in srgb, var(--uep-pool-accent) 58%, var(--pool-mid)) 30%,
+    color-mix(in srgb, var(--uep-pool-accent) 74%, var(--pool-lo)) 100%
   );
   transition: --uep-pool-accent 0.6s var(--ease);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--pool-rim);
   box-shadow:
-    0 20px 44px rgba(15, 30, 45, 0.34),
+    0 20px 44px var(--pool-cast),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 深色模式：水沉下去，不再是頁面上最亮的東西 */
+[data-theme='dark'] .uep-eisland {
+  --pool-hi: #6a747c;
+  --pool-mid: #38424a;
+  --pool-lo: #0d1318;
+  --pool-base-hi: #1c242a;
+  --pool-base-lo: #0a0f13;
+  --pool-rim: rgba(255, 255, 255, 0.16);
+  --pool-cast: rgba(0, 0, 0, 0.5);
 }
 
 /* ── 水面（＝拖曳把手） ──
@@ -152,32 +172,30 @@
   }
 }
 
-/* ── 收合：一顆浮在水面的水珠 ──
- * 16px 的水珠在波浪上幾乎看不出來是按鈕（2026-07-25 回饋「沒有收合按鈕」），
- * 放大並加一圈內光，hover 再明顯一點。 */
+/* ── 收合：單純的 × ──
+ * 水珠造型不管放多大都不像按鈕（艾斯維爾 2026-07-25 二驗），改回最直白的
+ * 關閉符號，只保留水的色調。 */
 .uep-eisland__close {
   all: unset;
   position: absolute;
-  top: 7px;
-  right: 12px;
+  top: 4px;
+  right: 10px;
   z-index: 6;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  background: radial-gradient(
-    circle at 34% 30%,
-    rgba(255, 255, 255, 0.95),
-    rgba(160, 176, 188, 0.8)
-  );
-  box-shadow:
-    0 2px 6px rgba(10, 30, 45, 0.4),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.75);
+  border-radius: 3px;
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 3px rgba(5, 20, 35, 0.6);
 }
 
 .uep-eisland__close:hover {
-  filter: brightness(1.15);
-  transform: scale(1.12);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .uep-eisland__close:focus-visible {
@@ -205,12 +223,12 @@
   margin-top: 6px;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--uep-pool-accent) 55%, #0a1016),
-    color-mix(in srgb, var(--uep-pool-accent) 22%, #05090d)
+    color-mix(in srgb, var(--uep-pool-accent) 42%, var(--pool-base-hi)),
+    color-mix(in srgb, var(--uep-pool-accent) 20%, var(--pool-base-lo))
   );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.28);
   transition: --uep-pool-accent 0.6s var(--ease);
 }
 
