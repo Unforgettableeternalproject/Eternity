@@ -35,11 +35,18 @@ import {
 
 import './EchoesIsland.css';
 
-/** Echoes zone 預設 accent（無分類色資訊時的 fallback） */
+/** Echoes zone 預設 accent（無分類色資訊時的 fallback）＝ --echoes-main */
 const DEFAULT_ACCENT = '#355C7D';
 
-/** 空池：島裡一枚回聲都沒有時的水色（唯一還是灰的情況） */
-const IDLE_POOL = '#8b9095';
+/**
+ * 空池：島裡一枚回聲都沒有時的水色。
+ *
+ * 曾經是中性灰，讓「染色」成為播放的獎賞；但其他四座島待機時本來就是
+ * 自己的區域色，只有這座退回灰，看起來像沒接上任何區域
+ * （艾斯維爾 2026-07-25 回饋）。改為 Echoes 區域主色——播放時仍會被
+ * 當前 cluster 色蓋過，只是起點不再是無主的灰。
+ */
+const IDLE_POOL = DEFAULT_ACCENT;
 
 /** 播放時浮現的回聲球——位置固定、節奏錯開，比 zone 背景的稀疏得多 */
 const POOL_ORBS = [
@@ -354,7 +361,12 @@ export default function EchoesIsland() {
       className="uep-eisland"
       style={{ '--uep-pool-accent': poolAccent } as React.CSSProperties}
     >
-      {/* 水面＝拖曳把手：抓住水面拖動整池水 */}
+      {/* 槽緣＝島頭＋拖曳把手：抓住盛水的容器邊，比抓水面更像在搬一件東西 */}
+      <div className="uep-eisland__brim" {...chrome.dragHandleProps}>
+        <div className="uep-island-title uep-eisland__name">流浪回聲</div>
+      </div>
+
+      {/* 水面：緣下的水，也可以直接抓著拖 */}
       <div className="uep-eisland__surface" {...chrome.dragHandleProps}>
         <svg viewBox="0 0 1200 26" preserveAspectRatio="none" aria-hidden>
           <path
@@ -391,13 +403,13 @@ export default function EchoesIsland() {
       {chrome.bare && (
         <button
           type="button"
-          className="uep-eisland__close"
+          className="uep-island-close uep-eisland__close"
           onClick={chrome.requestClose}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label="收合流浪回聲"
           title="收起"
         >
-          ×
+          退潮
         </button>
       )}
 

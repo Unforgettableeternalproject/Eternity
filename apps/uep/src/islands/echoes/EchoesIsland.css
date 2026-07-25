@@ -63,17 +63,22 @@
 @property --uep-pool-accent {
   syntax: '<color>';
   inherits: true;
-  initial-value: #8b9095;
+  initial-value: #355c7d;
 }
 
 .uep-eisland {
   position: relative;
   isolation: isolate; /* 讓 z-index:-1 的回聲球只退到島背景之上 */
-  /* 頂部留給水面層（絕對定位在島頂）。⚠️ 子元素不可被統一改成
-     position: relative——那會把水面打回文件流、在島頂讓出一條空白，
-     收合水珠也會跟著跑掉（2026-07-25 回饋的「上方殘餘區塊」） */
-  padding: 26px 0 0;
-  border-radius: 16px;
+  /* 槽緣與水面都在文件流內，內容自然接在水面之下——不再靠 padding-top
+     幫絕對定位的水面讓位（S9-C.10 前的作法，水面一動就得同步改三處
+     magic number）。水面高度仍以變數暴露，回聲球要據此避開水面。 */
+  --brim-h: 45px;
+  --surface-h: 26px;
+
+  padding: 0;
+  /* 4px 對齊其他四座島（2~6px）。16px 的大圓角是這座島看起來像 macOS
+     視窗、而其他島像實物的主因之一（艾斯維爾 2026-07-25 回饋） */
+  border-radius: 4px;
   overflow: hidden;
   font-family: var(--font-sans);
   user-select: none;
@@ -96,6 +101,12 @@
   --pool-base-lo: #2b333a;
   --pool-rim: rgba(255, 255, 255, 0.42);
   --pool-cast: rgba(15, 30, 45, 0.34);
+
+  /* 槽緣（盛著水的容器邊）——石質偏中性，只吃一點池色當作被水浸潤 */
+  --brim-hi: #7f8890;
+  --brim-lo: #5d666e;
+  --brim-edge: rgba(255, 255, 255, 0.34);
+  --brim-ink: #f3f8fb;
 
   /* 整池依當前回聲染色，上淺下深（淺藍→深藍、淺紅→深紅）。
      水面不再保留灰——灰只剩「池裡一枚回聲都沒有」這一種情況。
@@ -124,17 +135,78 @@
   --pool-base-lo: #0a0f13;
   --pool-rim: rgba(255, 255, 255, 0.16);
   --pool-cast: rgba(0, 0, 0, 0.5);
+  --brim-hi: #39424a;
+  --brim-lo: #232b32;
+  --brim-edge: rgba(255, 255, 255, 0.14);
+  --brim-ink: #e4eef5;
 }
 
-/* ── 水面（＝拖曳把手） ──
- * 波浪往下淡出融進水裡。不淡出的話上緣會變成一塊亮度均勻的淺色板，
- * 和水體之間出現一條與波形無關的硬邊（艾斯維爾 2026-07-25 回饋）。 */
-.uep-eisland__surface {
+/* ── 水下焦散（S9-C.10）──
+ * 純漸層的水看起來只是一片玻璃。斜向交錯的兩道極淡亮紋＝光穿過水面被
+ * 折射後投在水裡的網，是把「這是水體」講清楚的最低成本作法。
+ * soft-light 疊上去只改亮度不動色相，池色換 cluster 時不會被它拖住。 */
+.uep-eisland::before {
+  content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 26px;
+  inset: calc(var(--brim-h) + var(--surface-h)) 0 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
+  background:
+    repeating-linear-gradient(
+      104deg,
+      transparent 0 22px,
+      rgba(255, 255, 255, 0.28) 22px 24px,
+      transparent 24px 46px
+    ),
+    repeating-linear-gradient(
+      -98deg,
+      transparent 0 31px,
+      rgba(255, 255, 255, 0.2) 31px 33px,
+      transparent 33px 62px
+    );
+  /* 越深的水折射紋越少——不淡出的話整池會像磨砂玻璃 */
+  -webkit-mask-image: linear-gradient(180deg, #000 0 30%, transparent 88%);
+  mask-image: linear-gradient(180deg, #000 0 30%, transparent 88%);
+}
+
+/* ── 槽緣（＝島頭，也是拖曳把手）──
+ * v2 的水池沒有頭：沒有島名，收合是浮在水上的一個 ×，加上 16px 大圓角，
+ * 於是它成了五座島裡唯一像「視窗」而不像「東西」的一座
+ * （艾斯維爾 2026-07-25 回饋）。補一圈盛著水的容器邊，島名與收合詞落在
+ * 石緣上，水面退到緣下——與 history 的書名列、storage 的膠帶同一層語彙。 */
+.uep-eisland__brim {
+  position: relative;
+  z-index: 4;
+  box-sizing: border-box;
+  height: var(--brim-h);
+  padding: 15px 16px 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 12%, var(--brim-hi)),
+    color-mix(in srgb, var(--uep-pool-accent) 22%, var(--brim-lo))
+  );
+  border-bottom: 1px solid var(--brim-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 2px 8px rgba(0, 0, 0, 0.26);
+  transition: --uep-pool-accent 0.6s var(--ease);
+}
+
+.uep-eisland__name {
+  font-family: var(--font-display, serif);
+  color: var(--brim-ink);
+  text-shadow: 0 1px 3px rgba(5, 20, 35, 0.45);
+}
+
+/* ── 水面 ──
+ * 波浪往下淡出融進水裡。不淡出的話上緣會變成一塊亮度均勻的淺色板，
+ * 和水體之間出現一條與波形無關的硬邊（艾斯維爾 2026-07-25 回饋）。
+ * S9-C.10 起改為文件流內（槽緣之後），內容自然接在水面下。 */
+.uep-eisland__surface {
+  position: relative;
+  height: var(--surface-h);
   overflow: hidden;
   z-index: 3;
   -webkit-mask-image: linear-gradient(
@@ -156,7 +228,7 @@
   top: 0;
   left: 0;
   width: 200%;
-  height: 26px;
+  height: var(--surface-h);
   animation: uep-eisland-wave 9s linear infinite;
 }
 
@@ -172,35 +244,16 @@
   }
 }
 
-/* ── 收合：單純的 × ──
- * 水珠造型不管放多大都不像按鈕（艾斯維爾 2026-07-25 二驗），改回最直白的
- * 關閉符號，只保留水的色調。 */
+/* ── 退潮（收合）──
+ * 曾經是水珠（不像按鈕）、再改成 ×（在材質上像異物）。現在落在石緣上，
+ * 跟其他四座島一樣是該島語彙的一個短詞（位置與字級走 .uep-island-close）。 */
 .uep-eisland__close {
-  all: unset;
-  position: absolute;
-  top: 4px;
-  right: 10px;
-  z-index: 6;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  border-radius: 3px;
-  font-size: 15px;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.8);
-  text-shadow: 0 1px 3px rgba(5, 20, 35, 0.6);
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 3px rgba(5, 20, 35, 0.5);
 }
 
 .uep-eisland__close:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.uep-eisland__close:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: 3px;
 }
 
 /* ── 球的水面倒影 ── */
@@ -238,7 +291,7 @@
 .uep-eisland__orbs {
   position: absolute;
   /* 上不越過水面、下不蓋住底座 */
-  inset: 26px 0 20px;
+  inset: calc(var(--brim-h) + var(--surface-h)) 0 20px;
   overflow: hidden;
   pointer-events: none;
   /* 沉在文字後面。父層的 isolation: isolate 讓 -1 只退到島背景之上，
