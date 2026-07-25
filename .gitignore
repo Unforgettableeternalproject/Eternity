@@ -34,6 +34,8 @@ out/
 .cache/
 .temp/
 .tmp/
+# Astro 產生的型別/快取目錄（每次 build 重生，不該進版控）
+.astro/
 
 # Logs and test files
 logs/
