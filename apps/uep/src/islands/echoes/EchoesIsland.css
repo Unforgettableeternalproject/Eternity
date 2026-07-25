@@ -89,12 +89,33 @@
    * S9-C.10 的亮色版只把水體淺了一階，卻整座島沿用「水下白色系」的白字，
    * 於是水必須夠深字才讀得到——兩個模式看起來幾乎一樣
    * （艾斯維爾 2026-07-25 三驗）。要真的變淺就得連墨一起翻面：淺水配深墨。 */
-  --ink: rgba(16, 42, 56, 0.9);
-  --ink-title: #0d2632;
-  --ink-soft: rgba(16, 42, 56, 0.74);
-  --ink-mute: rgba(16, 42, 56, 0.54);
-  --hairline: rgba(16, 42, 56, 0.2);
-  --hairline-strong: rgba(16, 42, 56, 0.34);
+  /* 墨也吃 accent。整座島只有水在染色時，槽緣與字留在原地不動，
+     兩者疊在一起就是一組不相干的顏色硬湊（艾斯維爾 2026-07-25 四驗）。
+     混色比例往標題端加重——它要看得出是「這首曲子的顏色」，
+     內文只取一點讓整體協調，不能為了染色犧牲可讀性。 */
+  --ink-base: rgba(16, 42, 56, 0.9);
+  --ink: color-mix(in srgb, var(--uep-pool-accent) 20%, var(--ink-base));
+  --ink-title: color-mix(in srgb, var(--uep-pool-accent) 52%, #0d2632);
+  --ink-soft: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 20%,
+    rgba(16, 42, 56, 0.74)
+  );
+  --ink-mute: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 22%,
+    rgba(16, 42, 56, 0.54)
+  );
+  --hairline: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 28%,
+    rgba(16, 42, 56, 0.2)
+  );
+  --hairline-strong: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 28%,
+    rgba(16, 42, 56, 0.34)
+  );
   --bg-card: rgba(255, 255, 255, 0.44);
   --ink-shadow: 0 1px 2px rgba(255, 255, 255, 0.55);
 
@@ -108,19 +129,27 @@
   --pool-cast: rgba(40, 70, 95, 0.22);
   --pool-sheen: rgba(255, 255, 255, 0.75);
 
-  /* 槽緣（盛著水的容器邊）——石質偏中性，只吃一點池色當作被水浸潤 */
-  --brim-hi: #edf2f6;
-  --brim-lo: #ccd8e0;
+  /* 槽緣（盛著水的容器邊）——與水同一色系的淺石，不是另一種灰 */
+  --brim-hi: #f2f5f8;
+  --brim-lo: #d5dfe6;
   --brim-edge: rgba(255, 255, 255, 0.9);
-  --brim-ink: #0d2632;
+  --brim-ink: var(--ink-title);
   --brim-sheen: rgba(255, 255, 255, 0.7);
   --brim-cast: rgba(40, 70, 95, 0.16);
 
-  /* 水面波紋／水下焦散／回聲球——在淺水上白色會整個消失，各自換一組 */
-  --wave-a: rgba(101, 140, 168, 0.34);
-  --wave-b: rgba(101, 140, 168, 0.2);
-  --caustic: rgba(70, 116, 148, 0.3);
-  --caustic-blend: multiply;
+  /* 水面波紋／水下透光／回聲球——在淺水上白色會整個消失，各自換一組 */
+  --wave-a: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 46%,
+    rgba(90, 130, 160, 0.3)
+  );
+  --wave-b: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 46%,
+    rgba(90, 130, 160, 0.18)
+  );
+  --caustic: rgba(255, 255, 255, 0.55);
+  --caustic-blend: soft-light;
   --orb-core: rgba(255, 255, 255, 0.85);
   --orb-edge: rgba(255, 255, 255, 0.24);
 
@@ -147,12 +176,29 @@
 
 /* ── 深色：夜裡的深水，水下白色系 ── */
 [data-theme='dark'] .uep-eisland {
-  --ink: rgba(255, 255, 255, 0.88);
-  --ink-title: #f4fbff;
-  --ink-soft: rgba(255, 255, 255, 0.76);
-  --ink-mute: rgba(255, 255, 255, 0.6);
-  --hairline: rgba(255, 255, 255, 0.26);
-  --hairline-strong: rgba(255, 255, 255, 0.4);
+  --ink-base: rgba(255, 255, 255, 0.88);
+  --ink: color-mix(in srgb, var(--uep-pool-accent) 12%, var(--ink-base));
+  --ink-title: color-mix(in srgb, var(--uep-pool-accent) 38%, #f4fbff);
+  --ink-soft: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 12%,
+    rgba(255, 255, 255, 0.76)
+  );
+  --ink-mute: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 16%,
+    rgba(255, 255, 255, 0.6)
+  );
+  --hairline: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 26%,
+    rgba(255, 255, 255, 0.26)
+  );
+  --hairline-strong: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 26%,
+    rgba(255, 255, 255, 0.4)
+  );
   --bg-card: rgba(255, 255, 255, 0.14);
   --ink-shadow: 0 1px 3px rgba(5, 20, 35, 0.5);
 
@@ -168,13 +214,21 @@
   --brim-hi: #39424a;
   --brim-lo: #232b32;
   --brim-edge: rgba(255, 255, 255, 0.14);
-  --brim-ink: #e4eef5;
+  --brim-ink: var(--ink-title);
   --brim-sheen: rgba(255, 255, 255, 0.26);
   --brim-cast: rgba(0, 0, 0, 0.26);
 
-  --wave-a: rgba(255, 255, 255, 0.34);
-  --wave-b: rgba(255, 255, 255, 0.2);
-  --caustic: rgba(255, 255, 255, 0.28);
+  --wave-a: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 30%,
+    rgba(255, 255, 255, 0.34)
+  );
+  --wave-b: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 30%,
+    rgba(255, 255, 255, 0.2)
+  );
+  --caustic: rgba(255, 255, 255, 0.22);
   --caustic-blend: soft-light;
   --orb-core: rgba(255, 255, 255, 0.55);
   --orb-edge: rgba(255, 255, 255, 0.12);
@@ -187,34 +241,31 @@
   );
 }
 
-/* ── 水下焦散（S9-C.10）──
- * 純漸層的水看起來只是一片玻璃。斜向交錯的兩道極淡亮紋＝光穿過水面被
- * 折射後投在水裡的網，是把「這是水體」講清楚的最低成本作法。
- * soft-light 疊上去只改亮度不動色相，池色換 cluster 時不會被它拖住。 */
+[data-theme='dark'] .uep-eisland__brim {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 26%, var(--brim-hi)),
+    color-mix(in srgb, var(--uep-pool-accent) 42%, var(--brim-lo))
+  );
+}
+
+/* ── 水下透光（S9-C.10，S9-C.15 改寫）──
+ * 原本是兩道交錯的斜紋（光折射的網），但兩道 repeating-linear-gradient
+ * 疊起來會織出規則的菱形格，在一座小島上讀起來是「網格裝飾」而不是水
+ * （艾斯維爾 2026-07-25 四驗）。改成單一道從水面灑下的柔光——沒有線條，
+ * 只有明暗，水的層次仍在，但不再有圖案要人去看。 */
 .uep-eisland::before {
   content: '';
   position: absolute;
   inset: calc(var(--brim-h) + var(--surface-h)) 0 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.5;
   mix-blend-mode: var(--caustic-blend);
-  background:
-    repeating-linear-gradient(
-      104deg,
-      transparent 0 22px,
-      var(--caustic) 22px 24px,
-      transparent 24px 46px
-    ),
-    repeating-linear-gradient(
-      -98deg,
-      transparent 0 31px,
-      var(--caustic) 31px 33px,
-      transparent 33px 62px
-    );
-  /* 越深的水折射紋越少——不淡出的話整池會像磨砂玻璃 */
-  -webkit-mask-image: linear-gradient(180deg, #000 0 30%, transparent 88%);
-  mask-image: linear-gradient(180deg, #000 0 30%, transparent 88%);
+  background: radial-gradient(
+    150% 72% at 50% 0%,
+    var(--caustic) 0%,
+    transparent 70%
+  );
 }
 
 /* ── 槽緣（＝島頭，也是拖曳把手）──
@@ -228,10 +279,11 @@
   box-sizing: border-box;
   height: var(--brim-h);
   padding: 13px 16px 0;
+  /* 槽緣吃的 accent 比水體多——它是浸在水裡的石頭，不是另一件家具 */
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--uep-pool-accent) 12%, var(--brim-hi)),
-    color-mix(in srgb, var(--uep-pool-accent) 22%, var(--brim-lo))
+    color-mix(in srgb, var(--uep-pool-accent) 22%, var(--brim-hi)),
+    color-mix(in srgb, var(--uep-pool-accent) 36%, var(--brim-lo))
   );
   border-bottom: 1px solid var(--brim-edge);
   box-shadow:
