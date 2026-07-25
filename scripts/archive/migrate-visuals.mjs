@@ -24,6 +24,7 @@ const CONTENT_ROOT = join(
   import.meta.dirname,
   '..',
   '..',
+  '..',
   'U.E.P-s-Imaginary-Space'
 );
 const SUMMARY_PATH = join(CONTENT_ROOT, 'SUMMARY.md');

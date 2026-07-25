@@ -23,6 +23,7 @@ const CONTENT_ROOT = join(
   import.meta.dirname,
   '..',
   '..',
+  '..',
   'U.E.P-s-Imaginary-Space',
   'storage'
 );
