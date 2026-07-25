@@ -15,6 +15,28 @@ async function freshStore() {
   return mod;
 }
 
+/** 完整的遠端 ProgressState，只覆寫測試關心的欄位 */
+function makeRemote(overrides: Partial<ProgressState> = {}): ProgressState {
+  return {
+    version: 1,
+    view: 'explorer',
+    observerEver: false,
+    flags: [],
+    completedPageIds: [],
+    islandsUnlocked: [],
+    islandsDisabled: [],
+    pageMarkers: {},
+    lastVisitedPageId: null,
+    lastVisitedAt: null,
+    lostBookmark: { chancePct: 20, visible: false },
+    readingStats: { totalMs: 0 },
+    conceptsReadLevel: {},
+    storageNotes: [],
+    updatedAt: '2026-07-03T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   delete window.__uepProgress;
@@ -319,6 +341,112 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     await uepProgress.setAdapter({ load: () => Promise.resolve(null), save });
     expect(save).toHaveBeenCalled();
     expect(uepProgress.getState().flags).toEqual(['local-flag']);
+  });
+
+  it('hydrate: false 只換 adapter，不讀遠端也不動狀態', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.grantFlags(['local-flag']);
+    const load = vi.fn(() => Promise.resolve(makeRemote()));
+    await uepProgress.setAdapter(
+      { load, save: () => Promise.resolve() },
+      { hydrate: false }
+    );
+    expect(load).not.toHaveBeenCalled();
+    expect(uepProgress.getState().flags).toEqual(['local-flag']);
+  });
+
+  /* ── hydrate 競態（2026-07-26 回歸）──────────────────────────────
+   * `await load()` 是一段空窗期，UI 並沒有停下來。舊實作直接
+   * `state = remote`，這期間的寫入全部蒸發；因為多數是 mount effect
+   * 寫的、hydrate 又不會讓 effect 重跑，這一輪就永遠回不來。
+   * 實際災情：四區解鎖儀式在首次載入時全部消失，要重新整理才出現。
+   */
+  describe('hydrate 空窗期的 mutation', () => {
+    /** 建立一個「load 卡住、可手動放行」的 adapter */
+    function deferredAdapter(remote: ProgressState) {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      return {
+        adapter: {
+          load: async () => {
+            await gate;
+            return remote;
+          },
+          save: () => Promise.resolve(),
+        },
+        release,
+      };
+    }
+
+    it('空窗期授予的旗標不會被遠端快照吞掉', async () => {
+      const { uepProgress } = await freshStore();
+      const { adapter, release } = deferredAdapter(
+        makeRemote({ flags: ['remote-flag'] })
+      );
+
+      const pending = uepProgress.setAdapter(adapter);
+      // ReaderShell mount effect 等等，就發生在這個縫隙裡
+      uepProgress.grantFlags(['granted-during-hydrate']);
+      release();
+      await pending;
+
+      const { flags } = uepProgress.getState();
+      expect(flags).toContain('remote-flag');
+      expect(flags).toContain('granted-during-hydrate');
+    });
+
+    it('空窗期的完成頁與解鎖同樣保留，且結果有回寫', async () => {
+      const { uepProgress } = await freshStore();
+      const save = vi.fn(() => Promise.resolve());
+      const { adapter, release } = deferredAdapter(
+        makeRemote({
+          completedPageIds: ['history/remote'],
+          islandsUnlocked: ['echoes'],
+        })
+      );
+
+      const pending = uepProgress.setAdapter({ ...adapter, save });
+      uepProgress.markPageCompleted('history/local');
+      uepProgress.unlockIsland('history');
+      release();
+      await pending;
+
+      const state = uepProgress.getState();
+      expect(state.completedPageIds).toEqual(
+        expect.arrayContaining(['history/remote', 'history/local'])
+      );
+      expect(state.islandsUnlocked).toEqual(
+        expect.arrayContaining(['echoes', 'history'])
+      );
+      // 合併結果必須落地，否則只活在記憶體、重載即失
+      expect(save).toHaveBeenCalled();
+    });
+
+    it('觀測者印記任一邊落下就算數', async () => {
+      const { uepProgress } = await freshStore();
+      const { adapter, release } = deferredAdapter(
+        makeRemote({ observerEver: false })
+      );
+
+      const pending = uepProgress.setAdapter(adapter);
+      uepProgress.setView('observer');
+      release();
+      await pending;
+
+      expect(uepProgress.getState().observerEver).toBe(true);
+    });
+
+    it('空窗期沒有 mutation 時，維持伺服器優先（不做多餘合併）', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.grantFlags(['local-only']);
+      await uepProgress.setAdapter({
+        load: () => Promise.resolve(makeRemote({ flags: ['remote-flag'] })),
+        save: () => Promise.resolve(),
+      });
+      expect(uepProgress.getState().flags).toEqual(['remote-flag']);
+    });
   });
 });
 

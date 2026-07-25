@@ -103,6 +103,64 @@ function notify(source: ProgressChangeDetail['source']): void {
   }
 }
 
+/** 取 `remote ∪ (local \ base)`——把空窗期新增的項目疊回遠端快照，保序去重 */
+function unionAdded(
+  remote: string[],
+  base: string[],
+  local: string[]
+): string[] {
+  const baseSet = new Set(base);
+  const merged = [...remote];
+  const seen = new Set(remote);
+  for (const item of local) {
+    if (baseSet.has(item) || seen.has(item)) continue;
+    merged.push(item);
+    seen.add(item);
+  }
+  return merged;
+}
+
+/**
+ * hydrate 競態的收斂規則（2026-07-26）
+ *
+ * `setAdapter()` 的 `await load()` 是一段空窗期，而 UI 並沒有停下來——
+ * ReaderShell mount、讀完一頁、完成解鎖儀式都可能在這期間寫入 state。
+ * 舊實作直接 `state = remote`，這些寫入全部蒸發，而且因為多數是
+ * mount effect 寫的、hydrate 不會讓 effect 重跑，**這一輪就永遠回不來**。
+ *
+ * 收斂策略：**單調增長的授予集合取聯集**，其餘欄位以遠端為準。
+ * 理由是兩類欄位的失效代價不對稱——授予集合掉了會讓 UI 功能整片消失
+ * （解鎖儀式叫不出來、已解鎖的島原地上鎖），而 marker 位置、閱讀時數
+ * 這種連續量被遠端快照覆蓋只是輕微回退，下一次 mutation 就自我修正。
+ *
+ * ⚠️ 已知取捨：空窗期內的 `revokeFlags()` 會被聯集復活。目前 revoke 的
+ * 唯一生產呼叫端是 DevTools 測試 bridge，可接受；若未來出現真實的
+ * 「旗標會失效」機制，這裡要改成帶時間戳的 tombstone。
+ */
+function mergeHydrated(
+  remote: ProgressState,
+  base: ProgressState,
+  local: ProgressState
+): ProgressState {
+  return {
+    ...remote,
+    flags: unionAdded(remote.flags, base.flags, local.flags),
+    completedPageIds: unionAdded(
+      remote.completedPageIds,
+      base.completedPageIds,
+      local.completedPageIds
+    ),
+    islandsUnlocked: unionAdded(
+      remote.islandsUnlocked,
+      base.islandsUnlocked,
+      local.islandsUnlocked
+    ),
+    // 觀測者印記是永久標記，任一邊落下就算數
+    observerEver: remote.observerEver || local.observerEver,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function mutate(
   source: ProgressChangeDetail['source'],
   updater: (prev: ProgressState) => ProgressState
@@ -379,17 +437,36 @@ export const uepProgress = {
   /**
    * 替換儲存 adapter（S5 登入後切換 ServerAdapter）。
    * adapter.load() 有資料時以其為準覆蓋本地狀態（伺服器優先策略）。
+   *
+   * ⚠️ hydrate 期間發生的本地 mutation 不會被丟棄——見 `mergeHydrated()`。
+   *
+   * @param options.hydrate 傳 false 則只換 adapter、不讀遠端。登出時用：
+   *   下一步就要 `reset()`，讀回上一個帳號的鏡像純粹是浪費與畫面閃爍。
    */
-  async setAdapter(next: ProgressAdapter): Promise<void> {
+  async setAdapter(
+    next: ProgressAdapter,
+    options?: { hydrate?: boolean }
+  ): Promise<void> {
     adapter = next;
+    if (options?.hydrate === false) return;
+
+    const base = state;
     const remote = await next.load();
-    if (remote) {
-      state = remote;
-      notify('hydrate');
-    } else {
+    if (!remote) {
       // 遠端無資料：把本地進度上傳作為初始值
       persist();
+      return;
     }
+    if (state === base) {
+      // 空窗期沒有任何 mutation：伺服器優先，直接採用
+      state = remote;
+      notify('hydrate');
+      return;
+    }
+    // 空窗期有人寫入過：把新增的授予疊回遠端快照，並回寫以免只存在記憶體
+    state = mergeHydrated(remote, base, state);
+    persist();
+    notify('hydrate');
   },
 
   /**
