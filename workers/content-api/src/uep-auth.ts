@@ -574,9 +574,17 @@ async function handleAdminUpdateUser(
       }
       updates.push('progress = ?');
       values.push(serialized);
-      // 樂觀鎖戳記：admin 動過 progress 之後，使用者端所有更早的快照
-      // 一律失效（handlePutProgress 回 409）。否則還開著的分頁會把
-      // 重置前的鏡像 debounce PUT 回來，悄悄復原這次的操作。
+      /* 樂觀鎖戳記：admin 動過 progress 之後，使用者端所有更早的快照一律
+         失效（handlePutProgress 回 409）。否則還開著的分頁會把寫入前的
+         鏡像 debounce PUT 回來，悄悄復原這次的操作。
+
+         ⚠️ 涵蓋**所有** admin 對 progress 的寫入，不只 `progress: null`
+         的清除——存入非空進度、乃至只 toggle observerEver 而連帶重寫
+         blob，同樣需要擋掉使用者端的舊快照，否則 admin 的編輯會被覆蓋。
+         欄位名 `progress_reset_at` 是初版命名的遺留，語意實為
+         「admin 最後改寫 progress 的時刻」。
+         客戶端收到 409 一律走 hydrateAuthoritative（以伺服器為準），
+         不是 reset——後者會把空 state 推回去蓋掉 admin 存的內容。 */
       updates.push('progress_reset_at = ?');
       values.push(new Date().toISOString());
     }

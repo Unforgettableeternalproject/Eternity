@@ -122,14 +122,17 @@ async function attachServerAdapter(): Promise<void> {
       void uepReaderAuth.logout(true);
     },
     onProgressReset: () => {
-      /* admin 重置了這個帳號的進度，我們手上的是重置前的快照。
-         這裡必須 reset() 而不是重新 hydrate——admin 重置後遠端是 NULL，
-         re-hydrate 會走 setAdapter 的「遠端無資料則上傳本地」分支，
-         把同一份過期快照再送一次，又被 409 擋下，變成無限重試。
-         reset() 讓本地歸零並把 updatedAt 推進到重置時刻之後，
-         隨後的 persist 才會被伺服器接受。 */
-      getProgressManager().reset();
-      window.__uepToastManager?.info('閱讀進度已被管理者重置。');
+      /* admin 在後台改寫了這個帳號的進度（清空**或**存入新內容），
+         我們手上的是他寫入之前的快照，已被伺服器判定過期。
+
+         必須走 hydrateAuthoritative()——它以遠端為準、遠端空則歸零，
+         且不把本地推上去。兩個都不能用的替代方案：
+         - reset()：admin 若存的是**非空**進度，reset 後那份空 state 會在
+           2 秒後 PUT 上去，反過來蓋掉 admin 剛存的東西。
+         - setAdapter() 重新 hydrate：遠端為 null 時它會「上傳本地作為
+           初始值」，把同一份過期快照再送一次 → 又 409 → 無限重試。 */
+      void getProgressManager().hydrateAuthoritative();
+      window.__uepToastManager?.info('閱讀進度已由管理者更新。');
     },
   });
   await getProgressManager().setAdapter(serverAdapter);
@@ -266,7 +269,11 @@ export const uepReaderAuth = {
    *    **直接清空伺服器上的帳號進度**。
    * 3. 換 LocalStorageAdapter，且 `hydrate: false`——下一步就要 reset，
    *    讀回舊帳號鏡像只是白做工兼畫面閃爍。
-   * 4. `reset()`，此時 persist 走的已是本地 adapter，安全。
+   *    （這步同時遞增 adapter 世代，讓仍在飛的舊 hydrate 結果作廢。）
+   * 4. `reset({ keepObserverEver: false })`，此時 persist 走的已是本地
+   *    adapter，安全。**印記必須一起清**——它屬於帳號不屬於裝置，留著
+   *    會被下一位新註冊者的初始上傳帶進伺服器並永久生效，詳見
+   *    `progressStore.reset()` 的註解。
    *
    * @param expired token 過期觸發時為 true（UI 可顯示不同訊息）
    */
@@ -277,7 +284,7 @@ export const uepReaderAuth = {
     persistSession();
     const progress = getProgressManager();
     await progress.setAdapter(new LocalStorageAdapter(), { hydrate: false });
-    progress.reset();
+    progress.reset({ keepObserverEver: false });
     notify();
     if (expired && typeof window !== 'undefined') {
       window.__uepToastManager?.info('記錄憑證已過期，請重新登入。');

@@ -216,8 +216,12 @@ export interface UepUserRow {
   /**
    * admin 最後一次改寫 progress 的時刻（ISO）。
    * 讀者端 PUT 的樂觀鎖依據——更早的快照一律拒收，避免使用者還開著的
-   * 分頁把重置前的鏡像 debounce 回寫、悄悄復原 admin 的操作。
+   * 分頁把寫入前的鏡像 debounce 回寫、悄悄復原 admin 的操作。
    * NULL = 從未被 admin 動過。
+   *
+   * ⚠️ 欄位名是初版命名的遺留：它涵蓋 admin 的**所有** progress 寫入
+   * （清除、存入新內容、連帶重寫 blob 的 observerEver toggle），
+   * 不限於「重置」。
    */
   progress_reset_at: string | null;
   is_active: number;

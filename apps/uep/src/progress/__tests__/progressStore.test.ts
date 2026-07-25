@@ -447,6 +447,85 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       });
       expect(uepProgress.getState().flags).toEqual(['remote-flag']);
     });
+
+    /**
+     * 【回歸 2026-07-26，Codex 複核 blocker 1】
+     *
+     * hydrate 途中 adapter 被換掉（最常見：載入到一半使用者登出）時，
+     * 稍後回來的舊帳號快照必須整個作廢。少了 generation guard：
+     * state 被舊帳號資料覆蓋，且 persist() 會透過**新的** adapter
+     * 把它寫回本機，登出的清除形同無效。
+     */
+    it('hydrate 途中 adapter 被更替 → 舊遠端結果整個作廢', async () => {
+      const { uepProgress } = await freshStore();
+      const { adapter: slowServer, release } = deferredAdapter(
+        makeRemote({ flags: ['old-account'], observerEver: true })
+      );
+
+      const pending = uepProgress.setAdapter(slowServer);
+
+      // 載入還沒回來，使用者就登出了：切回本地 adapter 並清空
+      const localSave = vi.fn(() => Promise.resolve());
+      await uepProgress.setAdapter(
+        { load: () => Promise.resolve(null), save: localSave },
+        { hydrate: false }
+      );
+      uepProgress.reset({ keepObserverEver: false });
+      localSave.mockClear();
+
+      release();
+      await pending;
+
+      const state = uepProgress.getState();
+      expect(state.flags).toEqual([]);
+      expect(state.observerEver).toBe(false);
+      // 舊帳號的資料不得被寫回本機
+      expect(localSave).not.toHaveBeenCalled();
+    });
+  });
+
+  /* ── 伺服器權威 hydrate（admin 改寫後的 409 收斂）────────────────── */
+  describe('hydrateAuthoritative', () => {
+    it('遠端有資料 → 直接採用，不與本地聯集', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.grantFlags(['stale-local']);
+      await uepProgress.setAdapter({
+        load: () => Promise.resolve(makeRemote({ flags: ['admin-edited'] })),
+        save: () => Promise.resolve(),
+      });
+
+      uepProgress.grantFlags(['even-more-local']);
+      await uepProgress.hydrateAuthoritative();
+
+      // admin 的版本是唯一事實，本地那份正是被判定過期的東西
+      expect(uepProgress.getState().flags).toEqual(['admin-edited']);
+    });
+
+    /**
+     * 【回歸 2026-07-26，Codex 複核 blocker 3】
+     * admin 清空後遠端是 null，此時**不得**把本地推上去——那等於原地
+     * 復原他的重置，而且會再撞一次樂觀鎖形成 409 循環。
+     */
+    it('遠端為 null → 歸零且不上傳本地', async () => {
+      const { uepProgress } = await freshStore();
+      const save = vi.fn(() => Promise.resolve());
+      let remote: ProgressState | null = makeRemote({
+        flags: ['before-admin'],
+      });
+      await uepProgress.setAdapter({
+        load: () => Promise.resolve(remote),
+        save,
+      });
+      expect(uepProgress.getState().flags).toEqual(['before-admin']);
+
+      // admin 清空了這個帳號的進度
+      remote = null;
+      save.mockClear();
+      await uepProgress.hydrateAuthoritative();
+
+      expect(uepProgress.getState().flags).toEqual([]);
+      expect(save).not.toHaveBeenCalled();
+    });
   });
 });
 

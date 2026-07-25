@@ -64,6 +64,16 @@ let adapter: ProgressAdapter = new LocalStorageAdapter();
 let state: ProgressState = bootstrap();
 const listeners: Listener[] = [];
 
+/**
+ * adapter 世代編號——每次 `setAdapter()` 遞增。
+ *
+ * 非同步 hydrate 期間 adapter 可能又被換掉（最常見：載入途中使用者登出，
+ * logout 會把 adapter 切回 LocalStorageAdapter 並 reset）。少了這道檢查，
+ * 稍後回來的舊帳號遠端快照會覆蓋剛清空的 state，`persist()` 還會透過
+ * **新的** adapter 把上一個帳號的資料寫回本機——重置形同無效。
+ */
+let adapterGeneration = 0;
+
 /** 便條 id 遞增序號（module 生命週期內單調，配時間戳前綴保證跨 session 唯一） */
 let storageNoteSeq = 0;
 /** 便條傾斜角輪替值——不用亂數以利 SSR/測試可預期，視覺上仍夠散 */
@@ -440,6 +450,9 @@ export const uepProgress = {
    *
    * ⚠️ hydrate 期間發生的本地 mutation 不會被丟棄——見 `mergeHydrated()`。
    *
+   * ⚠️ hydrate 期間若 adapter 又被換掉（最常見：載入途中使用者登出），
+   * 這次的遠端結果一律丟棄——見 `adapterGeneration`。
+   *
    * @param options.hydrate 傳 false 則只換 adapter、不讀遠端。登出時用：
    *   下一步就要 `reset()`，讀回上一個帳號的鏡像純粹是浪費與畫面閃爍。
    */
@@ -448,10 +461,13 @@ export const uepProgress = {
     options?: { hydrate?: boolean }
   ): Promise<void> {
     adapter = next;
+    const generation = ++adapterGeneration;
     if (options?.hydrate === false) return;
 
     const base = state;
     const remote = await next.load();
+    if (generation !== adapterGeneration) return; // 已被更替，結果作廢
+
     if (!remote) {
       // 遠端無資料：把本地進度上傳作為初始值
       persist();
@@ -470,12 +486,50 @@ export const uepProgress = {
   },
 
   /**
-   * 重置進度。觀測者印記為永久標記，不隨 reset 清除。
+   * 伺服器權威 hydrate：遠端為準，遠端空則歸零，**絕不把本地推上去**。
+   *
+   * 用於「伺服器端的資料已被第三方改寫」的情境（目前是 admin 在後台編輯
+   * 或重置了這個帳號的進度，讀者端 PUT 收到 409）。
+   *
+   * 與 `setAdapter()` 的兩點關鍵差異，都是為了避免把 admin 的操作蓋掉：
+   * 1. 遠端為 null 時**不上傳本地**（setAdapter 會，那是「新帳號初始化」
+   *    語意）。admin 清空後上傳本地等於原地復原他的重置。
+   * 2. 不做 mergeHydrated 聯集——admin 的版本就是唯一事實，本地那份
+   *    正是被判定為過期的東西。
+   *
+   * 刻意不呼叫 `persist()`：這份資料剛從伺服器來，推回去只會再撞一次
+   * 樂觀鎖（blob 的 updatedAt 早於 admin 的寫入時刻）而陷入 409 循環。
+   * 只同步本地鏡像；等使用者真的有新動作時，那次 mutation 自然會帶著
+   * 新的 updatedAt 上傳。
    */
-  reset(): void {
+  async hydrateAuthoritative(): Promise<void> {
+    const generation = adapterGeneration;
+    const remote = await adapter.load();
+    if (generation !== adapterGeneration) return; // adapter 已更替，作廢
+
+    state = remote ?? createInitialState();
+    void new LocalStorageAdapter().save(state);
+    notify('hydrate');
+  },
+
+  /**
+   * 重置進度。
+   *
+   * @param options.keepObserverEver 預設 true——觀測者印記是**同一個人**的
+   *   永久標記，「重置我的進度」不該讓它消失。
+   *
+   *   登出必須傳 false：印記屬於**帳號**而非裝置。留著會造成跨帳號污染——
+   *   登出後印記殘留在本機 state，下一位新註冊者登入時遠端進度為空，
+   *   `setAdapter` 走「遠端無資料則上傳本地」把這份殘留推上去，
+   *   而 Worker 的 observerEver 是單向 OR（已標記不可撤回），
+   *   於是**無辜帳號被永久蓋上觀測者印記**。
+   *   帳號自己的印記存在伺服器 `observer_ever` 欄位，下次登入自然回來。
+   */
+  reset(options?: { keepObserverEver?: boolean }): void {
+    const keep = options?.keepObserverEver !== false;
     mutate('reset', (prev) => ({
       ...createInitialState(),
-      observerEver: prev.observerEver,
+      observerEver: keep ? prev.observerEver : false,
     }));
   },
 

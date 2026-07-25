@@ -146,7 +146,7 @@ describe('登出', () => {
    * 保有上一位登入者的 flags／完成頁／便條／閱讀時數。不清的話，
    * 共用瀏覽器的下一位訪客會直接繼承別人的閱讀足跡。
    */
-  it('登出清空本機進度，但保留觀測者印記', async () => {
+  it('登出清空本機進度，觀測者印記一併清除', async () => {
     const { uepReaderAuth } = await freshAuth();
     const { getProgressManager } = await import('../../progress');
     fetchMock.mockImplementation((url: string) => {
@@ -169,8 +169,49 @@ describe('登出', () => {
     expect(state.flags).toEqual([]);
     expect(state.completedPageIds).toEqual([]);
     expect(state.islandsUnlocked).toEqual([]);
-    // 觀測者印記是永久標記，reset 刻意不清
-    expect(state.observerEver).toBe(true);
+    /* 印記屬於帳號而非裝置，登出必須一起清（Codex 2026-07-26 複核）。
+       留著的話：下一位新註冊者登入 → 遠端進度為空 → setAdapter 走
+       「遠端無資料則上傳本地」把殘留的 observerEver 推上去 →
+       Worker 單向 OR 讓它永久生效 → 無辜帳號被蓋上觀測者印記。
+       該帳號自己的印記存在伺服器 observer_ever 欄位，下次登入自然回來。 */
+    expect(state.observerEver).toBe(false);
+  });
+
+  /**
+   * 【回歸 2026-07-26】跨帳號印記污染的完整重現（Codex 複核 blocker 2）。
+   */
+  it('觀測者登出後，新帳號的初始上傳不得帶著上一位的印記', async () => {
+    const { uepReaderAuth } = await freshAuth();
+    const { getProgressManager } = await import('../../progress');
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/api/uep/auth/')) {
+        return Promise.resolve(jsonResponse({ ok: true, data: AUTH_DATA }));
+      }
+      // 新帳號：遠端無進度 → setAdapter 會上傳本地作為初始值
+      return Promise.resolve(jsonResponse({ ok: true, data: null }));
+    });
+
+    // A 帳號是觀測者
+    await uepReaderAuth.login('reader-observer', 'password-123');
+    getProgressManager().setView('observer');
+    expect(getProgressManager().getState().observerEver).toBe(true);
+    await uepReaderAuth.logout();
+
+    // B 帳號登入（同一台裝置）
+    fetchMock.mockClear();
+    await uepReaderAuth.login('reader-newcomer', 'password-123');
+
+    expect(getProgressManager().getState().observerEver).toBe(false);
+    type FetchInit = { method?: string; body?: unknown };
+    const uploads = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        String(url).includes('/api/uep/progress') &&
+        (init as FetchInit | undefined)?.method === 'PUT'
+    );
+    for (const [, init] of uploads) {
+      const body = JSON.parse(String((init as FetchInit).body));
+      expect(body.observerEver).not.toBe(true);
+    }
   });
 
   /**
