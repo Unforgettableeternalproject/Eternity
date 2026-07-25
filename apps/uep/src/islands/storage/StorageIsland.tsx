@@ -140,14 +140,14 @@ export default function StorageIsland() {
 
       {/* 紙上的標題＝拖曳把手（設計稿沒有白框 header） */}
       <div className="uep-stoland__masthead" {...chrome.dragHandleProps}>
-        <div className="uep-stoland__hand">便條紙</div>
+        <div className="uep-island-title uep-stoland__hand">便條紙</div>
         <div className="uep-stoland__rule" aria-hidden />
       </div>
 
       {chrome.bare && (
         <button
           type="button"
-          className="uep-stoland__close"
+          className="uep-island-close uep-stoland__close"
           onClick={chrome.requestClose}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label="收合便條紙"

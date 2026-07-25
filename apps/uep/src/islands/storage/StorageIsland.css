@@ -179,12 +179,9 @@
   z-index: 2;
 }
 
+/* 字級與字距走 .uep-island-title 共用規格 */
 .uep-stoland__hand {
   font-family: var(--font-serif-tc, serif);
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.06em;
   color: var(--st-title);
 }
 
@@ -194,27 +191,13 @@
   margin: 10px 0 8px;
 }
 
-/* ── 收起 ── */
+/* ── 收起（位置與字級走 .uep-island-close） ── */
 .uep-stoland__close {
-  all: unset;
-  position: absolute;
-  top: 22px;
-  right: 20px;
-  z-index: 6;
-  cursor: pointer;
-  font-family: var(--font-serif-tc, serif);
-  font-size: 10.5px;
-  letter-spacing: 0.12em;
   color: rgb(var(--st-ink-rgb) / 0.55);
 }
 
 .uep-stoland__close:hover {
   color: var(--st-ink);
-}
-
-.uep-stoland__close:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: 2px;
 }
 
 /* ── 當前位置條 ── */

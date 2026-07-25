@@ -64,6 +64,47 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   cursor: grabbing;
 }
 
+/* ── 島頭共用規格（S9-C.9）──
+ *
+ * bare 之後每座島各畫各的，結果是島名字級 19/17/無/無、收合鈕落點
+ * top 22/22/14/4、字級 10.5/10.5/8.5/15 全都不一樣——材質該各異，但
+ * 「島叫什麼、怎麼關」的落點不該讓眼睛每換一座島重找一次
+ * （艾斯維爾 2026-07-25 回饋）。
+ *
+ * 所以位置與字級收進共用 class，島端只覆寫顏色與字體（紙上的書名該是
+ * 明體、終端的該是等寬）。收合鈕一律用**該島語彙的短詞**而非符號——
+ * 符號在材質上永遠像是異物（× 在水面上的下場見 S9-C.6）。
+ */
+.uep-island-title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.05em;
+}
+
+.uep-island-close {
+  all: unset;
+  position: absolute;
+  /* right 由各島覆寫：history 要讓開緞帶、visuals 要讓開光錐 */
+  top: var(--island-close-top, 20px);
+  right: var(--island-close-right, 20px);
+  z-index: 6;
+  cursor: pointer;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    color 0.18s var(--ease),
+    opacity 0.18s var(--ease);
+}
+
+.uep-island-close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
 /* ── 收合離場（S6-3）：縮往右下（dock 方向）淡出 ──
  * 純 CSS 版：固定右下方向縮小，不精算 dock chip 座標。
  * 播完由 DraggableIsland 的 animationend（+ 保底計時器）真正 close。 */

@@ -286,14 +286,14 @@ export default function HistoryIsland() {
 
       {/* 書名列同時是拖曳把手——設計稿沒有 header，紙上的書名就是把手 */}
       <div className="uep-hisland__masthead" {...chrome.dragHandleProps}>
-        <div className="uep-hisland__title">旅程之書</div>
+        <div className="uep-island-title uep-hisland__title">旅程之書</div>
         <div className="uep-hisland__rule" aria-hidden />
       </div>
 
       {chrome.bare && (
         <button
           type="button"
-          className="uep-hisland__close"
+          className="uep-island-close uep-hisland__close"
           onClick={chrome.requestClose}
           aria-label="收合旅程之書"
           title="收合"
