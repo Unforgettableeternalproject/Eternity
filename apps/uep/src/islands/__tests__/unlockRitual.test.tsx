@@ -50,7 +50,6 @@ function stateWith(partial: Partial<ProgressState>): ProgressState {
 function eligibleState(): ProgressState {
   return stateWith({
     view: 'explorer',
-    flags: ['zone:visited:concepts'],
     islandsUnlocked: [],
   });
 }
@@ -74,11 +73,10 @@ afterEach(() => {
 });
 
 describe('useUnlockEligibility', () => {
-  it('四關齊備時 eligible', () => {
+  it('條件齊備時 eligible', () => {
     const { result } = renderHook(() => useUnlockEligibility('concepts'));
     expect(result.current).toEqual({
       canUse: true,
-      visited: true,
       unlocked: false,
       eligible: true,
     });
@@ -101,18 +99,28 @@ describe('useUnlockEligibility', () => {
     expect(result.current.eligible).toBe(false);
   });
 
-  it('未到訪該 zone → visited 假、eligible 假', () => {
-    progressMock.state = stateWith({ view: 'explorer', flags: [] });
+  /**
+   * 【回歸 2026-07-26】資格不得再依賴任何「到訪足跡」旗標。
+   *
+   * 舊實作要求 `zone:visited:*`，而該旗標由 ReaderShell 的 mount effect
+   * 授予，與遠端 hydrate 競態；旗被覆蓋掉時 effect 不會重跑，四區儀式
+   * 在首次載入時全部消失、要重新整理才出現。
+   * 原則：看得到儀式就應該能動作。
+   */
+  it('flags 全空（首次載入）→ 仍有資格，不需要任何足跡旗標', () => {
+    progressMock.state = stateWith({
+      view: 'explorer',
+      flags: [],
+      islandsUnlocked: [],
+    });
     const { result } = renderHook(() => useUnlockEligibility('concepts'));
     expect(result.current.canUse).toBe(true);
-    expect(result.current.visited).toBe(false);
-    expect(result.current.eligible).toBe(false);
+    expect(result.current.eligible).toBe(true);
   });
 
   it('已解鎖 → unlocked 真、eligible 假（儀式收工）', () => {
     progressMock.state = stateWith({
       view: 'explorer',
-      flags: ['zone:visited:concepts'],
       islandsUnlocked: ['concepts'],
     });
     const { result } = renderHook(() => useUnlockEligibility('concepts'));
@@ -120,20 +128,10 @@ describe('useUnlockEligibility', () => {
     expect(result.current.eligible).toBe(false);
   });
 
-  it('旗標只認自己那個 zone', () => {
-    progressMock.state = stateWith({
-      view: 'explorer',
-      flags: ['zone:visited:echoes'],
-    });
-    const { result } = renderHook(() => useUnlockEligibility('concepts'));
-    expect(result.current.visited).toBe(false);
-  });
-
   it('非浮島 zone（portal）一律全假', () => {
     const { result } = renderHook(() => useUnlockEligibility('portal'));
     expect(result.current).toEqual({
       canUse: false,
-      visited: false,
       unlocked: false,
       eligible: false,
     });
@@ -149,15 +147,8 @@ describe('completeUnlockRitual', () => {
     unlockIsland.mockClear();
     open.mockClear();
     info.mockClear();
-    // 收束會重驗「到訪過該 zone」，各 case 解鎖的島不同，一次全給
     progressMock.state = stateWith({
       view: 'explorer',
-      flags: [
-        'zone:visited:concepts',
-        'zone:visited:echoes',
-        'zone:visited:visuals',
-        'zone:visited:storage',
-      ],
       islandsUnlocked: [],
     });
     vi.stubGlobal('__uepProgress', { unlockIsland });
@@ -209,10 +200,7 @@ describe('completeUnlockRitual', () => {
     });
 
     it('中途切成觀測者', () => {
-      progressMock.state = stateWith({
-        view: 'observer',
-        flags: ['zone:visited:concepts'],
-      });
+      progressMock.state = stateWith({ view: 'observer' });
       expect(completeUnlockRitual('concepts')).toBe(false);
       expect(unlockIsland).not.toHaveBeenCalled();
     });
@@ -226,15 +214,6 @@ describe('completeUnlockRitual', () => {
         removeEventListener: () => {},
       }));
       expect(completeUnlockRitual('concepts')).toBe(false);
-      expect(unlockIsland).not.toHaveBeenCalled();
-    });
-
-    it('沒到訪過該 zone（旗標只認自己那個）', () => {
-      progressMock.state = stateWith({
-        view: 'explorer',
-        flags: ['zone:visited:concepts'],
-      });
-      expect(completeUnlockRitual('storage')).toBe(false);
       expect(unlockIsland).not.toHaveBeenCalled();
     });
   });

@@ -61,27 +61,8 @@ export function registerIslandActions(): void {
         window.__uepIslandsTest.relock(id);
       },
     },
-    {
-      group: GROUP_ISLANDS,
-      id: `island:visit:${id}`,
-      label: `授予 ${id} 足跡`,
-      description: '補發 zone:visited:xxx 旗標（等同進過 Reader）',
-      available: hasIslandBridge,
-      execute: () => {
-        if (!window.__uepIslandsTest) return warnMissing('__uepIslandsTest');
-        window.__uepIslandsTest.visit(id);
-      },
-    },
-    {
-      group: GROUP_ISLANDS,
-      id: `island:unvisit:${id}`,
-      label: `撤銷 ${id} 足跡`,
-      available: hasIslandBridge,
-      execute: () => {
-        if (!window.__uepIslandsTest) return warnMissing('__uepIslandsTest');
-        window.__uepIslandsTest.unvisit(id);
-      },
-    },
+    // 2026-07-26 移除 `island:visit` / `island:unvisit`：
+    // `zone:visited:*` 旗標已廢除（見 islands/unlockRitual.ts）。
   ]);
 
   registry.register([

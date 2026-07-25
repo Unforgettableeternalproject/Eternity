@@ -245,8 +245,18 @@ export function getIslandRuntime(): typeof uepIslands {
 
 /* ── gating helpers（progress 是唯一事實來源） ── */
 
-/** zone 足跡旗標前綴（進到過該 zone 的 Reader 即授予） */
-export const ZONE_VISITED_FLAG_PREFIX = 'zone:visited:';
+/*
+ * 2026-07-26 移除 `ZONE_VISITED_FLAG_PREFIX` / `zoneVisitedFlag()` /
+ * `hasVisitedZone()`（艾斯維爾定案）。
+ *
+ * 「到過該 zone」原本是 S6 通用解鎖小物件的浮現條件；四 zone 改用專屬
+ * 解鎖儀式後，儀式本身就發生在 Reader 內部，這個條件恆真而不再是守門，
+ * 卻因為 mount effect 與遠端 hydrate 的競態而讓儀式整片消失。
+ * 詳見 unlockRitual.ts。
+ *
+ * 既有使用者的 progress 裡仍留有 `zone:visited:*` 旗標，刻意不做清理——
+ * 沒有任何消費端，屬無害殘留；主動改寫使用者資料的風險高於留著。
+ */
 
 /** 浮島是桌面版專屬功能；與既有 RWD 斷點保持一致。 */
 export const ISLAND_DESKTOP_MIN_WIDTH = 761;
@@ -255,19 +265,6 @@ export const ISLAND_DESKTOP_MIN_WIDTH = 761;
 export function isDesktopIslandViewport(): boolean {
   if (typeof window === 'undefined') return true;
   return window.innerWidth >= ISLAND_DESKTOP_MIN_WIDTH;
-}
-
-/** 組出 zone 足跡旗標，如 `zone:visited:history` */
-export function zoneVisitedFlag(zone: IslandId): string {
-  return `${ZONE_VISITED_FLAG_PREFIX}${zone}`;
-}
-
-/** 是否到訪過該 zone 的 Reader（解鎖小物件的浮現條件） */
-export function hasVisitedZone(
-  progress: ProgressState,
-  zone: IslandId
-): boolean {
-  return progress.flags.includes(zoneVisitedFlag(zone));
 }
 
 /**

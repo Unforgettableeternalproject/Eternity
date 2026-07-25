@@ -49,21 +49,6 @@ describe('mountIslandsTestBridge', () => {
     cleanup();
   });
 
-  it('visit / unvisit 補授與撤銷 zone 足跡旗標', async () => {
-    const { store, bridge } = await freshModules();
-    const cleanup = bridge.mountIslandsTestBridge();
-    const t = window.__uepIslandsTest!;
-
-    t.visit('history');
-    expect(store.getState().flags).toContain('zone:visited:history');
-    expect(t.status().visitedZones).toEqual(['history']);
-
-    t.unvisit('history');
-    expect(store.getState().flags).not.toContain('zone:visited:history');
-    expect(t.status().visitedZones).toEqual([]);
-    cleanup();
-  });
-
   it('無效 id 警告且不動狀態', async () => {
     const { store, bridge } = await freshModules();
     const cleanup = bridge.mountIslandsTestBridge();
@@ -78,21 +63,19 @@ describe('mountIslandsTestBridge', () => {
     cleanup();
   });
 
-  it('status 彙整視角/解鎖/停用/足跡', async () => {
+  it('status 彙整視角/解鎖/停用', async () => {
     const { store, bridge } = await freshModules();
     const cleanup = bridge.mountIslandsTestBridge();
     const t = window.__uepIslandsTest!;
 
     t.unlock('history');
     store.setIslandDisabled('history', true);
-    t.visit('concepts');
 
     expect(t.status()).toEqual({
       view: 'explorer',
       loggedIn: true,
       unlocked: ['history'],
       disabled: ['history'],
-      visitedZones: ['concepts'],
     });
 
     // 登出狀態如實反映（浮島前置條件的除錯資訊）

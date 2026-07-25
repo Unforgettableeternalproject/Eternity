@@ -23,37 +23,36 @@ async function freshModules() {
   return { store: store.uepProgress, lb };
 }
 
-/** 進入底線條件：探索者 + 到過 History + 島未解鎖 */
-function makeEligible(store: { grantFlags: (flags: string[]) => void }): void {
-  store.grantFlags(['zone:visited:history']);
-}
-
 beforeEach(() => {
   window.localStorage.clear();
   delete window.__uepProgress;
 });
 
 describe('rollLostBookmark', () => {
-  it('不符底線條件時 skipped（未到訪 / 已解鎖 / 觀測者）', async () => {
+  /**
+   * 2026-07-26：「未到訪 History」不再是底線條件（`zone:visited:*` 已廢除）。
+   * roll 的觸發信號是 page-completed，只有在 History Reader 裡讀完一篇
+   * 才會發生，人必然已在 zone 內——該條件恆真而非守門。詳見 unlockRitual.ts。
+   */
+  it('已解鎖時 skipped', async () => {
     const { store, lb } = await freshModules();
-    // 未到訪
-    expect(lb.rollLostBookmark(store.getState(), () => 0)).toBe('skipped');
-    // 已解鎖
-    makeEligible(store);
     store.unlockIsland('history');
     expect(lb.rollLostBookmark(store.getState(), () => 0)).toBe('skipped');
   });
 
+  it('乾淨狀態（無任何旗標）即可 roll', async () => {
+    const { store, lb } = await freshModules();
+    expect(lb.rollLostBookmark(store.getState(), () => 0)).toBe('shown');
+  });
+
   it('觀測者視角不 roll', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     store.setView('observer');
     expect(lb.rollLostBookmark(store.getState(), () => 0)).toBe('skipped');
   });
 
   it('中了 → visible=true；已浮現時不再 roll', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     // random=0 → 0 < 20 必中
     expect(lb.rollLostBookmark(store.getState(), () => 0)).toBe('shown');
     expect(store.getState().lostBookmark.visible).toBe(true);
@@ -62,7 +61,6 @@ describe('rollLostBookmark', () => {
 
   it('沒中 → 機率遞增 20%，直到 100 必中', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     const alwaysMiss = () => 0.999; // 99.9 只輸給 100
     expect(lb.rollLostBookmark(store.getState(), alwaysMiss)).toBe('missed');
     expect(store.getState().lostBookmark.chancePct).toBe(40);
@@ -78,7 +76,6 @@ describe('rollLostBookmark', () => {
 describe('dismissLostBookmark（忽視懲罰）', () => {
   it('浮現時導頁 → 消失且機率重置 20', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     // 先累積機率再中
     lb.rollLostBookmark(store.getState(), () => 0.999); // 40
     lb.rollLostBookmark(store.getState(), () => 0); // shown
@@ -90,7 +87,6 @@ describe('dismissLostBookmark（忽視懲罰）', () => {
 
   it('未浮現時 no-op（不誤重置遞增中的機率）', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     lb.rollLostBookmark(store.getState(), () => 0.999); // 40
     lb.dismissLostBookmark(store.getState());
     expect(store.getState().lostBookmark.chancePct).toBe(40);
@@ -100,7 +96,6 @@ describe('dismissLostBookmark（忽視懲罰）', () => {
 describe('isLostBookmarkVisible / settleLostBookmark', () => {
   it('解鎖後條目永久消失（visible 落回 false + 底線條件失效）', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     lb.rollLostBookmark(store.getState(), () => 0);
     expect(lb.isLostBookmarkVisible(store.getState())).toBe(true);
     // 儀式完成
@@ -112,7 +107,6 @@ describe('isLostBookmarkVisible / settleLostBookmark', () => {
 
   it('觀測者切換時條目隱藏但 visible 狀態保留', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     lb.rollLostBookmark(store.getState(), () => 0);
     store.setView('observer');
     expect(lb.isLostBookmarkVisible(store.getState())).toBe(false);
@@ -133,7 +127,6 @@ describe('mountLostBookmarkTestBridge（S6-3 dev hook）', () => {
 
   it('force/guarantee/reset/status 直接操作書籤狀態', async () => {
     const { store, lb } = await freshModules();
-    makeEligible(store);
     const cleanup = lb.mountLostBookmarkTestBridge();
     const bridge = window.__uepLostBookmarkTest!;
 

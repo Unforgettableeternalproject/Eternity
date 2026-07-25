@@ -406,17 +406,6 @@ describe('gating helpers', () => {
     );
   });
 
-  it('zoneVisitedFlag / hasVisitedZone：足跡旗標往返', async () => {
-    const { zoneVisitedFlag, hasVisitedZone } = await freshRuntime();
-    const { createInitialState } = await import('../../progress');
-    expect(zoneVisitedFlag('history')).toBe('zone:visited:history');
-    const base = createInitialState();
-    expect(hasVisitedZone(base, 'history')).toBe(false);
-    const visited = { ...base, flags: ['zone:visited:history'] };
-    expect(hasVisitedZone(visited, 'history')).toBe(true);
-    expect(hasVisitedZone(visited, 'echoes')).toBe(false);
-  });
-
   it('shouldMountIsland：使用者停用時不掛載（解鎖仍保留）', async () => {
     const { shouldMountIsland, isIslandDisabled } = await freshRuntime();
     const { createInitialState } = await import('../../progress');

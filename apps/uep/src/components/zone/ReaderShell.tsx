@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
 import { ZONES, type ZoneData } from '../../data/zones';
-import { isIslandId, zoneVisitedFlag } from '../../islands';
-import { getProgressManager } from '../../progress';
 import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import Minimap from '../ui/Minimap';
@@ -38,12 +36,11 @@ export function ReaderShell({ zoneId, className, children }: ReaderShellProps) {
     };
   }, []);
 
-  // zone 足跡：進到過 Reader 才算到訪（zone 首頁解鎖小物件的浮現條件）
-  useEffect(() => {
-    if (isIslandId(zoneId)) {
-      getProgressManager().grantFlags([zoneVisitedFlag(zoneId)]);
-    }
-  }, [zoneId]);
+  // 2026-07-26 移除 zone 足跡授旗（`zone:visited:*`）。
+  // 它是 S6 通用解鎖小物件的浮現條件，四 zone 改用專屬儀式後已無消費端；
+  // 留著反而有害——這個 mount effect 與 setAdapter 的遠端 hydrate 互相
+  // 競態，旗被覆蓋掉時 effect 不會重跑，儀式要重新整理才出現。
+  // 詳見 islands/unlockRitual.ts 的說明。
 
   function enterZoneFromMap(targetId: string) {
     const target = ZONES.find((z) => z.id === targetId);

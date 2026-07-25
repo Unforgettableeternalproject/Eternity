@@ -38,7 +38,6 @@ import ConceptsTerminalBadge from '../ConceptsTerminalBadge';
 function setEligibility(partial: Partial<UnlockEligibility>) {
   ritualMock.eligibility = {
     canUse: true,
-    visited: true,
     unlocked: false,
     eligible: false,
     ...partial,
@@ -80,7 +79,7 @@ describe('ConceptsTerminalBadge — 四態', () => {
   });
 
   it('未登入訪客看到的與觀測者相同（都只有提示符）', () => {
-    setEligibility({ canUse: false, visited: false, eligible: false });
+    setEligibility({ canUse: false, eligible: false });
     render(<ConceptsTerminalBadge />);
     expect(screen.getByText('$ root@uep:~').className).toContain('is-idle');
   });

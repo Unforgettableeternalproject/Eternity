@@ -20,7 +20,6 @@ import { getProgressManager, useProgress } from '../progress';
 import {
   canUseIslands,
   getIslandRuntime,
-  hasVisitedZone,
   isIslandUnlocked,
   unlockIsland,
 } from './islandRuntime';
@@ -36,17 +35,14 @@ export const AWAKEN_MS = 1400;
 export interface UnlockEligibility {
   /** 浮島系統整體是否可用：桌面 + 已登入探索者 */
   canUse: boolean;
-  /** 是否到訪過該 zone 的 Reader（`zone:visited:*`） */
-  visited: boolean;
   /** 該島是否已解鎖 */
   unlocked: boolean;
-  /** 儀式該不該出現 = 可用 + 已到訪 + 尚未解鎖 */
+  /** 儀式該不該出現 = 可用 + 尚未解鎖 */
   eligible: boolean;
 }
 
 const NOT_AN_ISLAND: UnlockEligibility = {
   canUse: false,
-  visited: false,
   unlocked: false,
   eligible: false,
 };
@@ -61,11 +57,18 @@ const NOT_AN_ISLAND: UnlockEligibility = {
  * 2. **resize／裝置旋轉不會自己重渲染**，桌面判定會停在舊值，所以疊
  *    `useDesktopIslandViewport()`——見 useIslands.ts 的註解。
  *
- * ⚠️ 註記：`visited` 這關實質恆真——`zone:visited:*` 在 ReaderShell mount 時
- * 就授予，而 S9-B 的四條儀式全發生在 Reader 內部（concepts chip 在 landing、
- * echoes 在播放中、visuals 在 subcat、storage 在 boxes），使用者看得到儀式的
- * 那一刻旗必然已插上。保留它是為了語意清楚——收束時的重驗也一併驗它，
- * 那裡不是恆真：計時器可以活過使用者離開 Reader 的那一刻。
+ * ⚠️ 2026-07-26 移除了 `zone:visited:*` 這一關（艾斯維爾定案）。
+ * 它原本是 S6 通用解鎖小物件的浮現條件，四 zone 改用專屬儀式後就失去
+ * 意義：儀式全發生在 Reader 內部，看得到儀式代表人已經在 zone 裡，
+ * 條件恆真。而恆真的條件不會讓功能更嚴謹，只會製造故障模式——
+ * 它確實故障了：`ReaderShell` 在 mount effect 授旗，若此時
+ * `setAdapter` 的遠端 hydrate 尚未回來，旗會被整包快照覆蓋掉，
+ * 而 effect 不會因 hydrate 重跑，於是四區儀式在首次載入時全部消失、
+ * 要重新整理一次才出現。
+ *
+ * 原則：**看得到儀式就應該能動作**。資格只由「浮島系統可用」與
+ * 「尚未解鎖」決定。（hydration race 本身另已在 progressStore
+ * `mergeHydrated()` 修復，不再依賴任何單一旗標的時序。）
  */
 export function useUnlockEligibility(zoneId: string): UnlockEligibility {
   const progress = useProgress();
@@ -77,14 +80,12 @@ export function useUnlockEligibility(zoneId: string): UnlockEligibility {
   if (!def) return NOT_AN_ISLAND;
 
   const canUse = desktopViewport && canUseIslands(progress);
-  const visited = hasVisitedZone(progress, def.id);
   const unlocked = isIslandUnlocked(progress, def.id);
 
   return {
     canUse,
-    visited,
     unlocked,
-    eligible: canUse && visited && !unlocked,
+    eligible: canUse && !unlocked,
   };
 }
 
@@ -125,7 +126,7 @@ export function completeUnlockRitual(
 
   const progress = getProgressManager().getState();
   // canUseIslands 本身已含桌面視窗判定 + explorer + 已登入
-  if (!canUseIslands(progress) || !hasVisitedZone(progress, def.id)) {
+  if (!canUseIslands(progress)) {
     return false;
   }
 

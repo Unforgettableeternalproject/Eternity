@@ -17,22 +17,20 @@ import { isTestMode } from '../../lib/apiBase';
 import type { ProgressState } from '../../progress';
 import { LOST_BOOKMARK_BASE_PCT, getProgressManager } from '../../progress';
 
-import {
-  canUseIslands,
-  hasVisitedZone,
-  isIslandUnlocked,
-} from '../islandRuntime';
+import { canUseIslands, isIslandUnlocked } from '../islandRuntime';
 
 /** 每次沒中的機率遞增步長（%） */
 export const LOST_BOOKMARK_STEP_PCT = 20;
 
-/** 底線條件：探索者 + 到過 History + 島未解鎖 */
+/**
+ * 底線條件：探索者 + 島未解鎖。
+ *
+ * 2026-07-26 移除「到過 History」這一關——roll 的觸發信號是
+ * page-completed，只有在 History Reader 裡讀完一篇才會發生，人必然
+ * 已經在 zone 內，條件恆真。詳見 `unlockRitual.ts` 的說明。
+ */
 export function isLostBookmarkEligible(state: ProgressState): boolean {
-  return (
-    canUseIslands(state) &&
-    hasVisitedZone(state, 'history') &&
-    !isIslandUnlocked(state, 'history')
-  );
+  return canUseIslands(state) && !isIslandUnlocked(state, 'history');
 }
 
 /** 條目是否應該渲染在導航樹（底線條件 + 已 roll 中） */
