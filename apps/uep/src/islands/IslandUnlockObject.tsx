@@ -7,30 +7,24 @@
  * 浮現條件（三關）：探索者視角 + 已到訪 + 尚未解鎖。
  * 解鎖後小物件消失——它「變成」了浮島。
  *
- * S6 先做最簡單版（發光物件 + 甦醒動畫）；未來可換成各 zone 專屬的
- * 複雜互動（艾斯維爾定案：解鎖方式先求簡單，機制通用）。
+ * **S9-B 起本元件是 fallback**：各 zone 已有專屬解鎖儀式（concepts 斷線終端、
+ * echoes 迷失灰球、visuals 特別畫廊、storage 孤零零紙條），但那些儀式多半帶
+ * 機率或特定頁面條件，使用者有可能長期遇不到（最明顯的是 visuals——該區塊
+ * 沒有兩個以上分類標籤就不會觸發）。艾斯維爾 2026-07-25 定案保留本元件當
+ * 保底入口，不移除。
  */
 
 import React, { useState } from 'react';
 
-import { useReaderAuth } from '../auth';
-import { useProgress } from '../progress';
-
-import {
-  canUseIslands,
-  getIslandRuntime,
-  hasVisitedZone,
-  isIslandUnlocked,
-  unlockIsland,
-} from './islandRuntime';
 import { ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
-import { useDesktopIslandViewport } from './useIslands';
+import {
+  AWAKEN_MS,
+  completeUnlockRitual,
+  useUnlockEligibility,
+} from './unlockRitual';
 
 import './islands.css';
-
-/** 甦醒動畫時長（與 CSS uep-unlock-awaken 對齊） */
-const AWAKEN_MS = 1400;
 
 /** 各島解鎖物件的意象文案（hover 提示） */
 const UNLOCK_HINTS: Record<IslandId, { object: string; hint: string }> = {
@@ -48,11 +42,8 @@ interface IslandUnlockObjectProps {
 export default function IslandUnlockObject({
   zoneId,
 }: IslandUnlockObjectProps) {
-  const progress = useProgress();
-  // 訂閱 auth 變化——canUseIslands 含登入判定（浮島限已登入探索者）
-  useReaderAuth();
-  // resize／裝置旋轉即時重渲染，同 IslandHost（S8 手動驗收 #9 追加修復）
-  const desktopViewport = useDesktopIslandViewport();
+  // 資格判定（含 auth／viewport 訂閱）統一走 unlockRitual primitive
+  const { eligible, canUse, visited } = useUnlockEligibility(zoneId);
   const [awakening, setAwakening] = useState(false);
 
   // zoneId 不是浮島 zone（如 portal）時不渲染
@@ -60,12 +51,8 @@ export default function IslandUnlockObject({
   if (!def) return null;
   const id = def.id;
 
-  // 浮現三關：探索者 + 已到訪 + 尚未解鎖（甦醒動畫進行中例外保留）
-  const visible =
-    desktopViewport &&
-    canUseIslands(progress) &&
-    hasVisitedZone(progress, id) &&
-    (!isIslandUnlocked(progress, id) || awakening);
+  // 浮現＝有資格；甦醒動畫進行中例外保留（此時已解鎖、eligible 已翻假）
+  const visible = eligible || (awakening && canUse && visited);
   if (!visible) return null;
 
   const lore = UNLOCK_HINTS[id];
@@ -74,9 +61,7 @@ export default function IslandUnlockObject({
     if (awakening) return;
     setAwakening(true);
     window.setTimeout(() => {
-      unlockIsland(id);
-      getIslandRuntime().open(id);
-      window.__uepToastManager?.info(`${def.title}甦醒了，加入了你的浮島。`);
+      completeUnlockRitual(id);
       setAwakening(false);
     }, AWAKEN_MS);
   }

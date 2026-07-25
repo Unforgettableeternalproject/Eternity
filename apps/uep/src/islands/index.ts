@@ -60,6 +60,14 @@ export type { XYPosition, PositionRatio } from './dragPosition';
 
 export { useIslandRuntimeState, useDesktopIslandViewport } from './useIslands';
 
+/* ── 解鎖儀式共通兩端（S9-B）── */
+export {
+  AWAKEN_MS,
+  useUnlockEligibility,
+  completeUnlockRitual,
+} from './unlockRitual';
+export type { UnlockEligibility, UnlockRitualOptions } from './unlockRitual';
+
 export { mountIslandsTestBridge } from './testBridge';
 
 export {
