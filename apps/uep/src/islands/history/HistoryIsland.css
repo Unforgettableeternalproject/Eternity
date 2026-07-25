@@ -343,17 +343,19 @@
   animation: uep-hisland-shut 0.38s var(--ease) forwards;
 }
 
+/* 幅度刻意收斂（艾斯維爾 2026-07-25：翻得太明顯很怪）——
+   側翻只到 26 度，主要靠縮小與淡出交代「闔上」，不做整頁翻轉的大動作 */
 @keyframes uep-hisland-shut {
   0% {
-    transform: perspective(900px) rotateY(0deg);
+    transform: perspective(1200px) rotateY(0deg) scale(1);
     opacity: 1;
   }
-  70% {
-    transform: perspective(900px) rotateY(-74deg);
-    opacity: 0.9;
+  55% {
+    transform: perspective(1200px) rotateY(-15deg) scale(0.94);
+    opacity: 0.85;
   }
   100% {
-    transform: perspective(900px) rotateY(-96deg) scale(0.94);
+    transform: perspective(1200px) rotateY(-26deg) scale(0.8) translateX(-14px);
     opacity: 0;
   }
 }

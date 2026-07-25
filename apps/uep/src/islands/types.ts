@@ -102,6 +102,9 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     icon: '›_',
     defaultCorner: 'top-right',
     width: 380,
+    // 外殼維持 default（終端機視覺本來就自成一格），但收合走自己的
+    // CRT 關機動畫（艾斯維爾 2026-07-25）
+    leaveMs: 420,
   },
   echoes: {
     id: 'echoes',
@@ -118,7 +121,8 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     title: '浮動幻影',
     icon: '🖼',
     defaultCorner: 'top-left',
-    width: 360,
+    // 320：v2 投影格局在 360 下佔掉太多畫面（艾斯維爾 2026-07-25）
+    width: 320,
     shell: 'bare',
     leaveMs: 460,
   },

@@ -58,9 +58,20 @@
  * 而不是硬編碼的回報。
  * ──────────────────────────────────────────────────────────────── */
 
+/* 水色註冊成真正的顏色屬性——切歌時色相才能過渡而不是硬跳
+   （漸層本身不能 transition，能 transition 的是它讀的這個變數） */
+@property --uep-pool-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8b9095;
+}
+
 .uep-eisland {
   position: relative;
-  isolation: isolate; /* 供 tint 層 mix-blend-mode 使用，避免影響頁面 */
+  isolation: isolate; /* 讓 z-index:-1 的回聲球只退到島背景之上 */
+  /* 頂部留給水面層（絕對定位在島頂）。⚠️ 子元素不可被統一改成
+     position: relative——那會把水面打回文件流、在島頂讓出一條空白，
+     收合水珠也會跟著跑掉（2026-07-25 回饋的「上方殘餘區塊」） */
   padding: 26px 0 0;
   border-radius: 16px;
   overflow: hidden;
@@ -77,51 +88,22 @@
   --hairline-strong: rgba(255, 255, 255, 0.4);
   --bg-card: rgba(255, 255, 255, 0.14);
 
-  /* 灰階水體：上淺下深。染色由 __tint 疊上去，這層永遠是灰的。
-     上緣不能太亮——波浪本身是半透明白，底色再淺就會糊成同一塊 */
+  /* 整池依當前回聲染色，上淺下深（淺藍→深藍、淺紅→深紅）。
+     水面不再保留灰——灰只剩「池裡一枚回聲都沒有」這一種情況。
+     28% 就轉深：內容從 26px 開始，白字必須落在深色段才讀得清楚。 */
   background: linear-gradient(
     180deg,
-    rgba(196, 203, 209, 0.6),
-    rgba(120, 127, 133, 0.56) 42%,
-    rgba(28, 33, 38, 0.66)
+    color-mix(in srgb, var(--uep-pool-accent) 30%, #eef2f5) 0%,
+    color-mix(in srgb, var(--uep-pool-accent) 72%, #6f777f) 28%,
+    color-mix(in srgb, var(--uep-pool-accent) 90%, #0b1219) 100%
   );
+  transition: --uep-pool-accent 0.6s var(--ease);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.42);
   box-shadow:
     0 20px 44px rgba(15, 30, 45, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
-}
-
-/* 染色層：mix-blend-mode: color 只換色相不動明暗——灰水被回聲「染」了，
-   而不是蓋上一層有顏色的膜。mask 讓水線（38%）以上完全不受影響。 */
-.uep-eisland__tint {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-color: var(--uep-pool-accent, #6d6f72);
-  mix-blend-mode: color;
-  opacity: 0;
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0 38%,
-    rgba(0, 0, 0, 0.7) 60%,
-    #000 100%
-  );
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0 38%,
-    rgba(0, 0, 0, 0.7) 60%,
-    #000 100%
-  );
-  transition:
-    background-color 0.6s var(--ease),
-    opacity 0.6s var(--ease);
-}
-
-.uep-eisland__tint.is-on {
-  opacity: 1;
 }
 
 /* ── 水面（＝拖曳把手） ──
@@ -170,27 +152,32 @@
   }
 }
 
-/* ── 收合：一顆浮在水面的小水珠 ── */
+/* ── 收合：一顆浮在水面的水珠 ──
+ * 16px 的水珠在波浪上幾乎看不出來是按鈕（2026-07-25 回饋「沒有收合按鈕」），
+ * 放大並加一圈內光，hover 再明顯一點。 */
 .uep-eisland__close {
   all: unset;
   position: absolute;
-  top: 12px;
-  right: 14px;
+  top: 7px;
+  right: 12px;
   z-index: 6;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   cursor: pointer;
   background: radial-gradient(
     circle at 34% 30%,
-    rgba(255, 255, 255, 0.9),
-    rgba(150, 165, 175, 0.75)
+    rgba(255, 255, 255, 0.95),
+    rgba(160, 176, 188, 0.8)
   );
-  box-shadow: 0 1px 4px rgba(10, 30, 45, 0.35);
+  box-shadow:
+    0 2px 6px rgba(10, 30, 45, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.75);
 }
 
 .uep-eisland__close:hover {
   filter: brightness(1.15);
+  transform: scale(1.12);
 }
 
 .uep-eisland__close:focus-visible {
@@ -210,40 +197,68 @@
   pointer-events: none;
 }
 
-/* ── 池底泡沫 ── */
-.uep-eisland__foam {
-  display: flex;
-  gap: 5px;
-  padding: 2px 18px 12px;
+/* ── 池底座 ──
+ * 取代原本的泡沫球（2026-07-25 回饋）：水體不再憑空截斷，而是立在一塊
+ * 檯面上；上緣一道亮線＝水與底座的交界。 */
+.uep-eisland__base {
+  height: 14px;
+  margin-top: 6px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 55%, #0a1016),
+    color-mix(in srgb, var(--uep-pool-accent) 22%, #05090d)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+  transition: --uep-pool-accent 0.6s var(--ease);
 }
 
-.uep-eisland__foam span {
-  width: 11px;
-  height: 11px;
+/* ── 播放中浮上來的回聲球 ──
+ * 與 zone 背景的 EchoesRipple 同一語彙，但頻率低得多、更小也更淡——
+ * 島是工具，不該把 zone 的氣氛整套搬進來喧賓奪主。 */
+.uep-eisland__orbs {
+  position: absolute;
+  /* 上不越過水面、下不蓋住底座 */
+  inset: 26px 0 20px;
+  overflow: hidden;
+  pointer-events: none;
+  /* 沉在文字後面。父層的 isolation: isolate 讓 -1 只退到島背景之上，
+     不會整層消失到島外 */
+  z-index: -1;
+}
+
+.uep-eisland__orbs span {
+  position: absolute;
+  bottom: -12px;
   border-radius: 50%;
   background: radial-gradient(
-    circle at 34% 30%,
-    rgba(255, 255, 255, 0.85),
-    rgba(200, 215, 225, 0.5)
+    circle at 36% 30%,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.12) 65%,
+    transparent
   );
-  box-shadow: 0 1px 3px rgba(0, 20, 40, 0.3);
-  animation: uep-eisland-bob 3.2s ease-in-out infinite;
+  opacity: 0;
+  animation-name: uep-eisland-rise;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
-@keyframes uep-eisland-bob {
-  0%,
+@keyframes uep-eisland-rise {
+  0% {
+    transform: translateY(0) scale(0.7);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.5;
+  }
+  70% {
+    opacity: 0.28;
+  }
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(-190px) scale(1.15);
+    opacity: 0;
   }
-  50% {
-    transform: translateY(-3px) scale(1.08);
-  }
-}
-
-/* 內容層要浮在染色層之上 */
-.uep-eisland > *:not(.uep-eisland__tint) {
-  position: relative;
-  z-index: 1;
 }
 
 /* ── 插播 banner ── */
@@ -879,7 +894,7 @@
   .uep-eisland__ball.is-playing,
   .uep-eisland__ball.is-suggesting,
   .uep-eisland__surface svg,
-  .uep-eisland__foam span,
+  .uep-eisland__orbs span,
   .uep-island--echoes.uep-island--leaving {
     animation: none;
   }

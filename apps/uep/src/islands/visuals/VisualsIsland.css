@@ -469,9 +469,12 @@
   border-bottom: none;
 }
 
+/* 幻影紫 #5E548E 直接放在深紫底上幾乎讀不到（艾斯維爾 2026-07-25
+   「左上角的標題幾乎看不到」）——kicker 改用提亮版，opacity 也拿掉 */
 .uep-visland__kicker {
   grid-area: kicker;
-  color: rgba(94, 84, 142, 0.95);
+  color: #b0a4e8;
+  opacity: 1;
 }
 
 .uep-visland__title {
@@ -480,7 +483,11 @@
 }
 
 .uep-visland__title.is-empty {
-  opacity: 0.5;
+  opacity: 0.72;
+}
+
+.uep-visland__counter {
+  color: #b0a4e8;
 }
 
 .uep-visland__clear {
@@ -502,11 +509,17 @@
   opacity: 0.85;
 }
 
-/* 空畫框：畫框永遠在，只是沒有畫 */
+/* 空畫框：畫框留著，但收得比投影中小——空的時候不該佔滿版面 */
 .uep-visland__frame.is-empty {
   display: grid;
   place-items: center;
-  min-height: 150px;
+  height: auto;
+  min-height: 118px;
+}
+
+/* 投影中的畫框也收一階（208 → 168），島整體格局跟著小一圈 */
+.uep-visland__frame {
+  height: 168px;
 }
 
 .uep-visland__ghost {
@@ -546,34 +559,95 @@
   box-shadow: inset 0 0 0 1px rgba(190, 184, 220, 0.22);
 }
 
-/* ── 離場：光錐先收束，整體再淡散 ── */
+/* ── 離場：往四面八方拆解後散去（艾斯維爾 2026-07-25 指定） ──
+ * 幻影不是被關掉的，是失去凝聚力散開的：每一層各自往不同方向脫離，
+ * 島身同時淡出，最後什麼都不剩。 */
 .uep-island--visuals.uep-island--leaving {
-  transform-origin: top center;
-  animation: uep-visland-fade 0.46s var(--ease) forwards;
+  animation: uep-visland-dissolve 0.46s var(--ease) forwards;
 }
 
-@keyframes uep-visland-fade {
+.uep-island--visuals.uep-island--leaving .uep-visland > * {
+  animation-duration: 0.46s;
+  animation-timing-function: var(--ease);
+  animation-fill-mode: forwards;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__cone {
+  animation-name: uep-visland-scatter-up;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__haze {
+  animation-name: uep-visland-scatter-down;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__header {
+  animation-name: uep-visland-scatter-left;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__caption,
+.uep-island--visuals.uep-island--leaving .uep-visland__strip {
+  animation-name: uep-visland-scatter-right;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__stage {
+  animation-name: uep-visland-scatter-burst;
+}
+
+@keyframes uep-visland-dissolve {
   0% {
-    transform: scaleX(1) scaleY(1);
     opacity: 1;
     filter: brightness(1);
   }
-  45% {
-    transform: scaleX(0.4) scaleY(0.98);
-    opacity: 0.9;
-    filter: brightness(1.5);
+  40% {
+    opacity: 0.85;
+    filter: brightness(1.45);
   }
   100% {
-    transform: scaleX(0.06) scaleY(0.9);
     opacity: 0;
-    filter: brightness(2);
+    filter: brightness(1.9) blur(3px);
+  }
+}
+
+@keyframes uep-visland-scatter-up {
+  to {
+    transform: translateY(-46px) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-down {
+  to {
+    transform: translateY(46px) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-left {
+  to {
+    transform: translate(-52px, -14px) rotate(-6deg);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-right {
+  to {
+    transform: translate(52px, 18px) rotate(5deg);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-burst {
+  to {
+    transform: scale(1.24);
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .uep-visland__cone,
   .uep-visland__frame,
-  .uep-island--visuals.uep-island--leaving {
+  .uep-island--visuals.uep-island--leaving,
+  .uep-island--visuals.uep-island--leaving .uep-visland > * {
     animation: none;
   }
 }

@@ -345,38 +345,33 @@ export default function VisualsIsland() {
         </span>
       </div>
 
-      {/* ── 三態縮圖快切列（空狀態留空格，畫框感不斷） ── */}
-      <div className="uep-visland__strip" role="list">
-        {projecting
-          ? items.map((it, i) => (
-              <button
-                key={it.img.id || `${it.img.file}-${i}`}
-                type="button"
-                role="listitem"
-                className={`uep-visland__thumb${i === safeIdx ? ' is-active' : ''}${it.state === 'partial' ? ' is-partial' : ''}`}
-                onClick={() => setIdx(i)}
-                aria-label={
-                  it.state === 'locked'
-                    ? `第 ${i + 1} 張（未解鎖）`
-                    : `檢視第 ${i + 1} 張`
-                }
-              >
-                {it.state === 'locked' ? (
-                  <LockedCell compact />
-                ) : (
-                  <img src={imageUrl(it.img.file)} alt="" draggable={false} />
-                )}
-              </button>
-            ))
-          : [0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="uep-visland__thumb is-ghost"
-                aria-hidden
-                style={{ opacity: 0.35 - i * 0.07 }}
-              />
-            ))}
-      </div>
+      {/* ── 三態縮圖快切列 ──
+          沒有投射時整列收掉：空格子只是把島撐大，並不會讓它更像裝置
+          （艾斯維爾 2026-07-25，推翻設計稿的「縮圖格永遠在」） */}
+      {projecting && (
+        <div className="uep-visland__strip" role="list">
+          {items.map((it, i) => (
+            <button
+              key={it.img.id || `${it.img.file}-${i}`}
+              type="button"
+              role="listitem"
+              className={`uep-visland__thumb${i === safeIdx ? ' is-active' : ''}${it.state === 'partial' ? ' is-partial' : ''}`}
+              onClick={() => setIdx(i)}
+              aria-label={
+                it.state === 'locked'
+                  ? `第 ${i + 1} 張（未解鎖）`
+                  : `檢視第 ${i + 1} 張`
+              }
+            >
+              {it.state === 'locked' ? (
+                <LockedCell compact />
+              ) : (
+                <img src={imageUrl(it.img.file)} alt="" draggable={false} />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

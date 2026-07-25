@@ -38,6 +38,18 @@ import './EchoesIsland.css';
 /** Echoes zone 預設 accent（無分類色資訊時的 fallback） */
 const DEFAULT_ACCENT = '#355C7D';
 
+/** 空池：島裡一枚回聲都沒有時的水色（唯一還是灰的情況） */
+const IDLE_POOL = '#8b9095';
+
+/** 播放時浮現的回聲球——位置固定、節奏錯開，比 zone 背景的稀疏得多 */
+const POOL_ORBS = [
+  { left: '12%', size: 7, delay: 0, dur: 13 },
+  { left: '31%', size: 5, delay: 4.5, dur: 16 },
+  { left: '52%', size: 8, delay: 9, dur: 14 },
+  { left: '69%', size: 4, delay: 2.5, dur: 18 },
+  { left: '84%', size: 6, delay: 11.5, dur: 15 },
+];
+
 /**
  * 回聲球體底色：待機淡灰，播放中被分類色「染色」
  * （艾斯維爾 2026-07-11：不要黑色——播放不同 cluster 時球染該色）。
@@ -328,24 +340,20 @@ export default function EchoesIsland() {
   const curTime = isSeeking && dur > 0 ? displayProg * dur : state.currentTime;
 
   /**
-   * 水線以下是否被回聲染色。條件是「島裡有沒有回聲」而不是「正在不在播」
-   * ——暫停只是停下來，回聲還在水裡，顏色不該退回灰
-   * （艾斯維爾 2026-07-25 回饋）。清空播放狀態才回灰。
-   * 水面（波浪層）恆為灰白，不參與染色。
+   * 整池水的色相。條件是「島裡有沒有回聲」而不是「正在不在播」——暫停只是
+   * 停下來，回聲還在水裡，顏色不該退回灰（艾斯維爾 2026-07-25）。
+   *
+   * 二次回饋：**上下都染**，上淺下深（淺藍→深藍、淺紅→深紅），不再保留
+   * 灰色水面。漸層由 CSS 用 color-mix 從這個色算出深淺兩端，@property 讓
+   * 切歌時色相能平順過渡。
    */
-  const tinted = hasSong || suggestion !== null;
+  const poolAccent = hasSong || suggestion !== null ? displayAccent : IDLE_POOL;
 
   return (
     <div
       className="uep-eisland"
-      style={{ '--uep-pool-accent': displayAccent } as React.CSSProperties}
+      style={{ '--uep-pool-accent': poolAccent } as React.CSSProperties}
     >
-      {/* 水線以下的染色層（mask 讓上緣水面保持灰白） */}
-      <span
-        className={`uep-eisland__tint${tinted ? ' is-on' : ''}`}
-        aria-hidden
-      />
-
       {/* 水面＝拖曳把手：抓住水面拖動整池水 */}
       <div className="uep-eisland__surface" {...chrome.dragHandleProps}>
         <svg viewBox="0 0 1200 26" preserveAspectRatio="none" aria-hidden>
@@ -361,6 +369,24 @@ export default function EchoesIsland() {
           />
         </svg>
       </div>
+
+      {/* 播放時從水裡浮上來的回聲球（比 zone 背景稀疏、更淡、更小） */}
+      {state.isPlaying && (
+        <div className="uep-eisland__orbs" aria-hidden>
+          {POOL_ORBS.map((o, i) => (
+            <span
+              key={i}
+              style={{
+                left: o.left,
+                width: o.size,
+                height: o.size,
+                animationDelay: `${o.delay}s`,
+                animationDuration: `${o.dur}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {chrome.bare && (
         <button
@@ -664,12 +690,8 @@ export default function EchoesIsland() {
         )}
       </div>
 
-      {/* 池底泡沫（純裝飾，輕彈） */}
-      <div className="uep-eisland__foam" aria-hidden>
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <span key={i} style={{ animationDelay: `${i * 0.4}s` }} />
-        ))}
-      </div>
+      {/* 池底：讓整池水像立在一個底座上，而不是憑空截斷 */}
+      <div className="uep-eisland__base" aria-hidden />
     </div>
   );
 }
