@@ -12,7 +12,6 @@ import {
   canMirrorGallery,
   completeUnlockRitual,
   getIslandRuntime,
-  IslandUnlockObject,
   pushPhantomGallery,
   shouldMountIsland,
   useDesktopIslandViewport,
@@ -480,29 +479,29 @@ function VisualsReaderInner() {
   const visualsUnlock = useUnlockEligibility('visuals');
   /** 中獎的位置。null = 尚未中；不持久化，離開 subcat 或重整就沒了。 */
   const [phantomSlot, setPhantomSlot] = useState<GroupSlot | null>(null);
-  /** 上一次停留的位置——用來分辨「切換標籤」與「剛進來」 */
+  /** 上一次停留的位置——用來分辨「切換標籤」與「換區塊／剛進來」 */
   const lastGroupSlotRef = useRef<GroupSlot | null>(null);
-
-  /** 這個 subcat 有幾個分類標籤（儀式只在兩個以上的區塊觸發） */
-  const subcatGroupCount = useMemo(() => {
-    if (!activeSubcatId) return 0;
-    const node = findNodeById(tree, activeSubcatId);
-    return node ? buildGalleryGroups(node).groupList.length : 0;
-  }, [tree, activeSubcatId]);
-
-  // 換 subcat 就重置：中獎位置不跨區塊，也不持久化
-  useEffect(() => {
-    setPhantomSlot(null);
-  }, [activeSubcatId]);
+  /** 中獎狀態的鏡像：擲骰 effect 要讀它，但不能讓它進 deps（見下） */
+  const phantomSlotRef = useRef<GroupSlot | null>(null);
 
   // 失去資格就把已浮現的假卡收掉（Codex 2026-07-25 review）。
   // 假卡一旦浮現就留在網格裡，中間登出／切成觀測者／視窗縮到手機寬度都不會
   // 讓它消失——resize 不 unmount Reader，那張過期的卡仍然直接可點。
   useEffect(() => {
-    if (!visualsUnlock.eligible) setPhantomSlot(null);
+    if (!visualsUnlock.eligible) {
+      phantomSlotRef.current = null;
+      setPhantomSlot(null);
+    }
   }, [visualsUnlock.eligible]);
 
-  // 切換分類標籤時擲骰（規則見 phantomCardRoll.shouldRevealPhantomCard）
+  /**
+   * 位置變化時擲骰（規則見 phantomCardRoll.shouldRevealPhantomCard）。
+   *
+   * ⚠️ 換區塊的重置與擲骰**必須在同一個 effect**、且 `phantomSlot` 不可進
+   * deps：拆成兩個 effect 時，重置的 setState 會讓擲骰 effect 再跑一輪，
+   * 而那時 `lastGroupSlotRef` 已更新成新位置 → 判定成「原地沒動」而不擲。
+   * 結果是「從中過獎的區塊換到新區塊」永遠擲不到骰。
+   */
   useEffect(() => {
     const prev = lastGroupSlotRef.current;
     const current: GroupSlot | null = activeSubcatId
@@ -510,26 +509,28 @@ function VisualsReaderInner() {
       : null;
     lastGroupSlotRef.current = current;
 
+    // 中獎位置不跨區塊，也不持久化
+    const changedSubcat = prev?.subcatId !== current?.subcatId;
+    if (changedSubcat && phantomSlotRef.current !== null) {
+      phantomSlotRef.current = null;
+      setPhantomSlot(null);
+    }
+
     if (
       shouldRevealPhantomCard({
         prev,
         current,
         eligible: visualsUnlock.eligible,
-        groupCount: subcatGroupCount,
-        alreadyWon: phantomSlot !== null,
+        alreadyWon: phantomSlotRef.current !== null,
       })
     ) {
+      phantomSlotRef.current = current;
       setPhantomSlot(current);
     }
-  }, [
-    activeSubcatId,
-    activeGroupIdx,
-    subcatGroupCount,
-    visualsUnlock.eligible,
-    phantomSlot,
-  ]);
+  }, [activeSubcatId, activeGroupIdx, visualsUnlock.eligible]);
 
   const handlePhantomCardOpen = useCallback(() => {
+    phantomSlotRef.current = null;
     setPhantomSlot(null);
     completeUnlockRitual('visuals');
   }, []);
@@ -2266,12 +2267,6 @@ function VisualsReaderInner() {
           </div>
         </div>
       </div>
-
-      {/* 浮島解鎖小物件（同 EchoesReader 的修法）：visuals 入口是
-          visuals.astro 直掛的 Reader，ZoneEntryPage 走不到。
-          position:fixed，浮現條件（登入探索者 + visited + 未解鎖）
-          由元件自理。僅 landing 顯示（zone 首頁語意）。 */}
-      {view === 'landing' && <IslandUnlockObject zoneId="visuals" />}
 
       {renderLightbox()}
     </ReaderShell>
