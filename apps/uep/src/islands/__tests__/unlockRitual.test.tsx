@@ -33,10 +33,7 @@ vi.mock('../../progress', async (importOriginal) => ({
   useProgress: () => progressMock.state,
 }));
 
-import {
-  completeUnlockRitual,
-  useUnlockEligibility,
-} from '../unlockRitual';
+import { completeUnlockRitual, useUnlockEligibility } from '../unlockRitual';
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
   return { ...createInitialState(), ...partial };
