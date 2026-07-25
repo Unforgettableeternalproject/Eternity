@@ -102,8 +102,9 @@ export const ISLAND_DEFINITIONS: Record<IslandId, IslandDefinition> = {
     icon: '›_',
     defaultCorner: 'top-right',
     width: 380,
-    // 外殼維持 default（終端機視覺本來就自成一格），但收合走自己的
-    // CRT 關機動畫（艾斯維爾 2026-07-25）
+    // S9-C.12 起五座島一致走 bare：終端自畫機殼標頭，島名字級才對得上
+    // 另外四座。收合仍是自己的 CRT 關機動畫（艾斯維爾 2026-07-25）
+    shell: 'bare',
     leaveMs: 420,
   },
   echoes: {

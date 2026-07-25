@@ -16,6 +16,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getProgressManager, useProgress } from '../../progress';
+import { useIslandChrome } from '../islandChrome';
 
 import { subscribeEntityActivate } from './terminalBridge';
 import { computeUnreadUpdates } from './terminalNotify';
@@ -97,6 +98,7 @@ function navigateToConceptsPage(pageId: string): void {
 
 export default function TerminalIsland() {
   const progress = useProgress();
+  const chrome = useIslandChrome();
   // 輸出歷史持久化（S7-C 驗收定案）：mount 時還原上次內容，
   // 跨頁/收合/登出重登都不消失（本機 localStorage）
   const [lines, setLines] = useState<TermLine[]>(
@@ -920,6 +922,32 @@ export default function TerminalIsland() {
 
   return (
     <div className="uep-terminal">
+      {/* 機殼標頭（＝拖曳把手）。終端本來就長得像視窗，所以 S9-C 之前一直
+          沿用通用白框 chrome；但那條 header 的島名只有 10.5px，跟另外四座
+          島的 18px 島名對不上，眼睛掃過去會漏掉一格
+          （艾斯維爾 2026-07-25 回饋）。 */}
+      <div className="uep-terminal__masthead" {...chrome.dragHandleProps}>
+        <div className="uep-island-title uep-terminal__name">
+          <span className="uep-terminal__name-sign" aria-hidden>
+            ›_
+          </span>
+          移動終端
+        </div>
+      </div>
+
+      {chrome.bare && (
+        <button
+          type="button"
+          className="uep-island-close uep-terminal__close"
+          onClick={chrome.requestClose}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label="收合移動終端"
+          title="收合"
+        >
+          離線
+        </button>
+      )}
+
       <div className="uep-terminal__body" ref={bodyRef}>
         {/* 打字機切片：只 render「已完成 + 正在打字」的行，尚未開始的
             隱藏——真實終端「一行一行冒出」的視覺（若尚無打字進行，

@@ -3,53 +3,97 @@
  *
  * 語彙取自 Eternity-Design concepts-base.jsx：
  * 深綠終端底、mono 字體、行分色（meta/in/ok/err/row）、$ prompt。
- * 色票：CONC_MAIN=#2d6a4f、CONC_SOFT=#74c69d、ink=#a6e0bd。
- * 外殼（.uep-island--concepts）一併換上終端皮膚。
+ * 深色色票：CONC_MAIN=#2d6a4f、CONC_SOFT=#74c69d、ink=#a6e0bd。
+ *
+ * S9-C.12 起：
+ * 1. 全部色值走 --tm-* token，亮色模式換一組（磷光綠螢幕 → 感熱紙上的
+ *    綠墨），不逐條改寫 340 行。這是其他四座島已用過的省力法。
+ * 2. 外殼改 bare，機殼由 .uep-terminal 自畫——皮膚掛在通用 .uep-island
+ *    上時，一旦外殼歸零（bare）整套背景邊框都會跟著消失。
  */
 
-/* ── 外殼皮膚（IslandHost 傳入 uep-island--{id} class） ── */
-.uep-island--concepts {
-  background: #070d0a;
-  border-color: #2d6a4f;
-  box-shadow:
-    0 14px 38px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(45, 106, 79, 0.2),
-    inset 0 0 0 1px rgba(116, 198, 157, 0.08);
-}
-
-.uep-island--concepts .uep-island__header {
-  background: #0c1814;
-  border-bottom-color: rgba(45, 106, 79, 0.45);
-}
-
-.uep-island--concepts .uep-island__title {
-  color: #74c69d;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 400;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.uep-island--concepts .uep-island__icon {
-  color: #74c69d;
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.uep-island--concepts .uep-island__collapse {
-  color: #a6e0bd;
-}
-
-.uep-island--concepts .uep-island__collapse:hover {
-  color: #ffffff;
-}
-
-/* ── 終端本體 ── */
+/* ── 終端本體（＝機殼） ── */
 .uep-terminal {
+  /* 亮色：不是把深色反白，而是另一種真的存在過的終端——淺磷光底、
+     深綠墨。純白底綠字會刺眼，底色壓成帶綠的灰白 */
+  --tm-bg: #e9efe9;
+  --tm-bg-head: #dae4dc;
+  --tm-bg-prompt: #dfe8e0;
+  --tm-main: #1f4d39;
+  --tm-soft: #276b4c;
+  --tm-ink: #24503b;
+  --tm-hi: #0a1f16;
+  --tm-ok: #1c6b35;
+  --tm-err: #9c3030;
+  --tm-row: #2f5a46;
+  --tm-main-rgb: 31 77 57;
+  --tm-soft-rgb: 39 107 76;
+  --tm-ink-rgb: 36 80 59;
+  --tm-cast: rgba(30, 60, 45, 0.28);
+
+  position: relative;
+  border: 1px solid var(--tm-main);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--tm-bg);
+  box-shadow:
+    0 14px 38px var(--tm-cast),
+    0 0 0 1px rgb(var(--tm-main-rgb) / 0.2),
+    inset 0 0 0 1px rgb(var(--tm-soft-rgb) / 0.08);
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: #a6e0bd;
+  color: var(--tm-ink);
+}
+
+/* 深色：原本的磷光綠螢幕 */
+[data-theme='dark'] .uep-terminal {
+  --tm-bg: #070d0a;
+  --tm-bg-head: #0c1814;
+  --tm-bg-prompt: #0a1410;
+  --tm-main: #2d6a4f;
+  --tm-soft: #74c69d;
+  --tm-ink: #a6e0bd;
+  --tm-hi: #ffffff;
+  --tm-ok: #9be3a5;
+  --tm-err: #e08a8a;
+  --tm-row: #cfe9d9;
+  --tm-main-rgb: 45 106 79;
+  --tm-soft-rgb: 116 198 157;
+  --tm-ink-rgb: 166 224 189;
+  --tm-cast: rgba(0, 0, 0, 0.5);
+}
+
+/* ── 機殼標頭（＝島頭＋拖曳把手） ── */
+.uep-terminal__masthead {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  height: 45px;
+  padding: 14px 16px 0;
+  background: var(--tm-bg-head);
+  border-bottom: 1px solid rgb(var(--tm-main-rgb) / 0.45);
+}
+
+.uep-terminal__name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  color: var(--tm-soft);
+}
+
+.uep-terminal__name-sign {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.uep-terminal__close {
+  font-family: var(--font-mono);
+  color: rgb(var(--tm-ink-rgb) / 0.7);
+}
+
+.uep-terminal__close:hover {
+  color: var(--tm-hi);
 }
 
 .uep-terminal__body {
@@ -58,7 +102,7 @@
   padding: 10px 12px;
   line-height: 1.6;
   scrollbar-width: thin;
-  scrollbar-color: rgba(116, 198, 157, 0.35) transparent;
+  scrollbar-color: rgb(var(--tm-soft-rgb) / 0.35) transparent;
 }
 
 /* ── 輸出行分色 ── */
@@ -68,30 +112,30 @@
 }
 
 .uep-terminal__line--meta {
-  color: rgba(166, 224, 189, 0.55);
+  color: rgb(var(--tm-ink-rgb) / 0.55);
 }
 
 .uep-terminal__line--in {
-  color: #74c69d;
+  color: var(--tm-soft);
 }
 
 .uep-terminal__line--ok {
-  color: #9be3a5;
+  color: var(--tm-ok);
 }
 
 .uep-terminal__line--err {
-  color: #e08a8a;
+  color: var(--tm-err);
 }
 
 .uep-terminal__line--row {
-  color: #cfe9d9;
+  color: var(--tm-row);
 }
 
 /* 打字機游標——僅在正在打字的行末端出現（艾斯維爾定案的終端感） */
 .uep-terminal__cursor {
   display: inline-block;
   margin-left: 1px;
-  color: #74c69d;
+  color: var(--tm-soft);
   animation: uep-terminal-cursor-blink 0.9s steps(2, end) infinite;
 }
 
@@ -115,20 +159,20 @@
 
 /* 分組標題行（ls 結構化輸出——category/group） */
 .uep-terminal__line--head {
-  color: #74c69d;
+  color: var(--tm-soft);
   font-weight: 600;
   letter-spacing: 0.06em;
   margin-top: 4px;
 }
 
 .uep-terminal__line--head.uep-terminal__line--fade {
-  color: rgba(116, 198, 157, 0.7);
+  color: rgb(var(--tm-soft-rgb) / 0.7);
   font-weight: 400;
   margin-top: 0;
 }
 
 .uep-terminal__line--fade {
-  color: rgba(166, 224, 189, 0.5);
+  color: rgb(var(--tm-ink-rgb) / 0.5);
 }
 
 /* 可點擊列（查詢結果/ls 條目） */
@@ -144,12 +188,12 @@
 }
 
 .uep-terminal__line-btn:hover {
-  background: rgba(45, 106, 79, 0.25);
-  color: #ffffff;
+  background: rgb(var(--tm-main-rgb) / 0.25);
+  color: var(--tm-hi);
 }
 
 .uep-terminal__line-btn:focus-visible {
-  outline: 1px solid #74c69d;
+  outline: 1px solid var(--tm-soft);
   outline-offset: 1px;
 }
 
@@ -170,19 +214,19 @@
   box-sizing: border-box;
   flex: none;
   padding: 0 5px;
-  color: #74c69d;
+  color: var(--tm-soft);
   font-size: 11px;
   cursor: pointer;
   border-radius: 2px;
 }
 
 .uep-terminal__suffix-btn:hover {
-  background: rgba(45, 106, 79, 0.35);
-  color: #ffffff;
+  background: rgb(var(--tm-main-rgb) / 0.35);
+  color: var(--tm-hi);
 }
 
 .uep-terminal__suffix-btn:focus-visible {
-  outline: 1px solid #74c69d;
+  outline: 1px solid var(--tm-soft);
   outline-offset: 1px;
 }
 
@@ -193,7 +237,7 @@
 }
 
 .uep-terminal__chips-label {
-  color: rgba(166, 224, 189, 0.45);
+  color: rgb(var(--tm-ink-rgb) / 0.45);
 }
 
 .uep-terminal__chip {
@@ -201,9 +245,9 @@
   box-sizing: border-box;
   margin: 4px 5px 0 0;
   padding: 2px 8px;
-  border: 1px solid rgba(45, 106, 79, 0.6);
+  border: 1px solid rgb(var(--tm-main-rgb) / 0.6);
   border-radius: 2px;
-  color: #74c69d;
+  color: var(--tm-soft);
   font-size: 10.5px;
   cursor: pointer;
   transition:
@@ -212,12 +256,12 @@
 }
 
 .uep-terminal__chip:hover {
-  border-color: #74c69d;
-  color: #ffffff;
+  border-color: var(--tm-soft);
+  color: var(--tm-hi);
 }
 
 .uep-terminal__chip:focus-visible {
-  outline: 1px solid #74c69d;
+  outline: 1px solid var(--tm-soft);
   outline-offset: 1px;
 }
 
@@ -228,8 +272,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-top: 1px solid rgba(45, 106, 79, 0.45);
-  background: #0a1410;
+  border-top: 1px solid rgb(var(--tm-main-rgb) / 0.45);
+  background: var(--tm-bg-prompt);
 }
 
 /* ── 補全候選列表（slash-command 式向上展開） ── */
@@ -240,12 +284,12 @@
   right: 0;
   max-height: 180px;
   overflow-y: auto;
-  background: #0c1814;
-  border: 1px solid rgba(45, 106, 79, 0.6);
+  background: var(--tm-bg-head);
+  border: 1px solid rgb(var(--tm-main-rgb) / 0.6);
   border-bottom: none;
   box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.45);
   scrollbar-width: thin;
-  scrollbar-color: rgba(116, 198, 157, 0.35) transparent;
+  scrollbar-color: rgb(var(--tm-soft-rgb) / 0.35) transparent;
 }
 
 .uep-terminal__suggest-item {
@@ -254,7 +298,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 4px 10px;
-  color: #a6e0bd;
+  color: var(--tm-ink);
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
@@ -263,23 +307,23 @@
 }
 
 .uep-terminal__suggest-item:hover {
-  background: rgba(45, 106, 79, 0.25);
+  background: rgb(var(--tm-main-rgb) / 0.25);
 }
 
 .uep-terminal__suggest-item.is-active {
-  background: rgba(45, 106, 79, 0.45);
-  color: #ffffff;
+  background: rgb(var(--tm-main-rgb) / 0.45);
+  color: var(--tm-hi);
 }
 
 .uep-terminal__suggest-hint {
   padding: 3px 10px;
-  color: rgba(166, 224, 189, 0.4);
+  color: rgb(var(--tm-ink-rgb) / 0.4);
   font-size: 9.5px;
-  border-top: 1px solid rgba(45, 106, 79, 0.3);
+  border-top: 1px solid rgb(var(--tm-main-rgb) / 0.3);
 }
 
 .uep-terminal__prompt-sign {
-  color: #2d6a4f;
+  color: var(--tm-main);
   font-weight: 600;
 }
 
@@ -288,17 +332,17 @@
   background: transparent;
   border: none;
   outline: none;
-  color: #a6e0bd;
+  color: var(--tm-ink);
   font-family: inherit;
   font-size: 12px;
 }
 
 .uep-terminal__input::placeholder {
-  color: rgba(166, 224, 189, 0.35);
+  color: rgb(var(--tm-ink-rgb) / 0.35);
 }
 
 .uep-terminal__enter {
-  color: rgba(45, 106, 79, 0.8);
+  color: rgb(var(--tm-main-rgb) / 0.8);
 }
 
 /* ── 離場：CRT 關機（S9-C.6，艾斯維爾 2026-07-25 指定各島專屬收合） ──
