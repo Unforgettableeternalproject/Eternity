@@ -185,21 +185,10 @@ export function registerAnimationActions(): void {
         window.location.assign('/');
       },
     },
-    {
-      group: GROUP_ZONE,
-      id: 'anim:replay-welcome',
-      label: '重播首頁 Welcome 動畫',
-      description: '清 uep.welcome-seen 後重載首頁',
-      execute: () => {
-        try {
-          sessionStorage.removeItem('uep.welcome-seen');
-          localStorage.removeItem('uep.welcome-seen');
-        } catch {
-          /* 忽略 */
-        }
-        window.location.assign('/');
-      },
-    },
+    // 2026-07-26 移除 `anim:replay-welcome`：它清的 `uep.welcome-seen`
+    // 全庫查無任何寫入端（實際機制早已改為 GlobalWelcomeHost 的
+    // WELCOME_PENDING_KEY，由登入/登出流程種下），等於 no-op。
+    // 首頁大廳動畫現在每次進站都播，上面的 `zone:go-home` 已完全涵蓋。
 
     // ── 儀式 / 系統動畫 ──
     {

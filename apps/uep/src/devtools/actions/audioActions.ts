@@ -6,6 +6,7 @@
  * 沒上下文時 available() 仍然 true（bridge 存在），操作會 no-op 但不 crash。
  */
 
+import { AUDIO_STORAGE_KEY } from '../../audio/audioTypes';
 import { getRegistry } from '../actionRegistry';
 
 const GROUP = '音訊';
@@ -71,11 +72,14 @@ export function registerAudioActions(): void {
       group: GROUP,
       id: 'audio:wipe-persistence',
       label: '清除音訊持久化（不重載）',
-      description: '刪 uep.audio.v1 localStorage',
+      description: '停止播放並刪 uep.audio.v1 localStorage',
       destructive: true,
       execute: () => {
+        // 必須先 stop：播放中的 audioStore 會週期性 persistSnapshot()，
+        // 只刪 key 的話下一次快照就把它原樣寫回去，看起來像沒清成功。
+        window.__uepAudio?.stop();
         try {
-          localStorage.removeItem('uep.audio.v1');
+          localStorage.removeItem(AUDIO_STORAGE_KEY);
         } catch {
           /* 忽略 */
         }

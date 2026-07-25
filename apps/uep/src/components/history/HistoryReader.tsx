@@ -133,6 +133,19 @@ interface Page {
 
 const API_BASE = getApiBase();
 
+/**
+ * 側邊欄開合偏好（桌面）。
+ *
+ * ⚠️ 2026-07-26 由 `history-sidebar` 更名而來——本機清除改為掃描
+ * `uep.` / `uep-` 命名空間（見 lib/uepStorage.ts），命名空間外的 key
+ * 會在「重置本機身分」時被漏掉，變成跨帳號殘留的髒資料。
+ * 舊 key 不做遷移：偏好重設一次的代價遠低於遷移程式碼的維護成本。
+ */
+const SIDEBAR_STATE_KEY = 'uep-history-sidebar';
+
+/** 續讀跳轉進行中的旗標（sessionStorage）。更名理由同 SIDEBAR_STATE_KEY。 */
+const READING_RESUME_JUMP_KEY = 'uep.reading-resume-jump';
+
 function flattenTree(nodes: PageTreeNode[], acc: PageTreeNode[] = []) {
   for (const node of nodes) {
     if (isHidden(node)) continue;
@@ -602,14 +615,14 @@ export default function HistoryReader() {
   const beginResumeJump = () => {
     resumeJumpRef.current = true;
     try {
-      sessionStorage.setItem('reading-resume-jump', '1');
+      sessionStorage.setItem(READING_RESUME_JUMP_KEY, '1');
     } catch {
       // sessionStorage 不可用時 ref 仍足以保護當次跳轉。
     }
     const clear = () => {
       resumeJumpRef.current = false;
       try {
-        sessionStorage.removeItem('reading-resume-jump');
+        sessionStorage.removeItem(READING_RESUME_JUMP_KEY);
       } catch {
         // no-op
       }
@@ -755,7 +768,7 @@ export default function HistoryReader() {
     if (isMobileNow) {
       setSidebarOpen(false);
     } else {
-      const storedSidebar = localStorage.getItem('history-sidebar');
+      const storedSidebar = localStorage.getItem(SIDEBAR_STATE_KEY);
       if (storedSidebar === 'closed') setSidebarOpen(false);
     }
 
@@ -1065,7 +1078,7 @@ export default function HistoryReader() {
   function toggleSidebar() {
     setSidebarOpen((prev) => {
       const next = !prev;
-      localStorage.setItem('history-sidebar', next ? 'open' : 'closed');
+      localStorage.setItem(SIDEBAR_STATE_KEY, next ? 'open' : 'closed');
       return next;
     });
   }

@@ -57,14 +57,14 @@ export function registerOnboardingActions(): void {
       group: GROUP,
       id: 'onboarding:reset-identity',
       label: '重置本機身分（模擬全新訪客）',
-      description: '清 onboarded + progress，重新載入首頁',
+      description: '登出並清空整個 UEP 命名空間，重新載入首頁',
       destructive: true,
       requiresConfirm: true,
-      confirmMessage: '⚠ 清除本機 onboarded/progress 並重新導向首頁。確認？',
+      confirmMessage: '⚠ 這會登出並清除本機所有 UEP 狀態，然後導回首頁。確認？',
       available: hasBridge,
       execute: () => {
         if (!window.__uepOnboardingTest) return warn();
-        window.__uepOnboardingTest.resetLocalIdentity({ reload: true });
+        void window.__uepOnboardingTest.resetLocalIdentity({ reload: true });
       },
     },
     {

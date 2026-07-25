@@ -6,7 +6,7 @@
  * 通常 hydrate 完就會有。
  */
 
-import { PROGRESS_STORAGE_KEY } from '../../progress/adapters';
+import { wipeLocalIdentity } from '../../lib/wipeLocalIdentity';
 import { getRegistry } from '../actionRegistry';
 
 const GROUP = '進度系統';
@@ -41,23 +41,20 @@ export function registerProgressActions(): void {
     {
       group: GROUP,
       id: 'progress:full-wipe',
-      label: '完全重置（含 onboarding + audio）',
+      label: '完全重置（含 onboarding + 登入）',
       description:
-        '清當前環境 progress key / uep.onboarded.v1 / uep.audio.v1 後重載',
+        '登出並清空整個 UEP 命名空間（保留主題／DevTools 旗標）後重載',
       destructive: true,
       requiresConfirm: true,
       confirmMessage:
-        '⚠ 這會完全清空所有本機狀態（包含 onboarding 決定），重載後就像全新訪客。確認？',
+        '⚠ 這會登出並完全清空所有本機狀態（包含 onboarding 決定），重載後就像全新訪客。確認？',
       execute: () => {
-        try {
-          // progress key 依環境 namespace（正式／測試），只清當前環境
-          localStorage.removeItem(PROGRESS_STORAGE_KEY);
-          localStorage.removeItem('uep.onboarded.v1');
-          localStorage.removeItem('uep.audio.v1');
-        } catch {
-          /* 靜默 */
-        }
-        window.location.reload();
+        // 2026-07-26：原本手抄三把 key，既漏了 session（重載後舊帳號
+        // 進度會被 hydrate 回來，等於沒重置），也漏了 pinned/terminal/
+        // phantom/浮島視窗。改走統一入口，見 lib/wipeLocalIdentity.ts。
+        void wipeLocalIdentity().then(() => {
+          window.location.reload();
+        });
       },
     },
     {

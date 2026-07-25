@@ -12,14 +12,25 @@
 
 import React, { useEffect, useState } from 'react';
 
+import { isTestMode } from '../../lib/apiBase';
+import { wipeLocalIdentity } from '../../lib/wipeLocalIdentity';
 import { PROGRESS_STORAGE_KEY } from '../../progress/adapters';
 import { getProgressManager } from '../../progress/progressStore';
 import ObserverGate from './ObserverGate';
 
 import './OnboardingGate.css';
 
-/** 完成入站儀式的永久標記 */
-export const ONBOARDED_KEY = 'uep.onboarded.v1';
+/**
+ * 完成入站儀式的永久標記。
+ *
+ * Test Mode 下加 `:test` 後綴，與 `PROGRESS_STORAGE_KEY`／
+ * `READER_SESSION_KEY`／`PINNED_STORAGE_KEY` 的環境隔離慣例對齊
+ * （2026-07-26 補上——先前是唯一漏掉隔離的一把，導致在同一瀏覽器
+ * 切換 test／正式時，入站儀式會因為另一環境早已寫入而被靜默跳過）。
+ */
+export const ONBOARDED_KEY = isTestMode()
+  ? 'uep.onboarded.v1:test'
+  : 'uep.onboarded.v1';
 
 type Stage = 'hidden' | 'choice' | 'observer-gate';
 
@@ -31,10 +42,10 @@ interface OnboardingTestBridge {
   /** 關閉目前入站測試視窗。 */
   hide(): void;
   /**
-   * 清除本機訪客入站紀錄與進度，用來模擬全新訪客。
+   * 清除本機所有 UEP 身分與狀態（含登入 session），模擬全新訪客。
    * 預設會導回主頁重新載入，確保 module singleton 也回到乾淨狀態。
    */
-  resetLocalIdentity(options?: { reload?: boolean }): void;
+  resetLocalIdentity(options?: { reload?: boolean }): Promise<void>;
   /** 查看目前入站測試狀態。 */
   status(): {
     stage: Stage;
@@ -97,13 +108,11 @@ export default function OnboardingGate() {
       hide() {
         setStage('hidden');
       },
-      resetLocalIdentity(options) {
-        try {
-          window.localStorage.removeItem(ONBOARDED_KEY);
-          window.localStorage.removeItem(PROGRESS_STORAGE_KEY);
-        } catch {
-          /* 忽略 */
-        }
+      async resetLocalIdentity(options) {
+        // 全清由 wipeLocalIdentity 統一負責——它會先登出（斷開
+        // ServerAdapter，否則舊帳號進度會被 hydrate 回來）再掃除
+        // 整個 UEP 命名空間。詳見 lib/wipeLocalIdentity.ts。
+        await wipeLocalIdentity();
         if (options?.reload === false) {
           setStage('choice');
           return;
