@@ -114,6 +114,26 @@
   outline-offset: 2px;
 }
 
+/* 地點／時間小標——與島內 `.uep-stoland__note-meta` 同一份快照的另一個
+   呈現位置，字級與間距刻意一致，只有調色換成釘選便條自己的 --pn-* */
+.uep-pinned-note__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgb(var(--pn-ink-rgb) / 0.5);
+}
+
+.uep-pinned-note__meta-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* 拆除鈕（右上角） */
 .uep-pinned-note__unpin {
   position: absolute;

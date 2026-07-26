@@ -61,6 +61,7 @@ import {
   takeJumpToPinned,
 } from './dragToPin';
 import type { GrabOffset } from './dragToPin';
+import { formatCapturedAt, formatLocationLabel } from './noteMeta';
 import { getPinnedStore, matchesLocation } from './pinnedStore';
 import type { PinnedNote } from './pinnedStore';
 import { usePinnedNotes } from './usePinnedNotes';
@@ -709,6 +710,26 @@ function PinnedNoteCard({
         >
           {note.text}
         </button>
+      )}
+
+      {/* 地點／時間小標——與島內便條卡顯示同一份快照（唯讀，勾選只在島內
+          的編輯態進行）。編輯中隱藏，讓 textarea 佔滿整張紙。 */}
+      {!editing && (note.location || note.capturedAt) && (
+        <div className="uep-pinned-note__meta">
+          {note.location && (
+            <span className="uep-pinned-note__meta-item">
+              ◈ {formatLocationLabel(note.location)}
+            </span>
+          )}
+          {note.capturedAt && (
+            <span
+              className="uep-pinned-note__meta-item"
+              title={note.capturedAt}
+            >
+              {formatCapturedAt(note.capturedAt)}
+            </span>
+          )}
+        </div>
       )}
 
       {/* 拆除鈕 */}

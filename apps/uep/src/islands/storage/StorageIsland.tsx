@@ -31,7 +31,7 @@ import {
 } from '../../progress';
 import type { StorageNote } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
-import { ZONE_LABELS, useCurrentLocation } from '../useCurrentLocation';
+import { useCurrentLocation } from '../useCurrentLocation';
 
 import {
   DRAG_THRESHOLD,
@@ -40,6 +40,7 @@ import {
   navigateToPinned,
   resolveDropTarget,
 } from './dragToPin';
+import { formatCapturedAt, formatZoneLabel } from './noteMeta';
 import { usePinnedNotes } from './usePinnedNotes';
 
 import type { GrabOffset } from './dragToPin';
@@ -69,11 +70,6 @@ function sortNotes(
   });
 }
 
-/** 地點小標顯示文字：zone 中文名，未知 zone 回退顯示原字串（同位置條慣例） */
-function formatZoneLabel(zone: string): string {
-  return ZONE_LABELS[zone] ?? (zone || '其他頁面');
-}
-
 /**
  * 去除 pageLabel 尾端的站名（document.title fallback 才會帶），
  * 與當前位置條的顯示規則一致——地點小標的快照要存「使用者當下看到的
@@ -81,14 +77,6 @@ function formatZoneLabel(zone: string): string {
  */
 function stripSiteSuffix(label: string): string {
   return label.replace(/\s*[·\-–]\s*邊際世界\s*$/u, '');
-}
-
-/**
- * 時間小標顯示文字：擷取 `YYYY-MM-DD HH:mm`（含時區偏移的完整字串放
- * title tooltip，不在便條卡面上占空間）。
- */
-function formatCapturedAt(iso: string): string {
-  return iso.slice(0, 16).replace('T', ' ');
 }
 
 export default function StorageIsland() {
@@ -187,9 +175,7 @@ export default function StorageIsland() {
         <span className="uep-stoland__location-label">
           {/* 首頁自 07/25 起有專屬 zone id（'home' → 「世界的軸心」），
               null 分支剩下 /admin 等非區域頁，不再是「起始頁」 */}
-          {location.zone
-            ? (ZONE_LABELS[location.zone] ?? location.zone)
-            : '其他頁面'}
+          {location.zone ? formatZoneLabel(location.zone) : '其他頁面'}
         </span>
         {location.pageLabel && (
           <span

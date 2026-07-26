@@ -219,6 +219,61 @@ describe('便條本體讀取', () => {
   });
 });
 
+/* 【回歸:07/27 驗收】便條勾了地點／時間，釘到頁面上之後小標整個不見——
+ * 島內的便條卡有渲染，釘選層漏了。兩邊是不同的渲染路徑但顯示同一份快照。 */
+describe('地點／時間小標', () => {
+  it('便條有地點快照 → 釘選後仍顯示（zone 顯示成中文名）', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('帶地點的');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepProgress.setStorageNoteLocation(noteId, {
+      zone: 'history',
+      pageLabel: '第一章 · 同病相憐',
+    });
+    uepStoragePins.pin(makePinned({ noteId }));
+
+    render(<PinnedNoteLayer />);
+    expect(screen.getByText(/歷史.*第一章 · 同病相憐/u)).toBeInTheDocument();
+  });
+
+  it('便條有時間快照 → 釘選後顯示 YYYY-MM-DD HH:mm，完整值留在 title', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('帶時間的');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepProgress.setStorageNoteCapturedAt(noteId, true);
+    const iso = uepProgress.getState().storageNotes[0].capturedAt!;
+    uepStoragePins.pin(makePinned({ noteId }));
+
+    const { container } = render(<PinnedNoteLayer />);
+    const item = container.querySelector('.uep-pinned-note__meta-item');
+    expect(item?.textContent).toBe(iso.slice(0, 16).replace('T', ' '));
+    expect(item?.getAttribute('title')).toBe(iso);
+  });
+
+  it('兩個小標都沒勾 → 不留空的小標區塊', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('純文字');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepStoragePins.pin(makePinned({ noteId }));
+
+    const { container } = render(<PinnedNoteLayer />);
+    expect(container.querySelector('.uep-pinned-note__meta')).toBeNull();
+  });
+
+  it('進入編輯態時小標讓位給 textarea', async () => {
+    const { uepProgress, uepStoragePins } = await freshStores();
+    uepProgress.addStorageNote('編輯看看');
+    const noteId = uepProgress.getState().storageNotes[0].id;
+    uepProgress.setStorageNoteCapturedAt(noteId, true);
+    uepStoragePins.pin(makePinned({ noteId }));
+
+    const { container } = render(<PinnedNoteLayer />);
+    expect(container.querySelector('.uep-pinned-note__meta')).not.toBeNull();
+    fireEvent.click(screen.getByText('編輯看看'));
+    expect(container.querySelector('.uep-pinned-note__meta')).toBeNull();
+  });
+});
+
 describe('拆除', () => {
   it('點 × → unpin', async () => {
     const { uepProgress, uepStoragePins } = await freshStores();
