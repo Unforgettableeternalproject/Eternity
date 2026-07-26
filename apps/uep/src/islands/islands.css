@@ -362,7 +362,12 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
    ⚠️ 直接把 animation 掛在 chip 上會有一個不明顯但很煩的副作用：class
    移除的瞬間 animation-name 變回 uep-dock-chip-in，那條進場動畫就重播
    一次，看起來就是「chip 跳了一下」。clue 進出區間最頻繁，所以只有
-   visuals 明顯（艾斯維爾 2026-07-26）。 */
+   visuals 明顯（艾斯維爾 2026-07-26）。
+
+   兩層各司其職：::after 是貼著邊框的閃爍光圈，::before 是往外盪開的
+   波紋。只有光圈時，它在畫面角落看起來就像 hover 殘影，眼睛會直接
+   略過——會擴散出去的東西才抓得住餘光（艾斯維爾 2026-07-26 二驗）。 */
+.uep-island-dock__chip::before,
 .uep-island-dock__chip::after {
   content: '';
   position: absolute;
@@ -372,84 +377,67 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   opacity: 0;
 }
 
-.uep-island-dock__chip.is-attn-waiting {
-  border-color: rgb(var(--chip-attn));
+.uep-island-dock__chip::before {
+  border: 1.5px solid rgb(var(--chip-attn));
 }
 
-.uep-island-dock__chip.is-attn-pulse {
+/* 提示中的 chip 連圖示一起染色——線稿是 currentColor，這是整個 chip
+   最大面積的一塊，比任何邊框變化都容易被注意到。 */
+.uep-island-dock__chip.is-attn-waiting {
   border-color: rgb(var(--chip-attn));
+  color: rgb(var(--chip-attn));
 }
 
 .uep-island-dock__chip.is-attn-waiting::after {
-  animation: uep-chip-waiting 2s ease-in-out infinite;
+  animation: uep-chip-flash 1.1s ease-in-out infinite;
 }
 
-.uep-island-dock__chip.is-attn-pulse::after {
-  animation: uep-chip-pulse 1.4s var(--ease);
+.uep-island-dock__chip.is-attn-waiting::before {
+  animation: uep-chip-ripple 1.8s ease-out infinite;
 }
 
-/* 呼吸：亮度與光圈一起漲落，谷底不歸零——完全熄滅會變成閃爍，
-   那是「警告」的語彙，這裡要的是「這邊有東西在等你」。 */
-@keyframes uep-chip-waiting {
+/* 閃爍：明暗對比拉滿。柔和的呼吸在餘光裡讀不出來（谷底 0.5 與峰值的
+   差太小），改成幾乎全暗到全亮。 */
+@keyframes uep-chip-flash {
   0%,
   100% {
-    opacity: 0.5;
-    box-shadow:
-      0 0 0 1px rgb(var(--chip-attn) / 0.5),
-      0 0 8px rgb(var(--chip-attn) / 0.32);
+    opacity: 0.12;
+    box-shadow: 0 0 0 1px rgb(var(--chip-attn) / 0.3);
   }
   50% {
     opacity: 1;
     box-shadow:
-      0 0 0 2px rgb(var(--chip-attn) / 0.9),
-      0 0 18px rgb(var(--chip-attn) / 0.72),
-      0 0 32px rgb(var(--chip-attn) / 0.4);
+      0 0 0 3px rgb(var(--chip-attn) / 0.95),
+      0 0 20px rgb(var(--chip-attn) / 0.85),
+      0 0 40px rgb(var(--chip-attn) / 0.5);
   }
 }
 
-/* 三下遞減——一次性提示要「被看到就夠」，不留在餘光裡持續騷擾 */
-@keyframes uep-chip-pulse {
-  0%,
+/* 波紋：一圈從邊框盪出去然後散掉。後半段停在全透明，讓兩次擴散之間
+   有一段留白——連續不斷的波會變成背景噪音。 */
+@keyframes uep-chip-ripple {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  55%,
   100% {
     opacity: 0;
-    box-shadow: 0 0 0 0 rgb(var(--chip-attn) / 0);
-  }
-  12% {
-    opacity: 1;
-    box-shadow:
-      0 0 0 3px rgb(var(--chip-attn) / 0.9),
-      0 0 22px rgb(var(--chip-attn) / 0.75);
-  }
-  30% {
-    opacity: 0.15;
-    box-shadow: 0 0 0 1px rgb(var(--chip-attn) / 0.2);
-  }
-  46% {
-    opacity: 0.85;
-    box-shadow:
-      0 0 0 2px rgb(var(--chip-attn) / 0.7),
-      0 0 16px rgb(var(--chip-attn) / 0.55);
-  }
-  62% {
-    opacity: 0.12;
-    box-shadow: 0 0 0 1px rgb(var(--chip-attn) / 0.16);
-  }
-  78% {
-    opacity: 0.6;
-    box-shadow:
-      0 0 0 2px rgb(var(--chip-attn) / 0.45),
-      0 0 12px rgb(var(--chip-attn) / 0.34);
+    transform: scale(1.75);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* 兩者都降為靜態光圈：waiting 是唯一的「還沒處理完」訊號，
-     pulse 則靠 title／aria-label 補足（動畫關掉後它本來就會消失）。 */
-  .uep-island-dock__chip.is-attn-waiting::after,
-  .uep-island-dock__chip.is-attn-pulse::after {
+  /* 降為靜態光圈：閃爍與波紋都拿掉，但提示本身不能消失——它是
+     「還沒處理完」的唯一視覺訊號。 */
+  .uep-island-dock__chip.is-attn-waiting::after {
     animation: none;
     opacity: 1;
-    box-shadow: 0 0 0 2px rgb(var(--chip-attn) / 0.6);
+    box-shadow: 0 0 0 2px rgb(var(--chip-attn) / 0.7);
+  }
+
+  .uep-island-dock__chip.is-attn-waiting::before {
+    animation: none;
   }
 }
 

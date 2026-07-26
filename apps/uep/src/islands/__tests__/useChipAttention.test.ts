@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { clearAllChipPulses, flashChip } from '../chipAttention';
+import { clearAllChipAttention, markChipAttention } from '../chipAttention';
 import {
   pushEntityActivate,
   resetEntityActivateBridge,
@@ -40,7 +40,7 @@ function sampleEchoTrack() {
 }
 
 function resetAllSources(): void {
-  clearAllChipPulses();
+  clearAllChipAttention();
   setClueWaitingCount(0);
   clearPhantomSuggestion();
   setEchoSpotWaiting(false);
@@ -58,66 +58,42 @@ describe('computeChipAttentions', () => {
 
   it('visuals：有等待中的視覺線索時視為 waiting', () => {
     setClueWaitingCount(2);
-    expect(computeChipAttentions().visuals).toEqual({
-      kind: 'waiting',
-      reason: '有視覺線索等待中',
-    });
+    expect(computeChipAttentions().visuals).toBe('有視覺線索等待中');
   });
 
   it('visuals：無 clue 等待時，相關畫廊提示也算 waiting', () => {
     pushPhantomSuggestion(samplePhantomGallery());
-    expect(computeChipAttentions().visuals).toEqual({
-      kind: 'waiting',
-      reason: '有相關畫廊等待查看',
-    });
+    expect(computeChipAttentions().visuals).toBe('有相關畫廊等待查看');
   });
 
   it('echoes：Echo Spot 等待插播時視為 waiting', () => {
     setEchoSpotWaiting(true);
-    expect(computeChipAttentions().echoes).toEqual({
-      kind: 'waiting',
-      reason: '有回聲等待插播',
-    });
+    expect(computeChipAttentions().echoes).toBe('有回聲等待插播');
   });
 
   it('echoes：無 Echo Spot 時，相關回聲提示也算 waiting', () => {
     pushEchoSuggestion(sampleEchoTrack());
-    expect(computeChipAttentions().echoes).toEqual({
-      kind: 'waiting',
-      reason: '有相關回聲等待查看',
-    });
+    expect(computeChipAttentions().echoes).toBe('有相關回聲等待查看');
   });
 
   it('concepts：terminalBridge 有 pending entity 時視為 waiting', () => {
     pushEntityActivate({ kind: 'character', ref: 'entity:test-char' });
-    expect(computeChipAttentions().concepts).toEqual({
-      kind: 'waiting',
-      reason: '有條目等待查閱',
-    });
+    expect(computeChipAttentions().concepts).toBe('有條目等待查閱');
   });
 
-  it('同一座島 waiting 與 pulse 同時成立時，waiting 優先於 pulse', () => {
+  it('同一座島衍生型與標記型同時成立時，衍生型的說明優先', () => {
     setClueWaitingCount(1);
-    flashChip('visuals', '剛剛有東西動了');
-    expect(computeChipAttentions().visuals).toEqual({
-      kind: 'waiting',
-      reason: '有視覺線索等待中',
-    });
+    markChipAttention('visuals', '剛剛有東西動了');
+    expect(computeChipAttentions().visuals).toBe('有視覺線索等待中');
   });
 
-  it('沒有 waiting 來源時，退回讀 pulse（瞬時事件）', () => {
-    flashChip('history', '閱讀進度已更新');
-    expect(computeChipAttentions().history).toEqual({
-      kind: 'pulse',
-      reason: '閱讀進度已更新',
-    });
+  it('沒有衍生型來源時，退回讀標記', () => {
+    markChipAttention('history', '閱讀進度已更新');
+    expect(computeChipAttentions().history).toBe('閱讀進度已更新');
   });
 
-  it('storage 沒有定義任何 waiting 來源，只可能出現 pulse', () => {
-    flashChip('storage', '便條已更新');
-    expect(computeChipAttentions().storage).toEqual({
-      kind: 'pulse',
-      reason: '便條已更新',
-    });
+  it('storage 沒有定義任何衍生型來源，只可能出現標記', () => {
+    markChipAttention('storage', '便條已更新');
+    expect(computeChipAttentions().storage).toBe('便條已更新');
   });
 });

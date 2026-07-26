@@ -42,7 +42,8 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
   const conceptsUnread = useTerminalUnread(collapsed.includes('concepts'));
 
   // 收合期間的提示（S9-D.5）：Visual Clue 區間、Echo Spot 待播、
-  // 互動式嵌入的相關內容、進度／便條的瞬時變動——全部收在同一支 hook。
+  // 互動式嵌入的相關內容、進度與便條的變動——全部收在同一支 hook，
+  // 一律持續到使用者展開該島或換頁為止。
   const attentions = useChipAttentions();
 
   /* 轉場讓位（S9-D.2）：與島本體同一套語意，但 dock 是一排小 chip，
@@ -85,13 +86,12 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
         const def = ISLAND_DEFINITIONS[id];
         const unread = id === 'concepts' ? conceptsUnread : 0;
         const attention = attentions[id];
-        const note =
-          attention?.reason ?? (unread > 0 ? `${unread} 項未讀更新` : null);
+        const note = attention ?? (unread > 0 ? `${unread} 項未讀更新` : null);
         return (
           <button
             key={id}
             data-island={id}
-            className={`uep-island-dock__chip${attention ? ` is-attn-${attention.kind}` : ''}`}
+            className={`uep-island-dock__chip${attention ? ' is-attn-waiting' : ''}`}
             onClick={() => runtime.open(id)}
             aria-label={
               note ? `展開${def.title}（${note}）` : `展開${def.title}`

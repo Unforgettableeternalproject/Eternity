@@ -13,7 +13,7 @@ import { getReaderAuth } from '../auth';
 import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../progress';
 import type { ProgressChangeDetail, ProgressState } from '../progress';
 
-import { clearAllChipPulses } from './chipAttention';
+import { clearAllChipAttention } from './chipAttention';
 import { clearTerminalLog } from './concepts/terminalLog';
 import { clearPhantomGallery } from './visuals/phantomBridge';
 import {
@@ -179,7 +179,7 @@ export const uepIslands = {
     // 不得看到上一個帳號投射的畫廊——同 terminal 歷史語意）
     clearPhantomGallery();
     // 未過期的 chip 閃爍同理：換帳號後不該有上一個帳號的提示殘留在 dock
-    clearAllChipPulses();
+    clearAllChipAttention();
     state = { windows: {}, focusOrder: [] };
     notify('reset');
   },

@@ -32,7 +32,11 @@ import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
-import { flashChip } from './chipAttention';
+import {
+  clearAllChipAttention,
+  clearChipAttention,
+  markChipAttention,
+} from './chipAttention';
 import {
   clearPendingEntityActivate,
   pushEntityActivate,
@@ -315,6 +319,8 @@ export default function IslandHost() {
     clearEchoSuggestion();
     clearPhantomSuggestion();
     clearPendingEntityActivate();
+    // 標記型提示同樣以「換頁」為終點——進度／便條的變動屬於剛才那一頁
+    clearAllChipAttention();
   }, [pathname, search]);
 
   /* 進度推進 → 旅程之書 chip 閃一下（S9-D.6）
@@ -332,8 +338,18 @@ export default function IslandHost() {
     );
     if (!gained) return;
     if (!shouldMountIsland(progress, 'history')) return;
-    flashChip('history', '閱讀進度已更新');
+    markChipAttention('history', '閱讀進度已更新');
   }, [progress]);
+
+  /* 展開島 = 看到了（S9-D.9）
+     標記型提示沒有可查詢的條件可以自己失效，展開就是它的終點。掛在這裡
+     而非 dock 的 onClick：島也可能從別處被展開（設定視窗、測試 bridge），
+     那些路徑一樣要算數。 */
+  useEffect(() => {
+    ISLAND_IDS.forEach((id) => {
+      if (runtimeState.windows[id]?.open) clearChipAttention(id);
+    });
+  }, [runtimeState]);
 
   const dismissEchoPreview = useCallback(() => setEchoPreview(null), []);
 
