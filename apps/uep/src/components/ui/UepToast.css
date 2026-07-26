@@ -1,10 +1,15 @@
 /* ── UEP Toast 容器 ──
    位置：右下角。原本在右上與識別證/記錄按鈕擠在同一側，改到右下角
-   避免遮擋。堆疊方向也要跟著調整——新 toast 從下往上疊 */
+   避免遮擋。堆疊方向也要跟著調整——新 toast 從下往上疊。
+
+   右距讓開浮島 dock（right:14px + 44px chip，佔右緣 14~58px 且往上
+   堆疊）：toast 的 z-index 遠高於 dock，貼右緣時每則通知都會把 chip
+   蓋掉幾秒，而解鎖、授旗這類通知本來就常跟 chip 提示同時發生。
+   與 DevTools FAB、Echo Spot 提示卡走同一條讓位線。 */
 .uep-toast-container {
   position: fixed;
   bottom: 1.25rem;
-  right: 1.25rem;
+  right: 74px;
   z-index: 10000;
   display: flex;
   flex-direction: column-reverse; /* 新 toast 在下、舊的往上退 */
@@ -170,5 +175,13 @@
   .uep-toast {
     min-width: auto;
     width: 100%;
+  }
+}
+
+/* 641~760px：浮島整組不掛載，沒有 dock 需要讓位，右距收回原值
+   （≤640px 由上一條的左右吃滿接手） */
+@media (min-width: 641px) and (max-width: 760px) {
+  .uep-toast-container {
+    right: 1.25rem;
   }
 }

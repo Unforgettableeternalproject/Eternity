@@ -8,10 +8,12 @@
 .uep-echo-preview {
   --echo: #8e6cb6;
   position: fixed;
-  right: 20px;
+  /* dock 固定佔住右緣 14~58px（right:14px + 44px chip）且向上堆疊，
+     卡片貼右緣時會把整條 chip 蓋掉——往左讓出一個 chip 寬加間距。 */
+  right: 74px;
   bottom: 82px;
   z-index: 2995;
-  width: min(288px, calc(100vw - 32px));
+  width: min(288px, calc(100vw - 106px));
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 12px;
@@ -123,4 +125,12 @@
 .uep-echo-preview__actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* 手機不掛浮島也就沒有 dock，讓位反而把卡片擠窄 */
+@media (max-width: 760px) {
+  .uep-echo-preview {
+    right: 20px;
+    width: min(288px, calc(100vw - 32px));
+  }
 }
