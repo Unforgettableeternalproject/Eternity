@@ -843,6 +843,69 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
         (get.body as { meta?: { observerEver: boolean } }).meta!.observerEver
       ).toBe(true);
     });
+
+    /**
+     * 【回歸 2026-07-26，Codex 複核 blocker 2】
+     * 凡是改變讀者 canonical 狀態的 admin 操作都必須遞增 rev，**即使
+     * blob 為 null**。
+     *
+     * 舊條件是 `hasProgressEdit || (hasObserverEdit && progressObj)`：
+     * progress 已是 null 時單獨清除印記，DB 欄位改了但 rev 沒動。客戶端
+     * 手上的同 rev 快照仍會通過 CAS，而讀者端 PUT 的印記是單向 OR，
+     * 於是印記被升回 true——admin 的清除被復原。
+     */
+    it('progress 為 null 時單獨切 observerEver 也必須遞增 rev', async () => {
+      const adminToken = await getAdminToken();
+      const { token } = await registerUser('um-observer-only-rev');
+      const user = await findUser(adminToken, 'um-observer-only-rev');
+
+      // 使用者成為觀測者，然後 admin 清空進度（blob → null，印記保留）
+      await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify({ view: 'observer', observerEver: true }),
+      });
+      await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ progress: null }),
+      });
+
+      // 客戶端此刻手上的 rev
+      const before = await fetchJson('/api/uep/progress', { token });
+      const heldRev = (before.body as { meta?: { rev: number } }).meta!.rev;
+
+      // admin 在 progress 已是 null 的狀態下單獨清除印記
+      const cleared = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: JSON.stringify({ observerEver: false }),
+      });
+      expect(cleared.status).toBe(200);
+
+      // rev 必須已遞增 → 舊快照失效
+      const after = await fetchJson('/api/uep/progress', { token });
+      const newRev = (after.body as { meta?: { rev: number } }).meta!.rev;
+      expect(newRev).toBeGreaterThan(heldRev);
+      expect(
+        (after.body as { meta?: { observerEver: boolean } }).meta!.observerEver
+      ).toBe(false);
+
+      // 客戶端拿舊 rev 帶著 observerEver=true 重送 → 必須被擋
+      const stale = await fetchJson('/api/uep/progress', {
+        method: 'PUT',
+        token,
+        headers: { 'X-Progress-Rev': String(heldRev) },
+        body: JSON.stringify({ view: 'observer', observerEver: true }),
+      });
+      expect(stale.status).toBe(409);
+
+      // 印記維持被清除的狀態——沒有被讀者端的單向 OR 升回去
+      const final = await fetchJson('/api/uep/progress', { token });
+      expect(
+        (final.body as { meta?: { observerEver: boolean } }).meta!.observerEver
+      ).toBe(false);
+    });
   });
 
   it('GET /users/:id/progress 需 admin token；不存在 404', async () => {

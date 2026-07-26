@@ -15,6 +15,7 @@ import type {
   AuthoritativeSnapshot,
   ProgressAdapter,
   ProgressState,
+  RemoteLoadResult,
 } from './types';
 
 /** debounce 預設間隔（毫秒） */
@@ -39,6 +40,17 @@ export interface ServerAdapterOptions {
    * 手上的快照已過期，呼叫端應改為從伺服器重新 hydrate。
    */
   onProgressReset?: () => void;
+  /**
+   * 需要上傳但手上沒有伺服器版本號時的回呼（初次 GET 失敗過）。
+   *
+   * 沒有 rev 就無法做 CAS，此時上傳只能走時間戳弱鎖——而弱鎖擋不住
+   * admin 的寫入。呼叫端應改為做一次權威 hydrate 取得 rev 並以伺服器
+   * 為準收斂，而不是把本地推上去（2026-07-26 Codex 複核 blocker 3）。
+   *
+   * 與 `onProgressReset` 分開：這不是「管理者改了你的進度」，只是本端
+   * 從未讀到伺服器，不該對使用者顯示相同的提示。
+   */
+  onRevMissing?: () => void;
   /** debounce 間隔，測試用 */
   debounceMs?: number;
 }
@@ -48,13 +60,18 @@ export class ServerAdapter implements ProgressAdapter {
   private readonly opts: Required<
     Pick<ServerAdapterOptions, 'apiBase' | 'getToken' | 'debounceMs'>
   > &
-    Pick<ServerAdapterOptions, 'onAuthExpired' | 'onProgressReset'>;
+    Pick<
+      ServerAdapterOptions,
+      'onAuthExpired' | 'onProgressReset' | 'onRevMissing'
+    >;
 
   private pending: ProgressState | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   /**
    * 伺服器發放的進度版本號，PUT 時以 `X-Progress-Rev` 帶回做 CAS。
-   * null = 尚未從伺服器讀過（首次 PUT 不帶 header，退回時間戳弱鎖）。
+   *
+   * null = 尚未成功從伺服器讀過。此狀態下 `flush()` 一律放棄上傳並要求
+   * 呼叫端做權威 hydrate——不會退回時間戳弱鎖（見 `flush()` 的註解）。
    */
   private rev: number | null = null;
   private readonly onPageHide = () => {
@@ -67,6 +84,7 @@ export class ServerAdapter implements ProgressAdapter {
       getToken: options.getToken,
       onAuthExpired: options.onAuthExpired,
       onProgressReset: options.onProgressReset,
+      onRevMissing: options.onRevMissing,
       debounceMs: options.debounceMs ?? DEFAULT_DEBOUNCE_MS,
     };
     // 離開頁面時把未上傳的進度沖出去（keepalive 讓請求在 unload 後存活）
@@ -93,30 +111,73 @@ export class ServerAdapter implements ProgressAdapter {
     void this.flush(true);
   }
 
-  async load(): Promise<ProgressState | null> {
+  /**
+   * 單一遠端讀取實作，四態語意見 `RemoteLoadResult`。
+   * `load()` / `loadRemote()` / `loadAuthoritative()` 全部走這裡，
+   * 差別只在如何把結果翻譯成各自的回傳型別。
+   */
+  private async fetchRemote(): Promise<RemoteLoadResult> {
     const token = this.opts.getToken();
-    if (!token) return null;
+    if (!token) return { kind: 'unavailable' };
     try {
       const res = await fetch(`${this.opts.apiBase}/api/uep/progress`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
         this.opts.onAuthExpired?.();
-        return null;
+        return { kind: 'unavailable' };
       }
-      if (!res.ok) {
-        // 伺服器暫時性錯誤：fallback 本地鏡像，不阻斷閱讀
-        return this.local.loadSync();
-      }
+      if (!res.ok) return { kind: 'unavailable' };
       const json = (await res.json()) as ProgressResponse;
-      if (!json.ok) return this.local.loadSync();
-      if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
-      // data === null 代表帳號尚無雲端進度（store 會上傳本地作為初始值）
-      if (json.data === null || json.data === undefined) return null;
-      return normalizeState(json.data);
+      if (!json.ok) return { kind: 'unavailable' };
+
+      const rev = typeof json.meta?.rev === 'number' ? json.meta.rev : null;
+      if (rev !== null) this.rev = rev;
+      const observerEver = json.meta?.observerEver === true;
+
+      /* 「遠端沒有可用進度」的兩種來歷靠 rev 分辨：
+         - rev === 0：這個帳號從來沒被寫過（全新註冊）→ absent，
+           呼叫端可以把匿名期的本地進度匯入為初始值。
+         - rev > 0：曾被寫過而現在是空的（admin 剛重置）→ empty，
+           本地鏡像正是被清掉的那份，推回去等於復原他的操作。
+         rev 缺失（尚未升級的 worker）保守當 empty——寧可少匯入一次
+         匿名進度，也不要冒著把 admin 的重置蓋回去的風險。 */
+      const withoutState = (): RemoteLoadResult =>
+        rev === 0
+          ? { kind: 'absent', observerEver }
+          : { kind: 'empty', observerEver };
+
+      if (json.data === null || json.data === undefined) return withoutState();
+
+      // blob 存在但無法正規化（資料毀損）：同樣視為沒有可用進度
+      const state = normalizeState(json.data);
+      if (!state) return withoutState();
+
+      return { kind: 'present', state, observerEver };
     } catch {
-      // 離線：fallback 本地鏡像
-      return this.local.loadSync();
+      return { kind: 'unavailable' };
+    }
+  }
+
+  /** 四態遠端讀取——`setAdapter()` hydrate 用（見 `RemoteLoadResult`） */
+  loadRemote(): Promise<RemoteLoadResult> {
+    return this.fetchRemote();
+  }
+
+  async load(): Promise<ProgressState | null> {
+    if (!this.opts.getToken()) return null;
+    const result = await this.fetchRemote();
+    switch (result.kind) {
+      case 'present':
+        return result.state;
+      case 'empty':
+      case 'absent':
+        // 帳號無雲端進度。⚠️ 呼叫端無法從這個 null 分辨「權威空」與
+        // 「讀不到」——需要區分的話走 loadRemote()。
+        return null;
+      case 'unavailable':
+        // 伺服器暫時性錯誤／離線：fallback 本地鏡像，不阻斷閱讀
+        return this.local.loadSync();
     }
   }
 
@@ -141,16 +202,32 @@ export class ServerAdapter implements ProgressAdapter {
       this.pending = null;
       return;
     }
+    /* rev 未知 = 初次 GET 從未成功過（離線開站、伺服器短暫掛掉，或
+       上一次 409 之後 hydrate 也失敗）。此時**絕不能上傳**：沒有 rev
+       只能讓 worker 退回時間戳弱鎖，而弱鎖擋不住 admin 的寫入——只要
+       初次 GET 短暫失敗，這份沒跟伺服器對過帳的 state 就會覆蓋 admin
+       剛存的內容（2026-07-26 Codex 複核 blocker 3）。
+
+       丟棄 pending 而非留著重試：它衍生自未經驗證的 state，權威 hydrate
+       完成後會被伺服器版本取代；留著只會在下次 flush 帶著**新** rev 送
+       出去，變成合法通過 CAS 的盲目覆蓋。本地鏡像已由 save() 即時
+       write-through，畫面與離線閱讀都不受影響。 */
+    if (this.rev === null) {
+      this.pending = null;
+      this.opts.onRevMissing?.();
+      return;
+    }
+
     const body = JSON.stringify(this.pending);
     this.pending = null;
     try {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        // 版本號做 compare-and-swap。上面已保證 rev 非 null——
+        // 「不帶 header 走弱鎖」那條路對本客戶端已永久關閉。
+        'X-Progress-Rev': String(this.rev),
       };
-      // 帶上手上的版本號做 compare-and-swap；沒有（還沒 GET 過）就不帶，
-      // 由 worker 退回時間戳弱鎖。
-      if (this.rev !== null) headers['X-Progress-Rev'] = String(this.rev);
 
       const res = await fetch(`${this.opts.apiBase}/api/uep/progress`, {
         method: 'PUT',
@@ -190,29 +267,12 @@ export class ServerAdapter implements ProgressAdapter {
    * 著新版本號把過期資料寫回去，等於繞過整個衝突偵測。
    */
   async loadAuthoritative(): Promise<AuthoritativeSnapshot | null> {
-    const token = this.opts.getToken();
-    if (!token) return null;
-    try {
-      const res = await fetch(`${this.opts.apiBase}/api/uep/progress`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) {
-        this.opts.onAuthExpired?.();
-        return null;
-      }
-      if (!res.ok) return null; // 讀不到就說讀不到，不拿本地充數
-      const json = (await res.json()) as ProgressResponse;
-      if (!json.ok) return null;
-      if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
-      return {
-        state:
-          json.data === null || json.data === undefined
-            ? null
-            : normalizeState(json.data),
-        observerEver: json.meta?.observerEver === true,
-      };
-    } catch {
-      return null; // 離線同理
-    }
+    const result = await this.fetchRemote();
+    // 讀不到就說讀不到，不拿本地充數
+    if (result.kind === 'unavailable') return null;
+    return {
+      state: result.kind === 'present' ? result.state : null,
+      observerEver: result.observerEver,
+    };
   }
 }

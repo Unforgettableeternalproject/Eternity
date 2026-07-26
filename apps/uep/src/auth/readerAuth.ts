@@ -8,7 +8,8 @@
  * admin 仍走 httpOnly cookie + SSR proxy，兩套完全分離）。
  *
  * 登入/註冊成功後自動把 progressStore 的 adapter 切成 ServerAdapter
- * （伺服器優先合併——遠端有資料則覆蓋本地、遠端空則上傳本地）。
+ * （伺服器優先合併——遠端有資料則覆蓋本地；遠端為空**只有在全新帳號**
+ * 時才上傳本地，見 `RemoteLoadResult`）。
  */
 
 import { LocalStorageAdapter } from '../progress/adapters';
@@ -139,6 +140,17 @@ async function attachServerAdapter(): Promise<void> {
         .hydrateAuthoritative()
         .then(() => uepReaderAuth.refresh());
       window.__uepToastManager?.info('閱讀進度已由管理者更新。');
+    },
+    onRevMissing: () => {
+      /* 想上傳但手上沒有伺服器版本號（初次 GET 失敗過）。ServerAdapter
+         已經放棄這次上傳——沒有 rev 只能走時間戳弱鎖，那條路擋不住
+         admin 的寫入。這裡補一次權威 hydrate 取回 rev 並以伺服器為準
+         收斂，之後的 mutation 就能正常做 CAS。
+
+         刻意不 toast：對使用者而言什麼都沒發生（本地鏡像一路是新的），
+         這只是背景的同步重試，不是「管理者改了你的進度」。
+         hydrate 若也失敗，rev 維持 null，下一次 mutation 會再觸發一次。 */
+      void getProgressManager().hydrateAuthoritative();
     },
   });
   await getProgressManager().setAdapter(serverAdapter);

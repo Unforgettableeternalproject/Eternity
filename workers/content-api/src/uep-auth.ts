@@ -616,6 +616,8 @@ async function handleAdminUpdateUser(
 
     if (progressObj) progressObj.observerEver = finalObserver;
 
+    // blob 只在有內容要寫時才動：純 observerEver toggle 且進度已是 null 時
+    // 沒有 blob 可鏡射，欄位自己改就夠了。
     if (hasProgressEdit || (hasObserverEdit && progressObj)) {
       const serialized = progressObj ? JSON.stringify(progressObj) : null;
       if (serialized && serialized.length > PROGRESS_MAX_BYTES) {
@@ -623,22 +625,28 @@ async function handleAdminUpdateUser(
       }
       updates.push('progress = ?');
       values.push(serialized);
-      /* 樂觀鎖戳記：admin 動過 progress 之後，使用者端所有更早的快照一律
-         失效（handlePutProgress 回 409）。否則還開著的分頁會把寫入前的
-         鏡像 debounce PUT 回來，悄悄復原這次的操作。
-
-         ⚠️ 涵蓋**所有** admin 對 progress 的寫入，不只 `progress: null`
-         的清除——存入非空進度、乃至只 toggle observerEver 而連帶重寫
-         blob，同樣需要擋掉使用者端的舊快照，否則 admin 的編輯會被覆蓋。
-         欄位名 `progress_reset_at` 是初版命名的遺留，語意實為
-         「admin 最後改寫 progress 的時刻」。
-         客戶端收到 409 一律走 hydrateAuthoritative（以伺服器為準），
-         不是 reset——後者會把空 state 推回去蓋掉 admin 存的內容。 */
-      updates.push('progress_reset_at = ?');
-      values.push(new Date().toISOString());
-      // 版本 +1：一次讓所有在飛的舊 rev 失效，讀者端的 CAS 會落空回 409
-      updates.push('progress_rev = progress_rev + 1');
     }
+
+    /* 樂觀鎖戳記 + 版本遞增：admin 動過讀者端的 canonical 狀態之後，
+       使用者端所有更早的快照一律失效（handlePutProgress 回 409）。
+       否則還開著的分頁會把寫入前的鏡像 debounce PUT 回來，悄悄復原
+       這次的操作。
+
+       ⚠️ 條件是 `hasProgressEdit || hasObserverEdit`，**不能**再加
+       「有 blob」的前提（2026-07-26 Codex 複核 blocker 2）。progress
+       已是 null 時單獨清除 observerEver，DB 欄位改了但 rev 沒動，客戶端
+       手上的同 rev 快照仍會通過 CAS，讀者端的單向 OR 又把印記升回
+       true——admin 的操作被復原。凡是改變 reader canonical
+       progress/meta 的 admin 操作，都必須遞增 rev，即使 blob 為 null。
+
+       欄位名 `progress_reset_at` 是初版命名的遺留，語意實為
+       「admin 最後改寫讀者 canonical 狀態的時刻」。
+       客戶端收到 409 一律走 hydrateAuthoritative（以伺服器為準），
+       不是 reset——後者會把空 state 推回去蓋掉 admin 存的內容。 */
+    updates.push('progress_reset_at = ?');
+    values.push(new Date().toISOString());
+    updates.push('progress_rev = progress_rev + 1');
+
     updates.push('observer_ever = ?');
     values.push(finalObserver ? 1 : 0);
   }

@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { PROGRESS_STORAGE_KEY, normalizeState } from '../adapters';
-import type { ProgressState } from '../types';
+import type { ProgressState, RemoteLoadResult } from '../types';
 
 async function freshStore() {
   vi.resetModules();
@@ -334,7 +334,9 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     expect(uepProgress.getState().flags).toEqual(['remote-flag']);
   });
 
-  it('遠端無資料時上傳本地進度', async () => {
+  // 沒有 loadRemote 的 adapter 走舊 load() 路徑：null 一律當「新帳號初始化」。
+  // 帶四態語意的 ServerAdapter 不走這裡，見下方「setAdapter 的四態語意」。
+  it('遠端無資料時上傳本地進度（無 loadRemote 的舊路徑）', async () => {
     const { uepProgress } = await freshStore();
     uepProgress.grantFlags(['local-flag']);
     const save = vi.fn(() => Promise.resolve());
@@ -598,6 +600,137 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       await uepProgress.hydrateAuthoritative();
 
       expect(uepProgress.getState().observerEver).toBe(false);
+    });
+  });
+
+  /* ── 四態遠端讀取（loadRemote）───────────────────────────────────
+   * 【回歸 2026-07-26，Codex 複核 blocker 1】
+   *
+   * 舊實作只看 `load()` 的 null 就一律 `persist()`，也就是「遠端空 →
+   * 把本地推上去」。事故重現：admin reset 令 progress=null 且 rev+1；
+   * 使用者保留 reset 前的本地鏡像後重新整理；GET 拿到**最新** rev 但
+   * data 為 null；setAdapter 隨即用最新 rev 把舊鏡像 PUT 回去，CAS 合法
+   * 通過——admin 的重置被完全復原。
+   *
+   * 修法是把「權威空」（rev > 0）和「全新帳號」（rev === 0）拆開，
+   * 只有後者可以匯入匿名期的本地進度。
+   */
+  describe('setAdapter 的四態語意', () => {
+    /** 帶 loadRemote 的假 server adapter */
+    function remoteAdapter(result: RemoteLoadResult) {
+      return {
+        load: vi.fn(() => Promise.resolve(null)),
+        save: vi.fn(() => Promise.resolve()),
+        loadRemote: () => Promise.resolve(result),
+      };
+    }
+
+    it('empty（admin 已重置）→ 採 canonical empty 且不上傳本地', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.grantFlags(['before-reset']);
+      const adapter = remoteAdapter({ kind: 'empty', observerEver: false });
+
+      await uepProgress.setAdapter(adapter);
+
+      expect(uepProgress.getState().flags).toEqual([]);
+      // 關鍵斷言：舊鏡像不得被推回伺服器
+      expect(adapter.save).not.toHaveBeenCalled();
+    });
+
+    it('empty 仍要帶回 canonical 印記（pristineOnly 洩漏防線）', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = remoteAdapter({ kind: 'empty', observerEver: true });
+
+      await uepProgress.setAdapter(adapter);
+
+      expect(uepProgress.getState().flags).toEqual([]);
+      expect(uepProgress.getState().observerEver).toBe(true);
+    });
+
+    it('absent（全新帳號）→ 匯入匿名本地進度並上傳', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.grantFlags(['anonymous-progress']);
+      const adapter = remoteAdapter({ kind: 'absent', observerEver: false });
+
+      await uepProgress.setAdapter(adapter);
+
+      expect(uepProgress.getState().flags).toEqual(['anonymous-progress']);
+      expect(adapter.save).toHaveBeenCalled();
+    });
+
+    it('unavailable（讀不到）→ 保持現狀且不上傳', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.grantFlags(['local-only']);
+      const adapter = remoteAdapter({ kind: 'unavailable' });
+
+      await uepProgress.setAdapter(adapter);
+
+      expect(uepProgress.getState().flags).toEqual(['local-only']);
+      // 沒有有效 rev，上傳只能走擋不住 admin 的弱鎖
+      expect(adapter.save).not.toHaveBeenCalled();
+    });
+
+    it('present → 以遠端為準，印記取 canonical 而非 blob', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = remoteAdapter({
+        kind: 'present',
+        state: makeRemote({ flags: ['remote'], observerEver: true }),
+        observerEver: false,
+      });
+
+      await uepProgress.setAdapter(adapter);
+
+      expect(uepProgress.getState().flags).toEqual(['remote']);
+      // admin 剛清除印記：blob 裡的殘留值不得把它復活
+      expect(uepProgress.getState().observerEver).toBe(false);
+    });
+
+    it('admin 清印記後，本地鏡像的舊印記不得復活', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.setView('observer'); // 本地留下印記
+      const adapter = remoteAdapter({
+        kind: 'present',
+        state: makeRemote({ flags: ['remote'] }),
+        observerEver: false,
+      });
+
+      await uepProgress.setAdapter(adapter);
+
+      expect(uepProgress.getState().observerEver).toBe(false);
+    });
+
+    it('但空窗期內新落下的印記要保留', async () => {
+      const { uepProgress } = await freshStore();
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      const adapter = {
+        load: vi.fn(() => Promise.resolve(null)),
+        save: vi.fn(() => Promise.resolve()),
+        loadRemote: async (): Promise<RemoteLoadResult> => {
+          await gate;
+          return {
+            kind: 'present',
+            state: makeRemote({ flags: ['remote'] }),
+            observerEver: false,
+          };
+        },
+      };
+
+      const pending = uepProgress.setAdapter(adapter);
+      uepProgress.setView('observer'); // hydrate 空窗期內的真實動作
+      release();
+      await pending;
+
+      expect(uepProgress.getState().observerEver).toBe(true);
+    });
+
+    it('有 loadRemote 時不再走 load()', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = remoteAdapter({ kind: 'unavailable' });
+      await uepProgress.setAdapter(adapter);
+      expect(adapter.load).not.toHaveBeenCalled();
     });
   });
 });

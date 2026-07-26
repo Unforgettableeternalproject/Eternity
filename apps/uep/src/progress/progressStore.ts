@@ -171,6 +171,60 @@ function mergeHydrated(
   };
 }
 
+/**
+ * 印記的收斂規則：以伺服器 canonical 欄位為準，只有**空窗期內新落下**的
+ * 印記才蓋過它。
+ *
+ * 兩個方向都得顧到：
+ * - DB=true、本地=false（admin 剛授予，或本機清空過）→ 必須取 canonical，
+ *   否則 `pristineOnly`（純潔者限定）內容會對印記者顯示而外洩劇透。
+ * - DB=false、本地=true（admin 剛**清除**印記）→ 不能無條件 OR 本地值，
+ *   那會把他的操作原地復原。判準與 `unionAdded` 同源：拿 base 當基線，
+ *   只有 hydrate 空窗期內真的切到觀測者（base 為 false 而 local 為 true）
+ *   才算使用者的新動作，值得保留。
+ */
+function resolveObserverEver(
+  canonical: boolean,
+  base: ProgressState,
+  local: ProgressState
+): boolean {
+  return canonical || (local.observerEver && !base.observerEver);
+}
+
+/** 只寫本地鏡像，不經 adapter——避免 hydrate 結果被當成新變更推回伺服器 */
+function syncLocalMirror(next: ProgressState): void {
+  void new LocalStorageAdapter().save(next);
+}
+
+/**
+ * 套用遠端快照。印記一律以 canonical 為準（見 `resolveObserverEver`），
+ * 其餘欄位依 hydrate 空窗期內有無 mutation 決定「直接採用」或「聯集合併」。
+ */
+function applyHydrated(
+  remote: ProgressState,
+  base: ProgressState,
+  canonicalObserverEver: boolean
+): void {
+  if (state === base) {
+    // 空窗期沒有任何 mutation：伺服器優先，直接採用
+    state = {
+      ...remote,
+      observerEver: resolveObserverEver(canonicalObserverEver, base, state),
+    };
+    // 鏡像同步而非 persist()：這份剛從伺服器來，不是需要上傳的新變更
+    syncLocalMirror(state);
+    notify('hydrate');
+    return;
+  }
+  // 空窗期有人寫入過：把新增的授予疊回遠端快照，並回寫以免只存在記憶體
+  state = {
+    ...mergeHydrated(remote, base, state),
+    observerEver: resolveObserverEver(canonicalObserverEver, base, state),
+  };
+  persist();
+  notify('hydrate');
+}
+
 function mutate(
   source: ProgressChangeDetail['source'],
   updater: (prev: ProgressState) => ProgressState
@@ -446,12 +500,19 @@ export const uepProgress = {
 
   /**
    * 替換儲存 adapter（S5 登入後切換 ServerAdapter）。
-   * adapter.load() 有資料時以其為準覆蓋本地狀態（伺服器優先策略）。
+   * 遠端有資料時以其為準覆蓋本地狀態（伺服器優先策略）。
    *
    * ⚠️ hydrate 期間發生的本地 mutation 不會被丟棄——見 `mergeHydrated()`。
    *
    * ⚠️ hydrate 期間若 adapter 又被換掉（最常見：載入途中使用者登出），
    * 這次的遠端結果一律丟棄——見 `adapterGeneration`。
+   *
+   * ⚠️ **「遠端沒有進度」必須分成三種情況處理**（2026-07-26 Codex 複核
+   * blocker 1）。舊實作只看 `load()` 的 null 就一律 `persist()`，等於
+   * 「遠端空 → 把本地推上去」：admin 重置某帳號後，使用者只要帶著重置前
+   * 的本地鏡像重新載入，這裡就會用**最新** rev 把舊鏡像 PUT 回去，CAS
+   * 合法通過，重置被完全復原。四態語意見 `RemoteLoadResult`；只有
+   * `absent`（rev === 0，全新帳號）才可以上傳本地。
    *
    * @param options.hydrate 傳 false 則只換 adapter、不讀遠端。登出時用：
    *   下一步就要 `reset()`，讀回上一個帳號的鏡像純粹是浪費與畫面閃爍。
@@ -465,24 +526,57 @@ export const uepProgress = {
     if (options?.hydrate === false) return;
 
     const base = state;
-    const remote = await next.load();
+
+    // 沒有四態語意的 adapter（LocalStorageAdapter）走原本的 load() 路徑
+    if (!next.loadRemote) {
+      const remote = await next.load();
+      if (generation !== adapterGeneration) return; // 已被更替，結果作廢
+      if (!remote) {
+        persist();
+        return;
+      }
+      applyHydrated(remote, base, remote.observerEver);
+      return;
+    }
+
+    const result = await next.loadRemote();
     if (generation !== adapterGeneration) return; // 已被更替，結果作廢
 
-    if (!remote) {
-      // 遠端無資料：把本地進度上傳作為初始值
-      persist();
-      return;
+    switch (result.kind) {
+      case 'unavailable':
+        /* 讀不到伺服器：維持本地現狀，且**不上傳**。手上沒有有效 rev，
+           上傳只能走時間戳弱鎖，而弱鎖擋不住 admin 的寫入。等使用者真的
+           有動作時，ServerAdapter.flush() 會要求先做權威 hydrate。 */
+        return;
+
+      case 'absent':
+        /* 全新帳號（rev === 0，從未寫過雲端進度）：這是唯一該把本地推上去
+           的情況——匿名期累積的進度應該跟著這個新帳號走。 */
+        state = {
+          ...state,
+          observerEver: resolveObserverEver(result.observerEver, base, state),
+        };
+        persist();
+        notify('hydrate');
+        return;
+
+      case 'empty':
+        /* 權威空（rev > 0，典型是 admin 剛重置）：採 canonical empty。
+           **刻意不呼叫 persist()**——本地鏡像正是被重置掉的那份，推回去
+           就是原地復原 admin 的操作。只同步本地鏡像；等使用者真有新動作
+           時，那次 mutation 自然會帶著手上的 rev 上傳。 */
+        state = {
+          ...createInitialState(),
+          observerEver: resolveObserverEver(result.observerEver, base, state),
+        };
+        syncLocalMirror(state);
+        notify('hydrate');
+        return;
+
+      case 'present':
+        applyHydrated(result.state, base, result.observerEver);
+        return;
     }
-    if (state === base) {
-      // 空窗期沒有任何 mutation：伺服器優先，直接採用
-      state = remote;
-      notify('hydrate');
-      return;
-    }
-    // 空窗期有人寫入過：把新增的授予疊回遠端快照，並回寫以免只存在記憶體
-    state = mergeHydrated(remote, base, state);
-    persist();
-    notify('hydrate');
   },
 
   /**
@@ -492,8 +586,9 @@ export const uepProgress = {
    * 或重置了這個帳號的進度，讀者端 PUT 收到 409）。
    *
    * 與 `setAdapter()` 的兩點關鍵差異，都是為了避免把 admin 的操作蓋掉：
-   * 1. 遠端為 null 時**不上傳本地**（setAdapter 會，那是「新帳號初始化」
-   *    語意）。admin 清空後上傳本地等於原地復原他的重置。
+   * 1. 遠端為空時**一律不上傳本地**。setAdapter 只在 `absent`
+   *    （rev === 0 的全新帳號）那一種情況上傳，而這裡連那種都不做——
+   *    走到這條路徑的帳號必然已經有過雲端寫入。
    * 2. 不做 mergeHydrated 聯集——admin 的版本就是唯一事實，本地那份
    *    正是被判定為過期的東西。
    *
@@ -519,7 +614,7 @@ export const uepProgress = {
 
     const base = snapshot.state ?? createInitialState();
     state = { ...base, observerEver: snapshot.observerEver };
-    void new LocalStorageAdapter().save(state);
+    syncLocalMirror(state);
     notify('hydrate');
   },
 

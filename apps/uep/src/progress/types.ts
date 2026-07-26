@@ -114,12 +114,46 @@ export interface ProgressState {
   updatedAt: string;
 }
 
+/**
+ * 遠端讀取結果（ServerAdapter 專用的四態語意）。
+ *
+ * `load()` 用單一個 `null` 同時表達「帳號沒有雲端進度」「讀不到伺服器」
+ * 兩件完全相反的事，呼叫端只能一律當成「新帳號，把本地推上去」——於是
+ * admin 的重置會被舊鏡像原地復原（2026-07-26 Codex 複核 blocker 1）。
+ * 這四個 kind 就是把那個 `null` 拆開。
+ */
+export type RemoteLoadResult =
+  /** 遠端有進度 blob */
+  | { kind: 'present'; state: ProgressState; observerEver: boolean }
+  /**
+   * 遠端**權威地**沒有進度：blob 為空但 rev > 0，代表這個帳號曾被寫過
+   * 而現在是空的（典型情境：admin 剛重置）。必須採 canonical empty，
+   * **絕不可**上傳本地鏡像——那正是被重置掉的那份。
+   */
+  | { kind: 'empty'; observerEver: boolean }
+  /**
+   * 帳號從未有過雲端進度（blob 為空且 rev === 0）：全新註冊。
+   * 此時才可以把匿名期累積的本地進度上傳作為初始值。
+   */
+  | { kind: 'absent'; observerEver: boolean }
+  /**
+   * 讀不到伺服器（網路失敗／伺服器錯誤／已登出）。維持本地現狀，
+   * 且因為手上沒有有效 rev，**不得**上傳。
+   */
+  | { kind: 'unavailable' };
+
 /** 進度狀態的儲存介面 — LocalStorageAdapter（S1）/ ServerAdapter（S5） */
 export interface ProgressAdapter {
   /** 讀取狀態；不存在或不可用時回傳 null */
   load(): Promise<ProgressState | null>;
   /** 寫入狀態 */
   save(state: ProgressState): Promise<void>;
+  /**
+   * 帶四態語意的遠端讀取（見 `RemoteLoadResult`）。有實作的 adapter
+   * （ServerAdapter）會被 `setAdapter()` 優先採用；LocalStorageAdapter
+   * 沒有遠端概念，退回 `load()` 即可。
+   */
+  loadRemote?(): Promise<RemoteLoadResult>;
   /**
    * 嚴格遠端讀取——**不得** fallback 本地鏡像。
    *
