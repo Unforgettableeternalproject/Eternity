@@ -135,4 +135,12 @@ export type {
 export {
   isStorageIslandOpenAndExpanded,
   dropEntityText,
+  isEntityDropTarget,
+  findCanonicalEntityName,
 } from './storage/entityDropBridge';
+export {
+  ENTITY_DRAG_ATTR,
+  resolveEntityKeyFromTarget,
+  useEntityDragSource,
+} from './storage/useEntityDragSource';
+export type { EntityDragSource } from './storage/useEntityDragSource';

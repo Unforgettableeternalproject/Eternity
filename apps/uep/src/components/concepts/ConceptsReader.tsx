@@ -30,6 +30,7 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
+import { useEntityDragSource } from '../../islands';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import InterlinkTriggerButton from './InterlinkTriggerButton';
 import { useProgress } from '../../progress/useProgress';
@@ -212,6 +213,12 @@ function normalizeDossierVariants(data: unknown): DossierVariant[] {
 function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
+  /*
+   * dossier 條目是 canonical entity 的所在地，也是唯一可以被拖進便條島的
+   * 條目型態（艾斯維爾 2026-07-27 定案）——browser／chrono／diff 的同名
+   * 條目是引用，不是命名來源，因此那三個 Reader 不掛拖曳來源。
+   */
+  const entityDrag = useEntityDragSource();
 
   // effective view 過濾後可能留下空群組/空分類（條目全部未解鎖）——
   // 一律不渲染（含預設「未分類」群組），整頁無可見條目時走 empty fallback
@@ -321,9 +328,16 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                   {currentGroup.entries.length} records
                 </span>
               </div>
-              <div className="conc-dossier-entries-body">
+              <div
+                className="conc-dossier-entries-body"
+                {...entityDrag.handlers}
+              >
                 {currentGroup.entries.map((entry, i) => (
-                  <div key={i} className="conc-dossier-entry-card">
+                  <div
+                    key={i}
+                    className="conc-dossier-entry-card"
+                    data-entity-key={entry.entityKey}
+                  >
                     <div className="conc-dossier-entry-header">
                       <span className="conc-dossier-entry-idx">
                         {String(i + 1).padStart(2, '0')}
@@ -353,6 +367,7 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
             <div className="conc-dossier-detail-empty">選擇一個分類</div>
           )}
         </div>
+        {entityDrag.ghost}
       </div>
     </div>
   );

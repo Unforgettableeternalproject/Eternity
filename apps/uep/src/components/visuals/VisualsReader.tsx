@@ -17,6 +17,7 @@ import {
   shouldMountIsland,
   triggerHistoryRelated,
   useDesktopIslandViewport,
+  useEntityDragSource,
   useUnlockEligibility,
 } from '../../islands';
 import { getApiBase } from '../../lib/apiBase';
@@ -569,6 +570,9 @@ function VisualsReaderInner() {
       activeSubcatId,
       activeGalleryId,
     ]);
+
+  // 畫廊卡拖進展開的便條島 → 建立一張寫著該 entity 正名的便條
+  const entityDrag = useEntityDragSource();
 
   /*
    * 停在某個畫廊時，讓 History 島浮出「這個畫廊相關的段落」。
@@ -1583,7 +1587,10 @@ function VisualsReaderInner() {
             {currentGalleries.length === 0 ? (
               <div className="visuals-empty">此分組尚無畫廊</div>
             ) : (
-              <div className="visuals-gallery-card-grid">
+              <div
+                className="visuals-gallery-card-grid"
+                {...entityDrag.handlers}
+              >
                 {currentGalleries.map((g) => {
                   const images = Array.isArray(g.metadata?.images)
                     ? (g.metadata.images as ImageItem[])
@@ -1636,6 +1643,14 @@ function VisualsReaderInner() {
                       key={g.id}
                       className="visuals-gallery-card"
                       onClick={handleClick}
+                      /*
+                       * 陳列走廊的畫廊綁 entityKey，可以被拖進便條島；
+                       * 鑲框室的插圖綁 storyKey，不在 dossier 命名空間裡，
+                       * 自然拖不動（findCanonicalEntityName 查不到）
+                       */
+                      data-entity-key={
+                        (g.metadata?.entityKey as string) ?? undefined
+                      }
                     >
                       {thumbUrl && isSpriteThumb ? (
                         (() => {
@@ -1705,6 +1720,7 @@ function VisualsReaderInner() {
                   phantomSlot?.groupIdx === safeGroupIdx && (
                     <VisualsPhantomCard onOpen={handlePhantomCardOpen} />
                   )}
+                {entityDrag.ghost}
               </div>
             )}
 

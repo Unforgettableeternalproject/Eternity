@@ -1,0 +1,87 @@
+/**
+ * entity → 便條島 拖曳視覺（S10-1 T-H2）
+ *
+ * 整層 pointer-events: none —— elementFromPoint 必須看穿它才判得到
+ * 底下的便條島（同 dragToPin 對拖曳中卡片的要求）。
+ *
+ * 調色自帶一份而非沿用 `--st-*`：那組變數定義在 `.uep-stoland` 上，
+ * ghost portal 到 body 後不在它的子樹裡，繼承不到。值取自便條紙本身
+ * （拖出來就是要變成一張便條），深色模式跟著島的暗紙一起壓暗。
+ */
+
+.uep-entity-drag {
+  --edg-slip: #fff1ba;
+  --edg-ink: #3a2f08;
+  --edg-line: 180 60 40;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  pointer-events: none;
+}
+
+[data-theme='dark'] .uep-entity-drag {
+  --edg-slip: #4d4524;
+  --edg-ink: #e8dcae;
+  --edg-line: 255 155 122;
+}
+
+.uep-entity-drag__link {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.uep-entity-drag__line {
+  stroke: rgb(var(--edg-line) / 0.55);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  transition: stroke 0.15s;
+}
+
+.uep-entity-drag__line.is-over {
+  stroke: rgb(var(--edg-line) / 0.95);
+  stroke-dasharray: none;
+  stroke-width: 2;
+}
+
+.uep-entity-drag__origin {
+  fill: rgb(var(--edg-line) / 0.75);
+}
+
+.uep-entity-drag__ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* 名牌掛在指標右下一點，不擋住游標本身 */
+  margin: 10px 0 0 12px;
+  max-width: 220px;
+  padding: 5px 10px;
+  background: var(--edg-slip);
+  border: 1px solid rgb(var(--edg-line) / 0.5);
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--edg-ink);
+  /* CJK 長名不留白斷行（S9 便條同款處理） */
+  overflow-wrap: anywhere;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.uep-entity-drag__ghost.is-over {
+  border-color: rgb(var(--edg-line) / 1);
+  box-shadow: 0 0 0 2px rgb(var(--edg-line) / 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-entity-drag__line,
+  .uep-entity-drag__ghost {
+    transition: none;
+  }
+}

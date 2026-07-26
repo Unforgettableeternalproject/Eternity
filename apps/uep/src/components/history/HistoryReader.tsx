@@ -60,6 +60,7 @@ import {
   shouldMountIsland,
   unlockIsland,
   useDesktopIslandViewport,
+  useEntityDragSource,
   useIslandRuntimeState,
 } from '../../islands';
 import LostBookmarkGate from './LostBookmarkGate';
@@ -324,6 +325,8 @@ export default function HistoryReader() {
   const progress = useProgress();
   // entity 嵌入的條目級可點守門（「可點 ⟺ terminal 查得到內容」不變量）
   const isEntityRefUnlocked = useEntityRefUnlockChecker(progress);
+  // 文內 entity 嵌入拖進展開的便條島 → 建立一張寫著該 entity 正名的便條
+  const entityDrag = useEntityDragSource();
   const onEchoMarkerPassed = useEchoSpots({
     pageId: currentId,
     progress,
@@ -1745,6 +1748,7 @@ export default function HistoryReader() {
                         ref={contentRef}
                         onClick={onArticleClick}
                         onKeyDown={onArticleKeyDown}
+                        {...entityDrag.handlers}
                       >
                         {renderInteractiveHtml(
                           articleHtml ||
@@ -1755,6 +1759,7 @@ export default function HistoryReader() {
                           isEntityRefUnlocked
                         )}
                       </div>
+                      {entityDrag.ghost}
                       {/* 掃描線文末哨兵：通過 = 讀完整篇 */}
                       <div
                         ref={scanSentinelRef}

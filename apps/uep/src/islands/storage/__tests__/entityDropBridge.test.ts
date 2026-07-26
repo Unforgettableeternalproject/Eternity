@@ -10,6 +10,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+import type { TerminalIndexEntry } from '../../concepts/terminalCore';
+
 const authMock = vi.hoisted(() => ({ loggedIn: true }));
 vi.mock('../../../auth', () => ({
   getReaderAuth: () => ({
@@ -148,5 +150,172 @@ describe('dropEntityText', () => {
     const ok = dropEntityText('第 31 條');
     expect(ok).toBe(false);
     expect(uepProgress.getState().storageNotes).toHaveLength(30);
+  });
+});
+
+describe('findCanonicalEntityName', () => {
+  /** 造一筆索引條目（只填判定會用到的欄位） */
+  function entry(
+    partial: Partial<TerminalIndexEntry> & { name: string }
+  ): TerminalIndexEntry {
+    return {
+      stack: 'dossier',
+      pageId: 'concepts/records/character_list',
+      pageTitle: '人物列表',
+      ...partial,
+    };
+  }
+
+  async function progressState() {
+    const { uepProgress } = await freshBridge();
+    return uepProgress.getState();
+  }
+
+  it('dossier 有已解鎖條目 → 回該條目的 name', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    const name = findCanonicalEntityName(
+      [entry({ name: '艾斯維爾·科索諾', entityKey: 'xavier-colsono' })],
+      'xavier-colsono',
+      progress
+    );
+    expect(name).toBe('艾斯維爾·科索諾');
+  });
+
+  it('同一 key 只在 browser／chrono／diff 定義 → 不可拖（回 null）', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    const entries: TerminalIndexEntry[] = [
+      entry({
+        name: '艾斯維爾',
+        entityKey: 'xavier-colsono',
+        stack: 'browser',
+      }),
+      entry({ name: '艾斯維爾', entityKey: 'xavier-colsono', stack: 'diff' }),
+    ];
+    expect(
+      findCanonicalEntityName(entries, 'xavier-colsono', progress)
+    ).toBeNull();
+  });
+
+  it('dossier 條目未解鎖 → 回 null（不讓拖曳繞過條目級進度閘漏名字）', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    const locked = entry({
+      name: '尚未登場的人',
+      entityKey: 'unknown-one',
+      baseGate: { requiresFlags: ['met:someone'] },
+    });
+    expect(
+      findCanonicalEntityName([locked], 'unknown-one', progress)
+    ).toBeNull();
+  });
+
+  it('群組 gate 未過 → 整組隱藏，同樣不可拖', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    const hidden = entry({
+      name: '密會成員',
+      entityKey: 'secret-one',
+      groupGate: { requiresFlags: ['met:secret'] },
+    });
+    expect(
+      findCanonicalEntityName([hidden], 'secret-one', progress)
+    ).toBeNull();
+  });
+
+  it('同 key 跨 variant 多條 → 取第一個已解鎖的', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    const entries: TerminalIndexEntry[] = [
+      entry({
+        name: '鎖住的版本',
+        entityKey: 'xavier-colsono',
+        variantId: 'u',
+        baseGate: { requiresFlags: ['never'] },
+      }),
+      entry({
+        name: '艾斯維爾·科索諾',
+        entityKey: 'xavier-colsono',
+        variantId: 'e',
+      }),
+    ];
+    expect(findCanonicalEntityName(entries, 'xavier-colsono', progress)).toBe(
+      '艾斯維爾·科索諾'
+    );
+  });
+
+  it('索引尚未載入（null）→ 安全預設不可拖', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    expect(
+      findCanonicalEntityName(null, 'xavier-colsono', progress)
+    ).toBeNull();
+  });
+
+  it('空白 key → 回 null，不去比對', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    expect(
+      findCanonicalEntityName(
+        [entry({ name: 'X', entityKey: '' })],
+        '  ',
+        progress
+      )
+    ).toBeNull();
+  });
+
+  it('條目 name 只有空白 → 視為沒有名字可用', async () => {
+    const { findCanonicalEntityName } = await freshBridge();
+    const progress = await progressState();
+    expect(
+      findCanonicalEntityName(
+        [entry({ name: '   ', entityKey: 'blank-one' })],
+        'blank-one',
+        progress
+      )
+    ).toBeNull();
+  });
+});
+
+describe('isEntityDropTarget', () => {
+  // jsdom 不實作 elementFromPoint，直接補一個假的（同 dragToPin 的
+  // 「純函式 + stubbed elementFromPoint」測試模式）
+  function stubElementAt(el: Element | null): () => void {
+    // 經 unknown 轉型：與 Document 交集會讓 elementFromPoint 變成必填，
+    // delete 就過不了型別檢查
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null;
+    };
+    doc.elementFromPoint = () => el;
+    return () => {
+      delete doc.elementFromPoint;
+    };
+  }
+
+  it('放開點落在展開的便條島上 → true', async () => {
+    const { isEntityDropTarget } = await freshBridge();
+    const island = document.createElement('div');
+    island.className = 'uep-island uep-island--storage';
+    document.body.appendChild(island);
+    const restore = stubElementAt(island);
+    expect(isEntityDropTarget(10, 10)).toBe(true);
+    island.remove();
+    restore();
+  });
+
+  it('放開點落在別處 → false', async () => {
+    const { isEntityDropTarget } = await freshBridge();
+    const other = document.createElement('div');
+    document.body.appendChild(other);
+    const restore = stubElementAt(other);
+    expect(isEntityDropTarget(10, 10)).toBe(false);
+    other.remove();
+    restore();
+  });
+
+  it('環境沒有 elementFromPoint → false（不當成落在島上）', async () => {
+    const { isEntityDropTarget } = await freshBridge();
+    expect(isEntityDropTarget(10, 10)).toBe(false);
   });
 });

@@ -32,6 +32,7 @@ import {
   shouldMountIsland,
   triggerHistoryRelated,
   useDesktopIslandViewport,
+  useEntityDragSource,
   useUnlockEligibility,
 } from '../../islands';
 import { useReaderAuth } from '../../auth';
@@ -1243,6 +1244,9 @@ function EchoesReaderInner() {
     setSpoilerWarning(null);
   }
 
+  // 歌曲卡拖進展開的便條島 → 建立一張寫著該 entity 正名的便條
+  const entityDrag = useEntityDragSource();
+
   // === 從 song page 取得 EchoesData ===
   const songData: EchoesData | null = currentSongPage
     ? parseEchoesData(currentSongPage.metadata, currentSongPage.id)
@@ -1809,7 +1813,7 @@ function EchoesReaderInner() {
 
           {/* 歌曲清單（音樂播放列表樣式）*/}
           {directSongs.length > 0 && (
-            <div className="echoes-playlist">
+            <div className="echoes-playlist" {...entityDrag.handlers}>
               <div className="echoes-playlist-header">
                 <span className="echoes-kicker" style={{ color }}>
                   ♪ {directSongs.length} echoes
@@ -1830,6 +1834,16 @@ function EchoesReaderInner() {
                     className="echoes-playlist-item"
                     style={{ ['--accent' as string]: color }}
                     onClick={() => void navigateToSong(song.id)}
+                    /*
+                     * 標題被 spoiler 遮住時不掛拖曳來源——一張顯示
+                     * 「████████」的卡片能拖出角色正名，讀起來像漏餡
+                     * （即使 dossier 那端本來就已解鎖）
+                     */
+                    data-entity-key={
+                      songCanSeeTitle
+                        ? ((meta?.entityKey as string) ?? undefined)
+                        : undefined
+                    }
                   >
                     <span className="echoes-playlist-num">
                       {String(i + 1).padStart(2, '0')}
@@ -1893,6 +1907,7 @@ function EchoesReaderInner() {
                   </button>
                 );
               })}
+              {entityDrag.ghost}
             </div>
           )}
 
