@@ -263,17 +263,14 @@ export async function buildConceptsEntityIndex(
   db: D1Database,
   opts: BuildConceptsEntityIndexOptions = {}
 ): Promise<EntityIndexEntry[]> {
-  // publicOnly=true 時 SQL 端就排掉 hidden/locked 頁，讓下游 collectFromPage
-  // 完全不看到這些頁的 entity（比事後過濾乾淨，也省 parse 成本）
-  const visibleClause = opts.publicOnly
-    ? `AND COALESCE(json_extract(metadata, '$.hidden'), 0) != 1
-       AND COALESCE(json_extract(metadata, '$.locked'), 0) != 1`
-    : '';
-
+  // SQL 只篩結構性欄位——publicOnly 的 hidden/locked 判定放下方逐列
+  // try/catch 之後求值。SQLite 的 json_extract 遇到非法 JSON 會讓整條
+  // SELECT 報錯而非回傳 NULL，把 metadata 判定寫進 WHERE 等於讓任何一頁
+  // 的壞資料打掉整個索引（S8 驗收 #2 教訓）。判定結果與原 SQL 相同。
   const result = await db
     .prepare(
       `SELECT id, title, content, metadata FROM pages
-       WHERE area = 'concepts' AND deleted_at IS NULL ${visibleClause}
+       WHERE area = 'concepts' AND deleted_at IS NULL
        ORDER BY sort_order ASC`
     )
     .all<{ id: string; title: string; content: string; metadata: string }>();
@@ -284,6 +281,16 @@ export async function buildConceptsEntityIndex(
     try {
       metadata = asDict(JSON.parse(row.metadata));
     } catch {
+      continue;
+    }
+    // 原 SQL 的 COALESCE(...,0)!=1 語意：值為 1/true 才排除
+    if (
+      opts.publicOnly &&
+      (metadata?.hidden === true ||
+        metadata?.hidden === 1 ||
+        metadata?.locked === true ||
+        metadata?.locked === 1)
+    ) {
       continue;
     }
     const stack = metadata?.stack_style;

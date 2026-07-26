@@ -294,3 +294,99 @@ describe('GET /api/visuals/gallery（by-id / by-illustration 快照刷新）', (
     expect(res.status).toBe(400);
   });
 });
+
+describe('entity-gallery：storyKey 反查與壞 JSON 容錯（S10-1）', () => {
+  beforeAll(async () => {
+    // 鑲框室插圖掛 storyKey（S10-1 第二套命名空間）
+    await insertPage(
+      'visuals/illustrations/vgal-story',
+      '雨海終曲插圖',
+      'gallery',
+      {
+        storyKey: 'rain-sea-finale',
+        images: [
+          {
+            id: 'img-r',
+            file: 'images/rain-sea.png',
+            caption: '',
+            sortOrder: 0,
+          },
+        ],
+      }
+    );
+    // metadata 是非法 JSON：SQL 端若用 json_extract 過濾會炸掉整條 SELECT
+    await env.CONTENT_DB.prepare(
+      `INSERT INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth, deleted_at)
+       VALUES (?, 'visuals', ?, ?, 1, '[]', ?, 'synced', 'gallery', 3, NULL)`
+    )
+      .bind(
+        'visuals/profiles/vgal-broken',
+        '壞掉的 metadata',
+        'profiles/vgal-broken',
+        '{ this is not valid json'
+      )
+      .run();
+  });
+
+  it('storyKey 命中 → found + storyKey 欄位', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=rain-sea-finale'),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as {
+      data: { found: boolean; gallery?: Record<string, unknown> };
+    };
+    expect(json.data.found).toBe(true);
+    expect(json.data.gallery).toMatchObject({
+      id: 'visuals/illustrations/vgal-story',
+      storyKey: 'rain-sea-finale',
+      entityKey: null,
+      divisionId: 'illustrations',
+    });
+  });
+
+  it('未掛 storyKey 的 gallery storyKey 回 null', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=vgal-xavier'),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as {
+      data: { gallery?: Record<string, unknown> };
+    };
+    expect(json.data.gallery?.storyKey).toBeNull();
+  });
+
+  it('壞 JSON 的頁面不影響其餘列的反查（含 by-illustration）', async () => {
+    const byEntity = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=vgal-xavier'),
+      env,
+      ctx
+    );
+    expect(byEntity.status).toBe(200);
+    expect(
+      ((await byEntity.json()) as { data: { found: boolean } }).data.found
+    ).toBe(true);
+
+    const byStory = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=rain-sea-finale'),
+      env,
+      ctx
+    );
+    expect(byStory.status).toBe(200);
+    expect(
+      ((await byStory.json()) as { data: { found: boolean } }).data.found
+    ).toBe(true);
+
+    const byIllustration = await worker.fetch(
+      createRequest('/api/visuals/gallery?illustration=scene-rainfall'),
+      env,
+      ctx
+    );
+    expect(byIllustration.status).toBe(200);
+    expect(
+      ((await byIllustration.json()) as { data: { found: boolean } }).data.found
+    ).toBe(true);
+  });
+});

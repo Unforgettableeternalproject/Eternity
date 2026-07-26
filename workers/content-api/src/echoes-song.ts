@@ -1,11 +1,12 @@
 /**
  * echoes-song.ts — Echoes 曲目反查（Epic 2 S8 B-5）
  *
- * GET /api/echoes/entity-song?key={entityKey}
+ * GET /api/echoes/entity-song?key={entityKey|storyKey}
  * GET /api/echoes/song?id={songId}
  *
  * entity-song：互動嵌入的消費端（`uep:entity-activate` → 曲目卡展示，
- * D 段接線）：以 S7 統一實體身分（entityKey）反查掛同 key 的 Echoes 歌曲。
+ * D 段接線）：以 S7 統一實體身分（entityKey）或 S10-1 劇情點身分
+ * （storyKey）反查掛同 key 的 Echoes 歌曲。
  *
  * song（by-id）：echo spot 觸發時的快照刷新——文章 node 保存的
  * songUrlKey/title/spoilerRevisions 是插入當下的快照，換音檔或改
@@ -32,6 +33,8 @@ export interface EntitySongPayload {
   audioFile: string | null;
   /** by-id 反查時歌曲可能未掛 entityKey */
   entityKey: string | null;
+  /** 劇情歌的劇情點識別碼（選填，未設定 = null） */
+  storyKey: string | null;
   /** metadata.category 原值（area/character/story/special） */
   songType: string | null;
   subtitle: string | null;
@@ -67,6 +70,7 @@ function buildSongPayload(row: SongRow): EntitySongPayload {
     title: row.title,
     audioFile: typeof meta.audioFile === 'string' ? meta.audioFile : null,
     entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
+    storyKey: typeof meta.storyKey === 'string' ? meta.storyKey : null,
     songType: typeof meta.category === 'string' ? meta.category : null,
     subtitle: typeof meta.subtitle === 'string' ? meta.subtitle : null,
     duration:
@@ -91,23 +95,41 @@ function buildSongPayload(row: SongRow): EntitySongPayload {
   };
 }
 
-/** 以 entityKey 反查 Echoes 歌曲；找不到回傳 null */
+/**
+ * 以 entityKey 或 storyKey 反查 Echoes 歌曲；找不到回傳 null。
+ *
+ * SQL 只篩結構性欄位，key 與 hidden 判定放應用層——metadata 是自由
+ * JSON 欄位，SQLite 的 json_extract 遇到非法 JSON 會讓整條 SELECT 報錯
+ * 而非回傳 NULL，一列壞資料就會打掉整個端點。其餘 index 建構器
+ * （echoes-index / visuals-index / concepts-index）早已採此模式。
+ *
+ * 兩種 key 都比對：角色歌／區域歌掛 entityKey，劇情歌掛 storyKey，
+ * 呼叫端不必先知道是哪一種。
+ */
 export async function findEntitySong(
   db: D1Database,
   key: string
 ): Promise<EntitySongPayload | null> {
-  const row = await db
+  const result = await db
     .prepare(
       `SELECT id, title, metadata FROM pages
-       WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
-         AND json_extract(metadata, '$.entityKey') = ?
-         AND COALESCE(json_extract(metadata, '$.hidden'), 0) = 0
-       LIMIT 1`
+       WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL`
     )
-    .bind(key)
-    .first<SongRow>();
-  if (!row) return null;
-  return buildSongPayload(row);
+    .all<SongRow>();
+
+  for (const row of result.results || []) {
+    let meta: Record<string, unknown>;
+    try {
+      meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
+    } catch {
+      continue; // 壞 JSON 跳過該列，不影響其餘
+    }
+    // 原 SQL 的 COALESCE(...,0)=0 語意：未設定或 false 才算公開
+    if (meta.hidden === true || meta.hidden === 1) continue;
+    if (meta.entityKey !== key && meta.storyKey !== key) continue;
+    return buildSongPayload(row);
+  }
+  return null;
 }
 
 /**

@@ -1,12 +1,13 @@
 /**
  * visuals-gallery.ts — Visuals gallery 反查（Epic 2 S8 下半場 V-A.13）
  *
- * GET /api/visuals/entity-gallery?key={entityKey}
+ * GET /api/visuals/entity-gallery?key={entityKey|storyKey}
  * GET /api/visuals/gallery?id={pageId} 或 ?illustration={插圖 ID}
  *
  * entity-gallery：互動嵌入的消費端（`uep:entity-activate` → 浮動幻影
- * 提示卡，V-C 接線）：以統一實體身分（entityKey）反查掛同 key 的
- * gallery——依編輯規則僅陳列走廊（profiles）可綁 entityKey。
+ * 提示卡，V-C 接線）：以統一實體身分（entityKey）或 S10-1 劇情點身分
+ * （storyKey）反查掛同 key 的 gallery——依編輯規則陳列走廊（profiles）
+ * 綁 entityKey、鑲框室（illustrations）綁 storyKey。
  *
  * gallery（by-id / by-illustration）：Visual Clue 觸發時的快照刷新
  * （V-D 接線，一次做齊不重蹈 echo spot 先漏後補的路）——clue node
@@ -43,6 +44,8 @@ export interface EntityGalleryPayload {
   title: string;
   /** by-id 反查時 gallery 可能未掛 entityKey */
   entityKey: string | null;
+  /** 鑲框室插圖的劇情點識別碼（選填，未設定 = null） */
+  storyKey: string | null;
   /** 鑲框室獨特 ID；未設定 = null */
   illustrationId: string | null;
   /** 頁面 id 第二段（`visuals/{division}/...`）；推導不出時 null */
@@ -102,6 +105,7 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
     id: row.id,
     title: row.title,
     entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
+    storyKey: typeof meta.storyKey === 'string' ? meta.storyKey : null,
     illustrationId:
       typeof meta.illustrationId === 'string' ? meta.illustrationId : null,
     divisionId: segments.length >= 2 ? segments[1] : null,
@@ -114,23 +118,40 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
   };
 }
 
-/** 以 entityKey 反查 Visuals gallery；找不到回傳 null */
+/**
+ * 以 entityKey 或 storyKey 反查 Visuals gallery；找不到回傳 null。
+ *
+ * SQL 只篩結構性欄位，key 與 hidden 判定放應用層——理由同
+ * `echoes-song.ts` 的 `findEntitySong`（json_extract 遇壞 JSON 會炸整條
+ * SELECT，非回傳 NULL）。
+ *
+ * 兩種 key 都比對：陳列走廊（profiles）掛 entityKey，鑲框室
+ * （illustrations）掛 storyKey，呼叫端不必先知道是哪一種。
+ */
 export async function findEntityGallery(
   db: D1Database,
   key: string
 ): Promise<EntityGalleryPayload | null> {
-  const row = await db
+  const result = await db
     .prepare(
       `SELECT id, title, metadata FROM pages
-       WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL
-         AND json_extract(metadata, '$.entityKey') = ?
-         AND COALESCE(json_extract(metadata, '$.hidden'), 0) = 0
-       LIMIT 1`
+       WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL`
     )
-    .bind(key)
-    .first<GalleryRow>();
-  if (!row) return null;
-  return buildGalleryPayload(row);
+    .all<GalleryRow>();
+
+  for (const row of result.results || []) {
+    let meta: Record<string, unknown>;
+    try {
+      meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
+    } catch {
+      continue; // 壞 JSON 跳過該列，不影響其餘
+    }
+    // 原 SQL 的 COALESCE(...,0)=0 語意：未設定或 false 才算公開
+    if (meta.hidden === true || meta.hidden === 1) continue;
+    if (meta.entityKey !== key && meta.storyKey !== key) continue;
+    return buildGalleryPayload(row);
+  }
+  return null;
 }
 
 /**
@@ -159,20 +180,29 @@ export async function findGalleryById(
 /**
  * 以插圖 ID（鑲框室獨特 ID）反查；找不到回傳 null。
  * 同 by-id：不排除 hidden。
+ *
+ * SQL 端 json_extract 同樣改為應用層比對（理由見 `findEntityGallery`）。
  */
 export async function findGalleryByIllustrationId(
   db: D1Database,
   illustrationId: string
 ): Promise<EntityGalleryPayload | null> {
-  const row = await db
+  const result = await db
     .prepare(
       `SELECT id, title, metadata FROM pages
-       WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL
-         AND json_extract(metadata, '$.illustrationId') = ?
-       LIMIT 1`
+       WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL`
     )
-    .bind(illustrationId)
-    .first<GalleryRow>();
-  if (!row) return null;
-  return buildGalleryPayload(row);
+    .all<GalleryRow>();
+
+  for (const row of result.results || []) {
+    let meta: Record<string, unknown>;
+    try {
+      meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (meta.illustrationId !== illustrationId) continue;
+    return buildGalleryPayload(row);
+  }
+  return null;
 }

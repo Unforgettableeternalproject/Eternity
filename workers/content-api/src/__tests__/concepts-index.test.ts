@@ -465,4 +465,24 @@ describe('buildConceptsEntityIndex — publicOnly 選項', () => {
     });
     expect(entries.map((e) => e.name)).not.toContain('刪除條目');
   });
+
+  it('壞 JSON metadata 的頁面不影響其餘頁（publicOnly 判定已移出 SQL）', async () => {
+    // metadata 非法 JSON：判定若留在 SQL 的 json_extract 會炸掉整條 SELECT
+    await env.CONTENT_DB.prepare(
+      `INSERT INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth, deleted_at)
+       VALUES ('concepts/pubonly/broken-metadata', 'concepts', 'broken', 'broken', 1, '[]', ?, 'synced', 'page', 2, NULL)`
+    )
+      .bind('{ this is not valid json')
+      .run();
+
+    const { buildConceptsEntityIndex } = await import('../concepts-index');
+    const publicEntries = await buildConceptsEntityIndex(env.CONTENT_DB, {
+      publicOnly: true,
+    });
+    expect(publicEntries.map((e) => e.name)).toContain('公開條目');
+    expect(publicEntries.map((e) => e.name)).not.toContain('隱藏條目');
+
+    const allEntries = await buildConceptsEntityIndex(env.CONTENT_DB);
+    expect(allEntries.map((e) => e.name)).toContain('隱藏條目');
+  });
 });
