@@ -241,6 +241,106 @@ describe('刪除確認', () => {
   });
 });
 
+describe('地點／時間逐張小標（S10-1）', () => {
+  it('編輯態顯示地點／時間 checkbox，預設未勾選', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    const locCheckbox = screen.getByLabelText('記錄地點') as HTMLInputElement;
+    const timeCheckbox = screen.getByLabelText('記錄時間') as HTMLInputElement;
+    expect(locCheckbox.checked).toBe(false);
+    expect(timeCheckbox.checked).toBe(false);
+  });
+
+  it('勾選地點 → 寫入目前 zone + pageLabel 快照', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    fireEvent.click(screen.getByLabelText('記錄地點'));
+
+    expect(uepProgress.getState().storageNotes[0].location).toEqual({
+      zone: 'history',
+      pageLabel: '歷史典藏庫',
+    });
+  });
+
+  it('取消勾選地點 → 清除小標', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    const locCheckbox = screen.getByLabelText('記錄地點');
+    fireEvent.click(locCheckbox);
+    fireEvent.click(locCheckbox);
+
+    expect(uepProgress.getState().storageNotes[0].location).toBeUndefined();
+  });
+
+  it('勾選時間 → 寫入含時區偏移的 capturedAt 快照', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    fireEvent.click(screen.getByLabelText('記錄時間'));
+
+    expect(uepProgress.getState().storageNotes[0].capturedAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/
+    );
+  });
+
+  it('取消勾選時間 → 清除小標', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    const timeCheckbox = screen.getByLabelText('記錄時間');
+    fireEvent.click(timeCheckbox);
+    fireEvent.click(timeCheckbox);
+
+    expect(uepProgress.getState().storageNotes[0].capturedAt).toBeUndefined();
+  });
+
+  it('勾選小標不會把編輯態關掉（textarea 仍在畫面上）', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    fireEvent.click(screen.getByLabelText('記錄地點'));
+
+    expect(screen.getByLabelText('編輯便條')).toBeInTheDocument();
+  });
+
+  it('退出編輯後，非編輯態顯示地點／時間唯讀小標', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('原文');
+    const { container } = render(<StorageIsland />);
+    fireEvent.click(screen.getByText('原文'));
+
+    fireEvent.click(screen.getByLabelText('記錄地點'));
+    fireEvent.click(screen.getByLabelText('記錄時間'));
+
+    const textarea = screen.getByLabelText('編輯便條');
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+
+    expect(screen.queryByLabelText('編輯便條')).not.toBeInTheDocument();
+    expect(uepProgress.getState().storageNotes[0].location).toEqual({
+      zone: 'history',
+      pageLabel: '歷史典藏庫',
+    });
+    const meta = container.querySelector('.uep-stoland__note-meta');
+    expect(meta).not.toBeNull();
+    expect(meta?.textContent).toContain('歷史典藏庫');
+  });
+});
+
 describe('cap 邊界', () => {
   it('達 30 條上限時 input 禁用、按鈕禁用、顯示上限提示', async () => {
     const { uepProgress } = await freshStore();

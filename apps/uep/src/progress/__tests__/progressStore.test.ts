@@ -269,6 +269,70 @@ describe('掃描線進度', () => {
   });
 });
 
+describe('便條地點／時間小標（S10-1）', () => {
+  it('setStorageNoteLocation 勾選寫入快照，pageLabel 截斷上限字數', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('測試');
+    const id = uepProgress.getState().storageNotes[0].id;
+    const longLabel = 'a'.repeat(100);
+    uepProgress.setStorageNoteLocation(id, {
+      zone: 'storage',
+      pageLabel: longLabel,
+    });
+    const note = uepProgress.getState().storageNotes[0];
+    expect(note.location).toEqual({
+      zone: 'storage',
+      pageLabel: 'a'.repeat(60),
+    });
+  });
+
+  it('setStorageNoteLocation 傳 null 取消勾選，清除小標', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('測試');
+    const id = uepProgress.getState().storageNotes[0].id;
+    uepProgress.setStorageNoteLocation(id, { zone: 'storage', pageLabel: 'x' });
+    uepProgress.setStorageNoteLocation(id, null);
+    expect(uepProgress.getState().storageNotes[0].location).toBeUndefined();
+  });
+
+  it('setStorageNoteLocation 對不存在的 id 忽略', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('測試');
+    uepProgress.setStorageNoteLocation('not-exist', {
+      zone: 'storage',
+      pageLabel: 'x',
+    });
+    expect(uepProgress.getState().storageNotes[0].location).toBeUndefined();
+  });
+
+  it('setStorageNoteCapturedAt(true) 產生含時區偏移的 ISO 8601 字串', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('測試');
+    const id = uepProgress.getState().storageNotes[0].id;
+    uepProgress.setStorageNoteCapturedAt(id, true);
+    const capturedAt = uepProgress.getState().storageNotes[0].capturedAt;
+    expect(capturedAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/
+    );
+  });
+
+  it('setStorageNoteCapturedAt(false) 取消勾選，清除小標', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('測試');
+    const id = uepProgress.getState().storageNotes[0].id;
+    uepProgress.setStorageNoteCapturedAt(id, true);
+    uepProgress.setStorageNoteCapturedAt(id, false);
+    expect(uepProgress.getState().storageNotes[0].capturedAt).toBeUndefined();
+  });
+
+  it('setStorageNoteCapturedAt 對不存在的 id 忽略', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.addStorageNote('測試');
+    uepProgress.setStorageNoteCapturedAt('not-exist', true);
+    expect(uepProgress.getState().storageNotes[0].capturedAt).toBeUndefined();
+  });
+});
+
 describe('reset', () => {
   it('清除進度但保留觀測者印記', async () => {
     const { uepProgress } = await freshStore();
@@ -1013,5 +1077,77 @@ describe('normalizeState', () => {
   it('過濾陣列中的非字串元素', () => {
     const result = normalizeState({ flags: ['ok', 42, null, 'also-ok'] });
     expect(result!.flags).toEqual(['ok', 'also-ok']);
+  });
+
+  describe('storageNotes 的 location／capturedAt 容錯（S10-1）', () => {
+    const baseNote = {
+      id: 'n1',
+      text: 'hi',
+      tilt: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    it('location 完整合法時保留，pageLabel 截斷 60 字上限', () => {
+      const longLabel = 'x'.repeat(100);
+      const result = normalizeState({
+        storageNotes: [
+          { ...baseNote, location: { zone: 'storage', pageLabel: longLabel } },
+        ],
+      });
+      expect(result!.storageNotes[0].location).toEqual({
+        zone: 'storage',
+        pageLabel: 'x'.repeat(60),
+      });
+    });
+
+    it('location.zone 型別不符時只丟棄 location，便條本體保留', () => {
+      const result = normalizeState({
+        storageNotes: [
+          { ...baseNote, location: { zone: 123, pageLabel: 'x' } },
+        ],
+      });
+      expect(result!.storageNotes[0].location).toBeUndefined();
+      expect(result!.storageNotes[0].text).toBe('hi');
+      expect(result!.storageNotes[0].id).toBe('n1');
+    });
+
+    it('location 缺 pageLabel 時整個欄位丟棄', () => {
+      const result = normalizeState({
+        storageNotes: [{ ...baseNote, location: { zone: 'storage' } }],
+      });
+      expect(result!.storageNotes[0].location).toBeUndefined();
+    });
+
+    it('location 非物件（如字串）時丟棄該欄位', () => {
+      const result = normalizeState({
+        storageNotes: [{ ...baseNote, location: 'storage/某頁' }],
+      });
+      expect(result!.storageNotes[0].location).toBeUndefined();
+      expect(result!.storageNotes[0].text).toBe('hi');
+    });
+
+    it('capturedAt 為合法字串時保留', () => {
+      const iso = '2026-07-27T22:15:00+08:00';
+      const result = normalizeState({
+        storageNotes: [{ ...baseNote, capturedAt: iso }],
+      });
+      expect(result!.storageNotes[0].capturedAt).toBe(iso);
+    });
+
+    it('capturedAt 型別不符時只丟棄該欄位，便條本體保留', () => {
+      const result = normalizeState({
+        storageNotes: [{ ...baseNote, capturedAt: 12345 }],
+      });
+      expect(result!.storageNotes[0].capturedAt).toBeUndefined();
+      expect(result!.storageNotes[0].text).toBe('hi');
+    });
+
+    it('未帶 location／capturedAt 的舊便條維持不受影響', () => {
+      const result = normalizeState({ storageNotes: [{ ...baseNote }] });
+      expect(result!.storageNotes[0].location).toBeUndefined();
+      expect(result!.storageNotes[0].capturedAt).toBeUndefined();
+      expect(result!.storageNotes[0].text).toBe('hi');
+    });
   });
 });

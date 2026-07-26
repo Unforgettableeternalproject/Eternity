@@ -16,9 +16,11 @@ import type {
   ProgressAdapter,
   ProgressState,
   StorageNote,
+  StorageNoteLocationSnapshot,
   ViewMode,
 } from './types';
 import {
+  STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
   createInitialState,
@@ -90,6 +92,26 @@ function makeStorageNote(text: string): StorageNote {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * 便條「時間」小標用：產生含使用者時區偏移的 ISO 8601 字串
+ * （如 `2026-07-27T22:15:00+08:00`）。其餘時間戳（createdAt/updatedAt 等）
+ * 沿用 `Date.toISOString()` 的 UTC 格式不變——只有這個小標的定案是
+ * 「使用者時區的現實時間」，需要把偏移量一併存下。
+ */
+function nowWithLocalOffset(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const offsetMin = -d.getTimezoneOffset(); // getTimezoneOffset 符號與實際偏移相反
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const offsetH = pad(Math.floor(Math.abs(offsetMin) / 60));
+  const offsetM = pad(Math.abs(offsetMin) % 60);
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+    `${sign}${offsetH}:${offsetM}`
+  );
 }
 
 /** 初始化：同步從 localStorage 讀取，避免 first paint 閃爍 */
@@ -456,6 +478,48 @@ export const uepProgress = {
     mutate('storage-note', (prev) => ({
       ...prev,
       storageNotes: prev.storageNotes.filter((n) => n.id !== id),
+    }));
+  },
+
+  /**
+   * 設定／清除便條的「地點」逐張小標（S10-1）。傳入快照即勾選、傳 null
+   * 即取消勾選；pageLabel 截斷 STORAGE_NOTE_LOCATION_LABEL_MAX 字。
+   * 找不到 id 忽略。
+   */
+  setStorageNoteLocation(
+    id: string,
+    location: StorageNoteLocationSnapshot | null
+  ): void {
+    if (!state.storageNotes.some((n) => n.id === id)) return;
+    const next = location
+      ? {
+          zone: location.zone,
+          pageLabel: location.pageLabel.slice(
+            0,
+            STORAGE_NOTE_LOCATION_LABEL_MAX
+          ),
+        }
+      : undefined;
+    mutate('storage-note', (prev) => ({
+      ...prev,
+      storageNotes: prev.storageNotes.map((n) =>
+        n.id === id ? { ...n, location: next } : n
+      ),
+    }));
+  },
+
+  /**
+   * 設定／清除便條的「時間」逐張小標（S10-1）。`captured=true` 時由 store
+   * 產生使用者時區現實時間快照；`false` 取消勾選。找不到 id 忽略。
+   */
+  setStorageNoteCapturedAt(id: string, captured: boolean): void {
+    if (!state.storageNotes.some((n) => n.id === id)) return;
+    const capturedAt = captured ? nowWithLocalOffset() : undefined;
+    mutate('storage-note', (prev) => ({
+      ...prev,
+      storageNotes: prev.storageNotes.map((n) =>
+        n.id === id ? { ...n, capturedAt } : n
+      ),
     }));
   },
 

@@ -390,6 +390,25 @@
   color: rgb(var(--st-ink-rgb) / 0.85);
 }
 
+/* ── 地點／時間小標快照（唯讀展示，S10-1） ── */
+.uep-stoland__note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgb(var(--st-ink-rgb) / 0.5);
+}
+
+.uep-stoland__note-meta-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* ── 編輯態 textarea ── */
 .uep-stoland__note.is-editing {
   padding: 6px 10px;
@@ -423,6 +442,36 @@
 
 .uep-stoland__note-textarea::selection {
   background: rgb(var(--st-warn-rgb) / 0.25);
+}
+
+/* ── 地點／時間逐張小標（S10-1，編輯態可勾選） ── */
+.uep-stoland__note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.uep-stoland__note-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: rgb(var(--st-ink-rgb) / 0.7);
+  cursor: pointer;
+}
+
+.uep-stoland__note-tag input[type='checkbox'] {
+  margin: 0;
+  accent-color: var(--st-warn);
+  cursor: pointer;
+}
+
+.uep-stoland__note-tag-value {
+  color: rgb(var(--st-ink-rgb) / 0.55);
+  font-style: italic;
 }
 
 /* 編輯中的操作提示（Esc 還原不明顯——07/24 驗收回饋） */

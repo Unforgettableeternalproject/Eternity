@@ -15,12 +15,14 @@ export type {
   ProgressAdapter,
   PageMarkerProgress,
   StorageNote,
+  StorageNoteLocationSnapshot,
 } from './types';
 export {
   PROGRESS_SCHEMA_VERSION,
   LOST_BOOKMARK_BASE_PCT,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
+  STORAGE_NOTE_LOCATION_LABEL_MAX,
   createInitialState,
 } from './types';
 

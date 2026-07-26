@@ -120,3 +120,9 @@ export type {
   PinAnchorKind,
   StoragePinChangeDetail,
 } from './storage/pinnedStore';
+
+/* ── Storage 便條島：entity 拖入橋（S10-1） ── */
+export {
+  isStorageIslandOpenAndExpanded,
+  dropEntityText,
+} from './storage/entityDropBridge';

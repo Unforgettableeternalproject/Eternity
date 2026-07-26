@@ -24,6 +24,24 @@ export interface PageMarkerProgress {
 }
 
 /**
+ * 便條「地點」小標的快照內容（S10-1 便條擴充）。
+ * 只存快照，不存 pageTrail——完整階層若未來需要由 pageLabel 反查即時取得，
+ * 不在便條建立當下就序列化整條麵包屑（避免不定長陣列失控）。
+ */
+export interface StorageNoteLocationSnapshot {
+  /** zone id 字串快照（來源頁面事後可能不存在，不做 IslandId 型別綁定） */
+  zone: string;
+  /**
+   * 來自 Reader 路由發佈的 pageContext.pageLabel（不是 document.title），
+   * 截斷上限見 STORAGE_NOTE_LOCATION_LABEL_MAX。
+   */
+  pageLabel: string;
+}
+
+/** 便條地點小標 pageLabel 字數上限 */
+export const STORAGE_NOTE_LOCATION_LABEL_MAX = 60;
+
+/**
  * 便條島的單張便條（S9）。本體隨 ProgressState 跨裝置同步；
  * 釘選態（貼在哪頁哪個位置）另存 localStorage（見 islands/storage/pinnedNotes），
  * 因為「把便利貼貼在這台螢幕這個位置」是本機物理概念，不跨裝置。
@@ -39,6 +57,13 @@ export interface StorageNote {
   createdAt: string;
   /** 最後編輯時間（ISO 8601），便條列表排序鍵（最近編輯排最上） */
   updatedAt: string;
+  /** 逐張小標「地點」快照，undefined = 使用者未勾選記錄地點（S10-1） */
+  location?: StorageNoteLocationSnapshot;
+  /**
+   * 逐張小標「時間」快照，使用者時區 ISO 8601（含時區偏移，如 +08:00），
+   * undefined = 未勾選（S10-1）。
+   */
+  capturedAt?: string;
 }
 
 /** 便條數量上限（進 ProgressState blob，避免撐爆 128KB 額度） */

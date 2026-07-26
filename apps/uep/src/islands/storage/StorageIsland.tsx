@@ -69,6 +69,28 @@ function sortNotes(
   });
 }
 
+/** 地點小標顯示文字：zone 中文名，未知 zone 回退顯示原字串（同位置條慣例） */
+function formatZoneLabel(zone: string): string {
+  return ZONE_LABELS[zone] ?? (zone || '其他頁面');
+}
+
+/**
+ * 去除 pageLabel 尾端的站名（document.title fallback 才會帶），
+ * 與當前位置條的顯示規則一致——地點小標的快照要存「使用者當下看到的
+ * 那個名稱」，不是帶著站名尾巴的原始字串。
+ */
+function stripSiteSuffix(label: string): string {
+  return label.replace(/\s*[·\-–]\s*邊際世界\s*$/u, '');
+}
+
+/**
+ * 時間小標顯示文字：擷取 `YYYY-MM-DD HH:mm`（含時區偏移的完整字串放
+ * title tooltip，不在便條卡面上占空間）。
+ */
+function formatCapturedAt(iso: string): string {
+  return iso.slice(0, 16).replace('T', ' ');
+}
+
 export default function StorageIsland() {
   const progress = useProgress();
   const chrome = useIslandChrome();
@@ -176,7 +198,7 @@ export default function StorageIsland() {
             // pageTrail 由 Reader 路由解析發佈（pageContext）
             title={[...location.pageTrail, location.pageLabel].join(' / ')}
           >
-            {location.pageLabel.replace(/\s*[·\-–]\s*邊際世界\s*$/u, '')}
+            {stripSiteSuffix(location.pageLabel)}
           </span>
         )}
       </div>
@@ -200,6 +222,8 @@ export default function StorageIsland() {
               pinnedMeta={pinnedMeta}
               isEditing={editingId === note.id}
               isConfirmingDelete={confirmDeleteId === note.id}
+              currentZone={location.zone}
+              currentPageLabel={stripSiteSuffix(location.pageLabel)}
               onStartEdit={() => setEditingId(note.id)}
               onEndEdit={() => setEditingId(null)}
               onRequestDelete={() => setConfirmDeleteId(note.id)}
@@ -265,6 +289,10 @@ interface NoteCardProps {
   pinnedMeta: import('./pinnedStore').PinnedNote | null;
   isEditing: boolean;
   isConfirmingDelete: boolean;
+  /** 目前所在 zone（地點小標勾選時的快照來源），無 zone 時 null */
+  currentZone: string | null;
+  /** 目前頁面標籤（地點小標勾選時的快照來源） */
+  currentPageLabel: string;
   onStartEdit: () => void;
   onEndEdit: () => void;
   onRequestDelete: () => void;
@@ -279,6 +307,8 @@ function NoteCard({
   pinnedMeta,
   isEditing,
   isConfirmingDelete,
+  currentZone,
+  currentPageLabel,
   onStartEdit,
   onEndEdit,
   onRequestDelete,
@@ -290,6 +320,8 @@ function NoteCard({
   /** Esc 按下時 draft 有未存變更 → 展開「丟棄變更？」確認（07/24 驗收） */
   const [discardPrompt, setDiscardPrompt] = useState(false);
   const discardActionsRef = useRef<HTMLDivElement>(null);
+  /** 地點／時間小標的 checkbox 容器——focus 移進去時 textarea 的 onBlur 不能搶先 commit */
+  const noteTagsRef = useRef<HTMLDivElement>(null);
 
   /* ── 拖曳釘選（未編輯 / 未確認刪除 / 未釘 才可拖） ──
    * ghost 定位不走 React state——pointermove 每 frame setState 會整卡
@@ -343,6 +375,19 @@ function NoteCard({
       return;
     }
     setDiscardPrompt(true);
+  }
+
+  /** 「地點」小標勾選 → 存下目前 zone + pageLabel 快照；取消勾選 → 清除 */
+  function handleToggleLocation(checked: boolean) {
+    getProgressManager().setStorageNoteLocation(
+      note.id,
+      checked ? { zone: currentZone ?? '', pageLabel: currentPageLabel } : null
+    );
+  }
+
+  /** 「時間」小標勾選 → store 產生使用者時區現實時間快照；取消勾選 → 清除 */
+  function handleToggleCapturedAt(checked: boolean) {
+    getProgressManager().setStorageNoteCapturedAt(note.id, checked);
   }
 
   /* ── pointer 拖曳（未編輯 / 未確認 / 未釘 才可觸發） ── */
@@ -478,9 +523,12 @@ function NoteCard({
             maxLength={STORAGE_NOTE_TEXT_MAX}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={(e) => {
-              // focus 移進「丟棄變更」確認鈕 → 不能先 commit 搶走語意
+              const related = e.relatedTarget as Node | null;
+              // focus 移進「丟棄變更」確認鈕，或地點／時間小標的 checkbox
+              // → 不能先 commit 搶走語意
               if (
-                discardActionsRef.current?.contains(e.relatedTarget as Node)
+                discardActionsRef.current?.contains(related) ||
+                noteTagsRef.current?.contains(related)
               ) {
                 return;
               }
@@ -498,6 +546,42 @@ function NoteCard({
             className="uep-stoland__note-textarea"
             aria-label="編輯便條"
           />
+          <div className="uep-stoland__note-tags" ref={noteTagsRef}>
+            <label className="uep-stoland__note-tag">
+              <input
+                type="checkbox"
+                aria-label="記錄地點"
+                checked={Boolean(note.location)}
+                onChange={(e) => handleToggleLocation(e.target.checked)}
+              />
+              <span className="uep-stoland__note-tag-label">地點</span>
+              {note.location && (
+                <span className="uep-stoland__note-tag-value">
+                  {formatZoneLabel(note.location.zone)}
+                  {note.location.pageLabel
+                    ? ` · ${note.location.pageLabel}`
+                    : ''}
+                </span>
+              )}
+            </label>
+            <label className="uep-stoland__note-tag">
+              <input
+                type="checkbox"
+                aria-label="記錄時間"
+                checked={Boolean(note.capturedAt)}
+                onChange={(e) => handleToggleCapturedAt(e.target.checked)}
+              />
+              <span className="uep-stoland__note-tag-label">時間</span>
+              {note.capturedAt && (
+                <span
+                  className="uep-stoland__note-tag-value"
+                  title={note.capturedAt}
+                >
+                  {formatCapturedAt(note.capturedAt)}
+                </span>
+              )}
+            </label>
+          </div>
           {discardPrompt ? (
             <div className="uep-stoland__confirm" ref={discardActionsRef}>
               <span className="uep-stoland__confirm-msg">丟棄未存的變更？</span>
@@ -560,6 +644,27 @@ function NoteCard({
             >
               ×
             </button>
+          )}
+          {/* 地點／時間小標快照——唯讀展示，勾選編輯只在 isEditing 態進行 */}
+          {(note.location || note.capturedAt) && (
+            <div className="uep-stoland__note-meta">
+              {note.location && (
+                <span className="uep-stoland__note-meta-item">
+                  ◈ {formatZoneLabel(note.location.zone)}
+                  {note.location.pageLabel
+                    ? ` · ${note.location.pageLabel}`
+                    : ''}
+                </span>
+              )}
+              {note.capturedAt && (
+                <span
+                  className="uep-stoland__note-meta-item"
+                  title={note.capturedAt}
+                >
+                  {formatCapturedAt(note.capturedAt)}
+                </span>
+              )}
+            </div>
           )}
         </>
       )}

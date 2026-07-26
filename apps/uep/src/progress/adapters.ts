@@ -10,13 +10,37 @@
 
 import { isTestMode } from '../lib/apiBase';
 
-import type { ProgressAdapter, ProgressState, StorageNote } from './types';
+import type {
+  ProgressAdapter,
+  ProgressState,
+  StorageNote,
+  StorageNoteLocationSnapshot,
+} from './types';
 import {
   PROGRESS_SCHEMA_VERSION,
+  STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
   createInitialState,
 } from './types';
+
+/**
+ * 驗證便條「地點」小標快照（S10-1）。型別不符時回傳 undefined——
+ * 只丟棄這個欄位，呼叫端負責保留便條本體，不整條便條作廢。
+ */
+function normalizeStorageNoteLocation(
+  raw: unknown
+): StorageNoteLocationSnapshot | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const loc = raw as Partial<StorageNoteLocationSnapshot>;
+  if (typeof loc.zone !== 'string' || typeof loc.pageLabel !== 'string') {
+    return undefined;
+  }
+  return {
+    zone: loc.zone,
+    pageLabel: loc.pageLabel.slice(0, STORAGE_NOTE_LOCATION_LABEL_MAX),
+  };
+}
 
 /**
  * localStorage key，含 schema 版本以利未來遷移。
@@ -101,6 +125,8 @@ export function normalizeState(raw: unknown): ProgressState | null {
         : base.conceptsReadLevel,
     // S9 新增欄位：便條島本體，舊 blob 沒有時補空陣列。
     // 逐筆驗證（欄位型別齊全才留），text 截斷、整體 cap 防外部塞超量。
+    // S10-1：location/capturedAt 逐欄位容錯——型別不符只丟棄該欄位，
+    // 不影響便條本體（同錨點失效退化的容錯哲學）。
     storageNotes: Array.isArray(obj.storageNotes)
       ? obj.storageNotes
           .filter(
@@ -115,7 +141,13 @@ export function normalizeState(raw: unknown): ProgressState | null {
               typeof (n as StorageNote).updatedAt === 'string'
           )
           .slice(0, STORAGE_NOTE_MAX)
-          .map((n) => ({ ...n, text: n.text.slice(0, STORAGE_NOTE_TEXT_MAX) }))
+          .map((n) => ({
+            ...n,
+            text: n.text.slice(0, STORAGE_NOTE_TEXT_MAX),
+            location: normalizeStorageNoteLocation(n.location),
+            capturedAt:
+              typeof n.capturedAt === 'string' ? n.capturedAt : undefined,
+          }))
       : base.storageNotes,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : base.updatedAt,
