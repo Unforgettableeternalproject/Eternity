@@ -30,7 +30,7 @@ import { findEntitySong, findSongById } from './echoes-song';
 import {
   findEntityGallery,
   findGalleryById,
-  findGalleryByIllustrationId,
+  findGalleryByStoryKey,
 } from './visuals-gallery';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
@@ -1717,20 +1717,20 @@ export default {
     }
 
     // ---- Visuals gallery 反查（Visual Clue 觸發時刷新過期快照）----
-    // ?id={pageId} 或 ?illustration={鑲框室插圖 ID}，擇一必填
+    // ?id={pageId} 或 ?story={鑲框室插圖的 storyKey}，擇一必填
     if (path === '/api/visuals/gallery' && request.method === 'GET') {
       const id = url.searchParams.get('id')?.trim() ?? '';
-      const illustration = url.searchParams.get('illustration')?.trim() ?? '';
-      if (!id && !illustration) {
+      const story = url.searchParams.get('story')?.trim() ?? '';
+      if (!id && !story) {
         return jsonResponse(
-          { ok: false, error: 'Missing id or illustration parameter' },
+          { ok: false, error: 'Missing id or story parameter' },
           400,
           cors
         );
       }
       const gallery = id
         ? await findGalleryById(env.CONTENT_DB, id)
-        : await findGalleryByIllustrationId(env.CONTENT_DB, illustration);
+        : await findGalleryByStoryKey(env.CONTENT_DB, story);
       return jsonResponse(
         {
           ok: true,

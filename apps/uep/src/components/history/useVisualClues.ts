@@ -21,8 +21,8 @@ import {
 /** 配對成功的 Visual Clue（前台書籤的資料來源） */
 export interface VisualClueEntry {
   clueId: string;
-  targetType: 'entity' | 'illustration';
-  /** entityKey 或插圖 ID（依 targetType）——觸發時以此反查現行資料 */
+  targetType: 'entity' | 'story';
+  /** entityKey 或 storyKey（依 targetType）——觸發時以此反查現行資料 */
   targetKey: string;
   /** gallery 頁 id 快照（反查失敗時的顯示 fallback） */
   galleryId: string;
@@ -76,16 +76,12 @@ export function collectVisualClues(container: Element): VisualClueEntry[] {
     const targetKey = startEl.getAttribute('data-target-key')?.trim() || '';
     if (!targetKey) continue;
     const targetType: VisualClueEntry['targetType'] =
-      startEl.getAttribute('data-target-type') === 'illustration'
-        ? 'illustration'
-        : 'entity';
+      startEl.getAttribute('data-target-type') === 'story' ? 'story' : 'entity';
     // 起訖目標必須一致（同編輯器 collectVisualClueIssues 規則）——
     // 不一致代表資料損壞（如手改 HTML），整組略過而非照 start 執行
     const endKey = endEl.getAttribute('data-target-key')?.trim() || '';
     const endType =
-      endEl.getAttribute('data-target-type') === 'illustration'
-        ? 'illustration'
-        : 'entity';
+      endEl.getAttribute('data-target-type') === 'story' ? 'story' : 'entity';
     if (endKey !== targetKey || endType !== targetType) continue;
     const imageId = startEl.getAttribute('data-image-id')?.trim() || '';
     entries.push({

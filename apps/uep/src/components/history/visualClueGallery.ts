@@ -2,7 +2,7 @@
  * Visual Clue → gallery 反查（S8 下半場 V-D）。
  *
  * clue node 保存的是插入當下的快照，改圖/改條件/換 key 後會過期——
- * 觸發時一律以引用（entityKey／插圖 ID）反查現行資料，D1 才是真相
+ * 觸發時一律以引用（entityKey／storyKey）反查現行資料，D1 才是真相
  * （同 refreshEchoSpot 的定案理由）。引用失效（編輯後換了 key）時
  * 以 galleryId 頁 id 快照兜底；兩者皆失敗回傳 null，呼叫端提示。
  */
@@ -14,7 +14,7 @@ export interface ClueGalleryPayload {
   id: string;
   title: string;
   entityKey: string | null;
-  illustrationId: string | null;
+  storyKey: string | null;
   divisionId: string | null;
   gate?: unknown;
   locked: boolean;
@@ -51,7 +51,7 @@ export async function fetchClueGallery(
         )
       : await lookupGallery(
           apiBase,
-          `gallery?illustration=${encodeURIComponent(clue.targetKey)}`
+          `gallery?story=${encodeURIComponent(clue.targetKey)}`
         );
   if (primary) return primary;
   if (clue.galleryId) {

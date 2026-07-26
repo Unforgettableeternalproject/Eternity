@@ -90,10 +90,8 @@ export function flattenClueGalleries(tree: TreeNode[]): VisualsGalleryChoice[] {
           : [];
         const entityKey =
           typeof meta.entityKey === 'string' ? meta.entityKey.trim() : '';
-        const illustrationId =
-          typeof meta.illustrationId === 'string'
-            ? meta.illustrationId.trim()
-            : '';
+        const storyKey =
+          typeof meta.storyKey === 'string' ? meta.storyKey.trim() : '';
         const isSprite = meta.layout === 'sprite';
 
         if (!isSprite && imageCount > 0) {
@@ -107,12 +105,12 @@ export function flattenClueGalleries(tree: TreeNode[]): VisualsGalleryChoice[] {
               imageCount,
               images,
             });
-          } else if (divisionId === 'illustrations' && illustrationId) {
+          } else if (divisionId === 'illustrations' && storyKey) {
             result.push({
               id: node.id,
               title: node.title,
-              targetType: 'illustration',
-              targetKey: illustrationId,
+              targetType: 'story',
+              targetKey: storyKey,
               divisionId,
               imageCount,
               images,

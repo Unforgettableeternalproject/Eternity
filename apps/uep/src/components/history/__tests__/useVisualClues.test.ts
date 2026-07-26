@@ -53,10 +53,10 @@ describe('collectVisualClues — 配對與孤兒容錯', () => {
       START(
         'c1',
         'scene-1',
-        'data-target-type="illustration" data-gallery-title="初光"'
-      ) + END('c1', 'scene-1', 'data-target-type="illustration"')
+        'data-target-type="story" data-gallery-title="初光"'
+      ) + END('c1', 'scene-1', 'data-target-type="story"')
     );
-    expect(collectVisualClues(container)[0].targetType).toBe('illustration');
+    expect(collectVisualClues(container)[0].targetType).toBe('story');
   });
 
   it('起訖目標 key 不一致（資料損壞）整組略過', () => {
@@ -68,7 +68,7 @@ describe('collectVisualClues — 配對與孤兒容錯', () => {
 
   it('起訖目標種類不一致整組略過', () => {
     const container = makeContainer(
-      `${START('c1', 'scene-1', 'data-target-type="illustration"')}` +
+      `${START('c1', 'scene-1', 'data-target-type="story"')}` +
         END('c1', 'scene-1', 'data-target-type="entity"')
     );
     expect(collectVisualClues(container)).toEqual([]);

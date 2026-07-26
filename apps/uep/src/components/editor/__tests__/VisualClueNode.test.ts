@@ -20,7 +20,7 @@ describe('VisualClueNode persistence contract', () => {
     editor = makeEditor('<p>前文</p>');
     editor.commands.insertVisualCluePair({
       clueId: 'clue-fixed-id',
-      targetType: 'illustration',
+      targetType: 'story',
       targetKey: 'scene-first-light',
       galleryId: 'visuals/illustrations/first-light',
       title: '初光',
@@ -33,7 +33,7 @@ describe('VisualClueNode persistence contract', () => {
     expect(html).toContain('data-role="visual-clue-start"');
     expect(html).toContain('data-role="visual-clue-end"');
     expect(html).toContain('data-clue-id="clue-fixed-id"');
-    expect(html).toContain('data-target-type="illustration"');
+    expect(html).toContain('data-target-type="story"');
     expect(html).toContain('data-target-key="scene-first-light"');
     expect(html).toContain(
       'data-gallery-id="visuals/illustrations/first-light"'
@@ -49,7 +49,7 @@ describe('VisualClueNode persistence contract', () => {
     expect(clues?.[0]?.attrs).toEqual(
       expect.objectContaining({
         clueId: 'clue-fixed-id',
-        targetType: 'illustration',
+        targetType: 'story',
         targetKey: 'scene-first-light',
         galleryId: 'visuals/illustrations/first-light',
         title: '初光',

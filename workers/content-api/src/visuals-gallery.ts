@@ -2,18 +2,18 @@
  * visuals-gallery.ts — Visuals gallery 反查（Epic 2 S8 下半場 V-A.13）
  *
  * GET /api/visuals/entity-gallery?key={entityKey|storyKey}
- * GET /api/visuals/gallery?id={pageId} 或 ?illustration={插圖 ID}
+ * GET /api/visuals/gallery?id={pageId} 或 ?story={storyKey}
  *
  * entity-gallery：互動嵌入的消費端（`uep:entity-activate` → 浮動幻影
  * 提示卡，V-C 接線）：以統一實體身分（entityKey）或 S10-1 劇情點身分
  * （storyKey）反查掛同 key 的 gallery——依編輯規則陳列走廊（profiles）
  * 綁 entityKey、鑲框室（illustrations）綁 storyKey。
  *
- * gallery（by-id / by-illustration）：Visual Clue 觸發時的快照刷新
+ * gallery（by-id / by-story）：Visual Clue 觸發時的快照刷新
  * （V-D 接線，一次做齊不重蹈 echo spot 先漏後補的路）——clue node
  * 保存的目標是插入當下的快照，改圖或改條件後會過期；前台觸發時
- * 以引用反查現行資料。插圖 ID 是鑲框室（illustrations）gallery 的
- * 獨特識別。
+ * 以引用反查現行資料。storyKey 是鑲框室（illustrations）gallery 的
+ * 劇情點識別（S10-1 起取代原本的 illustrationId）。
  *
  * 設計約束（比照 echoes-song.ts）：
  * - `images[].file` 回傳裸 R2 key，不組完整 URL——前端以 assetUrl 組合
@@ -44,10 +44,8 @@ export interface EntityGalleryPayload {
   title: string;
   /** by-id 反查時 gallery 可能未掛 entityKey */
   entityKey: string | null;
-  /** 鑲框室插圖的劇情點識別碼（選填，未設定 = null） */
+  /** 鑲框室插圖的劇情點識別碼（S10-1 起取代 illustrationId）；未設定 = null */
   storyKey: string | null;
-  /** 鑲框室獨特 ID；未設定 = null */
-  illustrationId: string | null;
   /** 頁面 id 第二段（`visuals/{division}/...`）；推導不出時 null */
   divisionId: string | null;
   /** gallery 解鎖閘；舊自由文字 gate 不回傳為條件（靜默失效定案） */
@@ -91,7 +89,7 @@ function buildImages(meta: Record<string, unknown>): GalleryImagePayload[] {
   return images.sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-/** GalleryRow → payload（entity 與 by-id/by-illustration 反查共用） */
+/** GalleryRow → payload（entity 與 by-id/by-story 反查共用） */
 function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
   let meta: Record<string, unknown> = {};
   try {
@@ -106,8 +104,6 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
     title: row.title,
     entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
     storyKey: typeof meta.storyKey === 'string' ? meta.storyKey : null,
-    illustrationId:
-      typeof meta.illustrationId === 'string' ? meta.illustrationId : null,
     divisionId: segments.length >= 2 ? segments[1] : null,
     ...(meta.gate != null && typeof meta.gate === 'object'
       ? { gate: meta.gate }
@@ -178,14 +174,18 @@ export async function findGalleryById(
 }
 
 /**
- * 以插圖 ID（鑲框室獨特 ID）反查；找不到回傳 null。
+ * 以 storyKey（鑲框室插圖的劇情點識別）反查；找不到回傳 null。
  * 同 by-id：不排除 hidden。
+ *
+ * 與 `findEntityGallery` 的差別：後者排除 hidden、且兩種 key 都比對
+ * （服務互動嵌入的展示路徑）；本函式是 Visual Clue 的明確引用路徑，
+ * 只認 storyKey 且不排除 hidden。
  *
  * SQL 端 json_extract 同樣改為應用層比對（理由見 `findEntityGallery`）。
  */
-export async function findGalleryByIllustrationId(
+export async function findGalleryByStoryKey(
   db: D1Database,
-  illustrationId: string
+  storyKey: string
 ): Promise<EntityGalleryPayload | null> {
   const result = await db
     .prepare(
@@ -201,7 +201,7 @@ export async function findGalleryByIllustrationId(
     } catch {
       continue;
     }
-    if (meta.illustrationId !== illustrationId) continue;
+    if (meta.storyKey !== storyKey) continue;
     return buildGalleryPayload(row);
   }
   return null;

@@ -10,7 +10,7 @@ describe('flattenClueGalleries — #8 圖片選擇資料', () => {
         title: '場景一',
         pageType: 'gallery',
         metadata: {
-          illustrationId: 'scene-1',
+          storyKey: 'scene-1',
           images: [
             {
               id: 'night',
@@ -31,7 +31,7 @@ describe('flattenClueGalleries — #8 圖片選擇資料', () => {
 
     expect(result[0]).toMatchObject({
       id: 'visuals/illustrations/scene-1',
-      targetType: 'illustration',
+      targetType: 'story',
       targetKey: 'scene-1',
       imageCount: 2,
     });

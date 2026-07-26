@@ -9,8 +9,15 @@ import {
 /** Visual Clue 錨點在持久化 HTML 中的 data-role（起訖各一）。 */
 export const VISUAL_CLUE_SELECTOR = `[data-role="${VISUAL_CLUE_START_ROLE}"], [data-role="${VISUAL_CLUE_GATE_ROLE}"], [data-role="${VISUAL_CLUE_END_ROLE}"]`;
 
-/** 引用目標種類：陳列走廊走 entityKey、鑲框室走插圖 ID。 */
-export type VisualClueTargetType = 'entity' | 'illustration';
+/**
+ * 引用目標種類：陳列走廊走 entityKey、鑲框室走 storyKey。
+ *
+ * S10-1 起第二個值由 `'illustration'` 改名 `'story'`——職責（「這個 clue
+ * 要去哪個命名空間找 targetKey」）完全沒變，只是「插圖」這個命名空間
+ * 本身被劇情點取代。不保留舊值做三態相容：全站僅一筆測試資料受影響，
+ * 為它付出的是永久的判斷分支負擔。
+ */
+export type VisualClueTargetType = 'entity' | 'story';
 
 export interface VisualClueAttributes {
   /** 同一 clue 的起訖錨點共用 id；穩定值，session dedupe 依賴它。 */
@@ -177,12 +184,9 @@ const VisualClueNode = Node.create({
       targetType: {
         default: 'entity',
         parseHTML: (el) =>
-          el.getAttribute('data-target-type') === 'illustration'
-            ? 'illustration'
-            : 'entity',
+          el.getAttribute('data-target-type') === 'story' ? 'story' : 'entity',
         renderHTML: (attrs) => ({
-          'data-target-type':
-            attrs.targetType === 'illustration' ? 'illustration' : 'entity',
+          'data-target-type': attrs.targetType === 'story' ? 'story' : 'entity',
         }),
       },
       targetKey: {

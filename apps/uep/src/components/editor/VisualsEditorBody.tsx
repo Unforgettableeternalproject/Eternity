@@ -89,10 +89,12 @@ export interface VisualsData {
    */
   entityKey: string;
   /**
-   * 插圖 ID（僅鑲框室 illustrations）：Visual Clue 引用用，
-   * 同 zone 唯一（V-B 編輯器驗證）
+   * 劇情點 key（僅鑲框室 illustrations）：Visual Clue 引用用，
+   * 同 zone 唯一（V-B 編輯器驗證）。S10-1 起取代原本的 illustrationId，
+   * 與 Echoes 劇情歌共用同一個 storyKey 命名空間——同一個劇情點可以
+   * 同時掛一首歌與一張插圖，這正是共享識別碼的初衷。
    */
-  illustrationId: string;
+  storyKey: string;
   /** 展示風格 */
   layout: string;
 }
@@ -150,10 +152,7 @@ export function parseVisualsData(metadata: Record<string, any>): VisualsData {
           : '',
     entityKey:
       typeof metadata?.entityKey === 'string' ? metadata.entityKey : '',
-    illustrationId:
-      typeof metadata?.illustrationId === 'string'
-        ? metadata.illustrationId
-        : '',
+    storyKey: typeof metadata?.storyKey === 'string' ? metadata.storyKey : '',
     layout: metadata?.layout || '',
   };
 }
@@ -169,7 +168,7 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
     // 舊自由文字 gate 承接進 gateHint 後即從 metadata.gate 卸下
     gateHint: data.gateHint.trim() || undefined,
     entityKey: data.entityKey.trim() || undefined,
-    illustrationId: data.illustrationId.trim() || undefined,
+    storyKey: data.storyKey.trim() || undefined,
     layout: data.layout || undefined,
   };
 }
@@ -245,34 +244,34 @@ export function deriveDivisionId(pageSlug: string): string {
 interface VisualsTreeNodeForKeys {
   id: string;
   pageType?: string;
-  metadata?: { entityKey?: unknown; illustrationId?: unknown };
+  metadata?: { entityKey?: unknown; storyKey?: unknown };
   children?: VisualsTreeNodeForKeys[];
 }
 
 /**
- * 收集同 zone 其他 gallery 的 entityKey / 插圖 ID（排除自身），
+ * 收集同 zone 其他 gallery 的 entityKey / storyKey（排除自身），
  * 唯一性硬驗證用——比照 Echoes collectOtherEchoesEntityKeys。
  */
 export function collectOtherVisualsGalleryKeys(
   nodes: VisualsTreeNodeForKeys[],
   galleryId: string
-): { entityKeys: Set<string>; illustrationIds: Set<string> } {
+): { entityKeys: Set<string>; storyKeys: Set<string> } {
   const entityKeys = new Set<string>();
-  const illustrationIds = new Set<string>();
+  const storyKeys = new Set<string>();
   const walk = (items: VisualsTreeNodeForKeys[]) => {
     for (const node of items) {
       if (node.pageType === 'gallery' && !isSamePagePath(node.id, galleryId)) {
         const key = node.metadata?.entityKey;
         if (typeof key === 'string' && key.trim()) entityKeys.add(key.trim());
-        const ill = node.metadata?.illustrationId;
-        if (typeof ill === 'string' && ill.trim())
-          illustrationIds.add(ill.trim());
+        const story = node.metadata?.storyKey;
+        if (typeof story === 'string' && story.trim())
+          storyKeys.add(story.trim());
       }
       if (Array.isArray(node.children)) walk(node.children);
     }
   };
   walk(nodes);
-  return { entityKeys, illustrationIds };
+  return { entityKeys, storyKeys };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -329,17 +328,17 @@ export default function VisualsEditorBody({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 分館規則：entityKey 僅陳列走廊（profiles）、插圖 ID 僅鑲框室
+  // 分館規則：entityKey 僅陳列走廊（profiles）、storyKey 僅鑲框室
   // （illustrations）——依 division 顯隱（§1-1）
   const divisionId = deriveDivisionId(pageSlug);
   const showEntityKey = divisionId === 'profiles';
-  const showIllustrationId = divisionId === 'illustrations';
+  const showStoryKey = divisionId === 'illustrations';
 
   // 唯一性硬驗證：同 zone 唯一，查核失敗阻擋存檔可重試（比照 Echoes）
   const [otherKeys, setOtherKeys] = useState<{
     entityKeys: Set<string>;
-    illustrationIds: Set<string>;
-  }>(() => ({ entityKeys: new Set(), illustrationIds: new Set() }));
+    storyKeys: Set<string>;
+  }>(() => ({ entityKeys: new Set(), storyKeys: new Set() }));
   const [keyCheckStatus, setKeyCheckStatus] = useState<
     'loading' | 'ready' | 'error'
   >('loading');
@@ -393,21 +392,21 @@ export default function VisualsEditorBody({
         otherKeys.entityKeys,
         'entityKey「{key}」已被其他 gallery 使用'
       );
-    if (showIllustrationId)
+    if (showStoryKey)
       checkKey(
-        '插圖 ID',
-        data.illustrationId,
-        otherKeys.illustrationIds,
-        '插圖 ID「{key}」已被其他 gallery 使用'
+        '劇情點 key',
+        data.storyKey,
+        otherKeys.storyKeys,
+        '劇情點 key「{key}」已被其他 gallery 使用'
       );
     return issues;
   }, [
     data.entityKey,
-    data.illustrationId,
+    data.storyKey,
     keyCheckStatus,
     otherKeys,
     showEntityKey,
-    showIllustrationId,
+    showStoryKey,
   ]);
 
   useEffect(() => {
@@ -1181,9 +1180,9 @@ export default function VisualsEditorBody({
         GATE 面板設定。
       </div>
 
-      {/* 跨 zone 識別欄位：entityKey（陳列走廊）/ 插圖 ID（鑲框室），
+      {/* 跨 zone 識別欄位：entityKey（陳列走廊）/ 劇情點 key（鑲框室），
           依分館顯隱（S8 下半場 §1-1），同 zone 唯一 */}
-      {(showEntityKey || showIllustrationId) && (
+      {(showEntityKey || showStoryKey) && (
         <div className="ned-echoes-entity-section">
           {showEntityKey && (
             <>
@@ -1199,34 +1198,32 @@ export default function VisualsEditorBody({
               </div>
             </>
           )}
-          {showIllustrationId && (
+          {showStoryKey && (
             <>
               <EntityKeyField
-                value={data.illustrationId || undefined}
-                existingKeys={otherKeys.illustrationIds}
-                onChange={(illustrationId) =>
-                  update({ illustrationId: illustrationId || '' })
-                }
-                label="插圖 ID"
+                value={data.storyKey || undefined}
+                existingKeys={otherKeys.storyKeys}
+                onChange={(storyKey) => update({ storyKey: storyKey || '' })}
+                label="劇情點 key"
                 placeholder="如 rain-sea-finale（選填）"
-                duplicateMessage="此插圖 ID 已被其他 gallery 使用"
+                duplicateMessage="此劇情點 key 已被其他 gallery 使用"
               />
               <div className="ned-gate-scope-hint">
-                插圖 ID 供 History 文中的 Visual Clue 引用此 gallery；未設定
-                即無法被 clue 指向。
+                劇情點 key 供 History 文中的 Visual Clue 引用此 gallery；未設定
+                即無法被 clue 指向。同一個 key 也可以掛在 Echoes
+                的劇情歌上——歌與插圖會被視為同一個劇情點的兩面。
               </div>
             </>
           )}
-          {(data.entityKey || data.illustrationId) &&
-            keyCheckStatus === 'error' && (
-              <button
-                type="button"
-                className="ned-btn-ghost ned-btn-sm"
-                onClick={() => setKeyCheckReload((value) => value + 1)}
-              >
-                重試唯一性查核
-              </button>
-            )}
+          {(data.entityKey || data.storyKey) && keyCheckStatus === 'error' && (
+            <button
+              type="button"
+              className="ned-btn-ghost ned-btn-sm"
+              onClick={() => setKeyCheckReload((value) => value + 1)}
+            >
+              重試唯一性查核
+            </button>
+          )}
         </div>
       )}
 

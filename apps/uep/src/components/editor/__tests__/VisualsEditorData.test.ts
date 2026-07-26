@@ -3,7 +3,7 @@
  *
  * 核心：gate 從自由文字遷移到 GateCondition 物件的相容性——
  * 舊字串靜默失效（僅留提示文案）、round-trip 不破壞既有資料、
- * 新欄位（entityKey / illustrationId / 圖片三態）正確進出。
+ * 新欄位（entityKey / storyKey / 圖片三態）正確進出。
  */
 import { describe, expect, it } from 'vitest';
 
@@ -89,13 +89,11 @@ describe('parseVisualsData — gate 遷移', () => {
     expect(data.images.map((img) => img.id)).toEqual(['x', 'y']);
   });
 
-  it('entityKey / illustrationId 解析（非字串防禦）', () => {
+  it('entityKey / storyKey 解析（非字串防禦）', () => {
     expect(parseVisualsData({ entityKey: 'xavier' }).entityKey).toBe('xavier');
-    expect(parseVisualsData({ illustrationId: 'scene-1' }).illustrationId).toBe(
-      'scene-1'
-    );
+    expect(parseVisualsData({ storyKey: 'scene-1' }).storyKey).toBe('scene-1');
     expect(parseVisualsData({ entityKey: 42 }).entityKey).toBe('');
-    expect(parseVisualsData({}).illustrationId).toBe('');
+    expect(parseVisualsData({}).storyKey).toBe('');
   });
 });
 
@@ -125,12 +123,12 @@ describe('serializeVisualsData — round-trip 相容', () => {
     expect(out.gate).toBeUndefined();
   });
 
-  it('entityKey / illustrationId trim 後寫出，空值省略', () => {
+  it('entityKey / storyKey trim 後寫出，空值省略', () => {
     const data = parseVisualsData({});
     data.entityKey = '  xavier  ';
     const out = serializeVisualsData(data);
     expect(out.entityKey).toBe('xavier');
-    expect(out.illustrationId).toBeUndefined();
+    expect(out.storyKey).toBeUndefined();
   });
 
   it('圖片三態欄位隨 images 陣列原樣 round-trip', () => {
@@ -205,7 +203,7 @@ describe('collectOtherVisualsGalleryKeys — 唯一性收集（V-B.16）', () =>
         {
           id: 'visuals/illustrations/scenes/finale',
           pageType: 'gallery',
-          metadata: { illustrationId: 'rain-sea-finale' },
+          metadata: { storyKey: 'rain-sea-finale' },
         },
       ],
     },
@@ -218,7 +216,7 @@ describe('collectOtherVisualsGalleryKeys — 唯一性收集（V-B.16）', () =>
     );
     expect(keys.entityKeys.has('xavier-colsono')).toBe(false);
     expect(keys.entityKeys.has('novia')).toBe(true);
-    expect(keys.illustrationIds.has('rain-sea-finale')).toBe(true);
+    expect(keys.storyKeys.has('rain-sea-finale')).toBe(true);
   });
 
   it('自身 id 比較容忍 encoded/decoded 差異', () => {
@@ -249,7 +247,7 @@ describe('collectOtherVisualsGalleryKeys — 唯一性收集（V-B.16）', () =>
       'visuals/other'
     );
     expect(keys.entityKeys.size).toBe(0);
-    expect(keys.illustrationIds.size).toBe(0);
+    expect(keys.storyKeys.size).toBe(0);
   });
 });
 

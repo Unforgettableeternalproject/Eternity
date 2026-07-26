@@ -14,7 +14,7 @@ const TREE = [
         title: '破曉',
         pageType: 'gallery',
         metadata: {
-          illustrationId: 'ill-dawn',
+          storyKey: 'ill-dawn',
           images: [
             { id: 'img-1', file: 'images/dawn/1.png', caption: '破曉一' },
             { id: 'img-2', file: 'images/dawn/2.png', caption: '破曉二' },
@@ -26,7 +26,7 @@ const TREE = [
         title: '黃昏',
         pageType: 'gallery',
         metadata: {
-          illustrationId: 'ill-dusk',
+          storyKey: 'ill-dusk',
           images: [{ id: 'img-9', file: 'images/dusk/9.png', caption: '黃昏' }],
         },
       },

@@ -9,7 +9,7 @@ import worker from '../index';
  * 1. entityKey 命中 → found + 摘要（images 裸 key / 三態欄位 /
  *    sortOrder 升冪 / divisionId 路徑推導）
  * 2. 舊自由文字 gate 不回傳為條件（靜默失效定案）
- * 3. by-id / by-illustration 反查（hidden 仍命中——clue 明確引用）
+ * 3. by-id / by-story 反查（hidden 仍命中——clue 明確引用）
  * 4. 未命中 / 軟刪除 / 非 gallery 頁 → found:false；缺參數 → 400
  */
 
@@ -110,7 +110,7 @@ describe('GET /api/visuals/entity-gallery', () => {
       id: 'visuals/profiles/vgal-xavier',
       title: 'X 的肖像集',
       entityKey: 'vgal-xavier',
-      illustrationId: null,
+      storyKey: null,
       divisionId: 'profiles',
       gate: { requiresFlags: ['met:vgal-xavier'] },
       locked: false,
@@ -192,7 +192,7 @@ describe('GET /api/visuals/entity-gallery', () => {
   });
 });
 
-describe('GET /api/visuals/gallery（by-id / by-illustration 快照刷新）', () => {
+describe('GET /api/visuals/gallery（by-id / by-story 快照刷新）', () => {
   beforeAll(async () => {
     // 鑲框室隱藏插圖：插圖 ID 引用，hidden 仍須命中
     await insertPage(
@@ -200,7 +200,7 @@ describe('GET /api/visuals/gallery（by-id / by-illustration 快照刷新）', (
       '隱藏的場景插圖',
       'gallery',
       {
-        illustrationId: 'scene-rainfall',
+        storyKey: 'scene-rainfall',
         hidden: true,
         images: [
           {
@@ -236,9 +236,9 @@ describe('GET /api/visuals/gallery（by-id / by-illustration 快照刷新）', (
     });
   });
 
-  it('by-illustration 命中，hidden 仍可命中（clue 明確引用）', async () => {
+  it('by-story 命中，hidden 仍可命中（clue 明確引用）', async () => {
     const res = await worker.fetch(
-      createRequest('/api/visuals/gallery?illustration=scene-rainfall'),
+      createRequest('/api/visuals/gallery?story=scene-rainfall'),
       env,
       ctx
     );
@@ -248,7 +248,7 @@ describe('GET /api/visuals/gallery（by-id / by-illustration 快照刷新）', (
     expect(json.data.found).toBe(true);
     expect(json.data.gallery).toMatchObject({
       id: 'visuals/illustrations/vgal-hidden-scene',
-      illustrationId: 'scene-rainfall',
+      storyKey: 'scene-rainfall',
       entityKey: null,
       divisionId: 'illustrations',
     });
@@ -276,7 +276,7 @@ describe('GET /api/visuals/gallery（by-id / by-illustration 快照刷新）', (
       ((await byId.json()) as { data: { found: boolean } }).data.found
     ).toBe(false);
     const byIll = await worker.fetch(
-      createRequest('/api/visuals/gallery?illustration=nope'),
+      createRequest('/api/visuals/gallery?story=nope'),
       env,
       ctx
     );
@@ -358,7 +358,7 @@ describe('entity-gallery：storyKey 反查與壞 JSON 容錯（S10-1）', () => 
     expect(json.data.gallery?.storyKey).toBeNull();
   });
 
-  it('壞 JSON 的頁面不影響其餘列的反查（含 by-illustration）', async () => {
+  it('壞 JSON 的頁面不影響其餘列的反查（含 by-story）', async () => {
     const byEntity = await worker.fetch(
       createRequest('/api/visuals/entity-gallery?key=vgal-xavier'),
       env,
@@ -380,7 +380,7 @@ describe('entity-gallery：storyKey 反查與壞 JSON 容錯（S10-1）', () => 
     ).toBe(true);
 
     const byIllustration = await worker.fetch(
-      createRequest('/api/visuals/gallery?illustration=scene-rainfall'),
+      createRequest('/api/visuals/gallery?story=scene-rainfall'),
       env,
       ctx
     );

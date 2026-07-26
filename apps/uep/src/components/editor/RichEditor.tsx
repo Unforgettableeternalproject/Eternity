@@ -3540,7 +3540,7 @@ export default function RichEditor({
               '未綁定'}
           </span>
           <span className="ned-echo-spot-bubble__meta">
-            {selectedVisualClue.targetType === 'illustration'
+            {selectedVisualClue.targetType === 'story'
               ? `插圖 ${selectedVisualClue.targetKey}`
               : selectedVisualClue.targetKey || '無目標'}
             {selectedVisualClue.imageTitle &&
