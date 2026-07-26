@@ -248,6 +248,9 @@ export default function IdentCard() {
           onPointerCancel={handlePointerUp}
           aria-expanded={open}
           aria-label={open ? '收起識別證' : '展開識別證（往下拖曳可撕下登出）'}
+          title={
+            open ? '收起識別證' : '點擊展開 · 往下拖曳可撕下識別證（登出）'
+          }
         >
           {/* 正面：吊牌 */}
           <div className="uep-ident__face uep-ident__face--front">
@@ -335,6 +338,16 @@ export default function IdentCard() {
               <span className="uep-ident__row-label">觀看世界的方式</span>
               <ViewSwitch />
             </div>
+
+            {/* 撕下登出是純手勢互動，沒有任何按鈕可循——證卡底部明說一次。
+                撕下只在吊牌狀態允許（避免拖到 ViewSwitch 誤觸），
+                所以文案要先講「收起」。 */}
+            <p className="uep-ident__tear-hint">
+              <span className="uep-ident__tear-hint-glyph" aria-hidden="true">
+                ↓
+              </span>
+              收起後往下拉，可撕下識別證（登出）
+            </p>
           </div>
         </div>
       </div>

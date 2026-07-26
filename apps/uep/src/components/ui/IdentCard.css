@@ -173,7 +173,8 @@
 
 .uep-ident.is-open .uep-ident__flip {
   width: 248px;
-  height: 300px; /* 容納 view-row + 未來預留空間，避免下方被截 */
+  /* 容納 view-row + 撕下提示；印記那一列出現時仍留有餘裕，避免下方被截 */
+  height: 326px;
 }
 
 /* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向。
@@ -381,6 +382,47 @@
   cursor: default;
 }
 
+/* 撕下登出的提示：手勢互動沒有可見入口，證卡底部明說一次 */
+.uep-ident__tear-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--hairline);
+  color: var(--ink-mute);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+.uep-ident__tear-hint-glyph {
+  color: var(--uep-gold);
+  font-size: 10px;
+  line-height: 1;
+  animation: uep-ident-hint-nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes uep-ident-hint-nudge {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  85% {
+    transform: translateY(2px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__tear-hint-glyph {
+    animation: none;
+  }
+}
+
 /* 手機：貼齊 TopBar 手機版 padding、證卡縮窄 */
 @media (max-width: 760px) {
   .uep-ident {
@@ -391,6 +433,6 @@
 @media (max-width: 560px) {
   .uep-ident.is-open .uep-ident__flip {
     width: 228px;
-    height: 300px;
+    height: 326px;
   }
 }
