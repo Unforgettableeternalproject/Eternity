@@ -26,6 +26,11 @@ import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
 import { buildEchoesEntityIndex } from './echoes-index';
 import { buildVisualsEntityIndex } from './visuals-index';
+import {
+  extractCandidateKeys,
+  findKeyConflict,
+  ensureStoryPoints,
+} from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
   findEntityGallery,
@@ -293,6 +298,39 @@ async function upsertPage(
   const id = `${area}/${slug}`;
   const now = body.updatedAt || new Date().toISOString();
 
+  // ---- key 唯一性把關（S10-1 §3-2）----
+  //
+  // 這是唯一保證資料一致的關卡：編輯器前端也有即時提示與存檔前警告，
+  // 但那兩層的 existingKeys 由呼叫端自行組裝，範圍可能不完整；只有這裡
+  // 是對 D1 現況做的即時掃描。撞名一律 409，不靜默覆蓋——entityKey /
+  // storyKey 撞名的後果是互聯連到錯的東西，遠比存檔失敗嚴重。
+  const keyCandidates = extractCandidateKeys(area, body);
+  for (const candidate of keyCandidates) {
+    const conflict = await findKeyConflict(db, {
+      keyType: candidate.keyType,
+      keyValue: candidate.keyValue,
+      area: area as 'concepts' | 'echoes' | 'visuals',
+      scope: candidate.scope,
+      excludePageId: id,
+    });
+    if (conflict) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: `${candidate.field}「${candidate.keyValue}」已被「${conflict.pageTitle}」使用`,
+          conflict: {
+            field: candidate.field,
+            key: candidate.keyValue,
+            conflictingPageId: conflict.pageId,
+            conflictingPageTitle: conflict.pageTitle,
+          },
+        },
+        409,
+        cors
+      );
+    }
+  }
+
   // 檢查是否已存在（包含已軟刪除的記錄）
   const existing = await db
     .prepare(
@@ -434,6 +472,9 @@ async function upsertPage(
       }
     }
   }
+
+  // storyKey 首次出現時建立 story_points 殼列（S10-1 §2-4）
+  await ensureStoryPoints(db, keyCandidates);
 
   // 回傳更新後的頁面
   const updated = await db

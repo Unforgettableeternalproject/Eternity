@@ -10,7 +10,10 @@
  * 也讓「軟刪除後 key 自動釋放」不需要任何額外程式碼。
  */
 
-import { buildConceptsEntityIndex } from './concepts-index';
+import {
+  buildConceptsEntityIndex,
+  collectConceptsKeyCandidates,
+} from './concepts-index';
 import { buildEchoesEntityIndex } from './echoes-index';
 import { buildVisualsEntityIndex } from './visuals-index';
 
@@ -115,4 +118,106 @@ export async function findKeyConflict(
   });
   if (!hit) return null;
   return { pageId: hit.id, pageTitle: await fetchPageTitle(db, hit.id) };
+}
+
+// ──────────────────────────────────────────────────────────────
+//  存檔路徑：候選 key 抽取
+// ──────────────────────────────────────────────────────────────
+
+/** 待檢查的單一 key 候選（附帶給使用者看的欄位名） */
+export interface KeyCandidate {
+  keyType: 'entity' | 'story';
+  keyValue: string;
+  scope: string;
+  /** 錯誤訊息用的欄位名稱（entityKey / storyKey） */
+  field: string;
+}
+
+/** 存檔請求中與 key 相關的部分 */
+interface KeyBearingBody {
+  metadata?: Record<string, unknown> | null;
+  content?: unknown;
+}
+
+/**
+ * 從存檔請求抽出所有需要做唯一性檢查的 key。
+ *
+ * Echoes/Visuals 一頁最多一個 key（metadata 上的平鋪欄位）；Concepts
+ * 一頁可能巢狀出多個（四種 stack 形狀），交給 `collectConceptsKeyCandidates`。
+ *
+ * 只在 `metadata` 有出現在請求中時才抽 Echoes/Visuals 的 key——PUT 支援
+ * 部分更新，沒帶 metadata 就代表這次不動 key，不該拿舊值重新檢查
+ * （尤其「更新自己」在排除自身後本來就不會衝突，但沒必要多跑一次掃描）。
+ */
+export function extractCandidateKeys(
+  area: string,
+  body: KeyBearingBody
+): KeyCandidate[] {
+  if (area === 'concepts') {
+    if (body.content === undefined) return [];
+    return collectConceptsKeyCandidates(body.content, body.metadata).map(
+      (candidate) => ({
+        keyType: 'entity' as const,
+        keyValue: candidate.entityKey,
+        scope: conceptsScope(candidate.stack, candidate.variantId),
+        field: 'entityKey',
+      })
+    );
+  }
+
+  if (area !== 'echoes' && area !== 'visuals') return [];
+  if (!body.metadata) return [];
+
+  const out: KeyCandidate[] = [];
+  const entityKey = body.metadata.entityKey;
+  if (typeof entityKey === 'string' && entityKey.trim()) {
+    out.push({
+      keyType: 'entity',
+      keyValue: entityKey.trim(),
+      scope: ZONE_SCOPE,
+      field: 'entityKey',
+    });
+  }
+  const storyKey = body.metadata.storyKey;
+  if (typeof storyKey === 'string' && storyKey.trim()) {
+    out.push({
+      keyType: 'story',
+      keyValue: storyKey.trim(),
+      scope: ZONE_SCOPE,
+      field: 'storyKey',
+    });
+  }
+  return out;
+}
+
+/**
+ * 為候選 key 中的 storyKey 建立 `story_points` 殼列。
+ *
+ * S10-1 全程不寫 title/description（編輯 UI 屬 S10-3），先建殼是為了讓
+ * S10-3 直接 UPDATE，不必再設計一套「首次建檔」邏輯。`INSERT OR IGNORE`
+ * 保證重複存檔不會覆蓋 S10-3 之後填進去的內容。
+ */
+export async function ensureStoryPoints(
+  db: D1Database,
+  candidates: KeyCandidate[]
+): Promise<void> {
+  const storyKeys = [
+    ...new Set(
+      candidates.filter((c) => c.keyType === 'story').map((c) => c.keyValue)
+    ),
+  ];
+  if (storyKeys.length === 0) return;
+
+  const now = new Date().toISOString();
+  await db.batch(
+    storyKeys.map((key) =>
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO story_points
+             (story_key, title, description, created_at, updated_at)
+           VALUES (?, NULL, NULL, ?, ?)`
+        )
+        .bind(key, now, now)
+    )
+  );
 }

@@ -174,6 +174,23 @@ export interface ApiResponse<T = unknown> {
    * 放在 `data` 之外，尚未更新的客戶端照舊只讀 `data`、完全不受影響。
    */
   meta?: ProgressMeta;
+  /** key 撞名被擋（409）時的指路資訊（S10-1） */
+  conflict?: KeyConflictInfo;
+}
+
+/**
+ * 存檔被 key 唯一性把關擋下時的附帶資訊。
+ *
+ * `error` 已經是給人看的完整句子；這裡的結構化欄位供編輯器把游標帶到
+ * 出問題的欄位、或提供「開啟衝突頁」的連結。
+ */
+export interface KeyConflictInfo {
+  /** 出問題的欄位名（entityKey / storyKey） */
+  field: string;
+  /** 撞名的 key 值 */
+  key: string;
+  conflictingPageId: string;
+  conflictingPageTitle: string;
 }
 
 /** GET/PUT /api/uep/progress 的附帶欄位 */

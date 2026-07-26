@@ -106,13 +106,20 @@ function withRevisionFields(
   return out;
 }
 
-/** 解析頁面 content（ContentBlock[]）中的結構化 JSON 區塊 */
-function parseStructuredBlock(contentJson: string): Dict | null {
-  let blocks: unknown;
-  try {
-    blocks = JSON.parse(contentJson);
-  } catch {
-    return null;
+/**
+ * 解析頁面 content 中的結構化 JSON 區塊。
+ *
+ * 接受 D1 存的字串，也接受已經是 ContentBlock[] 的陣列——存檔路徑
+ * （upsertPage）拿到的 body.content 是後者，讀取路徑拿到的是前者。
+ */
+function parseStructuredBlock(content: unknown): Dict | null {
+  let blocks: unknown = content;
+  if (typeof content === 'string') {
+    try {
+      blocks = JSON.parse(content);
+    } catch {
+      return null;
+    }
   }
   const block = asArray(blocks)
     .map(asDict)
@@ -235,6 +242,45 @@ const STACK_STYLES: EntityIndexEntry['stack'][] = [
   'chrono',
   'diff',
 ];
+
+/** 單頁抽出的 entityKey 候選（存檔前唯一性檢查用） */
+export interface ConceptsKeyCandidate {
+  entityKey: string;
+  stack: EntityIndexEntry['stack'];
+  /** 僅 dossier 有——唯一性範圍以 variant 分區 */
+  variantId?: string;
+}
+
+/**
+ * 從**尚未寫入 DB** 的單頁內容抽出所有 entityKey 候選。
+ *
+ * 與 `buildConceptsEntityIndex` 共用同一份四種 stack 的遍歷器
+ * （`collectFromPage`）——設計文件原本預期 worker 端要另寫一份遍歷邏輯，
+ * 但那個顧慮是針對「前端 TipTap 環境 vs worker 環境」的匯入邊界；
+ * 存檔驗證與索引建構同在 worker 內，沒有理由讓同一套遍歷規則存在兩份
+ * 而冒語意漂移的風險。
+ */
+export function collectConceptsKeyCandidates(
+  content: unknown,
+  metadata: Record<string, unknown> | null | undefined
+): ConceptsKeyCandidate[] {
+  const stack = metadata?.stack_style;
+  if (
+    typeof stack !== 'string' ||
+    !STACK_STYLES.includes(stack as EntityIndexEntry['stack'])
+  ) {
+    return [];
+  }
+  const data = parseStructuredBlock(content);
+  if (!data) return [];
+  return collectFromPage(data, stack as EntityIndexEntry['stack'], '', '')
+    .filter((entry) => entry.entityKey)
+    .map((entry) => ({
+      entityKey: entry.entityKey as string,
+      stack: entry.stack,
+      ...(entry.variantId ? { variantId: entry.variantId } : {}),
+    }));
+}
 
 // ===== 主函式 =====
 
