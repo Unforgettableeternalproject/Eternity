@@ -119,7 +119,7 @@ export interface ProgressState {
  *
  * `load()` 用單一個 `null` 同時表達「帳號沒有雲端進度」「讀不到伺服器」
  * 兩件完全相反的事，呼叫端只能一律當成「新帳號，把本地推上去」——於是
- * admin 的重置會被舊鏡像原地復原（2026-07-26 Codex 複核 blocker 1）。
+ * admin 的重置會被舊鏡像原地復原。
  * 這四個 kind 就是把那個 `null` 拆開。
  */
 export type RemoteLoadResult =

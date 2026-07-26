@@ -140,7 +140,7 @@ describe('登出', () => {
   });
 
   /**
-   * 【回歸 2026-07-26】登出必須清空本機進度（艾斯維爾定案）。
+   * 【回歸】登出必須清空本機進度。
    *
    * ServerAdapter 一路 write-through 本地鏡像，登出後那份鏡像仍完整
    * 保有上一位登入者的 flags／完成頁／便條／閱讀時數。不清的話，
@@ -169,7 +169,7 @@ describe('登出', () => {
     expect(state.flags).toEqual([]);
     expect(state.completedPageIds).toEqual([]);
     expect(state.islandsUnlocked).toEqual([]);
-    /* 印記屬於帳號而非裝置，登出必須一起清（Codex 2026-07-26 複核）。
+    /* 印記屬於帳號而非裝置，登出必須一起清。
        留著的話：下一位新註冊者登入 → 遠端進度為空 → setAdapter 走
        「遠端無資料則上傳本地」把殘留的 observerEver 推上去 →
        Worker 單向 OR 讓它永久生效 → 無辜帳號被蓋上觀測者印記。
@@ -178,7 +178,7 @@ describe('登出', () => {
   });
 
   /**
-   * 【回歸 2026-07-26】跨帳號印記污染的完整重現（Codex 複核 blocker 2）。
+   * 【回歸】跨帳號印記污染的完整重現。
    */
   it('觀測者登出後，新帳號的初始上傳不得帶著上一位的印記', async () => {
     const { uepReaderAuth } = await freshAuth();
@@ -215,7 +215,7 @@ describe('登出', () => {
   });
 
   /**
-   * 【回歸 2026-07-26】順序不可對調。
+   * 【回歸】順序不可對調。
    *
    * `flush()` 靠 `getToken()` 回 null 才放棄上傳。若 reset 排在清 session
    * 之前，重置後的空進度會被 PUT 上去，**直接清空伺服器上的帳號進度**。

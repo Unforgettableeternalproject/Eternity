@@ -198,7 +198,7 @@ describe('save（write-through + debounce）', () => {
 });
 
 /**
- * 【回歸 2026-07-26，Codex 複核 blocker 3】rev 未知時不得走弱鎖上傳。
+ * 【回歸】rev 未知時不得走弱鎖上傳。
  *
  * 初次 GET 只要短暫失敗，rev 就是 null。舊實作此時直接省略
  * `X-Progress-Rev`、讓 worker 退回時間戳弱鎖——而弱鎖擋不住 admin 的
@@ -262,7 +262,58 @@ describe('rev 未知時的上傳防線', () => {
 });
 
 /**
- * 【回歸 2026-07-26，Codex 複核 blocker 1】空 blob 的兩種來歷必須分開。
+ * 【回歸】flush 必須序列化。
+ *
+ * 慢網路下第一個 PUT 還沒回來，第二次 debounce 到期就帶著**同一個** rev
+ * 送出：伺服器讓先到的通過、後到的回 409，而 409 觸發的權威 hydrate 會
+ * 把 state 收斂成**較舊**的第一筆，較新的第二筆憑空消失。
+ */
+describe('flush 序列化', () => {
+  it('前一個 PUT 未回來時，第二次 flush 必須排隊而非共用同一個 rev', async () => {
+    const a = createAdapter();
+    await primeRev(a, 1);
+
+    // 第一個 PUT 卡住，可手動放行
+    let releaseFirst!: (v: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((r) => {
+          releaseFirst = r;
+        })
+    );
+
+    await a.save(sampleState({ flags: ['first'] }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 第一個還在飛，第二次 mutation 的 debounce 就到期了
+    await a.save(sampleState({ flags: ['first', 'second'] }));
+    await vi.advanceTimersByTimeAsync(1000);
+    // 必須還沒送出——否則兩筆共用 rev 1
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 放行第一筆，伺服器回新 rev
+    releaseFirst(jsonResponse({ ok: true, data: {}, meta: { rev: 2 } }));
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 3 } })
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, second] = fetchMock.mock.calls[1];
+    // 第二筆帶的是第一筆更新過的 rev，不會撞 409
+    expect(
+      (second as RequestInit).headers as Record<string, string>
+    ).toMatchObject({ 'X-Progress-Rev': '2' });
+    expect(JSON.parse((second as RequestInit).body as string).flags).toEqual([
+      'first',
+      'second',
+    ]);
+  });
+});
+
+/**
+ * 【回歸】空 blob 的兩種來歷必須分開。
  *
  * `load()` 用同一個 null 表達「新帳號」與「admin 剛重置」，呼叫端只能
  * 一律上傳本地 → admin 的重置被舊鏡像原地復原。靠 rev 分辨：

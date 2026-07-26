@@ -131,7 +131,7 @@ function unionAdded(
 }
 
 /**
- * hydrate 競態的收斂規則（2026-07-26）
+ * hydrate 競態的收斂規則
  *
  * `setAdapter()` 的 `await load()` 是一段空窗期，而 UI 並沒有停下來——
  * ReaderShell mount、讀完一頁、完成解鎖儀式都可能在這期間寫入 state。
@@ -174,6 +174,11 @@ function mergeHydrated(
 /**
  * 印記的收斂規則：以伺服器 canonical 欄位為準，只有**空窗期內新落下**的
  * 印記才蓋過它。
+ *
+ * ⚠️ 只適用於「伺服器上已有這個帳號的 canonical 值需要保護」的情況，
+ * 也就是 `present` 與 `empty`。全新帳號（`absent`）**不可**用這條——
+ * 沒有 canonical 覆寫要保護，卻會把註冊前就落下的匿名印記過濾掉。
+ * 詳見 `setAdapter()` 的 absent 分支。
  *
  * 兩個方向都得顧到：
  * - DB=true、本地=false（admin 剛授予，或本機清空過）→ 必須取 canonical，
@@ -507,8 +512,8 @@ export const uepProgress = {
    * ⚠️ hydrate 期間若 adapter 又被換掉（最常見：載入途中使用者登出），
    * 這次的遠端結果一律丟棄——見 `adapterGeneration`。
    *
-   * ⚠️ **「遠端沒有進度」必須分成三種情況處理**（2026-07-26 Codex 複核
-   * blocker 1）。舊實作只看 `load()` 的 null 就一律 `persist()`，等於
+   * ⚠️ **「遠端沒有進度」必須分成三種情況處理**。
+   * 舊實作只看 `load()` 的 null 就一律 `persist()`，等於
    * 「遠端空 → 把本地推上去」：admin 重置某帳號後，使用者只要帶著重置前
    * 的本地鏡像重新載入，這裡就會用**最新** rev 把舊鏡像 PUT 回去，CAS
    * 合法通過，重置被完全復原。四態語意見 `RemoteLoadResult`；只有
@@ -551,26 +556,37 @@ export const uepProgress = {
 
       case 'absent':
         /* 全新帳號（rev === 0，從未寫過雲端進度）：這是唯一該把本地推上去
-           的情況——匿名期累積的進度應該跟著這個新帳號走。 */
+           的情況——匿名期累積的進度應該跟著這個新帳號走。
+
+           ⚠️ 印記在這裡是**單純的 OR**，不可套用 `resolveObserverEver()`
+           。那條規則的用途是「別讓本地舊值復活
+           admin 清除的印記」，前提是有 canonical 覆寫需要保護；全新帳號
+           沒有這種覆寫。若照 base 過濾，使用者在註冊前就切成觀測者的
+           情況（base 已是 true）會算成 `true && !true` = false——flags
+           匯入了、永久印記卻被清掉，而 view 仍是 observer，state 不一致。 */
         state = {
           ...state,
-          observerEver: resolveObserverEver(result.observerEver, base, state),
+          observerEver: state.observerEver || result.observerEver,
         };
         persist();
         notify('hydrate');
         return;
 
       case 'empty':
-        /* 權威空（rev > 0，典型是 admin 剛重置）：採 canonical empty。
-           **刻意不呼叫 persist()**——本地鏡像正是被重置掉的那份，推回去
-           就是原地復原 admin 的操作。只同步本地鏡像；等使用者真有新動作
-           時，那次 mutation 自然會帶著手上的 rev 上傳。 */
-        state = {
-          ...createInitialState(),
-          observerEver: resolveObserverEver(result.observerEver, base, state),
-        };
-        syncLocalMirror(state);
-        notify('hydrate');
+        /* 權威空（rev > 0，典型是 admin 剛重置）：以 canonical empty 當
+           遠端快照走一般 hydrate 收斂。
+
+           交給 `applyHydrated()` 而不是直接覆寫，是為了保住 hydrate 空窗期
+           內的授予：直接 createInitialState() 會
+           重現 `mergeHydrated()` 當初要解決的災情——空窗期多半是 mount
+           effect 在寫，hydrate 不會讓 effect 重跑，這一輪就永遠回不來。
+           疊回的只有 `local - base`，也就是使用者在這幾百毫秒內真的做的
+           動作，不是 admin 重置掉的舊資料。
+
+           空窗期沒有 mutation 時 `applyHydrated()` 走「直接採用 + 只同步
+           鏡像」，**不會** persist()——本地鏡像正是被重置掉的那份，推回去
+           就是原地復原 admin 的操作。 */
+        applyHydrated(createInitialState(), base, result.observerEver);
         return;
 
       case 'present':

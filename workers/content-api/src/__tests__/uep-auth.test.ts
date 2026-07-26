@@ -625,7 +625,7 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
     expect(arr.status).toBe(400);
   });
 
-  /* ── Admin 重置的樂觀鎖（2026-07-26）──────────────────────────────
+  /* ── Admin 重置的樂觀鎖 ──────────────────────────────
    * admin 把 progress 設為 NULL 之後，若該使用者當下還開著分頁，
    * ServerAdapter 的 debounce PUT／pagehide flush 會把重置前的本地鏡像
    * 整包寫回來，admin 的重置被悄悄復原且雙方都不知情。
@@ -726,7 +726,7 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex re-review #1】時間戳不是版本鎖。
+     * 【回歸】時間戳不是版本鎖。
      *
      * 舊分頁只要再發生任何 mutation（滑一下觸發 marker-update 就夠），
      * blob 的 updatedAt 就刷新成當下、比 progress_reset_at 新而直接通過，
@@ -813,7 +813,7 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex re-review #3】內容洩漏防線。
+     * 【回歸】內容洩漏防線。
      * admin 清空 progress 時 blob 變 NULL 但 observer_ever 保留；
      * GET 必須把 canonical 的 observerEver 帶回去，否則客戶端會把印記
      * 歸零，讓 pristineOnly（純潔者限定）內容對印記者顯示出來。
@@ -845,7 +845,7 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex 複核 blocker 2】
+     * 【回歸】
      * 凡是改變讀者 canonical 狀態的 admin 操作都必須遞增 rev，**即使
      * blob 為 null**。
      *

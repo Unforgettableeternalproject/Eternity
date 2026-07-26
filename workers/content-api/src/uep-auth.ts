@@ -382,7 +382,7 @@ async function handlePutProgress(
 
   const revHeader = request.headers.get('X-Progress-Rev');
 
-  /* ── 併發控制：優先走 compare-and-swap（2026-07-26）──
+  /* ── 併發控制：優先走 compare-and-swap ──
      帶了 X-Progress-Rev 就用伺服器發放的版本號比對；沒帶則退回舊的
      時間戳檢查，讓尚未更新的前端仍有基本保護。
 
@@ -562,7 +562,7 @@ async function handleAdminUpdateUser(
     values.push(body.isActive ? 1 : 0);
   }
 
-  /* ── 印記 + 進度（S7 驗收加碼，2026-07-10）──
+  /* ── 印記 + 進度 ──
      observer_ever 欄位與 progress blob 內的 observerEver 是鏡射雙份，
      必須一起動，否則讀者端 PUT 的單向遞增規則會把清掉的印記升回去：
      - 明確給 observerEver（admin 雙向覆寫，取消印記＝恢復純潔者）→ 以它為準
@@ -633,7 +633,7 @@ async function handleAdminUpdateUser(
        這次的操作。
 
        ⚠️ 條件是 `hasProgressEdit || hasObserverEdit`，**不能**再加
-       「有 blob」的前提（2026-07-26 Codex 複核 blocker 2）。progress
+       「有 blob」的前提。progress
        已是 null 時單獨清除 observerEver，DB 欄位改了但 rev 沒動，客戶端
        手上的同 rev 快照仍會通過 CAS，讀者端的單向 OR 又把印記升回
        true——admin 的操作被復原。凡是改變 reader canonical

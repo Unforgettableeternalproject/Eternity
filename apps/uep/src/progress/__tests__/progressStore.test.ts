@@ -357,7 +357,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     expect(uepProgress.getState().flags).toEqual(['local-flag']);
   });
 
-  /* ── hydrate 競態（2026-07-26 回歸）──────────────────────────────
+  /* ── hydrate 競態（回歸）──────────────────────────────
    * `await load()` 是一段空窗期，UI 並沒有停下來。舊實作直接
    * `state = remote`，這期間的寫入全部蒸發；因為多數是 mount effect
    * 寫的、hydrate 又不會讓 effect 重跑，這一輪就永遠回不來。
@@ -451,7 +451,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex 複核 blocker 1】
+     * 【回歸】
      *
      * hydrate 途中 adapter 被換掉（最常見：載入到一半使用者登出）時，
      * 稍後回來的舊帳號快照必須整個作廢。少了 generation guard：
@@ -518,7 +518,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex 複核 blocker 3】
+     * 【回歸】
      * admin 清空後遠端是 null，此時**不得**把本地推上去——那等於原地
      * 復原他的清除，而且會再撞一次版本檢查形成 409 循環。
      */
@@ -540,7 +540,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex re-review #2】
+     * 【回歸】
      * 讀不到伺服器時必須保持現狀。舊實作走 `load()`，它在 GET 失敗時
      * fallback 本地鏡像，等於把過期資料當成伺服器事實採用，下一次
      * mutation 再帶著新版本號寫回去，繞過整個衝突偵測。
@@ -570,7 +570,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     });
 
     /**
-     * 【回歸 2026-07-26，Codex re-review #3】內容洩漏防線。
+     * 【回歸】內容洩漏防線。
      * admin 清空 progress 時 blob 變 null 但 DB 的 observer_ever 保留。
      * 若跟著 blob 把 observerEver 歸零，前端會誤判使用者是純潔者，
      * 讓 pristineOnly（純潔者限定）內容對印記者顯示出來。
@@ -604,7 +604,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
   });
 
   /* ── 四態遠端讀取（loadRemote）───────────────────────────────────
-   * 【回歸 2026-07-26，Codex 複核 blocker 1】
+   * 【回歸】
    *
    * 舊實作只看 `load()` 的 null 就一律 `persist()`，也就是「遠端空 →
    * 把本地推上去」。事故重現：admin reset 令 progress=null 且 rev+1；
@@ -655,6 +655,81 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       await uepProgress.setAdapter(adapter);
 
       expect(uepProgress.getState().flags).toEqual(['anonymous-progress']);
+      expect(adapter.save).toHaveBeenCalled();
+    });
+
+    /**
+     * 【回歸】
+     *
+     * absent 分支曾誤用 `resolveObserverEver()`。使用者在註冊前就切成
+     * 觀測者時，hydrate 開始的 base.observerEver 已是 true，於是
+     * `canonical(false) || (local(true) && !base(true))` 算成 false——
+     * flags 匯入了，永久印記卻被清掉，而 view 仍是 observer，state 不一致。
+     *
+     * 那條規則的用途是保護 admin 的 canonical 覆寫；全新帳號沒有覆寫，
+     * 印記必須單純 OR。
+     */
+    it('absent 必須保留註冊前就落下的匿名印記', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.setView('observer'); // 匿名期就成為觀測者
+      expect(uepProgress.getState().observerEver).toBe(true);
+
+      await uepProgress.setAdapter(
+        remoteAdapter({ kind: 'absent', observerEver: false })
+      );
+
+      const state = uepProgress.getState();
+      expect(state.observerEver).toBe(true);
+      // 印記與視角不得互相矛盾
+      expect(state.view).toBe('observer');
+    });
+
+    it('absent 也接受伺服器已有的印記（帳號側先落下）', async () => {
+      const { uepProgress } = await freshStore();
+      await uepProgress.setAdapter(
+        remoteAdapter({ kind: 'absent', observerEver: true })
+      );
+      expect(uepProgress.getState().observerEver).toBe(true);
+    });
+
+    /**
+     * 【回歸】
+     *
+     * empty 分支直接 createInitialState() 會重現 `mergeHydrated()` 當初
+     * 要解決的災情：空窗期多半是 mount effect 在寫，hydrate 不會讓
+     * effect 重跑，被吞掉的授予這一輪就永遠回不來（解鎖儀式叫不出來、
+     * 已解鎖的島原地上鎖）。疊回的只有 `local - base`。
+     */
+    it('empty 仍要保留 hydrate 空窗期內新增的授予', async () => {
+      const { uepProgress } = await freshStore();
+      uepProgress.grantFlags(['before-reset']);
+
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      const adapter = {
+        load: vi.fn(() => Promise.resolve(null)),
+        save: vi.fn(() => Promise.resolve()),
+        loadRemote: async (): Promise<RemoteLoadResult> => {
+          await gate;
+          return { kind: 'empty', observerEver: false };
+        },
+      };
+
+      const pending = uepProgress.setAdapter(adapter);
+      uepProgress.unlockIsland('history'); // 空窗期內的真實動作
+      uepProgress.grantFlags(['during-hydrate']);
+      release();
+      await pending;
+
+      const state = uepProgress.getState();
+      // admin 重置掉的舊資料不回來
+      expect(state.flags).not.toContain('before-reset');
+      // 但空窗期內真的做的動作要留著
+      expect(state.flags).toContain('during-hydrate');
+      expect(state.islandsUnlocked).toContain('history');
+      // 有新動作 → 合併結果要落地，否則只活在記憶體
       expect(adapter.save).toHaveBeenCalled();
     });
 
@@ -859,7 +934,7 @@ describe('sweepOrphanCompletions', () => {
     expect(uepProgress.getState().updatedAt).toBe(before);
   });
 
-  it('static-locked 頁面的 completed:* 亦視為孤兒清除（2026-07-03 修）', async () => {
+  it('static-locked 頁面的 completed:* 亦視為孤兒清除', async () => {
     // 靜態鎖頁面不可能被合法完成，即使 flag 存在也應被視為孤兒
     const nodes = new Map<string, { metadata: Record<string, unknown> }>([
       ['locked-page', { metadata: { locked: true, progressPage: true } }],

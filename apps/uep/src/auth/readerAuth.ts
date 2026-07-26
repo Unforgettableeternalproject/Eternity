@@ -274,7 +274,7 @@ export const uepReaderAuth = {
   /**
    * 登出：清 session、進度退回 LocalStorageAdapter 並**清空本機進度**。
    *
-   * 本機進度為何要清（艾斯維爾 2026-07-26 定案）：ServerAdapter 一路
+   * 本機進度為何要清：ServerAdapter 一路
    * write-through 本地鏡像，登出後那份鏡像仍完整保有上一位登入者的
    * flags／完成頁／便條／閱讀時數。共用瀏覽器的下一位訪客會直接繼承
    * 別人的閱讀足跡——這是隱私缺口，優先於「同一人登出再登入很無縫」。

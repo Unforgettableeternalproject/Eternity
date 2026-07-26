@@ -45,7 +45,7 @@ export interface ServerAdapterOptions {
    *
    * 沒有 rev 就無法做 CAS，此時上傳只能走時間戳弱鎖——而弱鎖擋不住
    * admin 的寫入。呼叫端應改為做一次權威 hydrate 取得 rev 並以伺服器
-   * 為準收斂，而不是把本地推上去（2026-07-26 Codex 複核 blocker 3）。
+   * 為準收斂，而不是把本地推上去。
    *
    * 與 `onProgressReset` 分開：這不是「管理者改了你的進度」，只是本端
    * 從未讀到伺服器，不該對使用者顯示相同的提示。
@@ -74,6 +74,8 @@ export class ServerAdapter implements ProgressAdapter {
    * 呼叫端做權威 hydrate——不會退回時間戳弱鎖（見 `flush()` 的註解）。
    */
   private rev: number | null = null;
+  /** flush 序列化的尾巴——保證同一時間只有一個 PUT 在飛（見 `flush()`） */
+  private inflight: Promise<void> = Promise.resolve();
   private readonly onPageHide = () => {
     void this.flush(true);
   };
@@ -193,8 +195,26 @@ export class ServerAdapter implements ProgressAdapter {
     return Promise.resolve();
   }
 
-  /** 立即上傳未送出的進度。keepalive=true 用於 pagehide（unload 後請求仍存活） */
-  async flush(keepalive = false): Promise<void> {
+  /**
+   * 立即上傳未送出的進度。keepalive=true 用於 pagehide（unload 後請求仍存活）。
+   *
+   * 對 `doFlush()` 做**序列化**——同一時間只有一個 PUT 在飛
+   * 。少了這道鏈：慢網路下第一個 PUT 還沒回來，
+   * 第二次 debounce 到期就帶著**同一個** rev 送出；伺服器讓先到的通過、
+   * 後到的回 409，而 409 觸發的權威 hydrate 會把 state 收斂成**較舊**的
+   * 第一筆，較新的第二筆憑空消失。排隊後第二筆讀到的是第一筆更新過的
+   * rev，正常通過。
+   *
+   * 鏈上刻意吃掉 rejection：`doFlush()` 內部已全面靜默容錯，這裡只是
+   * 防止某次意外的 reject 讓整條鏈永久卡死。
+   */
+  flush(keepalive = false): Promise<void> {
+    const next = this.inflight.then(() => this.doFlush(keepalive));
+    this.inflight = next.catch(() => {});
+    return next;
+  }
+
+  private async doFlush(keepalive: boolean): Promise<void> {
     if (!this.pending) return;
     const token = this.opts.getToken();
     if (!token) {
@@ -206,7 +226,7 @@ export class ServerAdapter implements ProgressAdapter {
        上一次 409 之後 hydrate 也失敗）。此時**絕不能上傳**：沒有 rev
        只能讓 worker 退回時間戳弱鎖，而弱鎖擋不住 admin 的寫入——只要
        初次 GET 短暫失敗，這份沒跟伺服器對過帳的 state 就會覆蓋 admin
-       剛存的內容（2026-07-26 Codex 複核 blocker 3）。
+       剛存的內容。
 
        丟棄 pending 而非留著重試：它衍生自未經驗證的 state，權威 hydrate
        完成後會被伺服器版本取代；留著只會在下次 flush 帶著**新** rev 送
