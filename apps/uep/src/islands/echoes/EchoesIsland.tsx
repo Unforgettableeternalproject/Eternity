@@ -60,11 +60,15 @@ const POOL_ORBS = [
 /**
  * 回聲球體底色：待機淡灰，播放中被分類色「染色」
  * （艾斯維爾 2026-07-11：不要黑色——播放不同 cluster 時球染該色）。
+ *
+ * 2026-07-26 調整：拿掉打亮的高光——原本 45% 白的亮斑加上另一顆 fleck，
+ * 球看起來像上了釉的塑膠珠。回聲是實心的，只留一點方向感就好。
+ * 待機灰也從暖灰（#f7f4ec 系）換成中性灰：暖灰疊在冷色水上會發濁。
  */
 function ballBg(accent: string, playing: boolean): string {
   return playing
-    ? `radial-gradient(circle at 34% 30%, color-mix(in srgb, ${accent} 45%, #fff) 0%, ${accent} 60%, color-mix(in srgb, ${accent} 65%, #000) 100%)`
-    : 'radial-gradient(circle at 34% 30%, #f7f4ec 0%, #ddd7cb 55%, #bfb8a9 100%)';
+    ? `radial-gradient(circle at 38% 34%, color-mix(in srgb, ${accent} 20%, #fff) 0%, ${accent} 58%, color-mix(in srgb, ${accent} 72%, #000) 100%)`
+    : 'radial-gradient(circle at 38% 34%, #eef1f2 0%, #d9dee1 55%, #bcc4c9 100%)';
 }
 
 /**
@@ -167,23 +171,19 @@ function EchoOrb({
           {playing ? '❚❚' : '▶'}
         </span>
       </button>
-      {/* 高光斑 */}
+      {/* 球下方的落影：深色模式是水面倒影，亮色模式改成一片投影
+          （亮色下的倒影會在淺水上留一團暗塊，整座島跟著發灰）。
+          底色交給 CSS 變數，兩個模式才能各自決定要不要用。 */}
       <span
-        className="uep-eisland__fleck"
+        className="uep-eisland__orb-cast"
         aria-hidden
-        style={{
-          transform: `translate(${-ball / 2 + 11}px, ${-ball / 2 + 9}px)`,
-        }}
-      />
-      {/* 水面倒影：球半浮在水線上，下半是自己的影子 */}
-      <span
-        className="uep-eisland__orb-mirror"
-        aria-hidden
-        style={{
-          width: ball,
-          height: ball * 0.55,
-          background: ballBg(accent, playing || suggesting),
-        }}
+        style={
+          {
+            width: ball,
+            height: ball * 0.55,
+            '--orb-bg': ballBg(accent, playing || suggesting),
+          } as React.CSSProperties
+        }
       />
     </div>
   );
@@ -361,25 +361,9 @@ export default function EchoesIsland() {
       className="uep-eisland"
       style={{ '--uep-pool-accent': poolAccent } as React.CSSProperties}
     >
-      {/* 槽緣＝島頭＋拖曳把手：抓住盛水的容器邊，比抓水面更像在搬一件東西 */}
+      {/* 島頭＝拖曳把手。島名直接落在水上，不再是一塊獨立的標頭板 */}
       <div className="uep-eisland__brim" {...chrome.dragHandleProps}>
         <div className="uep-island-title uep-eisland__name">流浪回聲</div>
-      </div>
-
-      {/* 水面：緣下的水，也可以直接抓著拖 */}
-      <div className="uep-eisland__surface" {...chrome.dragHandleProps}>
-        <svg viewBox="0 0 1200 26" preserveAspectRatio="none" aria-hidden>
-          <path
-            d="M0 15C150 3 300 25 600 15S1050 3 1200 15V0H0Z"
-            fill="rgba(255,255,255,.34)"
-          />
-        </svg>
-        <svg viewBox="0 0 1200 26" preserveAspectRatio="none" aria-hidden>
-          <path
-            d="M0 13C200 25 380 2 600 13S1000 25 1200 13V0H0Z"
-            fill="rgba(255,255,255,.2)"
-          />
-        </svg>
       </div>
 
       {/* 播放時從水裡浮上來的回聲球（比 zone 背景稀疏、更淡、更小） */}
@@ -452,6 +436,19 @@ export default function EchoesIsland() {
 
       {/* ── 舞台：黑色回聲（＝播放鍵）橫排曲目資訊 ── */}
       <div className="uep-eisland__stage">
+        {/* 波形：兩道漂移的輪廓線，橫穿過回聲球（球疊在線之上）。不再是
+            「水面」——填色的波峰要靠夠深的水才讀得到，反而是整座島發灰的
+            來源之一（艾斯維爾 2026-07-26）。只留線。
+            掛在舞台內而非島的絕對座標：插播 banner 出現時球會被往下推，
+            線得跟著球走才會一直穿過球心。 */}
+        <div className="uep-eisland__wave" aria-hidden>
+          <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
+            <path d="M0 20C150 8 300 32 600 20S1050 8 1200 20" />
+          </svg>
+          <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
+            <path d="M0 23C200 34 380 11 600 23S1000 34 1200 23" />
+          </svg>
+        </div>
         <EchoOrb
           accent={displayAccent}
           playing={state.isPlaying}
