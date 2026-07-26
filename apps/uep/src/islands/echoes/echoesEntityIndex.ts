@@ -20,7 +20,10 @@ import type { ProgressState } from '../../progress/types';
 /** Worker EchoesEntityIndexEntry 的前端鏡像 */
 export interface EchoesEntityIndexEntry {
   id: string;
-  entityKey: string;
+  /** 角色歌／區域歌才有；S10-1 起劇情歌改掛 storyKey，故為選填 */
+  entityKey?: string;
+  /** 劇情歌的劇情點身分（entity 聯集判定不使用，僅為型別誠實） */
+  storyKey?: string;
   gate?: unknown;
   locked: boolean;
 }
@@ -53,6 +56,8 @@ export function loadEchoesEntityIndex(): Promise<EchoesEntityIndexEntry[]> {
 /**
  * entityKey 是否有已解鎖的 Echoes 歌曲（union checker 的 Echoes 分支）。
  * 索引未載入（null）或查無此 key → false（安全預設）。
+ *
+ * 只比對 entityKey——storyKey 是另一個命名空間，不參與 entity 聯集判定。
  */
 export function isEchoesEntityUnlocked(
   entries: EchoesEntityIndexEntry[] | null,

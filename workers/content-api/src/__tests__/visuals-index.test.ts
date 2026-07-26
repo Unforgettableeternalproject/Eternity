@@ -159,3 +159,69 @@ describe('GET /api/visuals/entity-index', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('buildVisualsEntityIndex — storyKey 與 includeHidden（S10-1）', () => {
+  beforeAll(async () => {
+    // 鑲框室插圖：只有 storyKey、沒有 entityKey
+    await insertGalleryPage('visuals/vidx-s10/gallery-story', '劇情插圖', {
+      storyKey: 'vidx-story-point',
+    });
+    // 隱藏的插圖——Visuals 現況超過半數 gallery 是 hidden，
+    // 唯一性把關若看不到它們等於形同虛設
+    await insertGalleryPage(
+      'visuals/vidx-s10/gallery-story-hidden',
+      '隱藏劇情插圖',
+      { storyKey: 'vidx-story-hidden', hidden: true }
+    );
+  });
+
+  it('只有 storyKey 的 gallery 進索引，不帶 entityKey 欄位', async () => {
+    const { buildVisualsEntityIndex } = await import('../visuals-index');
+    const entries = await buildVisualsEntityIndex(env.CONTENT_DB);
+    const story = entries.find((e) => e.storyKey === 'vidx-story-point');
+    expect(story).toBeDefined();
+    expect(story!.id).toBe('visuals/vidx-s10/gallery-story');
+    expect(story).not.toHaveProperty('entityKey');
+  });
+
+  it('只有 illustrationId（無兩種 key）的 gallery 仍不進索引', async () => {
+    const { buildVisualsEntityIndex } = await import('../visuals-index');
+    const entries = await buildVisualsEntityIndex(env.CONTENT_DB);
+    expect(
+      entries.find((e) => e.id === 'visuals/vidx-test/gallery-nokey')
+    ).toBeUndefined();
+  });
+
+  it('預設排除 hidden；includeHidden=true 納入（唯一性把關用）', async () => {
+    const { buildVisualsEntityIndex } = await import('../visuals-index');
+
+    const visible = await buildVisualsEntityIndex(env.CONTENT_DB);
+    expect(
+      visible.find((e) => e.storyKey === 'vidx-story-hidden')
+    ).toBeUndefined();
+    expect(
+      visible.find((e) => e.entityKey === 'vidx-gallery-hidden')
+    ).toBeUndefined();
+
+    const all = await buildVisualsEntityIndex(env.CONTENT_DB, {
+      includeHidden: true,
+    });
+    expect(all.find((e) => e.storyKey === 'vidx-story-hidden')).toBeDefined();
+    expect(
+      all.find((e) => e.entityKey === 'vidx-gallery-hidden')
+    ).toBeDefined();
+  });
+
+  it('includeHidden=true 仍排除軟刪除與壞 JSON', async () => {
+    const { buildVisualsEntityIndex } = await import('../visuals-index');
+    const all = await buildVisualsEntityIndex(env.CONTENT_DB, {
+      includeHidden: true,
+    });
+    expect(
+      all.find((e) => e.entityKey === 'vidx-gallery-deleted')
+    ).toBeUndefined();
+    expect(
+      all.find((e) => e.id === 'visuals/vidx-test/gallery-badjson')
+    ).toBeUndefined();
+  });
+});

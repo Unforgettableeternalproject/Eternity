@@ -156,3 +156,76 @@ describe('GET /api/echoes/entity-index', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('buildEchoesEntityIndex — storyKey 與 includeHidden（S10-1）', () => {
+  beforeAll(async () => {
+    // 劇情歌：只有 storyKey、沒有 entityKey
+    await insertSongPage('echoes/eidx-s10/song-story', '劇情曲', {
+      storyKey: 'eidx-story-point',
+      category: 'story',
+    });
+    // 隱藏的劇情歌——劇情歌以 hidden 從列表隱藏是常態設計，
+    // 但 key 仍是有效引用目標，唯一性把關必須看得到
+    await insertSongPage('echoes/eidx-s10/song-story-hidden', '隱藏劇情曲', {
+      storyKey: 'eidx-story-hidden',
+      category: 'story',
+      hidden: true,
+    });
+  });
+
+  it('只有 storyKey 的曲目進索引，不帶 entityKey 欄位', async () => {
+    const { buildEchoesEntityIndex } = await import('../echoes-index');
+    const entries = await buildEchoesEntityIndex(env.CONTENT_DB);
+    const story = entries.find((e) => e.storyKey === 'eidx-story-point');
+    expect(story).toBeDefined();
+    expect(story!.id).toBe('echoes/eidx-s10/song-story');
+    expect(story).not.toHaveProperty('entityKey');
+  });
+
+  it('只有 entityKey 的曲目不帶 storyKey 欄位', async () => {
+    const { buildEchoesEntityIndex } = await import('../echoes-index');
+    const entries = await buildEchoesEntityIndex(env.CONTENT_DB);
+    const plain = entries.find((e) => e.entityKey === 'eidx-song-plain');
+    expect(plain).toBeDefined();
+    expect(plain).not.toHaveProperty('storyKey');
+  });
+
+  it('兩種 key 都沒有的曲目仍不進索引', async () => {
+    const { buildEchoesEntityIndex } = await import('../echoes-index');
+    const entries = await buildEchoesEntityIndex(env.CONTENT_DB);
+    expect(
+      entries.find((e) => e.id === 'echoes/eidx-test/song-nokey')
+    ).toBeUndefined();
+  });
+
+  it('預設排除 hidden；includeHidden=true 納入（唯一性把關用）', async () => {
+    const { buildEchoesEntityIndex } = await import('../echoes-index');
+
+    const visible = await buildEchoesEntityIndex(env.CONTENT_DB);
+    expect(
+      visible.find((e) => e.storyKey === 'eidx-story-hidden')
+    ).toBeUndefined();
+    expect(
+      visible.find((e) => e.entityKey === 'eidx-song-hidden')
+    ).toBeUndefined();
+
+    const all = await buildEchoesEntityIndex(env.CONTENT_DB, {
+      includeHidden: true,
+    });
+    expect(all.find((e) => e.storyKey === 'eidx-story-hidden')).toBeDefined();
+    expect(all.find((e) => e.entityKey === 'eidx-song-hidden')).toBeDefined();
+  });
+
+  it('includeHidden=true 仍排除軟刪除與壞 JSON', async () => {
+    const { buildEchoesEntityIndex } = await import('../echoes-index');
+    const all = await buildEchoesEntityIndex(env.CONTENT_DB, {
+      includeHidden: true,
+    });
+    expect(
+      all.find((e) => e.entityKey === 'eidx-song-deleted')
+    ).toBeUndefined();
+    expect(
+      all.find((e) => e.id === 'echoes/eidx-test/song-badjson')
+    ).toBeUndefined();
+  });
+});

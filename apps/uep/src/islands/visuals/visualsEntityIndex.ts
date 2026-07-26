@@ -18,7 +18,10 @@ import type { ProgressState } from '../../progress/types';
 /** Worker VisualsEntityIndexEntry 的前端鏡像 */
 export interface VisualsEntityIndexEntry {
   id: string;
-  entityKey: string;
+  /** 陳列走廊才有；S10-1 起鑲框室插圖改掛 storyKey，故為選填 */
+  entityKey?: string;
+  /** 插圖的劇情點身分（entity 聯集判定不使用，僅為型別誠實） */
+  storyKey?: string;
   gate?: unknown;
   locked: boolean;
 }
@@ -51,6 +54,8 @@ export function loadVisualsEntityIndex(): Promise<VisualsEntityIndexEntry[]> {
 /**
  * entityKey 是否有已解鎖的 Visuals gallery（union checker 的 Visuals 分支）。
  * 索引未載入（null）或查無此 key → false（安全預設）。
+ *
+ * 只比對 entityKey——storyKey 是另一個命名空間，不參與 entity 聯集判定。
  */
 export function isVisualsEntityUnlocked(
   entries: VisualsEntityIndexEntry[] | null,
