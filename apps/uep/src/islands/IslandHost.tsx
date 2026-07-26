@@ -41,6 +41,8 @@ import {
   clearPendingEntityActivate,
   pushEntityActivate,
 } from './concepts/terminalBridge';
+import { clearRelated, pushIslandRelated } from './history/relatedBridge';
+import { subscribeIslandRelated } from './interlinkTrigger';
 import { useCurrentLocation } from './useCurrentLocation';
 import { canUseIslands, shouldMountIsland } from './islandRuntime';
 import { mountIslandsTestBridge } from './testBridge';
@@ -126,6 +128,19 @@ export default function IslandHost() {
     return () =>
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
   }, []);
+
+  // 跨區互聯線索常駐監聽（S10-1）：成因與 entity-activate 完全相同——
+  // History 島收合時 HistoryIsland 沒有 mount，事件無狀態、事後補不回來。
+  // 收下後交給 relatedBridge：島展開中直接送達，收合中留 pending + 亮 chip。
+  // history 島不可用（未解鎖/停用/觀測者）→ 靜默丟棄，與 concepts 一致。
+  useEffect(
+    () =>
+      subscribeIslandRelated((detail) => {
+        if (!shouldMountIsland(progressRef.current, 'history')) return;
+        pushIslandRelated(detail);
+      }),
+    []
+  );
 
   // 右下角卡承接 Echo Spot 結果通知：插播成功（played，純告知）、
   // 等待播放（spot，帶手動入口）或非 Spot 解鎖（unlock）。
@@ -319,6 +334,7 @@ export default function IslandHost() {
     clearEchoSuggestion();
     clearPhantomSuggestion();
     clearPendingEntityActivate();
+    clearRelated();
     // 標記型提示同樣以「換頁」為終點——進度／便條的變動屬於剛才那一頁
     clearAllChipAttention();
   }, [pathname, search]);

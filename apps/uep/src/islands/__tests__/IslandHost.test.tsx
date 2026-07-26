@@ -62,7 +62,15 @@ import {
   hasPendingEntityActivate,
   resetEntityActivateBridge,
 } from '../concepts/terminalBridge';
+import {
+  hasPendingRelated,
+  resetRelatedBridge,
+  subscribeRelated,
+} from '../history/relatedBridge';
+import { getRelatedPendingFlag } from '../interlinkTrigger';
 import { getIslandRuntime } from '../islandRuntime';
+import { ISLAND_RELATED_EVENT } from '../types';
+import type { IslandRelatedDetail } from '../types';
 
 describe('IslandHost — entity-activate 只留 pending，不強制展開島', () => {
   beforeEach(() => {
@@ -115,5 +123,84 @@ describe('IslandHost — entity-activate 只留 pending，不強制展開島', (
     });
 
     expect(hasPendingEntityActivate()).toBe(false);
+  });
+});
+
+/**
+ * 跨區互聯的 live lifecycle（S10-1 修補）
+ *
+ * 原本 HistoryIsland 自己訂閱 ISLAND_RELATED_EVENT，島收合時該元件根本
+ * 沒有 mount——收合期間的線索整個消失，「chip 亮框 → 展開後看到卡片」
+ * 這條定案路徑從來不會發生。監聽必須常駐在 Host。
+ */
+describe('IslandHost — 收合的 History 島不漏接互聯線索', () => {
+  const sample: IslandRelatedDetail = {
+    sourceZone: 'echoes',
+    historyPageIds: ['history/chpt-01'],
+    label: '雨海終曲',
+  };
+
+  function emitRelated(detail: IslandRelatedDetail = sample) {
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent<IslandRelatedDetail>(ISLAND_RELATED_EVENT, { detail })
+      );
+    });
+  }
+
+  beforeEach(() => {
+    progressMock.state = createInitialState();
+    gatingMock.allowedId = 'history';
+    resetRelatedBridge();
+    window.history.pushState({}, '', '/echoes');
+  });
+
+  afterEach(() => {
+    resetRelatedBridge();
+    vi.restoreAllMocks();
+  });
+
+  it('島收合時線索進 relatedBridge 並亮起 dock chip', () => {
+    render(<IslandHost />);
+
+    expect(hasPendingRelated()).toBe(false);
+    emitRelated();
+
+    expect(hasPendingRelated()).toBe(true);
+    expect(getRelatedPendingFlag('history')).toBe(true);
+  });
+
+  it('島展開（有訂閱者）時直接送達，不留 pending', () => {
+    render(<IslandHost />);
+    const received: (IslandRelatedDetail | null)[] = [];
+    subscribeRelated((detail) => received.push(detail));
+
+    emitRelated();
+
+    expect(received).toEqual([sample]);
+    expect(hasPendingRelated()).toBe(false);
+  });
+
+  it('history 島不可掛載時靜默忽略（不亮 chip）', () => {
+    gatingMock.allowedId = null;
+    render(<IslandHost />);
+
+    emitRelated();
+
+    expect(hasPendingRelated()).toBe(false);
+    expect(getRelatedPendingFlag('history')).toBe(false);
+  });
+
+  it('換頁時 pending 線索作廢——脈絡已不在，與嵌入提示同一判準', () => {
+    render(<IslandHost />);
+    emitRelated();
+    expect(hasPendingRelated()).toBe(true);
+
+    act(() => {
+      window.history.pushState({}, '', '/history');
+    });
+
+    expect(hasPendingRelated()).toBe(false);
+    expect(getRelatedPendingFlag('history')).toBe(false);
   });
 });

@@ -112,6 +112,13 @@ export {
   subscribeRelatedPending,
   subscribeIslandRelated,
 } from './interlinkTrigger';
+export {
+  pushIslandRelated,
+  hasPendingRelated,
+  clearRelated,
+  subscribeRelated,
+  resetRelatedBridge,
+} from './history/relatedBridge';
 
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';

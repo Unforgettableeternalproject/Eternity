@@ -19,11 +19,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
-import {
-  setRelatedPendingFlag,
-  subscribeIslandRelated,
-} from '../interlinkTrigger';
 import type { IslandRelatedDetail } from '../types';
+
+import { subscribeRelated } from './relatedBridge';
 
 import {
   averageReadingMinutes,
@@ -75,25 +73,16 @@ export default function HistoryIsland() {
    * 跨區互聯線索：讀者在別的 zone 停在某個 entity／劇情點時，這裡浮出
    * 「那個東西在哪些段落出現過」。
    *
-   * 一次只留一則——新的進來直接取代舊的，不排隊。使用者點掉、換頁
-   * （MPA 換頁整個 island bundle 會 unmount）或重整就消失，不持久化。
+   * 一次只留一則——新的進來直接取代舊的，不排隊。使用者點掉、換頁或
+   * 重整就消失，不持久化。
+   *
+   * 走 relatedBridge 而非直接訂閱事件：島收合時這個元件根本沒有 mount，
+   * 事件會整個漏掉。監聽常駐在 IslandHost，這裡只負責取件（含收合期間
+   * 累積的那一則）。
    */
   const [related, setRelated] = useState<IslandRelatedDetail | null>(null);
 
-  useEffect(
-    () =>
-      subscribeIslandRelated((detail) => {
-        setRelated(detail);
-        // 島收合時，dock chip 亮框提示有東西可看
-        setRelatedPendingFlag('history', true);
-      }),
-    []
-  );
-
-  // 島開著就代表使用者看得到卡片，待處理提示可以收掉
-  useEffect(() => {
-    if (related) setRelatedPendingFlag('history', false);
-  }, [related]);
+  useEffect(() => subscribeRelated(setRelated), []);
 
   /* tree 載入（模組級快取，重開視窗不重抓） */
   useEffect(() => {
