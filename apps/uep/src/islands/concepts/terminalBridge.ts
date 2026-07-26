@@ -40,6 +40,19 @@ export function hasPendingEntityActivate(): boolean {
 }
 
 /**
+ * 丟棄尚未送達的 entity（換頁時呼叫）。
+ *
+ * pending 是對「使用者剛剛點的那個嵌入」的回應，換頁後那個脈絡已經
+ * 不在了，留著只會讓 chip 一直閃、展開後跳出一則跟眼前無關的條目。
+ * 與 resetEntityActivateBridge 的差別：不動 subscriber，島仍然接著聽。
+ */
+export function clearPendingEntityActivate(): void {
+  if (pending === null) return;
+  pending = null;
+  notifyPending();
+}
+
+/**
  * 訂閱 entity 啟動事件（TerminalIsland mount 時呼叫）。
  * 有 pending 時立即送達。回傳取消訂閱函式。
  */

@@ -33,7 +33,11 @@ import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
 import { flashChip } from './chipAttention';
-import { pushEntityActivate } from './concepts/terminalBridge';
+import {
+  clearPendingEntityActivate,
+  pushEntityActivate,
+} from './concepts/terminalBridge';
+import { useCurrentLocation } from './useCurrentLocation';
 import { canUseIslands, shouldMountIsland } from './islandRuntime';
 import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
@@ -301,6 +305,17 @@ export default function IslandHost() {
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
     };
   }, []);
+
+  /* 換頁丟棄嵌入提示（S9-D.8）
+     三則提示都是對「使用者剛剛點的那個嵌入」的回應，換頁後脈絡已經不在
+     ——留著只會讓 chip 一直呼吸，展開後還跳出一則跟眼前無關的內容。
+     clue 等待計數不在此列：那由 HistoryReader 依閱讀位置自行維護。 */
+  const { pathname, search } = useCurrentLocation();
+  useEffect(() => {
+    clearEchoSuggestion();
+    clearPhantomSuggestion();
+    clearPendingEntityActivate();
+  }, [pathname, search]);
 
   /* 進度推進 → 旅程之書 chip 閃一下（S9-D.6）
      島收合時 HistoryIsland 沒有 mount，變動只能在這裡偵測。展開中的島

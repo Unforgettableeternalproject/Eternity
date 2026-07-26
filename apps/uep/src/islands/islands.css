@@ -327,7 +327,9 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 }
 
 .uep-island-dock__chip[data-island='history'] {
-  --chip-attn: 213, 182, 24; /* 主題金 */
+  /* 棕（--history-main #6b3f2a）而非主題金：金跟便條紙的黃在兩顆相鄰的
+     chip 上幾乎分不出來，改用 History 自己的色相才有辨識度 */
+  --chip-attn: 122, 72, 48;
 }
 
 .uep-island-dock__chip[data-island='concepts'] {
@@ -344,69 +346,110 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 }
 
 .uep-island-dock__chip[data-island='storage'] {
-  --chip-attn: 196, 148, 74; /* 便條紙的牛皮色 */
+  --chip-attn: 196, 160, 14; /* --storage-main */
+}
+
+/* 深色底上棕與深綠會沉進背景，各往亮處提一階（對位兩 zone 的 dark token） */
+[data-theme='dark'] .uep-island-dock__chip[data-island='history'] {
+  --chip-attn: 196, 130, 76;
+}
+
+[data-theme='dark'] .uep-island-dock__chip[data-island='concepts'] {
+  --chip-attn: 82, 168, 122;
+}
+
+/* 光暈畫在偽元素上，不動 chip 自己的 animation。
+   ⚠️ 直接把 animation 掛在 chip 上會有一個不明顯但很煩的副作用：class
+   移除的瞬間 animation-name 變回 uep-dock-chip-in，那條進場動畫就重播
+   一次，看起來就是「chip 跳了一下」。clue 進出區間最頻繁，所以只有
+   visuals 明顯（艾斯維爾 2026-07-26）。 */
+.uep-island-dock__chip::after {
+  content: '';
+  position: absolute;
+  inset: -1px; /* 蓋住 border，光圈才從邊框外緣起算 */
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .uep-island-dock__chip.is-attn-waiting {
   border-color: rgb(var(--chip-attn));
-  animation: uep-chip-waiting 1.5s ease-in-out infinite;
 }
 
 .uep-island-dock__chip.is-attn-pulse {
   border-color: rgb(var(--chip-attn));
+}
+
+.uep-island-dock__chip.is-attn-waiting::after {
+  animation: uep-chip-waiting 2s ease-in-out infinite;
+}
+
+.uep-island-dock__chip.is-attn-pulse::after {
   animation: uep-chip-pulse 1.4s var(--ease);
 }
 
+/* 呼吸：亮度與光圈一起漲落，谷底不歸零——完全熄滅會變成閃爍，
+   那是「警告」的語彙，這裡要的是「這邊有東西在等你」。 */
 @keyframes uep-chip-waiting {
   0%,
   100% {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    opacity: 0.5;
+    box-shadow:
+      0 0 0 1px rgb(var(--chip-attn) / 0.5),
+      0 0 8px rgb(var(--chip-attn) / 0.32);
   }
   50% {
+    opacity: 1;
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 4px rgb(var(--chip-attn) / 0.28),
-      0 0 14px rgb(var(--chip-attn) / 0.52);
+      0 0 0 2px rgb(var(--chip-attn) / 0.9),
+      0 0 18px rgb(var(--chip-attn) / 0.72),
+      0 0 32px rgb(var(--chip-attn) / 0.4);
   }
 }
 
 /* 三下遞減——一次性提示要「被看到就夠」，不留在餘光裡持續騷擾 */
 @keyframes uep-chip-pulse {
   0%,
-  30%,
-  62%,
   100% {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    opacity: 0;
+    box-shadow: 0 0 0 0 rgb(var(--chip-attn) / 0);
   }
-  15% {
+  12% {
+    opacity: 1;
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 5px rgb(var(--chip-attn) / 0.38),
-      0 0 18px rgb(var(--chip-attn) / 0.62);
+      0 0 0 3px rgb(var(--chip-attn) / 0.9),
+      0 0 22px rgb(var(--chip-attn) / 0.75);
+  }
+  30% {
+    opacity: 0.15;
+    box-shadow: 0 0 0 1px rgb(var(--chip-attn) / 0.2);
   }
   46% {
+    opacity: 0.85;
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 4px rgb(var(--chip-attn) / 0.26),
-      0 0 14px rgb(var(--chip-attn) / 0.44);
+      0 0 0 2px rgb(var(--chip-attn) / 0.7),
+      0 0 16px rgb(var(--chip-attn) / 0.55);
+  }
+  62% {
+    opacity: 0.12;
+    box-shadow: 0 0 0 1px rgb(var(--chip-attn) / 0.16);
   }
   78% {
+    opacity: 0.6;
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 3px rgb(var(--chip-attn) / 0.16),
-      0 0 10px rgb(var(--chip-attn) / 0.28);
+      0 0 0 2px rgb(var(--chip-attn) / 0.45),
+      0 0 12px rgb(var(--chip-attn) / 0.34);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* 兩者都降為靜態光圈：waiting 是唯一的「還沒處理完」訊號，
      pulse 則靠 title／aria-label 補足（動畫關掉後它本來就會消失）。 */
-  .uep-island-dock__chip.is-attn-waiting,
-  .uep-island-dock__chip.is-attn-pulse {
+  .uep-island-dock__chip.is-attn-waiting::after,
+  .uep-island-dock__chip.is-attn-pulse::after {
     animation: none;
-    box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 3px rgb(var(--chip-attn) / 0.36);
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgb(var(--chip-attn) / 0.6);
   }
 }
 
