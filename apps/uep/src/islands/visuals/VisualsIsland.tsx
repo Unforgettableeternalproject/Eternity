@@ -198,6 +198,13 @@ export default function VisualsIsland() {
     </div>
   );
 
+  /**
+   * 換片識別：投射整個換掉時（映照／嵌入／clue 插播／clue 復原／清空）
+   * 讓畫框重播一次投影動畫，換片才有「打上另一張幻燈片」的過程，而不是
+   * 內容瞬間被抽換。同一 gallery 內左右翻頁不算換片，key 不變。
+   */
+  const projectionKey = gallery ? `${gallery.source}:${gallery.id}` : 'empty';
+
   const safeIdx = items.length > 0 ? Math.min(idx, items.length - 1) : 0;
   const current = items[safeIdx] ?? null;
   const locked = current?.state === 'locked';
@@ -311,12 +318,22 @@ export default function VisualsIsland() {
         <div
           className={`uep-visland__frame${partial ? ' is-partial' : ''}${locked ? ' is-locked' : ''}${projecting ? '' : ' is-empty'}`}
         >
+          {/* 換片光閃：key 變即重播（動畫掛在畫框本體會撞到常駐的
+              flick 閃爍，兩者都吃 opacity），純裝飾層 */}
+          <span
+            key={`swap-${projectionKey}`}
+            className="uep-visland__swap"
+            aria-hidden
+          />
           {!projecting ? (
-            <p className="uep-visland__ghost">{ghost}</p>
+            <p key={projectionKey} className="uep-visland__ghost">
+              {ghost}
+            </p>
           ) : locked ? (
             <LockedCell />
           ) : (
             <img
+              key={projectionKey}
               src={imageUrl(current!.img.file)}
               alt={current!.img.caption || gallery!.title}
               draggable={false}

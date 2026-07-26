@@ -55,8 +55,15 @@
     opacity 0.24s ease;
 }
 
-.uep-clue-card:first-child {
+.uep-clue-card:not(.is-leaving):first-child {
   animation: clueCardIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 退場：往右滑出留白、同時淡掉。三種離開（捲出區間／映射成功撤下／
+   通過訖點落定）共用，收起與浮現才是同一組動作的正反面。 */
+.uep-clue-card.is-leaving {
+  pointer-events: none;
+  animation: clueCardOut 0.34s cubic-bezier(0.4, 0, 0.9, 0.3) both;
 }
 
 /* 展開態：卡片排開成列，回到滿版不透明 */
@@ -225,6 +232,26 @@
   }
 }
 
+@keyframes clueCardOut {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+}
+
+@keyframes clueCardFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* 中等視窗：連接線收短、標題收窄，避免壓到內文 */
 @media (min-width: 761px) and (max-width: 1100px) {
   .uep-clue-rail {
@@ -241,8 +268,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uep-clue-card:first-child {
+  .uep-clue-card:not(.is-leaving):first-child {
     animation: none;
+  }
+
+  /* 退場保留純淡出（不位移）：卡片仍要看得出是「收起」而非被抽掉，
+     時長維持在 JS 的移除計時器內 */
+  .uep-clue-card.is-leaving {
+    animation: clueCardFadeOut 0.2s linear both;
   }
 
   .uep-clue-card {

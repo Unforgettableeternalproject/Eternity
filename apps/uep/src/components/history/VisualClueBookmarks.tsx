@@ -18,7 +18,7 @@
  * 未展開/觀測者不出現）由呼叫端負責，這裡是純渲染。
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { getApiBase } from '../../lib/apiBase';
 import type { VisualClueEntry } from './useVisualClues';
@@ -32,6 +32,80 @@ interface VisualClueBookmarksProps {
 }
 
 const API_BASE = getApiBase();
+
+/** 退場動畫時長，需與 CSS 的 clueCardOut 一致 */
+const EXIT_DURATION_MS = 340;
+
+interface LeavingClue {
+  clue: VisualClueEntry;
+  /** 離開當下的堆疊序位——退場中仍留在原位滑走，不重新排版 */
+  index: number;
+}
+
+/**
+ * 追蹤「這一輪被移除、動畫還沒播完」的插卡。
+ *
+ * 插卡的離開有三種：捲出區間、映射成功撤下、通過訖點落定。三者都是
+ * 條件渲染直接消失，沒有離場過程——進場有動畫、離場沒有，看起來像
+ * 卡片被抽掉而不是收起。
+ *
+ * 移除時機不靠 animationend：reduced-motion 下動畫被關掉就永遠收不到
+ * 事件，卡片會永久卡在畫面上（S6-3 收合動畫踩過同一個坑），一律用計時器。
+ */
+function useLeavingClues(clues: VisualClueEntry[]): LeavingClue[] {
+  const [leaving, setLeaving] = useState<LeavingClue[]>([]);
+  const previousRef = useRef<VisualClueEntry[]>([]);
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const previous = previousRef.current;
+    previousRef.current = clues;
+    const currentIds = new Set(clues.map((clue) => clue.clueId));
+
+    // 回捲重新進區間：取消未完成的退場，避免同一張卡同時有兩份
+    for (const id of currentIds) {
+      const timer = timersRef.current.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        timersRef.current.delete(id);
+      }
+    }
+
+    const removed = previous
+      .map((clue, index) => ({ clue, index }))
+      .filter(({ clue }) => !currentIds.has(clue.clueId));
+
+    setLeaving((current) => {
+      const kept = current.filter(({ clue }) => !currentIds.has(clue.clueId));
+      const fresh = removed.filter(
+        ({ clue }) => !kept.some((entry) => entry.clue.clueId === clue.clueId)
+      );
+      return kept.length === current.length && fresh.length === 0
+        ? current
+        : [...kept, ...fresh];
+    });
+
+    for (const { clue } of removed) {
+      const timer = setTimeout(() => {
+        timersRef.current.delete(clue.clueId);
+        setLeaving((current) =>
+          current.filter((entry) => entry.clue.clueId !== clue.clueId)
+        );
+      }, EXIT_DURATION_MS);
+      timersRef.current.set(clue.clueId, timer);
+    }
+  }, [clues]);
+
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
+
+  return leaving;
+}
 
 function thumbnailUrl(file: string): string {
   if (/^https?:\/\//i.test(file)) return file;
@@ -90,17 +164,41 @@ function ClueThumbnail({ clue }: { clue: VisualClueEntry }) {
   );
 }
 
+/** 插卡內容（進行中與退場中共用同一份外觀） */
+function ClueCardBody({ clue }: { clue: VisualClueEntry }) {
+  return (
+    <>
+      {/* 連接線：flex 撐長，末端針腳圓點落到文章右緣 */}
+      <span className="uep-clue-card__line" aria-hidden />
+      <span className="uep-clue-card__frame">
+        <ClueThumbnail clue={clue} />
+        <span className="uep-clue-card__text">
+          <span className="uep-clue-card__label">視覺線索</span>
+          <span className="uep-clue-card__title">
+            {clue.title || '未命名畫廊'}
+          </span>
+        </span>
+      </span>
+    </>
+  );
+}
+
 export default function VisualClueBookmarks({
   clues,
   onClueClick,
 }: VisualClueBookmarksProps) {
-  if (clues.length === 0) return null;
+  const leaving = useLeavingClues(clues);
+
+  if (clues.length === 0 && leaving.length === 0) return null;
 
   return (
     <div className="uep-clue-rail" role="complementary" aria-label="視覺線索">
       <div
         className="uep-clue-stack"
-        style={{ '--clue-count': clues.length } as React.CSSProperties}
+        style={
+          // 退場中的卡片不計入堆疊高度：一邊滑走一邊讓出位置
+          { '--clue-count': Math.max(clues.length, 1) } as React.CSSProperties
+        }
       >
         {clues.map((clue, i) => (
           <button
@@ -112,18 +210,20 @@ export default function VisualClueBookmarks({
             title={clue.title ? `檢視插圖：${clue.title}` : '檢視插圖'}
             aria-label={clue.title ? `檢視插圖：${clue.title}` : '檢視插圖'}
           >
-            {/* 連接線：flex 撐長，末端針腳圓點落到文章右緣 */}
-            <span className="uep-clue-card__line" aria-hidden />
-            <span className="uep-clue-card__frame">
-              <ClueThumbnail clue={clue} />
-              <span className="uep-clue-card__text">
-                <span className="uep-clue-card__label">視覺線索</span>
-                <span className="uep-clue-card__title">
-                  {clue.title || '未命名畫廊'}
-                </span>
-              </span>
-            </span>
+            <ClueCardBody clue={clue} />
           </button>
+        ))}
+        {/* 退場中的卡片渲染在最後：不搶 :first-child 的進場動畫，
+            也不再接受點擊或鍵盤焦點 */}
+        {leaving.map(({ clue, index }) => (
+          <span
+            key={`leaving-${clue.clueId}`}
+            className="uep-clue-card is-leaving"
+            style={{ '--clue-i': index } as React.CSSProperties}
+            aria-hidden
+          >
+            <ClueCardBody clue={clue} />
+          </span>
         ))}
       </div>
     </div>
