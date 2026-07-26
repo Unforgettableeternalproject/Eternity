@@ -53,13 +53,14 @@ describe('triggerHistoryRelated', () => {
       anchor('history/ch1'), // 同頁多個錨點（start/end）
       anchor('history/ch2'),
     ]);
-    await triggerHistoryRelated({
+    const broadcast = await triggerHistoryRelated({
       apiBase: 'http://api',
       sourceZone: 'echoes',
       keyType: 'story',
       key: 'rain-sea-finale',
       label: '雨海終曲',
     });
+    expect(broadcast).toBe(true);
     expect(received).toEqual([
       {
         sourceZone: 'echoes',
@@ -69,15 +70,16 @@ describe('triggerHistoryRelated', () => {
     ]);
   });
 
-  it('查無錨點 → 不廣播（不彈空卡片）', async () => {
+  it('查無錨點 → 不廣播（不彈空卡片），回傳 false 供手動觸發端給回饋', async () => {
     stubAnchors([]);
-    await triggerHistoryRelated({
+    const broadcast = await triggerHistoryRelated({
       apiBase: 'http://api',
       sourceZone: 'visuals',
       keyType: 'entity',
       key: 'nobody',
       label: '沒人提過',
     });
+    expect(broadcast).toBe(false);
     expect(received).toEqual([]);
   });
 
@@ -118,7 +120,7 @@ describe('triggerHistoryRelated', () => {
         key: 'x',
         label: 'x',
       })
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
     expect(received).toEqual([]);
   });
 

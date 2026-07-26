@@ -38,6 +38,10 @@ interface InterlinkAnchorPayload {
  * 查無錨點時**不廣播**——沒有東西可看時彈一張空卡片只是噪音。
  * 查詢失敗（離線／端點錯誤）同樣靜默略過：互聯是加分功能，
  * 不該讓 Reader 因此顯示錯誤。
+ *
+ * @returns 是否真的廣播了（查無錨點／查詢失敗皆為 false）。自動觸發端
+ *   （Echoes/Visuals 進頁）用不到這個值，但手動觸發端（Concepts 條目
+ *   按鈕）需要它才能在沒結果時給回饋——按了完全沒反應比查無結果更糟。
  */
 export async function triggerHistoryRelated(args: {
   apiBase: string;
@@ -46,9 +50,9 @@ export async function triggerHistoryRelated(args: {
   key: string;
   label: string;
   signal?: AbortSignal;
-}): Promise<void> {
+}): Promise<boolean> {
   const { apiBase, sourceZone, keyType, key, label, signal } = args;
-  if (!key) return;
+  if (!key) return false;
 
   let anchors: InterlinkAnchorPayload[] = [];
   try {
@@ -56,23 +60,24 @@ export async function triggerHistoryRelated(args: {
       `${apiBase}/api/interlink/anchors?keyType=${keyType}&key=${encodeURIComponent(key)}`,
       signal ? { signal } : undefined
     );
-    if (!res.ok) return;
+    if (!res.ok) return false;
     const json = (await res.json()) as {
       ok: boolean;
       data?: { anchors?: InterlinkAnchorPayload[] };
     };
-    if (!json.ok) return;
+    if (!json.ok) return false;
     anchors = json.data?.anchors ?? [];
   } catch {
-    return;
+    return false;
   }
 
   // 同一頁可能有多個錨點（多個 spot／clue 的起訖），對讀者來說是同一篇
   // 文章——去重後才是「相關的段落」清單
   const historyPageIds = [...new Set(anchors.map((a) => a.pageId))];
-  if (historyPageIds.length === 0) return;
+  if (historyPageIds.length === 0) return false;
 
   dispatchIslandRelated({ sourceZone, historyPageIds, label });
+  return true;
 }
 
 /** 廣播跨島關聯事件（測試與其他來源端共用） */

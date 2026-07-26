@@ -31,6 +31,7 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
+import InterlinkTriggerButton from './InterlinkTriggerButton';
 import { useProgress } from '../../progress/useProgress';
 import { evaluateGate, parseGateCondition } from '../../progress/gating';
 import { resolveEffectiveViewForPage } from './revision';
@@ -330,6 +331,10 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                       <span className="conc-dossier-entry-name">
                         {entry.name}
                       </span>
+                      <InterlinkTriggerButton
+                        entityKey={entry.entityKey}
+                        label={entry.name}
+                      />
                     </div>
                     {entry.content_html && (
                       <>
@@ -508,6 +513,10 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                       )}
                       <h3 className="conc-enc-profile-name">
                         {activeProfile.name}
+                        <InterlinkTriggerButton
+                          entityKey={activeProfile.entityKey}
+                          label={activeProfile.name}
+                        />
                       </h3>
                     </div>
                   </div>
@@ -902,6 +911,10 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                     {ep.title || (ep as any).subtitle}
                   </span>
                 )}
+                <InterlinkTriggerButton
+                  entityKey={ep.entityKey}
+                  label={ep.title || ep.year}
+                />
                 <button
                   className="conc-chrono-expanded-close"
                   onClick={closeChronoExpanded}
@@ -1009,6 +1022,7 @@ function ReaderDiff({ data }: { data: DiffContent }) {
       values: string[];
       sectionLabel: string;
       spoiler?: number;
+      entityKey?: string;
     }[] = [];
     for (const section of subcat.sections) {
       for (const entry of section.entries) {
@@ -1113,7 +1127,13 @@ function ReaderDiff({ data }: { data: DiffContent }) {
                           key={ei}
                           className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}
                         >
-                          <span className="conc-diff-term">{entry.term}</span>
+                          <span className="conc-diff-term">
+                            {entry.term}
+                            <InterlinkTriggerButton
+                              entityKey={entry.entityKey}
+                              label={entry.term}
+                            />
+                          </span>
                           {entry.values.map((v, vi) => (
                             <span
                               key={vi}
@@ -1132,7 +1152,13 @@ function ReaderDiff({ data }: { data: DiffContent }) {
                     key={ei}
                     className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}
                   >
-                    <span className="conc-diff-term">{entry.term}</span>
+                    <span className="conc-diff-term">
+                      {entry.term}
+                      <InterlinkTriggerButton
+                        entityKey={entry.entityKey}
+                        label={entry.term}
+                      />
+                    </span>
                     {entry.values.map((v, vi) => (
                       <span
                         key={vi}
@@ -1169,7 +1195,13 @@ function ReaderDiff({ data }: { data: DiffContent }) {
                     )}
                     {sectionEntries.map((entry, ei) => (
                       <div key={ei} className="conc-diff-def-item">
-                        <span className="conc-diff-def-term">{entry.term}</span>
+                        <span className="conc-diff-def-term">
+                          {entry.term}
+                          <InterlinkTriggerButton
+                            entityKey={entry.entityKey}
+                            label={entry.term}
+                          />
+                        </span>
                         {entry.values[0] && (
                           <span className="conc-diff-def-desc">
                             {entry.values[0]}
@@ -1184,7 +1216,13 @@ function ReaderDiff({ data }: { data: DiffContent }) {
               <div className="conc-diff-defs">
                 {filtered.map((entry, ei) => (
                   <div key={ei} className="conc-diff-def-item">
-                    <span className="conc-diff-def-term">{entry.term}</span>
+                    <span className="conc-diff-def-term">
+                      {entry.term}
+                      <InterlinkTriggerButton
+                        entityKey={entry.entityKey}
+                        label={entry.term}
+                      />
+                    </span>
                     {entry.values[0] && (
                       <span className="conc-diff-def-desc">
                         {entry.values[0]}
