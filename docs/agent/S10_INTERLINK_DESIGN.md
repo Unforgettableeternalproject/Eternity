@@ -5,7 +5,9 @@
 > History 三種標記的反向索引、storyKey 吃掉 illustrationId、觸發模型（不動渲染管線）、
 > 便條擴充。編輯 UI（S10-3）不在本文件範圍，僅預留資料欄位。
 > 作者：奈留 × 奈也（架構師）
-> 日期：2026-07-26
+> 日期：2026-07-26（初稿）／2026-07-26 二輪修訂——艾斯維爾就 §10（原待決點）四項全數回覆後更新：
+> storyKey 改選填、劇情歌收藏旗標全面改看 storyKey（`song:{songId}` 判斷資格收回）、
+> 新增 §8 json_extract SQL 端防禦補強、01-06 clue 同步不再追蹤。
 
 ---
 
@@ -90,18 +92,54 @@
 
 若要求互斥，代價是：每次寫入 entityKey 都要多查一次「storyKey 有沒有人用過同名」，反之亦然——兩個原本獨立的驗證管線被迫耦合，且沒有對應的產品收益。**不強制互斥**，但編輯器提示文案上會建議設計者避免刻意撞名（純 UX 建議，非硬規則）。
 
-### 2-3 storyKey 的產生時機與權威來源
+### 2-3 storyKey 的產生時機、選填語意與降級行為（2026-07-26 二輪定案修訂）
 
-| 掛點 | 欄位位置 | 是否必填 | 備註 |
+**決策（艾斯維爾 2026-07-26 二輪定案）：storyKey 全面選填，不做必填驗證。** 原話：「劇情 key 是選填的，但基本上也只有有填 key 才能被對應/解鎖」——未填 key 不影響頁面存檔，但會讓該內容**無法被互聯反查、也無法被對應解鎖**，這是自然的功能降級，不需要編輯器阻擋存檔。
+
+| 掛點 | 欄位位置 | 選填 | 未填時的行為 |
 |---|---|---|---|
-| Echoes 劇情歌 | 歌曲頁 `metadata.storyKey`（新欄位，取代該分類下的 `entityKey` 誤用） | **必填**（S10-1 起，見下） | `EchoesEditorBody.tsx` 分類為 `story` 時，把目前**無條件顯示**的 `EntityKeyField` 換成同元件、`label='storyKey'`、寫入 `metadata.storyKey` |
-| Visuals 插圖 | gallery 頁 `metadata.storyKey`（**直接取代** `metadata.illustrationId` 欄位名） | 選填（沿舊 illustrationId 語意，未設定即無法被 clue 指向） | `VisualsEditorBody.tsx` 的「插圖 ID」欄位原地改名 |
-| History echo spot | `EchoSpotNode.storyKey`（新屬性，只在 `songType==='story'` 時填入，取代原本可誤填的 `entityKey` 屬性） | 是（若對應歌曲已有 storyKey，Picker 自動帶入快照） | 快照供離線 fallback，權威值仍在歌曲頁，前台觸發走反查（同既有 `refreshEchoSpot` 定案） |
-| History visual clue | `VisualClueNode.targetKey`（欄位不變，`targetType` 由 `'illustration'` 改名 `'story'`） | 是 | 同上，targetKey 的**值**不變（直接沿用原 illustrationId 字串），只是 targetType 標籤改名 |
+| Echoes 劇情歌 | 歌曲頁 `metadata.storyKey`（取代該分類下原本可誤填的 `entityKey`） | 選填 | 仍可透過 Echo Spot 插播聆聽（播放只依賴 `songId`/`songUrlKey`，與 storyKey 無關）；但**無法產生收藏旗標**（見 §2-3-a），永遠不進收藏池，也不會出現在反向索引裡 |
+| Visuals 插圖 | gallery 頁 `metadata.storyKey`（**直接取代** `metadata.illustrationId` 欄位名） | 選填（沿舊 illustrationId 語意不變） | 無法被 History visual clue 指向（既有行為，未變） |
+| History echo spot | `EchoSpotNode.storyKey`（`songType==='story'` 時使用） | 選填，隨對應歌曲是否有 storyKey 而定 | 對應歌曲沒有 storyKey 時，Picker 沒有值可帶入，欄位留空；該 spot 不產生反向索引列（§4-2） |
+| History visual clue | `VisualClueNode.targetKey`（`targetType` 由 `'illustration'` 改名 `'story'`） | **clue 本身仍必須指向某個目標** | 這是「clue 必須指向某個東西」的既有規則，與「目標 gallery 是否設定了 storyKey」是兩件事——Picker 只列出**已設定 storyKey** 的 gallery 供選擇，未設定的 gallery 本來就不在候選清單裡（沿既有 illustrationId 行為） |
 
-**「必填」的產品判斷需要艾斯維爾覆核**：S10 定案筆記原話——「劇情歌照樣能填 entityKey 或留空退化成 `song:{pageId}`——這兩條路在 storyKey 之後都要收掉」，我們讀作「兩條舊路都關閉，storyKey 成為劇情歌唯一合法欄位、且必填」。若這個推論有誤（例如艾斯維爾其實只想關掉「填 entityKey」這條路，`storyKey` 仍可選填、留空退回其他機制），編輯器驗證強度需要重新拍板。**此點列入 §7 待決點**，本文件先按「必填」設計（風險較小的方向——必填可以放寬，若日後放寬只是移除一個 `required` 檢查；反過來若先做選填之後才要求必填，會需要回頭修正既有髒資料）。
+**編輯器提示（軟性，不阻擋存檔）**：`EchoesEditorBody.tsx` 分類為 `story` 時，`storyKey` 欄位旁沿用 `illustrationId` 現有的 hint 文案風格新增提示：「未設定 storyKey 的劇情歌只能透過 Echo Spot 插播聆聽，無法進入收藏池、也無法與插圖互聯」。純提示，不做必填驗證。
 
-**不變量（重要）**：storyKey **只是互聯用的識別碼，不是解鎖旗標**。劇情歌的收藏解鎖旗標維持現行 `song:{songId}` 命名慣例**不變**——不因為有了 storyKey 就把旗標改成 `{storyKey}:song`。理由：正式環境已有真實使用者透過 `song:{songId}` 解鎖劇情歌並寫入其 ProgressState（本地與雲端皆有），旗標命名慣例是**已發生的歷史事實**，重新命名等同讓這些使用者的解鎖狀態一夜蒸發，且我們無法對散落在使用者瀏覽器 localStorage 與各自 D1 進度 blob 的旗標值做批次遷移。storyKey 與旗標系統完全脫鉤，只用於：(a) 反向索引查詢、(b) 便條/浮島互聯展示、(c) 讓一首歌與一張插圖能透過同一個字串配對。
+#### 2-3-a 收藏解鎖旗標改用 storyKey（2026-07-26 二輪定案，取代原「不變量」設計）
+
+**決策：劇情歌的收藏旗標命名慣例全面改為看 storyKey，`song:{songId}` 不再是判斷依據。**
+
+- 有 storyKey 的劇情歌：解鎖旗標為 `{storyKey}:song`——與非劇情歌的 `{entityKey}:song` 命名慣例統一，全站只剩一套「`{key}:song`」規則，不再有 `song:{songId}` 這條獨立分支
+- **沒有 storyKey 的劇情歌：無法產生解鎖旗標**——`deriveSongUnlockFlag()` 對這種情況回傳 `null`，呼叫端見 `null` 就不執行 `grantFlags`，`isSongCollected` 也永遠評估為 `false`。這首歌仍可被 Echo Spot 插播（播放路徑不依賴旗標），但**永遠不會進入收藏池**，每次都只能透過 spot 現場插播聆聽，不會出現在 Echoes 已收藏列表或 EchoesIsland 佇列裡
+
+這是艾斯維爾原話「只有有填 key 才能被對應/解鎖」的直接落地。
+
+`deriveSongUnlockFlag` 簽名調整：
+
+```typescript
+// 原：deriveSongUnlockFlag(songId: string, entityKey?: string): string
+// 新：
+function deriveSongUnlockFlag(
+  songType: string,
+  entityKey?: string,
+  storyKey?: string
+): string | null {
+  if (songType === 'story') return storyKey ? `${storyKey}:song` : null;
+  return entityKey ? `${entityKey}:song` : null; // character/area，既有邏輯不變
+}
+```
+
+**為什麼這次能無痛全面改名（一次性視窗，過期即關閉）**：
+
+2026-07-26 實測 `SELECT COUNT(*) FROM uep_users` 於正式 D1 回傳 **0**——正式環境目前**零筆註冊使用者**，代表沒有任何人的 ProgressState 裡存在需要保護的 `song:{songId}` 旗標。這次改名**不需要**補授予腳本、不需要雙寫、不需要任何遷移，單純改程式碼裡的命名規則即可。
+
+⚠️ **這個視窗是一次性的，寫給未來的人看**：一旦有真實使用者註冊並透過 `{key}:song` 累積了解鎖旗標，未來任何類似的「改旗標命名慣例」都**不能再用這次的做法**（單純改名），而必須：
+
+1. 新命名與舊命名**雙寫**（`grantFlags` 同時授予新舊兩個旗標字串）
+2. 讀取判定（`isSongCollected` 等）**同時接受新舊兩種格式**，逐步淘汰
+3. 或者寫一次性的「舊旗標→新旗標」補授予腳本，掃描每個帳號的 `flags[]` 補上新格式旗標，保留舊格式（不能刪除，避免其他仍在讀舊格式的路徑失效）
+
+這次之所以可以跳過以上三步，純粹是因為**改動發生在正式環境還沒有真實使用者的階段**——這個視窗一旦關閉（有人註冊），就永久關閉。
 
 ### 2-4 劇情點標題／說明欄位放哪
 
@@ -263,7 +301,7 @@ CREATE INDEX IF NOT EXISTS idx_hii_page ON history_interlink_index(page_id);
 | 標記 | anchor_kind | anchor_id | key_type/key_value 來源 |
 |---|---|---|---|
 | entity mark | `entity-mark` | `NULL`（span 無穩定 id） | 只收 **新格式** `entity:{entityKey}` ref（`parseEntityRef` 回傳 `type==='entity-key'`）；舊格式路徑 ref（`{area}/{slug}#entry:{id}`）是 S7-C 前的過渡格式，**不進反向索引**——它本來就不是 key-based 系統的一部分 |
-| echo spot | `echo-spot` | `spotId` | `entityKey` 或 `storyKey`（依 `songType` 二擇一，皆有值才進索引；純劇情歌若未來允許選填 storyKey 留空，則該 spot 不產生索引列——見 §2-3 待決點） |
+| echo spot | `echo-spot` | `spotId` | `entityKey` 或 `storyKey`（依 `songType` 二擇一，皆有值才進索引；storyKey 未填的劇情歌 spot 不產生索引列，見 §2-3） |
 | visual clue | `visual-clue-start` / `-gate` / `-end` | `clueId` | `targetType`（`'entity'`→entity、`'story'`→story）+ `targetKey` |
 
 **同頁多次提及同一 entityKey 的去重**：entity mark 沒有穩定 id，同一篇文章提到「艾斯維爾」十次不該產生十筆索引列。重建時對 entity-mark 類型以 `(page_id, key_type, key_value)` 去重，只留一筆（`label` 取第一次出現的文字快照）。echo spot / visual clue 因為有 `spotId`/`clueId` 保證同文件內唯一（`collectEchoSpotIssues`/`collectVisualClueIssues` 已在 History 編輯器存檔前擋掉重複 id），天然不需要去重。
@@ -489,11 +527,47 @@ export function dropEntityText(displayName: string): boolean; // 成功建立便
 
 ---
 
-## 8. 風險與技術債
+## 8. 既有 json_extract SQL 端防禦補強（S10-1 一併收斂，艾斯維爾 2026-07-26 二輪定案納入範疇）
+
+盤點筆記標記的三處「未修」防禦性問題，目前無壞資料不會觸發，但屬於 S8 驗收 #2 教訓（json_extract 掃全表遇壞 JSON 會炸整條 SELECT）尚未收斂完的缺口。本次一併處理，修法沿用同一套既有解法：**SQL 只篩結構性欄位（area/page_type/deleted_at 等），JSON 內容判定與壞 JSON 容錯下放到應用層**。
+
+### 8-1 `findEntitySong` / `findEntityGallery`（echoes-song.ts / visuals-gallery.ts）
+
+現況：兩函式的 SQL 直接用 `json_extract(metadata, '$.entityKey') = ?` 與 `COALESCE(json_extract(metadata, '$.hidden'), 0) = 0` 過濾，任何一列 metadata 是壞 JSON 就會讓整條 SELECT 報錯（SQLite 的 `json_extract` 對非法 JSON 拋錯而非回傳 NULL），與 `echoes-index.ts` 等既有建構器刻意避開的地雷完全相同——差別只在於這兩個函式目前**還沒踩過雷**。
+
+修法：
+
+```sql
+-- SQL 只篩結構性欄位：
+SELECT id, title, metadata FROM pages
+WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
+```
+
+回傳所有候選列後，在應用層逐列 `try { JSON.parse(row.metadata) } catch { continue }`，比對 `(entityKey === key || storyKey === key) && hidden !== true`，命中即提前回傳（不必等迴圈跑完）。`findEntityGallery` 同理，`storyKey` 取代原本只查 `entityKey` 的邏輯（S10-1 新增 storyKey 反查能力，供 §6 觸發模型使用）。
+
+**效能取捨（誠實記錄）**：這把「單筆索引式查詢」變成「掃描整個 area 後在應用層比對」，成本從 SQL 索引查找上升到 O(n) 應用層迴圈。目前 echoes 142 頁／visuals 26 頁的規模下可忽略——既有的 entity-index 建構器已經在做同等規模的全表掃描，且這兩個函式呼叫頻率更高（entity 嵌入點擊、echo spot 反查現行資料，可能每次頁面互動都觸發），是本次取捨中真正的成本，但在目前規模仍在可接受範圍內。若未來 echoes/visuals 頁數大幅成長，屬於獨立的效能優化題目，不阻塞 S10-1。
+
+### 8-2 `concepts-index.ts` 的 `publicOnly` 分支
+
+現況：`buildConceptsEntityIndex` 的 `opts.publicOnly` 分支把 `hidden`/`locked` 判定直接寫進 SQL 的 `WHERE` 子句（`visibleClause`），與同檔案其餘部分「SQL 只篩穩定欄位」的原則不一致——這是該檔案內唯一一處例外。
+
+修法：拿掉 `visibleClause`，SQL 回到只篩 `area = 'concepts' AND deleted_at IS NULL`；`publicOnly` 判定搬進既有的逐列 `try/catch` 迴圈（該迴圈已經在解析 `metadata` 供 `stack` 判斷使用，多加兩個布林條件不需要新的解析成本）：
+
+```typescript
+if (opts.publicOnly && (metadata?.hidden === true || metadata?.locked === true)) {
+  continue;
+}
+```
+
+此修法**不改變函式對外行為**（回傳的條目集合完全相同），純粹是把判定時機從「SQL 執行前」搬到「JSON 已安全解析後」，消除壞 JSON 炸整條查詢的風險。
+
+---
+
+## 9. 風險與技術債
 
 | # | 風險 | 影響 | 緩解 |
 |---|---|---|---|
-| R1 | storyKey 是否必填（§2-3）是本文件的推論，非艾斯維爾逐字拍板 | 若推論錯誤，`EchoesEditorBody` 的驗證強度需要回頭調整 | 列入 §9 待決點，優先確認 |
+| R1 | 未填 storyKey 的劇情歌永久無法被收藏（§2-3-a），內容者可能忘記填而不自知 | 部分劇情歌長期停留在「只能插播、進不了收藏池」的隱性未完成狀態 | 屬於 S10-3 反查 UI 的自然延伸——`/api/interlink/usage` 或簡單過濾擴充後的 `echoes-index` 回應即可拼出「已有音檔但未綁定 storyKey」巡查清單，本次不特別開發，留待 S10-3 或後續小修 |
 | R2 | `history_interlink_index` 整頁重建策略在 History 頁標記數量異常多（理論上限不明）時，單次存檔的 batch 操作筆數會等比增加 | 極端情況下存檔延遲增加 | 現行 History 頁標記數量是個位數到十幾個量級，暫不視為阻塞；若未來出現百筆等級的單頁標記，需重新評估 diff-based 更新 |
 | R3 | live-scan 唯一性檢查（§3-1）在 Concepts 資料量成長後，每次存檔都要掃全 Concepts 表 | 存檔延遲隨 Concepts 頁數線性增加 | 目前 20 頁量級可忽略；`buildConceptsEntityIndex` 已是既有函式，效能特性已知（Terminal Island 啟動時也會呼叫），沒有引入新的效能特性 |
 | R4 | ProgressState blob 總大小缺乏實測基準（§7-2 殘留風險） | 無法量化「還能加多少欄位」的真實餘裕 | 需要一次獨立的重度使用者 blob 實測任務，不在本次範圍 |
@@ -502,33 +576,47 @@ export function dropEntityText(displayName: string): boolean; // 成功建立便
 
 ---
 
-## 9. 待決點（需艾斯維爾拍板，架構師不代為決定產品語意）
+## 10. 二輪定案記錄（原「待決點」，2026-07-26 艾斯維爾已全數回覆）
 
-1. **storyKey 是否強制必填**（§2-3）——原始定案筆記「兩條路都收掉」可能是「兩條路都不再合法」（storyKey 必填），也可能只是「不准再誤填 entityKey」而 storyKey 本身仍選填。本文件按「必填」設計（風險較低方向），需要明確覆核。
-2. **`song:{songId}` 解鎖旗標維持不變**（§2-3 不變量）——本文件判斷「storyKey 只做互聯，不碰旗標命名」是為了保護正式環境既有使用者的解鎖狀態。若艾斯維爾認為旗標命名一致性（`{storyKey}:song`）比保留舊使用者狀態更重要，需要另外設計一次性的「舊旗標→新旗標」補授予腳本（掃描每個帳號的 `flags[]`，把 `song:{songId}` 換成 `{storyKey}:song}` 並保留舊值——雙寫，不能單純改名，否則舊格式殘留旗標會變成永遠用不到的死資料）。
-3. **entity mark 的孤兒容錯是否需要在 S10-1 就補強**——盤點筆記提到 `findEntitySong`/`findEntityGallery`/`concepts-index publicOnly` 三處「未修」的防禦性問題（目前無壞資料不會觸發），本文件判斷維持現狀不影響 S10-1 範疇，但若艾斯維爾希望藉本次一併補強，需要另外拆卡。
-4. **01-06 同病相憐頁的本地 clue 是否 `pnpm sync:push` 到正式站**——盤點筆記已記錄此為「尚未處理」的待辦，與本文件的架構設計無直接關聯，但會影響 S10-1 落地後「正式站上第一個可展示的反向索引案例」是否存在，值得在排實作順序時一併決定。
+原始四項待決點已全數由艾斯維爾拍板，記錄如下供追溯；本文件目前**沒有**待拍板的新開放問題（§10-1 的交會處設計為架構師依艾斯維爾原話直接推導，非另一個待決點——理由見下）。
+
+1. **storyKey 是否強制必填** → **選填**。原文「兩條舊路都收掉」讀作「劇情歌不能再誤填 entityKey，但 storyKey 本身仍可留空」——留空的後果是無法互聯、無法解鎖，不是編輯器擋存檔。完整設計見 §2-3。
+2. **`song:{songId}` 解鎖旗標是否維持不變** → **推翻，全面改用 storyKey**（`{storyKey}:song`）。2026-07-26 實測正式 D1 `uep_users` 為 0 筆註冊使用者，本文件第一版「保護既有使用者」的前提在現實中不成立，原本的「不變量」整段作廢，改採 §2-3-a 的新設計。**這是一次性視窗**——一旦有真實使用者註冊，未來任何類似的旗標命名變更都必須走雙寫/補授予腳本，不能再單純改名，完整警語見 §2-3-a。
+3. **entity mark 三處防禦性缺口是否納入 S10-1** → **納入**，設計見新增的 §8。
+4. **01-06 同病相憐頁的本地 clue 是否 `pnpm sync:push`** → 艾斯維爾自行處理，不影響架構設計，本文件不再追蹤。
+
+### 10-1 第 1、2 項交會處：沒填 storyKey 的劇情歌用什麼當解鎖旗標
+
+第 1 項（storyKey 選填）與第 2 項（旗標全面改看 storyKey）合起來會產生一個交會問題：**沒填 storyKey 的劇情歌，用什麼當解鎖旗標？**
+
+**設計**：沒有 fallback。`deriveSongUnlockFlag` 對這種情況直接回傳 `null`（見 §2-3-a），該歌**永遠無法被授予收藏旗標**，只能透過 Echo Spot 現場插播聆聽，不會進入收藏池。
+
+**為什麼這條由架構師直接設計、不再另列待決點**：艾斯維爾原話「劇情 key 是選填的，但基本上也只有有填 key 才能被對應/解鎖」已經直接回答了這個交會問題——「只有填了才能解鎖」的反面就是「沒填就不能解鎖」，沒有第三條路（例如退回 `song:{songId}`）可選，因為第 2 項已經明確關閉了 `song:{songId}` 這個命名慣例的判斷資格。若保留 `song:{songId}` 作為未填 storyKey 時的 fallback，等於變相讓「不填 storyKey 也能被收藏」，與艾斯維爾的原話直接矛盾——這不是需要產品判斷的開放問題，是把已有的兩句話對齊後的必然結果。
+
+編輯器提示文案見 §2-3。
 
 ---
 
-## 10. 實作交接
+## 11. 實作交接
 
-### 10-1 建議實作順序
+### 11-1 建議實作順序
 
-1. **地基（不依賴任何 UI）**：`0022_interlink_index.sql`（`history_interlink_index` + `story_points` 兩表）→ `interlink.ts`（`findKeyConflict`）→ 擴充三個 entity-index 建構器加 `storyKey` 欄位。此段可獨立測試，不動任何既有頁面行為。
-2. **illustrationId → storyKey 遷移**（§5）：先做這塊而非最後做——後續所有 Visuals/History 的程式碼變更都假設欄位已經叫 `storyKey`，越晚遷移，越多程式碼要在「舊名/新名」之間反覆橫跳。一次性腳本 + 程式碼變更同批次提交。
-3. **唯一性把關落地**（§3）：`upsertPage` 的 409 擋重複、`EntityKeyField` 前端 `existingKeys` 修正（Concepts 跨頁）。此時 Echoes `EchoesEditorBody`/Visuals `VisualsEditorBody` 的 storyKey 欄位可以一併切換（`entityKey` 欄位在 `category==='story'` 時改顯示 `storyKey`）。
-4. **反向索引寫入**（§4-3）：`upsertPage` 的 History 分支接入索引重建，軟刪除路徑接清理。此時可以先手動用 Worker log / D1 直接查詢驗證索引正確性，不急著接前端。
-5. **查詢端點**（§4-5）：`/api/interlink/anchors`、`/api/interlink/usage`（後者雖是 S10-3 用，但既然表已就位，一次寫好比之後回頭補更省事）。
-6. **觸發模型**（§6）：Echoes/Visuals 自動觸發 → History 島書籤區覆蓋消費 → dock chip pending → Concepts 觸發按鈕（建議最後做，因為要新增可見 UI 元件，範疇比前面幾項更接近「功能」而非「地基」）。
-7. **便條擴充**（§7）：schema 欄位 + normalizeState 容錯 → entity 拖曳來源與 bridge → 逐張小標 UI（checkbox + 顯示）。與前面幾項耦合度低，可以平行拆卡。
-8. **Echoes 分類唯讀**（§1-4）：`EchoSongPicker.tsx` 判斷順序反轉 + `EchoesEditorBody.tsx` 下拉唯讀化。純白工，任何時候插入都不影響其他項目，建議與第 3 項（storyKey 欄位切換）同批次一起做，因為都在動 `EchoesEditorBody.tsx` 同一個檔案。
+1. **json_extract SQL 端防禦補強**（§8）：與其他任務無依賴，風險最低，建議最先做，替後續高頻呼叫的兩個查詢函式先把地雷排除。
+2. **地基（不依賴任何 UI）**：`0022_interlink_index.sql`（`history_interlink_index` + `story_points` 兩表）→ `interlink.ts`（`findKeyConflict`）→ 擴充三個 entity-index 建構器加 `storyKey` 欄位。此段可獨立測試，不動任何既有頁面行為。
+3. **illustrationId → storyKey 遷移**（§5）：先做這塊而非最後做——後續所有 Visuals/History 的程式碼變更都假設欄位已經叫 `storyKey`，越晚遷移，越多程式碼要在「舊名/新名」之間反覆橫跳。一次性腳本 + 程式碼變更同批次提交。
+4. **唯一性把關落地**（§3）：`upsertPage` 的 409 擋重複、`EntityKeyField` 前端 `existingKeys` 修正（Concepts 跨頁）。此時 Echoes `EchoesEditorBody`/Visuals `VisualsEditorBody` 的 storyKey 欄位可以一併切換（`entityKey` 欄位在 `category==='story'` 時改顯示 `storyKey`，**選填 + 軟性提示**，見 §2-3）。旗標命名同批次改用 `deriveSongUnlockFlag` 的新簽名（§2-3-a）。
+5. **反向索引寫入**（§4-3）：`upsertPage` 的 History 分支接入索引重建，軟刪除路徑接清理。此時可以先手動用 Worker log / D1 直接查詢驗證索引正確性，不急著接前端。
+6. **查詢端點**（§4-5）：`/api/interlink/anchors`、`/api/interlink/usage`（後者雖是 S10-3 用，但既然表已就位，一次寫好比之後回頭補更省事）。
+7. **觸發模型**（§6）：Echoes/Visuals 自動觸發 → History 島書籤區覆蓋消費 → dock chip pending → Concepts 觸發按鈕（建議最後做，因為要新增可見 UI 元件，範疇比前面幾項更接近「功能」而非「地基」）。
+8. **便條擴充**（§7）：schema 欄位 + normalizeState 容錯 → entity 拖曳來源與 bridge → 逐張小標 UI（checkbox + 顯示）。與前面幾項耦合度低，可以平行拆卡。
+9. **Echoes 分類唯讀**（§1-4）：`EchoSongPicker.tsx` 判斷順序反轉 + `EchoesEditorBody.tsx` 下拉唯讀化。純白工，任何時候插入都不影響其他項目，建議與第 4 項（storyKey 欄位切換）同批次一起做，因為都在動 `EchoesEditorBody.tsx` 同一個檔案。
 
-### 10-2 開工前必查
+### 11-2 開工前必查
 
-- **§9 待決點 1、2** 必須先拿到艾斯維爾的明確回覆才能動 `EchoesEditorBody` 的必填驗證與旗標邏輯——這兩項一旦寫錯方向，回頭修正的成本遠高於等待澄清的成本。
+- **`EchoesEditorBody.tsx` 的 storyKey 驗證務必實作成「選填 + 軟性提示」**，不要照抄本文件第一版草稿曾經設計的「必填阻擋」——這是本次二輪定案唯一被推翻方向的產品判斷，若手邊留有第一版草稿或舊筆記，照抄時容易手滑寫錯。
+- 動 `deriveSongUnlockFlag` 前，**先確認正式環境使用者數仍是 0**（`SELECT COUNT(*) FROM uep_users`）——§2-3-a 的無痛改名前提是這個數字，若開工時間點與本文件撰寫時間點有落差、且期間有人完成註冊，必須先停下來改用雙寫方案，不能直接套用本文件的簡化設計。
 - 開工前跑一次 `pnpm check` 確認 0.9.15.0（S10-0）基線本身是綠的，避免把既有問題誤算進本次改動的驗收範圍。
 - 動 `EchoSpotNode.ts`/`VisualClueNode.ts` 前，先確認 `collectEchoSpotIssues`/`collectVisualClueIssues` 的既有測試（`__tests__/EchoSpotNode.test.ts`、`__tests__/VisualClueNode.test.ts`）作為回歸基準，新增 `storyKey` 屬性/`targetType` 改名後這兩份測試必須先跑過一輪確認哪些斷言需要同步更新。
-- `workers/content-api/src/__tests__/echoes-index.test.ts`、`visuals-index.test.ts`、`concepts-index.test.ts` 三份既有測試是擴充 `storyKey` 欄位時的回歸基準，先讀一遍現有斷言的資料形狀。
+- `workers/content-api/src/__tests__/echoes-index.test.ts`、`visuals-index.test.ts`、`concepts-index.test.ts` 三份既有測試是擴充 `storyKey` 欄位與 §8 json_extract 修法的回歸基準，先讀一遍現有斷言的資料形狀；動 `findEntitySong`/`findEntityGallery` 前一併確認是否已有對應測試檔案，若有先讀一遍斷言是否隱含依賴 SQL 層的過濾順序。
 
 *文件結束。*
