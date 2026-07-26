@@ -35,6 +35,12 @@ interface VisualsGalleryPickerProps {
   onClose: () => void;
   onSelect: (gallery: VisualsGalleryChoice) => void;
   selectionMode?: 'gallery' | 'image';
+  /**
+   * 只開放這一個 gallery（預設圖片與切圖 Gate 用）。
+   * Gate 的圖片必須來自 clue 區間指定的 gallery，跨 gallery 的選擇存檔
+   * 時本來就會被擋下——與其讓人選完才報錯，不如一開始就不列出來。
+   */
+  lockedGalleryId?: string;
 }
 
 const DIVISION_TITLES: Record<string, string> = {
@@ -128,6 +134,7 @@ export default function VisualsGalleryPicker({
   onClose,
   onSelect,
   selectionMode = 'gallery',
+  lockedGalleryId = '',
 }: VisualsGalleryPickerProps) {
   const [galleries, setGalleries] = useState<VisualsGalleryChoice[]>([]);
   const [query, setQuery] = useState('');
@@ -157,17 +164,25 @@ export default function VisualsGalleryPicker({
     return () => controller.abort();
   }, [apiBase, open]);
 
+  const scoped = useMemo(
+    () =>
+      lockedGalleryId
+        ? galleries.filter((gallery) => gallery.id === lockedGalleryId)
+        : galleries,
+    [galleries, lockedGalleryId]
+  );
+
   const grouped = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('zh-TW');
     const visible = normalized
-      ? galleries.filter((gallery) =>
+      ? scoped.filter((gallery) =>
           [gallery.title, gallery.id, gallery.targetKey]
             .filter(Boolean)
             .some((value) =>
               String(value).toLocaleLowerCase('zh-TW').includes(normalized)
             )
         )
-      : galleries;
+      : scoped;
     const groups = new Map<string, VisualsGalleryChoice[]>();
     for (const gallery of visible) {
       groups.set(gallery.divisionId, [
@@ -176,7 +191,7 @@ export default function VisualsGalleryPicker({
       ]);
     }
     return [...groups.entries()];
-  }, [query, galleries]);
+  }, [query, scoped]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -195,13 +210,16 @@ export default function VisualsGalleryPicker({
         <div className="ned-modal-header">
           <div>
             <strong>
-              {selectionMode === 'image'
-                ? '選擇 Visuals 圖片'
-                : '選擇 Visuals 畫廊與預設圖'}
+              {lockedGalleryId
+                ? '選擇這個 clue 畫廊內的圖片'
+                : selectionMode === 'image'
+                  ? '選擇 Visuals 圖片'
+                  : '選擇 Visuals 畫廊與預設圖'}
             </strong>
             <div className="ned-echo-song-picker__hint">
-              僅列出可進浮動幻影的畫廊：陳列走廊需 entityKey、鑲框室需插圖
-              ID；精靈圖與空畫廊不列入。
+              {lockedGalleryId
+                ? '切圖 Gate 與預設圖片只能取自 clue 區間指定的畫廊；要換畫廊請改用起點的「重選畫廊」。'
+                : '僅列出可進浮動幻影的畫廊：陳列走廊需 entityKey、鑲框室需插圖 ID；精靈圖與空畫廊不列入。'}
             </div>
           </div>
           <button type="button" className="ned-modal-close" onClick={onClose}>
@@ -209,15 +227,18 @@ export default function VisualsGalleryPicker({
           </button>
         </div>
 
-        <div className="ned-echo-song-picker__search">
-          <input
-            className="ned-field"
-            autoFocus
-            value={query}
-            placeholder="搜尋畫廊名稱、entityKey、插圖 ID…"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+        {/* 鎖定單一畫廊時沒有東西好搜 */}
+        {!lockedGalleryId && (
+          <div className="ned-echo-song-picker__search">
+            <input
+              className="ned-field"
+              autoFocus
+              value={query}
+              placeholder="搜尋畫廊名稱、entityKey、插圖 ID…"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        )}
 
         <div className="ned-echo-song-picker__body">
           {loading ? (
@@ -228,9 +249,11 @@ export default function VisualsGalleryPicker({
             </div>
           ) : grouped.length === 0 ? (
             <div className="ned-picker-empty">
-              {galleries.length === 0
-                ? '目前沒有可引用的畫廊。'
-                : '沒有符合搜尋條件的畫廊。'}
+              {lockedGalleryId
+                ? '這個 clue 指定的畫廊已不存在或不再可引用，請先在起點重選畫廊。'
+                : galleries.length === 0
+                  ? '目前沒有可引用的畫廊。'
+                  : '沒有符合搜尋條件的畫廊。'}
             </div>
           ) : (
             grouped.map(([divisionId, entries]) => (

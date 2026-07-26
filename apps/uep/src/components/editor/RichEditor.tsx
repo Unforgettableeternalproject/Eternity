@@ -3619,6 +3619,15 @@ export default function RichEditor({
             ? 'gallery'
             : 'image'
         }
+        // 預設圖片與切圖 Gate 只能在 clue 自己的畫廊裡挑圖——選完才用
+        // toast 擋下來的話，使用者已經翻遍整個清單了
+        lockedGalleryId={
+          visualsPickerIntent === 'insert-gate' ||
+          visualsPickerIntent === 'retarget-gate' ||
+          visualsPickerIntent === 'default-image'
+            ? selectedVisualClue?.galleryId || ''
+            : ''
+        }
       />
 
       {/* 音訊選擇器 Modal */}
