@@ -537,10 +537,22 @@
 
 /* === 互動式嵌入（Epic 2 S4）===
    只有「已解鎖」的 entity 才有樣式與行為；
-   未解鎖的 entity span 不帶啟用屬性，就是普通文字。 */
+   未解鎖的 entity span 不帶啟用屬性，就是普通文字。
+
+   墨色走專屬 token：--history-main 是深棕，落在暗色底上幾乎看不出
+   是可點的（zone 主色沒有暗色版本，直接改 token 會波及整個史學區），
+   深色模式改用同色系的亮階。 */
+.history-prose {
+  --entity-ref-ink: var(--history-main);
+}
+
+[data-theme='dark'] .history-prose {
+  --entity-ref-ink: var(--history-soft);
+}
+
 .history-prose span[data-uep-entity-active] {
   cursor: pointer;
-  color: var(--history-main);
+  color: var(--entity-ref-ink);
   text-decoration: underline dotted;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
@@ -550,13 +562,15 @@
 }
 
 .history-prose span[data-uep-entity-active]:hover {
-  text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
+  text-shadow: 0 0 10px
+    color-mix(in srgb, var(--entity-ref-ink) 45%, transparent);
 }
 
 .history-prose span[data-uep-entity-active]:focus-visible {
-  outline: 1px dotted var(--history-main);
+  outline: 1px dotted var(--entity-ref-ink);
   outline-offset: 2px;
-  text-shadow: 0 0 10px color-mix(in srgb, var(--history-main) 45%, transparent);
+  text-shadow: 0 0 10px
+    color-mix(in srgb, var(--entity-ref-ink) 45%, transparent);
 }
 
 /* === 遺落的書籤 — 導航樹特殊條目（S6-2） === */
