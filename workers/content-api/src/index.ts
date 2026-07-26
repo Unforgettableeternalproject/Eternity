@@ -30,6 +30,11 @@ import {
   extractCandidateKeys,
   findKeyConflict,
   ensureStoryPoints,
+  rebuildHistoryInterlinkIndex,
+  clearHistoryInterlinkIndex,
+  findInterlinkAnchors,
+  findInterlinkDefinitions,
+  findStoryPoint,
 } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
@@ -476,6 +481,13 @@ async function upsertPage(
   // storyKey 首次出現時建立 story_points 殼列（S10-1 §2-4）
   await ensureStoryPoints(db, keyCandidates);
 
+  // History 頁的三種互聯標記在內容寫入後重建反向索引。
+  // 只在這次請求真的帶了 content 時重建——PUT 支援部分更新，
+  // 沒帶 content 就代表內容沒動，重掃只會得到同一份結果。
+  if (area === 'history' && body.content !== undefined) {
+    await rebuildHistoryInterlinkIndex(db, id, body.content);
+  }
+
   // 回傳更新後的頁面
   const updated = await db
     .prepare('SELECT * FROM pages WHERE id = ?')
@@ -506,6 +518,11 @@ async function deletePage(
 
   if (result.meta.changes === 0) {
     return jsonResponse({ ok: false, error: 'Page not found' }, 404, cors);
+  }
+
+  // 已刪除文章的錨點不該繼續出現在反查結果裡
+  if (area === 'history') {
+    await clearHistoryInterlinkIndex(db, id);
   }
 
   return jsonResponse({ ok: true }, 200, cors);
@@ -1665,6 +1682,55 @@ export default {
       const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
       return jsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    // ---- 跨區互聯反查（S10-1）----
+    // anchors：某個 key 在 History 有哪些錨點（觸發模型消費）
+    // usage：定義端 + 錨點端的完整使用狀況（S10-3 反查管理 UI）
+    if (
+      (path === '/api/interlink/anchors' || path === '/api/interlink/usage') &&
+      request.method === 'GET'
+    ) {
+      const keyType = url.searchParams.get('keyType')?.trim() ?? '';
+      const key = url.searchParams.get('key')?.trim() ?? '';
+      if (keyType !== 'entity' && keyType !== 'story') {
+        return jsonResponse(
+          { ok: false, error: 'keyType must be entity or story' },
+          400,
+          cors
+        );
+      }
+      if (!key) {
+        return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+      }
+
+      const anchors = await findInterlinkAnchors(env.CONTENT_DB, keyType, key);
+      if (path === '/api/interlink/anchors') {
+        return jsonResponse({ ok: true, data: { anchors } }, 200, cors, true);
+      }
+
+      const definitions = await findInterlinkDefinitions(
+        env.CONTENT_DB,
+        keyType,
+        key
+      );
+      const storyPoint =
+        keyType === 'story'
+          ? await findStoryPoint(env.CONTENT_DB, key)
+          : undefined;
+      return jsonResponse(
+        {
+          ok: true,
+          data: {
+            definitions,
+            anchors,
+            ...(storyPoint ? { storyPoint } : {}),
+          },
+        },
         200,
         cors,
         true

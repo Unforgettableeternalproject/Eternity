@@ -410,3 +410,216 @@ describe('PUT /api/content/:area/:slug — key 唯一性把關（S10-1）', () =
     expect(res.status).toBe(200);
   });
 });
+
+describe('History 反向索引與互聯反查端點（S10-1）', () => {
+  const CLUE_ATTRS =
+    'data-clue-id="clue-x" data-target-type="story" data-target-key="rain-sea-finale" data-gallery-title="雨海"';
+
+  const historyContent = () => [
+    {
+      type: 'rich_text',
+      content:
+        '<p>那天<span data-uep-entity="concept" data-ref="entity:xavier-colsono">艾斯維爾</span>沒有回頭。</p>' +
+        '<div data-role="echo-spot" data-spot-id="spot-x" data-song-type="story" data-story-key="rain-sea-finale" data-song-title="雨海終曲"></div>' +
+        `<div data-role="visual-clue-start" ${CLUE_ATTRS}></div>` +
+        `<div data-role="visual-clue-end" ${CLUE_ATTRS}></div>`,
+    },
+  ];
+
+  async function putHistory(id: string, content: unknown, title = '測試章節') {
+    const token = await getAdminToken();
+    return worker.fetch(
+      createRequest(`/api/content/${id}`, {
+        method: 'PUT',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, pageType: 'page', content }),
+      }),
+      env,
+      ctx
+    );
+  }
+
+  async function indexRows(pageId: string) {
+    const { results } = await env.CONTENT_DB.prepare(
+      `SELECT anchor_kind, anchor_id, key_type, key_value, label
+       FROM history_interlink_index WHERE page_id = ? ORDER BY id ASC`
+    )
+      .bind(pageId)
+      .all<{
+        anchor_kind: string;
+        anchor_id: string | null;
+        key_type: string;
+        key_value: string;
+        label: string | null;
+      }>();
+    return results;
+  }
+
+  it('History 頁存檔後索引三種標記', async () => {
+    const res = await putHistory('history/ilx/chapter-one', historyContent());
+    expect(res.status).toBe(201);
+
+    const rows = await indexRows('history/ilx/chapter-one');
+    expect(rows.map((r) => r.anchor_kind)).toEqual([
+      'entity-mark',
+      'echo-spot',
+      'visual-clue-start',
+      'visual-clue-end',
+    ]);
+    expect(rows[0]).toMatchObject({
+      key_type: 'entity',
+      key_value: 'xavier-colsono',
+      label: '艾斯維爾',
+      anchor_id: null,
+    });
+    expect(rows[1]).toMatchObject({
+      key_type: 'story',
+      key_value: 'rain-sea-finale',
+      anchor_id: 'spot-x',
+    });
+  });
+
+  it('重複存檔相同內容 → 索引列不累積（冪等）', async () => {
+    await putHistory('history/ilx/chapter-one', historyContent());
+    await putHistory('history/ilx/chapter-one', historyContent());
+    expect(await indexRows('history/ilx/chapter-one')).toHaveLength(4);
+  });
+
+  it('內容改成沒有標記 → 索引清空', async () => {
+    await putHistory('history/ilx/chapter-two', historyContent());
+    expect(await indexRows('history/ilx/chapter-two')).toHaveLength(4);
+
+    await putHistory('history/ilx/chapter-two', [
+      { type: 'rich_text', content: '<p>改寫過，標記都拿掉了。</p>' },
+    ]);
+    expect(await indexRows('history/ilx/chapter-two')).toHaveLength(0);
+  });
+
+  it('未帶 content 的部分更新不動索引', async () => {
+    await putHistory('history/ilx/chapter-three', historyContent());
+    const token = await getAdminToken();
+    await worker.fetch(
+      createRequest('/api/content/history/ilx/chapter-three', {
+        method: 'PUT',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '只改標題' }),
+      }),
+      env,
+      ctx
+    );
+    expect(await indexRows('history/ilx/chapter-three')).toHaveLength(4);
+  });
+
+  it('軟刪除 History 頁 → 索引清空', async () => {
+    await putHistory('history/ilx/chapter-four', historyContent());
+    const token = await getAdminToken();
+    const del = await worker.fetch(
+      createRequest('/api/content/history/ilx/chapter-four', {
+        method: 'DELETE',
+        token,
+      }),
+      env,
+      ctx
+    );
+    expect(del.status).toBe(200);
+    expect(await indexRows('history/ilx/chapter-four')).toHaveLength(0);
+  });
+
+  it('GET /api/interlink/anchors 回傳該 key 的錨點', async () => {
+    await putHistory('history/ilx/chapter-five', historyContent(), '第五章');
+    const res = await worker.fetch(
+      createRequest('/api/interlink/anchors?keyType=story&key=rain-sea-finale'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: { anchors: { pageId: string; pageTitle: string }[] };
+    };
+    expect(json.ok).toBe(true);
+    const fromChapterFive = json.data.anchors.filter(
+      (a) => a.pageId === 'history/ilx/chapter-five'
+    );
+    expect(fromChapterFive.length).toBeGreaterThan(0);
+    expect(fromChapterFive[0].pageTitle).toBe('第五章');
+  });
+
+  it('查無資料 → 空陣列', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/anchors?keyType=entity&key=nobody-uses-me'),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as { data: { anchors: unknown[] } };
+    expect(json.data.anchors).toEqual([]);
+  });
+
+  it('keyType 非法或缺 key → 400', async () => {
+    const badType = await worker.fetch(
+      createRequest('/api/interlink/anchors?keyType=illustration&key=x'),
+      env,
+      ctx
+    );
+    expect(badType.status).toBe(400);
+
+    const noKey = await worker.fetch(
+      createRequest('/api/interlink/anchors?keyType=entity'),
+      env,
+      ctx
+    );
+    expect(noKey.status).toBe(400);
+  });
+
+  it('GET /api/interlink/usage 同時給定義端與錨點端', async () => {
+    // 定義端：一首掛同 storyKey 的劇情歌
+    const token = await getAdminToken();
+    await worker.fetch(
+      createRequest('/api/content/echoes/ilx/story-song', {
+        method: 'PUT',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '雨海終曲',
+          pageType: 'song',
+          metadata: { storyKey: 'rain-sea-finale', category: 'story' },
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    const res = await worker.fetch(
+      createRequest('/api/interlink/usage?keyType=story&key=rain-sea-finale'),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as {
+      data: {
+        definitions: { area: string; pageId: string }[];
+        anchors: unknown[];
+        storyPoint?: { title: string | null };
+      };
+    };
+    expect(
+      json.data.definitions.some((d) => d.pageId === 'echoes/ilx/story-song')
+    ).toBe(true);
+    expect(json.data.anchors.length).toBeGreaterThan(0);
+    // 存檔時建的殼列，title 仍為 NULL
+    expect(json.data.storyPoint).toEqual({ title: null, description: null });
+  });
+
+  it('usage 對 entity 類型不回 storyPoint', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/usage?keyType=entity&key=xavier-colsono'),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as {
+      data: { storyPoint?: unknown };
+    };
+    expect(json.data.storyPoint).toBeUndefined();
+  });
+});

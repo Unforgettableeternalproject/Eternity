@@ -15,6 +15,7 @@ import {
   collectConceptsKeyCandidates,
 } from './concepts-index';
 import { buildEchoesEntityIndex } from './echoes-index';
+import { scanHistoryInterlinkAnchors } from './history-interlink';
 import { buildVisualsEntityIndex } from './visuals-index';
 
 /** 唯一性衝突檢查的請求形狀 */
@@ -188,6 +189,182 @@ export function extractCandidateKeys(
     });
   }
   return out;
+}
+
+/**
+ * 重建單一 History 頁的反向索引。
+ *
+ * 整頁 DELETE + INSERT，不做逐條 diff——單頁標記數量是個位數到十幾個
+ * 量級，全量重建的成本遠低於維護 diff 邏輯的複雜度，而且天然冪等：
+ * 同一份內容重複存檔會產生完全相同的列。
+ *
+ * `db.batch()` 保證 DELETE 與 INSERT 在同一個隱含交易內完成，不會出現
+ * 「刪了但插入失敗」的半殘狀態（沿 `reindexChildren` 的既有手法）。
+ */
+export async function rebuildHistoryInterlinkIndex(
+  db: D1Database,
+  pageId: string,
+  content: unknown
+): Promise<void> {
+  const anchors = scanHistoryInterlinkAnchors(content);
+  const now = new Date().toISOString();
+
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(`DELETE FROM history_interlink_index WHERE page_id = ?`)
+      .bind(pageId),
+  ];
+  for (const anchor of anchors) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO history_interlink_index
+             (page_id, anchor_kind, anchor_id, key_type, key_value, label, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          pageId,
+          anchor.anchorKind,
+          anchor.anchorId,
+          anchor.keyType,
+          anchor.keyValue,
+          anchor.label,
+          now,
+          now
+        )
+    );
+  }
+  await db.batch(statements);
+}
+
+/**
+ * 清空單一 History 頁的反向索引（軟刪除時呼叫）。
+ *
+ * 不清的話，已刪除文章的錨點會繼續出現在反查結果裡，把讀者導向
+ * 一個不存在的頁面。
+ */
+export async function clearHistoryInterlinkIndex(
+  db: D1Database,
+  pageId: string
+): Promise<void> {
+  await db
+    .prepare(`DELETE FROM history_interlink_index WHERE page_id = ?`)
+    .bind(pageId)
+    .run();
+}
+
+// ──────────────────────────────────────────────────────────────
+//  查詢：反查某個 key 的 History 錨點 / 完整使用狀況
+// ──────────────────────────────────────────────────────────────
+
+/** `/api/interlink/anchors` 的單筆錨點 */
+export interface InterlinkAnchorRow {
+  pageId: string;
+  pageTitle: string;
+  anchorKind: string;
+  anchorId: string | null;
+  label: string | null;
+}
+
+/**
+ * 查某個 key 在 History 有哪些錨點（觸發模型的資料來源）。
+ *
+ * 走 `idx_hii_key` 索引；join `pages` 取現行標題，並排除已軟刪除的頁面——
+ * 索引清理掛在軟刪除路徑上，但直接改 DB 或舊資料仍可能留下孤兒列，
+ * 這裡再擋一層。
+ */
+export async function findInterlinkAnchors(
+  db: D1Database,
+  keyType: 'entity' | 'story',
+  keyValue: string
+): Promise<InterlinkAnchorRow[]> {
+  const result = await db
+    .prepare(
+      `SELECT i.page_id AS pageId, p.title AS pageTitle,
+              i.anchor_kind AS anchorKind, i.anchor_id AS anchorId, i.label
+       FROM history_interlink_index i
+       JOIN pages p ON p.id = i.page_id
+       WHERE i.key_type = ? AND i.key_value = ? AND p.deleted_at IS NULL
+       ORDER BY p.sort_order ASC, i.id ASC`
+    )
+    .bind(keyType, keyValue)
+    .all<InterlinkAnchorRow>();
+  return result.results || [];
+}
+
+/** `/api/interlink/usage` 的定義端單筆 */
+export interface InterlinkDefinitionRow {
+  area: 'concepts' | 'echoes' | 'visuals';
+  pageId: string;
+  pageTitle: string;
+  /** Concepts 才有意義，其餘固定 `'zone'` */
+  scope: string;
+}
+
+/**
+ * 查某個 key 的**定義端**（誰宣告了這個 key）。
+ *
+ * 與錨點端不同，這裡是 live-scan 現查而非讀表——理由同 `findKeyConflict`：
+ * 定義散在各 zone 的 metadata / 結構化內容裡，掃描結果永遠是當下真相，
+ * 不需要維護一份會過期的衍生資料。
+ *
+ * 這裡刻意不排除 hidden：反查管理 UI 要看到全部使用位置，包括隱藏頁，
+ * 否則「這個 key 用在哪」會漏掉一半（Visuals 超過半數 gallery 是 hidden）。
+ */
+export async function findInterlinkDefinitions(
+  db: D1Database,
+  keyType: 'entity' | 'story',
+  keyValue: string
+): Promise<InterlinkDefinitionRow[]> {
+  const out: InterlinkDefinitionRow[] = [];
+
+  if (keyType === 'entity') {
+    for (const entry of await buildConceptsEntityIndex(db)) {
+      if (entry.entityKey !== keyValue) continue;
+      out.push({
+        area: 'concepts',
+        pageId: entry.pageId,
+        pageTitle: entry.pageTitle,
+        scope: conceptsScope(entry.stack, entry.variantId),
+      });
+    }
+  }
+
+  const echoes = await buildEchoesEntityIndex(db, { includeHidden: true });
+  const visuals = await buildVisualsEntityIndex(db, { includeHidden: true });
+  const matches = (entry: { entityKey?: string; storyKey?: string }) =>
+    keyType === 'entity'
+      ? entry.entityKey === keyValue
+      : entry.storyKey === keyValue;
+
+  for (const [area, entries] of [
+    ['echoes', echoes],
+    ['visuals', visuals],
+  ] as const) {
+    for (const entry of entries) {
+      if (!matches(entry)) continue;
+      out.push({
+        area,
+        pageId: entry.id,
+        pageTitle: await fetchPageTitle(db, entry.id),
+        scope: ZONE_SCOPE,
+      });
+    }
+  }
+
+  return out;
+}
+
+/** 劇情點的標題／說明（S10-1 全程為 NULL，S10-3 才有編輯 UI） */
+export async function findStoryPoint(
+  db: D1Database,
+  storyKey: string
+): Promise<{ title: string | null; description: string | null } | null> {
+  const row = await db
+    .prepare(`SELECT title, description FROM story_points WHERE story_key = ?`)
+    .bind(storyKey)
+    .first<{ title: string | null; description: string | null }>();
+  return row ?? null;
 }
 
 /**
