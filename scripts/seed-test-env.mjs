@@ -4,7 +4,8 @@
  * 從正式 D1 讀取骨架資料，寫入 test D1（透過 test Worker API）。
  *
  * 使用方式：
- *   node scripts/seed-test-env.mjs
+ *   node scripts/seed-test-env.mjs                    # 互動式登入取得寫入授權
+ *   API_TOKEN=xxx node scripts/seed-test-env.mjs      # 非互動（CI）用環境變數
  *
  * 資料範圍（各 zone 全導覽骨架，不搬葉子內容）：
  *   - pages 表：leaf blacklist — 跳過 section/page/song/stuff/gallery
@@ -30,6 +31,8 @@
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { pathToFileURL } from 'url';
+
+import { resolveWriteToken } from './sync-auth.mjs';
 
 // 葉子頁黑名單的單一來源；Admin reset 走 workers/content-api/src/test-seed.ts
 // import 同一份。改任一 zone 葉子型別只需改該 JSON。
@@ -60,14 +63,15 @@ const PROD_GUARD = new Set([
 ]);
 
 // ═══════════════════════════════════════════════════════════════
-// 讀取 API_TOKEN（透過 wrangler secret list 讀取 test env token）
+// 寫入授權：API_TOKEN 環境變數，否則互動式登入取 admin JWT
+// （共用實作與理由見 sync-auth.mjs 的 resolveWriteToken）
 // ═══════════════════════════════════════════════════════════════
 
 function getApiToken() {
-  const envToken = process.env.API_TOKEN || process.env.ETERNITY_API_TOKEN;
-  if (envToken) return envToken;
-  // 若未設定環境變數，dev mode（無 token）= 全通過
-  return null;
+  return resolveWriteToken({
+    loginApiUrl: PROD_WORKER_URL,
+    purpose: 'seed 寫入測試環境',
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -558,10 +562,10 @@ async function main() {
   // eternity-content 與 eternity-content-api）。assertTestWorkerUrl 已足夠。
   assertTestWorkerUrl(TEST_WORKER_URL);
 
-  const token = getApiToken();
+  const token = await getApiToken();
   if (!token) {
     throw new Error(
-      'API_TOKEN 未設定；Test Worker 已 fail closed，CLI seed 必須提供 test API token。'
+      'Test Worker 已 fail closed，seed 需要授權：設定 API_TOKEN 環境變數，或在登入提示輸入有效的 admin 帳密。'
     );
   }
 

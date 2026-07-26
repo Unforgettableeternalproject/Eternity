@@ -8,7 +8,8 @@
  *   4. 呼叫 seed-test-env.mjs 重新填充骨架資料
  *
  * 使用方式：
- *   node scripts/reset-test-env.mjs --confirm
+ *   node scripts/reset-test-env.mjs --confirm                 # 互動式登入取得授權
+ *   API_TOKEN=xxx node scripts/reset-test-env.mjs --confirm   # 非互動（CI）用環境變數
  *
  * ⚠️ 不帶 --confirm 會印警告並以 exit code 1 退出，不執行任何清除。
  */
@@ -18,7 +19,12 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+import { resolveWriteToken } from './sync-auth.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// 登入取得 admin JWT 的對象（test D1 沒有 admin_users，只能向正式登入）
+const PROD_WORKER_URL = 'https://eternity-content-api.ptyc4076.workers.dev';
 
 // ═══════════════════════════════════════════════════════════════
 // ⚠️ Prod 資源保護白名單（hard-coded）
@@ -105,8 +111,13 @@ function runProdGuardChecks() {
 // 工具函式
 // ═══════════════════════════════════════════════════════════════
 
+// 寫入授權：API_TOKEN 環境變數，否則互動式登入取 admin JWT
+// （共用實作與「為什麼登入對象是正式 worker」的理由見 sync-auth.mjs）
 function getApiToken() {
-  return process.env.API_TOKEN || process.env.ETERNITY_API_TOKEN || null;
+  return resolveWriteToken({
+    loginApiUrl: PROD_WORKER_URL,
+    purpose: 'reset 重置測試環境',
+  });
 }
 
 async function callTestReset(token) {
@@ -136,13 +147,14 @@ async function callTestReset(token) {
   return res.json();
 }
 
-function runSeed() {
+function runSeed(token) {
   const seedScript = join(__dirname, 'seed-test-env.mjs');
   console.log('\n[ 2/2 ] 執行 seed-test-env.mjs 填充骨架資料...\n');
 
   const result = spawnSync(process.execPath, [seedScript], {
     stdio: 'inherit',
-    env: process.env,
+    // 把已取得的授權往下傳——否則 seed 會再問一次帳密（reset 一定會跑 seed）
+    env: { ...process.env, API_TOKEN: token },
   });
 
   if (result.status !== 0) {
@@ -186,10 +198,11 @@ async function main() {
 
   // fail closed，與 seed-test-env 一致：部署後的 test Worker 需授權，
   // 無 token 呼叫會被 401 擋下，不存在「開發模式全通過」路徑。
-  const token = getApiToken();
+  const token = await getApiToken();
   if (!token) {
     console.error(
-      '\n[ERROR] API_TOKEN 未設定；Test Worker 已 fail closed，CLI reset 必須提供 test API token。\n'
+      '\n[ERROR] Test Worker 已 fail closed，reset 需要授權：設定 API_TOKEN 環境變數，' +
+        '或在登入提示輸入有效的 admin 帳密。\n'
     );
     process.exit(1);
   }
@@ -216,7 +229,7 @@ async function main() {
   }
 
   // ── 步驟 4：重新 seed ──
-  runSeed();
+  runSeed(token);
 
   console.log('\n=== reset 完成 ===');
   console.log(`  test 環境已重置並填充骨架資料。`);

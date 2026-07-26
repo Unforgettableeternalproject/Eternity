@@ -19,6 +19,10 @@
  *   node scripts/archive/migrate-illustration-id-to-story-key.mjs --test --write
  *   API_TOKEN=xxx node scripts/archive/migrate-illustration-id-to-story-key.mjs --remote --write
  *
+ * 對 remote／test 寫入需要授權：未設 `API_TOKEN` 環境變數時會互動式登入
+ * 取 admin JWT（同 `pnpm sync`，見 sync-auth.mjs 的 resolveWriteToken）。
+ * 本地 dev worker 無需授權，不會問。
+ *
  * **預設 dry-run**——寫入需明確帶 `--write`。比照 reset-test-env.mjs 的
  * `--confirm` 精神：資料改寫類腳本不該因為手滑執行就動到東西。
  *
@@ -27,16 +31,21 @@
  * History clue 視各環境當下的測試資料而定。
  */
 
+import { resolveWriteToken } from '../sync-auth.mjs';
+
 const USE_REMOTE = process.argv.includes('--remote');
 const USE_TEST = process.argv.includes('--test');
 const WRITE = process.argv.includes('--write');
 
+// 登入取得 admin JWT 的對象。test D1 沒有 admin_users，只能向正式登入——
+// 兩邊共用同一組 JWT_SECRET，正式簽發的 token 打 test worker 驗得過。
+const PROD_API_BASE = 'https://eternity-content-api.ptyc4076.workers.dev';
+
 const API_BASE = USE_TEST
   ? 'https://eternity-content-api-test.ptyc4076.workers.dev'
   : USE_REMOTE
-    ? 'https://eternity-content-api.ptyc4076.workers.dev'
+    ? PROD_API_BASE
     : 'http://localhost:8788';
-const API_TOKEN = process.env.API_TOKEN ?? '';
 
 const LABEL = USE_TEST ? '測試' : USE_REMOTE ? '正式' : '本地';
 
@@ -47,7 +56,24 @@ console.log(
 );
 
 const headers = { 'Content-Type': 'application/json' };
-if (API_TOKEN) headers['Authorization'] = `Bearer ${API_TOKEN}`;
+
+/**
+ * 取得寫入授權並填進共用 headers。
+ *
+ * 只在真的要寫、且目標是 remote／test 時才問——dry-run 全程唯讀，
+ * 本地 dev worker（無 JWT_SECRET 無 API_TOKEN）走 dev bypass 也不需要。
+ */
+async function ensureWriteAuth() {
+  if (!WRITE) return true;
+  if (!USE_REMOTE && !USE_TEST) return true;
+  const token = await resolveWriteToken({
+    loginApiUrl: PROD_API_BASE,
+    purpose: `寫入${LABEL}環境`,
+  });
+  if (!token) return false;
+  headers['Authorization'] = `Bearer ${token}`;
+  return true;
+}
 
 async function listPages(area) {
   const res = await fetch(`${API_BASE}/api/content/${area}`);
@@ -164,6 +190,11 @@ async function migrateHistoryClues() {
 }
 
 async function main() {
+  if (!(await ensureWriteAuth())) {
+    console.error('❌ 未取得寫入授權，中止（沒有動到任何資料）\n');
+    process.exit(1);
+  }
+
   console.log('── Visuals gallery ──');
   const galleries = await migrateGalleries();
   if (galleries.found === 0) console.log('   （無候選）');
