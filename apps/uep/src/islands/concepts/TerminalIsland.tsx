@@ -65,6 +65,9 @@ const TYPE_DELAY_MS = 25;
 const TYPE_PUNCT_DELAY_MS = 8;
 const TYPE_PUNCT_PATTERN = /[\s.,、。·—:：（）()!?！？]/;
 
+/** 貼底容錯（px）：子像素捲動位置不該被誤判成使用者手動上捲 */
+const FOLLOW_BOTTOM_EPS = 4;
+
 const HELP_LINES: TermLine[] = [
   { kind: 'meta', text: '? · query <keyword>    — 檢索人物 / 地點 / 術語' },
   { kind: 'meta', text: '  · ls <stack> [分類]  — 列出分類，點分類展開條目' },
@@ -141,8 +144,10 @@ export default function TerminalIsland() {
   /** 清空式展現的一次性捲動目標（null = 照常捲到底） */
   const pendingAnchorRef = useRef<string | null>(null);
   const anchorSeqRef = useRef(0);
-  /** anchor 是否已完成首次置頂——之後打字推進不再碰 scrollTop（#12） */
+  /** anchor 是否已完成首次置頂——之後打字推進只收縮 spacer（#12） */
   const anchorAlignedRef = useRef(false);
+  /** 是否跟隨輸出捲動；使用者手動上捲即關閉，捲回底部恢復 */
+  const followRef = useRef(true);
 
   /* 補全候選列表（S7-C 驗收回饋三輪：slash-command 式向上展開，
      打字即出、↑↓/Tab 移動高亮、Enter 填入、無高亮 Enter 照常送出） */
@@ -157,6 +162,8 @@ export default function TerminalIsland() {
   const entriesRef = useRef<TerminalIndexEntry[]>([]);
 
   function append(add: TermLine[]) {
+    // 新輸出恢復跟隨（打字機推進不經此處，中途手動上捲仍會被尊重）
+    followRef.current = true;
     setLines((prev) => [...prev, ...add].slice(-MAX_TERM_LINES));
   }
 
@@ -253,9 +260,11 @@ export default function TerminalIsland() {
      上方歷史需上捲才看到）。內容不足一屏時以底部 spacer 補足捲動空間，
      否則 anchor 行物理上到不了視窗頂。無 anchor 照常捲到底。
      #12 修正（S7 驗收回饋）：置頂只在錨點批次首次渲染時對齊一次——
-     之後打字機每完成一行只收縮 spacer（配合內容增長），不再改寫
-     scrollTop 也不歸零 spacer 重量測（歸零瞬間 scrollHeight 縮短會被
-     瀏覽器 clamp 而跳動）。使用者中途手動捲動不會被拉回。 */
+     之後打字機每完成一行只收縮 spacer（配合內容增長），不歸零 spacer
+     重量測（歸零瞬間 scrollHeight 縮短會被瀏覽器 clamp 而跳動）。
+     長文跟隨：spacer 公式維持「anchor 置頂 == 貼底」，所以對齊後每行
+     推進都貼底即可自然接續——內容不足一屏時貼底就是 anchor 置頂（畫面
+     靜止），spacer 歸零後貼底就變成跟著文字走。手動上捲會關掉跟隨。 */
   useEffect(() => {
     const body = bodyRef.current;
     const spacer = spacerRef.current;
@@ -279,12 +288,19 @@ export default function TerminalIsland() {
           if (spacer && deficit > 0) spacer.style.height = `${deficit}px`;
           body.scrollTop = anchorTop;
           anchorAlignedRef.current = true;
-        } else if (spacer) {
-          // 後續打字推進：只依內容增長收縮 spacer，不碰 scrollTop
-          const spacerH = parseFloat(spacer.style.height) || 0;
-          const contentH = body.scrollHeight - spacerH;
-          const deficit = anchorTop + body.clientHeight - contentH;
-          spacer.style.height = `${Math.max(0, deficit)}px`;
+          // 對齊本身就是「要跟著這批輸出走」，不等 scroll 事件回報貼底
+          followRef.current = true;
+        } else {
+          if (spacer) {
+            // 依內容增長收縮 spacer，維持「置頂 == 貼底」
+            const spacerH = parseFloat(spacer.style.height) || 0;
+            const contentH = body.scrollHeight - spacerH;
+            const deficit = anchorTop + body.clientHeight - contentH;
+            spacer.style.height = `${Math.max(0, deficit)}px`;
+          }
+          if (followRef.current) {
+            body.scrollTop = body.scrollHeight - body.clientHeight;
+          }
         }
         // 打字全結束才卸除 anchor（spacer 保留，維持當前視圖穩定）
         if (typingDone) {
@@ -301,8 +317,21 @@ export default function TerminalIsland() {
     }
     // 無 anchor 的一般輸出：清掉殘留 spacer、照常捲到底
     if (spacer) spacer.style.height = '0px';
-    body.scrollTop = body.scrollHeight;
+    if (followRef.current) body.scrollTop = body.scrollHeight;
   }, [lines, currentLine]);
+
+  /* 跟隨判定：貼底即跟隨，手動上捲即停。程式自己捲到底後也會觸發此
+     handler，算出貼底所以旗標維持開啟，不需要額外的「誰觸發」標記。 */
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const onScroll = () => {
+      const distance = body.scrollHeight - body.scrollTop - body.clientHeight;
+      followRef.current = distance <= FOLLOW_BOTTOM_EPS;
+    };
+    body.addEventListener('scroll', onScroll, { passive: true });
+    return () => body.removeEventListener('scroll', onScroll);
+  }, []);
 
   /* 輸出歷史持久化（action 是純資料，整批可序列化） */
   useEffect(() => {
