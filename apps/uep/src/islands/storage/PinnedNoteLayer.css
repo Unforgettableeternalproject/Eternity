@@ -20,6 +20,9 @@
   --pn-ink-rgb: 58 47 8;
   --pn-glow-rgb: 180 130 40;
   --pn-warn-rgb: 160 40 16;
+  /* 編輯中的 textarea 底色：亮紙上打白光，暗紙上只能微亮，
+     否則整塊反白蓋過壓暗過的紙面 */
+  --pn-field-focus: rgba(255, 255, 255, 0.35);
 
   position: absolute;
   width: 200px;
@@ -60,6 +63,7 @@
   --pn-ink-rgb: 232 220 174;
   --pn-glow-rgb: 226 190 96;
   --pn-warn-rgb: 255 140 108;
+  --pn-field-focus: rgba(255, 255, 255, 0.07);
 }
 
 /* 上緣膠帶條——強化「貼在頁面上」的實體感 */
@@ -203,13 +207,14 @@ body.uep-pin-unpin-hover .uep-island--storage {
   resize: none;
   padding: 4px 6px;
   cursor: text;
-  /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋） */
-  caret-color: #a02810;
+  /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋）。
+     跟著 --pn-warn-rgb 走，暗紙上會換成亮橘紅，否則同樣沒入紙面 */
+  caret-color: rgb(var(--pn-warn-rgb));
 }
 
 .uep-pinned-note__textarea:focus {
   border-color: rgb(var(--pn-warn-rgb) / 0.6);
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--pn-field-focus);
 }
 
 /* 錨點失效提示 */
@@ -291,19 +296,6 @@ body.uep-pin-unpin-hover .uep-island--storage {
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-/* 深色主題適配 */
-[data-theme='dark'] .uep-pinned-note {
-  background: #e8d78a;
-}
-
-[data-theme='dark'] .uep-pinned-note.is-stale {
-  background: #d9b070;
-}
-
-[data-theme='dark'] .uep-pinned-note.is-nearest {
-  background: #e8d178;
 }
 
 @media (prefers-reduced-motion: reduce) {
