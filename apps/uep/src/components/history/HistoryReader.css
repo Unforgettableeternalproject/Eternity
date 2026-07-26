@@ -146,12 +146,23 @@
 }
 
 .history-reader {
+  /* 史學紅的「可讀墨色」：--history-main 是深棕，zone 主色沒有暗色版本
+     （tokens.css 的深色主題只覆寫 tint／stroke／atmo），直接落在暗底上
+     的文字與細標籤幾乎看不見。改 zone token 會波及整個史學區，所以在
+     reader 內另立一階，深色換成同色系的亮階。
+     互動式嵌入與「上次位置」標記共用這一條，避免各自長出一套。 */
+  --history-ink: var(--history-main);
+
   height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
   color: var(--ink);
   overflow: hidden;
+}
+
+[data-theme='dark'] .history-reader {
+  --history-ink: var(--history-soft);
 }
 
 .history-topbar {
@@ -538,21 +549,10 @@
 /* === 互動式嵌入（Epic 2 S4）===
    只有「已解鎖」的 entity 才有樣式與行為；
    未解鎖的 entity span 不帶啟用屬性，就是普通文字。
-
-   墨色走專屬 token：--history-main 是深棕，落在暗色底上幾乎看不出
-   是可點的（zone 主色沒有暗色版本，直接改 token 會波及整個史學區），
-   深色模式改用同色系的亮階。 */
-.history-prose {
-  --entity-ref-ink: var(--history-main);
-}
-
-[data-theme='dark'] .history-prose {
-  --entity-ref-ink: var(--history-soft);
-}
-
+   墨色走 --history-ink（見 .history-reader）。 */
 .history-prose span[data-uep-entity-active] {
   cursor: pointer;
-  color: var(--entity-ref-ink);
+  color: var(--history-ink);
   text-decoration: underline dotted;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
@@ -562,15 +562,13 @@
 }
 
 .history-prose span[data-uep-entity-active]:hover {
-  text-shadow: 0 0 10px
-    color-mix(in srgb, var(--entity-ref-ink) 45%, transparent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-ink) 45%, transparent);
 }
 
 .history-prose span[data-uep-entity-active]:focus-visible {
-  outline: 1px dotted var(--entity-ref-ink);
+  outline: 1px dotted var(--history-ink);
   outline-offset: 2px;
-  text-shadow: 0 0 10px
-    color-mix(in srgb, var(--entity-ref-ink) 45%, transparent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-ink) 45%, transparent);
 }
 
 /* === 遺落的書籤 — 導航樹特殊條目（S6-2） === */
@@ -691,7 +689,7 @@
   width: clamp(72px, 7vw, 104px);
   height: 2px;
   /* 靠標籤那端實色、探向右緣淡出，末端落一顆針腳（同 clue 連接線） */
-  background: linear-gradient(90deg, var(--history-main), transparent);
+  background: linear-gradient(90deg, var(--history-ink), transparent);
   opacity: 0.7;
   transition:
     opacity 0.2s,
@@ -706,7 +704,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--history-main);
+  background: var(--history-ink);
   opacity: 0.85;
   transform: translate(50%, -50%);
 }
@@ -717,10 +715,10 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
-  color: var(--history-main);
+  color: var(--history-ink);
   padding: 5px 12px;
-  background: color-mix(in srgb, var(--history-main) 10%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--history-main) 30%, transparent);
+  background: color-mix(in srgb, var(--history-ink) 10%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--history-ink) 45%, transparent);
   opacity: 0.85;
   transition:
     opacity 0.2s,
@@ -735,7 +733,7 @@
 
 .history-scroll-marker:hover .history-scroll-marker-label {
   opacity: 1;
-  background: color-mix(in srgb, var(--history-main) 22%, var(--bg-card));
+  background: color-mix(in srgb, var(--history-ink) 22%, var(--bg-card));
   transform: translateX(-4px);
 }
 
