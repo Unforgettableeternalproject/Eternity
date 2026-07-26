@@ -13,11 +13,14 @@ import {
   buildChapterEntries,
   buildTreeIndex,
   buildUnlockedChapterList,
+  collectTocCounts,
   deriveLastRead,
+  diffTocCounts,
   displayProgressPct,
   navigateToHistoryPage,
   parentOf,
   progressRatio,
+  tocCount,
   volumeOf,
 } from '../historyIslandData';
 import type { HistoryTreeNode } from '../historyIslandData';
@@ -389,5 +392,77 @@ describe('navigateToHistoryPage（/history 頁內）', () => {
     const params = new URLSearchParams(window.location.search);
     expect(params.get('page')).toBe('u/1');
     expect(popped).toBe(1);
+  });
+});
+
+describe('tocCount（S9-D.6 目錄頁碼字串）', () => {
+  it('locked 顯示「封」，即使 completed/total 有值也不顯示數字', () => {
+    expect(tocCount({ completed: 3, total: 10, locked: true })).toBe('封');
+  });
+
+  it('未鎖定顯示 completed/total', () => {
+    expect(tocCount({ completed: 3, total: 10 })).toBe('3/10');
+    expect(tocCount({ completed: 0, total: 5, locked: false })).toBe('0/5');
+  });
+
+  it('未帶 locked 欄位時視同未鎖定', () => {
+    expect(tocCount({ completed: 1, total: 1 })).toBe('1/1');
+  });
+});
+
+describe('collectTocCounts', () => {
+  it('同時收 chapter 與其底下 arcs 的頁碼快照', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    const items = buildUnlockedChapterList(index, createInitialState(), null);
+    const counts = collectTocCounts(items);
+
+    expect(counts['history/u/c1']).toBe(tocCount(items[0]));
+    expect(Object.keys(counts)).toContain('history/u/c1/a1');
+    for (const arc of items[0].arcs) {
+      expect(counts[arc.node.id]).toBe(tocCount(arc));
+    }
+  });
+
+  it('沒有已解鎖 chapter 時回傳空物件', () => {
+    // 拿一個沒有任何已解鎖 chapter 的樹（只剩鎖定/隱藏）驗證退化情形
+    const lockedOnlyIndex = buildTreeIndex([
+      { ...buildZoneTree()[0], children: buildZoneTree()[0].children.slice(1) },
+    ]);
+    const items = buildUnlockedChapterList(
+      lockedOnlyIndex,
+      createInitialState(),
+      null
+    );
+    expect(collectTocCounts(items)).toEqual({});
+  });
+});
+
+describe('diffTocCounts（S9-D.6 前後快照比對）', () => {
+  it('值相同不算變動', () => {
+    const prev = { a: '1/2', b: '封' };
+    const next = { a: '1/2', b: '封' };
+    expect(diffTocCounts(prev, next)).toEqual([]);
+  });
+
+  it('值不同時列為變動', () => {
+    const prev = { a: '1/2', b: '封' };
+    const next = { a: '2/2', b: '封' };
+    expect(diffTocCounts(prev, next)).toEqual(['a']);
+  });
+
+  it('首次出現的條目（prev 沒有該 key）不算變動', () => {
+    const prev = { a: '1/2' };
+    const next = { a: '1/2', b: '0/3' };
+    expect(diffTocCounts(prev, next)).toEqual([]);
+  });
+
+  it('locked→unlocked（「封」變成「0/12」）也算一次變動', () => {
+    const prev = { a: '封' };
+    const next = { a: '0/12' };
+    expect(diffTocCounts(prev, next)).toEqual(['a']);
+  });
+
+  it('空前後快照回傳空陣列', () => {
+    expect(diffTocCounts({}, {})).toEqual([]);
   });
 });
