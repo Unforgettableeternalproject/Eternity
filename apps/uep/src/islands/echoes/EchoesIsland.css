@@ -135,7 +135,7 @@
   --pool-sheen: rgba(255, 255, 255, 0.75);
   /* 背景細線的墨色（其他四座島都有紙紋／機殼紋，這座淡到幾乎只是質地） */
   --pool-line-rgb: 40 70 95;
-  --pool-line-alpha: 0.03;
+  --pool-line-alpha: 0.05;
   --pool-line-blend: multiply;
 
   /* 波形輪廓／水下透光／回聲球——在淺水上白色會整個消失，各自換一組。
@@ -217,7 +217,7 @@
   --pool-cast: rgba(0, 0, 0, 0.5);
   --pool-sheen: rgba(255, 255, 255, 0.28);
   --pool-line-rgb: 255 255 255;
-  --pool-line-alpha: 0.022;
+  --pool-line-alpha: 0.04;
   --pool-line-blend: overlay;
 
   --wave-a: color-mix(
@@ -263,20 +263,30 @@
 }
 
 /* ── 背景細線 ──
- * 五座島各有自己的質地（紙紋、機殼紋）；這座只需要「有東西在那裡」的程度，
- * 比其他島再淡一半（艾斯維爾 2026-07-26：echo 也可以有，但淡一點）。 */
+ * 五座島各有自己的質地；這座是**波狀**的細線，與球心那兩道波形輪廓同一
+ * 語彙——斜的直線紋是 storage 那張紙的講法（艾斯維爾 2026-07-26）。
+ * 比其他島淡：線是波狀的，覆蓋面積本來就比斜紋少一半。
+ *
+ * 形狀走 mask、顏色走 background——data URI 裡的 stroke 吃不到 CSS 變數，
+ * 反過來做才能讓兩個模式共用同一張圖。
+ *
+ * z-index: -1 是重點：它是水裡的質地，不是蓋在器物上的紙紋，所以退到
+ * 所有內容之下——播放球、曲名、控制列都在它上面（艾斯維爾 2026-07-26）。
+ * 父層的 isolation: isolate 讓 -1 只退到島背景之上，不會漏到島外。 */
 .uep-eisland::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: -1;
   mix-blend-mode: var(--pool-line-blend);
-  background: repeating-linear-gradient(
-    94deg,
-    rgb(var(--pool-line-rgb) / var(--pool-line-alpha)) 0 1.5px,
-    transparent 1.5px 7px
-  );
+  background: rgb(var(--pool-line-rgb) / var(--pool-line-alpha));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='8'%3E%3Cpath d='M0 5Q6.5 2 13 5T26 5' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='8'%3E%3Cpath d='M0 5Q6.5 2 13 5T26 5' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  -webkit-mask-size: 26px 8px;
+  mask-size: 26px 8px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
 }
 
 /* ── 島頭（＝拖曳把手）──
