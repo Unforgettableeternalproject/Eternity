@@ -2,11 +2,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { deriveSongCategory } from './echoesCategory';
+
 export interface EchoSongChoice {
   id: string;
   title: string;
   audioFile: string;
+  /** 角色歌／區域歌的實體身分 */
   entityKey?: string;
+  /** 劇情歌的劇情點身分（與 entityKey 依 songType 互斥） */
+  storyKey?: string;
   clusterId: string;
   clusterTitle: string;
   subcategoryTitle?: string;
@@ -59,25 +64,18 @@ export function flattenEchoSongs(tree: TreeNode[]): EchoSongChoice[] {
             typeof node.metadata?.entityKey === 'string'
               ? node.metadata.entityKey.trim()
               : '';
+          const storyKey =
+            typeof node.metadata?.storyKey === 'string'
+              ? node.metadata.storyKey.trim()
+              : '';
           const clusterId =
             nextCluster?.id || node.id.split('/')[1] || 'special';
-          const category =
-            typeof node.metadata?.category === 'string'
-              ? node.metadata.category.trim()
-              : '';
-          const songType =
-            category ||
-            (clusterId === 'stories'
-              ? 'story'
-              : clusterId === 'areas'
-                ? 'area'
-                : clusterId === 'characters'
-                  ? 'character'
-                  : 'special');
-          const isStory = songType === 'story' || clusterId === 'stories';
+          // cluster 是分類的唯一來源；metadata.category 只是鏡像，不參與判定
+          const songType = deriveSongCategory(clusterId);
+          const isStory = songType === 'story';
           // 特殊回憶不由 History Echo Spot 掛載；非劇情歌則必須先有
           // entityKey，確保 spot 與互動嵌入共用同一實體身分。
-          if (songType === 'special' || clusterId === 'special') continue;
+          if (songType === 'special') continue;
           if (!isStory && !entityKey) continue;
           const duration = Number(
             (node.metadata?.audioMeta as Record<string, unknown> | undefined)
@@ -93,7 +91,14 @@ export function flattenEchoSongs(tree: TreeNode[]): EchoSongChoice[] {
             id: node.id,
             title: node.title,
             audioFile,
-            ...(entityKey ? { entityKey } : {}),
+            // 依 songType 二擇一輸出：劇情歌帶 storyKey，其餘帶 entityKey
+            ...(isStory
+              ? storyKey
+                ? { storyKey }
+                : {}
+              : entityKey
+                ? { entityKey }
+                : {}),
             clusterId,
             clusterTitle: nextCluster?.title || '未分類',
             songType,

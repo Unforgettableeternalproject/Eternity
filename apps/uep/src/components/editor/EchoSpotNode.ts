@@ -9,7 +9,10 @@ export interface EchoSpotAttributes {
   spotId: string;
   songId: string;
   songUrlKey: string;
+  /** 角色歌／區域歌的實體身分（`songType` 非 story 時使用） */
   entityKey?: string;
+  /** 劇情歌的劇情點身分（`songType === 'story'` 時使用，與 entityKey 互斥） */
+  storyKey?: string;
   title?: string;
   clusterId?: string;
   songType?: string;
@@ -95,6 +98,12 @@ const EchoSpotNode = Node.create({
         parseHTML: (el) => el.getAttribute('data-entity-key') || '',
         renderHTML: (attrs) =>
           attrs.entityKey ? { 'data-entity-key': attrs.entityKey } : {},
+      },
+      storyKey: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-story-key') || '',
+        renderHTML: (attrs) =>
+          attrs.storyKey ? { 'data-story-key': attrs.storyKey } : {},
       },
       title: {
         default: '',

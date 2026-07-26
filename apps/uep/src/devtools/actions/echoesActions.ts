@@ -2,9 +2,9 @@
  * Echoes 收藏池與 spoiler gate DevTools actions（Issue #41 驗收補強）
  *
  * 動機：`progress:grant-flags` 需要事先知道每首歌的旗標命名慣例
- *       （`{entityKey}:song` 或 `song:{songId}`），驗收 spoiler gate
- *       時反覆推導手動輸入太吃 memory。這一組 action 把命名慣例包起來，
- *       Test 環境快速切換歌曲的收藏狀態。
+ *       （劇情歌 `{storyKey}:song`、其餘 `{entityKey}:song`），驗收
+ *       spoiler gate 時反覆推導手動輸入太吃 memory。這一組 action 把
+ *       命名慣例包起來，Test 環境快速切換歌曲的收藏狀態。
  *
  * 相關檔案：
  *   - audio/spoilerResolver.ts — deriveSongUnlockFlag、resolveSpoilerLevel
@@ -20,18 +20,48 @@ import { getRegistry } from '../actionRegistry';
 
 const GROUP = 'Echoes 收藏池';
 
-/** 詢問使用者輸入 songId + entityKey（entityKey 可留空）。 */
-function promptSongIdentity(): { songId: string; entityKey?: string } | null {
-  const songId = window.prompt('輸入 songId（例：xavier-01）', '');
-  if (!songId || !songId.trim()) return null;
-  const entityKey = window.prompt(
-    '輸入 entityKey（無則留空，用於角色歌 / 區域歌）',
-    ''
+interface SongIdentity {
+  songType: string;
+  entityKey?: string;
+  storyKey?: string;
+}
+
+/**
+ * 詢問歌曲身分。分類決定要問哪一種 key——旗標推導對兩者的處理不同，
+ * 問錯就會推出 `null`（無旗標）而不是使用者預期的字串。
+ */
+function promptSongIdentity(): SongIdentity | null {
+  const songType = window.prompt(
+    '輸入分類（story / character / area）',
+    'character'
   );
-  return {
-    songId: songId.trim(),
-    entityKey: entityKey?.trim() || undefined,
-  };
+  if (!songType || !songType.trim()) return null;
+  const normalized = songType.trim();
+
+  if (normalized === 'story') {
+    const storyKey = window.prompt('輸入劇情點 key（例：rain-sea-finale）', '');
+    return { songType: normalized, storyKey: storyKey?.trim() || undefined };
+  }
+  const entityKey = window.prompt('輸入 entityKey（例：xavier-colsono）', '');
+  return { songType: normalized, entityKey: entityKey?.trim() || undefined };
+}
+
+/** 推導旗標；沒有 key 時提示並回傳 null（該歌永遠無法進收藏池）。 */
+function deriveOrWarn(identity: SongIdentity): string | null {
+  const flag = deriveSongUnlockFlag(
+    identity.songType,
+    identity.entityKey,
+    identity.storyKey
+  );
+  if (!flag) {
+    const field = identity.songType === 'story' ? '劇情點 key' : 'entityKey';
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Echoes DevTools] 沒有${field}，這個組合推導不出收藏旗標——` +
+        '該歌只能靠 Echo Spot 現場插播，不會進入收藏池'
+    );
+  }
+  return flag;
 }
 
 export function registerEchoesActions(): void {
@@ -41,12 +71,12 @@ export function registerEchoesActions(): void {
       group: GROUP,
       id: 'echoes:grant-song-collected',
       label: '授予歌曲收藏（可加入佇列）',
-      description:
-        '輸入 songId + 可選 entityKey，自動推導 unlock flag 並授予進度',
+      description: '輸入分類 + 對應的 key，自動推導 unlock flag 並授予進度',
       execute: () => {
         const identity = promptSongIdentity();
         if (!identity) return;
-        const flag = deriveSongUnlockFlag(identity.songId, identity.entityKey);
+        const flag = deriveOrWarn(identity);
+        if (!flag) return;
         window.__uepProgress?.grantFlags([flag]);
         // eslint-disable-next-line no-console
         console.log(`[Echoes DevTools] 已授予收藏旗標: ${flag}`);
@@ -56,11 +86,12 @@ export function registerEchoesActions(): void {
       group: GROUP,
       id: 'echoes:relock-song-collected',
       label: '撤銷歌曲收藏（移出收藏池）',
-      description: '輸入 songId + 可選 entityKey，推導 unlock flag 後撤銷',
+      description: '輸入分類 + 對應的 key，推導 unlock flag 後撤銷',
       execute: () => {
         const identity = promptSongIdentity();
         if (!identity) return;
-        const flag = deriveSongUnlockFlag(identity.songId, identity.entityKey);
+        const flag = deriveOrWarn(identity);
+        if (!flag) return;
         window.__uepProgress?.revokeFlags([flag]);
         // eslint-disable-next-line no-console
         console.log(`[Echoes DevTools] 已撤銷收藏旗標: ${flag}`);
@@ -74,11 +105,13 @@ export function registerEchoesActions(): void {
       execute: async () => {
         const identity = promptSongIdentity();
         if (!identity) return;
-        const flag = deriveSongUnlockFlag(identity.songId, identity.entityKey);
+        const flag = deriveOrWarn(identity);
+        const key = identity.storyKey ?? identity.entityKey ?? '(none)';
         // eslint-disable-next-line no-console
         console.log(
-          `[Echoes DevTools] songId=${identity.songId}, entityKey=${identity.entityKey ?? '(none)'} → flag=${flag}`
+          `[Echoes DevTools] songType=${identity.songType}, key=${key} → flag=${flag ?? '(無旗標)'}`
         );
+        if (!flag) return;
         try {
           await navigator.clipboard.writeText(flag);
         } catch {

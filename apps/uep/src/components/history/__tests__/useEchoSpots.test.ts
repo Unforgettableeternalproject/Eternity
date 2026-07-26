@@ -59,9 +59,16 @@ const islandMock = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../audio', () => ({
-  // 帶 entityKey 的旗標格式——驗證授旗用「現行」entityKey（#2 回歸）
-  deriveSongUnlockFlag: (songId: string, entityKey?: string | null) =>
-    entityKey ? `entity:${entityKey}` : `song:${songId}`,
+  // 依 songType 二擇一取 key——驗證授旗用「現行」key（#2 回歸）；
+  // 兩者皆無時回 null，呼叫端不得授旗
+  deriveSongUnlockFlag: (
+    songType: string | null | undefined,
+    entityKey?: string | null,
+    storyKey?: string | null
+  ) => {
+    const key = songType === 'story' ? storyKey : entityKey;
+    return key ? `entity:${key}` : null;
+  },
   getAudioStore: () => ({
     interrupt: audioMock.interrupt,
     getState: () => ({ interruptionSnapshot: null }),
@@ -258,6 +265,8 @@ describe('useEchoSpots 提示卡發送時機', () => {
     element.dataset.songUrlKey = 'audio/x.mp3';
     element.dataset.songTitle = '主題曲';
     element.dataset.clusterId = 'characters';
+    element.dataset.songType = 'character';
+    element.dataset.entityKey = 'x-theme';
     return element;
   }
 
@@ -290,7 +299,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
       result.current(markerInfo(spotElement()));
     });
     expect(audioMock.interrupt).toHaveBeenCalledOnce();
-    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    expect(grantFlags).toHaveBeenCalledWith(['entity:x-theme']);
     expect(dispatchSpy).toHaveBeenCalledOnce();
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'played', justCollected: true })
@@ -430,7 +439,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
     unmount();
   });
 
-  it('【回歸 #2】現行已解除 entityKey 綁定 → 授旗退回 songId 旗標', async () => {
+  it('【回歸 #2】現行已解除 entityKey 綁定 → 推導不出旗標，不授旗', async () => {
     stubSongFetch({
       audioFile: 'audio/x.mp3',
       entityKey: null,
@@ -442,7 +451,27 @@ describe('useEchoSpots 提示卡發送時機', () => {
     await act(async () => {
       result.current(markerInfo(element));
     });
-    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    // 沒有現行 key 就沒有收藏旗標——插播照常，但不進收藏池
+    expect(grantFlags).not.toHaveBeenCalled();
+    expect(audioMock.interrupt).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it('劇情歌用 storyKey 授旗', async () => {
+    stubSongFetch({
+      audioFile: 'audio/x.mp3',
+      storyKey: 'rain-sea-finale',
+      songType: 'story',
+      spoilerLevel: 0,
+    });
+    const element = spotElement();
+    (element as HTMLElement).dataset.songType = 'story';
+    (element as HTMLElement).dataset.storyKey = 'rain-sea-finale';
+    const { result, unmount } = renderSpots();
+    await act(async () => {
+      result.current(markerInfo(element));
+    });
+    expect(grantFlags).toHaveBeenCalledWith(['entity:rain-sea-finale']);
     unmount();
   });
 
@@ -452,7 +481,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
     await act(async () => {
       result.current(markerInfo(spotElement()));
     });
-    expect(grantFlags).toHaveBeenCalledWith(['song:echoes/characters/x/theme']);
+    expect(grantFlags).toHaveBeenCalledWith(['entity:x-theme']);
     expect(audioMock.interrupt).not.toHaveBeenCalled();
     expect(dispatchSpy).not.toHaveBeenCalled();
     unmount();

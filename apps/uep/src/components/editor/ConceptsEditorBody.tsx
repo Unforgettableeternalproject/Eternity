@@ -59,7 +59,22 @@ interface ConceptsEditorBodyProps {
   initialData: ConceptsEditorData;
   onDataChange: (data: ConceptsEditorData) => void;
   onDirty: (dirty: boolean) => void;
+  /** 查跨頁既有 entityKey 用；未提供時只做同頁比對 */
+  apiBase?: string;
+  /** 當前頁面 id——跨頁比對要排除自己 */
+  pageId?: string;
 }
+
+/**
+ * 跨頁 entityKey 查詢器：回傳「同 stack 其他頁面已使用的 key」。
+ *
+ * dossier 的唯一性範圍是 variant（同一個實體本來就會在多個時代的檔案
+ * 各有一條），其餘 stack 的範圍是整個 stack。
+ */
+export type ExternalKeyLookup = (variantId?: string) => Set<string>;
+
+const EMPTY_KEYS: Set<string> = new Set();
+const NO_EXTERNAL_KEYS: ExternalKeyLookup = () => EMPTY_KEYS;
 
 // ── 工廠函式 ──────────────────────────────────────────────────────
 
@@ -231,9 +246,69 @@ export default function ConceptsEditorBody({
   initialData,
   onDataChange,
   onDirty,
+  apiBase,
+  pageId,
 }: ConceptsEditorBodyProps) {
   const [data, setData] = useState<ConceptsEditorData>(initialData);
   const lastSavedSnapshot = useRef(JSON.stringify(initialData.data));
+
+  // 跨頁 entityKey：唯一性規則是「每個 stack 內一次」且跨頁生效，
+  // 但各 stack 元件手上只有自己這一頁的資料。records 之類的容器底下
+  // 有好幾頁同屬 dossier，同一個 key 在其中兩頁出現就違規，逐頁比對
+  // 抓不到——所以這裡補一份跨頁的既有 key。
+  //
+  // 後端 upsertPage 另有 409 最終防線；這一層是為了讓編輯者在存檔前
+  // 就看到警告，而不是送出後才被擋。
+  const [externalKeys, setExternalKeys] = useState<Map<string, Set<string>>>(
+    () => new Map()
+  );
+
+  React.useEffect(() => {
+    if (!apiBase) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/concepts/entity-index`);
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          ok: boolean;
+          data?: {
+            entries?: {
+              entityKey?: string;
+              stack?: string;
+              pageId?: string;
+              variantId?: string;
+            }[];
+          };
+        };
+        if (cancelled || !json.ok) return;
+        const byScope = new Map<string, Set<string>>();
+        for (const entry of json.data?.entries ?? []) {
+          if (!entry.entityKey || entry.stack !== stackStyle) continue;
+          // 自己這一頁的 key 由各 stack 元件用當下編輯中的資料判斷，
+          // 索引裡的是存檔前的舊值，混進來會誤報
+          if (pageId && entry.pageId === pageId) continue;
+          const scope = stackStyle === 'dossier' ? (entry.variantId ?? '') : '';
+          const set = byScope.get(scope) ?? new Set<string>();
+          set.add(entry.entityKey);
+          byScope.set(scope, set);
+        }
+        setExternalKeys(byScope);
+      } catch {
+        // 查不到就退回同頁比對——後端 409 仍然擋得住
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, pageId, stackStyle]);
+
+  const lookupExternalKeys = React.useMemo<ExternalKeyLookup>(
+    () => (variantId?: string) =>
+      externalKeys.get(stackStyle === 'dossier' ? (variantId ?? '') : '') ??
+      EMPTY_KEYS,
+    [externalKeys, stackStyle]
+  );
 
   function update(newContent: ConceptsData) {
     const next = { ...data, data: newContent };
@@ -273,6 +348,7 @@ export default function ConceptsEditorBody({
           data={data.data as DossierContent}
           onChange={(d) => update(d)}
           accent={accent}
+          externalKeys={lookupExternalKeys}
         />
       )}
       {stackStyle === 'browser' && (
@@ -280,6 +356,7 @@ export default function ConceptsEditorBody({
           data={data.data as BrowserContent}
           onChange={(d) => update(d)}
           accent={accent}
+          externalKeys={lookupExternalKeys}
         />
       )}
       {stackStyle === 'chrono' && (
@@ -287,6 +364,7 @@ export default function ConceptsEditorBody({
           data={data.data as ChronoContent}
           onChange={(d) => update(d)}
           accent={accent}
+          externalKeys={lookupExternalKeys}
         />
       )}
       {stackStyle === 'diff' && (
@@ -294,6 +372,7 @@ export default function ConceptsEditorBody({
           data={data.data as DiffContent}
           onChange={(d) => update(d)}
           accent={accent}
+          externalKeys={lookupExternalKeys}
         />
       )}
     </div>
@@ -308,10 +387,12 @@ function DossierEditor({
   data,
   onChange,
   accent,
+  externalKeys = NO_EXTERNAL_KEYS,
 }: {
   data: DossierContent;
   onChange: (d: DossierContent) => void;
   accent: string;
+  externalKeys?: ExternalKeyLookup;
 }) {
   const variants: DossierVariant[] =
     data.variants && data.variants.length > 0
@@ -449,6 +530,7 @@ function DossierEditor({
         subcategories={currentVariant.subcategories}
         onSubcatsChange={updateCurrentSubcats}
         accent={accent}
+        externalKeys={externalKeys(currentVariant.id)}
       />
     </>
   );
@@ -462,10 +544,13 @@ function DossierVariantBody({
   subcategories,
   onSubcatsChange,
   accent,
+  externalKeys = EMPTY_KEYS,
 }: {
   subcategories: DossierSubcat[];
   onSubcatsChange: (subcats: DossierSubcat[]) => void;
   accent: string;
+  /** 同 stack 同 variant 的其他頁面已使用的 key */
+  externalKeys?: Set<string>;
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
@@ -611,9 +696,10 @@ function DossierVariantBody({
     activeEntry !== null && group ? group.entries[activeEntry] : null;
 
   // entityKey 唯一性範圍 = 同 variant 內（跨 variant 允許同 key，
-  // 各 variant 的條目維護自己的 revision 鏈——設計文件 §1-3-a）
+  // 各 variant 的條目維護自己的 revision 鏈——設計文件 §1-3-a），
+  // 且跨頁生效——同屬 dossier 的其他頁面用掉的 key 一併算入
   const usedEntityKeys = React.useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set<string>(externalKeys);
     subcategories.forEach((sc, sci) =>
       sc.groups.forEach((g, gi) =>
         g.entries.forEach((ent, ei) => {
@@ -624,7 +710,7 @@ function DossierVariantBody({
       )
     );
     return keys;
-  }, [subcategories, activeTab, activeGroup, activeEntry]);
+  }, [subcategories, activeTab, activeGroup, activeEntry, externalKeys]);
 
   React.useEffect(() => {
     if (subcat && subcat.groups.length === 0)
@@ -992,10 +1078,12 @@ function BrowserEditor({
   data,
   onChange,
   accent,
+  externalKeys = NO_EXTERNAL_KEYS,
 }: {
   data: BrowserContent;
   onChange: (d: BrowserContent) => void;
   accent: string;
+  externalKeys?: ExternalKeyLookup;
 }) {
   // 左側：當前瀏覽路徑（分類層級）
   const [navPath, setNavPath] = useState<string[]>([]);
@@ -1053,15 +1141,15 @@ function BrowserEditor({
 
   const profile = activeIdx !== null ? data.profiles[activeIdx] : null;
 
-  // entityKey 唯一性範圍 = 同頁面內（排除自身）
+  // entityKey 唯一性範圍 = 整個 browser stack（跨頁，排除自身條目）
   const usedEntityKeys = React.useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set<string>(externalKeys());
     data.profiles.forEach((p, i) => {
       if (i === activeIdx) return;
       if (p.entityKey) keys.add(p.entityKey);
     });
     return keys;
-  }, [data.profiles, activeIdx]);
+  }, [data.profiles, activeIdx, externalKeys]);
 
   function updateProfile(patch: Partial<CharacterProfile>) {
     if (activeIdx === null) return;
@@ -1926,10 +2014,12 @@ function ChronoEditor({
   data: rawData,
   onChange,
   accent,
+  externalKeys = NO_EXTERNAL_KEYS,
 }: {
   data: ChronoContent;
   onChange: (d: ChronoContent) => void;
   accent: string;
+  externalKeys?: ExternalKeyLookup;
 }) {
   const data = React.useMemo(() => migrateChronoData(rawData), [rawData]);
   const [activePeriod, setActivePeriod] = useState(0);
@@ -1999,15 +2089,16 @@ function ChronoEditor({
 
   const period = data.periods[activePeriod];
 
-  // entityKey 唯一性範圍 = 同頁面內（排除自身）；chrono 選用不強制（定案 A）
+  // entityKey 唯一性範圍 = 整個 chrono stack（跨頁，排除自身）；
+  // chrono 的 entityKey 選用不強制（定案 A）
   const usedEntityKeys = React.useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set<string>(externalKeys());
     data.periods.forEach((p, i) => {
       if (i === activePeriod) return;
       if (p.entityKey) keys.add(p.entityKey);
     });
     return keys;
-  }, [data.periods, activePeriod]);
+  }, [data.periods, activePeriod, externalKeys]);
 
   function updatePeriod(patch: Partial<ChronoPeriod>) {
     updatePeriods(
@@ -2725,10 +2816,12 @@ function DiffEditor({
   data,
   onChange,
   accent,
+  externalKeys = NO_EXTERNAL_KEYS,
 }: {
   data: DiffContent;
   onChange: (d: DiffContent) => void;
   accent: string;
+  externalKeys?: ExternalKeyLookup;
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
@@ -2872,9 +2965,9 @@ function DiffEditor({
   const entry =
     activeEntry !== null && section ? section.entries[activeEntry] : null;
 
-  // entityKey 唯一性範圍 = 同頁面內（全部分類，排除自身）
+  // entityKey 唯一性範圍 = 整個 diff stack（跨頁、全部分類，排除自身）
   const usedEntityKeys = React.useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set<string>(externalKeys());
     data.subcategories.forEach((sc, sci) =>
       sc.sections.forEach((s, si) =>
         s.entries.forEach((ent, ei) => {
@@ -2885,7 +2978,7 @@ function DiffEditor({
       )
     );
     return keys;
-  }, [data.subcategories, activeTab, activeSection, activeEntry]);
+  }, [data.subcategories, activeTab, activeSection, activeEntry, externalKeys]);
 
   return (
     <div className="ced-section">

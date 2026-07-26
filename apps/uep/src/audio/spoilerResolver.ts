@@ -120,19 +120,30 @@ export function isSongCollected(
 }
 
 /**
- * 自動推導歌曲的收藏旗標（2026-07-11 二輪定案，雙命名空間）：
- * - 有 entityKey 的歌曲 → `{entityKey}:song`（Terminal 的
- *   `{entityKey}:*` 掃描可命中；`song` 固定詞不與 Concepts 的
- *   `:NN` 序號衝突）
- * - 無 entityKey 的純劇情歌 → `song:{songId}`
+ * 自動推導歌曲的收藏旗標。全站只有一套 `{key}:song` 規則：
+ * - 劇情歌 → `{storyKey}:song`
+ * - 角色歌／區域歌 → `{entityKey}:song`
+ *
+ * （`song` 這個固定詞不與 Concepts 的 `:NN` 序號衝突，Terminal 的
+ * `{key}:*` 掃描一樣命中。）
+ *
+ * **沒有對應 key 的歌曲回傳 `null`**——呼叫端見 `null` 就不授旗、也不
+ * 判定收藏。這種歌仍可被 Echo Spot 現場插播（播放只依賴 songId），
+ * 但永遠不會進入收藏池。這是「只有填了 key 才能被對應/解鎖」的直接
+ * 落地：先前的 `song:{songId}` fallback 等於讓沒填 key 的歌也能被收藏，
+ * 與該原則矛盾，已移除。
  *
  * 編輯器不手填旗標字串，echo spot 觸發授旗與收藏判定都走這裡。
  */
 export function deriveSongUnlockFlag(
-  songId: string,
-  entityKey?: string | null
-): string {
+  songType: string | null | undefined,
+  entityKey?: string | null,
+  storyKey?: string | null
+): string | null {
+  if (songType === 'story') {
+    const key = storyKey?.trim();
+    return key ? `${key}:song` : null;
+  }
   const key = entityKey?.trim();
-  if (key) return `${key}:song`;
-  return `song:${songId}`;
+  return key ? `${key}:song` : null;
 }

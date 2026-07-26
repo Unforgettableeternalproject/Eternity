@@ -332,7 +332,7 @@ export default function RichEditor({
   const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
   const isPageType = modeId === 'homepage' && !isEntryMode;
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
-    parseEchoesData(initialMetadata || {})
+    parseEchoesData(initialMetadata || {}, currentPageId)
   );
   const [visualsData, setVisualsData] = useState<VisualsData>(() =>
     parseVisualsData(initialMetadata || {})
@@ -2978,6 +2978,8 @@ export default function RichEditor({
                         initialData={conceptsData}
                         onDataChange={setConceptsData}
                         onDirty={setConceptsDirty}
+                        apiBase={apiBase}
+                        pageId={currentPageId}
                       />
                     )}
                     {isEchoesSubcat && (

@@ -46,10 +46,18 @@ describe('isSongUnlockedInZone', () => {
     ).toBe(true);
   });
 
-  it('推導旗標 song:{id}（無 entityKey）授予 → 解鎖，即使 gate 未過', () => {
+  it('無 key 的歌推導不出旗標 → 只能靠 gate 解鎖', () => {
     const song = makeSong({ requiresFlags: ['completed:history/ch9'] });
+    // 舊的 song:{id} 旗標已不再是判斷依據
     const progress = makeProgress({ flags: ['song:echoes/silent-oath'] });
-    expect(isSongUnlockedInZone(song, progress)).toBe(true);
+    expect(isSongUnlockedInZone(song, progress)).toBe(false);
+    // gate 過了才解鎖
+    expect(
+      isSongUnlockedInZone(
+        song,
+        makeProgress({ flags: ['completed:history/ch9'] })
+      )
+    ).toBe(true);
   });
 
   it('推導旗標 {entityKey}:song 授予 → 解鎖', () => {
@@ -63,7 +71,7 @@ describe('isSongUnlockedInZone', () => {
         makeProgress({ flags: ['xavier-colsono:song'] })
       )
     ).toBe(true);
-    // 有 entityKey 時不吃 song:{id} 旗標（雙命名空間互斥）
+    // 舊的 song:{id} 命名已完全退場，不再是判斷依據
     expect(
       isSongUnlockedInZone(
         song,
@@ -72,10 +80,37 @@ describe('isSongUnlockedInZone', () => {
     ).toBe(false);
   });
 
-  it('entityKey 空白字串 → fallback 到 song:{id}', () => {
+  it('entityKey 空白字串等同沒填 → 推導不出旗標', () => {
     const song = makeSong({ entityKey: '  ', requiresFlags: ['x:y'] });
     const progress = makeProgress({ flags: ['song:echoes/silent-oath'] });
-    expect(isSongUnlockedInZone(song, progress)).toBe(true);
+    expect(isSongUnlockedInZone(song, progress)).toBe(false);
+  });
+
+  it('劇情歌用 storyKey 推導旗標，不吃 entityKey', () => {
+    const song = makeSong({
+      category: 'story',
+      storyKey: 'rain-sea-finale',
+      requiresFlags: ['completed:history/ch9'],
+    });
+    expect(
+      isSongUnlockedInZone(
+        song,
+        makeProgress({ flags: ['rain-sea-finale:song'] })
+      )
+    ).toBe(true);
+  });
+
+  it('沒有 storyKey 的劇情歌永遠推導不出旗標', () => {
+    const song = makeSong({
+      category: 'story',
+      requiresFlags: ['completed:history/ch9'],
+    });
+    expect(
+      isSongUnlockedInZone(
+        song,
+        makeProgress({ flags: ['song:echoes/silent-oath', 'anything:song'] })
+      )
+    ).toBe(false);
   });
 
   it('觀測者 bypass requiresFlags', () => {
@@ -175,7 +210,9 @@ describe('isSongUnlockedInZone — tree-aware（段 0 補修迴歸）', () => {
 
   it('推導旗標凌駕進度鏈（已被授權聽過即解鎖）', () => {
     const { songB, tree } = makeTree();
-    const progress = makeProgress({ flags: ['song:echoes/areas/song-b'] });
+    // songB 掛 entityKey 才有旗標可推導
+    songB.metadata = { entityKey: 'song-b-entity' };
+    const progress = makeProgress({ flags: ['song-b-entity:song'] });
     expect(isSongUnlockedInZone(songB, progress, tree)).toBe(true);
   });
 

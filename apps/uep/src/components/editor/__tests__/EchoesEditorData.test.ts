@@ -86,6 +86,62 @@ describe('Echoes editor metadata contract', () => {
       'echoes/characters/core_chara/測試歌曲'
     );
 
-    expect([...keys]).toEqual(['another-entity']);
+    expect([...keys.entityKeys]).toEqual(['another-entity']);
+  });
+
+  it('兩種 key 分別收集，互不混入', () => {
+    const keys = collectOtherEchoesEntityKeys(
+      [
+        {
+          id: 'echoes/stories/arc',
+          pageType: 'subcategory',
+          children: [
+            {
+              id: 'echoes/stories/arc/story-song',
+              pageType: 'song',
+              metadata: { storyKey: 'rain-sea-finale' },
+            },
+            {
+              id: 'echoes/characters/core/char-song',
+              pageType: 'song',
+              metadata: { entityKey: 'xavier-colsono' },
+            },
+          ],
+        },
+      ],
+      'echoes/stories/arc/current'
+    );
+
+    expect([...keys.storyKeys]).toEqual(['rain-sea-finale']);
+    expect([...keys.entityKeys]).toEqual(['xavier-colsono']);
+  });
+
+  it('分類依 cluster 推導，metadata 裡的過期值不生效', () => {
+    // metadata 說是 character，但頁面實際在 stories cluster 底下
+    const parsed = parseEchoesData(
+      { category: 'character', spoilerLevel: 3 },
+      'echoes/stories/arc/some-song'
+    );
+    expect(parsed.category).toBe('story');
+    // 劇情歌的差別待遇跟著套用
+    expect(parsed.spoilerLevel).toBe(0);
+  });
+
+  it('storyKey 只在劇情歌輸出，entityKey 只在非劇情歌輸出', () => {
+    const story = parseEchoesData(
+      { entityKey: 'should-drop', storyKey: 'rain-sea-finale' },
+      'echoes/stories/arc/song'
+    );
+    const serializedStory = serializeEchoesData(story);
+    expect(serializedStory.storyKey).toBe('rain-sea-finale');
+    expect(serializedStory.entityKey).toBeUndefined();
+
+    const character = parseEchoesData(
+      { entityKey: 'xavier-colsono', storyKey: 'should-drop' },
+      'echoes/characters/core/song'
+    );
+    const serializedCharacter = serializeEchoesData(character);
+    expect(serializedCharacter.entityKey).toBe('xavier-colsono');
+    expect(serializedCharacter.storyKey).toBeUndefined();
   });
 });

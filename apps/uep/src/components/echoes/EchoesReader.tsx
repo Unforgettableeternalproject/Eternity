@@ -1243,7 +1243,7 @@ function EchoesReaderInner() {
 
   // === 從 song page 取得 EchoesData ===
   const songData: EchoesData | null = currentSongPage
-    ? parseEchoesData(currentSongPage.metadata)
+    ? parseEchoesData(currentSongPage.metadata, currentSongPage.id)
     : null;
 
   // === 取得當前歌曲的集群資訊 ===

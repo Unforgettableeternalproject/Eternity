@@ -38,6 +38,8 @@ interface EchoSpotData {
   songId: string;
   songUrlKey: string;
   entityKey: string | null;
+  /** 劇情歌的劇情點身分（與 entityKey 依 songType 互斥） */
+  storyKey: string | null;
   title: string;
   clusterId: string;
   songType: string;
@@ -84,6 +86,7 @@ export function readEchoSpot(element: Element): EchoSpotData | null {
     songId,
     songUrlKey,
     entityKey: element.getAttribute('data-entity-key')?.trim() || null,
+    storyKey: element.getAttribute('data-story-key')?.trim() || null,
     title: element.getAttribute('data-song-title')?.trim() || '未命名的回聲',
     clusterId,
     songType:
@@ -104,6 +107,7 @@ interface EchoSongRefreshPayload {
   audioFile?: unknown;
   title?: unknown;
   entityKey?: unknown;
+  storyKey?: unknown;
   clusterId?: unknown;
   songType?: unknown;
   duration?: unknown;
@@ -145,6 +149,11 @@ export async function refreshEchoSpot(
       entityKey:
         typeof song.entityKey === 'string' && song.entityKey.trim()
           ? song.entityKey
+          : null,
+      // storyKey 同理以現行資料為準（劇情歌的授旗依據）
+      storyKey:
+        typeof song.storyKey === 'string' && song.storyKey.trim()
+          ? song.storyKey
           : null,
       title:
         typeof song.title === 'string' && song.title ? song.title : spot.title,
@@ -319,15 +328,21 @@ export function useEchoSpots({
       const visitToken = visitTokenRef.current;
 
       void refreshEchoSpot(apiBase, spot).then((effective) => {
-        // 授旗以反查後的**現行 entityKey** 進行（反查失敗 effective
-        // 退回快照，行為不劣於前）；不受島掛載、visitToken 限制——
-        // 通過 spot 即算收藏，離頁也不取消。
+        // 授旗以反查後的**現行 key** 進行（反查失敗 effective 退回快照，
+        // 行為不劣於前）；不受島掛載、visitToken 限制——通過 spot 即算
+        // 收藏，離頁也不取消。
+        //
+        // 沒有 key 的歌推導不出旗標：仍照常插播，只是不進收藏池，
+        // 且每次都算「首次」（沒有旗標可以記住聽過）。
         const unlockFlag = deriveSongUnlockFlag(
-          effective.songId,
-          effective.entityKey
+          effective.songType,
+          effective.entityKey,
+          effective.storyKey
         );
-        const newlyUnlocked = !isSongCollected(unlockFlag, progressRef.current);
-        getProgressManager().grantFlags([unlockFlag]);
+        const newlyUnlocked = unlockFlag
+          ? !isSongCollected(unlockFlag, progressRef.current)
+          : true;
+        if (unlockFlag) getProgressManager().grantFlags([unlockFlag]);
 
         if (visitTokenRef.current !== visitToken) return;
         // 反查落地後重驗島掛載——等待期間登出/停用 Echoes 時，audio

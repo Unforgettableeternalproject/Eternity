@@ -49,13 +49,18 @@ export function isSongUnlockedInZone(
   if (!progress) return !isLocked(node);
 
   // 系統推導旗標（echo spot / 嵌入觸發播放時授予）——
-  // 已被授權聽過即解鎖，凌駕容器 gate
-  const entityKey =
-    typeof node.metadata?.entityKey === 'string' &&
-    node.metadata.entityKey.trim()
-      ? node.metadata.entityKey
-      : null;
-  if (progress.flags.includes(deriveSongUnlockFlag(node.id, entityKey))) {
+  // 已被授權聽過即解鎖，凌駕容器 gate。
+  //
+  // 沒有對應 key 的歌曲推導不出旗標（回傳 null），整段跳過改由 gate
+  // 決定可見性——這種歌不會出現在收藏池，只能靠 spot 現場插播。
+  const asString = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim() ? value : null;
+  const unlockFlag = deriveSongUnlockFlag(
+    asString(node.metadata?.category),
+    asString(node.metadata?.entityKey),
+    asString(node.metadata?.storyKey)
+  );
+  if (unlockFlag && progress.flags.includes(unlockFlag)) {
     return true;
   }
 

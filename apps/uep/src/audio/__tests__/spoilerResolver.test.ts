@@ -144,19 +144,34 @@ describe('isSongCollected', () => {
 });
 
 describe('deriveSongUnlockFlag', () => {
-  it('有 entityKey → {entityKey}:song', () => {
-    expect(deriveSongUnlockFlag('echoes/songs/x', 'xavier-colsono')).toBe(
+  it('角色歌／區域歌用 entityKey → {entityKey}:song', () => {
+    expect(deriveSongUnlockFlag('character', 'xavier-colsono')).toBe(
       'xavier-colsono:song'
+    );
+    expect(deriveSongUnlockFlag('area', 'invera')).toBe('invera:song');
+  });
+
+  it('劇情歌用 storyKey → {storyKey}:song', () => {
+    expect(deriveSongUnlockFlag('story', undefined, 'rain-sea-finale')).toBe(
+      'rain-sea-finale:song'
     );
   });
 
-  it('無 entityKey（undefined / null / 空白）→ song:{songId}', () => {
-    expect(deriveSongUnlockFlag('echoes/songs/x')).toBe('song:echoes/songs/x');
-    expect(deriveSongUnlockFlag('echoes/songs/x', null)).toBe(
-      'song:echoes/songs/x'
-    );
-    expect(deriveSongUnlockFlag('echoes/songs/x', '  ')).toBe(
-      'song:echoes/songs/x'
-    );
+  it('劇情歌沒有 storyKey → null（永遠無法進收藏池）', () => {
+    expect(deriveSongUnlockFlag('story')).toBeNull();
+    expect(deriveSongUnlockFlag('story', undefined, null)).toBeNull();
+    expect(deriveSongUnlockFlag('story', undefined, '  ')).toBeNull();
+    // 劇情歌不看 entityKey——即使誤填了也不產生旗標
+    expect(deriveSongUnlockFlag('story', 'stray-entity-key')).toBeNull();
+  });
+
+  it('非劇情歌沒有 entityKey → null', () => {
+    expect(deriveSongUnlockFlag('character')).toBeNull();
+    expect(deriveSongUnlockFlag('area', null)).toBeNull();
+    expect(deriveSongUnlockFlag('special', '  ')).toBeNull();
+    // 非劇情歌不看 storyKey
+    expect(
+      deriveSongUnlockFlag('character', null, 'stray-story-key')
+    ).toBeNull();
   });
 });

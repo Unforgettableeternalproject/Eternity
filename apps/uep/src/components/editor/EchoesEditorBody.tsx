@@ -8,6 +8,7 @@ import {
 import { isSamePagePath } from '../../lib/pagePath';
 import type { GateCondition } from '../../progress';
 import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
+import { deriveSongCategoryFromPageId } from './echoesCategory';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
 import GateConditionEditor from './GateConditionEditor';
 
@@ -37,36 +38,49 @@ export interface AudioMeta {
 interface EchoesTreeNodeForEntityKey {
   id: string;
   pageType?: string;
-  metadata?: { entityKey?: unknown };
+  metadata?: { entityKey?: unknown; storyKey?: unknown };
   children?: EchoesTreeNodeForEntityKey[];
 }
 
-/** 收集同 zone 其他歌曲的 entityKey；page id 比較須容忍 encoded/decoded 差異。 */
+/**
+ * 收集同 zone 其他歌曲已使用的 key（兩種命名空間各一份）；
+ * page id 比較須容忍 encoded/decoded 差異。
+ */
 export function collectOtherEchoesEntityKeys(
   nodes: EchoesTreeNodeForEntityKey[],
   songId: string
-): Set<string> {
-  const keys = new Set<string>();
+): { entityKeys: Set<string>; storyKeys: Set<string> } {
+  const entityKeys = new Set<string>();
+  const storyKeys = new Set<string>();
   const walk = (items: EchoesTreeNodeForEntityKey[]) => {
     for (const node of items) {
       if (node.pageType === 'song' && !isSamePagePath(node.id, songId)) {
         const key = node.metadata?.entityKey;
-        if (typeof key === 'string' && key.trim()) keys.add(key.trim());
+        if (typeof key === 'string' && key.trim()) entityKeys.add(key.trim());
+        const story = node.metadata?.storyKey;
+        if (typeof story === 'string' && story.trim())
+          storyKeys.add(story.trim());
       }
       if (Array.isArray(node.children)) walk(node.children);
     }
   };
   walk(nodes);
-  return keys;
+  return { entityKeys, storyKeys };
 }
 
 export interface EchoesData {
   subtitle: string;
+  /**
+   * 分類。唯一來源是所在 cluster（見 `echoesCategory.ts`），編輯器唯讀，
+   * metadata 裡的值只是推導結果的鏡像。
+   */
   category: string;
   spoilerLevel: number;
   /** spoiler 警告視窗顯示的劇情提示；不可再與 metadata.gate 混用。 */
   spoilerGate: string;
   entityKey?: string;
+  /** 劇情歌的劇情點身分（選填）；與 entityKey 依 category 互斥使用 */
+  storyKey?: string;
   spoilerRevisions: SongSpoilerRevision[];
   audioFile: string | null;
   audioMeta: AudioMeta | null;
@@ -75,12 +89,19 @@ export interface EchoesData {
   appreciationLocked: string;
 }
 
-export function parseEchoesData(metadata: Record<string, any>): EchoesData {
+export function parseEchoesData(
+  metadata: Record<string, any>,
+  /** 歌曲頁 id——有給就依 cluster 推導分類，忽略 metadata 裡可能過期的值 */
+  songId?: string
+): EchoesData {
   // 舊資料曾把提示文案存在 metadata.gate 字串；GateCondition 物件則留給
   // 全站內容可見性，不可當文案讀取。
   const legacySpoilerGate =
     typeof metadata?.gate === 'string' ? metadata.gate : '';
-  const category = metadata?.category || 'character';
+  // cluster 是分類的唯一來源；沒給 songId（測試/舊呼叫）才退回 metadata
+  const category = songId
+    ? deriveSongCategoryFromPageId(songId)
+    : metadata?.category || 'character';
   const spoilerRevisions: SongSpoilerRevision[] = Array.isArray(
     metadata?.spoilerRevisions
   )
@@ -115,6 +136,10 @@ export function parseEchoesData(metadata: Record<string, any>): EchoesData {
       typeof metadata?.entityKey === 'string' && metadata.entityKey.trim()
         ? metadata.entityKey.trim()
         : undefined,
+    storyKey:
+      typeof metadata?.storyKey === 'string' && metadata.storyKey.trim()
+        ? metadata.storyKey.trim()
+        : undefined,
     spoilerRevisions: category === 'story' ? [] : spoilerRevisions,
     audioFile: metadata?.audioFile || null,
     audioMeta: metadata?.audioMeta || null,
@@ -136,7 +161,10 @@ export function serializeEchoesData(data: EchoesData): Record<string, any> {
     category: data.category,
     spoilerLevel: isStory ? 0 : highestConfigured,
     ...(!isStory && data.spoilerGate ? { spoilerGate: data.spoilerGate } : {}),
-    entityKey: data.entityKey || undefined,
+    // 兩種 key 依分類互斥輸出——分類改變時舊那個要跟著卸下，
+    // 否則會留下永遠不被讀取卻仍佔用命名空間的殘值
+    entityKey: isStory ? undefined : data.entityKey || undefined,
+    storyKey: isStory ? data.storyKey || undefined : undefined,
     ...(!isStory && data.spoilerRevisions.length > 0
       ? { spoilerRevisions: data.spoilerRevisions }
       : {}),
@@ -413,6 +441,9 @@ export default function EchoesEditorBody({
   const [otherEntityKeys, setOtherEntityKeys] = useState<Set<string>>(
     () => new Set()
   );
+  const [otherStoryKeys, setOtherStoryKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [entityKeyCheckStatus, setEntityKeyCheckStatus] = useState<
     'loading' | 'ready' | 'error'
   >('loading');
@@ -431,7 +462,7 @@ export default function EchoesEditorBody({
     onDirty();
   };
 
-  /** entityKey 在 Echoes zone 以歌曲頁為唯一範圍；查核未完成時不可存檔。 */
+  /** 兩種 key 在 Echoes zone 都以歌曲頁為唯一範圍；查核未完成時不可存檔。 */
   useEffect(() => {
     const controller = new AbortController();
     setEntityKeyCheckStatus('loading');
@@ -446,7 +477,9 @@ export default function EchoesEditorBody({
         if (!payload?.ok || !Array.isArray(payload.data)) {
           throw new Error('Echoes tree payload 格式錯誤');
         }
-        setOtherEntityKeys(collectOtherEchoesEntityKeys(payload.data, songId));
+        const keys = collectOtherEchoesEntityKeys(payload.data, songId);
+        setOtherEntityKeys(keys.entityKeys);
+        setOtherStoryKeys(keys.storyKeys);
         setEntityKeyCheckStatus('ready');
       })
       .catch(() => {
@@ -457,14 +490,20 @@ export default function EchoesEditorBody({
 
   const validationIssues = useMemo(() => {
     const issues: string[] = [];
-    if (data.entityKey && !ENTITY_KEY_PATTERN.test(data.entityKey)) {
-      issues.push(`entityKey「${data.entityKey}」不是合法 kebab-case`);
-    } else if (data.entityKey && entityKeyCheckStatus === 'loading') {
-      issues.push('正在查核 entityKey 唯一性，請稍候');
-    } else if (data.entityKey && entityKeyCheckStatus === 'error') {
-      issues.push('無法查核 entityKey 唯一性，請重試後再儲存');
-    } else if (data.entityKey && otherEntityKeys.has(data.entityKey)) {
-      issues.push(`entityKey「${data.entityKey}」已被其他歌曲使用`);
+    // 依分類只驗當下生效的那一個 key——storyKey 是選填，沒填不算問題，
+    // 只是該歌無法互聯也無法被收藏（提示文案已在欄位旁說明）
+    const isStory = data.category === 'story';
+    const activeKey = isStory ? data.storyKey : data.entityKey;
+    const label = isStory ? '劇情點 key' : 'entityKey';
+    const taken = isStory ? otherStoryKeys : otherEntityKeys;
+    if (activeKey && !ENTITY_KEY_PATTERN.test(activeKey)) {
+      issues.push(`${label}「${activeKey}」不是合法 kebab-case`);
+    } else if (activeKey && entityKeyCheckStatus === 'loading') {
+      issues.push(`正在查核${label}唯一性，請稍候`);
+    } else if (activeKey && entityKeyCheckStatus === 'error') {
+      issues.push(`無法查核${label}唯一性，請重試後再儲存`);
+    } else if (activeKey && taken.has(activeKey)) {
+      issues.push(`${label}「${activeKey}」已被其他歌曲使用`);
     }
     const levels = data.spoilerRevisions
       .map(revisionSourceLevel)
@@ -474,10 +513,13 @@ export default function EchoesEditorBody({
     }
     return issues;
   }, [
+    data.category,
     data.entityKey,
+    data.storyKey,
     data.spoilerRevisions,
     entityKeyCheckStatus,
     otherEntityKeys,
+    otherStoryKeys,
   ]);
 
   useEffect(() => {
@@ -516,20 +558,6 @@ export default function EchoesEditorBody({
 
   const selectSpoilerLevel = (level: SpoilerLevel) => {
     setSelectedSpoilerLevel(level);
-  };
-
-  const updateCategory = (category: string) => {
-    if (category === 'story') {
-      setSelectedSpoilerLevel(0);
-      update({
-        category,
-        spoilerLevel: 0,
-        spoilerGate: '',
-        spoilerRevisions: [],
-      });
-      return;
-    }
-    update({ category });
   };
 
   const updateAudioMeta = (patch: Partial<AudioMeta>) => {
@@ -661,17 +689,16 @@ export default function EchoesEditorBody({
         <div className="ned-echoes-settings">
           <div>
             <label className="ned-field-label">分類</label>
-            <select
-              className="ned-field"
-              value={data.category}
-              onChange={(e) => updateCategory(e.target.value)}
-            >
+            <select className="ned-field" value={data.category} disabled>
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
                 </option>
               ))}
             </select>
+            <div className="ned-gate-scope-hint">
+              分類由歌曲所在的分區決定，要改分類請把頁面移到別的分區。
+            </div>
           </div>
           <div className="ned-spoiler-level-control">
             <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
@@ -749,26 +776,47 @@ export default function EchoesEditorBody({
           )}
         </div>
       </div>
-      {/* 跨 zone 實體身分。解鎖條件本身由右側 Inspector 的 gate 編輯器管理。 */}
+      {/* 跨 zone 身分。解鎖條件本身由右側 Inspector 的 gate 編輯器管理。 */}
       <div className="ned-echoes-entity-section">
-        <EntityKeyField
-          value={data.entityKey}
-          existingKeys={otherEntityKeys}
-          onChange={(entityKey) => update({ entityKey })}
-        />
-        <div className="ned-gate-scope-hint">
-          entityKey 用於角色／區域嵌入反查歌曲；劇情歌可留空，系統會改用
-          song:頁面ID 推導收藏旗標。
-        </div>
-        {data.entityKey && entityKeyCheckStatus === 'error' && (
-          <button
-            type="button"
-            className="ned-btn-ghost ned-btn-sm"
-            onClick={() => setEntityKeyReload((value) => value + 1)}
-          >
-            重試唯一性查核
-          </button>
+        {data.category === 'story' ? (
+          <>
+            <EntityKeyField
+              value={data.storyKey}
+              existingKeys={otherStoryKeys}
+              onChange={(storyKey) => update({ storyKey })}
+              label="劇情點 key"
+              placeholder="如 rain-sea-finale（選填）"
+              duplicateMessage="此劇情點 key 已被其他歌曲使用"
+            />
+            <div className="ned-gate-scope-hint">
+              未設定劇情點 key 的劇情歌只能透過 Echo Spot
+              插播聆聽，無法進入收藏池、也無法與插圖互聯。同一個 key
+              可以同時掛在 Visuals 的插圖上——歌與圖會被視為同一個劇情點的兩面。
+            </div>
+          </>
+        ) : (
+          <>
+            <EntityKeyField
+              value={data.entityKey}
+              existingKeys={otherEntityKeys}
+              onChange={(entityKey) => update({ entityKey })}
+            />
+            <div className="ned-gate-scope-hint">
+              entityKey 用於角色／區域嵌入反查歌曲，也是收藏旗標的來源；
+              留空的歌曲不會進入收藏池。
+            </div>
+          </>
         )}
+        {(data.entityKey || data.storyKey) &&
+          entityKeyCheckStatus === 'error' && (
+            <button
+              type="button"
+              className="ned-btn-ghost ned-btn-sm"
+              onClick={() => setEntityKeyReload((value) => value + 1)}
+            >
+              重試唯一性查核
+            </button>
+          )}
       </div>
 
       {data.category !== 'story' && (
