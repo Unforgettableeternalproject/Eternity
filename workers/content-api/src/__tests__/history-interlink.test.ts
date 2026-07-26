@@ -273,3 +273,53 @@ describe('scanHistoryInterlinkAnchors — 容錯與輸入形狀', () => {
     expect(anchors).toEqual([]);
   });
 });
+
+/**
+ * production 現況的實際形狀（2026-07-27 從正式 D1 取樣）。
+ *
+ * 固化這一份是為了把「reindex 後 anchors 仍為空」的成因釘死在「還沒
+ * 執行 reindex」，而不是掃描器讀不懂真實資料——兩者的處置完全不同。
+ * 與手寫 fixture 的差異：block 帶 `id` 欄位、entity kind 是 character、
+ * echo spot 是尚未補 storyKey 的舊資料（正確行為是不產生索引列）。
+ */
+describe('scanHistoryInterlinkAnchors — production 實際資料形狀', () => {
+  const REAL_CONTENT = JSON.stringify([
+    {
+      id: 'content',
+      type: 'rich_text',
+      content:
+        '<p>測試測試</p><p><span data-uep-entity="character" data-ref="entity:xavier-colsono">艾斯維爾</span></p>' +
+        '<div data-spot-id="68b28b76-c126-418e-8e1f-52bdfe5293d3" data-song-id="echoes/stories/u.s./similarity"' +
+        ' data-song-url-key="audio/Similarity-mp2mipv1fylf.mp3" data-song-title="相似性" data-cluster-id="stories"' +
+        ' data-song-type="story" data-duration="313.84" data-spoiler-level="0" data-role="echo-spot"' +
+        ' class="tiptap-echo-spot" aria-label="回聲點：相似性"></div>' +
+        '<div data-clue-id="01ef4f60-1014-431f-bc00-ab1d8dda348f" data-target-type="entity" data-target-key="uep"' +
+        ' data-gallery-id="visuals/profiles/characters/unknown" data-gallery-title="U.E.P" data-image-id="mp40masnbxut"' +
+        ' data-image-title="U.E.P 開車車" data-image-file="images/Forklift-mp40marcbin4.png"' +
+        ' data-role="visual-clue-start" class="tiptap-visual-clue is-start" aria-label="視覺線索起點：U.E.P 開車車"></div>',
+    },
+  ]);
+
+  it('entity mark 與 visual clue 照常收錄', () => {
+    const anchors = scanHistoryInterlinkAnchors(REAL_CONTENT);
+    expect(anchors).toContainEqual({
+      anchorKind: 'entity-mark',
+      anchorId: null,
+      keyType: 'entity',
+      keyValue: 'xavier-colsono',
+      label: '艾斯維爾',
+    });
+    expect(anchors).toContainEqual({
+      anchorKind: 'visual-clue-start',
+      anchorId: '01ef4f60-1014-431f-bc00-ab1d8dda348f',
+      keyType: 'entity',
+      keyValue: 'uep',
+      label: 'U.E.P',
+    });
+  });
+
+  it('尚未補 storyKey 的舊 echo spot 不產生索引列（沒有可反查的身分）', () => {
+    const anchors = scanHistoryInterlinkAnchors(REAL_CONTENT);
+    expect(anchors.filter((a) => a.anchorKind === 'echo-spot')).toEqual([]);
+  });
+});

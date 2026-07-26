@@ -393,6 +393,35 @@ export async function backfillHistoryInterlinkIndex(
 }
 
 /**
+ * 掃描全站 storyKey 補建 `story_points` 殼列（migration 0022 的另一半）。
+ *
+ * 殼列平常只在存檔路徑建立，所以 migration 之前就存在的 storyKey——
+ * 或是由遷移腳本直接改寫 metadata 產生的 storyKey——永遠不會有殼列，
+ * S10-3 的編輯 UI 屆時會找不到可 UPDATE 的列。
+ *
+ * `INSERT OR IGNORE` 保證不覆蓋既有的標題／說明，可重複執行。
+ */
+export async function backfillStoryPoints(
+  db: D1Database
+): Promise<{ storyKeys: number }> {
+  const [echoes, visuals] = await Promise.all([
+    buildEchoesEntityIndex(db, { includeHidden: true }),
+    buildVisualsEntityIndex(db, { includeHidden: true }),
+  ]);
+  const candidates: KeyCandidate[] = [...echoes, ...visuals]
+    .filter((entry) => entry.storyKey)
+    .map((entry) => ({
+      keyType: 'story' as const,
+      keyValue: entry.storyKey as string,
+      scope: ZONE_SCOPE,
+      field: 'storyKey',
+    }));
+
+  await ensureStoryPoints(db, candidates);
+  return { storyKeys: new Set(candidates.map((c) => c.keyValue)).size };
+}
+
+/**
  * 清空單一 History 頁的反向索引（軟刪除時呼叫）。
  *
  * 不清的話，已刪除文章的錨點會繼續出現在反查結果裡，把讀者導向

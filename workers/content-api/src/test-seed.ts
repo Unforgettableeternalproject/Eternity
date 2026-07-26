@@ -351,12 +351,17 @@ export async function resetAndSeedTestData(
   // 衍生資料在 pages 落地後重建——清空 + 重建才是完整的重置。
   // 種下什麼就重建什麼：seed 的 History 骨架若含互聯標記就會有錨點，
   // 沒有就是空表，兩種情形都與 pages 現況一致。
-  const storyCandidates = snapshot.pages.flatMap((row) =>
+  const candidates = snapshot.pages.flatMap((row) =>
     extractCandidateKeys(row.area, {
       metadata: parseMetadata(row.metadata),
     })
   );
-  await ensureStoryPoints(db, storyCandidates);
+  await ensureStoryPoints(db, candidates);
+  // 回報的是實際建出的殼列數——ensureStoryPoints 內部只吃 story 候選，
+  // 這裡若對全部候選計數（含 entityKey），數字會比表裡的列多
+  const storyKeys = new Set(
+    candidates.filter((c) => c.keyType === 'story').map((c) => c.keyValue)
+  );
   const interlink = await backfillHistoryInterlinkIndex(db);
 
   return {
@@ -372,7 +377,7 @@ export async function resetAndSeedTestData(
       rootCards: snapshot.rootCards.length,
       siteHomepage: snapshot.siteHomepage?.length ?? 0,
       interlinkAnchors: interlink.anchors,
-      storyPoints: new Set(storyCandidates.map((c) => c.keyValue)).size,
+      storyPoints: storyKeys.size,
     },
     resetUserProgress,
   };

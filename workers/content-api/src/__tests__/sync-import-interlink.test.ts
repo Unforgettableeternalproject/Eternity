@@ -177,6 +177,178 @@ describe('sync/import — History 反向索引', () => {
   });
 });
 
+/**
+ * 更新既有頁時，唯一性檢查與 story point 殼列都依「即將落地的 metadata」
+ * 求值。UPDATE 若不寫 metadata，檢查的就是一個不存在的狀態——同步回報
+ * updated，D1 裡的 key 卻還是舊值，還會替不存在的 storyKey 建出孤兒殼列。
+ */
+describe('sync/import — 更新既有頁的 metadata', () => {
+  async function metadataOf(id: string): Promise<Record<string, unknown>> {
+    const row = await env.CONTENT_DB.prepare(
+      'SELECT metadata FROM pages WHERE id = ?'
+    )
+      .bind(id)
+      .first<{ metadata: string }>();
+    return JSON.parse(row?.metadata || '{}') as Record<string, unknown>;
+  }
+
+  it('來源改了 entityKey → D1 跟著改（不是回報 updated 卻留舊值）', async () => {
+    await importPages([
+      page({
+        id: 'echoes/imp/meta-song',
+        area: 'echoes',
+        pageType: 'song',
+        metadata: { entityKey: 'imp-meta-old', category: 'character' },
+      }),
+    ]);
+    expect((await metadataOf('echoes/imp/meta-song')).entityKey).toBe(
+      'imp-meta-old'
+    );
+
+    const result = await importPages([
+      page({
+        id: 'echoes/imp/meta-song',
+        area: 'echoes',
+        pageType: 'song',
+        contentHash: 'hash-echoes/imp/meta-song-v2',
+        metadata: { entityKey: 'imp-meta-new', category: 'character' },
+      }),
+    ]);
+    expect(result.updated).toBe(1);
+    expect((await metadataOf('echoes/imp/meta-song')).entityKey).toBe(
+      'imp-meta-new'
+    );
+  });
+
+  it('D1 端手動維護的欄位不被來源清掉（合併而非覆蓋）', async () => {
+    await importPages([
+      page({
+        id: 'visuals/imp/meta-gal',
+        area: 'visuals',
+        pageType: 'gallery',
+        metadata: { entityKey: 'imp-meta-gal' },
+      }),
+    ]);
+    // 編輯器補上的欄位：markdown 來源不帶這些
+    await env.CONTENT_DB.prepare(`UPDATE pages SET metadata = ? WHERE id = ?`)
+      .bind(
+        JSON.stringify({
+          entityKey: 'imp-meta-gal',
+          icon: '🖼️',
+          gate: { requiresFlags: ['completed:history/ch1'] },
+        }),
+        'visuals/imp/meta-gal'
+      )
+      .run();
+
+    await importPages([
+      page({
+        id: 'visuals/imp/meta-gal',
+        area: 'visuals',
+        pageType: 'gallery',
+        contentHash: 'hash-visuals/imp/meta-gal-v2',
+        metadata: { entityKey: 'imp-meta-gal-2' },
+      }),
+    ]);
+
+    const meta = await metadataOf('visuals/imp/meta-gal');
+    expect(meta.entityKey).toBe('imp-meta-gal-2');
+    expect(meta.icon).toBe('🖼️');
+    expect(meta.gate).toEqual({ requiresFlags: ['completed:history/ch1'] });
+  });
+
+  it('來源沒帶 metadata 時原樣保留', async () => {
+    await importPages([
+      page({
+        id: 'echoes/imp/meta-keep',
+        area: 'echoes',
+        pageType: 'song',
+        metadata: { entityKey: 'imp-meta-keep', category: 'character' },
+      }),
+    ]);
+
+    await importPages([
+      {
+        ...page({
+          id: 'echoes/imp/meta-keep',
+          area: 'echoes',
+          pageType: 'song',
+          contentHash: 'hash-echoes/imp/meta-keep-v2',
+        }),
+        metadata: undefined,
+      },
+    ]);
+
+    expect((await metadataOf('echoes/imp/meta-keep')).entityKey).toBe(
+      'imp-meta-keep'
+    );
+  });
+
+  it('更新成新的 storyKey → 殼列建在新 key 上', async () => {
+    await importPages([
+      page({
+        id: 'echoes/imp/meta-story',
+        area: 'echoes',
+        pageType: 'song',
+        metadata: { storyKey: 'imp-story-old', category: 'story' },
+      }),
+    ]);
+
+    await importPages([
+      page({
+        id: 'echoes/imp/meta-story',
+        area: 'echoes',
+        pageType: 'song',
+        contentHash: 'hash-echoes/imp/meta-story-v2',
+        metadata: { storyKey: 'imp-story-new', category: 'story' },
+      }),
+    ]);
+
+    expect((await metadataOf('echoes/imp/meta-story')).storyKey).toBe(
+      'imp-story-new'
+    );
+    const row = await env.CONTENT_DB.prepare(
+      'SELECT story_key FROM story_points WHERE story_key = ?'
+    )
+      .bind('imp-story-new')
+      .first();
+    expect(row).toBeTruthy();
+  });
+
+  it('更新成已被別頁佔用的 key → 擋下，metadata 不動', async () => {
+    await importPages([
+      page({
+        id: 'echoes/imp/meta-holder',
+        area: 'echoes',
+        pageType: 'song',
+        metadata: { entityKey: 'imp-meta-taken', category: 'character' },
+      }),
+      page({
+        id: 'echoes/imp/meta-mover',
+        area: 'echoes',
+        pageType: 'song',
+        metadata: { entityKey: 'imp-meta-mine', category: 'character' },
+      }),
+    ]);
+
+    const result = await importPages([
+      page({
+        id: 'echoes/imp/meta-mover',
+        area: 'echoes',
+        pageType: 'song',
+        contentHash: 'hash-echoes/imp/meta-mover-v2',
+        metadata: { entityKey: 'imp-meta-taken', category: 'character' },
+      }),
+    ]);
+
+    expect(result.conflicts).toBe(1);
+    expect(result.updated).toBe(0);
+    expect((await metadataOf('echoes/imp/meta-mover')).entityKey).toBe(
+      'imp-meta-mine'
+    );
+  });
+});
+
 describe('sync/import — key 唯一性把關', () => {
   beforeAll(async () => {
     await importPages([
@@ -402,6 +574,48 @@ describe('POST /api/interlink/reindex — migration 0022 的資料補建', () =>
     expect(res.status).toBe(200);
 
     expect(await anchorsOf('entity', 'imp-legacy')).toHaveLength(1);
+  });
+
+  /**
+   * 殼列平常只在存檔路徑建立——遷移腳本直接改寫 metadata（例如
+   * illustrationId → storyKey）產生的 key 因此永遠沒有殼列，S10-3 的
+   * 編輯 UI 會找不到可 UPDATE 的列。
+   */
+  it('直接寫進 metadata 的 storyKey 在 reindex 後補上殼列', async () => {
+    await env.CONTENT_DB.prepare(
+      `INSERT INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth)
+       VALUES (?, 'visuals', ?, ?, 0, '[]', ?, 'synced', 'gallery', 3)`
+    )
+      .bind(
+        'visuals/legacy/migrated-gal',
+        '遷移過來的插圖',
+        'legacy/migrated-gal',
+        JSON.stringify({ storyKey: 'imp-migrated-story', images: [] })
+      )
+      .run();
+
+    const before = await env.CONTENT_DB.prepare(
+      'SELECT story_key FROM story_points WHERE story_key = ?'
+    )
+      .bind('imp-migrated-story')
+      .first();
+    expect(before).toBeNull();
+
+    await worker.fetch(
+      request('/api/interlink/reindex', {
+        method: 'POST',
+        token: await getAdminToken(),
+      }),
+      env,
+      ctx
+    );
+
+    const after = await env.CONTENT_DB.prepare(
+      'SELECT story_key FROM story_points WHERE story_key = ?'
+    )
+      .bind('imp-migrated-story')
+      .first();
+    expect(after).toBeTruthy();
   });
 
   it('重跑不會累積重複列（冪等）', async () => {

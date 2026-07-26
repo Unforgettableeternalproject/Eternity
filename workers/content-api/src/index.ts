@@ -35,6 +35,7 @@ import {
   rebuildHistoryInterlinkIndex,
   rebuildHistoryInterlinkIndexBatch,
   backfillHistoryInterlinkIndex,
+  backfillStoryPoints,
   clearHistoryInterlinkIndex,
   findInterlinkAnchors,
   findInterlinkDefinitions,
@@ -582,6 +583,38 @@ function claimFingerprint(area: string, candidate: KeyCandidate): string {
   );
 }
 
+/**
+ * 匯入更新既有頁時的 metadata 合併（來源欄位覆蓋，其餘保留）。
+ *
+ * 不整份覆蓋的理由：D1 端有一批**只存在於資料庫**的手動欄位（icon、
+ * gate、hidden、entityKey 等由編輯器維護者），markdown 來源不帶這些，
+ * 整份覆蓋會把它們清光——`migrate-history --clean` 重置 metadata 的
+ * 教訓已經寫進 CLAUDE.md。
+ *
+ * 也不能反過來完全不寫：唯一性檢查與 story point 殼列都是依 incoming
+ * 求值的，寫入時卻沿用舊值的話，兩邊看的根本不是同一份資料。
+ *
+ * 淺層合併即可——metadata 是扁平結構為主，`gate` 這類物件欄位由單一
+ * 來源整份維護，深層合併只會製造出兩邊各半的混血條件。
+ * 壞 JSON 視為空物件（容錯優先，與各 index 掃描器一致）。
+ */
+function mergeImportMetadata(
+  existingRaw: string | null,
+  incoming: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  let existing: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(existingRaw || '{}') as unknown;
+    if (parsed && typeof parsed === 'object') {
+      existing = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // 壞 JSON：當作沒有既有 metadata
+  }
+  if (!incoming) return existing;
+  return { ...existing, ...incoming };
+}
+
 /** POST /api/content/sync/import — 批次匯入頁面（從子倉庫） */
 async function importPages(
   body: { pages: ImportPageRequest[]; sourceCommit?: string },
@@ -593,10 +626,11 @@ async function importPages(
   const skipped: string[] = [];
   const updated: string[] = [];
 
-  // 批次查詢所有要匯入的頁面，避免 N+1 問題
+  // 批次查詢所有要匯入的頁面，避免 N+1 問題。
+  // 一併取 metadata：更新既有頁時要與來源合併（見下方 mergeMetadata）。
   const existingMap = new Map<
     string,
-    Pick<PageRow, 'id' | 'status' | 'base_content_hash'>
+    Pick<PageRow, 'id' | 'status' | 'base_content_hash' | 'metadata'>
   >();
   if (body.pages.length > 0) {
     // D1 支援最多 100 個 bind parameter，分批查詢
@@ -606,10 +640,12 @@ async function importPages(
       const placeholders = chunk.map(() => '?').join(',');
       const result = await db
         .prepare(
-          `SELECT id, status, base_content_hash FROM pages WHERE id IN (${placeholders})`
+          `SELECT id, status, base_content_hash, metadata FROM pages WHERE id IN (${placeholders})`
         )
         .bind(...chunk.map((p) => p.id))
-        .all<Pick<PageRow, 'id' | 'status' | 'base_content_hash'>>();
+        .all<
+          Pick<PageRow, 'id' | 'status' | 'base_content_hash' | 'metadata'>
+        >();
       for (const row of result.results || []) {
         existingMap.set(row.id, row);
       }
@@ -629,6 +665,8 @@ async function importPages(
   interface PendingWrite {
     page: ImportPageRequest;
     kind: 'insert' | 'update';
+    /** 實際會落地的 metadata（更新既有頁時是合併結果） */
+    metadata: Record<string, unknown>;
     candidates: KeyCandidate[];
   }
   const pending: PendingWrite[] = [];
@@ -646,18 +684,31 @@ async function importPages(
 
     if (!existing) {
       // 新頁面：直接匯入
+      const metadata = page.metadata || {};
       pending.push({
         page,
         kind: 'insert',
-        candidates: extractCandidateKeys(page.area, page),
+        metadata,
+        candidates: extractCandidateKeys(page.area, {
+          metadata,
+          content: page.content,
+        }),
       });
     } else if (existing.status === 'synced') {
       // 同步中的頁面：來源有變更時自動更新
       if (existing.base_content_hash !== page.contentHash) {
+        const metadata = mergeImportMetadata(existing.metadata, page.metadata);
         pending.push({
           page,
           kind: 'update',
-          candidates: extractCandidateKeys(page.area, page),
+          metadata,
+          // 候選必須從**實際會落地的** metadata 抽：拿 incoming 檢查卻寫入
+          // 別的值，等於檢查了一個不存在的狀態——來源改了 key 時會回報
+          // updated 但 D1 仍是舊值，並替不存在的 storyKey 建出孤兒殼列
+          candidates: extractCandidateKeys(page.area, {
+            metadata,
+            content: page.content,
+          }),
         });
       } else {
         skipped.push(page.id);
@@ -770,7 +821,7 @@ async function importPages(
             JSON.stringify(page.content),
             page.sourceFile,
             page.contentHash,
-            JSON.stringify(page.metadata || {}),
+            JSON.stringify(entry.metadata),
             page.parentId || null,
             page.depth || 0,
             page.pageType || 'page',
@@ -783,13 +834,14 @@ async function importPages(
       updateStmts.push(
         db
           .prepare(
-            `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, updated_at = ? WHERE id = ?`
+            `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, metadata = ?, updated_at = ? WHERE id = ?`
           )
           .bind(
             page.title,
             JSON.stringify(page.content),
             page.contentHash,
             page.sourceFile,
+            JSON.stringify(entry.metadata),
             now,
             page.id
           )
@@ -1666,15 +1718,22 @@ export default {
       return getSyncStatus(env.CONTENT_DB, cors);
     }
 
-    // POST /api/interlink/reindex — 全站重建 History 反向索引（S10-1）
+    // POST /api/interlink/reindex — 補建 migration 0022 的兩張表（S10-1）
     //
-    // migration 0022 只建了空表，套用後既有文章的錨點一筆都查不到，
-    // 觸發模型對所有舊內容靜默失效。backfill 不能寫進 SQL migration：
-    // 錨點藏在 content 的 TipTap JSON 裡，得逐頁解析。
-    // 冪等（整頁 DELETE+INSERT），部署後與 test reset 後都可直接重跑。
+    // migration 只建了空表，套用後既有文章的錨點一筆都查不到，觸發模型
+    // 對所有舊內容靜默失效；既有的 storyKey 也不會有 story_points 殼列
+    // （殼列平常只在存檔路徑建立），S10-3 的編輯 UI 會無列可更新。
+    // 兩者都不能寫進 SQL migration：錨點藏在 content 的 TipTap JSON 裡、
+    // storyKey 藏在 metadata JSON 裡，都要逐頁解析。
+    // 冪等（整頁 DELETE+INSERT／INSERT OR IGNORE），可重複執行。
     if (path === '/api/interlink/reindex' && request.method === 'POST') {
-      const result = await backfillHistoryInterlinkIndex(env.CONTENT_DB);
-      return jsonResponse({ ok: true, data: result }, 200, cors);
+      const index = await backfillHistoryInterlinkIndex(env.CONTENT_DB);
+      const story = await backfillStoryPoints(env.CONTENT_DB);
+      return jsonResponse(
+        { ok: true, data: { ...index, ...story } },
+        200,
+        cors
+      );
     }
 
     // ---- 最近更新路由（僅葉子頁面）----

@@ -262,6 +262,25 @@ describe('POST /api/test/reset', () => {
                 updated_at: now,
                 deleted_at: null,
               },
+              {
+                id: 'echoes/seeded/character-song',
+                area: 'echoes',
+                title: '種下的角色歌',
+                slug: 'seeded/character-song',
+                sort_order: 1,
+                content: '[]',
+                source_file: null,
+                base_content_hash: null,
+                status: 'synced',
+                metadata:
+                  '{"entityKey":"seeded-entity","category":"character"}',
+                parent_id: null,
+                depth: 0,
+                page_type: 'song',
+                created_at: now,
+                updated_at: now,
+                deleted_at: null,
+              },
             ],
             rootProjects: [],
             rootLinks: [],
@@ -275,9 +294,20 @@ describe('POST /api/test/reset', () => {
       ctx
     );
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { data?: { tables: string[] } };
+    const json = (await res.json()) as {
+      data?: {
+        tables: string[];
+        seeded: { interlinkAnchors: number; storyPoints: number };
+      };
+    };
     expect(json.data?.tables).toContain('history_interlink_index');
     expect(json.data?.tables).toContain('story_points');
+    // 回報的數字必須對得上表內容：一個錨點、一個劇情點
+    // （entityKey 的那首角色歌不算 story point）
+    expect(json.data?.seeded).toMatchObject({
+      interlinkAnchors: 1,
+      storyPoints: 1,
+    });
 
     // 殘留清光
     const stale = await env.CONTENT_DB.prepare(
