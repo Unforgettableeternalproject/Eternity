@@ -627,12 +627,21 @@
 
 /* === 滾動軸「上次閱讀位置」標記 ===
  * 掛在 .history-main（position: relative、不滾動）而非 .history-content
- * 滾動容器內——top:% 對映可視高度，像滾動軸上的書籤，不隨內容捲動（S6-2）。 */
+ * 滾動容器內——top:% 對映可視高度，像滾動軸上的書籤，不隨內容捲動（S6-2）。
+ *
+ * 標籤本體內縮、連接線探向右緣（比照 Visual Clue 插卡的語彙）：貼齊右緣
+ * 時標籤會被浮島 dock 的 chip 直接蓋住（dock 是 right:14px + 44px chip，
+ * 佔住右緣 14~58px），而 dock 一直都在、標記的 top 又跟著閱讀位置跑，
+ * 撞上只是遲早。線寬起跳 72px 就是為了讓標籤整個落在 chip 帶之外。 */
 .history-scroll-marker {
   position: absolute;
   right: 0;
-  z-index: 20;
+  /* 高於 Visual Clue 插卡（21）：兩者現在共用右側留白，垂直撞上時
+     優先讓導航用的標記可見，插卡本來就是可 hover 展開的裝飾層 */
+  z-index: 22;
   display: flex;
+  /* DOM 是「線 → 標籤」，視覺要「標籤 ← 線」 */
+  flex-direction: row-reverse;
   align-items: center;
   gap: 0;
   padding: 0;
@@ -677,14 +686,29 @@
 }
 
 .history-scroll-marker-line {
+  position: relative;
   display: block;
-  width: 48px;
+  width: clamp(72px, 7vw, 104px);
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--history-main));
+  /* 靠標籤那端實色、探向右緣淡出，末端落一顆針腳（同 clue 連接線） */
+  background: linear-gradient(90deg, var(--history-main), transparent);
   opacity: 0.7;
   transition:
     opacity 0.2s,
     width 0.2s;
+}
+
+.history-scroll-marker-line::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--history-main);
+  opacity: 0.85;
+  transform: translate(50%, -50%);
 }
 
 .history-scroll-marker-label {
@@ -706,13 +730,26 @@
 
 .history-scroll-marker:hover .history-scroll-marker-line {
   opacity: 1;
-  width: 64px;
+  width: clamp(88px, 8.5vw, 124px);
 }
 
 .history-scroll-marker:hover .history-scroll-marker-label {
   opacity: 1;
   background: color-mix(in srgb, var(--history-main) 22%, var(--bg-card));
   transform: translateX(-4px);
+}
+
+/* 手機沒有 dock（浮島整組不掛載），標記回到貼齊右緣，
+   內縮只會把標籤推進本來就窄的內文裡 */
+@media (max-width: 760px) {
+  .history-scroll-marker-line,
+  .history-scroll-marker:hover .history-scroll-marker-line {
+    width: 40px;
+  }
+
+  .history-scroll-marker-line::after {
+    display: none;
+  }
 }
 
 /* === 頁面轉場 — 卷軸展開 === */
