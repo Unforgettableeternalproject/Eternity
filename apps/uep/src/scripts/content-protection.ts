@@ -54,6 +54,18 @@ const OVERLAY_DURATION_MS = 1500;
 const OVERLAY_FADE_MS = 400;
 
 /**
+ * 「重新接上訊號」退場總時長（毫秒）
+ *
+ * 遮罩消失不是單純淡出：保護畫面先斷電，露出底下被 backdrop-filter 灰階化
+ * 的內容，再帶著雜訊與短暫抖動逐步還原飽和度——像訊號重新接回來
+ * （艾斯維爾 2026-07-26 回饋）。
+ *
+ * JS 這側只負責在時間到後拆掉 data-restoring，不依賴 animationend——
+ * prefers-reduced-motion 下動畫整組停用，事件永遠不會來。
+ */
+const OVERLAY_RESTORE_MS = 1400;
+
+/**
  * 初始化內容保護
  * 在 DesignLayout 的 <script> 中呼叫
  */
@@ -291,22 +303,18 @@ function setupProtectionOverlay(): void {
       );
     }
 
+    /* 外層只負責定位與退場的訊號還原（backdrop-filter 作用於底下內容）。
+       保護畫面本體移到 __plate：退場時要先讓不透明的畫面斷電消失，
+       才看得到底下正在還原的灰階內容。
+
+       ⚠️ 不要把 filter/backdrop-filter 之類的濾鏡加到 body 或 Reader 容器上
+       去做灰階——那會建立 containing block，讓所有 position:fixed 後代
+       （浮島、對話遮罩）退化為相對定位。灰階一律由這層遮罩自己的
+       backdrop-filter 負責。 */
     .uep-protection-overlay {
       position: fixed;
       inset: 0;
       z-index: 2147483647; /* 頂到最高 */
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1.25rem;
-      /* 底色純黑保底 */
-      background-color: #08080c;
-      /* image 未定義時 fallback 到 gradient placeholder */
-      background-image: var(--uep-protection-image, var(--uep-protection-bg));
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
       color: #f5f5f0;
       font-family: var(--font-family-serif, 'Noto Serif TC', serif);
       letter-spacing: 0.15em;
@@ -324,7 +332,125 @@ function setupProtectionOverlay(): void {
       transition: opacity 0ms;
     }
 
-    .uep-protection-overlay::before {
+    .uep-protection-overlay__plate {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+      /* 底色純黑保底 */
+      background-color: #08080c;
+      /* image 未定義時 fallback 到 gradient placeholder */
+      background-image: var(--uep-protection-image, var(--uep-protection-bg));
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    /* 訊號斷開的雜訊層：feTurbulence 產生的靜態雜訊，退場時閃現後散去。
+       不用 mix-blend-mode——外層 opacity/animation 已建立 stacking context，
+       混合對象只會是同層的 plate（退場時已透明），混不到底下的頁面內容。
+       改用灰階化的半透明雜點直接疊上去，就是斷訊的雪花。 */
+    .uep-protection-overlay__noise {
+      position: absolute;
+      inset: -20%;
+      opacity: 0;
+      pointer-events: none;
+      filter: grayscale(1) contrast(1.5);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.85'/%3E%3C/svg%3E");
+    }
+
+    /* ── 退場：訊號重新接上 ──
+       plate 先斷電（快），外層維持在場並以 backdrop-filter 把底下內容
+       從灰階拉回飽和，雜訊同時閃現散去，中途帶兩次橫向抖動。 */
+    .uep-protection-overlay[data-restoring="true"] {
+      opacity: 1;
+      animation: uep-protection-restore ${OVERLAY_RESTORE_MS}ms
+        cubic-bezier(0.33, 0, 0.2, 1) forwards;
+    }
+
+    .uep-protection-overlay[data-restoring="true"] .uep-protection-overlay__plate {
+      opacity: 0;
+      transition: opacity 200ms ease-out;
+    }
+
+    .uep-protection-overlay[data-restoring="true"] .uep-protection-overlay__noise {
+      animation: uep-protection-noise ${OVERLAY_RESTORE_MS}ms linear forwards;
+    }
+
+    /* 百分比是照 1.4s 的總長換算的：抖動集中在前 170ms（拉長總時間不該
+       讓 glitch 也跟著變慢），灰階則刻意在中段賴著不走，最後三分之一
+       才收乾。 */
+    @keyframes uep-protection-restore {
+      0% {
+        opacity: 1;
+        -webkit-backdrop-filter: grayscale(1) contrast(1.12) brightness(0.82);
+        backdrop-filter: grayscale(1) contrast(1.12) brightness(0.82);
+        transform: translateX(0);
+      }
+      6% { transform: translateX(-3px); }
+      9% { transform: translateX(2px); }
+      12% { transform: translateX(0); }
+      30% {
+        opacity: 0.94;
+        -webkit-backdrop-filter: grayscale(0.94) contrast(1.1) brightness(0.85);
+        backdrop-filter: grayscale(0.94) contrast(1.1) brightness(0.85);
+      }
+      34% { transform: translateX(2px); }
+      38% { transform: translateX(0); }
+      62% {
+        opacity: 0.6;
+        -webkit-backdrop-filter: grayscale(0.62) contrast(1.05) brightness(0.93);
+        backdrop-filter: grayscale(0.62) contrast(1.05) brightness(0.93);
+      }
+      74% { transform: translateX(-1.5px); }
+      78% { transform: translateX(0); }
+      100% {
+        opacity: 0;
+        -webkit-backdrop-filter: grayscale(0) contrast(1) brightness(1);
+        backdrop-filter: grayscale(0) contrast(1) brightness(1);
+        transform: translateX(0);
+      }
+    }
+
+    /* 段落切得比還原曲線細——雜訊要一直在抽動，不能是一團緩慢漂移的紋理 */
+    @keyframes uep-protection-noise {
+      0% { opacity: 0.5; background-position: 0 0; }
+      7% { opacity: 0.34; background-position: 14px -9px; }
+      14% { opacity: 0.48; background-position: -12px 11px; }
+      21% { opacity: 0.36; background-position: 9px 15px; }
+      29% { opacity: 0.46; background-position: -15px -7px; }
+      37% { opacity: 0.33; background-position: 12px 6px; }
+      45% { opacity: 0.42; background-position: -8px 13px; }
+      54% { opacity: 0.3; background-position: 16px -11px; }
+      63% { opacity: 0.34; background-position: -11px 9px; }
+      72% { opacity: 0.22; background-position: 6px -13px; }
+      82% { opacity: 0.16; background-position: -7px 5px; }
+      91% { opacity: 0.08; background-position: 4px 8px; }
+      100% { opacity: 0; background-position: 0 0; }
+    }
+
+    /* 動態效果全停用時退回單純淡出——灰階/雜訊/抖動都是動態語彙 */
+    @media (prefers-reduced-motion: reduce) {
+      .uep-protection-overlay[data-restoring="true"] {
+        animation: none;
+        opacity: 0;
+        transition: opacity ${OVERLAY_FADE_MS}ms ease;
+      }
+
+      .uep-protection-overlay[data-restoring="true"] .uep-protection-overlay__plate {
+        transition: none;
+      }
+
+      .uep-protection-overlay__noise {
+        animation: none !important;
+        opacity: 0 !important;
+      }
+    }
+
+    .uep-protection-overlay__plate::before {
       /* Scanline 質感，圖片放上去時可透過 background-blend-mode 融合 */
       content: '';
       position: absolute;
@@ -340,7 +466,7 @@ function setupProtectionOverlay(): void {
       animation: uep-protection-scanline-flicker 4s ease-in-out infinite;
     }
 
-    .uep-protection-overlay::after {
+    .uep-protection-overlay__plate::after {
       /* 隨機橫向掃描條，緩慢掃過（低調） */
       content: '';
       position: absolute;
@@ -467,9 +593,12 @@ function setupProtectionOverlay(): void {
   overlay.setAttribute('data-visible', 'false');
   overlay.setAttribute('aria-hidden', 'true');
   overlay.innerHTML = `
-    <div class="uep-protection-overlay__title" data-text="觀測失效">觀測失效</div>
-    <div class="uep-protection-overlay__sub">Observation Failed</div>
-    <div class="uep-protection-overlay__mark">UEP · ${new Date().toISOString().slice(0, 10)}</div>
+    <div class="uep-protection-overlay__plate">
+      <div class="uep-protection-overlay__title" data-text="觀測失效">觀測失效</div>
+      <div class="uep-protection-overlay__sub">Observation Failed</div>
+      <div class="uep-protection-overlay__mark">UEP · ${new Date().toISOString().slice(0, 10)}</div>
+    </div>
+    <div class="uep-protection-overlay__noise" aria-hidden="true"></div>
   `;
 
   // body 可能尚未就緒
@@ -483,26 +612,36 @@ function setupProtectionOverlay(): void {
 }
 
 let overlayTimer: number | null = null;
+let restoreTimer: number | null = null;
 
-/** 顯示保護遮罩（自動淡出） */
+/** 顯示遮罩的共用起點：清掉退場狀態，避免上一次還原尚未走完就重新遮蔽 */
+function markOverlayVisible(overlay: HTMLElement): void {
+  if (restoreTimer !== null) {
+    window.clearTimeout(restoreTimer);
+    restoreTimer = null;
+  }
+  overlay.removeAttribute('data-restoring');
+  overlay.setAttribute('data-visible', 'true');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+/** 顯示保護遮罩（自動退場） */
 function showProtectionOverlay(): void {
   const overlay = document.getElementById('uep-protection-overlay');
   if (!overlay) return;
 
-  overlay.setAttribute('data-visible', 'true');
-  overlay.setAttribute('aria-hidden', 'false');
+  markOverlayVisible(overlay);
 
   if (overlayTimer !== null) {
     window.clearTimeout(overlayTimer);
   }
   overlayTimer = window.setTimeout(() => {
-    overlay.setAttribute('data-visible', 'false');
-    overlay.setAttribute('aria-hidden', 'true');
     overlayTimer = null;
+    hideProtectionOverlay();
   }, OVERLAY_DURATION_MS);
 }
 
-/** 立即顯示遮罩、不自動淡出（用於失焦持續遮蔽） */
+/** 立即顯示遮罩、不自動退場（用於失焦持續遮蔽） */
 function showProtectionOverlaySticky(): void {
   const overlay = document.getElementById('uep-protection-overlay');
   if (!overlay) return;
@@ -511,11 +650,10 @@ function showProtectionOverlaySticky(): void {
     window.clearTimeout(overlayTimer);
     overlayTimer = null;
   }
-  overlay.setAttribute('data-visible', 'true');
-  overlay.setAttribute('aria-hidden', 'false');
+  markOverlayVisible(overlay);
 }
 
-/** 隱藏保護遮罩 */
+/** 隱藏保護遮罩——走「重新接上訊號」的退場（雜訊 + 灰階還原） */
 function hideProtectionOverlay(): void {
   const overlay = document.getElementById('uep-protection-overlay');
   if (!overlay) return;
@@ -524,8 +662,20 @@ function hideProtectionOverlay(): void {
     window.clearTimeout(overlayTimer);
     overlayTimer = null;
   }
+
+  const wasVisible = overlay.getAttribute('data-visible') === 'true';
   overlay.setAttribute('data-visible', 'false');
   overlay.setAttribute('aria-hidden', 'true');
+
+  /* 本來就不可見（例如重覆 focus 事件）不必再演一次還原 */
+  if (!wasVisible) return;
+
+  overlay.setAttribute('data-restoring', 'true');
+  if (restoreTimer !== null) window.clearTimeout(restoreTimer);
+  restoreTimer = window.setTimeout(() => {
+    overlay.removeAttribute('data-restoring');
+    restoreTimer = null;
+  }, OVERLAY_RESTORE_MS);
 }
 
 /**
