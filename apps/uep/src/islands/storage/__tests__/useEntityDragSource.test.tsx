@@ -10,7 +10,7 @@
  * 覆蓋，這裡測的是 pointer 狀態機。
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -174,5 +174,123 @@ describe('useEntityDragSource — 與點擊共存', () => {
     expect(document.querySelector('.uep-entity-drag')).not.toBeNull();
     fireEvent.pointerUp(btn, FAR);
     expect(bridgeMock.drop).toHaveBeenCalledWith('艾斯維爾·科索諾');
+  });
+});
+
+describe('useEntityDragSource — 拖曳手感（07/27 驗收回饋）', () => {
+  it('拖曳中停用全站文字選取，放開後立刻還原', () => {
+    render(<Harness />);
+    const btn = screen.getByRole('button');
+    fireEvent.pointerDown(btn, START);
+    // 還沒過門檻 = 可能只是一次點擊，不該鎖住選取
+    expect(document.body.classList.contains('uep-entity-dragging')).toBe(false);
+    fireEvent.pointerMove(btn, FAR);
+    expect(document.body.classList.contains('uep-entity-dragging')).toBe(true);
+    fireEvent.pointerUp(btn, FAR);
+    expect(document.body.classList.contains('uep-entity-dragging')).toBe(false);
+  });
+
+  it('拖曳中頁面捲動 → 連線起點跟著來源元素走，不留在原本的螢幕位置', () => {
+    render(<Harness />);
+    const btn = screen.getByRole('button');
+    let box = { left: 0, top: 0, width: 80, height: 24 };
+    btn.getBoundingClientRect = () =>
+      ({
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    fireEvent.pointerDown(btn, START);
+    fireEvent.pointerMove(btn, FAR);
+    const line = () => document.querySelector('.uep-entity-drag__line');
+    // 按下點相對來源元素左上角是 (100, 100)，元素在原點 → 起點就是 (100, 100)
+    expect(line()?.getAttribute('y1')).toBe('100');
+
+    // 內容往上捲 30px：來源元素的 viewport 位置跟著上移
+    box = { ...box, top: -30 };
+    fireEvent.scroll(window);
+    expect(line()?.getAttribute('y1')).toBe('70');
+  });
+
+  it('拖過門檻的 pointerup 不冒泡到外層（外層的滑動手勢不被誤觸）', () => {
+    const onOuterUp = vi.fn();
+    render(
+      <div onPointerUp={onOuterUp}>
+        <Harness />
+      </div>
+    );
+    const btn = screen.getByRole('button');
+    fireEvent.pointerDown(btn, START);
+    fireEvent.pointerMove(btn, FAR);
+    fireEvent.pointerUp(btn, FAR);
+    expect(onOuterUp).not.toHaveBeenCalled();
+  });
+
+  it('門檻內的輕點仍會冒泡到外層（滑動手勢本身不能被拖曳功能吃掉）', () => {
+    const onOuterUp = vi.fn();
+    render(
+      <div onPointerUp={onOuterUp}>
+        <Harness />
+      </div>
+    );
+    const btn = screen.getByRole('button');
+    const NEAR = { clientX: 103, clientY: 102, pointerId: 1 };
+    fireEvent.pointerDown(btn, START);
+    fireEvent.pointerMove(btn, NEAR);
+    fireEvent.pointerUp(btn, NEAR);
+    expect(onOuterUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('在島外放開 → ghost 先播退場動畫，計時到了才真的移除', () => {
+    vi.useFakeTimers();
+    bridgeMock.overIsland = false;
+    try {
+      render(<Harness />);
+      const btn = screen.getByRole('button');
+      fireEvent.pointerDown(btn, START);
+      fireEvent.pointerMove(btn, FAR);
+      fireEvent.pointerUp(btn, FAR);
+      // 還在場上，但已標記退場
+      expect(
+        document.querySelector('.uep-entity-drag__ghost.is-leaving')
+      ).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(document.querySelector('.uep-entity-drag')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('退場動畫還沒播完就開始新的一拖 → 舊 ghost 立刻讓位，不重疊', () => {
+    vi.useFakeTimers();
+    bridgeMock.overIsland = false;
+    try {
+      render(<Harness />);
+      const btn = screen.getByRole('button');
+      fireEvent.pointerDown(btn, START);
+      fireEvent.pointerMove(btn, FAR);
+      fireEvent.pointerUp(btn, FAR);
+      expect(
+        document.querySelector('.uep-entity-drag__ghost.is-leaving')
+      ).not.toBeNull();
+
+      fireEvent.pointerDown(btn, START);
+      expect(document.querySelector('.uep-entity-drag')).toBeNull();
+
+      // 舊的移除計時器不能把新拖曳的 ghost 一起收掉
+      fireEvent.pointerMove(btn, FAR);
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(document.querySelector('.uep-entity-drag__ghost')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

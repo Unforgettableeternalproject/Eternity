@@ -1690,6 +1690,9 @@ function VisualsReaderInner() {
                           className="visuals-gallery-card-thumb"
                           src={thumbUrl}
                           alt={g.title}
+                          /* 原生圖片拖曳會接管 pointer 序列，讓卡片的圖片
+                             區塊拖不進便條島（只剩下方文字能拖） */
+                          draggable={false}
                         />
                       ) : (
                         <div
