@@ -371,6 +371,43 @@ export default function HistoryReader() {
   const currentIdRef = useRef(currentId);
   currentIdRef.current = currentId;
 
+  // 只撤下書籤（session dedupe 落定），不動 clue 生命週期。
+  // 兩個時機共用：映射成功當下、通過訖點時。前者 clue 仍在進行中
+  // （訖點恢復、gate 切圖都還要用 clickedCluesRef），所以顯示與
+  // 生命週期必須分開。
+  const hideClueBookmarks = useCallback((clueIds: string[]) => {
+    if (clueIds.length === 0) return;
+    setDismissedClueIds((prev) => {
+      const next = new Set(prev);
+      clueIds.forEach((id) => next.add(id));
+      return next;
+    });
+    const pageId = currentIdRef.current;
+    if (pageId) {
+      for (const id of clueIds) {
+        try {
+          sessionStorage.setItem(
+            `uep.visual-clue.dismissed.${pageId}.${id}`,
+            '1'
+          );
+        } catch {
+          // 隱私模式下 sessionStorage 可能不可寫；state Set 仍可去重。
+        }
+      }
+    }
+  }, []);
+
+  // clue 落定：從已點擊集合移除（不再恢復快照、gate 失效）+ 撤下書籤。
+  // 通過訖點與島 × 手動清除插播（#4 追加）共用。
+  const dismissClues = useCallback(
+    (clueIds: string[]) => {
+      if (clueIds.length === 0) return;
+      for (const id of clueIds) clickedCluesRef.current.delete(id);
+      hideClueBookmarks(clueIds);
+    },
+    [hideClueBookmarks]
+  );
+
   // 書籤點擊 → 反查現行 gallery → 快照目前投射 → 強制展示（V-D.30）
   const handleVisualClueClick = (clue: VisualClueEntry) => {
     const pageIdAtClick = currentId;
@@ -449,36 +486,15 @@ export default function HistoryReader() {
         source: 'clue',
         relatedHistoryIds: pageIdAtClick ? [pageIdAtClick] : [],
       });
+      // 映射成功即撤下書籤：畫廊已經在島上了，插卡再留著只是重複入口。
+      // 注意只隱藏、不動 clickedCluesRef——clue 仍在進行中，通過訖點
+      // 還要恢復快照，gate 也還要能切圖。反查失敗的三條路徑不會走到
+      // 這裡，書籤留著讓使用者能再試。
+      hideClueBookmarks([clue.clueId]);
       // 島已展開（書籤僅於展開時渲染）——把焦點推到最上層
       getIslandRuntime().open('visuals');
     });
   };
-
-  // 撤下 clue 書籤（session dedupe 落定）：從已點擊集合移除、加入
-  // dismissedClueIds（書籤即消失）、寫入 sessionStorage 去重鍵。
-  // 通過訖點與島 × 手動清除插播（#4 追加）共用。
-  const dismissClues = useCallback((clueIds: string[]) => {
-    if (clueIds.length === 0) return;
-    for (const id of clueIds) clickedCluesRef.current.delete(id);
-    setDismissedClueIds((prev) => {
-      const next = new Set(prev);
-      clueIds.forEach((id) => next.add(id));
-      return next;
-    });
-    const pageId = currentIdRef.current;
-    if (pageId) {
-      for (const id of clueIds) {
-        try {
-          sessionStorage.setItem(
-            `uep.visual-clue.dismissed.${pageId}.${id}`,
-            '1'
-          );
-        } catch {
-          // 隱私模式下 sessionStorage 可能不可寫；state Set 仍可去重。
-        }
-      }
-    }
-  }, []);
 
   // 通過訖點 = clue 結束：已點擊者恢復快照 + session dedupe 落定
   // （掃描線 role callback 驅動）
@@ -496,15 +512,18 @@ export default function HistoryReader() {
       ) {
         return;
       }
+      // 授旗必須跟著實際切圖走：focusClueImage 只認「這個 clue 現在
+      // 正在投射」的情境，島被手動接管或投射已換掉時回 false。先授旗
+      // 再切圖會讓沒經由 clue 映射的圖片憑空解鎖——gate 是展示過程的
+      // 一部分，展示沒發生就整條不作用。
+      if (!focusClueImage(clueId, galleryId, imageId)) return;
       const imageFlag = deriveImageUnlockFlag(galleryId, imageId);
       const progressNow = getProgressManager().getState();
       getProgressManager().grantFlags([imageFlag]);
-      if (focusClueImage(clueId, galleryId, imageId)) {
-        if (!progressNow.flags.includes(imageFlag)) {
-          const label =
-            info.element.getAttribute('data-image-title')?.trim() || '指定圖片';
-          window.__uepToastManager?.success(`「${label}」已顯現。`);
-        }
+      if (!progressNow.flags.includes(imageFlag)) {
+        const label =
+          info.element.getAttribute('data-image-title')?.trim() || '指定圖片';
+        window.__uepToastManager?.success(`「${label}」已顯現。`);
       }
       return;
     }
