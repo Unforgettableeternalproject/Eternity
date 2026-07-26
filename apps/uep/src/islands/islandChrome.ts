@@ -39,6 +39,8 @@ export interface IslandChromeValue {
   requestClose: () => void;
   /** 離場動畫進行中——島可據此暫停內部動畫或改變材質 */
   leaving: boolean;
+  /** 進場動畫進行中（離場動畫逆行）——同上，島可據此延後內部動畫 */
+  entering: boolean;
 }
 
 const noop = () => {};
@@ -54,6 +56,7 @@ const FALLBACK: IslandChromeValue = {
   },
   requestClose: noop,
   leaving: false,
+  entering: false,
 };
 
 export const IslandChromeContext = createContext<IslandChromeValue | null>(

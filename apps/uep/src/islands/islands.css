@@ -8,10 +8,11 @@
 /* ── 區域入場動畫期間隱藏浮動 UI ──
  * IntroOverlay / PortalTransition / zone boot 播放時由 zoneEntryLock
  * 掛上 body class（ref-count，沿用 OnboardingGate 前例）。
- * Minimap 一併隱藏——艾斯維爾指示：島應與 Minimap 同層級行為。 */
-body.uep-zone-entry-active .uep-island,
-body.uep-zone-entry-active .uep-island-dock,
-body.uep-zone-entry-active .uep-unlock-object,
+ * Minimap 一併隱藏——艾斯維爾指示：島應與 Minimap 同層級行為。
+ *
+ * S9-D.2 起浮島本體與 dock **不在這條規則裡**：它們改由元件訂閱
+ * zoneEntryLock，先播各自的離場動畫再讓位（見 useZoneEntryActive）。
+ * 這裡留下的都是沒有專屬離場語彙、硬切也不突兀的浮動件。 */
 body.uep-zone-entry-active .uep-minimap,
 body.uep-zone-entry-active .uep-pinned-note,
 body.uep-zone-entry-active .uep-stoland__note-ghost {
@@ -112,10 +113,25 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 /* ── 收合離場（S6-3）：縮往右下（dock 方向）淡出 ──
  * 純 CSS 版：固定右下方向縮小，不精算 dock chip 座標。
  * 播完由 DraggableIsland 的 animationend（+ 保底計時器）真正 close。 */
-.uep-island--leaving {
-  pointer-events: none;
+.uep-island--leaving,
+.uep-island--entering {
   transform-origin: bottom right;
   animation: uep-island-leave 0.26s var(--ease) forwards;
+}
+
+.uep-island--leaving {
+  pointer-events: none;
+}
+
+/* ── 進場（S9-D.1）：同一條離場動畫逆行 ──
+ * 島出現的路徑有三條（解鎖後首次浮現、從 dock 展開、轉場結束回來），
+ * 三條都該用該島自己的語彙——書攤開、水位漲回、幻影重新聚攏。逆行播放
+ * 讓「怎麼消失的就怎麼回來」自動成立，不必為每座島再寫一組關鍵影格。
+ *
+ * 這條 animation-direction 必須寫在共用 animation shorthand 之後：
+ * shorthand 會把 direction 重設回 normal。各島覆寫同理。 */
+.uep-island--entering {
+  animation-direction: reverse;
 }
 
 @keyframes uep-island-leave {
@@ -204,6 +220,20 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   z-index: 1999; /* 浮島層帶（2000+）之下、Minimap（300）之上 */
 }
 
+/* 轉場讓位（S9-D.2）：整列往右下退開淡出。回來時不需要對應的進場
+   動畫——dock 重新掛載，每顆 chip 自己的 uep-dock-chip-in 會重播。 */
+.uep-island-dock.is-hiding {
+  pointer-events: none;
+  animation: uep-dock-out 0.22s var(--ease) forwards;
+}
+
+@keyframes uep-dock-out {
+  to {
+    transform: translate(10px, 14px) scale(0.92);
+    opacity: 0;
+  }
+}
+
 .uep-island-dock__chip {
   all: unset;
   box-sizing: border-box;
@@ -215,13 +245,15 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   background: var(--bg-card);
   border: 1px solid var(--hairline-strong);
   border-radius: 3px;
-  font-size: 17px;
+  /* 圖示是 currentColor 線稿（IslandIcon），chip 的狀態配色直接吃進去 */
+  color: var(--ink);
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   transition:
     transform 0.18s var(--ease),
     box-shadow 0.18s var(--ease),
-    border-color 0.18s var(--ease);
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
   /* 進場淡入（S6-3）：島收合後 chip 出現時不要瞬間跳出 */
   animation: uep-dock-chip-in 0.22s var(--ease);
 }
@@ -281,20 +313,51 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   outline-offset: 2px;
 }
 
-/* Visual Clue 等待中（V-D.31）：島收合、閱讀位置在 clue 區間內
-   → visuals chip 閃爍提示（幻影紫呼吸光） */
-.uep-island-dock__chip.is-clue-waiting {
-  border-color: #5e548e;
-  animation: uepCluePulse 1.6s ease-in-out infinite;
+/* ── chip 注意力（S9-D.5）──
+ *
+ * 收合的島要告訴使用者「這裡有東西」，先前一島一條線各自寫 class
+ * （is-clue-waiting／is-echo-waiting），第三個來源開始就撐不住了。
+ * 現在只有兩種語意，配色靠 data-island 帶各 zone 的語彙色：
+ * - `is-attn-waiting` 持續呼吸，條件消失才停（線索在區間內／提示未讀）
+ * - `is-attn-pulse` 閃三下就停（進度剛推進／便條剛回到島裡）
+ *
+ * --chip-attn 是唯一的顏色接口，rgb 三元組寫法讓兩支動畫能各自調透明度。 */
+.uep-island-dock__chip {
+  --chip-attn: 148, 140, 130;
 }
 
-/* Echo Spot 等待中：島收合時不播放，提示使用者展開後再插播。 */
-.uep-island-dock__chip.is-echo-waiting {
-  border-color: #5b7fb3;
-  animation: uepEchoWaitingPulse 1.35s ease-in-out infinite;
+.uep-island-dock__chip[data-island='history'] {
+  --chip-attn: 213, 182, 24; /* 主題金 */
 }
 
-@keyframes uepEchoWaitingPulse {
+.uep-island-dock__chip[data-island='concepts'] {
+  /* 終端主色 #1f4d39 在小尺寸光暈上會糊成一團黑，用它的亮色階 #2d6a4f */
+  --chip-attn: 45, 106, 79;
+}
+
+.uep-island-dock__chip[data-island='echoes'] {
+  --chip-attn: 91, 127, 179; /* 回聲藍 */
+}
+
+.uep-island-dock__chip[data-island='visuals'] {
+  --chip-attn: 94, 84, 142; /* 幻影紫 */
+}
+
+.uep-island-dock__chip[data-island='storage'] {
+  --chip-attn: 196, 148, 74; /* 便條紙的牛皮色 */
+}
+
+.uep-island-dock__chip.is-attn-waiting {
+  border-color: rgb(var(--chip-attn));
+  animation: uep-chip-waiting 1.5s ease-in-out infinite;
+}
+
+.uep-island-dock__chip.is-attn-pulse {
+  border-color: rgb(var(--chip-attn));
+  animation: uep-chip-pulse 1.4s var(--ease);
+}
+
+@keyframes uep-chip-waiting {
   0%,
   100% {
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
@@ -302,148 +365,48 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   50% {
     box-shadow:
       0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 4px rgba(91, 127, 179, 0.28),
-      0 0 14px rgba(91, 127, 179, 0.55);
+      0 0 0 4px rgb(var(--chip-attn) / 0.28),
+      0 0 14px rgb(var(--chip-attn) / 0.52);
   }
 }
 
-@keyframes uepCluePulse {
+/* 三下遞減——一次性提示要「被看到就夠」，不留在餘光裡持續騷擾 */
+@keyframes uep-chip-pulse {
   0%,
+  30%,
+  62%,
   100% {
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   }
-  50% {
+  15% {
     box-shadow:
       0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 4px rgba(94, 84, 142, 0.28),
-      0 0 14px rgba(94, 84, 142, 0.5);
+      0 0 0 5px rgb(var(--chip-attn) / 0.38),
+      0 0 18px rgb(var(--chip-attn) / 0.62);
+  }
+  46% {
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.12),
+      0 0 0 4px rgb(var(--chip-attn) / 0.26),
+      0 0 14px rgb(var(--chip-attn) / 0.44);
+  }
+  78% {
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.12),
+      0 0 0 3px rgb(var(--chip-attn) / 0.16),
+      0 0 10px rgb(var(--chip-attn) / 0.28);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uep-island-dock__chip.is-clue-waiting {
+  /* 兩者都降為靜態光圈：waiting 是唯一的「還沒處理完」訊號，
+     pulse 則靠 title／aria-label 補足（動畫關掉後它本來就會消失）。 */
+  .uep-island-dock__chip.is-attn-waiting,
+  .uep-island-dock__chip.is-attn-pulse {
     animation: none;
     box-shadow:
       0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 3px rgba(94, 84, 142, 0.35);
-  }
-
-  .uep-island-dock__chip.is-echo-waiting {
-    animation: none;
-    box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.12),
-      0 0 0 3px rgba(91, 127, 179, 0.38);
-  }
-}
-
-/* ── 解鎖小物件（zone 首頁） ── */
-.uep-unlock-object {
-  all: unset;
-  position: fixed;
-  right: 26px;
-  bottom: 84px; /* dock 位置上方，避免解鎖後與 dock/浮島重疊 */
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  z-index: 1900; /* dock（1999）之下、Minimap（300）之上 */
-  animation: uep-unlock-bob 3.4s ease-in-out infinite;
-}
-
-.uep-unlock-object__glow {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(212, 175, 55, 0.35) 0%,
-    rgba(212, 175, 55, 0.12) 45%,
-    transparent 70%
-  );
-  animation: uep-unlock-pulse 2.6s ease-in-out infinite;
-}
-
-.uep-unlock-object__icon {
-  position: relative;
-  font-size: 22px;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
-  transition: transform 0.25s var(--ease);
-}
-
-.uep-unlock-object:hover .uep-unlock-object__icon {
-  transform: scale(1.12);
-}
-
-.uep-unlock-object:focus-visible {
-  outline: 1px solid var(--uep-gold);
-  outline-offset: 4px;
-  border-radius: 50%;
-}
-
-/* 甦醒：光暈爆發 + 物件上浮淡出 */
-.uep-unlock-object.is-awakening {
-  pointer-events: none;
-  animation: none;
-}
-
-.uep-unlock-object.is-awakening .uep-unlock-object__glow {
-  animation: uep-unlock-burst 1.4s var(--ease) forwards;
-}
-
-.uep-unlock-object.is-awakening .uep-unlock-object__icon {
-  animation: uep-unlock-ascend 1.4s var(--ease) forwards;
-}
-
-@keyframes uep-unlock-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes uep-unlock-pulse {
-  0%,
-  100% {
-    opacity: 0.7;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.18);
-  }
-}
-
-@keyframes uep-unlock-burst {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(2.6);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(3.4);
-  }
-}
-
-@keyframes uep-unlock-ascend {
-  0% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  55% {
-    opacity: 1;
-    transform: translateY(-18px) scale(1.25);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-34px) scale(0.9);
+      0 0 0 3px rgb(var(--chip-attn) / 0.36);
   }
 }
 
@@ -509,9 +472,11 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 }
 
 .uep-island-settings__row-icon {
-  font-size: 15px;
+  display: grid;
+  place-items: center;
   width: 22px;
-  text-align: center;
+  color: var(--ink);
+  opacity: 0.72;
 }
 
 .uep-island-settings__row-name {
@@ -611,10 +576,8 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 /* 動畫偏好：全部關閉 */
 @media (prefers-reduced-motion: reduce) {
   .uep-island,
+  .uep-island-dock,
   .uep-island-dock__chip,
-  .uep-unlock-object,
-  .uep-unlock-object__glow,
-  .uep-unlock-object__icon,
   .uep-island-settings {
     transition: none;
     animation: none;

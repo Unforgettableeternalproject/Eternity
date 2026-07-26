@@ -14,10 +14,27 @@
 export const ZONE_ENTRY_ACTIVE_CLASS = 'uep-zone-entry-active';
 
 let lockCount = 0;
+const listeners = new Set<() => void>();
 
 function sync(): void {
-  if (typeof document === 'undefined') return;
-  document.body.classList.toggle(ZONE_ENTRY_ACTIVE_CLASS, lockCount > 0);
+  if (typeof document !== 'undefined') {
+    document.body.classList.toggle(ZONE_ENTRY_ACTIVE_CLASS, lockCount > 0);
+  }
+  listeners.forEach((listener) => listener());
+}
+
+/**
+ * 訂閱鎖狀態變化（S9-D.2）。
+ *
+ * body class 對「隱藏」夠用，但對「先播離場動畫再隱藏」不夠——那需要
+ * React 端知道時機。浮島本體與 dock 因此改由元件訂閱後自行播動畫，
+ * 不再吃 CSS 的 display:none（Minimap／釘選便條仍走 class）。
+ */
+export function subscribeZoneEntry(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /**

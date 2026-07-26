@@ -48,6 +48,7 @@ import {
   useProgress,
 } from '../../progress';
 import type { StorageNote } from '../../progress';
+import { flashChip } from '../chipAttention';
 import { HOME_ZONE_ID, useCurrentLocation } from '../useCurrentLocation';
 
 import { resolveAnchorRect } from './contentAnchors';
@@ -490,6 +491,10 @@ function PinnedNoteCard({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       getPinnedStore().unpin(pinned.noteId);
+      /* 便條沒有被刪掉，只是回到島裡的未釘選狀態（S9-D.7）——島收合時
+         畫面上就只是「便條消失了」，chip 閃一下交代它去了哪。
+         另一條 unpin 路徑（拖回島上）不需要：那時島必然展開著。 */
+      flashChip('storage', '便條已收回島裡');
     },
     [pinned.noteId]
   );

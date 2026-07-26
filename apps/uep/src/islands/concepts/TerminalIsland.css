@@ -353,9 +353,15 @@
 /* ── 離場：CRT 關機（S9-C.6，艾斯維爾 2026-07-25 指定各島專屬收合） ──
  * 終端機不會「縮小飛走」，它是斷電：畫面先橫向塌成一條掃描線，
  * 亮度衝高，然後那條線也消失。外殼維持 default chrome，只換收合動畫。 */
-.uep-island--concepts.uep-island--leaving {
+.uep-island--concepts.uep-island--leaving,
+.uep-island--concepts.uep-island--entering {
   transform-origin: center center;
   animation: uep-terminal-crt-off 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 進場 = 逆行的開機：掃描線從中央拉開，亮度從過曝收回正常 */
+.uep-island--concepts.uep-island--entering {
+  animation-direction: reverse;
 }
 
 @keyframes uep-terminal-crt-off {
@@ -382,7 +388,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uep-island--concepts.uep-island--leaving {
+  .uep-island--concepts.uep-island--leaving,
+  .uep-island--concepts.uep-island--entering {
     animation: none;
   }
 }

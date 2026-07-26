@@ -648,10 +648,15 @@
   border-top: 1px dashed rgb(var(--st-ink-rgb) / 0.32);
 }
 
-/* ── 離場：紙被撕離膠帶 ── */
-.uep-island--storage.uep-island--leaving {
+/* ── 離場：紙被撕離膠帶；進場為逆行（紙被貼回去） ── */
+.uep-island--storage.uep-island--leaving,
+.uep-island--storage.uep-island--entering {
   transform-origin: top center;
   animation: uep-stoland-tear 0.4s var(--ease) forwards;
+}
+
+.uep-island--storage.uep-island--entering {
+  animation-direction: reverse;
 }
 
 @keyframes uep-stoland-tear {
@@ -670,7 +675,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uep-island--storage.uep-island--leaving {
+  .uep-island--storage.uep-island--leaving,
+  .uep-island--storage.uep-island--entering {
     animation: none;
   }
 }

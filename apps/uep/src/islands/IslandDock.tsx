@@ -13,21 +13,20 @@
 
 import React, { useEffect, useState } from 'react';
 
+import { isZoneEntryActive } from '../components/zone/zoneEntryLock';
+
+import IslandIcon from './IslandIcon';
 import { useTerminalUnread } from './concepts/useTerminalUnread';
-import {
-  UEP_ECHO_SPOT_WAITING_EVENT,
-  getEchoSpotWaiting,
-} from './echoes/echoPreview';
 import { getIslandRuntime } from './islandRuntime';
 import { ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
-import { useIslandRuntimeState } from './useIslands';
-import {
-  UEP_CLUE_WAITING_EVENT,
-  getClueWaitingCount,
-} from './visuals/phantomBridge';
+import { useChipAttentions } from './useChipAttention';
+import { useIslandRuntimeState, useZoneEntryActive } from './useIslands';
 
 import './islands.css';
+
+/** dock 離場動畫時長（ms）——必須與 islands.css 的 uep-dock-out 對齊 */
+const DOCK_LEAVE_MS = 220;
 
 interface IslandDockProps {
   /** 已解鎖的浮島 id（由 host 依 progress 算好傳入） */
@@ -42,58 +41,64 @@ export default function IslandDock({ unlockedIds }: IslandDockProps) {
   // hook 順序穩定：collapsed 為空時 enabled=false，不觸發索引載入
   const conceptsUnread = useTerminalUnread(collapsed.includes('concepts'));
 
-  // Visual Clue 等待提示（V-D.31）：島收合中、閱讀位置在 clue 區間內
-  // → visuals chip 閃爍。HistoryReader 經 phantomBridge 廣播計數。
-  const [clueWaiting, setClueWaiting] = useState(() => getClueWaitingCount());
-  useEffect(() => {
-    const onChange = () => setClueWaiting(getClueWaitingCount());
-    window.addEventListener(UEP_CLUE_WAITING_EVENT, onChange);
-    return () => window.removeEventListener(UEP_CLUE_WAITING_EVENT, onChange);
-  }, []);
-  const [echoSpotWaiting, setEchoSpotWaitingState] = useState(() =>
-    getEchoSpotWaiting()
+  // 收合期間的提示（S9-D.5）：Visual Clue 區間、Echo Spot 待播、
+  // 互動式嵌入的相關內容、進度／便條的瞬時變動——全部收在同一支 hook。
+  const attentions = useChipAttentions();
+
+  /* 轉場讓位（S9-D.2）：與島本體同一套語意，但 dock 是一排小 chip，
+     用整列淡出退場即可；回來時每顆 chip 各自重播既有的 chip-in。 */
+  const zoneEntryActive = useZoneEntryActive();
+  const [dockPhase, setDockPhase] = useState<'visible' | 'hiding' | 'hidden'>(
+    () => (isZoneEntryActive() ? 'hidden' : 'visible')
   );
   useEffect(() => {
-    const onChange = () => setEchoSpotWaitingState(getEchoSpotWaiting());
-    window.addEventListener(UEP_ECHO_SPOT_WAITING_EVENT, onChange);
-    return () =>
-      window.removeEventListener(UEP_ECHO_SPOT_WAITING_EVENT, onChange);
-  }, []);
+    if (zoneEntryActive) {
+      setDockPhase((p) => (p === 'visible' ? 'hiding' : p));
+      return;
+    }
+    setDockPhase('visible');
+  }, [zoneEntryActive]);
+  useEffect(() => {
+    if (dockPhase !== 'hiding') return;
+    // 保底：reduced-motion 下 animationend 不會來
+    const timer = window.setTimeout(
+      () => setDockPhase((p) => (p === 'hiding' ? 'hidden' : p)),
+      DOCK_LEAVE_MS + 80
+    );
+    return () => window.clearTimeout(timer);
+  }, [dockPhase]);
 
-  if (collapsed.length === 0) return null;
+  if (collapsed.length === 0 || dockPhase === 'hidden') return null;
 
   return (
-    <div className="uep-island-dock" role="toolbar" aria-label="浮島工具列">
+    <div
+      className={`uep-island-dock${dockPhase === 'hiding' ? ' is-hiding' : ''}`}
+      role="toolbar"
+      aria-label="浮島工具列"
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget && dockPhase === 'hiding') {
+          setDockPhase('hidden');
+        }
+      }}
+    >
       {collapsed.map((id) => {
         const def = ISLAND_DEFINITIONS[id];
         const unread = id === 'concepts' ? conceptsUnread : 0;
-        const waiting = id === 'visuals' && clueWaiting > 0;
-        const echoWaiting = id === 'echoes' && echoSpotWaiting;
+        const attention = attentions[id];
+        const note =
+          attention?.reason ?? (unread > 0 ? `${unread} 項未讀更新` : null);
         return (
           <button
             key={id}
-            className={`uep-island-dock__chip${waiting ? ' is-clue-waiting' : ''}${echoWaiting ? ' is-echo-waiting' : ''}`}
+            data-island={id}
+            className={`uep-island-dock__chip${attention ? ` is-attn-${attention.kind}` : ''}`}
             onClick={() => runtime.open(id)}
             aria-label={
-              waiting
-                ? `展開${def.title}（有視覺線索等待中）`
-                : echoWaiting
-                  ? `展開${def.title}（有回聲等待插播）`
-                  : unread > 0
-                    ? `展開${def.title}（${unread} 項未讀更新）`
-                    : `展開${def.title}`
+              note ? `展開${def.title}（${note}）` : `展開${def.title}`
             }
-            title={
-              waiting
-                ? `${def.title} · 有視覺線索等待中`
-                : echoWaiting
-                  ? `${def.title} · 有回聲等待插播`
-                  : unread > 0
-                    ? `${def.title} · ${unread} 項未讀更新`
-                    : def.title
-            }
+            title={note ? `${def.title} · ${note}` : def.title}
           >
-            <span aria-hidden>{def.icon}</span>
+            <IslandIcon id={id} />
             {unread > 0 && (
               <span className="uep-island-dock__badge" aria-hidden>
                 {unread > 9 ? '9+' : unread}

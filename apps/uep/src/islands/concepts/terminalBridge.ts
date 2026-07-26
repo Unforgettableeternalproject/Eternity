@@ -13,8 +13,16 @@
 
 import type { EntityActivateDetail } from '../../embed';
 
+/** pending 狀態變化事件——dock chip 靠它決定要不要閃（S9-D.5） */
+export const UEP_ENTITY_PENDING_EVENT = 'uep:entity-pending';
+
 let pending: EntityActivateDetail | null = null;
 let subscriber: ((detail: EntityActivateDetail) => void) | null = null;
+
+function notifyPending(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(UEP_ENTITY_PENDING_EVENT));
+}
 
 /** 交付 entity 啟動事件（島未 mount 時暫存） */
 export function pushEntityActivate(detail: EntityActivateDetail): void {
@@ -22,7 +30,13 @@ export function pushEntityActivate(detail: EntityActivateDetail): void {
     subscriber(detail);
   } else {
     pending = detail;
+    notifyPending();
   }
+}
+
+/** 是否有尚未送達的 entity（島收合中，chip 閃爍判定） */
+export function hasPendingEntityActivate(): boolean {
+  return pending !== null;
 }
 
 /**
@@ -36,6 +50,7 @@ export function subscribeEntityActivate(
   if (pending) {
     const detail = pending;
     pending = null;
+    notifyPending();
     fn(detail);
   }
   return () => {
@@ -47,4 +62,5 @@ export function subscribeEntityActivate(
 export function resetEntityActivateBridge(): void {
   pending = null;
   subscriber = null;
+  notifyPending();
 }

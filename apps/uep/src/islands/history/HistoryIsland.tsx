@@ -15,7 +15,7 @@
  * 訂閱——island 不依賴 HistoryReader 的 React 樹，跨 zone 均可使用。
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
@@ -24,16 +24,22 @@ import {
   averageReadingMinutes,
   buildTreeIndex,
   buildUnlockedChapterList,
+  collectTocCounts,
   deriveLastRead,
+  diffTocCounts,
   fetchHistoryTree,
   navigateToHistoryPage,
   parentOf,
+  tocCount,
 } from './historyIslandData';
 import type { ChapterEntry, HistoryTreeIndex } from './historyIslandData';
 
 import './HistoryIsland.css';
 
 const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+
+/** 目錄頁碼變動高亮時長（ms）——與 HistoryIsland.css 的 uep-hisland-count-flash 對齊 */
+const COUNT_FLASH_MS = 1600;
 
 /**
  * 版心頁碼用的中文數字（`— 三 —`）。
@@ -46,16 +52,6 @@ function toChineseNumeral(n: number): string {
   const tens = Math.floor(n / 10);
   const ones = n % 10;
   return `${tens > 1 ? CN_DIGITS[tens] : ''}十${ones ? CN_DIGITS[ones] : ''}`;
-}
-
-/** 目錄條目的篇數頁碼；未解鎖顯示「封」而非 0/0 */
-function tocCount(entry: {
-  completed: number;
-  total: number;
-  locked?: boolean;
-}): string {
-  if (entry.locked) return '封';
-  return `${entry.completed}/${entry.total}`;
 }
 
 export default function HistoryIsland() {
@@ -102,6 +98,25 @@ export default function HistoryIsland() {
         : [],
     [index, progress, lastRead]
   );
+  /**
+   * 剛變動的目錄頁碼（S9-D.6）：讀完一篇進度文章後，對應章節的
+   * 「7/19」會安靜地變成「8/19」。比對前後快照，讓變動的那幾條閃一下。
+   * 首次算出的快照不算變動（那是「第一次看到」，不是「剛剛變了」）。
+   */
+  const [changedCounts, setChangedCounts] = useState<string[]>([]);
+  const tocCountsRef = useRef<Record<string, string> | null>(null);
+  useEffect(() => {
+    const next = collectTocCounts(chapterItems);
+    const prev = tocCountsRef.current;
+    tocCountsRef.current = next;
+    if (!prev) return;
+    const changed = diffTocCounts(prev, next);
+    if (changed.length === 0) return;
+    setChangedCounts(changed);
+    const timer = window.setTimeout(() => setChangedCounts([]), COUNT_FLASH_MS);
+    return () => window.clearTimeout(timer);
+  }, [chapterItems]);
+
   const avgMinutes = averageReadingMinutes(progress);
 
   const lastMarker = lastRead ? progress.pageMarkers[lastRead.id] : undefined;
@@ -211,7 +226,9 @@ export default function HistoryIsland() {
                       </span>
                       <span className="uep-hisland__toc-leader" aria-hidden />
                       {item.total > 0 && (
-                        <span className="uep-hisland__toc-count">
+                        <span
+                          className={`uep-hisland__toc-count${changedCounts.includes(item.node.id) ? ' is-changed' : ''}`}
+                        >
                           {tocCount(item)}
                         </span>
                       )}
@@ -249,7 +266,9 @@ export default function HistoryIsland() {
                             aria-hidden
                           />
                           {(entry.total > 0 || entry.locked) && (
-                            <span className="uep-hisland__toc-count">
+                            <span
+                              className={`uep-hisland__toc-count${changedCounts.includes(entry.node.id) ? ' is-changed' : ''}`}
+                            >
                               {tocCount(entry)}
                             </span>
                           )}

@@ -364,6 +364,37 @@
   flex: none;
 }
 
+/* 剛剛變動的頁碼（S9-D.6）：讀完一篇後數字會靜靜地加一，
+   沒有任何提示的話使用者不會知道自己剛推進了進度。金光亮一下就退，
+   不改變版面（只動 color 與 text-shadow，不碰字級與間距）。 */
+.uep-hisland__toc-count.is-changed {
+  animation: uep-hisland-count-flash 1.6s var(--ease);
+}
+
+@keyframes uep-hisland-count-flash {
+  0%,
+  100% {
+    color: rgb(var(--hb-ink-rgb) / 0.68);
+    text-shadow: none;
+  }
+  18% {
+    color: var(--uep-gold);
+    text-shadow: 0 0 8px rgba(213, 182, 24, 0.6);
+  }
+  60% {
+    color: var(--uep-gold);
+    text-shadow: 0 0 5px rgba(213, 182, 24, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 動畫關掉後仍要留下「這裡變了」的痕跡，改用靜態金字 */
+  .uep-hisland__toc-count.is-changed {
+    animation: none;
+    color: var(--uep-gold);
+  }
+}
+
 /* ── 版心頁腳 ── */
 .uep-hisland__footer {
   margin-top: 16px;
@@ -382,10 +413,15 @@
   margin-bottom: 3px;
 }
 
-/* ── 離場：書頁往左對摺闔上 ── */
-.uep-island--history.uep-island--leaving {
+/* ── 離場：書頁往左對摺闔上；進場為同一動作逆行（書攤開） ── */
+.uep-island--history.uep-island--leaving,
+.uep-island--history.uep-island--entering {
   transform-origin: left center;
   animation: uep-hisland-shut 0.38s var(--ease) forwards;
+}
+
+.uep-island--history.uep-island--entering {
+  animation-direction: reverse;
 }
 
 /* 幅度刻意收斂（艾斯維爾 2026-07-25：翻得太明顯很怪）——
@@ -406,7 +442,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uep-island--history.uep-island--leaving {
+  .uep-island--history.uep-island--leaving,
+  .uep-island--history.uep-island--entering {
     animation: none;
   }
 }

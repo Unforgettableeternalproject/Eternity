@@ -350,6 +350,49 @@ const API_BASE = getApiBase();
 
 let treeCache: Promise<HistoryTreeNode[]> | null = null;
 
+/** 目錄條目的篇數頁碼；未解鎖顯示「封」而非 0/0 */
+export function tocCount(entry: {
+  completed: number;
+  total: number;
+  locked?: boolean;
+}): string {
+  if (entry.locked) return '封';
+  return `${entry.completed}/${entry.total}`;
+}
+
+/**
+ * 目錄各條目當下的頁碼快照（S9-D.6）。
+ *
+ * 島展開時讀完一篇進度文章，目錄上那個「7/19」會靜靜地變成「8/19」——
+ * 進度確實推進了，但畫面上沒有任何事情發生過的痕跡。比對前後快照就能
+ * 找出「剛剛變的是哪幾條」，交給 UI 閃一下（艾斯維爾 2026-07-26）。
+ *
+ * 用格式化後的字串而非數字：顯示什麼就比對什麼，鎖定態的「封」變成
+ * 「0/12」也算一次變動——那同樣是使用者該看到的事。
+ */
+export function collectTocCounts(
+  items: ChapterListItem[]
+): Record<string, string> {
+  const counts: Record<string, string> = {};
+  items.forEach((item) => {
+    counts[item.node.id] = tocCount(item);
+    item.arcs.forEach((arc) => {
+      counts[arc.node.id] = tocCount(arc);
+    });
+  });
+  return counts;
+}
+
+/** 兩份快照間「數字變了」的條目 id（首次出現的條目不算變動） */
+export function diffTocCounts(
+  prev: Record<string, string>,
+  next: Record<string, string>
+): string[] {
+  return Object.keys(next).filter(
+    (id) => prev[id] !== undefined && prev[id] !== next[id]
+  );
+}
+
 /** 取得 History tree（模組級快取；失敗時清除快取讓下次重試） */
 export function fetchHistoryTree(): Promise<HistoryTreeNode[]> {
   if (!treeCache) {

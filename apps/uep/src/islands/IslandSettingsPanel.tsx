@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 
 import { getProgressManager, useProgress } from '../progress';
 
+import IslandIcon from './IslandIcon';
 import { isIslandDisabled, isIslandUnlocked } from './islandRuntime';
 import { ISLAND_DEFINITIONS, ISLAND_IDS } from './types';
 
@@ -78,7 +79,7 @@ export default function IslandSettingsPanel({
             return (
               <div key={id} className="uep-island-settings__row">
                 <span className="uep-island-settings__row-icon" aria-hidden>
-                  {def.icon}
+                  <IslandIcon id={id} size={18} />
                 </span>
                 <span className="uep-island-settings__row-name">
                   {def.title}

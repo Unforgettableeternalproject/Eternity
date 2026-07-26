@@ -1045,10 +1045,15 @@
   color: #ffb0ae;
 }
 
-/* ── 離場：水位退去 ── */
-.uep-island--echoes.uep-island--leaving {
+/* ── 離場：水位退去；進場為逆行（水漲回來） ── */
+.uep-island--echoes.uep-island--leaving,
+.uep-island--echoes.uep-island--entering {
   transform-origin: center bottom;
   animation: uep-eisland-drain 0.42s var(--ease) forwards;
+}
+
+.uep-island--echoes.uep-island--entering {
+  animation-direction: reverse;
 }
 
 @keyframes uep-eisland-drain {
@@ -1074,7 +1079,8 @@
   .uep-eisland__ball.is-suggesting,
   .uep-eisland__surface svg,
   .uep-eisland__orbs span,
-  .uep-island--echoes.uep-island--leaving {
+  .uep-island--echoes.uep-island--leaving,
+  .uep-island--echoes.uep-island--entering {
     animation: none;
   }
 }

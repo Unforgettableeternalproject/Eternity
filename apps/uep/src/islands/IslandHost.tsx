@@ -32,12 +32,9 @@ import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility
 
 import DraggableIsland from './DraggableIsland';
 import IslandDock from './IslandDock';
+import { flashChip } from './chipAttention';
 import { pushEntityActivate } from './concepts/terminalBridge';
-import {
-  canUseIslands,
-  getIslandRuntime,
-  shouldMountIsland,
-} from './islandRuntime';
+import { canUseIslands, shouldMountIsland } from './islandRuntime';
 import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
@@ -104,15 +101,18 @@ export default function IslandHost() {
 
   // entity-activate 常駐監聽（S7-C）：監聽必須放在 Host 而非
   // TerminalIsland——島收合時內容元件沒有 mount，聽不到事件。
-  // 收到後暫存 detail（terminalBridge）並展開島，島 mount 後取走。
+  // 收到後暫存 detail（terminalBridge），島 mount 後取走。
   // concepts 島不可用（未解鎖/停用/觀測者）→ 事件靜默消失（既有定案）。
+  //
+  // S9-D.5 起收合的島不再被強制展開：一座島自己跳出來會蓋掉正在讀的
+  // 段落，使用者也沒表達想開它（艾斯維爾 2026-07-26）。改為留 pending
+  // + dock chip 閃爍，展開與否交還給使用者；島若已展開則照舊直接送達。
   useEffect(() => {
     const onActivate = (event: Event) => {
       const detail = (event as CustomEvent<EntityActivateDetail>).detail;
       if (!detail) return;
       if (!shouldMountIsland(progressRef.current, 'concepts')) return;
       pushEntityActivate(detail);
-      getIslandRuntime().open('concepts');
     };
     window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
     return () =>
@@ -203,7 +203,6 @@ export default function IslandHost() {
             spoilerLevel: 0,
             accent: cluster.color,
           });
-          getIslandRuntime().open('echoes');
         })
         .catch((error: unknown) => {
           if ((error as { name?: string }).name !== 'AbortError') {
@@ -287,7 +286,6 @@ export default function IslandHost() {
             images,
             source: 'embed',
           });
-          getIslandRuntime().open('visuals');
         })
         .catch((error: unknown) => {
           if ((error as { name?: string }).name !== 'AbortError') {
@@ -303,6 +301,24 @@ export default function IslandHost() {
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
     };
   }, []);
+
+  /* 進度推進 → 旅程之書 chip 閃一下（S9-D.6）
+     島收合時 HistoryIsland 沒有 mount，變動只能在這裡偵測。展開中的島
+     由目錄頁碼自己閃（見 HistoryIsland 的 changedCounts），互不重複。 */
+  const prevCompletedRef = useRef<string[] | null>(null);
+  useEffect(() => {
+    const now = progress.completedPageIds;
+    const prev = prevCompletedRef.current;
+    prevCompletedRef.current = now;
+    // 首次求值是 hydrate，不是「剛剛讀完」
+    if (prev === null) return;
+    const gained = now.some(
+      (id) => id.startsWith('history/') && !prev.includes(id)
+    );
+    if (!gained) return;
+    if (!shouldMountIsland(progress, 'history')) return;
+    flashChip('history', '閱讀進度已更新');
+  }, [progress]);
 
   const dismissEchoPreview = useCallback(() => setEchoPreview(null), []);
 

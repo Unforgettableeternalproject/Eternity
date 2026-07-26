@@ -22,12 +22,14 @@ import {
   toRatio,
 } from './dragPosition';
 import type { PositionRatio, XYPosition } from './dragPosition';
+import { isZoneEntryActive } from '../components/zone/zoneEntryLock';
+
 import { IslandChromeContext } from './islandChrome';
 import type { IslandChromeValue } from './islandChrome';
 import { getIslandRuntime } from './islandRuntime';
 import { DEFAULT_LEAVE_ANIM_MS, ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
-import { useIslandRuntimeState } from './useIslands';
+import { useIslandRuntimeState, useZoneEntryActive } from './useIslands';
 
 import './islands.css';
 
@@ -56,14 +58,62 @@ export default function DraggableIsland({
   const [pos, setPos] = useState<XYPosition>({ left: 20, top: 20 });
   const [ready, setReady] = useState(false);
   const [drag, setDrag] = useState<{ offX: number; offY: number } | null>(null);
-  /** 收合動畫中（S6-3）：播完才真正 runtime.close，讓島縮往右下 dock */
-  const [leaving, setLeaving] = useState(false);
+  /**
+   * 生命週期階段：
+   * - `entering` — 進場動畫中（= 離場動畫逆行）
+   * - `idle` — 常態
+   * - `closing` — 收合動畫中，播完 runtime.close
+   * - `hiding` — 轉場隱藏動畫中，播完進 hidden（島仍是展開狀態）
+   * - `hidden` — 轉場期間讓位，不佔畫面
+   *
+   * 島一 mount 就從 entering 起算：這個元件只在島展開時被渲染，
+   * 所以「解鎖後首次出現」與「從 dock 展開」是同一條路徑，不必分辨。
+   * 轉場中才 mount（罕見）直接進 hidden，不播沒人看得到的動畫。
+   */
+  const zoneEntryActive = useZoneEntryActive();
+  const [phase, setPhase] = useState<
+    'entering' | 'idle' | 'closing' | 'hiding' | 'hidden'
+  >(() => (isZoneEntryActive() ? 'hidden' : 'entering'));
+  const leaving = phase === 'closing' || phase === 'hiding';
+  const entering = phase === 'entering';
   const posRef = useRef<XYPosition>(pos);
   const ratioRef = useRef<PositionRatio>({ lr: 0, tr: 0 });
   /** 尚未被使用者拖曳時，尺寸改變仍應維持各島的固定預設錨點。 */
   const usesDefaultPositionRef = useRef(win?.position == null);
   /** close 只觸發一次（animationend 與保底計時器可能都到） */
   const closeFinalizedRef = useRef(false);
+
+  /* ---------- 進場：動畫播完回到常態 ---------- */
+  useEffect(() => {
+    if (!entering) return;
+    /* 保底同離場：reduced-motion 下 animation 被關掉，animationend
+       永遠不會來，只剩計時器負責把 entering class 摘掉。 */
+    const timer = window.setTimeout(
+      () => setPhase((p) => (p === 'entering' ? 'idle' : p)),
+      leaveMs + 80
+    );
+    return () => window.clearTimeout(timer);
+  }, [entering, leaveMs]);
+
+  /* ---------- 轉場：讓位給入場動畫，結束後自己回來 ----------
+     收合走的是同一組離場動畫，差別只在收束動作：這裡不通知 runtime，
+     島仍然是「展開」狀態，轉場一結束就照樣播進場動畫回到畫面上。 */
+  useEffect(() => {
+    if (zoneEntryActive) {
+      setPhase((p) => (p === 'idle' || p === 'entering' ? 'hiding' : p));
+      return;
+    }
+    setPhase((p) => (p === 'hidden' || p === 'hiding' ? 'entering' : p));
+  }, [zoneEntryActive]);
+
+  useEffect(() => {
+    if (phase !== 'hiding') return;
+    const timer = window.setTimeout(
+      () => setPhase((p) => (p === 'hiding' ? 'hidden' : p)),
+      leaveMs + 80
+    );
+    return () => window.clearTimeout(timer);
+  }, [phase, leaveMs]);
 
   /* ---------- 收合：先播離場動畫，播完才通知 runtime ---------- */
   function finalizeClose() {
@@ -74,16 +124,19 @@ export default function DraggableIsland({
 
   function requestClose() {
     if (leaving) return;
-    setLeaving(true);
+    setPhase('closing');
     /* 保底：prefers-reduced-motion 會把 animation 關掉（animationend
        不觸發），計時器確保無論如何都會關閉。各島離場動畫長短不同，
        時長由 def.leaveMs 指定，必須與該島 CSS 對齊。 */
     window.setTimeout(finalizeClose, leaveMs + 80);
   }
 
-  function handleLeaveAnimationEnd(e: React.AnimationEvent) {
-    /* 只認自己根節點的離場動畫，忽略子元素冒泡上來的 animationend */
-    if (leaving && e.target === e.currentTarget) finalizeClose();
+  function handleAnimationEnd(e: React.AnimationEvent) {
+    /* 只認自己根節點的動畫，忽略子元素冒泡上來的 animationend */
+    if (e.target !== e.currentTarget) return;
+    if (phase === 'closing') finalizeClose();
+    else if (phase === 'hiding') setPhase('hidden');
+    else if (phase === 'entering') setPhase('idle');
   }
 
   function updatePos(next: XYPosition) {
@@ -181,6 +234,7 @@ export default function DraggableIsland({
     },
     requestClose,
     leaving,
+    entering,
   };
 
   /* ---------- 浮動視窗 ---------- */
@@ -188,16 +242,24 @@ export default function DraggableIsland({
     <IslandChromeContext.Provider value={chrome}>
       <div
         ref={ref}
-        className={`uep-island${bare ? ' uep-island--bare' : ''}${drag ? ' uep-island--dragging' : ''}${leaving ? ' uep-island--leaving' : ''}${className ? ` ${className}` : ''}`}
+        className={`uep-island${bare ? ' uep-island--bare' : ''}${drag ? ' uep-island--dragging' : ''}${leaving ? ' uep-island--leaving' : ''}${entering ? ' uep-island--entering' : ''}${className ? ` ${className}` : ''}`}
         style={{
           left: pos.left,
           top: pos.top,
           width: def.width,
           zIndex,
           opacity: ready ? 1 : 0,
+          /* 轉場期間讓位：入場動畫的 z-index 遠低於島層帶，殘留任何一層
+             都會浮在動畫上（zoneEntryLock 的存在理由）。
+             用 visibility 而非 display:none——島是 fixed 不佔流，兩者
+             視覺效果相同，但 display:none 會讓 offsetWidth 量成 0，
+             轉場期間才 mount 的島會拿著 0×0 去算預設角落座標。 */
+          ...(phase === 'hidden'
+            ? { visibility: 'hidden' as const, pointerEvents: 'none' as const }
+            : {}),
         }}
         onPointerDown={() => runtime.focus(id)}
-        onAnimationEnd={handleLeaveAnimationEnd}
+        onAnimationEnd={handleAnimationEnd}
         role="dialog"
         aria-label={def.title}
       >

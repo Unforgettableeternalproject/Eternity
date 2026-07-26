@@ -37,6 +37,7 @@ function renderIsland(id: IslandId, node: React.ReactElement) {
     },
     requestClose,
     leaving: false,
+    entering: false,
   };
   const view = render(
     <IslandChromeContext.Provider value={chrome}>

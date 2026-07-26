@@ -579,35 +579,51 @@
 /* ── 離場：往四面八方拆解後散去（艾斯維爾 2026-07-25 指定） ──
  * 幻影不是被關掉的，是失去凝聚力散開的：每一層各自往不同方向脫離，
  * 島身同時淡出，最後什麼都不剩。 */
-.uep-island--visuals.uep-island--leaving {
+.uep-island--visuals.uep-island--leaving,
+.uep-island--visuals.uep-island--entering {
   animation: uep-visland-dissolve 0.46s var(--ease) forwards;
 }
 
-.uep-island--visuals.uep-island--leaving .uep-visland > * {
+.uep-island--visuals.uep-island--leaving .uep-visland > *,
+.uep-island--visuals.uep-island--entering .uep-visland > * {
   animation-duration: 0.46s;
   animation-timing-function: var(--ease);
   animation-fill-mode: forwards;
 }
 
-.uep-island--visuals.uep-island--leaving .uep-visland__cone {
+.uep-island--visuals.uep-island--leaving .uep-visland__cone,
+.uep-island--visuals.uep-island--entering .uep-visland__cone {
   animation-name: uep-visland-scatter-up;
 }
 
-.uep-island--visuals.uep-island--leaving .uep-visland__haze {
+.uep-island--visuals.uep-island--leaving .uep-visland__haze,
+.uep-island--visuals.uep-island--entering .uep-visland__haze {
   animation-name: uep-visland-scatter-down;
 }
 
-.uep-island--visuals.uep-island--leaving .uep-visland__header {
+.uep-island--visuals.uep-island--leaving .uep-visland__header,
+.uep-island--visuals.uep-island--entering .uep-visland__header {
   animation-name: uep-visland-scatter-left;
 }
 
 .uep-island--visuals.uep-island--leaving .uep-visland__caption,
-.uep-island--visuals.uep-island--leaving .uep-visland__strip {
+.uep-island--visuals.uep-island--leaving .uep-visland__strip,
+.uep-island--visuals.uep-island--entering .uep-visland__caption,
+.uep-island--visuals.uep-island--entering .uep-visland__strip {
   animation-name: uep-visland-scatter-right;
 }
 
-.uep-island--visuals.uep-island--leaving .uep-visland__stage {
+.uep-island--visuals.uep-island--leaving .uep-visland__stage,
+.uep-island--visuals.uep-island--entering .uep-visland__stage {
   animation-name: uep-visland-scatter-burst;
+}
+
+/* 進場：整組拆解逆行——碎片從四面八方回收，重新聚成一個幻影。
+   根節點用了 animation shorthand（會重設 direction），所以這條必須在後面；
+   子元素只設了 name/duration，不受 shorthand 影響。 */
+.uep-island--visuals.uep-island--entering,
+.uep-island--visuals.uep-island--entering .uep-visland > * {
+  animation-direction: reverse;
 }
 
 @keyframes uep-visland-dissolve {
@@ -660,11 +676,78 @@
   }
 }
 
+/* ── 換片：投射整個換掉時的一次性動畫 ──
+   幻燈片換片是「打上另一張片子」，不是內容瞬間被抽換。映照、嵌入、
+   clue 插播與 clue 復原快照全走同一條 key，共用同一個過場。 */
+.uep-visland__swap {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(207, 199, 245, 0.3),
+    rgba(94, 84, 142, 0.14)
+  );
+  animation: uep-visland-swap 0.5s ease-out both;
+}
+
+/* 只淡入不縮放：is-partial 的 scale(1.06) 是遮模糊邊緣用的，
+   動畫若碰 transform 會在 fill 後把它壓掉 */
+.uep-visland__frame img {
+  animation: uep-visland-plate-in 0.44s ease-out both;
+}
+
+.uep-visland__ghost {
+  animation: uep-visland-ghost-in 0.44s ease-out both;
+}
+
+@keyframes uep-visland-swap {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-plate-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes uep-visland-ghost-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .uep-visland__cone,
   .uep-visland__frame,
+  .uep-visland__swap,
+  .uep-visland__frame img,
+  .uep-visland__ghost,
   .uep-island--visuals.uep-island--leaving,
-  .uep-island--visuals.uep-island--leaving .uep-visland > * {
+  .uep-island--visuals.uep-island--leaving .uep-visland > *,
+  .uep-island--visuals.uep-island--entering,
+  .uep-island--visuals.uep-island--entering .uep-visland > * {
     animation: none;
+  }
+
+  /* 動畫關掉後 fill 的最終值也一併失效，補回靜態外觀 */
+  .uep-visland__swap {
+    display: none;
+  }
+
+  .uep-visland__frame img {
+    opacity: 0.85;
   }
 }

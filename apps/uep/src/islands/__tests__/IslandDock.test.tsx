@@ -15,6 +15,7 @@ vi.mock('../useIslands', () => ({
     windows: { echoes: { open: false } },
     focusOrder: [],
   }),
+  useZoneEntryActive: () => false,
 }));
 
 vi.mock('../concepts/useTerminalUnread', () => ({
@@ -34,9 +35,9 @@ describe('IslandDock — Echo Spot 等待提示', () => {
     const chip = screen.getByRole('button', {
       name: '展開流浪回聲（有回聲等待插播）',
     });
-    expect(chip).toHaveClass('is-echo-waiting');
+    expect(chip).toHaveClass('is-attn-waiting');
 
     act(() => setEchoSpotWaiting(false));
-    expect(chip).not.toHaveClass('is-echo-waiting');
+    expect(chip).not.toHaveClass('is-attn-waiting');
   });
 });

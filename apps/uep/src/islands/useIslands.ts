@@ -7,6 +7,11 @@
 
 import { useSyncExternalStore } from 'react';
 
+import {
+  isZoneEntryActive,
+  subscribeZoneEntry,
+} from '../components/zone/zoneEntryLock';
+
 import { ISLAND_DESKTOP_MIN_WIDTH, getIslandRuntime } from './islandRuntime';
 import type { IslandRuntimeState } from './islandRuntime';
 
@@ -49,5 +54,20 @@ export function useDesktopIslandViewport(): boolean {
         : window.innerWidth >= ISLAND_DESKTOP_MIN_WIDTH,
     // SSR snapshot：與 isDesktopIslandViewport 的 SSR fallback 一致
     () => true
+  );
+}
+
+/**
+ * 區域入場動畫是否進行中（S9-D.2）。
+ *
+ * 浮島與 dock 靠這支 hook 在轉場開始時播離場動畫、結束時播進場動畫，
+ * 取代原本 CSS `display: none` 的硬切。Minimap 與釘選便條不在此列，
+ * 仍由 body class 直接隱藏。
+ */
+export function useZoneEntryActive(): boolean {
+  return useSyncExternalStore(
+    subscribeZoneEntry,
+    isZoneEntryActive,
+    () => false
   );
 }

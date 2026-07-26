@@ -211,8 +211,12 @@
    迷失的回聲（S9-B 解鎖儀式）
 
    刻意獨立於 .echoes-ripple 之外：特效層是 pointer-events:none +
-   aria-hidden 的純裝飾，而這顆球是真的要被點的。灰調——它不屬於這裡的
-   任何一個 cluster 色，那正是它「不合群」的視覺說法。
+   aria-hidden 的純裝飾，而這顆球是真的要被點的。
+
+   金色（--uep-gold，全站主題色）：初版走灰調表達「不屬於任何 cluster」，
+   但灰在一池藍紅綠紫裡讀起來只是「比較暗的球」，兩輪調亮都沒解決
+   （艾斯維爾 2026-07-26）。四個 cluster 色沒有暖黃，主題金既不撞色，
+   又天然帶「這顆有來歷」的份量——不合群的說法從彩度改成色相。
    ══════════════════════════════════════════════════════════════ */
 .echoes-lost-layer {
   position: fixed;
@@ -251,23 +255,23 @@
      不是背景裝飾，跟一般球用同一種存在感就等於藏起來。 */
   background: radial-gradient(
     circle at 38% 32%,
-    rgba(246, 246, 240, 0.92),
-    rgba(198, 198, 190, 0.5) 55%,
-    rgba(150, 150, 144, 0.14) 100%
+    rgba(252, 238, 168, 0.95),
+    rgba(213, 182, 24, 0.58) 55%,
+    rgba(158, 130, 12, 0.16) 100%
   );
-  border: 1px solid rgba(236, 236, 228, 0.5);
+  border: 1px solid rgba(240, 214, 104, 0.6);
   box-shadow:
-    0 0 26px rgba(228, 228, 220, 0.45),
-    0 0 60px rgba(200, 200, 194, 0.22),
-    inset 0 0 12px rgba(255, 255, 255, 0.3);
+    0 0 26px rgba(213, 182, 24, 0.5),
+    0 0 60px rgba(213, 182, 24, 0.24),
+    inset 0 0 12px rgba(255, 248, 206, 0.34);
   animation:
     er-core-pulse 4.5s ease-in-out infinite,
     er-lost-attention 3.2s ease-in-out infinite;
 }
 
 .er-lost-orb__halo {
-  border: 1px solid rgba(230, 230, 222, 0.6);
-  box-shadow: 0 0 18px rgba(224, 224, 216, 0.28);
+  border: 1px solid rgba(226, 198, 88, 0.66);
+  box-shadow: 0 0 18px rgba(213, 182, 24, 0.32);
   animation: er-lost-halo 3.6s ease-in-out infinite;
 }
 
@@ -286,18 +290,18 @@
 .er-lost-orb:hover .er-lost-orb__core {
   background: radial-gradient(
     circle at 38% 32%,
-    rgba(255, 255, 252, 1),
-    rgba(222, 222, 214, 0.68) 55%,
-    rgba(170, 170, 164, 0.2) 100%
+    rgba(255, 250, 214, 1),
+    rgba(232, 202, 52, 0.76) 55%,
+    rgba(180, 150, 20, 0.24) 100%
   );
   box-shadow:
-    0 0 40px rgba(244, 244, 236, 0.6),
-    0 0 84px rgba(214, 214, 208, 0.32),
-    inset 0 0 14px rgba(255, 255, 255, 0.45);
+    0 0 40px rgba(230, 200, 60, 0.62),
+    0 0 84px rgba(213, 182, 24, 0.34),
+    inset 0 0 14px rgba(255, 250, 224, 0.5);
 }
 
 .er-lost-orb:focus-visible {
-  outline: 2px solid rgba(214, 214, 208, 0.75);
+  outline: 2px solid var(--uep-gold);
   outline-offset: 6px;
 }
 
@@ -347,11 +351,11 @@
 .er-lost-orb.is-catching .er-lost-orb__core {
   background: radial-gradient(
     circle at 40% 35%,
-    rgba(248, 248, 244, 0.9),
-    rgba(200, 200, 194, 0.4) 60%,
+    rgba(255, 246, 194, 0.95),
+    rgba(220, 190, 40, 0.46) 60%,
     transparent 100%
   );
-  box-shadow: 0 0 46px rgba(230, 230, 224, 0.5);
+  box-shadow: 0 0 46px rgba(226, 196, 56, 0.55);
 }
 
 @keyframes er-lost-catch {
@@ -369,37 +373,37 @@
   }
 }
 
-/* 深色模式下反而要更淺——底色暗，灰球得往白靠才浮得出來（艾斯維爾 07/25） */
+/* 深色模式：底色暗，金要往亮處推一階才浮得出來（同 07/25 的灰球結論） */
 [data-theme='dark'] .er-lost-orb__core {
   background: radial-gradient(
     circle at 38% 32%,
-    rgba(255, 255, 255, 0.96),
-    rgba(226, 226, 220, 0.58) 55%,
-    rgba(180, 180, 174, 0.16) 100%
+    rgba(255, 249, 206, 0.98),
+    rgba(232, 202, 56, 0.66) 55%,
+    rgba(186, 156, 22, 0.18) 100%
   );
-  border-color: rgba(255, 255, 255, 0.62);
+  border-color: rgba(252, 232, 140, 0.7);
   box-shadow:
-    0 0 30px rgba(255, 255, 255, 0.5),
-    0 0 72px rgba(232, 232, 226, 0.26),
-    inset 0 0 14px rgba(255, 255, 255, 0.4);
+    0 0 30px rgba(232, 202, 56, 0.55),
+    0 0 72px rgba(213, 182, 24, 0.3),
+    inset 0 0 14px rgba(255, 252, 226, 0.45);
 }
 
 [data-theme='dark'] .er-lost-orb__halo {
-  border-color: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 0 22px rgba(255, 255, 255, 0.32);
+  border-color: rgba(246, 222, 120, 0.72);
+  box-shadow: 0 0 22px rgba(226, 196, 56, 0.36);
 }
 
 [data-theme='dark'] .er-lost-orb:hover .er-lost-orb__core {
   background: radial-gradient(
     circle at 38% 32%,
-    #ffffff,
-    rgba(240, 240, 234, 0.76) 55%,
-    rgba(196, 196, 190, 0.22) 100%
+    #fffdf0,
+    rgba(244, 220, 96, 0.82) 55%,
+    rgba(202, 172, 30, 0.26) 100%
   );
   box-shadow:
-    0 0 46px rgba(255, 255, 255, 0.68),
-    0 0 96px rgba(240, 240, 234, 0.36),
-    inset 0 0 16px rgba(255, 255, 255, 0.55);
+    0 0 46px rgba(244, 216, 88, 0.72),
+    0 0 96px rgba(226, 196, 56, 0.4),
+    inset 0 0 16px rgba(255, 253, 236, 0.6);
 }
 
 /* ── 減少動態偏好 ── */

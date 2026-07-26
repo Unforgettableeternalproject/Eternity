@@ -58,5 +58,20 @@ export function consumeEchoSuggestion(): EchoPreviewTrack | null {
   if (typeof window === 'undefined') return null;
   const track = window.__uepEchoSuggestion || null;
   window.__uepEchoSuggestion = null;
+  /* 消費也要廣播（S9-D.5）：dock chip 的「有提示等待中」閃爍衍生自
+     這個 pending 值，島展開取走後不廣播，chip 會一直閃到下次事件。 */
+  if (track) {
+    window.dispatchEvent(
+      new CustomEvent<EchoPreviewTrack | null>(UEP_ECHO_SUGGESTION_EVENT, {
+        detail: null,
+      })
+    );
+  }
   return track;
+}
+
+/** 是否有尚未消費的提示（dock chip 閃爍判定） */
+export function hasEchoSuggestion(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!window.__uepEchoSuggestion;
 }

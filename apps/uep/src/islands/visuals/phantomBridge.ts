@@ -489,7 +489,21 @@ export function consumePhantomSuggestion(): PhantomGallery | null {
   if (typeof window === 'undefined') return null;
   const pending = window.__uepPhantomSuggestion || null;
   window.__uepPhantomSuggestion = null;
+  /* 消費也要廣播（S9-D.5）：dock chip 的閃爍衍生自這個 pending 值 */
+  if (pending) {
+    window.dispatchEvent(
+      new CustomEvent<PhantomGallery | null>(UEP_PHANTOM_SUGGESTION_EVENT, {
+        detail: null,
+      })
+    );
+  }
   return pending;
+}
+
+/** 是否有尚未消費的嵌入提示（dock chip 閃爍判定） */
+export function hasPhantomSuggestion(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!window.__uepPhantomSuggestion;
 }
 
 /**
