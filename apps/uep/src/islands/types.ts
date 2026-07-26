@@ -76,8 +76,19 @@ export interface IslandWindowState {
 /** 視窗狀態 schema 版本 */
 export const ISLAND_SCHEMA_VERSION = 2;
 
-/** 浮島 z-index 層帶：2000-2999（Minimap 300 之上、Toast 10000 之下） */
+/** 浮島 z-index 層帶：2000-2999（dock 1999、Minimap 1998 之上、Toast 10000 之下） */
 export const ISLAND_Z_BASE = 2000;
+
+/**
+ * 小地圖 z-index（S10-0）。
+ *
+ * 原本硬編碼 300，會被 Reader 頂層（350）、IntroOverlay（500）、釘選便條
+ * 各層（500-1500）、Storage 解鎖小物件（1899）逐一蓋過。提到 dock 之下
+ * 一階，既脫離內容層，又維持既有的 Minimap < Dock < Island 相對次序。
+ *
+ * 不參與 focusOrder——小地圖是常駐參考件，不是可聚焦的視窗。
+ */
+export const MINIMAP_Z = ISLAND_Z_BASE - 2;
 
 /**
  * 五座浮島的靜態定義。

@@ -8,12 +8,14 @@
 /* ── 區域入場動畫期間隱藏浮動 UI ──
  * IntroOverlay / PortalTransition / zone boot 播放時由 zoneEntryLock
  * 掛上 body class（ref-count，沿用 OnboardingGate 前例）。
- * Minimap 一併隱藏——艾斯維爾指示：島應與 Minimap 同層級行為。
  *
- * S9-D.2 起浮島本體與 dock **不在這條規則裡**：它們改由元件訂閱
- * zoneEntryLock，先播各自的離場動畫再讓位（見 useZoneEntryActive）。
- * 這裡留下的都是沒有專屬離場語彙、硬切也不突兀的浮動件。 */
-body.uep-zone-entry-active .uep-minimap,
+ * S9-D.2 起浮島本體與 dock、S10-0 起 Minimap **不在這條規則裡**：它們改由
+ * 元件訂閱 zoneEntryLock，先播各自的離場動畫再讓位（見 useZoneEntryActive）。
+ * 這裡留下的都是沒有專屬離場語彙、硬切也不突兀的浮動件。
+ *
+ * ⚠️ OnboardingGate.css 另有一條 `body.uep-onboarding-active .uep-minimap`
+ * 的硬切規則，那是儀式期間自己掛的 body class，與 zoneEntryLock 無關，
+ * 兩套機制互不相通——改這裡時不要順手把那條一起清掉。 */
 body.uep-zone-entry-active .uep-pinned-note,
 body.uep-zone-entry-active .uep-stoland__note-ghost {
   display: none !important;

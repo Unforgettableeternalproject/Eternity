@@ -1,0 +1,45 @@
+/*
+ * 小地圖 — 轉場語彙與斷點規則（S10-0）
+ *
+ * 定位、配色、尺寸仍由元件的 inline style 決定（小地圖從一開始就是這麼寫的），
+ * 這裡只收兩件事：區域轉場的離場／進場動畫，以及手機隱藏。
+ */
+
+/* ── 轉場離場 ──
+ * 小地圖是一件可攜的圓盤，收起來的樣子該像被收進口袋：往自身下緣縮、
+ * 微微歪一下、沉一小段再淡掉。刻意不用浮島那條「縮往右下 dock」的語彙
+ * ——小地圖沒有 dock，也不該假裝自己要飛去某個歸位點。
+ *
+ * 播完由元件的 animationend（+ reduced-motion 保底計時器）進 hidden。 */
+.uep-minimap--leaving,
+.uep-minimap--entering {
+  transform-origin: center bottom;
+  animation: uep-minimap-leave 0.28s var(--ease) forwards;
+}
+
+.uep-minimap--leaving {
+  pointer-events: none;
+}
+
+/* 進場＝同一條動畫逆行，「怎麼收起來就怎麼攤開」。
+   animation-direction 必須寫在 shorthand 之後，否則會被重設回 normal。 */
+.uep-minimap--entering {
+  animation-direction: reverse;
+}
+
+@keyframes uep-minimap-leave {
+  from {
+    transform: scale(1) translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.72) translateY(18px) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .uep-minimap {
+    display: none !important;
+  }
+}
