@@ -103,6 +103,16 @@ export {
 } from './visuals/phantomBridge';
 export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
 
+/* ── 跨區互聯觸發（S10-1） ── */
+export {
+  triggerHistoryRelated,
+  dispatchIslandRelated,
+  setRelatedPendingFlag,
+  getRelatedPendingFlag,
+  subscribeRelatedPending,
+  subscribeIslandRelated,
+} from './interlinkTrigger';
+
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';
 export { default as IslandHost } from './IslandHost';

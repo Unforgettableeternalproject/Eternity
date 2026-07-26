@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* global AbortController */
 import React, {
   useCallback,
   useEffect,
@@ -14,6 +15,7 @@ import {
   getIslandRuntime,
   pushPhantomGallery,
   shouldMountIsland,
+  triggerHistoryRelated,
   useDesktopIslandViewport,
   useUnlockEligibility,
 } from '../../islands';
@@ -567,6 +569,34 @@ function VisualsReaderInner() {
       activeSubcatId,
       activeGalleryId,
     ]);
+
+  /*
+   * 停在某個畫廊時，讓 History 島浮出「這個畫廊相關的段落」。
+   * 陳列走廊綁 entityKey、鑲框室綁 storyKey，兩者互斥，取有值的那個。
+   */
+  useEffect(() => {
+    if (!activeGalleryId) return;
+    const node = findNodeById(tree, activeGalleryId);
+    if (!node) return;
+    const metadata = (node.metadata ?? {}) as Record<string, unknown>;
+    const storyKey =
+      typeof metadata.storyKey === 'string' ? metadata.storyKey.trim() : '';
+    const entityKey =
+      typeof metadata.entityKey === 'string' ? metadata.entityKey.trim() : '';
+    const key = storyKey || entityKey;
+    if (!key) return;
+
+    const controller = new AbortController();
+    void triggerHistoryRelated({
+      apiBase: API_BASE,
+      sourceZone: 'visuals',
+      keyType: storyKey ? 'story' : 'entity',
+      key,
+      label: node.title,
+      signal: controller.signal,
+    });
+    return () => controller.abort();
+  }, [activeGalleryId, tree]);
 
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {

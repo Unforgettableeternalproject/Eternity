@@ -447,3 +447,67 @@
     animation: none;
   }
 }
+
+/* ── 跨區互聯線索卡 ────────────────────────────────────────────── */
+
+/*
+ * 覆蓋在續讀區塊上方。用實心底色而非半透明——底下就是書頁紋理，
+ * 透出來會讓兩層文字互相干擾。
+ */
+.uep-hisland__related {
+  position: relative;
+  margin-bottom: 10px;
+  padding: 8px 22px 8px 10px;
+  border: 1px solid rgb(var(--hb-ink-rgb) / 0.22);
+  border-left-width: 3px;
+  background: rgb(var(--hb-paper-rgb) / 0.96);
+}
+
+.uep-hisland__related-kicker {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: rgb(var(--hb-ink-rgb) / 0.62);
+  margin-bottom: 5px;
+}
+
+.uep-hisland__related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.uep-hisland__related-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  text-align: left;
+  font-size: 11.5px;
+  color: rgb(var(--hb-ink-rgb) / 0.88);
+  cursor: pointer;
+  text-decoration: underline dotted rgb(var(--hb-ink-rgb) / 0.35);
+  text-underline-offset: 3px;
+}
+
+.uep-hisland__related-item:hover {
+  text-decoration-color: rgb(var(--hb-ink-rgb) / 0.7);
+}
+
+.uep-hisland__related-close {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  color: rgb(var(--hb-ink-rgb) / 0.45);
+  cursor: pointer;
+}
+
+.uep-hisland__related-close:hover {
+  color: rgb(var(--hb-ink-rgb) / 0.8);
+}

@@ -33,6 +33,10 @@ import {
   UEP_ECHO_SUGGESTION_EVENT,
   hasEchoSuggestion,
 } from './echoes/echoSuggestionBridge';
+import {
+  UEP_RELATED_PENDING_EVENT,
+  getRelatedPendingFlag,
+} from './interlinkTrigger';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
 import {
@@ -50,6 +54,7 @@ const SOURCE_EVENTS = [
   UEP_ECHO_SUGGESTION_EVENT,
   UEP_ENTITY_PENDING_EVENT,
   UEP_CHIP_ATTENTION_EVENT,
+  UEP_RELATED_PENDING_EVENT,
 ];
 
 /** 各島的衍生型等待條件（求值順序即顯示優先序） */
@@ -65,6 +70,8 @@ function derivedReason(id: IslandId): string | null {
       return null;
     case 'concepts':
       return hasPendingEntityActivate() ? '有條目等待查閱' : null;
+    case 'history':
+      return getRelatedPendingFlag('history') ? '有相關段落等待查看' : null;
     default:
       return null;
   }

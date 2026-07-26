@@ -16,6 +16,7 @@ import {
   clearEchoSuggestion,
   pushEchoSuggestion,
 } from '../echoes/echoSuggestionBridge';
+import { setRelatedPendingFlag } from '../interlinkTrigger';
 import { computeChipAttentions } from '../useChipAttention';
 import {
   clearPhantomSuggestion,
@@ -46,6 +47,7 @@ function resetAllSources(): void {
   setEchoSpotWaiting(false);
   clearEchoSuggestion();
   resetEntityActivateBridge();
+  setRelatedPendingFlag('history', false);
 }
 
 describe('computeChipAttentions', () => {
@@ -95,5 +97,16 @@ describe('computeChipAttentions', () => {
   it('storage 沒有定義任何衍生型來源，只可能出現標記', () => {
     markChipAttention('storage', '便條已更新');
     expect(computeChipAttentions().storage).toBe('便條已更新');
+  });
+
+  it('history 有待看的跨區關聯線索時提示', () => {
+    setRelatedPendingFlag('history', true);
+    expect(computeChipAttentions().history).toBe('有相關段落等待查看');
+  });
+
+  it('history 的關聯線索是衍生型，優先於閱讀進度標記', () => {
+    markChipAttention('history', '閱讀進度已更新');
+    setRelatedPendingFlag('history', true);
+    expect(computeChipAttentions().history).toBe('有相關段落等待查看');
   });
 });

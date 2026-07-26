@@ -19,6 +19,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
+import {
+  setRelatedPendingFlag,
+  subscribeIslandRelated,
+} from '../interlinkTrigger';
+import type { IslandRelatedDetail } from '../types';
 
 import {
   averageReadingMinutes,
@@ -66,6 +71,29 @@ export default function HistoryIsland() {
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>(
     {}
   );
+  /**
+   * 跨區互聯線索：讀者在別的 zone 停在某個 entity／劇情點時，這裡浮出
+   * 「那個東西在哪些段落出現過」。
+   *
+   * 一次只留一則——新的進來直接取代舊的，不排隊。使用者點掉、換頁
+   * （MPA 換頁整個 island bundle 會 unmount）或重整就消失，不持久化。
+   */
+  const [related, setRelated] = useState<IslandRelatedDetail | null>(null);
+
+  useEffect(
+    () =>
+      subscribeIslandRelated((detail) => {
+        setRelated(detail);
+        // 島收合時，dock chip 亮框提示有東西可看
+        setRelatedPendingFlag('history', true);
+      }),
+    []
+  );
+
+  // 島開著就代表使用者看得到卡片，待處理提示可以收掉
+  useEffect(() => {
+    if (related) setRelatedPendingFlag('history', false);
+  }, [related]);
 
   /* tree 載入（模組級快取，重開視窗不重抓） */
   useEffect(() => {
@@ -157,6 +185,38 @@ export default function HistoryIsland() {
 
     return (
       <>
+        {/* 跨區互聯線索：覆蓋在續讀區塊上方，一次一則 */}
+        {related && (
+          <div className="uep-hisland__related">
+            <button
+              type="button"
+              className="uep-hisland__related-close"
+              onClick={() => setRelated(null)}
+              aria-label="關閉線索"
+            >
+              ×
+            </button>
+            <div className="uep-hisland__related-kicker">
+              《{related.label ?? '這個'}》相關的段落
+            </div>
+            <div className="uep-hisland__related-list">
+              {related.historyPageIds.map((pageId) => (
+                <button
+                  key={pageId}
+                  type="button"
+                  className="uep-hisland__related-item"
+                  onClick={() => {
+                    setRelated(null);
+                    navigateToHistoryPage(pageId);
+                  }}
+                >
+                  {index?.nodesById.get(pageId)?.title ?? pageId}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 續讀：書籤停在哪一頁 */}
         {lastPct !== null && (
           <div className="uep-hisland__pct">讀到 {lastPct}%</div>

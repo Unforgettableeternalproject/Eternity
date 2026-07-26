@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* global AbortController */
 import React, {
   useCallback,
   useEffect,
@@ -29,6 +30,7 @@ import {
 import {
   completeUnlockRitual,
   shouldMountIsland,
+  triggerHistoryRelated,
   useDesktopIslandViewport,
   useUnlockEligibility,
 } from '../../islands';
@@ -1245,6 +1247,30 @@ function EchoesReaderInner() {
   const songData: EchoesData | null = currentSongPage
     ? parseEchoesData(currentSongPage.metadata, currentSongPage.id)
     : null;
+
+  /*
+   * 停在某首歌時，讓 History 島浮出「這首歌相關的段落」。
+   * 依分類取對應的 key——兩種命名空間互斥，取錯會查不到東西。
+   */
+  const relatedKey = songData
+    ? songData.category === 'story'
+      ? songData.storyKey
+      : songData.entityKey
+    : undefined;
+  const relatedKeyType = songData?.category === 'story' ? 'story' : 'entity';
+  useEffect(() => {
+    if (!relatedKey || !currentSongPage) return;
+    const controller = new AbortController();
+    void triggerHistoryRelated({
+      apiBase: API_BASE,
+      sourceZone: 'echoes',
+      keyType: relatedKeyType,
+      key: relatedKey,
+      label: currentSongPage.title,
+      signal: controller.signal,
+    });
+    return () => controller.abort();
+  }, [relatedKey, relatedKeyType, currentSongPage?.id, currentSongPage?.title]);
 
   // === 取得當前歌曲的集群資訊 ===
   const activeSongCluster = activeClusterId
