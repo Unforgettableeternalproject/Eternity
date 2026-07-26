@@ -592,7 +592,9 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
     );
 
     const res = await worker.fetch(
-      createRequest('/api/interlink/usage?keyType=story&key=rain-sea-finale'),
+      createRequest('/api/interlink/usage?keyType=story&key=rain-sea-finale', {
+        token,
+      }),
       env,
       ctx
     );
@@ -613,7 +615,9 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
 
   it('usage 對 entity 類型不回 storyPoint', async () => {
     const res = await worker.fetch(
-      createRequest('/api/interlink/usage?keyType=entity&key=xavier-colsono'),
+      createRequest('/api/interlink/usage?keyType=entity&key=xavier-colsono', {
+        token: await getAdminToken(),
+      }),
       env,
       ctx
     );
@@ -621,5 +625,37 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
       data: { storyPoint?: unknown };
     };
     expect(json.data.storyPoint).toBeUndefined();
+  });
+
+  /**
+   * usage 的定義端 live-scan 刻意 includeHidden（管理者要看到全部使用
+   * 位置），S10-3 之後還會帶劇情點標題／說明。未授權放行等同把未公開
+   * 內容的頁 id 與標題送出去，CDN 一快取更是攔不回來。
+   */
+  it('usage 未授權 → 401，且不進共用快取', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/usage?keyType=story&key=rain-sea-finale'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(401);
+
+    const authed = await worker.fetch(
+      createRequest('/api/interlink/usage?keyType=story&key=rain-sea-finale', {
+        token: await getAdminToken(),
+      }),
+      env,
+      ctx
+    );
+    expect(authed.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  it('anchors 維持公開（觸發模型的讀者端要用）', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/anchors?keyType=story&key=rain-sea-finale'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
   });
 });

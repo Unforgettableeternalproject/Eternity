@@ -124,11 +124,15 @@ async function putPage(apiBase, page) {
         }),
       }
     );
-    if (!res.ok) return false;
     const json = await safeJson(res);
-    return json?.ok ?? false;
-  } catch {
-    return false;
+    if (!res.ok || !json?.ok) {
+      // 撞名（409）與其他寫入拒絕都要帶出原因——只印「失敗」時使用者
+      // 無從得知是 key 被別頁佔用，只會以為是網路或權限問題
+      return { ok: false, error: json?.error || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
   }
 }
 
@@ -280,12 +284,12 @@ async function executePush(pages, area) {
       ok++;
       continue;
     }
-    const success = await putPage(REMOTE_API, fullPage);
-    if (success) {
+    const result = await putPage(REMOTE_API, fullPage);
+    if (result.ok) {
       console.log(`  ↑ ${entry.id}`);
       ok++;
     } else {
-      console.log(`  ✗ 推送失敗 ${entry.id}`);
+      console.log(`  ✗ 推送失敗 ${entry.id}：${result.error}`);
       fail++;
     }
   }
@@ -308,12 +312,12 @@ async function executePull(pages, area) {
       ok++;
       continue;
     }
-    const success = await putPage(LOCAL_API, fullPage);
-    if (success) {
+    const result = await putPage(LOCAL_API, fullPage);
+    if (result.ok) {
       console.log(`  ↓ ${entry.id}`);
       ok++;
     } else {
-      console.log(`  ✗ 拉取失敗 ${entry.id}`);
+      console.log(`  ✗ 拉取失敗 ${entry.id}：${result.error}`);
       fail++;
     }
   }

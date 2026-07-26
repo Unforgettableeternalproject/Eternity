@@ -289,7 +289,9 @@ describe('entity-song：storyKey 反查與壞 JSON 容錯（S10-1）', () => {
 
   it('storyKey 命中 → found + storyKey 欄位', async () => {
     const res = await worker.fetch(
-      createRequest('/api/echoes/entity-song?key=rain-sea-finale'),
+      createRequest(
+        '/api/echoes/entity-song?key=rain-sea-finale&keyType=story'
+      ),
       env,
       ctx
     );
@@ -330,7 +332,9 @@ describe('entity-song：storyKey 反查與壞 JSON 容錯（S10-1）', () => {
     ).toBe(true);
 
     const byStory = await worker.fetch(
-      createRequest('/api/echoes/entity-song?key=rain-sea-finale'),
+      createRequest(
+        '/api/echoes/entity-song?key=rain-sea-finale&keyType=story'
+      ),
       env,
       ctx
     );
@@ -338,5 +342,55 @@ describe('entity-song：storyKey 反查與壞 JSON 容錯（S10-1）', () => {
     expect(
       ((await byStory.json()) as { data: { found: boolean } }).data.found
     ).toBe(true);
+  });
+
+  /**
+   * 兩套命名空間允許重名（findKeyConflict 分開檢查就是這個前提），
+   * 所以反查絕不能兩欄一起比對——union 的結果取決於 D1 列順序，
+   * entity 反查可能拿到劇情歌，互聯就連到錯的東西。
+   */
+  it('同名 key 分屬兩個命名空間時，keyType 決定拿到哪一首', async () => {
+    await insertPage('echoes/characters/esong-twin', '同名角色歌', 'song', {
+      entityKey: 'twin-key',
+      category: 'character',
+    });
+    await insertPage(
+      'echoes/stories/arc/esong-twin-story',
+      '同名劇情歌',
+      'song',
+      {
+        storyKey: 'twin-key',
+        category: 'story',
+      }
+    );
+
+    const asEntity = await worker.fetch(
+      createRequest('/api/echoes/entity-song?key=twin-key&keyType=entity'),
+      env,
+      ctx
+    );
+    expect(
+      ((await asEntity.json()) as { data: { song?: { id: string } } }).data.song
+        ?.id
+    ).toBe('echoes/characters/esong-twin');
+
+    const asStory = await worker.fetch(
+      createRequest('/api/echoes/entity-song?key=twin-key&keyType=story'),
+      env,
+      ctx
+    );
+    expect(
+      ((await asStory.json()) as { data: { song?: { id: string } } }).data.song
+        ?.id
+    ).toBe('echoes/stories/arc/esong-twin-story');
+  });
+
+  it('keyType 打錯字 → 400（不靜默退回 entity）', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/echoes/entity-song?key=twin-key&keyType=stroy'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(400);
   });
 });

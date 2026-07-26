@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:workers';
 
-import { findKeyConflict, conceptsScope, ZONE_SCOPE } from '../interlink';
-import type { KeyConflictQuery } from '../interlink';
+import {
+  findKeyConflict,
+  findDuplicateCandidate,
+  conceptsScope,
+  ZONE_SCOPE,
+} from '../interlink';
+import type { KeyCandidate, KeyConflictQuery } from '../interlink';
 
 /**
  * 跨區互聯：資料表結構（T-B1）與 key 唯一性把關（T-B2）
@@ -446,6 +451,61 @@ describe('findKeyConflict — Concepts（每個 stack 內一次，跨頁生效�
     expect(
       await findKeyConflict(env.CONTENT_DB, cq({ keyType: 'story' }))
     ).toBeNull();
+  });
+});
+
+/**
+ * `findKeyConflict` 以 excludePageId 排除整個當前頁，同一次存檔內部的
+ * 重複對它完全隱形——新建頁面連 DB 記錄都還沒有。沒有這道檢查，違規
+ * 資料會被永久保存，而且之後每次存檔都一樣通過。
+ */
+describe('findDuplicateCandidate — 同一次請求內部的撞名', () => {
+  const candidate = (overrides: Partial<KeyCandidate> = {}): KeyCandidate => ({
+    keyType: 'entity',
+    keyValue: 'dup-key',
+    scope: 'dossier:u',
+    field: 'entityKey',
+    ...overrides,
+  });
+
+  it('同 scope 同 key 出現兩次 → 回傳第二次那筆', () => {
+    const dup = findDuplicateCandidate([
+      candidate(),
+      candidate({ field: 'entityKey' }),
+    ]);
+    expect(dup).toMatchObject({ keyValue: 'dup-key', scope: 'dossier:u' });
+  });
+
+  it('同 key 不同 scope 不算撞（dossier 各 variant 本來就會重複）', () => {
+    expect(
+      findDuplicateCandidate([
+        candidate({ scope: 'dossier:u' }),
+        candidate({ scope: 'dossier:e' }),
+      ])
+    ).toBeNull();
+  });
+
+  it('同 key 分屬兩個命名空間不算撞', () => {
+    expect(
+      findDuplicateCandidate([
+        candidate({ keyType: 'entity', scope: ZONE_SCOPE }),
+        candidate({ keyType: 'story', scope: ZONE_SCOPE }),
+      ])
+    ).toBeNull();
+  });
+
+  it('scope 與 key 的邊界不會混淆（scope 本身含 `:`）', () => {
+    expect(
+      findDuplicateCandidate([
+        candidate({ scope: 'dossier', keyValue: 'u:dup-key' }),
+        candidate({ scope: 'dossier:u', keyValue: 'dup-key' }),
+      ])
+    ).toBeNull();
+  });
+
+  it('空清單／單筆一律無衝突', () => {
+    expect(findDuplicateCandidate([])).toBeNull();
+    expect(findDuplicateCandidate([candidate()])).toBeNull();
   });
 });
 

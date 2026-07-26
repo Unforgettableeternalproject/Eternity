@@ -330,7 +330,9 @@ describe('entity-gallery：storyKey 反查與壞 JSON 容錯（S10-1）', () => 
 
   it('storyKey 命中 → found + storyKey 欄位', async () => {
     const res = await worker.fetch(
-      createRequest('/api/visuals/entity-gallery?key=rain-sea-finale'),
+      createRequest(
+        '/api/visuals/entity-gallery?key=rain-sea-finale&keyType=story'
+      ),
       env,
       ctx
     );
@@ -370,7 +372,9 @@ describe('entity-gallery：storyKey 反查與壞 JSON 容錯（S10-1）', () => 
     ).toBe(true);
 
     const byStory = await worker.fetch(
-      createRequest('/api/visuals/entity-gallery?key=rain-sea-finale'),
+      createRequest(
+        '/api/visuals/entity-gallery?key=rain-sea-finale&keyType=story'
+      ),
       env,
       ctx
     );
@@ -388,5 +392,48 @@ describe('entity-gallery：storyKey 反查與壞 JSON 容錯（S10-1）', () => 
     expect(
       ((await byIllustration.json()) as { data: { found: boolean } }).data.found
     ).toBe(true);
+  });
+
+  /** 理由同 echoes-song 的同名測試：union 比對會依 D1 列順序給錯東西 */
+  it('同名 key 分屬兩個命名空間時，keyType 決定拿到哪一個 gallery', async () => {
+    await insertPage('visuals/profiles/vgal-twin', '同名陳列走廊', 'gallery', {
+      entityKey: 'twin-key',
+      images: [],
+    });
+    await insertPage(
+      'visuals/illustrations/vgal-twin-story',
+      '同名插圖',
+      'gallery',
+      { storyKey: 'twin-key', images: [] }
+    );
+
+    const asEntity = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=twin-key&keyType=entity'),
+      env,
+      ctx
+    );
+    expect(
+      ((await asEntity.json()) as { data: { gallery?: { id: string } } }).data
+        .gallery?.id
+    ).toBe('visuals/profiles/vgal-twin');
+
+    const asStory = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=twin-key&keyType=story'),
+      env,
+      ctx
+    );
+    expect(
+      ((await asStory.json()) as { data: { gallery?: { id: string } } }).data
+        .gallery?.id
+    ).toBe('visuals/illustrations/vgal-twin-story');
+  });
+
+  it('keyType 打錯字 → 400（不靜默退回 entity）', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/visuals/entity-gallery?key=twin-key&keyType=stroy'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(400);
   });
 });

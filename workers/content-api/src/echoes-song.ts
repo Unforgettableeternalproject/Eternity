@@ -96,19 +96,23 @@ function buildSongPayload(row: SongRow): EntitySongPayload {
 }
 
 /**
- * 以 entityKey 或 storyKey 反查 Echoes 歌曲；找不到回傳 null。
+ * 以指定命名空間的 key 反查 Echoes 歌曲；找不到回傳 null。
  *
  * SQL 只篩結構性欄位，key 與 hidden 判定放應用層——metadata 是自由
  * JSON 欄位，SQLite 的 json_extract 遇到非法 JSON 會讓整條 SELECT 報錯
  * 而非回傳 NULL，一列壞資料就會打掉整個端點。其餘 index 建構器
  * （echoes-index / visuals-index / concepts-index）早已採此模式。
  *
- * 兩種 key 都比對：角色歌／區域歌掛 entityKey，劇情歌掛 storyKey，
- * 呼叫端不必先知道是哪一種。
+ * ⚠️ `keyType` 必須由呼叫端顯式決定，**不可兩欄一起比對**。
+ * entityKey 與 storyKey 是兩套獨立的命名空間，設計上明確允許同一個
+ * 字串在兩邊各自合法存在（唯一性把關也是分開檢查的）。union 比對時
+ * 回傳哪一筆取決於 D1 的列順序——entity 反查可能拿到劇情歌的定義，
+ * 那正是互聯「連到錯的東西」的失效模式。
  */
 export async function findEntitySong(
   db: D1Database,
-  key: string
+  key: string,
+  keyType: 'entity' | 'story' = 'entity'
 ): Promise<EntitySongPayload | null> {
   const result = await db
     .prepare(
@@ -126,7 +130,8 @@ export async function findEntitySong(
     }
     // 原 SQL 的 COALESCE(...,0)=0 語意：未設定或 false 才算公開
     if (meta.hidden === true || meta.hidden === 1) continue;
-    if (meta.entityKey !== key && meta.storyKey !== key) continue;
+    const candidate = keyType === 'entity' ? meta.entityKey : meta.storyKey;
+    if (candidate !== key) continue;
     return buildSongPayload(row);
   }
   return null;

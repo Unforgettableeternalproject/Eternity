@@ -82,43 +82,74 @@ export async function findKeyConflict(
   db: D1Database,
   query: KeyConflictQuery
 ): Promise<KeyConflict | null> {
-  const { keyType, keyValue, area, scope, excludePageId } = query;
-  if (!keyValue) return null;
+  const checker = await createKeyConflictChecker(db, [query.area]);
+  return checker.find(query);
+}
 
-  if (area === 'concepts') {
-    // storyKey 命名空間不含 Concepts（劇情點只掛 Echoes 歌／Visuals 插圖／
-    // History 錨點），故 story 類型在此永遠無衝突
-    if (keyType === 'story') return null;
+/** 預載索引後可重複查詢的撞名檢查器（見 `createKeyConflictChecker`） */
+export interface KeyConflictChecker {
+  find(query: KeyConflictQuery): Promise<KeyConflict | null>;
+}
 
-    const entries = await buildConceptsEntityIndex(db);
-    const hit = entries.find(
-      (e) =>
-        e.entityKey === keyValue &&
-        e.pageId !== excludePageId &&
-        conceptsScope(e.stack, e.variantId) === scope
-    );
-    return hit ? { pageId: hit.pageId, pageTitle: hit.pageTitle } : null;
-  }
+/**
+ * 建立撞名檢查器：先把需要的 area 索引各掃一次，之後每次查詢都在
+ * 記憶體比對。
+ *
+ * 存在理由是批次寫入路徑（`/api/content/sync/import` 一次幾百頁）：
+ * 逐頁呼叫 `findKeyConflict` 等於每頁重掃一次全 area，頁數一多就是
+ * O(頁數 × 全表)。單頁存檔仍直接用 `findKeyConflict`，語意不變。
+ *
+ * `includeHidden` 一律為 true——hidden 只是不在前台列表顯示，key 本身
+ * 仍是有效的引用目標（echo spot / visual clue 的 by-id 反查刻意不排除
+ * hidden）。撞名檢查若看不到隱藏頁，兩首隱藏歌就能共用同一個 key 而
+ * 無人攔阻，而且是無聲失效。Visuals 現況超過半數 gallery 是 hidden。
+ */
+export async function createKeyConflictChecker(
+  db: D1Database,
+  areas: Iterable<KeyConflictQuery['area']>
+): Promise<KeyConflictChecker> {
+  const wanted = new Set(areas);
+  const concepts = wanted.has('concepts')
+    ? await buildConceptsEntityIndex(db)
+    : [];
+  const echoes = wanted.has('echoes')
+    ? await buildEchoesEntityIndex(db, { includeHidden: true })
+    : [];
+  const visuals = wanted.has('visuals')
+    ? await buildVisualsEntityIndex(db, { includeHidden: true })
+    : [];
 
-  // Echoes / Visuals：整個區塊一個實例。
-  //
-  // includeHidden 必須為 true——hidden 只是不在前台列表顯示，key 本身
-  // 仍是有效的引用目標（echo spot / visual clue 的 by-id 反查刻意不排除
-  // hidden）。撞名檢查若看不到隱藏頁，兩首隱藏歌就能共用同一個 key 而
-  // 無人攔阻，而且是無聲失效。Visuals 現況超過半數 gallery 是 hidden。
-  const entries =
-    area === 'echoes'
-      ? await buildEchoesEntityIndex(db, { includeHidden: true })
-      : await buildVisualsEntityIndex(db, { includeHidden: true });
+  return {
+    async find(query: KeyConflictQuery): Promise<KeyConflict | null> {
+      const { keyType, keyValue, area, scope, excludePageId } = query;
+      if (!keyValue) return null;
 
-  const hit = entries.find((e) => {
-    if (e.id === excludePageId) return false;
-    return keyType === 'entity'
-      ? e.entityKey === keyValue
-      : e.storyKey === keyValue;
-  });
-  if (!hit) return null;
-  return { pageId: hit.id, pageTitle: await fetchPageTitle(db, hit.id) };
+      if (area === 'concepts') {
+        // storyKey 命名空間不含 Concepts（劇情點只掛 Echoes 歌／Visuals
+        // 插圖／History 錨點），故 story 類型在此永遠無衝突
+        if (keyType === 'story') return null;
+
+        const hit = concepts.find(
+          (e) =>
+            e.entityKey === keyValue &&
+            e.pageId !== excludePageId &&
+            conceptsScope(e.stack, e.variantId) === scope
+        );
+        return hit ? { pageId: hit.pageId, pageTitle: hit.pageTitle } : null;
+      }
+
+      // Echoes / Visuals：整個區塊一個實例
+      const entries = area === 'echoes' ? echoes : visuals;
+      const hit = entries.find((e) => {
+        if (e.id === excludePageId) return false;
+        return keyType === 'entity'
+          ? e.entityKey === keyValue
+          : e.storyKey === keyValue;
+      });
+      if (!hit) return null;
+      return { pageId: hit.id, pageTitle: await fetchPageTitle(db, hit.id) };
+    },
+  };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -192,6 +223,37 @@ export function extractCandidateKeys(
 }
 
 /**
+ * 找出同一批候選中自己撞名的那一筆（回傳第二次出現者）。
+ *
+ * `findKeyConflict` 只能發現「別的頁面已經用了這個 key」——它以
+ * `excludePageId` 排除整個當前頁，同一次存檔的內容裡塞兩個相同的
+ * Concepts 條目 key 對它是完全隱形的，新建頁面更是連 DB 記錄都還沒有。
+ * 結果就是違規資料被永久保存下來，而且之後每次存檔都同樣通過。
+ *
+ * 前端 `collectEntityKeyIssues` 會即時警告，但那是提示不是約束——
+ * 直接打 API、批次匯入、或前端驗證範圍不完整時都繞得過去。
+ *
+ * 指紋以 `|` 分隔：scope 本身含 `:`（`dossier:{variantId}`），若拿 `:`
+ * 之類會出現在值裡的字元當分隔，不同的 (scope, key) 組合會撞出同一個
+ * 指紋。key 受 ENTITY_KEY_PATTERN 約束（kebab-case），不含 `|`。
+ */
+export function findDuplicateCandidate(
+  candidates: KeyCandidate[]
+): KeyCandidate | null {
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const fingerprint = [
+      candidate.keyType,
+      candidate.scope,
+      candidate.keyValue,
+    ].join('|');
+    if (seen.has(fingerprint)) return candidate;
+    seen.add(fingerprint);
+  }
+  return null;
+}
+
+/**
  * 重建單一 History 頁的反向索引。
  *
  * 整頁 DELETE + INSERT，不做逐條 diff——單頁標記數量是個位數到十幾個
@@ -235,6 +297,99 @@ export async function rebuildHistoryInterlinkIndex(
     );
   }
   await db.batch(statements);
+}
+
+/**
+ * D1 batch 的分塊大小。
+ *
+ * 一次匯入可能是幾百頁 × 每頁數個錨點，全部塞進單一 batch 會讓請求
+ * 體積失控（Workers 有請求大小與 CPU 時間上限）。分塊之間不共用交易，
+ * 但每一塊仍是「先刪該頁、再插該頁」的完整單位，中斷時最壞情況是
+ * 後面幾頁尚未重建——重跑一次即收斂（重建本身冪等）。
+ */
+const INTERLINK_BATCH_CHUNK = 50;
+
+/**
+ * 批次重建多頁的反向索引（匯入 / backfill 用）。
+ *
+ * 與逐頁呼叫 `rebuildHistoryInterlinkIndex` 的差別只有往返次數：
+ * 語意、冪等性、DELETE+INSERT 的順序都完全相同。
+ */
+export async function rebuildHistoryInterlinkIndexBatch(
+  db: D1Database,
+  pages: { pageId: string; content: unknown }[]
+): Promise<number> {
+  const now = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  let anchorCount = 0;
+
+  for (const page of pages) {
+    statements.push(
+      db
+        .prepare(`DELETE FROM history_interlink_index WHERE page_id = ?`)
+        .bind(page.pageId)
+    );
+    for (const anchor of scanHistoryInterlinkAnchors(page.content)) {
+      anchorCount += 1;
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO history_interlink_index
+               (page_id, anchor_kind, anchor_id, key_type, key_value, label, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            page.pageId,
+            anchor.anchorKind,
+            anchor.anchorId,
+            anchor.keyType,
+            anchor.keyValue,
+            anchor.label,
+            now,
+            now
+          )
+      );
+    }
+  }
+
+  for (let i = 0; i < statements.length; i += INTERLINK_BATCH_CHUNK) {
+    await db.batch(statements.slice(i, i + INTERLINK_BATCH_CHUNK));
+  }
+  return anchorCount;
+}
+
+/**
+ * 掃描全部 History 頁重建反向索引（migration 0022 的資料補建）。
+ *
+ * migration 只建了空表——套用之後既有文章的錨點一筆都查不到，觸發模型
+ * 對所有舊內容靜默失效（沒有錯誤、只是永遠沒有線索卡）。backfill 不能
+ * 寫在 SQL migration 裡：錨點藏在 `content` 的 TipTap JSON 結構中，
+ * 需要 `scanHistoryInterlinkAnchors` 逐頁解析。
+ *
+ * 冪等：每頁都是整頁 DELETE + INSERT，重跑不會累積重複列。
+ */
+export async function backfillHistoryInterlinkIndex(
+  db: D1Database
+): Promise<{ pages: number; anchors: number }> {
+  const result = await db
+    .prepare(
+      `SELECT id, content FROM pages
+       WHERE area = 'history' AND deleted_at IS NULL`
+    )
+    .all<{ id: string; content: string }>();
+
+  const pages = (result.results || []).map((row) => {
+    let content: unknown = [];
+    try {
+      content = JSON.parse(row.content || '[]');
+    } catch {
+      // 壞 JSON 視為無錨點——照樣清掉該頁殘留的索引列
+    }
+    return { pageId: row.id, content };
+  });
+
+  const anchors = await rebuildHistoryInterlinkIndexBatch(db, pages);
+  return { pages: pages.length, anchors };
 }
 
 /**

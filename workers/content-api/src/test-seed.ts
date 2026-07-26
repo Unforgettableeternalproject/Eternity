@@ -1,3 +1,8 @@
+import {
+  backfillHistoryInterlinkIndex,
+  ensureStoryPoints,
+  extractCandidateKeys,
+} from './interlink';
 import type { PageRow } from './types';
 import type {
   RootCardRow,
@@ -40,6 +45,10 @@ export interface TestResetResult {
     rootSingletons: number;
     rootCards: number;
     siteHomepage: number;
+    /** 依 seed 內容重建的 History 錨點數（S10-1 衍生表） */
+    interlinkAnchors: number;
+    /** 依 seed 內容重建的劇情點殼列數 */
+    storyPoints: number;
   };
   resetUserProgress: number;
 }
@@ -136,6 +145,15 @@ export function isTestSeedSnapshot(value: unknown): value is TestSeedSnapshot {
   );
 }
 
+/**
+ * reset 會清空的業務表。
+ *
+ * ⚠️ 新增從 `pages` 衍生的資料表時**必須**列進來。`history_interlink_index`
+ * 與 `story_points` 是 S10-1 的衍生表：reset 直接重建 pages，衍生表若沒
+ * 一起清，重置後會留下已不存在頁面的錨點；更糟的是 seed 常用同一組
+ * page id，舊錨點會被重新 join 出來，看起來像「這篇文章提過某個 key」，
+ * 而實際內容裡根本沒有。
+ */
 const BUSINESS_TABLES = [
   'pages',
   'root_projects',
@@ -146,6 +164,8 @@ const BUSINESS_TABLES = [
   'site_homepage',
   'deleted_assets',
   'root_deleted_assets',
+  'history_interlink_index',
+  'story_points',
 ] as const;
 
 export async function resetAndSeedTestData(
@@ -328,6 +348,17 @@ export async function resetAndSeedTestData(
   const results = await db.batch(statements);
   const resetUserProgress = results[BUSINESS_TABLES.length]?.meta.changes ?? 0;
 
+  // 衍生資料在 pages 落地後重建——清空 + 重建才是完整的重置。
+  // 種下什麼就重建什麼：seed 的 History 骨架若含互聯標記就會有錨點，
+  // 沒有就是空表，兩種情形都與 pages 現況一致。
+  const storyCandidates = snapshot.pages.flatMap((row) =>
+    extractCandidateKeys(row.area, {
+      metadata: parseMetadata(row.metadata),
+    })
+  );
+  await ensureStoryPoints(db, storyCandidates);
+  const interlink = await backfillHistoryInterlinkIndex(db);
+
   return {
     tables: [...BUSINESS_TABLES],
     totalRows,
@@ -340,7 +371,22 @@ export async function resetAndSeedTestData(
       rootSingletons: snapshot.rootSingletons.length,
       rootCards: snapshot.rootCards.length,
       siteHomepage: snapshot.siteHomepage?.length ?? 0,
+      interlinkAnchors: interlink.anchors,
+      storyPoints: new Set(storyCandidates.map((c) => c.keyValue)).size,
     },
     resetUserProgress,
   };
+}
+
+/** metadata 欄位是自由 JSON 字串；壞資料視為無 metadata（容錯優先） */
+function parseMetadata(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }

@@ -191,6 +191,118 @@ describe('POST /api/test/reset', () => {
     expect(reader).toEqual({ observer_ever: 0, progress: null });
   });
 
+  /**
+   * 互聯兩張表是從 pages 衍生的（S10-1）。reset 若只重建 pages 不清衍生表，
+   * 殘留的錨點會被同 page id 的新頁重新 join 出來——看起來像「這篇文章
+   * 提過某個 key」，但實際內容裡根本沒有。
+   */
+  it('reset 清掉互聯衍生表，並依 seed 內容重建', async () => {
+    const now = new Date().toISOString();
+    await env.CONTENT_DB.batch([
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO history_interlink_index
+         (page_id, anchor_kind, anchor_id, key_type, key_value, label, created_at, updated_at)
+         VALUES ('history/stale', 'entity-mark', NULL, 'entity', 'stale-key', '殘留', ?, ?)`
+      ).bind(now, now),
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO story_points (story_key, title, description, created_at, updated_at)
+         VALUES ('stale-story', NULL, NULL, ?, ?)`
+      ).bind(now, now),
+    ]);
+
+    const token = await signWith('super_admin');
+    const res = await worker.fetch(
+      createRequest('/api/test/reset', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          snapshot: {
+            version: 1,
+            generatedAt: now,
+            pages: [
+              {
+                id: 'history/seeded/ch-1',
+                area: 'history',
+                title: '種下的章節',
+                slug: 'seeded/ch-1',
+                sort_order: 0,
+                content: JSON.stringify([
+                  {
+                    type: 'rich_text',
+                    content:
+                      '<p><span data-uep-entity="concept" data-ref="entity:seeded-key">某人</span></p>',
+                  },
+                ]),
+                source_file: null,
+                base_content_hash: null,
+                status: 'synced',
+                metadata: '{}',
+                parent_id: null,
+                depth: 0,
+                page_type: 'section',
+                created_at: now,
+                updated_at: now,
+                deleted_at: null,
+              },
+              {
+                id: 'echoes/seeded/story-song',
+                area: 'echoes',
+                title: '種下的劇情歌',
+                slug: 'seeded/story-song',
+                sort_order: 0,
+                content: '[]',
+                source_file: null,
+                base_content_hash: null,
+                status: 'synced',
+                metadata: '{"storyKey":"seeded-story","category":"story"}',
+                parent_id: null,
+                depth: 0,
+                page_type: 'song',
+                created_at: now,
+                updated_at: now,
+                deleted_at: null,
+              },
+            ],
+            rootProjects: [],
+            rootLinks: [],
+            rootUpdates: [],
+            rootSingletons: [],
+            rootCards: [],
+          },
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { data?: { tables: string[] } };
+    expect(json.data?.tables).toContain('history_interlink_index');
+    expect(json.data?.tables).toContain('story_points');
+
+    // 殘留清光
+    const stale = await env.CONTENT_DB.prepare(
+      `SELECT COUNT(*) as cnt FROM history_interlink_index WHERE page_id = 'history/stale'`
+    ).first<{ cnt: number }>();
+    expect(stale?.cnt).toBe(0);
+    const staleStory = await env.CONTENT_DB.prepare(
+      `SELECT COUNT(*) as cnt FROM story_points WHERE story_key = 'stale-story'`
+    ).first<{ cnt: number }>();
+    expect(staleStory?.cnt).toBe(0);
+
+    // 種下的內容重建出對應的衍生列
+    const anchor = await env.CONTENT_DB.prepare(
+      `SELECT page_id, key_value FROM history_interlink_index WHERE key_value = 'seeded-key'`
+    ).first<{ page_id: string; key_value: string }>();
+    expect(anchor).toEqual({
+      page_id: 'history/seeded/ch-1',
+      key_value: 'seeded-key',
+    });
+    const storyPoint = await env.CONTENT_DB.prepare(
+      `SELECT story_key FROM story_points WHERE story_key = 'seeded-story'`
+    ).first<{ story_key: string }>();
+    expect(storyPoint).toEqual({ story_key: 'seeded-story' });
+  });
+
   it('沒有 snapshot 或 clearOnly 時拒絕，且不先清空資料', async () => {
     const before = await countRows('pages');
     const token = await signWith('super_admin');

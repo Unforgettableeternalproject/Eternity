@@ -28,14 +28,19 @@ import { buildEchoesEntityIndex } from './echoes-index';
 import { buildVisualsEntityIndex } from './visuals-index';
 import {
   extractCandidateKeys,
+  findDuplicateCandidate,
   findKeyConflict,
+  createKeyConflictChecker,
   ensureStoryPoints,
   rebuildHistoryInterlinkIndex,
+  rebuildHistoryInterlinkIndexBatch,
+  backfillHistoryInterlinkIndex,
   clearHistoryInterlinkIndex,
   findInterlinkAnchors,
   findInterlinkDefinitions,
   findStoryPoint,
 } from './interlink';
+import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
   findEntityGallery,
@@ -154,6 +159,20 @@ function jsonResponse<T>(
       'public, s-maxage=60, max-age=10, stale-while-revalidate=300';
   }
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+/**
+ * 反查端點的 `?keyType=` 解析（S10-1）。
+ *
+ * 未帶參數時回 `'entity'`——`entity-song` / `entity-gallery` 兩個端點在
+ * storyKey 出現之前就只服務 entity 命名空間，維持既有呼叫端的語意。
+ * 帶了但不合法時回 `null`，呼叫端一律 400：靜默退回預設會讓打錯字的
+ * `keyType=stroy` 悄悄查成 entity，正是這個 blocker 要根除的模糊地帶。
+ */
+function parseLookupKeyType(url: URL): 'entity' | 'story' | null {
+  const raw = url.searchParams.get('keyType')?.trim();
+  if (!raw) return 'entity';
+  return raw === 'entity' || raw === 'story' ? raw : null;
 }
 
 // ===== CORS =====
@@ -310,6 +329,27 @@ async function upsertPage(
   // 是對 D1 現況做的即時掃描。撞名一律 409，不靜默覆蓋——entityKey /
   // storyKey 撞名的後果是互聯連到錯的東西，遠比存檔失敗嚴重。
   const keyCandidates = extractCandidateKeys(area, body);
+
+  // 先看這次送來的內容自己有沒有撞——同一頁塞兩個相同的 Concepts 條目
+  // key 時，逐筆比對 DB 是看不出來的（excludePageId 排除的正是自己）。
+  const duplicate = findDuplicateCandidate(keyCandidates);
+  if (duplicate) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `${duplicate.field}「${duplicate.keyValue}」在這次存檔的內容裡出現了兩次`,
+        conflict: {
+          field: duplicate.field,
+          key: duplicate.keyValue,
+          conflictingPageId: id,
+          conflictingPageTitle: body.title ?? id,
+        },
+      },
+      409,
+      cors
+    );
+  }
+
   for (const candidate of keyCandidates) {
     const conflict = await findKeyConflict(db, {
       keyType: candidate.keyType,
@@ -528,6 +568,20 @@ async function deletePage(
   return jsonResponse({ ok: true }, 200, cors);
 }
 
+/**
+ * 批次匯入時「同批已宣告」的 key 指紋。
+ *
+ * 帶 area 的理由：Echoes 與 Visuals 的 scope 都是固定的 `'zone'`，
+ * 不帶 area 會讓兩個 zone 的同名 key 互相誤擋——而跨 zone 同名正是
+ * 互聯的基礎（`xavier-colsono` 目前橫跨四處且全部合法）。
+ * 分隔字元同 `findDuplicateCandidate`。
+ */
+function claimFingerprint(area: string, candidate: KeyCandidate): string {
+  return [area, candidate.keyType, candidate.scope, candidate.keyValue].join(
+    '|'
+  );
+}
+
 /** POST /api/content/sync/import — 批次匯入頁面（從子倉庫） */
 async function importPages(
   body: { pages: ImportPageRequest[]; sourceCommit?: string },
@@ -562,15 +616,145 @@ async function importPages(
     }
   }
 
-  // 分類後用 db.batch() 批次執行寫入
-  const insertStmts: D1PreparedStatement[] = [];
-  const updateStmts: D1PreparedStatement[] = [];
+  // ---- S10 寫入契約（S10-1 修補）----
+  //
+  // 這個端點原本直接 INSERT/UPDATE，繞過 upsertPage 的三道關卡：撞名寫得
+  // 進來、storyKey 沒有 story_points 殼列、History 反向索引不建也不更新。
+  // 而 migrate-history / migrate-echoes / migrate-visuals / migrate-concepts
+  // 全部走這裡——等於主要的內容寫入路徑完全沒有把關。
+  //
+  // 與單頁存檔的差別只有一處：撞名**不整批中止**。批次匯入一次幾百頁，
+  // 為了一頁撞名讓其他頁全部退回無助於修資料；改為跳過該頁並列進
+  // conflicts，由同步腳本呈現給使用者。
+  interface PendingWrite {
+    page: ImportPageRequest;
+    kind: 'insert' | 'update';
+    candidates: KeyCandidate[];
+  }
+  const pending: PendingWrite[] = [];
+  const conflicts: {
+    pageId: string;
+    field: string;
+    key: string;
+    conflictingPageId: string;
+  }[] = [];
+  /** 本地已修改的頁：只更新來源 hash 供比對，內容不動 */
+  const hashOnlyStmts: D1PreparedStatement[] = [];
 
   for (const page of body.pages) {
     const existing = existingMap.get(page.id);
 
     if (!existing) {
       // 新頁面：直接匯入
+      pending.push({
+        page,
+        kind: 'insert',
+        candidates: extractCandidateKeys(page.area, page),
+      });
+    } else if (existing.status === 'synced') {
+      // 同步中的頁面：來源有變更時自動更新
+      if (existing.base_content_hash !== page.contentHash) {
+        pending.push({
+          page,
+          kind: 'update',
+          candidates: extractCandidateKeys(page.area, page),
+        });
+      } else {
+        skipped.push(page.id);
+      }
+    } else {
+      // 已修改的頁面：不自動覆蓋，只更新 base hash 供比對。
+      // 內容不進 DB，故不必檢查 key、也不重建索引。
+      if (existing.base_content_hash !== page.contentHash) {
+        // 標記來源有新版本（metadata 裡記錄）
+        hashOnlyStmts.push(
+          db
+            .prepare(
+              `UPDATE pages SET metadata = json_set(COALESCE(metadata, '{}'), '$.pendingSourceHash', ?), updated_at = ? WHERE id = ?`
+            )
+            .bind(page.contentHash, now, page.id)
+        );
+      }
+      skipped.push(page.id);
+    }
+  }
+
+  // ---- 唯一性把關：DB 現況 + 同一批之內 ----
+  //
+  // 檢查器預載索引後在記憶體比對——逐頁呼叫 findKeyConflict 會變成
+  // O(頁數 × 全表掃描)。批次內部另用 claimed 補足：同批的新頁還不在
+  // DB 快照裡，只靠檢查器兩頁互撞會雙雙放行。
+  const checkAreas = new Set<'concepts' | 'echoes' | 'visuals'>();
+  for (const entry of pending) {
+    if (entry.candidates.length === 0) continue;
+    checkAreas.add(entry.page.area as 'concepts' | 'echoes' | 'visuals');
+  }
+
+  const accepted: PendingWrite[] = [];
+  const checker =
+    checkAreas.size > 0 ? await createKeyConflictChecker(db, checkAreas) : null;
+  /** 指紋 → 這一批中先宣告該 key 的頁 id */
+  const claimed = new Map<string, string>();
+
+  for (const entry of pending) {
+    if (!checker || entry.candidates.length === 0) {
+      accepted.push(entry);
+      continue;
+    }
+
+    const record = (candidate: KeyCandidate, conflictingPageId: string) =>
+      conflicts.push({
+        pageId: entry.page.id,
+        field: candidate.field,
+        key: candidate.keyValue,
+        conflictingPageId,
+      });
+
+    // 同一頁內部先撞（Concepts 一頁可巢狀出多個條目 key）
+    const duplicate = findDuplicateCandidate(entry.candidates);
+    if (duplicate) {
+      record(duplicate, entry.page.id);
+      continue;
+    }
+
+    let blocked = false;
+    for (const candidate of entry.candidates) {
+      // 指紋帶 area：Echoes 與 Visuals 的 scope 都是固定的 'zone'，
+      // 不帶 area 會讓兩個 zone 的同名 key 互相誤擋
+      const fingerprint = claimFingerprint(entry.page.area, candidate);
+      const claimant = claimed.get(fingerprint);
+      if (claimant) {
+        record(candidate, claimant);
+        blocked = true;
+        break;
+      }
+      const conflict = await checker.find({
+        keyType: candidate.keyType,
+        keyValue: candidate.keyValue,
+        area: entry.page.area as 'concepts' | 'echoes' | 'visuals',
+        scope: candidate.scope,
+        excludePageId: entry.page.id,
+      });
+      if (conflict) {
+        record(candidate, conflict.pageId);
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) continue;
+
+    for (const candidate of entry.candidates) {
+      claimed.set(claimFingerprint(entry.page.area, candidate), entry.page.id);
+    }
+    accepted.push(entry);
+  }
+
+  // ---- 通過把關的才組寫入語句 ----
+  const insertStmts: D1PreparedStatement[] = [];
+  const updateStmts: D1PreparedStatement[] = [];
+  for (const entry of accepted) {
+    const page = entry.page;
+    if (entry.kind === 'insert') {
       insertStmts.push(
         db
           .prepare(
@@ -595,49 +779,45 @@ async function importPages(
           )
       );
       imported.push(page.id);
-    } else if (existing.status === 'synced') {
-      // 同步中的頁面：來源有變更時自動更新
-      if (existing.base_content_hash !== page.contentHash) {
-        updateStmts.push(
-          db
-            .prepare(
-              `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, updated_at = ? WHERE id = ?`
-            )
-            .bind(
-              page.title,
-              JSON.stringify(page.content),
-              page.contentHash,
-              page.sourceFile,
-              now,
-              page.id
-            )
-        );
-        updated.push(page.id);
-      } else {
-        skipped.push(page.id);
-      }
     } else {
-      // 已修改的頁面：不自動覆蓋，只更新 base hash 供比對
-      if (existing.base_content_hash !== page.contentHash) {
-        // 標記來源有新版本（metadata 裡記錄）
-        updateStmts.push(
-          db
-            .prepare(
-              `UPDATE pages SET metadata = json_set(COALESCE(metadata, '{}'), '$.pendingSourceHash', ?), updated_at = ? WHERE id = ?`
-            )
-            .bind(page.contentHash, now, page.id)
-        );
-        skipped.push(page.id);
-      } else {
-        skipped.push(page.id);
-      }
+      updateStmts.push(
+        db
+          .prepare(
+            `UPDATE pages SET title = ?, content = ?, base_content_hash = ?, source_file = ?, updated_at = ? WHERE id = ?`
+          )
+          .bind(
+            page.title,
+            JSON.stringify(page.content),
+            page.contentHash,
+            page.sourceFile,
+            now,
+            page.id
+          )
+      );
+      updated.push(page.id);
     }
   }
 
   // 批次執行所有 INSERT 和 UPDATE
-  const allStmts = [...insertStmts, ...updateStmts];
+  const allStmts = [...insertStmts, ...updateStmts, ...hashOnlyStmts];
   if (allStmts.length > 0) {
     await db.batch(allStmts);
+  }
+
+  // ---- 後置動作：與 upsertPage 同一組（S10-1 §2-4 / §4）----
+  // storyKey 殼列先於索引重建，順序與單頁存檔一致
+  await ensureStoryPoints(
+    db,
+    accepted.flatMap((entry) => entry.candidates)
+  );
+
+  // History 頁的三種互聯標記在內容寫入後重建反向索引。批次版只是把
+  // 往返次數收斂，DELETE+INSERT 的語意與冪等性與單頁完全相同。
+  const historyWrites = accepted
+    .filter((entry) => entry.page.area === 'history')
+    .map((entry) => ({ pageId: entry.page.id, content: entry.page.content }));
+  if (historyWrites.length > 0) {
+    await rebuildHistoryInterlinkIndexBatch(db, historyWrites);
   }
 
   // 記錄同步日誌
@@ -653,6 +833,7 @@ async function importPages(
         imported: imported.length,
         updated: updated.length,
         skipped: skipped.length,
+        conflicts: conflicts.length,
       }),
       now
     )
@@ -665,7 +846,10 @@ async function importPages(
         imported: imported.length,
         updated: updated.length,
         skipped: skipped.length,
-        details: { imported, updated, skipped },
+        // 撞名被擋下的頁面必須明確回報——靜默跳過會讓同步腳本顯示
+        // 「成功」，而那幾頁其實從來沒有寫進去
+        conflicts: conflicts.length,
+        details: { imported, updated, skipped, conflicts },
       },
     },
     200,
@@ -1482,6 +1666,17 @@ export default {
       return getSyncStatus(env.CONTENT_DB, cors);
     }
 
+    // POST /api/interlink/reindex — 全站重建 History 反向索引（S10-1）
+    //
+    // migration 0022 只建了空表，套用後既有文章的錨點一筆都查不到，
+    // 觸發模型對所有舊內容靜默失效。backfill 不能寫進 SQL migration：
+    // 錨點藏在 content 的 TipTap JSON 裡，得逐頁解析。
+    // 冪等（整頁 DELETE+INSERT），部署後與 test reset 後都可直接重跑。
+    if (path === '/api/interlink/reindex' && request.method === 'POST') {
+      const result = await backfillHistoryInterlinkIndex(env.CONTENT_DB);
+      return jsonResponse({ ok: true, data: result }, 200, cors);
+    }
+
     // ---- 最近更新路由（僅葉子頁面）----
     if (path === '/api/content/recent' && request.method === 'GET') {
       const limit = Math.min(
@@ -1713,6 +1908,14 @@ export default {
         return jsonResponse({ ok: true, data: { anchors } }, 200, cors, true);
       }
 
+      // usage 是 S10-3 admin 反查 UI 的資料：`findInterlinkDefinitions`
+      // 刻意 includeHidden（管理者要看到全部使用位置），story_points 之後
+      // 還會存進劇情點標題／說明。公開等同把未公開內容的頁 id、標題與
+      // 劇情點名稱全部送出去，而且 CDN 一快取就攔不回來。
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+
       const definitions = await findInterlinkDefinitions(
         env.CONTENT_DB,
         keyType,
@@ -1732,8 +1935,9 @@ export default {
           },
         },
         200,
-        cors,
-        true
+        // 授權後的回應絕不進共用快取——同一個 URL 對不同身分的可見範圍
+        // 不同，CDN 命中會把管理者的結果原封不動回給下一個訪客
+        { ...cors, 'Cache-Control': 'private, no-store' }
       );
     }
 
@@ -1760,7 +1964,17 @@ export default {
           cors
         );
       }
-      const song = await findEntitySong(env.CONTENT_DB, key);
+      // keyType 決定查哪一套命名空間；未帶時維持端點原本的語意（entity）。
+      // 不接受「兩套一起查」——見 findEntitySong 的說明。
+      const keyType = parseLookupKeyType(url);
+      if (!keyType) {
+        return jsonResponse(
+          { ok: false, error: 'keyType must be entity or story' },
+          400,
+          cors
+        );
+      }
+      const song = await findEntitySong(env.CONTENT_DB, key, keyType);
       return jsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
         200,
@@ -1811,7 +2025,15 @@ export default {
           cors
         );
       }
-      const gallery = await findEntityGallery(env.CONTENT_DB, key);
+      const keyType = parseLookupKeyType(url);
+      if (!keyType) {
+        return jsonResponse(
+          { ok: false, error: 'keyType must be entity or story' },
+          400,
+          cors
+        );
+      }
+      const gallery = await findEntityGallery(env.CONTENT_DB, key, keyType);
       return jsonResponse(
         {
           ok: true,

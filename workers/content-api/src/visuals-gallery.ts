@@ -115,18 +115,20 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
 }
 
 /**
- * 以 entityKey 或 storyKey 反查 Visuals gallery；找不到回傳 null。
+ * 以指定命名空間的 key 反查 Visuals gallery；找不到回傳 null。
  *
  * SQL 只篩結構性欄位，key 與 hidden 判定放應用層——理由同
  * `echoes-song.ts` 的 `findEntitySong`（json_extract 遇壞 JSON 會炸整條
  * SELECT，非回傳 NULL）。
  *
- * 兩種 key 都比對：陳列走廊（profiles）掛 entityKey，鑲框室
- * （illustrations）掛 storyKey，呼叫端不必先知道是哪一種。
+ * ⚠️ `keyType` 由呼叫端顯式決定，**不可兩欄一起比對**——理由同
+ * `findEntitySong`：兩套命名空間允許重名，union 比對的結果取決於
+ * D1 列順序，entity 反查會拿到劇情插圖的定義。
  */
 export async function findEntityGallery(
   db: D1Database,
-  key: string
+  key: string,
+  keyType: 'entity' | 'story' = 'entity'
 ): Promise<EntityGalleryPayload | null> {
   const result = await db
     .prepare(
@@ -144,7 +146,8 @@ export async function findEntityGallery(
     }
     // 原 SQL 的 COALESCE(...,0)=0 語意：未設定或 false 才算公開
     if (meta.hidden === true || meta.hidden === 1) continue;
-    if (meta.entityKey !== key && meta.storyKey !== key) continue;
+    const candidate = keyType === 'entity' ? meta.entityKey : meta.storyKey;
+    if (candidate !== key) continue;
     return buildGalleryPayload(row);
   }
   return null;
