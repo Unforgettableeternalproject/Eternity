@@ -417,12 +417,9 @@ export default function EchoesIsland() {
       {interrupting && (
         <div
           className="uep-eisland__interrupt"
-          style={{ borderColor: accent, color: accent }}
+          style={{ '--interrupt': accent } as React.CSSProperties}
         >
-          <span
-            className="uep-eisland__interrupt-dot"
-            style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
-          />
+          <span className="uep-eisland__interrupt-dot" />
           回聲插播中
           <span className="uep-eisland__interrupt-back">
             結束後回到「{state.interruptionSnapshot?.title || '先前的回聲'}」
