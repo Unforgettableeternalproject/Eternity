@@ -35,6 +35,9 @@ import {
   collectMarkers,
   getProgressManager,
   resolveResumeMarkerIdx,
+  computeContentRatio,
+  isNonScrollable,
+  isWithinFogReach,
   ratioToScrollTop,
   PROGRESS_CHANGE_EVENT,
 } from '../../progress';
@@ -337,16 +340,48 @@ export default function HistoryReader() {
     scrollVelocityRef,
   });
 
+  // 目前頁面 id 的鏡像：非同步反查落地時檢查是否仍在同一頁（競態防禦），
+  // 以及捲動 listener 內取用（effect 只掛一次，不能吃 state）
+  const currentIdRef = useRef(currentId);
+  currentIdRef.current = currentId;
+
+  /**
+   * 迷霧線的推進取樣（S10-2）。
+   *
+   * ⚠️ 主要推進來源是**捲動**，不是標記點通過——標記稀疏的文章之間可以
+   * 隔好幾屏，只靠 scanline 的閘門推進會讓迷霧留在原地被讀者捲過去。
+   * scanline 那邊的推進是「標記合法過線」的順帶結果，不是唯一入口。
+   */
+  const sampleFog = useCallback(() => {
+    const pageId = currentIdRef.current;
+    const el = scrollRef.current;
+    if (!pageId || !el) return;
+    const state = getProgressManager().getState();
+    if (state.completedPageIds.includes(pageId)) return;
+    if (isNonScrollable(el.scrollHeight, el.clientHeight)) return;
+    const ratio = computeContentRatio(
+      el.scrollTop,
+      el.clientHeight,
+      el.scrollHeight
+    );
+    const stored = state.fogRatio[pageId] ?? 0;
+    if (!isWithinFogReach(ratio, stored, el.clientHeight, el.scrollHeight)) {
+      return;
+    }
+    getProgressManager().advanceFog(pageId, ratio);
+  }, []);
+
   // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
   // 停下閱讀後仍被前一個快速 wheel 事件誤判。
-  // 同一個 effect 順帶開關迷霧的捲動降級 body class——捲動中不渲染
-  // 迷霧動畫，停滯後才恢復（S10-2）。不另掛一個語意重疊的 listener。
+  // 同一個 effect 兼管迷霧的推進取樣與捲動降級 body class（S10-2）——
+  // 不另掛語意重疊的 listener。
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
     let lastTop = element.scrollTop;
     let lastAt = performance.now();
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    let fogRaf = 0;
     const onScroll = () => {
       const now = performance.now();
       const elapsed = Math.max(now - lastAt, 1);
@@ -355,19 +390,36 @@ export default function HistoryReader() {
       lastTop = element.scrollTop;
       lastAt = now;
       document.body.classList.add(FOG_SCROLLING_CLASS);
+      if (!fogRaf) {
+        fogRaf = requestAnimationFrame(() => {
+          fogRaf = 0;
+          sampleFog();
+        });
+      }
       if (settleTimer) clearTimeout(settleTimer);
       settleTimer = setTimeout(() => {
         scrollVelocityRef.current = 0;
         document.body.classList.remove(FOG_SCROLLING_CLASS);
+        // 停下來後補一次：慣性捲動的最後一段可能沒進到 rAF
+        sampleFog();
       }, 180);
     };
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       element.removeEventListener('scroll', onScroll);
       if (settleTimer) clearTimeout(settleTimer);
+      if (fogRaf) cancelAnimationFrame(fogRaf);
       document.body.classList.remove(FOG_SCROLLING_CLASS);
     };
-  }, []);
+  }, [sampleFog]);
+
+  // 進頁先取樣一次：掃描線一載入就在視窗 80% 處，第一屏本來就該是
+  // 可讀的，不能讓讀者一進來就對著整片霧。
+  useEffect(() => {
+    if (!articleHtml || contentLoading) return;
+    const id = requestAnimationFrame(() => sampleFog());
+    return () => cancelAnimationFrame(id);
+  }, [articleHtml, contentLoading, sampleFog]);
 
   // 迷霧線的唯讀鏡像——useVisualClues 是唯一繞過掃描線閘門的消費端，
   // 它的區間判定跑在 rAF 迴圈裡，不能每次都去 store 取值。
@@ -387,10 +439,6 @@ export default function HistoryReader() {
   const [dismissedClueIds, setDismissedClueIds] = useState<Set<string>>(
     () => new Set()
   );
-  // 反查回應落地時檢查是否仍在同一頁（非同步競態防禦）
-  const currentIdRef = useRef(currentId);
-  currentIdRef.current = currentId;
-
   // 只撤下書籤（session dedupe 落定），不動 clue 生命週期。
   // 兩個時機共用：映射成功當下、通過訖點時。前者 clue 仍在進行中
   // （訖點恢復、gate 切圖都還要用 clickedCluesRef），所以顯示與

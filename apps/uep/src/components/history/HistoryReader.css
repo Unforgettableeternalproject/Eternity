@@ -1691,8 +1691,12 @@
  * 還沒解鎖」，不是「畫面下半部」。所以不能沿用 Visual Clue 書籤那套
  * viewport 釘位，兩者解決的是不同問題。
  *
- * 分兩層純粹是效能：只有讀者眼前那 1.5 屏值得付 backdrop-filter 的
- * 代價，再下面反正看不到細節，一塊色票就夠。
+ * 要的是「霧」不是「毛玻璃」：blur 只負責讓字認不出來，霧感來自疊在
+ * 上面的幾團 radial-gradient 雲絮，兩層以不同速度與相位緩慢飄移，
+ * 交疊處自然形成濃淡不均。
+ *
+ * 分兩層是效能考量：只有讀者眼前那一段值得付 backdrop-filter 的代價，
+ * 遠場反正看不到細節，一塊色票就夠，文章再長成本都固定。
  *
  * reduced-motion 目前刻意不覆寫（艾斯維爾：先保留動畫，看情況再修），
  * 這是暫時決策，不是漏做的無障礙需求。
@@ -1705,58 +1709,97 @@
   pointer-events: none;
   display: flex;
   flex-direction: column;
+  /* 霧色基底：跟著明暗主題走 */
+  --fog-body: var(--bg-sunken);
+  --fog-wisp: rgba(255, 255, 255, 0.62);
 }
 
-/* 活躍帶：模糊到看得見段落形狀、認不出字 */
+/* 深色主題的霧絮偏冷灰——純白在深底上會過曝成一團光斑 */
+[data-theme='dark'] .history-fog {
+  --fog-wisp: rgba(214, 222, 236, 0.4);
+}
+
+/* 活躍帶：字糊掉 + 雲絮飄動 */
 .history-fog__active {
-  flex: 0 0 150vh;
-  backdrop-filter: blur(7px) saturate(0.6);
-  -webkit-backdrop-filter: blur(7px) saturate(0.6);
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg-page) 55%, transparent),
-    color-mix(in srgb, var(--bg-page) 88%, transparent) 40%,
-    color-mix(in srgb, var(--bg-page) 96%, transparent)
-  );
-  animation: history-fog-drift 14s ease-in-out infinite alternate;
-}
-
-/* 上緣不切死，讓迷霧「聚攏」而不是「貼了一張紙」 */
-.history-fog__active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -6vh;
-  height: 6vh;
-  background: linear-gradient(
+  position: relative;
+  flex: 0 0 130vh;
+  overflow: hidden;
+  backdrop-filter: blur(6px) saturate(0.5) brightness(0.92);
+  -webkit-backdrop-filter: blur(6px) saturate(0.5) brightness(0.92);
+  /* 上緣不切死：讓霧從迷霧線「聚攏」而不是貼一張紙 */
+  mask-image: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in srgb, var(--bg-page) 50%, transparent)
+    #000 7vh,
+    #000 calc(100% - 1px)
   );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 7vh,
+    #000 calc(100% - 1px)
+  );
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--fog-body) 40%, transparent),
+    color-mix(in srgb, var(--fog-body) 82%, transparent) 45%,
+    color-mix(in srgb, var(--fog-body) 94%, transparent)
+  );
+}
+
+/* 兩層雲絮，方向與週期都錯開，交疊處濃淡不均才像霧 */
+.history-fog__active::before,
+.history-fog__active::after {
+  content: '';
+  position: absolute;
+  inset: -25% -15%;
+  background:
+    radial-gradient(42% 30% at 20% 18%, var(--fog-wisp) 0%, transparent 68%),
+    radial-gradient(36% 24% at 72% 34%, var(--fog-wisp) 0%, transparent 70%),
+    radial-gradient(50% 34% at 45% 66%, var(--fog-wisp) 0%, transparent 72%),
+    radial-gradient(30% 22% at 88% 82%, var(--fog-wisp) 0%, transparent 66%);
+  filter: blur(24px);
+  will-change: transform;
+}
+
+.history-fog__active::before {
+  opacity: 0.85;
+  animation: history-fog-drift-a 34s ease-in-out infinite alternate;
+}
+
+.history-fog__active::after {
+  opacity: 0.6;
+  transform: scaleX(-1);
+  animation: history-fog-drift-b 47s ease-in-out infinite alternate;
 }
 
 /* 遠場：無濾鏡無動畫，文章再長成本都固定 */
 .history-fog__far {
   flex: 1 1 auto;
-  background: color-mix(in srgb, var(--bg-page) 97%, var(--history-tint));
+  background: color-mix(in srgb, var(--fog-body) 97%, var(--history-tint));
 }
 
-@keyframes history-fog-drift {
+@keyframes history-fog-drift-a {
   from {
-    opacity: 0.94;
-    transform: translateY(0);
+    transform: translate3d(-3%, 1.5%, 0) scale(1.05);
   }
   to {
-    opacity: 1;
-    transform: translateY(-0.6vh);
+    transform: translate3d(4%, -2%, 0) scale(1.14);
   }
 }
 
-/* 捲動中降級：動畫停下、濾鏡固定。快速捲動時看不出差別，
-   沒必要每幀重算 backdrop-filter */
-body.uep-fog-scrolling .history-fog__active {
+@keyframes history-fog-drift-b {
+  from {
+    transform: translate3d(3%, -1%, 0) scaleX(-1) scale(1.12);
+  }
+  to {
+    transform: translate3d(-4%, 2.5%, 0) scaleX(-1) scale(1.02);
+  }
+}
+
+/* 捲動中降級：雲絮停格、濾鏡固定。快速捲動時看不出差別，
+   沒必要每幀重算 backdrop-filter 與兩層 blur */
+body.uep-fog-scrolling .history-fog__active::before,
+body.uep-fog-scrolling .history-fog__active::after {
   animation-play-state: paused;
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
 }
