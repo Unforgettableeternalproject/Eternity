@@ -1,6 +1,6 @@
 {
   "name": "eternity-monorepo",
-  "version": "0.9.15.19",
+  "version": "0.9.15.20",
   "private": true,
   "description": "Bernie's personal website monorepo with Astro",
   "packageManager": "pnpm@9.15.0",
@@ -40,7 +40,8 @@
     "interlink:reindex:local": "node scripts/reindex-interlink.mjs --local",
     "interlink:reindex:test": "node scripts/reindex-interlink.mjs --test",
     "interlink:reindex:remote": "node scripts/reindex-interlink.mjs --remote",
-    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
+    "lint:encoding": "node scripts/check-source-encoding.mjs",
+    "check": "pnpm lint && pnpm lint:encoding && pnpm typecheck && pnpm format:check && pnpm build",
     "deploy:content-api": "pnpm --filter content-api-worker ship",
     "deploy:content-api:test": "pnpm --filter content-api-worker exec wrangler deploy --env test",
     "deploy:visitor": "pnpm --filter visitor-counter-worker ship",

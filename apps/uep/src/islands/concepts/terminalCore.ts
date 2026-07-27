@@ -328,7 +328,7 @@ export function groupStackEntries(
   const groups: StackGroup[] = [];
   const byKey = new Map<string, StackGroup>();
   for (const entry of unlocked) {
-    const key = `${entry.category ?? ''} ${entry.group ?? ''}`;
+    const key = `${entry.category ?? ''}\u0000${entry.group ?? ''}`;
     let bucket = byKey.get(key);
     if (!bucket) {
       bucket = { category: entry.category, group: entry.group, entries: [] };
