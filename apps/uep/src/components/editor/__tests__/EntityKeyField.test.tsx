@@ -150,8 +150,10 @@ describe('collectEntityKeyIssues — 存檔前硬驗證', () => {
     expect(collectEntityKeyIssues(crossVariant)).toEqual([]);
   });
 
-  it('diff 跨分類同頁重複回報', () => {
-    const data: DiffContent = {
+  // diff 已退出實體身分體系——條目不掛 entityKey，檢查不該再涵蓋它。
+  // 用 D1 舊資料殘留 key 的形狀驗證：即使欄位還在也不得誤報。
+  it('diff 不參與檢查（殘留的舊 entityKey 不誤報）', () => {
+    const data = {
       subcategories: [
         {
           label: 'A',
@@ -172,9 +174,7 @@ describe('collectEntityKeyIssues — 存檔前硬驗證', () => {
           ],
         },
       ],
-    };
-    const issues = collectEntityKeyIssues(data);
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toContain('essence');
+    } as unknown as DiffContent;
+    expect(collectEntityKeyIssues(data)).toEqual([]);
   });
 });

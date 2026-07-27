@@ -2401,10 +2401,10 @@
   background: color-mix(in srgb, var(--concepts-main) 3%, transparent);
 }
 
-/* 對照表行 */
+/* 對照表行——欄數由 --diff-cols 決定（詞條欄 + N 個值欄） */
 .conc-diff-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr repeat(var(--diff-cols, 2), 1fr);
   padding: 12px 16px;
   border-bottom: 1px solid
     color-mix(in srgb, var(--concepts-main) 12%, transparent);
@@ -2431,15 +2431,35 @@
   padding-left: 14px;
   border-left: 1px dashed
     color-mix(in srgb, var(--concepts-main) 18%, transparent);
+  color: var(--ink-sub);
+  font-size: 12.5px;
 }
-.conc-diff-val.en {
+/* 首個值欄（多為原文／英譯）沿用等寬字視覺；term 是第 1 個 child */
+.conc-diff-val:nth-child(2) {
   color: var(--concepts-soft);
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.conc-diff-val.jp {
-  color: var(--ink-sub);
-  font-size: 12.5px;
+
+/* 欄位標籤表頭 */
+.conc-diff-row.conc-diff-head {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: color-mix(in srgb, var(--concepts-main) 5%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--concepts-main) 24%, transparent);
+}
+.conc-diff-head:hover {
+  background: color-mix(in srgb, var(--concepts-main) 5%, transparent);
+}
+.conc-diff-head .conc-diff-term,
+.conc-diff-head .conc-diff-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--concepts-main);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 /* 底部狀態列 */
@@ -2832,12 +2852,6 @@
 
 .conc-chrono-expanded-header .conc-chrono-expanded-close {
   margin-left: 8px;
-}
-
-/* 術語定義的 term 是 block，按鈕跟著它換行時不要撐開行高 */
-.conc-diff-def-term .conc-interlink-btn,
-.conc-diff-term .conc-interlink-btn {
-  font-weight: 400;
 }
 
 @media (prefers-reduced-motion: reduce) {

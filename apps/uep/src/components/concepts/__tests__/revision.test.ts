@@ -340,7 +340,6 @@ const diffData = (): DiffContent => ({
             {
               term: '原質',
               values: ['？？？'],
-              entityKey: 'essence',
               // 條目可見性由 baseGate 決定（2026-07-17 語意修正）
               gate: { requiresFlags: ['essence:01'] },
               revisions: [

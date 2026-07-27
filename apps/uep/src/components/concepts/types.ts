@@ -286,16 +286,28 @@ export interface DiffSubcat {
 export interface DiffSection {
   /** 區段標題（group 標題），如「未被歸類」 */
   label: string;
+  /**
+   * 值欄位標籤（如 ['英文', '日文']）——本 section 內所有 entry 的
+   * values 依序對位到這些欄位。未定義或空陣列時 UI 退回匿名的
+   * 「值 1 / 值 2」呈現，既有單值資料不受影響。
+   */
+  valueLabels?: string[];
   /** 條目列表 */
   entries: DiffEntry[];
 }
 
-export interface DiffEntry extends WithRevision {
+/**
+ * 對照表條目。
+ *
+ * diff stack 定位為「一個詞對多個值」的純對照表，不參與跨 stack 實體
+ * 身分體系——故不帶 entityKey，也不提供 aliases 匹配詞。名詞解釋類
+ * 內容改由 dossier + revision 承擔。
+ * gate / revisions 仍保留：譯名可隨劇情進度揭露。
+ */
+export interface DiffEntry extends Omit<WithRevision, 'entityKey'> {
   /** 術語/詞條名稱 */
   term: string;
-  /** 匹配別名（S7-D）：異寫/簡稱補充匹配詞，語意同 DossierEntry.aliases */
-  aliases?: string[];
-  /** 定義或翻譯值（多欄時為陣列） */
+  /** 定義或翻譯值（依 section 的 valueLabels 對位） */
   values: string[];
   /** 劇透等級 */
   spoiler?: number;

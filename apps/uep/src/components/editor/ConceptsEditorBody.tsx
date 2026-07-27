@@ -42,6 +42,7 @@ import type {
   DiffEntry,
   ConceptsData,
 } from '../concepts/types';
+import { padValueLabels, sectionValueColumns } from '../concepts/diffTable';
 
 // ── 型別 ──────────────────────────────────────────────────────────
 
@@ -372,7 +373,6 @@ export default function ConceptsEditorBody({
           data={data.data as DiffContent}
           onChange={(d) => update(d)}
           accent={accent}
-          externalKeys={lookupExternalKeys}
         />
       )}
     </div>
@@ -2809,19 +2809,44 @@ function ChronoEditor({
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Diff 編輯器（對照表/術語 + hidden/locked 支援）
+// Diff 編輯器（對照表：section 定義值欄位，詞條表格對位填值）
 // ══════════════════════════════════════════════════════════════════
+
+/** 表格列的 grid 欄數（詞條欄 + N 個值欄 + 操作欄）交給 CSS 變數 */
+function diffColsStyle(columns: number): React.CSSProperties {
+  return {
+    '--ced-diff-cols': String(Math.max(columns, 1)),
+  } as React.CSSProperties;
+}
+
+/** 詞條是否帶表格看不見的設定（進階按鈕據此改標記） */
+function hasEntryFlags(entry: DiffEntry): boolean {
+  return Boolean(
+    entry.hidden ||
+    entry.locked ||
+    entry.gate ||
+    (entry.revisions?.length ?? 0) > 0
+  );
+}
+
+/** 進階按鈕的 tooltip：列出該詞條已設定的項目 */
+function entryFlagSummary(entry: DiffEntry): string {
+  const flags: string[] = [];
+  if (entry.hidden) flags.push('隱藏');
+  if (entry.locked) flags.push('鎖定');
+  if (entry.gate) flags.push('解鎖條件');
+  if (entry.revisions?.length) flags.push(`${entry.revisions.length} 個版本`);
+  return flags.length ? `進階設定：${flags.join('、')}` : '進階設定';
+}
 
 function DiffEditor({
   data,
   onChange,
   accent,
-  externalKeys = NO_EXTERNAL_KEYS,
 }: {
   data: DiffContent;
   onChange: (d: DiffContent) => void;
   accent: string;
-  externalKeys?: ExternalKeyLookup;
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
@@ -2908,6 +2933,14 @@ function DiffEditor({
     setActiveEntry(section.entries.length);
     setPanelMode('entry');
   }
+  /** 表格內新增：值依現有欄數補齊，且不跳離表格 */
+  function addEntryInline() {
+    if (!section) return;
+    updateEntries([
+      ...section.entries,
+      { term: '', values: Array.from({ length: valueColumns }, () => '') },
+    ]);
+  }
   async function removeEntry(i: number) {
     if (!section) return;
     const target = section.entries[i];
@@ -2965,20 +2998,81 @@ function DiffEditor({
   const entry =
     activeEntry !== null && section ? section.entries[activeEntry] : null;
 
-  // entityKey 唯一性範圍 = 整個 diff stack（跨頁、全部分類，排除自身）
-  const usedEntityKeys = React.useMemo(() => {
-    const keys = new Set<string>(externalKeys());
-    data.subcategories.forEach((sc, sci) =>
-      sc.sections.forEach((s, si) =>
-        s.entries.forEach((ent, ei) => {
-          if (sci === activeTab && si === activeSection && ei === activeEntry)
-            return;
-          if (ent.entityKey) keys.add(ent.entityKey);
-        })
+  // ── 值欄位（section 層的欄位標籤 + 表格編輯） ───────────────────────
+
+  // 欄數規則與閱讀器共用，見 concepts/diffTable.ts
+  const valueColumns = React.useMemo(
+    () => (section ? sectionValueColumns(section) : 1),
+    [section]
+  );
+
+  function updateSection(patch: Partial<DiffSection>) {
+    if (!subcat) return;
+    updateSections(
+      subcat.sections.map((s, i) =>
+        i === activeSection ? { ...s, ...patch } : s
       )
     );
-    return keys;
-  }, [data.subcategories, activeTab, activeSection, activeEntry, externalKeys]);
+  }
+
+  /** 現有標籤補齊到 valueColumns 長度，供編輯時對位 */
+  function paddedLabels(): string[] {
+    return padValueLabels(section?.valueLabels, valueColumns);
+  }
+
+  function setValueLabel(col: number, text: string) {
+    const labels = paddedLabels();
+    labels[col] = text;
+    // 全空即視為未命名，寫回 undefined 讓閱讀器退回無表頭呈現
+    updateSection({
+      valueLabels: labels.some((l) => l.trim()) ? labels : undefined,
+    });
+  }
+
+  function addValueColumn() {
+    if (!section) return;
+    updateSection({ valueLabels: [...paddedLabels(), ''] });
+  }
+
+  async function removeValueColumn(col: number) {
+    if (!section || valueColumns <= 1) return;
+    const filled = section.entries.filter((e) => (e.values[col] ?? '').trim());
+    if (filled.length > 0) {
+      const ok = await getDialog().confirm(
+        `第 ${col + 1} 欄有 ${filled.length} 個詞條已填值，刪除欄位會一併移除這些值。`,
+        { title: '刪除值欄位', confirmText: '刪除', cancelText: '取消' }
+      );
+      if (!ok) return;
+    }
+    const labels = paddedLabels().filter((_, i) => i !== col);
+    updateSections(
+      subcat!.sections.map((s, i) =>
+        i === activeSection
+          ? {
+              ...s,
+              valueLabels: labels.some((l) => l.trim()) ? labels : undefined,
+              entries: s.entries.map((e) => ({
+                ...e,
+                values: e.values.filter((_, vi) => vi !== col),
+              })),
+            }
+          : s
+      )
+    );
+  }
+
+  /** 表格單格寫入——values 不足時先補空字串維持欄位對位 */
+  function setCell(entryIdx: number, col: number, text: string) {
+    if (!section) return;
+    const target = section.entries[entryIdx];
+    if (!target) return;
+    const values = Array.from(
+      { length: Math.max(valueColumns, target.values.length) },
+      (_, i) => target.values[i] ?? ''
+    );
+    values[col] = text;
+    updateEntry(entryIdx, { values });
+  }
 
   return (
     <div className="ced-section">
@@ -3203,19 +3297,6 @@ function DiffEditor({
                     />
                   </div>
 
-                  <EntityKeyField
-                    value={entry.entityKey}
-                    onChange={(key) =>
-                      updateEntry(activeEntry!, { entityKey: key })
-                    }
-                    existingKeys={usedEntityKeys}
-                  />
-                  <AliasesField
-                    value={entry.aliases}
-                    onChange={(aliases) =>
-                      updateEntry(activeEntry!, { aliases })
-                    }
-                  />
                   <div className="ced-field-row">
                     <label className="ced-label">revisions</label>
                     <button
@@ -3227,51 +3308,29 @@ function DiffEditor({
                     </button>
                   </div>
 
-                  {/* 值欄位（可新增/刪除） */}
+                  {/* 值——欄位由區段定義，這裡逐欄填 */}
                   <div className="ced-section-header">
-                    <span className="ced-section-title">
-                      值 ({entry.values.length})
-                    </span>
+                    <span className="ced-section-title">值</span>
                     <button
                       className="ced-add-btn"
-                      onClick={() =>
-                        updateEntry(activeEntry!, {
-                          values: [...entry.values, ''],
-                        })
-                      }
+                      onClick={() => setPanelMode('section')}
                       style={{ color: accent }}
                     >
-                      + 新增值
+                      管理欄位
                     </button>
                   </div>
-                  {entry.values.map((v, vi) => (
+                  {paddedLabels().map((label, vi) => (
                     <div key={vi} className="ced-field-row">
                       <label className="ced-label ced-label-sm">
-                        值 {vi + 1}
+                        {label || `值 ${vi + 1}`}
                       </label>
                       <input
                         className="ced-input"
-                        value={v}
-                        onChange={(e) => {
-                          const vals = [...entry.values];
-                          vals[vi] = e.target.value;
-                          updateEntry(activeEntry!, { values: vals });
-                        }}
+                        value={entry.values[vi] ?? ''}
+                        onChange={(e) =>
+                          setCell(activeEntry!, vi, e.target.value)
+                        }
                       />
-                      {entry.values.length > 1 && (
-                        <button
-                          className="ced-del-btn"
-                          onClick={() => {
-                            updateEntry(activeEntry!, {
-                              values: entry.values.filter(
-                                (_, idx) => idx !== vi
-                              ),
-                            });
-                          }}
-                        >
-                          ✕
-                        </button>
-                      )}
                     </div>
                   ))}
 
@@ -3345,9 +3404,117 @@ function DiffEditor({
                       ? '預設區段不可刪除。名稱留空時閱讀器不會顯示區段標題。'
                       : '拖曳左側條目到區段名稱上可移動條目。'}
                   </div>
-                  <div className="ced-empty">
-                    {section.entries.length} 個條目
+
+                  {/* 值欄位標籤——本區段所有詞條依序對位這些欄位 */}
+                  <div className="ced-section-header">
+                    <span className="ced-section-title">
+                      值欄位 ({valueColumns})
+                    </span>
+                    <button
+                      className="ced-add-btn"
+                      onClick={addValueColumn}
+                      style={{ color: accent }}
+                    >
+                      + 欄位
+                    </button>
                   </div>
+                  <div className="ced-diff-cols">
+                    {paddedLabels().map((label, ci) => (
+                      <div key={ci} className="ced-diff-col-chip">
+                        <input
+                          className="ced-input ced-input-sm"
+                          value={label}
+                          placeholder={`值 ${ci + 1}`}
+                          onChange={(e) => setValueLabel(ci, e.target.value)}
+                        />
+                        {valueColumns > 1 && (
+                          <button
+                            className="ced-del-btn"
+                            title="刪除此欄位"
+                            onClick={() => removeValueColumn(ci)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="ced-empty">
+                    欄位名稱留空時閱讀器不顯示表頭。
+                  </div>
+
+                  {/* 詞條表格——直接在格內編輯，⚙ 開進階設定 */}
+                  <div className="ced-section-header">
+                    <span className="ced-section-title">
+                      詞條 ({section.entries.length})
+                    </span>
+                    <button
+                      className="ced-add-btn"
+                      onClick={addEntryInline}
+                      style={{ color: accent }}
+                    >
+                      + 新增詞條
+                    </button>
+                  </div>
+                  {section.entries.length === 0 ? (
+                    <div className="ced-empty">尚無詞條</div>
+                  ) : (
+                    <div className="ced-diff-table">
+                      <div
+                        className="ced-diff-trow ced-diff-thead"
+                        style={diffColsStyle(valueColumns)}
+                      >
+                        <span>詞條</span>
+                        {paddedLabels().map((label, ci) => (
+                          <span key={ci}>{label || `值 ${ci + 1}`}</span>
+                        ))}
+                        <span />
+                      </div>
+                      {section.entries.map((ent, ei) => (
+                        <div
+                          key={ei}
+                          className={`ced-diff-trow ${ei === activeEntry ? 'active' : ''}`}
+                          style={diffColsStyle(valueColumns)}
+                        >
+                          <input
+                            className="ced-input ced-input-sm"
+                            value={ent.term}
+                            placeholder="詞條"
+                            onChange={(e) =>
+                              updateEntry(ei, { term: e.target.value })
+                            }
+                          />
+                          {Array.from({ length: valueColumns }, (_, ci) => (
+                            <input
+                              key={ci}
+                              className="ced-input ced-input-sm"
+                              value={ent.values[ci] ?? ''}
+                              placeholder={paddedLabels()[ci] || `值 ${ci + 1}`}
+                              onChange={(e) => setCell(ei, ci, e.target.value)}
+                            />
+                          ))}
+                          <div className="ced-diff-trow-actions">
+                            <button
+                              className="ced-diff-trow-btn"
+                              title={entryFlagSummary(ent)}
+                              onClick={() => {
+                                setActiveEntry(ei);
+                                setPanelMode('entry');
+                              }}
+                            >
+                              {hasEntryFlags(ent) ? '◆' : '⚙'}
+                            </button>
+                            <button
+                              className="ced-del-btn"
+                              onClick={() => removeEntry(ei)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="ced-browser-empty">
@@ -3363,7 +3530,6 @@ function DiffEditor({
         <RevisionModal
           entryLabel={entry.term || '(未命名詞條)'}
           stackStyle="diff"
-          entityKey={entry.entityKey}
           baseEntry={entry as unknown as Record<string, unknown>}
           revisions={entry.revisions ?? []}
           onChange={(revs) =>

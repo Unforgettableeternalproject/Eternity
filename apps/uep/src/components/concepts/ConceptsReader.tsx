@@ -36,6 +36,7 @@ import InterlinkTriggerButton from './InterlinkTriggerButton';
 import { useProgress } from '../../progress/useProgress';
 import { evaluateGate, parseGateCondition } from '../../progress/gating';
 import { resolveEffectiveViewForPage } from './revision';
+import { subcatValueColumns, subcatValueLabels } from './diffTable';
 import {
   getCachedEffectiveView,
   invalidatePageCache,
@@ -1019,15 +1020,77 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
 /** 無意義的 group label 清單 */
 const MEANINGLESS_LABELS = ['', '未被歸類', '未分類', 'uncategorized'];
 
+/** 對照表列的 grid 欄數（詞條欄 + N 個值欄）交給 CSS 變數 */
+function diffGridStyle(columns: number): React.CSSProperties {
+  return {
+    '--diff-cols': String(Math.max(columns, 1)),
+  } as React.CSSProperties;
+}
+
+/** 欄位標籤表頭；未定義標籤時不渲染（維持既有無表頭外觀） */
+function DiffValueHead({
+  labels,
+  columns,
+}: {
+  labels: string[];
+  columns: number;
+}) {
+  if (!labels.length) return null;
+  return (
+    <div
+      className="conc-diff-row conc-diff-head"
+      style={diffGridStyle(columns)}
+    >
+      <span className="conc-diff-term">詞條</span>
+      {Array.from({ length: columns }, (_, i) => (
+        <span key={i} className="conc-diff-val">
+          {labels[i] ?? '—'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** 對照表單列——值依欄數補齊，讓各列欄位對齊 */
+function DiffRow({
+  entry,
+  alt,
+  columns,
+}: {
+  entry: { term: string; values: string[] };
+  alt: boolean;
+  columns: number;
+}) {
+  return (
+    <div
+      className={`conc-diff-row ${alt ? 'alt' : ''}`}
+      style={diffGridStyle(columns)}
+    >
+      <span className="conc-diff-term">{entry.term}</span>
+      {Array.from({ length: columns }, (_, vi) => (
+        <span key={vi} className="conc-diff-val">
+          {entry.values[vi] || '—'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function ReaderDiff({ data }: { data: DiffContent }) {
   const [activeTab, setActiveTab] = useState(0);
   const [filter, setFilter] = useState('');
   const subcat = data.subcategories[activeTab];
 
-  // 判斷是多欄對照（有多 values）還是術語定義（values 長度 1 或 0）
-  const isTable = subcat?.sections?.some((s) =>
-    s.entries.some((e) => e.values.length > 1)
+  // 判斷是多欄對照（有多 values 或已定義欄位標籤）還是術語定義
+  const isTable = subcat?.sections?.some(
+    (s) =>
+      (s.valueLabels?.length ?? 0) > 1 ||
+      s.entries.some((e) => e.values.length > 1)
   );
+
+  // 欄位標籤與欄數（規則與編輯器共用，見 diffTable.ts）
+  const fallbackLabels = useMemo(() => subcatValueLabels(subcat), [subcat]);
+  const valueColumns = useMemo(() => subcatValueColumns(subcat), [subcat]);
 
   // 展平並過濾所有條目
   const allEntries = useMemo(() => {
@@ -1037,7 +1100,6 @@ function ReaderDiff({ data }: { data: DiffContent }) {
       values: string[];
       sectionLabel: string;
       spoiler?: number;
-      entityKey?: string;
     }[] = [];
     for (const section of subcat.sections) {
       for (const entry of section.entries) {
@@ -1137,53 +1199,36 @@ function ReaderDiff({ data }: { data: DiffContent }) {
                           {section.label}
                         </div>
                       )}
+                      <DiffValueHead
+                        labels={section.valueLabels ?? fallbackLabels}
+                        columns={valueColumns}
+                      />
                       {sectionEntries.map((entry, ei) => (
-                        <div
+                        <DiffRow
                           key={ei}
-                          className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}
-                        >
-                          <span className="conc-diff-term">
-                            {entry.term}
-                            <InterlinkTriggerButton
-                              entityKey={entry.entityKey}
-                              label={entry.term}
-                            />
-                          </span>
-                          {entry.values.map((v, vi) => (
-                            <span
-                              key={vi}
-                              className={`conc-diff-val ${vi === 0 ? 'en' : 'jp'}`}
-                            >
-                              {v || '—'}
-                            </span>
-                          ))}
-                        </div>
+                          entry={entry}
+                          alt={ei % 2 === 1}
+                          columns={valueColumns}
+                        />
                       ))}
                     </div>
                   );
                 })
-              : filtered.map((entry, ei) => (
-                  <div
-                    key={ei}
-                    className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}
-                  >
-                    <span className="conc-diff-term">
-                      {entry.term}
-                      <InterlinkTriggerButton
-                        entityKey={entry.entityKey}
-                        label={entry.term}
-                      />
-                    </span>
-                    {entry.values.map((v, vi) => (
-                      <span
-                        key={vi}
-                        className={`conc-diff-val ${vi === 0 ? 'en' : 'jp'}`}
-                      >
-                        {v || '—'}
-                      </span>
-                    ))}
-                  </div>
-                ))}
+              : [
+                  <DiffValueHead
+                    key="head"
+                    labels={fallbackLabels}
+                    columns={valueColumns}
+                  />,
+                  ...filtered.map((entry, ei) => (
+                    <DiffRow
+                      key={ei}
+                      entry={entry}
+                      alt={ei % 2 === 1}
+                      columns={valueColumns}
+                    />
+                  )),
+                ]}
           </div>
         ) : (
           /* 術語定義列表 */
@@ -1210,13 +1255,7 @@ function ReaderDiff({ data }: { data: DiffContent }) {
                     )}
                     {sectionEntries.map((entry, ei) => (
                       <div key={ei} className="conc-diff-def-item">
-                        <span className="conc-diff-def-term">
-                          {entry.term}
-                          <InterlinkTriggerButton
-                            entityKey={entry.entityKey}
-                            label={entry.term}
-                          />
-                        </span>
+                        <span className="conc-diff-def-term">{entry.term}</span>
                         {entry.values[0] && (
                           <span className="conc-diff-def-desc">
                             {entry.values[0]}
@@ -1231,13 +1270,7 @@ function ReaderDiff({ data }: { data: DiffContent }) {
               <div className="conc-diff-defs">
                 {filtered.map((entry, ei) => (
                   <div key={ei} className="conc-diff-def-item">
-                    <span className="conc-diff-def-term">
-                      {entry.term}
-                      <InterlinkTriggerButton
-                        entityKey={entry.entityKey}
-                        label={entry.term}
-                      />
-                    </span>
+                    <span className="conc-diff-def-term">{entry.term}</span>
                     {entry.values[0] && (
                       <span className="conc-diff-def-desc">
                         {entry.values[0]}

@@ -3761,6 +3761,96 @@
   font-size: 12px;
 }
 
+/* ── Diff 值欄位與詞條表格 ─────────────────────────────────── */
+
+/* 欄位標籤管理列 */
+.ced-diff-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.ced-diff-col-chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 6px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+.ced-diff-col-chip .ced-input {
+  flex: 0 1 120px;
+  min-width: 60px;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+}
+
+/* 詞條表格：詞條欄 + N 個值欄 + 操作欄 */
+.ced-diff-table {
+  border: 1px solid var(--hairline);
+  overflow-x: auto;
+}
+.ced-diff-trow {
+  display: grid;
+  grid-template-columns:
+    minmax(90px, 1fr)
+    repeat(var(--ced-diff-cols, 2), minmax(110px, 1.4fr))
+    auto;
+  gap: 1px;
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--hairline);
+}
+.ced-diff-trow:last-child {
+  border-bottom: none;
+}
+.ced-diff-trow .ced-input {
+  border: none;
+  padding: 5px 7px;
+}
+.ced-diff-trow.active .ced-input {
+  background: color-mix(in srgb, var(--ced-accent, #888) 8%, var(--bg-card));
+}
+
+/* 表頭：不是 input，用純文字對齊各欄 */
+.ced-diff-thead {
+  background: var(--bg-panel, var(--bg-card));
+  border-bottom: 1px solid var(--hairline);
+}
+.ced-diff-thead > span {
+  padding: 5px 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  background: var(--bg-card);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ced-diff-trow-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  background: var(--bg-card);
+}
+.ced-diff-trow-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  transition: color 0.15s;
+}
+.ced-diff-trow-btn:hover {
+  color: var(--ced-accent, var(--ink-body));
+}
+
 /* 頭像欄位 */
 .ced-avatar-row {
   display: flex;
