@@ -423,6 +423,57 @@ describe('useEchoSpots 提示卡發送時機', () => {
     unmount();
   });
 
+  it('誤觸降級遇上島收合 → 提示卡也要等展開，先亮 dock chip', async () => {
+    islandMock.open = false;
+    const { result, unmount } = renderSpots(true);
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    // 島外不得自己冒出提示卡
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(true);
+
+    await act(async () => {
+      islandMock.open = true;
+      islandMock.emit('open');
+    });
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot', justCollected: true })
+    );
+    // 降級的 spot 展開後只補卡，不得補播
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(false);
+    unmount();
+  });
+
+  it('降級的等待事件在離開文章後丟棄，展開不補卡', async () => {
+    islandMock.open = false;
+    const { result, rerender, unmount } = renderHook(
+      ({ pageId }) =>
+        useEchoSpots({
+          pageId,
+          progress: {} as ProgressState,
+          apiBase: 'http://localhost:8788',
+          resumeJumpRef: { current: true },
+          scrollVelocityRef: { current: 0 },
+        }),
+      { initialProps: { pageId: 'history/p1' as string | null } }
+    );
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(getEchoSpotWaiting()).toBe(true);
+
+    rerender({ pageId: 'history/p2' });
+    await act(async () => {
+      islandMock.open = true;
+      islandMock.emit('open');
+    });
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it('【回歸 #2】Admin 改綁 entityKey → 授旗用反查後的現行值，不用快照', async () => {
     stubSongFetch({
       audioFile: 'audio/x.mp3',

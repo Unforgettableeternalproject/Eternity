@@ -54,6 +54,8 @@ interface PendingEchoSpot {
   accent: string;
   newlyUnlocked: boolean;
   visitToken: number;
+  /** 誤觸降級的 spot：展開島後只補提示卡，不得補播。 */
+  downgraded?: boolean;
 }
 
 function parseSpoilerLevel(value: string | null): SpoilerLevel {
@@ -251,7 +253,16 @@ export function useEchoSpots({
       });
   }, []);
 
-  // 島展開是明確使用者手勢：消費收合期間暫存的 Echo Spot，這時才插播。
+  const emitSpotCard = useCallback((pending: PendingEchoSpot) => {
+    if (visitTokenRef.current !== pending.visitToken) return;
+    dispatchEchoPreview({
+      ...pending.preview,
+      justCollected: pending.newlyUnlocked,
+    });
+  }, []);
+
+  // 島展開是明確使用者手勢：消費收合期間暫存的 Echo Spot，這時才插播
+  // 或補發提示卡（降級的 spot 本來就不該播）。
   useEffect(
     () =>
       getIslandRuntime().subscribe((state, detail) => {
@@ -262,9 +273,10 @@ export function useEchoSpots({
         if (!state.windows.echoes?.open || !pendingRef.current) return;
         const pending = pendingRef.current;
         clearPending();
-        attemptInterrupt(pending);
+        if (pending.downgraded) emitSpotCard(pending);
+        else attemptInterrupt(pending);
       }),
-    [attemptInterrupt, clearPending]
+    [attemptInterrupt, clearPending, emitSpotCard]
   );
 
   useEffect(() => {
@@ -382,34 +394,32 @@ export function useEchoSpots({
           resumeJump,
           scrollVelocity,
         });
-        if (shouldDowngrade) {
-          clearPending();
-          dispatchEchoPreview({ ...preview, justCollected: newlyUnlocked });
-          return;
-        }
-
         const pending: PendingEchoSpot = {
           effective,
           preview,
           accent: cluster.color,
           newlyUnlocked,
           visitToken,
+          ...(shouldDowngrade ? { downgraded: true } : {}),
         };
-        // Echoes 島收合時不得偷播；只讓 dock chip 閃爍。使用者展開後
-        // 由 runtime 訂閱同步消費，離開文章則由 page effect 直接丟棄。
+        // Echoes 島收合時不得偷播，也不該讓提示卡在島外自己冒出來
+        // ——兩條路徑一律先進 dock chip 等待。使用者展開後由 runtime
+        // 訂閱同步消費，離開文章則由 page effect 直接丟棄。
         if (!getIslandRuntime().getWindow('echoes')?.open) {
           pendingRef.current = pending;
           setEchoSpotWaiting(true);
           return;
         }
         clearPending();
-        attemptInterrupt(pending);
+        if (shouldDowngrade) emitSpotCard(pending);
+        else attemptInterrupt(pending);
       });
     },
     [
       apiBase,
       attemptInterrupt,
       clearPending,
+      emitSpotCard,
       pageId,
       resumeJumpRef,
       scrollVelocityRef,

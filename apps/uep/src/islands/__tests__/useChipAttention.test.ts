@@ -70,7 +70,7 @@ describe('computeChipAttentions', () => {
 
   it('echoes：Echo Spot 等待插播時視為 waiting', () => {
     setEchoSpotWaiting(true);
-    expect(computeChipAttentions().echoes).toBe('有回聲等待插播');
+    expect(computeChipAttentions().echoes).toBe('有回聲等待中');
   });
 
   it('echoes：無 Echo Spot 時，相關回聲提示也算 waiting', () => {

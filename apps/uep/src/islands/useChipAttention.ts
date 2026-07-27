@@ -65,7 +65,9 @@ function derivedReason(id: IslandId): string | null {
       if (hasPhantomSuggestion()) return '有相關畫廊等待查看';
       return null;
     case 'echoes':
-      if (getEchoSpotWaiting()) return '有回聲等待插播';
+      // 展開後可能是插播、也可能只是補一張提示卡（誤觸降級的 spot），
+      // 說明取兩者的交集
+      if (getEchoSpotWaiting()) return '有回聲等待中';
       if (hasEchoSuggestion()) return '有相關回聲等待查看';
       return null;
     case 'concepts':

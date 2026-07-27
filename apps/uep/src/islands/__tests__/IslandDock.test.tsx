@@ -34,7 +34,7 @@ describe('IslandDock — Echo Spot 等待提示', () => {
     render(<IslandDock unlockedIds={['echoes']} />);
 
     const chip = screen.getByRole('button', {
-      name: '展開流浪回聲（有回聲等待插播）',
+      name: '展開流浪回聲（有回聲等待中）',
     });
     expect(chip).toHaveClass('is-attn-waiting');
 
@@ -85,7 +85,7 @@ describe('IslandDock — 標記式提示樣式與 chip 屬性（S9-D）', () => 
     render(<IslandDock unlockedIds={['echoes']} />);
 
     const chip = screen.getByRole('button', {
-      name: '展開流浪回聲（有回聲等待插播）',
+      name: '展開流浪回聲（有回聲等待中）',
     });
     expect(chip).toHaveClass('is-attn-waiting');
   });
