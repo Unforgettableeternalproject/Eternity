@@ -41,6 +41,7 @@ export {
   UEP_ENTITY_ACTIVATE_EVENT,
   isEntityUnlocked,
   decorateInteractiveHtml,
+  activateEntityKey,
   dispatchEntityActivate,
 } from './interactive';
 export type { EntityActivateDetail } from './interactive';

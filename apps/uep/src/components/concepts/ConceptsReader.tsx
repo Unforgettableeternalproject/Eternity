@@ -234,10 +234,10 @@ function ReaderDossier({
   const entityDrag = useEntityDragSource();
 
   /*
-   * entity 索引：判斷每個條目要不要長出「詳細」按鈕。
-   * 在這裡載入一次往下傳，不讓數十張條目卡各自持有——`loadEntityIndex`
-   * 本身有模組級快取（與拖曳來源、Terminal 島共用同一份），重複呼叫不會
-   * 重打 API，但各自 setState 就是各自一次 re-render。
+   * Concepts entity 索引：決定每個條目要不要長出「詳細」按鈕
+   * （守門是「browser 查得到已解鎖條目才出現」）。
+   * 「相關」按鈕自己載 Echoes／Visuals 兩份索引——它也掛在 browser
+   * profile 上，從這裡穿 props 反而要多繞一層。
    */
   const [entityIndex, setEntityIndex] = useState<TerminalIndexEntry[] | null>(
     null

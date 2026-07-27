@@ -106,7 +106,6 @@ export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
 /* ── 跨區互聯觸發（S10-1） ── */
 export {
   triggerStoryRelated,
-  triggerEntityRelated,
   dispatchIslandRelated,
   setRelatedPendingFlag,
   getRelatedPendingFlag,

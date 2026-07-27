@@ -26,10 +26,6 @@ import { useProgress } from '../../progress';
 import { resolveGalleryImages } from '../../visuals';
 import type { ResolvedGalleryImage } from '../../visuals';
 import { useIslandChrome } from '../islandChrome';
-import RelatedClueCard from '../RelatedClueCard';
-import { subscribeRelated } from '../relatedBridge';
-import type { IslandRelatedDetail } from '../types';
-import { navigateToZonePage } from '../zoneNavigation';
 
 import {
   clearPhantomGallery,
@@ -87,16 +83,6 @@ export default function VisualsIsland() {
 
   /** entity 嵌入提示卡（V-C .25）：pending 消費 + 展開中即時接收 */
   const [suggestion, setSuggestion] = useState<PhantomGallery | null>(null);
-
-  /**
-   * 跨區互聯線索：讀者在 Concepts 點了某個條目的「相關」，那個 entity
-   * 對應的畫廊就浮在這裡。一次一則，點掉／換頁／重整就消失。
-   *
-   * 走 relatedBridge 而非直接訂閱事件——島收合時這個元件沒有 mount，
-   * 事件無狀態、事後補不回來（監聽常駐在 IslandHost）。
-   */
-  const [related, setRelated] = useState<IslandRelatedDetail | null>(null);
-  useEffect(() => subscribeRelated('visuals', setRelated), []);
 
   // 跨頁／收合後重建 island 時，持久化投射的指定圖片仍要成為目前畫面。
   useEffect(() => {
@@ -299,17 +285,6 @@ export default function VisualsIsland() {
           </span>
         </div>
       </div>
-
-      {/* 跨區互聯線索：從 Concepts 條目按鈕來的「這個 entity 的畫廊」 */}
-      {related && (
-        <RelatedClueCard
-          block="uep-visland__related"
-          kicker={<>與「{related.label ?? '這個'}」相關的影像</>}
-          items={related.items}
-          onSelect={(pageId) => navigateToZonePage('visuals', pageId)}
-          onClose={() => setRelated(null)}
-        />
-      )}
 
       {suggestionCard}
 

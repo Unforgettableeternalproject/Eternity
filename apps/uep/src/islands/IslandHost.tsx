@@ -121,6 +121,9 @@ export default function IslandHost() {
     const onActivate = (event: Event) => {
       const detail = (event as CustomEvent<EntityActivateDetail>).detail;
       if (!detail) return;
+      // 來源就是 Concepts 自己（條目旁的「相關」按鈕）→ 不必再把同一個
+      // 條目推回 Terminal，使用者正看著它
+      if (detail.sourceZone === 'concepts') return;
       if (!shouldMountIsland(progressRef.current, 'concepts')) return;
       pushEntityActivate(detail);
     };
@@ -169,6 +172,8 @@ export default function IslandHost() {
     const onActivate = (event: Event) => {
       const detail = (event as CustomEvent<EntityActivateDetail>).detail;
       if (!detail?.entityKey) return;
+      // 讀者已經停在這首歌的頁面上——再推一張「同一首歌」的提示卡是噪音
+      if (detail.sourceZone === 'echoes') return;
       if (!shouldMountIsland(progressRef.current, 'echoes')) return;
       controller?.abort();
       controller = new AbortController();
@@ -256,6 +261,8 @@ export default function IslandHost() {
     const onActivate = (event: Event) => {
       const detail = (event as CustomEvent<EntityActivateDetail>).detail;
       if (!detail?.entityKey) return;
+      // 同上：讀者正在看這個畫廊，不需要被提示「相關的是它自己」
+      if (detail.sourceZone === 'visuals') return;
       if (!shouldMountIsland(progressRef.current, 'visuals')) return;
       controller?.abort();
       controller = new AbortController();

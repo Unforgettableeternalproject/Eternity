@@ -2,15 +2,13 @@
 /**
  * 跨區互聯觸發（S10-1）。
  *
- * 兩個方向，目標島不同（艾斯維爾 2026-07-27 定案）：
+ * **本模組只處理 storyKey → History 島**這一個方向（艾斯維爾 2026-07-27
+ * 定案）：劇情歌／插圖進頁時，History 島浮出該劇情點的段落。
  *
- * | 起點 | key | 落點 | 觸發方式 |
- * |---|---|---|---|
- * | 劇情歌／插圖 | storyKey | History 島 | 進頁自動 |
- * | Concepts 條目 | entityKey | Echoes ＋ Visuals 島 | 條目旁的按鈕 |
- *
- * **entityKey 不連 History**：一個 entity 可能在 History 出現數十次，
- * 「所有提到他的段落」對讀者沒有意義；能映照段落的只有劇情點。
+ * ⚠️ entityKey 的互聯**不走這裡**——它復用既有的 `uep:entity-activate`
+ * （見 `embed/interactive.ts` 的 `activateEntityKey`），`IslandHost` 對那個
+ * 事件本來就有完整的三島分派。entityKey 也不連 History：一個 entity 可能
+ * 在 History 出現數十次，「所有提到他的段落」對讀者沒有意義。
  *
  * 事件走 window bridge（`ISLAND_RELATED_EVENT`，S6 就定好的契約），
  * 來源端與島分屬不同 React root，不能靠 props 或 context 溝通。
@@ -45,8 +43,8 @@ interface InterlinkAnchorPayload {
  *
  * ⚠️ 只吃 storyKey。entityKey 這條路已經拆掉（艾斯維爾 2026-07-27）：
  * 一個 entity 可能在 History 出現數十次，列出「所有提到他的段落」對讀者
- * 沒有意義。**History 島只對劇情點有反應**；entity 的去向是 Echoes 與
- * Visuals，見 {@link triggerEntityRelated}。
+ * 沒有意義。**History 島只對劇情點有反應**；entity 走的是
+ * `uep:entity-activate`（`embed/interactive.ts` 的 `activateEntityKey`）。
  *
  * 查無錨點時**不廣播**——沒有東西可看時彈一張空卡片只是噪音。
  * 查詢失敗（離線／端點錯誤）同樣靜默略過：互聯是加分功能，
@@ -100,81 +98,6 @@ export async function triggerStoryRelated(args: {
     label,
   });
   return true;
-}
-
-/** entity 反查端點的回應形狀（Echoes 歌與 Visuals 畫廊同構） */
-interface EntityPagePayload {
-  id: string;
-  title: string;
-}
-
-/** 反查單一 zone 的 entity 對應頁；查無／失敗一律 null（互聯是加分功能） */
-async function fetchEntityPage(
-  url: string,
-  signal?: AbortSignal
-): Promise<EntityPagePayload | null> {
-  try {
-    const res = await fetch(url, signal ? { signal } : undefined);
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      ok: boolean;
-      data?: EntityPagePayload | null;
-    };
-    if (!json.ok || !json.data?.id) return null;
-    return json.data;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 查某個 entity 對應的歌與畫廊，分別廣播給 Echoes／Visuals 島
- * （艾斯維爾 2026-07-27 定案：「透過 concept 的按鈕去找到對應 entity 的
- * echo 或者 visual」）。
- *
- * 兩座島各自獨立：同時有歌和畫廊就兩邊都浮，只有其一就只浮那一邊。
- * 兩個查詢並行——它們互不相關，串行只是白等一輪 RTT。
- *
- * @returns 是否至少廣播了一則。手動觸發端需要它才能在完全沒結果時給
- *   toast——按了完全沒反應會被當成壞掉。
- */
-export async function triggerEntityRelated(args: {
-  apiBase: string;
-  sourceZone: IslandId;
-  entityKey: string;
-  label: string;
-  signal?: AbortSignal;
-}): Promise<boolean> {
-  const { apiBase, sourceZone, entityKey, label, signal } = args;
-  if (!entityKey) return false;
-  const key = encodeURIComponent(entityKey);
-
-  const [song, gallery] = await Promise.all([
-    fetchEntityPage(
-      `${apiBase}/api/echoes/entity-song?keyType=entity&key=${key}`,
-      signal
-    ),
-    fetchEntityPage(
-      `${apiBase}/api/visuals/entity-gallery?keyType=entity&key=${key}`,
-      signal
-    ),
-  ]);
-
-  let dispatched = false;
-  for (const [targetIsland, hit] of [
-    ['echoes', song],
-    ['visuals', gallery],
-  ] as const) {
-    if (!hit) continue;
-    dispatchIslandRelated({
-      targetIsland,
-      sourceZone,
-      items: [{ pageId: hit.id, title: hit.title || hit.id }],
-      label,
-    });
-    dispatched = true;
-  }
-  return dispatched;
 }
 
 /** 廣播跨島關聯事件（測試與其他來源端共用） */

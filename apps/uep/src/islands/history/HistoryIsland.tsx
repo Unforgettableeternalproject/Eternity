@@ -19,7 +19,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
-import RelatedClueCard from '../RelatedClueCard';
 import { subscribeRelated } from '../relatedBridge';
 import type { IslandRelatedDetail } from '../types';
 
@@ -175,17 +174,37 @@ export default function HistoryIsland() {
     return (
       <>
         {/* 跨區互聯線索：覆蓋在續讀區塊上方，一次一則 */}
-        {related && (
-          <RelatedClueCard
-            block="uep-hisland__related"
-            kicker={<>《{related.label ?? '這個'}》相關的段落</>}
-            items={related.items}
-            /* 標題以自己的目錄樹為準，好與下方「典藏目錄」一致；
-               樹裡查不到才退回 payload 自帶的頁面標題 */
-            resolveTitle={(item) => index?.nodesById.get(item.pageId)?.title}
-            onSelect={navigateToHistoryPage}
-            onClose={() => setRelated(null)}
-          />
+        {related && related.items.length > 0 && (
+          <div className="uep-hisland__related">
+            <button
+              type="button"
+              className="uep-hisland__related-close"
+              onClick={() => setRelated(null)}
+              aria-label="關閉線索"
+            >
+              ×
+            </button>
+            <div className="uep-hisland__related-kicker">
+              《{related.label ?? '這個'}》相關的段落
+            </div>
+            <div className="uep-hisland__related-list">
+              {related.items.map((item) => (
+                <button
+                  key={item.pageId}
+                  type="button"
+                  className="uep-hisland__related-item"
+                  onClick={() => {
+                    setRelated(null);
+                    navigateToHistoryPage(item.pageId);
+                  }}
+                >
+                  {/* 標題以自己的目錄樹為準，好與下方「典藏目錄」一致；
+                      樹裡查不到才退回 payload 自帶的頁面標題 */}
+                  {index?.nodesById.get(item.pageId)?.title ?? item.title}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* 續讀：書籤停在哪一頁 */}

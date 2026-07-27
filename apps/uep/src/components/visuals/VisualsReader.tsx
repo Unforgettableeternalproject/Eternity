@@ -47,6 +47,7 @@ import { isHidden, isLocked } from '../zone/contentVisibility';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+import { activateEntityKey } from '../../embed';
 
 import SpriteViewer from './SpriteViewer';
 import VisualsPhantom, { resolvePhantomVariant } from './VisualsPhantom';
@@ -601,6 +602,29 @@ function VisualsReaderInner() {
       signal: controller.signal,
     });
     return () => controller.abort();
+  }, [activeGalleryId, tree]);
+
+  /*
+   * 停在**陳列走廊的畫廊**（綁 entityKey）時，讓其他 zone 的浮島浮出這個
+   * entity 的相關內容（對應的歌、Concepts 條目）。
+   *
+   * 走 `uep:entity-activate`——與 History 文內點互動式嵌入完全同一個事件，
+   * IslandHost 的三島分派全部沿用（見 EchoesReader 同段註解）。
+   * `sourceZone: 'visuals'` 讓 Visuals 島跳過自己。
+   */
+  useEffect(() => {
+    if (!activeGalleryId) return;
+    const node = findNodeById(tree, activeGalleryId);
+    if (!node) return;
+    const metadata = (node.metadata ?? {}) as Record<string, unknown>;
+    const entityKey =
+      typeof metadata.entityKey === 'string' ? metadata.entityKey.trim() : '';
+    if (!entityKey) return;
+    activateEntityKey({
+      entityKey,
+      text: node.title,
+      sourceZone: 'visuals',
+    });
   }, [activeGalleryId, tree]);
 
   // === Fetch tree ===

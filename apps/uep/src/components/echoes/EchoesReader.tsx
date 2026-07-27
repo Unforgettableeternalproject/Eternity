@@ -19,6 +19,7 @@ import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
+import { activateEntityKey } from '../../embed';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import {
   AudioProvider,
@@ -1274,6 +1275,26 @@ function EchoesReaderInner() {
     });
     return () => controller.abort();
   }, [relatedStoryKey, currentSongPage?.id, currentSongPage?.title]);
+
+  /*
+   * 停在**角色歌／區域歌**時，讓其他 zone 的浮島浮出這個 entity 的相關
+   * 內容（對應的畫廊、Concepts 條目）。
+   *
+   * 走 `uep:entity-activate`——與 History 文內點互動式嵌入完全同一個事件。
+   * IslandHost 對它已有完整的三島分派（反查、tree-aware 解鎖判定、spoiler
+   * 等級、提示卡、收合期暫存），沒有理由為了「從 Reader 觸發」再造一套。
+   * `sourceZone: 'echoes'` 讓 Echoes 島跳過自己——讀者正在看這首歌。
+   */
+  const relatedEntityKey =
+    songData?.category === 'story' ? undefined : songData?.entityKey;
+  useEffect(() => {
+    if (!relatedEntityKey || !currentSongPage) return;
+    activateEntityKey({
+      entityKey: relatedEntityKey,
+      text: currentSongPage.title,
+      sourceZone: 'echoes',
+    });
+  }, [relatedEntityKey, currentSongPage?.id, currentSongPage?.title]);
 
   // === 取得當前歌曲的集群資訊 ===
   const activeSongCluster = activeClusterId

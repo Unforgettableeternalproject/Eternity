@@ -62,6 +62,16 @@ export interface EntityActivateDetail {
   text?: string;
   /** 觸發來源的 History 頁面 id */
   sourcePageId?: string;
+  /**
+   * 觸發來源的 zone（S10-1）。
+   *
+   * 各島的消費端用它跳過自己：讀者已經停在某首歌的頁面上時，再推一張
+   * 「RELATED ECHO：同一首歌」的提示卡只是噪音；在 Concepts 條目按下
+   * 「相關」時，Terminal 島也不需要再展開同一個條目。
+   *
+   * 未帶（History 文內嵌入點擊）＝ 三座島都消費，維持既有行為。
+   */
+  sourceZone?: 'concepts' | 'echoes' | 'visuals';
 }
 
 /**
@@ -155,6 +165,42 @@ export function dispatchEntityActivate(
     ...(parsed.type === 'concepts-entry' ? { entryId: parsed.entryId } : {}),
     ...(found.embed.text ? { text: found.embed.text } : {}),
     ...(sourcePageId ? { sourcePageId } : {}),
+  };
+  window.dispatchEvent(
+    new CustomEvent<EntityActivateDetail>(UEP_ENTITY_ACTIVATE_EVENT, {
+      detail,
+    })
+  );
+  return detail;
+}
+
+/**
+ * 直接以 entityKey 發出啟動事件（S10-1）。
+ *
+ * `dispatchEntityActivate` 是從 DOM 元素反推 detail，只適用於 History
+ * 文內的互動式嵌入。Concepts 條目的「相關」按鈕、Echoes／Visuals 進頁的
+ * 自動觸發手上本來就有 entityKey，不需要繞回 DOM。
+ *
+ * 走同一個事件＝同一套消費端：三座島的解鎖判定、spoiler 判定、
+ * 提示卡呈現、收合期暫存全部沿用，不必為了「從別的地方觸發」再造一套。
+ */
+export function activateEntityKey(args: {
+  entityKey: string;
+  /** 顯示文字（島端提示卡用） */
+  text?: string;
+  /** entity 種類；不確定時給空字串即可（只影響 aria 文案） */
+  kind?: string;
+  /** 觸發來源 zone——消費端據此跳過自己 */
+  sourceZone?: EntityActivateDetail['sourceZone'];
+}): EntityActivateDetail | null {
+  const entityKey = args.entityKey.trim();
+  if (!entityKey || typeof window === 'undefined') return null;
+  const detail: EntityActivateDetail = {
+    kind: args.kind ?? '',
+    ref: `entity:${entityKey}`,
+    entityKey,
+    ...(args.text ? { text: args.text } : {}),
+    ...(args.sourceZone ? { sourceZone: args.sourceZone } : {}),
   };
   window.dispatchEvent(
     new CustomEvent<EntityActivateDetail>(UEP_ENTITY_ACTIVATE_EVENT, {
