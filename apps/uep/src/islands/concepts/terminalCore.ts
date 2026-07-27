@@ -236,14 +236,14 @@ export function resolveStackAlias(input: string): TerminalStack | null {
 }
 
 /**
- * 檢索範圍判定（S7-C 四輪定案）：terminal 以 log entry 為主體——
+ * 檢索範圍判定：terminal 以 log entry 為主體——
  * browser 一律不可直接搜尋（詳細內容經 log entry 的連結呈現）；
- * diff 只有掛 entityKey 的名詞對照條目可查（與嵌入目標同規則），
- * 純翻譯條目不掛 key 自然排除，ls compare 仍可瀏覽全部。
+ * diff 降格為純對照表後整個退出檢索（名詞解釋的職責已移交 dossier），
+ * ls compare 仍可瀏覽全部內容。
  */
 function isSearchable(entry: TerminalIndexEntry): boolean {
   if (entry.stack === 'browser') return false;
-  if (entry.stack === 'diff') return Boolean(entry.entityKey);
+  if (entry.stack === 'diff') return false;
   return true;
 }
 
@@ -732,7 +732,8 @@ export async function resolveEntryDetails(
       for (const section of subcat.sections) {
         for (const entry of section.entries) {
           if (entry.hidden === true) continue; // 與索引端排除一致
-          if (!matchesEntry(entry, entry.term, target)) continue;
+          // diff 條目不帶 entityKey，一律以詞條名稱比對
+          if (entry.term !== target.name) continue;
           const resolved = resolve(entry as unknown as Record<string, unknown>);
           out.push(
             resolved

@@ -3,13 +3,12 @@
  *
  * RichEditor entity 面板的「從 Concepts 選擇」改造：原本瀏覽頁面樹
  * 寫入 page 級 ref（concepts/xxx），改為吃 entity-index 端點列出
- * 「可嵌入條目」——dossier/diff 帶 entityKey 的條目（S7-D 定案 1：
- * 掛 key 才成為嵌入目標，純翻譯類不掛 key 自然排除），選中寫入
- * `entity:{entityKey}` 新格式 ref。
+ * 「可嵌入條目」——dossier 帶 entityKey 的條目（掛 key 才成為嵌入
+ * 目標），選中寫入 `entity:{entityKey}` 新格式 ref。
  *
  * kind 推斷（inferEntityKind）：索引的 category 是敘事分類
  * （「三區」「未知之境…」），不含人物/地點語意——改以 pageId（英文
- * slug）+ pageTitle 關鍵字推斷，僅作為帶入建議，kind 下拉仍可手動改。
+ * slug）+ pageTitle 關鍵字推斷。面板已無 kind 下拉，這裡是唯一來源。
  *
  * 索引快取：模組級 promise（同 session 重開面板不重抓），
  * 比照 terminalCore 慣例；invalidateEntityPickerCache 供測試/重試。
@@ -41,9 +40,10 @@ export interface EntityPickerGroup {
 // ── 純函式（可測試） ───────────────────────────────────────────────
 
 /**
- * 可嵌入目標過濾：dossier/diff 且帶 entityKey（S7-D 定案 1）。
- * 同 entityKey 去重（dossier 各 variant 維護同 key 條目、
- * dossier/diff 可能同 key）——取索引順序第一筆。
+ * 可嵌入目標過濾：dossier 且帶 entityKey。
+ * diff 已退出實體身分體系（純對照表，不掛 entityKey），
+ * 名詞解釋類內容改由 dossier + revision 承擔。
+ * 同 entityKey 去重（各 variant 維護同 key 條目）——取索引順序第一筆。
  */
 export function embeddableEntries(
   entries: EntityPickerEntry[]
@@ -51,7 +51,7 @@ export function embeddableEntries(
   const seen = new Set<string>();
   const out: EntityPickerEntry[] = [];
   for (const entry of entries) {
-    if (entry.stack !== 'dossier' && entry.stack !== 'diff') continue;
+    if (entry.stack !== 'dossier') continue;
     if (!entry.entityKey) continue;
     if (seen.has(entry.entityKey)) continue;
     seen.add(entry.entityKey);

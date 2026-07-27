@@ -32,21 +32,26 @@ function entry(
 }
 
 describe('embeddableEntries', () => {
-  it('只留 dossier/diff 且帶 entityKey 的條目', () => {
+  it('只留 dossier 且帶 entityKey 的條目', () => {
     const result = embeddableEntries([
       entry({ name: '艾斯維爾', entityKey: 'xavier-colsono' }),
       entry({ name: '無 key 條目' }),
       entry({ name: 'browser 條目', stack: 'browser', entityKey: 'b-key' }),
       entry({ name: 'chrono 條目', stack: 'chrono', entityKey: 'c-key' }),
-      entry({ name: '對照條目', stack: 'diff', entityKey: 'repatriation' }),
     ]);
-    expect(result.map((e) => e.entityKey)).toEqual([
-      'xavier-colsono',
-      'repatriation',
-    ]);
+    expect(result.map((e) => e.entityKey)).toEqual(['xavier-colsono']);
   });
 
-  it('同 entityKey 去重（跨 variant / 跨 stack 取第一筆）', () => {
+  // diff 已退出實體身分體系：即使索引殘留 entityKey 也不得成為嵌入目標
+  it('diff 條目一律排除（含殘留 entityKey 者）', () => {
+    const result = embeddableEntries([
+      entry({ name: '對照條目', stack: 'diff', entityKey: 'repatriation' }),
+      entry({ name: '無 key 對照條目', stack: 'diff' }),
+    ]);
+    expect(result).toEqual([]);
+  });
+
+  it('同 entityKey 去重（跨 variant 取第一筆）', () => {
     const result = embeddableEntries([
       entry({
         name: '艾斯維爾 (u)',
@@ -58,7 +63,6 @@ describe('embeddableEntries', () => {
         entityKey: 'xavier-colsono',
         variantId: 'e',
       }),
-      entry({ name: '對照同 key', stack: 'diff', entityKey: 'xavier-colsono' }),
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('艾斯維爾 (u)');

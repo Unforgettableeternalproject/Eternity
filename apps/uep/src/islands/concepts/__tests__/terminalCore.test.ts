@@ -247,17 +247,14 @@ describe('queryIndex', () => {
     expect(hits.find((h) => h.stack === 'browser')).toBeUndefined();
   });
 
-  it('diff 條目掛 entityKey 才可查（四輪定案：純翻譯不進 query）', () => {
-    // '原質' 是無 key 的 diff 條目（翻譯類）——不可查
+  it('diff 條目一律不進 query（純對照表，ls compare 才是入口）', () => {
     expect(queryIndex(entries, '原質', stateWith({}))).toHaveLength(0);
-    // 掛 key 的 diff 名詞對照條目——可查
+    // 索引殘留 entityKey 的舊資料也不得被查到
     const withKeyed = [
       ...entries,
       indexEntry({ name: '遣返', stack: 'diff', entityKey: 'repatriation' }),
     ];
-    const hits = queryIndex(withKeyed, '遣返', stateWith({}));
-    expect(hits).toHaveLength(1);
-    expect(hits[0].entityKey).toBe('repatriation');
+    expect(queryIndex(withKeyed, '遣返', stateWith({}))).toHaveLength(0);
   });
 
   it('未解鎖條目從結果隱藏', () => {

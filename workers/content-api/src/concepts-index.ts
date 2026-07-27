@@ -71,9 +71,15 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-/** 從條目物件抽出 entityKey / aliases / baseGate / revisionGates（共用形狀 WithRevision + S7-D aliases） */
+/**
+ * 從條目物件抽出 entityKey / aliases / baseGate / revisionGates（共用形狀 WithRevision）。
+ *
+ * `includeIdentity = false` 時跳過 entityKey / aliases——供 diff 這類
+ * 不參與實體身分體系的 stack 使用，舊資料殘留的欄位一併擋在索引外。
+ */
 function withRevisionFields(
-  entry: Dict
+  entry: Dict,
+  includeIdentity = true
 ): Pick<
   EntityIndexEntry,
   'entityKey' | 'aliases' | 'baseGate' | 'revisionGates'
@@ -82,7 +88,11 @@ function withRevisionFields(
     EntityIndexEntry,
     'entityKey' | 'aliases' | 'baseGate' | 'revisionGates'
   > = {};
-  if (typeof entry.entityKey === 'string' && entry.entityKey) {
+  if (
+    includeIdentity &&
+    typeof entry.entityKey === 'string' &&
+    entry.entityKey
+  ) {
     out.entityKey = entry.entityKey;
   }
   // base 解鎖條件（S7 驗收 #4）——null 視為無條件，不進摘要
@@ -93,7 +103,7 @@ function withRevisionFields(
   const aliases = asArray(entry.aliases).filter(
     (a): a is string => typeof a === 'string' && a.trim().length > 0
   );
-  if (aliases.length > 0) out.aliases = aliases;
+  if (includeIdentity && aliases.length > 0) out.aliases = aliases;
   const revisions = asArray(entry.revisions)
     .map(asDict)
     .filter((r): r is Dict => r !== null);
@@ -160,6 +170,9 @@ function collectFromPage(
   pageTitle: string
 ): EntityIndexEntry[] {
   const out: EntityIndexEntry[] = [];
+  // diff 降格為純對照表後退出實體身分體系：不收 entityKey / aliases，
+  // 連帶讓它不再產生 key 候選、不進嵌入目標、不進 terminal 檢索
+  const includeIdentity = stack !== 'diff';
   const push = (
     name: unknown,
     entry: Dict,
@@ -171,7 +184,7 @@ function collectFromPage(
       stack,
       pageId,
       pageTitle,
-      ...withRevisionFields(entry),
+      ...withRevisionFields(entry, includeIdentity),
       ...extra,
     });
   };

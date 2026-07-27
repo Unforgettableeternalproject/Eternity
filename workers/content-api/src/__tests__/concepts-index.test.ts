@@ -118,7 +118,8 @@ describe('GET /api/concepts/entity-index', () => {
       }
     );
 
-    // diff：name-only（translation 定案不掛 entityKey）
+    // diff：一律 name-only——降格為純對照表後退出實體身分體系，
+    // 「殘留 key」是刻意留下的舊資料形狀，用來驗證索引端會剝掉它
     await insertConceptsPage(
       'concepts/eidx-test/translation/terms',
       '測試名詞對照',
@@ -132,6 +133,12 @@ describe('GET /api/concepts/entity-index', () => {
                 label: '',
                 entries: [
                   { term: '原質', values: ['Essence'] },
+                  {
+                    term: '殘留 key 詞條',
+                    values: ['Legacy'],
+                    entityKey: 'legacy-diff-key',
+                    aliases: ['殘留別名'],
+                  },
                   { term: '隱藏概念', values: ['?'], hidden: true },
                   { term: '鎖定概念', values: ['?'], locked: true },
                 ],
@@ -263,6 +270,22 @@ describe('GET /api/concepts/entity-index', () => {
     const entries = await fetchIndex();
     expect(entries.find((e) => e.name === '隱藏概念')).toBeUndefined();
     expect(entries.find((e) => e.name === '鎖定概念')).toBeDefined();
+  });
+
+  // diff 退出實體身分體系：條目照常進索引（ls compare 要列），
+  // 但 entityKey / aliases 一律剝除——否則舊資料會讓它重新變成
+  // 嵌入目標與 terminal 檢索對象
+  it('diff 條目剝除殘留的 entityKey / aliases', async () => {
+    const entries = await fetchIndex();
+    const legacy = entries.find((e) => e.name === '殘留 key 詞條');
+    expect(legacy).toBeDefined();
+    expect(legacy!.stack).toBe('diff');
+    expect(legacy!.entityKey).toBeUndefined();
+    expect(legacy!.aliases).toBeUndefined();
+    // 反向確認：該 key 不存在於整份索引
+    expect(
+      entries.find((e) => e.entityKey === 'legacy-diff-key')
+    ).toBeUndefined();
   });
 
   it('chrono period 以 title 為名、無 title 時 fallback year', async () => {
