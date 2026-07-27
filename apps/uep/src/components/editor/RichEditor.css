@@ -4556,16 +4556,29 @@
   padding: 0 1px;
 }
 
-/* 嵌入面板的種類選擇 */
-.tb-embed-kind {
-  width: 100%;
+/* 嵌入面板的當前引用（唯讀） */
+.tb-embed-current {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   margin-bottom: 6px;
   padding: 5px 8px;
   border: 1px solid var(--hairline);
   border-radius: 3px;
   background: var(--bg-panel, transparent);
+}
+.tb-embed-current-label {
+  flex-shrink: 0;
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.tb-embed-current-ref {
+  overflow: hidden;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 嵌入面板的 Reference Picker 展開鈕 */

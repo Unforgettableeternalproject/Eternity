@@ -36,7 +36,7 @@ import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import { parseGateCondition } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
-import { ENTITY_KINDS, isValidRef, collectEmbeds } from '../../embed';
+import { collectEmbeds } from '../../embed';
 import EntityIndexPicker, { loadEmbeddableEntries } from './EntityIndexPicker';
 import { useDragAutoScroll } from './useDragAutoScroll';
 import { EntitySuggest } from './EntitySuggestExtension';
@@ -283,9 +283,8 @@ export default function RichEditor({
 
   // 嵌入標記 popover 狀態（Epic 2 — entity inline mark；
   // cue 工具已撤下，等浮島階段以旗標式/浮鈕重新設計）
-  const [entityDraft, setEntityDraft] = useState({ kind: 'term', ref: '' });
-  // 條目級 Reference Picker（S7-D-1：頁面樹改 entity-index 條目清單）
-  const [embedPickerOpen, setEmbedPickerOpen] = useState(false);
+  // 面板開啟時當前標記的 ref（唯讀顯示用；引用一律經 EntityIndexPicker 選定）
+  const [entityRef, setEntityRef] = useState('');
   const [echoSongPickerOpen, setEchoSongPickerOpen] = useState(false);
   const [visualsGalleryPickerOpen, setVisualsGalleryPickerOpen] =
     useState(false);
@@ -1715,14 +1714,10 @@ export default function RichEditor({
     toggleDropdown('link');
   };
 
-  // 開啟 entity 嵌入面板（選取在既有標記上時預填屬性）
+  // 開啟 entity 嵌入面板（選取在既有標記上時顯示當前 ref）
   const handleOpenEntityDropdown = () => {
     const attrs = editor.getAttributes('uepEntity');
-    setEntityDraft({
-      kind: (attrs.kind as string) || 'term',
-      ref: (attrs.ref as string) || '',
-    });
-    setEmbedPickerOpen(false);
+    setEntityRef((attrs.ref as string) || '');
     toggleDropdown('uep-entity');
   };
 
@@ -2598,74 +2593,31 @@ export default function RichEditor({
                       </button>
                       {activeDropdown === 'uep-entity' && (
                         <div className="tb-dropdown tb-link-panel">
-                          <select
-                            className="tb-embed-kind"
-                            value={entityDraft.kind}
-                            onChange={(e) =>
-                              setEntityDraft((d) => ({
-                                ...d,
-                                kind: e.target.value,
-                              }))
-                            }
-                          >
-                            {ENTITY_KINDS.map((k) => (
-                              <option key={k.value} value={k.value}>
-                                {k.label}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            className="tb-link-input"
-                            type="text"
-                            placeholder="引用目標（如 concepts/xxx）"
-                            value={entityDraft.ref}
-                            onChange={(e) =>
-                              setEntityDraft((d) => ({
-                                ...d,
-                                ref: e.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Escape') setActiveDropdown(null);
-                            }}
-                            autoFocus
-                          />
-                          <button
-                            className="tb-embed-browse"
-                            type="button"
-                            onClick={() => setEmbedPickerOpen((v) => !v)}
-                          >
-                            {embedPickerOpen
-                              ? '－ 收合'
-                              : '＋ 從 Concepts 條目選擇…'}
-                          </button>
-                          {embedPickerOpen && (
-                            <EntityIndexPicker
-                              apiBase={apiBase}
-                              onPick={(ref, kind) =>
-                                setEntityDraft({ kind, ref })
-                              }
-                            />
+                          {/* 當前引用唯讀顯示——kind 由條目自動推斷，
+                              ref 一律經下方 picker 選定，不再手動輸入 */}
+                          {entityRef && (
+                            <div className="tb-embed-current">
+                              <span className="tb-embed-current-label">
+                                目前引用
+                              </span>
+                              <code className="tb-embed-current-ref">
+                                {entityRef}
+                              </code>
+                            </div>
                           )}
-                          <div className="tb-link-actions">
-                            <button
-                              className="tb-link-apply"
-                              disabled={!isValidRef(entityDraft.ref.trim())}
-                              onClick={() => {
-                                editor
-                                  .chain()
-                                  .focus()
-                                  .setUepEntity({
-                                    kind: entityDraft.kind,
-                                    ref: entityDraft.ref.trim(),
-                                  })
-                                  .run();
-                                setActiveDropdown(null);
-                              }}
-                            >
-                              套用
-                            </button>
-                            {editor.isActive('uepEntity') && (
+                          <EntityIndexPicker
+                            apiBase={apiBase}
+                            onPick={(ref, kind) => {
+                              editor
+                                .chain()
+                                .focus()
+                                .setUepEntity({ kind, ref })
+                                .run();
+                              setActiveDropdown(null);
+                            }}
+                          />
+                          {editor.isActive('uepEntity') && (
+                            <div className="tb-link-actions">
                               <button
                                 className="tb-link-remove"
                                 onClick={() => {
@@ -2675,8 +2627,8 @@ export default function RichEditor({
                               >
                                 移除標記
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
