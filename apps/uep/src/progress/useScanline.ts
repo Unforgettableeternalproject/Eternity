@@ -27,6 +27,8 @@ export interface UseScanlineOptions {
   enabled?: boolean;
   /** 標記點通過時的回呼（FlagMarker 旗標授予、完成判定掛這裡） */
   onMarkerPassed?: (info: MarkerPassedInfo) => void;
+  /** 這一頁是否適用 rush prevention 迷霧（S10-2；由呼叫端依 tree 語意判定） */
+  fogApplies?: boolean;
 }
 
 /**
@@ -41,6 +43,7 @@ export function useScanline({
   contentKey,
   enabled = true,
   onMarkerPassed,
+  fogApplies = false,
 }: UseScanlineOptions): void {
   // 回呼放 ref，避免呼叫端每次 render 產生新函式導致 observer 重建
   const onPassedRef = useRef(onMarkerPassed);
@@ -58,9 +61,10 @@ export function useScanline({
       sentinel,
       root: rootRef?.current ?? null,
       onMarkerPassed: (info) => onPassedRef.current?.(info),
+      fogApplies,
     });
 
     return () => handle.destroy();
     // ref 物件的 identity 穩定，不列入 deps；內容變更由 contentKey 驅動
-  }, [pageId, contentKey, enabled]);
+  }, [pageId, contentKey, enabled, fogApplies]);
 }

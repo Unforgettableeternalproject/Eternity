@@ -94,9 +94,11 @@ export type { UseScanlineOptions } from './useScanline';
 
 export {
   FOG_JUMP_THRESHOLD_VH,
+  FOG_MAX_ADVANCE_VH_PER_SEC,
   computeContentRatio,
   computeElementRatio,
   isNonScrollable,
   isWithinFogReach,
+  limitFogAdvance,
   ratioToScrollTop,
 } from './fogGate';

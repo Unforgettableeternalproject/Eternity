@@ -29,6 +29,32 @@ export const FOG_JUMP_THRESHOLD_VH = 1.5;
 /** 掃描線在視窗高度的哪個位置（對齊 scanline.ts 的 rootMargin -20%） */
 export const SCANLINE_VIEWPORT_RATIO = 0.8;
 
+/**
+ * 迷霧線的最大推進速率（每秒幾個視窗高）。
+ *
+ * ⚠️ 只有跳躍門檻是**擋不住 speedrun** 的：取樣跑在 rAF 上，快速捲動是
+ * 「連續多幀各走一小步」，每一步都不超過跳躍門檻，於是每一步都合法，
+ * 累積起來照樣三秒捲完整篇。跳躍門檻管的是「單次瞬移」，速率上限管的
+ * 才是「讀得多快」——兩者缺一不可。
+ *
+ * 速率上限不會讓迷霧自己前進：推進仍以讀者的捲動位置為準，這裡只截斷
+ * 「這一瞬間最多能推到哪」。停著不動 → 位置沒變 → 不推進；慢慢讀 →
+ * 位置變化本來就低於上限 → 完全跟上；快速捲 → 被截斷，霧留在後面，
+ * 讀者前方持續是霧。
+ *
+ * 0.55 ≈ 每屏近兩秒，對略讀者仍寬鬆，但擋得住整篇一拉到底。
+ * 與跳躍門檻同屬待實測校準的體感參數。
+ */
+export const FOG_MAX_ADVANCE_VH_PER_SEC = 0.55;
+
+/**
+ * 單次取樣的時間差上限（ms）。
+ *
+ * 離開分頁十分鐘再回來，elapsed 會大到讓速率上限形同虛設（等於累積了
+ * 十分鐘的推進額度）。速率限制的語意是「閱讀速度」，不是「掛機時數」。
+ */
+const MAX_SAMPLE_ELAPSED_MS = 1200;
+
 /** 短文判定的浮點容忍值（px） */
 const SCROLL_EPSILON_PX = 1;
 
@@ -42,6 +68,11 @@ function clamp01(value: number): number {
  *
  * 加上 `viewportHeight * 0.8` 是為了對齊掃描線的 80% 線——迷霧線量的是
  * 「掃描線掃到哪」，不是「捲動條拉到哪」。
+ *
+ * ⚠️ 捲到底必須直接回 1，不能套公式。掃描線停在視窗 80% 處，捲到極限時
+ * 公式只會給出 `1 - 0.2 * viewport / scrollHeight`，**永遠差最後一段**：
+ * 文末那 20% 視窗高的內容會永遠蓋著霧，而哨兵的「fogRatio >= 1」合取
+ * 因此永遠不成立——文章再怎麼讀都無法完成。捲到底本來就等於讀完了。
  */
 export function computeContentRatio(
   scrollTop: number,
@@ -49,6 +80,9 @@ export function computeContentRatio(
   scrollHeight: number
 ): number {
   if (!Number.isFinite(scrollHeight) || scrollHeight <= 0) return 0;
+  const maxScrollTop = scrollHeight - viewportHeight;
+  if (maxScrollTop <= SCROLL_EPSILON_PX) return 1;
+  if (scrollTop >= maxScrollTop - SCROLL_EPSILON_PX) return 1;
   return clamp01(
     (scrollTop + viewportHeight * SCANLINE_VIEWPORT_RATIO) / scrollHeight
   );
@@ -93,6 +127,30 @@ export function isWithinFogReach(
   const thresholdRatio =
     (FOG_JUMP_THRESHOLD_VH * viewportHeight) / scrollHeight;
   return candidateRatio - storedFogRatio <= thresholdRatio;
+}
+
+/**
+ * 速率上限：這一次取樣最多能把迷霧線推到哪。
+ *
+ * 回傳 `null` 代表這次取樣不推進（位置沒有前進，或距上次取樣沒有時間
+ * 經過）。呼叫端拿到數值後直接交給 `advanceFog`——單調與量化級距由
+ * store 那邊統一處理。
+ */
+export function limitFogAdvance(
+  candidateRatio: number,
+  storedFogRatio: number,
+  elapsedMs: number,
+  viewportHeight: number,
+  scrollHeight: number
+): number | null {
+  if (candidateRatio <= storedFogRatio) return null;
+  if (!Number.isFinite(scrollHeight) || scrollHeight <= 0) return null;
+  const elapsed = Math.min(Math.max(elapsedMs, 0), MAX_SAMPLE_ELAPSED_MS);
+  if (elapsed <= 0) return null;
+  const maxStep =
+    (FOG_MAX_ADVANCE_VH_PER_SEC * (elapsed / 1000) * viewportHeight) /
+    scrollHeight;
+  return Math.min(candidateRatio, storedFogRatio + maxStep);
 }
 
 /**

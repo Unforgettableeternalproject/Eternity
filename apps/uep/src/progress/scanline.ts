@@ -70,6 +70,11 @@ export interface ScanlineOptions {
   root?: HTMLElement | null;
   /** 標記點通過時的回呼（額外消費端用；授予/完成已內建） */
   onMarkerPassed?: (info: MarkerPassedInfo) => void;
+  /**
+   * 這一頁是否適用迷霧（S10-2）。由呼叫端判定並傳入——「算不算進度頁」
+   * 是 tree 語意，掃描線不該自己重算一份。預設 false（不設限）。
+   */
+  fogApplies?: boolean;
 }
 
 export interface ScanlineHandle {
@@ -82,7 +87,14 @@ export interface ScanlineHandle {
  * （observer 綁的是建立當下的 DOM 快照）。
  */
 export function createScanline(options: ScanlineOptions): ScanlineHandle {
-  const { pageId, container, sentinel, root = null, onMarkerPassed } = options;
+  const {
+    pageId,
+    container,
+    sentinel,
+    root = null,
+    onMarkerPassed,
+    fogApplies = false,
+  } = options;
 
   if (typeof IntersectionObserver === 'undefined') {
     return { destroy() {} };
@@ -91,7 +103,9 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
   const store = getProgressManager();
   const markers = collectMarkers(container);
   /**
-   * 迷霧是否介入這一頁（S10-2）。三個關閉條件：
+   * 迷霧是否介入這一頁（S10-2）。四個關閉條件：
+   * - 呼叫端說這頁不適用（非進度頁且無解鎖條件——遮住一篇不解鎖任何
+   *   東西也不在進度鏈上的文章，只是徒增閱讀阻力）
    * - 已完成過 → 重讀不再限制（用 completedPageIds 而非
    *   `isEffectivelyCompleted`：後者會因為無關的依賴鏈變化把「讀過」
    *   變回「沒讀過」，讀者無從理解也無法自行解除）
@@ -99,6 +113,7 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
    * - 沒有捲動容器 → 位置換算失去共同座標系，寧可不擋
    */
   const fogEnabled =
+    fogApplies &&
     !store.getState().completedPageIds.includes(pageId) &&
     !!root &&
     !isNonScrollable(root.scrollHeight, root.clientHeight);
@@ -106,20 +121,20 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
   /**
    * 位置閘門：這個標記在不在迷霧線的可及範圍內。
    *
-   * 通過就順手把迷霧線推到該位置——迷霧線與掃描線是同一條線，標記
-   * 合法過線本身就是「讀者的視線走到這裡」的證據。
+   * ⚠️ 純判定，**不推進迷霧線**。推進的唯一入口是呼叫端的捲動取樣
+   * （HistoryReader.sampleFog），因為那裡才有時間軸可以套速率上限。
+   * 若這裡也推進，標記通過就等於免費跳過速率限制。
    */
   const passesFogGate = (el: Element): boolean => {
-    if (!fogEnabled) return true;
+    if (!fogEnabled || !root) return true;
     const ratio = computeElementRatio(el, root);
     const stored = store.getState().fogRatio[pageId] ?? 0;
-    if (
-      !isWithinFogReach(ratio, stored, root.clientHeight, root.scrollHeight)
-    ) {
-      return false;
-    }
-    store.advanceFog(pageId, ratio);
-    return true;
+    return isWithinFogReach(
+      ratio,
+      stored,
+      root.clientHeight,
+      root.scrollHeight
+    );
   };
   // totalMarkers = 內容標記數；哨兵索引 = totalMarkers（完成時 max = total）
   const totalMarkers = markers.length;
@@ -234,14 +249,29 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
   );
 
   // 哨兵 observer：不縮視窗——捲到底部哨兵進入視窗即完成
+  let sentinelVisible = false;
   const sentinelObserver = new IntersectionObserver(
     (entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        passSentinel();
-      }
+      for (const entry of entries) sentinelVisible = entry.isIntersecting;
+      if (sentinelVisible) passSentinel();
     },
     { root, threshold: 0 }
   );
+
+  /**
+   * 迷霧推到底時補一次完成判定。
+   *
+   * 捲到底的那一瞬間，哨兵的 IO 回呼與迷霧取樣（rAF）誰先誰後不保證。
+   * 若哨兵先跑，當下 fogRatio 還不是 1 會被 §6 的合取擋下，而 IO 只在
+   * 交集狀態**變化**時回呼——讀者停在底部不動就再也等不到第二次事件，
+   * 明明讀完了卻卡著不完成。
+   */
+  const unsubscribeFog = fogEnabled
+    ? store.subscribe((_state, detail) => {
+        if (detail.source !== 'fog-advance' || !sentinelVisible) return;
+        passSentinel();
+      })
+    : null;
 
   markers.forEach((m) => markerObserver.observe(m.el));
   sentinelObserver.observe(sentinel);
@@ -250,6 +280,7 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
     destroy() {
       markerObserver.disconnect();
       sentinelObserver.disconnect();
+      unsubscribeFog?.();
       // 離頁前 flush 未寫入的位置，避免掉最後的閱讀進度
       if (writeTimer) {
         clearTimeout(writeTimer);

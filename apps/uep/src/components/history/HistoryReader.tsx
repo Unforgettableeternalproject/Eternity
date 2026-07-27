@@ -36,8 +36,10 @@ import {
   getProgressManager,
   resolveResumeMarkerIdx,
   computeContentRatio,
+  isEffectiveProgressPage,
   isNonScrollable,
   isWithinFogReach,
+  limitFogAdvance,
   ratioToScrollTop,
   PROGRESS_CHANGE_EVENT,
 } from '../../progress';
@@ -171,6 +173,23 @@ function buildAncestorMap(
     buildAncestorMap(node.children || [], [...ancestors, node], map);
   }
   return map;
+}
+
+/**
+ * 從 tree 找出節點與其直接父節點（迷霧適用性判定用）。
+ * 進度頁的容器繼承只看直接父層（見 tree.isEffectiveProgressPage）。
+ */
+function findNodeWithParent(
+  nodes: PageTreeNode[],
+  id: string,
+  parent: PageTreeNode | null = null
+): { node: PageTreeNode; parent: PageTreeNode | null } | null {
+  for (const node of nodes) {
+    if (node.id === id) return { node, parent };
+    const found = findNodeWithParent(node.children || [], id, node);
+    if (found) return found;
+  }
+  return null;
 }
 
 function pageTypeLabel(type: PageType) {
@@ -346,16 +365,44 @@ export default function HistoryReader() {
   currentIdRef.current = currentId;
 
   /**
+   * 這一頁適不適用 rush prevention 迷霧（S10-2）。
+   *
+   * 條件是「進度頁（含容器繼承）**或**本身有解鎖條件」——遮住一篇既不在
+   * 進度鏈上、也不解鎖任何東西的文章，只是徒增閱讀阻力，迷霧沒有要保護
+   * 的對象。判定放在這裡而非 scanline 內，因為「算不算進度頁」是 tree
+   * 語意，掃描線不該自己重算一份。
+   */
+  const fogApplies = useMemo(() => {
+    if (!currentId) return false;
+    const found = findNodeWithParent(tree, currentId);
+    if (!found) return false;
+    const metadata = found.node.metadata ?? null;
+    if (isEffectiveProgressPage(metadata, found.parent?.metadata ?? null)) {
+      return true;
+    }
+    return metadata?.gate != null;
+  }, [currentId, tree]);
+
+  /**
    * 迷霧線的推進取樣（S10-2）。
    *
-   * ⚠️ 主要推進來源是**捲動**，不是標記點通過——標記稀疏的文章之間可以
-   * 隔好幾屏，只靠 scanline 的閘門推進會讓迷霧留在原地被讀者捲過去。
-   * scanline 那邊的推進是「標記合法過線」的順帶結果，不是唯一入口。
+   * ⚠️ 這是**唯一**的推進入口。主要來源是捲動而非標記點通過——標記稀疏
+   * 的文章之間可以隔好幾屏，只靠 scanline 的閘門推進會讓迷霧留在原地被
+   * 讀者捲過去；而且只有這裡有時間軸可以套速率上限。
    */
+  const fogAppliesRef = useRef(false);
+  fogAppliesRef.current = fogApplies;
+  const lastFogSampleAtRef = useRef(0);
+
   const sampleFog = useCallback(() => {
     const pageId = currentIdRef.current;
     const el = scrollRef.current;
-    if (!pageId || !el) return;
+    const now = performance.now();
+    const elapsed = lastFogSampleAtRef.current
+      ? now - lastFogSampleAtRef.current
+      : 0;
+    lastFogSampleAtRef.current = now;
+    if (!fogAppliesRef.current || !pageId || !el) return;
     const state = getProgressManager().getState();
     if (state.completedPageIds.includes(pageId)) return;
     if (isNonScrollable(el.scrollHeight, el.clientHeight)) return;
@@ -365,10 +412,20 @@ export default function HistoryReader() {
       el.scrollHeight
     );
     const stored = state.fogRatio[pageId] ?? 0;
+    // 跳躍門檻擋「單次瞬移」，速率上限擋「讀得多快」——快速捲動是連續
+    // 多幀各走一小步，每步都過得了跳躍門檻，只有速率上限攔得住
     if (!isWithinFogReach(ratio, stored, el.clientHeight, el.scrollHeight)) {
       return;
     }
-    getProgressManager().advanceFog(pageId, ratio);
+    const next = limitFogAdvance(
+      ratio,
+      stored,
+      elapsed,
+      el.clientHeight,
+      el.scrollHeight
+    );
+    if (next == null) return;
+    getProgressManager().advanceFog(pageId, next);
   }, []);
 
   // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
@@ -423,12 +480,14 @@ export default function HistoryReader() {
 
   // 迷霧線的唯讀鏡像——useVisualClues 是唯一繞過掃描線閘門的消費端，
   // 它的區間判定跑在 rAF 迴圈裡，不能每次都去 store 取值。
+  // 不適用迷霧的頁面一律視為 1（散盡），下游全部照舊行為走。
   const fogRatioRef = useRef(1);
-  const fogRatio = currentId
-    ? progress.completedPageIds.includes(currentId)
-      ? 1
-      : (progress.fogRatio[currentId] ?? 0)
-    : 1;
+  const fogRatio =
+    currentId && fogApplies
+      ? progress.completedPageIds.includes(currentId)
+        ? 1
+        : (progress.fogRatio[currentId] ?? 0)
+      : 1;
   fogRatioRef.current = fogRatio;
 
   // 本次頁面造訪中「已點擊、尚未通過訖點」的 clue——通過訖點時觸發
@@ -641,6 +700,7 @@ export default function HistoryReader() {
   // .history-content div，root 必須指定 scrollRef 而非 viewport；
   // articleHtml 變更時 observer 整組重建。
   useScanline({
+    fogApplies,
     pageId: currentId,
     containerRef: contentRef,
     sentinelRef: scanSentinelRef,

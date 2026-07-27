@@ -5,6 +5,7 @@ import {
   computeElementRatio,
   isNonScrollable,
   isWithinFogReach,
+  limitFogAdvance,
   ratioToScrollTop,
 } from '../fogGate';
 
@@ -18,9 +19,22 @@ describe('computeContentRatio', () => {
     expect(computeContentRatio(4200, VIEWPORT, SCROLL_HEIGHT)).toBe(0.5);
   });
 
-  it('捲到底時 clamp 在 1，不會超過', () => {
-    expect(computeContentRatio(9000, VIEWPORT, SCROLL_HEIGHT)).toBe(0.98);
+  /**
+   * 掃描線停在 80% 處，捲到極限時公式只會給 1 - 0.2*viewport/scrollHeight。
+   * 若不特判，文末那段永遠蓋著霧，哨兵的「fogRatio >= 1」也永遠不成立，
+   * 文章無法完成——捲到底本來就等於讀完。
+   */
+  it('捲到底直接回 1，不留最後一段', () => {
+    expect(computeContentRatio(9000, VIEWPORT, SCROLL_HEIGHT)).toBe(1);
+    expect(computeContentRatio(8999, VIEWPORT, SCROLL_HEIGHT)).toBe(1);
     expect(computeContentRatio(99999, VIEWPORT, SCROLL_HEIGHT)).toBe(1);
+    // 還沒到底就照常套公式
+    expect(computeContentRatio(8000, VIEWPORT, SCROLL_HEIGHT)).toBe(0.88);
+  });
+
+  it('內容不可捲動時直接回 1（短文豁免的同一個判準）', () => {
+    expect(computeContentRatio(0, VIEWPORT, VIEWPORT)).toBe(1);
+    expect(computeContentRatio(0, VIEWPORT, 500)).toBe(1);
   });
 
   it('scrollHeight 為 0 或非法時回 0，不吐 NaN 汙染 store', () => {
@@ -83,8 +97,55 @@ describe('isWithinFogReach — 跳躍判定', () => {
   });
 });
 
+/**
+ * 跳躍門檻擋不住 speedrun：取樣跑在 rAF 上，快速捲動是「連續多幀各走
+ * 一小步」，每步都在門檻內。只有速率上限攔得住。
+ */
+describe('limitFogAdvance — 推進速率上限', () => {
+  // 上限 0.55 vh/s；1 秒的額度 = 0.55 * 1000 / 10000 = 0.055 ratio
+  it('慢讀時完全跟上（推進量低於上限）', () => {
+    expect(limitFogAdvance(0.13, 0.1, 1000, VIEWPORT, SCROLL_HEIGHT)).toBe(
+      0.13
+    );
+  });
+
+  it('快速捲動被截斷成該時段的額度', () => {
+    // 一秒內想推進 0.4，只給 0.055
+    const next = limitFogAdvance(0.5, 0.1, 1000, VIEWPORT, SCROLL_HEIGHT);
+    expect(next).toBeCloseTo(0.155, 5);
+  });
+
+  it('連續多幀小步同樣被逐幀限制（speedrun 的實際形狀）', () => {
+    let stored = 0;
+    // 每 16ms 捲一屏（0.1 ratio）——每步都過得了跳躍門檻
+    for (let i = 0; i < 10; i += 1) {
+      const candidate = stored + 0.1;
+      expect(isWithinFogReach(candidate, stored, VIEWPORT, SCROLL_HEIGHT)).toBe(
+        true
+      );
+      stored = limitFogAdvance(candidate, stored, 16, VIEWPORT, SCROLL_HEIGHT)!;
+    }
+    // 160ms 的額度只有 0.0088，十幀累積遠不到讀者跑到的 1.0
+    expect(stored).toBeLessThan(0.01);
+  });
+
+  it('位置沒前進或沒有時間經過時不推進', () => {
+    expect(limitFogAdvance(0.1, 0.1, 500, VIEWPORT, SCROLL_HEIGHT)).toBeNull();
+    expect(limitFogAdvance(0.05, 0.1, 500, VIEWPORT, SCROLL_HEIGHT)).toBeNull();
+    expect(limitFogAdvance(0.3, 0.1, 0, VIEWPORT, SCROLL_HEIGHT)).toBeNull();
+  });
+
+  /** 掛機不該累積推進額度——速率限制的語意是閱讀速度，不是掛機時數 */
+  it('離開分頁很久再回來，時間差被 cap 住', () => {
+    const long = limitFogAdvance(1, 0, 600_000, VIEWPORT, SCROLL_HEIGHT);
+    const capped = limitFogAdvance(1, 0, 1200, VIEWPORT, SCROLL_HEIGHT);
+    expect(long).toBe(capped);
+    expect(long).toBeLessThan(0.1);
+  });
+});
+
 describe('ratioToScrollTop — 續讀定位', () => {
-  it('是 computeContentRatio 的反函式', () => {
+  it('是 computeContentRatio 的反函式（未到底的區間）', () => {
     const scrollTop = 4200;
     const ratio = computeContentRatio(scrollTop, VIEWPORT, SCROLL_HEIGHT);
     expect(ratioToScrollTop(ratio, VIEWPORT, SCROLL_HEIGHT)).toBe(scrollTop);
