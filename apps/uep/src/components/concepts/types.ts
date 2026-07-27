@@ -239,7 +239,15 @@ export interface ChronoFieldDef {
 /** 時期代號 */
 export type ChronoEra = 'pre-ad' | 'ad' | 'fa' | 'nw';
 
-export interface ChronoPeriod extends WithRevision {
+/**
+ * 時間軸上的一個時期。
+ *
+ * chrono stack 是「事件的時序排列」，時期本身不是實體——故不帶 entityKey，
+ * 也不參與跨 stack 實體身分體系（同一個角色會在多個時期出現，時期不能
+ * 代表他）。實體身分只由 dossier 與 browser 承擔。
+ * gate / revisions 仍保留：時期內容可隨劇情進度揭露。
+ */
+export interface ChronoPeriod extends Omit<WithRevision, 'entityKey'> {
   /** 時期代號 */
   era: ChronoEra;
   /** 年份數字 */

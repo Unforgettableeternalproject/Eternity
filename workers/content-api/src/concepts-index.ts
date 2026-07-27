@@ -170,9 +170,11 @@ function collectFromPage(
   pageTitle: string
 ): EntityIndexEntry[] {
   const out: EntityIndexEntry[] = [];
-  // diff 降格為純對照表後退出實體身分體系：不收 entityKey / aliases，
-  // 連帶讓它不再產生 key 候選、不進嵌入目標、不進 terminal 檢索
-  const includeIdentity = stack !== 'diff';
+  // 實體身分只由 dossier 與 browser 承擔。diff（純對照表）與 chrono
+  // （事件的時序排列）都不是實體，不收 entityKey / aliases——連帶讓它們
+  // 不再產生 key 候選、不進嵌入目標、不進 terminal 檢索。
+  // 用白名單而非逐一排除：日後新增 stack 時預設不進身分體系，要進得明寫。
+  const includeIdentity = stack === 'dossier' || stack === 'browser';
   const push = (
     name: unknown,
     entry: Dict,

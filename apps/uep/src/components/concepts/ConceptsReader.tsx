@@ -927,10 +927,6 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
                     {ep.title || (ep as any).subtitle}
                   </span>
                 )}
-                <InterlinkTriggerButton
-                  entityKey={ep.entityKey}
-                  label={ep.title || ep.year}
-                />
                 <button
                   className="conc-chrono-expanded-close"
                   onClick={closeChronoExpanded}

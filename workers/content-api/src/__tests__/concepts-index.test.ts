@@ -172,6 +172,16 @@ describe('GET /api/concepts/entity-index', () => {
             },
           },
           { era: 'u', yearNum: 421, year: 'U.0421' },
+          // 殘留 key 的舊資料形狀——驗證索引端會剝掉它（同 diff 的用意）
+          {
+            era: 'u',
+            yearNum: 422,
+            year: 'U.0422',
+            title: '殘留 key 時期',
+            entityKey: 'legacy-chrono-key',
+            aliases: ['殘留別名'],
+            fields: {},
+          },
         ],
       }
     );
@@ -285,6 +295,21 @@ describe('GET /api/concepts/entity-index', () => {
     // 反向確認：該 key 不存在於整份索引
     expect(
       entries.find((e) => e.entityKey === 'legacy-diff-key')
+    ).toBeUndefined();
+  });
+
+  // chrono 退出實體身分體系（艾斯維爾 2026-07-27）：時期照常進索引
+  // （ls clock 要列、顯著時代要點得開），但 entityKey / aliases 一律剝除
+  it('chrono 時期剝除殘留的 entityKey / aliases', async () => {
+    const entries = await fetchIndex();
+    const legacy = entries.find((e) => e.name === '殘留 key 時期');
+    expect(legacy).toBeDefined();
+    expect(legacy!.stack).toBe('chrono');
+    expect(legacy!.entityKey).toBeUndefined();
+    expect(legacy!.aliases).toBeUndefined();
+    // 反向確認：該 key 不存在於整份索引
+    expect(
+      entries.find((e) => e.entityKey === 'legacy-chrono-key')
     ).toBeUndefined();
   });
 

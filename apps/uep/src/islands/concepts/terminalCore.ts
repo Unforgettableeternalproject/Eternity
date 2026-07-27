@@ -236,15 +236,20 @@ export function resolveStackAlias(input: string): TerminalStack | null {
 }
 
 /**
- * 檢索範圍判定：terminal 以 log entry 為主體——
- * browser 一律不可直接搜尋（詳細內容經 log entry 的連結呈現）；
- * diff 降格為純對照表後整個退出檢索（名詞解釋的職責已移交 dossier），
- * ls compare 仍可瀏覽全部內容。
+ * 檢索範圍判定（艾斯維爾 2026-07-27 定案：**query 專門用來抓 entity**）。
+ *
+ * 實體身分只由 dossier 與 browser 承擔，而 browser 一律不可直接搜尋
+ * ——它的詳細內容經 log entry 的連結呈現，自己不是入口。兩者相減，
+ * 可查的就只剩 dossier。
+ *
+ * diff（純對照表）與 chrono（事件的時序排列）都不是實體，整個退出檢索：
+ * 名詞解釋的職責已移交 dossier，時期則本來就代表不了任何一個角色。
+ *
+ * ⚠️ 只影響 `query` 與 Tab 補全。`ls compare` / `ls clock` 仍可瀏覽全部
+ * 內容，ls clock 列出的顯著時代也仍然點得開（走 resolveEntryDetails）。
  */
 function isSearchable(entry: TerminalIndexEntry): boolean {
-  if (entry.stack === 'browser') return false;
-  if (entry.stack === 'diff') return false;
-  return true;
+  return entry.stack === 'dossier';
 }
 
 /**
@@ -719,7 +724,9 @@ export async function resolveEntryDetails(
     }
   } else if (target.stack === 'chrono' && isChronoContent(data)) {
     for (const period of data.periods) {
-      if (!matchesEntry(period, period.title || period.year, target)) continue;
+      // chrono 時期不帶 entityKey，一律以顯示名稱比對（同 diff）——
+      // 這條路徑仍在用：ls clock 的顯著時代列點得開
+      if ((period.title || period.year) !== target.name) continue;
       const resolved = resolve(period as unknown as Record<string, unknown>);
       out.push(
         resolved

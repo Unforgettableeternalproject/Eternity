@@ -8,8 +8,9 @@
  *
  * 唯一性範圍（設計文件 docs/agent/S7_CONCEPTS_DESIGN.md §1-3-a）：
  * - dossier：同 variant 內唯一（同一實體可跨 variant 各自維護 revision 鏈）
- * - browser / chrono：同頁面內唯一
- * - diff：不適用——純對照表，條目不掛 entityKey
+ * - browser：同頁面內唯一
+ * - diff / chrono：不適用——前者是純對照表、後者是事件的時序排列，
+ *   都不參與實體身分體系，條目不掛 entityKey
  * 呼叫端負責依此範圍收集 existingKeys（排除自身）。
  *
  * 校驗是即時警告不阻擋輸入——entityKey 是語意資產，由設計者統一命名，
@@ -19,11 +20,7 @@
 import React from 'react';
 
 import { ENTITY_KEY_PATTERN } from '../../embed/marks';
-import {
-  isBrowserContent,
-  isChronoContent,
-  isDossierContent,
-} from '../concepts/revision';
+import { isBrowserContent, isDossierContent } from '../concepts/revision';
 import type { ConceptsData } from '../concepts/types';
 
 // kebab-case pattern 下沉至 embed/marks.ts（S7-C，ref 驗證共用）；
@@ -84,13 +81,9 @@ export function collectEntityKeyIssues(data: ConceptsData): string[] {
       })),
       '頁面'
     );
-  } else if (isChronoContent(data)) {
-    checkScope(
-      data.periods.map((p) => ({ label: p.year, key: p.entityKey })),
-      '頁面'
-    );
   }
-  // diff 不參與實體身分體系（純對照表，條目不掛 entityKey），無需檢查
+  // diff（純對照表）與 chrono（事件的時序排列）都不參與實體身分體系，
+  // 條目不掛 entityKey，無需檢查
 
   return issues;
 }

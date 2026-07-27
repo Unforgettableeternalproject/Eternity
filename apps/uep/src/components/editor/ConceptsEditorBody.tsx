@@ -365,7 +365,6 @@ export default function ConceptsEditorBody({
           data={data.data as ChronoContent}
           onChange={(d) => update(d)}
           accent={accent}
-          externalKeys={lookupExternalKeys}
         />
       )}
       {stackStyle === 'diff' && (
@@ -2014,12 +2013,10 @@ function ChronoEditor({
   data: rawData,
   onChange,
   accent,
-  externalKeys = NO_EXTERNAL_KEYS,
 }: {
   data: ChronoContent;
   onChange: (d: ChronoContent) => void;
   accent: string;
-  externalKeys?: ExternalKeyLookup;
 }) {
   const data = React.useMemo(() => migrateChronoData(rawData), [rawData]);
   const [activePeriod, setActivePeriod] = useState(0);
@@ -2088,17 +2085,6 @@ function ChronoEditor({
   }
 
   const period = data.periods[activePeriod];
-
-  // entityKey 唯一性範圍 = 整個 chrono stack（跨頁，排除自身）；
-  // chrono 的 entityKey 選用不強制（定案 A）
-  const usedEntityKeys = React.useMemo(() => {
-    const keys = new Set<string>(externalKeys());
-    data.periods.forEach((p, i) => {
-      if (i === activePeriod) return;
-      if (p.entityKey) keys.add(p.entityKey);
-    });
-    return keys;
-  }, [data.periods, activePeriod, externalKeys]);
 
   function updatePeriod(patch: Partial<ChronoPeriod>) {
     updatePeriods(
@@ -2495,11 +2481,6 @@ function ChronoEditor({
                 />
               </div>
 
-              <EntityKeyField
-                value={period.entityKey}
-                onChange={(key) => updatePeriod({ entityKey: key })}
-                existingKeys={usedEntityKeys}
-              />
               <div className="ced-field-row">
                 <label className="ced-label">revisions</label>
                 <button
@@ -2791,7 +2772,6 @@ function ChronoEditor({
             period.title ? `${period.year}・${period.title}` : period.year
           }
           stackStyle="chrono"
-          entityKey={period.entityKey}
           baseEntry={period as unknown as Record<string, unknown>}
           revisions={period.revisions ?? []}
           onChange={(revs) =>

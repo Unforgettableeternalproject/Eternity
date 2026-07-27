@@ -230,6 +230,7 @@ describe('queryIndex', () => {
     }),
     indexEntry({ name: '原質', stack: 'diff' }),
     indexEntry({ name: '月桂 Laurel', stack: 'browser' }),
+    indexEntry({ name: 'AD 0420', stack: 'chrono' }),
   ];
 
   it('name substring 比對（case-insensitive）', () => {
@@ -255,6 +256,20 @@ describe('queryIndex', () => {
       indexEntry({ name: '遣返', stack: 'diff', entityKey: 'repatriation' }),
     ];
     expect(queryIndex(withKeyed, '遣返', stateWith({}))).toHaveLength(0);
+  });
+
+  /* 艾斯維爾 2026-07-27 定案：query 專門用來抓 entity。實體身分只由
+   * dossier 與 browser 承擔，browser 又不可直接搜——可查的就只剩 dossier。 */
+  it('chrono 時期一律不進 query（ls clock 才是入口）', () => {
+    expect(queryIndex(entries, 'AD 0420', stateWith({}))).toHaveLength(0);
+    expect(queryIndex(entries, '0420', stateWith({}))).toHaveLength(0);
+    // 索引殘留 entityKey 的舊資料也不得被查到
+    const withKeyed = [
+      ...entries,
+      indexEntry({ name: 'AD 0666', stack: 'chrono', entityKey: 'incident' }),
+    ];
+    expect(queryIndex(withKeyed, '0666', stateWith({}))).toHaveLength(0);
+    expect(queryIndex(withKeyed, 'incident', stateWith({}))).toHaveLength(0);
   });
 
   it('未解鎖條目從結果隱藏', () => {

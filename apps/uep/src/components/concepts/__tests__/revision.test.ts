@@ -315,7 +315,8 @@ const chronoData = (): ChronoContent => ({
       yearNum: 420,
       year: 'AD 0420',
       fields: { main: { items: ['？？？'] } },
-      entityKey: 'incident-0420',
+      // 時期不帶 entityKey（chrono 不參與實體身分體系）——revision id 與
+      // 旗標名稱仍可沿用該慣例，它們只是字串，不依賴欄位存在
       revisions: [
         { id: 'base', gate: null, patch: {} },
         {
