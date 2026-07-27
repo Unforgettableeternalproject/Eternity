@@ -20,6 +20,8 @@ import type {
   ViewMode,
 } from './types';
 import {
+  FOG_RATIO_PRECISION,
+  FOG_RATIO_WRITE_STEP,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
@@ -43,6 +45,7 @@ export interface ProgressChangeDetail {
     | 'island-relocked'
     | 'island-setting'
     | 'marker-update'
+    | 'fog-advance'
     | 'page-visited'
     | 'lost-bookmark'
     | 'reading-time'
@@ -169,6 +172,26 @@ function unionAdded(
  * 唯一生產呼叫端是 DevTools 測試 bridge，可接受；若未來出現真實的
  * 「旗標會失效」機制，這裡要改成帶時間戳的 tombstone。
  */
+/**
+ * 逐 key 取大值合併——迷霧線是單調遞增的連續量，不需要 `unionAdded`
+ * 那樣拿 base 當基線區分「空窗期新增」與「遠端刪除」：迷霧沒有刪除語意，
+ * 兩邊誰讀得比較遠就算誰的。
+ *
+ * 這是 `fogRatio` 與其他 record 欄位（`pageMarkers`）的關鍵差異——後者
+ * 在 hydrate 時整包被遠端覆蓋，多裝置同時讀不同頁時會互相抹掉；迷霧線
+ * 承載的是「這段內容的保護已經解除」，被抹掉等於讀者的路白走。
+ */
+function mergeMaxByKey(
+  remote: Record<string, number>,
+  local: Record<string, number>
+): Record<string, number> {
+  const merged = { ...remote };
+  for (const [key, value] of Object.entries(local)) {
+    if (!(key in merged) || merged[key] < value) merged[key] = value;
+  }
+  return merged;
+}
+
 function mergeHydrated(
   remote: ProgressState,
   base: ProgressState,
@@ -177,6 +200,7 @@ function mergeHydrated(
   return {
     ...remote,
     flags: unionAdded(remote.flags, base.flags, local.flags),
+    fogRatio: mergeMaxByKey(remote.fogRatio, local.fogRatio),
     completedPageIds: unionAdded(
       remote.completedPageIds,
       base.completedPageIds,
@@ -563,6 +587,33 @@ export const uepProgress = {
           totalMarkers,
           updatedAt: new Date().toISOString(),
         },
+      },
+    }));
+  },
+
+  /**
+   * 推進頁面的迷霧線（S10-2 rush prevention，迷霧追蹤器呼叫）。
+   *
+   * 三道約束，順序不可調換：
+   * 1. **單調遞增**——迷霧只前進不後退。往回捲屬正常閱讀行為，
+   *    不該讓已解除保護的段落重新罩上。
+   * 2. **量化級距**——ratio 是捲動連續量，每格都寫等於把整包
+   *    ProgressState 反覆 PUT 上伺服器（無欄位級更新，見 uep-auth）。
+   * 3. **推到 1.0 不受級距限制**——讀到底那一步若因不足級距被吞掉，
+   *    整頁會永遠差最後一點而無法解除保護。
+   */
+  advanceFog(pageId: string, ratio: number): void {
+    if (!pageId || !Number.isFinite(ratio)) return;
+    const next = Math.min(1, Math.max(0, ratio));
+    const current = state.fogRatio[pageId] ?? 0;
+    if (next <= current) return;
+    if (next < 1 && next - current < FOG_RATIO_WRITE_STEP) return;
+    const factor = 10 ** FOG_RATIO_PRECISION;
+    mutate('fog-advance', (p) => ({
+      ...p,
+      fogRatio: {
+        ...p.fogRatio,
+        [pageId]: Math.round(next * factor) / factor,
       },
     }));
   },

@@ -26,6 +26,7 @@ function makeRemote(overrides: Partial<ProgressState> = {}): ProgressState {
     islandsUnlocked: [],
     islandsDisabled: [],
     pageMarkers: {},
+    fogRatio: {},
     lastVisitedPageId: null,
     lastVisitedAt: null,
     lostBookmark: { chancePct: 20, visible: false },
@@ -244,6 +245,62 @@ describe('頁面完成與浮島', () => {
     expect(uepProgress.getState().conceptsReadLevel['xavier-colsono']).toBe(3);
   });
 
+  it('normalizeState 剔除超界的 fogRatio（S10-2）', () => {
+    const legacy = {
+      version: 1,
+      view: 'explorer',
+      flags: [],
+      completedPageIds: [],
+      islandsUnlocked: [],
+      pageMarkers: {},
+      updatedAt: '2026-07-27T00:00:00.000Z',
+    };
+    // 舊 blob 沒有此欄位 → 補空表
+    expect(normalizeState(legacy)!.fogRatio).toEqual({});
+    expect(
+      normalizeState({
+        ...legacy,
+        fogRatio: {
+          'history/a': 0.42,
+          'history/done': 1,
+          'history/over': 1.5,
+          'history/neg': -0.1,
+          'history/bad': 'x',
+        },
+      })!.fogRatio
+    ).toEqual({ 'history/a': 0.42, 'history/done': 1 });
+  });
+
+  it('advanceFog 單調前進、量化級距、到底不受級距限制（S10-2）', async () => {
+    const { uepProgress } = await freshStore();
+    const page = 'history/p1';
+    uepProgress.advanceFog(page, 0.2);
+    expect(uepProgress.getState().fogRatio[page]).toBe(0.2);
+
+    // 往回捲不讓迷霧退回
+    uepProgress.advanceFog(page, 0.1);
+    expect(uepProgress.getState().fogRatio[page]).toBe(0.2);
+
+    // 未達寫入級距（0.5%）→ 不寫，避免整包 blob 高頻上傳
+    uepProgress.advanceFog(page, 0.202);
+    expect(uepProgress.getState().fogRatio[page]).toBe(0.2);
+
+    // 達級距 → 寫入並量化到小數點後三位
+    uepProgress.advanceFog(page, 0.20659);
+    expect(uepProgress.getState().fogRatio[page]).toBe(0.207);
+
+    // 讀到底那一步不受級距限制，否則整頁永遠差最後一點
+    uepProgress.advanceFog(page, 0.999);
+    uepProgress.advanceFog(page, 1);
+    expect(uepProgress.getState().fogRatio[page]).toBe(1);
+
+    // 超界與非法值防禦
+    uepProgress.advanceFog('history/p2', 5);
+    expect(uepProgress.getState().fogRatio['history/p2']).toBe(1);
+    uepProgress.advanceFog('history/p3', NaN);
+    expect(uepProgress.getState().fogRatio['history/p3']).toBeUndefined();
+  });
+
   it('markPageVisited 記錄最後造訪頁與時間', async () => {
     const { uepProgress } = await freshStore();
     uepProgress.markPageVisited('history/u/1');
@@ -383,6 +440,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       islandsUnlocked: [],
       islandsDisabled: [],
       pageMarkers: {},
+      fogRatio: {},
       lastVisitedPageId: null,
       lastVisitedAt: null,
       lostBookmark: { chancePct: 20, visible: false },
@@ -488,6 +546,29 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       );
       // 合併結果必須落地，否則只活在記憶體、重載即失
       expect(save).toHaveBeenCalled();
+    });
+
+    it('迷霧線逐 key 取大值，不同頁的進度不會互相抹掉（S10-2）', async () => {
+      const { uepProgress } = await freshStore();
+      const { adapter, release } = deferredAdapter(
+        makeRemote({
+          fogRatio: { 'history/a': 0.8, 'history/remote-only': 0.3 },
+        })
+      );
+
+      // 另一台裝置正在讀 history/b，同時本機在 history/a 讀得比遠端淺
+      const pending = uepProgress.setAdapter(adapter);
+      uepProgress.advanceFog('history/a', 0.5);
+      uepProgress.advanceFog('history/b', 0.6);
+      release();
+      await pending;
+
+      const { fogRatio } = uepProgress.getState();
+      // 同一頁取讀得比較遠的那一邊
+      expect(fogRatio['history/a']).toBe(0.8);
+      // 兩邊各自獨有的頁面都要留著——整包覆蓋會讓其中一邊的路白走
+      expect(fogRatio['history/b']).toBe(0.6);
+      expect(fogRatio['history/remote-only']).toBe(0.3);
     });
 
     it('觀測者印記任一邊落下就算數', async () => {

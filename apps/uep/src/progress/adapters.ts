@@ -83,6 +83,21 @@ export function normalizeState(raw: unknown): ProgressState | null {
       typeof obj.pageMarkers === 'object' && obj.pageMarkers !== null
         ? obj.pageMarkers
         : base.pageMarkers,
+    // S10-2 新增欄位：迷霧線位置，舊 blob 沒有時補空表。
+    // 逐項防禦（僅接受 0~1 的有限數），壞值直接剔除——迷霧位置錯誤
+    // 會讓整篇內容被永久遮蔽或整篇解除保護，寧可退回未讀狀態
+    fogRatio:
+      typeof obj.fogRatio === 'object' && obj.fogRatio !== null
+        ? Object.fromEntries(
+            Object.entries(obj.fogRatio as Record<string, unknown>).filter(
+              (pair): pair is [string, number] =>
+                typeof pair[1] === 'number' &&
+                Number.isFinite(pair[1]) &&
+                pair[1] >= 0 &&
+                pair[1] <= 1
+            )
+          )
+        : base.fogRatio,
     // S6-2 新增欄位：舊 blob 沒有時補 null（deriveLastRead 會 fallback pageMarkers）
     lastVisitedPageId:
       typeof obj.lastVisitedPageId === 'string' ? obj.lastVisitedPageId : null,

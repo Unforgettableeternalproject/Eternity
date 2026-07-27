@@ -97,6 +97,18 @@ export interface ProgressState {
   /** 各頁面的掃描線進度，key 為 pageId */
   pageMarkers: Record<string, PageMarkerProgress>;
   /**
+   * 各 History 頁面的迷霧線位置（S10-2 rush prevention）：
+   * key = pageId，value = 0~1 的頁面比例，單調遞增。
+   *
+   * 這是連續量版的閱讀進度，取代 `pageMarkers` 的
+   * `maxMarkerIdx / totalMarkers`——後者的分母包含 echo spot 與
+   * visual clue 錨點，編輯內容就會讓讀者的百分比整個位移。
+   *
+   * 迷霧線以下的事件觸發器一律凍結，且只跟著掃描線連續推進，
+   * 往下跳躍不算數；已 completed 的頁面不再受迷霧限制。
+   */
+  fogRatio: Record<string, number>;
+  /**
    * 最後造訪的 History 頁面 id（S6-2 續讀顯示用）。
    * 與 pageMarkers 分開存：pageMarker 要通過第一個標記點才建立，
    * 換頁當下就該更新續讀顯示，所以平鋪一份「最後造訪」。
@@ -207,6 +219,19 @@ export interface AuthoritativeSnapshot {
   observerEver: boolean;
 }
 
+/**
+ * 迷霧線 ratio 的儲存精度（小數點後 3 位 = 千分之一頁）。
+ * 再細對讀者沒有意義，只會讓 blob 變胖。
+ */
+export const FOG_RATIO_PRECISION = 3;
+/**
+ * 迷霧線寫入的最小級距（0.5% 頁面高度）。
+ *
+ * ratio 是捲動連續量，不設級距等於每捲一格就把整包 ProgressState
+ * （最大 128KB）序列化上傳一次。推到 1.0（讀到底）不受此限。
+ */
+export const FOG_RATIO_WRITE_STEP = 0.005;
+
 /** 目前 schema 版本 */
 export const PROGRESS_SCHEMA_VERSION = 1;
 
@@ -224,6 +249,7 @@ export function createInitialState(): ProgressState {
     islandsUnlocked: [],
     islandsDisabled: [],
     pageMarkers: {},
+    fogRatio: {},
     lastVisitedPageId: null,
     lastVisitedAt: null,
     lostBookmark: { chancePct: LOST_BOOKMARK_BASE_PCT, visible: false },
