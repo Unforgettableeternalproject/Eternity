@@ -152,31 +152,22 @@ describe('目前投射（current）', () => {
     expect(getPhantomGallery()).toBeNull();
   });
 
-  it('push 同時廣播 ISLAND_RELATED_EVENT（跨島關聯基礎接通）', async () => {
+  /* 【回歸:07/27 定案】投射畫作**不得**廣播跨島關聯事件。
+   *
+   * `relatedHistoryIds` 記的是「讀者點擊 visual clue 當下所在的 History
+   * 頁」，等 History 島成為消費者之後，這條路的效果會是：在某頁點了嵌入
+   * 的線索 → 畫作投影 → History 島浮出「相關的段落：（你正在看的這頁）」。
+   * 艾斯維爾定案「點 History 文內的互動式嵌入時 History 島不該有反應」。 */
+  it('push 不再廣播 ISLAND_RELATED_EVENT（含帶 relatedHistoryIds 的 clue）', async () => {
     const { ISLAND_RELATED_EVENT } = await import('../../types');
     const listener = vi.fn();
     window.addEventListener(ISLAND_RELATED_EVENT, listener);
     pushPhantomGallery(makeGallery());
-    window.removeEventListener(ISLAND_RELATED_EVENT, listener);
-    expect(listener).toHaveBeenCalledTimes(1);
-    const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
-    expect(detail).toEqual({
-      sourceZone: 'visuals',
-      historyPageIds: [],
-      label: '女主角設定集',
-    });
-  });
-
-  it('relatedHistoryIds 透傳進 ISLAND_RELATED_EVENT（V-D clue 用）', async () => {
-    const { ISLAND_RELATED_EVENT } = await import('../../types');
-    const listener = vi.fn();
-    window.addEventListener(ISLAND_RELATED_EVENT, listener);
     pushPhantomGallery(
       makeGallery({ relatedHistoryIds: ['history/u/1-1'], source: 'clue' })
     );
     window.removeEventListener(ISLAND_RELATED_EVENT, listener);
-    const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
-    expect(detail.historyPageIds).toEqual(['history/u/1-1']);
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it('clearPhantomGallery 同時清除投射與 pending 提示（登出/reset）', () => {

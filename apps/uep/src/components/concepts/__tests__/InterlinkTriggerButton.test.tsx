@@ -11,14 +11,16 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const islandsMock = vi.hoisted(() => ({
-  mounted: true,
+  /** 每座島各自的可掛載狀態——按鈕只要有一座目標島可用就該出現 */
+  mounted: {} as Record<string, boolean>,
   desktop: true,
   trigger: vi.fn(),
 }));
 vi.mock('../../../islands', () => ({
-  shouldMountIsland: () => islandsMock.mounted,
+  shouldMountIsland: (_progress: unknown, id: string) =>
+    islandsMock.mounted[id] ?? false,
   useDesktopIslandViewport: () => islandsMock.desktop,
-  triggerHistoryRelated: islandsMock.trigger,
+  triggerEntityRelated: islandsMock.trigger,
 }));
 
 const toastMock = vi.hoisted(() => ({ info: vi.fn() }));
@@ -27,7 +29,7 @@ vi.mock('../../ui/UepToast', () => ({ uepToast: { info: toastMock.info } }));
 import InterlinkTriggerButton from '../InterlinkTriggerButton';
 
 beforeEach(() => {
-  islandsMock.mounted = true;
+  islandsMock.mounted = { echoes: true, visuals: true };
   islandsMock.desktop = true;
   islandsMock.trigger.mockReset().mockResolvedValue(true);
   toastMock.info.mockReset();
@@ -50,12 +52,28 @@ describe('InterlinkTriggerButton — 渲染守門', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('History 島未掛載（觀測者／未解鎖／停用）→ 不渲染', () => {
-    islandsMock.mounted = false;
+  it('Echoes 與 Visuals 都未掛載（觀測者／未解鎖／停用）→ 不渲染', () => {
+    islandsMock.mounted = { echoes: false, visuals: false };
     const { container } = render(
       <InterlinkTriggerButton entityKey="xavier-colsono" label="艾斯維爾" />
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  /* 只要其中一座島可用就值得給入口——查到的那半仍然送得出去。
+     兩座都要求可用的話，只解鎖 Echoes 的讀者會連歌都找不到。 */
+  it('只有其中一座島可掛載 → 仍然渲染', () => {
+    islandsMock.mounted = { echoes: true, visuals: false };
+    render(
+      <InterlinkTriggerButton entityKey="xavier-colsono" label="艾斯維爾" />
+    );
+    expect(screen.getByRole('button')).toBeTruthy();
+
+    islandsMock.mounted = { echoes: false, visuals: true };
+    render(
+      <InterlinkTriggerButton entityKey="xavier-colsono" label="艾斯維爾" />
+    );
+    expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 
   it('非桌面寬度 → 不渲染', () => {
@@ -71,13 +89,13 @@ describe('InterlinkTriggerButton — 渲染守門', () => {
       <InterlinkTriggerButton entityKey="xavier-colsono" label="艾斯維爾" />
     );
     expect(
-      screen.getByRole('button', { name: '查「艾斯維爾」在哪些段落出現過' })
+      screen.getByRole('button', { name: '找「艾斯維爾」相關的回聲與影像' })
     ).toBeTruthy();
   });
 });
 
 describe('InterlinkTriggerButton — 觸發', () => {
-  it('點擊帶 entity 命名空間查詢，並傳條目名稱當標題', async () => {
+  it('點擊以 entityKey 反查，並傳條目名稱當標題', async () => {
     const user = userEvent.setup();
     render(
       <InterlinkTriggerButton entityKey="xavier-colsono" label="艾斯維爾" />
@@ -86,23 +104,24 @@ describe('InterlinkTriggerButton — 觸發', () => {
     await waitFor(() => expect(islandsMock.trigger).toHaveBeenCalledTimes(1));
     expect(islandsMock.trigger.mock.calls[0][0]).toMatchObject({
       sourceZone: 'concepts',
-      keyType: 'entity',
-      key: 'xavier-colsono',
+      entityKey: 'xavier-colsono',
       label: '艾斯維爾',
     });
   });
 
-  it('查無錨點 → 給 toast 回饋（手動觸發不能靜默）', async () => {
+  it('查無對應內容 → 給 toast 回饋（手動觸發不能靜默）', async () => {
     islandsMock.trigger.mockResolvedValue(false);
     const user = userEvent.setup();
     render(<InterlinkTriggerButton entityKey="nobody" label="沒人提過" />);
     await user.click(screen.getByRole('button'));
     await waitFor(() =>
-      expect(toastMock.info).toHaveBeenCalledWith('沒有段落提到「沒人提過」')
+      expect(toastMock.info).toHaveBeenCalledWith(
+        '沒有與「沒人提過」相關的回聲或影像'
+      )
     );
   });
 
-  it('查到錨點 → 不彈 toast（卡片本身就是回饋）', async () => {
+  it('查到內容 → 不彈 toast（卡片本身就是回饋）', async () => {
     const user = userEvent.setup();
     render(
       <InterlinkTriggerButton entityKey="xavier-colsono" label="艾斯維爾" />

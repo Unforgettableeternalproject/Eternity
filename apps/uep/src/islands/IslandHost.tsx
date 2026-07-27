@@ -41,7 +41,7 @@ import {
   clearPendingEntityActivate,
   pushEntityActivate,
 } from './concepts/terminalBridge';
-import { clearRelated, pushIslandRelated } from './history/relatedBridge';
+import { clearRelated, pushIslandRelated } from './relatedBridge';
 import { subscribeIslandRelated } from './interlinkTrigger';
 import { useCurrentLocation } from './useCurrentLocation';
 import { canUseIslands, shouldMountIsland } from './islandRuntime';
@@ -130,13 +130,16 @@ export default function IslandHost() {
   }, []);
 
   // 跨區互聯線索常駐監聽（S10-1）：成因與 entity-activate 完全相同——
-  // History 島收合時 HistoryIsland 沒有 mount，事件無狀態、事後補不回來。
+  // 島收合時島元件沒有 mount，事件無狀態、事後補不回來。
   // 收下後交給 relatedBridge：島展開中直接送達，收合中留 pending + 亮 chip。
-  // history 島不可用（未解鎖/停用/觀測者）→ 靜默丟棄，與 concepts 一致。
+  // 目標島取自 payload（storyKey→History、entityKey→Echoes/Visuals）；
+  // 該島不可用（未解鎖/停用/觀測者）→ 靜默丟棄，與 concepts 一致。
   useEffect(
     () =>
       subscribeIslandRelated((detail) => {
-        if (!shouldMountIsland(progressRef.current, 'history')) return;
+        if (!shouldMountIsland(progressRef.current, detail.targetIsland)) {
+          return;
+        }
         pushIslandRelated(detail);
       }),
     []

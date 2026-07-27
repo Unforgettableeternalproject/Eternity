@@ -6,7 +6,8 @@ import {
   setRelatedPendingFlag,
   subscribeIslandRelated,
   subscribeRelatedPending,
-  triggerHistoryRelated,
+  triggerEntityRelated,
+  triggerStoryRelated,
 } from '../interlinkTrigger';
 import { ISLAND_RELATED_EVENT } from '../types';
 
@@ -36,7 +37,7 @@ const anchor = (pageId: string) => ({
   label: '雨海終曲',
 });
 
-describe('triggerHistoryRelated', () => {
+describe('triggerStoryRelated', () => {
   let received: unknown[];
   let unsubscribe: () => void;
 
@@ -47,36 +48,61 @@ describe('triggerHistoryRelated', () => {
     window.__uepIslandRelatedPending = {};
   });
 
-  it('查到錨點 → 廣播事件，帶去重後的 pageId', async () => {
+  it('查到錨點 → 廣播給 History 島，帶去重後的頁面與標題', async () => {
     stubAnchors([
       anchor('history/ch1'),
       anchor('history/ch1'), // 同頁多個錨點（start/end）
       anchor('history/ch2'),
     ]);
-    const broadcast = await triggerHistoryRelated({
+    const broadcast = await triggerStoryRelated({
       apiBase: 'http://api',
       sourceZone: 'echoes',
-      keyType: 'story',
-      key: 'rain-sea-finale',
+      storyKey: 'rain-sea-finale',
       label: '雨海終曲',
     });
     expect(broadcast).toBe(true);
     expect(received).toEqual([
       {
+        targetIsland: 'history',
         sourceZone: 'echoes',
-        historyPageIds: ['history/ch1', 'history/ch2'],
+        items: [
+          { pageId: 'history/ch1', title: '標題 history/ch1' },
+          { pageId: 'history/ch2', title: '標題 history/ch2' },
+        ],
         label: '雨海終曲',
       },
     ]);
   });
 
+  /* entityKey 不再連 History（艾斯維爾 2026-07-27）——這裡只吃 storyKey，
+   * 端點也只用 keyType=story 查，不再有 entity 那條分支 */
+  it('一律以 keyType=story 查詢', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown) => {
+        requested.push(String(url));
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, data: { anchors: [] } }),
+        });
+      })
+    );
+    await triggerStoryRelated({
+      apiBase: 'http://api',
+      sourceZone: 'echoes',
+      storyKey: 'k',
+      label: 'x',
+    });
+    expect(requested[0]).toContain('keyType=story');
+  });
+
   it('查無錨點 → 不廣播（不彈空卡片），回傳 false 供手動觸發端給回饋', async () => {
     stubAnchors([]);
-    const broadcast = await triggerHistoryRelated({
+    const broadcast = await triggerStoryRelated({
       apiBase: 'http://api',
       sourceZone: 'visuals',
-      keyType: 'entity',
-      key: 'nobody',
+      storyKey: 'nobody',
       label: '沒人提過',
     });
     expect(broadcast).toBe(false);
@@ -85,11 +111,10 @@ describe('triggerHistoryRelated', () => {
 
   it('端點回 ok:false → 不廣播', async () => {
     stubAnchors(null);
-    await triggerHistoryRelated({
+    await triggerStoryRelated({
       apiBase: 'http://api',
       sourceZone: 'echoes',
-      keyType: 'story',
-      key: 'x',
+      storyKey: 'x',
       label: 'x',
     });
     expect(received).toEqual([]);
@@ -97,11 +122,10 @@ describe('triggerHistoryRelated', () => {
 
   it('HTTP 失敗 → 不廣播', async () => {
     stubAnchors([anchor('history/ch1')], false);
-    await triggerHistoryRelated({
+    await triggerStoryRelated({
       apiBase: 'http://api',
       sourceZone: 'echoes',
-      keyType: 'story',
-      key: 'x',
+      storyKey: 'x',
       label: 'x',
     });
     expect(received).toEqual([]);
@@ -113,11 +137,10 @@ describe('triggerHistoryRelated', () => {
       vi.fn(() => Promise.reject(new Error('offline')))
     );
     await expect(
-      triggerHistoryRelated({
+      triggerStoryRelated({
         apiBase: 'http://api',
         sourceZone: 'echoes',
-        keyType: 'story',
-        key: 'x',
+        storyKey: 'x',
         label: 'x',
       })
     ).resolves.toBe(false);
@@ -127,11 +150,10 @@ describe('triggerHistoryRelated', () => {
   it('空 key 直接跳過，不打端點', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    await triggerHistoryRelated({
+    await triggerStoryRelated({
       apiBase: 'http://api',
       sourceZone: 'echoes',
-      keyType: 'entity',
-      key: '',
+      storyKey: '',
       label: 'x',
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -149,14 +171,166 @@ describe('triggerHistoryRelated', () => {
         });
       })
     );
-    await triggerHistoryRelated({
+    await triggerStoryRelated({
       apiBase: 'http://api',
       sourceZone: 'echoes',
-      keyType: 'entity',
-      key: 'a b',
+      storyKey: 'a b',
       label: 'x',
     });
     expect(requested[0]).toContain('key=a%20b');
+  });
+});
+
+/**
+ * entityKey 的方向：Concepts 條目 → Echoes ＋ Visuals。
+ * 兩座島各自獨立——同時有歌和畫廊就兩邊都浮，只有其一就只浮那一邊。
+ */
+describe('triggerEntityRelated', () => {
+  let received: unknown[];
+  let unsubscribe: () => void;
+
+  beforeEach(() => {
+    received = [];
+    unsubscribe?.();
+    unsubscribe = subscribeIslandRelated((detail) => received.push(detail));
+  });
+
+  /** 依 URL 分派歌／畫廊的回應；null = 該 zone 查無 */
+  function stubEntity(
+    song: { id: string; title: string } | null,
+    gallery: { id: string; title: string } | null
+  ): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown) => {
+        const isSong = String(url).includes('/api/echoes/entity-song');
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ok: true, data: isSong ? song : gallery }),
+        });
+      })
+    );
+  }
+
+  it('歌與畫廊都有 → 兩座島各收到一則', async () => {
+    stubEntity(
+      { id: 'echoes/rebirth', title: '重生' },
+      { id: 'visuals/unknown', title: '未知' }
+    );
+    const broadcast = await triggerEntityRelated({
+      apiBase: 'http://api',
+      sourceZone: 'concepts',
+      entityKey: 'xavier-colsono',
+      label: '艾斯維爾',
+    });
+    expect(broadcast).toBe(true);
+    expect(received).toEqual([
+      {
+        targetIsland: 'echoes',
+        sourceZone: 'concepts',
+        items: [{ pageId: 'echoes/rebirth', title: '重生' }],
+        label: '艾斯維爾',
+      },
+      {
+        targetIsland: 'visuals',
+        sourceZone: 'concepts',
+        items: [{ pageId: 'visuals/unknown', title: '未知' }],
+        label: '艾斯維爾',
+      },
+    ]);
+  });
+
+  it('只有其中一邊有 → 只廣播那一座島', async () => {
+    stubEntity({ id: 'echoes/rebirth', title: '重生' }, null);
+    const broadcast = await triggerEntityRelated({
+      apiBase: 'http://api',
+      sourceZone: 'concepts',
+      entityKey: 'xavier-colsono',
+      label: '艾斯維爾',
+    });
+    expect(broadcast).toBe(true);
+    expect(received).toHaveLength(1);
+    expect((received[0] as { targetIsland: string }).targetIsland).toBe(
+      'echoes'
+    );
+  });
+
+  it('兩邊都查無 → 不廣播，回傳 false 供按鈕給 toast', async () => {
+    stubEntity(null, null);
+    const broadcast = await triggerEntityRelated({
+      apiBase: 'http://api',
+      sourceZone: 'concepts',
+      entityKey: 'nobody',
+      label: '沒東西',
+    });
+    expect(broadcast).toBe(false);
+    expect(received).toEqual([]);
+  });
+
+  it('一律以 keyType=entity 查兩個端點', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown) => {
+        requested.push(String(url));
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, data: null }),
+        });
+      })
+    );
+    await triggerEntityRelated({
+      apiBase: 'http://api',
+      sourceZone: 'concepts',
+      entityKey: 'a b',
+      label: 'x',
+    });
+    expect(requested).toHaveLength(2);
+    expect(requested.every((u) => u.includes('keyType=entity'))).toBe(true);
+    expect(requested.every((u) => u.includes('key=a%20b'))).toBe(true);
+  });
+
+  it('其中一個端點爆掉不影響另一個', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown) => {
+        if (String(url).includes('entity-song')) {
+          return Promise.reject(new Error('offline'));
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              data: { id: 'visuals/unknown', title: '未知' },
+            }),
+        });
+      })
+    );
+    const broadcast = await triggerEntityRelated({
+      apiBase: 'http://api',
+      sourceZone: 'concepts',
+      entityKey: 'xavier-colsono',
+      label: '艾斯維爾',
+    });
+    expect(broadcast).toBe(true);
+    expect(received).toHaveLength(1);
+    expect((received[0] as { targetIsland: string }).targetIsland).toBe(
+      'visuals'
+    );
+  });
+
+  it('空 key 直接跳過，不打端點', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await triggerEntityRelated({
+      apiBase: 'http://api',
+      sourceZone: 'concepts',
+      entityKey: '',
+      label: 'x',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -197,14 +371,16 @@ describe('subscribeIslandRelated', () => {
     const seen: unknown[] = [];
     const off = subscribeIslandRelated((detail) => seen.push(detail));
     dispatchIslandRelated({
+      targetIsland: 'history',
       sourceZone: 'echoes',
-      historyPageIds: ['history/a'],
+      items: [{ pageId: 'history/a', title: 'A' }],
       label: 'A',
     });
     off();
     dispatchIslandRelated({
+      targetIsland: 'history',
       sourceZone: 'echoes',
-      historyPageIds: ['history/b'],
+      items: [{ pageId: 'history/b', title: 'B' }],
       label: 'B',
     });
     expect(seen).toHaveLength(1);

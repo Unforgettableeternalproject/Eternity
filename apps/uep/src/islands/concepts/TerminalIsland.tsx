@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { getProgressManager, useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
+import { navigateToZonePage } from '../zoneNavigation';
 
 import { subscribeEntityActivate } from './terminalBridge';
 import { computeUnreadUpdates } from './terminalNotify';
@@ -76,27 +77,11 @@ const HELP_LINES: TermLine[] = [
 ];
 
 /**
- * 跳轉到 Concepts 頁面（entry 導向列用，比照 navigateToHistoryPage）：
- * - 已在 /concepts：pushState + 手動 dispatch popstate，讓 Reader 的
- *   useZoneRouter 接手載入（不整頁重載）
- * - 在其他頁面：整頁導航到 /concepts?page=...
+ * 跳轉到 Concepts 頁面（entry 導向列用）。
  * 未解鎖頁由 ConceptsReader 的 deep link 守門處理（not-found 呈現）。
  */
 function navigateToConceptsPage(pageId: string): void {
-  const slug = pageId.startsWith('concepts/')
-    ? pageId.slice('concepts/'.length)
-    : pageId;
-  const onConceptsPage =
-    window.location.pathname.replace(/\/$/, '') === '/concepts';
-  if (onConceptsPage) {
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.searchParams.set('page', slug);
-    window.history.pushState({}, '', url.toString());
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  } else {
-    window.location.href = `/concepts?page=${encodeURIComponent(slug)}`;
-  }
+  navigateToZonePage('concepts', pageId);
 }
 
 export default function TerminalIsland() {

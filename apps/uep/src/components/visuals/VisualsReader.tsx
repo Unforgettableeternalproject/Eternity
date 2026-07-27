@@ -15,7 +15,7 @@ import {
   getIslandRuntime,
   pushPhantomGallery,
   shouldMountIsland,
-  triggerHistoryRelated,
+  triggerStoryRelated,
   useDesktopIslandViewport,
   useEntityDragSource,
   useUnlockEligibility,
@@ -575,8 +575,13 @@ function VisualsReaderInner() {
   const entityDrag = useEntityDragSource();
 
   /*
-   * 停在某個畫廊時，讓 History 島浮出「這個畫廊相關的段落」。
-   * 陳列走廊綁 entityKey、鑲框室綁 storyKey，兩者互斥，取有值的那個。
+   * 停在某張**插圖**（鑲框室，綁 storyKey）時，讓 History 島浮出
+   * 「這個劇情點相關的段落」。
+   *
+   * ⚠️ 陳列走廊的 entityKey 這條路已經拆掉（艾斯維爾 2026-07-27）：
+   * 一個 entity 可能在 History 出現數十次，列出「所有提到他的段落」對讀者
+   * 沒有意義——能映照段落的只有劇情點。entity 的去向改成 Concepts 條目
+   * 按鈕 → Echoes／Visuals，見 interlinkTrigger。
    */
   useEffect(() => {
     if (!activeGalleryId) return;
@@ -585,17 +590,13 @@ function VisualsReaderInner() {
     const metadata = (node.metadata ?? {}) as Record<string, unknown>;
     const storyKey =
       typeof metadata.storyKey === 'string' ? metadata.storyKey.trim() : '';
-    const entityKey =
-      typeof metadata.entityKey === 'string' ? metadata.entityKey.trim() : '';
-    const key = storyKey || entityKey;
-    if (!key) return;
+    if (!storyKey) return;
 
     const controller = new AbortController();
-    void triggerHistoryRelated({
+    void triggerStoryRelated({
       apiBase: API_BASE,
       sourceZone: 'visuals',
-      keyType: storyKey ? 'story' : 'entity',
-      key,
+      storyKey,
       label: node.title,
       signal: controller.signal,
     });

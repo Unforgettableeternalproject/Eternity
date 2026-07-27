@@ -19,9 +19,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
+import RelatedClueCard from '../RelatedClueCard';
+import { subscribeRelated } from '../relatedBridge';
 import type { IslandRelatedDetail } from '../types';
-
-import { subscribeRelated } from './relatedBridge';
 
 import {
   averageReadingMinutes,
@@ -82,7 +82,7 @@ export default function HistoryIsland() {
    */
   const [related, setRelated] = useState<IslandRelatedDetail | null>(null);
 
-  useEffect(() => subscribeRelated(setRelated), []);
+  useEffect(() => subscribeRelated('history', setRelated), []);
 
   /* tree 載入（模組級快取，重開視窗不重抓） */
   useEffect(() => {
@@ -176,34 +176,16 @@ export default function HistoryIsland() {
       <>
         {/* 跨區互聯線索：覆蓋在續讀區塊上方，一次一則 */}
         {related && (
-          <div className="uep-hisland__related">
-            <button
-              type="button"
-              className="uep-hisland__related-close"
-              onClick={() => setRelated(null)}
-              aria-label="關閉線索"
-            >
-              ×
-            </button>
-            <div className="uep-hisland__related-kicker">
-              《{related.label ?? '這個'}》相關的段落
-            </div>
-            <div className="uep-hisland__related-list">
-              {related.historyPageIds.map((pageId) => (
-                <button
-                  key={pageId}
-                  type="button"
-                  className="uep-hisland__related-item"
-                  onClick={() => {
-                    setRelated(null);
-                    navigateToHistoryPage(pageId);
-                  }}
-                >
-                  {index?.nodesById.get(pageId)?.title ?? pageId}
-                </button>
-              ))}
-            </div>
-          </div>
+          <RelatedClueCard
+            block="uep-hisland__related"
+            kicker={<>《{related.label ?? '這個'}》相關的段落</>}
+            items={related.items}
+            /* 標題以自己的目錄樹為準，好與下方「典藏目錄」一致；
+               樹裡查不到才退回 payload 自帶的頁面標題 */
+            resolveTitle={(item) => index?.nodesById.get(item.pageId)?.title}
+            onSelect={navigateToHistoryPage}
+            onClose={() => setRelated(null)}
+          />
         )}
 
         {/* 續讀：書籤停在哪一頁 */}

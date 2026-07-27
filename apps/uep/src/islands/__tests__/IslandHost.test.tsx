@@ -66,7 +66,7 @@ import {
   hasPendingRelated,
   resetRelatedBridge,
   subscribeRelated,
-} from '../history/relatedBridge';
+} from '../relatedBridge';
 import { getRelatedPendingFlag } from '../interlinkTrigger';
 import { getIslandRuntime } from '../islandRuntime';
 import { ISLAND_RELATED_EVENT } from '../types';
@@ -135,8 +135,9 @@ describe('IslandHost — entity-activate 只留 pending，不強制展開島', (
  */
 describe('IslandHost — 收合的 History 島不漏接互聯線索', () => {
   const sample: IslandRelatedDetail = {
+    targetIsland: 'history',
     sourceZone: 'echoes',
-    historyPageIds: ['history/chpt-01'],
+    items: [{ pageId: 'history/chpt-01', title: '第一章' }],
     label: '雨海終曲',
   };
 
@@ -163,22 +164,22 @@ describe('IslandHost — 收合的 History 島不漏接互聯線索', () => {
   it('島收合時線索進 relatedBridge 並亮起 dock chip', () => {
     render(<IslandHost />);
 
-    expect(hasPendingRelated()).toBe(false);
+    expect(hasPendingRelated('history')).toBe(false);
     emitRelated();
 
-    expect(hasPendingRelated()).toBe(true);
+    expect(hasPendingRelated('history')).toBe(true);
     expect(getRelatedPendingFlag('history')).toBe(true);
   });
 
   it('島展開（有訂閱者）時直接送達，不留 pending', () => {
     render(<IslandHost />);
     const received: (IslandRelatedDetail | null)[] = [];
-    subscribeRelated((detail) => received.push(detail));
+    subscribeRelated('history', (detail) => received.push(detail));
 
     emitRelated();
 
     expect(received).toEqual([sample]);
-    expect(hasPendingRelated()).toBe(false);
+    expect(hasPendingRelated('history')).toBe(false);
   });
 
   it('history 島不可掛載時靜默忽略（不亮 chip）', () => {
@@ -187,20 +188,20 @@ describe('IslandHost — 收合的 History 島不漏接互聯線索', () => {
 
     emitRelated();
 
-    expect(hasPendingRelated()).toBe(false);
+    expect(hasPendingRelated('history')).toBe(false);
     expect(getRelatedPendingFlag('history')).toBe(false);
   });
 
   it('換頁時 pending 線索作廢——脈絡已不在，與嵌入提示同一判準', () => {
     render(<IslandHost />);
     emitRelated();
-    expect(hasPendingRelated()).toBe(true);
+    expect(hasPendingRelated('history')).toBe(true);
 
     act(() => {
       window.history.pushState({}, '', '/history');
     });
 
-    expect(hasPendingRelated()).toBe(false);
+    expect(hasPendingRelated('history')).toBe(false);
     expect(getRelatedPendingFlag('history')).toBe(false);
   });
 });

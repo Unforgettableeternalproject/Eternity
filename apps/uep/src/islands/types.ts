@@ -186,12 +186,36 @@ export function createInitialWindowState(): IslandWindowState {
 /** 跨島關聯事件名稱（CustomEvent<IslandRelatedDetail>） */
 export const ISLAND_RELATED_EVENT = 'uep:island-related';
 
-/** 跨島關聯事件的 detail 內容 */
+/**
+ * 跨島關聯事件的 detail 內容。
+ *
+ * 互聯有兩個方向，目標島不同（艾斯維爾 2026-07-27 定案）：
+ * - **storyKey**（劇情歌／插圖）→ History 島，列出該劇情點的段落
+ * - **entityKey**（Concepts 條目）→ Echoes／Visuals 島，列出該 entity
+ *   對應的歌與畫廊
+ *
+ * 所以目標島是 payload 的一部分而不是寫死——entityKey 一次可能要同時
+ * 送給兩座島（一個 entity 可以既有歌又有畫廊）。
+ */
 export interface IslandRelatedDetail {
-  /** 來源 zone（如 echoes/visuals） */
+  /** 要顯示這則線索的島 */
+  targetIsland: IslandId;
+  /** 來源 zone（如 concepts/echoes/visuals） */
   sourceZone: IslandId;
-  /** 相關的 History 頁面 id（帶 area prefix，如 history/u/1-1） */
-  historyPageIds: string[];
-  /** 來源說明（如曲名/畫廊名），島端顯示用 */
+  /**
+   * 相關頁面。標題由**來源端**一併帶上——反查結果本來就含標題
+   * （錨點端點回 pageTitle、entity 端點回 title），島端不必為了顯示
+   * 一行字各自維護一份頁面索引。
+   */
+  items: IslandRelatedItem[];
+  /** 來源說明（條目名／曲名／畫廊名），島端顯示用 */
   label?: string;
+}
+
+/** 線索卡的一列 */
+export interface IslandRelatedItem {
+  /** 頁面 id（帶 area prefix，如 history/u/1-1、echoes/characters/…） */
+  pageId: string;
+  /** 顯示標題 */
+  title: string;
 }

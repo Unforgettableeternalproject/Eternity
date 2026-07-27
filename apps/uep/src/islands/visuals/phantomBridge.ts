@@ -282,18 +282,20 @@ export function pushPhantomGallery(gallery: PhantomGallery): void {
       detail: gallery,
     })
   );
-  // 跨島關聯事件基礎接通（S6 預留合約的第一個真實生產者）：
-  // 映照/嵌入展示/clue 都經此廣播來源 gallery 與關聯 History 頁
-  // （映照/嵌入無關聯頁資訊＝空陣列；V-D clue 帶入所在頁）。
-  window.dispatchEvent(
-    new CustomEvent<IslandRelatedDetail>(ISLAND_RELATED_EVENT, {
-      detail: {
-        sourceZone: 'visuals',
-        historyPageIds: gallery.relatedHistoryIds ?? [],
-        label: gallery.title,
-      },
-    })
-  );
+  /* ⚠️ 這裡原本會廣播 ISLAND_RELATED_EVENT，帶 `relatedHistoryIds`
+   * ——已於 2026-07-27 拆除。
+   *
+   * 那個欄位唯一的來源是 `HistoryReader` 記下的「讀者點擊 visual clue
+   * 當下所在的 History 頁」。等到 History 島真的成為消費者之後，這條路
+   * 的實際效果會是：讀者在某頁點了嵌入的線索 → 畫作投影出來 → History
+   * 島浮出「相關的段落：（就是你正在看的這一頁）」。
+   *
+   * 艾斯維爾定案「點 History 文內的互動式嵌入時，History 島不該有反應」，
+   * 這條就是那個情況。S6 預留的合約現在由 interlinkTrigger 的兩個函式
+   * 承擔（storyKey→History、entityKey→Echoes/Visuals）。
+   *
+   * `relatedHistoryIds` 欄位本身保留：它是「這個投射從哪一頁被點開」的
+   * 來源脈絡，S10-3 的反查 UI 預期會用到，且移除會動到持久化 schema。 */
 }
 
 /** 讀取目前投射（不清除——收合再展開續示） */

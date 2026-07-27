@@ -21,6 +21,7 @@ import {
 } from '../../progress';
 import type { ProgressState, ProgressTreeAdapter } from '../../progress';
 import { getApiBase } from '../../lib/apiBase';
+import { navigateToZonePage } from '../zoneNavigation';
 
 /** content API tree 節點（HistoryReader 的 PageTreeNode 同形） */
 export interface HistoryTreeNode {
@@ -320,28 +321,11 @@ export function averageReadingMinutes(progress: ProgressState): number | null {
 /* ── 導航（與 HistoryReader 的 useZoneRouter 合約對接） ── */
 
 /**
- * 跳轉到 History 頁面。
- * - 已在 /history：pushState + 手動 dispatch popstate，讓 Reader 的
- *   useZoneRouter 接手載入（不整頁重載）
- * - 在其他頁面：整頁導航到 /history?page=...
+ * 跳轉到 History 頁面（`navigateToZonePage` 的具名包裝，保留既有呼叫點）。
  * 鎖定頁不會走到這裡（UI 層禁用），Reader 端另有最後防線。
  */
 export function navigateToHistoryPage(pageId: string): void {
-  // 路由統一用不帶 area prefix 的 slug（useZoneRouter 會補回）
-  const slug = pageId.startsWith('history/')
-    ? pageId.slice('history/'.length)
-    : pageId;
-  const onHistoryPage =
-    window.location.pathname.replace(/\/$/, '') === '/history';
-  if (onHistoryPage) {
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.searchParams.set('page', slug);
-    window.history.pushState({}, '', url.toString());
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  } else {
-    window.location.href = `/history?page=${encodeURIComponent(slug)}`;
-  }
+  navigateToZonePage('history', pageId);
 }
 
 /* ── tree 取得（模組級快取，island 掛載共用） ── */

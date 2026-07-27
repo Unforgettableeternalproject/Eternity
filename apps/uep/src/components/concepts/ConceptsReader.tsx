@@ -31,6 +31,11 @@ import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import { useEntityDragSource } from '../../islands';
+import {
+  loadEntityIndex,
+  type TerminalIndexEntry,
+} from '../../islands/concepts/terminalCore';
+import BrowserDetailButton from './BrowserDetailButton';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import InterlinkTriggerButton from './InterlinkTriggerButton';
 import { useProgress } from '../../progress/useProgress';
@@ -211,7 +216,14 @@ function normalizeDossierVariants(data: unknown): DossierVariant[] {
 // 子元件：ReaderDossier（records stack）
 // 接收已選定 variant 的 subcategories；variant 切換由父層控制
 // ──────────────────────────────────────────────────────────────────
-function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
+function ReaderDossier({
+  subcategories,
+  onOpenBrowserDetail,
+}: {
+  subcategories: DossierSubcat[];
+  /** 導向某 entity 的 browser 檔案（「詳細」按鈕用） */
+  onOpenBrowserDetail: (pageId: string, entityKey: string) => void;
+}) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
   /*
@@ -220,6 +232,29 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
    * 條目是引用，不是命名來源，因此那三個 Reader 不掛拖曳來源。
    */
   const entityDrag = useEntityDragSource();
+
+  /*
+   * entity 索引：判斷每個條目要不要長出「詳細」按鈕。
+   * 在這裡載入一次往下傳，不讓數十張條目卡各自持有——`loadEntityIndex`
+   * 本身有模組級快取（與拖曳來源、Terminal 島共用同一份），重複呼叫不會
+   * 重打 API，但各自 setState 就是各自一次 re-render。
+   */
+  const [entityIndex, setEntityIndex] = useState<TerminalIndexEntry[] | null>(
+    null
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void loadEntityIndex()
+      .then((entries) => {
+        if (!cancelled) setEntityIndex(entries);
+      })
+      .catch(() => {
+        /* 失敗維持 null——安全預設是不長按鈕 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // effective view 過濾後可能留下空群組/空分類（條目全部未解鎖）——
   // 一律不渲染（含預設「未分類」群組），整頁無可見條目時走 empty fallback
@@ -350,6 +385,12 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                         entityKey={entry.entityKey}
                         label={entry.name}
                       />
+                      <BrowserDetailButton
+                        entityKey={entry.entityKey}
+                        label={entry.name}
+                        index={entityIndex}
+                        onNavigate={onOpenBrowserDetail}
+                      />
                     </div>
                     {entry.content_html && (
                       <>
@@ -377,9 +418,30 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
 // ──────────────────────────────────────────────────────────────────
 // 子元件：ReaderBrowserTabs（browser stack）— wiki 瀏覽器式導航
 // ──────────────────────────────────────────────────────────────────
-function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
+function ReaderBrowserTabs({
+  data,
+  focusEntityKey,
+}: {
+  data: BrowserContent;
+  /** 從 dossier「詳細」按鈕過來時要直接展開的 entity（S10-1） */
+  focusEntityKey?: string;
+}) {
   const [navPath, setNavPath] = useState<string[]>([]);
-  const [viewingIdx, setViewingIdx] = useState<number | null>(null);
+  /*
+   * 從「詳細」按鈕過來時直接展開對應的 profile。
+   *
+   * 用 lazy initializer 而非 useEffect 同步：`renderReading()` 外層的
+   * `<div key={transitionKey}>` 在每次換頁都 bump，整個子樹強制 remount
+   * ——初始值每次都會重算，不需要額外的同步邏輯。
+   *
+   * ⚠️ findIndex 找不到會回 -1，一定要轉成 null；直接塞 -1 會被
+   * `viewingIdx !== null` 判為「有選中」而展開錯誤的第一筆。
+   */
+  const [viewingIdx, setViewingIdx] = useState<number | null>(() => {
+    if (!focusEntityKey) return null;
+    const idx = data.profiles.findIndex((p) => p.entityKey === focusEntityKey);
+    return idx >= 0 ? idx : null;
+  });
 
   // 過濾掉佔位 profile（名稱為空或括號包裹的臨時名稱）
   const validProfiles = useMemo(
@@ -1323,6 +1385,12 @@ export default function ConceptsReader() {
   const [readingPage, setReadingPage] = useState<Page | null>(null);
   // 轉場 key — 資料載入完成時才遞增，讓動畫在內容就緒後才播放
   const [transitionKey, setTransitionKey] = useState(0);
+  /**
+   * 從 dossier「詳細」按鈕導過來時，要在 browser 頁直接展開的 entity。
+   * 每次 navigateToPage 都會重設（含設回 undefined），所以不會殘留到
+   * 下一次用其他方式進入的 browser 頁。
+   */
+  const [browserFocusKey, setBrowserFocusKey] = useState<string | undefined>();
   // dossier 的 variant 切換索引（每次切換 readingPage 時重置）
   const [dossierVariantIdx, setDossierVariantIdx] = useState(0);
   useEffect(() => {
@@ -1496,7 +1564,19 @@ export default function ConceptsReader() {
     });
   }
 
-  function navigateToPage(pageSlug: string, push = true) {
+  /**
+   * @param focusEntityKey 到頁後要直接展開的 entity（dossier「詳細」按鈕
+   *   用）。只對 browser stack 有意義，其餘 stack 忽略。刻意**不進 URL**
+   *   ——這顆按鈕是「順手跳過去看」，不是需要分享或用上一頁還原的狀態；
+   *   要 deep-link 化的話得在既有的 `page` route handler 內自己讀
+   *   `?entity=`，不能另加一條 useZoneRouter route（它只認第一個命中的
+   *   param，新 route 永遠不會觸發）。
+   */
+  function navigateToPage(
+    pageSlug: string,
+    push = true,
+    focusEntityKey?: string
+  ) {
     saveScroll(currentScrollKey());
     const fullId = canonicalizePagePath(
       pageSlug.startsWith('concepts/')
@@ -1504,6 +1584,7 @@ export default function ConceptsReader() {
         : ['concepts', pageSlug].join('/')
     );
     const slug = fullId.replace('concepts/', '');
+    setBrowserFocusKey(focusEntityKey);
     setActivePageId(fullId);
     if (push) pushUrl({ page: slug });
     const stackDef = STACKS.find((s) => slug.startsWith(s.slug));
@@ -1872,9 +1953,15 @@ export default function ConceptsReader() {
               <ReaderDossier
                 key={currentDossierVariant.id + ':' + dossierIdx}
                 subcategories={currentDossierVariant.subcategories}
+                onOpenBrowserDetail={(pageId, entityKey) =>
+                  navigateToPage(pageId, true, entityKey)
+                }
               />
             ) : style === 'browser' ? (
-              <ReaderBrowserTabs data={parsed as BrowserContent} />
+              <ReaderBrowserTabs
+                data={parsed as BrowserContent}
+                focusEntityKey={browserFocusKey}
+              />
             ) : style === 'chrono' ? (
               <ReaderChronograph data={parsed as ChronoContent} />
             ) : style === 'diff' ? (

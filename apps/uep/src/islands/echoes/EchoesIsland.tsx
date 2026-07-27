@@ -26,6 +26,11 @@ import React, {
 import { getAudioStore } from '../../audio';
 import type { AudioQueueItem, AudioState } from '../../audio';
 import { useIslandChrome } from '../islandChrome';
+import RelatedClueCard from '../RelatedClueCard';
+import { subscribeRelated } from '../relatedBridge';
+import type { IslandRelatedDetail } from '../types';
+import { navigateToZonePage } from '../zoneNavigation';
+
 import type { EchoPreviewTrack } from './echoPreview';
 import {
   clearEchoSuggestion,
@@ -203,6 +208,15 @@ export default function EchoesIsland() {
 
   const [queueOpen, setQueueOpen] = useState(false);
   const [suggestion, setSuggestion] = useState<EchoPreviewTrack | null>(null);
+  /**
+   * 跨區互聯線索：讀者在 Concepts 點了某個條目的「相關」，那個 entity
+   * 對應的歌就浮在這裡。一次一則，點掉／換頁／重整就消失。
+   *
+   * 走 relatedBridge 而非直接訂閱事件——島收合時這個元件沒有 mount，
+   * 事件無狀態、事後補不回來（監聽常駐在 IslandHost）。
+   */
+  const [related, setRelated] = useState<IslandRelatedDetail | null>(null);
+  useEffect(() => subscribeRelated('echoes', setRelated), []);
 
   useEffect(() => {
     const pending = consumeEchoSuggestion();
@@ -395,6 +409,17 @@ export default function EchoesIsland() {
         >
           退潮
         </button>
+      )}
+
+      {/* 跨區互聯線索：從 Concepts 條目按鈕來的「這個 entity 的歌」 */}
+      {related && (
+        <RelatedClueCard
+          block="uep-eisland__related"
+          kicker={<>與「{related.label ?? '這個'}」相關的回聲</>}
+          items={related.items}
+          onSelect={(pageId) => navigateToZonePage('echoes', pageId)}
+          onClose={() => setRelated(null)}
+        />
       )}
 
       {/* ── echo spot 插播 banner ── */}

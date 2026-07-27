@@ -2845,13 +2845,16 @@
   font-size: 10px;
 }
 
-/* 時間軸展開頭：close 鈕靠 margin-left:auto 貼右，按鈕要搶在它之前 */
-.conc-chrono-expanded-header .conc-interlink-btn {
-  margin-left: auto;
+/* 「詳細」：與「相關」並排時要看得出是不同動作——前者離開本頁（導向
+   browser 檔案），後者留在原地（浮島出卡片）。用實心底標示「會跳走」。 */
+.conc-detail-btn {
+  background: color-mix(in srgb, var(--concepts-main) 8%, transparent);
+  opacity: 0.7;
 }
 
-.conc-chrono-expanded-header .conc-chrono-expanded-close {
-  margin-left: 8px;
+.conc-detail-btn:hover:not(:disabled),
+.conc-detail-btn:focus-visible {
+  background: color-mix(in srgb, var(--concepts-main) 18%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

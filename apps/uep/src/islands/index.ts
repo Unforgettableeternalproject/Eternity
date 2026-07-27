@@ -105,7 +105,8 @@ export type { PhantomGallery, PhantomImage } from './visuals/phantomBridge';
 
 /* ── 跨區互聯觸發（S10-1） ── */
 export {
-  triggerHistoryRelated,
+  triggerStoryRelated,
+  triggerEntityRelated,
   dispatchIslandRelated,
   setRelatedPendingFlag,
   getRelatedPendingFlag,
@@ -118,7 +119,7 @@ export {
   clearRelated,
   subscribeRelated,
   resetRelatedBridge,
-} from './history/relatedBridge';
+} from './relatedBridge';
 
 export { default as DraggableIsland } from './DraggableIsland';
 export { default as IslandDock } from './IslandDock';

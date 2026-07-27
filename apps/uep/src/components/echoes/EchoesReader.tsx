@@ -30,7 +30,7 @@ import {
 import {
   completeUnlockRitual,
   shouldMountIsland,
-  triggerHistoryRelated,
+  triggerStoryRelated,
   useDesktopIslandViewport,
   useEntityDragSource,
   useUnlockEligibility,
@@ -1253,28 +1253,27 @@ function EchoesReaderInner() {
     : null;
 
   /*
-   * 停在某首歌時，讓 History 島浮出「這首歌相關的段落」。
-   * 依分類取對應的 key——兩種命名空間互斥，取錯會查不到東西。
+   * 停在某首**劇情歌**時，讓 History 島浮出「這個劇情點相關的段落」。
+   *
+   * ⚠️ 只有劇情歌（storyKey）會觸發。角色歌／區域歌的 entityKey 這條路
+   * 已經拆掉（艾斯維爾 2026-07-27）：一個 entity 可能在 History 出現數十
+   * 次，列出「所有提到他的段落」對讀者沒有意義——能映照段落的只有劇情點。
+   * entity 的去向改成 Concepts 條目按鈕 → Echoes／Visuals，見 interlinkTrigger。
    */
-  const relatedKey = songData
-    ? songData.category === 'story'
-      ? songData.storyKey
-      : songData.entityKey
-    : undefined;
-  const relatedKeyType = songData?.category === 'story' ? 'story' : 'entity';
+  const relatedStoryKey =
+    songData?.category === 'story' ? songData.storyKey : undefined;
   useEffect(() => {
-    if (!relatedKey || !currentSongPage) return;
+    if (!relatedStoryKey || !currentSongPage) return;
     const controller = new AbortController();
-    void triggerHistoryRelated({
+    void triggerStoryRelated({
       apiBase: API_BASE,
       sourceZone: 'echoes',
-      keyType: relatedKeyType,
-      key: relatedKey,
+      storyKey: relatedStoryKey,
       label: currentSongPage.title,
       signal: controller.signal,
     });
     return () => controller.abort();
-  }, [relatedKey, relatedKeyType, currentSongPage?.id, currentSongPage?.title]);
+  }, [relatedStoryKey, currentSongPage?.id, currentSongPage?.title]);
 
   // === 取得當前歌曲的集群資訊 ===
   const activeSongCluster = activeClusterId
