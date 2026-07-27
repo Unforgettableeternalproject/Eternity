@@ -34,14 +34,20 @@ export default function HistoryFogOverlay({
   scrollRef,
   contentKey,
 }: HistoryFogOverlayProps) {
-  const [scrollHeight, setScrollHeight] = useState(0);
+  const [metrics, setMetrics] = useState({ scrollHeight: 0, clientHeight: 0 });
 
   // 版面高度會隨圖片非同步載入變動，ratio 對應的絕對位置要跟著修正。
   // ResizeObserver 觀察捲動容器的內容尺寸變化即可，不必輪詢。
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const measure = () => setScrollHeight(el.scrollHeight);
+    const measure = () =>
+      setMetrics((prev) =>
+        prev.scrollHeight === el.scrollHeight &&
+        prev.clientHeight === el.clientHeight
+          ? prev
+          : { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }
+      );
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measure);
@@ -50,7 +56,11 @@ export default function HistoryFogOverlay({
     return () => observer.disconnect();
   }, [contentKey, scrollRef]);
 
+  const { scrollHeight, clientHeight } = metrics;
+  // 短文豁免的判準與 fogGate.isNonScrollable 一致——eligibility 只有
+  // 一套，overlay 不能自己長一份寬鬆版
   if (scrollHeight <= 0 || ratio >= 1) return null;
+  if (scrollHeight <= clientHeight + 1) return null;
 
   return (
     <div

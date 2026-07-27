@@ -1706,9 +1706,21 @@
   left: 0;
   right: 0;
   z-index: 3;
-  pointer-events: none;
+  /*
+   * 吃掉滑鼠事件——視覺遮蔽不等於「事件視為不存在」。底下的 entity 嵌入
+   * 與內部連結若還能點，迷霧就只是一層裝飾。鍵盤焦點另由 HistoryReader
+   * 的 focusin 攔截處理（CSS 管不到 Tab）。
+   */
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
+  /*
+   * ⚠️ 必須裁切：活躍帶是固定 vh 高，剩餘霧高小於它時會溢出文末，
+   * 撐大捲動容器的 scrollable overflow，而 overlay 的定位又是拿同一個
+   * scrollHeight 算出來的——形成自我回授，連帶污染 ratio、續讀定位與
+   * 完成判定的幾何。
+   */
+  overflow: hidden;
   /* 霧色基底：跟著明暗主題走 */
   --fog-body: var(--bg-sunken);
   --fog-wisp: rgba(255, 255, 255, 0.62);
@@ -1722,7 +1734,9 @@
 /* 活躍帶：字糊掉 + 雲絮飄動 */
 .history-fog__active {
   position: relative;
-  flex: 0 0 130vh;
+  /* 可收縮：剩餘霧高不足一個活躍帶時，讓它縮到剩餘高度而不是溢出 */
+  flex: 0 1 130vh;
+  min-height: 0;
   overflow: hidden;
   backdrop-filter: blur(6px) saturate(0.5) brightness(0.92);
   -webkit-backdrop-filter: blur(6px) saturate(0.5) brightness(0.92);

@@ -1,3 +1,4 @@
+/* global FocusEvent */
 import React, {
   useCallback,
   useEffect,
@@ -36,6 +37,7 @@ import {
   getProgressManager,
   resolveResumeMarkerIdx,
   computeContentRatio,
+  computeElementRatio,
   isEffectiveProgressPage,
   isNonScrollable,
   isWithinFogReach,
@@ -393,14 +395,23 @@ export default function HistoryReader() {
   const fogAppliesRef = useRef(false);
   fogAppliesRef.current = fogApplies;
   const lastFogSampleAtRef = useRef(0);
+  /**
+   * 記憶體中的迷霧線累積值——速率積分的基準，**不能**用持久化的
+   * `fogRatio` 代替。
+   *
+   * ⚠️ store 有 0.5% 的寫入級距（見 FOG_RATIO_WRITE_STEP）。60fps 下
+   * 每幀允許的推進量遠小於級距，若拿 store 現值當積分基準：這一幀算出
+   * 的增量被級距丟棄 → 下一幀基準沒變、elapsed 又只有 16ms → 再次被
+   * 丟棄……迷霧永遠不會前進。量化是「寫入頻率」的節流，不能兼任積分器。
+   */
+  const fogAccumRef = useRef(0);
 
   const sampleFog = useCallback(() => {
     const pageId = currentIdRef.current;
     const el = scrollRef.current;
     const now = performance.now();
-    const elapsed = lastFogSampleAtRef.current
-      ? now - lastFogSampleAtRef.current
-      : 0;
+    const first = lastFogSampleAtRef.current === 0;
+    const elapsed = first ? 0 : now - lastFogSampleAtRef.current;
     lastFogSampleAtRef.current = now;
     if (!fogAppliesRef.current || !pageId || !el) return;
     const state = getProgressManager().getState();
@@ -411,22 +422,29 @@ export default function HistoryReader() {
       el.clientHeight,
       el.scrollHeight
     );
-    const stored = state.fogRatio[pageId] ?? 0;
+    // 累積值與持久值取大：換頁或跨 session 回來時以 store 為起點
+    const base = Math.max(fogAccumRef.current, state.fogRatio[pageId] ?? 0);
     // 跳躍門檻擋「單次瞬移」，速率上限擋「讀得多快」——快速捲動是連續
     // 多幀各走一小步，每步都過得了跳躍門檻，只有速率上限攔得住
-    if (!isWithinFogReach(ratio, stored, el.clientHeight, el.scrollHeight)) {
+    if (!isWithinFogReach(ratio, base, el.clientHeight, el.scrollHeight)) {
       return;
     }
-    const next = limitFogAdvance(
-      ratio,
-      stored,
-      elapsed,
-      el.clientHeight,
-      el.scrollHeight
-    );
-    if (next == null) return;
+    // 進頁第一次取樣不限速：掃描線一載入就在視窗 80% 處，第一屏本來就
+    // 該可讀，不能讓讀者一進來就對著整片霧等它慢慢散
+    const next = first
+      ? ratio
+      : limitFogAdvance(ratio, base, elapsed, el.clientHeight, el.scrollHeight);
+    if (next == null || next <= fogAccumRef.current) return;
+    fogAccumRef.current = next;
     getProgressManager().advanceFog(pageId, next);
   }, []);
+
+  // 換頁：重置速率積分與取樣時間，否則新頁面會沿用上一頁的累積值，
+  // 且首次取樣不再被視為「進頁第一次」
+  useEffect(() => {
+    fogAccumRef.current = 0;
+    lastFogSampleAtRef.current = 0;
+  }, [currentId]);
 
   // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
   // 停下閱讀後仍被前一個快速 wheel 事件誤判。
@@ -489,6 +507,27 @@ export default function HistoryReader() {
         : (progress.fogRatio[currentId] ?? 0)
       : 1;
   fogRatioRef.current = fogRatio;
+
+  /**
+   * 迷霧線以下的可聚焦元素不得取得焦點（S10-2）。
+   *
+   * 遮罩的 `pointer-events` 只擋得住滑鼠——entity 嵌入帶 `tabindex=0`
+   * 並監聽 Enter/Space，內部連結也是原生可聚焦，讀者按 Tab 就能穿過霧
+   * 觸發底下的互聯。「凍結」的語意是事件視為不存在，不是看不清楚。
+   */
+  useEffect(() => {
+    const el = contentRef.current;
+    const scroller = scrollRef.current;
+    if (!el || !scroller || fogRatio >= 1) return;
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !el.contains(target)) return;
+      if (computeElementRatio(target, scroller) <= fogRatio) return;
+      target.blur();
+    };
+    el.addEventListener('focusin', onFocusIn);
+    return () => el.removeEventListener('focusin', onFocusIn);
+  }, [fogRatio, articleHtml]);
 
   // 本次頁面造訪中「已點擊、尚未通過訖點」的 clue——通過訖點時觸發
   // 快照恢復；換頁時整組重置（恢復由 unmount 路徑兜底）。
@@ -1698,13 +1737,17 @@ export default function HistoryReader() {
         <div className="history-content" ref={scrollRef}>
           {/* rush prevention 迷霧（S10-2）：只在未完成、迷霧未散盡的
               文章頁掛載——已完成／短文／散盡時連 DOM 都不該存在 */}
-          {fogRatio < 1 && currentId && articleHtml && !contentLoading && (
-            <HistoryFogOverlay
-              ratio={fogRatio}
-              scrollRef={scrollRef}
-              contentKey={articleHtml}
-            />
-          )}
+          {fogRatio < 1 &&
+            currentId &&
+            articleHtml &&
+            !contentLoading &&
+            !bookmarkGateOpen && (
+              <HistoryFogOverlay
+                ratio={fogRatio}
+                scrollRef={scrollRef}
+                contentKey={articleHtml}
+              />
+            )}
           <div key={transitionKey} className="history-page-transition">
             {bookmarkGateOpen ? (
               /* 遺落的書籤儀式頁（S6-2）：暫時佔據內容區，

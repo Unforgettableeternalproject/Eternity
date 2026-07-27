@@ -144,6 +144,87 @@ describe('limitFogAdvance — 推進速率上限', () => {
   });
 });
 
+/**
+ * 用真實的 scrollTop 序列驗證整條推進鏈。
+ *
+ * 前面那些單點測試餵的是任意 ratio，而瀏覽器只會產生「連續的捲動位置
+ * 序列」——兩者不是同一件事。這裡重現 HistoryReader.sampleFog 的組合
+ * 邏輯（含記憶體累積值當積分基準、首次取樣不限速），確保防護是對著
+ * 真實可達狀態成立的。
+ */
+describe('推進鏈：真實捲動序列', () => {
+  /** @returns 迷霧線最終位置（記憶體累積值，未經 store 量化） */
+  function simulate(steps: { scrollTop: number; dtMs: number }[]): number {
+    let accum = 0;
+    steps.forEach((step, index) => {
+      const ratio = computeContentRatio(
+        step.scrollTop,
+        VIEWPORT,
+        SCROLL_HEIGHT
+      );
+      if (!isWithinFogReach(ratio, accum, VIEWPORT, SCROLL_HEIGHT)) return;
+      // 進頁第一次取樣不限速（第一屏本來就該可讀）
+      const next =
+        index === 0
+          ? ratio
+          : limitFogAdvance(ratio, accum, step.dtMs, VIEWPORT, SCROLL_HEIGHT);
+      if (next != null && next > accum) accum = next;
+    });
+    return accum;
+  }
+
+  it('進頁第一屏立即解霧', () => {
+    expect(simulate([{ scrollTop: 0, dtMs: 0 }])).toBe(0.08);
+  });
+
+  /** 每 500ms 捲 200px ≈ 0.4 屏/秒，低於 0.55 上限 → 應完全跟上 */
+  it('正常閱讀速度完全跟得上，霧不會壓著讀者', () => {
+    const steps = [{ scrollTop: 0, dtMs: 0 }];
+    for (let i = 1; i <= 20; i += 1) {
+      steps.push({ scrollTop: i * 200, dtMs: 500 });
+    }
+    const fog = simulate(steps);
+    const readerAt = computeContentRatio(20 * 200, VIEWPORT, SCROLL_HEIGHT);
+    expect(fog).toBeCloseTo(readerAt, 5);
+  });
+
+  /** 每幀捲 500px ≈ 31 屏/秒 —— 每幀都過得了跳躍門檻，靠限速攔下 */
+  it('speedrun 被遠遠拋在後面（迷霧線落後讀者位置）', () => {
+    const steps = [{ scrollTop: 0, dtMs: 0 }];
+    for (let i = 1; i <= 18; i += 1) {
+      steps.push({ scrollTop: i * 500, dtMs: 16 });
+    }
+    const fog = simulate(steps);
+    // 讀者已經到底，迷霧線還在起點附近
+    expect(computeContentRatio(9000, VIEWPORT, SCROLL_HEIGHT)).toBe(1);
+    expect(fog).toBeLessThan(0.1);
+  });
+
+  /** 拖捲軸瞬間到底：單次位移超過跳躍門檻，整步被丟棄 */
+  it('拖捲軸直接到底完全不推進', () => {
+    expect(
+      simulate([
+        { scrollTop: 0, dtMs: 0 },
+        { scrollTop: 9000, dtMs: 16 },
+      ])
+    ).toBe(0.08);
+  });
+
+  /** rush 之後回頭正常讀，迷霧線照常前進——凍結不是永久懲罰 */
+  it('rush 後退回迷霧線附近重新讀，推進恢復', () => {
+    const steps = [
+      { scrollTop: 0, dtMs: 0 },
+      { scrollTop: 9000, dtMs: 16 }, // rush 到底，被擋
+      { scrollTop: 200, dtMs: 500 }, // 回頭
+    ];
+    for (let i = 1; i <= 10; i += 1) {
+      steps.push({ scrollTop: 200 + i * 150, dtMs: 500 });
+    }
+    const fog = simulate(steps);
+    expect(fog).toBeGreaterThan(0.2);
+  });
+});
+
 describe('ratioToScrollTop — 續讀定位', () => {
   it('是 computeContentRatio 的反函式（未到底的區間）', () => {
     const scrollTop = 4200;
