@@ -1,7 +1,11 @@
 import { Editor } from '@tiptap/core';
 import { StarterKit } from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it } from 'vitest';
-import EchoSpotNode, { collectEchoSpotIssues } from '../EchoSpotNode';
+import type { EchoSongChoice } from '../EchoSongPicker';
+import EchoSpotNode, {
+  buildEchoSpotAttributes,
+  collectEchoSpotIssues,
+} from '../EchoSpotNode';
 
 describe('EchoSpotNode persistence contract', () => {
   let editor: Editor | undefined;
@@ -57,6 +61,57 @@ describe('EchoSpotNode persistence contract', () => {
       })
     );
     restored.destroy();
+  });
+});
+
+describe('buildEchoSpotAttributes — key 命名空間二擇一', () => {
+  const base: EchoSongChoice = {
+    id: 'echoes/story/rain-sea/finale',
+    title: '雨海終曲',
+    audioFile: 'audio/echoes/rain-sea-finale.mp3',
+    clusterId: 'story',
+    clusterTitle: '劇情歌',
+    songType: 'story',
+    spoilerLevel: 0,
+  };
+
+  it('劇情歌帶 storyKey 進節點屬性（缺了就不會進反向索引）', () => {
+    const attrs = buildEchoSpotAttributes(
+      { ...base, storyKey: 'rain-sea-finale' },
+      'spot-1'
+    );
+    expect(attrs.storyKey).toBe('rain-sea-finale');
+    expect(attrs.entityKey).toBeUndefined();
+  });
+
+  it('角色歌帶 entityKey，不混入 storyKey', () => {
+    const attrs = buildEchoSpotAttributes(
+      {
+        ...base,
+        songType: 'character',
+        clusterId: 'characters',
+        entityKey: 'xavier-colsono',
+      },
+      'spot-2'
+    );
+    expect(attrs.entityKey).toBe('xavier-colsono');
+    expect(attrs.storyKey).toBeUndefined();
+  });
+
+  it('storyKey 寫成 data-story-key，worker 掃得到', () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [StarterKit, EchoSpotNode],
+      content: '<p>前文</p>',
+    });
+    editor.commands.setEchoSpot(
+      buildEchoSpotAttributes(
+        { ...base, storyKey: 'rain-sea-finale' },
+        'spot-3'
+      )
+    );
+    expect(editor.getHTML()).toContain('data-story-key="rain-sea-finale"');
+    editor.destroy();
   });
 });
 

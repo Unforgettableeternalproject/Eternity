@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { formatInterlinkKey } from './editorHelpers';
 import type { VisualClueTargetType } from './VisualClueNode';
 
 /** picker 選中的 gallery 目標（Visual Clue 錨點的引用 + 快照） */
@@ -10,7 +11,7 @@ export interface VisualsGalleryChoice {
   id: string;
   title: string;
   targetType: VisualClueTargetType;
-  /** entityKey（陳列走廊）或插圖 ID（鑲框室） */
+  /** entityKey（陳列走廊）或 storyKey（鑲框室） */
   targetKey: string;
   divisionId: string;
   imageCount: number;
@@ -52,7 +53,7 @@ const DIVISION_TITLES: Record<string, string> = {
  * 將 Visuals tree 正規化為 Visual Clue 可引用的 gallery 清單。
  *
  * 資格 = 進島規則的交集（同 canMirrorGallery 語意）：
- * 僅陳列走廊（entityKey 必備）+ 鑲框室（插圖 ID 必備）、
+ * 僅陳列走廊（entityKey 必備）+ 鑲框室（storyKey 必備）、
  * 排除精靈圖 gallery 與空 gallery。hidden 不排除——Visual Clue
  * 是對插圖的明確引用（同 by-id 反查端點的定案理由）。
  */
@@ -217,7 +218,7 @@ export default function VisualsGalleryPicker({
             <div className="ned-echo-song-picker__hint">
               {lockedGalleryId
                 ? '切圖 Gate 與預設圖片只能取自 clue 區間指定的畫廊；要換畫廊請改用起點的「重選畫廊」。'
-                : '僅列出可進浮動幻影的畫廊：陳列走廊需 entityKey、鑲框室需插圖 ID；精靈圖與空畫廊不列入。'}
+                : '僅列出可進浮動幻影的畫廊：陳列走廊需 entityKey、鑲框室需 storyKey；精靈圖與空畫廊不列入。'}
             </div>
           </div>
           <button type="button" className="ned-modal-close" onClick={onClose}>
@@ -232,7 +233,7 @@ export default function VisualsGalleryPicker({
               className="ned-field"
               autoFocus
               value={query}
-              placeholder="搜尋畫廊名稱、entityKey、插圖 ID…"
+              placeholder="搜尋畫廊名稱、entityKey／storyKey…"
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
@@ -286,7 +287,10 @@ export default function VisualsGalleryPicker({
                         <strong>{gallery.title}</strong>
                         <small>
                           {[
-                            gallery.targetKey,
+                            formatInterlinkKey(
+                              gallery.targetType,
+                              gallery.targetKey
+                            ),
                             `${gallery.imageCount} 張圖片`,
                           ].join(' · ')}
                         </small>

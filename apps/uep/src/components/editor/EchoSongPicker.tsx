@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { deriveSongCategory } from './echoesCategory';
+import { formatInterlinkKey } from './editorHelpers';
 
 export interface EchoSongChoice {
   id: string;
@@ -167,7 +168,13 @@ export default function EchoSongPicker({
     const normalized = query.trim().toLocaleLowerCase('zh-TW');
     const visible = normalized
       ? songs.filter((song) =>
-          [song.title, song.id, song.entityKey, song.subcategoryTitle]
+          [
+            song.title,
+            song.id,
+            song.entityKey,
+            song.storyKey,
+            song.subcategoryTitle,
+          ]
             .filter(Boolean)
             .some((value) =>
               String(value).toLocaleLowerCase('zh-TW').includes(normalized)
@@ -214,7 +221,7 @@ export default function EchoSongPicker({
             className="ned-field"
             autoFocus
             value={query}
-            placeholder="搜尋曲名、分類、entityKey…"
+            placeholder="搜尋曲名、分類、entityKey／storyKey…"
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
@@ -252,7 +259,14 @@ export default function EchoSongPicker({
                       <span className="ned-echo-song-picker__song-copy">
                         <strong>{song.title}</strong>
                         <small>
-                          {[song.subcategoryTitle, song.entityKey || song.id]
+                          {[
+                            song.subcategoryTitle,
+                            song.storyKey
+                              ? formatInterlinkKey('story', song.storyKey)
+                              : song.entityKey
+                                ? formatInterlinkKey('entity', song.entityKey)
+                                : song.id,
+                          ]
                             .filter(Boolean)
                             .join(' · ')}
                         </small>

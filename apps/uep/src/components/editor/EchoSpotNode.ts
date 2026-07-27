@@ -1,6 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { ECHO_SPOT_ROLE } from '../../progress/markers';
+import type { EchoSongChoice } from './EchoSongPicker';
 
 /** Echo Spot 在持久化 HTML 中的 data-role。 */
 export const ECHO_SPOT_SELECTOR = `[data-role="${ECHO_SPOT_ROLE}"]`;
@@ -19,6 +20,34 @@ export interface EchoSpotAttributes {
   duration?: number;
   spoilerLevel?: number;
   spoilerRevisions?: unknown[];
+}
+
+/**
+ * picker 選中的曲目 → 節點屬性快照。
+ *
+ * storyKey／entityKey 依曲目本身帶的欄位二擇一寫入：劇情歌少了 storyKey
+ * 就不會進 `history_interlink_index`（worker 端看 `data-story-key`），
+ * Echoes 進頁時 History 島永遠浮不出對應段落，且沒有任何錯誤訊息。
+ */
+export function buildEchoSpotAttributes(
+  song: EchoSongChoice,
+  spotId: string
+): EchoSpotAttributes {
+  return {
+    spotId,
+    songId: song.id,
+    songUrlKey: song.audioFile,
+    ...(song.storyKey ? { storyKey: song.storyKey } : {}),
+    ...(song.entityKey ? { entityKey: song.entityKey } : {}),
+    title: song.title,
+    clusterId: song.clusterId,
+    songType: song.songType,
+    ...(song.duration ? { duration: song.duration } : {}),
+    spoilerLevel: song.spoilerLevel,
+    ...(song.spoilerRevisions
+      ? { spoilerRevisions: song.spoilerRevisions }
+      : {}),
+  };
 }
 
 declare module '@tiptap/core' {

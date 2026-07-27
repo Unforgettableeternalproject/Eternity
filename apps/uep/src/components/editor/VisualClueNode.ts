@@ -25,7 +25,7 @@ export interface VisualClueAttributes {
   /** start = 書籤浮現點、gate = 區間切圖點、end = 離場點。 */
   edge: 'start' | 'gate' | 'end';
   targetType: VisualClueTargetType;
-  /** entityKey 或插圖 ID（依 targetType）。 */
+  /** entityKey 或 storyKey（依 targetType）。 */
   targetKey: string;
   /** 目標 gallery 頁 id 快照（前台觸發時以 targetKey 反查現行資料）。 */
   galleryId?: string;
@@ -118,7 +118,7 @@ export function collectVisualClueIssues(doc: PMNode): VisualCluePairIssue[] {
     if (!start.attrs.targetKey?.trim() || !end.attrs.targetKey?.trim()) {
       issues.push({
         clueId,
-        message: `${label}缺少目標（entityKey／插圖 ID），請重新指定`,
+        message: `${label}缺少目標（entityKey／storyKey），請重新指定`,
       });
     } else if (
       start.attrs.targetKey !== end.attrs.targetKey ||

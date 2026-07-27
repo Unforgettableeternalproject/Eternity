@@ -45,6 +45,24 @@ export function extractAssetKey(src: string): string | null {
   return decodeURIComponent(src.slice(idx + marker.length));
 }
 
+// ── 互聯 key 顯示 ──────────────────────────────────────────
+
+/**
+ * 互聯 key 的統一顯示文字：命名空間中文名 + key。
+ *
+ * Echo Spot 與 Visual Clue 引用的是同一套命名空間（entityKey／storyKey），
+ * bubble 上的字樣就該一致——各自寫死過「無 entityKey」和「插圖 xxx」，
+ * 讀者無從得知兩者其實在講同一件事。
+ */
+export function formatInterlinkKey(
+  keyType: 'entity' | 'story',
+  key?: string
+): string {
+  const trimmed = key?.trim();
+  if (!trimmed) return keyType === 'story' ? '無 storyKey' : '無 entityKey';
+  return `${keyType === 'story' ? '劇情點' : '實體'} ${trimmed}`;
+}
+
 // ── Asset CRUD ──────────────────────────────────────────────
 
 export interface UploadResult {

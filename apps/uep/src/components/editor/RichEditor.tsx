@@ -19,6 +19,7 @@ import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
 import ProgressMarkerNode from './ProgressMarkerNode';
 import EchoSpotNode, {
+  buildEchoSpotAttributes,
   collectEchoSpotIssues,
   type EchoSpotAttributes,
 } from './EchoSpotNode';
@@ -46,6 +47,7 @@ import {
   getDialog,
   extractAssetKey,
   deleteAsset,
+  formatInterlinkKey,
   htmlToMarkdown,
 } from './editorHelpers';
 import { resolveEditorMode, resolveGatePanelMode } from './editorModeRegistry';
@@ -1068,20 +1070,10 @@ export default function RichEditor({
 
   const applyEchoSongChoice = (song: EchoSongChoice) => {
     if (!editor) return;
-    const attrs: EchoSpotAttributes = {
-      spotId: selectedEchoSpot?.spotId || createEchoSpotId(),
-      songId: song.id,
-      songUrlKey: song.audioFile,
-      ...(song.entityKey ? { entityKey: song.entityKey } : {}),
-      title: song.title,
-      clusterId: song.clusterId,
-      songType: song.songType,
-      ...(song.duration ? { duration: song.duration } : {}),
-      spoilerLevel: song.spoilerLevel,
-      ...(song.spoilerRevisions
-        ? { spoilerRevisions: song.spoilerRevisions }
-        : {}),
-    };
+    const attrs = buildEchoSpotAttributes(
+      song,
+      selectedEchoSpot?.spotId || createEchoSpotId()
+    );
     if (selectedEchoSpot) {
       const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
       if (node?.type.name === 'echoSpot') {
@@ -3446,7 +3438,13 @@ export default function RichEditor({
             ♫ {selectedEchoSpot.title || selectedEchoSpot.songId}
           </span>
           <span className="ned-echo-spot-bubble__meta">
-            {selectedEchoSpot.entityKey || '無 entityKey'}
+            {selectedEchoSpot.storyKey
+              ? formatInterlinkKey('story', selectedEchoSpot.storyKey)
+              : selectedEchoSpot.entityKey
+                ? formatInterlinkKey('entity', selectedEchoSpot.entityKey)
+                : formatInterlinkKey(
+                    selectedEchoSpot.songType === 'story' ? 'story' : 'entity'
+                  )}
           </span>
           <button
             type="button"
@@ -3494,9 +3492,10 @@ export default function RichEditor({
               '未綁定'}
           </span>
           <span className="ned-echo-spot-bubble__meta">
-            {selectedVisualClue.targetType === 'story'
-              ? `插圖 ${selectedVisualClue.targetKey}`
-              : selectedVisualClue.targetKey || '無目標'}
+            {formatInterlinkKey(
+              selectedVisualClue.targetType,
+              selectedVisualClue.targetKey
+            )}
             {selectedVisualClue.imageTitle &&
               ` · ${selectedVisualClue.imageTitle}`}
           </span>
