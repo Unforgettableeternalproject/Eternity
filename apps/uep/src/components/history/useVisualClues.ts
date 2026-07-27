@@ -13,6 +13,7 @@
 
 import { useEffect, useState, type RefObject } from 'react';
 
+import { computeElementRatio } from '../../progress/fogGate';
 import {
   VISUAL_CLUE_END_ROLE,
   VISUAL_CLUE_START_ROLE,
@@ -109,6 +110,16 @@ interface UseVisualCluesOptions {
   /** 內容識別鍵——變更時重新收集錨點（同 useScanline） */
   contentKey?: unknown;
   enabled?: boolean;
+  /**
+   * 唯讀迷霧線（0~1）。未提供或為 1 時完全不過濾（沿舊行為）。
+   *
+   * ⚠️ 這是 S10-2「閘門統一在 scanline」原則的**唯一例外**。本 hook
+   * 不走 `onMarkerPassed`，而是自己跑捲動 + rAF 的雙向區間判定（見檔案
+   * 頂部說明），所以享受不到掃描線的閘門，必須自己讀迷霧線。
+   * 未來新增消費端請優先走 `onMarkerPassed`，只有同樣需要「進入/離開」
+   * 雙向持續狀態的情境才考慮獨立迴圈。
+   */
+  fogRatioRef?: RefObject<number>;
 }
 
 /**
@@ -122,6 +133,7 @@ export function useVisualClues({
   scrollRef,
   contentKey,
   enabled = true,
+  fogRatioRef,
 }: UseVisualCluesOptions): VisualClueEntry[] {
   const [active, setActive] = useState<VisualClueEntry[]>([]);
 
@@ -148,10 +160,15 @@ export function useVisualClues({
       const viewport = scroller.getBoundingClientRect();
       // 與 scanline 同一條線：視窗高度 80% 處（rootMargin bottom -20%）
       const scanY = viewport.top + viewport.height * 0.8;
+      // 迷霧線以下的區間視為不存在（S10-2）：起點若還在迷霧裡，
+      // 讀者根本沒讀到那段內容，書籤不該浮現
+      const fog = fogRatioRef?.current ?? 1;
       const next = entries.filter((entry) => {
         const start = entry.startEl.getBoundingClientRect();
         const end = entry.endEl.getBoundingClientRect();
-        return start.top <= scanY && end.top > scanY;
+        if (start.top > scanY || end.top <= scanY) return false;
+        if (fog >= 1) return true;
+        return computeElementRatio(entry.startEl, scroller) <= fog;
       });
       setActive((current) =>
         current.length === next.length &&

@@ -23,6 +23,11 @@
  * 非 React 的 Astro script 可直接 createScanline / destroy。
  */
 
+import {
+  computeElementRatio,
+  isNonScrollable,
+  isWithinFogReach,
+} from './fogGate';
 import { collectMarkers, completionFlag } from './markers';
 import { getProgressManager } from './progressStore';
 
@@ -85,6 +90,37 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
 
   const store = getProgressManager();
   const markers = collectMarkers(container);
+  /**
+   * 迷霧是否介入這一頁（S10-2）。三個關閉條件：
+   * - 已完成過 → 重讀不再限制（用 completedPageIds 而非
+   *   `isEffectivelyCompleted`：後者會因為無關的依賴鏈變化把「讀過」
+   *   變回「沒讀過」，讀者無從理解也無法自行解除）
+   * - 內容短到不需要捲動 → 見 fogGate.isNonScrollable 的死鎖說明
+   * - 沒有捲動容器 → 位置換算失去共同座標系，寧可不擋
+   */
+  const fogEnabled =
+    !store.getState().completedPageIds.includes(pageId) &&
+    !!root &&
+    !isNonScrollable(root.scrollHeight, root.clientHeight);
+
+  /**
+   * 位置閘門：這個標記在不在迷霧線的可及範圍內。
+   *
+   * 通過就順手把迷霧線推到該位置——迷霧線與掃描線是同一條線，標記
+   * 合法過線本身就是「讀者的視線走到這裡」的證據。
+   */
+  const passesFogGate = (el: Element): boolean => {
+    if (!fogEnabled) return true;
+    const ratio = computeElementRatio(el, root);
+    const stored = store.getState().fogRatio[pageId] ?? 0;
+    if (
+      !isWithinFogReach(ratio, stored, root.clientHeight, root.scrollHeight)
+    ) {
+      return false;
+    }
+    store.advanceFog(pageId, ratio);
+    return true;
+  };
   // totalMarkers = 內容標記數；哨兵索引 = totalMarkers（完成時 max = total）
   const totalMarkers = markers.length;
   const sentinelIdx = totalMarkers;
@@ -118,6 +154,11 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
 
   /** 哨兵通過：整篇已讀——完成 + 補授所有內容標記的旗標 */
   const passSentinel = () => {
+    // 哨兵是「跳到底」最容易命中的目標（文章最後面的 1px 空 div），
+    // 單靠「進入視窗」擋不住任何形式的跳躍，而下面那段兜底補授會把
+    // 整頁旗標一次發完——這是 rush prevention 最大的後門。
+    // 迷霧線推到 1 只可能靠連續推進達成，用它當第二個條件。
+    if (fogEnabled && (store.getState().fogRatio[pageId] ?? 0) < 1) return;
     lastIdx = sentinelIdx;
     maxIdx = Math.max(maxIdx, sentinelIdx);
 
@@ -151,6 +192,12 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
         if (!entry.isIntersecting) continue;
         const idx = indexOf.get(entry.target);
         if (idx === undefined) continue;
+        // 迷霧線以下的標記當作不存在：不寫進度、不授旗、不發事件。
+        // 閘門設在這裡而不是各消費端，消費端才能維持「收到事件＝可以
+        // 安心處理」的心智模型——useEchoSpots 一收到事件就把 spotId
+        // 記進去重集合，若讓事件發出去再擋，rush 經過的回聲點會被記成
+        // 已觸發，迷霧推進後就永遠不再響。
+        if (!passesFogGate(entry.target)) continue;
 
         anyPassed = true;
         lastIdx = idx;

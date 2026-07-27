@@ -1685,3 +1685,78 @@
 .history-timeline-item.is-flag .history-timeline-button {
   opacity: 0.5;
 }
+
+/* ── rush prevention 迷霧（S10-2）──────────────────────────
+ * 遮罩掛在 .history-content 內、隨內容捲動——它遮的是「內容從這裡開始
+ * 還沒解鎖」，不是「畫面下半部」。所以不能沿用 Visual Clue 書籤那套
+ * viewport 釘位，兩者解決的是不同問題。
+ *
+ * 分兩層純粹是效能：只有讀者眼前那 1.5 屏值得付 backdrop-filter 的
+ * 代價，再下面反正看不到細節，一塊色票就夠。
+ *
+ * reduced-motion 目前刻意不覆寫（艾斯維爾：先保留動畫，看情況再修），
+ * 這是暫時決策，不是漏做的無障礙需求。
+ */
+.history-fog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 活躍帶：模糊到看得見段落形狀、認不出字 */
+.history-fog__active {
+  flex: 0 0 150vh;
+  backdrop-filter: blur(7px) saturate(0.6);
+  -webkit-backdrop-filter: blur(7px) saturate(0.6);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-page) 55%, transparent),
+    color-mix(in srgb, var(--bg-page) 88%, transparent) 40%,
+    color-mix(in srgb, var(--bg-page) 96%, transparent)
+  );
+  animation: history-fog-drift 14s ease-in-out infinite alternate;
+}
+
+/* 上緣不切死，讓迷霧「聚攏」而不是「貼了一張紙」 */
+.history-fog__active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6vh;
+  height: 6vh;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--bg-page) 50%, transparent)
+  );
+}
+
+/* 遠場：無濾鏡無動畫，文章再長成本都固定 */
+.history-fog__far {
+  flex: 1 1 auto;
+  background: color-mix(in srgb, var(--bg-page) 97%, var(--history-tint));
+}
+
+@keyframes history-fog-drift {
+  from {
+    opacity: 0.94;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-0.6vh);
+  }
+}
+
+/* 捲動中降級：動畫停下、濾鏡固定。快速捲動時看不出差別，
+   沒必要每幀重算 backdrop-filter */
+body.uep-fog-scrolling .history-fog__active {
+  animation-play-state: paused;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}

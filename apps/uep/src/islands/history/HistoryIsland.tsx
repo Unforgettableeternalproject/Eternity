@@ -135,14 +135,17 @@ export default function HistoryIsland() {
 
   const avgMinutes = averageReadingMinutes(progress);
 
-  const lastMarker = lastRead ? progress.pageMarkers[lastRead.id] : undefined;
-  const lastPct =
-    lastMarker && lastMarker.totalMarkers > 0
-      ? Math.min(
-          100,
-          Math.round((lastMarker.maxMarkerIdx / lastMarker.totalMarkers) * 100)
-        )
-      : null;
+  /**
+   * 閱讀進度改讀 fogRatio（S10-2）。舊算式的分母 `totalMarkers` 同時
+   * 包含 hr 與 echo spot／visual clue 錨點——編輯內容就會讓讀者的
+   * 百分比整個位移。ratio 是連續量，沒有這個問題。
+   */
+  const lastPct = (() => {
+    if (!lastRead) return null;
+    if (progress.completedPageIds.includes(lastRead.id)) return 100;
+    const ratio = progress.fogRatio[lastRead.id];
+    return ratio == null ? null : Math.min(100, Math.round(ratio * 100));
+  })();
 
   /* ── 書頁內容：載入中 / 失敗 / 空白 / 正常 ── */
   function renderBody() {

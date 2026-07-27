@@ -91,3 +91,12 @@ export type {
 
 export { useScanline } from './useScanline';
 export type { UseScanlineOptions } from './useScanline';
+
+export {
+  FOG_JUMP_THRESHOLD_VH,
+  computeContentRatio,
+  computeElementRatio,
+  isNonScrollable,
+  isWithinFogReach,
+  ratioToScrollTop,
+} from './fogGate';

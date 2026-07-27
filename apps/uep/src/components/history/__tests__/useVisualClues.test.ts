@@ -3,9 +3,11 @@
  * 區間幾何判定依賴真實 layout（getBoundingClientRect），屬手動測試
  * 範圍；此處鎖定配對規則與編輯器存檔閘同構。
  */
+import { renderHook } from '@testing-library/react';
+import { createRef } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { collectVisualClues } from '../useVisualClues';
+import { collectVisualClues, useVisualClues } from '../useVisualClues';
 
 function makeContainer(html: string): HTMLElement {
   const el = document.createElement('div');
@@ -121,5 +123,76 @@ describe('collectVisualClues — 配對與孤兒容錯', () => {
       `<blockquote>${START('c1')}</blockquote><p></p>${END('c1')}`
     );
     expect(collectVisualClues(container)).toHaveLength(1);
+  });
+});
+
+/**
+ * 迷霧過濾（S10-2）。useVisualClues 是唯一繞過掃描線閘門的消費端——
+ * 它自己跑捲動幾何迴圈，所以必須自己讀迷霧線，否則 rush 到文章底部時
+ * 書籤照樣浮現，等於繞過 rush prevention。
+ */
+describe('useVisualClues — 迷霧過濾', () => {
+  const SCROLL_HEIGHT = 10000;
+  const CLIENT_HEIGHT = 1000;
+
+  /** 起點在 5%、訖點在 20%，掃描線（80% 線）落在區間內 */
+  function setupDom() {
+    const scroller = document.createElement('div');
+    const container = document.createElement('div');
+    scroller.append(container);
+    document.body.append(scroller);
+    Object.defineProperty(scroller, 'scrollHeight', {
+      value: SCROLL_HEIGHT,
+      configurable: true,
+    });
+    scroller.getBoundingClientRect = () =>
+      ({ top: 0, height: CLIENT_HEIGHT }) as DOMRect;
+    container.innerHTML = `${START('c1')}<p>橋段</p>${END('c1')}`;
+
+    const [startEl] = Array.from(
+      container.querySelectorAll('[data-role="visual-clue-start"]')
+    );
+    const [endEl] = Array.from(
+      container.querySelectorAll('[data-role="visual-clue-end"]')
+    );
+    startEl.getBoundingClientRect = () => ({ top: 500 }) as DOMRect; // ratio 0.05
+    endEl.getBoundingClientRect = () => ({ top: 2000 }) as DOMRect;
+
+    const containerRef = createRef<HTMLElement>();
+    const scrollRef = createRef<HTMLElement>();
+    (containerRef as { current: HTMLElement }).current = container;
+    (scrollRef as { current: HTMLElement }).current = scroller;
+    return { containerRef, scrollRef };
+  }
+
+  function render(fog: number | undefined) {
+    const { containerRef, scrollRef } = setupDom();
+    const fogRatioRef =
+      fog === undefined ? undefined : ({ current: fog } as { current: number });
+    return renderHook(() =>
+      useVisualClues({
+        pageId: 'history/p1',
+        containerRef,
+        scrollRef,
+        contentKey: 'k',
+        fogRatioRef,
+      })
+    );
+  }
+
+  it('迷霧散盡（ratio=1）時照常顯示', () => {
+    expect(render(1).result.current).toHaveLength(1);
+  });
+
+  it('未提供 fogRatioRef 時不過濾（其他 zone 復用時預設不受影響）', () => {
+    expect(render(undefined).result.current).toHaveLength(1);
+  });
+
+  it('起點還在迷霧線以下時不顯示書籤', () => {
+    expect(render(0.01).result.current).toEqual([]);
+  });
+
+  it('迷霧線推過起點後恢復顯示', () => {
+    expect(render(0.06).result.current).toHaveLength(1);
   });
 });

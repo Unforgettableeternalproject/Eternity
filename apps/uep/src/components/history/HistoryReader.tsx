@@ -35,6 +35,7 @@ import {
   collectMarkers,
   getProgressManager,
   resolveResumeMarkerIdx,
+  ratioToScrollTop,
   PROGRESS_CHANGE_EVENT,
 } from '../../progress';
 import type {
@@ -66,6 +67,7 @@ import {
 import LostBookmarkGate from './LostBookmarkGate';
 import { useEchoSpots } from './useEchoSpots';
 import { useVisualClues, type VisualClueEntry } from './useVisualClues';
+import HistoryFogOverlay, { FOG_SCROLLING_CLASS } from './HistoryFogOverlay';
 import VisualClueBookmarks from './VisualClueBookmarks';
 import { fetchClueGallery } from './visualClueGallery';
 import { deriveGalleryUnlockFlag, deriveImageUnlockFlag } from '../../visuals';
@@ -337,6 +339,8 @@ export default function HistoryReader() {
 
   // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
   // 停下閱讀後仍被前一個快速 wheel 事件誤判。
+  // 同一個 effect 順帶開關迷霧的捲動降級 body class——捲動中不渲染
+  // 迷霧動畫，停滯後才恢復（S10-2）。不另掛一個語意重疊的 listener。
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
@@ -350,17 +354,30 @@ export default function HistoryReader() {
         (Math.abs(element.scrollTop - lastTop) / elapsed) * 1000;
       lastTop = element.scrollTop;
       lastAt = now;
+      document.body.classList.add(FOG_SCROLLING_CLASS);
       if (settleTimer) clearTimeout(settleTimer);
       settleTimer = setTimeout(() => {
         scrollVelocityRef.current = 0;
+        document.body.classList.remove(FOG_SCROLLING_CLASS);
       }, 180);
     };
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       element.removeEventListener('scroll', onScroll);
       if (settleTimer) clearTimeout(settleTimer);
+      document.body.classList.remove(FOG_SCROLLING_CLASS);
     };
   }, []);
+
+  // 迷霧線的唯讀鏡像——useVisualClues 是唯一繞過掃描線閘門的消費端，
+  // 它的區間判定跑在 rAF 迴圈裡，不能每次都去 store 取值。
+  const fogRatioRef = useRef(1);
+  const fogRatio = currentId
+    ? progress.completedPageIds.includes(currentId)
+      ? 1
+      : (progress.fogRatio[currentId] ?? 0)
+    : 1;
+  fogRatioRef.current = fogRatio;
 
   // 本次頁面造訪中「已點擊、尚未通過訖點」的 clue——通過訖點時觸發
   // 快照恢復；換頁時整組重置（恢復由 unmount 路徑兜底）。
@@ -619,6 +636,7 @@ export default function HistoryReader() {
       !contentError &&
       !bookmarkGateOpen
     ),
+    fogRatioRef,
   });
   // session dedupe 過濾後實際可見的 clue（V-D.31）
   const visibleVisualClues = activeVisualClues.filter(
@@ -1058,7 +1076,7 @@ export default function HistoryReader() {
         requestAnimationFrame(() => {
           const el = scrollRef.current;
           if (!el) return;
-          const targetTop = saved ?? resolveMarkerResumeTop(node.id, el);
+          const targetTop = saved ?? resolveResumeTop(node.id, el);
           if (targetTop == null || targetTop <= 0) return;
           const scrollable = el.scrollHeight - el.clientHeight;
           const pct = scrollable > 0 ? (targetTop / scrollable) * 100 : 0;
@@ -1077,15 +1095,33 @@ export default function HistoryReader() {
   }
 
   /**
-   * 跨 session 續讀：由掃描線 lastMarkerIdx 換算滾動位置。
-   * 是否該提示由 resolveResumeMarkerIdx 統一判定（已完成頁面不提示，
-   * 即使讀完後回捲讓 lastMarkerIdx 變小）；內容變動導致索引失效時放棄。
+   * 跨 session 續讀，依完成狀態分流（S10-2）：
+   *
+   * | 頁面狀態 | 目標 | 依據 |
+   * |---|---|---|
+   * | 未完成（有迷霧） | 迷霧線＝最遠合法進度 | `fogRatio` |
+   * | 已完成（重讀） | 上次停在哪 | `lastMarkerIdx` |
+   *
+   * 兩者對應互斥的狀態，各自都是該狀態下唯一有意義的答案：沒讀完的
+   * 頁面「上次停在哪」不重要（讀者要的是接著往下推迷霧），讀完的頁面
+   * 「最遠進度」永遠是文末（沒有資訊量）。
    */
-  function resolveMarkerResumeTop(
+  function resolveResumeTop(
     pageId: string,
     scrollEl: HTMLElement
   ): number | null {
-    const idx = resolveResumeMarkerIdx(getProgressManager().getState(), pageId);
+    const state = getProgressManager().getState();
+    if (!state.completedPageIds.includes(pageId)) {
+      const fog = state.fogRatio[pageId] ?? 0;
+      if (fog <= 0 || fog >= 1) return null;
+      const top = ratioToScrollTop(
+        fog,
+        scrollEl.clientHeight,
+        scrollEl.scrollHeight
+      );
+      return top > 0 ? top : null;
+    }
+    const idx = resolveResumeMarkerIdx(state, pageId);
     if (idx == null || !contentRef.current) return null;
     const marker = collectMarkers(contentRef.current)[idx];
     if (!marker) return null;
@@ -1552,6 +1588,15 @@ export default function HistoryReader() {
         )}
 
         <div className="history-content" ref={scrollRef}>
+          {/* rush prevention 迷霧（S10-2）：只在未完成、迷霧未散盡的
+              文章頁掛載——已完成／短文／散盡時連 DOM 都不該存在 */}
+          {fogRatio < 1 && currentId && articleHtml && !contentLoading && (
+            <HistoryFogOverlay
+              ratio={fogRatio}
+              scrollRef={scrollRef}
+              contentKey={articleHtml}
+            />
+          )}
           <div key={transitionKey} className="history-page-transition">
             {bookmarkGateOpen ? (
               /* 遺落的書籤儀式頁（S6-2）：暫時佔據內容區，
