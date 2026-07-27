@@ -1,8 +1,8 @@
 /**
  * UEP 進度系統 — 掃描線核心（框架無關）
  *
- * 用 IntersectionObserver 觀察文章內的標記點（hr 自動標記 +
- * ProgressMarkerNode 手動標記 + 文末哨兵），追蹤閱讀進度：
+ * 用 IntersectionObserver 觀察文章內的標記點（ProgressMarkerNode 等
+ * 編輯器插入的功能性節點 + 文末哨兵），追蹤閱讀進度：
  *
  * - maxMarkerIdx：曾到達的最遠標記點（單調遞增，進度判定）
  * - lastMarkerIdx：最近通過的標記點（「回到上次位置」）
@@ -46,7 +46,6 @@ export interface MarkerPassedInfo {
   element: Element;
   /** 標記種類，額外消費端不必重新查 DOM 索引。 */
   role:
-    | 'hr'
     | 'progress-marker'
     | 'echo-spot'
     | 'visual-clue-start'

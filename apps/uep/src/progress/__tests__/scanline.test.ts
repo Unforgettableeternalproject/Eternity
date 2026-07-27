@@ -58,6 +58,15 @@ async function freshScanline() {
   return { ...scanlineMod, ...storeMod };
 }
 
+/**
+ * 通用的標記點 fixture。
+ *
+ * 原本這裡用 `<hr />` 當萬用佔位符，但 hr 已退出掃描線收集（S10-2，
+ * 見 markers.ts 的 PROGRESS_MARKER_SELECTOR）——測試要的是「隨便一個
+ * 會被收集的標記」，用功能性標記表達才不會跟 hr 的視覺角色綁在一起。
+ */
+const MARK = `<div data-role="${PROGRESS_MARKER_ROLE}"></div>`;
+
 function buildDom(markerHtml: string) {
   const container = document.createElement('div');
   container.innerHTML = markerHtml;
@@ -96,9 +105,7 @@ const PAGE_ID = 'history/u/chapter-1/1-1';
 describe('createScanline', () => {
   it('內容標記與哨兵分別由兩個 observer 觀察', async () => {
     const { createScanline } = await freshScanline();
-    const { container, sentinel } = buildDom(
-      `<hr /><div data-role="${PROGRESS_MARKER_ROLE}"></div><hr />`
-    );
+    const { container, sentinel } = buildDom(MARK.repeat(3));
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
 
@@ -113,7 +120,7 @@ describe('createScanline', () => {
 
   it('標記過線時 max 進度立即寫入 store（totalMarkers 不含哨兵）', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr /><hr />');
+    const { container, sentinel } = buildDom(MARK.repeat(2));
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
     const { markerIO } = getObservers();
@@ -127,7 +134,7 @@ describe('createScanline', () => {
 
   it('回捲時 last 位置更新但 max 進度不倒退', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr /><hr />');
+    const { container, sentinel } = buildDom(MARK.repeat(2));
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
     const { markerIO } = getObservers();
@@ -143,7 +150,7 @@ describe('createScanline', () => {
 
   it('未過線（isIntersecting=false）不計入進度', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr />');
+    const { container, sentinel } = buildDom(MARK);
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
     const { markerIO, sentinelIO } = getObservers();
@@ -156,7 +163,7 @@ describe('createScanline', () => {
 
   it('哨兵過線時 max = last = totalMarkers（數字直覺對齊）', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr /><hr /><hr />');
+    const { container, sentinel } = buildDom(MARK.repeat(3));
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
     const { sentinelIO } = getObservers();
@@ -170,7 +177,7 @@ describe('createScanline', () => {
 
   it('哨兵過線時回呼 isSentinel=true', async () => {
     const { createScanline } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr />');
+    const { container, sentinel } = buildDom(MARK);
     const passed: unknown[] = [];
 
     createScanline({
@@ -215,7 +222,7 @@ describe('createScanline', () => {
 
   it('destroy 時兩個 observer 都 disconnect 並 flush 未寫入的位置', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr /><hr />');
+    const { container, sentinel } = buildDom(MARK.repeat(2));
 
     const handle = createScanline({ pageId: PAGE_ID, container, sentinel });
     const { markerIO, sentinelIO } = getObservers();
@@ -233,7 +240,7 @@ describe('createScanline', () => {
 
   it('跨 session 續讀：既有 max 進度不因重新觀察而倒退', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr /><hr /><hr />');
+    const { container, sentinel } = buildDom(MARK.repeat(3));
 
     // 模擬前一次 session 已讀到 idx 2
     uepProgress.updatePageMarker(PAGE_ID, 2, 2, 3);
@@ -280,7 +287,7 @@ describe('createScanline', () => {
 
   it('通過哨兵時標記頁面完成並授予 completed:* 旗標', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr />');
+    const { container, sentinel } = buildDom(MARK);
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
     const { sentinelIO } = getObservers();
@@ -295,7 +302,7 @@ describe('createScanline', () => {
     const { createScanline, uepProgress } = await freshScanline();
     const { container, sentinel } = buildDom(
       `<div data-role="${PROGRESS_MARKER_ROLE}" data-grants-flags="met:novia"></div>
-       <hr />
+       ${MARK}
        <div data-role="${PROGRESS_MARKER_ROLE}" data-grants-flags="met:dell"></div>`
     );
 
@@ -312,7 +319,7 @@ describe('createScanline', () => {
 
   it('未通過哨兵不標記完成', async () => {
     const { createScanline, uepProgress } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr /><hr />');
+    const { container, sentinel } = buildDom(MARK.repeat(2));
 
     createScanline({ pageId: PAGE_ID, container, sentinel });
     const { markerIO } = getObservers();
@@ -342,7 +349,7 @@ describe('createScanline', () => {
     window.IntersectionObserver =
       undefined as unknown as typeof IntersectionObserver;
     const { createScanline } = await freshScanline();
-    const { container, sentinel } = buildDom('<hr />');
+    const { container, sentinel } = buildDom(MARK);
     const handle = createScanline({ pageId: PAGE_ID, container, sentinel });
     expect(() => handle.destroy()).not.toThrow();
   });

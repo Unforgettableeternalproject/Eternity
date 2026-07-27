@@ -1,11 +1,15 @@
 /**
  * UEP 進度系統 — 掃描線標記點的共用常數與純函式
  *
- * 標記點有兩種來源，在 DOM 中以文件順序統一編號：
- * 1. 分隔線 `<hr>` — 內容中的天然標記點（自動）
- * 2. `div[data-role="progress-marker"]` — 編輯器手動插入的
- *    ProgressMarkerNode；帶 `data-grants-flags` 者為 FlagMarker，
- *    掃描線通過時授予對應旗標（位置粒度授予）
+ * 標記點一律是編輯器手動插入的功能性節點，在 DOM 中以文件順序編號：
+ * `progress-marker`（帶 `data-grants-flags` 者為 FlagMarker，掃描線
+ * 通過時授予對應旗標）、`echo-spot`、`visual-clue-*`。
+ *
+ * ⚠️ S10-2 起分隔線 `<hr>` **不再**是標記點。原本它被當成「內容中的
+ * 天然標記」納入同一串編號，於是 `maxMarkerIdx / totalMarkers` 的分母
+ * 同時被 hr 與 echo spot／visual clue 撐大——編輯內容就會讓讀者的進度
+ * 百分比整個位移。閱讀進度改由 `ProgressState.fogRatio` 這個連續量承擔
+ * （見 progress/types.ts），標記編號退回它真正的職責：事件錨點的簿記。
  *
  * 此檔案不碰 store 也不碰 React——編輯器（TipTap node）與前台
  * （useScanline）都從這裡取用，確保序列化格式只有一份定義。
@@ -27,8 +31,8 @@ export const VISUAL_CLUE_START_ROLE = 'visual-clue-start';
 export const VISUAL_CLUE_GATE_ROLE = 'visual-clue-gate';
 export const VISUAL_CLUE_END_ROLE = 'visual-clue-end';
 
-/** 掃描線監聽的標記點選擇器（hr 自動標記 + 手動標記，文件順序） */
-export const PROGRESS_MARKER_SELECTOR = `hr, [data-role="${PROGRESS_MARKER_ROLE}"], [data-role="${ECHO_SPOT_ROLE}"], [data-role="${VISUAL_CLUE_START_ROLE}"], [data-role="${VISUAL_CLUE_GATE_ROLE}"], [data-role="${VISUAL_CLUE_END_ROLE}"]`;
+/** 掃描線監聽的標記點選擇器（皆為編輯器插入的功能性節點，文件順序） */
+export const PROGRESS_MARKER_SELECTOR = `[data-role="${PROGRESS_MARKER_ROLE}"], [data-role="${ECHO_SPOT_ROLE}"], [data-role="${VISUAL_CLUE_START_ROLE}"], [data-role="${VISUAL_CLUE_GATE_ROLE}"], [data-role="${VISUAL_CLUE_END_ROLE}"]`;
 
 /** 解析 data-grants-flags 屬性（逗號分隔 → 去空白、去空值、去重複） */
 export function parseFlagsAttr(value: string | null | undefined): string[] {
@@ -54,11 +58,10 @@ export interface ScanMarker {
   el: Element;
   /** 文件順序索引（0-based） */
   index: number;
-  /** 通過時授予的旗標（hr 與一般標記為空陣列） */
+  /** 通過時授予的旗標（FlagMarker 以外皆為空陣列） */
   grantsFlags: string[];
-  /** hr / progress-marker / echo-spot / visual-clue-*，供額外消費端辨識。 */
+  /** progress-marker / echo-spot / visual-clue-*，供額外消費端辨識。 */
   role:
-    | 'hr'
     | typeof PROGRESS_MARKER_ROLE
     | typeof ECHO_SPOT_ROLE
     | typeof VISUAL_CLUE_START_ROLE
@@ -66,37 +69,40 @@ export interface ScanMarker {
     | typeof VISUAL_CLUE_END_ROLE;
 }
 
+/** 選擇器涵蓋的 role 白名單（收集時據此排除意外元素） */
+const MARKER_ROLES: ReadonlySet<string> = new Set([
+  PROGRESS_MARKER_ROLE,
+  ECHO_SPOT_ROLE,
+  VISUAL_CLUE_START_ROLE,
+  VISUAL_CLUE_GATE_ROLE,
+  VISUAL_CLUE_END_ROLE,
+]);
+
 /**
  * 從文章容器收集所有標記點（文件順序）。
  * 注意：回傳的是當下 DOM 快照，內容重渲染後需重新收集。
  */
 export function collectMarkers(container: Element): ScanMarker[] {
-  return Array.from(container.querySelectorAll(PROGRESS_MARKER_SELECTOR)).map(
-    (el, index) => {
-      const dataRole = el.getAttribute('data-role');
-      const role =
-        dataRole === PROGRESS_MARKER_ROLE
-          ? PROGRESS_MARKER_ROLE
-          : dataRole === ECHO_SPOT_ROLE
-            ? ECHO_SPOT_ROLE
-            : dataRole === VISUAL_CLUE_START_ROLE
-              ? VISUAL_CLUE_START_ROLE
-              : dataRole === VISUAL_CLUE_GATE_ROLE
-                ? VISUAL_CLUE_GATE_ROLE
-                : dataRole === VISUAL_CLUE_END_ROLE
-                  ? VISUAL_CLUE_END_ROLE
-                  : 'hr';
-      return {
-        el,
-        index,
-        role,
-        grantsFlags:
-          role === PROGRESS_MARKER_ROLE
-            ? parseFlagsAttr(el.getAttribute('data-grants-flags'))
-            : [],
-      };
-    }
-  );
+  const markers: ScanMarker[] = [];
+  for (const el of Array.from(
+    container.querySelectorAll(PROGRESS_MARKER_SELECTOR)
+  )) {
+    const dataRole = el.getAttribute('data-role') || '';
+    // 選擇器保證只匹配白名單內的 role；不認識的直接跳過，不猜測它是什麼
+    // （hr 退場前這裡是 fallback 成 'hr'，等於把任何意外元素當標記收下）
+    if (!MARKER_ROLES.has(dataRole)) continue;
+    const role = dataRole as ScanMarker['role'];
+    markers.push({
+      el,
+      index: markers.length,
+      role,
+      grantsFlags:
+        role === PROGRESS_MARKER_ROLE
+          ? parseFlagsAttr(el.getAttribute('data-grants-flags'))
+          : [],
+    });
+  }
+  return markers;
 }
 
 /**

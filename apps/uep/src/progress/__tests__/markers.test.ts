@@ -51,26 +51,42 @@ describe('collectMarkers', () => {
     return el;
   }
 
-  it('以文件順序收集 hr 與手動標記', () => {
+  it('以文件順序收集功能性標記', () => {
     const container = makeContainer(`
       <p>段落一</p>
-      <hr />
+      <div data-role="${PROGRESS_MARKER_ROLE}"></div>
       <p>段落二</p>
       <div data-role="${PROGRESS_MARKER_ROLE}" data-grants-flags="met:novia"></div>
       <p>段落三</p>
-      <hr />
+      <div data-role="${PROGRESS_MARKER_ROLE}"></div>
     `);
     const markers = collectMarkers(container);
     expect(markers).toHaveLength(3);
     expect(markers.map((m) => m.index)).toEqual([0, 1, 2]);
-    expect(markers[0].el.tagName).toBe('HR');
+    expect(markers[0].grantsFlags).toEqual([]);
     expect(markers[1].grantsFlags).toEqual(['met:novia']);
     expect(markers[2].grantsFlags).toEqual([]);
   });
 
-  it('hr 不解析 grantsFlags（即使意外帶屬性也視為自動標記）', () => {
-    const container = makeContainer('<hr data-grants-flags="should:ignore" />');
-    expect(collectMarkers(container)[0].grantsFlags).toEqual([]);
+  /**
+   * hr 曾是「內容中的天然標記點」，會被收進同一串編號並撐大進度分母。
+   * S10-2 退場後它純粹是視覺分隔線，編輯器插入 hr 的行為不受影響。
+   */
+  it('hr 不再是標記點，也不會因為帶了屬性就復活', () => {
+    expect(collectMarkers(makeContainer('<hr /><hr />'))).toEqual([]);
+    expect(
+      collectMarkers(makeContainer('<hr data-grants-flags="should:ignore" />'))
+    ).toEqual([]);
+  });
+
+  it('編號連續，不因文中夾雜 hr 而跳號', () => {
+    const container = makeContainer(`
+      <hr />
+      <div data-role="${PROGRESS_MARKER_ROLE}"></div>
+      <hr />
+      <div data-role="echo-spot" data-song-id="echoes/stories/a"></div>
+    `);
+    expect(collectMarkers(container).map((m) => m.index)).toEqual([0, 1]);
   });
 
   it('無標記時回傳空陣列', () => {
@@ -86,13 +102,13 @@ describe('collectMarkers', () => {
 
   it('echo spot 納入文件順序，但不冒充 FlagMarker 授旗', () => {
     const container = makeContainer(`
-      <hr>
+      <div data-role="progress-marker"></div>
       <div data-role="echo-spot" data-song-id="echoes/stories/a"></div>
       <div data-role="progress-marker" data-grants-flags="met:x"></div>
     `);
     const markers = collectMarkers(container);
     expect(markers.map((marker) => marker.role)).toEqual([
-      'hr',
+      'progress-marker',
       'echo-spot',
       'progress-marker',
     ]);
@@ -102,7 +118,7 @@ describe('collectMarkers', () => {
 
   it('visual clue 起點、切圖 gate、訖點納入文件順序且不授旗', () => {
     const container = makeContainer(`
-      <hr>
+      <div data-role="progress-marker"></div>
       <div data-role="visual-clue-start" data-clue-id="clue-1"
         data-grants-flags="should:ignore"></div>
       <p>橋段內容</p>
@@ -113,7 +129,7 @@ describe('collectMarkers', () => {
     `);
     const markers = collectMarkers(container);
     expect(markers.map((marker) => marker.role)).toEqual([
-      'hr',
+      'progress-marker',
       'visual-clue-start',
       'visual-clue-gate',
       'visual-clue-end',
