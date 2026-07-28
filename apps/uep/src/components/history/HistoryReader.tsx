@@ -327,6 +327,10 @@ export default function HistoryReader() {
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 常規流內容的包裹層（.history-page-transition）——迷霧遮罩的量測
+  // 觸發源。觀察它而非文章 prose：時間軸與導航等 prose 之外的區塊
+  // 載入後也會撐高捲動範圍，只觀察 prose 會漏掉，讓遮罩短一截。
+  const flowRef = useRef<HTMLDivElement>(null);
   // 掃描線文末哨兵（通過 = 頁面完成）
   const scanSentinelRef = useRef<HTMLDivElement>(null);
   const resumeJumpRef = useRef(false);
@@ -1743,13 +1747,19 @@ export default function HistoryReader() {
             !contentLoading &&
             !bookmarkGateOpen && (
               <HistoryFogOverlay
+                /* 換頁重掛：邊界補間不能從上一頁的位置滑過來 */
+                key={currentId}
                 ratio={fogRatio}
                 scrollRef={scrollRef}
-                contentRef={contentRef}
+                flowRef={flowRef}
                 contentKey={articleHtml}
               />
             )}
-          <div key={transitionKey} className="history-page-transition">
+          <div
+            key={transitionKey}
+            ref={flowRef}
+            className="history-page-transition"
+          >
             {bookmarkGateOpen ? (
               /* 遺落的書籤儀式頁（S6-2）：暫時佔據內容區，
                  完成或導航離開後回到原本的頁面 */
