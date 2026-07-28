@@ -25,6 +25,7 @@
 
 /* global ResizeObserver */
 import { useEffect, useRef, useState } from 'react';
+import { computeContentRatio } from '../../progress';
 
 /** 捲動中降級的 body class（開關由 HistoryReader 的捲動 effect 負責） */
 export const FOG_SCROLLING_CLASS = 'uep-fog-scrolling';
@@ -76,8 +77,20 @@ export default function HistoryFogOverlay({
   }, [contentKey, scrollRef, flowRef]);
 
   const { scrollHeight, clientHeight } = metrics;
-  const overlayTop = Math.max(0, ratio) * scrollHeight;
-  const overlayHeight = Math.max(0, (1 - ratio) * scrollHeight);
+  /**
+   * 渲染位置的首屏線下限。
+   *
+   * 進頁第一拍 store 還沒有這頁的 fogRatio，`?? 0` 的預設值會讓遮罩從
+   * 內容最頂端蓋下來，等首次取樣寫入後才退到首屏線——「蓋滿再退開」的
+   * 閃爍就是這樣來的。第一屏依契約本來就可讀（見 sampleFog 首次取樣
+   * 不限速的說明），首拍直接定位在首屏線；公式與取樣器同一套，首次
+   * 取樣寫入的就是同一個值，不會產生視覺與閘門的落差。
+   */
+  const floorRatio =
+    scrollHeight > 0 ? computeContentRatio(0, clientHeight, scrollHeight) : 0;
+  const renderRatio = Math.max(Math.max(0, ratio), Math.min(floorRatio, 1));
+  const overlayTop = renderRatio * scrollHeight;
+  const overlayHeight = Math.max(0, (1 - renderRatio) * scrollHeight);
 
   // 雲絮帶追蹤讀者視窗：把帶子置中在視窗上，clamp 進迷霧領地。
   // 迷霧線推進（overlayTop 變動）時也要重算——帶子的座標系是領地內部，
