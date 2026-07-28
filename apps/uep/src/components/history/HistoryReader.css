@@ -1811,9 +1811,22 @@
   }
 }
 
-/* 捲動中降級：雲絮停格、濾鏡固定。快速捲動時看不出差別，
-   沒必要每幀重算 backdrop-filter 與兩層 blur */
+/*
+ * 捲動中降級。
+ *
+ * 只暫停動畫不夠——backdrop-filter 每幀都要對整個活躍帶重新取樣合成，
+ * 那才是捲動卡頓的主因。捲動時整個卸掉濾鏡，改用不透明度補足遮蔽；
+ * 快速捲動中本來就看不出模糊與否的差別。
+ */
+body.uep-fog-scrolling .history-fog__active {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: color-mix(in srgb, var(--fog-body) 96%, transparent);
+}
+
 body.uep-fog-scrolling .history-fog__active::before,
 body.uep-fog-scrolling .history-fog__active::after {
   animation-play-state: paused;
+  /* 常駐 will-change 會固定佔住合成層記憶體，靜止時不需要 */
+  will-change: auto;
 }

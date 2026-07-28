@@ -1745,6 +1745,7 @@ export default function HistoryReader() {
               <HistoryFogOverlay
                 ratio={fogRatio}
                 scrollRef={scrollRef}
+                contentRef={contentRef}
                 contentKey={articleHtml}
               />
             )}

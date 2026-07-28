@@ -25,6 +25,15 @@ interface HistoryFogOverlayProps {
   ratio: number;
   /** 捲動容器——量 scrollHeight 用 */
   scrollRef: React.RefObject<HTMLElement | null>;
+  /**
+   * 文章內容容器——量測**觸發源**。
+   *
+   * ⚠️ 不能觀察捲動容器的子元素，因為本元件自己就是其中之一：遮罩高度
+   * 隨 ratio 變動 → 觸發 measure → setState → 重新渲染 → 尺寸再變……
+   * 每一幀都在跑這個回授迴圈，捲動手感會整個卡住。只觀察內容本身，
+   * 它的尺寸不受遮罩影響。
+   */
+  contentRef: React.RefObject<HTMLElement | null>;
   /** 內容識別鍵，變更時重新量測（圖片載入撐高版面也要跟著修正） */
   contentKey?: unknown;
 }
@@ -32,14 +41,15 @@ interface HistoryFogOverlayProps {
 export default function HistoryFogOverlay({
   ratio,
   scrollRef,
+  contentRef,
   contentKey,
 }: HistoryFogOverlayProps) {
   const [metrics, setMetrics] = useState({ scrollHeight: 0, clientHeight: 0 });
 
   // 版面高度會隨圖片非同步載入變動，ratio 對應的絕對位置要跟著修正。
-  // ResizeObserver 觀察捲動容器的內容尺寸變化即可，不必輪詢。
   useEffect(() => {
     const el = scrollRef.current;
+    const content = contentRef.current;
     if (!el) return;
     const measure = () =>
       setMetrics((prev) =>
@@ -49,12 +59,11 @@ export default function HistoryFogOverlay({
           : { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }
       );
     measure();
-    if (typeof ResizeObserver === 'undefined') return;
+    if (typeof ResizeObserver === 'undefined' || !content) return;
     const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    for (const child of Array.from(el.children)) observer.observe(child);
+    observer.observe(content);
     return () => observer.disconnect();
-  }, [contentKey, scrollRef]);
+  }, [contentKey, scrollRef, contentRef]);
 
   const { scrollHeight, clientHeight } = metrics;
   // 短文豁免的判準與 fogGate.isNonScrollable 一致——eligibility 只有
