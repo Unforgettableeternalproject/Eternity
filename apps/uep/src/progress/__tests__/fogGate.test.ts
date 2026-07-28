@@ -223,6 +223,37 @@ describe('推進鏈：真實捲動序列', () => {
     const fog = simulate(steps);
     expect(fog).toBeGreaterThan(0.2);
   });
+
+  /**
+   * 讀者停住時取樣不能斷——速率上限讓迷霧落在讀者後面一小段，若取樣
+   * 只由捲動觸發，讀到頁底（再無捲動空間產生事件）迷霧就永遠追不上 1，
+   * 哨兵的「fogRatio >= 1」合取永遠不成立，頁面無法完成。
+   * HistoryReader 的追趕取樣就是這裡的固定節拍步。
+   */
+  it('讀到頁底後停住，追趕取樣讓迷霧收斂到 1（頁面得以完成）', () => {
+    const steps = [{ scrollTop: 0, dtMs: 0 }];
+    // 正常速度讀到底（0.4 屏/秒 < 0.55 上限）
+    for (let i = 1; i <= 45; i += 1) {
+      steps.push({ scrollTop: Math.min(i * 200, 9000), dtMs: 500 });
+    }
+    // 停在頁底：沒有捲動事件，只剩追趕取樣的固定節拍
+    for (let i = 0; i < 8; i += 1) {
+      steps.push({ scrollTop: 9000, dtMs: 240 });
+    }
+    expect(simulate(steps)).toBe(1);
+  });
+
+  /** 追趕的目標是「讀者目前位置」且要先過跳躍門檻——救不了 rush */
+  it('rush 到頁底後停住等待，追趕取樣不會替他解圍', () => {
+    const steps = [
+      { scrollTop: 0, dtMs: 0 },
+      { scrollTop: 9000, dtMs: 16 }, // rush 到底
+    ];
+    for (let i = 0; i < 20; i += 1) {
+      steps.push({ scrollTop: 9000, dtMs: 240 }); // 原地等待
+    }
+    expect(simulate(steps)).toBe(0.08);
+  });
 });
 
 describe('ratioToScrollTop — 續讀定位', () => {

@@ -153,6 +153,18 @@ const API_BASE = getApiBase();
  */
 const SIDEBAR_STATE_KEY = 'uep-history-sidebar';
 
+/**
+ * 迷霧追趕取樣的間隔（ms）。
+ *
+ * 速率上限讓迷霧線落在讀者位置後面一小段，而取樣只由捲動觸發——讀者
+ * 停住（尤其已在頁底，再無捲動空間產生 scroll 事件）取樣就斷了，迷霧
+ * 永遠追不上讀者，哨兵的「fogRatio >= 1」合取永遠不成立，頁面無法完成。
+ * 所以推進後只要還沒追上就自己排下一次取樣；追上或被防 rush 閘門擋下
+ * 時鏈自然終止。間隔要小於 fogGate 的 MAX_SAMPLE_ELAPSED_MS，否則
+ * elapsed 被截斷會讓追趕變慢。
+ */
+const FOG_CATCHUP_INTERVAL_MS = 240;
+
 /** 續讀跳轉進行中的旗標（sessionStorage）。更名理由同 SIDEBAR_STATE_KEY。 */
 const READING_RESUME_JUMP_KEY = 'uep.reading-resume-jump';
 
@@ -409,8 +421,15 @@ export default function HistoryReader() {
    * 丟棄……迷霧永遠不會前進。量化是「寫入頻率」的節流，不能兼任積分器。
    */
   const fogAccumRef = useRef(0);
+  /** 追趕取樣的 timer（語意見 FOG_CATCHUP_INTERVAL_MS） */
+  const fogCatchupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sampleFog = useCallback(() => {
+    // 捲動取樣與追趕取樣共用入口——先清掉排程中的追趕，避免雙鏈並行
+    if (fogCatchupTimerRef.current) {
+      clearTimeout(fogCatchupTimerRef.current);
+      fogCatchupTimerRef.current = null;
+    }
     const pageId = currentIdRef.current;
     const el = scrollRef.current;
     const now = performance.now();
@@ -441,13 +460,27 @@ export default function HistoryReader() {
     if (next == null || next <= fogAccumRef.current) return;
     fogAccumRef.current = next;
     getProgressManager().advanceFog(pageId, next);
+    // 還沒追上讀者的合法位置 → 排下一次追趕。防 rush 語意不變：追趕的
+    // 目標永遠是「讀者目前位置」且要先過跳躍門檻，跳太遠的人一步都不動
+    if (next < ratio) {
+      fogCatchupTimerRef.current = setTimeout(() => {
+        fogCatchupTimerRef.current = null;
+        sampleFog();
+      }, FOG_CATCHUP_INTERVAL_MS);
+    }
   }, []);
 
   // 換頁：重置速率積分與取樣時間，否則新頁面會沿用上一頁的累積值，
-  // 且首次取樣不再被視為「進頁第一次」
+  // 且首次取樣不再被視為「進頁第一次」；上一頁排程中的追趕也要作廢
   useEffect(() => {
     fogAccumRef.current = 0;
     lastFogSampleAtRef.current = 0;
+    return () => {
+      if (fogCatchupTimerRef.current) {
+        clearTimeout(fogCatchupTimerRef.current);
+        fogCatchupTimerRef.current = null;
+      }
+    };
   }, [currentId]);
 
   // 最近捲動速度供 autoplay 防禦使用。停止 180ms 後歸零，避免使用者
