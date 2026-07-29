@@ -50,6 +50,8 @@ let pendingSeekTime: number | null = null;
 let isSeeking = false;
 let rafId = 0;
 let lastPersistAt = 0;
+/** 插播世代序號——判斷失敗回滾是否已被更新的插播取代（見 interrupt） */
+let interruptGeneration = 0;
 const listeners: Listener[] = [];
 const MAX_HISTORY_ITEMS = 50;
 let state: AudioState = bootstrapState();
@@ -688,6 +690,7 @@ export const uepAudio = {
     title?: string,
     accent?: string
   ): Promise<boolean> {
+    const generation = ++interruptGeneration;
     const tookSnapshot = !state.interruptionSnapshot;
     if (tookSnapshot) {
       setState({
@@ -705,7 +708,15 @@ export const uepAudio = {
     return this.play(songId, url, title, accent, false).then((played) => {
       // 快照非本次拍的（插播中再插播失敗）不動——恢復點仍是使用者狀態；
       // 期間快照已被他處消化（如離頁 restore）也不重複回滾。
-      if (!played && tookSnapshot && state.interruptionSnapshot) {
+      // 已被更新的插播取代（雙 echo spot 連續通過）也不回滾——本次的
+      // play 是被新插播換 src 打斷的（AbortError），不是真的播不出來；
+      // 這裡回滾會把正在載入的新插播踩掉、讓原曲復活。
+      if (
+        !played &&
+        tookSnapshot &&
+        state.interruptionSnapshot &&
+        generation === interruptGeneration
+      ) {
         this.restoreFromInterruption();
       }
       return played;

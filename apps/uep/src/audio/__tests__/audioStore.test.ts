@@ -476,6 +476,38 @@ describe('插播（echo spot）', () => {
     expect(s.interruptionSnapshot?.songId).toBe('a');
   });
 
+  it('前一個插播 play 未落定時再 interrupt：舊回滾不得踩掉新插播（雙 spot race）', async () => {
+    const { uepAudio } = await freshStore();
+    await uepAudio.play('a', 'ua', '甲');
+    await flush();
+    const audio = lastAudio();
+    // 模擬真實瀏覽器：換 src 載入會讓尚未落定的 play() 以 AbortError reject
+    const pending = {
+      resolve: null as (() => void) | null,
+      reject: null as ((err: Error) => void) | null,
+    };
+    audio.play = vi.fn(() => {
+      pending.reject?.(new Error('AbortError'));
+      return new Promise<void>((resolve, reject) => {
+        pending.resolve = resolve;
+        pending.reject = reject;
+      });
+    });
+
+    const first = uepAudio.interrupt('spot1', 'u1');
+    const second = uepAudio.interrupt('spot2', 'u2');
+    pending.resolve?.();
+    const [playedFirst, playedSecond] = await Promise.all([first, second]);
+    await flush();
+
+    expect(playedFirst).toBe(false);
+    expect(playedSecond).toBe(true);
+    // 修復前：spot1 的失敗回滾會 restoreFromInterruption，把載入中的
+    // spot2 踩掉、原曲復活——第二個 spot 永遠「插播不了」
+    expect(uepAudio.getState().currentSongId).toBe('spot2');
+    expect(uepAudio.getState().interruptionSnapshot?.songId).toBe('a');
+  });
+
   it('插播曲已是當前曲（暫停中）→ 仍從頭插播，restore 回原位置維持暫停', async () => {
     const { uepAudio } = await freshStore();
     uepAudio.play('a', 'ua', '甲');
