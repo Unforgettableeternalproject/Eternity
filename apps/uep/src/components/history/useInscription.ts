@@ -129,8 +129,14 @@ export function useInscription({
     let staggerIndex = 0;
     for (const el of blocks) {
       if (el.hasAttribute(INSCRIBED_ATTR)) continue;
-      const ratio = computeElementRatio(el, scroller);
-      if (ratio <= effective) {
+      // 比區塊「底緣」不比頂端：頂端過線就顯影會讓身體仍壓在刻印線
+      // 之下的段落提前現形，完全越線才算寫完
+      const topRatio = computeElementRatio(el, scroller);
+      const bottomRatio =
+        scroller.scrollHeight > 0
+          ? topRatio + el.getBoundingClientRect().height / scroller.scrollHeight
+          : topRatio;
+      if (bottomRatio <= effective) {
         el.setAttribute(INSCRIBED_ATTR, '1');
         const wasHidden = el.classList.contains(UNWRITTEN_CLASS);
         el.classList.remove(UNWRITTEN_CLASS);
