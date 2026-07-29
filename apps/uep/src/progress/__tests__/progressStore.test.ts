@@ -301,6 +301,30 @@ describe('頁面完成與浮島', () => {
     expect(uepProgress.getState().fogRatio['history/p3']).toBeUndefined();
   });
 
+  it('resetPageProgress 抹除單頁足跡，其他頁與非完成旗標不動（DevTools 重測）', async () => {
+    const { uepProgress } = await freshStore();
+    const page = 'history/p1';
+    uepProgress.advanceFog(page, 0.6);
+    uepProgress.advanceFog('history/other', 0.3);
+    uepProgress.updatePageMarker(page, 2, 2, 3);
+    uepProgress.markPageCompleted(page);
+    uepProgress.grantFlags([`completed:${page}`, 'entity:some-echo']);
+
+    uepProgress.resetPageProgress(page);
+    const state = uepProgress.getState();
+    expect(state.fogRatio[page]).toBeUndefined();
+    expect(state.pageMarkers[page]).toBeUndefined();
+    expect(state.completedPageIds).not.toContain(page);
+    expect(state.flags).not.toContain(`completed:${page}`);
+    // 別頁的迷霧與收藏旗標不受影響
+    expect(state.fogRatio['history/other']).toBe(0.3);
+    expect(state.flags).toContain('entity:some-echo');
+
+    // 空字串 no-op
+    uepProgress.resetPageProgress('');
+    expect(uepProgress.getState().fogRatio['history/other']).toBe(0.3);
+  });
+
   it('markPageVisited 記錄最後造訪頁與時間', async () => {
     const { uepProgress } = await freshStore();
     uepProgress.markPageVisited('history/u/1');

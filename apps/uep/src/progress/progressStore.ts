@@ -46,6 +46,7 @@ export interface ProgressChangeDetail {
     | 'island-setting'
     | 'marker-update'
     | 'fog-advance'
+    | 'page-reset'
     | 'page-visited'
     | 'lost-bookmark'
     | 'reading-time'
@@ -616,6 +617,32 @@ export const uepProgress = {
         [pageId]: Math.round(next * factor) / factor,
       },
     }));
+  },
+
+  /**
+   * 抹除單一頁面的閱讀足跡（DevTools 重測用）：completed、完成旗標、
+   * fogRatio 與 pageMarkers 一併清除，讓迷霧重新罩上。
+   *
+   * ⚠️ 這是測試工具，不是給正式流程的「取消已讀」：fogRatio 的跨裝置
+   * 合併是 per-key Math.max（mergeHydrated），另一台裝置或稍後的
+   * hydrate 仍持有舊值時會把進度合併回來。
+   */
+  resetPageProgress(pageId: string): void {
+    if (!pageId) return;
+    const flag = `${COMPLETION_FLAG_PREFIX}${pageId}`;
+    mutate('page-reset', (p) => {
+      const fogRatio = { ...p.fogRatio };
+      delete fogRatio[pageId];
+      const pageMarkers = { ...p.pageMarkers };
+      delete pageMarkers[pageId];
+      return {
+        ...p,
+        completedPageIds: p.completedPageIds.filter((id) => id !== pageId),
+        flags: p.flags.filter((f) => f !== flag),
+        fogRatio,
+        pageMarkers,
+      };
+    });
   },
 
   /**

@@ -8,6 +8,7 @@
  */
 
 import { registerProgressActions } from './progressActions';
+import { registerFogActions } from './fogActions';
 import { registerIslandActions } from './islandActions';
 import { registerOnboardingActions } from './onboardingActions';
 import { registerAudioActions } from './audioActions';
@@ -17,6 +18,7 @@ import { registerProtectionActions } from './protectionActions';
 
 export function registerAllActions(): void {
   registerProgressActions();
+  registerFogActions();
   registerIslandActions();
   registerOnboardingActions();
   registerAudioActions();
