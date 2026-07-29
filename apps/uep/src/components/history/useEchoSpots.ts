@@ -54,7 +54,7 @@ interface PendingEchoSpot {
   accent: string;
   newlyUnlocked: boolean;
   visitToken: number;
-  /** 誤觸降級的 spot：展開島後只補提示卡，不得補播。 */
+  /** 降級的 spot（L3 防劇透封印）：展開島後只補提示卡，不得補播。 */
   downgraded?: boolean;
 }
 
@@ -185,31 +185,40 @@ export async function refreshEchoSpot(
 interface EchoSpotDowngradeInput {
   isStory: boolean;
   spoilerLevel: SpoilerLevel;
-  interacted: boolean;
-  autoplayAttempted: boolean;
-  resumeJump: boolean;
-  scrollVelocity: number;
 }
 
-/** 劇情歌正常掃描必須嘗試插播；只有真正的跳轉誤觸才預先降級。 */
+/**
+ * 誤觸判定：resume jump（系統代捲）與快速捲動掃過的 spot 整個事件
+ * 視為不存在（2026-07-29 定案，對齊迷霧遮蔽語意）——不去重、不授旗、
+ * 不留等待 chip。回捲用正常速度再經過時照常觸發。
+ *
+ * 舊行為是「降級成提示卡＋dock 等待」：rush 測試時右下角冒出
+ * 「有回聲等待中」，看起來像遮蔽失效。
+ */
+export function isEchoSpotMisfire(
+  resumeJump: boolean,
+  scrollVelocity: number
+): boolean {
+  return resumeJump || scrollVelocity > FAST_SCROLL_PX_PER_SECOND;
+}
+
+/** 插播前降級：只剩 L3 防劇透封印（誤觸已在事件入口整個略過）。 */
 export function shouldDowngradeEchoSpot({
   isStory,
   spoilerLevel,
-  resumeJump,
-  scrollVelocity,
 }: EchoSpotDowngradeInput): boolean {
-  if (resumeJump || scrollVelocity > FAST_SCROLL_PX_PER_SECOND) return true;
-  // 正常掃描一律實際嘗試插播；只有 L3 仍維持防劇透封印。
   return !isStory && spoilerLevel >= 3;
 }
 
 /**
  * History 掃描線的 Echo Spot 消費端。
  *
- * 不變量：授旗永遠無條件執行（不受島掛載、手勢、快速捲動與 resume
- * jump 限制），確保讀者尚未解鎖島時收藏進度仍會累積——但授旗必須
- * 等 by-id 反查落地後以**現行 entityKey** 進行（Admin 改綁後快照
- * entityKey 會授出對不上收藏判定的舊旗）；反查失敗才退回快照值。
+ * 不變量：事件成立後授旗無條件執行（不受島掛載限制），確保讀者尚未
+ * 解鎖島時收藏進度仍會累積——但授旗必須等 by-id 反查落地後以**現行
+ * entityKey** 進行（Admin 改綁後快照 entityKey 會授出對不上收藏判定
+ * 的舊旗）；反查失敗才退回快照值。
+ * 誤觸（rush／resume jump）整個事件不成立（見 isEchoSpotMisfire）——
+ * 遮蔽語意優先於收藏累積，正常速度再經過時才觸發、才授旗。
  * 播放與提示卡另在反查落地後重驗島掛載——等待期間登出/停用 Echoes
  * 時不得再插播。
  */
@@ -222,9 +231,7 @@ export function useEchoSpots({
 }: UseEchoSpotsOptions) {
   const progressRef = useRef(progress);
   progressRef.current = progress;
-  const interactedRef = useRef(false);
   const triggeredRef = useRef(new Set<string>());
-  const autoplayAttemptedRef = useRef(false);
   const visitTokenRef = useRef(0);
   const pendingRef = useRef<PendingEchoSpot | null>(null);
 
@@ -235,7 +242,6 @@ export function useEchoSpots({
 
   const attemptInterrupt = useCallback((pending: PendingEchoSpot) => {
     if (visitTokenRef.current !== pending.visitToken) return;
-    autoplayAttemptedRef.current = true;
     void getAudioStore()
       .interrupt(
         pending.effective.songId,
@@ -280,24 +286,9 @@ export function useEchoSpots({
   );
 
   useEffect(() => {
-    const markInteracted = () => {
-      interactedRef.current = true;
-    };
-    window.addEventListener('click', markInteracted, true);
-    window.addEventListener('keydown', markInteracted, true);
-    window.addEventListener('touchstart', markInteracted, true);
-    return () => {
-      window.removeEventListener('click', markInteracted, true);
-      window.removeEventListener('keydown', markInteracted, true);
-      window.removeEventListener('touchstart', markInteracted, true);
-    };
-  }, []);
-
-  useEffect(() => {
     visitTokenRef.current += 1;
     clearPending();
     triggeredRef.current = new Set();
-    autoplayAttemptedRef.current = false;
     if (pageId) {
       const prefix = `uep.echo-spot.triggered.${pageId}.`;
       for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
@@ -325,6 +316,12 @@ export function useEchoSpots({
       const spot = readEchoSpot(info.element);
       if (!spot) return;
 
+      // 誤觸 = 事件不存在：在去重**之前**擋掉，痕跡一律不留——
+      // 記進去重集合的話，回捲重讀時 spot 就永遠不會再響
+      if (isEchoSpotMisfire(resumeJumpRef.current, scrollVelocityRef.current)) {
+        return;
+      }
+
       if (triggeredRef.current.has(spot.spotId)) return;
       triggeredRef.current.add(spot.spotId);
       try {
@@ -333,10 +330,6 @@ export function useEchoSpots({
         // 隱私模式下 sessionStorage 可能不可寫；記憶體 Set 仍可去重。
       }
 
-      // 誤觸判定輸入在觸發當下同步擷取——反查有網路延遲，
-      // 事後再讀 scrollVelocity 會讓快速捲動的誤觸判定失真。
-      const resumeJump = resumeJumpRef.current;
-      const scrollVelocity = scrollVelocityRef.current;
       const visitToken = visitTokenRef.current;
 
       void refreshEchoSpot(apiBase, spot).then((effective) => {
@@ -389,10 +382,6 @@ export function useEchoSpots({
         const shouldDowngrade = shouldDowngradeEchoSpot({
           isStory,
           spoilerLevel,
-          interacted: interactedRef.current,
-          autoplayAttempted: autoplayAttemptedRef.current,
-          resumeJump,
-          scrollVelocity,
         });
         const pending: PendingEchoSpot = {
           effective,

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MarkerPassedInfo, ProgressState } from '../../../progress';
 import { getEchoSpotWaiting } from '../../../islands/echoes/echoPreview';
 import {
+  isEchoSpotMisfire,
   readEchoSpot,
   refreshEchoSpot,
   shouldDowngradeEchoSpot,
@@ -38,6 +39,7 @@ function stubOfflineFetch(): void {
 const audioMock = vi.hoisted(() => ({
   interruptResult: true,
   collected: false,
+  spoilerLevel: 0,
   interrupt: vi.fn(() => Promise.resolve(audioMock.interruptResult)),
 }));
 const grantFlags = vi.hoisted(() => vi.fn());
@@ -74,7 +76,7 @@ vi.mock('../../../audio', () => ({
     getState: () => ({ interruptionSnapshot: null }),
   }),
   isSongCollected: () => audioMock.collected,
-  resolveSpoilerLevel: () => 0,
+  resolveSpoilerLevel: () => audioMock.spoilerLevel,
 }));
 vi.mock('../../../islands/islandRuntime', () => ({
   shouldMountIsland: () => islandMock.mounted,
@@ -146,53 +148,35 @@ describe('readEchoSpot', () => {
   });
 });
 
-describe('shouldDowngradeEchoSpot', () => {
-  it('劇情歌在正常捲動時即使無手勢或已有嘗試也直接走插播', () => {
-    expect(
-      shouldDowngradeEchoSpot({
-        isStory: true,
-        spoilerLevel: 3,
-        interacted: false,
-        autoplayAttempted: true,
-        resumeJump: false,
-        scrollVelocity: 200,
-      })
-    ).toBe(false);
+describe('isEchoSpotMisfire（2026-07-29：誤觸＝事件不存在）', () => {
+  it('resume jump 或快速捲動視為誤觸', () => {
+    expect(isEchoSpotMisfire(true, 0)).toBe(true);
+    expect(isEchoSpotMisfire(false, 2000)).toBe(true);
   });
 
-  it('一般歌曲正常掃描不再因無手勢或既有 autoplay 嘗試預先降級', () => {
-    expect(
-      shouldDowngradeEchoSpot({
-        isStory: false,
-        spoilerLevel: 0,
-        interacted: false,
-        autoplayAttempted: true,
-        resumeJump: false,
-        scrollVelocity: 200,
-      })
-    ).toBe(false);
+  it('正常捲動不是誤觸', () => {
+    expect(isEchoSpotMisfire(false, 200)).toBe(false);
+    expect(isEchoSpotMisfire(false, 1500)).toBe(false);
   });
-  it('劇情歌遇到 resume jump 或快速捲動仍視為 misfire', () => {
-    const base = {
-      isStory: true,
-      spoilerLevel: 0 as const,
-      interacted: true,
-      autoplayAttempted: false,
-    };
-    expect(
-      shouldDowngradeEchoSpot({
-        ...base,
-        resumeJump: true,
-        scrollVelocity: 0,
-      })
-    ).toBe(true);
-    expect(
-      shouldDowngradeEchoSpot({
-        ...base,
-        resumeJump: false,
-        scrollVelocity: 2000,
-      })
-    ).toBe(true);
+});
+
+describe('shouldDowngradeEchoSpot（只剩 L3 防劇透封印）', () => {
+  it('劇情歌不受 spoiler 分級降級', () => {
+    expect(shouldDowngradeEchoSpot({ isStory: true, spoilerLevel: 3 })).toBe(
+      false
+    );
+  });
+
+  it('一般歌曲 L3 降級為提示卡；L2 以下照常插播', () => {
+    expect(shouldDowngradeEchoSpot({ isStory: false, spoilerLevel: 3 })).toBe(
+      true
+    );
+    expect(shouldDowngradeEchoSpot({ isStory: false, spoilerLevel: 2 })).toBe(
+      false
+    );
+    expect(shouldDowngradeEchoSpot({ isStory: false, spoilerLevel: 0 })).toBe(
+      false
+    );
   });
 });
 
@@ -249,6 +233,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
     audioMock.interrupt.mockClear();
     audioMock.interruptResult = true;
     audioMock.collected = false;
+    audioMock.spoilerLevel = 0;
     islandMock.mounted = true;
     islandMock.open = true;
     islandMock.listeners.clear();
@@ -281,16 +266,19 @@ describe('useEchoSpots 提示卡發送時機', () => {
     };
   }
 
-  function renderSpots(resumeJump = false) {
-    return renderHook(() =>
+  function renderSpots(resumeJump = false, velocity = 0) {
+    const resumeJumpRef = { current: resumeJump };
+    const scrollVelocityRef = { current: velocity };
+    const view = renderHook(() =>
       useEchoSpots({
         pageId: 'history/p1',
         progress: {} as ProgressState,
         apiBase: 'http://localhost:8788',
-        resumeJumpRef: { current: resumeJump },
-        scrollVelocityRef: { current: 0 },
+        resumeJumpRef,
+        scrollVelocityRef,
       })
     );
+    return { ...view, resumeJumpRef, scrollVelocityRef };
   }
 
   it('插播成功只發一張 played 卡（純告知），並帶本次新收藏資訊', async () => {
@@ -411,21 +399,43 @@ describe('useEchoSpots 提示卡發送時機', () => {
     unmount();
   });
 
-  it('resume jump 誤觸 → 不嘗試插播，直接發 spot 卡', async () => {
+  it('resume jump 誤觸 → 事件不存在：不插播、不發卡、不亮 chip、不授旗', async () => {
+    islandMock.open = false;
     const { result, unmount } = renderSpots(true);
     await act(async () => {
       result.current(markerInfo(spotElement()));
     });
     expect(audioMock.interrupt).not.toHaveBeenCalled();
-    expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'spot' })
-    );
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(grantFlags).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(false);
     unmount();
   });
 
-  it('誤觸降級遇上島收合 → 提示卡也要等展開，先亮 dock chip', async () => {
+  it('快速捲動（rush）誤觸 → 事件不存在，且不去重：恢復正常速度再過照常插播', async () => {
+    const { result, scrollVelocityRef, unmount } = renderSpots(false, 2000);
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    // rush 掃過：什麼都沒發生，也沒有留下任何痕跡
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(grantFlags).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(false);
+
+    // 回捲後以正常速度再通過同一個 spot → 照常觸發
+    scrollVelocityRef.current = 200;
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it('L3 防劇透封印遇上島收合 → 提示卡等展開，先亮 dock chip、不補播', async () => {
+    audioMock.spoilerLevel = 3;
     islandMock.open = false;
-    const { result, unmount } = renderSpots(true);
+    const { result, unmount } = renderSpots();
     await act(async () => {
       result.current(markerInfo(spotElement()));
     });
@@ -448,6 +458,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
   });
 
   it('降級的等待事件在離開文章後丟棄，展開不補卡', async () => {
+    audioMock.spoilerLevel = 3;
     islandMock.open = false;
     const { result, rerender, unmount } = renderHook(
       ({ pageId }) =>
@@ -455,7 +466,7 @@ describe('useEchoSpots 提示卡發送時機', () => {
           pageId,
           progress: {} as ProgressState,
           apiBase: 'http://localhost:8788',
-          resumeJumpRef: { current: true },
+          resumeJumpRef: { current: false },
           scrollVelocityRef: { current: 0 },
         }),
       { initialProps: { pageId: 'history/p1' as string | null } }
