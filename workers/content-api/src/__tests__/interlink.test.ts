@@ -10,14 +10,15 @@ import {
 import type { KeyCandidate, KeyConflictQuery } from '../interlink';
 
 /**
- * 跨區互聯：資料表結構（T-B1）與 key 唯一性把關（T-B2）
+ * 跨區互聯：資料表結構與 key 唯一性把關
  *
- * migration 0022 建立的兩張表：history_interlink_index（History 三種
- * 標記的反向索引）與 story_points（劇情點標題／說明）。
+ * `history_interlink_index`（History 三種標記的反向索引）來自 migration
+ * 0022；`interlink_keys`（key 的標題／說明，取代原本只收 story 的
+ * `story_points`）與 `uep_flags`（自訂旗標註冊表）來自 0023。
  *
  * 表結構的驗證重點放在**約束**而非欄位存在——欄位打錯型別測試自然會炸，
- * 但 CHECK 約束寫錯（例如少列一種 anchor_kind）要等到 E 段真的寫入
- * 索引時才會發現，屆時錯誤訊息會指向寫入端而不是 migration。
+ * 但 CHECK 約束寫錯（例如少列一種 anchor_kind）要等到真的寫入索引時
+ * 才會發現，屆時錯誤訊息會指向寫入端而不是 migration。
  */
 
 async function tableExists(name: string): Promise<boolean> {
@@ -50,15 +51,18 @@ async function insertRejected(sql: string, ...params: string[]) {
   }
 }
 
-describe('migration 0022 — 表與索引', () => {
-  it('history_interlink_index 與 story_points 兩張表都已建立', async () => {
+describe('互聯相關資料表與索引', () => {
+  it('三張表都已建立，且 story_points 已被 interlink_keys 取代', async () => {
     expect(await tableExists('history_interlink_index')).toBe(true);
-    expect(await tableExists('story_points')).toBe(true);
+    expect(await tableExists('interlink_keys')).toBe(true);
+    expect(await tableExists('uep_flags')).toBe(true);
+    expect(await tableExists('story_points')).toBe(false);
   });
 
-  it('查詢用的兩個索引都已建立', async () => {
+  it('查詢用的索引都已建立', async () => {
     expect(await indexExists('idx_hii_key')).toBe(true);
     expect(await indexExists('idx_hii_page')).toBe(true);
+    expect(await indexExists('idx_uep_flags_category')).toBe(true);
   });
 });
 
@@ -161,39 +165,49 @@ describe('history_interlink_index — 約束', () => {
   });
 });
 
-describe('story_points — 約束', () => {
-  it('story_key 是主鍵，重複寫入被拒；INSERT OR IGNORE 則靜默略過', async () => {
-    await env.CONTENT_DB.prepare(
-      `INSERT INTO story_points (story_key, title, description, created_at, updated_at)
-       VALUES ('sp-dup', NULL, NULL, datetime('now'), datetime('now'))`
-    ).run();
+describe('interlink_keys — 約束', () => {
+  const INSERT = `INSERT INTO interlink_keys
+    (key_type, key_value, title, description, created_at, updated_at)
+    VALUES (?, ?, NULL, NULL, datetime('now'), datetime('now'))`;
 
-    expect(
-      await insertRejected(
-        `INSERT INTO story_points (story_key, title, description, created_at, updated_at)
-         VALUES (?, NULL, NULL, datetime('now'), datetime('now'))`,
-        'sp-dup'
-      )
-    ).toBe(true);
+  it('(key_type, key_value) 是複合主鍵，重複寫入被拒；INSERT OR IGNORE 靜默略過', async () => {
+    await env.CONTENT_DB.prepare(INSERT).bind('story', 'sp-dup').run();
 
-    // 寫入路徑實際用的是 INSERT OR IGNORE 建殼（見設計文件 §2-4）
+    expect(await insertRejected(INSERT, 'story', 'sp-dup')).toBe(true);
+
+    // 寫入路徑實際用的是 INSERT OR IGNORE 建殼，不得覆蓋已填好的標題
     await env.CONTENT_DB.prepare(
-      `INSERT OR IGNORE INTO story_points (story_key, title, description, created_at, updated_at)
-       VALUES ('sp-dup', '不該覆蓋', NULL, datetime('now'), datetime('now'))`
+      `INSERT OR IGNORE INTO interlink_keys
+         (key_type, key_value, title, description, created_at, updated_at)
+       VALUES ('story', 'sp-dup', '不該覆蓋', NULL, datetime('now'), datetime('now'))`
     ).run();
     const row = await env.CONTENT_DB.prepare(
-      `SELECT title FROM story_points WHERE story_key = 'sp-dup'`
+      `SELECT title FROM interlink_keys
+       WHERE key_type = 'story' AND key_value = 'sp-dup'`
     ).first<{ title: string | null }>();
     expect(row?.title).toBeNull();
   });
 
-  it('title / description 可為 NULL（S10-1 建殼階段全程為空）', async () => {
-    await env.CONTENT_DB.prepare(
-      `INSERT INTO story_points (story_key, title, description, created_at, updated_at)
-       VALUES ('sp-shell', NULL, NULL, datetime('now'), datetime('now'))`
-    ).run();
+  it('同一個 key 值可同時以 entity 與 story 兩種身分存在', async () => {
+    // 兩個命名空間平行且允許重疊（S10-1 §2-1），複合主鍵必須容得下
+    await env.CONTENT_DB.prepare(INSERT).bind('entity', 'overlap').run();
+    await env.CONTENT_DB.prepare(INSERT).bind('story', 'overlap').run();
+    const rows = await env.CONTENT_DB.prepare(
+      `SELECT key_type FROM interlink_keys WHERE key_value = 'overlap'
+       ORDER BY key_type`
+    ).all<{ key_type: string }>();
+    expect(rows.results?.map((r) => r.key_type)).toEqual(['entity', 'story']);
+  });
+
+  it('key_type 只收 entity / story', async () => {
+    expect(await insertRejected(INSERT, 'gallery', 'bad-type')).toBe(true);
+  });
+
+  it('title / description 可為 NULL（建殼階段皆為空）', async () => {
+    await env.CONTENT_DB.prepare(INSERT).bind('story', 'sp-shell').run();
     const row = await env.CONTENT_DB.prepare(
-      `SELECT title, description FROM story_points WHERE story_key = 'sp-shell'`
+      `SELECT title, description FROM interlink_keys
+       WHERE key_type = 'story' AND key_value = 'sp-shell'`
     ).first<{ title: string | null; description: string | null }>();
     expect(row?.title).toBeNull();
     expect(row?.description).toBeNull();

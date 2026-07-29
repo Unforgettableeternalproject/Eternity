@@ -308,7 +308,7 @@ describe('sync/import — 更新既有頁的 metadata', () => {
       'imp-story-new'
     );
     const row = await env.CONTENT_DB.prepare(
-      'SELECT story_key FROM story_points WHERE story_key = ?'
+      "SELECT key_value FROM interlink_keys WHERE key_type = 'story' AND key_value = ?"
     )
       .bind('imp-story-new')
       .first();
@@ -440,8 +440,8 @@ describe('sync/import — key 唯一性把關', () => {
   });
 });
 
-describe('sync/import — storyKey 殼列', () => {
-  it('匯入劇情歌時建立 story_points 殼列', async () => {
+describe('sync/import — key 殼列', () => {
+  it('匯入劇情歌時建立 interlink_keys 殼列', async () => {
     await importPages([
       page({
         id: 'echoes/imp/story-song',
@@ -452,11 +452,29 @@ describe('sync/import — storyKey 殼列', () => {
     ]);
 
     const row = await env.CONTENT_DB.prepare(
-      'SELECT story_key, title FROM story_points WHERE story_key = ?'
+      "SELECT key_value, title FROM interlink_keys WHERE key_type = 'story' AND key_value = ?"
     )
       .bind('imp-rain-sea')
-      .first<{ story_key: string; title: string | null }>();
-    expect(row).toMatchObject({ story_key: 'imp-rain-sea', title: null });
+      .first<{ key_value: string; title: string | null }>();
+    expect(row).toMatchObject({ key_value: 'imp-rain-sea', title: null });
+  });
+
+  it('匯入帶 entityKey 的頁面同樣建立殼列', async () => {
+    await importPages([
+      page({
+        id: 'echoes/imp/entity-song',
+        area: 'echoes',
+        pageType: 'song',
+        metadata: { entityKey: 'imp-entity-song' },
+      }),
+    ]);
+
+    const row = await env.CONTENT_DB.prepare(
+      "SELECT key_value, title FROM interlink_keys WHERE key_type = 'entity' AND key_value = ?"
+    )
+      .bind('imp-entity-song')
+      .first<{ key_value: string; title: string | null }>();
+    expect(row).toMatchObject({ key_value: 'imp-entity-song', title: null });
   });
 });
 
@@ -578,8 +596,8 @@ describe('POST /api/interlink/reindex — migration 0022 的資料補建', () =>
 
   /**
    * 殼列平常只在存檔路徑建立——遷移腳本直接改寫 metadata（例如
-   * illustrationId → storyKey）產生的 key 因此永遠沒有殼列，S10-3 的
-   * 編輯 UI 會找不到可 UPDATE 的列。
+   * illustrationId → storyKey）產生的 key 因此永遠沒有殼列，管理 UI
+   * 會找不到可 UPDATE 的列。
    */
   it('直接寫進 metadata 的 storyKey 在 reindex 後補上殼列', async () => {
     await env.CONTENT_DB.prepare(
@@ -595,7 +613,7 @@ describe('POST /api/interlink/reindex — migration 0022 的資料補建', () =>
       .run();
 
     const before = await env.CONTENT_DB.prepare(
-      'SELECT story_key FROM story_points WHERE story_key = ?'
+      "SELECT key_value FROM interlink_keys WHERE key_type = 'story' AND key_value = ?"
     )
       .bind('imp-migrated-story')
       .first();
@@ -611,7 +629,7 @@ describe('POST /api/interlink/reindex — migration 0022 的資料補建', () =>
     );
 
     const after = await env.CONTENT_DB.prepare(
-      'SELECT story_key FROM story_points WHERE story_key = ?'
+      "SELECT key_value FROM interlink_keys WHERE key_type = 'story' AND key_value = ?"
     )
       .bind('imp-migrated-story')
       .first();

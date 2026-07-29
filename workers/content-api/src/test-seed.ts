@@ -1,6 +1,6 @@
 import {
   backfillHistoryInterlinkIndex,
-  ensureStoryPoints,
+  ensureInterlinkKeys,
   extractCandidateKeys,
 } from './interlink';
 import type { PageRow } from './types';
@@ -47,8 +47,8 @@ export interface TestResetResult {
     siteHomepage: number;
     /** 依 seed 內容重建的 History 錨點數（S10-1 衍生表） */
     interlinkAnchors: number;
-    /** 依 seed 內容重建的劇情點殼列數 */
-    storyPoints: number;
+    /** 依 seed 內容重建的 key 殼列數（entity 與 story 合計） */
+    interlinkKeys: number;
   };
   resetUserProgress: number;
 }
@@ -149,10 +149,16 @@ export function isTestSeedSnapshot(value: unknown): value is TestSeedSnapshot {
  * reset 會清空的業務表。
  *
  * ⚠️ 新增從 `pages` 衍生的資料表時**必須**列進來。`history_interlink_index`
- * 與 `story_points` 是 S10-1 的衍生表：reset 直接重建 pages，衍生表若沒
+ * 與 `interlink_keys` 是衍生表：reset 直接重建 pages，衍生表若沒
  * 一起清，重置後會留下已不存在頁面的錨點；更糟的是 seed 常用同一組
  * page id，舊錨點會被重新 join 出來，看起來像「這篇文章提過某個 key」，
  * 而實際內容裡根本沒有。
+ *
+ * ⚠️ `uep_flags` 刻意**不列入**。它不是從 pages 衍生，而是管理者直接輸入的
+ * 註冊表，而 seed 並不會從正式環境複製旗標註冊。清掉它等於讓 test 環境的
+ * 所有自訂旗標變成「未註冊」，而 seed 種回來的頁面內容裡仍帶著那些旗標——
+ * 之後在 test 編輯任何一頁都會被存檔時的未註冊檢查 409 擋住。
+ * 若之後讓 seed 一併複製旗標註冊，這裡才可以（也才應該）加上 `uep_flags`。
  */
 const BUSINESS_TABLES = [
   'pages',
@@ -165,7 +171,7 @@ const BUSINESS_TABLES = [
   'deleted_assets',
   'root_deleted_assets',
   'history_interlink_index',
-  'story_points',
+  'interlink_keys',
 ] as const;
 
 export async function resetAndSeedTestData(
@@ -356,11 +362,11 @@ export async function resetAndSeedTestData(
       metadata: parseMetadata(row.metadata),
     })
   );
-  await ensureStoryPoints(db, candidates);
-  // 回報的是實際建出的殼列數——ensureStoryPoints 內部只吃 story 候選，
-  // 這裡若對全部候選計數（含 entityKey），數字會比表裡的列多
-  const storyKeys = new Set(
-    candidates.filter((c) => c.keyType === 'story').map((c) => c.keyValue)
+  await ensureInterlinkKeys(db, candidates);
+  // 回報的是實際建出的殼列數——同一個 key 值可能同時以 entity 與 story
+  // 兩種身分出現（分屬不同列），所以用 keyType + keyValue 一起去重
+  const interlinkKeys = new Set(
+    candidates.map((c) => JSON.stringify([c.keyType, c.keyValue]))
   );
   const interlink = await backfillHistoryInterlinkIndex(db);
 
@@ -377,7 +383,7 @@ export async function resetAndSeedTestData(
       rootCards: snapshot.rootCards.length,
       siteHomepage: snapshot.siteHomepage?.length ?? 0,
       interlinkAnchors: interlink.anchors,
-      storyPoints: storyKeys.size,
+      interlinkKeys: interlinkKeys.size,
     },
     resetUserProgress,
   };

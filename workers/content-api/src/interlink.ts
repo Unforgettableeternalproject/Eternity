@@ -393,32 +393,48 @@ export async function backfillHistoryInterlinkIndex(
 }
 
 /**
- * 掃描全站 storyKey 補建 `story_points` 殼列（migration 0022 的另一半）。
+ * 掃描全站 key 補建 `interlink_keys` 殼列（migration 0023 的另一半）。
  *
- * 殼列平常只在存檔路徑建立，所以 migration 之前就存在的 storyKey——
- * 或是由遷移腳本直接改寫 metadata 產生的 storyKey——永遠不會有殼列，
- * S10-3 的編輯 UI 屆時會找不到可 UPDATE 的列。
+ * 殼列平常只在存檔路徑建立，所以 migration 之前就存在的 key——或是由
+ * 遷移腳本直接改寫 metadata 產生的 key——永遠不會有殼列，管理 UI 會
+ * 看到空清單。
  *
- * `INSERT OR IGNORE` 保證不覆蓋既有的標題／說明，可重複執行。
+ * 掃描範圍涵蓋三個 zone：Concepts 條目的 entityKey、Echoes 與 Visuals
+ * 的 entityKey 與 storyKey。`INSERT OR IGNORE` 保證不覆蓋既有的標題／
+ * 說明，可重複執行。
  */
-export async function backfillStoryPoints(
+export async function backfillInterlinkKeys(
   db: D1Database
-): Promise<{ storyKeys: number }> {
-  const [echoes, visuals] = await Promise.all([
+): Promise<{ storyKeys: number; entityKeys: number }> {
+  const [concepts, echoes, visuals] = await Promise.all([
+    buildConceptsEntityIndex(db),
     buildEchoesEntityIndex(db, { includeHidden: true }),
     buildVisualsEntityIndex(db, { includeHidden: true }),
   ]);
-  const candidates: KeyCandidate[] = [...echoes, ...visuals]
-    .filter((entry) => entry.storyKey)
-    .map((entry) => ({
-      keyType: 'story' as const,
-      keyValue: entry.storyKey as string,
-      scope: ZONE_SCOPE,
-      field: 'storyKey',
-    }));
 
-  await ensureStoryPoints(db, candidates);
-  return { storyKeys: new Set(candidates.map((c) => c.keyValue)).size };
+  const candidates: KeyCandidate[] = [];
+  const push = (keyType: 'entity' | 'story', keyValue?: string) => {
+    if (!keyValue) return;
+    candidates.push({
+      keyType,
+      keyValue,
+      scope: ZONE_SCOPE,
+      field: keyType === 'story' ? 'storyKey' : 'entityKey',
+    });
+  };
+
+  for (const entry of concepts) push('entity', entry.entityKey);
+  for (const entry of [...echoes, ...visuals]) {
+    push('entity', entry.entityKey);
+    push('story', entry.storyKey);
+  }
+
+  await ensureInterlinkKeys(db, candidates);
+  const count = (keyType: 'entity' | 'story') =>
+    new Set(
+      candidates.filter((c) => c.keyType === keyType).map((c) => c.keyValue)
+    ).size;
+  return { storyKeys: count('story'), entityKeys: count('entity') };
 }
 
 /**
@@ -539,46 +555,63 @@ export async function findInterlinkDefinitions(
   return out;
 }
 
-/** 劇情點的標題／說明（S10-1 全程為 NULL，S10-3 才有編輯 UI） */
-export async function findStoryPoint(
+/** key 的標題／說明（entity 的 title 恆為 NULL，見 `ensureInterlinkKeys`） */
+export interface InterlinkKeyMeta {
+  title: string | null;
+  description: string | null;
+}
+
+/** 查單一 key 的標題／說明；查無殼列回 `null` */
+export async function findInterlinkKeyMeta(
   db: D1Database,
-  storyKey: string
-): Promise<{ title: string | null; description: string | null } | null> {
+  keyType: 'entity' | 'story',
+  keyValue: string
+): Promise<InterlinkKeyMeta | null> {
   const row = await db
-    .prepare(`SELECT title, description FROM story_points WHERE story_key = ?`)
-    .bind(storyKey)
-    .first<{ title: string | null; description: string | null }>();
+    .prepare(
+      `SELECT title, description FROM interlink_keys
+       WHERE key_type = ? AND key_value = ?`
+    )
+    .bind(keyType, keyValue)
+    .first<InterlinkKeyMeta>();
   return row ?? null;
 }
 
 /**
- * 為候選 key 中的 storyKey 建立 `story_points` 殼列。
+ * 為候選 key 建立 `interlink_keys` 殼列（entity 與 story 都建）。
  *
- * S10-1 全程不寫 title/description（編輯 UI 屬 S10-3），先建殼是為了讓
- * S10-3 直接 UPDATE，不必再設計一套「首次建檔」邏輯。`INSERT OR IGNORE`
- * 保證重複存檔不會覆蓋 S10-3 之後填進去的內容。
+ * 存檔路徑先建殼，管理 UI 才能直接 UPDATE，不必再設計一套「首次建檔」
+ * 邏輯。`INSERT OR IGNORE` 保證重複存檔不會覆蓋已填好的標題／說明。
+ *
+ * title 一律建成 NULL：story 的標題由管理者填，entity 的權威名稱在
+ * Concepts dossier 條目上，這張表永遠不該持有 entity 的名字。
  */
-export async function ensureStoryPoints(
+export async function ensureInterlinkKeys(
   db: D1Database,
   candidates: KeyCandidate[]
 ): Promise<void> {
-  const storyKeys = [
-    ...new Set(
-      candidates.filter((c) => c.keyType === 'story').map((c) => c.keyValue)
-    ),
-  ];
-  if (storyKeys.length === 0) return;
+  // 去重的 map key 用 JSON 陣列而非字串串接：keyValue 的字元集沒有保證，
+  // 任何分隔符都可能出現在值本身而讓兩組不同的 (type, value) 撞成同一把 key
+  const seen = new Map<string, KeyCandidate>();
+  for (const candidate of candidates) {
+    if (!candidate.keyValue) continue;
+    seen.set(
+      JSON.stringify([candidate.keyType, candidate.keyValue]),
+      candidate
+    );
+  }
+  if (seen.size === 0) return;
 
   const now = new Date().toISOString();
   await db.batch(
-    storyKeys.map((key) =>
+    [...seen.values()].map((candidate) =>
       db
         .prepare(
-          `INSERT OR IGNORE INTO story_points
-             (story_key, title, description, created_at, updated_at)
-           VALUES (?, NULL, NULL, ?, ?)`
+          `INSERT OR IGNORE INTO interlink_keys
+             (key_type, key_value, title, description, created_at, updated_at)
+           VALUES (?, ?, NULL, NULL, ?, ?)`
         )
-        .bind(key, now, now)
+        .bind(candidate.keyType, candidate.keyValue, now, now)
     )
   );
 }

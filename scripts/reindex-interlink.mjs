@@ -1,13 +1,14 @@
 /**
- * 互聯衍生表補建腳本（S10-1）
+ * 互聯衍生表補建腳本
  *
- * 呼叫 `POST /api/interlink/reindex`，補建 migration 0022 的兩張表：
+ * 呼叫 `POST /api/interlink/reindex`，補建兩張衍生表：
  *   - history_interlink_index：逐頁掃 content 的三種互聯標記重建錨點
- *   - story_points：掃 Echoes/Visuals 的 storyKey 補殼列
+ *   - interlink_keys：掃 Concepts/Echoes/Visuals 的 entityKey 與 storyKey 補殼列
  *
  * 為什麼需要這一步：migration 只建空表。錨點藏在 content 的 TipTap JSON、
- * storyKey 藏在 metadata JSON，兩者都要逐頁解析，寫不進 SQL migration。
- * 沒跑之前既有內容的觸發模型靜默失效——沒有錯誤，只是永遠不會浮出線索卡。
+ * key 藏在 metadata JSON，兩者都要逐頁解析，寫不進 SQL migration。
+ * 沒跑之前既有內容的觸發模型靜默失效——沒有錯誤，只是永遠不會浮出線索卡；
+ * 管理 UI 的 key 清單也會是空的。
  *
  * 冪等（整頁 DELETE+INSERT／INSERT OR IGNORE），重跑不會累積。
  *
@@ -18,8 +19,8 @@
  *   node scripts/reindex-interlink.mjs --all          # 三個環境依序
  *   API_TOKEN=xxx node scripts/reindex-interlink.mjs --remote   # 非互動
  *
- * ⚠️ 需要與 worker 0.9.15.14 以上搭配才會補 story_points；更舊的版本
- * 只補 history_interlink_index（回應不含 storyKeys 欄位，本腳本會提醒）。
+ * ⚠️ 回應不含 storyKeys／entityKeys 欄位代表 worker 版本過舊（早於
+ * interlink_keys 泛化），只補了 history_interlink_index，本腳本會提醒。
  */
 
 import { resolveWriteToken } from './sync-auth.mjs';
@@ -83,21 +84,23 @@ async function reindex(key, token) {
     return false;
   }
 
-  const { pages = 0, anchors = 0, storyKeys } = json.data || {};
+  const { pages = 0, anchors = 0, storyKeys, entityKeys } = json.data || {};
   console.log(`   ✓ 掃描 ${pages} 頁 History → ${anchors} 個錨點`);
   if (storyKeys === undefined) {
     console.log(
-      '   ! 回應不含 storyKeys——這個 worker 早於 0.9.15.14，story_points 尚未補建'
+      '   ! 回應不含 key 殼列統計——這個 worker 早於 interlink_keys 泛化，殼列尚未補建'
     );
     console.log('     重新部署後再跑一次即可（冪等）');
   } else {
-    console.log(`   ✓ ${storyKeys} 個劇情點殼列`);
+    console.log(
+      `   ✓ ${storyKeys} 個劇情點殼列、${entityKeys ?? 0} 個實體殼列`
+    );
   }
   return true;
 }
 
 async function main() {
-  console.log('\n=== 互聯衍生表補建（S10-1）===');
+  console.log('\n=== 互聯衍生表補建 ===');
   console.log(`目標：${selected.map((k) => TARGETS[k].label).join('、')}`);
 
   // 登入一律打正式 worker：test D1 的 admin_users 是空的，且兩邊

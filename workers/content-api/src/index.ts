@@ -31,15 +31,15 @@ import {
   findDuplicateCandidate,
   findKeyConflict,
   createKeyConflictChecker,
-  ensureStoryPoints,
+  ensureInterlinkKeys,
   rebuildHistoryInterlinkIndex,
   rebuildHistoryInterlinkIndexBatch,
   backfillHistoryInterlinkIndex,
-  backfillStoryPoints,
+  backfillInterlinkKeys,
   clearHistoryInterlinkIndex,
   findInterlinkAnchors,
   findInterlinkDefinitions,
-  findStoryPoint,
+  findInterlinkKeyMeta,
 } from './interlink';
 import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
@@ -519,8 +519,8 @@ async function upsertPage(
     }
   }
 
-  // storyKey 首次出現時建立 story_points 殼列（S10-1 §2-4）
-  await ensureStoryPoints(db, keyCandidates);
+  // key 首次出現時建立 interlink_keys 殼列（S10-3 §2-2）
+  await ensureInterlinkKeys(db, keyCandidates);
 
   // History 頁的三種互聯標記在內容寫入後重建反向索引。
   // 只在這次請求真的帶了 content 時重建——PUT 支援部分更新，
@@ -655,7 +655,7 @@ async function importPages(
   // ---- S10 寫入契約（S10-1 修補）----
   //
   // 這個端點原本直接 INSERT/UPDATE，繞過 upsertPage 的三道關卡：撞名寫得
-  // 進來、storyKey 沒有 story_points 殼列、History 反向索引不建也不更新。
+  // 進來、key 沒有 interlink_keys 殼列、History 反向索引不建也不更新。
   // 而 migrate-history / migrate-echoes / migrate-visuals / migrate-concepts
   // 全部走這裡——等於主要的內容寫入路徑完全沒有把關。
   //
@@ -857,8 +857,8 @@ async function importPages(
   }
 
   // ---- 後置動作：與 upsertPage 同一組（S10-1 §2-4 / §4）----
-  // storyKey 殼列先於索引重建，順序與單頁存檔一致
-  await ensureStoryPoints(
+  // key 殼列先於索引重建，順序與單頁存檔一致
+  await ensureInterlinkKeys(
     db,
     accepted.flatMap((entry) => entry.candidates)
   );
@@ -1718,22 +1718,19 @@ export default {
       return getSyncStatus(env.CONTENT_DB, cors);
     }
 
-    // POST /api/interlink/reindex — 補建 migration 0022 的兩張表（S10-1）
+    // POST /api/interlink/reindex — 補建衍生表（history_interlink_index
+    // 與 interlink_keys）
     //
     // migration 只建了空表，套用後既有文章的錨點一筆都查不到，觸發模型
-    // 對所有舊內容靜默失效；既有的 storyKey 也不會有 story_points 殼列
-    // （殼列平常只在存檔路徑建立），S10-3 的編輯 UI 會無列可更新。
+    // 對所有舊內容靜默失效；既有的 key 也不會有 interlink_keys 殼列
+    // （殼列平常只在存檔路徑建立），管理 UI 會無列可更新。
     // 兩者都不能寫進 SQL migration：錨點藏在 content 的 TipTap JSON 裡、
-    // storyKey 藏在 metadata JSON 裡，都要逐頁解析。
+    // key 藏在 metadata JSON 裡，都要逐頁解析。
     // 冪等（整頁 DELETE+INSERT／INSERT OR IGNORE），可重複執行。
     if (path === '/api/interlink/reindex' && request.method === 'POST') {
       const index = await backfillHistoryInterlinkIndex(env.CONTENT_DB);
-      const story = await backfillStoryPoints(env.CONTENT_DB);
-      return jsonResponse(
-        { ok: true, data: { ...index, ...story } },
-        200,
-        cors
-      );
+      const keys = await backfillInterlinkKeys(env.CONTENT_DB);
+      return jsonResponse({ ok: true, data: { ...index, ...keys } }, 200, cors);
     }
 
     // ---- 最近更新路由（僅葉子頁面）----
@@ -1967,10 +1964,10 @@ export default {
         return jsonResponse({ ok: true, data: { anchors } }, 200, cors, true);
       }
 
-      // usage 是 S10-3 admin 反查 UI 的資料：`findInterlinkDefinitions`
-      // 刻意 includeHidden（管理者要看到全部使用位置），story_points 之後
-      // 還會存進劇情點標題／說明。公開等同把未公開內容的頁 id、標題與
-      // 劇情點名稱全部送出去，而且 CDN 一快取就攔不回來。
+      // usage 是 admin 反查 UI 的資料：`findInterlinkDefinitions`
+      // 刻意 includeHidden（管理者要看到全部使用位置），並帶出 key 的
+      // 標題／說明。公開等同把未公開內容的頁 id、標題與劇情點名稱
+      // 全部送出去，而且 CDN 一快取就攔不回來。
       if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -1980,17 +1977,16 @@ export default {
         keyType,
         key
       );
-      const storyPoint =
-        keyType === 'story'
-          ? await findStoryPoint(env.CONTENT_DB, key)
-          : undefined;
+      // 兩種 keyType 都可能有殼列——entity 的 title 恆為 NULL
+      // （權威名稱在 Concepts dossier），description 才是它的可編輯欄位
+      const keyMeta = await findInterlinkKeyMeta(env.CONTENT_DB, keyType, key);
       return jsonResponse(
         {
           ok: true,
           data: {
             definitions,
             anchors,
-            ...(storyPoint ? { storyPoint } : {}),
+            ...(keyMeta ? { keyMeta } : {}),
           },
         },
         200,

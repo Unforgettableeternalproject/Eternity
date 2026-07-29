@@ -205,8 +205,9 @@ describe('POST /api/test/reset', () => {
          VALUES ('history/stale', 'entity-mark', NULL, 'entity', 'stale-key', '殘留', ?, ?)`
       ).bind(now, now),
       env.CONTENT_DB.prepare(
-        `INSERT OR REPLACE INTO story_points (story_key, title, description, created_at, updated_at)
-         VALUES ('stale-story', NULL, NULL, ?, ?)`
+        `INSERT OR REPLACE INTO interlink_keys
+         (key_type, key_value, title, description, created_at, updated_at)
+         VALUES ('story', 'stale-story', NULL, NULL, ?, ?)`
       ).bind(now, now),
     ]);
 
@@ -297,16 +298,16 @@ describe('POST /api/test/reset', () => {
     const json = (await res.json()) as {
       data?: {
         tables: string[];
-        seeded: { interlinkAnchors: number; storyPoints: number };
+        seeded: { interlinkAnchors: number; interlinkKeys: number };
       };
     };
     expect(json.data?.tables).toContain('history_interlink_index');
-    expect(json.data?.tables).toContain('story_points');
-    // 回報的數字必須對得上表內容：一個錨點、一個劇情點
-    // （entityKey 的那首角色歌不算 story point）
+    expect(json.data?.tables).toContain('interlink_keys');
+    // 回報的數字必須對得上表內容：一個錨點、兩個 key 殼列
+    // （seed 有一首劇情歌的 storyKey 與一首角色歌的 entityKey，兩者都建殼）
     expect(json.data?.seeded).toMatchObject({
       interlinkAnchors: 1,
-      storyPoints: 1,
+      interlinkKeys: 2,
     });
 
     // 殘留清光
@@ -315,7 +316,7 @@ describe('POST /api/test/reset', () => {
     ).first<{ cnt: number }>();
     expect(stale?.cnt).toBe(0);
     const staleStory = await env.CONTENT_DB.prepare(
-      `SELECT COUNT(*) as cnt FROM story_points WHERE story_key = 'stale-story'`
+      `SELECT COUNT(*) as cnt FROM interlink_keys WHERE key_value = 'stale-story'`
     ).first<{ cnt: number }>();
     expect(staleStory?.cnt).toBe(0);
 
@@ -327,10 +328,13 @@ describe('POST /api/test/reset', () => {
       page_id: 'history/seeded/ch-1',
       key_value: 'seeded-key',
     });
-    const storyPoint = await env.CONTENT_DB.prepare(
-      `SELECT story_key FROM story_points WHERE story_key = 'seeded-story'`
-    ).first<{ story_key: string }>();
-    expect(storyPoint).toEqual({ story_key: 'seeded-story' });
+    const keyShells = await env.CONTENT_DB.prepare(
+      `SELECT key_type, key_value FROM interlink_keys ORDER BY key_type`
+    ).all<{ key_type: string; key_value: string }>();
+    expect(keyShells.results).toEqual([
+      { key_type: 'entity', key_value: 'seeded-entity' },
+      { key_type: 'story', key_value: 'seeded-story' },
+    ]);
   });
 
   it('沒有 snapshot 或 clearOnly 時拒絕，且不先清空資料', async () => {

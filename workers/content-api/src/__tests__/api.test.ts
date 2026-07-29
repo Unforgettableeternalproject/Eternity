@@ -379,16 +379,18 @@ describe('PUT /api/content/:area/:slug — key 唯一性把關（S10-1）', () =
     expect(otherStack.status).toBe(201);
   });
 
-  it('storyKey 首次出現寫入 story_points，重複存檔不覆蓋既有內容', async () => {
+  it('storyKey 首次出現寫入 interlink_keys，重複存檔不覆蓋既有內容', async () => {
     const row = await env.CONTENT_DB.prepare(
-      `SELECT story_key, title FROM story_points WHERE story_key = 'uniq-story'`
-    ).first<{ story_key: string; title: string | null }>();
-    expect(row?.story_key).toBe('uniq-story');
+      `SELECT key_value, title FROM interlink_keys
+       WHERE key_type = 'story' AND key_value = 'uniq-story'`
+    ).first<{ key_value: string; title: string | null }>();
+    expect(row?.key_value).toBe('uniq-story');
     expect(row?.title).toBeNull();
 
-    // 模擬 S10-3 之後填了標題
+    // 模擬管理者之後填了標題
     await env.CONTENT_DB.prepare(
-      `UPDATE story_points SET title = '雨海終曲' WHERE story_key = 'uniq-story'`
+      `UPDATE interlink_keys SET title = '雨海終曲'
+       WHERE key_type = 'story' AND key_value = 'uniq-story'`
     ).run();
 
     // 重新存檔同一頁——INSERT OR IGNORE 不得覆蓋
@@ -398,9 +400,28 @@ describe('PUT /api/content/:area/:slug — key 唯一性把關（S10-1）', () =
       metadata: { storyKey: 'uniq-story', category: 'story' },
     });
     const after = await env.CONTENT_DB.prepare(
-      `SELECT title FROM story_points WHERE story_key = 'uniq-story'`
+      `SELECT title FROM interlink_keys
+       WHERE key_type = 'story' AND key_value = 'uniq-story'`
     ).first<{ title: string | null }>();
     expect(after?.title).toBe('雨海終曲');
+  });
+
+  it('entityKey 同樣建殼列，且 title 建成 NULL（名稱權威在 dossier）', async () => {
+    const row = await env.CONTENT_DB.prepare(
+      `SELECT key_value, title FROM interlink_keys
+       WHERE key_type = 'entity' AND key_value = 'uniq-clash'`
+    ).first<{ key_value: string; title: string | null }>();
+    expect(row?.key_value).toBe('uniq-clash');
+    expect(row?.title).toBeNull();
+  });
+
+  it('同名的 entityKey 與 storyKey 各自建殼，兩個命名空間互不干擾', async () => {
+    // 'uniq-story' 先以 storyKey 存過一次，又以 entityKey 存過一次
+    const rows = await env.CONTENT_DB.prepare(
+      `SELECT key_type FROM interlink_keys WHERE key_value = 'uniq-story'
+       ORDER BY key_type`
+    ).all<{ key_type: string }>();
+    expect(rows.results?.map((r) => r.key_type)).toEqual(['entity', 'story']);
   });
 
   it('未帶 metadata 的部分更新不觸發 key 檢查', async () => {
@@ -602,7 +623,7 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
       data: {
         definitions: { area: string; pageId: string }[];
         anchors: unknown[];
-        storyPoint?: { title: string | null };
+        keyMeta?: { title: string | null };
       };
     };
     expect(
@@ -610,21 +631,21 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
     ).toBe(true);
     expect(json.data.anchors.length).toBeGreaterThan(0);
     // 存檔時建的殼列，title 仍為 NULL
-    expect(json.data.storyPoint).toEqual({ title: null, description: null });
+    expect(json.data.keyMeta).toEqual({ title: null, description: null });
   });
 
-  it('usage 對 entity 類型不回 storyPoint', async () => {
+  it('usage 對查無殼列的 key 不回 keyMeta', async () => {
     const res = await worker.fetch(
-      createRequest('/api/interlink/usage?keyType=entity&key=xavier-colsono', {
+      createRequest('/api/interlink/usage?keyType=entity&key=never-defined', {
         token: await getAdminToken(),
       }),
       env,
       ctx
     );
     const json = (await res.json()) as {
-      data: { storyPoint?: unknown };
+      data: { keyMeta?: unknown };
     };
-    expect(json.data.storyPoint).toBeUndefined();
+    expect(json.data.keyMeta).toBeUndefined();
   });
 
   /**
