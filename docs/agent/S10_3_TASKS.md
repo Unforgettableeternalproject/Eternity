@@ -1,7 +1,7 @@
 # S10-3 拆卡計畫：Admin 行為設定與 key／flag 管理
 
 > 依據：`docs/agent/S10_3_ADMIN_DESIGN.md`（艾斯維爾 2026-07-29 全數定案 D-1~D-5，無待拍板問題）
-> 起始版本：**0.9.15.46**（S10-2 迷霧與旅程之書打磨收在 0.9.15.45，待驗收）
+> 起始版本：**0.9.16.0**（S10-2 迷霧與旅程之書打磨收在 0.9.15.45，待驗收）
 > 拆分：依艾斯維爾定案 D-5，拆 **S10-3a（key／flag 管理）** ／ **S10-3b（進度頁總覽＋巡查＋說明消費）** 上下兩段
 > 拆卡：戴爾維斯（planner）
 > 開工前已完成程式碼讀碼核對——本文件所有「落差／地雷」段落皆為實際讀碼結果，非設計文件推測，詳見 §1、§6
@@ -124,9 +124,9 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ## 2. 任務拆解
 
-### S10-3a — Key 與旗標管理（0.9.15.46 起）
+### S10-3a — Key 與旗標管理（0.9.16.0 起）
 
-#### T-A1（0.9.15.46）Migration 0023（`interlink_keys` 泛化 + `uep_flags`）+ `interlink.ts` 改名擴充 + 全部呼叫端同步
+#### T-A1（0.9.16.0）Migration 0023（`interlink_keys` 泛化 + `uep_flags`）+ `interlink.ts` 改名擴充 + 全部呼叫端同步
 
 - **範圍**：
   1. 新建 `workers/content-api/migrations/0023_interlink_keys_and_flags.sql`：
@@ -160,7 +160,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A2（0.9.15.47）`/api/interlink/keys` 清單／更新／公開端點
+#### T-A2（0.9.16.1）`/api/interlink/keys` 清單／更新／公開端點
 
 - **範圍**：
   1. `GET /api/interlink/keys`（admin）：三路聯集——三個 entity-index 建構器（`includeHidden: true`）∪ `interlink_keys` 表 ∪ `history_interlink_index` 的錨點端 key 值，回傳每個 key 的 `keyType`／`keyValue`／`title`／`description`／使用計數（定義端筆數＋錨點端筆數）
@@ -176,7 +176,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A3（0.9.15.48）`/api/flags` CRUD + HTML 掃描器（新寫）+ `/api/flags/audit`
+#### T-A3（0.9.16.2）`/api/flags` CRUD + HTML 掃描器（新寫）+ `/api/flags/audit`
 
 - **範圍**：
   1. `GET/POST/PUT/DELETE /api/flags`（admin）：CRUD 對 `uep_flags`；`DELETE` 預設擋有引用旗標（見 T-A3 內含的引用檢查，409 + 引用清單，`?force=true` 強制刪）
@@ -195,7 +195,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A4（0.9.15.49）`upsertPage()` 存檔前強制擋未註冊自訂旗標
+#### T-A4（0.9.16.3）`upsertPage()` 存檔前強制擋未註冊自訂旗標
 
 - **範圍**：`workers/content-api/src/index.ts` 的 `upsertPage()` 新增旗標檢查分支（緊接既有 §3-2 key 唯一性檢查之後）：
   - 用 T-A3 的 `scanGrantedFlags`／`scanRequiredFlags`／`classifyFlag` 抽出這次存檔內容涉及的全部旗標
@@ -212,7 +212,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A5（0.9.15.50）`/admin/keys` 三欄 UI
+#### T-A5（0.9.16.4）`/admin/keys` 三欄 UI
 
 - **範圍**：
   1. 新建 `apps/uep/src/pages/admin/keys.astro` + `KeysManager.tsx`（`client:only="react"`，比照既有 admin 頁慣例：`getApiBase(Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null)`）
@@ -231,7 +231,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A6（0.9.15.51）`FlagPicker.tsx` 共用元件 + 兩處編輯器接線
+#### T-A6（0.9.16.5）`FlagPicker.tsx` 共用元件 + 兩處編輯器接線
 
 - **範圍**：
   1. 新建 `apps/uep/src/components/editor/FlagPicker.tsx`：可搜尋下拉（來源 `GET /api/flags`）＋「＋ 新建旗標」就地小表單（呼叫 `POST /api/flags`）＋ 已選旗標 chip 呈現；**不保留自由輸入逃生口**（依 D-1 強制設計）
@@ -249,7 +249,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A7（0.9.15.52）`POST /api/flags/:name/rename` 三段式改名
+#### T-A7（0.9.16.6）`POST /api/flags/:name/rename` 三段式改名
 
 - **範圍**：`scan`（掃 `pages.metadata.gate.requiresFlags` JSON ＋ `pages.content` 的 `data-grants-flags` HTML）→ `dryRun`（回傳受影響頁面清單與每頁改動筆數）→ `batch` 寫入（`db.batch()` 單一交易改寫全部引用 ＋ 更新 `uep_flags.name`）
 - **驗收標準**：
@@ -263,7 +263,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-A8（0.9.15.53）DevTools 旗標群組
+#### T-A8（0.9.16.7）DevTools 旗標群組
 
 - **範圍**：新建 `apps/uep/src/devtools/actions/flagActions.ts`（比照 `protectionActions.ts`／`echoesActions.ts` 的 `getRegistry().register([...])` 慣例），於 `devtools/actions/index.ts` 註冊：
   - 傾印目前持有旗標（分組：自動／自訂／未知）
@@ -279,7 +279,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ### S10-3b — 進度頁總覽、巡查與說明消費（接續 3a）
 
-#### T-B1（0.9.15.54）`PATCH /api/content/:area/:slug/metadata`
+#### T-B1（0.9.16.8）`PATCH /api/content/:area/:slug/metadata`
 
 - **範圍**：
   - 新增獨立路由（⚠️ **必須掛在 `contentMatch`〔`index.ts:2135`〕之前**，見地雷 2）：`/^\/api\/content\/([a-z]+)\/(.+)\/metadata$/`
@@ -297,7 +297,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-B2（0.9.15.55）`/admin/behavior` 上半：History 全樹進度頁總覽 + 就地切換
+#### T-B2（0.9.16.9）`/admin/behavior` 上半：History 全樹進度頁總覽 + 就地切換
 
 - **範圍**：
   1. 新建 `apps/uep/src/pages/admin/behavior.astro` + `BehaviorManager.tsx`
@@ -320,7 +320,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-B3（0.9.15.56）Migration 0024（`uep_settings`）+ `/api/settings*`
+#### T-B3（0.9.16.10）Migration 0024（`uep_settings`）+ `/api/settings*`
 
 - **範圍**：
   1. 新建 `workers/content-api/migrations/0024_uep_settings.sql`：`uep_settings(key PK, value TEXT, updated_at)`
@@ -343,7 +343,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-B4（0.9.15.57）進度參數 runtime 接線（四個一次性讀取消費點）
+#### T-B4（0.9.16.11）進度參數 runtime 接線（四個一次性讀取消費點）
 
 - **範圍**：
   1. `DesignLayout` 掛載時 fetch `/api/settings/public` → `window.__uepSettings` + `sessionStorage` 快取（同一 session 不重取）
@@ -362,7 +362,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-B5（0.9.15.58）內容巡查儀表板（七張卡）
+#### T-B5（0.9.16.12）內容巡查儀表板（七張卡）
 
 - **範圍**：`/admin/behavior` 下半，七張可展開問題卡：孤兒旗標／未使用旗標／未註冊旗標（皆來自 `/api/flags/audit`）、劇情歌未綁 storyKey（`echoes-index` 掃 `songType==='story' && !storyKey`）、key 無說明（`/api/interlink/keys` 該列 title/description 皆 NULL）、孤兒錨點（`usage` 的 definitions 為空）、未被引用的 key（`usage` 的 anchors 為空）
 - **驗收標準**：每張卡顯示計數＋展開列出項目＋可跳轉到修正位置（旗標卡跳 `/admin/keys`，頁面相關卡跳 `/admin/edit/{pageId}`）；七張卡各自至少一筆測試資料驗證非空狀態顯示正確
@@ -372,7 +372,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-B6（0.9.15.59）§6 第 1 項：History 島線索卡顯示劇情點名稱（不可延後）
+#### T-B6（0.9.16.13）§6 第 1 項：History 島線索卡顯示劇情點名稱（不可延後）
 
 - **範圍**：`apps/uep/src/islands/interlinkTrigger.ts` 的 `triggerStoryRelated()`（精確定位：第 89 行 `title: anchor.pageTitle || anchor.pageId`）：
   - 與既有 `GET /api/interlink/anchors?keyType=story&key=...` 平行（`Promise.all`）多發一次 `GET /api/interlink/keys/public?keyType=story&key={storyKey}`（storyKey 層級查一次即可，不必逐 anchor 查）
@@ -385,7 +385,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 ---
 
-#### T-B7（0.9.15.60，可延後）§6 其餘三項文案置換
+#### T-B7（0.9.16.14，可延後）§6 其餘三項文案置換
 
 - **範圍**（三項皆為既有 UI 的文案來源置換，互相獨立，合併同一張卡是因為風險低、工作量小，非強制合併）：
   1. Echoes 收藏池：劇情歌以 `interlink_keys` 的 `title` 呈現，取代歌名 fallback

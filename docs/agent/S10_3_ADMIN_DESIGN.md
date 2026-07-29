@@ -637,7 +637,7 @@ DesignLayout 掛載時 → fetch /api/settings/public → 寫入 window.__uepSet
 
 假設 D-5 採「拆兩段」：
 
-**S10-3a：key 與 flag 管理（0.9.15.46 起）**
+**S10-3a：key 與 flag 管理（0.9.16.0 起）**
 
 1. Migration 0023（`interlink_keys` 泛化 ＋ `uep_flags`）＋ `ensureInterlinkKeys()` / `backfillInterlinkKeys()` 擴充——地基，不動 UI
 2. 三個環境套 migration ＋ 跑 backfill（**不可略過**，見 §2-2 ⚠️）
