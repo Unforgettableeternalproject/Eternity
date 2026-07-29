@@ -266,9 +266,11 @@ describe('useEchoSpots 提示卡發送時機', () => {
     };
   }
 
-  function renderSpots(resumeJump = false, velocity = 0) {
+  /** fogRatio 預設 1 = 無 rush protection（已讀完/非迷霧頁）——舊行為基準 */
+  function renderSpots(resumeJump = false, velocity = 0, fogRatio = 1) {
     const resumeJumpRef = { current: resumeJump };
     const scrollVelocityRef = { current: velocity };
+    const fogRatioRef = { current: fogRatio };
     const view = renderHook(() =>
       useEchoSpots({
         pageId: 'history/p1',
@@ -276,9 +278,10 @@ describe('useEchoSpots 提示卡發送時機', () => {
         apiBase: 'http://localhost:8788',
         resumeJumpRef,
         scrollVelocityRef,
+        fogRatioRef,
       })
     );
-    return { ...view, resumeJumpRef, scrollVelocityRef };
+    return { ...view, resumeJumpRef, scrollVelocityRef, fogRatioRef };
   }
 
   it('插播成功只發一張 played 卡（純告知），並帶本次新收藏資訊', async () => {
@@ -399,9 +402,9 @@ describe('useEchoSpots 提示卡發送時機', () => {
     unmount();
   });
 
-  it('resume jump 誤觸 → 事件不存在：不插播、不發卡、不亮 chip、不授旗', async () => {
+  it('保護中頁面 resume jump 誤觸 → 事件不存在：不插播、不發卡、不亮 chip、不授旗', async () => {
     islandMock.open = false;
-    const { result, unmount } = renderSpots(true);
+    const { result, unmount } = renderSpots(true, 0, 0.4);
     await act(async () => {
       result.current(markerInfo(spotElement()));
     });
@@ -412,8 +415,12 @@ describe('useEchoSpots 提示卡發送時機', () => {
     unmount();
   });
 
-  it('快速捲動（rush）誤觸 → 事件不存在，且不去重：恢復正常速度再過照常插播', async () => {
-    const { result, scrollVelocityRef, unmount } = renderSpots(false, 2000);
+  it('保護中頁面 rush 誤觸 → 事件不存在，且不去重：恢復正常速度再過照常插播', async () => {
+    const { result, scrollVelocityRef, unmount } = renderSpots(
+      false,
+      2000,
+      0.4
+    );
     await act(async () => {
       result.current(markerInfo(spotElement()));
     });
@@ -429,6 +436,42 @@ describe('useEchoSpots 提示卡發送時機', () => {
       result.current(markerInfo(spotElement()));
     });
     expect(audioMock.interrupt).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it('無保護頁（fogRatio=1）resume jump 誤觸 → 維持 S8 降級：授旗照常、發 spot 卡不插播', async () => {
+    const { result, unmount } = renderSpots(true);
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(grantFlags).toHaveBeenCalledWith(['entity:x-theme']);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot' })
+    );
+    unmount();
+  });
+
+  it('無保護頁 rush 誤觸遇上島收合 → 提示卡等展開，先亮 dock chip、不補播', async () => {
+    islandMock.open = false;
+    const { result, unmount } = renderSpots(false, 2000);
+    await act(async () => {
+      result.current(markerInfo(spotElement()));
+    });
+    // 島外不得自己冒出提示卡
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(true);
+
+    await act(async () => {
+      islandMock.open = true;
+      islandMock.emit('open');
+    });
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'spot', justCollected: true })
+    );
+    expect(audioMock.interrupt).not.toHaveBeenCalled();
+    expect(getEchoSpotWaiting()).toBe(false);
     unmount();
   });
 

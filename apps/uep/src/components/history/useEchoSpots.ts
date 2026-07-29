@@ -31,6 +31,11 @@ interface UseEchoSpotsOptions {
   resumeJumpRef: MutableRefObject<boolean>;
   /** 最近一次 scroll 計算出的速度絕對值。 */
   scrollVelocityRef: MutableRefObject<number>;
+  /**
+   * 迷霧線唯讀鏡像（0~1；未提供或 1 = 無保護）。決定誤觸的處置層級：
+   * 保護生效中（< 1）誤觸＝事件不存在；無保護頁維持 S8 降級提示卡。
+   */
+  fogRatioRef?: MutableRefObject<number>;
 }
 
 interface EchoSpotData {
@@ -188,12 +193,14 @@ interface EchoSpotDowngradeInput {
 }
 
 /**
- * 誤觸判定：resume jump（系統代捲）與快速捲動掃過的 spot 整個事件
- * 視為不存在（2026-07-29 定案，對齊迷霧遮蔽語意）——不去重、不授旗、
- * 不留等待 chip。回捲用正常速度再經過時照常觸發。
+ * 誤觸判定：resume jump（系統代捲）或快速捲動掃過的 spot。
  *
- * 舊行為是「降級成提示卡＋dock 等待」：rush 測試時右下角冒出
- * 「有回聲等待中」，看起來像遮蔽失效。
+ * 處置分兩級（2026-07-29 定案，由呼叫端依 fogRatio 分流）：
+ * - rush protection 生效中（迷霧未散盡）：事件視為不存在——不去重、
+ *   不授旗、不留等待 chip，回捲正常速度再過照常觸發。舊行為的降級
+ *   提示卡在 rush 測試時看起來像遮蔽失效。
+ * - 無保護頁（已讀完／非迷霧頁）：rush 本來就合法，維持 S8 的誤觸
+ *   降級——照常去重與授旗，插播降為提示卡（手動播放入口）。
  */
 export function isEchoSpotMisfire(
   resumeJump: boolean,
@@ -217,8 +224,9 @@ export function shouldDowngradeEchoSpot({
  * 解鎖島時收藏進度仍會累積——但授旗必須等 by-id 反查落地後以**現行
  * entityKey** 進行（Admin 改綁後快照 entityKey 會授出對不上收藏判定
  * 的舊旗）；反查失敗才退回快照值。
- * 誤觸（rush／resume jump）整個事件不成立（見 isEchoSpotMisfire）——
- * 遮蔽語意優先於收藏累積，正常速度再經過時才觸發、才授旗。
+ * 誤觸（rush／resume jump）在 rush protection 生效中的頁面整個事件
+ * 不成立（見 isEchoSpotMisfire）——遮蔽語意優先於收藏累積，正常速度
+ * 再經過時才觸發、才授旗；無保護頁維持 S8 誤觸降級（授旗照常）。
  * 播放與提示卡另在反查落地後重驗島掛載——等待期間登出/停用 Echoes
  * 時不得再插播。
  */
@@ -228,6 +236,7 @@ export function useEchoSpots({
   apiBase,
   resumeJumpRef,
   scrollVelocityRef,
+  fogRatioRef,
 }: UseEchoSpotsOptions) {
   const progressRef = useRef(progress);
   progressRef.current = progress;
@@ -316,11 +325,16 @@ export function useEchoSpots({
       const spot = readEchoSpot(info.element);
       if (!spot) return;
 
-      // 誤觸 = 事件不存在：在去重**之前**擋掉，痕跡一律不留——
-      // 記進去重集合的話，回捲重讀時 spot 就永遠不會再響
-      if (isEchoSpotMisfire(resumeJumpRef.current, scrollVelocityRef.current)) {
-        return;
-      }
+      // 誤觸判定輸入在觸發當下同步擷取——反查有網路延遲，事後再讀
+      // scrollVelocity 會讓快速捲動的誤觸判定失真
+      const misfire = isEchoSpotMisfire(
+        resumeJumpRef.current,
+        scrollVelocityRef.current
+      );
+      // rush protection 生效中的誤觸 = 事件不存在：在去重**之前**擋掉，
+      // 痕跡一律不留——記進去重集合的話，回捲重讀時 spot 就永遠不會
+      // 再響。無保護頁（迷霧散盡/已讀完/非迷霧頁）繼續往下走降級路徑
+      if (misfire && (fogRatioRef?.current ?? 1) < 1) return;
 
       if (triggeredRef.current.has(spot.spotId)) return;
       triggeredRef.current.add(spot.spotId);
@@ -379,10 +393,8 @@ export function useEchoSpots({
         // Echo Spot 的主要行為是插播；提示卡等插播結果確定後才發——
         // 成功只告知（無動作按鈕），降級/失敗才給手動播放入口。
         // 本次新收藏以 justCollected 併入同一張卡，不另發 unlock 卡。
-        const shouldDowngrade = shouldDowngradeEchoSpot({
-          isStory,
-          spoilerLevel,
-        });
+        const shouldDowngrade =
+          misfire || shouldDowngradeEchoSpot({ isStory, spoilerLevel });
         const pending: PendingEchoSpot = {
           effective,
           preview,
@@ -409,6 +421,7 @@ export function useEchoSpots({
       attemptInterrupt,
       clearPending,
       emitSpotCard,
+      fogRatioRef,
       pageId,
       resumeJumpRef,
       scrollVelocityRef,

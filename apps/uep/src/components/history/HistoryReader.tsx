@@ -370,12 +370,16 @@ export default function HistoryReader() {
   const isEntityRefUnlocked = useEntityRefUnlockChecker(progress);
   // 文內 entity 嵌入拖進展開的便條島 → 建立一張寫著該 entity 正名的便條
   const entityDrag = useEntityDragSource();
+  // 迷霧線的唯讀鏡像（賦值在下方 fogRatio 計算處）：echo spot 與
+  // visual clue 都要靠它分辨「rush protection 是否生效中」
+  const fogRatioRef = useRef(1);
   const onEchoMarkerPassed = useEchoSpots({
     pageId: currentId,
     progress,
     apiBase: API_BASE,
     resumeJumpRef,
     scrollVelocityRef,
+    fogRatioRef,
   });
 
   // 目前頁面 id 的鏡像：非同步反查落地時檢查是否仍在同一頁（競態防禦），
@@ -537,10 +541,9 @@ export default function HistoryReader() {
     return () => cancelAnimationFrame(id);
   }, [articleHtml, contentLoading, sampleFog]);
 
-  // 迷霧線的唯讀鏡像——useVisualClues 是唯一繞過掃描線閘門的消費端，
-  // 它的區間判定跑在 rAF 迴圈裡，不能每次都去 store 取值。
+  // 迷霧線鏡像賦值——useVisualClues 的區間判定跑在 rAF 迴圈裡，
+  // useEchoSpots 的誤觸分級在事件當下同步讀，都不能每次去 store 取值。
   // 不適用迷霧的頁面一律視為 1（散盡），下游全部照舊行為走。
-  const fogRatioRef = useRef(1);
   const fogRatio =
     currentId && fogApplies
       ? progress.completedPageIds.includes(currentId)
