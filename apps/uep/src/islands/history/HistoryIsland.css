@@ -208,11 +208,32 @@
 }
 
 .uep-hisland__resume-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
   margin-top: 5px;
   color: var(--hb-ink-strong);
+}
+
+.uep-hisland__resume-title-text {
+  flex: 0 1 auto;
+}
+
+/* 閱讀狀態標籤（2026-07-29）：閱讀中＝墨色淡字、已閱畢＝點亮 */
+.uep-hisland__resume-state {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: rgb(var(--hb-line-rgb) / 0.6);
+}
+
+.uep-hisland__resume-state.is-done {
+  color: var(--hb-accent-hi);
 }
 
 .uep-hisland__resume-volume {
@@ -347,6 +368,52 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 198px;
+}
+
+/* ── 截斷標題與 hover 跑馬燈（2026-07-29）──
+   量測（is-overflowing + CSS 變數）在 ScrollTitle 元件；這裡只負責
+   「互動列 hover 時滑到結尾、離開滑回」。觸發點掛在列（.uep-hisland__toc
+   ／續讀標題）而非標題本身——指標停在頁碼上也該動。 */
+.uep-hisland__marquee {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.uep-hisland__marquee-inner {
+  display: inline-block;
+  vertical-align: bottom;
+  transition: transform 260ms ease-out;
+}
+
+.uep-hisland__toc:hover .uep-hisland__marquee.is-overflowing,
+.uep-hisland__resume-title:hover .uep-hisland__marquee.is-overflowing {
+  /* 滑動期間省略號要讓位——ellipsis 是排版產物，不跟著 transform 走 */
+  text-overflow: clip;
+}
+
+.uep-hisland__toc:hover
+  .uep-hisland__marquee.is-overflowing
+  .uep-hisland__marquee-inner,
+.uep-hisland__resume-title:hover
+  .uep-hisland__marquee.is-overflowing
+  .uep-hisland__marquee-inner {
+  transform: translateX(var(--marquee-shift, 0px));
+  transition: transform var(--marquee-ms, 1200ms) linear 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-hisland__marquee-inner {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .uep-hisland__toc:hover .uep-hisland__marquee.is-overflowing,
+  .uep-hisland__resume-title:hover .uep-hisland__marquee.is-overflowing {
+    text-overflow: ellipsis;
+  }
 }
 
 /* 虛線 leader：把標題與頁碼連起來，取代原本的進度條 */

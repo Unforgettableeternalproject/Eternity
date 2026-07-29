@@ -15,7 +15,13 @@
  * 訂閱——island 不依賴 HistoryReader 的 React 樹，跨 zone 均可使用。
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { useProgress } from '../../progress';
 import { useIslandChrome } from '../islandChrome';
@@ -30,11 +36,13 @@ import {
   deriveLastRead,
   diffTocCounts,
   fetchHistoryTree,
+  fogAppliesTo,
   navigateToHistoryPage,
   parentOf,
   tocCount,
 } from './historyIslandData';
 import type { ChapterEntry, HistoryTreeIndex } from './historyIslandData';
+import { getSeenTocCounts, setSeenTocCounts } from './tocSeen';
 
 import './HistoryIsland.css';
 
@@ -54,6 +62,59 @@ function toChineseNumeral(n: number): string {
   const tens = Math.floor(n / 10);
   const ones = n % 10;
   return `${tens > 1 ? CN_DIGITS[tens] : ''}十${ones ? CN_DIGITS[ones] : ''}`;
+}
+
+/** 跑馬燈的捲動速度（px/s）與最短時長——距離越長滑越久，讀得完 */
+const MARQUEE_PX_PER_SEC = 40;
+const MARQUEE_MIN_MS = 800;
+
+/**
+ * 截斷標題（2026-07-29）：超寬時以 … 收尾，hover 該列時跑馬燈滑到結尾。
+ *
+ * 超寬距離在指標進入時量測（寫成 CSS 變數 + is-overflowing class），
+ * 滑動本身交給 CSS 的 :hover 規則——mount 時也量一次，避免指標從
+ * 頁碼那側進入列時（沒碰到本元件）class 還沒就位。
+ * reduced-motion 由 CSS 端整組停用，維持靜態省略號。
+ */
+function ScrollTitle({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  const outerRef = useRef<HTMLSpanElement | null>(null);
+  const measure = useCallback(() => {
+    const outer = outerRef.current;
+    if (!outer) return;
+    const overflow = outer.scrollWidth - outer.clientWidth;
+    if (overflow > 1) {
+      outer.style.setProperty('--marquee-shift', `-${overflow}px`);
+      outer.style.setProperty(
+        '--marquee-ms',
+        `${Math.max(
+          MARQUEE_MIN_MS,
+          Math.round((overflow / MARQUEE_PX_PER_SEC) * 1000)
+        )}ms`
+      );
+      outer.classList.add('is-overflowing');
+    } else {
+      outer.classList.remove('is-overflowing');
+    }
+  }, []);
+  // 字型晚到會讓寬度變化，mount 量測可能過期——mouseenter 再量一次兜底
+  useEffect(() => {
+    measure();
+  }, [measure, text]);
+  return (
+    <span
+      ref={outerRef}
+      className={`uep-hisland__marquee${className ? ` ${className}` : ''}`}
+      onMouseEnter={measure}
+    >
+      <span className="uep-hisland__marquee-inner">{text}</span>
+    </span>
+  );
 }
 
 export default function HistoryIsland() {
@@ -118,20 +179,26 @@ export default function HistoryIsland() {
    * 剛變動的目錄頁碼（S9-D.6）：讀完一篇進度文章後，對應章節的
    * 「7/19」會安靜地變成「8/19」。比對前後快照，讓變動的那幾條閃一下。
    * 首次算出的快照不算變動（那是「第一次看到」，不是「剛剛變了」）。
+   *
+   * 快照存 tocSeen bridge 而非元件 ref（2026-07-29）：島收合會 unmount，
+   * ref 快照跟著蒸發——使用者被 chip 閃爍引來點開時，數字早已換好、
+   * 什麼也不閃。「上次看到」跨收合保留後，重新展開會補播那次變動。
    */
   const [changedCounts, setChangedCounts] = useState<string[]>([]);
-  const tocCountsRef = useRef<Record<string, string> | null>(null);
   useEffect(() => {
+    // tree 還沒載入時 chapterItems 是空的——那不是「數字歸零」，
+    // 不能拿去覆寫（或比對）真正看過的快照
+    if (!index) return;
     const next = collectTocCounts(chapterItems);
-    const prev = tocCountsRef.current;
-    tocCountsRef.current = next;
+    const prev = getSeenTocCounts();
+    setSeenTocCounts(next);
     if (!prev) return;
     const changed = diffTocCounts(prev, next);
     if (changed.length === 0) return;
     setChangedCounts(changed);
     const timer = window.setTimeout(() => setChangedCounts([]), COUNT_FLASH_MS);
     return () => window.clearTimeout(timer);
-  }, [chapterItems]);
+  }, [index, chapterItems]);
 
   const avgMinutes = averageReadingMinutes(progress);
 
@@ -141,10 +208,13 @@ export default function HistoryIsland() {
    * 百分比整個位移。ratio 是連續量，沒有這個問題。
    */
   const lastPct = (() => {
-    if (!lastRead) return null;
+    if (!lastRead || !index) return null;
     if (progress.completedPageIds.includes(lastRead.id)) return 100;
     const ratio = progress.fogRatio[lastRead.id];
-    return ratio == null ? null : Math.min(100, Math.round(ratio * 100));
+    if (ratio != null) return Math.min(100, Math.round(ratio * 100));
+    // 尚無紀錄：首拍不再寫入 store（0.9.15.39）後，迷霧頁在掃描線
+    // 移動前就是 0%；非迷霧頁本來就不追蹤，維持不顯示
+    return fogAppliesTo(lastRead.id, index) ? 0 : null;
   })();
 
   /* ── 書頁內容：載入中 / 失敗 / 空白 / 正常 ── */
@@ -215,7 +285,21 @@ export default function HistoryIsland() {
           <div className="uep-hisland__pct">讀到 {lastPct}%</div>
         )}
         <div className="uep-hisland__resume-kicker">書籤停在</div>
-        <div className="uep-hisland__resume-title">{lastRead.title}</div>
+        <div className="uep-hisland__resume-title" title={lastRead.title}>
+          <ScrollTitle
+            className="uep-hisland__resume-title-text"
+            text={lastRead.title}
+          />
+          <span
+            className={`uep-hisland__resume-state${
+              progress.completedPageIds.includes(lastRead.id) ? ' is-done' : ''
+            }`}
+          >
+            {progress.completedPageIds.includes(lastRead.id)
+              ? '已閱畢'
+              : '閱讀中'}
+          </span>
+        </div>
         {resumeParent && (
           <div className="uep-hisland__resume-volume">{resumeParent.title}</div>
         )}
@@ -274,9 +358,10 @@ export default function HistoryIsland() {
                       onClick={() => navigateToHistoryPage(item.node.id)}
                       title={`前往「${item.node.title}」`}
                     >
-                      <span className="uep-hisland__toc-title">
-                        {item.node.title}
-                      </span>
+                      <ScrollTitle
+                        className="uep-hisland__toc-title"
+                        text={item.node.title}
+                      />
                       <span className="uep-hisland__toc-leader" aria-hidden />
                       {item.total > 0 && (
                         <span
@@ -311,9 +396,10 @@ export default function HistoryIsland() {
                               : `前往「${entry.node.title}」`
                           }
                         >
-                          <span className="uep-hisland__toc-title">
-                            {entry.node.title}
-                          </span>
+                          <ScrollTitle
+                            className="uep-hisland__toc-title"
+                            text={entry.node.title}
+                          />
                           <span
                             className="uep-hisland__toc-leader"
                             aria-hidden
