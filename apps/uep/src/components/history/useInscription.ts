@@ -39,8 +39,15 @@ const INSCRIBED_ATTR = 'data-inscribed';
 const INSCRIBE_STAGGER_MS = 90;
 const INSCRIBE_STAGGER_MAX_MS = 450;
 
-/** 這些是容器不是區塊本體，往內收集子元素 */
-const CONTAINER_SELECTOR = '.history-article, .history-prose';
+/**
+ * 這些是容器不是區塊本體，往內收集子元素。
+ *
+ * ⚠️ 漏列容器的症狀是「整段內容瞬間全顯影」：walker 會把它當單一區塊，
+ * 而它的頂端在刻印線之上，一比對就整包放行。文章外層的
+ * `section.history-reading` 就踩過這個坑，所以 section 一律視為容器
+ * （TipTap 內容不會產出 section，不會誤穿透真正的內容區塊）。
+ */
+const CONTAINER_SELECTOR = 'section, .history-article, .history-prose';
 /** 不參與顯影的元素（哨兵無形體；事件盾自己管自己） */
 const SKIP_SELECTOR = '.history-scan-sentinel, .history-fog';
 
