@@ -13,7 +13,10 @@
 
 import { useEffect, useState, type RefObject } from 'react';
 
-import { computeElementRatio } from '../../progress/fogGate';
+import {
+  computeContentRatio,
+  computeElementRatio,
+} from '../../progress/fogGate';
 import {
   VISUAL_CLUE_END_ROLE,
   VISUAL_CLUE_START_ROLE,
@@ -161,8 +164,16 @@ export function useVisualClues({
       // 與 scanline 同一條線：視窗高度 80% 處（rootMargin bottom -20%）
       const scanY = viewport.top + viewport.height * 0.8;
       // 迷霧線以下的區間視為不存在（S10-2）：起點若還在迷霧裡，
-      // 讀者根本沒讀到那段內容，書籤不該浮現
-      const fog = fogRatioRef?.current ?? 1;
+      // 讀者根本沒讀到那段內容，書籤不該浮現。
+      // 首屏線下限與 useInscription 同一套：首拍不寫紀錄後 store 在
+      // 捲動前是 0，但第一屏的 clue 依契約可見
+      const raw = fogRatioRef?.current ?? 1;
+      const floor = computeContentRatio(
+        0,
+        scroller.clientHeight,
+        scroller.scrollHeight
+      );
+      const fog = Math.max(raw, Math.min(floor, 1));
       const next = entries.filter((entry) => {
         const start = entry.startEl.getBoundingClientRect();
         const end = entry.endEl.getBoundingClientRect();

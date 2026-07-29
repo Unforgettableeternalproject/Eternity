@@ -13,10 +13,12 @@ import {
   buildChapterEntries,
   buildTreeIndex,
   buildUnlockedChapterList,
+  collectCountSignalIds,
   collectTocCounts,
   deriveLastRead,
   diffTocCounts,
   displayProgressPct,
+  fogAppliesTo,
   navigateToHistoryPage,
   parentOf,
   progressRatio,
@@ -434,6 +436,64 @@ describe('collectTocCounts', () => {
       null
     );
     expect(collectTocCounts(items)).toEqual({});
+  });
+});
+
+describe('fogAppliesTo（島端的迷霧適用判準，與 HistoryReader.fogApplies 同語意）', () => {
+  it('進度頁（含父容器繼承）適用', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    // a1 本身標 progressPage
+    expect(fogAppliesTo('history/u/c1/a1', index)).toBe(true);
+    // s1 未標，但父容器 a1 是 progressPage（單層繼承）
+    expect(fogAppliesTo('history/u/c1/a1/s1', index)).toBe(true);
+  });
+
+  it('非進度頁且無 gate 不適用；帶 gate 的頁面適用', () => {
+    const index = buildTreeIndex([
+      node('history/u', 'zone', {}, [
+        node('history/u/extra', 'section', {}),
+        node('history/u/gated', 'section', { gate: { flags: ['x'] } }),
+      ]),
+    ]);
+    expect(fogAppliesTo('history/u/extra', index)).toBe(false);
+    expect(fogAppliesTo('history/u/gated', index)).toBe(true);
+  });
+
+  it('tree 查不到的頁面回傳 false', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    expect(fogAppliesTo('history/nope', index)).toBe(false);
+  });
+});
+
+describe('collectCountSignalIds（chip 精準化：完成後會動到目錄數字的頁面）', () => {
+  it('收進度葉；有進度葉的容器（序節）不收', () => {
+    const index = buildTreeIndex(buildZoneTree());
+    const ids = collectCountSignalIds(index);
+
+    expect(ids.has('history/u/c1/a1/s1')).toBe(true);
+    expect(ids.has('history/u/c1/a1/s2')).toBe(true);
+    expect(ids.has('history/u/c1/a2/s1')).toBe(true);
+    // 序節（有進度葉的 arc）完成不改變任何 x/y
+    expect(ids.has('history/u/c1/a1')).toBe(false);
+    expect(ids.has('history/u/c1/a2')).toBe(false);
+    expect(ids.has('history/u/c1')).toBe(false);
+  });
+
+  it('沒有進度葉的 chapter/arc 本身要收（0/0→1/1 fallback）；隱藏與靜態鎖不收', () => {
+    const index = buildTreeIndex([
+      node('history/u', 'zone', {}, [
+        node('history/u/c1', 'chapter', {}, [
+          node('history/u/c1/a1', 'arc', {}),
+        ]),
+        node('history/u/c2', 'chapter', { locked: true }),
+        node('history/u/chidden', 'chapter', { hidden: true }),
+      ]),
+    ]);
+    const ids = collectCountSignalIds(index);
+    expect(ids.has('history/u/c1')).toBe(true);
+    expect(ids.has('history/u/c1/a1')).toBe(true);
+    expect(ids.has('history/u/c2')).toBe(false);
+    expect(ids.has('history/u/chidden')).toBe(false);
   });
 });
 

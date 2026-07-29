@@ -10,6 +10,7 @@
  * 牽動它們各自的 hook 訂閱造成測試不穩定。
  */
 import { act, render } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EntityActivateDetail } from '../../embed';
@@ -57,11 +58,20 @@ vi.mock('../testBridge', () => ({
 vi.mock('../storage/PinnedNoteLayer', () => ({ default: () => null }));
 vi.mock('../echoes/SongPreviewCard', () => ({ default: () => null }));
 
+/** chip 精準化測試用的進度葉集合（tree 端點不打網路） */
+const signalMock = vi.hoisted(() => ({
+  ids: ['history/u/c1/a1/s1'] as string[],
+}));
+vi.mock('../history/historyIslandData', () => ({
+  fetchHistoryCountSignalIds: () => Promise.resolve(new Set(signalMock.ids)),
+}));
+
 import IslandHost from '../IslandHost';
 import {
   hasPendingEntityActivate,
   resetEntityActivateBridge,
 } from '../concepts/terminalBridge';
+import { clearAllChipAttention, getChipAttentionMark } from '../chipAttention';
 import {
   hasPendingRelated,
   resetRelatedBridge,
@@ -203,5 +213,63 @@ describe('IslandHost — 收合的 History 島不漏接互聯線索', () => {
 
     expect(hasPendingRelated('history')).toBe(false);
     expect(getRelatedPendingFlag('history')).toBe(false);
+  });
+});
+
+/**
+ * 進度推進 → 旅程之書 chip 標記（S9-D.6；2026-07-29 精準化）
+ *
+ * 兩道閘：島展開中不標記（目錄頁碼自己閃，事後標記只會在收合那一刻
+ * 變成殘影）；只有「目錄數字真的會變」的完成（進度葉）才標記。
+ */
+describe('IslandHost — 進度推進的 chip 標記', () => {
+  /** 讓 dynamic import 的 promise 鏈跑完 */
+  async function flushAsync() {
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  }
+
+  function completeAndRerender(
+    rerender: (ui: ReactElement) => void,
+    pageId: string
+  ) {
+    progressMock.state = {
+      ...createInitialState(),
+      completedPageIds: [pageId],
+    };
+    rerender(<IslandHost />);
+  }
+
+  beforeEach(() => {
+    progressMock.state = createInitialState();
+    gatingMock.allowedId = 'history';
+    clearAllChipAttention();
+  });
+
+  afterEach(() => {
+    getIslandRuntime().resetAll();
+    clearAllChipAttention();
+    vi.restoreAllMocks();
+  });
+
+  it('進度葉完成且島收合 → 標記 chip', async () => {
+    const { rerender } = render(<IslandHost />);
+    completeAndRerender(rerender, 'history/u/c1/a1/s1');
+    await flushAsync();
+    expect(getChipAttentionMark('history')).toBe('閱讀進度已更新');
+  });
+
+  it('容器頁（序節）完成 → 不標記——目錄數字不會動', async () => {
+    const { rerender } = render(<IslandHost />);
+    completeAndRerender(rerender, 'history/u/c1/a1');
+    await flushAsync();
+    expect(getChipAttentionMark('history')).toBeNull();
+  });
+
+  it('島展開中收到進度葉完成 → 不標記——目錄頁碼自己閃', async () => {
+    getIslandRuntime().open('history');
+    const { rerender } = render(<IslandHost />);
+    completeAndRerender(rerender, 'history/u/c1/a1/s1');
+    await flushAsync();
+    expect(getChipAttentionMark('history')).toBeNull();
   });
 });

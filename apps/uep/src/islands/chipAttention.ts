@@ -34,8 +34,10 @@ function notify(): void {
 /**
  * 標記某座島「有東西動了」，chip 持續提示直到被清除。
  *
- * 島展開時呼叫是安全的——chip 此刻不在 dock 上，標記無從顯示，而島關回
- * 去之前 IslandHost 就會清掉它，呼叫端不必先問島開著沒有。
+ * ⚠️ 島展開中請不要標記：chip 此刻不在 dock 上無從顯示，而 IslandHost
+ * 的清除 effect 跑在 runtimeState 變化**之後**——收合當下 open 已是
+ * false，標記清不到，會在收合那一刻才冒出來變成已讀提示的殘影。
+ * 呼叫端要自己確認島目前收合（見 IslandHost 的進度標記路徑）。
  * 同島重複標記以最後一次的說明為準。
  */
 export function markChipAttention(id: IslandId, reason: string): void {

@@ -15,6 +15,7 @@ import type { ProgressChangeDetail, ProgressState } from '../progress';
 
 import { clearAllChipAttention } from './chipAttention';
 import { clearTerminalLog } from './concepts/terminalLog';
+import { clearSeenTocCounts } from './history/tocSeen';
 import { clearPhantomGallery } from './visuals/phantomBridge';
 import {
   clearAllWindowStates,
@@ -180,6 +181,8 @@ export const uepIslands = {
     clearPhantomGallery();
     // 未過期的 chip 閃爍同理：換帳號後不該有上一個帳號的提示殘留在 dock
     clearAllChipAttention();
+    // 目錄頁碼的「上次看到」快照同理：換帳號後的首次展開是「第一次看到」
+    clearSeenTocCounts();
     state = { windows: {}, focusOrder: [] };
     notify('reset');
   },

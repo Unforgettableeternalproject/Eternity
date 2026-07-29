@@ -460,7 +460,10 @@ export default function HistoryReader() {
       : limitFogAdvance(ratio, base, elapsed, el.clientHeight, el.scrollHeight);
     if (next == null || next <= fogAccumRef.current) return;
     fogAccumRef.current = next;
-    getProgressManager().advanceFog(pageId, next);
+    // 首拍只建立積分基準，不寫進紀錄——讀者還沒動，進度就該是 0%。
+    // 視覺與事件消費端各自以首屏線為下限（useInscription／overlay／
+    // focusin／visual clue），第一屏的可讀性不依賴這筆寫入
+    if (!first) getProgressManager().advanceFog(pageId, next);
     // 還沒追上讀者的合法位置 → 排下一次追趕。防 rush 語意不變：追趕的
     // 目標永遠是「讀者目前位置」且要先過跳躍門檻，跳太遠的人一步都不動
     if (next < ratio) {
@@ -578,7 +581,15 @@ export default function HistoryReader() {
     const onFocusIn = (event: FocusEvent) => {
       const target = event.target;
       if (!(target instanceof HTMLElement) || !el.contains(target)) return;
-      if (computeElementRatio(target, scroller) <= fogRatio) return;
+      // 首屏線下限與 useInscription 同一套：首拍不寫紀錄後 store 在捲動
+      // 前是 0，但第一屏依契約可讀，裡面的可聚焦元素不該被彈開
+      const floor = computeContentRatio(
+        0,
+        scroller.clientHeight,
+        scroller.scrollHeight
+      );
+      const effective = Math.max(fogRatio, Math.min(floor, 1));
+      if (computeElementRatio(target, scroller) <= effective) return;
       target.blur();
     };
     el.addEventListener('focusin', onFocusIn);

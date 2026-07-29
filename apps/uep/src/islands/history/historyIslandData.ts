@@ -17,6 +17,7 @@ import {
 } from '../../components/zone/contentVisibility';
 import {
   buildProgressTreeAdapter,
+  isEffectiveProgressPage,
   isEffectivelyCompleted,
 } from '../../progress';
 import type { ProgressState, ProgressTreeAdapter } from '../../progress';
@@ -279,6 +280,21 @@ export function buildUnlockedChapterList(
   return items;
 }
 
+/**
+ * 這一頁適不適用 rush prevention 迷霧——與 HistoryReader.fogApplies
+ * 同一套判準（有效進度頁或本身有解鎖條件）。島用它決定「尚無 fogRatio
+ * 紀錄」該解讀成「還沒開始讀（0%）」還是「本來就不追蹤（不顯示）」。
+ */
+export function fogAppliesTo(pageId: string, index: HistoryTreeIndex): boolean {
+  const node = index.nodesById.get(pageId);
+  if (!node) return false;
+  const ancestors = index.ancestorsById.get(pageId) || [];
+  const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
+  const metadata = node.metadata ?? null;
+  if (isEffectiveProgressPage(metadata, parent?.metadata ?? null)) return true;
+  return metadata?.gate != null;
+}
+
 /** 頁面在 tree 內的可讀性（與 HistoryReader 的最後防線同語意） */
 export function isPageNavigable(
   pageId: string,
@@ -375,6 +391,47 @@ export function diffTocCounts(
   return Object.keys(next).filter(
     (id) => prev[id] !== undefined && prev[id] !== next[id]
   );
+}
+
+/**
+ * 「完成後會讓目錄數字變動」的頁面集合（chip 精準化，2026-07-29 拍板）：
+ * - 全樹的進度葉（各 chapter/arc 行的 x/y 分子來源）
+ * - 沒有進度葉的 chapter/arc 本身（progressCounts 的 0/0→1/1 fallback）
+ *
+ * 容器頁（有進度葉的 arc/chapter，典型是序節）完成時不在此集合——
+ * 目錄上沒有任何數字會動，chip 閃了也無事可看。
+ */
+export function collectCountSignalIds(index: HistoryTreeIndex): Set<string> {
+  const ids = new Set<string>();
+  for (const root of index.roots) {
+    for (const leafId of index.adapter.getProgressDescendantIds(root.id)) {
+      ids.add(leafId);
+    }
+  }
+  for (const node of index.nodesById.values()) {
+    if (node.pageType !== 'chapter' && node.pageType !== 'arc') continue;
+    // 隱藏／靜態鎖的節點不可能被合法讀完，不進集合
+    if (isHidden(node) || node.metadata?.locked === true) continue;
+    if (index.adapter.getProgressDescendantIds(node.id).length === 0) {
+      ids.add(node.id);
+    }
+  }
+  return ids;
+}
+
+let countSignalCache: Promise<Set<string>> | null = null;
+
+/** collectCountSignalIds 的取用入口——與島本體共用 tree 快取 */
+export function fetchHistoryCountSignalIds(): Promise<Set<string>> {
+  if (!countSignalCache) {
+    countSignalCache = fetchHistoryTree()
+      .then((roots) => collectCountSignalIds(buildTreeIndex(roots)))
+      .catch((err) => {
+        countSignalCache = null;
+        throw err;
+      });
+  }
+  return countSignalCache;
 }
 
 /** 取得 History tree（模組級快取；失敗時清除快取讓下次重試） */

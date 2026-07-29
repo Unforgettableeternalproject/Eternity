@@ -44,7 +44,11 @@ import {
 import { clearRelated, pushIslandRelated } from './relatedBridge';
 import { subscribeIslandRelated } from './interlinkTrigger';
 import { useCurrentLocation } from './useCurrentLocation';
-import { canUseIslands, shouldMountIsland } from './islandRuntime';
+import {
+  canUseIslands,
+  getIslandRuntime,
+  shouldMountIsland,
+} from './islandRuntime';
 import { mountIslandsTestBridge } from './testBridge';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
@@ -349,9 +353,17 @@ export default function IslandHost() {
     clearAllChipAttention();
   }, [pathname, search]);
 
-  /* 進度推進 → 旅程之書 chip 閃一下（S9-D.6）
-     島收合時 HistoryIsland 沒有 mount，變動只能在這裡偵測。展開中的島
-     由目錄頁碼自己閃（見 HistoryIsland 的 changedCounts），互不重複。 */
+  /* 進度推進 → 旅程之書 chip 閃一下（S9-D.6；2026-07-29 精準化）
+     島收合時 HistoryIsland 沒有 mount，變動只能在這裡偵測。
+
+     兩道新閘（艾斯維爾 07/29 拍板）：
+     - 島展開中不標記——目錄頁碼自己閃（HistoryIsland 的 changedCounts），
+       chip 此刻不在 dock 上，事後才標記只會在收合那一刻變成殘影。
+       原本這裡依賴「島關回去之前會被清掉」，但清除 effect 跑在
+       runtimeState 變化之後，收合當下 open 已是 false，永遠清不到。
+     - 只有「目錄數字真的會變」的完成才標記——序節等容器頁的完成
+       不改變任何 x/y，chip 閃了也無事可看。判定用島本體同一份
+       tree 快取，dynamic import 維持 lazy chunk 邊界。 */
   const prevCompletedRef = useRef<string[] | null>(null);
   useEffect(() => {
     const now = progress.completedPageIds;
@@ -359,12 +371,26 @@ export default function IslandHost() {
     prevCompletedRef.current = now;
     // 首次求值是 hydrate，不是「剛剛讀完」
     if (prev === null) return;
-    const gained = now.some(
+    const gained = now.filter(
       (id) => id.startsWith('history/') && !prev.includes(id)
     );
-    if (!gained) return;
+    if (gained.length === 0) return;
     if (!shouldMountIsland(progress, 'history')) return;
-    markChipAttention('history', '閱讀進度已更新');
+    if (getIslandRuntime().getState().windows.history?.open) return;
+    const hrefAtGain = window.location.href;
+    import('./history/historyIslandData')
+      .then((mod) => mod.fetchHistoryCountSignalIds())
+      .then((signalIds) => {
+        if (!gained.some((id) => signalIds.has(id))) return;
+        // 非同步落地時重驗：期間島被展開（看到了）或已換頁（脈絡沒了）
+        // 都不再成立
+        if (getIslandRuntime().getState().windows.history?.open) return;
+        if (window.location.href !== hrefAtGain) return;
+        markChipAttention('history', '閱讀進度已更新');
+      })
+      .catch(() => {
+        // tree 拿不到就不標記——寧可漏一次提示，不要騙人去看沒變的數字
+      });
   }, [progress]);
 
   /* 展開島 = 看到了（S9-D.9）
