@@ -1,37 +1,30 @@
 /**
- * HistoryFogOverlay — rush prevention 的視覺層（S10-2）
+ * HistoryFogOverlay — rush prevention 的事件盾（S10-2）
  *
- * 迷霧線以下的內容被遮住，讀者只看得到段落的輪廓、認不出是什麼字。
- * 遮罩掛在捲動容器內、**隨內容一起捲動**（不是釘在視窗上）——它遮的是
- * 「內容從某個位置開始還沒解鎖」，不是「畫面下半部」。
+ * 視覺 v2（刻印顯影）之後，遮蔽的呈現交給 useInscription 的淡墨痕——
+ * 本元件不再畫霧，只負責兩件事：
  *
- * 邊界與渲染是兩件事，分開追蹤：
- * - 迷霧「邊界」跟著迷霧線（fogRatio）走——它是進度語意
- * - 迷霧「視覺」跟著讀者視窗走——雲絮動畫帶只需要蓋住讀者看得到的那一段。
- *   讀者 rush 到迷霧深處時它要跟過去；若把它錨在迷霧線上，超過它高度的
- *   快速捲動就會讓讀者看見底下沒有霧體質感的純色遠場
+ * 1. **事件盾**：刻印線以下吃掉指標事件。視覺遮蔽（認不出字）不等於
+ *    「事件視為不存在」，entity 嵌入與內部連結若還能點，防護就只是
+ *    裝飾。鍵盤焦點另由 HistoryReader 的 focusin 攔截處理。
+ * 2. **刻印線**：邊界上唯一的可見元素——一條琥珀色的微光細線，標出
+ *    「顯影到這裡」。推進時隨補間滑動（量化級距的離散跳步不能直接
+ *    瞬移，見 CSS transition 的說明）。
  *
- * 三層結構，成本都與文章長度無關：
- * - 底幕：柔邊以下到文末的不透明色幕。**遮蔽的保證在這裡**，柔邊與雲絮
- *   只是妝面——無論捲多快、捲多深，領地內永遠不會露出內容
- * - 柔邊：迷霧線起算 60vh 的漸層 + backdrop-filter，只有邊界需要
- *   「看得到輪廓但認不出字」的過渡
- * - 雲絮帶：130vh 動畫帶，以 transform 追蹤讀者視窗。不進 React state——
- *   捲動每幀重渲染付不起，直接寫 DOM
- *
- * 捲動中由 body class 降級成靜態（見 HistoryReader 的捲動 effect）——
- * 快速捲動時有沒有動畫看不出差別，沒必要付那個代價。
+ * 遮罩掛在捲動容器內、隨內容一起捲動——它遮的是「內容從某個位置開始
+ * 還沒解鎖」，不是「畫面下半部」。
  */
 
 /* global ResizeObserver */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { computeContentRatio } from '../../progress';
 
-/** 捲動中降級的 body class（開關由 HistoryReader 的捲動 effect 負責） */
+/** 捲動中的 body class（開關由 HistoryReader 的捲動 effect 負責）。
+ *  視覺 v2 之後暫無 CSS 消費端，保留機制供之後的降級需求。 */
 export const FOG_SCROLLING_CLASS = 'uep-fog-scrolling';
 
 interface HistoryFogOverlayProps {
-  /** 迷霧線位置（0~1）；>= 1 代表已散盡，呼叫端不該再渲染本元件 */
+  /** 刻印線位置（0~1）；>= 1 代表全部顯影，呼叫端不該再渲染本元件 */
   ratio: number;
   /** 捲動容器——量 scrollHeight 用 */
   scrollRef: React.RefObject<HTMLElement | null>;
@@ -55,7 +48,6 @@ export default function HistoryFogOverlay({
   contentKey,
 }: HistoryFogOverlayProps) {
   const [metrics, setMetrics] = useState({ scrollHeight: 0, clientHeight: 0 });
-  const wispsRef = useRef<HTMLDivElement>(null);
 
   // 版面高度會隨圖片非同步載入變動，ratio 對應的絕對位置要跟著修正。
   useEffect(() => {
@@ -76,57 +68,45 @@ export default function HistoryFogOverlay({
     return () => observer.disconnect();
   }, [contentKey, scrollRef, flowRef]);
 
+  // 時間軸／導航等內容之後才載入時 scrollHeight 會過期，事件盾就會短
+  // 一截讓文末互動漏出來——捲動當下順手校正，比對擋住無變化的 setState
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        setMetrics((prev) =>
+          prev.scrollHeight === el.scrollHeight &&
+          prev.clientHeight === el.clientHeight
+            ? prev
+            : { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }
+        );
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [scrollRef]);
+
   const { scrollHeight, clientHeight } = metrics;
   /**
    * 渲染位置的首屏線下限。
    *
-   * 進頁第一拍 store 還沒有這頁的 fogRatio，`?? 0` 的預設值會讓遮罩從
-   * 內容最頂端蓋下來，等首次取樣寫入後才退到首屏線——「蓋滿再退開」的
-   * 閃爍就是這樣來的。第一屏依契約本來就可讀（見 sampleFog 首次取樣
-   * 不限速的說明），首拍直接定位在首屏線；公式與取樣器同一套，首次
-   * 取樣寫入的就是同一個值，不會產生視覺與閘門的落差。
+   * 進頁第一拍 store 還沒有這頁的 fogRatio，`?? 0` 的預設值會讓刻印線
+   * 出現在內容最頂端，等首次取樣寫入後才滑到首屏線。第一屏依契約本來
+   * 就可讀（見 sampleFog 首次取樣不限速的說明），首拍直接定位在首屏線；
+   * 公式與取樣器同一套，首次取樣寫入的就是同一個值。
    */
   const floorRatio =
     scrollHeight > 0 ? computeContentRatio(0, clientHeight, scrollHeight) : 0;
   const renderRatio = Math.max(Math.max(0, ratio), Math.min(floorRatio, 1));
   const overlayTop = renderRatio * scrollHeight;
   const overlayHeight = Math.max(0, (1 - renderRatio) * scrollHeight);
-
-  // 雲絮帶追蹤讀者視窗：把帶子置中在視窗上，clamp 進迷霧領地。
-  // 迷霧線推進（overlayTop 變動）時也要重算——帶子的座標系是領地內部，
-  // 領地自己會動。
-  useEffect(() => {
-    const el = scrollRef.current;
-    const band = wispsRef.current;
-    if (!el || !band || overlayHeight <= 0) return;
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      // 時間軸／導航等內容之後才載入時 scrollHeight 會過期，捲動當下
-      // 順手校正——比對擋住無變化的 setState，不會形成迴圈
-      setMetrics((prev) =>
-        prev.scrollHeight === el.scrollHeight &&
-        prev.clientHeight === el.clientHeight
-          ? prev
-          : { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }
-      );
-      const bandHeight = band.offsetHeight;
-      const margin = Math.max((bandHeight - el.clientHeight) / 2, 0);
-      const local = el.scrollTop - margin - overlayTop;
-      const maxLocal = Math.max(overlayHeight - bandHeight, 0);
-      const clamped = Math.min(Math.max(local, 0), maxLocal);
-      band.style.transform = `translate3d(0, ${clamped}px, 0)`;
-    };
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-    update();
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      el.removeEventListener('scroll', onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [scrollRef, overlayTop, overlayHeight]);
 
   // 短文豁免的判準與 fogGate.isNonScrollable 一致——eligibility 只有
   // 一套，overlay 不能自己長一份寬鬆版
@@ -141,10 +121,6 @@ export default function HistoryFogOverlay({
         height: `${overlayHeight}px`,
       }}
       aria-hidden="true"
-    >
-      <div className="history-fog__body" />
-      <div className="history-fog__edge" />
-      <div className="history-fog__wisps" ref={wispsRef} />
-    </div>
+    />
   );
 }

@@ -1686,18 +1686,13 @@
   opacity: 0.5;
 }
 
-/* ── rush prevention 迷霧（S10-2）──────────────────────────
- * 遮罩掛在 .history-content 內、隨內容捲動——它遮的是「內容從這裡開始
- * 還沒解鎖」，不是「畫面下半部」。所以不能沿用 Visual Clue 書籤那套
- * viewport 釘位，兩者解決的是不同問題。
+/* ── rush prevention 刻印顯影（S10-2 視覺 v2）──────────────
+ * 「霧遮住字」改為「字尚未寫上」：刻印線以下的區塊以淡墨痕呈現
+ * （.history-unwritten），刻印線掃過時播顯影動畫（.history-inscribing）
+ * ——切合 History 的書卷主題。class 由 useInscription 掛在內容區塊上。
  *
- * 要的是「霧」不是「毛玻璃」：blur 只負責讓字認不出來，霧感來自疊在
- * 上面的幾團 radial-gradient 雲絮，兩層以不同速度與相位緩慢飄移，
- * 交疊處自然形成濃淡不均。
- *
- * 邊界與渲染分開追蹤（結構見 HistoryFogOverlay.tsx）：容器＝迷霧領地，
- * 跟著迷霧線；底幕是遮蔽的兜底保證；柔邊只存在於迷霧線附近；雲絮帶由
- * JS 以 transform 追蹤讀者視窗。每一層的成本都與文章長度無關。
+ * .history-fog 保留為透明事件盾＋刻印線本體，掛在 .history-content 內
+ * 隨內容捲動——它遮的是「內容從這裡開始還沒解鎖」，不是「畫面下半部」。
  *
  * reduced-motion 目前刻意不覆寫（艾斯維爾：先保留動畫，看情況再修），
  * 這是暫時決策，不是漏做的無障礙需求。
@@ -1709,176 +1704,78 @@
   z-index: 3;
   /*
    * 吃掉滑鼠事件——視覺遮蔽不等於「事件視為不存在」。底下的 entity 嵌入
-   * 與內部連結若還能點，迷霧就只是一層裝飾。鍵盤焦點另由 HistoryReader
+   * 與內部連結若還能點，防護就只是一層裝飾。鍵盤焦點另由 HistoryReader
    * 的 focusin 攔截處理（CSS 管不到 Tab）。
    */
   pointer-events: auto;
   /*
-   * ⚠️ 必須裁切：柔邊與雲絮帶是固定 vh 高，剩餘霧高小於它們時會溢出
-   * 文末，撐大捲動容器的 scrollable overflow，而 overlay 的定位又是拿
-   * 同一個 scrollHeight 算出來的——形成自我回授，連帶污染 ratio、
-   * 續讀定位與完成判定的幾何。
-   */
-  overflow: hidden;
-  /*
-   * 迷霧線推進是量化級距的離散跳步（FOG_RATIO_WRITE_STEP），不補間的話
-   * 邊界會一格一格瞬移。補間讓它滑過去；height 跟著 top 互補變動，
-   * bottom 端固定在文末，看不到。
+   * 刻印線推進是量化級距的離散跳步（FOG_RATIO_WRITE_STEP），不補間的話
+   * 細線會一格一格瞬移。補間讓它滑過去；事件盾跟著慢半拍只會多遮不會
+   * 漏遮（線只往下走）。
    */
   transition:
     top 700ms cubic-bezier(0.3, 0.7, 0.2, 1),
     height 700ms cubic-bezier(0.3, 0.7, 0.2, 1);
-  /* 霧色基底：跟著明暗主題走 */
-  --fog-body: var(--bg-sunken);
-  --fog-wisp: rgba(255, 255, 255, 0.62);
+  /* 刻印微光：跟著 History 的琥珀色走 */
+  --inscribe-glow: rgba(212, 168, 100, 0.5);
 }
 
-/* 深色主題的霧絮偏冷灰——純白在深底上會過曝成一團光斑 */
-[data-theme='dark'] .history-fog {
-  --fog-wisp: rgba(214, 222, 236, 0.4);
-}
-
-/*
- * 底幕：不透明色幕，遮蔽的兜底保證。柔邊與雲絮帶只是妝面——讀者無論
- * 捲多快、捲多深，領地內永遠不會露出內容。上緣縮進 40vh 讓位給柔邊的
- * 半透明過渡（該區間的遮蔽由柔邊漸層 82%+ 的段落負責）。
- */
-.history-fog__body {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 40vh;
-  bottom: 0;
-  background: color-mix(in srgb, var(--fog-body) 97%, var(--history-tint));
-}
-
-/* 柔邊：迷霧線的過渡帶——看得到段落輪廓、認不出字。
-   backdrop-filter 只在這 60vh 內付費 */
-.history-fog__edge {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 60vh;
-  max-height: 100%;
-  backdrop-filter: blur(6px) saturate(0.5) brightness(0.92);
-  -webkit-backdrop-filter: blur(6px) saturate(0.5) brightness(0.92);
-  /* 上緣不切死：讓霧從迷霧線「聚攏」而不是貼一張紙 */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 7vh,
-    #000 calc(100% - 1px)
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 7vh,
-    #000 calc(100% - 1px)
-  );
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--fog-body) 40%, transparent),
-    color-mix(in srgb, var(--fog-body) 82%, transparent) 45%,
-    color-mix(in srgb, var(--fog-body) 94%, transparent)
-  );
-}
-
-/*
- * 雲絮帶：追蹤讀者視窗（transform 由 HistoryFogOverlay 每幀寫入，
- * 不進 React state）。純妝面——底下的遮蔽由底幕負責，所以它不需要
- * backdrop-filter，位置怎麼跳都不會露餡。
- */
-.history-fog__wisps {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 130vh;
-  max-height: 100%;
-  overflow: hidden;
-  /* 帶子貼齊領地上緣（讀者在迷霧線附近）時，雲絮不能有硬切線 */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 7vh,
-    #000 calc(100% - 1px)
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 7vh,
-    #000 calc(100% - 1px)
-  );
-  will-change: transform;
-}
-
-/* 兩層雲絮，方向與週期都錯開，交疊處濃淡不均才像霧 */
-.history-fog__wisps::before,
-.history-fog__wisps::after {
+/* 刻印線：邊界上唯一的可見元素——一條琥珀微光細線 */
+.history-fog::before {
   content: '';
   position: absolute;
-  inset: -25% -15%;
-  background:
-    radial-gradient(42% 30% at 20% 18%, var(--fog-wisp) 0%, transparent 68%),
-    radial-gradient(36% 24% at 72% 34%, var(--fog-wisp) 0%, transparent 70%),
-    radial-gradient(50% 34% at 45% 66%, var(--fog-wisp) 0%, transparent 72%),
-    radial-gradient(30% 22% at 88% 82%, var(--fog-wisp) 0%, transparent 66%);
-  filter: blur(24px);
-  will-change: transform;
-}
-
-.history-fog__wisps::before {
-  opacity: 0.85;
-  animation: history-fog-drift-a 34s ease-in-out infinite alternate;
-}
-
-.history-fog__wisps::after {
-  opacity: 0.6;
-  transform: scaleX(-1);
-  animation: history-fog-drift-b 47s ease-in-out infinite alternate;
-}
-
-@keyframes history-fog-drift-a {
-  from {
-    transform: translate3d(-3%, 1.5%, 0) scale(1.05);
-  }
-  to {
-    transform: translate3d(4%, -2%, 0) scale(1.14);
-  }
-}
-
-@keyframes history-fog-drift-b {
-  from {
-    transform: translate3d(3%, -1%, 0) scaleX(-1) scale(1.12);
-  }
-  to {
-    transform: translate3d(-4%, 2.5%, 0) scaleX(-1) scale(1.02);
-  }
+  top: 0;
+  left: 6%;
+  right: 6%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--inscribe-glow) 85%, transparent) 22%,
+    color-mix(in srgb, var(--inscribe-glow) 85%, transparent) 78%,
+    transparent
+  );
+  box-shadow: 0 0 14px var(--inscribe-glow);
+  opacity: 0.5;
 }
 
 /*
- * 捲動中降級。
- *
- * 只暫停動畫不夠——backdrop-filter 每幀都要對整段柔邊重新取樣合成，
- * 那才是捲動卡頓的主因。捲動時卸掉濾鏡，改用較陡的不透明漸層補足
- * 遮蔽（保留上緣過渡，切成純色塊的視覺落差太突兀）；快速捲動中本來
- * 就看不出模糊與否的差別。
+ * 未刻印：淡墨痕——認得出有內容、讀不出字。rush 超過刻印線看到的
+ * 就是這個，不是空白（空白會被誤會成頁面壞掉）。
+ * pointer-events:none 是事件盾之外的第二層保險。
  */
-body.uep-fog-scrolling .history-fog__edge {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--fog-body) 72%, transparent),
-    color-mix(in srgb, var(--fog-body) 96%, transparent) 35%,
-    color-mix(in srgb, var(--fog-body) 96%, transparent)
-  );
+.history-unwritten {
+  opacity: 0.3;
+  filter: blur(5px) saturate(0.35);
+  user-select: none;
+  pointer-events: none;
 }
 
-body.uep-fog-scrolling .history-fog__wisps::before,
-body.uep-fog-scrolling .history-fog__wisps::after {
-  animation-play-state: paused;
-  /* 常駐 will-change 會固定佔住合成層記憶體，靜止時不需要 */
-  will-change: auto;
+/*
+ * 刻印中：顯影＋琥珀微光。多個區塊同時掃過時由 useInscription 以
+ * animation-delay 錯開，依序浮現才有書寫的節奏。
+ * 動畫結束即移除 class 回到常態樣式，不留殘值。
+ */
+.history-inscribing {
+  animation: history-inscribe 950ms cubic-bezier(0.25, 0.7, 0.3, 1) both;
+}
+
+@keyframes history-inscribe {
+  0% {
+    opacity: 0.3;
+    filter: blur(5px) saturate(0.35);
+    text-shadow: 0 0 0 transparent;
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0.5px) saturate(1);
+    text-shadow:
+      0 0 16px rgba(212, 168, 100, 0.5),
+      0 0 36px rgba(212, 168, 100, 0.22);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0) saturate(1);
+    text-shadow: 0 0 0 transparent;
+  }
 }

@@ -75,6 +75,7 @@ import LostBookmarkGate from './LostBookmarkGate';
 import { useEchoSpots } from './useEchoSpots';
 import { useVisualClues, type VisualClueEntry } from './useVisualClues';
 import HistoryFogOverlay, { FOG_SCROLLING_CLASS } from './HistoryFogOverlay';
+import { useInscription } from './useInscription';
 import VisualClueBookmarks from './VisualClueBookmarks';
 import { fetchClueGallery } from './visualClueGallery';
 import { deriveGalleryUnlockFlag, deriveImageUnlockFlag } from '../../visuals';
@@ -544,6 +545,24 @@ export default function HistoryReader() {
         : (progress.fogRatio[currentId] ?? 0)
       : 1;
   fogRatioRef.current = fogRatio;
+
+  // 刻印顯影（S10-2 視覺 v2）：未達刻印線的內容區塊以淡墨痕呈現，
+  // 掃過時播顯影動畫。邊界推進與事件遮蔽不歸它管，只是視覺消費端。
+  useInscription({
+    enabled: Boolean(
+      fogApplies &&
+      currentId &&
+      articleHtml &&
+      !contentLoading &&
+      !contentError &&
+      !bookmarkGateOpen
+    ),
+    fogRatio,
+    scrollRef,
+    flowRef,
+    contentRef,
+    contentKey: articleHtml,
+  });
 
   /**
    * 迷霧線以下的可聚焦元素不得取得焦點（S10-2）。
