@@ -26,7 +26,7 @@ import { useReaderAuth } from '../auth';
 import { UEP_ENTITY_ACTIVATE_EVENT } from '../embed';
 import type { EntityActivateDetail } from '../embed';
 import { useProgress } from '../progress';
-import { resolveSpoilerLevel } from '../audio';
+import { getAudioStore, resolveSpoilerLevel } from '../audio';
 import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
 import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
 
@@ -56,6 +56,7 @@ import { useDesktopIslandViewport, useIslandRuntimeState } from './useIslands';
 import SongPreviewCard from './echoes/SongPreviewCard';
 import {
   clearPhantomSuggestion,
+  getPhantomGallery,
   isPhantomSuggestionEligible,
   parsePhantomImages,
   pushPhantomSuggestion,
@@ -227,6 +228,13 @@ export default function IslandHost() {
             clearEchoSuggestion();
             return;
           }
+          // 這首曲已經在島上了——提示卡只會請使用者去播他正在聽的東西
+          // （艾斯維爾 2026-07-29；與上面 sourceZone 的判斷同一個道理，
+          // 只是這次「已經在看」的證據來自播放狀態而非來源區域）
+          if (getAudioStore().getState().currentSongId === song.id) {
+            clearEchoSuggestion();
+            return;
+          }
           const cluster = echoClusterStyle(song.clusterId || song.songType);
           pushEchoSuggestion({
             source: 'embed',
@@ -309,6 +317,11 @@ export default function IslandHost() {
               imageCount: images.length,
             })
           ) {
+            clearPhantomSuggestion();
+            return;
+          }
+          // 這個畫廊已經投在島上了——同上，不必提示使用者去展示眼前的畫
+          if (getPhantomGallery()?.id === gallery.id) {
             clearPhantomSuggestion();
             return;
           }

@@ -111,7 +111,12 @@ export default function VisualsIsland() {
 
   useEffect(() => {
     const pending = consumePhantomSuggestion();
-    if (pending) setSuggestion(pending);
+    // 島收合期間留下的 pending，取走時可能已經被別的來源投上去了——
+    // 提示使用者去展示眼前這幅畫是噪音（來源端 IslandHost 已在推送當下
+    // 擋過一次，這裡擋的是「推送之後才變成正在展示」）
+    if (pending && pending.id !== getPhantomGallery()?.id) {
+      setSuggestion(pending);
+    }
     const onSuggestion = (event: Event) => {
       // detail null = 清除提示（entity 啟用反查失敗／不合格時，避免
       // 舊卡殘留誤導與新 entity 有關）

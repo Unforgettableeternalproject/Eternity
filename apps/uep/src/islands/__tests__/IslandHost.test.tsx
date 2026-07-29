@@ -50,6 +50,28 @@ vi.mock('../useIslands', () => ({
   useIslandRuntimeState: () => ({ windows: {}, focusOrder: [] }),
 }));
 
+/** 嵌入提示去重測試用：目前播放中的曲目（audio singleton 不進測試） */
+const audioMock = vi.hoisted(() => ({
+  currentSongId: null as string | null,
+}));
+vi.mock('../../audio', () => ({
+  getAudioStore: () => ({
+    getState: () => ({ currentSongId: audioMock.currentSongId }),
+  }),
+  resolveSpoilerLevel: () => 0,
+}));
+
+/* 解鎖判定與 zone tree 不是本檔主張，一律通過（各自模組另有測試） */
+vi.mock('../../components/echoes/echoesVisibility', () => ({
+  isSongUnlockedInZone: () => true,
+}));
+vi.mock('../../components/visuals/visualsVisibility', () => ({
+  isGalleryUnlockedInZone: () => true,
+}));
+vi.mock('../zoneProgressTree', () => ({
+  fetchZoneProgressTree: () => Promise.resolve(null),
+}));
+
 vi.mock('../DraggableIsland', () => ({ default: () => null }));
 vi.mock('../IslandDock', () => ({ default: () => null }));
 vi.mock('../testBridge', () => ({
@@ -78,6 +100,15 @@ import {
   subscribeRelated,
 } from '../relatedBridge';
 import { getRelatedPendingFlag } from '../interlinkTrigger';
+import {
+  clearEchoSuggestion,
+  hasEchoSuggestion,
+} from '../echoes/echoSuggestionBridge';
+import {
+  clearPhantomGallery,
+  hasPhantomSuggestion,
+  pushPhantomGallery,
+} from '../visuals/phantomBridge';
 import { getIslandRuntime } from '../islandRuntime';
 import { ISLAND_RELATED_EVENT } from '../types';
 import type { IslandRelatedDetail } from '../types';
@@ -213,6 +244,119 @@ describe('IslandHost — 收合的 History 島不漏接互聯線索', () => {
 
     expect(hasPendingRelated('history')).toBe(false);
     expect(getRelatedPendingFlag('history')).toBe(false);
+  });
+});
+
+/**
+ * 嵌入提示的去重（2026-07-29）
+ *
+ * 點到的 entity 對應的曲目／畫廊要是已經在島上了，那張提示卡沒有可提示的
+ * 事——按下去只是把使用者正在聽/看的東西再放一次。與既有的 sourceZone
+ * 判斷同一個道理，只是「已經在看」的證據來自播放/投射狀態。
+ */
+describe('IslandHost — 已在播放／展示的項目不再出嵌入提示卡', () => {
+  const SONG = {
+    id: 'echoes/characters/heroine-theme',
+    title: '女主角的主題',
+    audioFile: 'audio/heroine.mp3',
+    songType: 'character',
+    clusterId: 'characters',
+    entityKey: 'heroine',
+    spoilerRevisions: [],
+  };
+  const GALLERY = {
+    id: 'visuals/profiles/cast/heroine',
+    title: '女主角設定集',
+    entityKey: 'heroine',
+    divisionId: 'profiles',
+    images: [
+      { id: 'img-1', file: 'images/a.png', caption: '正面', sortOrder: 0 },
+    ],
+  };
+
+  function stubFetch(payload: unknown) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ json: () => Promise.resolve(payload) }))
+    );
+  }
+
+  /** 事件 → fetch → Promise.all 落地 */
+  async function activateEntity() {
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent<EntityActivateDetail>(UEP_ENTITY_ACTIVATE_EVENT, {
+          detail: {
+            kind: 'character',
+            ref: 'entity:heroine',
+            entityKey: 'heroine',
+          },
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  beforeEach(() => {
+    progressMock.state = createInitialState();
+    audioMock.currentSongId = null;
+    clearEchoSuggestion();
+    clearPhantomGallery();
+  });
+
+  afterEach(() => {
+    clearEchoSuggestion();
+    clearPhantomGallery();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('Echoes：反查到的曲目正是目前播放中的 → 不推提示', async () => {
+    gatingMock.allowedId = 'echoes';
+    audioMock.currentSongId = SONG.id;
+    stubFetch({ ok: true, data: { song: SONG } });
+    render(<IslandHost />);
+
+    await activateEntity();
+
+    expect(hasEchoSuggestion()).toBe(false);
+  });
+
+  it('Echoes：播的是別首 → 照常推提示', async () => {
+    gatingMock.allowedId = 'echoes';
+    audioMock.currentSongId = 'echoes/stories/another';
+    stubFetch({ ok: true, data: { song: SONG } });
+    render(<IslandHost />);
+
+    await activateEntity();
+
+    expect(hasEchoSuggestion()).toBe(true);
+  });
+
+  it('Visuals：反查到的畫廊正是目前投射中的 → 不推提示', async () => {
+    gatingMock.allowedId = 'visuals';
+    pushPhantomGallery({ ...GALLERY, source: 'mirror' });
+    stubFetch({ ok: true, data: { gallery: GALLERY } });
+    render(<IslandHost />);
+
+    await activateEntity();
+
+    expect(hasPhantomSuggestion()).toBe(false);
+  });
+
+  it('Visuals：投射的是別個畫廊 → 照常推提示', async () => {
+    gatingMock.allowedId = 'visuals';
+    pushPhantomGallery({
+      ...GALLERY,
+      id: 'visuals/profiles/cast/rival',
+      source: 'mirror',
+    });
+    stubFetch({ ok: true, data: { gallery: GALLERY } });
+    render(<IslandHost />);
+
+    await activateEntity();
+
+    expect(hasPhantomSuggestion()).toBe(true);
   });
 });
 

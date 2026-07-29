@@ -244,6 +244,14 @@ describe('VisualsIsland entity 嵌入提示', () => {
     expect(screen.getByText(/01 \//)).toBeTruthy();
   });
 
+  it('pending 提示的畫廊已在投射中 → 不出卡（推送之後才變成正在展示）', () => {
+    pushPhantomSuggestion(makeGallery({ source: 'embed' }));
+    pushPhantomGallery(makeGallery()); // 同一個 gallery 已被投上去
+    render(<VisualsIsland />);
+    expect(screen.getByText('女主角設定集')).toBeTruthy();
+    expect(screen.queryByText('展示')).toBeNull();
+  });
+
   it('按「忽略」收卡且不換投射', () => {
     pushPhantomGallery(makeGallery());
     render(<VisualsIsland />);

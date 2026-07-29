@@ -289,4 +289,61 @@ describe('EchoesIsland', () => {
     expect(store.getState().currentSongId).toBe('related');
     expect(screen.queryByText('RELATED ECHO')).toBeNull();
   });
+
+  it('提示卡出現時整島換成那首曲的分類色（進度條與狀態點不留在上一個 cluster）', async () => {
+    const { store, EchoesIsland } = await setup();
+    await store.play(
+      'current',
+      'https://cdn/current.mp3',
+      '目前播放',
+      '#355C7D'
+    );
+    const { container } = render(<EchoesIsland />);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('uep:echo-suggestion', {
+          detail: {
+            source: 'embed',
+            songId: 'related',
+            title: '角色的回聲',
+            url: 'https://cdn/related.mp3',
+            clusterId: 'characters',
+            spoilerLevel: 0,
+            accent: '#B86060',
+          },
+        })
+      );
+    });
+
+    const suggested = 'rgb(184, 96, 96)';
+    const fill = container.querySelector(
+      '.uep-eisland__seek-fill'
+    ) as HTMLElement;
+    const dot = container.querySelector(
+      '.uep-eisland__meta-dot'
+    ) as HTMLElement;
+    const pool = container.querySelector('.uep-eisland') as HTMLElement;
+    expect(fill.style.background).toBe(suggested);
+    expect(dot.style.background).toBe(suggested);
+    expect(pool.style.getPropertyValue('--uep-pool-accent')).toBe('#B86060');
+  });
+
+  it('pending 提示的曲目已經在播 → 不出卡（推送之後才變成正在播）', async () => {
+    const { store, EchoesIsland } = await setup();
+    (window as { __uepEchoSuggestion?: unknown }).__uepEchoSuggestion = {
+      source: 'embed',
+      songId: 'related',
+      title: '角色的回聲',
+      url: 'https://cdn/related.mp3',
+      clusterId: 'characters',
+      spoilerLevel: 0,
+      accent: '#B86060',
+    };
+    await store.play('related', 'https://cdn/related.mp3', '角色的回聲');
+
+    render(<EchoesIsland />);
+
+    expect(screen.queryByText('RELATED ECHO')).toBeNull();
+  });
 });

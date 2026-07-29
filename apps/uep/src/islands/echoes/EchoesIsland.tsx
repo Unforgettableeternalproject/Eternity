@@ -207,7 +207,12 @@ export default function EchoesIsland() {
 
   useEffect(() => {
     const pending = consumeEchoSuggestion();
-    if (pending) setSuggestion(pending);
+    // pending 是島收合期間留下的，取走時情況可能已經變了——這段期間使用者
+    // 自己播起同一首的話，這張卡沒有可提示的事（來源端 IslandHost 已在推送
+    // 當下擋過一次，這裡擋的是「推送之後才變成正在播」）
+    if (pending && pending.songId !== store.getState().currentSongId) {
+      setSuggestion(pending);
+    }
     const onSuggestion = (event: Event) => {
       const detail = (event as CustomEvent<EchoPreviewTrack | null>).detail;
       // detail null = 清空提示（entity 反查查無/不合格/失敗）
@@ -221,7 +226,7 @@ export default function EchoesIsland() {
     window.addEventListener(UEP_ECHO_SUGGESTION_EVENT, onSuggestion);
     return () =>
       window.removeEventListener(UEP_ECHO_SUGGESTION_EVENT, onSuggestion);
-  }, []);
+  }, [store]);
 
   /* 收合即暫停 / 展開續播（島展開本身即使用者手勢，autoplay 安全） */
   const stateRef = useRef(state);
@@ -247,8 +252,16 @@ export default function EchoesIsland() {
     };
   }, [store]);
 
-  const accent = state.currentAccent || DEFAULT_ACCENT;
-  const displayAccent = suggestion?.accent || accent;
+  /**
+   * 島當前的色彩身分。關聯曲提示卡在時＝那首曲的分類色，否則＝正在播的曲。
+   *
+   * 全島唯一一個色彩來源：水、球、漣漪、狀態點、進度條、循環鍵一律吃它。
+   * 曾經分成「提示色」與「播放色」兩條，於是提示卡出現時水和球換了色、
+   * 進度條與狀態點還留在上一個 cluster——兩種分類色同時掛在一座島上
+   * （艾斯維爾 2026-07-29）。個別曲目的色（佇列衛星、佇列列）不在此列，
+   * 那是每一枚回聲自己的身分。
+   */
+  const accent = suggestion?.accent || state.currentAccent || DEFAULT_ACCENT;
   const hasSong = state.currentSongId !== null;
   const interrupting = state.interruptionSnapshot !== null;
 
@@ -355,7 +368,7 @@ export default function EchoesIsland() {
    * 灰色水面。漸層由 CSS 用 color-mix 從這個色算出深淺兩端，@property 讓
    * 切歌時色相能平順過渡。
    */
-  const poolAccent = hasSong || suggestion !== null ? displayAccent : IDLE_POOL;
+  const poolAccent = hasSong || suggestion !== null ? accent : IDLE_POOL;
 
   return (
     <div
@@ -415,7 +428,7 @@ export default function EchoesIsland() {
       {suggestion && (
         <div
           className="uep-eisland__suggestion"
-          style={{ '--suggestion': displayAccent } as React.CSSProperties}
+          style={{ '--suggestion': accent } as React.CSSProperties}
         >
           <span className="uep-eisland__suggestion-dot" aria-hidden />
           <div className="uep-eisland__suggestion-copy">
@@ -451,7 +464,7 @@ export default function EchoesIsland() {
           </svg>
         </div>
         <EchoOrb
-          accent={displayAccent}
+          accent={accent}
           playing={state.isPlaying}
           interruption={interrupting}
           satellites={state.playlist}
