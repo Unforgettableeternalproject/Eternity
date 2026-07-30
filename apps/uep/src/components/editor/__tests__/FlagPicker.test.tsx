@@ -122,7 +122,7 @@ describe('FlagPicker', () => {
 
   /**
    * 註冊表是建議清單不是白名單——與 entityKey／storyKey 同一個模式：自由填、
-   * 存檔時由 worker 自動補進註冊表、事後在 /admin/keys 補標籤與說明。
+   * 存檔時由 worker 自動補進註冊表、事後在 /admin/settings 補標籤與說明。
    */
   it('打一個不存在的名字按 Enter 直接採用，不強迫先註冊', async () => {
     const onChange = vi.fn();

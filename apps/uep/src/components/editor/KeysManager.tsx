@@ -9,11 +9,11 @@
  * `isAuthorized`，而 admin JWT 存在 httpOnly cookie 裡，瀏覽器端讀不到，
  * 必須由 proxy 在 server 端補上 Bearer header（同 UserManager／MediaLibrary）。
  */
-/* global RequestInit */
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { getDialog, getToast } from './editorHelpers';
+import { apiFetch, getDialog, getToast } from './editorHelpers';
+import ProgressOverview from './ProgressOverview';
 import './KeysManager.css';
 
 // ===== 型別（與 worker 端的回應形狀對齊）=====
@@ -98,22 +98,6 @@ type Selection =
   | { kind: 'flag'; name: string };
 
 // ===== API 工具 =====
-
-/** 呼叫同源 SSR proxy，認證由 proxy 從 httpOnly cookie 轉發 */
-async function apiFetch<T>(
-  url: string,
-  opts?: RequestInit
-): Promise<{ ok: boolean; data?: T; error?: string }> {
-  try {
-    const res = await fetch(url, {
-      ...opts,
-      headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
-    });
-    return (await res.json()) as { ok: boolean; data?: T; error?: string };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
-}
 
 /** key 的路徑片段（key 值可能含 `:`、空白等需編碼的字元） */
 function keyPath(keyType: string, keyValue: string): string {
@@ -266,7 +250,7 @@ const USAGE_BADGES: Record<
 // ===== 元件 =====
 
 export default function KeysManager() {
-  const [tab, setTab] = useState<'keys' | 'flags'>('keys');
+  const [tab, setTab] = useState<'keys' | 'flags' | 'progress'>('keys');
   const [keys, setKeys] = useState<InterlinkKeyRow[]>([]);
   const [audit, setAudit] = useState<FlagAuditRow[]>([]);
   const [registry, setRegistry] = useState<FlagRow[]>([]);
@@ -348,6 +332,21 @@ export default function KeysManager() {
     [registry]
   );
 
+  /**
+   * progress marker 的逐頁計數，給進度分頁的標記欄。
+   * marker 不進 history_interlink_index，唯一的來源是 audit 的 grantedBy
+   * （一標記一旗標，每筆授予引用即一個 marker）。
+   */
+  const markerCountByPage = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const flag of audit) {
+      for (const ref of flag.grantedBy) {
+        counts.set(ref.pageId, (counts.get(ref.pageId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [audit]);
+
   const selectedKey = useMemo(() => {
     if (selected?.kind !== 'key') return null;
     return (
@@ -371,7 +370,7 @@ export default function KeysManager() {
    * 兩個分頁的清單不相交，留著選取會出現「中欄顯示的項目在左欄看不到」的
    * 狀態，右欄的反查也跟著對不上。
    */
-  const switchTab = (next: 'keys' | 'flags') => {
+  const switchTab = (next: 'keys' | 'flags' | 'progress') => {
     if (next === tab) return;
     setTab(next);
     setSelected(null);
@@ -1319,103 +1318,97 @@ export default function KeysManager() {
     );
   };
 
+  /** 頂列分頁——三欄（key／flag）與全寬視圖（進度）共用同一條 */
+  const renderTopTabs = () => (
+    <div className="km-tabs km-tabs--top">
+      <button
+        className={`km-tab ${tab === 'keys' ? 'active' : ''}`}
+        onClick={() => switchTab('keys')}
+      >
+        key
+        <span className="km-group-count">{keys.length}</span>
+      </button>
+      <button
+        className={`km-tab ${tab === 'flags' ? 'active' : ''}`}
+        onClick={() => switchTab('flags')}
+      >
+        flag
+        <span className="km-group-count">{audit.length}</span>
+      </button>
+      <button
+        className={`km-tab ${tab === 'progress' ? 'active' : ''}`}
+        onClick={() => switchTab('progress')}
+      >
+        進度
+      </button>
+    </div>
+  );
+
+  if (tab === 'progress') {
+    return (
+      <div className="km-wrap">
+        {renderTopTabs()}
+        <ProgressOverview markerCountByPage={markerCountByPage} />
+      </div>
+    );
+  }
+
   return (
-    <div className="km">
-      {/* 左欄：清單 */}
-      <div className="km-list">
-        <div className="km-tabs">
-          <button
-            className={`km-tab ${tab === 'keys' ? 'active' : ''}`}
-            onClick={() => switchTab('keys')}
-          >
-            key
-            <span className="km-group-count">{keys.length}</span>
-          </button>
-          <button
-            className={`km-tab ${tab === 'flags' ? 'active' : ''}`}
-            onClick={() => switchTab('flags')}
-          >
-            flag
-            <span className="km-group-count">{audit.length}</span>
-          </button>
-        </div>
-
-        <div className="km-search-bar">
-          <input
-            type="text"
-            className="km-search-input"
-            placeholder={tab === 'keys' ? '搜尋 key、名稱…' : '搜尋旗標、標籤…'}
-            value={search}
-            spellCheck={false}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        {tab === 'keys' ? (
-          <div className="km-list-toolbar">
-            <div className="km-chips" role="group" aria-label="key 類型篩選">
-              {KEY_TYPE_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  className={`km-chip ${keyTypeFilter === filter.id ? 'active' : ''}`}
-                  aria-pressed={keyTypeFilter === filter.id}
-                  onClick={() => setKeyTypeFilter(filter.id)}
-                >
-                  {filter.label}
-                  <span className="km-group-count">
-                    {filter.id === 'entity'
-                      ? entityKeys.length
-                      : filter.id === 'story'
-                        ? storyKeys.length
-                        : entityKeys.length + storyKeys.length}
-                  </span>
-                </button>
-              ))}
-            </div>
+    <div className="km-wrap">
+      {renderTopTabs()}
+      <div className="km">
+        {/* 左欄：清單 */}
+        <div className="km-list">
+          <div className="km-search-bar">
+            <input
+              type="text"
+              className="km-search-input"
+              placeholder={
+                tab === 'keys' ? '搜尋 key、名稱…' : '搜尋旗標、標籤…'
+              }
+              value={search}
+              spellCheck={false}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-        ) : (
-          <div className="km-list-toolbar km-list-toolbar--stack">
-            <div
-              className="km-chips"
-              role="group"
-              aria-label="旗標使用狀態篩選"
-            >
-              {FLAG_USE_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
-                  aria-pressed={flagUseFilter === filter.id}
-                  onClick={() => selectUseFilter(filter.id)}
-                >
-                  {filter.label}
-                  <span className="km-group-count">
-                    {usageCounts[filter.id]}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {/* 第二層：只在選了「未使用」時出現。點已選中的可取消（回到三種
-                成因全看），所以不需要另一個「全部」chip */}
-            {flagUseFilter === 'unused' && (
-              <div
-                className="km-chips km-chips--sub"
-                role="group"
-                aria-label="未使用成因篩選"
-              >
-                {FLAG_USAGE_FILTERS.map((filter) => (
+
+          {tab === 'keys' ? (
+            <div className="km-list-toolbar">
+              <div className="km-chips" role="group" aria-label="key 類型篩選">
+                {KEY_TYPE_FILTERS.map((filter) => (
                   <button
                     key={filter.id}
                     type="button"
-                    className={`km-chip ${flagCauseFilter === filter.id ? 'active' : ''}`}
-                    aria-pressed={flagCauseFilter === filter.id}
-                    title={USAGE_BADGES[filter.id].title}
-                    onClick={() =>
-                      setFlagCauseFilter((current) =>
-                        current === filter.id ? null : filter.id
-                      )
-                    }
+                    className={`km-chip ${keyTypeFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={keyTypeFilter === filter.id}
+                    onClick={() => setKeyTypeFilter(filter.id)}
+                  >
+                    {filter.label}
+                    <span className="km-group-count">
+                      {filter.id === 'entity'
+                        ? entityKeys.length
+                        : filter.id === 'story'
+                          ? storyKeys.length
+                          : entityKeys.length + storyKeys.length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="km-list-toolbar km-list-toolbar--stack">
+              <div
+                className="km-chips"
+                role="group"
+                aria-label="旗標使用狀態篩選"
+              >
+                {FLAG_USE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={flagUseFilter === filter.id}
+                    onClick={() => selectUseFilter(filter.id)}
                   >
                     {filter.label}
                     <span className="km-group-count">
@@ -1424,58 +1417,87 @@ export default function KeysManager() {
                   </button>
                 ))}
               </div>
+              {/* 第二層：只在選了「未使用」時出現。點已選中的可取消（回到三種
+                成因全看），所以不需要另一個「全部」chip */}
+              {flagUseFilter === 'unused' && (
+                <div
+                  className="km-chips km-chips--sub"
+                  role="group"
+                  aria-label="未使用成因篩選"
+                >
+                  {FLAG_USAGE_FILTERS.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      className={`km-chip ${flagCauseFilter === filter.id ? 'active' : ''}`}
+                      aria-pressed={flagCauseFilter === filter.id}
+                      title={USAGE_BADGES[filter.id].title}
+                      onClick={() =>
+                        setFlagCauseFilter((current) =>
+                          current === filter.id ? null : filter.id
+                        )
+                      }
+                    >
+                      {filter.label}
+                      <span className="km-group-count">
+                        {usageCounts[filter.id]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="km-list-scroll">
+            {loading ? (
+              <div className="km-empty">載入中…</div>
+            ) : tab === 'keys' ? (
+              <>
+                {keyTypeFilter !== 'story' &&
+                  renderGroup('entity', entityKeys, renderKeyRow)}
+                {keyTypeFilter !== 'entity' &&
+                  renderGroup('story', storyKeys, renderKeyRow)}
+              </>
+            ) : (
+              flagGroups.map((group) =>
+                renderGroup(group.label, group.rows, renderFlagRow, {
+                  hint: group.hint,
+                  hintTone: group.hintTone,
+                  ...(group.collapsible
+                    ? {
+                        collapsed: !derivedOpen,
+                        onToggle: () => setDerivedOpen((open) => !open),
+                      }
+                    : {}),
+                })
+              )
             )}
           </div>
-        )}
+        </div>
 
-        <div className="km-list-scroll">
-          {loading ? (
-            <div className="km-empty">載入中…</div>
-          ) : tab === 'keys' ? (
-            <>
-              {keyTypeFilter !== 'story' &&
-                renderGroup('entity', entityKeys, renderKeyRow)}
-              {keyTypeFilter !== 'entity' &&
-                renderGroup('story', storyKeys, renderKeyRow)}
-            </>
-          ) : (
-            flagGroups.map((group) =>
-              renderGroup(group.label, group.rows, renderFlagRow, {
-                hint: group.hint,
-                hintTone: group.hintTone,
-                ...(group.collapsible
-                  ? {
-                      collapsed: !derivedOpen,
-                      onToggle: () => setDerivedOpen((open) => !open),
-                    }
-                  : {}),
-              })
+        {/* 中欄：詳細 */}
+        <div className="km-detail">
+          {selected === null ? (
+            <div className="km-empty">從左欄選一個項目</div>
+          ) : selected.kind === 'key' ? (
+            selectedKey ? (
+              renderKeyDetail(selectedKey)
+            ) : (
+              <div className="km-empty">找不到這個 key</div>
             )
+          ) : selectedFlag ? (
+            renderFlagDetail(selectedFlag)
+          ) : (
+            <div className="km-empty">找不到這個旗標</div>
           )}
         </div>
-      </div>
 
-      {/* 中欄：詳細 */}
-      <div className="km-detail">
-        {selected === null ? (
-          <div className="km-empty">從左欄選一個項目</div>
-        ) : selected.kind === 'key' ? (
-          selectedKey ? (
-            renderKeyDetail(selectedKey)
-          ) : (
-            <div className="km-empty">找不到這個 key</div>
-          )
-        ) : selectedFlag ? (
-          renderFlagDetail(selectedFlag)
-        ) : (
-          <div className="km-empty">找不到這個旗標</div>
-        )}
-      </div>
-
-      {/* 右欄：用在哪 */}
-      <div className="km-usage">
-        <div className="km-usage-head">用在哪</div>
-        <div className="km-usage-scroll">{renderUsage()}</div>
+        {/* 右欄：用在哪 */}
+        <div className="km-usage">
+          <div className="km-usage-head">用在哪</div>
+          <div className="km-usage-scroll">{renderUsage()}</div>
+        </div>
       </div>
     </div>
   );

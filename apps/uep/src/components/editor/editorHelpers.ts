@@ -1,6 +1,7 @@
 /**
  * 編輯器共用工具——統一 API 存取、asset 操作、dialog/toast helper
  */
+/* global RequestInit */
 
 import type { uepDialog as UepDialogType } from '../ui/UepDialog';
 import type { uepToast as UepToastType } from '../ui/UepToast';
@@ -19,6 +20,27 @@ export function getDialog(): typeof UepDialogType {
 
 export function getToast(): typeof UepToastType {
   return (window as any).__uepToastManager ?? toastSingleton;
+}
+
+// ── Admin API 存取 ──────────────────────────────────────────
+
+/**
+ * 呼叫同源 SSR proxy 的 JSON API，認證由 proxy 從 httpOnly cookie 轉發。
+ * 網路錯誤收斂成 `{ ok: false, error }`，呼叫端不需要各自 try/catch。
+ */
+export async function apiFetch<T>(
+  url: string,
+  opts?: RequestInit
+): Promise<{ ok: boolean; data?: T; error?: string }> {
+  try {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
+    });
+    return (await res.json()) as { ok: boolean; data?: T; error?: string };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 // ── Asset URL 工具 ──────────────────────────────────────────

@@ -1,4 +1,20 @@
-/* ===== KeysManager — Key 與旗標管理 ===== */
+/* ===== KeysManager — 設定（進度與註冊表）===== */
+
+/* 外層：頂列分頁 + 下方內容（三欄或全寬視圖） */
+.km-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.km-wrap > .km,
+.km-wrap > .po {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
 
 .km {
   display: grid;
@@ -23,6 +39,19 @@
   display: flex;
   padding: 16px 20px 0;
   gap: 8px;
+}
+
+/* 頂列版：改掛在 km-wrap 最上方，分頁不再平分寬度 */
+.km-tabs--top {
+  flex: 0 0 auto;
+  padding: 14px 24px 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-soft);
+}
+
+.km-tabs--top .km-tab {
+  flex: 0 0 auto;
+  padding: 8px 20px;
 }
 
 .km-tab {

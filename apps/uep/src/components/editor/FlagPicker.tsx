@@ -95,7 +95,7 @@ export default function FlagPicker({
     }
   }, []);
 
-  // 只在展開時載入：註冊表隨時會被 /admin/keys 或另一個 picker 改動，
+  // 只在展開時載入：註冊表隨時會被 /admin/settings 或另一個 picker 改動，
   // 每次展開重讀比維護一份會過期的快取簡單
   useEffect(() => {
     if (open) void load();

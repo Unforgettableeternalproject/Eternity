@@ -204,6 +204,9 @@ function mockApi(audit: unknown[] = AUDIT) {
     if (url === '/api/content/visuals/gallery-a') {
       return body({ id: 'visuals/gallery-a', title: 'A 展廊' });
     }
+    // 進度分頁（ProgressOverview）的兩個資料來源
+    if (url === '/api/content/history/tree') return body([]);
+    if (url === '/api/interlink/anchors-summary') return body({ pages: {} });
     return body({});
   });
   globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -704,5 +707,18 @@ describe('KeysManager', () => {
     expect(screen.getByLabelText('標題')).toBeInTheDocument();
     fireEvent.click(screen.getByText('flag'));
     expect(screen.getByText('從左欄選一個項目')).toBeInTheDocument();
+  });
+
+  it('進度分頁換成全寬總覽，三欄收走', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+    fireEvent.click(screen.getByText('進度'));
+
+    await waitFor(() =>
+      expect(calls.map((c) => c.url)).toContain('/api/content/history/tree')
+    );
+    // 三欄（右欄的「用在哪」）不在了，全寬視圖接手
+    expect(screen.queryByText('用在哪')).not.toBeInTheDocument();
+    expect(screen.getByText('History 還沒有任何頁面')).toBeInTheDocument();
   });
 });

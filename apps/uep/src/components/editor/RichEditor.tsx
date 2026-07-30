@@ -157,7 +157,7 @@ function createVisualClueId(): string {
  *
  * bubble 只編輯 `label`，但 `PUT /api/flags/:name` 是全覆蓋語意（`updateFlag`
  * 對未提供的欄位寫 NULL），所以另外兩欄也要留著原封不動送回去，否則在編輯器
- * 改一次標籤就會把 /admin/keys 填好的說明與類別清空。
+ * 改一次標籤就會把 /admin/settings 填好的說明與類別清空。
  */
 interface FlagRegistryRow {
   name: string;

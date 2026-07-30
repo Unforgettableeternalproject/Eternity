@@ -1,0 +1,179 @@
+/* ===== ProgressOverview — History 全樹進度頁總覽 ===== */
+
+.po {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.po-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-soft);
+}
+
+.po-search {
+  width: 260px;
+  padding: 7px 10px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg-card);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.po-search:focus {
+  outline: none;
+  border-color: var(--uep-gold, #d5b618);
+}
+
+.po-legend {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.06em;
+}
+
+.po-empty {
+  padding: 48px 24px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+}
+
+.po-table-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 32px;
+}
+
+.po-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.po-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-card);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-mute);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 12px 10px 8px;
+  border-bottom: 1px solid var(--hairline-strong);
+}
+
+.po-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+
+.po-row--effective {
+  background: color-mix(in srgb, var(--uep-gold, #d5b618) 4%, transparent);
+}
+
+.po-col-check {
+  width: 84px;
+  text-align: center;
+}
+.po-table td.po-col-check {
+  text-align: center;
+}
+
+.po-col-gate {
+  width: 240px;
+  max-width: 240px;
+}
+
+.po-col-marks {
+  width: 120px;
+}
+
+.po-indent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.po-type {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid var(--hairline);
+  padding: 1px 5px;
+}
+
+.po-title-link {
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.po-title-link:hover {
+  color: var(--uep-gold, #d5b618);
+}
+
+.po-inherited {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+  cursor: help;
+}
+
+.po-gate {
+  display: inline-block;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.po-marks {
+  display: inline-flex;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.po-dim {
+  color: var(--ink-mute);
+}
+
+@media (max-width: 768px) {
+  .po-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .po-search {
+    width: 100%;
+  }
+  .po-col-gate {
+    display: none;
+  }
+}
