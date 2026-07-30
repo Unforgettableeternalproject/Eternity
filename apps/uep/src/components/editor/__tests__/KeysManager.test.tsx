@@ -207,6 +207,17 @@ function mockApi(audit: unknown[] = AUDIT) {
     // 進度分頁（ProgressOverview）的兩個資料來源
     if (url === '/api/content/history/tree') return body([]);
     if (url === '/api/interlink/anchors-summary') return body({ pages: {} });
+    // 站台分頁（SiteSettingsPanel）
+    if (url === '/api/settings') {
+      return body({
+        settings: {
+          'protection.mode': 'env',
+          'bookmark.baseChancePct': 20,
+          'note.max': 30,
+          'note.textMax': 200,
+        },
+      });
+    }
     return body({});
   });
   globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -720,5 +731,16 @@ describe('KeysManager', () => {
     // 三欄（右欄的「用在哪」）不在了，全寬視圖接手
     expect(screen.queryByText('用在哪')).not.toBeInTheDocument();
     expect(screen.getByText('History 還沒有任何頁面')).toBeInTheDocument();
+  });
+
+  it('站台分頁載入設定表單', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+    fireEvent.click(screen.getByText('站台'));
+
+    await waitFor(() =>
+      expect(calls.map((c) => c.url)).toContain('/api/settings')
+    );
+    expect(screen.queryByText('用在哪')).not.toBeInTheDocument();
   });
 });

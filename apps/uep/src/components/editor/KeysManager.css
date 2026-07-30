@@ -10,7 +10,8 @@
 }
 
 .km-wrap > .km,
-.km-wrap > .po {
+.km-wrap > .po,
+.km-wrap > .ssp {
   flex: 1;
   min-height: 0;
   height: auto;

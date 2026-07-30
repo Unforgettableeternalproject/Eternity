@@ -60,6 +60,7 @@ import {
   validateRenameTarget,
 } from './flags-rename';
 import { collectFlagsFromBody } from './flags-scan';
+import { listSettings, updateSettings } from './settings';
 import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
@@ -2271,6 +2272,52 @@ export default {
 
     // ---- 自訂旗標註冊表 ----
     //
+    // ---- 站台行為設定（S10-3b T-B3）----
+    //
+    // /public 是前台 DesignLayout 掛載時的匿名讀取，不可加 isAuthorized
+    // （同 /api/interlink/keys/public 的地雷）。刻意不做 CDN 快取——
+    // 調整開關要在下一次頁面載入就生效，前台已有 sessionStorage 一層。
+    if (path === '/api/settings/public' && request.method === 'GET') {
+      const settings = await listSettings(env.CONTENT_DB);
+      return jsonResponse({ ok: true, data: { settings } }, 200, cors);
+    }
+
+    if (path === '/api/settings') {
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const privateCors = { ...cors, 'Cache-Control': 'private, no-store' };
+
+      if (request.method === 'GET') {
+        const settings = await listSettings(env.CONTENT_DB);
+        return jsonResponse({ ok: true, data: { settings } }, 200, privateCors);
+      }
+
+      if (request.method === 'PUT') {
+        let body: Record<string, unknown>;
+        try {
+          body = (await request.json()) as Record<string, unknown>;
+        } catch {
+          return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+        }
+        const result = await updateSettings(env.CONTENT_DB, body);
+        if (!result.ok) {
+          return jsonResponse({ ok: false, error: result.error }, 400, cors);
+        }
+        return jsonResponse(
+          { ok: true, data: { settings: result.settings } },
+          200,
+          privateCors
+        );
+      }
+
+      return jsonResponse(
+        { ok: false, error: 'Method not allowed' },
+        405,
+        cors
+      );
+    }
+
     // 全段 admin only：旗標名稱本身會洩漏尚未公開的劇情結構
     // （旗標命名慣例就是劇情事件名）。
     //

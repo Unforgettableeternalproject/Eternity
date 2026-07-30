@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { apiFetch, getDialog, getToast } from './editorHelpers';
 import ProgressOverview from './ProgressOverview';
+import SiteSettingsPanel from './SiteSettingsPanel';
 import './KeysManager.css';
 
 // ===== 型別（與 worker 端的回應形狀對齊）=====
@@ -250,7 +251,9 @@ const USAGE_BADGES: Record<
 // ===== 元件 =====
 
 export default function KeysManager() {
-  const [tab, setTab] = useState<'keys' | 'flags' | 'progress'>('keys');
+  const [tab, setTab] = useState<'keys' | 'flags' | 'progress' | 'site'>(
+    'keys'
+  );
   const [keys, setKeys] = useState<InterlinkKeyRow[]>([]);
   const [audit, setAudit] = useState<FlagAuditRow[]>([]);
   const [registry, setRegistry] = useState<FlagRow[]>([]);
@@ -370,7 +373,7 @@ export default function KeysManager() {
    * 兩個分頁的清單不相交，留著選取會出現「中欄顯示的項目在左欄看不到」的
    * 狀態，右欄的反查也跟著對不上。
    */
-  const switchTab = (next: 'keys' | 'flags' | 'progress') => {
+  const switchTab = (next: 'keys' | 'flags' | 'progress' | 'site') => {
     if (next === tab) return;
     setTab(next);
     setSelected(null);
@@ -1341,14 +1344,24 @@ export default function KeysManager() {
       >
         進度
       </button>
+      <button
+        className={`km-tab ${tab === 'site' ? 'active' : ''}`}
+        onClick={() => switchTab('site')}
+      >
+        站台
+      </button>
     </div>
   );
 
-  if (tab === 'progress') {
+  if (tab === 'progress' || tab === 'site') {
     return (
       <div className="km-wrap">
         {renderTopTabs()}
-        <ProgressOverview markerCountByPage={markerCountByPage} />
+        {tab === 'progress' ? (
+          <ProgressOverview markerCountByPage={markerCountByPage} />
+        ) : (
+          <SiteSettingsPanel />
+        )}
       </div>
     );
   }
