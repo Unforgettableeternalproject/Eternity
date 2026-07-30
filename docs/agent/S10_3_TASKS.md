@@ -183,7 +183,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
   2. 新建 `workers/content-api/src/flags-scan.ts`：仿 `assets.ts` `extractAssetKeysFromContentBlock()` ／ `history-interlink.ts` `scanHistoryInterlinkAnchors()` 的 regex 掃描模式（**這是新寫，不是移植**，工時已按此估）：
      - `scanGrantedFlags(content): string[]`——掃 `data-role="progress-marker"` 的 `data-grants-flags`（逗號分隔），**全站掃描，不限 area**（地雷 3）
      - `scanRequiredFlags(metadata): string[]`——讀 `metadata.gate.requiresFlags` JSON 陣列
-     - `classifyFlag(name): 'derived' | 'custom'`——判斷是否符合 A 類自動旗標的**形狀**（`completed:*`、`met:*`、`zone:visited:*` 前綴；`*:song`、`*:gallery`、`*:image:*` 尾碼/中綴形狀），這個函式**必須匯出、供 T-A4 的 409 檢查共用**，不可各自寫一份（否則 audit 儀表板標的「derived」與存檔時的「豁免」判定會漂移）
+     - `classifyFlag(name): 'derived' | 'custom'`——判斷是否符合 A 類自動旗標的**形狀**（`completed:*`、`met:*`、`zone:visited:*`、`gallery:*`、`image:*` 前綴；`*:song`、`*:gallery` 尾碼），這個函式**必須匯出、供 T-A4 的 409 檢查共用**，不可各自寫一份（否則 audit 儀表板標的「derived」與存檔時的「豁免」判定會漂移）
   3. `GET /api/flags/audit`：`SELECT id, title, area, content, metadata FROM pages WHERE deleted_at IS NULL` 全表逐列掃描，彙整 `flags[]`（`name`／`source`／`grantedBy[]`／`requiredBy[]`／`orphan`／`unused`），`source` 依 `classifyFlag` + 是否存在於 `uep_flags` 判定為 `registered`／`derived`／`unregistered`
 - **驗收標準**：
   - 新建 `flags-scan.test.ts`：多旗標同 div 逗號分隔解析、壞/缺屬性容錯、`classifyFlag` 對六種 A 類形狀（含邊界案例：自訂旗標剛好以 `:song` 結尾時仍判為 custom 但會被 audit 標記提醒，不視為 bug，寫成已知限制的測試案例）

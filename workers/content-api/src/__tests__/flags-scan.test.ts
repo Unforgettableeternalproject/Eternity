@@ -129,17 +129,34 @@ describe('scanRequiredFlags', () => {
   });
 });
 
+/**
+ * 樣本一律照產生端的實際 return 寫，不照設計文件的摘要表。
+ *
+ * 這批斷言原本有一條寫成 `some-gallery:image:img-01`（設計文件 §1-1 的形狀表
+ * 誤記為 `{galleryId}:image:{imageId}`），與 `deriveImageUnlockFlag` 實際產生的
+ * `image:{galleryId}:{imageId}` 不符——測試綠燈但守的是一個不存在的形狀，
+ * 真實的 image 解鎖旗標會被判成 custom 而要求註冊。
+ *
+ * 每個樣本後面標的是產生端，改動前先去讀那支函式的 return。
+ */
 describe('classifyFlag', () => {
-  it('六種規則生成形狀都判為 derived', () => {
+  it('七種規則生成形狀都判為 derived', () => {
+    // progress/markers.ts progressFlag()
     expect(classifyFlag('completed:history/passage/ch-1')).toBe('derived');
-    expect(classifyFlag('met:novia')).toBe('derived');
+    // embed/marks.ts metFlag()——S7-C 起退役，舊進度仍留著
+    expect(classifyFlag('met:entity:novia')).toBe('derived');
+    // 2026-07-26 移除授旗，舊進度仍留著
     expect(classifyFlag('zone:visited:echoes')).toBe('derived');
+    // audio/spoilerResolver.ts deriveSongUnlockFlag()
     expect(classifyFlag('rain-sea-finale:song')).toBe('derived');
+    // visuals/threeState.ts deriveGalleryUnlockFlag()——有 entityKey 走尾碼
     expect(classifyFlag('xavier-colsono:gallery')).toBe('derived');
+    // 同上，無 entityKey 走前綴
     expect(classifyFlag('gallery:visuals/illustrations/era-u/x')).toBe(
       'derived'
     );
-    expect(classifyFlag('some-gallery:image:img-01')).toBe('derived');
+    // visuals/threeState.ts deriveImageUnlockFlag()
+    expect(classifyFlag('image:visuals/gallery-a:img-01')).toBe('derived');
   });
 
   it('一般自訂旗標判為 custom', () => {
@@ -159,8 +176,17 @@ describe('classifyFlag', () => {
    * 「劇情歌解鎖旗標」與「剛好以 :song 結尾的自訂旗標」。後者會被誤判為
    * derived 而豁免註冊強制。緩解靠命名慣例，不靠更聰明的比對。
    */
-  it('剛好以 derived 尾碼結尾的自訂旗標會被誤判（已知限制）', () => {
+  it('剛好命中 derived 前綴／尾碼的自訂旗標會被誤判（已知限制）', () => {
     expect(classifyFlag('my-custom:song')).toBe('derived');
     expect(classifyFlag('anything:gallery')).toBe('derived');
+    expect(classifyFlag('image:my-own-flag')).toBe('derived');
+  });
+
+  /**
+   * 曾被誤當成 derived 形狀的字串。沒有任何產生端會吐出這種中綴形狀，
+   * 它就是一個普通自訂旗標，必須照常受註冊強制。
+   */
+  it('中綴 :image: 不是 derived 形狀', () => {
+    expect(classifyFlag('some-gallery:image:img-01')).toBe('custom');
   });
 });

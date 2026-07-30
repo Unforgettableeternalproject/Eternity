@@ -6,8 +6,15 @@
  * **規則生成（derived）**：名稱是 key 或 pageId 的函數，由程式推導，
  * 編輯器不手填——`completed:{pageId}`、`met:{ref}`、`zone:visited:{zone}`、
  * `{storyKey}:song`、`{entityKey}:gallery`、`gallery:{pageId}`、
- * `{galleryId}:image:{imageId}`。改 key 就等於改旗標，不存在「改旗標名」
+ * `image:{galleryId}:{imageId}`。改 key 就等於改旗標，不存在「改旗標名」
  * 這種獨立操作，因此**不進註冊表**、不受註冊強制。
+ *
+ * ⚠️ 這份清單的權威來源是產生端的函式，不是任何設計文件的摘要表：
+ * `progress/markers.ts` 的 `completed:`、`embed/marks.ts` 的 `metFlag`、
+ * `audio/spoilerResolver.ts` 的 `deriveSongUnlockFlag`、`visuals/threeState.ts`
+ * 的 `deriveGalleryUnlockFlag`／`deriveImageUnlockFlag`（皆在 apps/uep，
+ * 跨 package 無法 import，只能靠這條註記維持對齊）。新增 derived 形狀時
+ * 一律回去讀那些函式的 return，不要照文件抄。
  *
  * **自訂（custom）**：編輯器手填的兩處——FlagMarker 的 `data-grants-flags`
  * 與 gate 的 `requiresFlags`。這些必須先註冊才能使用，否則授予端打錯一個
@@ -31,21 +38,26 @@ export type FlagKind = 'derived' | 'custom';
  */
 const DERIVED_PREFIXES = [
   'completed:',
+  // met:* 與 zone:visited:* 都已退役（前者 S7-C 起僅舊格式 fallback 消費、
+  // 後者 2026-07-26 移除授旗），但既有讀者進度裡仍留著這些旗標，刻意不清理。
+  // 分類器必須繼續認得它們，否則舊資料一進巡查清單就變成「未註冊」假警報。
   'met:',
   'zone:visited:',
   // deriveGalleryUnlockFlag 對沒有 entityKey 的 gallery 產生 `gallery:{pageId}`
   'gallery:',
+  // deriveImageUnlockFlag 產生 `image:{galleryId}:{imageId}`——是前綴而非中綴
+  'image:',
 ];
 const DERIVED_SUFFIXES = [':song', ':gallery'];
-const DERIVED_INFIXES = [':image:'];
 
 /**
  * 判斷旗標是規則生成還是自訂。
  *
- * ⚠️ 已知限制：判定看的是**形狀**，所以一個剛好以 `:song` 結尾的自訂旗標
- * 會被誤判為 derived（因而豁免註冊強制）。這不是可以靠更聰明的正規式解決
- * 的問題——`{storyKey}:song` 的 storyKey 本身就是任意 key 字串，與自訂旗標
- * 的字元集完全重疊。實務上的緩解是命名慣例：自訂旗標不要用這些尾碼。
+ * ⚠️ 已知限制：判定看的是**形狀**，所以一個剛好以 `:song` 結尾或以 `image:`
+ * 開頭的自訂旗標會被誤判為 derived（因而豁免註冊強制）。這不是可以靠更聰明
+ * 的正規式解決的問題——`{storyKey}:song` 的 storyKey 本身就是任意 key 字串，
+ * 與自訂旗標的字元集完全重疊。實務上的緩解是命名慣例：自訂旗標不要用這些
+ * 前綴與尾碼。
  */
 export function classifyFlag(name: string): FlagKind {
   const flag = name.trim();
@@ -54,9 +66,6 @@ export function classifyFlag(name: string): FlagKind {
     return 'derived';
   }
   if (DERIVED_SUFFIXES.some((suffix) => flag.endsWith(suffix))) {
-    return 'derived';
-  }
-  if (DERIVED_INFIXES.some((infix) => flag.includes(infix))) {
     return 'derived';
   }
   return 'custom';

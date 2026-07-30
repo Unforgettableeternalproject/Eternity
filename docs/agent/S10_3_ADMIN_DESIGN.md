@@ -57,8 +57,12 @@
 | `met:{ref}` | S4 entity 嵌入（**已退役，停增不刪**） | `embed/marks.ts:67` `metFlag()` |
 | `{storyKey}:song` | echo spot 插播／收藏判定 | `audio/spoilerResolver.ts:138` `deriveSongUnlockFlag()` |
 | `{entityKey}:gallery`／`gallery:{pageId}` | visual clue 展示授旗 | `visuals/threeState.ts:177` `deriveGalleryUnlockFlag()` |
-| `{galleryId}:image:{imageId}` | 單張圖片解鎖 | `visuals/threeState.ts:162` `deriveImageUnlockFlag()` |
-| `zone:visited:{zone}` | 進入 zone | S6 |
+| `image:{galleryId}:{imageId}` | 單張圖片解鎖 | `visuals/threeState.ts:162` `deriveImageUnlockFlag()` |
+| `zone:visited:{zone}` | 進入 zone（**已廢除授旗 2026-07-26，舊進度仍留著**） | S6 |
+
+⚠️ 這張表是摘要，不是權威。形狀的唯一事實來源是「檔案」欄那些函式的 `return`——
+本表的 image 一列曾誤記為 `{galleryId}:image:{imageId}`（中綴），`classifyFlag`
+照抄後把真實的 image 解鎖旗標判成 custom。新增或核對形狀時一律回去讀那支函式。
 
 這類旗標的名稱是 key 的函數，**改 key 就等於改旗標**，不存在「改旗標名」這種獨立操作。註冊表若把它們收進去當可編輯項，等於開了一條與 key 定義互相矛盾的第二事實來源。
 
