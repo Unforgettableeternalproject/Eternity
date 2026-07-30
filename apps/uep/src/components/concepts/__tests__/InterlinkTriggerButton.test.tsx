@@ -154,3 +154,77 @@ describe('InterlinkTriggerButton — 觸發', () => {
     expect(onCardClick).not.toHaveBeenCalled();
   });
 });
+
+describe('InterlinkTriggerButton — hover 顯示說明（S10-3b T-B7）', () => {
+  function stubKeyMeta(description: string | null) {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ ok: true, data: { keyMeta: { description } } }),
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('hover 後 lazy 載入 description 當 title；同 key 只查一次（模組快取）', async () => {
+    const fetchMock = stubKeyMeta('命運織者的主要程式碼執行者');
+    const user = userEvent.setup();
+    await renderAndWait(
+      <InterlinkTriggerButton entityKey="desc-novia" label="諾薇亞" />
+    );
+
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('title', '找「諾薇亞」相關的回聲與影像');
+
+    await user.hover(button);
+    await waitFor(() =>
+      expect(button).toHaveAttribute('title', '命運織者的主要程式碼執行者')
+    );
+    expect(String(fetchMock.mock.calls[0][0])).toContain('keyType=entity');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('key=desc-novia');
+
+    // 再 hover 不重查（元件內已定案 + 模組級 Promise 快取）
+    await user.unhover(button);
+    await user.hover(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('沒有 description 時維持原本的動作說明字樣', async () => {
+    stubKeyMeta(null);
+    const user = userEvent.setup();
+    await renderAndWait(
+      <InterlinkTriggerButton entityKey="desc-nobody" label="無說明的人" />
+    );
+
+    const button = screen.getByRole('button');
+    await user.hover(button);
+    // 查完仍是 null → title 不變
+    await waitFor(() =>
+      expect(button).toHaveAttribute(
+        'title',
+        '找「無說明的人」相關的回聲與影像'
+      )
+    );
+  });
+
+  it('查詢掛掉不影響按鈕本體（點擊照常發事件）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('down')))
+    );
+    const listener = vi.fn();
+    window.addEventListener(UEP_ENTITY_ACTIVATE_EVENT, listener);
+    const user = userEvent.setup();
+    await renderAndWait(
+      <InterlinkTriggerButton entityKey="desc-broken" label="斷線的人" />
+    );
+
+    const button = screen.getByRole('button');
+    await user.hover(button);
+    await user.click(button);
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, listener);
+  });
+});

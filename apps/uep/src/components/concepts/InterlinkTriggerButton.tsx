@@ -31,6 +31,7 @@ import React, { useEffect, useState } from 'react';
 
 import { activateEntityKey } from '../../embed';
 import { shouldMountIsland, useDesktopIslandViewport } from '../../islands';
+import { getApiBase } from '../../lib/apiBase';
 import {
   isEchoesEntityUnlocked,
   loadEchoesEntityIndex,
@@ -50,6 +51,40 @@ interface Props {
   label: string;
   /** 額外 class（各 stack 版面微調用） */
   className?: string;
+}
+
+/**
+ * entity 說明的模組級快取（S10-3b T-B7）。
+ *
+ * 說明來自 `/api/interlink/keys/public`（/admin/settings 填的
+ * `interlink_keys.description`），**hover／focus 才查**——browser 清單
+ * 一頁可能長出數十顆按鈕，mount 就查會對同一批 key 掃射。以 Promise 快取
+ * 讓同 key 的並發 hover 也只打一次；查詢失敗快取 null（說明是加分資訊，
+ * 失敗不重試也不報錯）。
+ */
+const descriptionCache = new Map<string, Promise<string | null>>();
+
+function loadEntityDescription(entityKey: string): Promise<string | null> {
+  let cached = descriptionCache.get(entityKey);
+  if (!cached) {
+    cached = (async () => {
+      try {
+        const res = await fetch(
+          `${getApiBase()}/api/interlink/keys/public?keyType=entity&key=${encodeURIComponent(entityKey)}`
+        );
+        if (!res.ok) return null;
+        const json = (await res.json()) as {
+          ok: boolean;
+          data?: { keyMeta?: { description?: string | null } | null };
+        };
+        return (json.ok && json.data?.keyMeta?.description) || null;
+      } catch {
+        return null;
+      }
+    })();
+    descriptionCache.set(entityKey, cached);
+  }
+  return cached;
 }
 
 export default function InterlinkTriggerButton({
@@ -80,8 +115,18 @@ export default function InterlinkTriggerButton({
     };
   }, []);
 
+  /** 說明摘要：undefined = 尚未查（hover 才 lazy 載入），null = 查過沒有 */
+  const [description, setDescription] = useState<string | null | undefined>(
+    undefined
+  );
+
   const key = entityKey?.trim();
   if (!key || !desktopViewport) return null;
+
+  const loadDescription = () => {
+    if (description !== undefined) return;
+    void loadEntityDescription(key).then(setDescription);
+  };
 
   /* 島沒掛載時連查都不必——事件廣播出去沒有消費者。逐島判定而非聯集：
      只解鎖 Echoes 的讀者不該因為這個 entity「只有畫廊」而看到按鈕。 */
@@ -107,7 +152,9 @@ export default function InterlinkTriggerButton({
         });
       }}
       onPointerDown={(e) => e.stopPropagation()}
-      title={`找「${label}」相關的回聲與影像`}
+      onMouseEnter={loadDescription}
+      onFocus={loadDescription}
+      title={description || `找「${label}」相關的回聲與影像`}
       aria-label={`找「${label}」相關的回聲與影像`}
     >
       <span className="conc-interlink-btn__glyph" aria-hidden="true">
