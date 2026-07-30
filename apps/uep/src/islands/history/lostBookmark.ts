@@ -16,6 +16,7 @@
 import { isTestMode } from '../../lib/apiBase';
 import type { ProgressState } from '../../progress';
 import { LOST_BOOKMARK_BASE_PCT, getProgressManager } from '../../progress';
+import { getSetting } from '../../lib/uepSettings';
 
 import { canUseIslands, isIslandUnlocked } from '../islandRuntime';
 
@@ -73,7 +74,8 @@ export function dismissLostBookmark(state: ProgressState): void {
   if (!state.lostBookmark.visible) return;
   getProgressManager().updateLostBookmark({
     visible: false,
-    chancePct: LOST_BOOKMARK_BASE_PCT,
+    // 基礎機率走站台設定（/admin/settings），未載入時退回常數
+    chancePct: getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT),
   });
 }
 
@@ -129,7 +131,7 @@ export function mountLostBookmarkTestBridge(): () => void {
     reset() {
       getProgressManager().updateLostBookmark({
         visible: false,
-        chancePct: LOST_BOOKMARK_BASE_PCT,
+        chancePct: getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT),
       });
     },
     guarantee() {

@@ -62,14 +62,25 @@ export function validateSetting(
         return { ok: false, error: 'bookmark.baseChancePct 必須是 0–100' };
       }
       return { ok: true, value };
+    // 上限對齊 apps/uep progress/types.ts 的 STORAGE_NOTE_HARD_MAX／
+    // STORAGE_NOTE_TEXT_HARD_MAX——前台載入 sanitize 以硬上限截斷，
+    // 這裡放行更大的值等於讓便條在下次載入時被砍掉
     case 'note.max':
-      if (!Number.isInteger(value) || (value as number) < 1) {
-        return { ok: false, error: 'note.max 必須是正整數' };
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 1 ||
+        (value as number) > 60
+      ) {
+        return { ok: false, error: 'note.max 必須是 1–60 的整數' };
       }
       return { ok: true, value: value as number };
     case 'note.textMax':
-      if (!Number.isInteger(value) || (value as number) < 1) {
-        return { ok: false, error: 'note.textMax 必須是正整數' };
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 1 ||
+        (value as number) > 400
+      ) {
+        return { ok: false, error: 'note.textMax 必須是 1–400 的整數' };
       }
       return { ok: true, value: value as number };
     default:

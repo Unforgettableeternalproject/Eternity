@@ -9,6 +9,7 @@
  */
 
 import { isTestMode } from '../lib/apiBase';
+import { getSetting } from '../lib/uepSettings';
 
 /** 是否為管理頁面 */
 const isAdmin = () => window.location.pathname.startsWith('/admin');
@@ -35,9 +36,21 @@ export const isProtectionForced = (): boolean => {
  */
 const isNonProdEnv = (): boolean => isDev || isTestMode();
 
-/** 是否應啟用所有內容保護（正式環境永遠啟用；dev / 測試模式需 opt-in） */
-const shouldEnableProtection = (): boolean =>
-  isNonProdEnv() ? isProtectionForced() : true;
+/**
+ * 是否應啟用所有內容保護。
+ *
+ * `protection.mode` 站台設定（/admin/settings）的三態：
+ * - `always`／`never`：無視環境一律開／關
+ * - `env`（預設）：沿用現行判定——正式環境永遠啟用；dev / 測試模式需 opt-in
+ *
+ * 設定未載入（首訪第一頁）時 getSetting 退回 'env'，即現行行為。
+ */
+const shouldEnableProtection = (): boolean => {
+  const mode = getSetting<string>('protection.mode', 'env');
+  if (mode === 'always') return true;
+  if (mode === 'never') return false;
+  return isNonProdEnv() ? isProtectionForced() : true;
+};
 
 /** 目前頁面是否為 Reader 頁面（由 ReaderShell 掛載時設定 body attribute） */
 const isReaderPage = (): boolean =>

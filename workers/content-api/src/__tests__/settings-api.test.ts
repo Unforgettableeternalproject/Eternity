@@ -145,6 +145,13 @@ describe('/api/settings', () => {
     expect((await putSettings({})).status).toBe(400);
   });
 
+  it('便條上限不可超過前台載入 sanitize 的硬上限（60／400）', async () => {
+    expect((await putSettings({ 'note.max': 61 })).status).toBe(400);
+    expect((await putSettings({ 'note.textMax': 401 })).status).toBe(400);
+    expect((await putSettings({ 'note.max': 60 })).status).toBe(200);
+    expect((await putSettings({ 'note.textMax': 400 })).status).toBe(200);
+  });
+
   it('表裡的壞 JSON 靜默退回預設，不讓端點 500', async () => {
     await env.CONTENT_DB.prepare(
       `INSERT OR REPLACE INTO uep_settings (key, value, updated_at)

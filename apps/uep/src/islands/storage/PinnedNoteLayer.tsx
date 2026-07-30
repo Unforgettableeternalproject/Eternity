@@ -48,6 +48,7 @@ import {
   useProgress,
 } from '../../progress';
 import type { StorageNote } from '../../progress';
+import { getSetting } from '../../lib/uepSettings';
 import { markChipAttention } from '../chipAttention';
 import { HOME_ZONE_ID, useCurrentLocation } from '../useCurrentLocation';
 
@@ -683,7 +684,7 @@ function PinnedNoteCard({
         <textarea
           ref={textareaRef}
           value={draft}
-          maxLength={STORAGE_NOTE_TEXT_MAX}
+          maxLength={getSetting('note.textMax', STORAGE_NOTE_TEXT_MAX)}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={(e) => {

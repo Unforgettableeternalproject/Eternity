@@ -70,6 +70,17 @@ export interface StorageNote {
 export const STORAGE_NOTE_MAX = 30;
 /** 單張便條字數上限 */
 export const STORAGE_NOTE_TEXT_MAX = 200;
+/**
+ * 便條的硬上限——載入 sanitize（adapters.ts）與站台設定允許範圍的邊界。
+ *
+ * note.max／note.textMax 可由 /admin/settings 調高，但載入時的資料防禦
+ * **絕不能**用可調值截斷：設定尚未載入時 getSetting 退回上面的常數，
+ * 用它截斷會把使用者在較高上限下寫的便條砍掉——那是資料損失不是防禦。
+ * 硬上限只防 blob 爆炸（128KB 額度：60 張 × 400 字 worst-case ≈ 88KB）。
+ * workers/content-api/src/settings.ts 的驗證範圍與此對齊，改這裡要同步。
+ */
+export const STORAGE_NOTE_HARD_MAX = 60;
+export const STORAGE_NOTE_TEXT_HARD_MAX = 400;
 
 /** 進度狀態 — localStorage / D1 progress 表的儲存單位 */
 export interface ProgressState {

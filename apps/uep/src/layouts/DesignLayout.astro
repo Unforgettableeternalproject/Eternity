@@ -118,9 +118,13 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       initIdleAwareness();
     </script>
 
-    <!-- 內容保護（反白/複製/右鍵攔截，admin 頁面自動跳過） -->
+    <!-- 站台行為設定（/admin/settings 站台分頁的四項參數）＋內容保護 -->
     <script>
+      import { initUepSettings } from '../lib/uepSettings';
       import { initContentProtection } from '../scripts/content-protection';
+      // 有 sessionStorage 快取時同步就緒；首訪第一頁 fetch 未回前，
+      // 消費點（含下面的內容保護）退回程式碼常數
+      void initUepSettings();
       initContentProtection();
     </script>
 

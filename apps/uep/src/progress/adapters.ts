@@ -19,8 +19,8 @@ import type {
 import {
   PROGRESS_SCHEMA_VERSION,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
-  STORAGE_NOTE_MAX,
-  STORAGE_NOTE_TEXT_MAX,
+  STORAGE_NOTE_HARD_MAX,
+  STORAGE_NOTE_TEXT_HARD_MAX,
   createInitialState,
 } from './types';
 
@@ -155,10 +155,12 @@ export function normalizeState(raw: unknown): ProgressState | null {
               typeof (n as StorageNote).createdAt === 'string' &&
               typeof (n as StorageNote).updatedAt === 'string'
           )
-          .slice(0, STORAGE_NOTE_MAX)
+          // 載入 sanitize 用硬上限不用可調 cap：站台設定調高 note.max 後，
+          // settings 未載入的首拍若以常數截斷會直接砍掉使用者的便條
+          .slice(0, STORAGE_NOTE_HARD_MAX)
           .map((n) => ({
             ...n,
-            text: n.text.slice(0, STORAGE_NOTE_TEXT_MAX),
+            text: n.text.slice(0, STORAGE_NOTE_TEXT_HARD_MAX),
             location: normalizeStorageNoteLocation(n.location),
             capturedAt:
               typeof n.capturedAt === 'string' ? n.capturedAt : undefined,

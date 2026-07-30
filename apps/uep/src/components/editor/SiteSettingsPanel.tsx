@@ -158,14 +158,17 @@ export default function SiteSettingsPanel() {
 
         <section className="ssp-section">
           <div className="ssp-section-title">便條</div>
-          {numberField('note.max', '數量上限', '便條島最多可釘的便條數', {
-            min: 1,
-          })}
+          {numberField(
+            'note.max',
+            '數量上限',
+            '便條島最多可釘的便條數，1–60（上限對齊進度 blob 的載入防禦）',
+            { min: 1, max: 60 }
+          )}
           {numberField(
             'note.textMax',
             '單張字數上限',
-            '超過的輸入會被擋下，不影響既有便條',
-            { min: 1 }
+            '超過的輸入會被擋下，不影響既有便條，1–400',
+            { min: 1, max: 400 }
           )}
         </section>
       </div>

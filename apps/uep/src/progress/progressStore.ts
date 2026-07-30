@@ -27,6 +27,7 @@ import {
   STORAGE_NOTE_TEXT_MAX,
   createInitialState,
 } from './types';
+import { getSetting } from '../lib/uepSettings';
 
 /** 進度變更事件名稱（CustomEvent<ProgressChangeDetail>） */
 export const PROGRESS_CHANGE_EVENT = 'uep:progress-change';
@@ -461,13 +462,18 @@ export const uepProgress = {
   },
 
   /**
-   * 新增便條（S9 便條島）。text 前後空白 trim、截斷 STORAGE_NOTE_TEXT_MAX 字；
-   * trim 後為空則忽略。達 STORAGE_NOTE_MAX 上限時不新增，回傳 false 供呼叫端提示。
+   * 新增便條（S9 便條島）。text 前後空白 trim、截斷字數上限；trim 後為空則
+   * 忽略。達數量上限時不新增，回傳 false 供呼叫端提示。
+   * 兩個上限走站台設定（note.max／note.textMax），未載入時退回常數——
+   * 上限只擋「新增」，既有便條不受調整影響（載入防禦見 adapters.ts）。
    */
   addStorageNote(text: string): boolean {
-    const clean = text.trim().slice(0, STORAGE_NOTE_TEXT_MAX);
+    const clean = text
+      .trim()
+      .slice(0, getSetting('note.textMax', STORAGE_NOTE_TEXT_MAX));
     if (!clean) return false;
-    if (state.storageNotes.length >= STORAGE_NOTE_MAX) return false;
+    if (state.storageNotes.length >= getSetting('note.max', STORAGE_NOTE_MAX))
+      return false;
     const note = makeStorageNote(clean);
     mutate('storage-note', (prev) => ({
       ...prev,
@@ -481,7 +487,9 @@ export const uepProgress = {
    * 更新該便條的 updatedAt（便條列表據此重排至最上）；內容未變或找不到 id 忽略。
    */
   updateStorageNote(id: string, text: string): void {
-    const clean = text.trim().slice(0, STORAGE_NOTE_TEXT_MAX);
+    const clean = text
+      .trim()
+      .slice(0, getSetting('note.textMax', STORAGE_NOTE_TEXT_MAX));
     if (!clean) return;
     const target = state.storageNotes.find((n) => n.id === id);
     if (!target || target.text === clean) return;

@@ -30,6 +30,7 @@ import {
   useProgress,
 } from '../../progress';
 import type { StorageNote } from '../../progress';
+import { getSetting } from '../../lib/uepSettings';
 import { useIslandChrome } from '../islandChrome';
 import { useCurrentLocation } from '../useCurrentLocation';
 
@@ -105,7 +106,10 @@ export default function StorageIsland() {
   /** 當前展開刪除確認的便條 id（null = 無確認中） */
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const atCap = notes.length >= STORAGE_NOTE_MAX;
+  /* 上限走站台設定（/admin/settings），未載入時退回常數 */
+  const noteMax = getSetting('note.max', STORAGE_NOTE_MAX);
+  const noteTextMax = getSetting('note.textMax', STORAGE_NOTE_TEXT_MAX);
+  const atCap = notes.length >= noteMax;
 
   /* 刪除確認在任何失焦時收起（艾斯維爾 07/24：不只點另一張的 ×）——
    * capture-phase pointerdown，點到確認中卡片以外的任何地方就取消 */
@@ -131,16 +135,14 @@ export default function StorageIsland() {
       const ok = getProgressManager().addStorageNote(text);
       if (!ok) {
         setInputError(
-          notes.length >= STORAGE_NOTE_MAX
-            ? `便條已滿（${STORAGE_NOTE_MAX}）`
-            : '無法新增'
+          notes.length >= noteMax ? `便條已滿（${noteMax}）` : '無法新增'
         );
         return;
       }
       setInput('');
       setInputError(null);
     },
-    [input, notes.length]
+    [input, notes.length, noteMax]
   );
 
   return (
@@ -227,7 +229,7 @@ export default function StorageIsland() {
       {/* 便條數量與 cap 提示 */}
       <div className="uep-stoland__meta">
         <span>
-          {notes.length} / {STORAGE_NOTE_MAX}
+          {notes.length} / {noteMax}
         </span>
         {inputError && (
           <span className="uep-stoland__meta-error">{inputError}</span>
@@ -242,7 +244,7 @@ export default function StorageIsland() {
         <input
           type="text"
           value={input}
-          maxLength={STORAGE_NOTE_TEXT_MAX}
+          maxLength={noteTextMax}
           disabled={atCap}
           onChange={(e) => {
             setInput(e.target.value);
@@ -506,7 +508,7 @@ function NoteCard({
           <textarea
             ref={textareaRef}
             value={draft}
-            maxLength={STORAGE_NOTE_TEXT_MAX}
+            maxLength={getSetting('note.textMax', STORAGE_NOTE_TEXT_MAX)}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={(e) => {
               const related = e.relatedTarget as Node | null;
