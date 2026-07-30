@@ -205,6 +205,42 @@ const KEY_TYPE_FILTERS = [
   { id: 'story', label: 'story' },
 ] as const;
 
+/**
+ * key 巡查 chip：三種狀態各自可單獨篩，點已選中的取消（回到全部）。
+ * 只有「孤兒錨點」是真的壞了（互聯連到不存在的定義端）；另兩種是
+ * 待補資訊，中性呈現。
+ */
+const KEY_ISSUE_FILTERS = [
+  {
+    id: 'no-desc',
+    label: '無說明',
+    title: '標題與說明皆空——story 沒有標題時島卡只能顯示來源頁名',
+  },
+  {
+    id: 'orphan-anchor',
+    label: '孤兒錨點',
+    title: 'History 有錨點但查無定義端——來源頁被刪或 key 被改名',
+  },
+  {
+    id: 'unreferenced',
+    label: '未被引用',
+    title: '有定義但 History 零錨點——中性資訊，不是錯誤',
+  },
+] as const;
+
+type KeyIssueFilter = (typeof KEY_ISSUE_FILTERS)[number]['id'];
+
+function keyHasIssue(row: InterlinkKeyRow, issue: KeyIssueFilter): boolean {
+  switch (issue) {
+    case 'no-desc':
+      return !row.title && !row.description;
+    case 'orphan-anchor':
+      return row.definitionCount === 0 && row.anchorCount > 0;
+    case 'unreferenced':
+      return row.definitionCount > 0 && row.anchorCount === 0;
+  }
+}
+
 /** 總覽層：三者互斥且涵蓋全部自訂旗標 */
 const FLAG_USE_FILTERS = [
   { id: 'all', label: '全部' },
@@ -263,6 +299,15 @@ export default function KeysManager() {
   const [keyTypeFilter, setKeyTypeFilter] = useState<
     'all' | 'entity' | 'story'
   >('all');
+  /** key 分頁的巡查篩選（單選可取消） */
+  const [keyIssueFilter, setKeyIssueFilter] = useState<KeyIssueFilter | null>(
+    null
+  );
+  /** 劇情歌漏綁 storyKey 的頁（不進 keys 清單，警示條另列） */
+  const [storySongIssues, setStorySongIssues] = useState<
+    { pageId: string; title: string }[]
+  >([]);
+  const [storySongsOpen, setStorySongsOpen] = useState(false);
   /** flag 分頁的使用狀態篩選 */
   const [flagUseFilter, setFlagUseFilter] = useState<FlagUseFilter>('all');
   /**
@@ -313,12 +358,18 @@ export default function KeysManager() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     const [keysRes, auditRes, registryRes] = await Promise.all([
-      apiFetch<{ keys: InterlinkKeyRow[] }>('/api/interlink/keys'),
+      apiFetch<{
+        keys: InterlinkKeyRow[];
+        storySongsWithoutKey?: { pageId: string; title: string }[];
+      }>('/api/interlink/keys'),
       apiFetch<{ flags: FlagAuditRow[] }>('/api/flags/audit'),
       apiFetch<{ flags: FlagRow[] }>('/api/flags'),
     ]);
-    if (keysRes.ok && keysRes.data) setKeys(keysRes.data.keys);
-    else getToast().error(`載入 key 清單失敗：${keysRes.error || '未知錯誤'}`);
+    if (keysRes.ok && keysRes.data) {
+      setKeys(keysRes.data.keys);
+      setStorySongIssues(keysRes.data.storySongsWithoutKey ?? []);
+    } else
+      getToast().error(`載入 key 清單失敗：${keysRes.error || '未知錯誤'}`);
     if (auditRes.ok && auditRes.data) setAudit(auditRes.data.flags);
     else getToast().error(`載入旗標巡查失敗：${auditRes.error || '未知錯誤'}`);
     if (registryRes.ok && registryRes.data) setRegistry(registryRes.data.flags);
@@ -640,8 +691,25 @@ export default function KeysManager() {
     row.name.toLowerCase().includes(needle) ||
     (row.label || '').toLowerCase().includes(needle);
 
-  const entityKeys = keys.filter((k) => k.keyType === 'entity' && matchKey(k));
-  const storyKeys = keys.filter((k) => k.keyType === 'story' && matchKey(k));
+  const searchedKeys = keys.filter(matchKey);
+  /** 巡查 chip 的筆數對「搜尋後、類型篩選前」的集合算，與 flags 慣例一致 */
+  const keyIssueCounts = {
+    'no-desc': searchedKeys.filter((k) => keyHasIssue(k, 'no-desc')).length,
+    'orphan-anchor': searchedKeys.filter((k) => keyHasIssue(k, 'orphan-anchor'))
+      .length,
+    unreferenced: searchedKeys.filter((k) => keyHasIssue(k, 'unreferenced'))
+      .length,
+  } satisfies Record<KeyIssueFilter, number>;
+
+  const matchKeyIssue = (row: InterlinkKeyRow) =>
+    !keyIssueFilter || keyHasIssue(row, keyIssueFilter);
+
+  const entityKeys = searchedKeys.filter(
+    (k) => k.keyType === 'entity' && matchKeyIssue(k)
+  );
+  const storyKeys = searchedKeys.filter(
+    (k) => k.keyType === 'story' && matchKeyIssue(k)
+  );
   const searchedFlags = audit.filter(matchFlagBase);
   /**
    * 使用狀態只對自訂旗標有意義。規則生成的是唯讀參考，名稱由 key 推導、
@@ -1386,7 +1454,7 @@ export default function KeysManager() {
           </div>
 
           {tab === 'keys' ? (
-            <div className="km-list-toolbar">
+            <div className="km-list-toolbar km-list-toolbar--stack">
               <div className="km-chips" role="group" aria-label="key 類型篩選">
                 {KEY_TYPE_FILTERS.map((filter) => (
                   <button
@@ -1407,6 +1475,58 @@ export default function KeysManager() {
                   </button>
                 ))}
               </div>
+              {/* 巡查層：三種狀態單選可取消（點已選中的回到全部） */}
+              <div
+                className="km-chips km-chips--sub"
+                role="group"
+                aria-label="key 巡查篩選"
+              >
+                {KEY_ISSUE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    className={`km-chip ${keyIssueFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={keyIssueFilter === filter.id}
+                    title={filter.title}
+                    onClick={() =>
+                      setKeyIssueFilter((current) =>
+                        current === filter.id ? null : filter.id
+                      )
+                    }
+                  >
+                    {filter.label}
+                    <span className="km-group-count">
+                      {keyIssueCounts[filter.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {storySongIssues.length > 0 && (
+                <div className="km-warnbar">
+                  <button
+                    type="button"
+                    className="km-warnbar-head"
+                    aria-expanded={storySongsOpen}
+                    onClick={() => setStorySongsOpen((open) => !open)}
+                  >
+                    ⚠ {storySongIssues.length} 首劇情歌未綁 storyKey
+                    <span className="km-warnbar-arrow">
+                      {storySongsOpen ? '▾' : '▸'}
+                    </span>
+                  </button>
+                  {storySongsOpen && (
+                    <ul className="km-warnbar-list">
+                      {storySongIssues.map((song) => (
+                        <li key={song.pageId}>
+                          <a href={`/admin/edit/${song.pageId}`}>
+                            {song.title || song.pageId}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="km-list-toolbar km-list-toolbar--stack">

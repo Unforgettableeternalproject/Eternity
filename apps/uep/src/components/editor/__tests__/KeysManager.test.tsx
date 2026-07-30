@@ -42,6 +42,21 @@ const KEYS = [
     definitionCount: 1,
     anchorCount: 0,
   },
+  // 孤兒錨點 + 無說明：History 引用過但定義端已不存在的殼
+  {
+    keyType: 'story',
+    keyValue: 'ghost-anchor',
+    title: null,
+    description: null,
+    updatedAt: null,
+    definitionCount: 0,
+    anchorCount: 2,
+  },
+];
+
+/** 劇情歌漏綁 storyKey（不進 keys 清單，警示條另列） */
+const STORY_SONG_ISSUES = [
+  { pageId: 'echoes/songs/unbound', title: '漏綁的劇情歌' },
 ];
 
 /**
@@ -169,7 +184,9 @@ function mockApi(audit: unknown[] = AUDIT) {
       ok: true,
       json: async () => ({ ok: true, data }),
     });
-    if (url === '/api/interlink/keys') return body({ keys: KEYS });
+    if (url === '/api/interlink/keys') {
+      return body({ keys: KEYS, storySongsWithoutKey: STORY_SONG_ISSUES });
+    }
     if (url === '/api/flags/audit') return body({ flags: audit });
     if (url === '/api/flags') {
       if (init?.method === 'POST') return body({ flag: REGISTRY[0] });
@@ -731,6 +748,45 @@ describe('KeysManager', () => {
     // 三欄（右欄的「用在哪」）不在了，全寬視圖接手
     expect(screen.queryByText('用在哪')).not.toBeInTheDocument();
     expect(screen.getByText('History 還沒有任何頁面')).toBeInTheDocument();
+  });
+
+  it('key 巡查 chip 各自單獨篩，點已選中的取消', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+    const chips = screen.getByRole('group', { name: 'key 巡查篩選' });
+
+    // 無說明：只剩 title/description 皆空的殼列
+    fireEvent.click(within(chips).getByRole('button', { name: /無說明/ }));
+    expect(screen.queryByText('xavier-colsono')).not.toBeInTheDocument();
+    expect(screen.queryByText('test-story')).not.toBeInTheDocument();
+    expect(screen.getByText('ghost-anchor')).toBeInTheDocument();
+
+    // 孤兒錨點：定義端為 0 但 History 有錨點
+    fireEvent.click(within(chips).getByRole('button', { name: /孤兒錨點/ }));
+    expect(screen.getByText('ghost-anchor')).toBeInTheDocument();
+    expect(screen.queryByText('xavier-colsono')).not.toBeInTheDocument();
+
+    // 未被引用：有定義但零錨點
+    fireEvent.click(within(chips).getByRole('button', { name: /未被引用/ }));
+    expect(screen.getByText('test-story')).toBeInTheDocument();
+    expect(screen.queryByText('ghost-anchor')).not.toBeInTheDocument();
+
+    // 再點一次取消，全部回來
+    fireEvent.click(within(chips).getByRole('button', { name: /未被引用/ }));
+    expect(screen.getByText('xavier-colsono')).toBeInTheDocument();
+    expect(screen.getByText('ghost-anchor')).toBeInTheDocument();
+  });
+
+  it('劇情歌未綁 storyKey 的警示條展開列出頁面並連到編輯器', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+
+    const head = screen.getByRole('button', {
+      name: /1 首劇情歌未綁 storyKey/,
+    });
+    fireEvent.click(head);
+    const link = screen.getByRole('link', { name: '漏綁的劇情歌' });
+    expect(link).toHaveAttribute('href', '/admin/edit/echoes/songs/unbound');
   });
 
   it('站台分頁載入設定表單', async () => {

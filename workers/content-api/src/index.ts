@@ -40,6 +40,7 @@ import {
   findInterlinkAnchors,
   findInterlinkDefinitions,
   findInterlinkKeyMeta,
+  findStorySongsWithoutKey,
   listInterlinkKeys,
   updateInterlinkKeyMeta,
 } from './interlink';
@@ -2234,11 +2235,20 @@ export default {
       if (!(await isAuthorized(request, env))) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
-      const keys = await listInterlinkKeys(env.CONTENT_DB);
-      return jsonResponse({ ok: true, data: { keys } }, 200, {
-        ...cors,
-        'Cache-Control': 'private, no-store',
-      });
+      // storySongsWithoutKey 是巡查附帶資料（劇情歌漏綁 storyKey 的頁不會
+      // 進 keys 清單——無 key 的頁被 index 建構器跳過，只能在這裡另掃）
+      const [keys, storySongsWithoutKey] = await Promise.all([
+        listInterlinkKeys(env.CONTENT_DB),
+        findStorySongsWithoutKey(env.CONTENT_DB),
+      ]);
+      return jsonResponse(
+        { ok: true, data: { keys, storySongsWithoutKey } },
+        200,
+        {
+          ...cors,
+          'Cache-Control': 'private, no-store',
+        }
+      );
     }
 
     const keyMetaMatch = path.match(

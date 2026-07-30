@@ -693,6 +693,41 @@ export async function listInterlinkKeys(
   );
 }
 
+/**
+ * 巡查：劇情歌（`metadata.category === 'story'`，與 echoes-song.ts 的
+ * songType 對映同一來源）但沒綁 storyKey 的頁。
+ *
+ * 這些頁在 `buildEchoesEntityIndex` 會被整個跳過（無 key 的頁不進 index），
+ * 所以不能從 keys 清單推得，要另掃。判定在 JS 不在 SQL——json_extract
+ * 對字串值的比對已在 S10-1 A 段確認是地雷（0.9.15.1）。
+ */
+export async function findStorySongsWithoutKey(
+  db: D1Database
+): Promise<{ pageId: string; title: string }[]> {
+  const rows = await db
+    .prepare(
+      `SELECT id, title, metadata FROM pages
+       WHERE area = 'echoes' AND deleted_at IS NULL`
+    )
+    .all<{ id: string; title: string; metadata: string }>();
+
+  const issues: { pageId: string; title: string }[] = [];
+  for (const row of rows.results || []) {
+    let meta: Record<string, unknown>;
+    try {
+      meta = JSON.parse(row.metadata || '{}');
+    } catch {
+      continue;
+    }
+    const hasStoryKey =
+      typeof meta.storyKey === 'string' && meta.storyKey.trim().length > 0;
+    if (meta.category === 'story' && !hasStoryKey) {
+      issues.push({ pageId: row.id, title: row.title });
+    }
+  }
+  return issues;
+}
+
 /** 空字串與純空白視為「沒有內容」，統一收斂成 NULL */
 function normalizeMetaText(value: unknown): string | null {
   if (typeof value !== 'string') return null;

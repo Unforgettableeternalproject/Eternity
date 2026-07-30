@@ -169,6 +169,47 @@
   border-style: dashed;
 }
 
+/* --- 劇情歌未綁 storyKey 警示條（keys 分頁） --- */
+
+.km-warnbar {
+  border: 1px solid color-mix(in srgb, goldenrod 55%, transparent);
+  background: color-mix(in srgb, goldenrod 7%, transparent);
+}
+
+.km-warnbar-head {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: goldenrod;
+  letter-spacing: 0.04em;
+}
+
+.km-warnbar-arrow {
+  margin-left: auto;
+}
+
+.km-warnbar-list {
+  margin: 0;
+  padding: 2px 10px 8px 26px;
+  list-style: none;
+}
+
+.km-warnbar-list a {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.km-warnbar-list a:hover {
+  color: var(--uep-gold, #d5b618);
+}
+
 .km-list-scroll {
   flex: 1;
   overflow-y: auto;

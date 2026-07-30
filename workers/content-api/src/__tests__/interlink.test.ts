@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers';
 import {
   findKeyConflict,
   findDuplicateCandidate,
+  findStorySongsWithoutKey,
   conceptsScope,
   ZONE_SCOPE,
 } from '../interlink';
@@ -530,5 +531,50 @@ describe('conceptsScope', () => {
     expect(conceptsScope('browser', 'u')).toBe('browser');
     expect(conceptsScope('chrono')).toBe('chrono');
     expect(conceptsScope('diff')).toBe('diff');
+  });
+});
+
+describe('findStorySongsWithoutKey — 劇情歌漏綁 storyKey 巡查', () => {
+  beforeAll(async () => {
+    const insert = (id: string, title: string, metadata: object) =>
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth)
+         VALUES (?, 'echoes', ?, ?, 1, '[]', ?, 'synced', 'song', 3)`
+      )
+        .bind(id, title, id.slice('echoes/'.length), JSON.stringify(metadata))
+        .run();
+
+    // 有綁：不進清單
+    await insert('echoes/ssw/bound', '已綁的劇情歌', {
+      category: 'story',
+      storyKey: 'ssw-finale',
+    });
+    // 沒綁：進清單
+    await insert('echoes/ssw/unbound', '漏綁的劇情歌', { category: 'story' });
+    // storyKey 是空白字串視同沒綁
+    await insert('echoes/ssw/blank', '空白 key 的劇情歌', {
+      category: 'story',
+      storyKey: '  ',
+    });
+    // 非劇情歌：不參與巡查
+    await insert('echoes/ssw/character', '角色歌', { category: 'character' });
+    // 軟刪除的劇情歌不列
+    await env.CONTENT_DB.prepare(
+      `INSERT OR REPLACE INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth, deleted_at)
+       VALUES ('echoes/ssw/deleted', 'echoes', '刪掉的劇情歌', 'ssw/deleted', 1, '[]', ?, 'synced', 'song', 3, datetime('now'))`
+    )
+      .bind(JSON.stringify({ category: 'story' }))
+      .run();
+  });
+
+  it('只列出 category=story 且無有效 storyKey 的未刪頁', async () => {
+    const issues = await findStorySongsWithoutKey(env.CONTENT_DB);
+    const ids = issues
+      .map((i) => i.pageId)
+      .filter((id) => id.includes('/ssw/'));
+    expect(ids.sort()).toEqual(['echoes/ssw/blank', 'echoes/ssw/unbound']);
+    expect(issues.find((i) => i.pageId === 'echoes/ssw/unbound')?.title).toBe(
+      '漏綁的劇情歌'
+    );
   });
 });
