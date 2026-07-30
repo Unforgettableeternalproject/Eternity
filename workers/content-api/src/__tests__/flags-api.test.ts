@@ -238,10 +238,28 @@ describe('/api/flags/audit — 全站巡查', () => {
     await putPage('audit/requires-both', {
       requiresFlags: ['audit-registered-both', 'audit-orphan'],
     });
-    // 內容裡在用但沒註冊
-    await putPage('audit/unregistered', {
-      markerFlags: ['audit-unregistered'],
-    });
+    // 內容裡在用但沒註冊。
+    // ⚠️ 這一頁只能直接寫 DB 造：存檔路徑本身就會擋未註冊旗標（409），
+    // 正常編輯器路徑造不出這種狀態。巡查要看得到的是「歷史遺留或直接
+    // 改 DB 產生」的未註冊旗標，那才是這個分類存在的理由。
+    await env.CONTENT_DB.prepare(
+      `INSERT OR REPLACE INTO pages
+         (id, area, title, slug, sort_order, content, metadata, status, page_type, depth)
+       VALUES (?, 'history', ?, ?, 0, ?, '{}', 'synced', 'section', 3)`
+    )
+      .bind(
+        'history/audit/unregistered',
+        'audit/unregistered',
+        'audit/unregistered',
+        JSON.stringify([
+          {
+            type: 'rich_text',
+            content:
+              '<div data-role="progress-marker" data-grants-flags="audit-unregistered"></div>',
+          },
+        ])
+      )
+      .run();
     // 規則生成旗標被 gate 要求（授予端在程式裡，內容裡找不到）
     await putPage('audit/derived-required', {
       requiresFlags: ['completed:history/audit/grants-both'],
@@ -298,6 +316,199 @@ describe('/api/flags/audit — 全站巡查', () => {
     expect(row?.requiredBy.length).toBeGreaterThan(0);
     expect(row?.grantedBy).toEqual([]);
     expect(row?.orphan).toBe(false);
+  });
+});
+
+/**
+ * `pnpm sync` 用 updated_at 比對兩端誰較新。若寫入時一律蓋成當下時間，
+ * 被推過去的那筆立刻變「較新」，下一次同步就反向覆蓋回來，兩端永遠在
+ * 互相推翻。
+ */
+describe('時間戳保留（同步用）', () => {
+  const STAMP = '2020-01-02T03:04:05.000Z';
+
+  async function stampOf(name: string) {
+    return env.CONTENT_DB.prepare(
+      `SELECT created_at AS createdAt, updated_at AS updatedAt
+       FROM uep_flags WHERE name = ?`
+    )
+      .bind(name)
+      .first<{ createdAt: string; updatedAt: string }>();
+  }
+
+  it('POST 帶 updatedAt 時 created_at 與 updated_at 都用它', async () => {
+    await postJson('/api/flags', { name: 'stamped-new', updatedAt: STAMP });
+    expect(await stampOf('stamped-new')).toEqual({
+      createdAt: STAMP,
+      updatedAt: STAMP,
+    });
+  });
+
+  it('PUT 帶 updatedAt 時採用該值', async () => {
+    const later = '2021-06-07T08:09:10.000Z';
+    await authed('/api/flags/stamped-new', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: '更新', updatedAt: later }),
+    });
+    const row = await stampOf('stamped-new');
+    expect(row?.updatedAt).toBe(later);
+    // created_at 不因更新而變動
+    expect(row?.createdAt).toBe(STAMP);
+  });
+
+  it('非法或缺少的時間戳退回當下時間', async () => {
+    await postJson('/api/flags', {
+      name: 'stamped-bad',
+      updatedAt: '不是時間',
+    });
+    const row = await stampOf('stamped-bad');
+    expect(row?.updatedAt).not.toBe('不是時間');
+    expect(Number.isNaN(Date.parse(row?.updatedAt ?? ''))).toBe(false);
+  });
+});
+
+describe('存檔時的註冊強制', () => {
+  it('內容帶未註冊自訂旗標 → 409，訊息列出旗標名', async () => {
+    const { status, json } = await putPage('gate/unregistered-grant', {
+      markerFlags: ['not-registered-yet'],
+    });
+    expect(status).toBe(409);
+    expect(json.error).toContain('not-registered-yet');
+    expect(json.data?.unregisteredFlags).toEqual(['not-registered-yet']);
+  });
+
+  it('gate 要求未註冊旗標同樣被擋', async () => {
+    const { status, json } = await putPage('gate/unregistered-require', {
+      requiresFlags: ['also-not-registered'],
+    });
+    expect(status).toBe(409);
+    expect(json.data?.unregisteredFlags).toEqual(['also-not-registered']);
+  });
+
+  /**
+   * 「requires completion…」picker 產生的正是 `completed:{pageId}`。
+   * 這條路徑若被誤擋，等於整個進度鏈設定功能失效。
+   */
+  it('只帶 derived 旗標不受影響（回歸）', async () => {
+    const { status } = await putPage('gate/derived-only', {
+      requiresFlags: ['completed:history/anything', 'foo:song'],
+      markerFlags: ['zone:visited:echoes'],
+    });
+    expect(status).toBeLessThan(300);
+  });
+
+  it('已註冊旗標正常通過', async () => {
+    await postJson('/api/flags', { name: 'gate-registered' });
+    const { status } = await putPage('gate/registered', {
+      markerFlags: ['gate-registered'],
+    });
+    expect(status).toBeLessThan(300);
+  });
+
+  /**
+   * PUT 支援部分更新。只改標題時不帶 content／metadata，不該被上一次就
+   * 已經存在的旗標擋住——比照既有 key 唯一性檢查的同一條慣例。
+   */
+  it('不帶 content 與 metadata 的部分更新不觸發檢查', async () => {
+    await env.CONTENT_DB.prepare(
+      `INSERT OR REPLACE INTO pages
+         (id, area, title, slug, sort_order, content, metadata, status, page_type, depth)
+       VALUES (?, 'history', ?, ?, 0, ?, '{}', 'synced', 'section', 3)`
+    )
+      .bind(
+        'history/gate/legacy',
+        'gate/legacy',
+        'gate/legacy',
+        JSON.stringify([
+          {
+            type: 'rich_text',
+            content:
+              '<div data-role="progress-marker" data-grants-flags="legacy-unregistered"></div>',
+          },
+        ])
+      )
+      .run();
+
+    const { status } = await authed('/api/content/history/gate/legacy', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '只改標題' }),
+    });
+    expect(status).toBeLessThan(300);
+  });
+});
+
+/**
+ * 批次匯入刻意與單頁存檔不同調：自動註冊而非 409。
+ *
+ * `uep_flags` 不在 `pnpm sync` 的同步範圍（只搬 pages 與 root_* 業務表），
+ * 本地註冊好的旗標推上遠端時遠端註冊表是空的，一擋就是整個同步流程卡死。
+ */
+describe('sync/import — 旗標自動註冊', () => {
+  it('未註冊旗標不擋，自動補進註冊表並回報', async () => {
+    const { status, json } = await authed('/api/content/sync/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pages: [
+          {
+            id: 'history/imp/flagged',
+            area: 'history',
+            title: '匯入的一頁',
+            slug: 'imp/flagged',
+            sourceFile: 'imp/flagged.md',
+            contentHash: 'hash-imp-flagged',
+            pageType: 'section',
+            depth: 3,
+            content: [
+              {
+                type: 'rich_text',
+                content:
+                  '<div data-role="progress-marker" data-grants-flags="imported-flag"></div>',
+              },
+            ],
+            metadata: { gate: { requiresFlags: ['imported-required'] } },
+          },
+        ],
+      }),
+    });
+
+    expect(status).toBe(200);
+    expect(json.data?.imported).toBe(1);
+    expect(json.data?.autoRegisteredFlags).toEqual(
+      expect.arrayContaining(['imported-flag', 'imported-required'])
+    );
+
+    // 補進去之後巡查就不該再顯示 unregistered
+    const row = (await audit()).find((f) => f.name === 'imported-flag');
+    expect(row?.source).toBe('registered');
+  });
+
+  it('derived 旗標不會被自動註冊進表', async () => {
+    await authed('/api/content/sync/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pages: [
+          {
+            id: 'history/imp/derived-only',
+            area: 'history',
+            title: '只有 derived 旗標',
+            slug: 'imp/derived-only',
+            sourceFile: 'imp/derived-only.md',
+            contentHash: 'hash-imp-derived',
+            pageType: 'section',
+            depth: 3,
+            content: [],
+            metadata: { gate: { requiresFlags: ['completed:history/imp/x'] } },
+          },
+        ],
+      }),
+    });
+    const { json } = await authed('/api/flags');
+    const names = (json.data?.flags as { name: string }[]).map((f) => f.name);
+    expect(names).not.toContain('completed:history/imp/x');
   });
 });
 

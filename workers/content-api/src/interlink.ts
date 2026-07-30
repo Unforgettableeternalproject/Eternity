@@ -584,6 +584,11 @@ export interface InterlinkKeyListRow {
   title: string | null;
   description: string | null;
   /**
+   * 殼列的最後更新時間；沒有殼列時為 null。
+   * `pnpm sync` 用它比對兩端誰較新。
+   */
+  updatedAt: string | null;
+  /**
    * entity 的權威顯示名稱（Concepts 條目的 name）。表裡不存，每次現查——
    * 存下來就會與 dossier 形成兩份會各自漂移的名字。
    */
@@ -619,6 +624,7 @@ export async function listInterlinkKeys(
         keyValue,
         title: null,
         description: null,
+        updatedAt: null,
         definitionCount: 0,
         anchorCount: 0,
       };
@@ -663,7 +669,8 @@ export async function listInterlinkKeys(
   // ---- 殼列的標題／說明 ----
   const metas = await db
     .prepare(
-      `SELECT key_type AS keyType, key_value AS keyValue, title, description
+      `SELECT key_type AS keyType, key_value AS keyValue, title, description,
+              updated_at AS updatedAt
        FROM interlink_keys`
     )
     .all<{
@@ -671,11 +678,13 @@ export async function listInterlinkKeys(
       keyValue: string;
       title: string | null;
       description: string | null;
+      updatedAt: string;
     }>();
   for (const meta of metas.results || []) {
     const row = touch(meta.keyType, meta.keyValue);
     row.title = meta.title;
     row.description = meta.description;
+    row.updatedAt = meta.updatedAt;
   }
 
   return [...rows.values()].sort(
@@ -704,11 +713,18 @@ export async function updateInterlinkKeyMeta(
   db: D1Database,
   keyType: 'entity' | 'story',
   keyValue: string,
-  patch: { title?: unknown; description?: unknown }
+  patch: { title?: unknown; description?: unknown; updatedAt?: unknown }
 ): Promise<InterlinkKeyMeta> {
   const title = keyType === 'entity' ? null : normalizeMetaText(patch.title);
   const description = normalizeMetaText(patch.description);
-  const now = new Date().toISOString();
+  // 同步時保留來源端時間戳，否則被推過去的那筆立刻變「較新」，
+  // 下一次同步又反向覆蓋回來，兩端永遠互相推翻
+  const stamp =
+    typeof patch.updatedAt === 'string' &&
+    patch.updatedAt.trim() &&
+    !Number.isNaN(Date.parse(patch.updatedAt))
+      ? patch.updatedAt.trim()
+      : new Date().toISOString();
 
   await db
     .prepare(
@@ -720,7 +736,7 @@ export async function updateInterlinkKeyMeta(
          description = excluded.description,
          updated_at = excluded.updated_at`
     )
-    .bind(keyType, keyValue, title, description, now, now)
+    .bind(keyType, keyValue, title, description, stamp, stamp)
     .run();
 
   return { title, description };

@@ -102,6 +102,27 @@ export function scanGrantedFlags(content: unknown): string[] {
 }
 
 /**
+ * 從存檔請求抽出這次涉及的全部旗標（授予端 ∪ 需求端）。
+ *
+ * 只掃請求真的帶了的欄位——PUT 支援部分更新，沒帶 `content` 就代表內容
+ * 沒動，拿舊值重新檢查會讓「只改標題」這種操作被上一次就存在的旗標擋住。
+ * 這與既有 key 唯一性檢查的「只在請求帶了才查」是同一條慣例。
+ */
+export function collectFlagsFromBody(body: {
+  content?: unknown;
+  metadata?: unknown;
+}): string[] {
+  const flags = new Set<string>();
+  if (body.content !== undefined) {
+    for (const flag of scanGrantedFlags(body.content)) flags.add(flag);
+  }
+  if (body.metadata !== undefined) {
+    for (const flag of scanRequiredFlags(body.metadata)) flags.add(flag);
+  }
+  return [...flags];
+}
+
+/**
  * 讀出 metadata 的 gate 要求的旗標。
  *
  * 兩種存放形狀都要吃——平鋪（`{ requiresFlags }`）與巢狀（`{ gate: {...} }`），

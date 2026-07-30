@@ -48,10 +48,13 @@ import {
   auditFlags,
   createFlag,
   deleteFlag,
+  ensureFlagsRegistered,
   findFlagReferences,
+  findUnregisteredFlags,
   listFlags,
   updateFlag,
 } from './flags';
+import { collectFlagsFromBody } from './flags-scan';
 import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
@@ -386,6 +389,28 @@ async function upsertPage(
         cors
       );
     }
+  }
+
+  // 自訂旗標必須先註冊才能使用。授予端打錯一個字，需求端就永遠等不到
+  // 那個旗標——不會有任何錯誤，只會靜默地永遠鎖著，而且從內容上看不出
+  // 哪裡錯了。用存檔失敗換掉這種無聲失效。
+  //
+  // derived 旗標（completed:* 等）由程式依 key 推導，不在此列；
+  // 「requires completion…」picker 產生的正是那類，不受影響。
+  const unregisteredFlags = await findUnregisteredFlags(
+    db,
+    collectFlagsFromBody(body)
+  );
+  if (unregisteredFlags.length > 0) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `以下旗標尚未註冊：${unregisteredFlags.join('、')}。請先在 /admin/keys 註冊，或確認是否拼錯`,
+        data: { unregisteredFlags },
+      },
+      409,
+      cors
+    );
   }
 
   // 檢查是否已存在（包含已軟刪除的記錄）
@@ -874,6 +899,21 @@ async function importPages(
     accepted.flatMap((entry) => entry.candidates)
   );
 
+  // 旗標在這條路徑是**自動註冊**而非 409 擋下——與單頁存檔刻意不同。
+  // `uep_flags` 不在 `pnpm sync` 的同步範圍（sync 只搬 pages 與 root_*），
+  // 本地註冊好的旗標推上遠端時遠端註冊表是空的，一擋就是整個同步流程
+  // 卡死；而且擋下來也不會讓資料變乾淨——旗標已經在內容裡了。
+  // 代價是打錯字的旗標會靜默進表，所以新增清單一定要回報出去。
+  const autoRegisteredFlags = await ensureFlagsRegistered(
+    db,
+    accepted.flatMap((entry) =>
+      collectFlagsFromBody({
+        content: entry.page.content,
+        metadata: entry.metadata,
+      })
+    )
+  );
+
   // History 頁的三種互聯標記在內容寫入後重建反向索引。批次版只是把
   // 往返次數收斂，DELETE+INSERT 的語意與冪等性與單頁完全相同。
   const historyWrites = accepted
@@ -913,6 +953,9 @@ async function importPages(
         // 「成功」，而那幾頁其實從來沒有寫進去
         conflicts: conflicts.length,
         details: { imported, updated, skipped, conflicts },
+        // 自動註冊的旗標一定要回報：這條路徑不擋未註冊旗標，操作者需要
+        // 看得到自己多了哪些不認識的名字（打錯字就是這樣現形的）
+        ...(autoRegisteredFlags.length > 0 ? { autoRegisteredFlags } : {}),
       },
     },
     200,

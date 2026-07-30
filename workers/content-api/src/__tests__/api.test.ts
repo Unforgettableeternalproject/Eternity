@@ -749,6 +749,48 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
   });
 
   /**
+   * `pnpm sync` 靠 updated_at 比對兩端。寫入時一律蓋成當下時間的話，
+   * 被推過去的那筆立刻變「較新」，下次同步反向覆蓋，兩端永遠互推。
+   */
+  it('PUT 帶 updatedAt 時保留來源時間戳', async () => {
+    const stamp = '2019-03-04T05:06:07.000Z';
+    await worker.fetch(
+      createRequest('/api/interlink/keys/story/stamped-key', {
+        method: 'PUT',
+        token: await getAdminToken(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '有時間戳', updatedAt: stamp }),
+      }),
+      env,
+      ctx
+    );
+    const row = await env.CONTENT_DB.prepare(
+      `SELECT updated_at AS updatedAt FROM interlink_keys
+       WHERE key_type = 'story' AND key_value = 'stamped-key'`
+    ).first<{ updatedAt: string }>();
+    expect(row?.updatedAt).toBe(stamp);
+  });
+
+  it('清單回傳 updatedAt 供同步比對', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/keys', { token: await getAdminToken() }),
+      env,
+      ctx
+    );
+    const json = (await res.json()) as {
+      data: { keys: { keyValue: string; updatedAt: string | null }[] };
+    };
+    const stamped = json.data.keys.find((k) => k.keyValue === 'stamped-key');
+    expect(stamped?.updatedAt).toBe('2019-03-04T05:06:07.000Z');
+    // 沒有殼列的 key（只有定義端或錨點端）updatedAt 為 null
+    expect(
+      json.data.keys.every(
+        (k) => k.updatedAt === null || typeof k.updatedAt === 'string'
+      )
+    ).toBe(true);
+  });
+
+  /**
    * 前台的觸發呼叫都是匿名 fetch。這個端點若誤加 isAuthorized，
    * 「命名可見」整條鏈路會靜默 401 失效——不報錯，卡片就是不顯示標題。
    */

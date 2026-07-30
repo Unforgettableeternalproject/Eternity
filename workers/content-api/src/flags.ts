@@ -84,6 +84,21 @@ export interface FlagInput {
   label?: unknown;
   description?: unknown;
   category?: unknown;
+  /**
+   * 保留來源端的時間戳，供 `pnpm sync` 的兩端比對使用。
+   *
+   * 同步時若一律用寫入當下的時間，被推過去的那筆立刻變成「較新」，
+   * 下一次同步就會反向覆蓋回來，兩端永遠在互相推翻。
+   */
+  updatedAt?: unknown;
+}
+
+/** 合法 ISO 時間字串才採用，否則交給呼叫端的預設值 */
+function normalizeTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return Number.isNaN(Date.parse(trimmed)) ? null : trimmed;
 }
 
 /**
@@ -100,7 +115,9 @@ export async function createFlag(
   if (classifyFlag(name) === 'derived') return 'derived';
   if (await findFlag(db, name)) return null;
 
-  const now = new Date().toISOString();
+  // 同步過來的旗標保留來源時間戳；created_at 一併用同一個值，
+  // 否則會出現 created 晚於 updated 的怪狀態
+  const stamp = normalizeTimestamp(input.updatedAt) ?? new Date().toISOString();
   await db
     .prepare(
       `INSERT INTO uep_flags (name, label, description, category, created_at, updated_at)
@@ -111,8 +128,8 @@ export async function createFlag(
       normalizeText(input.label),
       normalizeText(input.description),
       normalizeText(input.category),
-      now,
-      now
+      stamp,
+      stamp
     )
     .run();
   return findFlag(db, name);
@@ -139,7 +156,7 @@ export async function updateFlag(
       normalizeText(input.label),
       normalizeText(input.description),
       normalizeText(input.category),
-      new Date().toISOString(),
+      normalizeTimestamp(input.updatedAt) ?? new Date().toISOString(),
       name
     )
     .run();
@@ -242,6 +259,64 @@ export async function auditFlags(db: D1Database): Promise<FlagAuditRow[]> {
   }
 
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * 從一批旗標中挑出「自訂且尚未註冊」的（存檔前的強制檢查）。
+ *
+ * derived 旗標一律豁免——它們的名稱由程式依 key 推導，本來就不該註冊。
+ */
+export async function findUnregisteredFlags(
+  db: D1Database,
+  flags: string[]
+): Promise<string[]> {
+  const custom = [...new Set(flags)].filter(
+    (flag) => classifyFlag(flag) === 'custom'
+  );
+  if (custom.length === 0) return [];
+
+  const placeholders = custom.map(() => '?').join(',');
+  const result = await db
+    .prepare(`SELECT name FROM uep_flags WHERE name IN (${placeholders})`)
+    .bind(...custom)
+    .all<{ name: string }>();
+  const registered = new Set((result.results || []).map((row) => row.name));
+  return custom.filter((flag) => !registered.has(flag));
+}
+
+/**
+ * 把尚未註冊的自訂旗標補進註冊表，回傳實際新增的名稱。
+ *
+ * 只給**批次匯入**路徑用（`/api/content/sync/import`），不給單頁存檔。
+ *
+ * 為什麼匯入不能比照單頁存檔擋 409：`uep_flags` 不在 `pnpm sync` 的同步
+ * 範圍內（sync 只搬 pages 與 root_* 業務表），本地註冊好的旗標推到遠端時
+ * 遠端註冊表是空的，一擋就等於整個同步流程卡死。而且擋下來並不會讓資料
+ * 變乾淨——旗標已經在內容裡了，擋的只是「讓兩邊一致」這件事。
+ *
+ * 代價是打錯字的旗標會靜默進入註冊表，所以呼叫端必須把新增清單回報出去
+ * （sync 腳本會印出來），讓操作者看得到自己多了哪些不認識的旗標。
+ */
+export async function ensureFlagsRegistered(
+  db: D1Database,
+  flags: string[]
+): Promise<string[]> {
+  const missing = await findUnregisteredFlags(db, flags);
+  if (missing.length === 0) return [];
+
+  const now = new Date().toISOString();
+  await db.batch(
+    missing.map((name) =>
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO uep_flags
+             (name, label, description, category, created_at, updated_at)
+           VALUES (?, NULL, ?, NULL, ?, ?)`
+        )
+        .bind(name, '批次匯入時自動註冊', now, now)
+    )
+  );
+  return missing;
 }
 
 /** 某個旗標目前的全部引用（刪除前的檢查） */
