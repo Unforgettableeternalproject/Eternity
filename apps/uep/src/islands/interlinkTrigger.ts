@@ -62,6 +62,26 @@ export async function triggerStoryRelated(args: {
   const { apiBase, sourceZone, storyKey, label, signal } = args;
   if (!storyKey) return false;
 
+  // 劇情點名稱（interlink_keys.title，/admin/settings 命名）與錨點平行查。
+  // 名稱查詢失敗只影響顯示文字，**不得連累錨點功能**——自己吞錯回 null，
+  // storyKey 層級查一次即可，不逐 anchor 查。
+  const keyTitlePromise: Promise<string | null> = (async () => {
+    try {
+      const res = await fetch(
+        `${apiBase}/api/interlink/keys/public?keyType=story&key=${encodeURIComponent(storyKey)}`,
+        signal ? { signal } : undefined
+      );
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { keyMeta?: { title?: string | null } | null };
+      };
+      return (json.ok && json.data?.keyMeta?.title) || null;
+    } catch {
+      return null;
+    }
+  })();
+
   let anchors: InterlinkAnchorPayload[] = [];
   try {
     const res = await fetch(
@@ -79,14 +99,18 @@ export async function triggerStoryRelated(args: {
     return false;
   }
 
+  const keyTitle = await keyTitlePromise;
+
   // 同一頁可能有多個錨點（多個 spot／clue 的起訖），對讀者來說是同一篇
-  // 文章——依 pageId 去重後才是「相關的段落」清單
+  // 文章——依 pageId 去重後才是「相關的段落」清單。
+  // 標題優先用劇情點名稱（多錨點列同名是劇情點語意的一部分），
+  // 未命名時退回各錨點頁的標題。
   const byPage = new Map<string, IslandRelatedItem>();
   for (const anchor of anchors) {
     if (byPage.has(anchor.pageId)) continue;
     byPage.set(anchor.pageId, {
       pageId: anchor.pageId,
-      title: anchor.pageTitle || anchor.pageId,
+      title: keyTitle || anchor.pageTitle || anchor.pageId,
     });
   }
   if (byPage.size === 0) return false;

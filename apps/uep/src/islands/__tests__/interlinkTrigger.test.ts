@@ -10,22 +10,49 @@ import {
 } from '../interlinkTrigger';
 import { ISLAND_RELATED_EVENT } from '../types';
 
-/** 建立回傳指定錨點清單的 fetch stub */
-function stubAnchors(anchors: unknown[] | null, ok = true): void {
+/**
+ * 建立分流的 fetch stub：`/api/interlink/keys/public` 回劇情點名稱，
+ * 其餘（anchors 端點）回錨點清單。
+ */
+function stubInterlink(
+  anchors: unknown[] | null,
+  opts: {
+    keyMeta?: { title?: string | null } | null;
+    /** 模擬名稱查詢整個掛掉（網路例外） */
+    keyMetaFail?: boolean;
+    ok?: boolean;
+  } = {}
+): void {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() =>
-      Promise.resolve({
-        ok,
+    vi.fn((url: unknown) => {
+      if (String(url).includes('/api/interlink/keys/public')) {
+        if (opts.keyMetaFail) return Promise.reject(new Error('down'));
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              data: { keyMeta: opts.keyMeta ?? null },
+            }),
+        });
+      }
+      return Promise.resolve({
+        ok: opts.ok ?? true,
         json: () =>
           Promise.resolve(
             anchors === null
               ? { ok: false, error: 'nope' }
               : { ok: true, data: { anchors } }
           ),
-      })
-    )
+      });
+    })
   );
+}
+
+/** 建立回傳指定錨點清單的 fetch stub（未命名劇情點的舊介面） */
+function stubAnchors(anchors: unknown[] | null, ok = true): void {
+  stubInterlink(anchors, { ok });
 }
 
 const anchor = (pageId: string) => ({
@@ -94,6 +121,50 @@ describe('triggerStoryRelated', () => {
       label: 'x',
     });
     expect(requested[0]).toContain('keyType=story');
+  });
+
+  it('劇情點有命名 → 卡片標題用 interlink_keys.title，多頁同名', async () => {
+    stubInterlink([anchor('history/ch1'), anchor('history/ch2')], {
+      keyMeta: { title: '雨海的終幕' },
+    });
+    const broadcast = await triggerStoryRelated({
+      apiBase: 'http://api',
+      sourceZone: 'echoes',
+      storyKey: 'rain-sea-finale',
+      label: '雨海終曲',
+    });
+    expect(broadcast).toBe(true);
+    expect((received[0] as { items: { title: string }[] }).items).toEqual([
+      { pageId: 'history/ch1', title: '雨海的終幕' },
+      { pageId: 'history/ch2', title: '雨海的終幕' },
+    ]);
+  });
+
+  it('劇情點未命名（title 為 null）→ 維持 pageTitle fallback', async () => {
+    stubInterlink([anchor('history/ch1')], { keyMeta: { title: null } });
+    await triggerStoryRelated({
+      apiBase: 'http://api',
+      sourceZone: 'echoes',
+      storyKey: 'rain-sea-finale',
+      label: '雨海終曲',
+    });
+    expect((received[0] as { items: { title: string }[] }).items).toEqual([
+      { pageId: 'history/ch1', title: '標題 history/ch1' },
+    ]);
+  });
+
+  it('名稱查詢掛掉 → 錨點照常廣播，不連累原本的觸發功能', async () => {
+    stubInterlink([anchor('history/ch1')], { keyMetaFail: true });
+    const broadcast = await triggerStoryRelated({
+      apiBase: 'http://api',
+      sourceZone: 'visuals',
+      storyKey: 'rain-sea-finale',
+      label: '插圖',
+    });
+    expect(broadcast).toBe(true);
+    expect((received[0] as { items: { title: string }[] }).items).toEqual([
+      { pageId: 'history/ch1', title: '標題 history/ch1' },
+    ]);
   });
 
   it('查無錨點 → 不廣播（不彈空卡片），回傳 false 供手動觸發端給回饋', async () => {
