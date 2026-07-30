@@ -157,7 +157,7 @@ describe('InterlinkTriggerButton — 觸發', () => {
 
 describe('InterlinkTriggerButton — hover 顯示說明（S10-3b T-B7）', () => {
   function stubKeyMeta(description: string | null) {
-    const fetchMock = vi.fn(() =>
+    const fetchMock = vi.fn((_url: string) =>
       Promise.resolve({
         ok: true,
         json: () =>

@@ -119,7 +119,10 @@ describe('flattenProgressTree', () => {
         title: '有條件',
         pageType: 'page',
         metadata: {
-          gate: { requiresFlags: ['completed:history/ch0'], pristineOnly: true },
+          gate: {
+            requiresFlags: ['completed:history/ch0'],
+            pristineOnly: true,
+          },
         },
         children: [],
       },
