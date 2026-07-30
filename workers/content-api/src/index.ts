@@ -331,6 +331,116 @@ async function getPage(
   return jsonResponse({ ok: true, data: rowToPage(row) }, 200, cors, true);
 }
 
+/**
+ * PATCH /api/content/:area/:slug/metadata — 進度頁欄位的部分更新
+ *
+ * 給 /admin/settings 進度總覽的就地切換用：既有 PUT 是整頁覆寫，就地切一個
+ * checkbox 得先抓整頁 content 回來再送回去，編輯器同時開著時還會用舊快照
+ * 蓋掉未存檔內容。這裡只讀寫 metadata 的白名單鍵，完全不碰 content——
+ * 也因此不觸發 rebuildHistoryInterlinkIndex（索引只認 content 內的錨點）。
+ *
+ * ⚠️ 白名單只有 progressPage／gateExempt。不可擴成通用 metadata patch：
+ * gate、entityKey、storyKey 都有各自的驗證關卡（409 撞名、旗標註冊），
+ * 開一條繞過它們的旁路等於把 S10-1 的把關廢掉。
+ *
+ * 值的形狀與編輯器 Inspector 一致（RichEditor 的 metadata 組裝）：
+ * true 才寫入，false 一律刪鍵維持存檔精簡——兩處切同一頁不會產生
+ * 不同的 metadata 形狀讓 sync 誤判差異。
+ */
+const METADATA_PATCH_KEYS = ['progressPage', 'gateExempt'] as const;
+
+async function patchPageMetadata(
+  area: string,
+  slug: string,
+  request: Request,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const id = `${area}/${slug}`;
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ ok: false, error: 'Invalid JSON body' }, 400, cors);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return jsonResponse(
+      { ok: false, error: 'Body must be a JSON object' },
+      400,
+      cors
+    );
+  }
+
+  const keys = Object.keys(body);
+  if (keys.length === 0) {
+    return jsonResponse(
+      { ok: false, error: 'No metadata keys to update' },
+      400,
+      cors
+    );
+  }
+  const unknownKeys = keys.filter(
+    (k) => !(METADATA_PATCH_KEYS as readonly string[]).includes(k)
+  );
+  if (unknownKeys.length > 0) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `Only ${METADATA_PATCH_KEYS.join(', ')} can be patched (got: ${unknownKeys.join(', ')})`,
+      },
+      400,
+      cors
+    );
+  }
+  for (const key of METADATA_PATCH_KEYS) {
+    if (key in body && typeof body[key] !== 'boolean') {
+      return jsonResponse(
+        { ok: false, error: `${key} must be a boolean` },
+        400,
+        cors
+      );
+    }
+  }
+
+  const row = await db
+    .prepare('SELECT metadata FROM pages WHERE id = ? AND deleted_at IS NULL')
+    .bind(id)
+    .first<{ metadata: string }>();
+  if (!row) {
+    return jsonResponse({ ok: false, error: 'Page not found' }, 404, cors);
+  }
+
+  let metadata: Record<string, unknown>;
+  try {
+    metadata = JSON.parse(row.metadata || '{}');
+  } catch {
+    metadata = {};
+  }
+  for (const key of METADATA_PATCH_KEYS) {
+    if (!(key in body)) continue;
+    if (body[key] === true) {
+      metadata[key] = true;
+    } else {
+      delete metadata[key];
+    }
+  }
+
+  // updated_at 一定要跟著動：sync 靠它比對方向，不動的話這筆變更
+  // 永遠不會被推到另一端。status 比照既有 metadata-only PUT 慣例不動。
+  const now = new Date().toISOString();
+  await db
+    .prepare('UPDATE pages SET metadata = ?, updated_at = ? WHERE id = ?')
+    .bind(JSON.stringify(metadata), now, id)
+    .run();
+
+  return jsonResponse(
+    { ok: true, data: { id, metadata, updatedAt: now } },
+    200,
+    cors
+  );
+}
+
 /** PUT /api/content/:area/:slug — 建立或更新頁面 */
 async function upsertPage(
   area: string,
@@ -1759,7 +1869,9 @@ export default {
     }
 
     // ---- 內容路由授權檢查 ----
-    const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(request.method);
+    const isWriteMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(
+      request.method
+    );
 
     if (isWriteMethod && !(await isAuthorized(request, env))) {
       return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
@@ -2090,6 +2202,31 @@ export default {
         cors,
         true
       );
+    }
+
+    // ---- History 錨點的逐頁彙總（/admin/settings 進度總覽的標記欄）----
+    //
+    // per-key 的 usage 端點回答「這個 key 用在哪」，這裡回答「這一頁
+    // 有幾個標記」——同一張表的兩個查詢面。progress marker 不進
+    // history_interlink_index（那張表只管互聯三種標記），marker 計數由
+    // 前端從 /api/flags/audit 的 grantedBy 聚合。
+    if (path === '/api/interlink/anchors-summary' && request.method === 'GET') {
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const { results } = await env.CONTENT_DB.prepare(
+        `SELECT page_id, anchor_kind, COUNT(*) AS n
+         FROM history_interlink_index
+         GROUP BY page_id, anchor_kind`
+      ).all<{ page_id: string; anchor_kind: string; n: number }>();
+      const pages: Record<string, Record<string, number>> = {};
+      for (const row of results || []) {
+        (pages[row.page_id] ??= {})[row.anchor_kind] = row.n;
+      }
+      return jsonResponse({ ok: true, data: { pages } }, 200, {
+        ...cors,
+        'Cache-Control': 'private, no-store',
+      });
     }
 
     if (path === '/api/interlink/keys' && request.method === 'GET') {
@@ -2447,6 +2584,24 @@ export default {
         200,
         cors,
         true
+      );
+    }
+
+    // ---- 進度頁 metadata 部分更新（S10-3b T-B1）----
+    // ⚠️ 必須排在 contentMatch 之前：contentMatch 的 slug 群組貪婪，會把
+    // `.../metadata` 尾碼整段吃進 slug，且其 switch 沒有 PATCH（落 405）。
+    // 同 concepts/entity-index「獨立匹配避開 contentMatch」的既有做法。
+    const metadataPatchMatch = path.match(
+      /^\/api\/content\/([a-z]+)\/(.+)\/metadata$/
+    );
+    if (metadataPatchMatch && request.method === 'PATCH') {
+      const [, patchArea, patchSlug] = metadataPatchMatch;
+      return patchPageMetadata(
+        patchArea,
+        patchSlug,
+        request,
+        env.CONTENT_DB,
+        cors
       );
     }
 

@@ -870,4 +870,193 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
     );
     expect(res.status).toBe(200);
   });
+
+  it('anchors-summary 回傳逐頁分類計數，未授權 401', async () => {
+    await putHistory('history/ilx/chapter-five', historyContent());
+
+    const anon = await worker.fetch(
+      createRequest('/api/interlink/anchors-summary'),
+      env,
+      ctx
+    );
+    expect(anon.status).toBe(401);
+
+    const res = await worker.fetch(
+      createRequest('/api/interlink/anchors-summary', {
+        token: await getAdminToken(),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    const json = (await res.json()) as {
+      data: { pages: Record<string, Record<string, number>> };
+    };
+    expect(json.data.pages['history/ilx/chapter-five']).toMatchObject({
+      'entity-mark': 1,
+      'echo-spot': 1,
+      'visual-clue-start': 1,
+      'visual-clue-end': 1,
+    });
+  });
+});
+
+describe('PATCH /api/content/:area/:slug/metadata — 進度頁部分更新（S10-3b）', () => {
+  const PAGE_ID = 'history/mdp/chapter-one';
+
+  async function patchMetadata(
+    id: string,
+    body: unknown,
+    withToken = true
+  ): Promise<{ status: number; json: any }> {
+    const token = withToken ? await getAdminToken() : undefined;
+    const res = await worker.fetch(
+      createRequest(`/api/content/${id}/metadata`, {
+        method: 'PATCH',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      env,
+      ctx
+    );
+    return { status: res.status, json: await res.json() };
+  }
+
+  async function readRow(id: string) {
+    return env.CONTENT_DB.prepare(
+      'SELECT content, metadata, updated_at FROM pages WHERE id = ?'
+    )
+      .bind(id)
+      .first<{ content: string; metadata: string; updated_at: string }>();
+  }
+
+  beforeAll(async () => {
+    // 帶錨點 content + 既有 metadata 鍵的 History 頁，走 PUT 建立讓
+    // 反向索引真的先有列——「PATCH 不觸發重建」才有可驗證的對象
+    const token = await getAdminToken();
+    await worker.fetch(
+      createRequest(`/api/content/${PAGE_ID}`, {
+        method: 'PUT',
+        token,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '進度頁測試章節',
+          pageType: 'page',
+          content: [
+            {
+              type: 'rich_text',
+              content:
+                '<div data-role="echo-spot" data-spot-id="spot-mdp" data-song-type="story" data-story-key="mdp-finale" data-song-title="測試曲"></div>',
+            },
+          ],
+          metadata: { icon: '📜', gate: { requiresFlags: ['mdp-flag'] } },
+        }),
+      }),
+      env,
+      ctx
+    );
+  });
+
+  it('未授權 → 401', async () => {
+    const { status } = await patchMetadata(
+      PAGE_ID,
+      { progressPage: true },
+      false
+    );
+    expect(status).toBe(401);
+  });
+
+  it('路由不被 contentMatch 吃掉（地雷 2 回歸：非 405/404）', async () => {
+    const { status } = await patchMetadata(PAGE_ID, { progressPage: true });
+    expect(status).toBe(200);
+  });
+
+  it('progressPage:true 寫入且既有 metadata 鍵原樣保留', async () => {
+    const { status, json } = await patchMetadata(PAGE_ID, {
+      progressPage: true,
+    });
+    expect(status).toBe(200);
+    expect(json.data.metadata).toMatchObject({
+      progressPage: true,
+      icon: '📜',
+      gate: { requiresFlags: ['mdp-flag'] },
+    });
+
+    const row = await readRow(PAGE_ID);
+    expect(JSON.parse(row!.metadata)).toMatchObject({
+      progressPage: true,
+      icon: '📜',
+    });
+  });
+
+  it('false 刪鍵而非存 false（與編輯器 Inspector 的形狀一致）', async () => {
+    await patchMetadata(PAGE_ID, { progressPage: true, gateExempt: true });
+    const { json } = await patchMetadata(PAGE_ID, {
+      progressPage: false,
+      gateExempt: false,
+    });
+    expect('progressPage' in json.data.metadata).toBe(false);
+    expect('gateExempt' in json.data.metadata).toBe(false);
+
+    const row = await readRow(PAGE_ID);
+    const stored = JSON.parse(row!.metadata);
+    expect('progressPage' in stored).toBe(false);
+    expect('gateExempt' in stored).toBe(false);
+    // 其他鍵不因刪鍵而消失
+    expect(stored.icon).toBe('📜');
+  });
+
+  it('白名單外的鍵 → 400 且不寫入', async () => {
+    const before = await readRow(PAGE_ID);
+    const { status } = await patchMetadata(PAGE_ID, {
+      progressPage: true,
+      entityKey: 'sneaky-bypass',
+    });
+    expect(status).toBe(400);
+    const after = await readRow(PAGE_ID);
+    expect(after!.metadata).toBe(before!.metadata);
+    expect(after!.updated_at).toBe(before!.updated_at);
+  });
+
+  it('非 boolean 值 → 400', async () => {
+    const { status } = await patchMetadata(PAGE_ID, { progressPage: 'yes' });
+    expect(status).toBe(400);
+  });
+
+  it('空 body → 400', async () => {
+    const { status } = await patchMetadata(PAGE_ID, {});
+    expect(status).toBe(400);
+  });
+
+  it('不存在的頁面 → 404', async () => {
+    const { status } = await patchMetadata('history/mdp/nonexistent', {
+      progressPage: true,
+    });
+    expect(status).toBe(404);
+  });
+
+  it('PATCH 不觸發反向索引重建、不動 content，但 updated_at 有更新', async () => {
+    const before = await readRow(PAGE_ID);
+    const { results: idxBefore } = await env.CONTENT_DB.prepare(
+      'SELECT id FROM history_interlink_index WHERE page_id = ?'
+    )
+      .bind(PAGE_ID)
+      .all();
+    expect(idxBefore.length).toBeGreaterThan(0);
+
+    const { status } = await patchMetadata(PAGE_ID, { progressPage: true });
+    expect(status).toBe(200);
+
+    const after = await readRow(PAGE_ID);
+    const { results: idxAfter } = await env.CONTENT_DB.prepare(
+      'SELECT id FROM history_interlink_index WHERE page_id = ?'
+    )
+      .bind(PAGE_ID)
+      .all();
+    expect(idxAfter).toEqual(idxBefore);
+    expect(after!.content).toBe(before!.content);
+    expect(after!.updated_at).not.toBe(before!.updated_at);
+  });
 });
