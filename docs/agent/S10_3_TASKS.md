@@ -22,17 +22,17 @@
 
 ## 0-1 開工前環境實測（諾薇亞 2026-07-29，設計文件 §13，本次拆卡沿用不重查）
 
-| 必查項 | 實測（2026-07-29） |
-|---|---|
-| `story_points` 殼列 / 已填說明 | 0 / 0 |
-| `uep_users` | 0 |
-| 帶 `data-grants-flags` 的頁面 | 0 / 244 |
-| 設了 `requiresFlags` 的頁面 | 5（全為 `completed:*`） |
-| 帶 `storyKey` 的頁面 | 0 |
-| 帶 `entityKey` 的頁面 | 4 |
-| History 頁 / 反向索引錨點 | 44 / 0 |
-| 下一個 migration 編號 | 0023 |
-| `pnpm check` 基線 | 未跑，開工前必跑 |
+| 必查項                           | 實測（2026-07-29）       |
+| -------------------------------- | ------------------------ |
+| `story_points` 殼列 / 已填說明 | 0 / 0                    |
+| `uep_users`                    | 0                        |
+| 帶`data-grants-flags` 的頁面   | 0 / 244                  |
+| 設了`requiresFlags` 的頁面     | 5（全為`completed:*`） |
+| 帶`storyKey` 的頁面            | 0                        |
+| 帶`entityKey` 的頁面           | 4                        |
+| History 頁 / 反向索引錨點        | 44 / 0                   |
+| 下一個 migration 編號            | 0023                     |
+| `pnpm check` 基線              | 未跑，開工前必跑         |
 
 ⚠️ 全站零 key／零 flag 是刻意的一次性視窗（見設計文件 §11-1），且**驗收必須在 test 環境做**——正式站沒有任何資料可供反查 UI 顯示。test 環境需要造的樣本見 §5-2。
 
@@ -95,16 +95,16 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 全文搜尋 `story_points`／`storyPoint`／`findStoryPoint`／`ensureStoryPoints`／`backfillStoryPoints`，命中檔案：
 
-| 檔案 | 需要的變更 |
-|---|---|
-| `workers/content-api/src/interlink.ts` | 三個函式改名＋擴充 entity keyType |
-| `workers/content-api/src/index.ts` | `upsertPage` 呼叫端、`/api/interlink/usage` 回應欄位 `storyPoint`→`keyMeta` |
-| `workers/content-api/src/__tests__/interlink.test.ts` | 斷言改名 |
-| `workers/content-api/src/__tests__/api.test.ts` | `storyKey 首次出現寫入 story_points` 案例改名 |
-| `workers/content-api/src/__tests__/sync-import-interlink.test.ts` | 三處 SQL 斷言改名 |
-| `scripts/reindex-interlink.mjs` | 註解與版本相容提示字串引用 `story_points` |
-| **`workers/content-api/src/test-seed.ts`** | ⚠️ 見下方 |
-| **`workers/content-api/src/__tests__/test-reset.test.ts`** | ⚠️ 見下方 |
+| 檔案                                                                | 需要的變更                                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `workers/content-api/src/interlink.ts`                            | 三個函式改名＋擴充 entity keyType                                                    |
+| `workers/content-api/src/index.ts`                                | `upsertPage` 呼叫端、`/api/interlink/usage` 回應欄位 `storyPoint`→`keyMeta` |
+| `workers/content-api/src/__tests__/interlink.test.ts`             | 斷言改名                                                                             |
+| `workers/content-api/src/__tests__/api.test.ts`                   | `storyKey 首次出現寫入 story_points` 案例改名                                      |
+| `workers/content-api/src/__tests__/sync-import-interlink.test.ts` | 三處 SQL 斷言改名                                                                    |
+| `scripts/reindex-interlink.mjs`                                   | 註解與版本相容提示字串引用`story_points`                                           |
+| **`workers/content-api/src/test-seed.ts`**                  | ⚠️ 見下方                                                                          |
+| **`workers/content-api/src/__tests__/test-reset.test.ts`**  | ⚠️ 見下方                                                                          |
 
 ⚠️ **隱性依賴**：`test-seed.ts:157-169` 的 `BUSINESS_TABLES` 常數把 `story_points` 與 `history_interlink_index` 並列為「reset 時必須一起清空的衍生表」，檔案內註解明寫：「新增從 `pages` 衍生的資料表時**必須**列進來，否則重置後會留下已不存在頁面的錨點」。這條清單如果沒有同步把 `story_points` 改成 `interlink_keys`，`pnpm test:reset` 之後 `interlink_keys` 表不會被清空，殘留的舊 storyKey 說明會在 reseed 後被錯誤 join 回新內容上。`test-reset.test.ts:304/318/331` 也有直接斷言 `tables` 陣列包含 `'story_points'` 與對應的 SQL 查詢，同樣要改名。
 
@@ -313,6 +313,7 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
        isProgressPage(node.metadata)
        || (!isGateExempt(node.metadata) && effectiveProgressPage(parent(node)))
      ```
+
      `isProgressPage`／`isGateExempt` 從 `progress/gating.ts` import（純函式）
   3. 樹狀表格：深度縮排、`progressPage`／`gateExempt` checkbox（繼承態禁用顯示 `☑(繼承)`）、`gate 條件` 唯讀摘要（複用 `parseGateCondition`）、`標記` 欄位計數（直接查 `history_interlink_index` 依 `anchor_kind` 分組計數，不需要重新掃描——這張表已經有現成資料）
   4. checkbox 切換 → 呼叫 T-B1 的 PATCH 端點；**與編輯器 Inspector 共用同一個端點**（設計文件 ⚠️ 已強調，兩處都改同一件事，不可各自拼 metadata）
@@ -426,6 +427,7 @@ T-A2 ──→ T-B7（可延後）
 **硬依賴鏈（關鍵路徑）**：`T-A1 → T-A2 → T-A5`（key 管理主鏈）、`T-A1 → T-A3 → T-A4 → T-A6 → T-A7`（旗標管理主鏈，`T-A8` 由 `T-A3`／`T-A6` 匯合）。
 
 **可並行的段落**：
+
 - `T-B1`／`T-B3` 與整個 S10-3a 沒有資料依賴，理論上可由第二人並行處理（設計文件 §12「9→10 獨立於 3a 全部」），但因為 `/admin/keys` 與 `/admin/behavior` 共用不少 UI 語彙與可能的共用元件，實務上建議還是照 3a→3b 順序做，避免兩邊各自長出風格不一致的表格/卡片元件
 - `T-B5`（巡查儀表板）依賴 `T-A3` 的 `/api/flags/audit` 與 `T-A2` 的 `/api/interlink/keys`，必須排在兩者之後
 - `T-B6`（不可延後）只依賴 `T-A2`，可以在 `T-A2` 完成後立刻插隊做，不必等到 3b 其他卡
@@ -437,6 +439,7 @@ T-A2 ──→ T-B7（可延後）
 ### 4-1 強制合併（中間狀態無法編譯／無法獨立 revert）
 
 **T-A1**：migration 0023 的 `DROP TABLE story_points` 與 `interlink.ts` 三個函式改名、`index.ts` 呼叫端改名、以及 §1 地雷 4 列出的 8 個檔案，全部是同一個重命名操作的不同切面。若拆成「先改 migration」「再改 interlink.ts」「再改測試」多個 commit：
+
 - migration 先套用但 `interlink.ts` 還在呼叫已不存在的 `story_points` 表 → 執行期錯誤
 - `interlink.ts` 先改函式名但 `index.ts` 還在呼叫舊函式名 → TypeScript 編譯錯誤
 - 兩者都改了但測試檔案還在斷言 `story_points` → 測試套件紅燈
@@ -455,23 +458,23 @@ T-A2 ──→ T-B7（可延後）
 
 ### 5-1 逐卡測試層級
 
-| 卡 | Worker 測試 | 前端測試 | 手動驗收 |
-|---|---|---|---|
-| T-A1 | ✅ 既有 4 個測試檔更新 | — | migration 套用結果查表 |
-| T-A2 | ✅ 新增 | — | — |
-| T-A3 | ✅ 新增（scan + audit） | — | — |
-| T-A4 | ✅ 新增（409 + 回歸） | — | 確認不誤擋 sync/import |
-| T-A5 | — | 視慣例（admin 頁多半無專屬元件測試） | ✅ 三欄互動 |
-| T-A6 | — | ✅ `FlagPicker.test.tsx` + 既有編輯器測試更新 | ✅ 兩處接線 |
-| T-A7 | ✅ 新增（三段式 + 內容改寫比對） | — | ✅ 先在 test 環境跑一次真實改名 |
-| T-A8 | — | 視工時（比照 `echoesActions.test.ts` 前例） | ✅ 四項 action |
-| T-B1 | ✅ 新增（白名單 + 路由順序回歸） | — | — |
-| T-B2 | — | ✅ 純函式單元測試（多層繼承場景，鎖地雷 1） | ✅ 全樹 UI + 就地切換 |
-| T-B3 | ✅ 新增 | — | — |
-| T-B4 | — | ✅ `getSetting` fallback + 四消費點既有測試更新 | ✅ 調整開關後前台行為變化 |
-| T-B5 | — | — | ✅ 七張卡各自驗證 |
-| T-B6 | — | ✅ 擴充既有 `interlinkTrigger.test.ts` | ✅ 島卡片顯示劇情點名稱 |
-| T-B7 | — | ✅ 既有渲染測試更新 | ✅ 三處文案 |
+| 卡   | Worker 測試                      | 前端測試                                         | 手動驗收                        |
+| ---- | -------------------------------- | ------------------------------------------------ | ------------------------------- |
+| T-A1 | ✅ 既有 4 個測試檔更新           | —                                               | migration 套用結果查表          |
+| T-A2 | ✅ 新增                          | —                                               | —                              |
+| T-A3 | ✅ 新增（scan + audit）          | —                                               | —                              |
+| T-A4 | ✅ 新增（409 + 回歸）            | —                                               | 確認不誤擋 sync/import          |
+| T-A5 | —                               | 視慣例（admin 頁多半無專屬元件測試）             | ✅ 三欄互動                     |
+| T-A6 | —                               | ✅`FlagPicker.test.tsx` + 既有編輯器測試更新   | ✅ 兩處接線                     |
+| T-A7 | ✅ 新增（三段式 + 內容改寫比對） | —                                               | ✅ 先在 test 環境跑一次真實改名 |
+| T-A8 | —                               | 視工時（比照`echoesActions.test.ts` 前例）     | ✅ 四項 action                  |
+| T-B1 | ✅ 新增（白名單 + 路由順序回歸） | —                                               | —                              |
+| T-B2 | —                               | ✅ 純函式單元測試（多層繼承場景，鎖地雷 1）      | ✅ 全樹 UI + 就地切換           |
+| T-B3 | ✅ 新增                          | —                                               | —                              |
+| T-B4 | —                               | ✅`getSetting` fallback + 四消費點既有測試更新 | ✅ 調整開關後前台行為變化       |
+| T-B5 | —                               | —                                               | ✅ 七張卡各自驗證               |
+| T-B6 | —                               | ✅ 擴充既有`interlinkTrigger.test.ts`          | ✅ 島卡片顯示劇情點名稱         |
+| T-B7 | —                               | ✅ 既有渲染測試更新                              | ✅ 三處文案                     |
 
 ### 5-2 Test 環境樣本準備（驗收在 test worker，正式站零資料）
 
@@ -488,14 +491,14 @@ T-A2 ──→ T-B7（可延後）
 
 ## 6. 設計文件落差彙整（快速索引，詳細內容見 §1）
 
-| # | 落差類型 | 對應章節 |
-|---|---|---|
-| 1 | `inheritedProgressPage` 只是接收端，真正多層祖先鏈邏輯在 `progress/gating.ts` 的 `effectiveGate`，兩者非同一份程式碼，複用時要複用「規則」不是「機制」 | §1 地雷 1 |
-| 2 | `PATCH .../metadata` 路由若照字面路徑掛載會被既有 `contentMatch` 正規式吞掉，需獨立路由且排在其前 | §1 地雷 2 |
-| 3 | `/api/flags/audit` 的授予端掃描範圍是全站，不是 History 專屬（`ProgressMarkerNode` 掛載在共用的 `RichEditor.tsx`） | §1 地雷 3 |
+| # | 落差類型                                                                                                                                                      | 對應章節   |
+| - | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1 | `inheritedProgressPage` 只是接收端，真正多層祖先鏈邏輯在 `progress/gating.ts` 的 `effectiveGate`，兩者非同一份程式碼，複用時要複用「規則」不是「機制」  | §1 地雷 1 |
+| 2 | `PATCH .../metadata` 路由若照字面路徑掛載會被既有 `contentMatch` 正規式吞掉，需獨立路由且排在其前                                                         | §1 地雷 2 |
+| 3 | `/api/flags/audit` 的授予端掃描範圍是全站，不是 History 專屬（`ProgressMarkerNode` 掛載在共用的 `RichEditor.tsx`）                                      | §1 地雷 3 |
 | 4 | `story_points`→`interlink_keys` 改名牽連 8 個檔案，其中 `test-seed.ts` 的 `BUSINESS_TABLES` 與 `test-reset.test.ts` 是設計文件完全沒提到的隱性依賴 | §1 地雷 4 |
-| 5 | （確認一致，非落差）`interlink.ts` 現有三函式與 `/api/interlink/usage` 皆與設計文件描述吻合 | §1 地雷 5 |
-| 6 | `/api/interlink/keys/public` 不可誤加 `isAuthorized`，否則前台觸發點（皆為匿名 fetch）會靜默 401 失效 | §1 地雷 6 |
+| 5 | （確認一致，非落差）`interlink.ts` 現有三函式與 `/api/interlink/usage` 皆與設計文件描述吻合                                                               | §1 地雷 5 |
+| 6 | `/api/interlink/keys/public` 不可誤加 `isAuthorized`，否則前台觸發點（皆為匿名 fetch）會靜默 401 失效                                                     | §1 地雷 6 |
 
 設計文件 §12 的 14 步建議順序經本次細化後**順序本身沒有問題**，依賴關係（1→2→3→5、1→4→5、5→6→7、9→10 獨立於 3a、11 依賴 4、12 依賴 3）與本文件 §3 的依賴圖一致，未發現需要調整順序的理由；本文件只是把每一步拆得更細、補上部署步驟與路由順序等實作細節。
 
