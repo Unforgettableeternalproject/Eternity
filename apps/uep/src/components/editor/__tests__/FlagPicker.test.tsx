@@ -262,6 +262,59 @@ describe('FlagPicker', () => {
     expect(onChange).toHaveBeenCalledWith(['lost-signal']);
   });
 
+  /**
+   * 只選一個的時候 chip 是多餘的一層——輸入框本身就是那個旗標。
+   */
+  it('single 模式輸入框直接顯示旗標名且不畫 chip', () => {
+    const { container } = render(
+      <FlagPicker value={['met-mistina']} onChange={() => {}} single />
+    );
+    expect(screen.getByPlaceholderText('搜尋或輸入新旗標…')).toHaveValue(
+      'met-mistina'
+    );
+    expect(container.querySelector('.ned-flagpicker-chips')).toBeNull();
+  });
+
+  it('single 模式打字即時寫回，清空等於取消選取', () => {
+    const onChange = vi.fn();
+    const onSelectedLabel = vi.fn();
+    render(
+      <FlagPicker
+        value={['met-mistina']}
+        onChange={onChange}
+        onSelectedLabel={onSelectedLabel}
+        single
+      />
+    );
+    const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
+    fireEvent.change(input, { target: { value: 'brand-new' } });
+    expect(onChange).toHaveBeenCalledWith(['brand-new']);
+
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    expect(onSelectedLabel).toHaveBeenLastCalledWith(null);
+  });
+
+  it('single 模式剛聚焦時不用已選值過濾清單（否則換選要先清空）', async () => {
+    const { container } = render(
+      <FlagPicker value={['met-mistina']} onChange={() => {}} single />
+    );
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll('.ned-flagpicker-item-name').length
+      ).toBe(2)
+    );
+  });
+
+  it('single 模式不提供「新建並填標籤」（呼叫端自己有標籤欄）', async () => {
+    render(<FlagPicker value={[]} onChange={() => {}} single />);
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
+    await screen.findByText('met-mistina');
+    expect(screen.queryByText(/新建並填標籤/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/直接使用/)).not.toBeInTheDocument();
+  });
+
   it('回報選中旗標在註冊表裡的既有標籤', async () => {
     const onSelectedLabel = vi.fn();
     render(

@@ -67,6 +67,8 @@ export default function FlagPicker({
   const [loadError, setLoadError] = useState(false);
 
   /* 就地新建 */
+  /** 使用者是否實際打過字（single 模式的過濾時機，見 filterNeedle） */
+  const [typed, setTyped] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftLabel, setDraftLabel] = useState('');
@@ -111,30 +113,59 @@ export default function FlagPicker({
 
   function closePanel() {
     setOpen(false);
-    setQuery('');
+    setTyped(false);
+    if (!single) setQuery('');
     setCreating(false);
     setCreateError(null);
   }
 
-  const needle = query.trim().toLowerCase();
-  /** 原樣的輸入字串——旗標名大小寫有意義，比對才用小寫 */
-  const needleRaw = query.trim();
   /**
-   * 「直接使用」只在輸入的東西既不在清單裡也還沒被選時才有意義。
+   * single 模式的輸入框**就是**那個旗標名——打字即時寫回 value，不另外用
+   * chip 呈現。只選一個的時候 chip 是多餘的一層（艾斯維爾 2026-07-30）。
+   * 多選模式維持原樣：輸入框是搜尋欄，已選的用 chip 列在上面。
+   */
+  const inputText = single ? (value[0] ?? '') : query;
+  /** 原樣的輸入字串——旗標名大小寫有意義，比對才用小寫 */
+  const needleRaw = inputText.trim();
+  const needle = needleRaw.toLowerCase();
+  /**
+   * single 模式下輸入框顯示的是已選旗標，剛聚焦時若拿它過濾，清單就只剩
+   * 自己一項，換選反而要先清空欄位。實際打過字才開始過濾。
+   */
+  const filterNeedle = single && !typed ? '' : needle;
+  /**
+   * 「直接使用」只在多選模式才需要——single 打字已經即時寫進 value 了。
    * 已經是清單上的項目就該去點它（避免同一件事有兩個入口）。
    */
   const canUseRaw =
+    !single &&
     !!needleRaw &&
     !value.includes(needleRaw) &&
     !options.some((option) => option.name === needleRaw);
-  const available = options.filter((option) => !value.includes(option.name));
-  const matched = needle
+  // single 不排除已選：換選時清單要完整，也才看得出目前選的是哪一個
+  const available = single
+    ? options
+    : options.filter((option) => !value.includes(option.name));
+  const matched = filterNeedle
     ? available.filter(
         (option) =>
-          option.name.toLowerCase().includes(needle) ||
-          (option.label || '').toLowerCase().includes(needle)
+          option.name.toLowerCase().includes(filterNeedle) ||
+          (option.label || '').toLowerCase().includes(filterNeedle)
       )
     : available;
+
+  /** 輸入框變動：single 直接改 value，多選只改搜尋字串 */
+  const handleInput = (text: string) => {
+    setTyped(true);
+    setOpen(true);
+    if (!single) {
+      setQuery(text);
+      return;
+    }
+    const trimmed = text.trim();
+    onChange(trimmed ? [trimmed] : []);
+    if (!trimmed) onSelectedLabel?.(null);
+  };
 
   const select = (name: string) => {
     if (single) onChange([name]);
@@ -142,7 +173,13 @@ export default function FlagPicker({
     onSelectedLabel?.(
       options.find((option) => option.name === name)?.label ?? null
     );
-    setQuery('');
+    if (single) {
+      // 選定就收起：輸入框已經顯示選中的名字，面板留著只會擋住下面的東西
+      setOpen(false);
+      setTyped(false);
+    } else {
+      setQuery('');
+    }
     setCreating(false);
     setCreateError(null);
   };
@@ -194,7 +231,8 @@ export default function FlagPicker({
 
   return (
     <div className="ned-flagpicker" ref={rootRef}>
-      {showSelected && value.length > 0 && (
+      {/* single 模式不畫 chip：輸入框本身就是那個旗標 */}
+      {!single && showSelected && value.length > 0 && (
         <div className="ned-flagpicker-chips">
           {value.map((flag) => (
             <span className="ned-gate-flag" key={flag} title={flag}>
@@ -215,14 +253,11 @@ export default function FlagPicker({
       <input
         className="ned-field ned-flagpicker-input"
         type="text"
-        value={query}
+        value={inputText}
         placeholder={placeholder}
         spellCheck={false}
         onFocus={() => setOpen(true)}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setOpen(true);
-        }}
+        onChange={(e) => handleInput(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.preventDefault();
@@ -232,9 +267,10 @@ export default function FlagPicker({
           if (e.key !== 'Enter') return;
           e.preventDefault();
           // Enter 選第一個匹配項；沒有匹配就直接採用輸入字串（存檔時由
-          // worker 自動註冊）。要順便填標籤才走「＋ 新建並填標籤」那條路
+          // worker 自動註冊）。single 打字已經即時寫進 value，只需收面板
           if (matched.length > 0) select(matched[0].name);
-          else if (query.trim()) select(query.trim());
+          else if (needleRaw && !single) select(needleRaw);
+          else closePanel();
         }}
       />
 
@@ -271,8 +307,10 @@ export default function FlagPicker({
                 <div className="ned-flagpicker-empty">
                   {options.length === 0
                     ? '註冊表還沒有任何自訂旗標'
-                    : needle
-                      ? '沒有符合的旗標'
+                    : filterNeedle
+                      ? single
+                        ? '沒有同名的既有旗標——直接用這個名字'
+                        : '沒有符合的旗標'
                       : '已經全部選取'}
                 </div>
               )}
@@ -338,14 +376,18 @@ export default function FlagPicker({
                   </div>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  className="ned-flagpicker-new"
-                  style={accent ? { color: accent } : undefined}
-                  onClick={openCreate}
-                >
-                  ＋ 新建並填標籤{needleRaw ? `「${needleRaw}」` : ''}
-                </button>
+                // single 模式不需要這條路：呼叫端（marker bubble）自己就有
+                // 標籤欄，而旗標名直接打在輸入框裡
+                !single && (
+                  <button
+                    type="button"
+                    className="ned-flagpicker-new"
+                    style={accent ? { color: accent } : undefined}
+                    onClick={openCreate}
+                  >
+                    ＋ 新建並填標籤{needleRaw ? `「${needleRaw}」` : ''}
+                  </button>
+                )
               )}
             </>
           )}
