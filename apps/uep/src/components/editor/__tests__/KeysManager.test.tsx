@@ -10,7 +10,13 @@
  */
 /* global RequestInit */
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -135,7 +141,7 @@ const USAGE = {
 };
 
 /** 依 URL 回應對應的 fixture，並記錄所有請求供斷言 */
-function mockApi() {
+function mockApi(audit: unknown[] = AUDIT) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
@@ -144,7 +150,7 @@ function mockApi() {
       json: async () => ({ ok: true, data }),
     });
     if (url === '/api/interlink/keys') return body({ keys: KEYS });
-    if (url === '/api/flags/audit') return body({ flags: AUDIT });
+    if (url === '/api/flags/audit') return body({ flags: audit });
     if (url === '/api/flags') {
       if (init?.method === 'POST') return body({ flag: REGISTRY[0] });
       return body({ flags: REGISTRY });
@@ -271,14 +277,52 @@ describe('KeysManager', () => {
     expect(links[0]).toHaveAttribute('href', '/admin/edit/concepts/characters');
   });
 
-  it('flag 分頁依 source 三分組，孤兒與未使用以徽章標示', async () => {
-    render(<KeysManager />);
+  it('flag 分頁依 source 三分組，孤兒與無人要求以徽章標示', async () => {
+    const { container } = render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
     expect(screen.getByText('未註冊')).toBeInTheDocument();
     expect(screen.getByText('已註冊')).toBeInTheDocument();
     expect(screen.getByText(/規則生成/)).toBeInTheDocument();
     expect(screen.getByText('孤兒')).toBeInTheDocument();
-    expect(screen.getByText('未使用')).toBeInTheDocument();
+    // 「無人要求」（有授予沒人要求）與 chip 的「未使用」（內容裡完全沒引用）
+    // 同時存在於畫面上，所以限定在 badge 容器內比對
+    const badges = [...container.querySelectorAll('.km-badge')].map(
+      (badge) => badge.textContent
+    );
+    expect(badges).toContain('無人要求');
+    expect(badges).toContain('未使用');
+  });
+
+  /**
+   * 自動註冊（0.9.16.8）之後未註冊只剩 force 刪除與繞過 API 寫入兩條產生
+   * 路徑，常態是 0。一直畫著一個印「（無）」的分組會被讀成常設分類。
+   */
+  it('沒有未註冊旗標時整組不畫', async () => {
+    mockApi(AUDIT.filter((flag) => flag.source !== 'unregistered'));
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    await waitFor(() => expect(screen.getByText('已註冊')).toBeInTheDocument());
+    expect(screen.queryByText('未註冊')).not.toBeInTheDocument();
+  });
+
+  /**
+   * 「未使用」= 內容裡完全沒引用，多半是改名或打錯字留下的註冊表殼列。
+   * 與 badge 的「無人要求」（有授予但沒人拿它當條件）是不同維度。
+   */
+  it('使用狀態 chip 依內容有無引用篩選', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    const chips = screen.getByRole('group', { name: '旗標使用狀態篩選' });
+
+    fireEvent.click(within(chips).getByText('未使用'));
+    expect(screen.getByText('met:entity:novia')).toBeInTheDocument();
+    expect(screen.queryByText('met-mistina')).not.toBeInTheDocument();
+    expect(screen.queryByText('lost-signal')).not.toBeInTheDocument();
+
+    fireEvent.click(within(chips).getByText('已使用'));
+    expect(screen.getByText('met-mistina')).toBeInTheDocument();
+    expect(screen.getByText('lost-signal')).toBeInTheDocument();
+    expect(screen.queryByText('met:entity:novia')).not.toBeInTheDocument();
   });
 
   /**

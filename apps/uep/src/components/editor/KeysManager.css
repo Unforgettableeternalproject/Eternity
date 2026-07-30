@@ -88,6 +88,20 @@
   padding: 8px 20px;
 }
 
+/* flag 分頁的工具列有三組東西（chip／勾選／統計），單欄寬度塞不進一行 */
+.km-list-toolbar--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.km-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .km-check {
   display: flex;
   align-items: center;
@@ -195,6 +209,12 @@
   font-size: 10px;
   line-height: 1.75;
   color: var(--ink-mute);
+}
+
+/* 未註冊分組——只在資料真的不一致時才會出現，與 derived 的純說明分開 */
+.km-group-hint--warn {
+  border-left-color: #c0392b;
+  color: #a5382a;
 }
 
 /* --- 清單列 --- */

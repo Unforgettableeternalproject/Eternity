@@ -217,6 +217,23 @@ const KEY_TYPE_FILTERS = [
   { id: 'story', label: 'story' },
 ] as const;
 
+const FLAG_USE_FILTERS = [
+  { id: 'all', label: '全部' },
+  { id: 'used', label: '已使用' },
+  { id: 'unused', label: '未使用' },
+] as const;
+
+/**
+ * 這個旗標在內容裡有沒有任何引用（授予端或需求端任一）。
+ *
+ * ⚠️ 與 `row.unused` 不是同一件事：`row.unused` 是「有授予、沒人要求」
+ * （UI 標示為「無人要求」），這裡問的是「內容裡到底提過它沒有」。
+ * 完全沒引用的旗標多半是註冊表殼列——旗標刪掉了、改名了，或當初打錯字。
+ */
+function isFlagUsed(row: FlagAuditRow): boolean {
+  return row.grantedBy.length > 0 || row.requiredBy.length > 0;
+}
+
 // ===== 元件 =====
 
 export default function KeysManager() {
@@ -230,6 +247,10 @@ export default function KeysManager() {
   const [keyTypeFilter, setKeyTypeFilter] = useState<
     'all' | 'entity' | 'story'
   >('all');
+  /** flag 分頁的使用狀態篩選：對照「註冊了但還沒真的用上」最快的入口 */
+  const [flagUseFilter, setFlagUseFilter] = useState<'all' | 'used' | 'unused'>(
+    'all'
+  );
   const [problemsOnly, setProblemsOnly] = useState(false);
   const [selected, setSelected] = useState<Selection | null>(null);
   const [saving, setSaving] = useState(false);
@@ -572,7 +593,8 @@ export default function KeysManager() {
     (row.title || '').toLowerCase().includes(needle) ||
     (row.derivedName || '').toLowerCase().includes(needle);
 
-  const matchFlag = (row: FlagAuditRow) =>
+  /** 搜尋與「只顯示有問題的」——使用狀態篩選另外套，好讓 chip 標得出筆數 */
+  const matchFlagBase = (row: FlagAuditRow) =>
     (!needle ||
       row.name.toLowerCase().includes(needle) ||
       (row.label || '').toLowerCase().includes(needle)) &&
@@ -580,18 +602,40 @@ export default function KeysManager() {
 
   const entityKeys = keys.filter((k) => k.keyType === 'entity' && matchKey(k));
   const storyKeys = keys.filter((k) => k.keyType === 'story' && matchKey(k));
-  const visibleFlags = audit.filter(matchFlag);
+  const searchedFlags = audit.filter(matchFlagBase);
+  const usedFlags = searchedFlags.filter(isFlagUsed);
+  const unusedFlags = searchedFlags.filter((f) => !isFlagUsed(f));
+  const visibleFlags =
+    flagUseFilter === 'used'
+      ? usedFlags
+      : flagUseFilter === 'unused'
+        ? unusedFlags
+        : searchedFlags;
+
+  const unregisteredRows = visibleFlags.filter(
+    (f) => f.source === 'unregistered'
+  );
   const flagGroups: Array<{
     id: FlagAuditRow['source'];
     label: string;
     rows: FlagAuditRow[];
     hint?: string;
+    hintTone?: 'warn';
   }> = [
-    {
-      id: 'unregistered',
-      label: '未註冊',
-      rows: visibleFlags.filter((f) => f.source === 'unregistered'),
-    },
+    // 未註冊在自動註冊（0.9.16.8）之後只剩兩條產生路徑：`?force=true` 強制
+    // 刪掉仍被引用的註冊，以及繞過 API 的直接 DB 寫入（seed／手動 SQL）。
+    // 常態是 0，所以空的時候整組不畫——它是不一致偵測器，不是常設分類
+    ...(unregisteredRows.length > 0
+      ? [
+          {
+            id: 'unregistered' as const,
+            label: '未註冊',
+            rows: unregisteredRows,
+            hint: '內容裡在用但註冊表沒有。正常存檔會自動註冊，所以會出現在這裡的只有兩種：強制刪除過註冊，或資料是繞過 API 直接寫進 DB 的。點進去補註冊即可。',
+            hintTone: 'warn' as const,
+          },
+        ]
+      : []),
     {
       id: 'registered',
       label: '已註冊',
@@ -607,7 +651,7 @@ export default function KeysManager() {
     },
   ];
   const orphanCount = audit.filter((f) => f.orphan).length;
-  const unusedCount = audit.filter((f) => f.unused).length;
+  const noDemandCount = audit.filter((f) => f.unused).length;
 
   /* ── 渲染：左欄 ── */
 
@@ -654,7 +698,13 @@ export default function KeysManager() {
             {row.orphan && (
               <span className="km-badge km-badge--warn">孤兒</span>
             )}
+            {/* 「無人要求」而非「未使用」：它確實被授予了，只是沒人拿它當
+                條件。上方 chip 的「未使用」問的是另一件事（內容裡完全沒
+                引用），兩者同名會互相打架 */}
             {row.unused && (
+              <span className="km-badge km-badge--mute">無人要求</span>
+            )}
+            {!isFlagUsed(row) && (
               <span className="km-badge km-badge--mute">未使用</span>
             )}
           </div>
@@ -672,7 +722,8 @@ export default function KeysManager() {
     label: string,
     rows: T[],
     render: (row: T) => ReactElement,
-    hint?: string
+    hint?: string,
+    hintTone?: 'warn'
   ): ReactElement {
     return (
       <div className="km-group" key={label}>
@@ -680,7 +731,13 @@ export default function KeysManager() {
           {label}
           <span className="km-group-count">{rows.length}</span>
         </div>
-        {hint && <div className="km-group-hint">ⓘ {hint}</div>}
+        {hint && (
+          <div
+            className={`km-group-hint ${hintTone === 'warn' ? 'km-group-hint--warn' : ''}`}
+          >
+            ⓘ {hint}
+          </div>
+        )}
         {rows.length === 0 ? (
           <div className="km-group-empty">（無）</div>
         ) : (
@@ -1237,18 +1294,44 @@ export default function KeysManager() {
             </div>
           </div>
         ) : (
-          <div className="km-list-toolbar">
-            <label className="km-check">
-              <input
-                type="checkbox"
-                checked={problemsOnly}
-                onChange={(e) => setProblemsOnly(e.target.checked)}
-              />
-              <span>只顯示有問題的</span>
-            </label>
-            <span className="km-list-stats">
-              孤兒 {orphanCount} · 未使用 {unusedCount}
-            </span>
+          <div className="km-list-toolbar km-list-toolbar--stack">
+            <div
+              className="km-chips"
+              role="group"
+              aria-label="旗標使用狀態篩選"
+            >
+              {FLAG_USE_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
+                  aria-pressed={flagUseFilter === filter.id}
+                  onClick={() => setFlagUseFilter(filter.id)}
+                >
+                  {filter.label}
+                  <span className="km-group-count">
+                    {filter.id === 'used'
+                      ? usedFlags.length
+                      : filter.id === 'unused'
+                        ? unusedFlags.length
+                        : searchedFlags.length}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="km-toolbar-row">
+              <label className="km-check">
+                <input
+                  type="checkbox"
+                  checked={problemsOnly}
+                  onChange={(e) => setProblemsOnly(e.target.checked)}
+                />
+                <span>只顯示有問題的</span>
+              </label>
+              <span className="km-list-stats">
+                孤兒 {orphanCount} · 無人要求 {noDemandCount}
+              </span>
+            </div>
           </div>
         )}
 
@@ -1264,7 +1347,13 @@ export default function KeysManager() {
             </>
           ) : (
             flagGroups.map((group) =>
-              renderGroup(group.label, group.rows, renderFlagRow, group.hint)
+              renderGroup(
+                group.label,
+                group.rows,
+                renderFlagRow,
+                group.hint,
+                group.hintTone
+              )
             )
           )}
         </div>
