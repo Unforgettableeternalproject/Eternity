@@ -5,7 +5,7 @@
  * - progressPage toggle 只在 onProgressPageChange 提供時顯示（向後相容）
  * - isProgressPage=true → 「需先讀完」picker 完全收起
  * - toggle 切換觸發 onProgressPageChange
- * - 進度頁模式下自訂旗標與純潔者限定仍可用
+ * - 進度頁模式下自訂旗標與純潔者限定仍可用（T-A6 起自訂旗標走 FlagPicker）
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
@@ -84,8 +84,23 @@ describe('GateConditionEditor — progressPage toggle', () => {
     expect(onProgressPageChange).toHaveBeenCalledWith(true);
   });
 
-  it('進度頁模式下自訂旗標欄仍可用', () => {
+  /**
+   * 四維條件是聯集，進度頁模式下自訂旗標區塊不可消失。
+   *
+   * T-A6 起這一欄是 FlagPicker（只能選註冊表裡的旗標），不再是自由輸入——
+   * 原本這個測試打 `met:novia` 按 Enter 直接加入，那條路已刻意移除。
+   */
+  it('進度頁模式下自訂旗標 picker 仍可用', async () => {
     const onChange = vi.fn();
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: { flags: [{ name: 'novia-met', label: null, category: null }] },
+      }),
+    })) as unknown as typeof fetch;
+
     render(
       <GateConditionEditor
         value={null}
@@ -96,10 +111,10 @@ describe('GateConditionEditor — progressPage toggle', () => {
         accent="#000"
       />
     );
-    const input = screen.getByPlaceholderText(/custom flag/);
-    fireEvent.change(input, { target: { value: 'met:novia' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onChange).toHaveBeenCalledWith({ requiresFlags: ['met:novia'] });
+    fireEvent.focus(screen.getByPlaceholderText(/custom flag/));
+    fireEvent.click(await screen.findByText('novia-met'));
+    expect(onChange).toHaveBeenCalledWith({ requiresFlags: ['novia-met'] });
+    vi.restoreAllMocks();
   });
 
   it('進度頁模式下純潔者限定 checkbox 仍可用', () => {

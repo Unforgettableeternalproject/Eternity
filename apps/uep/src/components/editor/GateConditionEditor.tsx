@@ -4,7 +4,8 @@
  * 在 Inspector 中編輯頁面的 gating 條件（存於 metadata.gate）：
  * - requiresFlags — 需持有的旗標。最常見的形狀是「需先讀完某篇」
  *   （completed:{pageId}），用頁面 picker 選比手打旗標名友善；
- *   也保留自由輸入欄給自訂旗標（如 FlagMarker 授予的劇情旗標）。
+ *   自訂旗標走 FlagPicker 從註冊表選，**沒有自由輸入欄**（D-1 強制註冊：
+ *   手打的旗標名打錯一個字，需求端就永遠等不到且不會有錯誤訊息）。
  * - pristineOnly — 純潔者限定（觀測者與印記者不可見，且不可 bypass）。
  *
  * 唯一進度軸是 History——「需先讀完」的頁面 picker 固定抓 history tree，
@@ -14,6 +15,7 @@
 import React, { useState } from 'react';
 import type { GateCondition } from '../../progress';
 import { completionFlag } from '../../progress';
+import FlagPicker from './FlagPicker';
 
 interface GatePageNode {
   id: string;
@@ -67,7 +69,6 @@ export default function GateConditionEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pageTree, setPageTree] = useState<GatePageNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
-  const [customFlag, setCustomFlag] = useState('');
 
   const flags = value?.requiresFlags || [];
   const pristineOnly = value?.pristineOnly === true;
@@ -99,6 +100,11 @@ export default function GateConditionEditor({
         pristineOnly,
       })
     );
+  }
+
+  /** FlagPicker 直接給整份清單（它自己處理去重） */
+  function setFlags(next: string[]) {
+    onChange(normalize({ requiresFlags: next, pristineOnly }));
   }
 
   function setPristine(next: boolean) {
@@ -243,34 +249,16 @@ export default function GateConditionEditor({
         </div>
       )}
 
-      <div className="ned-gate-custom">
-        <input
-          className="ned-field"
-          type="text"
-          value={customFlag}
-          placeholder="custom flag (e.g. met:novia)"
-          onChange={(e) => setCustomFlag(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              addFlag(customFlag);
-              setCustomFlag('');
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="ned-gate-custom-add"
-          style={{ color: accent }}
-          disabled={!customFlag.trim()}
-          onClick={() => {
-            addFlag(customFlag);
-            setCustomFlag('');
-          }}
-        >
-          ＋
-        </button>
-      </div>
+      {/* 自訂旗標一律從註冊表選（D-1）。已選的旗標顯示在上方 ned-gate-flags
+          （要與 page picker 產生的 completed:* 並列），所以這裡關掉 picker
+          自己的 chip 區，避免同一批旗標出現兩次 */}
+      <FlagPicker
+        value={flags}
+        onChange={setFlags}
+        showSelected={false}
+        accent={accent}
+        placeholder="custom flag…"
+      />
 
       <div className="ned-inspector-toggle">
         <span>pristine only</span>

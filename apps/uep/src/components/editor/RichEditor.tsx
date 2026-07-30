@@ -33,6 +33,7 @@ import VisualsGalleryPicker, {
 } from './VisualsGalleryPicker';
 import { UepEntityMark, UepCueMark } from './UepEmbedMarks';
 import EntityInfoChip from './EntityInfoChip';
+import FlagPicker from './FlagPicker';
 import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
 import { parseGateCondition } from '../../progress/gating';
@@ -3383,14 +3384,18 @@ export default function RichEditor({
               setMarkerDraft((d) => ({ ...d, label: e.target.value }))
             }
           />
-          <input
-            className="ned-marker-input ned-marker-input--flags"
-            type="text"
-            placeholder="授予旗標（逗號分隔）"
-            value={markerDraft.grantsFlags}
-            onChange={(e) =>
-              setMarkerDraft((d) => ({ ...d, grantsFlags: e.target.value }))
+          {/* 授予旗標一律從註冊表選（D-1）：手打一個字打錯，需求端就永遠
+              等不到，而且不會有任何錯誤訊息。草稿仍以逗號分隔字串保存，
+              轉換交給 markers.ts 既有的兩個序列化函式 */}
+          <FlagPicker
+            value={parseFlagsAttr(markerDraft.grantsFlags)}
+            onChange={(next) =>
+              setMarkerDraft((d) => ({
+                ...d,
+                grantsFlags: serializeFlagsAttr(next),
+              }))
             }
+            placeholder="授予旗標…"
           />
           <button
             className="ned-img-bubble-btn"

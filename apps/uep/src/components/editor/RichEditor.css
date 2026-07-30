@@ -4539,6 +4539,150 @@
   cursor: default;
 }
 
+/* ── FlagPicker — 自訂旗標選擇器（授予端與需求端共用） ── */
+
+.ned-flagpicker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ned-flagpicker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ned-flagpicker-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* 面板疊在下方而非推開內容——bubble menu 的高度變動會讓標記跳位 */
+.ned-flagpicker-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin-top: 3px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-card, var(--bg-soft));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+.ned-flagpicker-list {
+  display: flex;
+  flex-direction: column;
+}
+.ned-flagpicker-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ned-flagpicker-item:hover {
+  background: var(--hairline);
+}
+.ned-flagpicker-item-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-title);
+  overflow-wrap: anywhere;
+}
+.ned-flagpicker-item-label {
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.ned-flagpicker-empty {
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  text-align: center;
+}
+.ned-flagpicker-new {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-top: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.ned-flagpicker-new:hover {
+  background: var(--hairline);
+}
+.ned-flagpicker-create {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid var(--hairline);
+}
+.ned-flagpicker-create .ned-field {
+  width: 100%;
+  box-sizing: border-box;
+}
+.ned-flagpicker-create-actions {
+  display: flex;
+  gap: 6px;
+}
+.ned-flagpicker-confirm,
+.ned-flagpicker-cancel {
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+.ned-flagpicker-confirm:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ned-flagpicker-cancel {
+  color: var(--ink-mute);
+}
+.ned-flagpicker-error {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #c0392b;
+}
+
+/* marker bubble 內的 picker：bubble 是 position:fixed 貼在畫面底部的橫向
+   flex，面板往下展開會直接掉到視窗外，所以改往上開；寬度沿用原本那個
+   旗標輸入框的 190px，輸入框也套 bubble 的深色欄位樣式 */
+.ned-marker-bubble .ned-flagpicker {
+  width: 190px;
+  flex-shrink: 0;
+}
+.ned-marker-bubble .ned-flagpicker-panel {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 3px;
+}
+.ned-marker-bubble .ned-flagpicker .ned-field {
+  margin-top: 0;
+  padding: 4px 8px;
+  font-size: 0.78em;
+  background: var(--bg-soft, #111);
+  border: 1px solid var(--line, #333);
+  border-radius: 5px;
+  color: var(--ink, #ddd);
+}
+.ned-marker-bubble .ned-flagpicker-input {
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    UepEmbedMarks — entity/cue 嵌入標記（僅編輯器內可見的視覺提示；
    前台在 S4 dispatcher 接線前不套任何樣式 = 普通文字）

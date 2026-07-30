@@ -23,6 +23,21 @@ beforeEach(() => {
       __uepDialogManager: { confirm: () => Promise<boolean> };
     }
   ).__uepDialogManager = { confirm: vi.fn().mockResolvedValue(true) };
+
+  // gate 的自訂旗標欄自 T-A6 起是 FlagPicker，展開時讀註冊表
+  globalThis.fetch = vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      ok: true,
+      data: {
+        flags: [
+          { name: 'xavier-colsono:02', label: null, category: null },
+          { name: 'xavier-met', label: null, category: null },
+        ],
+      },
+    }),
+  })) as unknown as typeof fetch;
 });
 
 function makeRevisions(): ConceptsRevision[] {
@@ -157,16 +172,18 @@ describe('RevisionModal — 編輯', () => {
     ]);
   });
 
-  it('gate 編輯透過 GateConditionEditor 寫回', () => {
+  it('gate 編輯透過 GateConditionEditor 寫回', async () => {
     const revisions = makeRevisions();
     const { onChange } = setup({ revisions });
     // 選中第二個 revision（gate: null）
     fireEvent.click(screen.getByText('xavier-colsono:02'));
-    const flagInput = screen.getByPlaceholderText(/custom flag/);
-    fireEvent.change(flagInput, {
-      target: { value: 'xavier-colsono:02' },
-    });
-    fireEvent.keyDown(flagInput, { key: 'Enter' });
+    fireEvent.focus(screen.getByPlaceholderText(/custom flag/));
+    // 同一個字串也是左欄的 revision id，限定在 picker 候選項上
+    fireEvent.click(
+      await screen.findByText('xavier-colsono:02', {
+        selector: '.ned-flagpicker-item-name',
+      })
+    );
     expect(onChange).toHaveBeenCalledWith([
       revisions[0],
       {
@@ -186,16 +203,15 @@ describe('RevisionModal — 編輯', () => {
 });
 
 describe('RevisionModal — base gate（S7 驗收 #4）', () => {
-  it('提供 onBaseGateChange 時 base 卡顯示條件編輯器並寫回', () => {
+  it('提供 onBaseGateChange 時 base 卡顯示條件編輯器並寫回', async () => {
     const onBaseGateChange = vi.fn();
     setup({ baseGate: null, onBaseGateChange });
     fireEvent.click(screen.getByText('base'));
     expect(screen.getByText('BASE 解鎖條件')).toBeInTheDocument();
-    const flagInput = screen.getByPlaceholderText(/custom flag/);
-    fireEvent.change(flagInput, { target: { value: 'met:xavier' } });
-    fireEvent.keyDown(flagInput, { key: 'Enter' });
+    fireEvent.focus(screen.getByPlaceholderText(/custom flag/));
+    fireEvent.click(await screen.findByText('xavier-met'));
     expect(onBaseGateChange).toHaveBeenCalledWith({
-      requiresFlags: ['met:xavier'],
+      requiresFlags: ['xavier-met'],
     });
   });
 
