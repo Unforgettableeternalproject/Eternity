@@ -496,6 +496,43 @@
   letter-spacing: 0.04em;
 }
 
+/* --- 改名面板（三段式） --- */
+
+.km-rename {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--uep-gold, #d5b618);
+  background: var(--bg-soft);
+}
+
+.km-rename code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-title);
+  overflow-wrap: anywhere;
+}
+
+.km-rename-error {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #c0392b;
+}
+
+.km-rename-preview {
+  border: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+
+.km-rename-preview-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
 /* --- 右欄：用在哪 --- */
 
 .km-usage {

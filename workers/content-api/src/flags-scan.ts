@@ -72,7 +72,7 @@ export function classifyFlag(name: string): FlagKind {
 }
 
 /** `data-grants-flags` 的序列化格式：逗號分隔、去空白、去重（與編輯器對齊） */
-function parseFlagsAttr(value: string): string[] {
+export function parseFlagsAttr(value: string): string[] {
   return [
     ...new Set(
       value
@@ -83,9 +83,17 @@ function parseFlagsAttr(value: string): string[] {
   ];
 }
 
-// data-role 的位置不固定：mergeAttributes 會把節點自己的屬性排在
-// data-role 之前，所以前後都要允許任意屬性
-const PROGRESS_MARKER_DIV_REGEX =
+/**
+ * FlagMarker 的容器 div。
+ *
+ * data-role 的位置不固定：mergeAttributes 會把節點自己的屬性排在
+ * data-role 之前，所以前後都要允許任意屬性。
+ *
+ * ⚠️ 匯出給 `flags-rename.ts` 共用，**不要在那邊另寫一份**。掃描認得的
+ * marker 與改名認得的必須完全一致——改名漏掉一個 marker，內容裡就留著舊名，
+ * 而舊名改完就不在註冊表了，那一頁下次存檔會被 409 擋在完全無關的操作裡。
+ */
+export const PROGRESS_MARKER_DIV_REGEX =
   /<div\s([^>]*data-role="progress-marker"[^>]*)>/g;
 
 /**

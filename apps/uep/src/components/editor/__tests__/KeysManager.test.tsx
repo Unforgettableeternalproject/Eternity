@@ -150,6 +150,27 @@ function mockApi() {
       return body({ flags: REGISTRY });
     }
     if (url.startsWith('/api/interlink/usage')) return body(USAGE);
+    if (url.endsWith('/rename')) {
+      const payload = JSON.parse(String(init?.body)) as {
+        to: string;
+        dryRun?: boolean;
+      };
+      return body({
+        from: 'met-mistina',
+        to: payload.to,
+        dryRun: payload.dryRun === true,
+        totalHits: 3,
+        pages: [
+          {
+            pageId: 'history/chapter-1',
+            area: 'history',
+            title: '第一章',
+            contentHits: 2,
+            metadataHits: 1,
+          },
+        ],
+      });
+    }
     // derived 旗標的衍生來源頁標題
     if (url === '/api/content/history/chapter-1') {
       return body({ id: 'history/chapter-1', title: '第一章內文' });
@@ -376,6 +397,100 @@ describe('KeysManager', () => {
     expect(
       calls.filter((c) => c.url.startsWith('/api/interlink/usage')).length
     ).toBe(before);
+  });
+
+  it('改名要先預覽才能確認，預覽走 dryRun', async () => {
+    const { container } = render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    fireEvent.click(screen.getByText('met-mistina'));
+    fireEvent.click(screen.getByRole('button', { name: '改名' }));
+
+    // 還沒預覽 → 確認鈕不可按
+    expect(screen.getByRole('button', { name: '確認改名' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('新的旗標名稱'), {
+      target: { value: 'mistina-met' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '預覽影響' }));
+
+    expect(await screen.findByText(/將把 1 頁的 3 處引用/)).toBeInTheDocument();
+    // 「第一章」在右欄的授予端引用也出現一次，限定在預覽清單裡看
+    const previewBox = container.querySelector('.km-rename-preview');
+    expect(previewBox?.textContent).toContain('第一章');
+    expect(previewBox?.textContent).toContain('history · 授予 2 · 需求 1');
+
+    const preview = calls.find((c) => c.url.endsWith('/rename'));
+    expect(preview?.url).toBe('/api/flags/met-mistina/rename');
+    expect(JSON.parse(String(preview?.init?.body))).toEqual({
+      to: 'mistina-met',
+      dryRun: true,
+    });
+    // 預覽階段絕不寫入
+    expect(calls.filter((c) => c.url.endsWith('/rename')).length).toBe(1);
+  });
+
+  it('改名會提示同步狀態被標 modified', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    fireEvent.click(screen.getByText('met-mistina'));
+    fireEvent.click(screen.getByRole('button', { name: '改名' }));
+    expect(screen.getByText(/modified/)).toBeInTheDocument();
+  });
+
+  it('預覽後改動名稱會讓預覽失效，必須重新預覽', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    fireEvent.click(screen.getByText('met-mistina'));
+    fireEvent.click(screen.getByRole('button', { name: '改名' }));
+    fireEvent.change(screen.getByLabelText('新的旗標名稱'), {
+      target: { value: 'first-name' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '預覽影響' }));
+    await screen.findByText(/將把 1 頁的 3 處引用/);
+
+    // 換成另一個名字——舊預覽不可以被拿去確認
+    fireEvent.change(screen.getByLabelText('新的旗標名稱'), {
+      target: { value: 'second-name' },
+    });
+    expect(screen.getByRole('button', { name: '確認改名' })).toBeDisabled();
+    expect(screen.queryByText(/將把 1 頁的 3 處引用/)).not.toBeInTheDocument();
+  });
+
+  it('確認改名後選取移到新名字上', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    fireEvent.click(screen.getByText('met-mistina'));
+    fireEvent.click(screen.getByRole('button', { name: '改名' }));
+    fireEvent.change(screen.getByLabelText('新的旗標名稱'), {
+      target: { value: 'mistina-met' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '預覽影響' }));
+    await screen.findByText(/將把 1 頁的 3 處引用/);
+    fireEvent.click(screen.getByRole('button', { name: '確認改名' }));
+
+    await waitFor(() => {
+      const write = calls.find(
+        (c) =>
+          c.url.endsWith('/rename') &&
+          JSON.parse(String(c.init?.body)).dryRun === undefined
+      );
+      expect(write).toBeTruthy();
+    });
+    // 面板收起、選取換到新名字上（audit fixture 仍是舊的，所以中欄會顯示
+    // 找不到——那正表示選取已經不指向舊名了）
+    await waitFor(() =>
+      expect(screen.queryByLabelText('新的旗標名稱')).not.toBeInTheDocument()
+    );
+    expect(screen.getAllByText('找不到這個旗標').length).toBeGreaterThan(0);
+  });
+
+  it('derived 旗標沒有改名入口', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    fireEvent.click(screen.getByText('completed:history/chapter-1'));
+    expect(
+      screen.queryByRole('button', { name: '改名' })
+    ).not.toBeInTheDocument();
   });
 
   it('切換分頁清掉選取，避免中欄顯示左欄看不到的項目', async () => {

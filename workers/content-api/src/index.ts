@@ -49,11 +49,17 @@ import {
   createFlag,
   deleteFlag,
   ensureFlagsRegistered,
+  findFlag,
   findFlagReferences,
   findUnregisteredFlags,
   listFlags,
   updateFlag,
 } from './flags';
+import {
+  applyFlagRename,
+  planFlagRename,
+  validateRenameTarget,
+} from './flags-rename';
 import { collectFlagsFromBody } from './flags-scan';
 import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
@@ -2180,6 +2186,81 @@ export default {
           );
         }
         return jsonResponse({ ok: true, data: { flag: created } }, 201, cors);
+      }
+
+      // ⚠️ 必須排在 flagMatch 之前：那條正規式的 `(.+)` 會把
+      // `xxx/rename` 整段當成旗標名，而它只列 PUT/DELETE，POST 會直接
+      // 掉出整個 /api/flags 區塊變成 404（同 /flags/audit 的道理）
+      const renameMatch = path.match(/^\/api\/flags\/(.+)\/rename$/);
+      if (renameMatch && request.method === 'POST') {
+        const from = decodeURIComponent(renameMatch[1]).trim();
+        let body: { to?: unknown; dryRun?: unknown };
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+        }
+        const to = typeof body.to === 'string' ? body.to.trim() : '';
+
+        const invalid = validateRenameTarget(to);
+        if (invalid) {
+          return jsonResponse({ ok: false, error: invalid }, 400, cors);
+        }
+        if (from === to) {
+          return jsonResponse({ ok: false, error: '新舊名稱相同' }, 400, cors);
+        }
+        // 改名的對象是註冊列本身；derived 旗標不入表，自然也改不了
+        if (!(await findFlag(env.CONTENT_DB, from))) {
+          return jsonResponse(
+            { ok: false, error: '旗標不存在於註冊表' },
+            404,
+            cors
+          );
+        }
+        // 合併兩個既有旗標的語意不明（誰的說明留下？），一律拒絕
+        if (await findFlag(env.CONTENT_DB, to)) {
+          return jsonResponse(
+            { ok: false, error: '新名稱已被註冊，請先處理該旗標' },
+            409,
+            cors
+          );
+        }
+
+        let plan;
+        try {
+          plan = await planFlagRename(env.CONTENT_DB, from, to);
+        } catch (error) {
+          // renameFlagInContent 的結構保險擋下來的情況
+          return jsonResponse(
+            {
+              ok: false,
+              error: error instanceof Error ? error.message : '改名計畫失敗',
+            },
+            500,
+            cors
+          );
+        }
+
+        const dryRun = body.dryRun === true;
+        const written = dryRun
+          ? 0
+          : await applyFlagRename(env.CONTENT_DB, plan, from, to);
+
+        return jsonResponse(
+          {
+            ok: true,
+            data: {
+              from,
+              to,
+              dryRun,
+              pages: plan.pages,
+              totalHits: plan.totalHits,
+              written,
+            },
+          },
+          200,
+          cors
+        );
       }
 
       const flagMatch = path.match(/^\/api\/flags\/(.+)$/);

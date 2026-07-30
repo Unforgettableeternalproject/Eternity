@@ -75,6 +75,21 @@ interface UsageData {
   anchors: InterlinkAnchor[];
 }
 
+/** 改名的 dryRun 預覽（與實際寫入是同一份計算） */
+interface RenamePreview {
+  from: string;
+  to: string;
+  dryRun: boolean;
+  totalHits: number;
+  pages: {
+    pageId: string;
+    area: string;
+    title: string;
+    contentHits: number;
+    metadataHits: number;
+  }[];
+}
+
 type Selection =
   | { kind: 'key'; keyType: 'entity' | 'story'; keyValue: string }
   | { kind: 'flag'; name: string };
@@ -231,6 +246,15 @@ export default function KeysManager() {
   /** 反查請求的世代序號：切換選取時舊回應後到會蓋掉新結果 */
   const usageGen = useRef(0);
 
+  /* 改名（三段式） */
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTo, setRenameTo] = useState('');
+  const [renamePreview, setRenamePreview] = useState<RenamePreview | null>(
+    null
+  );
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+
   /** derived 旗標衍生來源頁的標題（旗標名裡只有 pageId，標題要現查） */
   const [derivedPage, setDerivedPage] = useState<{
     pageId: string;
@@ -294,13 +318,19 @@ export default function KeysManager() {
     clearLookups();
   };
 
-  /** 丟掉右欄與衍生來源的既有結果，並讓進行中的請求失效 */
+  /**
+   * 丟掉右欄與衍生來源的既有結果，並讓進行中的請求失效。
+   *
+   * 一併關掉改名面板：面板裡的預覽是綁在某個特定旗標上的，選別的項目還開著
+   * 就會出現「拿 A 的預覽確認 B 的改名」。
+   */
   const clearLookups = () => {
     usageGen.current += 1;
     derivedGen.current += 1;
     setUsage(null);
     setUsageLoading(false);
     setDerivedPage(null);
+    closeRename();
   };
 
   const selectKey = (row: InterlinkKeyRow) => {
@@ -313,6 +343,7 @@ export default function KeysManager() {
     setDraftDescription(row.description || '');
     setDerivedPage(null);
     derivedGen.current += 1;
+    closeRename();
     void loadUsage(row.keyType, row.keyValue);
   };
 
@@ -476,6 +507,59 @@ export default function KeysManager() {
       getToast().error(res.error || '刪除失敗');
     }
     setSaving(false);
+  };
+
+  /* ── 改名（三段式：輸入 → 預覽 → 寫入）── */
+
+  /**
+   * 改名一律先預覽。
+   *
+   * 漏改任何一處引用的症狀是靜默永久鎖死（需求端等一個再也不會被授予的旗標，
+   * 沒有錯誤訊息，那一頁就是永遠打不開），所以先讓人看到會動到哪幾頁再寫入。
+   */
+  const previewRename = async () => {
+    if (!selectedFlag) return;
+    setRenaming(true);
+    setRenameError(null);
+    const res = await apiFetch<RenamePreview>(
+      `/api/flags/${encodeURIComponent(selectedFlag.name)}/rename`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ to: renameTo, dryRun: true }),
+      }
+    );
+    if (res.ok && res.data) setRenamePreview(res.data);
+    else setRenameError(res.error || '預覽失敗');
+    setRenaming(false);
+  };
+
+  const commitRename = async () => {
+    if (!selectedFlag || !renamePreview) return;
+    const from = selectedFlag.name;
+    const to = renamePreview.to;
+    setRenaming(true);
+    setRenameError(null);
+    const res = await apiFetch<RenamePreview>(
+      `/api/flags/${encodeURIComponent(from)}/rename`,
+      { method: 'POST', body: JSON.stringify({ to }) }
+    );
+    if (res.ok) {
+      getToast().success(`已改名為 ${to}`);
+      closeRename();
+      // 選取跟著移到新名字上，否則中欄會停在一個已經不存在的旗標
+      setSelected({ kind: 'flag', name: to });
+      await loadAll();
+    } else {
+      setRenameError(res.error || '改名失敗');
+    }
+    setRenaming(false);
+  };
+
+  const closeRename = () => {
+    setRenameOpen(false);
+    setRenameTo('');
+    setRenamePreview(null);
+    setRenameError(null);
   };
 
   /* ── 左欄資料整理 ── */
@@ -877,6 +961,16 @@ export default function KeysManager() {
               </button>
               <button
                 type="button"
+                className="km-btn"
+                disabled={saving || renaming}
+                onClick={() =>
+                  renameOpen ? closeRename() : setRenameOpen(true)
+                }
+              >
+                {renameOpen ? '取消改名' : '改名'}
+              </button>
+              <button
+                type="button"
                 className="km-btn km-btn--danger"
                 disabled={saving}
                 onClick={deleteFlag}
@@ -886,7 +980,98 @@ export default function KeysManager() {
             </>
           )}
         </div>
+
+        {renameOpen && renderRenamePanel(row.name)}
       </>
+    );
+  };
+
+  /**
+   * 改名面板：輸入新名 → 預覽影響 → 確認寫入。
+   *
+   * 預覽與實際寫入打的是同一個端點（只差 dryRun），所以清單上的筆數就是真的
+   * 會被改的東西，不是另外算的估計值。
+   */
+  const renderRenamePanel = (from: string) => {
+    // 改了名字就讓舊預覽失效，避免拿 A 的預覽去確認 B 的改名
+    const previewStale =
+      !!renamePreview && renamePreview.to !== renameTo.trim();
+    return (
+      <div className="km-rename">
+        <div className="km-field-label">改名</div>
+        <input
+          className="km-field-input"
+          value={renameTo}
+          spellCheck={false}
+          placeholder="新的旗標名稱"
+          aria-label="新的旗標名稱"
+          onChange={(e) => setRenameTo(e.target.value)}
+        />
+        <div className="km-field-hint">
+          會一併改寫所有引用：授予端的標記與需求端的解鎖條件。被改到的頁面
+          `updated_at` 會更新，同步狀態因此標成 modified，下次{' '}
+          <code>pnpm sync</code> 會把它們算成有變動。
+        </div>
+
+        {renameError && <div className="km-rename-error">{renameError}</div>}
+
+        {renamePreview && !previewStale && (
+          <div className="km-rename-preview">
+            <div className="km-rename-preview-head">
+              將把 {renamePreview.pages.length} 頁的 {renamePreview.totalHits}{' '}
+              處引用從 <code>{renamePreview.from}</code> 改為{' '}
+              <code>{renamePreview.to}</code>
+            </div>
+            {renamePreview.pages.length === 0 ? (
+              <div className="km-group-empty">
+                目前沒有任何頁面引用它，只會改註冊表這一列。
+              </div>
+            ) : (
+              renamePreview.pages.map((page) => (
+                <div className="km-usage-item" key={page.pageId}>
+                  <div className="km-usage-title">
+                    {page.title || page.pageId}
+                  </div>
+                  <div className="km-usage-meta">
+                    {page.area} · 授予 {page.contentHits} · 需求{' '}
+                    {page.metadataHits}
+                  </div>
+                  <a
+                    className="km-usage-link"
+                    href={`/admin/edit/${page.pageId}`}
+                  >
+                    跳到該頁編輯 →
+                  </a>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        <div className="km-detail-actions">
+          <button
+            type="button"
+            className="km-btn"
+            disabled={!renameTo.trim() || renaming}
+            onClick={previewRename}
+          >
+            {renaming && !renamePreview ? '計算中…' : '預覽影響'}
+          </button>
+          <button
+            type="button"
+            className="km-btn km-btn--primary"
+            disabled={!renamePreview || previewStale || renaming}
+            title={
+              previewStale
+                ? '名稱已變更，請重新預覽'
+                : `改名 ${from} → ${renameTo}`
+            }
+            onClick={commitRename}
+          >
+            {renaming && renamePreview ? '改名中…' : '確認改名'}
+          </button>
+        </div>
+      </div>
     );
   };
 
