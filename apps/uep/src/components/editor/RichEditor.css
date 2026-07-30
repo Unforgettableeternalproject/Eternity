@@ -1253,6 +1253,17 @@
 }
 
 /* 進度標記 bubble 的輸入欄 */
+/* bubble 內的欄位標示：placeholder 填了值就消失，而備註欄與旗標欄相鄰，
+   沒有常駐標示會被讀成同一組東西 */
+.ned-marker-field-label {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  padding-left: 4px;
+}
+
 .ned-marker-input {
   width: 150px;
   background: var(--bg-soft, #111);

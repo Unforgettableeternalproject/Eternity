@@ -3375,18 +3375,22 @@ export default function RichEditor({
           <span className="ned-audio-bubble-label">
             ⚑ {markerDraft.grantsFlags.trim() ? '旗標標記' : '進度標記'}
           </span>
+          {/* 常駐標示不能只靠 placeholder：一填值就看不見，而這個欄位緊鄰
+              旗標 chip，會被讀成「這個旗標的標籤」。它其實是**這個標記點的
+              備註**（存成 content 的 data-label），與註冊表的 uep_flags.label
+              是兩件不相干的事 */}
+          <span className="ned-marker-field-label">備註</span>
           <input
             className="ned-marker-input"
             type="text"
-            placeholder="備註（僅編輯器可見）"
+            placeholder="僅編輯器可見"
+            title="這個標記點的備註，只在編輯器顯示；與旗標註冊表的標籤無關"
             value={markerDraft.label}
             onChange={(e) =>
               setMarkerDraft((d) => ({ ...d, label: e.target.value }))
             }
           />
-          {/* 授予旗標一律從註冊表選（D-1）：手打一個字打錯，需求端就永遠
-              等不到，而且不會有任何錯誤訊息。草稿仍以逗號分隔字串保存，
-              轉換交給 markers.ts 既有的兩個序列化函式 */}
+          <span className="ned-marker-field-label">授予</span>
           <FlagPicker
             value={parseFlagsAttr(markerDraft.grantsFlags)}
             onChange={(next) =>
@@ -3395,7 +3399,7 @@ export default function RichEditor({
                 grantsFlags: serializeFlagsAttr(next),
               }))
             }
-            placeholder="授予旗標…"
+            placeholder="搜尋或輸入旗標…"
           />
           <button
             className="ned-img-bubble-btn"
