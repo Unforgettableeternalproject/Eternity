@@ -197,6 +197,12 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 
 #### T-A4（0.9.16.3）`upsertPage()` 存檔前強制擋未註冊自訂旗標
 
+> ⚠️ **2026-07-30 反轉**：D-1 的強制註冊已移除（見設計文件 §2-1）。這張卡實作的
+> 409 攔截在 0.9.16.8 改為 `ensureFlagsRegistered()` 自動註冊，回應帶
+> `autoRegisteredFlags`。下方原始範圍與驗收標準保留作為決策脈絡；現行行為與
+> 「已註冊旗標正常通過」「部分更新不觸發檢查」兩條驗收標準仍然成立，
+> 「未註冊 → 409」那兩條已反轉為「未註冊 → 自動補上並照常存檔」。
+
 - **範圍**：`workers/content-api/src/index.ts` 的 `upsertPage()` 新增旗標檢查分支（緊接既有 §3-2 key 唯一性檢查之後）：
   - 用 T-A3 的 `scanGrantedFlags`／`scanRequiredFlags`／`classifyFlag` 抽出這次存檔內容涉及的全部旗標
   - 排除 `classifyFlag` 判定為 `derived` 的旗標
@@ -234,13 +240,13 @@ if (metadataPatchMatch && request.method === 'PATCH') { ... }
 #### T-A6（0.9.16.5）`FlagPicker.tsx` 共用元件 + 兩處編輯器接線
 
 - **範圍**：
-  1. 新建 `apps/uep/src/components/editor/FlagPicker.tsx`：可搜尋下拉（來源 `GET /api/flags`）＋「＋ 新建旗標」就地小表單（呼叫 `POST /api/flags`）＋ 已選旗標 chip 呈現；**不保留自由輸入逃生口**（依 D-1 強制設計）
+  1. 新建 `apps/uep/src/components/editor/FlagPicker.tsx`：可搜尋下拉（來源 `GET /api/flags`）＋「＋ 新建旗標」就地小表單（呼叫 `POST /api/flags`）＋ 已選旗標 chip 呈現；~~**不保留自由輸入逃生口**（依 D-1 強制設計）~~ → **2026-07-30 反轉**：註冊表是建議清單不是白名單，自由輸入保留（存檔時自動註冊），見設計文件 §2-1
   2. `RichEditor.tsx:3386-3394`：`grantsFlags` 的 `<input type="text">` 換成 `<FlagPicker>`
   3. `GateConditionEditor.tsx:246-273`：`customFlag` 的 `<input>` + 加號按鈕換成 `<FlagPicker>`；**`renderTree()`（223-244，「requires completion…」page picker）完全不動**（地雷 §1-1 ⚠️，A 類旗標路徑）
 - **驗收標準**：
   - `FlagPicker.test.tsx`：搜尋過濾、選取、就地新建旗標後立刻可選
   - `RichEditor` marker bubble 與 `GateConditionEditor` 自訂旗標區塊的既有互動測試（若有）更新為使用 picker 的操作路徑
-  - 手動驗收：兩處都無法再手動打字產生未註冊旗標；「requires completion…」picker 行為與改動前一致
+  - 手動驗收：~~兩處都無法再手動打字產生未註冊旗標~~ → 反轉後改為「兩處都能直接打新旗標名，存檔後它出現在註冊表」；「requires completion…」picker 行為與改動前一致
 - **依賴**：T-A3（`GET/POST /api/flags`）
 - **風險**：低-中（兩處呼叫端各自是不同元件樹，需注意 props 傳遞與既有 `markerDraft`／`customFlag` state 的替換）
 - **預估**：5 小時

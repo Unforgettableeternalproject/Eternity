@@ -69,6 +69,8 @@ async function api(
     ok: boolean;
     error?: string;
     data?: Record<string, unknown>;
+    /** 存檔時自動補進註冊表的旗標；沒有新增時整個欄位不出現 */
+    autoRegisteredFlags?: string[];
   };
   return { status: res.status, json };
 }
@@ -368,22 +370,57 @@ describe('時間戳保留（同步用）', () => {
   });
 });
 
-describe('存檔時的註冊強制', () => {
-  it('內容帶未註冊自訂旗標 → 409，訊息列出旗標名', async () => {
+/**
+ * 存檔時自動註冊，**不擋**（D-1 反轉，艾斯維爾 2026-07-30 定案）。
+ *
+ * 與 entityKey／storyKey 同一個模式：自由填 → 存檔時建立註冊列 → 事後補說明。
+ * typo 交給巡查抓（打錯的標 unused、正確的標 orphan，一組同時出現），事前擋
+ * 的代價是每次多一道手續，而且會連帶關掉 derived 旗標的需求端。
+ */
+describe('存檔時的旗標自動註冊', () => {
+  it('內容帶未註冊自訂旗標 → 照常存檔並補進註冊表', async () => {
     const { status, json } = await putPage('gate/unregistered-grant', {
       markerFlags: ['not-registered-yet'],
     });
-    expect(status).toBe(409);
-    expect(json.error).toContain('not-registered-yet');
-    expect(json.data?.unregisteredFlags).toEqual(['not-registered-yet']);
+    expect(status).toBeLessThan(300);
+    expect(json.autoRegisteredFlags).toEqual(['not-registered-yet']);
+
+    const { json: list } = await authed('/api/flags');
+    const names = (list.data?.flags as { name: string }[]).map((f) => f.name);
+    expect(names).toContain('not-registered-yet');
   });
 
-  it('gate 要求未註冊旗標同樣被擋', async () => {
+  it('gate 要求的未註冊旗標同樣自動補上', async () => {
     const { status, json } = await putPage('gate/unregistered-require', {
       requiresFlags: ['also-not-registered'],
     });
-    expect(status).toBe(409);
-    expect(json.data?.unregisteredFlags).toEqual(['also-not-registered']);
+    expect(status).toBeLessThan(300);
+    expect(json.autoRegisteredFlags).toEqual(['also-not-registered']);
+  });
+
+  /**
+   * 事前強制註冊會讓這條路永遠走不通：那個旗標依設計不可註冊，
+   * 於是 gate 填不進去。
+   */
+  it('需求端可以要求 derived 旗標（聽過某首歌 / 看過某張圖）', async () => {
+    const { status } = await putPage('gate/require-derived', {
+      requiresFlags: ['rain-sea-finale:song', 'image:visuals%2Fg-a:img-01'],
+    });
+    expect(status).toBeLessThan(300);
+    // derived 一律豁免，不該被塞進註冊表
+    const { json: list } = await authed('/api/flags');
+    const names = (list.data?.flags as { name: string }[]).map((f) => f.name);
+    expect(names).not.toContain('rain-sea-finale:song');
+    expect(names).not.toContain('image:visuals%2Fg-a:img-01');
+  });
+
+  it('已註冊的旗標不重複註冊，也不回報', async () => {
+    await postJson('/api/flags', { name: 'already-there-flag' });
+    const { status, json } = await putPage('gate/already-registered', {
+      markerFlags: ['already-there-flag'],
+    });
+    expect(status).toBeLessThan(300);
+    expect(json.autoRegisteredFlags).toBeUndefined();
   });
 
   /**
@@ -398,17 +435,10 @@ describe('存檔時的註冊強制', () => {
     expect(status).toBeLessThan(300);
   });
 
-  it('已註冊旗標正常通過', async () => {
-    await postJson('/api/flags', { name: 'gate-registered' });
-    const { status } = await putPage('gate/registered', {
-      markerFlags: ['gate-registered'],
-    });
-    expect(status).toBeLessThan(300);
-  });
-
   /**
-   * PUT 支援部分更新。只改標題時不帶 content／metadata，不該被上一次就
-   * 已經存在的旗標擋住——比照既有 key 唯一性檢查的同一條慣例。
+   * PUT 支援部分更新。只改標題時不帶 content／metadata，就不該去掃舊內容——
+   * 比照既有 key 唯一性檢查的同一條慣例。反轉後症狀從「被舊旗標擋住」變成
+   * 「把舊內容的旗標默默註冊進去」，一樣不該發生。
    */
   it('不帶 content 與 metadata 的部分更新不觸發檢查', async () => {
     await env.CONTENT_DB.prepare(
@@ -430,12 +460,17 @@ describe('存檔時的註冊強制', () => {
       )
       .run();
 
-    const { status } = await authed('/api/content/history/gate/legacy', {
+    const { status, json } = await authed('/api/content/history/gate/legacy', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: '只改標題' }),
     });
     expect(status).toBeLessThan(300);
+    expect(json.autoRegisteredFlags).toBeUndefined();
+
+    const { json: list } = await authed('/api/flags');
+    const names = (list.data?.flags as { name: string }[]).map((f) => f.name);
+    expect(names).not.toContain('legacy-unregistered');
   });
 });
 

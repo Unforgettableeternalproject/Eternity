@@ -4607,7 +4607,8 @@
   color: var(--ink-mute);
   text-align: center;
 }
-.ned-flagpicker-new {
+.ned-flagpicker-new,
+.ned-flagpicker-use {
   width: 100%;
   padding: 6px 8px;
   border: none;
@@ -4618,8 +4619,20 @@
   text-align: left;
   cursor: pointer;
 }
-.ned-flagpicker-new:hover {
+.ned-flagpicker-new:hover,
+.ned-flagpicker-use:hover {
   background: var(--hairline);
+}
+.ned-flagpicker-use {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ned-flagpicker-use-note {
+  font-size: 9px;
+  color: var(--ink-mute);
+  white-space: nowrap;
 }
 .ned-flagpicker-create {
   display: flex;

@@ -51,7 +51,6 @@ import {
   ensureFlagsRegistered,
   findFlag,
   findFlagReferences,
-  findUnregisteredFlags,
   listFlags,
   updateFlag,
 } from './flags';
@@ -397,27 +396,29 @@ async function upsertPage(
     }
   }
 
-  // 自訂旗標必須先註冊才能使用。授予端打錯一個字，需求端就永遠等不到
-  // 那個旗標——不會有任何錯誤，只會靜默地永遠鎖著，而且從內容上看不出
-  // 哪裡錯了。用存檔失敗換掉這種無聲失效。
+  // 內容裡的自訂旗標自動補進註冊表（**不**擋存檔）。
   //
-  // derived 旗標（completed:* 等）由程式依 key 推導，不在此列；
-  // 「requires completion…」picker 產生的正是那類，不受影響。
-  const unregisteredFlags = await findUnregisteredFlags(
+  // ⚠️ 這是 D-1「強制註冊」的反轉（艾斯維爾 2026-07-30 定案）。原設計要用
+  // 409 換掉「授予端打錯一個字、需求端永遠等不到」的無聲失效，但：
+  //
+  // 1. **與 key 不一致**。`entityKey`／`storyKey` 走的是自由填 →
+  //    `ensureInterlinkKeys` 存檔時建殼列 → 事後補說明。`EntityKeyField`
+  //    的檔頭把理由寫死了：「entityKey 是語意資產，由設計者統一命名」。
+  //    旗標沒有理由是唯一需要事前登記的識別碼。
+  // 2. **typo 已經抓得到**。T-A3 的巡查會讓它留下很好認的指紋：打錯的那個
+  //    被標 unused（有授予沒人要求）、正確的那個被標 orphan（有要求沒人
+  //    授予），一組同時出現幾乎只有 typo 一種成因，`/admin/keys` 的
+  //    「只顯示有問題的」直接撈得出來。事前擋的代價是每次都多一道手續。
+  // 3. **事前擋會關掉 derived 旗標的需求端**。gate 想要求「聽過某首歌」
+  //    （`{storyKey}:song`）時，那個旗標依設計不可註冊，於是永遠填不進去。
+  //
+  // derived 旗標一律豁免（名稱由程式依 key 推導，不進註冊表）。
+  // 回應帶 `autoRegisteredFlags` 供 sync 腳本與 DevTools 追蹤，與批次匯入
+  // 路徑同一個欄位名。
+  const autoRegisteredFlags = await ensureFlagsRegistered(
     db,
     collectFlagsFromBody(body)
   );
-  if (unregisteredFlags.length > 0) {
-    return jsonResponse(
-      {
-        ok: false,
-        error: `以下旗標尚未註冊：${unregisteredFlags.join('、')}。請先在 /admin/keys 註冊，或確認是否拼錯`,
-        data: { unregisteredFlags },
-      },
-      409,
-      cors
-    );
-  }
 
   // 檢查是否已存在（包含已軟刪除的記錄）
   const existing = await db
@@ -577,7 +578,12 @@ async function upsertPage(
     .bind(id)
     .first<PageRow>();
   return jsonResponse(
-    { ok: true, data: updated ? rowToPage(updated) : null },
+    {
+      ok: true,
+      data: updated ? rowToPage(updated) : null,
+      // 只在真的有新增時才帶，避免每次存檔都多一個空陣列
+      ...(autoRegisteredFlags.length > 0 ? { autoRegisteredFlags } : {}),
+    },
     existing ? 200 : 201,
     cors
   );

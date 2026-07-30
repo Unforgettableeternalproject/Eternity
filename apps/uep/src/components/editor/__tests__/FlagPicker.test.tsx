@@ -1,8 +1,9 @@
 /**
  * FlagPicker 測試
  *
- * 核心契約是「不存在自由輸入逃生口」——只能選已註冊的旗標，或先註冊再選。
- * 其餘涵蓋搜尋過濾、已選排除、就地新建後立刻可選、409 視為可選。
+ * 核心契約：註冊表是**建議清單不是白名單**（D-1 反轉，2026-07-30）。三條路徑
+ * 都要通——點清單既有項、直接採用輸入字串（存檔時 worker 自動註冊）、就地
+ * 新建並填標籤（立即 POST 註冊）。
  */
 /* global RequestInit */
 import '@testing-library/jest-dom/vitest';
@@ -74,7 +75,7 @@ describe('FlagPicker', () => {
   });
 
   const openPanel = async () => {
-    fireEvent.focus(screen.getByPlaceholderText('搜尋已註冊的旗標…'));
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
     expect(await screen.findByText('met-mistina')).toBeInTheDocument();
   };
 
@@ -88,7 +89,7 @@ describe('FlagPicker', () => {
   it('搜尋同時過濾名稱與標籤', async () => {
     render(<FlagPicker value={[]} onChange={() => {}} />);
     await openPanel();
-    const input = screen.getByPlaceholderText('搜尋已註冊的旗標…');
+    const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
     fireEvent.change(input, { target: { value: 'signal' } });
     expect(screen.getByText('lost-signal')).toBeInTheDocument();
     expect(screen.queryByText('met-mistina')).not.toBeInTheDocument();
@@ -108,7 +109,7 @@ describe('FlagPicker', () => {
     expect(onChange).toHaveBeenCalledWith(['met-mistina']);
 
     rerender(<FlagPicker value={['met-mistina']} onChange={onChange} />);
-    fireEvent.focus(screen.getByPlaceholderText('搜尋已註冊的旗標…'));
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
     await waitFor(() =>
       expect(screen.getByText('lost-signal')).toBeInTheDocument()
     );
@@ -119,36 +120,70 @@ describe('FlagPicker', () => {
     expect(candidates).toEqual(['lost-signal']);
   });
 
-  it('沒有自由輸入逃生口：打不存在的名字按 Enter 不會加入，只會開新建表單', async () => {
+  /**
+   * 註冊表是建議清單不是白名單——與 entityKey／storyKey 同一個模式：自由填、
+   * 存檔時由 worker 自動補進註冊表、事後在 /admin/keys 補標籤與說明。
+   */
+  it('打一個不存在的名字按 Enter 直接採用，不強迫先註冊', async () => {
     const onChange = vi.fn();
     render(<FlagPicker value={[]} onChange={onChange} />);
     await openPanel();
-    const input = screen.getByPlaceholderText('搜尋已註冊的旗標…');
-    fireEvent.change(input, { target: { value: 'typo-flag' } });
+    const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
+    fireEvent.change(input, { target: { value: 'brand-new-flag' } });
     fireEvent.keyDown(input, { key: 'Enter' });
-    // 關鍵斷言：輸入的字串沒有被當成旗標加進去
-    expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('新旗標名稱')).toHaveValue('typo-flag');
+    expect(onChange).toHaveBeenCalledWith(['brand-new-flag']);
+    // 沒有打任何 POST——註冊是存檔時 worker 的事
+    expect(calls.some((c) => c.init?.method === 'POST')).toBe(false);
+  });
+
+  it('清單裡沒有時提供「直接使用」入口，大小寫原樣保留', async () => {
+    const onChange = vi.fn();
+    render(<FlagPicker value={[]} onChange={onChange} />);
+    await openPanel();
+    fireEvent.change(screen.getByPlaceholderText('搜尋或輸入新旗標…'), {
+      target: { value: 'Act2-Betrayal' },
+    });
+    fireEvent.click(screen.getByText(/直接使用/));
+    expect(onChange).toHaveBeenCalledWith(['Act2-Betrayal']);
+  });
+
+  it('輸入的字串已在清單上時不顯示「直接使用」（避免兩個入口做同一件事）', async () => {
+    render(<FlagPicker value={[]} onChange={() => {}} />);
+    await openPanel();
+    fireEvent.change(screen.getByPlaceholderText('搜尋或輸入新旗標…'), {
+      target: { value: 'met-mistina' },
+    });
+    expect(screen.queryByText(/直接使用/)).not.toBeInTheDocument();
+  });
+
+  it('derived 旗標可以直接填進需求端（事前強制會關掉這條路）', async () => {
+    const onChange = vi.fn();
+    render(<FlagPicker value={[]} onChange={onChange} />);
+    await openPanel();
+    const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
+    fireEvent.change(input, { target: { value: 'rain-sea-finale:song' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith(['rain-sea-finale:song']);
   });
 
   it('Enter 選第一個匹配項', async () => {
     const onChange = vi.fn();
     render(<FlagPicker value={[]} onChange={onChange} />);
     await openPanel();
-    const input = screen.getByPlaceholderText('搜尋已註冊的旗標…');
+    const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
     fireEvent.change(input, { target: { value: 'met' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onChange).toHaveBeenCalledWith(['met-mistina']);
   });
 
-  it('就地新建：先 POST 註冊再選取', async () => {
+  it('就地新建並填標籤：先 POST 註冊再選取', async () => {
     const onChange = vi.fn();
     render(<FlagPicker value={[]} onChange={onChange} />);
     await openPanel();
-    fireEvent.change(screen.getByPlaceholderText('搜尋已註冊的旗標…'), {
+    fireEvent.change(screen.getByPlaceholderText('搜尋或輸入新旗標…'), {
       target: { value: 'chapter2-revealed' },
     });
-    fireEvent.click(screen.getByText(/新建旗標/));
+    fireEvent.click(screen.getByText(/新建並填標籤/));
     fireEvent.change(screen.getByLabelText('新旗標標籤'), {
       target: { value: '第二章揭露' },
     });
@@ -174,12 +209,12 @@ describe('FlagPicker', () => {
     });
     const onChange = vi.fn();
     render(<FlagPicker value={[]} onChange={onChange} />);
-    fireEvent.focus(screen.getByPlaceholderText('搜尋已註冊的旗標…'));
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
     await screen.findByText('met-mistina');
-    fireEvent.change(screen.getByPlaceholderText('搜尋已註冊的旗標…'), {
+    fireEvent.change(screen.getByPlaceholderText('搜尋或輸入新旗標…'), {
       target: { value: 'some-story:song' },
     });
-    fireEvent.click(screen.getByText(/新建旗標/));
+    fireEvent.click(screen.getByText(/新建並填標籤/));
     fireEvent.click(screen.getByRole('button', { name: '註冊並選取' }));
 
     expect(await screen.findByText(/不需要也不能註冊/)).toBeInTheDocument();
@@ -191,12 +226,12 @@ describe('FlagPicker', () => {
     mockApi({ createStatus: 409, createError: '旗標已存在' });
     const onChange = vi.fn();
     render(<FlagPicker value={[]} onChange={onChange} />);
-    fireEvent.focus(screen.getByPlaceholderText('搜尋已註冊的旗標…'));
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
     await screen.findByText('met-mistina');
-    fireEvent.change(screen.getByPlaceholderText('搜尋已註冊的旗標…'), {
+    fireEvent.change(screen.getByPlaceholderText('搜尋或輸入新旗標…'), {
       target: { value: 'already-there' },
     });
-    fireEvent.click(screen.getByText(/新建旗標/));
+    fireEvent.click(screen.getByText(/新建並填標籤/));
     fireEvent.click(screen.getByRole('button', { name: '註冊並選取' }));
 
     await waitFor(() =>

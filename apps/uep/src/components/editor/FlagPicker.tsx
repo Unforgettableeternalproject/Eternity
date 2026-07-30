@@ -3,10 +3,14 @@
  *
  * 兩處呼叫端：FlagMarker bubble 的授予端、GateConditionEditor 的需求端。
  *
- * ⚠️ **刻意不留自由輸入逃生口**（D-1 強制註冊）。只能選已註冊的旗標，或就地
- * 新建一個（先 `POST /api/flags` 註冊，再選取）。授予端打錯一個字，需求端就
- * 永遠等不到，而且沒有任何錯誤訊息——只會靜默地永遠鎖著，這是強制註冊要防的
- * 唯一一件事。
+ * 註冊表是**建議清單不是白名單**（艾斯維爾 2026-07-30 定案，D-1 反轉）：
+ * 可以從清單選，也可以直接打一個新名字，存檔時由 worker 自動補進註冊表——
+ * 與 `entityKey`／`storyKey` 同一個模式（自由填 → 存檔建殼列 → 事後補說明）。
+ *
+ * 為什麼不再事前強制註冊：typo 已經被 T-A3 的巡查抓得到（打錯的那個標
+ * unused、正確的那個標 orphan，一組同時出現幾乎只有 typo 一種成因），而事前
+ * 擋會連帶關掉 derived 旗標的需求端——gate 想要求「聽過某首歌」時，那個旗標
+ * 依設計不可註冊，於是永遠填不進去。
  *
  * 走同源 SSR proxy（`/api/flags`）：那個端點全段 admin only，而 admin JWT 是
  * httpOnly cookie，瀏覽器端讀不到，必須由 proxy 在 server 端補 Bearer header。
@@ -38,7 +42,7 @@ export default function FlagPicker({
   onChange,
   showSelected = true,
   accent,
-  placeholder = '搜尋已註冊的旗標…',
+  placeholder = '搜尋或輸入新旗標…',
 }: FlagPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -97,6 +101,16 @@ export default function FlagPicker({
   }
 
   const needle = query.trim().toLowerCase();
+  /** 原樣的輸入字串——旗標名大小寫有意義，比對才用小寫 */
+  const needleRaw = query.trim();
+  /**
+   * 「直接使用」只在輸入的東西既不在清單裡也還沒被選時才有意義。
+   * 已經是清單上的項目就該去點它（避免同一件事有兩個入口）。
+   */
+  const canUseRaw =
+    !!needleRaw &&
+    !value.includes(needleRaw) &&
+    !options.some((option) => option.name === needleRaw);
   const available = options.filter((option) => !value.includes(option.name));
   const matched = needle
     ? available.filter(
@@ -195,10 +209,10 @@ export default function FlagPicker({
           }
           if (e.key !== 'Enter') return;
           e.preventDefault();
-          // Enter 選第一個匹配項；沒有匹配就開新建表單並預填。
-          // 絕不直接把輸入字串當旗標加進去——那就是逃生口
+          // Enter 選第一個匹配項；沒有匹配就直接採用輸入字串（存檔時由
+          // worker 自動註冊）。要順便填標籤才走「＋ 新建並填標籤」那條路
           if (matched.length > 0) select(matched[0].name);
-          else if (query.trim()) openCreate();
+          else if (query.trim()) select(query.trim());
         }}
       />
 
@@ -239,6 +253,22 @@ export default function FlagPicker({
                       ? '沒有符合的旗標'
                       : '已經全部選取'}
                 </div>
+              )}
+
+              {/* 直接採用輸入字串：註冊表是建議清單不是白名單，存檔時
+                  worker 會自動把它補進註冊表 */}
+              {canUseRaw && (
+                <button
+                  type="button"
+                  className="ned-flagpicker-use"
+                  style={accent ? { color: accent } : undefined}
+                  onClick={() => select(needleRaw)}
+                >
+                  直接使用「{needleRaw}」
+                  <span className="ned-flagpicker-use-note">
+                    存檔時自動註冊
+                  </span>
+                </button>
               )}
 
               {creating ? (
@@ -292,7 +322,7 @@ export default function FlagPicker({
                   style={accent ? { color: accent } : undefined}
                   onClick={openCreate}
                 >
-                  ＋ 新建旗標{query.trim() ? `「${query.trim()}」` : ''}
+                  ＋ 新建並填標籤{needleRaw ? `「${needleRaw}」` : ''}
                 </button>
               )}
             </>

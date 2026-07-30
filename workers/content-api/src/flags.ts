@@ -287,15 +287,24 @@ export async function findUnregisteredFlags(
 /**
  * 把尚未註冊的自訂旗標補進註冊表，回傳實際新增的名稱。
  *
- * 只給**批次匯入**路徑用（`/api/content/sync/import`），不給單頁存檔。
+ * 兩條路徑共用：批次匯入（`/api/content/sync/import`）與單頁存檔
+ * （`upsertPage`，2026-07-30 D-1 反轉後改走這裡，原本是 409 攔截）。
  *
- * 為什麼匯入不能比照單頁存檔擋 409：`uep_flags` 不在 `pnpm sync` 的同步
- * 範圍內（sync 只搬 pages 與 root_* 業務表），本地註冊好的旗標推到遠端時
- * 遠端註冊表是空的，一擋就等於整個同步流程卡死。而且擋下來並不會讓資料
- * 變乾淨——旗標已經在內容裡了，擋的只是「讓兩邊一致」這件事。
+ * 為什麼不擋：
+ * - 匯入若擋，`uep_flags` 不在 `pnpm sync` 的同步範圍內（sync 只搬 pages 與
+ *   root_* 業務表），本地註冊好的旗標推到遠端時遠端註冊表是空的，一擋就等於
+ *   整個同步流程卡死。而且擋下來並不會讓資料變乾淨——旗標已經在內容裡了。
+ * - 單頁存檔若擋，就與 `entityKey`／`storyKey` 的模式不一致（那兩者是自由填 →
+ *   `ensureInterlinkKeys` 建殼列 → 事後補說明），而且會連帶關掉 derived 旗標
+ *   的需求端（gate 想要求 `{storyKey}:song` 時那個旗標依設計不可註冊）。
  *
  * 代價是打錯字的旗標會靜默進入註冊表，所以呼叫端必須把新增清單回報出去
- * （sync 腳本會印出來），讓操作者看得到自己多了哪些不認識的旗標。
+ * （sync 腳本會印、存檔回應帶 `autoRegisteredFlags`），並靠巡查的
+ * orphan／unused 配對把 typo 撈出來。
+ *
+ * ⚠️ 建出來的是**殼列**：`label`／`description`／`category` 全為 NULL，比照
+ * `ensureInterlinkKeys` 的殼列語意。不要塞「自動註冊」這類佔位說明——那幾個
+ * 欄位是要給人填的，塞了字進去反而得先刪掉才能寫真正的說明。
  */
 export async function ensureFlagsRegistered(
   db: D1Database,
@@ -311,9 +320,9 @@ export async function ensureFlagsRegistered(
         .prepare(
           `INSERT OR IGNORE INTO uep_flags
              (name, label, description, category, created_at, updated_at)
-           VALUES (?, NULL, ?, NULL, ?, ?)`
+           VALUES (?, NULL, NULL, NULL, ?, ?)`
         )
-        .bind(name, '批次匯入時自動註冊', now, now)
+        .bind(name, now, now)
     )
   );
   return missing;
