@@ -187,6 +187,16 @@
   color: var(--ink-mute);
 }
 
+/* 分組的收錄條件說明——沒有它，筆數會被讀成「系統裡只有這幾個」 */
+.km-group-hint {
+  margin: 0 20px 8px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--hairline-strong, var(--hairline));
+  font-size: 10px;
+  line-height: 1.75;
+  color: var(--ink-mute);
+}
+
 /* --- 清單列 --- */
 
 .km-row {

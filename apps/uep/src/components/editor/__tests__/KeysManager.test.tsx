@@ -276,9 +276,23 @@ describe('KeysManager', () => {
     fireEvent.click(await screen.findByText('flag'));
     expect(screen.getByText('未註冊')).toBeInTheDocument();
     expect(screen.getByText('已註冊')).toBeInTheDocument();
-    expect(screen.getByText('規則生成')).toBeInTheDocument();
+    expect(screen.getByText(/規則生成/)).toBeInTheDocument();
     expect(screen.getByText('孤兒')).toBeInTheDocument();
     expect(screen.getByText('未使用')).toBeInTheDocument();
+  });
+
+  /**
+   * 筆數不加說明會被讀成「系統裡只有這幾個 completed 旗標」。實際上每一頁
+   * 都能產生一個，這一組只收「被當成前置條件」的那些，而且與讀者進度無關。
+   */
+  it('derived 分組講明收錄條件與進度無關', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    expect(screen.getByText(/規則生成（內容裡有引用）/)).toBeInTheDocument();
+    const hint = screen.getByText(/只在被當成前置條件時出現/);
+    expect(hint).toBeInTheDocument();
+    expect(hint.textContent).toMatch(/與讀者進度無關/);
+    expect(hint.textContent).toMatch(/admin\/behavior/);
   });
 
   it('「只顯示有問題的」保留未註冊與孤兒，濾掉其餘', async () => {

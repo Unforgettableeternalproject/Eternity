@@ -585,6 +585,7 @@ export default function KeysManager() {
     id: FlagAuditRow['source'];
     label: string;
     rows: FlagAuditRow[];
+    hint?: string;
   }> = [
     {
       id: 'unregistered',
@@ -598,8 +599,11 @@ export default function KeysManager() {
     },
     {
       id: 'derived',
-      label: '規則生成',
+      // 標題就講清楚這一組的收錄條件。少了這句會讓人把筆數讀成「系統裡
+      // 只有這幾個」——每一頁都能產生 completed:*，這裡只列被引用的
+      label: '規則生成（內容裡有引用）',
       rows: visibleFlags.filter((f) => f.source === 'derived'),
+      hint: 'completed:* 只在被當成前置條件時出現，沒有任何頁面要求它的不會列在這裡。每一頁的進度狀態要看 /admin/behavior 的全樹總覽。這一份掃的是內容怎麼寫，與讀者進度無關。',
     },
   ];
   const orphanCount = audit.filter((f) => f.orphan).length;
@@ -667,7 +671,8 @@ export default function KeysManager() {
   function renderGroup<T>(
     label: string,
     rows: T[],
-    render: (row: T) => ReactElement
+    render: (row: T) => ReactElement,
+    hint?: string
   ): ReactElement {
     return (
       <div className="km-group" key={label}>
@@ -675,6 +680,7 @@ export default function KeysManager() {
           {label}
           <span className="km-group-count">{rows.length}</span>
         </div>
+        {hint && <div className="km-group-hint">ⓘ {hint}</div>}
         {rows.length === 0 ? (
           <div className="km-group-empty">（無）</div>
         ) : (
@@ -1258,7 +1264,7 @@ export default function KeysManager() {
             </>
           ) : (
             flagGroups.map((group) =>
-              renderGroup(group.label, group.rows, renderFlagRow)
+              renderGroup(group.label, group.rows, renderFlagRow, group.hint)
             )
           )}
         </div>
