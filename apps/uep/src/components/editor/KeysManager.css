@@ -88,42 +88,11 @@
   padding: 8px 20px;
 }
 
-/* flag 分頁的工具列有三組東西（chip／勾選／統計），單欄寬度塞不進一行 */
+/* flag 分頁的 chip 分兩層（總覽／未使用成因），單欄寬度塞不進一行 */
 .km-list-toolbar--stack {
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
-}
-
-.km-toolbar-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.km-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-mute);
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  user-select: none;
-}
-
-.km-check input {
-  accent-color: var(--ink-soft);
-}
-
-.km-list-stats {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--ink-mute);
-  letter-spacing: 0.06em;
-  white-space: nowrap;
+  gap: 5px;
 }
 
 /* --- 類型篩選 chip --- */
@@ -159,6 +128,15 @@
 .km-chip.active {
   color: var(--ink-title);
   border-color: var(--uep-gold, #d5b618);
+}
+
+/* 次級列（「未使用」的三種成因）：虛線框 + 左側縮排，表示它是下一層 */
+.km-chips--sub {
+  padding-left: 10px;
+}
+
+.km-chips--sub .km-chip {
+  border-style: dashed;
 }
 
 .km-list-scroll {

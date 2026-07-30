@@ -6,7 +6,7 @@ import worker from '../index';
  * 自訂旗標註冊表的 CRUD 與全站巡查（/api/flags*）
  *
  * 巡查的重點不在「掃得到」而在**分類正確**：規則生成的旗標沒有內容裡的
- * 授予點（掃描線與 echo spot 是程式授予），若把它們算進孤兒判定，每一個
+ * 授予點（掃描線與 echo spot 是程式授予），若把它們算進使用狀態判定，每一個
  * gate 用的 `completed:*` 都會變成假警報，清單直接失去可讀性。
  */
 
@@ -117,8 +117,7 @@ interface AuditRow {
   source: string;
   grantedBy: { pageId: string }[];
   requiredBy: { pageId: string }[];
-  orphan: boolean;
-  unused: boolean;
+  usage: 'used' | 'no-demand' | 'no-grant' | 'orphan' | null;
 }
 
 async function audit(): Promise<AuditRow[]> {
@@ -229,21 +228,22 @@ describe('/api/flags — 註冊表 CRUD', () => {
 describe('/api/flags/audit — 全站巡查', () => {
   beforeAll(async () => {
     await postJson('/api/flags', { name: 'audit-registered-both' });
-    await postJson('/api/flags', { name: 'audit-orphan' });
-    await postJson('/api/flags', { name: 'audit-unused' });
+    await postJson('/api/flags', { name: 'audit-no-grant' });
+    await postJson('/api/flags', { name: 'audit-no-demand' });
     await postJson('/api/flags', { name: 'audit-never-used' });
 
     // 授予端 + 需求端都有
     await putPage('audit/grants-both', {
-      markerFlags: ['audit-registered-both', 'audit-unused'],
+      markerFlags: ['audit-registered-both', 'audit-no-demand'],
     });
     await putPage('audit/requires-both', {
-      requiresFlags: ['audit-registered-both', 'audit-orphan'],
+      requiresFlags: ['audit-registered-both', 'audit-no-grant'],
     });
     // 內容裡在用但沒註冊。
-    // ⚠️ 這一頁只能直接寫 DB 造：存檔路徑本身就會擋未註冊旗標（409），
-    // 正常編輯器路徑造不出這種狀態。巡查要看得到的是「歷史遺留或直接
-    // 改 DB 產生」的未註冊旗標，那才是這個分類存在的理由。
+    // ⚠️ 這一頁只能直接寫 DB 造：存檔路徑會把未註冊旗標**自動補進註冊表**
+    // （D-1 反轉後不再 409），走正常路徑造出來的一律是 registered。巡查要
+    // 看得到的是「強制刪除過註冊」或「直接改 DB」產生的，那才是這個分類
+    // 存在的理由。
     await env.CONTENT_DB.prepare(
       `INSERT OR REPLACE INTO pages
          (id, area, title, slug, sort_order, content, metadata, status, page_type, depth)
@@ -277,17 +277,33 @@ describe('/api/flags/audit — 全站巡查', () => {
     expect(row?.requiredBy.map((r) => r.pageId)).toContain(
       'history/audit/requires-both'
     );
-    expect(row).toMatchObject({ orphan: false, unused: false });
+    expect(row?.usage).toBe('used');
   });
 
-  it('有人要求但沒人授予 → orphan', async () => {
-    const row = (await audit()).find((f) => f.name === 'audit-orphan');
-    expect(row).toMatchObject({ orphan: true, unused: false });
+  /**
+   * ⚠️ 四態裡只有這一種會造成故障：需求端等一個再也不會被授予的旗標，
+   * 沒有錯誤訊息，那一頁就是永遠打不開。
+   */
+  it('有人要求但沒地方授予 → no-grant', async () => {
+    const row = (await audit()).find((f) => f.name === 'audit-no-grant');
+    expect(row?.usage).toBe('no-grant');
   });
 
-  it('有授予但沒人要求 → unused', async () => {
-    const row = (await audit()).find((f) => f.name === 'audit-unused');
-    expect(row).toMatchObject({ orphan: false, unused: true });
+  it('有授予但沒人要求 → no-demand', async () => {
+    const row = (await audit()).find((f) => f.name === 'audit-no-demand');
+    expect(row?.usage).toBe('no-demand');
+  });
+
+  /**
+   * derived 不參與使用狀態判定：它們是唯讀參考，授予端在程式裡，沒有
+   * 「該不該用」的問題。實際上 audit 收錄 derived 的前提就是被 gate 要求，
+   * 所以永遠有需求端——這條斷言鎖的是「就算哪天收錄條件放寬也不會誤標」。
+   */
+  it('derived 旗標的 usage 為 null', async () => {
+    const row = (await audit()).find(
+      (f) => f.name === 'completed:history/audit/grants-both'
+    );
+    expect(row).toMatchObject({ source: 'derived', usage: null });
   });
 
   it('內容在用但註冊表沒有 → unregistered', async () => {
@@ -295,29 +311,29 @@ describe('/api/flags/audit — 全站巡查', () => {
     expect(row?.source).toBe('unregistered');
   });
 
-  it('註冊了但完全沒用到也會列出', async () => {
+  /**
+   * 兩端都空 = orphan。會出現在「某頁的 marker 授予過它、後來 marker 被
+   * 刪掉」之後——註冊表的列還在，引用歸零。
+   */
+  it('註冊了但完全沒用到 → 列出且標 orphan', async () => {
     const row = (await audit()).find((f) => f.name === 'audit-never-used');
-    expect(row).toMatchObject({
-      source: 'registered',
-      orphan: false,
-      unused: false,
-    });
+    expect(row).toMatchObject({ source: 'registered', usage: 'orphan' });
     expect(row?.grantedBy).toEqual([]);
     expect(row?.requiredBy).toEqual([]);
   });
 
   /**
    * 這是本端點最容易寫錯的地方：`completed:*` 的授予端是掃描線（程式），
-   * 內容裡永遠找不到 grants，若照一般規則判定就會全部變孤兒。
+   * 內容裡永遠找不到 grants，若照一般規則判定就會全部變成 no-grant 假警報。
    */
-  it('規則生成旗標標為 derived，且不因無授予端被誤判成 orphan', async () => {
+  it('規則生成旗標標為 derived，不因無授予端被誤判', async () => {
     const row = (await audit()).find(
       (f) => f.name === 'completed:history/audit/grants-both'
     );
     expect(row?.source).toBe('derived');
     expect(row?.requiredBy.length).toBeGreaterThan(0);
     expect(row?.grantedBy).toEqual([]);
-    expect(row?.orphan).toBe(false);
+    expect(row?.usage).toBeNull();
   });
 });
 
@@ -374,7 +390,7 @@ describe('時間戳保留（同步用）', () => {
  * 存檔時自動註冊，**不擋**（D-1 反轉，艾斯維爾 2026-07-30 定案）。
  *
  * 與 entityKey／storyKey 同一個模式：自由填 → 存檔時建立註冊列 → 事後補說明。
- * typo 交給巡查抓（打錯的標 unused、正確的標 orphan，一組同時出現），事前擋
+ * typo 交給巡查抓（打錯的標 no-demand、正確的標 no-grant，一組同時出現），事前擋
  * 的代價是每次多一道手續，而且會連帶關掉 derived 旗標的需求端。
  */
 describe('存檔時的旗標自動註冊', () => {

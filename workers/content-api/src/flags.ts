@@ -41,10 +41,22 @@ export interface FlagAuditRow {
   label: string | null;
   grantedBy: FlagReference[];
   requiredBy: FlagReference[];
-  /** 有人要求但沒有任何地方授予 */
-  orphan: boolean;
-  /** 有地方授予但沒有任何人要求 */
-  unused: boolean;
+  /**
+   * 使用狀態（四態互斥，2026-07-30 艾斯維爾定調）。
+   *
+   * 只有兩端都有才算真的在用——旗標的作用是「一邊發、一邊要求」，缺任一
+   * 邊都不成立。其餘三種各有不同的處理方式，所以分開標而不是一個 unused：
+   *
+   * - `used`：有授予也有需求，正常運作
+   * - `no-demand`：有授予、沒人要求。發了沒用，通常是需求端還沒接上
+   * - `no-grant`：有人要求、沒地方授予。⚠️ **這一種會永久鎖死**——需求端
+   *   等一個再也不會被授予的旗標，沒有任何錯誤訊息，那一頁就是打不開。
+   *   典型成因是授予端打錯字（打錯的那個會同時以 `no-demand` 出現）
+   * - `orphan`：兩端都沒有。註冊表殼列，多半是引用被刪掉或當初打錯字
+   *
+   * `null` = 規則生成旗標，不參與這個維度（唯讀參考，授予端在程式裡）。
+   */
+  usage: 'used' | 'no-demand' | 'no-grant' | 'orphan' | null;
 }
 
 const SELECT_COLS = `name, label, description, category,
@@ -200,8 +212,8 @@ export async function auditFlags(db: D1Database): Promise<FlagAuditRow[]> {
         label: reg?.label ?? null,
         grantedBy: [],
         requiredBy: [],
-        orphan: false,
-        unused: false,
+        // 真值在下方迴圈統一算——這裡還沒掃完引用
+        usage: null,
       };
       rows.set(name, row);
     }
@@ -247,15 +259,20 @@ export async function auditFlags(db: D1Database): Promise<FlagAuditRow[]> {
   for (const name of registered.keys()) touch(name);
 
   for (const row of rows.values()) {
-    // ⚠️ derived 旗標不參與孤兒判定：它們的授予端是程式（掃描線通過文末
-    // 哨兵授予 completed:*、echo spot 觸發授予 {storyKey}:song），內容裡
-    // 本來就找不到授予點。把它們算進來的話，每一個 gate 用的 completed:*
+    // ⚠️ derived 旗標不參與使用狀態判定：它們的授予端是程式（掃描線通過
+    // 文末哨兵授予 completed:*、echo spot 觸發授予 {storyKey}:song），內容
+    // 裡本來就找不到授予點。把它們算進來的話，每一個 gate 用的 completed:*
     // 都會變成假警報，巡查清單直接失去可讀性
-    row.orphan =
-      row.source !== 'derived' &&
-      row.requiredBy.length > 0 &&
-      row.grantedBy.length === 0;
-    row.unused = row.grantedBy.length > 0 && row.requiredBy.length === 0;
+    if (row.source === 'derived') {
+      row.usage = null;
+      continue;
+    }
+    const granted = row.grantedBy.length > 0;
+    const required = row.requiredBy.length > 0;
+    if (granted && required) row.usage = 'used';
+    else if (granted) row.usage = 'no-demand';
+    else if (required) row.usage = 'no-grant';
+    else row.usage = 'orphan';
   }
 
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -300,7 +317,8 @@ export async function findUnregisteredFlags(
  *
  * 代價是打錯字的旗標會靜默進入註冊表，所以呼叫端必須把新增清單回報出去
  * （sync 腳本會印、存檔回應帶 `autoRegisteredFlags`），並靠巡查的
- * orphan／unused 配對把 typo 撈出來。
+ * `no-demand`／`no-grant` 配對把 typo 撈出來（打錯的那個沒人要求、正確的
+ * 那個沒地方授予，一組同時出現）。
  *
  * ⚠️ 建出來的是**殼列**：`label`／`description`／`category` 全為 NULL，比照
  * `ensureInterlinkKeys` 的殼列語意。不要塞「自動註冊」這類佔位說明——那幾個

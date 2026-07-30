@@ -36,14 +36,17 @@ interface FlagReference {
   area: string;
 }
 
+/** 使用狀態的四態；判定在 worker 的 `auditFlags`，前端只顯示 */
+type FlagUsage = 'used' | 'no-demand' | 'no-grant' | 'orphan' | null;
+
 interface FlagAuditRow {
   name: string;
   source: 'registered' | 'derived' | 'unregistered';
   label: string | null;
   grantedBy: FlagReference[];
   requiredBy: FlagReference[];
-  orphan: boolean;
-  unused: boolean;
+  /** `null` = 規則生成，不參與這個維度 */
+  usage: FlagUsage;
 }
 
 interface FlagRow {
@@ -217,22 +220,49 @@ const KEY_TYPE_FILTERS = [
   { id: 'story', label: 'story' },
 ] as const;
 
+/** 總覽層：三者互斥且涵蓋全部自訂旗標 */
 const FLAG_USE_FILTERS = [
   { id: 'all', label: '全部' },
   { id: 'used', label: '已使用' },
   { id: 'unused', label: '未使用' },
 ] as const;
 
+/** 細分層：「未使用」的三種成因，各自可單獨篩 */
+const FLAG_USAGE_FILTERS = [
+  { id: 'no-grant', label: '無授予' },
+  { id: 'no-demand', label: '無引用' },
+  { id: 'orphan', label: '孤兒' },
+] as const;
+
+type FlagFilter =
+  | (typeof FLAG_USE_FILTERS)[number]['id']
+  | (typeof FLAG_USAGE_FILTERS)[number]['id'];
+
 /**
- * 這個旗標在內容裡有沒有任何引用（授予端或需求端任一）。
- *
- * ⚠️ 與 `row.unused` 不是同一件事：`row.unused` 是「有授予、沒人要求」
- * （UI 標示為「無人要求」），這裡問的是「內容裡到底提過它沒有」。
- * 完全沒引用的旗標多半是註冊表殼列——旗標刪掉了、改名了，或當初打錯字。
+ * 未使用的三種狀態各自的標示。只有 `no-grant` 會造成故障（需求端等一個
+ * 再也不會被授予的旗標，沒有錯誤訊息，那一頁就是永遠打不開），所以只有
+ * 它用警示色；另兩種是「沒作用」不是「壞了」。
  */
-function isFlagUsed(row: FlagAuditRow): boolean {
-  return row.grantedBy.length > 0 || row.requiredBy.length > 0;
-}
+const USAGE_BADGES: Record<
+  'no-demand' | 'no-grant' | 'orphan',
+  { label: string; tone: 'warn' | 'mute'; title: string }
+> = {
+  'no-grant': {
+    label: '無授予',
+    tone: 'warn',
+    title: '有人要求它，但沒有任何地方授予——要求它的那幾頁會永久打不開',
+  },
+  'no-demand': {
+    label: '無引用',
+    tone: 'mute',
+    title: '有地方授予，但沒有任何 gate 要求它',
+  },
+  orphan: {
+    label: '孤兒',
+    tone: 'mute',
+    title: '兩端都沒有引用，只剩註冊表這一列',
+  },
+};
 
 // ===== 元件 =====
 
@@ -247,11 +277,8 @@ export default function KeysManager() {
   const [keyTypeFilter, setKeyTypeFilter] = useState<
     'all' | 'entity' | 'story'
   >('all');
-  /** flag 分頁的使用狀態篩選：對照「註冊了但還沒真的用上」最快的入口 */
-  const [flagUseFilter, setFlagUseFilter] = useState<'all' | 'used' | 'unused'>(
-    'all'
-  );
-  const [problemsOnly, setProblemsOnly] = useState(false);
+  /** flag 分頁的使用狀態篩選（總覽三態 + 未使用的三種細分） */
+  const [flagUseFilter, setFlagUseFilter] = useState<FlagFilter>('all');
   const [selected, setSelected] = useState<Selection | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -593,26 +620,39 @@ export default function KeysManager() {
     (row.title || '').toLowerCase().includes(needle) ||
     (row.derivedName || '').toLowerCase().includes(needle);
 
-  /** 搜尋與「只顯示有問題的」——使用狀態篩選另外套，好讓 chip 標得出筆數 */
+  /** 只套搜尋——使用狀態另外套，好讓每個 chip 都標得出筆數 */
   const matchFlagBase = (row: FlagAuditRow) =>
-    (!needle ||
-      row.name.toLowerCase().includes(needle) ||
-      (row.label || '').toLowerCase().includes(needle)) &&
-    (!problemsOnly || row.source === 'unregistered' || row.orphan);
+    !needle ||
+    row.name.toLowerCase().includes(needle) ||
+    (row.label || '').toLowerCase().includes(needle);
 
   const entityKeys = keys.filter((k) => k.keyType === 'entity' && matchKey(k));
   const storyKeys = keys.filter((k) => k.keyType === 'story' && matchKey(k));
   const searchedFlags = audit.filter(matchFlagBase);
-  const usedFlags = searchedFlags.filter(isFlagUsed);
-  const unusedFlags = searchedFlags.filter((f) => !isFlagUsed(f));
-  const visibleFlags =
-    flagUseFilter === 'used'
-      ? usedFlags
-      : flagUseFilter === 'unused'
-        ? unusedFlags
-        : searchedFlags;
+  /**
+   * 使用狀態只對自訂旗標有意義。規則生成的是唯讀參考，名稱由 key 推導、
+   * 授予端在程式裡，沒有「該不該用」的問題（艾斯維爾 2026-07-30），所以
+   * 不進篩選也不進 chip 計數——它那一組永遠完整顯示。
+   */
+  const customFlags = searchedFlags.filter((f) => f.source !== 'derived');
+  /** 各 chip 的筆數；`unused` 是後三者的聯集 */
+  const usageCounts = {
+    all: customFlags.length,
+    used: customFlags.filter((f) => f.usage === 'used').length,
+    unused: customFlags.filter((f) => f.usage !== 'used').length,
+    'no-grant': customFlags.filter((f) => f.usage === 'no-grant').length,
+    'no-demand': customFlags.filter((f) => f.usage === 'no-demand').length,
+    orphan: customFlags.filter((f) => f.usage === 'orphan').length,
+  } satisfies Record<FlagFilter, number>;
 
-  const unregisteredRows = visibleFlags.filter(
+  const filteredCustom = customFlags.filter((row) => {
+    if (flagUseFilter === 'all') return true;
+    if (flagUseFilter === 'used') return row.usage === 'used';
+    if (flagUseFilter === 'unused') return row.usage !== 'used';
+    return row.usage === flagUseFilter;
+  });
+
+  const unregisteredRows = filteredCustom.filter(
     (f) => f.source === 'unregistered'
   );
   const flagGroups: Array<{
@@ -639,19 +679,18 @@ export default function KeysManager() {
     {
       id: 'registered',
       label: '已註冊',
-      rows: visibleFlags.filter((f) => f.source === 'registered'),
+      rows: filteredCustom.filter((f) => f.source === 'registered'),
     },
     {
       id: 'derived',
       // 標題就講清楚這一組的收錄條件。少了這句會讓人把筆數讀成「系統裡
-      // 只有這幾個」——每一頁都能產生 completed:*，這裡只列被引用的
+      // 只有這幾個」——每一頁都能產生 completed:*，這裡只列被引用的。
+      // 取 searchedFlags 而非篩選後的：這一組不參與使用狀態篩選
       label: '規則生成（內容裡有引用）',
-      rows: visibleFlags.filter((f) => f.source === 'derived'),
-      hint: 'completed:* 只在被當成前置條件時出現，沒有任何頁面要求它的不會列在這裡。每一頁的進度狀態要看 /admin/behavior 的全樹總覽。這一份掃的是內容怎麼寫，與讀者進度無關。',
+      rows: searchedFlags.filter((f) => f.source === 'derived'),
+      hint: 'completed:* 只在被當成前置條件時出現，沒有任何頁面要求它的不會列在這裡。每一頁的進度狀態要看 /admin/behavior 的全樹總覽。這一份掃的是內容怎麼寫，與讀者進度無關。這一組是唯讀參考，不受上方使用狀態篩選影響，也不計入 chip 的筆數。',
     },
   ];
-  const orphanCount = audit.filter((f) => f.orphan).length;
-  const noDemandCount = audit.filter((f) => f.unused).length;
 
   /* ── 渲染：左欄 ── */
 
@@ -695,17 +734,15 @@ export default function KeysManager() {
           <div className="km-row-name">{row.name}</div>
           <div className="km-row-sub">
             {row.label || <span className="km-muted">（無標籤）</span>}
-            {row.orphan && (
-              <span className="km-badge km-badge--warn">孤兒</span>
-            )}
-            {/* 「無人要求」而非「未使用」：它確實被授予了，只是沒人拿它當
-                條件。上方 chip 的「未使用」問的是另一件事（內容裡完全沒
-                引用），兩者同名會互相打架 */}
-            {row.unused && (
-              <span className="km-badge km-badge--mute">無人要求</span>
-            )}
-            {!isFlagUsed(row) && (
-              <span className="km-badge km-badge--mute">未使用</span>
+            {/* 判定在 worker（`row.usage`），前端只查表顯示——自己算會與
+                上方 chip 的計數漂移 */}
+            {row.usage && row.usage !== 'used' && (
+              <span
+                className={`km-badge km-badge--${USAGE_BADGES[row.usage].tone}`}
+                title={USAGE_BADGES[row.usage].title}
+              >
+                {USAGE_BADGES[row.usage].label}
+              </span>
             )}
           </div>
         </div>
@@ -1310,27 +1347,33 @@ export default function KeysManager() {
                 >
                   {filter.label}
                   <span className="km-group-count">
-                    {filter.id === 'used'
-                      ? usedFlags.length
-                      : filter.id === 'unused'
-                        ? unusedFlags.length
-                        : searchedFlags.length}
+                    {usageCounts[filter.id]}
                   </span>
                 </button>
               ))}
             </div>
-            <div className="km-toolbar-row">
-              <label className="km-check">
-                <input
-                  type="checkbox"
-                  checked={problemsOnly}
-                  onChange={(e) => setProblemsOnly(e.target.checked)}
-                />
-                <span>只顯示有問題的</span>
-              </label>
-              <span className="km-list-stats">
-                孤兒 {orphanCount} · 無人要求 {noDemandCount}
-              </span>
+            {/* 第二行是「未使用」的三種成因，可單獨篩。與第一行同一個 state
+                （六者互斥），視覺上用 --sub 表示它是下一層 */}
+            <div
+              className="km-chips km-chips--sub"
+              role="group"
+              aria-label="未使用成因篩選"
+            >
+              {FLAG_USAGE_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
+                  aria-pressed={flagUseFilter === filter.id}
+                  title={USAGE_BADGES[filter.id].title}
+                  onClick={() => setFlagUseFilter(filter.id)}
+                >
+                  {filter.label}
+                  <span className="km-group-count">
+                    {usageCounts[filter.id]}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         )}

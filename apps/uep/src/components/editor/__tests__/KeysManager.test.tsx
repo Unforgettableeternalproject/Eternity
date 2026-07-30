@@ -44,6 +44,11 @@ const KEYS = [
   },
 ];
 
+/**
+ * 四個自訂旗標各佔一種使用狀態（used／no-demand／no-grant／orphan）＋
+ * 四個 derived（usage 恆為 null，不參與這個維度）。
+ * `usage` 由 worker 算，fixture 只是照抄它會回什麼。
+ */
 const AUDIT = [
   {
     name: 'completed:history/chapter-1',
@@ -53,8 +58,19 @@ const AUDIT = [
     requiredBy: [
       { pageId: 'history/chapter-2', pageTitle: '第二章', area: 'history' },
     ],
-    orphan: false,
-    unused: false,
+    usage: null,
+  },
+  {
+    name: 'ch1-cleared',
+    source: 'registered',
+    label: '第一章讀通',
+    grantedBy: [
+      { pageId: 'history/chapter-1', pageTitle: '第一章', area: 'history' },
+    ],
+    requiredBy: [
+      { pageId: 'history/chapter-2', pageTitle: '第二章', area: 'history' },
+    ],
+    usage: 'used',
   },
   {
     name: 'met-mistina',
@@ -64,8 +80,7 @@ const AUDIT = [
       { pageId: 'history/chapter-1', pageTitle: '第一章', area: 'history' },
     ],
     requiredBy: [],
-    orphan: false,
-    unused: true,
+    usage: 'no-demand',
   },
   {
     name: 'lost-signal',
@@ -75,8 +90,16 @@ const AUDIT = [
     requiredBy: [
       { pageId: 'echoes/song-1', pageTitle: '某首歌', area: 'echoes' },
     ],
-    orphan: true,
-    unused: false,
+    usage: 'no-grant',
+  },
+  // 兩端都沒有引用，只剩註冊表這一列
+  {
+    name: 'stale-flag',
+    source: 'registered',
+    label: '舊旗標',
+    grantedBy: [],
+    requiredBy: [],
+    usage: 'orphan',
   },
   // 已退役的形狀（S7-C 起停增不刪），巡查清單仍會列出
   {
@@ -85,8 +108,7 @@ const AUDIT = [
     label: null,
     grantedBy: [],
     requiredBy: [],
-    orphan: false,
-    unused: false,
+    usage: null,
   },
   // deriveImageUnlockFlag 的實際形狀：image:{encoded pageId}:{imageId}
   {
@@ -95,8 +117,7 @@ const AUDIT = [
     label: null,
     grantedBy: [],
     requiredBy: [],
-    orphan: false,
-    unused: false,
+    usage: null,
   },
   {
     name: 'test-story:song',
@@ -104,8 +125,7 @@ const AUDIT = [
     label: null,
     grantedBy: [],
     requiredBy: [],
-    orphan: false,
-    unused: false,
+    usage: null,
   },
 ];
 
@@ -277,20 +297,35 @@ describe('KeysManager', () => {
     expect(links[0]).toHaveAttribute('href', '/admin/edit/concepts/characters');
   });
 
-  it('flag 分頁依 source 三分組，孤兒與無人要求以徽章標示', async () => {
+  it('flag 分頁依 source 三分組，未使用的三種成因各自標示', async () => {
     const { container } = render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
     expect(screen.getByText('未註冊')).toBeInTheDocument();
     expect(screen.getByText('已註冊')).toBeInTheDocument();
     expect(screen.getByText(/規則生成/)).toBeInTheDocument();
-    expect(screen.getByText('孤兒')).toBeInTheDocument();
-    // 「無人要求」（有授予沒人要求）與 chip 的「未使用」（內容裡完全沒引用）
-    // 同時存在於畫面上，所以限定在 badge 容器內比對
+    // 三個 badge 文字與 chip 文字同名，所以限定在 badge 容器內比對
     const badges = [...container.querySelectorAll('.km-badge')].map(
       (badge) => badge.textContent
     );
-    expect(badges).toContain('無人要求');
-    expect(badges).toContain('未使用');
+    expect(badges).toEqual(
+      expect.arrayContaining(['無授予', '無引用', '孤兒'])
+    );
+    // 已使用與 derived 都不掛 badge
+    expect(badges).not.toContain('已使用');
+    expect(badges.length).toBe(3);
+  });
+
+  /** 只有 no-grant 會讓頁面永久打不開，所以只有它是警示色 */
+  it('無授予用警示色，另兩種是中性色', async () => {
+    const { container } = render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    const tone = (label: string) =>
+      [...container.querySelectorAll('.km-badge')].find(
+        (badge) => badge.textContent === label
+      )?.className;
+    expect(tone('無授予')).toMatch(/km-badge--warn/);
+    expect(tone('無引用')).toMatch(/km-badge--mute/);
+    expect(tone('孤兒')).toMatch(/km-badge--mute/);
   });
 
   /**
@@ -305,24 +340,62 @@ describe('KeysManager', () => {
     expect(screen.queryByText('未註冊')).not.toBeInTheDocument();
   });
 
-  /**
-   * 「未使用」= 內容裡完全沒引用，多半是改名或打錯字留下的註冊表殼列。
-   * 與 badge 的「無人要求」（有授予但沒人拿它當條件）是不同維度。
-   */
-  it('使用狀態 chip 依內容有無引用篩選', async () => {
+  /** 已使用 = 兩端都有；其餘三種都算未使用 */
+  it('總覽 chip 篩已使用／未使用', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
     const chips = screen.getByRole('group', { name: '旗標使用狀態篩選' });
 
-    fireEvent.click(within(chips).getByText('未使用'));
-    expect(screen.getByText('met:entity:novia')).toBeInTheDocument();
+    fireEvent.click(within(chips).getByText('已使用'));
+    expect(screen.getByText('ch1-cleared')).toBeInTheDocument();
     expect(screen.queryByText('met-mistina')).not.toBeInTheDocument();
     expect(screen.queryByText('lost-signal')).not.toBeInTheDocument();
+    expect(screen.queryByText('stale-flag')).not.toBeInTheDocument();
 
-    fireEvent.click(within(chips).getByText('已使用'));
+    fireEvent.click(within(chips).getByText('未使用'));
     expect(screen.getByText('met-mistina')).toBeInTheDocument();
     expect(screen.getByText('lost-signal')).toBeInTheDocument();
-    expect(screen.queryByText('met:entity:novia')).not.toBeInTheDocument();
+    expect(screen.getByText('stale-flag')).toBeInTheDocument();
+    expect(screen.queryByText('ch1-cleared')).not.toBeInTheDocument();
+  });
+
+  it('次級 chip 可單獨篩三種成因', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    const sub = screen.getByRole('group', { name: '未使用成因篩選' });
+
+    for (const [label, expected, excluded] of [
+      ['無授予', 'lost-signal', 'met-mistina'],
+      ['無引用', 'met-mistina', 'stale-flag'],
+      ['孤兒', 'stale-flag', 'lost-signal'],
+    ]) {
+      fireEvent.click(within(sub).getByText(label));
+      expect(screen.getByText(expected)).toBeInTheDocument();
+      expect(screen.queryByText(excluded)).not.toBeInTheDocument();
+      // 已使用的一律不在未使用的任何細分裡
+      expect(screen.queryByText('ch1-cleared')).not.toBeInTheDocument();
+    }
+  });
+
+  /**
+   * derived 沒有使用狀態這個維度（唯讀參考、授予端在程式裡），所以那一組
+   * 不參與篩選也不計入 chip 筆數——否則 5 筆 completed:* 會把自訂旗標淹掉。
+   */
+  it('規則生成組不受使用狀態篩選影響，也不計入 chip 筆數', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    const chips = screen.getByRole('group', { name: '旗標使用狀態篩選' });
+
+    // 自訂旗標 4 筆（used 1 / no-demand 1 / no-grant 1 / orphan 1）
+    expect(within(chips).getByText('全部').textContent).toMatch(/4/);
+    expect(within(chips).getByText('已使用').textContent).toMatch(/1/);
+    expect(within(chips).getByText('未使用').textContent).toMatch(/3/);
+
+    fireEvent.click(within(chips).getByText('已使用'));
+    expect(screen.getByText('test-story:song')).toBeInTheDocument();
+    expect(
+      screen.getByText('image:visuals%2Fgallery-a:img-01')
+    ).toBeInTheDocument();
   });
 
   /**
@@ -339,15 +412,14 @@ describe('KeysManager', () => {
     expect(hint.textContent).toMatch(/admin\/behavior/);
   });
 
-  it('「只顯示有問題的」保留未註冊與孤兒，濾掉其餘', async () => {
+  /**
+   * 原本的「只顯示有問題的」checkbox 已被次級 chip 取代（它篩的正是
+   * no-grant），留著會是兩個入口做同一件事。
+   */
+  it('不再有「只顯示有問題的」checkbox', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
-    fireEvent.click(screen.getByLabelText('只顯示有問題的'));
-    expect(screen.getByText('lost-signal')).toBeInTheDocument();
-    expect(screen.queryByText('met-mistina')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('completed:history/chapter-1')
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('只顯示有問題的')).not.toBeInTheDocument();
   });
 
   it('derived 旗標不放空的可寫欄位，改顯示衍生來源', async () => {
