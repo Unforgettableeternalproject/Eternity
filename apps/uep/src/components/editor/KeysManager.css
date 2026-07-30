@@ -163,6 +163,35 @@
   text-transform: uppercase;
 }
 
+/* 可收合的分組標題（button）：外觀與 div 版一致，只多出游標與箭頭 */
+.km-group-title--toggle {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 20px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.km-group-title--toggle:hover {
+  color: var(--ink-soft);
+}
+
+.km-group-caret {
+  font-size: 8px;
+  line-height: 1;
+  /* letter-spacing 會在箭頭右側留一段空白，抵掉才貼齊標題 */
+  margin-right: -6px;
+}
+
 .km-group-count {
   font-family: var(--font-mono);
   font-size: 9px;

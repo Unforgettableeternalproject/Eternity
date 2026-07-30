@@ -234,9 +234,8 @@ const FLAG_USAGE_FILTERS = [
   { id: 'orphan', label: '孤兒' },
 ] as const;
 
-type FlagFilter =
-  | (typeof FLAG_USE_FILTERS)[number]['id']
-  | (typeof FLAG_USAGE_FILTERS)[number]['id'];
+type FlagUseFilter = (typeof FLAG_USE_FILTERS)[number]['id'];
+type FlagCauseFilter = (typeof FLAG_USAGE_FILTERS)[number]['id'];
 
 /**
  * 未使用的三種狀態各自的標示。只有 `no-grant` 會造成故障（需求端等一個
@@ -277,8 +276,21 @@ export default function KeysManager() {
   const [keyTypeFilter, setKeyTypeFilter] = useState<
     'all' | 'entity' | 'story'
   >('all');
-  /** flag 分頁的使用狀態篩選（總覽三態 + 未使用的三種細分） */
-  const [flagUseFilter, setFlagUseFilter] = useState<FlagFilter>('all');
+  /** flag 分頁的使用狀態篩選 */
+  const [flagUseFilter, setFlagUseFilter] = useState<FlagUseFilter>('all');
+  /**
+   * 未使用的成因細分。第二層只在第一層選了「未使用」時才出現，離開就清掉
+   * ——不可見的篩選還生效的話，回到「未使用」會莫名只剩一兩筆。
+   */
+  const [flagCauseFilter, setFlagCauseFilter] =
+    useState<FlagCauseFilter | null>(null);
+  /** derived 那一組預設收合：它筆數最多又動不了，展開著會一直搶注意力 */
+  const [derivedOpen, setDerivedOpen] = useState(false);
+
+  const selectUseFilter = (next: FlagUseFilter) => {
+    setFlagUseFilter(next);
+    if (next !== 'unused') setFlagCauseFilter(null);
+  };
   const [selected, setSelected] = useState<Selection | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -643,13 +655,15 @@ export default function KeysManager() {
     'no-grant': customFlags.filter((f) => f.usage === 'no-grant').length,
     'no-demand': customFlags.filter((f) => f.usage === 'no-demand').length,
     orphan: customFlags.filter((f) => f.usage === 'orphan').length,
-  } satisfies Record<FlagFilter, number>;
+  } satisfies Record<FlagUseFilter | FlagCauseFilter, number>;
 
   const filteredCustom = customFlags.filter((row) => {
-    if (flagUseFilter === 'all') return true;
     if (flagUseFilter === 'used') return row.usage === 'used';
-    if (flagUseFilter === 'unused') return row.usage !== 'used';
-    return row.usage === flagUseFilter;
+    if (flagUseFilter === 'unused') {
+      if (row.usage === 'used') return false;
+      return !flagCauseFilter || row.usage === flagCauseFilter;
+    }
+    return true;
   });
 
   const unregisteredRows = filteredCustom.filter(
@@ -661,6 +675,7 @@ export default function KeysManager() {
     rows: FlagAuditRow[];
     hint?: string;
     hintTone?: 'warn';
+    collapsible?: boolean;
   }> = [
     // 未註冊在自動註冊（0.9.16.8）之後只剩兩條產生路徑：`?force=true` 強制
     // 刪掉仍被引用的註冊，以及繞過 API 的直接 DB 寫入（seed／手動 SQL）。
@@ -689,6 +704,7 @@ export default function KeysManager() {
       label: '規則生成（內容裡有引用）',
       rows: searchedFlags.filter((f) => f.source === 'derived'),
       hint: 'completed:* 只在被當成前置條件時出現，沒有任何頁面要求它的不會列在這裡。每一頁的進度狀態要看 /admin/behavior 的全樹總覽。這一份掃的是內容怎麼寫，與讀者進度無關。這一組是唯讀參考，不受上方使用狀態篩選影響，也不計入 chip 的筆數。',
+      collapsible: true,
     },
   ];
 
@@ -755,19 +771,23 @@ export default function KeysManager() {
     );
   };
 
+  interface GroupOptions {
+    hint?: string;
+    hintTone?: 'warn';
+    /** 給了才是可收合的；收合時標題以外全部不畫（含 hint） */
+    onToggle?: () => void;
+    collapsed?: boolean;
+  }
+
   function renderGroup<T>(
     label: string,
     rows: T[],
     render: (row: T) => ReactElement,
-    hint?: string,
-    hintTone?: 'warn'
+    opts: GroupOptions = {}
   ): ReactElement {
-    return (
-      <div className="km-group" key={label}>
-        <div className="km-group-title">
-          {label}
-          <span className="km-group-count">{rows.length}</span>
-        </div>
+    const { hint, hintTone, onToggle, collapsed } = opts;
+    const body = (
+      <>
         {hint && (
           <div
             className={`km-group-hint ${hintTone === 'warn' ? 'km-group-hint--warn' : ''}`}
@@ -780,6 +800,30 @@ export default function KeysManager() {
         ) : (
           rows.map(render)
         )}
+      </>
+    );
+    return (
+      <div className="km-group" key={label}>
+        {onToggle ? (
+          <button
+            type="button"
+            className="km-group-title km-group-title--toggle"
+            aria-expanded={!collapsed}
+            onClick={onToggle}
+          >
+            <span className="km-group-caret" aria-hidden="true">
+              {collapsed ? '▸' : '▾'}
+            </span>
+            {label}
+            <span className="km-group-count">{rows.length}</span>
+          </button>
+        ) : (
+          <div className="km-group-title">
+            {label}
+            <span className="km-group-count">{rows.length}</span>
+          </div>
+        )}
+        {!collapsed && body}
       </div>
     );
   }
@@ -1343,7 +1387,7 @@ export default function KeysManager() {
                   type="button"
                   className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
                   aria-pressed={flagUseFilter === filter.id}
-                  onClick={() => setFlagUseFilter(filter.id)}
+                  onClick={() => selectUseFilter(filter.id)}
                 >
                   {filter.label}
                   <span className="km-group-count">
@@ -1352,29 +1396,35 @@ export default function KeysManager() {
                 </button>
               ))}
             </div>
-            {/* 第二行是「未使用」的三種成因，可單獨篩。與第一行同一個 state
-                （六者互斥），視覺上用 --sub 表示它是下一層 */}
-            <div
-              className="km-chips km-chips--sub"
-              role="group"
-              aria-label="未使用成因篩選"
-            >
-              {FLAG_USAGE_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
-                  aria-pressed={flagUseFilter === filter.id}
-                  title={USAGE_BADGES[filter.id].title}
-                  onClick={() => setFlagUseFilter(filter.id)}
-                >
-                  {filter.label}
-                  <span className="km-group-count">
-                    {usageCounts[filter.id]}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {/* 第二層：只在選了「未使用」時出現。點已選中的可取消（回到三種
+                成因全看），所以不需要另一個「全部」chip */}
+            {flagUseFilter === 'unused' && (
+              <div
+                className="km-chips km-chips--sub"
+                role="group"
+                aria-label="未使用成因篩選"
+              >
+                {FLAG_USAGE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    className={`km-chip ${flagCauseFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={flagCauseFilter === filter.id}
+                    title={USAGE_BADGES[filter.id].title}
+                    onClick={() =>
+                      setFlagCauseFilter((current) =>
+                        current === filter.id ? null : filter.id
+                      )
+                    }
+                  >
+                    {filter.label}
+                    <span className="km-group-count">
+                      {usageCounts[filter.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1390,13 +1440,16 @@ export default function KeysManager() {
             </>
           ) : (
             flagGroups.map((group) =>
-              renderGroup(
-                group.label,
-                group.rows,
-                renderFlagRow,
-                group.hint,
-                group.hintTone
-              )
+              renderGroup(group.label, group.rows, renderFlagRow, {
+                hint: group.hint,
+                hintTone: group.hintTone,
+                ...(group.collapsible
+                  ? {
+                      collapsed: !derivedOpen,
+                      onToggle: () => setDerivedOpen((open) => !open),
+                    }
+                  : {}),
+              })
             )
           )}
         </div>

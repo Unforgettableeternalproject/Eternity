@@ -210,6 +210,11 @@ function mockApi(audit: unknown[] = AUDIT) {
   return { calls, fetchMock };
 }
 
+/** 規則生成那一組預設收合（筆數最多又動不了），要點裡面的列得先展開 */
+function expandDerived() {
+  fireEvent.click(screen.getByText(/規則生成/));
+}
+
 describe('KeysManager', () => {
   let calls: Array<{ url: string; init?: RequestInit }>;
 
@@ -359,22 +364,61 @@ describe('KeysManager', () => {
     expect(screen.queryByText('ch1-cleared')).not.toBeInTheDocument();
   });
 
-  it('次級 chip 可單獨篩三種成因', async () => {
+  /** 第二層是「未使用」的下一層，沒選它的時候不該佔位 */
+  it('次級 chip 只在選了未使用時出現，離開就收掉', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
-    const sub = screen.getByRole('group', { name: '未使用成因篩選' });
+    const chips = screen.getByRole('group', { name: '旗標使用狀態篩選' });
+    const sub = () => screen.queryByRole('group', { name: '未使用成因篩選' });
+
+    expect(sub()).not.toBeInTheDocument();
+    fireEvent.click(within(chips).getByText('未使用'));
+    expect(sub()).toBeInTheDocument();
+    fireEvent.click(within(chips).getByText('已使用'));
+    expect(sub()).not.toBeInTheDocument();
+  });
+
+  it('次級 chip 可單獨篩三種成因，再點一次取消', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    const chips = screen.getByRole('group', { name: '旗標使用狀態篩選' });
+    fireEvent.click(within(chips).getByText('未使用'));
+    const sub = () => screen.getByRole('group', { name: '未使用成因篩選' });
 
     for (const [label, expected, excluded] of [
       ['無授予', 'lost-signal', 'met-mistina'],
       ['無引用', 'met-mistina', 'stale-flag'],
       ['孤兒', 'stale-flag', 'lost-signal'],
     ]) {
-      fireEvent.click(within(sub).getByText(label));
+      fireEvent.click(within(sub()).getByText(label));
       expect(screen.getByText(expected)).toBeInTheDocument();
       expect(screen.queryByText(excluded)).not.toBeInTheDocument();
       // 已使用的一律不在未使用的任何細分裡
       expect(screen.queryByText('ch1-cleared')).not.toBeInTheDocument();
+      // 再點一次回到三種成因全看
+      fireEvent.click(within(sub()).getByText(label));
+      expect(screen.getByText(excluded)).toBeInTheDocument();
     }
+  });
+
+  /**
+   * 離開「未使用」時第二層的選擇要清掉。不可見的篩選還生效的話，回到
+   * 「未使用」會莫名只剩一兩筆，而且畫面上沒有任何東西解釋為什麼。
+   */
+  it('離開未使用會清掉成因選擇', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    const chips = screen.getByRole('group', { name: '旗標使用狀態篩選' });
+
+    fireEvent.click(within(chips).getByText('未使用'));
+    const sub = screen.getByRole('group', { name: '未使用成因篩選' });
+    fireEvent.click(within(sub).getByText('孤兒'));
+    expect(screen.queryByText('lost-signal')).not.toBeInTheDocument();
+
+    fireEvent.click(within(chips).getByText('全部'));
+    fireEvent.click(within(chips).getByText('未使用'));
+    expect(screen.getByText('lost-signal')).toBeInTheDocument();
+    expect(screen.getByText('stale-flag')).toBeInTheDocument();
   });
 
   /**
@@ -392,10 +436,35 @@ describe('KeysManager', () => {
     expect(within(chips).getByText('未使用').textContent).toMatch(/3/);
 
     fireEvent.click(within(chips).getByText('已使用'));
+    expandDerived();
     expect(screen.getByText('test-story:song')).toBeInTheDocument();
     expect(
       screen.getByText('image:visuals%2Fgallery-a:img-01')
     ).toBeInTheDocument();
+  });
+
+  /** 這一組筆數最多又動不了，展開著會一直搶注意力（艾斯維爾 2026-07-30） */
+  it('規則生成組預設收合，展開後才列出內容', async () => {
+    render(<KeysManager />);
+    fireEvent.click(await screen.findByText('flag'));
+    expect(screen.getByText(/規則生成/)).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    // 收合時連 hint 都不畫——那段字本身就是主要的視覺干擾
+    expect(
+      screen.queryByText(/只在被當成前置條件時出現/)
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('test-story:song')).not.toBeInTheDocument();
+    // 標題的筆數仍看得到，不必展開才知道有幾筆
+    expect(screen.getByText(/規則生成/).textContent).toMatch(/4/);
+
+    expandDerived();
+    expect(screen.getByText(/規則生成/)).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    expect(screen.getByText('test-story:song')).toBeInTheDocument();
   });
 
   /**
@@ -406,6 +475,7 @@ describe('KeysManager', () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
     expect(screen.getByText(/規則生成（內容裡有引用）/)).toBeInTheDocument();
+    expandDerived();
     const hint = screen.getByText(/只在被當成前置條件時出現/);
     expect(hint).toBeInTheDocument();
     expect(hint.textContent).toMatch(/與讀者進度無關/);
@@ -425,6 +495,7 @@ describe('KeysManager', () => {
   it('derived 旗標不放空的可寫欄位，改顯示衍生來源', async () => {
     const { container } = render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
+    expandDerived();
     fireEvent.click(screen.getByText('completed:history/chapter-1'));
     // 空的 disabled 欄位看起來像「還沒填」而不是「不能填」，一律不出現
     expect(screen.queryByLabelText('標籤')).not.toBeInTheDocument();
@@ -446,6 +517,7 @@ describe('KeysManager', () => {
   it('已退役的 derived 形狀標明狀態而不是查來源', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
+    expandDerived();
     fireEvent.click(screen.getByText('met:entity:novia'));
     expect(screen.getByText('entity 認識標記')).toBeInTheDocument();
     expect(screen.getByText(/已退役/)).toBeInTheDocument();
@@ -456,6 +528,7 @@ describe('KeysManager', () => {
   it('image 旗標解出 gallery 頁與圖片 id（galleryId 是編碼過的 pageId）', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
+    expandDerived();
     fireEvent.click(screen.getByText('image:visuals%2Fgallery-a:img-01'));
     expect(screen.getByText('單張圖片解鎖')).toBeInTheDocument();
     expect(screen.getByText('visuals/gallery-a')).toBeInTheDocument();
@@ -465,6 +538,7 @@ describe('KeysManager', () => {
   it('尾碼型 derived 旗標指回來源 key，可一鍵跳去編輯說明', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
+    expandDerived();
     fireEvent.click(screen.getByText('test-story:song'));
     expect(screen.getByText('曲目解鎖')).toBeInTheDocument();
     expect(screen.getByText('測試劇情點')).toBeInTheDocument();
@@ -617,6 +691,7 @@ describe('KeysManager', () => {
   it('derived 旗標沒有改名入口', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('flag'));
+    expandDerived();
     fireEvent.click(screen.getByText('completed:history/chapter-1'));
     expect(
       screen.queryByRole('button', { name: '改名' })
