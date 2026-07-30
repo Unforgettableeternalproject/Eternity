@@ -40,7 +40,18 @@ import {
   findInterlinkAnchors,
   findInterlinkDefinitions,
   findInterlinkKeyMeta,
+  listInterlinkKeys,
+  updateInterlinkKeyMeta,
 } from './interlink';
+import type { FlagInput } from './flags';
+import {
+  auditFlags,
+  createFlag,
+  deleteFlag,
+  findFlagReferences,
+  listFlags,
+  updateFlag,
+} from './flags';
 import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
 import {
@@ -1994,6 +2005,189 @@ export default {
         // 不同，CDN 命中會把管理者的結果原封不動回給下一個訪客
         { ...cors, 'Cache-Control': 'private, no-store' }
       );
+    }
+
+    // ---- key 的標題／說明 ----
+    //
+    // ⚠️ `/keys/public` 必須排在 `/keys/:type/:value` 之前：後者的
+    // 正規式會把 `public` 當成 keyType 段吃掉。
+    if (path === '/api/interlink/keys/public' && request.method === 'GET') {
+      const keyType = url.searchParams.get('keyType')?.trim() ?? '';
+      const key = url.searchParams.get('key')?.trim() ?? '';
+      if (keyType !== 'entity' && keyType !== 'story') {
+        return jsonResponse(
+          { ok: false, error: 'keyType must be entity or story' },
+          400,
+          cors
+        );
+      }
+      if (!key) {
+        return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+      }
+
+      // 公開端點刻意只回標題／說明。definitions 與 anchors 含未公開
+      // 內容的頁 id 與標題，那是 usage（admin only）的範圍。
+      // 前台觸發一律是匿名 fetch，這裡不可加 isAuthorized。
+      const keyMeta = await findInterlinkKeyMeta(env.CONTENT_DB, keyType, key);
+      return jsonResponse(
+        { ok: true, data: { keyMeta: keyMeta ?? null } },
+        200,
+        cors,
+        true
+      );
+    }
+
+    if (path === '/api/interlink/keys' && request.method === 'GET') {
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const keys = await listInterlinkKeys(env.CONTENT_DB);
+      return jsonResponse({ ok: true, data: { keys } }, 200, {
+        ...cors,
+        'Cache-Control': 'private, no-store',
+      });
+    }
+
+    const keyMetaMatch = path.match(
+      /^\/api\/interlink\/keys\/(entity|story)\/(.+)$/
+    );
+    if (keyMetaMatch && request.method === 'PUT') {
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const keyType = keyMetaMatch[1] as 'entity' | 'story';
+      const keyValue = decodeURIComponent(keyMetaMatch[2]).trim();
+      if (!keyValue) {
+        return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+      }
+
+      let body: { title?: unknown; description?: unknown };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+      }
+
+      const keyMeta = await updateInterlinkKeyMeta(
+        env.CONTENT_DB,
+        keyType,
+        keyValue,
+        body
+      );
+      return jsonResponse({ ok: true, data: { keyMeta } }, 200, cors);
+    }
+
+    // ---- 自訂旗標註冊表 ----
+    //
+    // 全段 admin only：旗標名稱本身會洩漏尚未公開的劇情結構
+    // （旗標命名慣例就是劇情事件名）。
+    //
+    // ⚠️ `/flags/audit` 必須排在 `/flags/:name` 之前，否則會被當成
+    // 名為 `audit` 的旗標。
+    if (path.startsWith('/api/flags')) {
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const privateCors = { ...cors, 'Cache-Control': 'private, no-store' };
+
+      if (path === '/api/flags/audit' && request.method === 'GET') {
+        const flags = await auditFlags(env.CONTENT_DB);
+        return jsonResponse({ ok: true, data: { flags } }, 200, privateCors);
+      }
+
+      if (path === '/api/flags' && request.method === 'GET') {
+        const category = url.searchParams.get('category')?.trim() || null;
+        const flags = await listFlags(env.CONTENT_DB, category);
+        return jsonResponse({ ok: true, data: { flags } }, 200, privateCors);
+      }
+
+      if (path === '/api/flags' && request.method === 'POST') {
+        let body: { name?: unknown } & FlagInput;
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+        }
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        if (!name) {
+          return jsonResponse(
+            { ok: false, error: 'Missing flag name' },
+            400,
+            cors
+          );
+        }
+
+        const created = await createFlag(env.CONTENT_DB, name, body);
+        if (created === 'derived') {
+          return jsonResponse(
+            {
+              ok: false,
+              error:
+                '這是規則生成的旗標形狀，由程式依 key 推導，不需要也不能註冊',
+            },
+            400,
+            cors
+          );
+        }
+        if (created === null) {
+          return jsonResponse(
+            { ok: false, error: '旗標已存在', data: { name } },
+            409,
+            cors
+          );
+        }
+        return jsonResponse({ ok: true, data: { flag: created } }, 201, cors);
+      }
+
+      const flagMatch = path.match(/^\/api\/flags\/(.+)$/);
+      if (flagMatch) {
+        const name = decodeURIComponent(flagMatch[1]).trim();
+
+        if (request.method === 'PUT') {
+          let body: FlagInput;
+          try {
+            body = (await request.json()) as FlagInput;
+          } catch {
+            return jsonResponse(
+              { ok: false, error: 'Invalid JSON' },
+              400,
+              cors
+            );
+          }
+          const updated = await updateFlag(env.CONTENT_DB, name, body);
+          if (!updated) {
+            return jsonResponse({ ok: false, error: '旗標不存在' }, 404, cors);
+          }
+          return jsonResponse({ ok: true, data: { flag: updated } }, 200, cors);
+        }
+
+        if (request.method === 'DELETE') {
+          // 預設擋有引用的旗標：刪掉註冊列不會動內容，內容裡的旗標會
+          // 變成「未註冊」而在下次存檔時被 409 擋住——那時候人已經不在
+          // 這個頁面上了，錯誤訊息會出現在完全無關的操作裡
+          const force = url.searchParams.get('force') === 'true';
+          if (!force) {
+            const refs = await findFlagReferences(env.CONTENT_DB, name);
+            const total = refs.grantedBy.length + refs.requiredBy.length;
+            if (total > 0) {
+              return jsonResponse(
+                {
+                  ok: false,
+                  error: `旗標仍被 ${total} 處引用，加 ?force=true 可強制刪除註冊`,
+                  data: { references: refs },
+                },
+                409,
+                cors
+              );
+            }
+          }
+          const deleted = await deleteFlag(env.CONTENT_DB, name);
+          if (!deleted) {
+            return jsonResponse({ ok: false, error: '旗標不存在' }, 404, cors);
+          }
+          return jsonResponse({ ok: true, data: { name } }, 200, cors);
+        }
+      }
     }
 
     // ---- Echoes 條目索引（S8 驗收 #2：互動嵌入跨島聯集啟用判定）----

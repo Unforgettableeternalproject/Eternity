@@ -577,6 +577,155 @@ export async function findInterlinkKeyMeta(
   return row ?? null;
 }
 
+/** 管理清單的單筆 key */
+export interface InterlinkKeyListRow {
+  keyType: 'entity' | 'story';
+  keyValue: string;
+  title: string | null;
+  description: string | null;
+  /**
+   * entity 的權威顯示名稱（Concepts 條目的 name）。表裡不存，每次現查——
+   * 存下來就會與 dossier 形成兩份會各自漂移的名字。
+   */
+  derivedName?: string;
+  /** 定義端筆數：有幾個地方宣告了這個 key */
+  definitionCount: number;
+  /** 錨點端筆數：History 內容裡有幾處引用 */
+  anchorCount: number;
+}
+
+/**
+ * 列出全站 key 的管理清單。
+ *
+ * 三路聯集，缺一不可：
+ * - 只看定義端 → 漏掉「定義已刪但說明還在」與「只在 History 被引用過」
+ * - 只看殼列表 → 漏掉「有定義但還沒建殼」（遷移腳本直接改 metadata
+ *   產生的 key 就是這種，殼列平常只在存檔路徑建立）
+ * - 只看錨點端 → 漏掉所有還沒被 History 引用的 key
+ */
+export async function listInterlinkKeys(
+  db: D1Database
+): Promise<InterlinkKeyListRow[]> {
+  const rows = new Map<string, InterlinkKeyListRow>();
+  const touch = (
+    keyType: 'entity' | 'story',
+    keyValue: string
+  ): InterlinkKeyListRow => {
+    const mapKey = JSON.stringify([keyType, keyValue]);
+    let row = rows.get(mapKey);
+    if (!row) {
+      row = {
+        keyType,
+        keyValue,
+        title: null,
+        description: null,
+        definitionCount: 0,
+        anchorCount: 0,
+      };
+      rows.set(mapKey, row);
+    }
+    return row;
+  };
+
+  // ---- 定義端（live-scan，含 hidden：管理者要看到全部）----
+  const [concepts, echoes, visuals] = await Promise.all([
+    buildConceptsEntityIndex(db),
+    buildEchoesEntityIndex(db, { includeHidden: true }),
+    buildVisualsEntityIndex(db, { includeHidden: true }),
+  ]);
+
+  for (const entry of concepts) {
+    if (!entry.entityKey) continue;
+    const row = touch('entity', entry.entityKey);
+    row.definitionCount += 1;
+    // 同一個 entity 可能橫跨多個 stack，取第一個有名字的當顯示名
+    if (!row.derivedName && entry.name) row.derivedName = entry.name;
+  }
+  for (const entry of [...echoes, ...visuals]) {
+    if (entry.entityKey) touch('entity', entry.entityKey).definitionCount += 1;
+    if (entry.storyKey) touch('story', entry.storyKey).definitionCount += 1;
+  }
+
+  // ---- 錨點端（讀表，排除軟刪除頁的孤兒列）----
+  const anchors = await db
+    .prepare(
+      `SELECT i.key_type AS keyType, i.key_value AS keyValue, COUNT(*) AS cnt
+       FROM history_interlink_index i
+       JOIN pages p ON p.id = i.page_id
+       WHERE p.deleted_at IS NULL
+       GROUP BY i.key_type, i.key_value`
+    )
+    .all<{ keyType: 'entity' | 'story'; keyValue: string; cnt: number }>();
+  for (const anchor of anchors.results || []) {
+    touch(anchor.keyType, anchor.keyValue).anchorCount = anchor.cnt;
+  }
+
+  // ---- 殼列的標題／說明 ----
+  const metas = await db
+    .prepare(
+      `SELECT key_type AS keyType, key_value AS keyValue, title, description
+       FROM interlink_keys`
+    )
+    .all<{
+      keyType: 'entity' | 'story';
+      keyValue: string;
+      title: string | null;
+      description: string | null;
+    }>();
+  for (const meta of metas.results || []) {
+    const row = touch(meta.keyType, meta.keyValue);
+    row.title = meta.title;
+    row.description = meta.description;
+  }
+
+  return [...rows.values()].sort(
+    (a, b) =>
+      a.keyType.localeCompare(b.keyType) || a.keyValue.localeCompare(b.keyValue)
+  );
+}
+
+/** 空字串與純空白視為「沒有內容」，統一收斂成 NULL */
+function normalizeMetaText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * 更新 key 的標題／說明；殼列不存在就一併建立。
+ *
+ * PUT 語意：未提供的欄位視為清空，不是「保持原值」。
+ *
+ * ⚠️ `keyType === 'entity'` 時 `title` 一律寫成 NULL，即使請求體帶了值。
+ * entity 的權威名稱在 Concepts dossier 條目上，讓這張表也能存一份
+ * 就是製造兩個會各自漂移的名字。這條在資料層擋，不靠前端自律。
+ */
+export async function updateInterlinkKeyMeta(
+  db: D1Database,
+  keyType: 'entity' | 'story',
+  keyValue: string,
+  patch: { title?: unknown; description?: unknown }
+): Promise<InterlinkKeyMeta> {
+  const title = keyType === 'entity' ? null : normalizeMetaText(patch.title);
+  const description = normalizeMetaText(patch.description);
+  const now = new Date().toISOString();
+
+  await db
+    .prepare(
+      `INSERT INTO interlink_keys
+         (key_type, key_value, title, description, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(key_type, key_value) DO UPDATE SET
+         title = excluded.title,
+         description = excluded.description,
+         updated_at = excluded.updated_at`
+    )
+    .bind(keyType, keyValue, title, description, now, now)
+    .run();
+
+  return { title, description };
+}
+
 /**
  * 為候選 key 建立 `interlink_keys` 殼列（entity 與 story 都建）。
  *

@@ -648,10 +648,159 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
     expect(json.data.keyMeta).toBeUndefined();
   });
 
+  it('清單三路聯集：有定義沒說明／有說明但定義已刪／只在 History 被引用', async () => {
+    const now = new Date().toISOString();
+    // 只有說明、沒有任何定義端與錨點（定義頁後來被刪掉的殘留）
+    await env.CONTENT_DB.prepare(
+      `INSERT OR REPLACE INTO interlink_keys
+         (key_type, key_value, title, description, created_at, updated_at)
+       VALUES ('story', 'orphan-meta', '孤兒說明', NULL, ?, ?)`
+    )
+      .bind(now, now)
+      .run();
+
+    const res = await worker.fetch(
+      createRequest('/api/interlink/keys', { token: await getAdminToken() }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      data: {
+        keys: {
+          keyType: string;
+          keyValue: string;
+          title: string | null;
+          definitionCount: number;
+          anchorCount: number;
+        }[];
+      };
+    };
+    const byKey = (t: string, v: string) =>
+      json.data.keys.find((k) => k.keyType === t && k.keyValue === v);
+
+    // 有定義（劇情歌）且有錨點
+    const defined = byKey('story', 'rain-sea-finale');
+    expect(defined?.definitionCount).toBeGreaterThan(0);
+    expect(defined?.anchorCount).toBeGreaterThan(0);
+
+    // 有說明但零定義零錨點
+    expect(byKey('story', 'orphan-meta')).toMatchObject({
+      title: '孤兒說明',
+      definitionCount: 0,
+      anchorCount: 0,
+    });
+  });
+
+  it('清單未授權 → 401', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/keys'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('PUT story 寫入標題與說明', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/keys/story/rain-sea-finale', {
+        method: 'PUT',
+        token: await getAdminToken(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '雨海終曲', description: '第三章結尾' }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const row = await env.CONTENT_DB.prepare(
+      `SELECT title, description FROM interlink_keys
+       WHERE key_type = 'story' AND key_value = 'rain-sea-finale'`
+    ).first<{ title: string | null; description: string | null }>();
+    expect(row).toEqual({ title: '雨海終曲', description: '第三章結尾' });
+  });
+
+  /**
+   * entity 的權威名稱在 Concepts dossier 條目上。這張表也存一份就會有
+   * 兩個各自漂移的名字，所以資料層直接忽略請求體的 title，不靠前端自律。
+   */
+  it('PUT entity 忽略 title，只寫 description', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/keys/entity/xavier-colsono', {
+        method: 'PUT',
+        token: await getAdminToken(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '亂寫的名字', description: '主角' }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      data: { keyMeta: { title: string | null; description: string | null } };
+    };
+    expect(json.data.keyMeta.title).toBeNull();
+
+    const row = await env.CONTENT_DB.prepare(
+      `SELECT title, description FROM interlink_keys
+       WHERE key_type = 'entity' AND key_value = 'xavier-colsono'`
+    ).first<{ title: string | null; description: string | null }>();
+    expect(row).toEqual({ title: null, description: '主角' });
+  });
+
+  /**
+   * 前台的觸發呼叫都是匿名 fetch。這個端點若誤加 isAuthorized，
+   * 「命名可見」整條鏈路會靜默 401 失效——不報錯，卡片就是不顯示標題。
+   */
+  it('/keys/public 匿名可讀，且不回 definitions 與 anchors', async () => {
+    await worker.fetch(
+      createRequest('/api/interlink/keys/story/rain-sea-finale', {
+        method: 'PUT',
+        token: await getAdminToken(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '雨海終曲' }),
+      }),
+      env,
+      ctx
+    );
+
+    const res = await worker.fetch(
+      createRequest(
+        '/api/interlink/keys/public?keyType=story&key=rain-sea-finale'
+      ),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      data: Record<string, unknown> & {
+        keyMeta: { title: string | null } | null;
+      };
+    };
+    expect(json.data.keyMeta?.title).toBe('雨海終曲');
+    expect(json.data.definitions).toBeUndefined();
+    expect(json.data.anchors).toBeUndefined();
+  });
+
+  /**
+   * `public` 這一段若被 `/keys/:type/:value` 的正規式吃掉，就會被當成
+   * keyType 而落進 admin 路由。
+   */
+  it('/keys/public 不被 /keys/:type/:value 路由吃掉', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/interlink/keys/public?keyType=entity&key=never-x'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { data: { keyMeta: unknown } };
+    expect(json.data.keyMeta).toBeNull();
+  });
+
   /**
    * usage 的定義端 live-scan 刻意 includeHidden（管理者要看到全部使用
-   * 位置），S10-3 之後還會帶劇情點標題／說明。未授權放行等同把未公開
-   * 內容的頁 id 與標題送出去，CDN 一快取更是攔不回來。
+   * 位置），並帶 key 的標題／說明。未授權放行等同把未公開內容的頁 id
+   * 與標題送出去，CDN 一快取更是攔不回來。
    */
   it('usage 未授權 → 401，且不進共用快取', async () => {
     const res = await worker.fetch(
