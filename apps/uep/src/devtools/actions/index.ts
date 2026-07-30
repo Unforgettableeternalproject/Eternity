@@ -7,13 +7,15 @@
  * 幂等：重複呼叫會覆蓋舊 action（registry 內建警告），HMR 場景友善。
  */
 
-import { registerProgressActions } from './progressActions';
+// import 依字母序（lint 規則要求）；註冊呼叫順序另有考量，見下方
+import { registerAnimationActions } from './animationActions';
+import { registerAudioActions } from './audioActions';
+import { registerEchoesActions } from './echoesActions';
+import { registerFlagActions } from './flagActions';
 import { registerFogActions } from './fogActions';
 import { registerIslandActions } from './islandActions';
 import { registerOnboardingActions } from './onboardingActions';
-import { registerAudioActions } from './audioActions';
-import { registerAnimationActions } from './animationActions';
-import { registerEchoesActions } from './echoesActions';
+import { registerProgressActions } from './progressActions';
 import { registerProtectionActions } from './protectionActions';
 
 export function registerAllActions(): void {
@@ -25,4 +27,5 @@ export function registerAllActions(): void {
   registerAnimationActions();
   registerEchoesActions();
   registerProtectionActions();
+  registerFlagActions();
 }
