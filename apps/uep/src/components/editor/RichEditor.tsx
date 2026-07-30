@@ -152,6 +152,20 @@ function createVisualClueId(): string {
   return `clue-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * `uep_flags` 的一列。
+ *
+ * bubble 只編輯 `label`，但 `PUT /api/flags/:name` 是全覆蓋語意（`updateFlag`
+ * 對未提供的欄位寫 NULL），所以另外兩欄也要留著原封不動送回去，否則在編輯器
+ * 改一次標籤就會把 /admin/keys 填好的說明與類別清空。
+ */
+interface FlagRegistryRow {
+  name: string;
+  label: string | null;
+  description: string | null;
+  category: string | null;
+}
+
 // === Props ===
 interface RichEditorProps {
   initialContent: string;
@@ -792,6 +806,17 @@ export default function RichEditor({
     grantsFlags: string;
     label: string;
   }>({ grantsFlags: '', label: '' });
+  /**
+   * 授予旗標在 `uep_flags` 註冊表裡的標籤草稿。
+   *
+   * 存的是註冊表那一份，不是節點屬性——旗標標籤是全域的，同一個旗標在別處
+   * 被授予時看到的也是同一份。刻意不同時寫回節點的 `data-label`，那會製造
+   * 兩份各自漂移的資料。
+   */
+  const [flagLabelDraft, setFlagLabelDraft] = useState('');
+  /** 該旗標註冊表現值——寫回時要原封不動帶上 bubble 不編輯的那兩欄 */
+  const [flagRegistryRow, setFlagRegistryRow] =
+    useState<FlagRegistryRow | null>(null);
   const [selectedEchoSpot, setSelectedEchoSpot] = useState<
     (EchoSpotAttributes & { pos: number }) | null
   >(null);
@@ -1187,8 +1212,71 @@ export default function RichEditor({
       grantsFlags: selectedMarker.grantsFlags,
       label: selectedMarker.label,
     });
+    // 標籤住在註冊表而不是節點屬性，開 bubble 時要現查
+    const name = parseFlagsAttr(selectedMarker.grantsFlags)[0];
+    if (!name) {
+      setFlagLabelDraft('');
+      setFlagRegistryRow(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch('/api/flags')
+      .then((res) => res.json())
+      .then((json: { ok?: boolean; data?: { flags?: FlagRegistryRow[] } }) => {
+        if (cancelled) return;
+        const found = json?.data?.flags?.find((flag) => flag.name === name);
+        setFlagLabelDraft(found?.label ?? '');
+        setFlagRegistryRow(found ?? null);
+      })
+      .catch(() => {
+        // 查不到就留空，套用時仍會寫入
+      });
+    return () => {
+      cancelled = true;
+    };
     // 只在切換到不同位置的標記時重設，避免打字中被覆蓋
   }, [selectedMarker?.pos]);
+
+  /** marker bubble 目前授予的旗標（單選，一個標記一個旗標） */
+  const selectedFlagName = parseFlagsAttr(markerDraft.grantsFlags)[0] ?? '';
+
+  /**
+   * 把標籤寫進註冊表。
+   *
+   * 走 upsert：新旗標要到存檔時才會被自動註冊，套用當下它可能還不存在，
+   * 所以先 POST（帶 label），撞到 409 才改 PUT。derived 形狀會被 worker
+   * 以 400 拒絕——授予端本來就不該出現 derived 旗標（那類是程式授予的），
+   * 真的填了就照實回報，不靜默吞掉。
+   */
+  const saveFlagLabel = async () => {
+    const name = selectedFlagName;
+    if (!name) return;
+    const label = flagLabelDraft.trim();
+    const send = (method: 'POST' | 'PUT', url: string, body: unknown) =>
+      fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    try {
+      let res = await send('POST', '/api/flags', { name, label });
+      if (res.status === 409) {
+        // PUT 是全覆蓋：只送 label 會把說明與類別清成 NULL，
+        // 所以把 bubble 不編輯的那兩欄照現值帶回去
+        res = await send('PUT', `/api/flags/${encodeURIComponent(name)}`, {
+          label,
+          description: flagRegistryRow?.description ?? null,
+          category: flagRegistryRow?.category ?? null,
+        });
+      }
+      if (!res.ok) {
+        const json = (await res.json()) as { error?: string };
+        getToast().error(json.error || '旗標標籤寫入失敗');
+      }
+    } catch (e) {
+      getToast().error(`旗標標籤寫入失敗：${String(e)}`);
+    }
+  };
 
   // 音訊 node Delete/Backspace 攔截
   useEffect(() => {
@@ -3375,31 +3463,31 @@ export default function RichEditor({
           <span className="ned-audio-bubble-label">
             ⚑ {markerDraft.grantsFlags.trim() ? '旗標標記' : '進度標記'}
           </span>
-          {/* 常駐標示不能只靠 placeholder：一填值就看不見，而這個欄位緊鄰
-              旗標 chip，會被讀成「這個旗標的標籤」。它其實是**這個標記點的
-              備註**（存成 content 的 data-label），與註冊表的 uep_flags.label
-              是兩件不相干的事 */}
-          <span className="ned-marker-field-label">備註</span>
-          <input
-            className="ned-marker-input"
-            type="text"
-            placeholder="僅編輯器可見"
-            title="這個標記點的備註，只在編輯器顯示；與旗標註冊表的標籤無關"
-            value={markerDraft.label}
-            onChange={(e) =>
-              setMarkerDraft((d) => ({ ...d, label: e.target.value }))
-            }
-          />
           <span className="ned-marker-field-label">授予</span>
           <FlagPicker
             value={parseFlagsAttr(markerDraft.grantsFlags)}
+            single
             onChange={(next) =>
               setMarkerDraft((d) => ({
                 ...d,
                 grantsFlags: serializeFlagsAttr(next),
               }))
             }
+            onSelectedLabel={(label) => setFlagLabelDraft(label ?? '')}
             placeholder="搜尋或輸入旗標…"
+          />
+          {/* 標籤寫的是 uep_flags 註冊表那一份，不是節點屬性——旗標標籤是
+              全域的，同一個旗標被別的標記授予時看到的也是這一份。刻意不
+              同時寫回 data-label 當顯示快取，那會製造兩份會漂移的資料 */}
+          <span className="ned-marker-field-label">標籤</span>
+          <input
+            className="ned-marker-input"
+            type="text"
+            placeholder={selectedFlagName ? '給人看的短名稱' : '先選旗標'}
+            title="這個旗標在註冊表裡的標籤，套用時一併寫入"
+            disabled={!selectedFlagName}
+            value={flagLabelDraft}
+            onChange={(e) => setFlagLabelDraft(e.target.value)}
           />
           <button
             className="ned-img-bubble-btn"
@@ -3413,6 +3501,7 @@ export default function RichEditor({
                   label: markerDraft.label.trim(),
                 })
               );
+              void saveFlagLabel();
             }}
           >
             套用

@@ -33,6 +33,20 @@ interface FlagPickerProps {
    * `completed:*`），傳 false 避免同一批旗標出現兩次。
    */
   showSelected?: boolean;
+  /**
+   * 單選模式：選新的會取代舊的。
+   *
+   * FlagMarker 是一個標記授予一個旗標（艾斯維爾 2026-07-30 確認語意）。
+   * 資料層仍是陣列（`data-grants-flags` 的逗號格式與掃描器／改名／巡查都
+   * 假設陣列），這裡只約束 UI，存進去就是長度 1。
+   */
+  single?: boolean;
+  /**
+   * 回報選中旗標在註冊表裡的既有標籤（`null` = 尚未註冊或沒有標籤）。
+   * 呼叫端要顯示／編輯該旗標的標籤時用——picker 手上已經有整份清單，
+   * 由它回報可以省掉呼叫端再查一次。
+   */
+  onSelectedLabel?: (label: string | null) => void;
   accent?: string;
   placeholder?: string;
 }
@@ -41,6 +55,8 @@ export default function FlagPicker({
   value,
   onChange,
   showSelected = true,
+  single = false,
+  onSelectedLabel,
   accent,
   placeholder = '搜尋或輸入新旗標…',
 }: FlagPickerProps) {
@@ -121,14 +137,20 @@ export default function FlagPicker({
     : available;
 
   const select = (name: string) => {
-    if (!value.includes(name)) onChange([...value, name]);
+    if (single) onChange([name]);
+    else if (!value.includes(name)) onChange([...value, name]);
+    onSelectedLabel?.(
+      options.find((option) => option.name === name)?.label ?? null
+    );
     setQuery('');
     setCreating(false);
     setCreateError(null);
   };
 
   const remove = (name: string) => {
-    onChange(value.filter((flag) => flag !== name));
+    const next = value.filter((flag) => flag !== name);
+    onChange(next);
+    if (next.length === 0) onSelectedLabel?.(null);
   };
 
   const openCreate = () => {

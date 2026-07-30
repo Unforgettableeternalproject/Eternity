@@ -250,6 +250,50 @@ describe('FlagPicker', () => {
     expect(container.querySelector('.ned-flagpicker-chips')).toBeNull();
   });
 
+  /**
+   * FlagMarker 是一個標記授予一個旗標。資料層仍是陣列（逗號格式與掃描器、
+   * 改名、巡查都假設陣列），single 只約束 UI，存進去就是長度 1。
+   */
+  it('single 模式選新的會取代舊的', async () => {
+    const onChange = vi.fn();
+    render(<FlagPicker value={['met-mistina']} onChange={onChange} single />);
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
+    fireEvent.click(await screen.findByText('lost-signal'));
+    expect(onChange).toHaveBeenCalledWith(['lost-signal']);
+  });
+
+  it('回報選中旗標在註冊表裡的既有標籤', async () => {
+    const onSelectedLabel = vi.fn();
+    render(
+      <FlagPicker
+        value={[]}
+        onChange={() => {}}
+        onSelectedLabel={onSelectedLabel}
+      />
+    );
+    await openPanel();
+    fireEvent.click(screen.getByText('met-mistina'));
+    expect(onSelectedLabel).toHaveBeenCalledWith('見過米絲媞');
+
+    // 沒有標籤的旗標回 null，呼叫端才知道要清空欄位
+    fireEvent.focus(screen.getByPlaceholderText('搜尋或輸入新旗標…'));
+    fireEvent.click(await screen.findByText('lost-signal'));
+    expect(onSelectedLabel).toHaveBeenLastCalledWith(null);
+  });
+
+  it('移除最後一個旗標時回報 null', async () => {
+    const onSelectedLabel = vi.fn();
+    render(
+      <FlagPicker
+        value={['met-mistina']}
+        onChange={() => {}}
+        onSelectedLabel={onSelectedLabel}
+      />
+    );
+    fireEvent.click(screen.getByLabelText('移除旗標 met-mistina'));
+    expect(onSelectedLabel).toHaveBeenCalledWith(null);
+  });
+
   it('showSelected 預設畫出已選 chip 並可移除', () => {
     const onChange = vi.fn();
     render(<FlagPicker value={['met-mistina']} onChange={onChange} />);
