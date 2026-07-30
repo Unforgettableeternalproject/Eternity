@@ -9,6 +9,7 @@
     "ship": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply eternity-content --local",
     "db:migrate:remote": "wrangler d1 migrations apply eternity-content --remote",
+    "db:migrate:test": "wrangler d1 migrations apply eternity-content-test --remote --env test",
     "test": "vitest run"
   },
   "devDependencies": {
