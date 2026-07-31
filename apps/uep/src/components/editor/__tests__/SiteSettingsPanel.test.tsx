@@ -46,6 +46,7 @@ describe('SiteSettingsPanel', () => {
   let calls: Array<{ url: string; init?: RequestInit }>;
 
   beforeEach(() => {
+    sessionStorage.clear();
     ({ calls } = mockApi());
   });
 
@@ -107,5 +108,40 @@ describe('SiteSettingsPanel', () => {
     const input = await screen.findByLabelText('數量上限');
     fireEvent.change(input, { target: { value: '' } });
     expect(screen.getByRole('button', { name: '儲存' })).toBeDisabled();
+  });
+
+  it('儲存成功後清掉前台的 session 快取', async () => {
+    sessionStorage.setItem('uep-settings-v1', JSON.stringify(SETTINGS));
+    render(<SiteSettingsPanel />);
+    const input = await screen.findByLabelText('數量上限');
+    fireEvent.change(input, { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+
+    await waitFor(() =>
+      expect(sessionStorage.getItem('uep-settings-v1')).toBeNull()
+    );
+  });
+
+  it('儲存失敗時不動 session 快取', async () => {
+    globalThis.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/settings' && init?.method === 'PUT') {
+        return { ok: false, json: async () => ({ ok: false, error: '壞了' }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({ ok: true, data: { settings: SETTINGS } }),
+      };
+    }) as unknown as typeof fetch;
+
+    sessionStorage.setItem('uep-settings-v1', JSON.stringify(SETTINGS));
+    render(<SiteSettingsPanel />);
+    const input = await screen.findByLabelText('數量上限');
+    fireEvent.change(input, { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '儲存' })).toBeEnabled()
+    );
+    expect(sessionStorage.getItem('uep-settings-v1')).not.toBeNull();
   });
 });

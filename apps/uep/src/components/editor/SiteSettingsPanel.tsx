@@ -10,6 +10,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { clearUepSettingsCache } from '../../lib/uepSettings';
+
 import { apiFetch, getToast } from './editorHelpers';
 import './SiteSettingsPanel.css';
 
@@ -85,6 +87,10 @@ export default function SiteSettingsPanel() {
     if (res.ok && res.data?.settings) {
       setSettings(res.data.settings);
       setDraft(res.data.settings);
+      // 前台讀的是 sessionStorage 快取（`uep-settings-v1`），不清的話同一
+      // session 後續導航仍吃舊值，「下一次頁面載入生效」的契約要等關掉分頁
+      // 才成立。admin 與前台同源，這裡清掉即可
+      clearUepSettingsCache();
       getToast().success('設定已儲存');
     } else {
       getToast().error(`儲存失敗：${res.error || '未知錯誤'}`);
