@@ -164,6 +164,18 @@ describe('/api/flags — 註冊表 CRUD', () => {
     expect(status).toBe(400);
   });
 
+  /**
+   * 註冊走的字元規則必須與改名、存檔同一份。含逗號的名字若在這裡放行，
+   * UI 上是一列、寫進 `data-grants-flags` 再掃回來就是兩個。
+   */
+  it('POST 會破壞序列化的字元 → 400', async () => {
+    for (const name of ['foo,bar', 'foo"bar', 'foo&amp;bar']) {
+      const { status, json } = await postJson('/api/flags', { name });
+      expect(status, name).toBe(400);
+      expect(json.error, name).toMatch(/旗標名稱不可含/);
+    }
+  });
+
   it('GET 清單可依 category 過濾', async () => {
     await postJson('/api/flags', { name: 'debug-skip', category: 'debug' });
     const all = await authed('/api/flags');
@@ -430,6 +442,25 @@ describe('存檔時的旗標自動註冊', () => {
     expect(names).not.toContain('image:visuals%2Fg-a:img-01');
   });
 
+  /**
+   * 需求端是唯一擋得住壞名字的地方——授予端的屬性值在掃描時已被逗號拆開，
+   * worker 手上只剩兩個各自合法的名字。放行等於在註冊表建一列永遠不可能
+   * 被授予的旗標（巡查會標 no-grant，但那時內容已經存進去了）。
+   */
+  it('gate 帶會破壞序列化的旗標名 → 400，且不寫入註冊表', async () => {
+    const { status, json } = await putPage('gate/bad-require', {
+      requiresFlags: ['good-one', 'bad,name'],
+    });
+    expect(status).toBe(400);
+    expect(json.error).toMatch(/逗號/);
+
+    const { json: list } = await authed('/api/flags');
+    const names = (list.data?.flags as { name: string }[]).map((f) => f.name);
+    expect(names).not.toContain('bad,name');
+    // 整批拒絕：同一次請求裡合法的那個也不該被偷偷註冊
+    expect(names).not.toContain('good-one');
+  });
+
   it('已註冊的旗標不重複註冊，也不回報', async () => {
     await postJson('/api/flags', { name: 'already-there-flag' });
     const { status, json } = await putPage('gate/already-registered', {
@@ -493,8 +524,8 @@ describe('存檔時的旗標自動註冊', () => {
 /**
  * 批次匯入刻意與單頁存檔不同調：自動註冊而非 409。
  *
- * `uep_flags` 不在 `pnpm sync` 的同步範圍（只搬 pages 與 root_* 業務表），
- * 本地註冊好的旗標推上遠端時遠端註冊表是空的，一擋就是整個同步流程卡死。
+ * 註冊表由 `syncFlags` 在另一輪搬（與頁面匯入的先後不保證），匯入時遠端
+ * 註冊表可能還是空的，一擋就是整個同步流程卡死。
  */
 describe('sync/import — 旗標自動註冊', () => {
   it('未註冊旗標不擋，自動補進註冊表並回報', async () => {
@@ -604,5 +635,99 @@ describe('DELETE /api/flags/:name — 引用檢查', () => {
     const row = (await audit()).find((f) => f.name === 'del-referenced');
     expect(row?.source).toBe('unregistered');
     expect(row?.grantedBy.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 刪除是軟刪除，留下 `deleted_at` 墓碑。
+ *
+ * 硬刪除在雙向同步下不可持久——sync 的 diff 只看得到「單邊不存在」，會把
+ * 對面的活列複製回來，刪掉的旗標下次同步就復活。墓碑是刪除唯一能傳播的
+ * 形式，所以列表要能選擇性地帶出它。
+ */
+describe('旗標的軟刪除與墓碑', () => {
+  beforeAll(async () => {
+    await postJson('/api/flags', { name: 'tomb-a', label: '要被刪的' });
+    await authed('/api/flags/tomb-a', { method: 'DELETE' });
+  });
+
+  it('刪除後一般查詢看不到，帶 include_deleted 才帶出墓碑', async () => {
+    const plain = await authed('/api/flags');
+    expect(
+      (plain.json.data?.flags as { name: string }[]).map((f) => f.name)
+    ).not.toContain('tomb-a');
+
+    const withDeleted = await authed('/api/flags?include_deleted=true');
+    const tomb = (
+      withDeleted.json.data?.flags as {
+        name: string;
+        deletedAt: string | null;
+      }[]
+    ).find((f) => f.name === 'tomb-a');
+    expect(tomb?.deletedAt).toBeTruthy();
+  });
+
+  it('墓碑不參與巡查，也不算已註冊', async () => {
+    expect((await audit()).some((f) => f.name === 'tomb-a')).toBe(false);
+    // PUT 打不到墓碑列
+    const { status } = await authed('/api/flags/tomb-a', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'x' }),
+    });
+    expect(status).toBe(404);
+  });
+
+  it('重新註冊同名旗標會復活墓碑列（不是 409 撞 PK）', async () => {
+    const { status, json } = await postJson('/api/flags', {
+      name: 'tomb-a',
+      label: '復活後的標籤',
+    });
+    expect(status).toBe(201);
+    expect(json.data?.flag).toMatchObject({
+      name: 'tomb-a',
+      label: '復活後的標籤',
+      deletedAt: null,
+    });
+  });
+
+  /**
+   * 內容裡又用到刪過的旗標時，存檔的自動註冊要把它復活——否則巡查會永遠
+   * 標它未註冊，而管理者怎麼點都補不上（名字被墓碑佔著）。
+   */
+  it('存檔時自動註冊會復活墓碑列', async () => {
+    await postJson('/api/flags', { name: 'tomb-b' });
+    await authed('/api/flags/tomb-b', { method: 'DELETE' });
+
+    const { json } = await putPage('tomb/reuse', { markerFlags: ['tomb-b'] });
+    expect(json.autoRegisteredFlags).toEqual(['tomb-b']);
+
+    const { json: list } = await authed('/api/flags');
+    expect(
+      (list.data?.flags as { name: string }[]).map((f) => f.name)
+    ).toContain('tomb-b');
+  });
+
+  /**
+   * 改名撞上墓碑列會 PK 衝突讓整批交易失敗（改名是 batch，內容也一起回滾）。
+   * 墓碑的用途是傳播刪除，被新資料佔用時讓位。
+   */
+  it('改名到有墓碑的名字不會炸，墓碑讓位', async () => {
+    await postJson('/api/flags', { name: 'tomb-target' });
+    await authed('/api/flags/tomb-target', { method: 'DELETE' });
+    await postJson('/api/flags', { name: 'tomb-source' });
+
+    const { status } = await postJson('/api/flags/tomb-source/rename', {
+      to: 'tomb-target',
+    });
+    expect(status).toBe(200);
+
+    const all = await authed('/api/flags?include_deleted=true');
+    const rows = all.json.data?.flags as {
+      name: string;
+      deletedAt: string | null;
+    }[];
+    expect(rows.find((f) => f.name === 'tomb-target')?.deletedAt).toBeNull();
+    expect(rows.some((f) => f.name === 'tomb-source')).toBe(false);
   });
 });

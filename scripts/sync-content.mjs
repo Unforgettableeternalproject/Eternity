@@ -1066,8 +1066,21 @@ async function syncHomepage() {
  *
  * 回傳 `null` 代表使用者選擇跳過；否則回傳實際要執行的兩份清單。
  */
-async function resolveSyncPlan({ header, unit, toPush, toPull, inSync, key }) {
-  const hasChanges = toPush.length > 0 || toPull.length > 0;
+async function resolveSyncPlan({
+  header,
+  unit,
+  toPush,
+  toPull,
+  inSync,
+  key,
+  deleteOnRemote = [],
+  deleteOnLocal = [],
+}) {
+  const hasChanges =
+    toPush.length > 0 ||
+    toPull.length > 0 ||
+    deleteOnRemote.length > 0 ||
+    deleteOnLocal.length > 0;
   console.log(header);
 
   if (!hasChanges) {
@@ -1083,6 +1096,15 @@ async function resolveSyncPlan({ header, unit, toPush, toPull, inSync, key }) {
     console.log(`\n   ↓ 遠端較新 / 僅遠端 (${toPull.length} ${unit}):`);
     for (const p of toPull) console.log(`     ${key(p)}  — ${p.reason}`);
   }
+  if (deleteOnRemote.length > 0) {
+    console.log(`\n   🗑 傳播刪除到遠端 (${deleteOnRemote.length} ${unit}):`);
+    for (const p of deleteOnRemote)
+      console.log(`     ${key(p)}  — ${p.reason}`);
+  }
+  if (deleteOnLocal.length > 0) {
+    console.log(`\n   🗑 傳播刪除到本地 (${deleteOnLocal.length} ${unit}):`);
+    for (const p of deleteOnLocal) console.log(`     ${key(p)}  — ${p.reason}`);
+  }
   if (inSync.length > 0) {
     console.log(`\n   = 已同步: ${inSync.length} ${unit}`);
   }
@@ -1090,11 +1112,15 @@ async function resolveSyncPlan({ header, unit, toPush, toPull, inSync, key }) {
 
   let doPush = toPush;
   let doPull = toPull;
+  let doDelRemote = deleteOnRemote;
+  let doDelLocal = deleteOnLocal;
 
   if (DIRECTION === 'pull') {
     doPush = [];
+    doDelRemote = [];
   } else if (DIRECTION === 'push') {
     doPull = [];
+    doDelLocal = [];
   } else if (!DRY_RUN) {
     const answer = await ask(
       `   同步？ [y] 全部 / [push] 只推送 / [pull] 只拉取 / [n] 跳過: `
@@ -1103,17 +1129,31 @@ async function resolveSyncPlan({ header, unit, toPush, toPull, inSync, key }) {
       console.log('   ⏭ 跳過\n');
       return null;
     }
-    if (answer === 'push') doPull = [];
-    if (answer === 'pull') doPush = [];
+    if (answer === 'push') {
+      doPull = [];
+      doDelLocal = [];
+    }
+    if (answer === 'pull') {
+      doPush = [];
+      doDelRemote = [];
+    }
   }
 
-  return { doPush, doPull };
+  return { doPush, doPull, doDelRemote, doDelLocal };
 }
 
-/** 比對兩端的同一批記錄，分成推送／拉取／已同步 */
+/**
+ * 比對兩端的同一批記錄，分成推送／拉取／傳播刪除／已同步。
+ *
+ * 記錄帶 `deletedAt`（軟刪除墓碑）時才會產生刪除清單，沒有那個欄位的表
+ * （如 interlink_keys）行為與過去完全相同。墓碑的意義就在這裡：少了它，
+ * 「單邊不存在」只能被當成「僅存在另一端」而複製回去——刪除永遠同步不掉。
+ */
 function diffByTimestamp(localMap, remoteMap) {
   const toPush = [];
   const toPull = [];
+  const deleteOnRemote = [];
+  const deleteOnLocal = [];
   const inSync = [];
 
   for (const id of new Set([
@@ -1122,14 +1162,56 @@ function diffByTimestamp(localMap, remoteMap) {
   ])) {
     const local = localMap[id];
     const remote = remoteMap[id];
+    const localDeleted = Boolean(local?.deletedAt);
+    const remoteDeleted = Boolean(remote?.deletedAt);
+
     if (local && !remote) {
-      toPush.push({ id, reason: '僅存在本地', local });
+      // 本地建了又刪、遠端從來沒有過 → 沒有東西要傳播
+      if (localDeleted) inSync.push(id);
+      else toPush.push({ id, reason: '僅存在本地', local });
       continue;
     }
     if (!local && remote) {
-      toPull.push({ id, reason: '僅存在遠端', remote });
+      if (remoteDeleted) inSync.push(id);
+      else toPull.push({ id, reason: '僅存在遠端', remote });
       continue;
     }
+
+    if (localDeleted && remoteDeleted) {
+      inSync.push(id);
+      continue;
+    }
+    // 一邊是墓碑、另一邊還活著：比刪除時間與對面的更新時間，
+    // 刪除之後對面又改過就以那次修改為準（等於撤銷刪除）
+    if (localDeleted) {
+      const winner = compareTimestamps(local.deletedAt, remote.updatedAt);
+      if (winner === 'remote') {
+        toPull.push({ id, reason: '遠端在刪除後有更新', local, remote });
+      } else {
+        deleteOnRemote.push({
+          id,
+          reason: `本地已刪除 (${fmtTime(local.deletedAt)})`,
+          local,
+          remote,
+        });
+      }
+      continue;
+    }
+    if (remoteDeleted) {
+      const winner = compareTimestamps(local.updatedAt, remote.deletedAt);
+      if (winner === 'local') {
+        toPush.push({ id, reason: '本地在刪除後有更新', local, remote });
+      } else {
+        deleteOnLocal.push({
+          id,
+          reason: `遠端已刪除 (${fmtTime(remote.deletedAt)})`,
+          local,
+          remote,
+        });
+      }
+      continue;
+    }
+
     const winner = compareTimestamps(local.updatedAt, remote.updatedAt);
     if (winner === 'local') {
       toPush.push({
@@ -1149,12 +1231,14 @@ function diffByTimestamp(localMap, remoteMap) {
       inSync.push(id);
     }
   }
-  return { toPush, toPull, inSync };
+  return { toPush, toPull, deleteOnRemote, deleteOnLocal, inSync };
 }
 
 async function fetchFlags(apiBase) {
   try {
-    const res = await fetch(`${apiBase}/api/flags`, {
+    // 帶墓碑一起讀——沒有 deleted_at 就分不出「被刪了」與「還沒同步過來」，
+    // 刪除會在下一次同步被對面的活列蓋回來
+    const res = await fetch(`${apiBase}/api/flags?include_deleted=true`, {
       headers: authHeaders(apiBase),
     });
     if (!res.ok) return null;
@@ -1196,6 +1280,28 @@ async function writeFlag(apiBase, flag, exists) {
   }
 }
 
+/**
+ * 傳播刪除：對面若還活著就把它也刪掉。
+ *
+ * 帶 `force=true`——刪除的決定在來源端已經做過（那邊的引用檢查擋過一次），
+ * 這裡再擋一次只會讓兩端永遠不一致：來源刪了、目標擋著，下一次同步又把
+ * 目標的活列拉回來。
+ */
+async function deleteFlagRemote(apiBase, name) {
+  try {
+    const res = await fetch(
+      `${apiBase}/api/flags/${encodeURIComponent(name)}?force=true`,
+      { method: 'DELETE', headers: authHeaders(apiBase) }
+    );
+    if (res.status === 404) return true; // 已經不在了，目的達成
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
 async function syncFlags() {
   const [localMap, remoteMap] = await Promise.all([
     fetchFlags(LOCAL_API),
@@ -1208,12 +1314,17 @@ async function syncFlags() {
     return;
   }
 
-  const { toPush, toPull, inSync } = diffByTimestamp(localMap, remoteMap);
+  const { toPush, toPull, deleteOnRemote, deleteOnLocal, inSync } =
+    diffByTimestamp(localMap, remoteMap);
+  const countLive = (map) =>
+    Object.values(map).filter((flag) => !flag.deletedAt).length;
   const plan = await resolveSyncPlan({
-    header: `\n🚩 旗標註冊表  (本地: ${Object.keys(localMap).length} / 遠端: ${Object.keys(remoteMap).length})`,
+    header: `\n🚩 旗標註冊表  (本地: ${countLive(localMap)} / 遠端: ${countLive(remoteMap)})`,
     unit: '個旗標',
     toPush,
     toPull,
+    deleteOnRemote,
+    deleteOnLocal,
     inSync,
     key: (entry) => entry.id,
   });
@@ -1224,7 +1335,9 @@ async function syncFlags() {
       console.log(`  → [dry-run] 會推送 ${entry.id}`);
       continue;
     }
-    const ok = await writeFlag(REMOTE_API, entry.local, Boolean(entry.remote));
+    // 對面是墓碑列時要走 POST 復活，不能 PUT（PUT 只更新活著的列）
+    const targetExists = Boolean(entry.remote && !entry.remote.deletedAt);
+    const ok = await writeFlag(REMOTE_API, entry.local, targetExists);
     console.log(ok ? `  ↑ ${entry.id}` : `  ✗ 推送失敗 ${entry.id}`);
   }
   for (const entry of plan.doPull) {
@@ -1232,8 +1345,25 @@ async function syncFlags() {
       console.log(`  ← [dry-run] 會拉取 ${entry.id}`);
       continue;
     }
-    const ok = await writeFlag(LOCAL_API, entry.remote, Boolean(entry.local));
+    const targetExists = Boolean(entry.local && !entry.local.deletedAt);
+    const ok = await writeFlag(LOCAL_API, entry.remote, targetExists);
     console.log(ok ? `  ↓ ${entry.id}` : `  ✗ 拉取失敗 ${entry.id}`);
+  }
+  for (const entry of plan.doDelRemote) {
+    if (DRY_RUN) {
+      console.log(`  → [dry-run] 會刪除遠端 ${entry.id}`);
+      continue;
+    }
+    const ok = await deleteFlagRemote(REMOTE_API, entry.id);
+    console.log(ok ? `  🗑 遠端 ${entry.id}` : `  ✗ 遠端刪除失敗 ${entry.id}`);
+  }
+  for (const entry of plan.doDelLocal) {
+    if (DRY_RUN) {
+      console.log(`  ← [dry-run] 會刪除本地 ${entry.id}`);
+      continue;
+    }
+    const ok = await deleteFlagRemote(LOCAL_API, entry.id);
+    console.log(ok ? `  🗑 本地 ${entry.id}` : `  ✗ 本地刪除失敗 ${entry.id}`);
   }
   console.log();
 }

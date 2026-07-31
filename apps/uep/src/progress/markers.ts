@@ -52,6 +52,28 @@ export function serializeFlagsAttr(flags: string[]): string {
   return parseFlagsAttr(flags.join(',')).join(',');
 }
 
+/**
+ * 旗標名稱的字元合法性；回 null 代表通過。
+ *
+ * 授予端（`data-grants-flags`）只有編輯器擋得住：屬性值是逗號分隔字串，
+ * 存檔後 worker 掃回來的 `foo,bar` 就是兩個各自合法的旗標，那時已經無從
+ * 分辨使用者本意是一個還是兩個。
+ *
+ * ⚠️ worker 端 `flags-scan.ts` 的 `validateFlagName` 是同一份規則（跨
+ * package 無法 import），改任一邊都要同步另一邊。
+ */
+export function validateFlagName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return '缺少旗標名稱';
+  if (trimmed.includes(',')) return '旗標名稱不可含逗號';
+  if (trimmed.includes('"')) return '旗標名稱不可含雙引號';
+  // 實體字元寫進屬性後會被解回原字元，掃出來的名字與存的不同
+  if (/&(?:lt|gt|quot|amp|#39);/.test(trimmed)) {
+    return '旗標名稱不可含 HTML 實體字元';
+  }
+  return null;
+}
+
 /** 掃描線觀察的單一標記點 */
 export interface ScanMarker {
   /** 對應的 DOM 元素 */

@@ -60,7 +60,11 @@ import {
   planFlagRename,
   validateRenameTarget,
 } from './flags-rename';
-import { collectFlagsFromBody } from './flags-scan';
+import {
+  collectFlagsFromBody,
+  scanRequiredFlags,
+  validateFlagName,
+} from './flags-scan';
 import { listSettings, updateSettings } from './settings';
 import type { KeyCandidate } from './interlink';
 import { findEntitySong, findSongById } from './echoes-song';
@@ -505,6 +509,23 @@ async function upsertPage(
         409,
         cors
       );
+    }
+  }
+
+  // gate 需求端的旗標名只有在這裡擋得住。授予端的 `data-grants-flags` 是
+  // 逗號分隔字串，掃描時已經拆開——`foo,bar` 到 worker 手上就是兩個合法
+  // 名字，語意已經漂移完了，那一端只能靠編輯器在輸入時擋。需求端是 JSON
+  // 陣列，壞名字原樣送達，放行等於在註冊表裡建一個永遠不會被授予的旗標。
+  if (body.metadata !== undefined) {
+    for (const flag of scanRequiredFlags(body.metadata)) {
+      const invalid = validateFlagName(flag);
+      if (invalid) {
+        return jsonResponse(
+          { ok: false, error: `${invalid}（gate 條件：「${flag}」）` },
+          400,
+          cors
+        );
+      }
     }
   }
 
@@ -1024,9 +1045,9 @@ async function importPages(
   );
 
   // 旗標在這條路徑是**自動註冊**而非 409 擋下——與單頁存檔刻意不同。
-  // `uep_flags` 不在 `pnpm sync` 的同步範圍（sync 只搬 pages 與 root_*），
-  // 本地註冊好的旗標推上遠端時遠端註冊表是空的，一擋就是整個同步流程
-  // 卡死；而且擋下來也不會讓資料變乾淨——旗標已經在內容裡了。
+  // 匯入的頁面帶著內容裡的旗標先到，註冊表由 `syncFlags` 另外一輪才搬
+  // （順序不保證），一擋就是整個同步流程卡死；而且擋下來也不會讓資料
+  // 變乾淨——旗標已經在內容裡了。
   // 代價是打錯字的旗標會靜默進表，所以新增清單一定要回報出去。
   const autoRegisteredFlags = await ensureFlagsRegistered(
     db,
@@ -2346,7 +2367,11 @@ export default {
 
       if (path === '/api/flags' && request.method === 'GET') {
         const category = url.searchParams.get('category')?.trim() || null;
-        const flags = await listFlags(env.CONTENT_DB, category);
+        // 墓碑只給 `pnpm sync` 看——它要靠 deleted_at 才分得出「被刪了」
+        // 與「還沒同步過來」。管理 UI 與 picker 一律拿活著的列
+        const includeDeleted =
+          url.searchParams.get('include_deleted') === 'true';
+        const flags = await listFlags(env.CONTENT_DB, category, includeDeleted);
         return jsonResponse({ ok: true, data: { flags } }, 200, privateCors);
       }
 
@@ -2358,12 +2383,11 @@ export default {
           return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
         }
         const name = typeof body.name === 'string' ? body.name.trim() : '';
-        if (!name) {
-          return jsonResponse(
-            { ok: false, error: 'Missing flag name' },
-            400,
-            cors
-          );
+        // 與改名、存檔共用同一份字元規則——這裡放行含逗號的名字，序列化
+        // 之後就會裂成兩個旗標，而 UI 上看起來仍是一個
+        const invalidName = validateFlagName(name);
+        if (invalidName) {
+          return jsonResponse({ ok: false, error: invalidName }, 400, cors);
         }
 
         const created = await createFlag(env.CONTENT_DB, name, body);

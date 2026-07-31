@@ -3,6 +3,7 @@ import {
   classifyFlag,
   scanGrantedFlags,
   scanRequiredFlags,
+  validateFlagName,
 } from '../flags-scan';
 
 /**
@@ -188,5 +189,42 @@ describe('classifyFlag', () => {
    */
   it('中綴 :image: 不是 derived 形狀', () => {
     expect(classifyFlag('some-gallery:image:img-01')).toBe('custom');
+  });
+});
+
+/**
+ * 註冊、改名、存檔三條寫入路徑共用的字元規則。
+ *
+ * 逗號是最要命的一種：`foo,bar` 寫進 `data-grants-flags` 之後，掃描器拿回
+ * 來的就是兩個各自合法的旗標，與「使用者本來要兩個」完全無法區分。
+ */
+describe('validateFlagName', () => {
+  it('合法名稱通過', () => {
+    expect(validateFlagName('act2-betrayal')).toBeNull();
+    expect(validateFlagName('act2:betrayal')).toBeNull();
+    // derived 形狀不在這一層判定——gate 的需求端要拿它來要求
+    expect(validateFlagName('completed:history/x')).toBeNull();
+  });
+
+  it('空名稱與純空白拒絕', () => {
+    expect(validateFlagName('')).toContain('缺少');
+    expect(validateFlagName('   ')).toContain('缺少');
+  });
+
+  it('逗號拒絕（序列化後會裂成兩個）', () => {
+    expect(validateFlagName('a,b')).toContain('逗號');
+  });
+
+  it('雙引號拒絕（提前結束 HTML 屬性）', () => {
+    expect(validateFlagName('a"b')).toContain('雙引號');
+  });
+
+  it('HTML 實體拒絕（讀回來與存進去的不同）', () => {
+    expect(validateFlagName('a&amp;b')).toContain('實體');
+    expect(validateFlagName('a&quot;b')).toContain('實體');
+  });
+
+  it('前後空白不算違規（呼叫端一律先 trim）', () => {
+    expect(validateFlagName('  act2-betrayal  ')).toBeNull();
   });
 });

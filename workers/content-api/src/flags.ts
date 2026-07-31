@@ -10,6 +10,7 @@ import {
   classifyFlag,
   scanGrantedFlags,
   scanRequiredFlags,
+  validateFlagName,
 } from './flags-scan';
 
 /** 註冊表的一列 */
@@ -20,6 +21,12 @@ export interface FlagRow {
   category: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * 軟刪除時間（墓碑）。一般查詢看不到已刪除的列，只有 `pnpm sync` 會帶
+   * `include_deleted` 把墓碑一起讀出來——刪除要能傳播到另一端，兩邊就必須
+   * 分得出「這一列被刪了」與「這一列還沒同步過來」。
+   */
+  deletedAt: string | null;
 }
 
 /** 旗標的一處引用（授予端或需求端） */
@@ -60,26 +67,48 @@ export interface FlagAuditRow {
 }
 
 const SELECT_COLS = `name, label, description, category,
-  created_at AS createdAt, updated_at AS updatedAt`;
+  created_at AS createdAt, updated_at AS updatedAt, deleted_at AS deletedAt`;
 
+/**
+ * 列出註冊表。
+ *
+ * @param includeDeleted 帶上軟刪除的墓碑列。**只有 `pnpm sync` 該用**——
+ *   管理 UI、picker、巡查全部只看活著的列。
+ */
 export async function listFlags(
   db: D1Database,
-  category?: string | null
+  category?: string | null,
+  includeDeleted = false
 ): Promise<FlagRow[]> {
-  const query = category
-    ? `SELECT ${SELECT_COLS} FROM uep_flags WHERE category = ? ORDER BY name ASC`
-    : `SELECT ${SELECT_COLS} FROM uep_flags ORDER BY name ASC`;
-  const stmt = category ? db.prepare(query).bind(category) : db.prepare(query);
-  const result = await stmt.all<FlagRow>();
+  const conditions: string[] = [];
+  const binds: string[] = [];
+  if (category) {
+    conditions.push('category = ?');
+    binds.push(category);
+  }
+  if (!includeDeleted) conditions.push('deleted_at IS NULL');
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const stmt = db.prepare(
+    `SELECT ${SELECT_COLS} FROM uep_flags ${where} ORDER BY name ASC`
+  );
+  const result = await (
+    binds.length > 0 ? stmt.bind(...binds) : stmt
+  ).all<FlagRow>();
   return result.results || [];
 }
 
 export async function findFlag(
   db: D1Database,
-  name: string
+  name: string,
+  includeDeleted = false
 ): Promise<FlagRow | null> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLS} FROM uep_flags WHERE name = ?`)
+    .prepare(
+      `SELECT ${SELECT_COLS} FROM uep_flags WHERE name = ?${
+        includeDeleted ? '' : ' AND deleted_at IS NULL'
+      }`
+    )
     .bind(name)
     .first<FlagRow>();
   return row ?? null;
@@ -130,10 +159,18 @@ export async function createFlag(
   // 同步過來的旗標保留來源時間戳；created_at 一併用同一個值，
   // 否則會出現 created 晚於 updated 的怪狀態
   const stamp = normalizeTimestamp(input.updatedAt) ?? new Date().toISOString();
+  // 同名的墓碑列還在（name 是 PK）——重新註冊就是把它復活，欄位一併換新。
+  // 不復活的話註冊一個刪過的名字會撞 PK，錯誤訊息還會是莫名其妙的 409
   await db
     .prepare(
-      `INSERT INTO uep_flags (name, label, description, category, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO uep_flags (name, label, description, category, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL)
+       ON CONFLICT(name) DO UPDATE SET
+         label = excluded.label,
+         description = excluded.description,
+         category = excluded.category,
+         updated_at = excluded.updated_at,
+         deleted_at = NULL`
     )
     .bind(
       name,
@@ -162,7 +199,7 @@ export async function updateFlag(
     .prepare(
       `UPDATE uep_flags
        SET label = ?, description = ?, category = ?, updated_at = ?
-       WHERE name = ?`
+       WHERE name = ? AND deleted_at IS NULL`
     )
     .bind(
       normalizeText(input.label),
@@ -175,13 +212,29 @@ export async function updateFlag(
   return findFlag(db, name);
 }
 
+/**
+ * 刪除一個旗標——**軟刪除**，留下墓碑。
+ *
+ * 硬刪除在雙向同步下不可持久：sync 的 diff 把「單邊不存在」一律當成
+ * 「僅存在另一端」複製回去，刪掉的旗標下次同步就從對面復活。留一列
+ * `deleted_at` 才分得出「被刪了」與「還沒同步過來」。
+ *
+ * 已經刪過的回 false（等同不存在），呼叫端據此回 404。
+ *
+ * 兩端各自記自己的刪除時間即可——都成了墓碑之後 diff 判為已同步，不會像
+ * 「單邊有值」那樣互相推翻。
+ */
 export async function deleteFlag(
   db: D1Database,
   name: string
 ): Promise<boolean> {
+  const now = new Date().toISOString();
   const result = await db
-    .prepare(`DELETE FROM uep_flags WHERE name = ?`)
-    .bind(name)
+    .prepare(
+      `UPDATE uep_flags SET deleted_at = ?, updated_at = ?
+       WHERE name = ? AND deleted_at IS NULL`
+    )
+    .bind(now, now, name)
     .run();
   return (result.meta.changes ?? 0) > 0;
 }
@@ -293,8 +346,13 @@ export async function findUnregisteredFlags(
   if (custom.length === 0) return [];
 
   const placeholders = custom.map(() => '?').join(',');
+  // 墓碑列不算已註冊：內容裡又出現了就該回到註冊表（`ensureFlagsRegistered`
+  // 會把它復活），否則巡查會永遠標它未註冊而管理者怎麼點都補不上
   const result = await db
-    .prepare(`SELECT name FROM uep_flags WHERE name IN (${placeholders})`)
+    .prepare(
+      `SELECT name FROM uep_flags
+       WHERE name IN (${placeholders}) AND deleted_at IS NULL`
+    )
     .bind(...custom)
     .all<{ name: string }>();
   const registered = new Set((result.results || []).map((row) => row.name));
@@ -328,7 +386,11 @@ export async function ensureFlagsRegistered(
   db: D1Database,
   flags: string[]
 ): Promise<string[]> {
-  const missing = await findUnregisteredFlags(db, flags);
+  // 名字本身壞掉的一律不建列——這條路徑不擋存檔，但也不該把序列化後會裂開
+  // 的名字寫進註冊表。批次匯入是唯一還會送進壞名字的來源（單頁存檔的兩端
+  // 都已在前面擋下），跳過它比讓註冊表長出永遠對不上的列好
+  const valid = flags.filter((flag) => validateFlagName(flag) === null);
+  const missing = await findUnregisteredFlags(db, valid);
   if (missing.length === 0) return [];
 
   const now = new Date().toISOString();
@@ -336,9 +398,14 @@ export async function ensureFlagsRegistered(
     missing.map((name) =>
       db
         .prepare(
-          `INSERT OR IGNORE INTO uep_flags
-             (name, label, description, category, created_at, updated_at)
-           VALUES (?, NULL, NULL, NULL, ?, ?)`
+          // 撞到的一定是墓碑列（活著的已經被 findUnregisteredFlags 濾掉），
+          // 復活它但不動 label／description——那是人填的，刪除又復活不該弄丟
+          `INSERT INTO uep_flags
+             (name, label, description, category, created_at, updated_at, deleted_at)
+           VALUES (?, NULL, NULL, NULL, ?, ?, NULL)
+           ON CONFLICT(name) DO UPDATE SET
+             updated_at = excluded.updated_at,
+             deleted_at = NULL`
         )
         .bind(name, now, now)
     )

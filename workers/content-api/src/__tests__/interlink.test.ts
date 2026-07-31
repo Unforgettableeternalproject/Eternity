@@ -64,6 +64,8 @@ describe('互聯相關資料表與索引', () => {
     expect(await indexExists('idx_hii_key')).toBe(true);
     expect(await indexExists('idx_hii_page')).toBe(true);
     expect(await indexExists('idx_uep_flags_category')).toBe(true);
+    // 0025：軟刪除墓碑，一般查詢一律過濾 deleted_at IS NULL
+    expect(await indexExists('idx_uep_flags_deleted_at')).toBe(true);
   });
 });
 

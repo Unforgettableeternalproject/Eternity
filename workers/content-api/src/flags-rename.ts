@@ -14,11 +14,12 @@
  * 清單、比對完整項目、重新序列化該屬性，其餘 HTML 一個字元都不動。
  */
 
-import { decodeEntities, readAttr } from './content-scan';
+import { readAttr } from './content-scan';
 import {
   classifyFlag,
   parseFlagsAttr,
   PROGRESS_MARKER_DIV_REGEX,
+  validateFlagName,
 } from './flags-scan';
 
 /** 受改名影響的一頁 */
@@ -274,6 +275,17 @@ export async function applyFlagRename(
       .bind(...values);
   });
 
+  // 新名稱若有墓碑列（刪過同名旗標）會撞 PK，整批交易失敗。墓碑的用途是
+  // 讓 sync 傳播刪除，被新資料佔用時就該讓位——代價是那一次刪除傳播不到
+  // 另一端（下次同步會把對面的活列拉回來，是看得見的狀態，不是靜默錯誤）。
+  statements.push(
+    db
+      .prepare(
+        `DELETE FROM uep_flags WHERE name = ? AND deleted_at IS NOT NULL`
+      )
+      .bind(to)
+  );
+
   statements.push(
     db
       .prepare(`UPDATE uep_flags SET name = ?, updated_at = ? WHERE name = ?`)
@@ -284,19 +296,18 @@ export async function applyFlagRename(
   return plan.updates.length;
 }
 
-/** 改名目標的合法性；回 null 代表通過 */
+/**
+ * 改名目標的合法性；回 null 代表通過。
+ *
+ * 字元規則全部委派 `validateFlagName`（單一來源），這裡只多一條改名特有的
+ * 語意檢查：新名稱不能是規則生成的形狀。
+ */
 export function validateRenameTarget(to: string): string | null {
   const trimmed = to.trim();
-  if (!trimmed) return '缺少新旗標名稱';
+  const invalid = validateFlagName(trimmed);
+  if (invalid) return invalid;
   if (classifyFlag(trimmed) === 'derived') {
     return '新名稱符合規則生成的旗標形狀，那類旗標由程式依 key 推導，不能當自訂旗標名';
-  }
-  // 逗號是 data-grants-flags 的分隔符，名稱裡有它會在序列化後裂成兩個旗標
-  if (trimmed.includes(',')) return '旗標名稱不可含逗號';
-  // 屬性值裡的引號會提前結束屬性，把後面的 HTML 全部推成新屬性
-  if (trimmed.includes('"')) return '旗標名稱不可含雙引號';
-  if (decodeEntities(trimmed) !== trimmed) {
-    return '旗標名稱不可含 HTML 實體字元';
   }
   return null;
 }

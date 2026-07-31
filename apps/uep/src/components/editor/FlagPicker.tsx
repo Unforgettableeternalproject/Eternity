@@ -17,6 +17,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { validateFlagName } from '../../progress/markers';
+
 /** `uep_flags` 的一列（只取 picker 要用的欄位） */
 interface FlagOption {
   name: string;
@@ -65,6 +67,12 @@ export default function FlagPicker({
   const [options, setOptions] = useState<FlagOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+
+  /**
+   * single 模式的輸入緩衝：名字不合法時輸入框要留著使用者打的字（才看得懂
+   * 錯在哪），但那個值不能寫進 value。`null` = 沒有緩衝，顯示 value[0]。
+   */
+  const [rawInput, setRawInput] = useState<string | null>(null);
 
   /* 就地新建 */
   /** 使用者是否實際打過字（single 模式的過濾時機，見 filterNeedle） */
@@ -115,6 +123,8 @@ export default function FlagPicker({
     setOpen(false);
     setTyped(false);
     if (!single) setQuery('');
+    // 收起面板等於捨棄沒寫進 value 的壞名字，輸入框跳回實際生效的那個
+    setRawInput(null);
     setCreating(false);
     setCreateError(null);
   }
@@ -124,10 +134,15 @@ export default function FlagPicker({
    * chip 呈現。只選一個的時候 chip 是多餘的一層（艾斯維爾 2026-07-30）。
    * 多選模式維持原樣：輸入框是搜尋欄，已選的用 chip 列在上面。
    */
-  const inputText = single ? (value[0] ?? '') : query;
+  const inputText = single ? (rawInput ?? value[0] ?? '') : query;
   /** 原樣的輸入字串——旗標名大小寫有意義，比對才用小寫 */
   const needleRaw = inputText.trim();
   const needle = needleRaw.toLowerCase();
+  /**
+   * 名字帶了會破壞序列化的字元就只能在這裡擋——存檔後 worker 拿到的是
+   * 已經被逗號拆開的結果，那時 `foo,bar` 與兩個獨立旗標無從分辨。
+   */
+  const nameError = needleRaw ? validateFlagName(needleRaw) : null;
   /**
    * single 模式下輸入框顯示的是已選旗標，剛聚焦時若拿它過濾，清單就只剩
    * 自己一項，換選反而要先清空欄位。實際打過字才開始過濾。
@@ -140,6 +155,7 @@ export default function FlagPicker({
   const canUseRaw =
     !single &&
     !!needleRaw &&
+    !nameError &&
     !value.includes(needleRaw) &&
     !options.some((option) => option.name === needleRaw);
   // single 不排除已選：換選時清單要完整，也才看得出目前選的是哪一個
@@ -163,11 +179,16 @@ export default function FlagPicker({
       return;
     }
     const trimmed = text.trim();
+    setRawInput(text);
+    // 不合法就只留在輸入框，value 維持上一個有效值——寫進去的話存檔時
+    // 會裂成兩個旗標，而且錯誤已經無法回溯
+    if (trimmed && validateFlagName(trimmed)) return;
     onChange(trimmed ? [trimmed] : []);
     if (!trimmed) onSelectedLabel?.(null);
   };
 
   const select = (name: string) => {
+    setRawInput(null);
     if (single) onChange([name]);
     else if (!value.includes(name)) onChange([...value, name]);
     onSelectedLabel?.(
@@ -200,6 +221,12 @@ export default function FlagPicker({
   const submitCreate = async () => {
     const name = draftName.trim();
     if (!name) return;
+    // worker 端擋同一份規則，這裡先擋是為了省一次往返並就地指出問題
+    const invalid = validateFlagName(name);
+    if (invalid) {
+      setCreateError(invalid);
+      return;
+    }
     setSubmitting(true);
     setCreateError(null);
     try {
@@ -269,8 +296,8 @@ export default function FlagPicker({
           // Enter 選第一個匹配項；沒有匹配就直接採用輸入字串（存檔時由
           // worker 自動註冊）。single 打字已經即時寫進 value，只需收面板
           if (matched.length > 0) select(matched[0].name);
-          else if (needleRaw && !single) select(needleRaw);
-          else closePanel();
+          else if (needleRaw && !single && !nameError) select(needleRaw);
+          else if (!nameError) closePanel();
         }}
       />
 
@@ -282,6 +309,11 @@ export default function FlagPicker({
             <div className="ned-flagpicker-empty">無法載入旗標註冊表</div>
           ) : (
             <>
+              {nameError && (
+                <div className="ned-flagpicker-error" role="alert">
+                  {nameError}
+                </div>
+              )}
               {matched.length > 0 && (
                 <div className="ned-flagpicker-list">
                   {matched.map((option) => (

@@ -347,6 +347,62 @@ describe('FlagPicker', () => {
     expect(onSelectedLabel).toHaveBeenCalledWith(null);
   });
 
+  /**
+   * 授予端只有這裡擋得住：`data-grants-flags` 是逗號分隔字串，存檔後
+   * worker 掃回來的 `foo,bar` 就是兩個各自合法的旗標，與「本來就要兩個」
+   * 再也分不出來。
+   */
+  describe('會破壞序列化的名字', () => {
+    it('single 模式打逗號不寫回 value，並就地說明原因', async () => {
+      const onChange = vi.fn();
+      render(<FlagPicker value={['met-mistina']} onChange={onChange} single />);
+      const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
+      fireEvent.change(input, { target: { value: 'foo,bar' } });
+
+      expect(onChange).not.toHaveBeenCalled();
+      // 輸入框留著打過的字，不然看不懂錯在哪
+      expect(input).toHaveValue('foo,bar');
+      expect(await screen.findByText(/不可含逗號/)).toBeInTheDocument();
+    });
+
+    it('single 模式改回合法名字後恢復寫入', async () => {
+      const onChange = vi.fn();
+      render(<FlagPicker value={[]} onChange={onChange} single />);
+      const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
+      fireEvent.change(input, { target: { value: 'foo"bar' } });
+      expect(onChange).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: 'foo-bar' } });
+      expect(onChange).toHaveBeenCalledWith(['foo-bar']);
+    });
+
+    it('多選模式不提供「直接使用」，Enter 也不採用', async () => {
+      const onChange = vi.fn();
+      render(<FlagPicker value={[]} onChange={onChange} />);
+      await openPanel();
+      const input = screen.getByPlaceholderText('搜尋或輸入新旗標…');
+      fireEvent.change(input, { target: { value: 'foo,bar' } });
+      expect(screen.queryByText(/直接使用/)).not.toBeInTheDocument();
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('就地新建不送出 POST，直接顯示原因', async () => {
+      render(<FlagPicker value={[]} onChange={() => {}} />);
+      await openPanel();
+      fireEvent.change(screen.getByPlaceholderText('搜尋或輸入新旗標…'), {
+        target: { value: 'draft' },
+      });
+      fireEvent.click(screen.getByText(/新建並填標籤/));
+      fireEvent.change(screen.getByLabelText('新旗標名稱'), {
+        target: { value: 'bad,name' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: '註冊並選取' }));
+
+      expect(await screen.findByText(/不可含逗號/)).toBeInTheDocument();
+      expect(calls.some((c) => c.init?.method === 'POST')).toBe(false);
+    });
+  });
+
   it('showSelected 預設畫出已選 chip 並可移除', () => {
     const onChange = vi.fn();
     render(<FlagPicker value={['met-mistina']} onChange={onChange} />);

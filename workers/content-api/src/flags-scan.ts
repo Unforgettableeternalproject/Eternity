@@ -25,7 +25,11 @@
  * 註冊、存檔卻擋你沒註冊」。
  */
 
-import { collectContentStrings, readAttr } from './content-scan';
+import {
+  collectContentStrings,
+  decodeEntities,
+  readAttr,
+} from './content-scan';
 
 /** 旗標來源分類 */
 export type FlagKind = 'derived' | 'custom';
@@ -69,6 +73,36 @@ export function classifyFlag(name: string): FlagKind {
     return 'derived';
   }
   return 'custom';
+}
+
+/**
+ * 旗標名稱的字元合法性；回 null 代表通過。
+ *
+ * ⚠️ 這是所有寫入路徑的**單一驗證來源**：註冊（`POST /api/flags`）、改名
+ * （`validateRenameTarget`）、存檔時的 gate 需求端都走這裡。各自寫一份的
+ * 話會漂移成「這條路擋、那條路放行」，而放行的那條會產生序列化後才炸開的
+ * 名字——`foo,bar` 在 UI 上看起來是一個旗標，寫進 `data-grants-flags` 再
+ * 掃回來就是兩個，註冊表與內容從此對不上。
+ *
+ * 前端 `progress/markers.ts` 有一份等價實作（跨 package 無法 import），
+ * 改這裡務必同步那邊。
+ *
+ * derived 形狀的判定**不在這裡**：那是「能不能當自訂旗標名」的語意問題，
+ * 各呼叫端的答案不同——註冊與改名要拒絕，gate 的需求端卻必須允許
+ * （`{storyKey}:song` 就是拿來要求的）。
+ */
+export function validateFlagName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return '缺少旗標名稱';
+  // 逗號是 data-grants-flags 的分隔符，名稱裡有它會在序列化後裂成兩個旗標
+  if (trimmed.includes(',')) return '旗標名稱不可含逗號';
+  // 屬性值裡的引號會提前結束屬性，把後面的 HTML 全部推成新屬性
+  if (trimmed.includes('"')) return '旗標名稱不可含雙引號';
+  // 實體字元進屬性後 readAttr 會解回原字元，掃出來的名字與存的不同
+  if (decodeEntities(trimmed) !== trimmed) {
+    return '旗標名稱不可含 HTML 實體字元';
+  }
+  return null;
 }
 
 /** `data-grants-flags` 的序列化格式：逗號分隔、去空白、去重（與編輯器對齊） */
