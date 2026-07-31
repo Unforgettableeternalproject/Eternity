@@ -50,6 +50,7 @@ import {
   deleteAsset,
   formatInterlinkKey,
   htmlToMarkdown,
+  resolveProgressToggles,
 } from './editorHelpers';
 import { resolveEditorMode, resolveGatePanelMode } from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
@@ -245,6 +246,13 @@ export default function RichEditor({
   const [gateExempt, setGateExempt] = useState(
     initialMetadata?.gateExempt === true
   );
+  /**
+   * 這兩個欄位在 `/admin/settings` 的進度總覽也改得到（metadata-only PATCH），
+   * 所以存檔時要分辨「使用者在這個編輯器改過」與「只是開頁當下的快照」——
+   * 後者一律讓伺服器的值贏，否則開著編輯器期間在總覽切的開關會被靜默還原。
+   */
+  const progressPageTouchedRef = useRef(false);
+  const gateExemptTouchedRef = useRef(false);
   // 父容器繼承偵測：拉一次父頁面 metadata，若 progressPage=true 則本頁
   // 在 GateConditionEditor 顯示為繼承（toggle 收起、僅剩豁免選項）
   const [parentIsProgressContainer, setParentIsProgressContainer] =
@@ -467,6 +475,27 @@ export default function RichEditor({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  /**
+   * 讀伺服器上這一頁最新的 metadata；讀不到（新頁面、離線、壞回應）回 null。
+   * 只在存檔路徑上用，作為 PUT 整份 metadata 的底稿。
+   */
+  const fetchLatestMetadata = useCallback(async (): Promise<Record<
+    string,
+    any
+  > | null> => {
+    try {
+      const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const meta = json?.data?.metadata;
+      return meta && typeof meta === 'object' && !Array.isArray(meta)
+        ? (meta as Record<string, any>)
+        : null;
+    } catch {
+      return null;
+    }
+  }, [apiBase, area, pageSlug]);
+
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
@@ -573,16 +602,36 @@ export default function RichEditor({
           )
         : null;
 
+      // 存檔前重讀伺服器上的 metadata 當底。這個 PUT 送的是**整份** metadata，
+      // 用開頁當下的 initialMetadata 當底的話，編輯期間別處寫進去的欄位會
+      // 被一起還原——`/admin/settings` 的進度總覽就是這樣一條路（它走
+      // metadata-only 的 PATCH，不碰 content）。讀不到就退回舊行為，
+      // 存檔本身不該因為這一次額外請求失敗而中斷。
+      const latestMetadata = await fetchLatestMetadata();
+      const metadataBase = latestMetadata ?? initialMetadata ?? {};
+
+      // 這兩個 toggle 兩邊都改得到：使用者在這個編輯器動過就以編輯器為準，
+      // 沒動過則採用伺服器的最新值（總覽剛切的那個）
+      const { progressPage: nextProgressPage, gateExempt: nextGateExempt } =
+        resolveProgressToggles(
+          latestMetadata,
+          { progressPage, gateExempt },
+          {
+            progressPage: progressPageTouchedRef.current,
+            gateExempt: gateExemptTouchedRef.current,
+          }
+        );
+
       const metadata: Record<string, any> = {
-        ...(initialMetadata || {}),
+        ...metadataBase,
         ...(hidden ? { hidden: true } : { hidden: undefined }),
         ...(locked ? { locked: true } : { locked: undefined }),
         // 進度頁 toggle：true 才寫入，false 一律清除以維持存檔精簡
-        ...(progressPage
+        ...(nextProgressPage
           ? { progressPage: true }
           : { progressPage: undefined }),
         // 豁免 toggle：同上，true 才寫入
-        ...(gateExempt ? { gateExempt: true } : { gateExempt: undefined }),
+        ...(nextGateExempt ? { gateExempt: true } : { gateExempt: undefined }),
         // 進度條件一律存巢狀 gate；平鋪形狀的舊鍵一併清除避免雙重來源
         gate: gate ?? undefined,
         requiresFlags: undefined,
@@ -604,8 +653,8 @@ export default function RichEditor({
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isConcepts
           ? {
-              type_group: initialMetadata?.type_group,
-              era: initialMetadata?.era,
+              type_group: metadataBase.type_group,
+              era: metadataBase.era,
               stack_style: conceptsStackStyle,
             }
           : {}),
@@ -646,6 +695,12 @@ export default function RichEditor({
       // 更新快照並重置 dirty
       if (editor) initialContentRef.current = editor.getHTML();
       initialTitleRef.current = title;
+      // 採用了伺服器的值就同步回 UI，否則 Inspector 的勾選會與剛存進去的
+      // 內容不一致；touched 一併歸零，下一輪重新以伺服器為準
+      if (nextProgressPage !== progressPage) setProgressPage(nextProgressPage);
+      if (nextGateExempt !== gateExempt) setGateExempt(nextGateExempt);
+      progressPageTouchedRef.current = false;
+      gateExemptTouchedRef.current = false;
       window.dispatchEvent(new Event('concepts-editor-saved'));
       resetDirty();
       setSaveStatus('saved');
@@ -678,6 +733,9 @@ export default function RichEditor({
     depth,
     hidden,
     locked,
+    progressPage,
+    gateExempt,
+    fetchLatestMetadata,
     gate,
     icon,
     description,
@@ -3100,11 +3158,13 @@ export default function RichEditor({
                           isProgressPage: progressPage,
                           onProgressPageChange: (next: boolean) => {
                             setProgressPage(next);
+                            progressPageTouchedRef.current = true;
                             setDirtyMetadata(true);
                           },
                           isGateExempt: gateExempt,
                           onGateExemptChange: (next: boolean) => {
                             setGateExempt(next);
+                            gateExemptTouchedRef.current = true;
                             setDirtyMetadata(true);
                           },
                           parentIsProgressContainer,

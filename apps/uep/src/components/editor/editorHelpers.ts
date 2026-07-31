@@ -67,6 +67,35 @@ export function extractAssetKey(src: string): string | null {
   return decodeURIComponent(src.slice(idx + marker.length));
 }
 
+// ── 存檔時的 metadata 合流 ──────────────────────────────────
+
+/**
+ * 決定 `progressPage`／`gateExempt` 存檔時要用誰的值。
+ *
+ * 這兩個欄位有兩個入口：編輯器 Inspector，以及 `/admin/settings` 進度總覽的
+ * 就地切換（metadata-only PATCH）。編輯器的 PUT 送整份 metadata，開頁當下的
+ * 快照直接送出去就會把總覽剛改的值靜默還原——使用者甚至不知道自己覆蓋了什麼。
+ *
+ * 規則：使用者在這個編輯器動過的欄位以編輯器為準（那是明確的意圖），沒動過
+ * 的一律讓伺服器贏。讀不到伺服器狀態（`latest` 為 null）時退回本地值，保持
+ * 舊行為——存檔不該因為多出來的那次查詢失敗而中斷。
+ */
+export function resolveProgressToggles(
+  latest: Record<string, unknown> | null,
+  local: { progressPage: boolean; gateExempt: boolean },
+  touched: { progressPage: boolean; gateExempt: boolean }
+): { progressPage: boolean; gateExempt: boolean } {
+  if (!latest) return { ...local };
+  return {
+    progressPage: touched.progressPage
+      ? local.progressPage
+      : latest.progressPage === true,
+    gateExempt: touched.gateExempt
+      ? local.gateExempt
+      : latest.gateExempt === true,
+  };
+}
+
 // ── 互聯 key 顯示 ──────────────────────────────────────────
 
 /**
