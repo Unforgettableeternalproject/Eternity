@@ -6,8 +6,9 @@
  *
  * 機率規則：
  * - 每次「首次讀完一篇」（page-completed 信號）roll 一次
- * - 初始 20%，每次沒中 +20%，直到 100% 必定出現
- * - 出現後若被忽視（導航到其他頁面），條目消失且機率重置回 20%
+ * - 基礎機率由站台設定 `bookmark.baseChancePct` 決定（預設 20%），
+ *   每次沒中 +20%，直到 100% 必定出現
+ * - 出現後若被忽視（導航到其他頁面），條目消失且遞增歸零
  * - 解鎖後永遠不再出現（條件掛在 islandsUnlocked，不需獨立旗標）
  *
  * 底線條件：探索者視角 + 到過 History Reader + 旅程之書未解鎖。
@@ -15,13 +16,31 @@
 
 import { isTestMode } from '../../lib/apiBase';
 import type { ProgressState } from '../../progress';
-import { LOST_BOOKMARK_BASE_PCT, getProgressManager } from '../../progress';
+import {
+  LOST_BOOKMARK_BASE_PCT,
+  LOST_BOOKMARK_MAX_MISS,
+  LOST_BOOKMARK_STEP_PCT,
+  getProgressManager,
+} from '../../progress';
 import { getSetting } from '../../lib/uepSettings';
 
 import { canUseIslands, isIslandUnlocked } from '../islandRuntime';
 
-/** 每次沒中的機率遞增步長（%） */
-export const LOST_BOOKMARK_STEP_PCT = 20;
+export { LOST_BOOKMARK_STEP_PCT };
+
+/**
+ * 這一輪的實際出現機率（%）。
+ *
+ * 基礎值每次都現讀站台設定——持久狀態只記「沒中幾次」，所以調整設定對
+ * 所有讀者的下一次 roll 立即生效（含從沒 roll 過的新讀者）。
+ */
+export function lostBookmarkChancePct(state: ProgressState): number {
+  const base = getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT);
+  return Math.min(
+    100,
+    Math.max(0, base) + state.lostBookmark.missCount * LOST_BOOKMARK_STEP_PCT
+  );
+}
 
 /**
  * 底線條件：探索者 + 島未解鎖。
@@ -43,7 +62,7 @@ export function isLostBookmarkVisible(state: ProgressState): boolean {
  * 讀完一篇時 roll 一次（page-completed 信號的消費端呼叫）。
  * - 不符底線條件或條目已浮現：不動作
  * - 中了：visible=true（條目浮現）
- * - 沒中：chancePct 遞增
+ * - 沒中：missCount 遞增（下一輪機率跟著往上）
  * @param random 注入亂數供測試（預設 Math.random）
  */
 export function rollLostBookmark(
@@ -53,15 +72,12 @@ export function rollLostBookmark(
   if (!isLostBookmarkEligible(state) || state.lostBookmark.visible) {
     return 'skipped';
   }
-  if (random() * 100 < state.lostBookmark.chancePct) {
+  if (random() * 100 < lostBookmarkChancePct(state)) {
     getProgressManager().updateLostBookmark({ visible: true });
     return 'shown';
   }
   getProgressManager().updateLostBookmark({
-    chancePct: Math.min(
-      100,
-      state.lostBookmark.chancePct + LOST_BOOKMARK_STEP_PCT
-    ),
+    missCount: state.lostBookmark.missCount + 1,
   });
   return 'missed';
 }
@@ -72,11 +88,8 @@ export function rollLostBookmark(
  */
 export function dismissLostBookmark(state: ProgressState): void {
   if (!state.lostBookmark.visible) return;
-  getProgressManager().updateLostBookmark({
-    visible: false,
-    // 基礎機率走站台設定（/admin/settings），未載入時退回常數
-    chancePct: getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT),
-  });
+  // 遞增歸零即回到基礎機率——基礎值本身是 roll 當下才讀的站台設定
+  getProgressManager().updateLostBookmark({ visible: false, missCount: 0 });
 }
 
 /** 解鎖完成：條目永久消失（visible 落回 false，島解鎖由呼叫端執行） */
@@ -85,8 +98,8 @@ export function settleLostBookmark(): void {
 }
 
 /* ── 測試 hook（S6-3，dev only）──
- * 機率制很難手動驗收（20% 起跳、忽視重置），沿用 OnboardingGate 的
- * window bridge 前例，在 dev 提供 console 直接操作的入口。 */
+ * 機率制很難手動驗收（基礎機率起跳、沒中才遞增、忽視重置），沿用
+ * OnboardingGate 的 window bridge 前例，在 dev 提供 console 直接操作的入口。 */
 
 /** 儀式頁開啟事件：bridge 的 openGate 廣播，HistoryReader 監聽切狀態 */
 export const LOST_BOOKMARK_OPEN_GATE_EVENT = 'uep:lost-bookmark:open-gate';
@@ -94,7 +107,7 @@ export const LOST_BOOKMARK_OPEN_GATE_EVENT = 'uep:lost-bookmark:open-gate';
 interface LostBookmarkTestBridge {
   /** 直接讓書籤條目浮現（不經 roll；底線條件仍需成立才會渲染） */
   force(): void;
-  /** 重置回初始狀態（條目消失、機率回 20%） */
+  /** 重置回初始狀態（條目消失、機率回基礎值） */
   reset(): void;
   /** 機率拉滿 100%——下次 page-completed 必中 */
   guarantee(): void;
@@ -104,7 +117,10 @@ interface LostBookmarkTestBridge {
   openGate(): void;
   /** 查看目前狀態 */
   status(): {
+    /** 下一次 roll 的實際機率（基礎設定 + 已累積的遞增） */
     chancePct: number;
+    /** 已經沒中的次數 */
+    missCount: number;
     visible: boolean;
     eligible: boolean;
   };
@@ -131,11 +147,14 @@ export function mountLostBookmarkTestBridge(): () => void {
     reset() {
       getProgressManager().updateLostBookmark({
         visible: false,
-        chancePct: getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT),
+        missCount: 0,
       });
     },
     guarantee() {
-      getProgressManager().updateLostBookmark({ chancePct: 100 });
+      // 基礎值最低 0，miss 滿上限一定到 100%
+      getProgressManager().updateLostBookmark({
+        missCount: LOST_BOOKMARK_MAX_MISS,
+      });
     },
     roll() {
       return rollLostBookmark(getProgressManager().getState());
@@ -146,7 +165,8 @@ export function mountLostBookmarkTestBridge(): () => void {
     status() {
       const state = getProgressManager().getState();
       return {
-        chancePct: state.lostBookmark.chancePct,
+        chancePct: lostBookmarkChancePct(state),
+        missCount: state.lostBookmark.missCount,
         visible: state.lostBookmark.visible,
         eligible: isLostBookmarkEligible(state),
       };

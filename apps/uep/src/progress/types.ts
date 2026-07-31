@@ -130,11 +130,19 @@ export interface ProgressState {
   /**
    * 「遺落的書籤」機率狀態（S6-2，History 浮島解鎖儀式）。
    * 每次首次讀完一篇 roll 一次：中了 visible=true（導航樹浮現條目）；
-   * 沒中 chancePct 遞增；被忽視（導去別頁）時 visible=false 且機率重置。
+   * 沒中 missCount +1；被忽視（導去別頁）時 visible=false 且計數歸零。
    */
   lostBookmark: {
-    /** 下次 roll 的出現機率（百分比，20 → 100） */
-    chancePct: number;
+    /**
+     * 累積沒中的次數（pity 計數）。
+     *
+     * ⚠️ 持久化的是**次數**不是機率。基礎機率是站台設定
+     * （`bookmark.baseChancePct`）的一次性讀取值，隨時可能被改；存絕對機率
+     * 的話舊讀者的 blob 會永遠鎖在建立當下的基礎值，改設定只對「已經
+     * roll 過又被忽視」的人生效。實際機率見
+     * `islands/history/lostBookmark.ts` 的 `lostBookmarkChancePct`。
+     */
+    missCount: number;
     /** 條目目前是否浮現在導航樹 */
     visible: boolean;
   };
@@ -246,8 +254,25 @@ export const FOG_RATIO_WRITE_STEP = 0.005;
 /** 目前 schema 版本 */
 export const PROGRESS_SCHEMA_VERSION = 1;
 
-/** 遺落的書籤：初始出現機率（%） */
+/**
+ * 遺落的書籤：基礎出現機率（%）的**預設值**。
+ *
+ * 真正生效的是站台設定 `bookmark.baseChancePct`；這個常數是 settings 尚未
+ * 載入（首訪第一頁、fetch 失敗）時的 fallback，也是舊 blob 遷移時換算
+ * missCount 的基準。
+ */
 export const LOST_BOOKMARK_BASE_PCT = 20;
+
+/** 遺落的書籤：每次沒中的機率遞增步長（%） */
+export const LOST_BOOKMARK_STEP_PCT = 20;
+
+/**
+ * 遺落的書籤：pity 計數上限。
+ *
+ * 基礎機率最低是 0，所以累積到這個次數必定滿 100%，再往上加沒有意義
+ * （而且會讓「基礎值調高後仍要多 miss 幾次」這種矛盾狀態存在）。
+ */
+export const LOST_BOOKMARK_MAX_MISS = Math.ceil(100 / LOST_BOOKMARK_STEP_PCT);
 
 /** 建立初始狀態（首次進站的探索者） */
 export function createInitialState(): ProgressState {
@@ -263,7 +288,7 @@ export function createInitialState(): ProgressState {
     fogRatio: {},
     lastVisitedPageId: null,
     lastVisitedAt: null,
-    lostBookmark: { chancePct: LOST_BOOKMARK_BASE_PCT, visible: false },
+    lostBookmark: { missCount: 0, visible: false },
     readingStats: { totalMs: 0 },
     conceptsReadLevel: {},
     storageNotes: [],

@@ -212,7 +212,7 @@ describe('環境隔離（正式 ↔ 測試模式）', () => {
           pageMarkers: {},
           lastVisitedPageId: null,
           lastVisitedAt: null,
-          lostBookmark: { chancePct: 20, visible: false },
+          lostBookmark: { missCount: 0, visible: false },
           readingStats: { totalMs: 0 },
           conceptsReadLevel: {},
           storageNotes: [

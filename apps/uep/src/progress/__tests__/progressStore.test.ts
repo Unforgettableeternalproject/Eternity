@@ -29,7 +29,7 @@ function makeRemote(overrides: Partial<ProgressState> = {}): ProgressState {
     fogRatio: {},
     lastVisitedPageId: null,
     lastVisitedAt: null,
-    lostBookmark: { chancePct: 20, visible: false },
+    lostBookmark: { missCount: 0, visible: false },
     readingStats: { totalMs: 0 },
     conceptsReadLevel: {},
     storageNotes: [],
@@ -211,16 +211,57 @@ describe('頁面完成與浮島', () => {
     expect(normalizeState(legacy)!.lastVisitedPageId).toBeNull();
     expect(normalizeState(legacy)!.lastVisitedAt).toBeNull();
     expect(normalizeState(legacy)!.lostBookmark).toEqual({
-      chancePct: 20,
+      missCount: 0,
       visible: false,
     });
-    // chancePct 超界時 clamp 到 0~100
-    expect(
+  });
+
+  /**
+   * S10-3 把持久欄位從絕對機率換成沒中次數。舊 blob 必須換算——直接丟掉的話
+   * 已經 miss 過幾輪的讀者會被打回新讀者，機率憑空掉回基礎值。
+   */
+  it('normalizeState 換算 S10-3 之前的 chancePct 形狀', () => {
+    const withChance = (chancePct: number, visible = false) =>
       normalizeState({
-        ...legacy,
-        lostBookmark: { chancePct: 250, visible: true },
-      })!.lostBookmark
-    ).toEqual({ chancePct: 100, visible: true });
+        version: 1,
+        view: 'explorer',
+        flags: [],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        lostBookmark: { chancePct, visible },
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })!.lostBookmark;
+
+    // 20 是舊格式的起點 → 沒中過
+    expect(withChance(20)).toEqual({ missCount: 0, visible: false });
+    expect(withChance(40)).toEqual({ missCount: 1, visible: false });
+    expect(withChance(100, true)).toEqual({ missCount: 4, visible: true });
+    // 超界與負值收進合法範圍
+    expect(withChance(250).missCount).toBe(5);
+    expect(withChance(-30).missCount).toBe(0);
+  });
+
+  it('normalizeState 防禦 missCount 的壞值', () => {
+    const withMiss = (missCount: unknown) =>
+      normalizeState({
+        version: 1,
+        view: 'explorer',
+        flags: [],
+        completedPageIds: [],
+        islandsUnlocked: [],
+        pageMarkers: {},
+        lostBookmark: { missCount, visible: false },
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })!.lostBookmark.missCount;
+
+    expect(withMiss(2)).toBe(2);
+    expect(withMiss(99)).toBe(5);
+    expect(withMiss(-1)).toBe(0);
+    expect(withMiss(1.6)).toBe(2);
+    // 認不出來的形狀回初始值
+    expect(withMiss('x')).toBe(0);
+    expect(withMiss(Infinity)).toBe(0);
   });
 
   it('updateConceptsReadLevel 水位單調不降，非法值防禦', async () => {
@@ -467,7 +508,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       fogRatio: {},
       lastVisitedPageId: null,
       lastVisitedAt: null,
-      lostBookmark: { chancePct: 20, visible: false },
+      lostBookmark: { missCount: 0, visible: false },
       readingStats: { totalMs: 0 },
       conceptsReadLevel: {},
       storageNotes: [],

@@ -17,12 +17,55 @@ import type {
   StorageNoteLocationSnapshot,
 } from './types';
 import {
+  LOST_BOOKMARK_BASE_PCT,
+  LOST_BOOKMARK_MAX_MISS,
+  LOST_BOOKMARK_STEP_PCT,
   PROGRESS_SCHEMA_VERSION,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_HARD_MAX,
   STORAGE_NOTE_TEXT_HARD_MAX,
   createInitialState,
 } from './types';
+
+/**
+ * 「遺落的書籤」狀態的讀取防禦與舊格式遷移。
+ *
+ * S10-3 之前存的是絕對機率 `chancePct`（初始 20，每次沒中 +20）。改存
+ * pity 次數之後，舊 blob 要換算回來——否則已經 miss 過幾輪的讀者會被
+ * 重置成新讀者。換算基準只能用常數 `LOST_BOOKMARK_BASE_PCT`：那個值就是
+ * 舊格式寫入時的起點，與現在的站台設定無關。
+ *
+ * 認不出來的形狀回 null，由呼叫端補初始值。
+ */
+function normalizeLostBookmark(
+  raw: unknown
+): ProgressState['lostBookmark'] | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const obj = raw as { missCount?: unknown; chancePct?: unknown };
+  const visible = (obj as { visible?: unknown }).visible === true;
+
+  if (typeof obj.missCount === 'number' && Number.isFinite(obj.missCount)) {
+    return {
+      missCount: Math.min(
+        LOST_BOOKMARK_MAX_MISS,
+        Math.max(0, Math.round(obj.missCount))
+      ),
+      visible,
+    };
+  }
+
+  if (typeof obj.chancePct === 'number' && Number.isFinite(obj.chancePct)) {
+    const missed = Math.round(
+      (obj.chancePct - LOST_BOOKMARK_BASE_PCT) / LOST_BOOKMARK_STEP_PCT
+    );
+    return {
+      missCount: Math.min(LOST_BOOKMARK_MAX_MISS, Math.max(0, missed)),
+      visible,
+    };
+  }
+
+  return null;
+}
 
 /**
  * 驗證便條「地點」小標快照（S10-1）。型別不符時回傳 undefined——
@@ -104,16 +147,8 @@ export function normalizeState(raw: unknown): ProgressState | null {
     lastVisitedAt:
       typeof obj.lastVisitedAt === 'string' ? obj.lastVisitedAt : null,
     // S6-2 新增欄位：遺落的書籤機率狀態，舊 blob 沒有時回到初始
-    lostBookmark:
-      typeof obj.lostBookmark === 'object' &&
-      obj.lostBookmark !== null &&
-      typeof obj.lostBookmark.chancePct === 'number' &&
-      Number.isFinite(obj.lostBookmark.chancePct)
-        ? {
-            chancePct: Math.min(100, Math.max(0, obj.lostBookmark.chancePct)),
-            visible: obj.lostBookmark.visible === true,
-          }
-        : base.lostBookmark,
+    // （S10-3 起存 pity 次數，舊的 chancePct 形狀在這裡換算）
+    lostBookmark: normalizeLostBookmark(obj.lostBookmark) ?? base.lostBookmark,
     // S6 新增欄位：舊 blob 沒有時補初始值；totalMs 防禦非有限數值
     readingStats:
       typeof obj.readingStats === 'object' &&

@@ -70,7 +70,7 @@ describe('bootstrap', () => {
         pageMarkers: {},
         lastVisitedPageId: null,
         lastVisitedAt: null,
-        lostBookmark: { chancePct: 20, visible: false },
+        lostBookmark: { missCount: 0, visible: false },
         readingStats: { totalMs: 0 },
         conceptsReadLevel: {},
         storageNotes: [
@@ -124,7 +124,7 @@ describe('bootstrap', () => {
         pageMarkers: {},
         lastVisitedPageId: null,
         lastVisitedAt: null,
-        lostBookmark: { chancePct: 20, visible: false },
+        lostBookmark: { missCount: 0, visible: false },
         readingStats: { totalMs: 0 },
         conceptsReadLevel: {},
         storageNotes: [
@@ -240,7 +240,7 @@ describe('pin / unpin / getForPage', () => {
         pageMarkers: {},
         lastVisitedPageId: null,
         lastVisitedAt: null,
-        lostBookmark: { chancePct: 20, visible: false },
+        lostBookmark: { missCount: 0, visible: false },
         readingStats: { totalMs: 0 },
         conceptsReadLevel: {},
         storageNotes: [

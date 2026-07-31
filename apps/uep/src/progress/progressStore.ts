@@ -22,6 +22,7 @@ import type {
 import {
   FOG_RATIO_PRECISION,
   FOG_RATIO_WRITE_STEP,
+  LOST_BOOKMARK_MAX_MISS,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
@@ -354,13 +355,13 @@ export const uepProgress = {
    * roll / 遞增 / 忽視重置的規則在 islands/history/lostBookmark.ts，
    * store 只負責存值。
    */
-  updateLostBookmark(patch: { chancePct?: number; visible?: boolean }): void {
+  updateLostBookmark(patch: { missCount?: number; visible?: boolean }): void {
     mutate('lost-bookmark', (prev) => ({
       ...prev,
       lostBookmark: {
-        chancePct: Math.min(
-          100,
-          Math.max(0, patch.chancePct ?? prev.lostBookmark.chancePct)
+        missCount: Math.min(
+          LOST_BOOKMARK_MAX_MISS,
+          Math.max(0, patch.missCount ?? prev.lostBookmark.missCount)
         ),
         visible: patch.visible ?? prev.lostBookmark.visible,
       },
