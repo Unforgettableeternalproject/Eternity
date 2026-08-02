@@ -125,6 +125,11 @@ return () => {
 改法：HistoryReader 進入文章時保存 `getActiveTotalMs()` 快照，cleanup 時計算差值並交給
 `addReadingTime`。進入 idle、hidden 或 blur 都會封存當前區間；恢復活動時開新區間。
 
+⚠️ **閾值內的無動作仍計入活躍**（實作時確認的語意）：封存是在跨過閾值的那一刻
+才回溯到最後一次活動，所以「停下來讀長段落」不會被扣掉，只有確認掛機才會。
+代價是累積值在封存前最多超估一個閾值——對分鐘級的門檻無影響，但寫測試時
+要留意，門檻不能設得跟閾值一樣近。
+
 **`READING_TIME_CAP_MS` 隨之退休**——它存在的唯一理由被真正的閒置扣除取代了。
 留著會變成第二套判定，而且是比較笨的那套。
 
@@ -181,7 +186,15 @@ queue；hydrate、跨裝置既有完成與重讀都不得算成本次大量閱�
 它要求的是一個決定，不是一個動作。
 
 資料流用 `ReaderNudgeProvider`：Provider 掛在 `ReaderShell`，AFK 直接由 Provider 消費；
-HistoryReader 透過 `useReaderNudge()` 提交／撤銷休息提醒。不要為此新增 window event bridge。
+休息提醒透過 `useReaderNudge()` 提交／撤銷。不要為此新增 window event bridge。
+
+⚠️ **實作時更正（2026-08-02）**：本文件原寫「HistoryReader 透過 `useReaderNudge()`
+提交」——那預設 HistoryReader 是 ReaderShell 的子元件，實際相反。`HistoryReader.tsx`
+**render** `<ReaderShell>` 包住自己的內容（1670 行），所以在 HistoryReader 函式本體
+呼叫 `useReaderNudge()` 只會拿到 Provider 外的 no-op context，症狀是休息提醒永遠
+不顯示且沒有任何錯誤。實際做法是同檔匯出無渲染的 `<RestReminder />`，放進
+`<ReaderShell>` 的 children 裡；判定邏輯仍全在 `useRestReminder()`。
+五個 Reader 都是這個結構，C 段之外若有新的 Reader 層提示要走 context，同樣適用。
 
 同一時間只顯示一張：idle 時 AFK nudge 優先，pending 的休息提醒暫存；使用者恢復活動、
 AFK 卡消失後再顯示休息提醒。休息提醒顯示中不被一般 pointermove 自動關閉。
