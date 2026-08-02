@@ -87,14 +87,27 @@
 
 .km-search-bar {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 8px;
   padding: 12px 20px 0;
 }
 
+/* 左欄只有 ~300px，放「＋ 新增」會被搜尋框擠成兩行。改成與搜尋框等高的
+   方形圖示鈕，文字意義由 aria-label／title 承擔 */
 .km-btn--new {
   flex: 0 0 auto;
-  white-space: nowrap;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.km-btn--new[aria-expanded='true'] {
+  color: var(--ink-title);
+  border-color: var(--uep-gold, #d5b618);
 }
 
 /* 就地新建表單：兩個分頁共用，欄位依分頁換 */

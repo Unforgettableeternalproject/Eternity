@@ -793,7 +793,7 @@ describe('KeysManager', () => {
     render(<KeysManager />);
     await screen.findByText('xavier-colsono');
 
-    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增' }));
     fireEvent.change(screen.getByLabelText('新 key 值'), {
       target: { value: 'brand-new-story' },
     });
@@ -820,7 +820,7 @@ describe('KeysManager', () => {
     render(<KeysManager />);
     await screen.findByText('xavier-colsono');
 
-    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增' }));
     fireEvent.click(screen.getByRole('button', { name: 'entity' }));
     // 類型切到 entity 後名稱欄整個消失，不是變成 disabled 空欄
     expect(screen.queryByLabelText('新 key 名稱')).not.toBeInTheDocument();
@@ -843,7 +843,7 @@ describe('KeysManager', () => {
     render(<KeysManager />);
     await screen.findByText('xavier-colsono');
 
-    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增' }));
     fireEvent.change(screen.getByLabelText('新 key 值'), {
       target: { value: 'test-story' },
     });
@@ -860,7 +860,7 @@ describe('KeysManager', () => {
     await screen.findByText('xavier-colsono');
     fireEvent.click(screen.getByText('flag'));
 
-    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增' }));
     // 逗號會讓 data-grants-flags 裂成兩個旗標，前端就要擋
     fireEvent.change(screen.getByLabelText('新旗標名稱'), {
       target: { value: 'foo,bar' },

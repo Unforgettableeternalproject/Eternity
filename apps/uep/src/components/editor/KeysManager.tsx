@@ -1561,14 +1561,17 @@ export default function KeysManager() {
               type="button"
               className="km-btn km-btn--new"
               aria-expanded={creating}
+              aria-label={creating ? '取消新增' : '新增'}
               title={
-                tab === 'keys'
-                  ? '直接建一個 key（尚未被任何內容引用）'
-                  : '直接註冊一個旗標（尚未被任何內容引用）'
+                creating
+                  ? '取消新增'
+                  : tab === 'keys'
+                    ? '直接建一個 key（尚未被任何內容引用）'
+                    : '直接註冊一個旗標（尚未被任何內容引用）'
               }
               onClick={() => (creating ? closeCreate() : openCreate())}
             >
-              {creating ? '取消' : '＋ 新增'}
+              {creating ? '×' : '＋'}
             </button>
           </div>
 
