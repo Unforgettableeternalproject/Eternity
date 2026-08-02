@@ -12,7 +12,7 @@
  * 與當前編輯的 area 無關（Concepts/Echoes 頁面的解鎖條件也綁 History 進度）。
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { GateCondition } from '../../progress';
 import { completionFlag } from '../../progress';
 import FlagPicker from './FlagPicker';
@@ -39,10 +39,64 @@ interface GateConditionEditorProps {
    * 若要退出繼承，勾「不繼承容器進度」（gateExempt）即可。
    */
   parentIsProgressContainer?: boolean;
+  /**
+   * 本頁 id。有傳才做「被別人當成 completed 依賴、卻勾了豁免」的誤設偵測
+   * （見 useGateExemptConflict）。
+   */
+  pageId?: string;
   apiBase: string;
   accent: string;
   /** 某些專用編輯器（如 Echoes spoiler 鏈）已有自己的範圍說明。 */
   showScopeHint?: boolean;
+}
+
+/**
+ * 偵測一個幾乎必然是誤設的組合：**本頁被其他頁的 `requiresFlags` 引用為
+ * `completed:{本頁}` 依賴，卻勾了「不繼承容器進度」。**
+ *
+ * 為什麼危險：下游頁在等本頁完成，而豁免讓本頁退出容器的進度鏈。兩者
+ * 沒有硬性衝突（gate 求值仍會跑），但實務上勾豁免的動機是「這頁不算進度」，
+ * 而下游正把它當進度用。2026-07-06 的浮島計數診斷就是踩到這個組合，
+ * 至今沒有任何防呆。
+ *
+ * 回傳引用本頁的頁面標題；空陣列代表沒問題。查詢失敗一律回空——
+ * 這是提醒不是驗證，不該因為端點掛掉就擋住存檔或嚇人。
+ */
+function useGateExemptConflict(
+  apiBase: string,
+  pageId: string | undefined,
+  isGateExempt: boolean
+): string[] {
+  const [dependents, setDependents] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!pageId || !isGateExempt) {
+      setDependents([]);
+      return undefined;
+    }
+    let cancelled = false;
+    void fetch(`${apiBase}/api/flags/audit`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled || !json?.ok) return;
+        const rows = (json.data?.flags ?? []) as Array<{
+          name: string;
+          requiredBy?: Array<{ title?: string; id?: string }>;
+        }>;
+        const row = rows.find((f) => f.name === `completed:${pageId}`);
+        setDependents(
+          (row?.requiredBy ?? []).map((p) => p.title || p.id || '（未命名）')
+        );
+      })
+      .catch(() => {
+        // 靜默：提醒缺席比誤報好
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, pageId, isGateExempt]);
+
+  return dependents;
 }
 
 /** 正規化：空條件收斂為 null（存檔時整個 gate 鍵移除） */
@@ -62,6 +116,7 @@ export default function GateConditionEditor({
   isGateExempt = false,
   onGateExemptChange,
   parentIsProgressContainer = false,
+  pageId,
   apiBase,
   accent,
   showScopeHint = true,
@@ -69,6 +124,7 @@ export default function GateConditionEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pageTree, setPageTree] = useState<GatePageNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
+  const exemptDependents = useGateExemptConflict(apiBase, pageId, isGateExempt);
 
   const flags = value?.requiresFlags || [];
   const pristineOnly = value?.pristineOnly === true;
@@ -215,6 +271,14 @@ export default function GateConditionEditor({
         <div className="ned-gate-scope-hint">
           ⓘ 豁免：本頁與其底下子頁不再等待父容器（arc/chapter）的進度解鎖。
           自身的進度頁設定與其他條件照常生效。
+        </div>
+      )}
+      {exemptDependents.length > 0 && (
+        <div className="ned-gate-warn">
+          ⚠ 有 {exemptDependents.length} 頁把本頁列為「需先讀完」：
+          {exemptDependents.slice(0, 3).join('、')}
+          {exemptDependents.length > 3 && ' 等'}。
+          它們在等本頁完成，而豁免讓本頁退出容器的進度鏈——這個組合通常是誤設。
         </div>
       )}
 

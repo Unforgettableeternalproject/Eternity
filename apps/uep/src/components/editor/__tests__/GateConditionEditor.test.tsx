@@ -216,3 +216,90 @@ describe('GateConditionEditor — gateExempt 豁免 toggle', () => {
     expect(screen.getByText('exempt from container')).toBeInTheDocument();
   });
 });
+
+/**
+ * 「被別人當成 completed 依賴、卻勾了豁免」的誤設提醒（S10-4 D 段）。
+ *
+ * 這個組合幾乎必是誤設——2026-07-06 的浮島計數診斷就是踩到它——但在此之前
+ * 沒有任何防呆。它是提醒不是驗證：查詢失敗或沒有依賴時完全不出現，也不擋存檔。
+ */
+describe('GateConditionEditor — gateExempt 誤設提醒', () => {
+  function mockAudit(flags: unknown[]) {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, data: { flags } }),
+    })) as unknown as typeof fetch;
+  }
+
+  const baseProps = {
+    value: null,
+    onChange: () => {},
+    onGateExemptChange: () => {},
+    apiBase: 'http://localhost',
+    accent: '#000',
+  };
+
+  it('有其他頁把本頁列為需先讀完時提醒', async () => {
+    mockAudit([
+      {
+        name: 'completed:history/a',
+        requiredBy: [{ id: 'history/b', title: '第二章' }],
+      },
+    ]);
+    render(
+      <GateConditionEditor
+        {...baseProps}
+        isGateExempt={true}
+        pageId="history/a"
+      />
+    );
+    expect(await screen.findByText(/第二章/)).toBeInTheDocument();
+  });
+
+  it('沒有依賴者時不提醒', async () => {
+    mockAudit([{ name: 'completed:history/a', requiredBy: [] }]);
+    render(
+      <GateConditionEditor
+        {...baseProps}
+        isGateExempt={true}
+        pageId="history/a"
+      />
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText(/通常是誤設/)).not.toBeInTheDocument();
+  });
+
+  it('沒勾豁免時根本不查——只有這個組合才有問題', async () => {
+    mockAudit([
+      {
+        name: 'completed:history/a',
+        requiredBy: [{ id: 'history/b', title: '第二章' }],
+      },
+    ]);
+    render(
+      <GateConditionEditor
+        {...baseProps}
+        isGateExempt={false}
+        pageId="history/a"
+      />
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText(/通常是誤設/)).not.toBeInTheDocument();
+  });
+
+  it('查詢失敗時靜默——提醒缺席比誤報好，也不該擋住編輯', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('offline');
+    }) as unknown as typeof fetch;
+    render(
+      <GateConditionEditor
+        {...baseProps}
+        isGateExempt={true}
+        pageId="history/a"
+      />
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText(/通常是誤設/)).not.toBeInTheDocument();
+    expect(screen.getByText('exempt from container')).toBeInTheDocument();
+  });
+});

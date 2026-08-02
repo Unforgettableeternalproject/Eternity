@@ -42,7 +42,9 @@ if (Astro.request.method === 'POST') {
     const formData = await Astro.request.formData();
     const username = formData.get('username')?.toString() || '';
     const password = formData.get('password')?.toString() || '';
-    const redirectTo = safeRedirect(formData.get('redirect')?.toString());
+    // 與檔案下方模組級的 redirectTo（取自 query string）刻意不同名：
+    // 同名會讓 astro check 把這一個誤報成 ts(6133) 未使用
+    const postRedirectTo = safeRedirect(formData.get('redirect')?.toString());
 
     const res = await fetch(`${apiBase}/api/auth/login`, {
       method: 'POST',
@@ -72,7 +74,7 @@ if (Astro.request.method === 'POST') {
         maxAge: 60 * 60 * 24,
         sameSite: 'lax',
       });
-      return Astro.redirect(redirectTo);
+      return Astro.redirect(postRedirectTo);
     } else {
       error = json.error || '驗證失敗 — 帳號或密碼不正確';
     }

@@ -3199,6 +3199,9 @@ export default function RichEditor({
                             setDirtyMetadata(true);
                           },
                           parentIsProgressContainer,
+                          // 誤設偵測只在 full 模式有意義——媒體 zone 沒有
+                          // 容器進度鏈
+                          pageId: currentPageId,
                         }
                       : {})}
                     apiBase={apiBase}
