@@ -77,6 +77,7 @@ import { useEchoSpots } from './useEchoSpots';
 import { useVisualClues, type VisualClueEntry } from './useVisualClues';
 import HistoryFogOverlay, { FOG_SCROLLING_CLASS } from './HistoryFogOverlay';
 import { useInscription } from './useInscription';
+import { RestReminder } from './useRestReminder';
 import VisualClueBookmarks from './VisualClueBookmarks';
 import { fetchClueGallery } from './visualClueGallery';
 import { deriveGalleryUnlockFlag, deriveImageUnlockFlag } from '../../visuals';
@@ -1664,6 +1665,11 @@ export default function HistoryReader() {
 
   return (
     <ReaderShell zoneId="history" className="history-reader">
+      {/* 休息提醒：判定全在 hook 內，這裡只是讓它落在提示層的 context 範圍
+          內——ReaderNudgeProvider 掛在 ReaderShell 裡，而 HistoryReader 是
+          ReaderShell 的父元件 */}
+      <RestReminder />
+
       {/* 入場動畫 — 墨韻暈染 */}
       <div
         aria-hidden="true"
