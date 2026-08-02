@@ -48,6 +48,30 @@ const MINUTE_MS = 60_000;
 const REST_TITLE = '讀了一段時間了';
 const REST_BODY = '這裡會等你。起來走走，回來時進度都還在。';
 
+/**
+ * 手動驗收用的 bridge（同 LostBookmark 的既有模式）。
+ *
+ * 休息提醒的預設門檻是 45 分鐘活躍或 30 分鐘內讀完 5 頁——照正常流程驗收
+ * 要坐在那裡讀四十分鐘。掛在 window 上讓 DevTools 直接觸發。
+ */
+declare global {
+  interface Window {
+    __uepRestReminderTest?: {
+      /** 立刻跳出休息提醒（走正規提交路徑，確認鈕的行為完全一致） */
+      trigger: () => void;
+      /** 收掉目前的提醒，不算確認（不重設 baseline、不開始冷卻） */
+      dismiss: () => void;
+      /** 目前的判定狀態 */
+      state: () => {
+        activeMs: number;
+        completedInWindow: number;
+        cooldownRemainingMs: number;
+        pending: boolean;
+      };
+    };
+  }
+}
+
 interface RestConfig {
   activeMs: number;
   pageCount: number;
@@ -136,11 +160,40 @@ export function useRestReminder(): void {
       };
 
       timer = setInterval(check, CHECK_INTERVAL_MS);
+
+      // 手動驗收：走與 check 相同的提交路徑，只是跳過門檻判定
+      window.__uepRestReminderTest = {
+        trigger: () => {
+          if (pendingRef.current) return;
+          pendingRef.current = true;
+          nudgeRef.current.requestRestNudge({
+            title: REST_TITLE,
+            body: REST_BODY,
+            onAcknowledge: acknowledge,
+          });
+        },
+        dismiss: () => {
+          pendingRef.current = false;
+          nudgeRef.current.dismissRestNudge();
+        },
+        state: () => {
+          const now = Date.now();
+          return {
+            activeMs: getActiveTotalMs() - baselineRef.current,
+            completedInWindow: completedAtRef.current.filter(
+              (at) => now - at < config.windowMs
+            ).length,
+            cooldownRemainingMs: Math.max(0, cooldownUntilRef.current - now),
+            pending: pendingRef.current,
+          };
+        },
+      };
     });
 
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      delete window.__uepRestReminderTest;
       window.removeEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);
       // 離開 Reader 時把還沒被確認的卡片收掉——它的判定依據
       // （本輪活躍時長）已經隨著離開失去意義

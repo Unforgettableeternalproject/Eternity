@@ -453,6 +453,21 @@ export const uepProgress = {
   },
 
   /**
+   * 清除已看過的教學紀錄（DevTools 驗收用；不傳 id 則全清）。
+   * 清掉之後該島會重新符合自動播放條件。
+   */
+  clearIslandGuidesSeen(islandId?: string): void {
+    if (state.islandGuidesSeen.length === 0) return;
+    if (islandId && !state.islandGuidesSeen.includes(islandId)) return;
+    mutate('island-guide-seen', (prev) => ({
+      ...prev,
+      islandGuidesSeen: islandId
+        ? prev.islandGuidesSeen.filter((id) => id !== islandId)
+        : [],
+    }));
+  },
+
+  /**
    * 更新 Terminal 已讀水位（S7-C 更動通知，TerminalIsland 呼叫）。
    * 水位單調不降：僅接受高於現值的數字——旗標撤銷（dev bridge）造成的
    * 回退不降水位，避免同一批 revision 重新解鎖時重複通知。

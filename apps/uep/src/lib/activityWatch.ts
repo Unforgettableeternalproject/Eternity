@@ -283,3 +283,40 @@ export function getActiveTotalMs(): number {
 export function isIdleNudgeEnabled(): boolean {
   return nudgeEnabled;
 }
+
+/**
+ * 立刻判定為閒置（DevTools 手動驗收用）。
+ *
+ * 預設閾值是 180 秒，真的坐著等三分鐘才能看到 AFK 卡出現一次，而這個提示
+ * 需要驗的是視覺與「動一下就消失」的手感，不是計時準不準。
+ *
+ * 走的是正規路徑——把最後活動時間推到閾值之外再跑一次判定，所以封存、
+ * 通知、恢復條件全部與真實閒置一致，不是直接把旗標設成 true。
+ */
+export function forceIdleNow(): void {
+  if (!started) return;
+  lastActivityAt = Date.now() - thresholdMs - 1;
+  tick();
+}
+
+/** DevTools 面板顯示用的即時狀態 */
+export function getActivityDebug(): {
+  started: boolean;
+  idle: boolean;
+  thresholdSec: number;
+  nudgeEnabled: boolean;
+  activeTotalMs: number;
+  msSinceActivity: number;
+  suspended: boolean;
+} {
+  return {
+    started,
+    idle,
+    thresholdSec: Math.round(thresholdMs / 1000),
+    nudgeEnabled,
+    activeTotalMs: getActiveTotalMs(),
+    msSinceActivity: lastActivityAt ? Date.now() - lastActivityAt : 0,
+    // 區間沒開著又不是 idle = 被 hidden／blur 暫停了
+    suspended: started && activeStartedAt === null && !idle,
+  };
+}

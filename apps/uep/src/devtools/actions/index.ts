@@ -17,6 +17,7 @@ import { registerIslandActions } from './islandActions';
 import { registerOnboardingActions } from './onboardingActions';
 import { registerProgressActions } from './progressActions';
 import { registerProtectionActions } from './protectionActions';
+import { registerRhythmActions } from './rhythmActions';
 
 export function registerAllActions(): void {
   registerProgressActions();
@@ -28,4 +29,5 @@ export function registerAllActions(): void {
   registerEchoesActions();
   registerProtectionActions();
   registerFlagActions();
+  registerRhythmActions();
 }

@@ -59,6 +59,18 @@ function markSessionShown(): void {
 }
 
 /**
+ * 解除本 tab 的自動播放上限（DevTools 手動驗收用）。
+ * 清掉之後只要還有 unseen 的島就會重新自動排一次，不必開新分頁。
+ */
+export function clearGuideSessionLimit(): void {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // 清不掉就開新分頁
+  }
+}
+
+/**
  * 挑出要播的那一座。
  *
  * 在 `ISLAND_IDS` 上迭代而不是在 `islandsUnlocked` 或 `islandGuidesSeen` 上
