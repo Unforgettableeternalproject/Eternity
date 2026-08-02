@@ -1,19 +1,32 @@
 /**
  * 站台行為設定（uep_settings，S10-3b T-B3）
  *
- * key-value 表只收四項「一次性讀取」參數（D-2／D-4 定案）；每 tick 讀取的
- * 參數維持前端編譯期常數，不進這張表。
+ * key-value 表只收「一次性讀取」參數（D-2／D-4 定案）；每 tick 讀取的
+ * 參數（迷霧推進速率、掃描線視窗比例、rush 門檻）維持前端編譯期常數，
+ * 不進這張表。
+ *
+ * 收錄的判準是**讀取時機**不是重要性：擲一次骰／點一次才讀 = 可進；
+ * 在 scroll／IntersectionObserver 回呼裡每幀讀 = 不可進。
  *
  * 預設值的權威來源是 apps/uep 的程式碼常數（progress/types.ts 的
  * STORAGE_NOTE_MAX 等）——worker 無法跨 package import，這裡的複本只供
- * 「表為空時 GET 仍回完整四項」使用。改前端常數時要同步這份，否則 admin
+ * 「表為空時 GET 仍回完整清單」使用。改前端常數時要同步這份，否則 admin
  * 顯示的預設值會過期（前台行為不受影響——getSetting 的 fallback 用的是
  * 前端本地常數）。
+ *
+ * ⚠️ 機率一律以**整數百分比**存放，即使前端常數是 0–1 的小數
+ * （`LOST_ORB_CHANCE = 0.06` → `6`）。混用兩種尺度時，「這個 6 是 6% 還是
+ * 600%」只能靠讀程式碼判斷，而寫錯的症狀是靜默的行為異常。換算在消費端做。
  */
 
 export type SettingKey =
   | 'protection.mode'
   | 'bookmark.baseChancePct'
+  | 'bookmark.stepChancePct'
+  | 'echoes.lostOrbChancePct'
+  | 'visuals.phantomEnterChancePct'
+  | 'visuals.phantomSwitchChancePct'
+  | 'storage.loneNoteDustSteps'
   | 'note.max'
   | 'note.textMax';
 
@@ -23,6 +36,11 @@ export type SettingValue = string | number;
 export const SETTING_DEFAULTS: Record<SettingKey, SettingValue> = {
   'protection.mode': 'env',
   'bookmark.baseChancePct': 20,
+  'bookmark.stepChancePct': 20,
+  'echoes.lostOrbChancePct': 6,
+  'visuals.phantomEnterChancePct': 8,
+  'visuals.phantomSwitchChancePct': 18,
+  'storage.loneNoteDustSteps': 10,
   'note.max': 30,
   'note.textMax': 200,
 };
@@ -52,16 +70,36 @@ export function validateSetting(
         };
       }
       return { ok: true, value };
+    // 五項機率共用 0–100 的檢查。0 = 永遠不出現（可用來整個關掉某座島的
+    // 儀式），100 = 必中，兩端都是合法的營運選擇所以不另外收窄
     case 'bookmark.baseChancePct':
+    case 'bookmark.stepChancePct':
+    case 'echoes.lostOrbChancePct':
+    case 'visuals.phantomEnterChancePct':
+    case 'visuals.phantomSwitchChancePct':
       if (
         typeof value !== 'number' ||
         !Number.isFinite(value) ||
         value < 0 ||
         value > 100
       ) {
-        return { ok: false, error: 'bookmark.baseChancePct 必須是 0–100' };
+        return { ok: false, error: `${key} 必須是 0–100` };
       }
       return { ok: true, value };
+    // 抖幾下才解鎖便條島。下限 1（點一下就開）而非 0——0 等於一進 boxes 頁
+    // 就自動解鎖，那不是儀式而是 bug 的長相
+    case 'storage.loneNoteDustSteps':
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 1 ||
+        (value as number) > 50
+      ) {
+        return {
+          ok: false,
+          error: 'storage.loneNoteDustSteps 必須是 1–50 的整數',
+        };
+      }
+      return { ok: true, value: value as number };
     // 上限對齊 apps/uep progress/types.ts 的 STORAGE_NOTE_HARD_MAX／
     // STORAGE_NOTE_TEXT_HARD_MAX——前台載入 sanitize 以硬上限截斷，
     // 這裡放行更大的值等於讓便條在下次載入時被砍掉

@@ -6,6 +6,8 @@
  * VisualsReader 只負責把狀態餵進來、把結果寫進 state。
  */
 
+import { getSetting } from '../../lib/uepSettings';
+
 /** 使用者停留的位置：哪個 subcat 的第幾個分類標籤 */
 export interface GroupSlot {
   subcatId: string;
@@ -33,6 +35,29 @@ export const PHANTOM_SWITCH_CHANCE = 0.18;
 
 /** @deprecated 沿用舊名的呼叫端請改用 PHANTOM_SWITCH_CHANCE */
 export const PHANTOM_GALLERY_CHANCE = PHANTOM_SWITCH_CHANCE;
+
+/*
+ * 兩個常數是**預設值**；實際生效的是站台設定
+ * `visuals.phantomEnterChancePct` / `visuals.phantomSwitchChancePct`
+ * （整數百分比，8 = 8%），設定未載入時退回常數。換算在這兩個函式裡做，
+ * 判定本體維持純函式（測試注入 random 的形狀不變）。
+ */
+
+/** 進入區塊時的現行機率（0–1） */
+export function phantomEnterChance(): number {
+  return (
+    getSetting('visuals.phantomEnterChancePct', PHANTOM_ENTER_CHANCE * 100) /
+    100
+  );
+}
+
+/** 切換分類標籤時的現行機率（0–1） */
+export function phantomSwitchChance(): number {
+  return (
+    getSetting('visuals.phantomSwitchChancePct', PHANTOM_SWITCH_CHANCE * 100) /
+    100
+  );
+}
 
 export interface PhantomRollInput {
   /** 上一次停留的位置；null = 剛掛載，還沒有「上一次」 */
@@ -67,9 +92,9 @@ export function shouldRevealPhantomCard(input: PhantomRollInput): boolean {
   if (sameSubcat) {
     // 同一區塊內：只有真的換了標籤才擲（同一格重渲染不該一直擲骰）
     if (prev.groupIdx === current.groupIdx) return false;
-    return random() < PHANTOM_SWITCH_CHANCE;
+    return random() < phantomSwitchChance();
   }
 
   // 換區塊或剛進來
-  return random() < PHANTOM_ENTER_CHANCE;
+  return random() < phantomEnterChance();
 }

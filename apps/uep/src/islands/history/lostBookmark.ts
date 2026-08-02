@@ -6,8 +6,8 @@
  *
  * 機率規則：
  * - 每次「首次讀完一篇」（page-completed 信號）roll 一次
- * - 基礎機率由站台設定 `bookmark.baseChancePct` 決定（預設 20%），
- *   每次沒中 +20%，直到 100% 必定出現
+ * - 基礎機率由站台設定 `bookmark.baseChancePct` 決定（預設 20%），每次沒中
+ *   加碼 `bookmark.stepChancePct`（預設 +20%），直到 100% 必定出現
  * - 出現後若被忽視（導航到其他頁面），條目消失且遞增歸零
  * - 解鎖後永遠不再出現（條件掛在 islandsUnlocked，不需獨立旗標）
  *
@@ -18,7 +18,7 @@ import { isTestMode } from '../../lib/apiBase';
 import type { ProgressState } from '../../progress';
 import {
   LOST_BOOKMARK_BASE_PCT,
-  LOST_BOOKMARK_MAX_MISS,
+  LOST_BOOKMARK_MISS_HARD_MAX,
   LOST_BOOKMARK_STEP_PCT,
   getProgressManager,
 } from '../../progress';
@@ -28,17 +28,41 @@ import { canUseIslands, isIslandUnlocked } from '../islandRuntime';
 
 export { LOST_BOOKMARK_STEP_PCT };
 
+/** 每次沒中的加碼幅度（%）——站台設定優先，未載入時退回常數 */
+export function lostBookmarkStepPct(): number {
+  return Math.max(
+    0,
+    getSetting('bookmark.stepChancePct', LOST_BOOKMARK_STEP_PCT)
+  );
+}
+
 /**
  * 這一輪的實際出現機率（%）。
  *
- * 基礎值每次都現讀站台設定——持久狀態只記「沒中幾次」，所以調整設定對
- * 所有讀者的下一次 roll 立即生效（含從沒 roll 過的新讀者）。
+ * 基礎值與加碼幅度每次都現讀站台設定——持久狀態只記「沒中幾次」，所以
+ * 調整設定對所有讀者的下一次 roll 立即生效（含從沒 roll 過的新讀者）。
  */
 export function lostBookmarkChancePct(state: ProgressState): number {
   const base = getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT);
   return Math.min(
     100,
-    Math.max(0, base) + state.lostBookmark.missCount * LOST_BOOKMARK_STEP_PCT
+    Math.max(0, base) + state.lostBookmark.missCount * lostBookmarkStepPct()
+  );
+}
+
+/**
+ * 在現行設定下，累到必中所需的沒中次數。
+ *
+ * 加碼幅度為 0 時 pity 不存在（機率恆為基礎值），此時回硬上限——DevTools
+ * 的 `guarantee()` 至少不會因為除以 0 而算出 Infinity。
+ */
+export function lostBookmarkMaxMiss(): number {
+  const base = getSetting('bookmark.baseChancePct', LOST_BOOKMARK_BASE_PCT);
+  const step = lostBookmarkStepPct();
+  if (step <= 0) return LOST_BOOKMARK_MISS_HARD_MAX;
+  return Math.min(
+    LOST_BOOKMARK_MISS_HARD_MAX,
+    Math.ceil((100 - Math.max(0, base)) / step)
   );
 }
 
@@ -151,9 +175,9 @@ export function mountLostBookmarkTestBridge(): () => void {
       });
     },
     guarantee() {
-      // 基礎值最低 0，miss 滿上限一定到 100%
+      // 依現行的基礎值與加碼幅度算出必中所需次數（兩者都可調）
       getProgressManager().updateLostBookmark({
-        missCount: LOST_BOOKMARK_MAX_MISS,
+        missCount: lostBookmarkMaxMiss(),
       });
     },
     roll() {

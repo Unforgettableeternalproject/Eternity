@@ -31,7 +31,18 @@ beforeEach(() => {
 
 /** 站台設定（`/admin/settings` 站台分頁）在前台的形狀 */
 function setBaseChance(pct: number) {
-  window.__uepSettings = { 'bookmark.baseChancePct': pct };
+  window.__uepSettings = {
+    ...window.__uepSettings,
+    'bookmark.baseChancePct': pct,
+  };
+}
+
+/** 每次沒中的加碼幅度（同一張設定表的另一個鍵） */
+function setStepChance(pct: number) {
+  window.__uepSettings = {
+    ...window.__uepSettings,
+    'bookmark.stepChancePct': pct,
+  };
 }
 
 describe('rollLostBookmark', () => {
@@ -124,6 +135,44 @@ describe('基礎機率走站台設定', () => {
     const { store, lb } = await freshModules();
     lb.rollLostBookmark(store.getState(), () => 0.999);
     expect(lb.lostBookmarkChancePct(store.getState())).toBe(100);
+  });
+});
+
+describe('加碼幅度走站台設定', () => {
+  it('沒中的加碼吃 bookmark.stepChancePct 而非寫死的 20', async () => {
+    setBaseChance(10);
+    setStepChance(5);
+    const { store, lb } = await freshModules();
+    lb.rollLostBookmark(store.getState(), () => 0.999);
+    expect(lb.lostBookmarkChancePct(store.getState())).toBe(15);
+  });
+
+  it('加碼設 0 = 關掉保底，機率恆為基礎值', async () => {
+    setBaseChance(10);
+    setStepChance(0);
+    const { store, lb } = await freshModules();
+    lb.rollLostBookmark(store.getState(), () => 0.999);
+    lb.rollLostBookmark(store.getState(), () => 0.999);
+    expect(lb.lostBookmarkChancePct(store.getState())).toBe(10);
+  });
+
+  it('未設定時退回常數 20', async () => {
+    setBaseChance(0);
+    const { store, lb } = await freshModules();
+    lb.rollLostBookmark(store.getState(), () => 0.999);
+    expect(lb.lostBookmarkChancePct(store.getState())).toBe(20);
+  });
+
+  it('步長調小仍到得了 100%——持久層不可用預設步長的 pity 上限夾取', async () => {
+    setBaseChance(0);
+    setStepChance(1);
+    const { store, lb } = await freshModules();
+    // 用 DevTools 的 guarantee 走一次「必中所需次數」的計算
+    const cleanup = lb.mountLostBookmarkTestBridge();
+    window.__uepLostBookmarkTest!.guarantee();
+    expect(store.getState().lostBookmark.missCount).toBe(100);
+    expect(lb.lostBookmarkChancePct(store.getState())).toBe(100);
+    cleanup();
   });
 });
 

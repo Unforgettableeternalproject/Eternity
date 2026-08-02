@@ -6,7 +6,7 @@
  * 的死路——當時仰賴的 fallback 小物件已經移除。
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   PHANTOM_ENTER_CHANCE,
@@ -101,5 +101,51 @@ describe('shouldRevealPhantomCard', () => {
 
   it('已經中過 → 不再擲', () => {
     expect(shouldRevealPhantomCard(input({ alreadyWon: true }))).toBe(false);
+  });
+});
+
+describe('機率走站台設定', () => {
+  afterEach(() => {
+    delete window.__uepSettings;
+  });
+
+  it('進入與切標籤各吃自己的鍵（設定以整數百分比存放）', () => {
+    window.__uepSettings = {
+      'visuals.phantomEnterChancePct': 50,
+      'visuals.phantomSwitchChancePct': 90,
+    };
+    // 0.6 在進入機率之上、切標籤機率之下
+    expect(shouldRevealPhantomCard(input({ random: () => 0.6 }))).toBe(true);
+    expect(
+      shouldRevealPhantomCard(
+        input({
+          prev: null,
+          current: { subcatId: 'sub-a', groupIdx: 0 },
+          random: () => 0.6,
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('設定未載入時退回常數', () => {
+    // 0.1 高於預設的 0.08 進入機率、低於 0.18 切標籤機率
+    expect(shouldRevealPhantomCard(input({ random: () => 0.1 }))).toBe(true);
+    expect(
+      shouldRevealPhantomCard(
+        input({
+          prev: null,
+          current: { subcatId: 'sub-a', groupIdx: 0 },
+          random: () => 0.1,
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('設 0 = 關掉這座島的儀式', () => {
+    window.__uepSettings = {
+      'visuals.phantomEnterChancePct': 0,
+      'visuals.phantomSwitchChancePct': 0,
+    };
+    expect(shouldRevealPhantomCard(input({ random: () => 0 }))).toBe(false);
   });
 });

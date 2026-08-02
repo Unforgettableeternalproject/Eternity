@@ -90,7 +90,7 @@ describe('/api/settings', () => {
     expect(pub.json.data?.settings).toBeDefined();
   });
 
-  it('表為空時回完整四項預設值，不報錯不回 null', async () => {
+  it('表為空時回完整預設值，不報錯不回 null', async () => {
     await env.CONTENT_DB.prepare('DELETE FROM uep_settings').run();
     const { status, json, headers } = await api('/api/settings', {
       token: await getAdminToken(),
@@ -100,12 +100,51 @@ describe('/api/settings', () => {
     expect(json.data?.settings).toEqual({
       'protection.mode': 'env',
       'bookmark.baseChancePct': 20,
+      'bookmark.stepChancePct': 20,
+      'echoes.lostOrbChancePct': 6,
+      'visuals.phantomEnterChancePct': 8,
+      'visuals.phantomSwitchChancePct': 18,
+      'storage.loneNoteDustSteps': 10,
       'note.max': 30,
       'note.textMax': 200,
     });
   });
 
-  it('PUT 局部更新一項，其餘三項不受影響', async () => {
+  it('五項儀式機率共用 0-100，兩端皆合法（0 = 關掉該座島的儀式）', async () => {
+    const keys = [
+      'bookmark.stepChancePct',
+      'echoes.lostOrbChancePct',
+      'visuals.phantomEnterChancePct',
+      'visuals.phantomSwitchChancePct',
+    ];
+    for (const key of keys) {
+      expect((await putSettings({ [key]: 0 })).status).toBe(200);
+      expect((await putSettings({ [key]: 100 })).status).toBe(200);
+      expect((await putSettings({ [key]: -1 })).status).toBe(400);
+      expect((await putSettings({ [key]: 101 })).status).toBe(400);
+    }
+  });
+
+  it('紙條拍打次數下限是 1——0 等於一進頁面就自動解鎖，那不是儀式', async () => {
+    expect((await putSettings({ 'storage.loneNoteDustSteps': 0 })).status).toBe(
+      400
+    );
+    expect((await putSettings({ 'storage.loneNoteDustSteps': 1 })).status).toBe(
+      200
+    );
+    expect(
+      (await putSettings({ 'storage.loneNoteDustSteps': 50 })).status
+    ).toBe(200);
+    expect(
+      (await putSettings({ 'storage.loneNoteDustSteps': 51 })).status
+    ).toBe(400);
+    // 非整數不收——抖半下沒有意義
+    expect(
+      (await putSettings({ 'storage.loneNoteDustSteps': 3.5 })).status
+    ).toBe(400);
+  });
+
+  it('PUT 局部更新一項，其餘不受影響', async () => {
     await env.CONTENT_DB.prepare('DELETE FROM uep_settings').run();
     const { status, json } = await putSettings({ 'note.max': 12 });
     expect(status).toBe(200);

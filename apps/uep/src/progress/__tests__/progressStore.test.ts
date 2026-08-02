@@ -256,7 +256,10 @@ describe('頁面完成與浮島', () => {
       })!.lostBookmark.missCount;
 
     expect(withMiss(2)).toBe(2);
-    expect(withMiss(99)).toBe(5);
+    // 現行格式夾在硬上限 100，不是預設步長下的 pity 上限 5——步長可由站台
+    // 設定調小（最小 1，此時要 100 次才滿），用 5 夾會讓機率永遠到不了 100%
+    expect(withMiss(99)).toBe(99);
+    expect(withMiss(9999)).toBe(100);
     expect(withMiss(-1)).toBe(0);
     expect(withMiss(1.6)).toBe(2);
     // 認不出來的形狀回初始值

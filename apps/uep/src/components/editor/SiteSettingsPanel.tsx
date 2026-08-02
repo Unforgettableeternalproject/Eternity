@@ -1,9 +1,12 @@
 /**
  * 站台行為設定（/admin/settings 的「站台」分頁）
  *
- * 四項「一次性讀取」參數的表單（D-2／D-4 定案）：內容保護模式、遺落書籤
- * 基礎機率、便條數量上限、便條字數上限。每 tick 讀取的參數（迷霧、掃描線、
+ * 「一次性讀取」參數的表單（D-2／D-4 定案）：內容保護模式、四座島的解鎖
+ * 儀式參數、便條上限。每 tick 讀取的參數（迷霧推進速率、掃描線視窗比例、
  * rush 門檻）刻意不在這裡——它們維持編譯期常數，不進 uep_settings。
+ *
+ * 機率一律以整數百分比呈現與存放，即使前端常數是 0–1 的小數；換算在各自的
+ * 消費端做（見 `phantomEnterChance()` 等）。
  *
  * 走同源 SSR proxy（/api/settings），儲存採批次 PUT 只帶改過的鍵；
  * worker 端整批驗證，不會寫入一半。
@@ -34,6 +37,22 @@ const PROTECTION_OPTIONS = [
     hint: '所有環境一律停用——只用於除錯，正式站請勿長期停留在這裡',
   },
 ] as const;
+
+/**
+ * 所有數字欄位——清空時暫存 NaN，儲存前要一起擋。
+ * 漏列的鍵會讓空欄位以 NaN 送出，worker 端擋下但錯誤訊息指向那個鍵而不是
+ * 「你有欄位沒填」，所以新增欄位時務必同步這份。
+ */
+const NUMERIC_KEYS = [
+  'bookmark.baseChancePct',
+  'bookmark.stepChancePct',
+  'echoes.lostOrbChancePct',
+  'visuals.phantomEnterChancePct',
+  'visuals.phantomSwitchChancePct',
+  'storage.loneNoteDustSteps',
+  'note.max',
+  'note.textMax',
+];
 
 export default function SiteSettingsPanel() {
   const [settings, setSettings] = useState<SettingsMap | null>(null);
@@ -67,10 +86,7 @@ export default function SiteSettingsPanel() {
   };
 
   const hasInvalidNumber = useMemo(
-    () =>
-      ['bookmark.baseChancePct', 'note.max', 'note.textMax'].some((key) =>
-        Number.isNaN(draft[key])
-      ),
+    () => NUMERIC_KEYS.some((key) => Number.isNaN(draft[key])),
     [draft]
   );
 
@@ -152,13 +168,57 @@ export default function SiteSettingsPanel() {
           </div>
         </section>
 
+        {/* 四座島的解鎖儀式。Concepts 的「斷線的終端」是純條件式，沒有
+            可調參數，所以只有四段。 */}
         <section className="ssp-section">
-          <div className="ssp-section-title">遺落的書籤</div>
+          <div className="ssp-section-title">遺落的書籤（History 島）</div>
           {numberField(
             'bookmark.baseChancePct',
             '基礎出現機率（%）',
             '讀完一篇文章時 roll 書籤的基礎機率，0–100',
             { min: 0, max: 100 }
+          )}
+          {numberField(
+            'bookmark.stepChancePct',
+            '每次沒中的加碼（%）',
+            '沒中一次就往上加這麼多，累到 100% 必中。設 0 = 關掉保底，機率恆為基礎值',
+            { min: 0, max: 100 }
+          )}
+        </section>
+
+        <section className="ssp-section">
+          <div className="ssp-section-title">迷失的回聲（Echoes 島）</div>
+          {numberField(
+            'echoes.lostOrbChancePct',
+            '灰球出現機率（%）',
+            '播放中每次生成球體擲一次骰（約 2~4.5 秒一次），無保底。預設 6 約等於播放 50 秒浮現一顆',
+            { min: 0, max: 100 }
+          )}
+        </section>
+
+        <section className="ssp-section">
+          <div className="ssp-section-title">浮動幻影（Visuals 島）</div>
+          {numberField(
+            'visuals.phantomEnterChancePct',
+            '進入區塊時的機率（%）',
+            '剛進來或換到別的 subcat 時擲一次，0–100',
+            { min: 0, max: 100 }
+          )}
+          {numberField(
+            'visuals.phantomSwitchChancePct',
+            '切換分類標籤時的機率（%）',
+            '在同一區塊內換標籤時擲一次。刻意比進入時高——那是使用者主動翻找的時機',
+            { min: 0, max: 100 }
+          )}
+        </section>
+
+        <section className="ssp-section">
+          <div className="ssp-section-title">孤零零的紙條（Storage 島）</div>
+          {numberField(
+            'storage.loneNoteDustSteps',
+            '要拍幾下才乾淨',
+            '非機率制。進度不落地，離開 boxes 頁就從頭來，1–50',
+            { min: 1, max: 50 }
           )}
         </section>
 

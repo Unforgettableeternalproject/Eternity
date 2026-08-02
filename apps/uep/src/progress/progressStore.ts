@@ -22,7 +22,7 @@ import type {
 import {
   FOG_RATIO_PRECISION,
   FOG_RATIO_WRITE_STEP,
-  LOST_BOOKMARK_MAX_MISS,
+  LOST_BOOKMARK_MISS_HARD_MAX,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
@@ -360,7 +360,7 @@ export const uepProgress = {
       ...prev,
       lostBookmark: {
         missCount: Math.min(
-          LOST_BOOKMARK_MAX_MISS,
+          LOST_BOOKMARK_MISS_HARD_MAX,
           Math.max(0, patch.missCount ?? prev.lostBookmark.missCount)
         ),
         visible: patch.visible ?? prev.lostBookmark.visible,

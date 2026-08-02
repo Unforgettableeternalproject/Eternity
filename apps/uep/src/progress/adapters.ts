@@ -19,6 +19,7 @@ import type {
 import {
   LOST_BOOKMARK_BASE_PCT,
   LOST_BOOKMARK_MAX_MISS,
+  LOST_BOOKMARK_MISS_HARD_MAX,
   LOST_BOOKMARK_STEP_PCT,
   PROGRESS_SCHEMA_VERSION,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
@@ -44,10 +45,12 @@ function normalizeLostBookmark(
   const obj = raw as { missCount?: unknown; chancePct?: unknown };
   const visible = (obj as { visible?: unknown }).visible === true;
 
+  // 現行格式：夾在硬上限而非 pity 上限——步長可由站台設定調小，用 pity 上限
+  // 夾會讓機率永遠到不了 100%
   if (typeof obj.missCount === 'number' && Number.isFinite(obj.missCount)) {
     return {
       missCount: Math.min(
-        LOST_BOOKMARK_MAX_MISS,
+        LOST_BOOKMARK_MISS_HARD_MAX,
         Math.max(0, Math.round(obj.missCount))
       ),
       visible,

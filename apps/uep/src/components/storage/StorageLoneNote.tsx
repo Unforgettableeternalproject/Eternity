@@ -26,11 +26,17 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
+import { getSetting } from '../../lib/uepSettings';
+
 import { DRAG_THRESHOLD } from '../../islands/storage/dragToPin';
 
 import './StorageLoneNote.css';
 
-/** 抖幾下才乾淨（艾斯維爾定案：十下） */
+/**
+ * 抖幾下才乾淨（艾斯維爾定案：十下）的**預設值**。
+ *
+ * 實際生效的是站台設定 `storage.loneNoteDustSteps`。
+ */
 const DUST_STEPS = 10;
 
 /** 抖滿後的收束動畫時長（ms），與 CSS sto-lone-settle 對齊 */
@@ -54,6 +60,15 @@ interface Props {
 }
 
 export default function StorageLoneNote({ onCleaned }: Props) {
+  /*
+   * 掛載時定住一次，之後這張紙條的生命週期內不再重讀。
+   *
+   * 進度不落地（離開 boxes 頁就從頭來），若中途讀到被改小的值，會在
+   * 「已經抖了 8 下」的狀態下突然滿足門檻——同一次儀式的規則不該中途換。
+   */
+  const dustSteps = useRef(
+    getSetting('storage.loneNoteDustSteps', DUST_STEPS)
+  ).current;
   const [level, setLevel] = useState(0);
   const [particles, setParticles] = useState<DustParticle[]>([]);
   const [settling, setSettling] = useState(false);
@@ -104,8 +119,8 @@ export default function StorageLoneNote({ onCleaned }: Props) {
     if (settling) return;
     burstDust();
     setLevel((prev) => {
-      const next = Math.min(prev + 1, DUST_STEPS);
-      if (next >= DUST_STEPS && settleTimerRef.current === null) {
+      const next = Math.min(prev + 1, dustSteps);
+      if (next >= dustSteps && settleTimerRef.current === null) {
         setSettling(true);
         settleTimerRef.current = window.setTimeout(() => {
           settleTimerRef.current = null;
@@ -114,7 +129,7 @@ export default function StorageLoneNote({ onCleaned }: Props) {
       }
       return next;
     });
-  }, [burstDust, onCleaned, settling]);
+  }, [burstDust, dustSteps, onCleaned, settling]);
 
   /* ── 拖曳（照真便條的手感，但落點不存） ── */
 
@@ -161,8 +176,8 @@ export default function StorageLoneNote({ onCleaned }: Props) {
     shake();
   }
 
-  const t = level / DUST_STEPS;
-  const remaining = DUST_STEPS - level;
+  const t = level / dustSteps;
+  const remaining = dustSteps - level;
 
   return (
     <div

@@ -263,16 +263,32 @@ export const PROGRESS_SCHEMA_VERSION = 1;
  */
 export const LOST_BOOKMARK_BASE_PCT = 20;
 
-/** 遺落的書籤：每次沒中的機率遞增步長（%） */
+/**
+ * 遺落的書籤：每次沒中的機率遞增步長（%）的**預設值**。
+ *
+ * 真正生效的是站台設定 `bookmark.stepChancePct`；這個常數是 settings 尚未
+ * 載入時的 fallback，也是舊 blob（步長恆為 20 的年代）換算 missCount 的基準
+ * ——遷移一定要用常數而不是現行設定，否則調過設定之後舊資料會被算錯。
+ */
 export const LOST_BOOKMARK_STEP_PCT = 20;
 
 /**
- * 遺落的書籤：pity 計數上限。
+ * 遺落的書籤：**預設步長下**的 pity 計數上限。
  *
- * 基礎機率最低是 0，所以累積到這個次數必定滿 100%，再往上加沒有意義
- * （而且會讓「基礎值調高後仍要多 miss 幾次」這種矛盾狀態存在）。
+ * 只用於舊 blob 遷移的換算與夾取（那批資料的步長必定是 20）。現行資料的
+ * 上限請用 `LOST_BOOKMARK_MISS_HARD_MAX`——步長可調之後，用這個值夾取會在
+ * 步長被調小時提前封頂，機率永遠到不了 100%。
  */
 export const LOST_BOOKMARK_MAX_MISS = Math.ceil(100 / LOST_BOOKMARK_STEP_PCT);
+
+/**
+ * 遺落的書籤：missCount 的硬上限（防壞值用，不是 pity 曲線的一部分）。
+ *
+ * 步長最小可設到 1，此時從基礎 0 累到 100% 需要 100 次，所以 100 是任何
+ * 合法設定下都不會誤傷的界。真正的封頂由機率計算的 `Math.min(100, …)`
+ * 自然形成——持久層不該複製一份 pity 曲線的知識。
+ */
+export const LOST_BOOKMARK_MISS_HARD_MAX = 100;
 
 /** 建立初始狀態（首次進站的探索者） */
 export function createInitialState(): ProgressState {

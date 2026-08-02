@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+import { getSetting } from '../../lib/uepSettings';
+
 import './EchoesRipple.css';
 
 // ──────────────────────────────────────────────────────────────
@@ -37,13 +40,21 @@ const MIN_DIST = 25;
 const MAX_ORBS = 4;
 
 /**
- * 「迷失的回聲」出現機率（S9-B 解鎖儀式）。
+ * 「迷失的回聲」出現機率（S9-B 解鎖儀式）的**預設值**。
  *
  * 每次生成球體時擲一次骰，播放中約 2~4.5 秒一次機會 → 期望播放約 50 秒
  * 浮現一顆。刻意用 flat 機率、不做 history 書籤那種累加保底：播放中球本來
  * 就多，而且灰球一旦出現就常駐到暫停為止，靠「不會錯過」補償「不保底」。
+ *
+ * 實際生效的是站台設定 `echoes.lostOrbChancePct`（**整數百分比**，
+ * 6 = 6%）；這個 0–1 的常數是設定未載入時的 fallback。
  */
 const LOST_ORB_CHANCE = 0.06;
+
+/** 現行機率（0–1）——設定以百分比存放，換算在這裡做 */
+function lostOrbChance(): number {
+  return getSetting('echoes.lostOrbChancePct', LOST_ORB_CHANCE * 100) / 100;
+}
 
 /** 灰球被點擊後的收束動畫時長（ms），與 CSS er-lost-catch 對齊 */
 const LOST_ORB_CATCH_MS = 1400;
@@ -183,7 +194,7 @@ export default function EchoesRipple({
       isPlayingRef.current &&
       eligibleRef.current &&
       !lostOrbRef.current &&
-      Math.random() < LOST_ORB_CHANCE
+      Math.random() < lostOrbChance()
     ) {
       spawnLostOrb();
     }
