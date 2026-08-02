@@ -36,7 +36,10 @@ import EntityInfoChip from './EntityInfoChip';
 import FlagPicker from './FlagPicker';
 import GateConditionEditor from './GateConditionEditor';
 import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
-import { parseGateCondition } from '../../progress/gating';
+import {
+  parseGateCondition,
+  resolveInProgressContainer,
+} from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
 import { collectEmbeds } from '../../embed';
 import EntityIndexPicker, { loadEmbeddableEntries } from './EntityIndexPicker';
@@ -253,8 +256,19 @@ export default function RichEditor({
    */
   const progressPageTouchedRef = useRef(false);
   const gateExemptTouchedRef = useRef(false);
-  // 父容器繼承偵測：拉一次父頁面 metadata，若 progressPage=true 則本頁
-  // 在 GateConditionEditor 顯示為繼承（toggle 收起、僅剩豁免選項）
+  /*
+   * 容器繼承偵測：往上走**完整祖先鏈**，判定本頁是否位於生效中的進度容器內。
+   * 為 true 時 GateConditionEditor 把進度頁 toggle 顯示為繼承（禁用，僅剩
+   * 豁免選項），並套用「豁免與自標進度頁互斥」。
+   *
+   * ⚠️ 曾經只 fetch 直接父頁一次判 `progressPage === true`——三層巢狀
+   * （chapter 自標 → arc 被動繼承 → section）時 arc 的 raw 是 false，
+   * section 會被判成不在容器內，與 /admin/settings 的進度總覽結論分裂。
+   * 規則現在共用 `resolveInProgressContainer`，兩處只會有同一個答案。
+   *
+   * 逐層 fetch 而不是抓整棵樹：這個編輯器跨所有 area，而 tree 端點是
+   * 分區的；巢狀最深五層，實際請求數是個位數且只在換頁時發生。
+   */
   const [parentIsProgressContainer, setParentIsProgressContainer] =
     useState(false);
   useEffect(() => {
@@ -263,16 +277,27 @@ export default function RichEditor({
       return;
     }
     const ctrl = new AbortController();
-    fetch(`${apiBase}/api/content/${parentId}`, { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const meta = data?.data?.metadata;
-        setParentIsProgressContainer(meta?.progressPage === true);
+    let cancelled = false;
+    void resolveInProgressContainer(parentId, async (id) => {
+      const res = await fetch(`${apiBase}/api/content/${id}`, {
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        data?: { metadata?: Record<string, unknown> | null; parentId?: string };
+      };
+      return json.data ?? null;
+    })
+      .then((inContainer) => {
+        if (!cancelled) setParentIsProgressContainer(inContainer);
       })
       .catch(() => {
-        // 靜默失敗：找不到父頁（例如新建頁面）→ 視為未繼承
+        // 靜默失敗：找不到祖先（新建頁面／已刪）或請求被中止 → 視為未繼承
       });
-    return () => ctrl.abort();
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
   }, [parentId, apiBase]);
   // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
   // 存檔時一律正規化為巢狀 metadata.gate

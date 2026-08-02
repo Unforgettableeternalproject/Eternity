@@ -104,6 +104,52 @@ export function isGateExempt(
   return metadata.gateExempt === true;
 }
 
+/** 祖先鏈走訪需要的最小節點形狀（單頁 API 與樹節點都滿足） */
+export interface ProgressAncestorNode {
+  metadata?: Record<string, unknown> | null;
+  parentId?: string | null;
+}
+
+/**
+ * 這一頁是否位於某個生效中的進度容器內。
+ *
+ * 規則與 `effectiveGate`／`flattenProgressTree` 同一份：
+ *
+ *   effective(n) = raw(n) || (!exempt(n) && effective(parent(n)))
+ *   inContainer(page) = effective(parent(page))
+ *
+ * 由下往上走，因為呼叫端（文章編輯器）手上只有 `parentId`——樹狀 top-down
+ * 是總覽那邊的形狀。兩者結論必須一致，所以規則寫在這裡一份。
+ *
+ * ⚠️ **只看直接父頁是錯的**。三層巢狀（chapter 自標 → arc 被動繼承 →
+ * section）時 arc 的 raw 是 false，只查一層會判 section 不在容器內，於是
+ * 顯示成未繼承、還會放行 0.9.16.33 起禁止的「自標進度頁 ＋ 豁免」組合。
+ *
+ * @param loadAncestor 依 id 取祖先節點；查不到（已刪／新建頁）回 null 即停止
+ * @param maxDepth 走訪上限，防資料成環（History 最深是 zone→chapter→arc→
+ *   section→page 五層，8 已經很寬鬆）
+ */
+export async function resolveInProgressContainer(
+  parentId: string | null | undefined,
+  loadAncestor: (id: string) => Promise<ProgressAncestorNode | null>,
+  maxDepth = 8
+): Promise<boolean> {
+  let cursor = parentId?.trim() || null;
+  const seen = new Set<string>();
+  for (let hop = 0; cursor && hop < maxDepth; hop++) {
+    if (seen.has(cursor)) return false; // 資料成環，當作沒有容器
+    seen.add(cursor);
+    const node = await loadAncestor(cursor);
+    if (!node) return false;
+    const meta = node.metadata ?? null;
+    // 自標優先於豁免：豁免只切斷「向上要」，不影響「自己是不是容器」
+    if (isProgressPage(meta)) return true;
+    if (isGateExempt(meta)) return false;
+    cursor = node.parentId?.trim() || null;
+  }
+  return false;
+}
+
 /**
  * 從 metadata JSON 解析 gating 條件。
  * 支援兩種存放形狀：

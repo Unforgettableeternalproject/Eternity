@@ -15,6 +15,7 @@ import {
   isProgressPage,
   isPristine,
   hasAllFlags,
+  resolveInProgressContainer,
 } from '../gating';
 import type { ProgressState } from '../types';
 import { createInitialState } from '../types';
@@ -191,5 +192,91 @@ describe('normalizeState 不變量', () => {
   it('view=observer 但 observerEver=false 時強制補上印記', () => {
     const result = normalizeState({ view: 'observer', observerEver: false });
     expect(result!.observerEver).toBe(true);
+  });
+});
+
+/**
+ * 祖先鏈判定：文章編輯器（只有 parentId）與 /admin/settings 的進度總覽
+ * （有整棵樹）必須得到同一個答案，規則因此只有這一份。
+ */
+describe('resolveInProgressContainer', () => {
+  type Node = { metadata?: Record<string, unknown>; parentId?: string | null };
+
+  const loaderFor = (nodes: Record<string, Node>) => async (id: string) =>
+    nodes[id] ?? null;
+
+  /** chapter（自標）→ arc（未標）→ section */
+  const threeLevel: Record<string, Node> = {
+    ch1: { metadata: { progressPage: true }, parentId: null },
+    arc1: { metadata: {}, parentId: 'ch1' },
+  };
+
+  it('三層巢狀：中間層未標記，仍要追溯到祖父層（只查一層會判錯）', async () => {
+    expect(
+      await resolveInProgressContainer('arc1', loaderFor(threeLevel))
+    ).toBe(true);
+  });
+
+  it('直接父頁自標 → true', async () => {
+    expect(await resolveInProgressContainer('ch1', loaderFor(threeLevel))).toBe(
+      true
+    );
+  });
+
+  it('沒有父頁（根層或新建頁）→ false', async () => {
+    expect(await resolveInProgressContainer(null, loaderFor({}))).toBe(false);
+    expect(await resolveInProgressContainer('', loaderFor({}))).toBe(false);
+  });
+
+  it('鏈上有豁免節點 → 切斷，判 false', async () => {
+    const nodes: Record<string, Node> = {
+      ...threeLevel,
+      arc1: { metadata: { gateExempt: true }, parentId: 'ch1' },
+    };
+    expect(await resolveInProgressContainer('arc1', loaderFor(nodes))).toBe(
+      false
+    );
+  });
+
+  it('豁免節點自標進度頁時仍是容器（自標優先於豁免）', async () => {
+    const nodes: Record<string, Node> = {
+      ...threeLevel,
+      arc1: {
+        metadata: { gateExempt: true, progressPage: true },
+        parentId: 'ch1',
+      },
+    };
+    expect(await resolveInProgressContainer('arc1', loaderFor(nodes))).toBe(
+      true
+    );
+  });
+
+  it('祖先查不到（已刪）→ false，不往上繼續猜', async () => {
+    expect(await resolveInProgressContainer('ghost', loaderFor({}))).toBe(
+      false
+    );
+  });
+
+  it('資料成環不會無限迴圈', async () => {
+    const nodes: Record<string, Node> = {
+      a: { metadata: {}, parentId: 'b' },
+      b: { metadata: {}, parentId: 'a' },
+    };
+    expect(await resolveInProgressContainer('a', loaderFor(nodes))).toBe(false);
+  });
+
+  it('超過 maxDepth 即停止（防超深樹拖垮開頁）', async () => {
+    const nodes: Record<string, Node> = {
+      deep: { metadata: { progressPage: true } },
+    };
+    for (let i = 0; i < 12; i++) {
+      nodes[`n${i}`] = {
+        metadata: {},
+        parentId: i === 11 ? 'deep' : `n${i + 1}`,
+      };
+    }
+    expect(await resolveInProgressContainer('n0', loaderFor(nodes), 3)).toBe(
+      false
+    );
   });
 });
