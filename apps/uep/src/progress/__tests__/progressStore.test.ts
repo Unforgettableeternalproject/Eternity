@@ -543,6 +543,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       completedPageIds: [],
       islandsUnlocked: [],
       islandsDisabled: [],
+      islandGuidesSeen: [],
       pageMarkers: {},
       fogRatio: {},
       lastVisitedPageId: null,
