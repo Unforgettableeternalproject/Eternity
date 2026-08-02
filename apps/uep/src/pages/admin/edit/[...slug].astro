@@ -119,7 +119,7 @@ const initialHtml = page ? blocksToHtml(page.content) : '<p></p>';
 
 <style>
   .error-page {
-    height: 100vh;
+    height: calc(100vh - var(--test-banner-h, 0px));
     display: flex;
     align-items: center;
     justify-content: center;

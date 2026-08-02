@@ -537,7 +537,7 @@ const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
   .adm {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: calc(100vh - var(--test-banner-h, 0px));
     font-family: var(--font-sans);
   }
 

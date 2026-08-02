@@ -156,7 +156,7 @@ if (!error && reason === 'no-secret') {
 
 <style is:global>
   .q-login-wrap {
-    min-height: 100vh;
+    min-height: calc(100vh - var(--test-banner-h, 0px));
     display: grid;
     place-items: center;
     background: #f8f7f3;

@@ -4,7 +4,8 @@
  * 視覺契約：
  * - fixed top, z-index 9999（全站最高；蓋過浮島 2000-2999 與 Dialog 3000-5000）
  * - 32px 高，1.5s 脈衝背景讓艾斯維爾一眼看到
- * - body.has-test-banner 補 padding-top 32px 避免遮擋內容
+ * - body.has-test-banner 補 padding-top 32px 避免遮擋內容，並公開
+ *   `--test-banner-h` 給滿版版面（編輯器殼是 height:100vh）自行扣掉
  * - reduced-motion 尊重系統偏好，關掉脈衝動畫但保留顏色
  */
 
@@ -70,8 +71,11 @@
 }
 
 /* Body padding 補正（避免 banner 遮住頂端內容） */
+/* `--test-banner-h` 沿 body 往下繼承，滿版版面用 var(--test-banner-h, 0px)
+   從 100vh 扣掉，banner 不在時自動退回 0——不必寫兩份規則。 */
 body.has-test-banner {
-  padding-top: 32px;
+  --test-banner-h: 32px;
+  padding-top: var(--test-banner-h);
 }
 
 /* 尊重系統動畫偏好 */

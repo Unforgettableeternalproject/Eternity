@@ -181,7 +181,7 @@ const redirectTo = safeRedirect(Astro.url.searchParams.get('redirect'));
 
 <style is:global>
   .login-wrap {
-    min-height: 100vh;
+    min-height: calc(100vh - var(--test-banner-h, 0px));
     display: grid;
     place-items: center;
     position: relative;
