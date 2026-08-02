@@ -13,6 +13,8 @@ import { createPortal } from 'react-dom';
 
 import { getProgressManager, useProgress } from '../progress';
 
+import { requestGuideReplay } from './guide/guideReplay';
+import { hasGuide } from './guide/guideSteps';
 import IslandIcon from './IslandIcon';
 import { isIslandDisabled, isIslandUnlocked } from './islandRuntime';
 import { ISLAND_DEFINITIONS, ISLAND_IDS } from './types';
@@ -84,6 +86,24 @@ export default function IslandSettingsPanel({
                 <span className="uep-island-settings__row-name">
                   {def.title}
                 </span>
+                {/* 回顧鈕只給「已解鎖且啟用中」的島。停用的語意就是
+                    「我現在不要這個東西」，為了回顧硬把島掛回來與那個
+                    表態相衝突；未解鎖的列連名字都不顯示，更不會有教學。 */}
+                {enabled && hasGuide(id) && (
+                  <button
+                    type="button"
+                    className="uep-island-settings__guide"
+                    aria-label={`重看${def.title}的說明`}
+                    title="重看說明"
+                    onClick={() => {
+                      // 先關掉自己：面板是 modal，留著會蓋住教學
+                      onClose();
+                      requestGuideReplay(id);
+                    }}
+                  >
+                    ?
+                  </button>
+                )}
                 <button
                   type="button"
                   className="uep-island-settings__toggle"

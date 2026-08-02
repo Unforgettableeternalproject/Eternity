@@ -526,6 +526,31 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 }
 
 /* 開關（沿站內簡約語彙的小 toggle） */
+/* 回顧鈕（S10-4）：低調的問號，放在開關左側 */
+.uep-island-settings__guide {
+  all: unset;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-mute);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.uep-island-settings__guide:hover,
+.uep-island-settings__guide:focus-visible {
+  opacity: 1;
+  border-color: var(--uep-gold);
+}
+
 .uep-island-settings__toggle {
   all: unset;
   box-sizing: border-box;
