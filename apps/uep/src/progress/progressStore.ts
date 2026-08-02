@@ -452,7 +452,11 @@ export const uepProgress = {
 
   /**
    * 累計閱讀時間（S6，HistoryReader 每次頁面停留結束時呼叫）。
-   * 呼叫端負責上限防灌水（單次造訪 cap），這裡只做累加與防禦。
+   *
+   * 呼叫端傳的是 activityWatch 的活躍毫秒差值（S10-4），掛機時間已在來源端
+   * 扣掉，這裡不再需要單次造訪上限。`ms <= 0` 的防禦保留——unmount 時
+   * ReaderShell 的 stopActivityWatch 可能先於 HistoryReader 的 cleanup 執行，
+   * 那會讓差值變成負數。
    */
   addReadingTime(ms: number): void {
     if (!Number.isFinite(ms) || ms <= 0) return;

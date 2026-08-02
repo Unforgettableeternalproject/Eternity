@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { ZONES } from '../../data/zones';
+import { getActiveTotalMs } from '../../lib/activityWatch';
 import { canonicalizePagePath, isSamePagePath } from '../../lib/pagePath';
 import { ReaderShell } from '../zone/ReaderShell';
 import UepDialogue from '../ui/UepDialogue';
@@ -900,16 +901,18 @@ export default function HistoryReader() {
     []
   );
 
-  // 閱讀時間統計（S6，History Island 的簡單統計用）：
-  // 每次文章停留結束（換頁/離開）時累計停留時間，單次造訪上限
-  // 30 分鐘防掛機灌水。粗粒度即可——這只是輔助統計，不是精確計時。
+  // 閱讀時間統計（S6，History Island 的簡單統計用）：每次文章停留結束
+  // （換頁/離開）時累計**活躍**時間。取 activityWatch 的累計快照相減，
+  // 閒置、切分頁、視窗失焦的時間都已在來源端扣掉。
+  //
+  // S10-4 之前這裡是牆鐘差值配一個 30 分鐘上限——那個上限是掛機灌水的
+  // 粗糙補丁（掛機 25 分鐘照樣全額計入），真正的閒置扣除上線後就退休了。
+  // 留著會變成第二套判定，而且是比較笨的那套。
   useEffect(() => {
     if (!currentId) return undefined;
-    const start = Date.now();
+    const startActiveMs = getActiveTotalMs();
     return () => {
-      const READING_TIME_CAP_MS = 30 * 60 * 1000;
-      const elapsed = Math.min(Date.now() - start, READING_TIME_CAP_MS);
-      getProgressManager().addReadingTime(elapsed);
+      getProgressManager().addReadingTime(getActiveTotalMs() - startActiveMs);
     };
   }, [currentId]);
 
