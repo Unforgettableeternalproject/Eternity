@@ -125,6 +125,11 @@ export function normalizeState(raw: unknown): ProgressState | null {
     islandsDisabled: Array.isArray(obj.islandsDisabled)
       ? obj.islandsDisabled.filter((id) => typeof id === 'string')
       : base.islandsDisabled,
+    // S10-4 新增欄位：已看過的浮島教學。空字串一併剔除——它不對應任何島，
+    // 留著只會在 IslandHost 取交集時多繞一圈
+    islandGuidesSeen: Array.isArray(obj.islandGuidesSeen)
+      ? obj.islandGuidesSeen.filter((id) => typeof id === 'string' && id !== '')
+      : base.islandGuidesSeen,
     pageMarkers:
       typeof obj.pageMarkers === 'object' && obj.pageMarkers !== null
         ? obj.pageMarkers

@@ -25,6 +25,7 @@ function makeRemote(overrides: Partial<ProgressState> = {}): ProgressState {
     completedPageIds: [],
     islandsUnlocked: [],
     islandsDisabled: [],
+    islandGuidesSeen: [],
     pageMarkers: {},
     fogRatio: {},
     lastVisitedPageId: null,
@@ -181,6 +182,33 @@ describe('頁面完成與浮島', () => {
     expect(uepProgress.getState().readingStats.totalMs).toBe(90_000);
   });
 
+  it('markIslandGuideSeen 冪等，空 id 不寫入（S10-4）', async () => {
+    const { uepProgress } = await freshStore();
+    const seen: string[][] = [];
+    uepProgress.subscribe((s, d) => {
+      if (d.source === 'island-guide-seen') seen.push([...s.islandGuidesSeen]);
+    });
+
+    uepProgress.markIslandGuideSeen('history');
+    uepProgress.markIslandGuideSeen('history');
+    uepProgress.markIslandGuideSeen('');
+    uepProgress.markIslandGuideSeen('echoes');
+
+    expect(uepProgress.getState().islandGuidesSeen).toEqual([
+      'history',
+      'echoes',
+    ]);
+    // 重複與空 id 都不該產生一次 blob 寫入
+    expect(seen).toHaveLength(2);
+  });
+
+  it('reset 清空已看過的教學（S10-4）', async () => {
+    const { uepProgress } = await freshStore();
+    uepProgress.markIslandGuideSeen('history');
+    uepProgress.reset();
+    expect(uepProgress.getState().islandGuidesSeen).toEqual([]);
+  });
+
   it('舊 blob 沒有 islandsDisabled 欄位時 normalize 補空陣列', async () => {
     const legacy = {
       version: 1,
@@ -194,6 +222,14 @@ describe('頁面完成與浮島', () => {
     };
     expect(normalizeState(legacy)!.islandsDisabled).toEqual([]);
     expect(normalizeState(legacy)!.readingStats).toEqual({ totalMs: 0 });
+    // S10-4 新增欄位：舊 blob 補空陣列；非字串與空字串逐項剔除
+    expect(normalizeState(legacy)!.islandGuidesSeen).toEqual([]);
+    expect(
+      normalizeState({
+        ...legacy,
+        islandGuidesSeen: ['history', '', 3, null, 'echoes'],
+      })!.islandGuidesSeen
+    ).toEqual(['history', 'echoes']);
     // S7-C 新增欄位：舊 blob 沒有時補空表；壞值逐項剔除
     expect(normalizeState(legacy)!.conceptsReadLevel).toEqual({});
     expect(
@@ -614,6 +650,25 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       );
       // 合併結果必須落地，否則只活在記憶體、重載即失
       expect(save).toHaveBeenCalled();
+    });
+
+    it('空窗期看完的教學不被舊快照覆蓋（S10-4）', async () => {
+      const { uepProgress } = await freshStore();
+      const { adapter, release } = deferredAdapter(
+        makeRemote({ islandGuidesSeen: ['echoes'] })
+      );
+
+      const pending = uepProgress.setAdapter(adapter);
+      // 遠端 GET 還沒回來時看完 history 的教學
+      uepProgress.markIslandGuideSeen('history');
+      release();
+      await pending;
+
+      // 少了 mergeHydrated 的 unionAdded 這裡就只剩 ['echoes']，
+      // 下一頁會重播一次剛看完的教學
+      expect(uepProgress.getState().islandGuidesSeen).toEqual(
+        expect.arrayContaining(['echoes', 'history'])
+      );
     });
 
     it('迷霧線逐 key 取大值，不同頁的進度不會互相抹掉（S10-2）', async () => {

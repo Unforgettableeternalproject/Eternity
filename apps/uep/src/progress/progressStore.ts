@@ -46,6 +46,7 @@ export interface ProgressChangeDetail {
     | 'island-unlocked'
     | 'island-relocked'
     | 'island-setting'
+    | 'island-guide-seen'
     | 'marker-update'
     | 'fog-advance'
     | 'page-reset'
@@ -213,6 +214,13 @@ function mergeHydrated(
       remote.islandsUnlocked,
       base.islandsUnlocked,
       local.islandsUnlocked
+    ),
+    // 漏掉這條會重演 hydration race：遠端 GET 還沒回來時看完教學，
+    // 稍後抵達的舊快照把 seen 覆蓋掉，下一頁又從頭播一次
+    islandGuidesSeen: unionAdded(
+      remote.islandGuidesSeen,
+      base.islandGuidesSeen,
+      local.islandGuidesSeen
     ),
     // 觀測者印記是永久標記，任一邊落下就算數
     observerEver: remote.observerEver || local.observerEver,
@@ -429,6 +437,18 @@ export const uepProgress = {
     mutate('island-relocked', (prev) => ({
       ...prev,
       islandsUnlocked: prev.islandsUnlocked.filter((id) => id !== islandId),
+    }));
+  },
+
+  /**
+   * 記下某座島的教學已看過（S10-4 C 段）。冪等——重播教學（回顧鈕）與
+   * 重複完成都不會讓 blob 多寫一次。
+   */
+  markIslandGuideSeen(islandId: string): void {
+    if (!islandId || state.islandGuidesSeen.includes(islandId)) return;
+    mutate('island-guide-seen', (prev) => ({
+      ...prev,
+      islandGuidesSeen: [...prev.islandGuidesSeen, islandId],
     }));
   },
 

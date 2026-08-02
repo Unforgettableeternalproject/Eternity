@@ -105,6 +105,14 @@ export interface ProgressState {
    * 與 islandsUnlocked 分開存：停用 ≠ 未解鎖，重新啟用不需要再解鎖。
    */
   islandsDisabled: string[];
+  /**
+   * 已看過教學的浮島 id（S10-4 C 段）。單調集合，只增不減——換裝置不該
+   * 重看。與 islandsUnlocked 同層級，五個字串對 128KB 額度可忽略。
+   *
+   * 這裡刻意不驗證 id 是否為已知浮島：progress 層不該為了驗一個字串
+   * 反向 import islands。過濾交給 IslandHost 與 `ISLAND_IDS` 取交集。
+   */
+  islandGuidesSeen: string[];
   /** 各頁面的掃描線進度，key 為 pageId */
   pageMarkers: Record<string, PageMarkerProgress>;
   /**
@@ -300,6 +308,7 @@ export function createInitialState(): ProgressState {
     completedPageIds: [],
     islandsUnlocked: [],
     islandsDisabled: [],
+    islandGuidesSeen: [],
     pageMarkers: {},
     fogRatio: {},
     lastVisitedPageId: null,
