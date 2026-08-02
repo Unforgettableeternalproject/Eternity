@@ -143,6 +143,11 @@
 .po-gate {
   display: inline-block;
   max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--ink-soft);
@@ -150,6 +155,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
+}
+.po-gate:hover {
+  color: var(--uep-gold, #d5b618);
+}
+/* 展開態：解除截斷，一項一行 */
+.po-gate--open {
+  white-space: normal;
+  overflow: visible;
+}
+.po-gate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.po-gate-part {
+  overflow-wrap: anywhere;
 }
 
 .po-marks {

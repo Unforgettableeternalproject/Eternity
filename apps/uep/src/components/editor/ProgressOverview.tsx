@@ -50,6 +50,8 @@ export interface ProgressRow {
   /** 繼承來源——最近一個自標 progressPage 的祖先標題 */
   inheritedFrom: string | null;
   gateSummary: string | null;
+  /** 逐項條件——展開時一行一條，摘要只是它的 join */
+  gateParts: string[];
 }
 
 /** `GET /api/interlink/anchors-summary` 的逐頁計數 */
@@ -96,6 +98,7 @@ export function flattenProgressTree(roots: ProgressTreeNode[]): ProgressRow[] {
       effective,
       inheritedFrom: inherited ? ancestorSource : null,
       gateSummary: gateParts.length > 0 ? gateParts.join('、') : null,
+      gateParts,
     });
 
     // 傳給子層的繼承來源：自標者換成自己，被動繼承者原樣往下傳
@@ -136,6 +139,15 @@ export default function ProgressOverview({
   const [search, setSearch] = useState('');
   /** 正在 PATCH 的列——期間兩顆 checkbox 一起禁用，避免連點競態 */
   const [pendingId, setPendingId] = useState<string | null>(null);
+  /** 展開完整 gate 條件的列（多列可同時展開，方便並排比對） */
+  const [expandedGates, setExpandedGates] = useState<Set<string>>(new Set());
+
+  const toggleGate = (id: string) =>
+    setExpandedGates((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -299,9 +311,33 @@ export default function ProgressOverview({
                   </td>
                   <td className="po-col-gate">
                     {row.gateSummary ? (
-                      <span className="po-gate" title={row.gateSummary}>
-                        {row.gateSummary}
-                      </span>
+                      // 旗標名可以很長，一列擠不下——單行截斷時整條看不到，
+                      // 點開就一項一行完整顯示（title 屬性只有滑鼠看得到）
+                      <button
+                        type="button"
+                        className={`po-gate${
+                          expandedGates.has(row.id) ? ' po-gate--open' : ''
+                        }`}
+                        aria-expanded={expandedGates.has(row.id)}
+                        title={
+                          expandedGates.has(row.id)
+                            ? '收合條件'
+                            : '展開完整條件'
+                        }
+                        onClick={() => toggleGate(row.id)}
+                      >
+                        {expandedGates.has(row.id) ? (
+                          <span className="po-gate-list">
+                            {row.gateParts.map((part) => (
+                              <span className="po-gate-part" key={part}>
+                                {part}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          row.gateSummary
+                        )}
+                      </button>
                     ) : (
                       <span className="po-dim">—</span>
                     )}

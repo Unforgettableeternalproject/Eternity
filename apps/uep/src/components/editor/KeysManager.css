@@ -86,7 +86,31 @@
 }
 
 .km-search-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
   padding: 12px 20px 0;
+}
+
+.km-btn--new {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 就地新建表單：兩個分頁共用，欄位依分頁換 */
+.km-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 20px 0;
+  padding: 10px;
+  border: 1px dashed var(--hairline);
+  background: var(--bg-card);
+}
+
+.km-create-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .km-search-input {

@@ -137,6 +137,9 @@ describe('flattenProgressTree', () => {
     const rows = flattenProgressTree(tree);
     expect(rows[0].gateSummary).toBe('completed:history/ch0、純潔者限定');
     expect(rows[1].gateSummary).toBeNull();
+    // 摘要只是 join，展開時要逐項顯示，所以原始陣列也得留著
+    expect(rows[0].gateParts).toEqual(['completed:history/ch0', '純潔者限定']);
+    expect(rows[1].gateParts).toEqual([]);
   });
 
   it('攤平順序是 DFS：父列緊接著它的子樹', () => {
@@ -272,6 +275,49 @@ describe('ProgressOverview', () => {
     expect(screen.getByText('♪2')).toBeInTheDocument();
     // visual clue 用 start 當代表，end 是配對閉合不另計
     expect(screen.getByText('◈1')).toBeInTheDocument();
+  });
+
+  it('gate 條件欄可點開，展開後逐項顯示不截斷', async () => {
+    // 預設樹沒有 gate，這條要自己的樣本
+    globalThis.fetch = vi.fn(async (url: string) => {
+      const body = (data: unknown) => ({
+        ok: true,
+        json: async () => ({ ok: true, data }),
+      });
+      if (url === '/api/content/history/tree') {
+        return body([
+          {
+            id: 'history/p1',
+            title: '有條件',
+            pageType: 'page',
+            metadata: {
+              gate: {
+                requiresFlags: ['flag-a', 'flag-b'],
+                pristineOnly: true,
+              },
+            },
+            children: [],
+          },
+        ]);
+      }
+      return body({ pages: {} });
+    }) as unknown as typeof fetch;
+
+    render(<ProgressOverview markerCountByPage={new Map()} />);
+    await screen.findByText('有條件');
+
+    const gate = screen.getByRole('button', { name: /flag-a/ });
+    expect(gate).toHaveAttribute('aria-expanded', 'false');
+    // 收合時是單一 join 字串
+    expect(gate).toHaveTextContent('flag-a、flag-b、純潔者限定');
+
+    fireEvent.click(gate);
+    expect(gate).toHaveAttribute('aria-expanded', 'true');
+    // 展開後三項各自成列，join 用的頓號不再出現
+    expect(gate.textContent).toBe('flag-aflag-b純潔者限定');
+
+    fireEvent.click(gate);
+    expect(gate).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('搜尋過濾標題與頁面 id', async () => {

@@ -1,0 +1,11 @@
+---
+/**
+ * 舊網址相容：`/admin/keys` 在 S10-3b 改名為 `/admin/settings`。
+ *
+ * 沒有這一頁的話會落到 Astro 的 404 fallback，看起來像頁面壞掉而不是搬家。
+ * 301 而非 302：改名是永久的，讓瀏覽器與既有書籤自己更新。
+ */
+export const prerender = false;
+
+return Astro.redirect('/admin/settings', 301);
+---

@@ -12,6 +12,7 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { validateFlagName } from '../../progress/markers';
 import { apiFetch, getDialog, getToast } from './editorHelpers';
 import ProgressOverview from './ProgressOverview';
 import SiteSettingsPanel from './SiteSettingsPanel';
@@ -338,6 +339,23 @@ export default function KeysManager() {
   /** 反查請求的世代序號：切換選取時舊回應後到會蓋掉新結果 */
   const usageGen = useRef(0);
 
+  /* 就地新建（兩個分頁共用一組 state，切分頁時關掉） */
+  /**
+   * 從註冊表直接建 key／flag，不必先在內容裡用過一次。
+   *
+   * 建出來的是孤兒（兩端引用都是 0）——這是刻意的：先把命名與說明定下來，
+   * 之後編輯內容時 FlagPicker／EntityKeyField 的清單裡就有它可選，
+   * 不必邊寫內容邊想名字。孤兒本來就是巡查認得的四態之一，不是壞狀態。
+   */
+  const [creating, setCreating] = useState(false);
+  const [newKeyType, setNewKeyType] = useState<'entity' | 'story'>('story');
+  const [newName, setNewName] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+
   /* 改名（三段式） */
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTo, setRenameTo] = useState('');
@@ -428,7 +446,95 @@ export default function KeysManager() {
     if (next === tab) return;
     setTab(next);
     setSelected(null);
+    closeCreate();
     clearLookups();
+  };
+
+  const openCreate = () => {
+    setNewKeyType('story');
+    setNewName('');
+    setNewTitle('');
+    setNewDescription('');
+    setNewLabel('');
+    setNewCategory('');
+    setCreateError(null);
+    setCreating(true);
+  };
+
+  const closeCreate = () => {
+    setCreating(false);
+    setCreateError(null);
+  };
+
+  /** 建 key：PUT 本身就是 upsert，殼列不存在會一併建立 */
+  const createKey = async () => {
+    const keyValue = newName.trim();
+    if (!keyValue) return;
+    if (keys.some((k) => k.keyType === newKeyType && k.keyValue === keyValue)) {
+      setCreateError('這個 key 已經存在');
+      return;
+    }
+    setSaving(true);
+    setCreateError(null);
+    const res = await apiFetch(
+      `/api/interlink/keys/${keyPath(newKeyType, keyValue)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          // entity 的標題在 Concepts dossier，資料層也會擋，這裡不送
+          title: newKeyType === 'story' ? newTitle : null,
+          description: newDescription,
+        }),
+      }
+    );
+    setSaving(false);
+    if (!res.ok) {
+      setCreateError(res.error || '建立失敗');
+      return;
+    }
+    getToast().success(`已建立 ${newKeyType} key「${keyValue}」`);
+    closeCreate();
+    await loadAll();
+    selectKey({
+      keyType: newKeyType,
+      keyValue,
+      title: newKeyType === 'story' ? newTitle.trim() || null : null,
+      description: newDescription.trim() || null,
+    } as InterlinkKeyRow);
+  };
+
+  const createFlag = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    // worker 擋同一份規則，這裡先擋是為了省一次往返並就地指出問題
+    const invalid = validateFlagName(name);
+    if (invalid) {
+      setCreateError(invalid);
+      return;
+    }
+    setSaving(true);
+    setCreateError(null);
+    const res = await apiFetch('/api/flags', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        label: newLabel,
+        category: newCategory,
+        description: newDescription,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setCreateError(res.error || '註冊失敗');
+      return;
+    }
+    getToast().success(`已註冊旗標「${name}」`);
+    closeCreate();
+    await loadAll();
+    setSelected({ kind: 'flag', name });
+    setDraftLabel(newLabel.trim());
+    setDraftCategory(newCategory.trim());
+    setDraftDescription(newDescription.trim());
   };
 
   /**
@@ -1451,7 +1557,118 @@ export default function KeysManager() {
               spellCheck={false}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <button
+              type="button"
+              className="km-btn km-btn--new"
+              aria-expanded={creating}
+              title={
+                tab === 'keys'
+                  ? '直接建一個 key（尚未被任何內容引用）'
+                  : '直接註冊一個旗標（尚未被任何內容引用）'
+              }
+              onClick={() => (creating ? closeCreate() : openCreate())}
+            >
+              {creating ? '取消' : '＋ 新增'}
+            </button>
           </div>
+
+          {creating && (
+            <div className="km-create">
+              {tab === 'keys' && (
+                <div
+                  className="km-chips km-chips--sub"
+                  role="group"
+                  aria-label="新 key 的類型"
+                >
+                  {(['story', 'entity'] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={`km-chip ${newKeyType === type ? 'active' : ''}`}
+                      aria-pressed={newKeyType === type}
+                      onClick={() => setNewKeyType(type)}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                className="km-field-input"
+                type="text"
+                spellCheck={false}
+                placeholder={tab === 'keys' ? 'key 值' : '旗標名稱'}
+                aria-label={tab === 'keys' ? '新 key 值' : '新旗標名稱'}
+                value={newName}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  setCreateError(null);
+                }}
+              />
+              {tab === 'keys' ? (
+                // entity 的名稱權威在 Concepts dossier，這張表永遠不持有它
+                newKeyType === 'story' && (
+                  <input
+                    className="km-field-input"
+                    type="text"
+                    placeholder="劇情點名稱（浮島線索卡會顯示）"
+                    aria-label="新 key 名稱"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                  />
+                )
+              ) : (
+                <>
+                  <input
+                    className="km-field-input"
+                    type="text"
+                    placeholder="標籤（給人看的短名稱，可留空）"
+                    aria-label="新旗標標籤"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                  />
+                  <input
+                    className="km-field-input"
+                    type="text"
+                    placeholder="類別（可留空）"
+                    aria-label="新旗標類別"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                  />
+                </>
+              )}
+              <textarea
+                className="km-field-input km-field-input--area"
+                placeholder="說明（可留空）"
+                aria-label="新項目說明"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+              {tab === 'keys' && newKeyType === 'entity' && (
+                <div className="km-field-hint">
+                  entity 的名稱來自 Concepts dossier，這裡只填說明。
+                </div>
+              )}
+              {createError && (
+                <div className="km-rename-error">{createError}</div>
+              )}
+              <div className="km-create-actions">
+                <button
+                  type="button"
+                  className="km-btn km-btn--primary"
+                  disabled={!newName.trim() || saving}
+                  onClick={() =>
+                    void (tab === 'keys' ? createKey() : createFlag())
+                  }
+                >
+                  {saving ? '建立中…' : '建立'}
+                </button>
+                <button type="button" className="km-btn" onClick={closeCreate}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
 
           {tab === 'keys' ? (
             <div className="km-list-toolbar km-list-toolbar--stack">

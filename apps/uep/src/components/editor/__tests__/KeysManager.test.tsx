@@ -789,6 +789,107 @@ describe('KeysManager', () => {
     expect(link).toHaveAttribute('href', '/admin/edit/echoes/songs/unbound');
   });
 
+  it('key 分頁「＋ 新增」建 story key：PUT 到 key 路徑並帶標題', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.change(screen.getByLabelText('新 key 值'), {
+      target: { value: 'brand-new-story' },
+    });
+    fireEvent.change(screen.getByLabelText('新 key 名稱'), {
+      target: { value: '嶄新的劇情點' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '建立' }));
+
+    await waitFor(() => {
+      const put = calls.find(
+        (c) =>
+          c.url === '/api/interlink/keys/story/brand-new-story' &&
+          c.init?.method === 'PUT'
+      );
+      expect(put).toBeDefined();
+      expect(JSON.parse(String(put!.init!.body))).toEqual({
+        title: '嶄新的劇情點',
+        description: '',
+      });
+    });
+  });
+
+  it('新建 entity key 不送標題（權威名稱在 Concepts dossier）', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.click(screen.getByRole('button', { name: 'entity' }));
+    // 類型切到 entity 後名稱欄整個消失，不是變成 disabled 空欄
+    expect(screen.queryByLabelText('新 key 名稱')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('新 key 值'), {
+      target: { value: 'someone-new' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '建立' }));
+
+    await waitFor(() => {
+      const put = calls.find(
+        (c) => c.url === '/api/interlink/keys/entity/someone-new'
+      );
+      expect(put).toBeDefined();
+      expect(JSON.parse(String(put!.init!.body)).title).toBeNull();
+    });
+  });
+
+  it('已存在的 key 就地擋下，不送請求', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    fireEvent.change(screen.getByLabelText('新 key 值'), {
+      target: { value: 'test-story' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '建立' }));
+
+    expect(await screen.findByText('這個 key 已經存在')).toBeInTheDocument();
+    expect(
+      calls.some((c) => c.url.startsWith('/api/interlink/keys/story/'))
+    ).toBe(false);
+  });
+
+  it('flag 分頁「＋ 新增」POST 建孤兒旗標；壞名字就地擋下', async () => {
+    render(<KeysManager />);
+    await screen.findByText('xavier-colsono');
+    fireEvent.click(screen.getByText('flag'));
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增' }));
+    // 逗號會讓 data-grants-flags 裂成兩個旗標，前端就要擋
+    fireEvent.change(screen.getByLabelText('新旗標名稱'), {
+      target: { value: 'foo,bar' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '建立' }));
+    expect(
+      calls.some((c) => c.url === '/api/flags' && c.init?.method === 'POST')
+    ).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('新旗標名稱'), {
+      target: { value: 'brand-new-flag' },
+    });
+    fireEvent.change(screen.getByLabelText('新旗標標籤'), {
+      target: { value: '嶄新旗標' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '建立' }));
+
+    await waitFor(() => {
+      const post = calls.find(
+        (c) => c.url === '/api/flags' && c.init?.method === 'POST'
+      );
+      expect(post).toBeDefined();
+      expect(JSON.parse(String(post!.init!.body))).toMatchObject({
+        name: 'brand-new-flag',
+        label: '嶄新旗標',
+      });
+    });
+  });
+
   it('站台分頁載入設定表單', async () => {
     render(<KeysManager />);
     await screen.findByText('xavier-colsono');
