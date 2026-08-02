@@ -169,9 +169,20 @@ describe('加碼幅度走站台設定', () => {
     const { store, lb } = await freshModules();
     // 用 DevTools 的 guarantee 走一次「必中所需次數」的計算
     const cleanup = lb.mountLostBookmarkTestBridge();
-    window.__uepLostBookmarkTest!.guarantee();
+    expect(window.__uepLostBookmarkTest!.guarantee()).toBe(100);
     expect(store.getState().lostBookmark.missCount).toBe(100);
     expect(lb.lostBookmarkChancePct(store.getState())).toBe(100);
+    cleanup();
+  });
+
+  it('保底關掉時 guarantee 回報實際機率，不謊稱 100', async () => {
+    setBaseChance(30);
+    setStepChance(0);
+    const { store, lb } = await freshModules();
+    const cleanup = lb.mountLostBookmarkTestBridge();
+    // 拉滿沒中次數也沒用——加碼是 0，機率恆等於基礎值
+    expect(window.__uepLostBookmarkTest!.guarantee()).toBe(30);
+    expect(lb.lostBookmarkChancePct(store.getState())).toBe(30);
     cleanup();
   });
 });

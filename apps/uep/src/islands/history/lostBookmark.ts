@@ -133,8 +133,14 @@ interface LostBookmarkTestBridge {
   force(): void;
   /** 重置回初始狀態（條目消失、機率回基礎值） */
   reset(): void;
-  /** 機率拉滿 100%——下次 page-completed 必中 */
-  guarantee(): void;
+  /**
+   * 把沒中次數推到 pity 上限，回傳**實際**達到的機率。
+   *
+   * ⚠️ 站台設定的加碼幅度設為 0 時保底是關掉的，機率恆等於基礎值——
+   * 這時它拉不到 100，回傳值就會是那個基礎值。回傳而不是靜默做不到，
+   * 是因為手動驗收時「按了 guarantee 卻沒中」看起來像功能壞掉。
+   */
+  guarantee(): number;
   /** 立刻 roll 一次（等同讀完一篇的信號），回傳結果 */
   roll(): 'shown' | 'missed' | 'skipped';
   /** 直接開啟儀式頁（需在 /history Reader 內才有人消費事件） */
@@ -179,6 +185,9 @@ export function mountLostBookmarkTestBridge(): () => void {
       getProgressManager().updateLostBookmark({
         missCount: lostBookmarkMaxMiss(),
       });
+      // 加碼幅度為 0 時保底是關掉的，這裡到不了 100——照實回報而不是
+      // 讓呼叫端以為下一次一定會中
+      return lostBookmarkChancePct(getProgressManager().getState());
     },
     roll() {
       return rollLostBookmark(getProgressManager().getState());
