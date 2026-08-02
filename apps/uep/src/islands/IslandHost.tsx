@@ -66,6 +66,7 @@ import {
   isEchoSuggestionEligible,
   pushEchoSuggestion,
 } from './echoes/echoSuggestionBridge';
+import IslandGuideAuto from './guide/IslandGuideAuto';
 import PinnedNoteLayer from './storage/PinnedNoteLayer';
 import { fetchZoneProgressTree } from './zoneProgressTree';
 import {
@@ -442,6 +443,9 @@ export default function IslandHost() {
       {echoPreview && shouldMountIsland(progress, 'echoes') && (
         <SongPreviewCard track={echoPreview} onDismiss={dismissEchoPreview} />
       )}
+      {/* 浮島教學：條件由 islandsUnlocked ∖ islandGuidesSeen 純衍生，
+          每個 tab session 最多自動播一座 */}
+      <IslandGuideAuto />
       {openIds.map((id) => {
         const Body = ISLAND_COMPONENTS[id]!;
         return (
