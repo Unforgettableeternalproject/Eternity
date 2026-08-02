@@ -17,7 +17,7 @@ import { ISLAND_RELATED_EVENT } from '../types';
 function stubInterlink(
   anchors: unknown[] | null,
   opts: {
-    keyMeta?: { title?: string | null } | null;
+    keyMeta?: { title?: string | null; description?: string | null } | null;
     /** 模擬名稱查詢整個掛掉（網路例外） */
     keyMetaFail?: boolean;
     ok?: boolean;
@@ -96,6 +96,8 @@ describe('triggerStoryRelated', () => {
           { pageId: 'history/ch2', title: '標題 history/ch2' },
         ],
         label: '雨海終曲',
+        keyTitle: null,
+        keyDescription: null,
       },
     ]);
   });
@@ -123,9 +125,9 @@ describe('triggerStoryRelated', () => {
     expect(requested[0]).toContain('keyType=story');
   });
 
-  it('劇情點有命名 → 卡片標題用 interlink_keys.title，多頁同名', async () => {
+  it('劇情點名稱與說明掛在 detail，item 一律是頁面標題', async () => {
     stubInterlink([anchor('history/ch1'), anchor('history/ch2')], {
-      keyMeta: { title: '雨海的終幕' },
+      keyMeta: { title: '雨海的終幕', description: '兩人最後一次同行。' },
     });
     const broadcast = await triggerStoryRelated({
       apiBase: 'http://api',
@@ -134,13 +136,22 @@ describe('triggerStoryRelated', () => {
       label: '雨海終曲',
     });
     expect(broadcast).toBe(true);
-    expect((received[0] as { items: { title: string }[] }).items).toEqual([
-      { pageId: 'history/ch1', title: '雨海的終幕' },
-      { pageId: 'history/ch2', title: '雨海的終幕' },
+    const detail = received[0] as {
+      keyTitle: string | null;
+      keyDescription: string | null;
+      items: { pageId: string; title: string }[];
+    };
+    expect(detail.keyTitle).toBe('雨海的終幕');
+    expect(detail.keyDescription).toBe('兩人最後一次同行。');
+    // 逐 item 複製劇情點名稱會列出 N 行一模一樣的字，而且島端還會拿
+    // 自己目錄樹的頁面標題把它蓋掉——名稱屬於劇情點，不屬於任何一頁
+    expect(detail.items).toEqual([
+      { pageId: 'history/ch1', title: '標題 history/ch1' },
+      { pageId: 'history/ch2', title: '標題 history/ch2' },
     ]);
   });
 
-  it('劇情點未命名（title 為 null）→ 維持 pageTitle fallback', async () => {
+  it('劇情點未命名（title 為 null）→ keyTitle 為 null，卡片只列頁面', async () => {
     stubInterlink([anchor('history/ch1')], { keyMeta: { title: null } });
     await triggerStoryRelated({
       apiBase: 'http://api',
@@ -148,7 +159,12 @@ describe('triggerStoryRelated', () => {
       storyKey: 'rain-sea-finale',
       label: '雨海終曲',
     });
-    expect((received[0] as { items: { title: string }[] }).items).toEqual([
+    const detail = received[0] as {
+      keyTitle: string | null;
+      items: { title: string }[];
+    };
+    expect(detail.keyTitle).toBeNull();
+    expect(detail.items).toEqual([
       { pageId: 'history/ch1', title: '標題 history/ch1' },
     ]);
   });
@@ -162,7 +178,14 @@ describe('triggerStoryRelated', () => {
       label: '插圖',
     });
     expect(broadcast).toBe(true);
-    expect((received[0] as { items: { title: string }[] }).items).toEqual([
+    const detail = received[0] as {
+      keyTitle: string | null;
+      keyDescription: string | null;
+      items: { title: string }[];
+    };
+    expect(detail.keyTitle).toBeNull();
+    expect(detail.keyDescription).toBeNull();
+    expect(detail.items).toEqual([
       { pageId: 'history/ch1', title: '標題 history/ch1' },
     ]);
   });

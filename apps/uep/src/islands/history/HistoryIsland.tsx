@@ -260,6 +260,19 @@ export default function HistoryIsland() {
             <div className="uep-hisland__related-kicker">
               《{related.label ?? '這個'}》相關的段落
             </div>
+            {/* 劇情點名稱與說明。名稱屬於劇情點不屬於任何一頁，所以放在
+                清單上方一次，底下才是各錨點所在的段落。未命名時整段不畫
+                ——空標題比沒有標題更難讀。 */}
+            {related.keyTitle && (
+              <div className="uep-hisland__related-title">
+                {related.keyTitle}
+              </div>
+            )}
+            {related.keyDescription && (
+              <div className="uep-hisland__related-desc">
+                {related.keyDescription}
+              </div>
+            )}
             <div className="uep-hisland__related-list">
               {related.items.map((item) => (
                 <button

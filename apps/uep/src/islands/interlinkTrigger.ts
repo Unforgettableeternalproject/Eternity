@@ -62,23 +62,35 @@ export async function triggerStoryRelated(args: {
   const { apiBase, sourceZone, storyKey, label, signal } = args;
   if (!storyKey) return false;
 
-  // 劇情點名稱（interlink_keys.title，/admin/settings 命名）與錨點平行查。
-  // 名稱查詢失敗只影響顯示文字，**不得連累錨點功能**——自己吞錯回 null，
+  // 劇情點名稱與說明（interlink_keys，/admin/settings 的 key 分頁填）與錨點
+  // 平行查。查詢失敗只影響顯示文字，**不得連累錨點功能**——自己吞錯回 null，
   // storyKey 層級查一次即可，不逐 anchor 查。
-  const keyTitlePromise: Promise<string | null> = (async () => {
+  const keyMetaPromise: Promise<{
+    title: string | null;
+    description: string | null;
+  }> = (async () => {
     try {
       const res = await fetch(
         `${apiBase}/api/interlink/keys/public?keyType=story&key=${encodeURIComponent(storyKey)}`,
         signal ? { signal } : undefined
       );
-      if (!res.ok) return null;
+      if (!res.ok) return { title: null, description: null };
       const json = (await res.json()) as {
         ok: boolean;
-        data?: { keyMeta?: { title?: string | null } | null };
+        data?: {
+          keyMeta?: {
+            title?: string | null;
+            description?: string | null;
+          } | null;
+        };
       };
-      return (json.ok && json.data?.keyMeta?.title) || null;
+      if (!json.ok) return { title: null, description: null };
+      return {
+        title: json.data?.keyMeta?.title || null,
+        description: json.data?.keyMeta?.description || null,
+      };
     } catch {
-      return null;
+      return { title: null, description: null };
     }
   })();
 
@@ -99,18 +111,20 @@ export async function triggerStoryRelated(args: {
     return false;
   }
 
-  const keyTitle = await keyTitlePromise;
+  const keyMeta = await keyMetaPromise;
 
   // 同一頁可能有多個錨點（多個 spot／clue 的起訖），對讀者來說是同一篇
   // 文章——依 pageId 去重後才是「相關的段落」清單。
-  // 標題優先用劇情點名稱（多錨點列同名是劇情點語意的一部分），
-  // 未命名時退回各錨點頁的標題。
+  //
+  // ⚠️ item 一律是**頁面標題**，劇情點名稱走 detail 的 keyTitle。
+  // 早期版本把 keyTitle 塞進每個 item 的 title，結果是 N 個錨點列出 N 行
+  // 一模一樣的字，且島端還會拿自己目錄樹的頁面標題把它蓋掉。
   const byPage = new Map<string, IslandRelatedItem>();
   for (const anchor of anchors) {
     if (byPage.has(anchor.pageId)) continue;
     byPage.set(anchor.pageId, {
       pageId: anchor.pageId,
-      title: keyTitle || anchor.pageTitle || anchor.pageId,
+      title: anchor.pageTitle || anchor.pageId,
     });
   }
   if (byPage.size === 0) return false;
@@ -120,6 +134,8 @@ export async function triggerStoryRelated(args: {
     sourceZone,
     items: [...byPage.values()],
     label,
+    keyTitle: keyMeta.title,
+    keyDescription: keyMeta.description,
   });
   return true;
 }

@@ -538,6 +538,24 @@
   margin-bottom: 5px;
 }
 
+/* 劇情點名稱：卡片裡份量最重的一行，比底下的段落連結明顯一階 */
+.uep-hisland__related-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: rgb(var(--hb-ink-rgb) / 0.92);
+  margin-bottom: 3px;
+  overflow-wrap: anywhere;
+}
+
+.uep-hisland__related-desc {
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: rgb(var(--hb-ink-rgb) / 0.66);
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+
 .uep-hisland__related-list {
   display: flex;
   flex-direction: column;

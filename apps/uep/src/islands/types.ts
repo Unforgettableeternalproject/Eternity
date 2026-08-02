@@ -210,6 +210,18 @@ export interface IslandRelatedDetail {
   items: IslandRelatedItem[];
   /** 來源說明（條目名／曲名／畫廊名），島端顯示用 */
   label?: string;
+  /**
+   * 劇情點名稱與說明（`interlink_keys` 的 title／description，
+   * 在 /admin/settings 的 key 分頁填）。
+   *
+   * ⚠️ 掛在 detail 而不是逐 item：一個劇情點對應 N 個錨點，名稱屬於**劇情點**
+   * 不屬於任何一頁。逐 item 複製一份的話，島端無從分辨「這是劇情點名稱」還是
+   * 「這一頁的標題」，也就沒辦法同時顯示兩者。
+   *
+   * 未命名（或非 story 來源）時為 undefined，卡片就只列頁面。
+   */
+  keyTitle?: string | null;
+  keyDescription?: string | null;
 }
 
 /** 線索卡的一列 */
