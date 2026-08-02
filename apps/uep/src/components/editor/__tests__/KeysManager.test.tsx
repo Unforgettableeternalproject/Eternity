@@ -291,14 +291,19 @@ describe('KeysManager', () => {
     expect(screen.queryByText('xavier-colsono')).not.toBeInTheDocument();
   });
 
-  it('選 entity key：標題欄唯讀並標註來源，說明可編輯', async () => {
+  it('選 entity key：標題唯讀，且完全沒有說明欄與儲存鈕', async () => {
     render(<KeysManager />);
     fireEvent.click(await screen.findByText('xavier-colsono'));
     const title = screen.getByLabelText('標題') as HTMLInputElement;
     expect(title).toBeDisabled();
     expect(title.value).toBe('艾斯維爾·科索諾');
-    expect(screen.getByText(/Concepts dossier/)).toBeInTheDocument();
-    expect(screen.getByLabelText('說明')).not.toBeDisabled();
+    expect(screen.getAllByText(/Concepts dossier/).length).toBeGreaterThan(0);
+    // entity 的敘述在 dossier，前台已無消費端——欄位整個不畫，
+    // 不是留一個 disabled 空欄（那會看起來像「還沒填」）
+    expect(screen.queryByLabelText('說明')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '儲存' })
+    ).not.toBeInTheDocument();
   });
 
   it('選 story key：標題可編輯，儲存打 key 說明 proxy', async () => {

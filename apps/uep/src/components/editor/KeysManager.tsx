@@ -1048,28 +1048,41 @@ export default function KeysManager() {
           )}
         </div>
 
-        <div className="km-field">
-          <label className="km-field-label" htmlFor="km-desc">
-            說明
-          </label>
-          <textarea
-            id="km-desc"
-            className="km-field-input km-field-input--area"
-            value={draftDescription}
-            rows={5}
-            onChange={(e) => setDraftDescription(e.target.value)}
-          />
-        </div>
+        {/* entity 沒有說明欄：唯一的前台消費端（Concepts「相關」按鈕的
+            hover tooltip）已於 2026-08-02 移除——那顆按鈕就長在 dossier
+            裡面，把同一段敘述再講一次沒有意義。留著可寫但沒人讀的欄位，
+            就是製造第二個會漂移的敘述來源。 */}
+        {isEntity ? (
+          <div className="km-notice">
+            entity 的敘述在 Concepts dossier 條目上，這裡不另存一份。
+            這一列只是給 story 以外的 key 保留反查用的殼。
+          </div>
+        ) : (
+          <div className="km-field">
+            <label className="km-field-label" htmlFor="km-desc">
+              說明
+            </label>
+            <textarea
+              id="km-desc"
+              className="km-field-input km-field-input--area"
+              value={draftDescription}
+              rows={5}
+              onChange={(e) => setDraftDescription(e.target.value)}
+            />
+          </div>
+        )}
 
         <div className="km-detail-actions">
-          <button
-            type="button"
-            className="km-btn km-btn--primary"
-            disabled={!dirty || saving}
-            onClick={saveKey}
-          >
-            {saving ? '儲存中…' : '儲存'}
-          </button>
+          {!isEntity && (
+            <button
+              type="button"
+              className="km-btn km-btn--primary"
+              disabled={!dirty || saving}
+              onClick={saveKey}
+            >
+              {saving ? '儲存中…' : '儲存'}
+            </button>
+          )}
           {row.updatedAt && (
             <span className="km-detail-stamp">
               最後更新 {new Date(row.updatedAt).toLocaleString('zh-TW')}
@@ -1640,16 +1653,19 @@ export default function KeysManager() {
                   />
                 </>
               )}
-              <textarea
-                className="km-field-input km-field-input--area"
-                placeholder="說明（可留空）"
-                aria-label="新項目說明"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-              />
+              {/* entity 的名稱與敘述都在 Concepts dossier，這裡只建反查用的殼 */}
+              {!(tab === 'keys' && newKeyType === 'entity') && (
+                <textarea
+                  className="km-field-input km-field-input--area"
+                  placeholder="說明（可留空）"
+                  aria-label="新項目說明"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                />
+              )}
               {tab === 'keys' && newKeyType === 'entity' && (
                 <div className="km-field-hint">
-                  entity 的名稱來自 Concepts dossier，這裡只填說明。
+                  entity 的名稱與敘述都在 Concepts dossier，這裡只建反查用的殼。
                 </div>
               )}
               {createError && (

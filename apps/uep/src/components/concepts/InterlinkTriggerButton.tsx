@@ -31,7 +31,6 @@ import React, { useEffect, useState } from 'react';
 
 import { activateEntityKey } from '../../embed';
 import { shouldMountIsland, useDesktopIslandViewport } from '../../islands';
-import { getApiBase } from '../../lib/apiBase';
 import {
   isEchoesEntityUnlocked,
   loadEchoesEntityIndex,
@@ -53,40 +52,17 @@ interface Props {
   className?: string;
 }
 
-/**
- * entity 說明的模組級快取（S10-3b T-B7）。
+/*
+ * ⚠️ 這顆按鈕**刻意不顯示 entity 說明**（艾斯維爾 2026-08-02 定案）。
  *
- * 說明來自 `/api/interlink/keys/public`（/admin/settings 填的
- * `interlink_keys.description`），**hover／focus 才查**——browser 清單
- * 一頁可能長出數十顆按鈕，mount 就查會對同一批 key 掃射。以 Promise 快取
- * 讓同 key 的並發 hover 也只打一次；查詢失敗快取 null（說明是加分資訊，
- * 失敗不重試也不報錯）。
+ * entity 的權威敘述在 Concepts dossier 條目上，而這顆按鈕就長在 dossier
+ * 裡面——把同一段話再用 tooltip 講一次，讀者的位置本來就看得到。原本的
+ * hover 查詢（`/api/interlink/keys/public?keyType=entity`）與它的模組級
+ * 快取已一併移除；`interlink_keys.description` 的 entity 列因此沒有前台
+ * 消費端，/admin/settings 的 entity 說明欄也跟著收起來。
+ *
+ * story 的 title／description 不受影響——那條鏈的出口是 History 島線索卡。
  */
-const descriptionCache = new Map<string, Promise<string | null>>();
-
-function loadEntityDescription(entityKey: string): Promise<string | null> {
-  let cached = descriptionCache.get(entityKey);
-  if (!cached) {
-    cached = (async () => {
-      try {
-        const res = await fetch(
-          `${getApiBase()}/api/interlink/keys/public?keyType=entity&key=${encodeURIComponent(entityKey)}`
-        );
-        if (!res.ok) return null;
-        const json = (await res.json()) as {
-          ok: boolean;
-          data?: { keyMeta?: { description?: string | null } | null };
-        };
-        return (json.ok && json.data?.keyMeta?.description) || null;
-      } catch {
-        return null;
-      }
-    })();
-    descriptionCache.set(entityKey, cached);
-  }
-  return cached;
-}
-
 export default function InterlinkTriggerButton({
   entityKey,
   label,
@@ -115,18 +91,8 @@ export default function InterlinkTriggerButton({
     };
   }, []);
 
-  /** 說明摘要：undefined = 尚未查（hover 才 lazy 載入），null = 查過沒有 */
-  const [description, setDescription] = useState<string | null | undefined>(
-    undefined
-  );
-
   const key = entityKey?.trim();
   if (!key || !desktopViewport) return null;
-
-  const loadDescription = () => {
-    if (description !== undefined) return;
-    void loadEntityDescription(key).then(setDescription);
-  };
 
   /* 島沒掛載時連查都不必——事件廣播出去沒有消費者。逐島判定而非聯集：
      只解鎖 Echoes 的讀者不該因為這個 entity「只有畫廊」而看到按鈕。 */
@@ -152,9 +118,7 @@ export default function InterlinkTriggerButton({
         });
       }}
       onPointerDown={(e) => e.stopPropagation()}
-      onMouseEnter={loadDescription}
-      onFocus={loadDescription}
-      title={description || `找「${label}」相關的回聲與影像`}
+      title={`找「${label}」相關的回聲與影像`}
       aria-label={`找「${label}」相關的回聲與影像`}
     >
       <span className="conc-interlink-btn__glyph" aria-hidden="true">
