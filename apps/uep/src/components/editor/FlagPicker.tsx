@@ -84,6 +84,7 @@ export default function FlagPicker({
   const [submitting, setSubmitting] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const createRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +109,13 @@ export default function FlagPicker({
   useEffect(() => {
     if (open) void load();
   }, [open, load]);
+
+  // 展開新建表單時捲進視野：面板本身不捲了，但它可能被外層（Inspector 欄、
+  // bubble menu）的捲動容器裁掉，尤其 gate 編輯器位在 Inspector 底部時
+  useEffect(() => {
+    // scrollIntoView 是純視覺調整，jsdom 沒有實作，缺了也不影響行為
+    if (creating) createRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [creating]);
 
   // 點外面收起（bubble menu 疊在內容上，不收起會擋住編輯區）
   useEffect(() => {
@@ -364,7 +372,7 @@ export default function FlagPicker({
               )}
 
               {creating ? (
-                <div className="ned-flagpicker-create">
+                <div className="ned-flagpicker-create" ref={createRef}>
                   <input
                     className="ned-field"
                     type="text"

@@ -1305,10 +1305,13 @@ export default function RichEditor({
    * 所以先 POST（帶 label），撞到 409 才改 PUT。derived 形狀會被 worker
    * 以 400 拒絕——授予端本來就不該出現 derived 旗標（那類是程式授予的），
    * 真的填了就照實回報，不靜默吞掉。
+   *
+   * 回傳寫入是否成功，讓呼叫端只在整組都成立時才報成功——標記屬性寫進去了
+   * 但標籤沒寫進註冊表時報「已套用」會是假的。
    */
-  const saveFlagLabel = async () => {
+  const saveFlagLabel = async (): Promise<boolean> => {
     const name = selectedFlagName;
-    if (!name) return;
+    if (!name) return true;
     const label = flagLabelDraft.trim();
     const send = (method: 'POST' | 'PUT', url: string, body: unknown) =>
       fetch(url, {
@@ -1330,9 +1333,12 @@ export default function RichEditor({
       if (!res.ok) {
         const json = (await res.json()) as { error?: string };
         getToast().error(json.error || '旗標標籤寫入失敗');
+        return false;
       }
+      return true;
     } catch (e) {
       getToast().error(`旗標標籤寫入失敗：${String(e)}`);
+      return false;
     }
   };
 
@@ -3520,8 +3526,25 @@ export default function RichEditor({
       {/* 進度標記 bubble menu（Epic 2 掃描線） */}
       {editor && selectedMarker && (
         <div className="ned-audio-bubble ned-marker-bubble" key="marker-bubble">
-          <span className="ned-audio-bubble-label">
-            ⚑ {markerDraft.grantsFlags.trim() ? '旗標標記' : '進度標記'}
+          {/* 標題直接把目前授予的旗標秀出來：bubble 一開始只寫「旗標標記」，
+              但下面的 picker 輸入框在收合狀態下未必看得出選了什麼 */}
+          <span
+            className="ned-audio-bubble-label"
+            title={selectedFlagName || undefined}
+          >
+            ⚑ {selectedFlagName ? '旗標標記' : '進度標記'}
+            {selectedFlagName && (
+              <>
+                <span className="ned-marker-bubble-flag">
+                  {selectedFlagName}
+                </span>
+                {flagLabelDraft.trim() && (
+                  <span className="ned-marker-bubble-flag-label">
+                    {flagLabelDraft.trim()}
+                  </span>
+                )}
+              </>
+            )}
           </span>
           <span className="ned-marker-field-label">授予</span>
           <FlagPicker
@@ -3553,15 +3576,27 @@ export default function RichEditor({
             className="ned-img-bubble-btn"
             title="套用標記設定"
             onClick={() => {
-              const node = editor.state.doc.nodeAt(selectedMarker.pos);
-              if (node?.type.name !== 'progressMarker') return;
-              editor.view.dispatch(
-                editor.state.tr.setNodeMarkup(selectedMarker.pos, undefined, {
-                  grantsFlags: parseFlagsAttr(markerDraft.grantsFlags),
-                  label: markerDraft.label.trim(),
-                })
-              );
-              void saveFlagLabel();
+              void (async () => {
+                const node = editor.state.doc.nodeAt(selectedMarker.pos);
+                if (node?.type.name !== 'progressMarker') {
+                  getToast().error('找不到這個標記，請重新選取。');
+                  return;
+                }
+                editor.view.dispatch(
+                  editor.state.tr.setNodeMarkup(selectedMarker.pos, undefined, {
+                    grantsFlags: parseFlagsAttr(markerDraft.grantsFlags),
+                    label: markerDraft.label.trim(),
+                  })
+                );
+                // 標籤沒寫進註冊表時 saveFlagLabel 自己已經報過錯，
+                // 這裡就不要再蓋一個「已套用」上去
+                if (!(await saveFlagLabel())) return;
+                getToast().success(
+                  selectedFlagName
+                    ? `已套用標記：${selectedFlagName}`
+                    : '已套用標記設定'
+                );
+              })();
             }}
           >
             套用
@@ -3570,8 +3605,20 @@ export default function RichEditor({
             className="ned-img-bubble-btn ned-img-bubble-btn--danger"
             title="刪除標記"
             onClick={() => {
-              const node = editor.state.doc.nodeAt(selectedMarker.pos);
-              if (node?.type.name === 'progressMarker') {
+              void (async () => {
+                const node = editor.state.doc.nodeAt(selectedMarker.pos);
+                if (node?.type.name !== 'progressMarker') {
+                  setSelectedMarker(null);
+                  return;
+                }
+                // 標記刪掉等於這一頁不再授予該旗標，讀者端的解鎖鏈會跟著斷，
+                // 而刪除本身在正文裡沒有殘影可辨認——先問一次
+                const ok = await getDialog().confirm(
+                  selectedFlagName
+                    ? `確定刪除這個標記嗎？這一頁將不再授予旗標「${selectedFlagName}」。`
+                    : '確定刪除這個進度標記嗎？'
+                );
+                if (!ok) return;
                 editor
                   .chain()
                   .focus()
@@ -3580,8 +3627,9 @@ export default function RichEditor({
                     to: selectedMarker.pos + node.nodeSize,
                   })
                   .run();
-              }
-              setSelectedMarker(null);
+                setSelectedMarker(null);
+                getToast().success('已刪除標記');
+              })();
             }}
           >
             刪除

@@ -1264,6 +1264,26 @@
   padding-left: 4px;
 }
 
+/* bubble 標題右側的旗標名與標籤：名字用等寬字才看得出 typo，
+   標籤是給人看的短名稱所以走一般字體並降階 */
+.ned-marker-bubble-flag {
+  margin-left: 8px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 0.82em;
+  color: var(--ned-accent, #c8a24a);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  display: inline-block;
+}
+.ned-marker-bubble-flag-label {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: var(--ink-mute);
+}
+
 .ned-marker-input {
   width: 150px;
   background: var(--bg-soft, #111);
@@ -4576,16 +4596,19 @@
   right: 0;
   z-index: 40;
   margin-top: 3px;
-  max-height: 220px;
-  overflow-y: auto;
   border: 1px solid var(--hairline);
   border-radius: 3px;
   background: var(--bg-card, var(--bg-soft));
   box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
 }
+/* 捲動上限掛在清單而不是整個面板：底下的「直接使用」「新建並填標籤」
+   與新建表單是操作按鈕，被捲出視野等於整條路徑消失（面板本身沒有捲軸
+   提示，看起來就只是被切掉） */
 .ned-flagpicker-list {
   display: flex;
   flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
 }
 .ned-flagpicker-item {
   display: flex;
