@@ -2,8 +2,8 @@
  * 站台行為設定（/admin/settings 的「站台」分頁）
  *
  * 「一次性讀取」參數的表單（D-2／D-4 定案）：內容保護模式、四座島的解鎖
- * 儀式參數、便條上限。每 tick 讀取的參數（迷霧推進速率、掃描線視窗比例、
- * rush 門檻）刻意不在這裡——它們維持編譯期常數，不進 uep_settings。
+ * 儀式參數、便條上限、閱讀節奏。每 tick 讀取的參數（迷霧推進速率、掃描線
+ * 視窗比例、rush 門檻）刻意不在這裡——它們維持編譯期常數，不進 uep_settings。
  *
  * 機率一律以整數百分比呈現與存放，即使前端常數是 0–1 的小數；換算在各自的
  * 消費端做（見 `phantomEnterChance()` 等）。
@@ -38,10 +38,26 @@ const PROTECTION_OPTIONS = [
   },
 ] as const;
 
+const IDLE_NUDGE_OPTIONS = [
+  {
+    value: 'enabled',
+    label: '顯示',
+    hint: '閒置超過閾值時，Reader 中央淡入一張低調提示卡，任何動作即消失',
+  },
+  {
+    value: 'disabled',
+    label: '不顯示',
+    hint: '只關掉提示卡。閒置量測照常運作——閱讀時數與休息提醒仍會扣除掛機時間',
+  },
+] as const;
+
 /**
  * 所有數字欄位——清空時暫存 NaN，儲存前要一起擋。
  * 漏列的鍵會讓空欄位以 NaN 送出，worker 端擋下但錯誤訊息指向那個鍵而不是
  * 「你有欄位沒填」，所以新增欄位時務必同步這份。
+ *
+ * ⚠️ 只列數字鍵。`reader.idleNudgeMode` 是字串 enum，列進來會讓
+ * `Number.isInteger` 檢查對它恆為 false 之外還誤導後續維護者。
  */
 const NUMERIC_KEYS = [
   'bookmark.baseChancePct',
@@ -52,6 +68,11 @@ const NUMERIC_KEYS = [
   'storage.loneNoteDustSteps',
   'note.max',
   'note.textMax',
+  'reader.activityIdleThresholdSec',
+  'reader.restActiveMinutes',
+  'reader.restPageCount',
+  'reader.restWindowMinutes',
+  'reader.restCooldownMinutes',
 ];
 
 export default function SiteSettingsPanel() {
@@ -248,6 +269,70 @@ export default function SiteSettingsPanel() {
             '單張字數上限',
             '超過的輸入會被擋下，不影響既有便條，1–400',
             { min: 1, max: 400 }
+          )}
+        </section>
+
+        <section className="ssp-section">
+          <div className="ssp-section-title">閱讀節奏</div>
+          {numberField(
+            'reader.activityIdleThresholdSec',
+            '判定閒置的秒數',
+            '無任何動作超過這個秒數即視為離開。閱讀時數統計與休息提醒都以此為準，沒有停用值，30–3600',
+            { min: 30, max: 3600 }
+          )}
+          <div
+            className="ssp-radio-group"
+            role="radiogroup"
+            aria-label="閒置提示"
+          >
+            {IDLE_NUDGE_OPTIONS.map((opt) => (
+              <label key={opt.value} className="ssp-radio">
+                <input
+                  type="radio"
+                  name="idle-nudge-mode"
+                  value={opt.value}
+                  checked={draft['reader.idleNudgeMode'] === opt.value}
+                  onChange={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      'reader.idleNudgeMode': opt.value,
+                    }))
+                  }
+                />
+                <span className="ssp-radio-label">閒置提示：{opt.label}</span>
+                <span className="ssp-hint">{opt.hint}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {/* 休息提醒只在 History 生效——「獲得很多進度」只有 History 有具體
+            定義（完成頁數、掃描線、迷霧線），其餘四區的停留形態套不上。 */}
+        <section className="ssp-section">
+          <div className="ssp-section-title">休息提醒（僅 History）</div>
+          {numberField(
+            'reader.restActiveMinutes',
+            '累積活躍幾分鐘後提醒',
+            '不是牆鐘時間——閒置的時間不算。按下「知道了」後重新累積。0 = 停用這條線，0–480',
+            { min: 0, max: 480 }
+          )}
+          {numberField(
+            'reader.restPageCount',
+            '視窗內完成幾頁後提醒',
+            '兩條線先到先觸發：只看時長會漏掉快速掃完多篇短文的人。0 = 停用這條線，0–100',
+            { min: 0, max: 100 }
+          )}
+          {numberField(
+            'reader.restWindowMinutes',
+            '頁數判準的視窗長度（分鐘）',
+            '滾動視窗，更早的完成紀錄會被剔除，1–240',
+            { min: 1, max: 240 }
+          )}
+          {numberField(
+            'reader.restCooldownMinutes',
+            '確認後的冷卻（分鐘）',
+            '從按下「知道了」起算，不是從卡片出現起算，1–1440',
+            { min: 1, max: 1440 }
           )}
         </section>
       </div>

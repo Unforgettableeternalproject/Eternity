@@ -107,6 +107,12 @@ describe('/api/settings', () => {
       'storage.loneNoteDustSteps': 10,
       'note.max': 30,
       'note.textMax': 200,
+      'reader.activityIdleThresholdSec': 180,
+      'reader.idleNudgeMode': 'enabled',
+      'reader.restActiveMinutes': 45,
+      'reader.restPageCount': 5,
+      'reader.restWindowMinutes': 30,
+      'reader.restCooldownMinutes': 60,
     });
   });
 
@@ -202,6 +208,48 @@ describe('/api/settings', () => {
     expect((await putSettings({ 'note.textMax': 401 })).status).toBe(400);
     expect((await putSettings({ 'note.max': 60 })).status).toBe(200);
     expect((await putSettings({ 'note.textMax': 400 })).status).toBe(200);
+  });
+
+  it('閒置閾值沒有停用值——它是統計與休息提醒的共同事實來源', async () => {
+    const key = 'reader.activityIdleThresholdSec';
+    expect((await putSettings({ [key]: 0 })).status).toBe(400);
+    expect((await putSettings({ [key]: 29 })).status).toBe(400);
+    expect((await putSettings({ [key]: 30 })).status).toBe(200);
+    expect((await putSettings({ [key]: 3600 })).status).toBe(200);
+    expect((await putSettings({ [key]: 3601 })).status).toBe(400);
+    expect((await putSettings({ [key]: 180.5 })).status).toBe(400);
+  });
+
+  it('idleNudgeMode 是字串 enum，只收 enabled / disabled', async () => {
+    const key = 'reader.idleNudgeMode';
+    expect((await putSettings({ [key]: 'enabled' })).status).toBe(200);
+    expect((await putSettings({ [key]: 'disabled' })).status).toBe(200);
+    expect((await putSettings({ [key]: 'sometimes' })).status).toBe(400);
+    // 不是數字鍵——0 曾是其他停用開關的慣例值，這裡不能被誤收
+    expect((await putSettings({ [key]: 0 })).status).toBe(400);
+  });
+
+  it('休息提醒的兩條觸發線收 0 = 停用，計算參數不收 0', async () => {
+    for (const [key, max] of [
+      ['reader.restActiveMinutes', 480],
+      ['reader.restPageCount', 100],
+    ] as const) {
+      expect((await putSettings({ [key]: 0 })).status).toBe(200);
+      expect((await putSettings({ [key]: max })).status).toBe(200);
+      expect((await putSettings({ [key]: max + 1 })).status).toBe(400);
+      expect((await putSettings({ [key]: -1 })).status).toBe(400);
+    }
+
+    for (const [key, max] of [
+      ['reader.restWindowMinutes', 240],
+      ['reader.restCooldownMinutes', 1440],
+    ] as const) {
+      expect((await putSettings({ [key]: 0 })).status).toBe(400);
+      expect((await putSettings({ [key]: 1 })).status).toBe(200);
+      expect((await putSettings({ [key]: max })).status).toBe(200);
+      expect((await putSettings({ [key]: max + 1 })).status).toBe(400);
+      expect((await putSettings({ [key]: 30.5 })).status).toBe(400);
+    }
   });
 
   it('表裡的壞 JSON 靜默退回預設，不讓端點 500', async () => {

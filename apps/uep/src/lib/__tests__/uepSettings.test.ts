@@ -39,6 +39,9 @@ describe('uepSettings', () => {
   beforeEach(() => {
     delete window.__uepSettings;
     sessionStorage.clear();
+    // initUepSettings 是模組級去重的，不重置的話前一個測試留下的
+    // in-flight Promise 會讓後續測試的 init 直接短路
+    clearUepSettingsCache();
   });
 
   afterEach(() => {
@@ -94,9 +97,38 @@ describe('uepSettings', () => {
   });
 
   it('clearUepSettingsCache 讓下一次 init 重新 fetch', async () => {
-    mockFetch({ ok: true, data: { settings: SETTINGS } });
+    const fetchMock = mockFetch({ ok: true, data: { settings: SETTINGS } });
     await initUepSettings();
     clearUepSettingsCache();
     expect(sessionStorage.getItem('uep-settings-v1')).toBeNull();
+
+    // 只清 sessionStorage 不夠——in-flight Promise 也要丟掉，
+    // 否則「立刻重抓」會被去重短路成不抓
+    await initUepSettings();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('並行呼叫只 fetch 一次（DesignLayout 與 activityWatch 各叫一次）', async () => {
+    const fetchMock = mockFetch({ ok: true, data: { settings: SETTINGS } });
+
+    await Promise.all([
+      initUepSettings(),
+      initUepSettings(),
+      initUepSettings(),
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getSetting('note.max', 30)).toBe(12);
+  });
+
+  it('fetch 失敗後的重複呼叫仍 resolve，不重試也不 reject', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await initUepSettings();
+    await expect(initUepSettings()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

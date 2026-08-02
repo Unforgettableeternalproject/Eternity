@@ -1,7 +1,7 @@
 /**
  * 站台行為設定的前台讀取（S10-3b T-B4）
  *
- * `/admin/settings` 站台分頁調整的四項參數（uep_settings 表）在前台的
+ * `/admin/settings` 站台分頁調整的參數（uep_settings 表）在前台的
  * 消費入口。DesignLayout 掛載時呼叫 `initUepSettings()`：
  *
  *   sessionStorage 有快取 → 同步寫入 window.__uepSettings（同一 session
@@ -12,6 +12,9 @@
  * fetch 失敗、worker 掛掉）都退回程式碼常數——uep 是 MPA，每頁重新
  * mount，沒有 fallback 的話相關功能會用 undefined 算數。也因此設定值的
  * 生效時機是「下一次頁面載入」，不保證首訪第一頁。
+ *
+ * 需要「確定拿到真值」的消費端（activityWatch）改為 await `initUepSettings()`
+ * 本身——它是去重的，重複呼叫不會多打一次 fetch。
  *
  * ⚠️ 只放「一次性讀取」的參數。需要在 scroll／IO 回呼裡讀的參數不該進
  * uep_settings（D-2 定案），維持編譯期常數。
@@ -71,6 +74,9 @@ function writeCache(settings: SettingsMap): void {
  * （否則要關閉分頁才會過期）。
  */
 export function clearUepSettingsCache(): void {
+  // 同時丟掉 in-flight Promise，否則同一頁清完快取後再呼叫 initUepSettings()
+  // 會拿到舊的已 resolve Promise，「立刻重抓」變成不抓
+  inFlight = null;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch {
@@ -78,26 +84,44 @@ export function clearUepSettingsCache(): void {
   }
 }
 
-export async function initUepSettings(): Promise<void> {
-  if (typeof window === 'undefined') return;
+/**
+ * 模組級 in-flight Promise。DesignLayout 掛載時不 await 地呼叫一次，
+ * 需要確定值的消費端（activityWatch）之後再 await 同一個 Promise——
+ * 兩邊各自 fetch 一次的話，首訪會打兩發 /api/settings/public，而且
+ * 「誰先回來誰決定 window.__uepSettings」是不必要的競態。
+ */
+let inFlight: Promise<void> | null = null;
+
+/**
+ * 可重入且去重。**永遠 resolve**——fetch 失敗時消費端退回程式碼常數即可，
+ * 讓它 reject 會使 await 它的功能（AFK 探測）因為設定 API 掛掉而整個不啟動。
+ */
+export function initUepSettings(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (inFlight) return inFlight;
 
   const cached = readCache();
   if (cached) {
     window.__uepSettings = cached;
-    return;
+    inFlight = Promise.resolve();
+    return inFlight;
   }
 
-  try {
-    const res = await fetch(`${getApiBase()}/api/settings/public`);
-    const json = (await res.json()) as {
-      ok?: boolean;
-      data?: { settings?: SettingsMap };
-    };
-    if (json?.ok && json.data?.settings) {
-      window.__uepSettings = json.data.settings;
-      writeCache(json.data.settings);
+  inFlight = (async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/api/settings/public`);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: { settings?: SettingsMap };
+      };
+      if (json?.ok && json.data?.settings) {
+        window.__uepSettings = json.data.settings;
+        writeCache(json.data.settings);
+      }
+    } catch {
+      // fetch 失敗 → 消費點全數退回常數，這一頁維持預設行為
     }
-  } catch {
-    // fetch 失敗 → 消費點全數退回常數，這一頁維持預設行為
-  }
+  })();
+
+  return inFlight;
 }

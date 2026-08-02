@@ -28,7 +28,13 @@ export type SettingKey =
   | 'visuals.phantomSwitchChancePct'
   | 'storage.loneNoteDustSteps'
   | 'note.max'
-  | 'note.textMax';
+  | 'note.textMax'
+  | 'reader.activityIdleThresholdSec'
+  | 'reader.idleNudgeMode'
+  | 'reader.restActiveMinutes'
+  | 'reader.restPageCount'
+  | 'reader.restWindowMinutes'
+  | 'reader.restCooldownMinutes';
 
 export type SettingValue = string | number;
 
@@ -43,11 +49,19 @@ export const SETTING_DEFAULTS: Record<SettingKey, SettingValue> = {
   'storage.loneNoteDustSteps': 10,
   'note.max': 30,
   'note.textMax': 200,
+  'reader.activityIdleThresholdSec': 180,
+  'reader.idleNudgeMode': 'enabled',
+  'reader.restActiveMinutes': 45,
+  'reader.restPageCount': 5,
+  'reader.restWindowMinutes': 30,
+  'reader.restCooldownMinutes': 60,
 };
 
 export const SETTING_KEYS = Object.keys(SETTING_DEFAULTS) as SettingKey[];
 
 const PROTECTION_MODES = ['always', 'never', 'env'];
+
+const IDLE_NUDGE_MODES = ['enabled', 'disabled'];
 
 export interface SettingsMap {
   [key: string]: SettingValue;
@@ -122,6 +136,81 @@ export function validateSetting(
         (value as number) > 400
       ) {
         return { ok: false, error: 'note.textMax 必須是 1–400 的整數' };
+      }
+      return { ok: true, value: value as number };
+    // 無動作幾秒後封存活躍區間。這條是**活動量測本身**的閾值——閱讀時數統計
+    // 與休息提醒都以它為事實來源，所以沒有「停用」值。要關掉 AFK 提示請改
+    // reader.idleNudgeMode，那隻控制 UI 不影響量測；用閾值去關會讓統計一併
+    // 失去排除掛機的依據
+    case 'reader.activityIdleThresholdSec':
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 30 ||
+        (value as number) > 3600
+      ) {
+        return {
+          ok: false,
+          error: 'reader.activityIdleThresholdSec 必須是 30–3600 的整數',
+        };
+      }
+      return { ok: true, value: value as number };
+    case 'reader.idleNudgeMode':
+      if (typeof value !== 'string' || !IDLE_NUDGE_MODES.includes(value)) {
+        return {
+          ok: false,
+          error: `reader.idleNudgeMode 必須是 ${IDLE_NUDGE_MODES.join(' / ')}`,
+        };
+      }
+      return { ok: true, value };
+    // 休息提醒的兩條觸發線，各自 0 = 停用該條。兩條都設 0 等於整個關掉休息
+    // 提醒——不另開布林開關（同機率鍵的 0 = 永不出現慣例）
+    case 'reader.restActiveMinutes':
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 0 ||
+        (value as number) > 480
+      ) {
+        return {
+          ok: false,
+          error: 'reader.restActiveMinutes 必須是 0–480 的整數（0 = 停用）',
+        };
+      }
+      return { ok: true, value: value as number };
+    case 'reader.restPageCount':
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 0 ||
+        (value as number) > 100
+      ) {
+        return {
+          ok: false,
+          error: 'reader.restPageCount 必須是 0–100 的整數（0 = 停用）',
+        };
+      }
+      return { ok: true, value: value as number };
+    // 視窗與冷卻是「這條線怎麼算」的參數，不是開關，所以下限 1 不收 0
+    case 'reader.restWindowMinutes':
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 1 ||
+        (value as number) > 240
+      ) {
+        return {
+          ok: false,
+          error: 'reader.restWindowMinutes 必須是 1–240 的整數',
+        };
+      }
+      return { ok: true, value: value as number };
+    case 'reader.restCooldownMinutes':
+      if (
+        !Number.isInteger(value) ||
+        (value as number) < 1 ||
+        (value as number) > 1440
+      ) {
+        return {
+          ok: false,
+          error: 'reader.restCooldownMinutes 必須是 1–1440 的整數',
+        };
       }
       return { ok: true, value: value as number };
     default:
