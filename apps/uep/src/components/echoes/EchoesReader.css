@@ -897,6 +897,18 @@
   margin-top: 2px;
 }
 
+/* 劇情點名稱（T-B7-1）：比副標再低一階，用 accent 與 ◈ 標記與副標區分
+   ——同一列同時有副標與劇情點名稱時要一眼看得出哪個是哪個 */
+.echoes-playlist-story {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--accent, var(--ink-mute));
+  opacity: 0.85;
+  letter-spacing: 0.1em;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
 /* Inline glitch 文字（列表用） */
 .echoes-glitch-inline {
   position: relative;

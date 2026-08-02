@@ -577,6 +577,38 @@ export async function findInterlinkKeyMeta(
   return row ?? null;
 }
 
+/**
+ * 批次版：一次取多把 key 的標題／說明。
+ *
+ * 回傳以 keyValue 為索引的物件，**查無的 key 不出現**——呼叫端本來就要
+ * 處理「這把 key 還沒建殼列」的情況，補一堆 null 只是多一層形狀。
+ */
+export async function findInterlinkKeyMetas(
+  db: D1Database,
+  keyType: 'entity' | 'story',
+  keyValues: string[]
+): Promise<Record<string, InterlinkKeyMeta>> {
+  if (keyValues.length === 0) return {};
+  const placeholders = keyValues.map(() => '?').join(', ');
+  const { results } = await db
+    .prepare(
+      `SELECT key_value, title, description FROM interlink_keys
+       WHERE key_type = ? AND key_value IN (${placeholders})`
+    )
+    .bind(keyType, ...keyValues)
+    .all<{
+      key_value: string;
+      title: string | null;
+      description: string | null;
+    }>();
+
+  const out: Record<string, InterlinkKeyMeta> = {};
+  for (const row of results || []) {
+    out[row.key_value] = { title: row.title, description: row.description };
+  }
+  return out;
+}
+
 /** 管理清單的單筆 key */
 export interface InterlinkKeyListRow {
   keyType: 'entity' | 'story';

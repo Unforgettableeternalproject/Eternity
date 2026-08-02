@@ -50,6 +50,7 @@ import type {
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
 import { getApiBase } from '../../lib/apiBase';
+import { getCachedStoryTitle, loadStoryTitles } from '../../lib/storyKeyTitles';
 import { ensureContentAnchors } from '../../islands/storage/contentAnchors';
 import { useSubpageTitle } from '../../utils/useSubpageTitle';
 import { canonicalizePagePath } from '../../lib/pagePath';
@@ -912,6 +913,43 @@ function EchoesReaderInner() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
+
+  /*
+   * 劇情點名稱（T-B7-1）：收藏池＝讀者看得到的已解鎖劇情歌清單，
+   * 劇情歌的標題底下附上它所屬劇情點的名稱。
+   *
+   * 樹一到手就把全區的 storyKey 一次批次查完（`?keys=` 批次端點 + 模組級
+   * 快取），不在清單渲染時逐首查——一個 subcat 底下可能有數十首，逐首查
+   * 就是對同一個端點掃射（entity tooltip 正是因此被拆掉）。
+   * 查詢失敗只是沒有名稱，不影響清單。
+   */
+  const [storyTitleTick, setStoryTitleTick] = useState(0);
+  useEffect(() => {
+    if (tree.length === 0) return;
+    const keys: string[] = [];
+    const walk = (nodes: PageTreeNode[]) => {
+      for (const node of nodes) {
+        const key = (node.metadata as Record<string, unknown> | undefined)
+          ?.storyKey;
+        if (node.pageType === 'song' && typeof key === 'string' && key.trim()) {
+          keys.push(key.trim());
+        }
+        if (node.children?.length) walk(node.children);
+      }
+    };
+    walk(tree);
+    if (keys.length === 0) return;
+    const ctrl = new AbortController();
+    let cancelled = false;
+    void loadStoryTitles(API_BASE, keys, ctrl.signal).then(() => {
+      // 快取是模組級的，改變的不是 state——用計數器逼一次重渲染
+      if (!cancelled) setStoryTitleTick((n) => n + 1);
+    });
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+  }, [tree]);
 
   // === 導航狀態 ===
   type View = 'landing' | 'cluster' | 'content' | 'song';
@@ -1843,6 +1881,15 @@ function EchoesReaderInner() {
                 const meta = song.metadata as Record<string, unknown>;
                 const sp = effectiveSongSpoiler(song, progress);
                 const subtitle = (meta?.subtitle as string) || '';
+                // 劇情點名稱：只有劇情歌會有，且要與副標同一套 spoiler 遮蔽
+                // ——它跟副標一樣是會劇透的敘事資訊
+                const storyKey =
+                  typeof meta?.storyKey === 'string'
+                    ? meta.storyKey.trim()
+                    : '';
+                const storyTitle = storyKey
+                  ? getCachedStoryTitle(storyKey)
+                  : null;
                 // 分級解鎖：解鎖後仍根據等級決定可見範圍
                 const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
                 const songCanSeeTitle = songHasUnlocked && sp <= 2;
@@ -1899,6 +1946,19 @@ function EchoesReaderInner() {
                             '████'
                           ) : (
                             subtitle
+                          )}
+                        </div>
+                      )}
+                      {storyTitle && (
+                        <div className="echoes-playlist-story">
+                          {songCanSeeSub ? (
+                            <>◈ {storyTitle}</>
+                          ) : sp === 3 ? (
+                            <GlitchText text={`◈ ${storyTitle}`} />
+                          ) : sp === 2 ? (
+                            '◈ ████'
+                          ) : (
+                            <>◈ {storyTitle}</>
                           )}
                         </div>
                       )}

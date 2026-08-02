@@ -825,6 +825,62 @@ describe('History 反向索引與互聯反查端點（S10-1）', () => {
   });
 
   /**
+   * 批次模式（T-B7-1）：Echoes 收藏池一頁可能有數十首劇情歌，逐首查會對
+   * 同一個端點掃射。
+   */
+  it('/keys/public 批次模式一次取多把，查無的不出現在回應裡', async () => {
+    const token = await getAdminToken();
+    for (const [key, title] of [
+      ['batch-a', '甲'],
+      ['batch-b', '乙'],
+    ]) {
+      await worker.fetch(
+        createRequest(`/api/interlink/keys/story/${key}`, {
+          method: 'PUT',
+          token,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title }),
+        }),
+        env,
+        ctx
+      );
+    }
+
+    const res = await worker.fetch(
+      createRequest(
+        '/api/interlink/keys/public?keyType=story&keys=batch-a,batch-b,batch-missing'
+      ),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      data: { keyMetas: Record<string, { title: string | null }> };
+    };
+    expect(json.data.keyMetas['batch-a'].title).toBe('甲');
+    expect(json.data.keyMetas['batch-b'].title).toBe('乙');
+    // 查無的 key 不補 null——呼叫端本來就要處理「還沒建殼列」
+    expect(json.data.keyMetas['batch-missing']).toBeUndefined();
+  });
+
+  it('/keys/public 批次模式的邊界：key 與 keys 互斥、空值與超量皆 400', async () => {
+    const bad = async (qs: string) =>
+      (
+        await worker.fetch(
+          createRequest(`/api/interlink/keys/public?${qs}`),
+          env,
+          ctx
+        )
+      ).status;
+    // 兩者回應形狀不同，同時給無法決定要回哪一種
+    expect(await bad('keyType=story&key=a&keys=b')).toBe(400);
+    expect(await bad('keyType=story&keys=')).toBe(400);
+    expect(await bad('keyType=story&keys=,,')).toBe(400);
+    const many = Array.from({ length: 101 }, (_, i) => `k${i}`).join(',');
+    expect(await bad(`keyType=story&keys=${many}`)).toBe(400);
+  });
+
+  /**
    * `public` 這一段若被 `/keys/:type/:value` 的正規式吃掉，就會被當成
    * keyType 而落進 admin 路由。
    */

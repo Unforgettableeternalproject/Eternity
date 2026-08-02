@@ -40,6 +40,7 @@ import {
   findInterlinkAnchors,
   findInterlinkDefinitions,
   findInterlinkKeyMeta,
+  findInterlinkKeyMetas,
   findStorySongsWithoutKey,
   listInterlinkKeys,
   updateInterlinkKeyMeta,
@@ -2211,6 +2212,50 @@ export default {
           cors
         );
       }
+      // 批次模式：`?keys=a,b,c` 一次取多把。Echoes 收藏池一頁可能有數十首
+      // 劇情歌，逐首查會對同一個端點掃射（entity tooltip 就是這樣被拆掉的）。
+      // 單把的 `?key=` 維持原樣，兩者不可同時給——回應形狀不同。
+      const rawKeys = url.searchParams.get('keys');
+      if (rawKeys !== null) {
+        if (key) {
+          return jsonResponse(
+            { ok: false, error: 'key 與 keys 不可同時使用' },
+            400,
+            cors
+          );
+        }
+        const keys = [
+          ...new Set(
+            rawKeys
+              .split(',')
+              .map((k) => k.trim())
+              .filter(Boolean)
+          ),
+        ];
+        if (keys.length === 0) {
+          return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+        }
+        // 上限保護：一頁的劇情歌不會有這麼多，超過就是被當成掃描端點在用
+        if (keys.length > 100) {
+          return jsonResponse(
+            { ok: false, error: 'keys 一次最多 100 把' },
+            400,
+            cors
+          );
+        }
+        const metas = await findInterlinkKeyMetas(
+          env.CONTENT_DB,
+          keyType,
+          keys
+        );
+        return jsonResponse(
+          { ok: true, data: { keyMetas: metas } },
+          200,
+          cors,
+          true
+        );
+      }
+
       if (!key) {
         return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
       }
