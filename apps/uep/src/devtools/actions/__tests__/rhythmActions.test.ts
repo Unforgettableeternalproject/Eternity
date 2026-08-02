@@ -21,7 +21,7 @@ import { registerRhythmActions } from '../rhythmActions';
 const ACTION_IDS = [
   'rhythm:force-idle',
   'rhythm:status',
-  'rhythm:restart-watch',
+  'rhythm:apply-settings',
   'rhythm:trigger-rest',
   'rhythm:rest-status',
   'guide:clear-seen-all',

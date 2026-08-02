@@ -70,10 +70,12 @@ function useGateExemptConflict(
   const [dependents, setDependents] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!pageId || !isGateExempt) {
-      setDependents([]);
-      return undefined;
-    }
+    // ⚠️ 先清空再查。編輯器換頁時這個 effect 會用新的 pageId 重跑，若新的
+    // 查詢失敗或回 ok=false 就會直接 return——上一頁的依賴清單便留在畫面上，
+    // 對著一個毫不相干的頁面顯示警告。
+    setDependents([]);
+    if (!pageId || !isGateExempt) return undefined;
+
     let cancelled = false;
     void fetch(`${apiBase}/api/flags/audit`, { credentials: 'include' })
       .then((res) => res.json())

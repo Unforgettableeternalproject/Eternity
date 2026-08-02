@@ -21,9 +21,16 @@ const state = {
 };
 
 const markSeen = vi.fn();
-let progressListener: ((s: unknown, d: { source: string }) => void) | null =
-  null;
 const openIsland = vi.fn();
+
+/** 解鎖通知走 window 事件——與 IslandGuideAuto 模組層級聽的是同一條路 */
+function emitIslandUnlocked() {
+  window.dispatchEvent(
+    new CustomEvent('uep:progress-change', {
+      detail: { source: 'island-unlocked' },
+    })
+  );
+}
 
 vi.mock('../../../progress', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../progress')>();
@@ -36,12 +43,7 @@ vi.mock('../../../progress', async (importOriginal) => {
     }),
     getProgressManager: () => ({
       markIslandGuideSeen: markSeen,
-      subscribe: (fn: (s: unknown, d: { source: string }) => void) => {
-        progressListener = fn;
-        return () => {
-          progressListener = null;
-        };
-      },
+      subscribe: () => () => {},
     }),
   };
 });
@@ -94,9 +96,18 @@ async function runSchedule(ms = 2000) {
   });
 }
 
+/**
+ * 「最近解鎖時刻」是模組層級狀態（必須如此，見下方第一座島的測試）。
+ * 每個測試把時鐘往前推一大段，讓上一個測試留下的解鎖時刻自然過期，
+ * 否則會互相污染。
+ */
+let clock = new Date('2026-08-02T00:00:00Z').getTime();
+
 describe('IslandGuideAuto', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    clock += 60_000;
+    vi.setSystemTime(clock);
     sessionStorage.clear();
     document.body.innerHTML = '';
     state.canUse = true;
@@ -161,27 +172,46 @@ describe('IslandGuideAuto', () => {
     expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
   });
 
-  it('剛解鎖的島要等甦醒動畫演完才開始', async () => {
-    // 從「一座都還沒解鎖」起步，否則 mount 當下就先排了一輪 delay=0
+  /**
+   * ⚠️ 這一段刻意模擬 **IslandHost 的真實結構**：`activeIds.length === 0`
+   * 時整個 Host return null，所以第一座島解鎖**之前**，IslandGuideAuto
+   * 根本沒有 mount。
+   *
+   * 訂閱若放在元件的 effect 裡，這個情境下會整個錯過 `island-unlocked`，
+   * 延遲走 0，教學直接蓋在剛開始播的甦醒動畫上——而第一座島正是最需要
+   * 那個延遲的一次。所以訂閱必須在模組層級。
+   */
+  it('第一座島解鎖時仍等甦醒動畫演完（元件在解鎖後才 mount）', async () => {
     state.unlocked = [];
-    const { rerender } = render(<IslandGuideAuto />);
+    // Host 此刻不會 render IslandGuideAuto
+    const { rerender } = render(<div />);
     await runSchedule();
-    expect(screen.queryByText('history 第一步')).toBeNull();
 
-    // 解鎖：store 的 listener 同步先跑，React 重渲染在其後
+    // 解鎖：progressStore 同步通知模組層級的訂閱者，React 重渲染在其後
+    await act(async () => {
+      emitIslandUnlocked();
+    });
     state.unlocked = ['history'];
     await act(async () => {
-      progressListener?.({}, { source: 'island-unlocked' });
       rerender(<IslandGuideAuto />);
     });
 
-    // AWAKEN_MS 是 1400——甦醒動畫還沒演完就蓋教學等於把剛給的東西搶走
+    // AWAKEN_MS 是 1400
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1200);
+      await vi.advanceTimersByTimeAsync(1000);
     });
     expect(screen.queryByText('history 第一步')).toBeNull();
 
     await runSchedule();
+    expect(screen.getByText('history 第一步')).toBeTruthy();
+  });
+
+  it('沒有解鎖事件時不多等——一般換頁應該立刻排', async () => {
+    render(<IslandGuideAuto />);
+    // 只推進不到 AWAKEN_MS 的時間，加上等島 mount 的幾幀
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
     expect(screen.getByText('history 第一步')).toBeTruthy();
   });
 

@@ -42,9 +42,6 @@ if (Astro.request.method === 'POST') {
     const formData = await Astro.request.formData();
     const username = formData.get('username')?.toString() || '';
     const password = formData.get('password')?.toString() || '';
-    // 與檔案下方模組級的 redirectTo（取自 query string）刻意不同名：
-    // 同名會讓 astro check 把這一個誤報成 ts(6133) 未使用
-    const postRedirectTo = safeRedirect(formData.get('redirect')?.toString());
 
     const res = await fetch(`${apiBase}/api/auth/login`, {
       method: 'POST',
@@ -74,7 +71,11 @@ if (Astro.request.method === 'POST') {
         maxAge: 60 * 60 * 24,
         sameSite: 'lax',
       });
-      return Astro.redirect(postRedirectTo);
+      // 直接內聯而不是先存成變數：astro check 對 frontmatter 裡「只在
+      // return 語句中被使用」的區域變數會誤報 ts(6133)，改名成不與模組級
+      // 變數同名也不會消（試過了，警告只是跟著換名字）。沒有變數就沒有
+      // 誤報，行為完全相同
+      return Astro.redirect(safeRedirect(formData.get('redirect')?.toString()));
     } else {
       error = json.error || '驗證失敗 — 帳號或密碼不正確';
     }

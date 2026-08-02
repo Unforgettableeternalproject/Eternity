@@ -246,6 +246,38 @@ describe('IslandGuideOverlay', () => {
     expect(onClose).toHaveBeenCalledWith('dismissed');
   });
 
+  it('anchor 貼著畫面下緣時，說明卡不會掉出視窗', async () => {
+    const root = mountIsland();
+    const target = root.querySelector('.target')!;
+    // 島停在畫面底部（storage 的便條島預設就偏下）
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 800,
+    });
+    stubRect(target, { top: 760, bottom: 790, height: 30 });
+    // jsdom 不做版面，手動給卡片一個高度
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        return this.classList?.contains('iguide-card') ? 240 : 0;
+      },
+    });
+
+    render(
+      <IslandGuideOverlay
+        islandId="history"
+        steps={makeSteps(() => target)}
+        onClose={vi.fn()}
+      />
+    );
+    await flushFrames();
+
+    const card = document.querySelector('.iguide-card') as HTMLElement;
+    const top = parseFloat(card.style.top);
+    // 卡片底部（含「下一步」按鈕）必須留在畫面內，否則教學就按不下去了
+    expect(top + 240).toBeLessThanOrEqual(800);
+  });
+
   it('是 modal：有 aria-modal、可讀的步驟計數，焦點進到說明卡', async () => {
     const root = mountIsland();
     const target = root.querySelector('.target')!;

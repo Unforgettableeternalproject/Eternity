@@ -90,10 +90,18 @@ function notify(): void {
   for (const fn of listeners) fn(snapshot);
 }
 
-/** 把目前這一段活躍時間結算進累計值。已封存時是 no-op（冪等） */
+/**
+ * 把目前這一段活躍時間結算進累計值。已封存時是 no-op（冪等）。
+ *
+ * ⚠️ `Math.max(0, ...)` 不是防禦性贅碼：tick 封存的是**最後一次活動的時刻**
+ * 而不是現在，那個時刻可能早於這一段區間的起點（剛開始活躍就被判定閒置，
+ * 例如 DevTools 的強制閒置）。少了這道 clamp，累計值會變成負數，接著
+ * HistoryReader 算出的閱讀時數差值是負的，被 `addReadingTime` 的 `ms <= 0`
+ * 靜默丟掉——症狀是閱讀時數莫名其妙不再累加。
+ */
 function sealInterval(now: number): void {
   if (activeStartedAt === null) return;
-  sealedActiveMs += now - activeStartedAt;
+  sealedActiveMs += Math.max(0, now - activeStartedAt);
   activeStartedAt = null;
 }
 

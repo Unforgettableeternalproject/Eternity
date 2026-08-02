@@ -287,6 +287,39 @@ describe('GateConditionEditor — gateExempt 誤設提醒', () => {
     expect(screen.queryByText(/通常是誤設/)).not.toBeInTheDocument();
   });
 
+  it('換頁時先清掉上一頁的結果——新查詢失敗不該留著舊警告', async () => {
+    mockAudit([
+      {
+        name: 'completed:history/a',
+        requiredBy: [{ id: 'history/b', title: '第二章' }],
+      },
+    ]);
+    const { rerender } = render(
+      <GateConditionEditor
+        {...baseProps}
+        isGateExempt={true}
+        pageId="history/a"
+      />
+    );
+    expect(await screen.findByText(/第二章/)).toBeInTheDocument();
+
+    // 換到另一頁，而這次查詢失敗
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('offline');
+    }) as unknown as typeof fetch;
+    rerender(
+      <GateConditionEditor
+        {...baseProps}
+        isGateExempt={true}
+        pageId="history/z"
+      />
+    );
+    await new Promise((r) => setTimeout(r, 0));
+
+    // 舊頁的依賴清單留在畫面上，就是對著毫不相干的頁面發警告
+    expect(screen.queryByText(/第二章/)).not.toBeInTheDocument();
+  });
+
   it('查詢失敗時靜默——提醒缺席比誤報好，也不該擋住編輯', async () => {
     globalThis.fetch = vi.fn(async () => {
       throw new Error('offline');

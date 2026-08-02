@@ -151,6 +151,8 @@ export default function IslandGuideOverlay({
   const step = steps[index];
   const { rect, dragging } = useSpotlightRect(islandId, step);
   const cardRef = useRef<HTMLDivElement>(null);
+  /** 卡片實際高度，量到之前用保守估計值（文案長度不一，寫死會失準） */
+  const [cardHeight, setCardHeight] = useState(220);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 
@@ -207,6 +209,12 @@ export default function IslandGuideOverlay({
     cardRef.current?.querySelector<HTMLElement>('button')?.focus();
   }, []);
 
+  // 每步的文案長度不同，卡片高度跟著變——下緣 clamp 要用實際值
+  useEffect(() => {
+    const height = cardRef.current?.offsetHeight;
+    if (height && height !== cardHeight) setCardHeight(height);
+  }, [index, cardHeight]);
+
   if (!step) return null;
 
   const spotlightVisible = rect !== null && !dragging;
@@ -239,7 +247,7 @@ export default function IslandGuideOverlay({
       <div
         ref={cardRef}
         className={`iguide-card${spotlightVisible ? '' : ' iguide-card--center'}`}
-        style={spotlightVisible ? cardPosition(rect) : undefined}
+        style={spotlightVisible ? cardPosition(rect, cardHeight) : undefined}
       >
         <div className="iguide-count">
           {index + 1} / {steps.length}
@@ -281,18 +289,31 @@ export default function IslandGuideOverlay({
 }
 
 /**
- * 說明卡貼在聚光框旁邊。島固定在畫面邊緣，所以只需要決定左右——
+ * 說明卡貼在聚光框旁邊。島固定在畫面邊緣，所以左右由島的位置決定——
  * 島偏右就把卡片放左邊，反之亦然。
+ *
+ * 上下要 clamp 在視窗內：島常常停在畫面下緣（storage 的便條島預設就在
+ * center-left 偏下），照 anchor 的 top 直接擺會讓卡片下半部連同「下一步」
+ * 按鈕整個掉到畫面外——教學卡按不到就是死路。
+ *
+ * `cardHeight` 由呼叫端實際量測後傳入；還沒量到時用保守估計值，
+ * 第一幀之後就會校正。
  */
-function cardPosition(rect: Rect): React.CSSProperties {
+function cardPosition(rect: Rect, cardHeight: number): React.CSSProperties {
   const CARD_WIDTH = 260;
   const GAP = 16;
   const viewportWidth =
     typeof window === 'undefined' ? 1280 : window.innerWidth;
-  const spaceOnLeft = rect.left;
-  const placeLeft = spaceOnLeft > CARD_WIDTH + GAP;
+  const viewportHeight =
+    typeof window === 'undefined' ? 800 : window.innerHeight;
+
+  const placeLeft = rect.left > CARD_WIDTH + GAP;
   const left = placeLeft
     ? rect.left - CARD_WIDTH - GAP
     : Math.min(rect.left + rect.width + GAP, viewportWidth - CARD_WIDTH - GAP);
-  return { top: Math.max(GAP, rect.top), left: Math.max(GAP, left) };
+
+  const maxTop = viewportHeight - cardHeight - GAP;
+  const top = Math.min(Math.max(GAP, rect.top), Math.max(GAP, maxTop));
+
+  return { top, left: Math.max(GAP, left) };
 }

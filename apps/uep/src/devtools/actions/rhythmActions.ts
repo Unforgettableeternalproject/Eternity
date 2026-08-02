@@ -10,12 +10,7 @@
  * 情境完全一致。
  */
 
-import {
-  forceIdleNow,
-  getActivityDebug,
-  stopActivityWatch,
-  startActivityWatch,
-} from '../../lib/activityWatch';
+import { forceIdleNow, getActivityDebug } from '../../lib/activityWatch';
 import { clearUepSettingsCache } from '../../lib/uepSettings';
 import { getProgressManager } from '../../progress';
 import { clearGuideSessionLimit } from '../../islands/guide/IslandGuideAuto';
@@ -97,16 +92,13 @@ export function registerRhythmActions(): void {
     },
     {
       group: GROUP_RHYTHM,
-      id: 'rhythm:restart-watch',
-      label: '重新啟動活動監看',
+      id: 'rhythm:apply-settings',
+      label: '套用新的站台設定（重新載入頁面）',
       description:
-        '改完站台設定後不必重新整理——清掉 settings 快取並用新的閾值重啟（累積活躍毫秒歸零）',
-      available: isReaderPage,
-      execute: async () => {
+        '清掉 settings 快取後重新載入。⚠️ 只重啟 activityWatch 是不夠的——AFK 提示的開關與休息提醒的 baseline 各自存在自己的元件裡，不會跟著重讀，那會讓驗收看到半套狀態',
+      execute: () => {
         clearUepSettingsCache();
-        stopActivityWatch();
-        await startActivityWatch();
-        log(`已用新設定重啟：閾值 ${getActivityDebug().thresholdSec} 秒`);
+        window.location.reload();
       },
     },
     {

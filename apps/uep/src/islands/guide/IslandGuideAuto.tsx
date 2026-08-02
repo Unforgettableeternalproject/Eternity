@@ -16,8 +16,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useProgress } from '../../progress';
-import type { ProgressState } from '../../progress';
+import { useProgress, PROGRESS_CHANGE_EVENT } from '../../progress';
+import type { ProgressChangeDetail, ProgressState } from '../../progress';
 import { getProgressManager } from '../../progress';
 import {
   canUseIslands,
@@ -68,6 +68,47 @@ export function clearGuideSessionLimit(): void {
   } catch {
     // 清不掉就開新分頁
   }
+}
+
+/**
+ * 最近一次浮島解鎖的時刻。
+ *
+ * ⚠️ **訂閱必須在模組層級，不能放進元件的 effect。** `IslandHost` 在
+ * `activeIds.length === 0` 時直接 return null——也就是第一座島解鎖**之前**
+ * 這個元件根本沒有 mount，元件內的訂閱掛不上，`island-unlocked` 事件會被
+ * 整個錯過；解鎖後首次 mount 時旗標是 false，於是延遲走 0，教學直接蓋在
+ * 剛開始播的甦醒動畫上。
+ *
+ * 而第一座島正是最需要這個延遲的一次（那是使用者第一次看到浮島）。
+ *
+ * IslandHost 靜態 import 本模組，而它掛在 TopBar 全站——所以模組層級的
+ * 訂閱在任何島解鎖之前就已經生效。
+ *
+ * 走 window 事件而不是 `getProgressManager().subscribe()`：模組層級的副作用
+ * 在 import 當下就執行，那時去碰 progress 單例會綁死載入順序（測試裡直接
+ * 撞上 mock 的暫時性死區）。事件常數是純字串，沒有這個問題。
+ */
+let lastUnlockAt = 0;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(PROGRESS_CHANGE_EVENT, (event) => {
+    const detail = (event as CustomEvent<ProgressChangeDetail>).detail;
+    if (detail?.source === 'island-unlocked') lastUnlockAt = Date.now();
+  });
+}
+
+/**
+ * 解鎖儀式還要演多久。回 0 代表不必等。
+ *
+ * 用「距離解鎖過了多久」而不是一個布林旗標：元件可能在解鎖後好幾百毫秒
+ * 才 mount（lazy chunk、Host 重渲染），那段時間已經被儀式用掉了，還等
+ * 完整的 AWAKEN_MS 會多壓一段死時間。
+ */
+function remainingAwakenMs(): number {
+  if (lastUnlockAt === 0) return 0;
+  const elapsed = Date.now() - lastUnlockAt;
+  if (elapsed >= AWAKEN_MS) return 0;
+  return AWAKEN_MS - elapsed;
 }
 
 /**
@@ -123,8 +164,6 @@ export default function IslandGuideAuto() {
   progressRef.current = progress;
   const desktopRef = useRef(desktop);
   desktopRef.current = desktop;
-  /** 這一輪是不是剛解鎖觸發的——是的話要讓解鎖儀式先演完 */
-  const justUnlockedRef = useRef(false);
   /** 同一時間只排一次 */
   const schedulingRef = useRef(false);
 
@@ -146,14 +185,6 @@ export default function IslandGuideAuto() {
     (id: IslandId): boolean =>
       available(id) && !progressRef.current.islandGuidesSeen.includes(id),
     [available]
-  );
-
-  useEffect(
-    () =>
-      getProgressManager().subscribe((_state, detail) => {
-        if (detail.source === 'island-unlocked') justUnlockedRef.current = true;
-      }),
-    []
   );
 
   // 回顧：使用者從浮島偏好面板明確要求，所以不看 session 上限也不看 seen，
@@ -186,7 +217,7 @@ export default function IslandGuideAuto() {
     let cancelled = false;
     // 剛做完解鎖儀式的島要等甦醒動畫演完——教學蓋在儀式上等於把剛給的
     // 東西立刻搶走
-    const delay = justUnlockedRef.current ? AWAKEN_MS : 0;
+    const delay = remainingAwakenMs();
 
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -202,7 +233,6 @@ export default function IslandGuideAuto() {
           schedulingRef.current = false;
           return;
         }
-        justUnlockedRef.current = false;
         // session key 在真正顯示的那一刻才寫：排程被取消時不該消耗掉
         // 這個 tab 唯一的自動播放額度
         markSessionShown();

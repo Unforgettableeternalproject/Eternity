@@ -17,6 +17,8 @@ import {
   getActivityState,
   getActiveTotalMs,
   isIdleNudgeEnabled,
+  forceIdleNow,
+  getActivityDebug,
   type ActivityState,
 } from '../activityWatch';
 import { clearUepSettingsCache } from '../uepSettings';
@@ -245,6 +247,55 @@ describe('activityWatch', () => {
       await vi.advanceTimersByTimeAsync(20_000);
 
       expect(getActiveTotalMs() - snapshot).toBe(40_000);
+    });
+  });
+
+  describe('forceIdleNow（DevTools 驗收入口）', () => {
+    it('走正規判定：訂閱者收到通知，狀態與真實閒置一致', async () => {
+      await start();
+      const seen: ActivityState[] = [];
+      subscribeActivity((s) => seen.push(s));
+
+      forceIdleNow();
+      expect(getActivityState().idle).toBe(true);
+      expect(seen).toHaveLength(1);
+
+      // 恢復路徑也一樣
+      activity();
+      expect(getActivityState().idle).toBe(false);
+    });
+
+    it('剛開始活躍就強制閒置，累計值不可變成負數', async () => {
+      await start();
+      // 封存的是「最後一次活動的時刻」，而 forceIdleNow 把它推到區間起點
+      // 之前——沒有 clamp 的話這裡會是負的，之後的閱讀時數差值全被丟掉
+      forceIdleNow();
+      expect(getActiveTotalMs()).toBeGreaterThanOrEqual(0);
+
+      activity();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(getActiveTotalMs()).toBe(10_000);
+    });
+
+    it('未啟動時是 no-op', () => {
+      expect(() => forceIdleNow()).not.toThrow();
+      expect(getActivityState().idle).toBe(false);
+    });
+  });
+
+  describe('getActivityDebug', () => {
+    it('回報閾值、累積與暫停狀態', async () => {
+      await start();
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const debug = getActivityDebug();
+      expect(debug.started).toBe(true);
+      expect(debug.thresholdSec).toBe(THRESHOLD_SEC);
+      expect(debug.activeTotalMs).toBe(5000);
+      expect(debug.suspended).toBe(false);
+
+      setVisibility('hidden');
+      expect(getActivityDebug().suspended).toBe(true);
     });
   });
 
