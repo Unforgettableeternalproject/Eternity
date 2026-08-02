@@ -18,15 +18,25 @@
   letter-spacing: 0.1em;
 }
 
+/* 卡片自動分欄：欄數隨視窗寬度長，寬螢幕不會只用左邊那一條。
+   ⚠️ 不可改用 CSS 多欄（`columns`）——這個容器有固定高度且 overflow-y:auto，
+   多欄會把溢出的內容排到右邊變成**橫向**捲動。
+   `align-items: start` 讓同列的卡片各自保留自然高度，不被拉齊成一樣高
+   （欄位少的卡片被拉高會留一大片空白）。 */
 .ssp-body {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
-  max-width: 640px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  align-content: start;
+  align-items: start;
+  gap: 20px;
+  /* 超寬螢幕不要無限拉成一整排——一行四張已經是掃視的極限 */
+  max-width: 1680px;
 }
 
 .ssp-section {
-  margin-bottom: 28px;
   border: 1px solid var(--hairline);
   background: var(--bg-card);
   padding: 18px 20px;
