@@ -220,7 +220,10 @@ export function startActivityWatch(): Promise<void> {
 
     const sec = getSetting('reader.activityIdleThresholdSec', 180);
     thresholdMs = sec * 1000;
-    nudgeEnabled = getSetting('reader.idleNudgeMode', 'enabled') !== 'disabled';
+    // 顯式標註 string，否則泛型從 fallback 推成字面量 'enabled'，
+    // 與 'disabled' 比較會被判為永遠不成立
+    nudgeEnabled =
+      getSetting<string>('reader.idleNudgeMode', 'enabled') !== 'disabled';
 
     started = true;
     lastActivityAt = Date.now();
