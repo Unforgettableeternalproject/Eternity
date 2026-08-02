@@ -125,6 +125,19 @@ describe('/api/settings', () => {
     }
   });
 
+  it('機率只收整數——契約是整數百分比，小數會讓填的數字與行為對不上', async () => {
+    for (const key of [
+      'bookmark.baseChancePct',
+      'bookmark.stepChancePct',
+      'echoes.lostOrbChancePct',
+      'visuals.phantomEnterChancePct',
+      'visuals.phantomSwitchChancePct',
+    ]) {
+      expect((await putSettings({ [key]: 6.5 })).status).toBe(400);
+      expect((await putSettings({ [key]: 6 })).status).toBe(200);
+    }
+  });
+
   it('紙條拍打次數下限是 1——0 等於一進頁面就自動解鎖，那不是儀式', async () => {
     expect((await putSettings({ 'storage.loneNoteDustSteps': 0 })).status).toBe(
       400

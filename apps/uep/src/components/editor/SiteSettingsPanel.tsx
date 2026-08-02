@@ -85,8 +85,18 @@ export default function SiteSettingsPanel() {
     setDraft((d) => ({ ...d, [key]: value }));
   };
 
+  /**
+   * 空欄位（NaN）與小數都擋在儲存前。
+   *
+   * 小數在瀏覽器端只有 `step=1` 的軟性提示，貼上或用鍵盤仍打得進去；
+   * worker 會整批拒絕，但那時錯誤訊息指向某個鍵，不如在按鈕上就停住。
+   */
   const hasInvalidNumber = useMemo(
-    () => NUMERIC_KEYS.some((key) => Number.isNaN(draft[key])),
+    () =>
+      NUMERIC_KEYS.some((key) => {
+        const value = draft[key];
+        return typeof value === 'number' && !Number.isInteger(value);
+      }),
     [draft]
   );
 
@@ -134,6 +144,9 @@ export default function SiteSettingsPanel() {
         value={Number.isNaN(draft[key]) ? '' : String(draft[key] ?? '')}
         min={opts?.min}
         max={opts?.max}
+        // 現有的設定值全部是整數（機率是整數百分比、上限與次數是計數），
+        // 沒有小數欄位；worker 端也一律 Number.isInteger
+        step={1}
         onChange={(e) => setNumber(key, e.target.value)}
       />
       <div className="ssp-hint">{hint}</div>

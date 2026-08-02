@@ -70,22 +70,25 @@ export function validateSetting(
         };
       }
       return { ok: true, value };
-    // 五項機率共用 0–100 的檢查。0 = 永遠不出現（可用來整個關掉某座島的
-    // 儀式），100 = 必中，兩端都是合法的營運選擇所以不另外收窄
+    // 五項機率共用 0–100 的**整數**檢查。0 = 永遠不出現（可用來整個關掉
+    // 某座島的儀式），100 = 必中，兩端都是合法的營運選擇所以不另外收窄。
+    //
+    // ⚠️ 必須是整數：這幾個鍵的契約是「整數百分比」（前端常數是 0–1 的小數，
+    // 6.5 這種值會被讀成 6.5% 但 UI 與說明都以整數呈現）。只擋 finite 的話
+    // 小數寫得進去，而症狀是機率跟填的數字對不上，沒有錯誤訊息。
     case 'bookmark.baseChancePct':
     case 'bookmark.stepChancePct':
     case 'echoes.lostOrbChancePct':
     case 'visuals.phantomEnterChancePct':
     case 'visuals.phantomSwitchChancePct':
       if (
-        typeof value !== 'number' ||
-        !Number.isFinite(value) ||
-        value < 0 ||
-        value > 100
+        !Number.isInteger(value) ||
+        (value as number) < 0 ||
+        (value as number) > 100
       ) {
-        return { ok: false, error: `${key} 必須是 0–100` };
+        return { ok: false, error: `${key} 必須是 0–100 的整數` };
       }
-      return { ok: true, value };
+      return { ok: true, value: value as number };
     // 抖幾下才解鎖便條島。下限 1（點一下就開）而非 0——0 等於一進 boxes 頁
     // 就自動解鎖，那不是儀式而是 bug 的長相
     case 'storage.loneNoteDustSteps':
