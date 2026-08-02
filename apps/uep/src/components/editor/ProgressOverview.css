@@ -140,6 +140,13 @@
   cursor: help;
 }
 
+/* 既有資料的衝突標記（新資料被 checkbox 禁用擋住，不會再產生） */
+.po-conflict {
+  margin-left: 4px;
+  color: #c0392b;
+  cursor: help;
+}
+
 .po-gate {
   display: inline-block;
   max-width: 100%;

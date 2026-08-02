@@ -142,6 +142,25 @@ describe('flattenProgressTree', () => {
     expect(rows[1].gateParts).toEqual([]);
   });
 
+  it('inContainer 反映祖先鏈上有無生效容器，並標出既有衝突資料', () => {
+    const tree = threeLevelTree();
+    // arc 在 chapter 這個容器內，又同時自標 + 豁免 = 衝突
+    tree[0].children![0].metadata = { gateExempt: true, progressPage: true };
+    const byId = new Map(flattenProgressTree(tree).map((r) => [r.id, r]));
+
+    // 根層沒有祖先容器，豁免無事可豁免
+    expect(byId.get('history/ch1')).toMatchObject({
+      inContainer: false,
+      conflict: false,
+    });
+    expect(byId.get('history/ch1/arc1')).toMatchObject({
+      inContainer: true,
+      conflict: true,
+    });
+    // 求值規則本身不變：衝突只是標記，arc 仍照舊生效
+    expect(byId.get('history/ch1/arc1')!.effective).toBe(true);
+  });
+
   it('攤平順序是 DFS：父列緊接著它的子樹', () => {
     const rows = flattenProgressTree(threeLevelTree());
     expect(rows.map((r) => r.id)).toEqual([
@@ -275,6 +294,46 @@ describe('ProgressOverview', () => {
     expect(screen.getByText('♪2')).toBeInTheDocument();
     // visual clue 用 start 當代表，end 是配對閉合不另計
     expect(screen.getByText('◈1')).toBeInTheDocument();
+  });
+
+  it('容器內：豁免與進度頁互斥，另一顆被禁用並說明原因', async () => {
+    // 預設樹的 arc 在 chapter 容器內、兩者皆未設 → 兩顆都可勾
+    renderOverview();
+    await screen.findByText('第一章');
+
+    const exempt = screen.getByRole('checkbox', {
+      name: '相遇 不繼承容器進度',
+    });
+    expect(exempt).toBeEnabled();
+    // 根層 chapter 沒有祖先容器，豁免無事可豁免
+    expect(
+      screen.getByRole('checkbox', { name: '第一章 不繼承容器進度' })
+    ).toBeDisabled();
+  });
+
+  it('容器內已豁免時，進度頁 checkbox 禁用', async () => {
+    globalThis.fetch = vi.fn(async (url: string) => {
+      const body = (data: unknown) => ({
+        ok: true,
+        json: async () => ({ ok: true, data }),
+      });
+      if (url === '/api/content/history/tree') {
+        const tree = threeLevelTree();
+        tree[0].children![0].metadata = { gateExempt: true };
+        return body(tree);
+      }
+      return body({ pages: {} });
+    }) as unknown as typeof fetch;
+
+    render(<ProgressOverview markerCountByPage={new Map()} />);
+    await screen.findByText('第一章');
+
+    const progress = screen.getByRole('checkbox', { name: '相遇 進度頁' });
+    expect(progress).toBeDisabled();
+    expect(progress).toHaveAttribute(
+      'title',
+      '已豁免容器進度，不能同時自標為進度頁——先取消豁免'
+    );
   });
 
   it('gate 條件欄可點開，展開後逐項顯示不截斷', async () => {

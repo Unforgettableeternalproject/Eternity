@@ -47,6 +47,10 @@ export interface ProgressRow {
   inherited: boolean;
   /** raw || inherited */
   effective: boolean;
+  /** 祖先鏈上有生效的進度容器（決定豁免有沒有意義、兩顆是否互斥） */
+  inContainer: boolean;
+  /** 既有資料同時是容器內、自標、又豁免——UI 標出來讓人去修 */
+  conflict: boolean;
   /** 繼承來源——最近一個自標 progressPage 的祖先標題 */
   inheritedFrom: string | null;
   gateSummary: string | null;
@@ -66,6 +70,13 @@ type AnchorsSummary = Record<string, Record<string, number>>;
  *
  * gateExempt 是切斷點——豁免節點不從祖先繼承，其子樹也拿不到祖先的鏈
  * （但豁免節點自標 progressPage 時，自己與子樹照常生效，語意正交）。
+ *
+ * ⚠️ 求值規則本身不變，但 UI 層多一條限制（艾斯維爾 2026-08-02）：
+ * **祖先鏈上有生效的進度容器時，豁免與自標進度頁不可並存**。那等於在父
+ * 容器裡插一條獨立的進度鏈，而解鎖判定是靠前一頁的 `completed:` 串起來的
+ * ——「身處容器內卻不隸屬於容器」的鏈沒有起點可言。`inContainer` 就是給
+ * UI 判斷該禁用哪一顆 checkbox 用的（求值不看它，既有資料照舊算得出結果，
+ * 只是會被標成衝突）。
  */
 export function flattenProgressTree(roots: ProgressTreeNode[]): ProgressRow[] {
   const rows: ProgressRow[] = [];
@@ -96,6 +107,8 @@ export function flattenProgressTree(roots: ProgressTreeNode[]): ProgressRow[] {
       exempt,
       inherited,
       effective,
+      inContainer: ancestorEffective,
+      conflict: ancestorEffective && raw && exempt,
       inheritedFrom: inherited ? ancestorSource : null,
       gateSummary: gateParts.length > 0 ? gateParts.join('、') : null,
       gateParts,
@@ -291,11 +304,29 @@ export default function ProgressOverview({
                         type="checkbox"
                         aria-label={`${row.title || row.id} 進度頁`}
                         checked={row.raw}
-                        disabled={pendingId === row.id}
+                        // 容器內已豁免 → 不可再自標：那是「不隸屬容器的進度鏈」，
+                        // 沒有前一頁的 completed: 當起點
+                        disabled={
+                          pendingId === row.id ||
+                          (row.inContainer && row.exempt && !row.raw)
+                        }
+                        title={
+                          row.inContainer && row.exempt && !row.raw
+                            ? '已豁免容器進度，不能同時自標為進度頁——先取消豁免'
+                            : undefined
+                        }
                         onChange={(e) =>
                           void toggle(row, 'progressPage', e.target.checked)
                         }
                       />
+                    )}
+                    {row.conflict && (
+                      <span
+                        className="po-conflict"
+                        title="這一列同時是容器內、自標進度頁、又豁免——語意不明，請擇一取消"
+                      >
+                        ⚠
+                      </span>
                     )}
                   </td>
                   <td className="po-col-check">
@@ -303,7 +334,18 @@ export default function ProgressOverview({
                       type="checkbox"
                       aria-label={`${row.title || row.id} 不繼承容器進度`}
                       checked={row.exempt}
-                      disabled={pendingId === row.id}
+                      // 不在容器內時豁免無事可豁免；已自標進度頁時與上面互斥
+                      disabled={
+                        pendingId === row.id ||
+                        (!row.exempt && (!row.inContainer || row.raw))
+                      }
+                      title={
+                        !row.inContainer
+                          ? '祖先鏈上沒有進度容器，沒有可豁免的繼承'
+                          : row.raw && !row.exempt
+                            ? '已自標為進度頁，不能同時豁免容器進度——先取消進度頁'
+                            : undefined
+                      }
                       onChange={(e) =>
                         void toggle(row, 'gateExempt', e.target.checked)
                       }

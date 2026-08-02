@@ -142,6 +142,18 @@ export default function GateConditionEditor({
   // 繼承語意：父容器已標進度頁時，本頁自動視為進度頁，除非勾豁免退出。
   // toggle 顯示為 checked 並禁用，改由 gateExempt 控制去留。
   const inheritedProgressPage = parentIsProgressContainer && !isGateExempt;
+  /*
+   * 容器內時，「豁免」與「自標進度頁」互斥（艾斯維爾 2026-08-02）。
+   *
+   * 兩者並存等於在父容器裡插一條獨立的進度鏈，但解鎖判定是靠同層前一個
+   * 進度頁的 `completed:` 串起來的——身處容器內卻不隸屬於容器的鏈沒有起點。
+   * 求值規則不變（`effectiveGate` 仍是正交的），這裡只是不讓人新造出這種
+   * 狀態；既有資料在 /admin/settings 的進度分頁會被標成衝突。
+   */
+  const exemptBlocksProgress =
+    parentIsProgressContainer && isGateExempt && !isProgressPage;
+  const progressBlocksExempt =
+    parentIsProgressContainer && isProgressPage && !isGateExempt;
 
   return (
     <div className="ned-gate">
@@ -155,11 +167,13 @@ export default function GateConditionEditor({
           <input
             type="checkbox"
             checked={isProgressPage || inheritedProgressPage}
-            disabled={inheritedProgressPage}
+            disabled={inheritedProgressPage || exemptBlocksProgress}
             title={
               inheritedProgressPage
                 ? '父容器已標為進度頁，本頁自動視為進度頁（勾「exempt from container」可退出）'
-                : undefined
+                : exemptBlocksProgress
+                  ? '已豁免容器進度，不能同時自標為進度頁——先取消豁免'
+                  : undefined
             }
             onChange={(e) => onProgressPageChange!(e.target.checked)}
           />
@@ -187,6 +201,12 @@ export default function GateConditionEditor({
           <input
             type="checkbox"
             checked={isGateExempt}
+            disabled={progressBlocksExempt}
+            title={
+              progressBlocksExempt
+                ? '已自標為進度頁，不能同時豁免容器進度——先取消進度頁'
+                : undefined
+            }
             onChange={(e) => onGateExemptChange!(e.target.checked)}
           />
         </div>
