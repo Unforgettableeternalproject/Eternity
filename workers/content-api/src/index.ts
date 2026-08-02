@@ -2792,11 +2792,14 @@ export default {
     }
 
     const homepageMatch = path.match(/^\/api\/homepage\/([a-z][a-z0-9-]*)$/);
+    // 授權由上方 isWriteMethod 的 isAuthorized 統一把關（API_TOKEN 或 admin
+    // JWT），與其餘所有寫入端點一致。
+    //
+    // ⚠️ 這裡曾經額外要求 requireJwt，是全部寫入端點裡唯一這麼做的。那個
+    // 不一致沒有設計理由（只是實作先後），代價是 seed 腳本用 API_TOKEN 跑時
+    // 其他表全成功、只有 site_homepage 整批 401——test 環境首頁因此空了兩個
+    // 多月（2026-08-02 實測發現）。放寬後仍不存在匿名路徑。
     if (homepageMatch && request.method === 'PUT') {
-      const jwtUser = await requireJwt(request, env);
-      if (!jwtUser) {
-        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
-      }
       const sectionId = homepageMatch[1];
       const body = (await request.json()) as {
         content: unknown;

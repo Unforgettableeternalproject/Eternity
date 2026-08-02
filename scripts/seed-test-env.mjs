@@ -32,6 +32,7 @@ import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { pathToFileURL } from 'url';
 
+import { collectSourceProblems, isMissingRecordError } from './seed-source.mjs';
 import { resolveWriteToken } from './sync-auth.mjs';
 
 // 葉子頁黑名單的單一來源；Admin reset 走 workers/content-api/src/test-seed.ts
@@ -114,7 +115,12 @@ async function apiFetch(base, path, options = {}) {
   const res = await fetch(url, options);
   if (!res.ok) {
     const text = await res.text().catch(() => '（無回應體）');
-    throw new Error(`HTTP ${res.status} ${res.statusText} — ${url}\n${text}`);
+    const err = new Error(
+      `HTTP ${res.status} ${res.statusText} — ${url}\n${text}`
+    );
+    // 帶上狀態碼供 isMissingRecordError 分辨「這筆不存在」與「讀不到」
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -306,6 +312,13 @@ const KNOWN_SINGLETON_KEYS = [
   'page-contact-en',
 ];
 
+/**
+ * ⚠️ 以下的 fetchSeed* **一律不 catch**（單筆 404 除外）。
+ *
+ * 它們原本全都是 catch 後回 `[]`，讓「prod 讀取失敗」與「prod 合法為空」
+ * 變成同一件事——test 首頁因此空了兩個多月而腳本一路印綠字。錯誤與空資料
+ * 必須是不同的控制流，詳見 `seed-source.mjs` 的檔頭。
+ */
 async function fetchSeedSingletons() {
   const results = [];
   for (const key of KNOWN_SINGLETON_KEYS) {
@@ -315,77 +328,46 @@ async function fetchSeedSingletons() {
         results.push({ ...resp.data, section_id: resp.data.sectionId ?? key });
       }
     } catch (err) {
-      // 個別 key 缺失只 warn，不中斷（可能還沒建 / 已軟刪除）
-      console.warn(`  ⚠ singleton ${key} 未取得: ${err.message}`);
+      // 只有 404 算「這一筆本來就沒有」（還沒建／已軟刪除）。
+      // 500／401／網路失敗是讀不到而不是不存在，往上丟
+      if (!isMissingRecordError(err)) throw err;
+      console.warn(`  ⚠ singleton ${key} 不存在（404），跳過`);
     }
   }
   return results;
 }
 
-/**
- * 從 prod 讀取 root_cards。
- */
+/** 從 prod 讀取 root_cards。 */
 async function fetchSeedCards() {
-  try {
-    const resp = await prodGet('/api/root/cards');
-    return resp.data || [];
-  } catch (err) {
-    console.warn(`  ⚠ 無法讀取 root_cards: ${err.message}`);
-    return [];
-  }
+  const resp = await prodGet('/api/root/cards');
+  return resp.data || [];
 }
 
-/**
- * 從 prod 讀取 root_links。
- */
+/** 從 prod 讀取 root_links。 */
 async function fetchSeedLinks() {
-  try {
-    const resp = await prodGet('/api/root/links');
-    return resp.data || [];
-  } catch (err) {
-    console.warn(`  ⚠ 無法讀取 root_links: ${err.message}`);
-    return [];
-  }
+  const resp = await prodGet('/api/root/links');
+  return resp.data || [];
 }
 
-/**
- * 從 prod 讀取 root_projects。
- */
+/** 從 prod 讀取 root_projects。 */
 async function fetchSeedProjects() {
-  try {
-    const resp = await prodGet('/api/root/projects');
-    return resp.data || [];
-  } catch (err) {
-    console.warn(`  ⚠ 無法讀取 root_projects: ${err.message}`);
-    return [];
-  }
+  const resp = await prodGet('/api/root/projects');
+  return resp.data || [];
 }
 
-/**
- * 從 prod 讀取 root_updates。
- */
+/** 從 prod 讀取 root_updates。 */
 async function fetchSeedUpdates() {
-  try {
-    const resp = await prodGet('/api/root/updates');
-    return resp.data || [];
-  } catch (err) {
-    console.warn(`  ⚠ 無法讀取 root_updates: ${err.message}`);
-    return [];
-  }
+  const resp = await prodGet('/api/root/updates');
+  return resp.data || [];
 }
 
 async function fetchSeedSiteHomepage() {
-  try {
-    const resp = await prodGet('/api/homepage');
-    return Object.entries(resp.data || {}).map(([sectionId, value]) => ({
-      sectionId,
-      content: value.content,
-      updatedAt: value.updatedAt,
-    }));
-  } catch (err) {
-    console.warn(`  ⚠ 無法讀取 site_homepage: ${err.message}`);
-    return [];
-  }
+  const resp = await prodGet('/api/homepage');
+  return Object.entries(resp.data || {}).map(([sectionId, value]) => ({
+    sectionId,
+    content: value.content,
+    updatedAt: value.updatedAt,
+  }));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -610,6 +592,17 @@ async function main() {
   console.log('\n[ 7/7 ] 從 prod 讀取 site_homepage...');
   const siteHomepage = await fetchSeedSiteHomepage();
   console.log(`  找到 ${siteHomepage.length} 筆 site_homepage`);
+
+  // 必要骨架讀到 0 筆就停在這裡，不要寫出一份看起來成功的殘缺 seed
+  const problems = collectSourceProblems({
+    pages: seedPages,
+    site_homepage: siteHomepage,
+  });
+  if (problems.length > 0) {
+    console.error('\n[ABORT] 來源資料不完整，seed 中止：');
+    for (const p of problems) console.error(`  ✘ ${p}`);
+    process.exit(1);
+  }
 
   // ── 寫入 test Worker ──
   console.log('\n=== 開始寫入 test Worker ===\n');
