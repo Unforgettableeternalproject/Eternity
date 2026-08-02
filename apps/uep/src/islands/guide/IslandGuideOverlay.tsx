@@ -1,4 +1,4 @@
-/* global ResizeObserver, MutationObserver */
+/* global ResizeObserver */
 /**
  * 浮島教學的聚光燈 overlay（S10-4 C 段）
  *

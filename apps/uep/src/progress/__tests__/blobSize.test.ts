@@ -1,3 +1,4 @@
+/* global TextEncoder */
 /**
  * ProgressState blob 的體積基準（S10-4 D 段）
  *
