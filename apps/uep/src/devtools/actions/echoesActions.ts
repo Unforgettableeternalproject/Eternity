@@ -13,12 +13,21 @@
  * 註：spoiler 降級鏈的中間旗標（例如 `xavier:01`、`xavier:02`）由各歌
  *     的 revisions 資料決定，DevTools 無法通用化——仍需靠 admin editor
  *     看歌曲 revisions 再用 `progress:grant-flags` 授予。
+ *
+ * 2026-08-03 起與 `flagActions` 併入同一個面板群組（`GROUPS.FLAGS`）：
+ * 這四個 action 做的事就是「推導出旗標名再授予／撤銷」，與旗標群組是同一
+ * 件事的兩種輸入方式（一個從註冊表選、一個從命名慣例推）。分成兩組只是
+ * 因為它們寫在不同檔案。
  */
 
 import { deriveSongUnlockFlag } from '../../audio/spoilerResolver';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = 'Echoes 收藏池';
+const GROUP = GROUPS.FLAGS;
+/** 三個寫／讀進度的 action 用；`derive-unlock-flag` 是純推導，不需要 */
+const hasProgress = (): boolean =>
+  typeof window !== 'undefined' && !!window.__uepProgress;
 
 interface SongIdentity {
   songType: string;
@@ -70,6 +79,7 @@ export function registerEchoesActions(): void {
     {
       group: GROUP,
       id: 'echoes:grant-song-collected',
+      available: hasProgress,
       label: '授予歌曲收藏（可加入佇列）',
       description: '輸入分類 + 對應的 key，自動推導 unlock flag 並授予進度',
       execute: () => {
@@ -85,6 +95,7 @@ export function registerEchoesActions(): void {
     {
       group: GROUP,
       id: 'echoes:relock-song-collected',
+      available: hasProgress,
       label: '撤銷歌曲收藏（移出收藏池）',
       description: '輸入分類 + 對應的 key，推導 unlock flag 後撤銷',
       execute: () => {
@@ -122,6 +133,7 @@ export function registerEchoesActions(): void {
     {
       group: GROUP,
       id: 'echoes:dump-collected-flags',
+      available: hasProgress,
       label: '傾印目前所有 song 相關旗標到 console',
       description: '過濾 progress.flags 內符合 `*:song` 或 `song:*` 的收藏旗標',
       execute: () => {

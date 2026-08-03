@@ -8,8 +8,9 @@
 
 import { wipeLocalIdentity } from '../../lib/wipeLocalIdentity';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = '進度系統';
+const GROUP = GROUPS.PROGRESS;
 
 /** 詢問使用者輸入 flag 名稱（逗號分隔可多個） */
 function promptFlags(prompt: string): string[] | null {
@@ -127,24 +128,17 @@ export function registerProgressActions(): void {
         }
       },
     },
-    {
-      group: GROUP,
-      id: 'progress:trigger-view-ceremony',
-      label: '觸發視角切換儀式（Explorer ↔ Observer）',
-      description: '走完整儀式流程，不繞過（測試 ViewSwitchCeremony 動畫）',
-      execute: () => {
-        const current = window.__uepProgress?.getState().view;
-        const next = current === 'observer' ? 'explorer' : 'observer';
-        // 使用 requestViewSwitch 走儀式；若無此方法則 fallback setView
-        const bridge = window.__uepProgress;
-        if (bridge && 'requestViewSwitch' in bridge) {
-          (
-            bridge as unknown as { requestViewSwitch(v: string): void }
-          ).requestViewSwitch(next);
-        } else {
-          bridge?.setView(next);
-        }
-      },
-    },
+    // 2026-08-03 移除 `progress:trigger-view-ceremony`（與 animationActions
+    // 的 `anim:trigger-view-ceremony` 是同一份程式碼的兩個入口）。
+    //
+    // 它宣稱「走完整儀式流程，不繞過」，但依賴的 `requestViewSwitch` 全庫
+    // 不存在，所以一律 fallback 到 `setView()`——正好就是繞過儀式，與說明
+    // 相反。而 `setView` 已經在上面有兩個明確的 action（且它自己會寫
+    // `observerEver`，不會留下不一致狀態）。
+    //
+    // 儀式狀態是 `ViewSwitch` 元件的 local state，沒有外部觸發點。要讓
+    // DevTools 真的演一次得為它新增第四套 bridge——而正規入口就是識別證裡
+    // 那顆使用者隨時按得到的按鈕。DevTools 的價值是跳過不合理的門檻
+    // （AFK 要等三分鐘、教學一個帳號只演一次），切視角沒有門檻。
   ]);
 }

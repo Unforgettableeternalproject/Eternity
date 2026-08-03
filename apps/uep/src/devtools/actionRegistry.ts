@@ -9,9 +9,11 @@
  * 與 progressStore / islandRuntime 同模式，方便從 console 存取。
  */
 
+import { GROUP_ORDER } from './groups';
+
 /** 單一 devtool 動作 */
 export interface DevToolAction {
-  /** 群組名稱（tab / section），如「進度系統」「浮島」「動畫」 */
+  /** 群組名稱。一律用 `groups.ts` 的 `GROUPS` 常數，不要寫字面字串 */
   group: string;
   /** 動作唯一 ID（kebab-case，如 `progress:reset`）；重複註冊會覆蓋並警告 */
   id: string;
@@ -89,7 +91,16 @@ function createRegistry(): DevToolsRegistry {
     getGroups(): string[] {
       const set = new Set<string>();
       for (const action of actions.values()) set.add(action.group);
-      return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+      // 依 GROUP_ORDER 排——中文 localeCompare 的順序對使用者沒有意義，
+      // 而「常用的排前面」有。不在清單裡的（外掛／未來新增）排到最後
+      return [...set].sort((a, b) => {
+        const ia = GROUP_ORDER.indexOf(a);
+        const ib = GROUP_ORDER.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b, 'zh-Hant');
+      });
     },
 
     async dispatch(id: string): Promise<DevToolExecuteResult> {

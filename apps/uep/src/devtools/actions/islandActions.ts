@@ -6,12 +6,18 @@
  *
  * 若當前頁面沒掛 IslandHost / 不在 history Reader，對應 action 會 no-op 並 warn。
  * available() 決定 UI disabled 狀態。
+ *
+ * 書籤（LostBookmark）2026-08-03 起併入同一個面板群組：遺落書籤儀式就是
+ * history 島的取得途徑，兩者是同一條驗收動線，分成兩組只是因為 bridge 不同。
  */
 
+import { getProgressManager } from '../../progress';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP_ISLANDS = '浮島';
-const GROUP_BOOKMARK = '書籤（LostBookmark）';
+const GROUP_ISLANDS = GROUPS.ISLANDS;
+/** 與 `GROUP_ISLANDS` 同一組，保留名稱只為讓下面的書籤區塊讀起來仍分明 */
+const GROUP_BOOKMARK = GROUPS.ISLANDS;
 
 const ISLAND_IDS = [
   'history',
@@ -34,6 +40,27 @@ function warnMissing(name: string): void {
   );
 }
 
+/**
+ * 解鎖但不觸發浮島教學。
+ *
+ * DevTools 的解鎖走的是與真實解鎖完全相同的路徑（`unlockIsland` →
+ * `mutate('island-unlocked')`），而 `IslandGuideAuto` 正是靠那個 source
+ * 排程自動教學的——所以想驗浮島本身時，聚光燈會蓋上來擋路。
+ *
+ * 解法是解鎖後順手把該島記為 seen。**不新增「解鎖並演教學」的變體**：
+ * 要看教學已經有現成的 `guide:play:{id}`（走回顧路徑，不受 seen 與
+ * session 上限限制），多開一組 action 只是把同一件事拆成兩個入口。
+ *
+ * ⚠️ 順序不能反：先 seen 再 unlock 的話，`markIslandGuideSeen` 觸發的
+ * progress 變更會讓 `IslandGuideAuto` 先跑一次 effect，那時島還沒解鎖、
+ * seen 已經寫了，行為雖然仍正確但多繞一圈；先 unlock 則是同一批
+ * mutate 之後 effect 只會看到最終狀態。
+ */
+function unlockWithoutGuide(id: IslandId): void {
+  window.__uepIslandsTest?.unlock(id);
+  getProgressManager().markIslandGuideSeen(id);
+}
+
 export function registerIslandActions(): void {
   const registry = getRegistry();
 
@@ -43,11 +70,12 @@ export function registerIslandActions(): void {
       group: GROUP_ISLANDS,
       id: `island:unlock:${id}`,
       label: `解鎖 ${id} 島`,
-      description: '直接解鎖並保留（跳過解鎖儀式）',
+      description:
+        '直接解鎖並保留（跳過解鎖儀式）。順手記為「教學已看過」，不會被聚光燈蓋住；要看教學請用「播放 X 島的教學」',
       available: hasIslandBridge,
       execute: () => {
         if (!window.__uepIslandsTest) return warnMissing('__uepIslandsTest');
-        window.__uepIslandsTest.unlock(id);
+        unlockWithoutGuide(id);
       },
     },
     {
@@ -71,11 +99,11 @@ export function registerIslandActions(): void {
       group: GROUP_ISLANDS,
       id: 'island:unlock-all',
       label: '解鎖全部島',
-      description: '五座島一次全解鎖（保留足跡）',
+      description: '五座島一次全解鎖（保留足跡），同樣不會演教學',
       available: hasIslandBridge,
       execute: () => {
         if (!window.__uepIslandsTest) return warnMissing('__uepIslandsTest');
-        for (const id of ISLAND_IDS) window.__uepIslandsTest.unlock(id);
+        for (const id of ISLAND_IDS) unlockWithoutGuide(id);
       },
     },
     {

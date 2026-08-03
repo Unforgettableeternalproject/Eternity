@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getRegistry } from '../../actionRegistry';
+import { GROUPS } from '../../groups';
 import { registerEchoesActions } from '../echoesActions';
 
 const progressMock = {
@@ -58,10 +59,12 @@ afterEach(() => {
 });
 
 describe('registerEchoesActions', () => {
-  it('註冊四個 action 到「Echoes 收藏池」群組', () => {
+  it('註冊四個 action 到旗標與收藏群組', () => {
     const ids = getRegistry()
       .getAll()
-      .filter((a) => a.group === 'Echoes 收藏池')
+      // 2026-08-03 起與 flagActions 同組，所以還要看 id 前綴才分得出
+      // 這四個是不是都在（同組的 flags:* 由 flagActions.test 顧）
+      .filter((a) => a.group === GROUPS.FLAGS && a.id.startsWith('echoes:'))
       .map((a) => a.id)
       // registry 是模組級 singleton，跨測試 unregister/register 後
       // Map 的插入順序會變——這裡在意的是「哪四個」不是「什麼順序」

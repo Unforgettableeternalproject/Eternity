@@ -15,10 +15,13 @@ import { clearUepSettingsCache } from '../../lib/uepSettings';
 import { getProgressManager } from '../../progress';
 import { clearGuideSessionLimit } from '../../islands/guide/IslandGuideAuto';
 import { requestGuideReplay } from '../../islands/guide/guideReplay';
+import { shouldMountIsland } from '../../islands/islandRuntime';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP_RHYTHM = '閱讀節奏（AFK／休息）';
-const GROUP_GUIDE = '浮島教學';
+/** `protectionActions` 的兩個 action 也掛這一組（同為 Reader 頁的行為層開關） */
+const GROUP_RHYTHM = GROUPS.READER;
+const GROUP_GUIDE = GROUPS.GUIDE;
 
 const ISLAND_IDS = [
   'history',
@@ -175,6 +178,12 @@ export function registerRhythmActions(): void {
         label: `播放 ${id} 島的教學`,
         description:
           '走回顧路徑：不受 session 上限與 seen 限制，也不會改寫 seen。島必須已解鎖且未停用',
+        // 守門條件與 IslandGuideAuto 的 replay 分支完全一致——不合格時
+        // 那邊會直接 return，按鈕按下去毫無反應。灰掉才看得出原因
+        available: () => {
+          const state = getProgressManager().getState();
+          return shouldMountIsland(state, id);
+        },
         execute: () => {
           requestGuideReplay(id);
         },

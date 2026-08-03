@@ -34,8 +34,20 @@ import {
   isPristine,
 } from '../../progress';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = '旗標';
+const GROUP = GROUPS.FLAGS;
+/**
+ * 這一組全部要寫進度（授予／撤銷）或讀 progress state 求值，progress bridge
+ * 沒就緒時一律無效。
+ *
+ * ⚠️ **登入狀態守不了**：註冊表端點掛 `isAuthorized`，admin JWT 在 httpOnly
+ * cookie 裡，前端讀不到也就無法同步判定——`available()` 必須是同步的。
+ * 沒登入的症狀是 worker 回 401，各 action 的 catch 會明講原因，不會靜默失敗。
+ */
+const hasProgress = (): boolean =>
+  typeof window !== 'undefined' && !!window.__uepProgress;
+
 const LOG = '[UEP Flags]';
 
 /** 註冊表的一列（只取這一組 action 用得到的欄位） */
@@ -227,6 +239,7 @@ export function registerFlagActions(): void {
     {
       group: GROUP,
       id: 'flags:dump-held',
+      available: hasProgress,
       label: '傾印目前持有旗標（依來源分組）',
       description:
         '自動生成／已註冊自訂／未註冊三組，分類直接取 /api/flags/audit',
@@ -264,6 +277,7 @@ export function registerFlagActions(): void {
     {
       group: GROUP,
       id: 'flags:grant-from-registry',
+      available: hasProgress,
       label: '從註冊表選一個旗標授予',
       description:
         '列出 uep_flags 供選，不必自己記名字（自由輸入版在「進度系統」）',
@@ -279,6 +293,7 @@ export function registerFlagActions(): void {
     {
       group: GROUP,
       id: 'flags:revoke-held',
+      available: hasProgress,
       label: '從目前持有的旗標選一個撤銷',
       description: '清單來源是 progress state，含自動生成的旗標',
       execute: () => {
@@ -294,6 +309,7 @@ export function registerFlagActions(): void {
     {
       group: GROUP,
       id: 'flags:grant-all-registered',
+      available: hasProgress,
       label: '模擬持有全部註冊旗標',
       description: '只授予註冊表裡的自訂旗標，不含 completed:* 等自動旗標',
       requiresConfirm: true,
@@ -314,6 +330,7 @@ export function registerFlagActions(): void {
     {
       group: GROUP,
       id: 'flags:clear-custom',
+      available: hasProgress,
       label: '清空自訂旗標（保留自動生成的）',
       description:
         '撤銷 audit 判為 registered／unregistered 的旗標，completed:* 等維持不動',
@@ -345,6 +362,7 @@ export function registerFlagActions(): void {
     {
       group: GROUP,
       id: 'flags:evaluate-gate',
+      available: hasProgress,
       label: '求值目前頁面的 gate 條件',
       description:
         '逐項列出四維條件通過狀態（完成依賴走遞迴驗證）；不在 History 頁時詢問 pageId',

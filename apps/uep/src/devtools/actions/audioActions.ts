@@ -8,8 +8,9 @@
 
 import { AUDIO_STORAGE_KEY } from '../../audio/audioTypes';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = '音訊';
+const GROUP = GROUPS.AUDIO;
 
 const hasBridge = (): boolean =>
   typeof window !== 'undefined' && !!window.__uepAudio;

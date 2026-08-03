@@ -6,8 +6,9 @@
  */
 
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = '入站儀式';
+const GROUP = GROUPS.ONBOARDING;
 
 const hasBridge = (): boolean =>
   typeof window !== 'undefined' && !!window.__uepOnboardingTest;

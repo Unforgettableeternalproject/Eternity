@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getRegistry } from '../../actionRegistry';
+import { GROUPS } from '../../groups';
 import { registerFlagActions } from '../flagActions';
 
 const ACTION_IDS = [
@@ -164,10 +165,11 @@ afterEach(() => {
 });
 
 describe('registerFlagActions', () => {
-  it('註冊六個 action 到「旗標」群組', () => {
+  it('註冊六個 action 到旗標與收藏群組', () => {
     const ids = getRegistry()
       .getAll()
-      .filter((a) => a.group === '旗標')
+      // 同組還有 echoesActions 的 echoes:*，用前綴分開（見 echoesActions.test）
+      .filter((a) => a.group === GROUPS.FLAGS && a.id.startsWith('flags:'))
       .map((a) => a.id)
       .sort();
     expect(ids).toEqual(ACTION_IDS);

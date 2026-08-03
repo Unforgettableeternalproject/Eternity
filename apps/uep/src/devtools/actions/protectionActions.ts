@@ -12,8 +12,14 @@ import {
   isProtectionForced,
 } from '../../scripts/content-protection';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = '內容保護';
+/**
+ * 與 `rhythmActions` 的 AFK／休息共用一組：三者都是 Reader 頁的行為層開關，
+ * 而且會互相影響——內容保護與 activityWatch 對同一組 visibility／blur 事件
+ * 反應（見 `lib/activityWatch.ts` 的分工說明），驗收時本來就要一起看。
+ */
+const GROUP = GROUPS.READER;
 
 export function registerProtectionActions(): void {
   getRegistry().register([

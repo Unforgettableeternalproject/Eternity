@@ -16,13 +16,31 @@ import {
   isNonScrollable,
 } from '../../progress';
 import { getRegistry } from '../actionRegistry';
+import { GROUPS } from '../groups';
 
-const GROUP = '進度迷霧';
+const GROUP = GROUPS.FOG;
 
 /** History 文章的捲動容器（迷霧座標系的參考框） */
 function historyScroller(): HTMLElement | null {
   return document.querySelector<HTMLElement>('.history-content');
 }
+
+/**
+ * 需要捲動容器的 action 用這個守門。
+ *
+ * 迷霧只存在於 History 文章頁，但這一組原本沒有任何 `available()`——在別的
+ * 頁面按下去只會得到一個 alert 或靜默失敗。灰掉才看得出「這裡本來就沒有
+ * 迷霧可以撥」。
+ */
+const hasScroller = (): boolean =>
+  typeof document !== 'undefined' && historyScroller() !== null;
+
+/**
+ * 只動 store 不量幾何的 action 用這個。它們對任何 pageId 都成立
+ * （輸入框可以打別頁的 id），所以不必要求人在那一頁上。
+ */
+const hasProgress = (): boolean =>
+  typeof window !== 'undefined' && !!window.__uepProgress;
 
 /** 彈輸入框選 pageId，預設帶最後造訪頁 */
 function promptPageId(): string | null {
@@ -40,6 +58,7 @@ export function registerFogActions(): void {
       group: GROUP,
       id: 'fog:status',
       label: '傾印本頁迷霧狀態到 console',
+      available: hasScroller,
       description:
         '迷霧線 store 值、首屏線下限、跳躍可及上限、讀者位置、完成/短文豁免',
       execute: async () => {
@@ -96,6 +115,7 @@ export function registerFogActions(): void {
       group: GROUP,
       id: 'fog:reveal',
       label: '散盡本頁迷霧（fogRatio → 1）',
+      available: hasProgress,
       description: '事件遮蔽立即全解；配合捲到底可觸發完成判定',
       execute: () => {
         const pageId = promptPageId();
@@ -107,6 +127,7 @@ export function registerFogActions(): void {
       group: GROUP,
       id: 'fog:catch-up',
       label: '迷霧推進到讀者目前位置',
+      available: hasScroller,
       description: '跳過速率上限與跳躍門檻，模擬「迷霧追上了」的狀態',
       execute: () => {
         const scroller = historyScroller();
@@ -130,6 +151,7 @@ export function registerFogActions(): void {
       group: GROUP,
       id: 'fog:reset-page',
       label: '重罩本頁（清足跡重測）',
+      available: hasProgress,
       description:
         '清除本頁 completed／完成旗標／fogRatio／pageMarkers 後重載——遮蔽事件可重測',
       destructive: true,
