@@ -135,13 +135,23 @@ return () => {
 
 ### 2-6 提示的形狀
 
-**中央淡入的低調卡片，`pointer-events: none`，任何活動事件即消失。**
+**中央的 modal 卡片，backdrop 暗化 + 模糊，按下「我還在」才收起。**
 
-刻意**不放「我還在」按鈕**：使用者要證明自己在，最自然的動作就是動一下滑鼠或
-捲動一下，而那正是 `activityWatch` 已經在聽的東西。加按鈕等於要求使用者用一個
-特定動作去回答一個任何動作都能回答的問題。
+> ⚠️ 本節於 2026-08-03 由艾斯維爾反轉。原設計是「`pointer-events: none`、
+> 不放按鈕、任何活動事件即消失」，理由是「動一下滑鼠本來就是 activityWatch
+> 在聽的東西」。實測推翻了它：從 DevTools 觸發後必須動滑鼠去關掉 DevTools
+> 視窗，卡片當場被自己的關閉條件收掉；更根本的是那個設計讓提示可以在使用者
+> 完全沒看到的情況下來去一遍——一個沒人看得到的提示等於沒有提示。
 
-不擋捲動、不擋點擊——AFK 不是懲罰，是提示。
+閂鎖 `afkOpen` 在進 idle 時上鎖，**離開 idle 不解鎖**，只有確認鈕解。確認時
+同步呼叫 `noteActivity()` 重新起算（鍵盤按下確認鈕不會產生任何 pointer 事件，
+不補這一下，下一個 tick 會立刻把卡片再叫回來）。再次閒置到閾值會再跳一次，
+不設冷卻。
+
+backdrop 遮蔽強度兩張卡不同：**AFK 暗化 + 模糊**（人不在時內容不該裸露在
+螢幕上），**休息提醒只暗化**（它是善意提示不是攔阻）。視覺以 UEP 金色為骨幹
+——頂端金線、內襯細框、夾線 eyebrow、金色確認鈕；標題在亮色主題用 `--accent-ink`
+深金（純金字在白卡上讀不清），暗色主題才放亮成 `--uep-gold-soft`。
 
 ---
 
@@ -182,8 +192,8 @@ queue；hydrate、跨裝置既有完成與重讀都不得算成本次大量閱�
 
 ### 3-4 提示的形狀
 
-與 AFK 共用同一層（`ReaderNudge`），但休息提醒**有按鈕**（「知道了」）且會停留——
-它要求的是一個決定，不是一個動作。
+與 AFK 共用同一層與同一個卡片外殼（`ReaderNudge` 的 `NudgeDialog`）。兩者都是
+需要確認才消失的 modal，差別只在 backdrop 強度與 eyebrow 文案（見 2-6）。
 
 資料流用 `ReaderNudgeProvider`：Provider 掛在 `ReaderShell`，AFK 直接由 Provider 消費；
 休息提醒透過 `useReaderNudge()` 提交／撤銷。不要為此新增 window event bridge。
@@ -196,8 +206,8 @@ queue；hydrate、跨裝置既有完成與重讀都不得算成本次大量閱�
 `<ReaderShell>` 的 children 裡；判定邏輯仍全在 `useRestReminder()`。
 五個 Reader 都是這個結構，C 段之外若有新的 Reader 層提示要走 context，同樣適用。
 
-同一時間只顯示一張：idle 時 AFK nudge 優先，pending 的休息提醒暫存；使用者恢復活動、
-AFK 卡消失後再顯示休息提醒。休息提醒顯示中不被一般 pointermove 自動關閉。
+同一時間只顯示一張：AFK 卡優先，pending 的休息提醒暫存，等 AFK 被確認後才顯示。
+兩張卡都不被 pointermove 自動關閉。
 
 ---
 
@@ -448,7 +458,7 @@ subprocess 級測試證明 exit code 有接上，不接受只測 helper、main �
 | R1 | 全域活動監聽與內容保護的既有 listener 疊加 | 活動事件全部 `passive: true`；高頻 handler 只寫模組變數，不做 DOM 讀取；visibility／blur／focus 走明確狀態機 |
 | R2 | `readingStats` 改語意後，既有讀者的 `totalMs` 含掛機時間，新舊資料不同質 | **不做遷移**——舊值就是舊值，這是統計輔助值不是進度事實。平均閱讀時間會隨新資料逐步收斂 |
 | R3 | 聚光燈位置在島被拖曳／視窗 resize／內容改尺寸後失準 | 每步進場現算 + window resize + anchor ResizeObserver + island runtime move/open/close；拖曳中暫藏，結束後重算 |
-| R4 | AFK 提示在使用者「正在讀但沒動作」時誤觸發（長段落慢讀） | 預設閾值 180 秒偏保守；提示本身 `pointer-events: none` 且任何動作即消失，誤觸發的代價很低 |
+| R4 | AFK 提示在使用者「正在讀但沒動作」時誤觸發（長段落慢讀） | 預設閾值 180 秒偏保守。⚠️ 2-6 改成 modal 之後誤觸發的代價變高了——它會遮住正在讀的內容並要求一次點擊。若實測發現慢讀者被打斷，調高 `reader.activityIdleThresholdSec` 是第一手段 |
 | R5 | 6-1 修法動到 `/api/homepage` 授權 | 該端點是 admin 寫入端點，放寬到 `isAuthorized` 仍需 API_TOKEN 或 admin JWT，不存在匿名路徑。要有回歸測試斷言未授權仍 401 |
 | R6 | settings 首訪非同步導致第一頁鎖定 fallback | `initUepSettings` Promise 去重；activityWatch 等初始化 resolve，失敗才使用 fallback |
 
@@ -458,8 +468,9 @@ subprocess 級測試證明 exit code 有接上，不接受只測 helper、main �
 
 **本文件目前沒有阻塞實作的開放問題。** 以下三項可在實作時由實作者決定並記錄：
 
-- AFK 提示卡的具體文案與視覺語彙（建議沿用站上既有的低飽和襯線語彙，但**不要
-  沿用觀測失效的 glitch 語彙**——那是「你被擋下了」，AFK 是「你還在嗎」，語氣不同）
+- ~~AFK 提示卡的具體文案與視覺語彙~~（2026-08-03 定案：UEP 金色骨幹的 modal，
+  見 2-6。仍**不沿用觀測失效的 glitch 語彙**——那是「你被擋下了」，
+  AFK 是「你還在嗎」，語氣不同）
 - 五島教學各 2 步或 3 步
 - 6-4 的四項零星債要在本 session 收哪幾項（建議至少收 `login.astro` 與
   `GateConditionEditor` 警告，另兩項需獨立任務）

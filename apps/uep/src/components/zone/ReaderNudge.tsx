@@ -1,17 +1,22 @@
 /**
  * Reader 提示層（S10-4 A／B 段）
  *
- * 五個 Reader 共用的低調提示位，目前有兩種：
+ * 五個 Reader 共用的提示位，目前有兩種，都是**需要確認才消失的強制卡**：
  *
- * - **AFK 提示**：閒置超過閾值時淡入。`pointer-events: none`、沒有按鈕、
- *   任何活動即消失。刻意不放「我還在」按鈕——使用者要證明自己在，最自然的
- *   動作就是動一下滑鼠，而那正是 activityWatch 已經在聽的東西；加按鈕等於
- *   要求使用者用一個特定動作去回答一個任何動作都能回答的問題。
- * - **休息提醒**（只 History 會提交）：有「知道了」按鈕且會停留。它要求的是
- *   一個決定，不是一個動作，所以不會被 pointermove 自動關掉。
+ * - **AFK 提示**：閒置超過閾值時跳出，backdrop 模糊遮住內容——人不在時
+ *   內容不該裸露在螢幕上。按「我還在」才收起。
+ * - **休息提醒**（只 History 會提交）：backdrop 只暗化不模糊，語氣是善意
+ *   提示而不是攔阻，內容仍隱約可見。
  *
- * 兩者共用同一層，同一時間只顯示一張：idle 時 AFK 優先，休息提醒暫存，
- * 等使用者恢復活動、AFK 卡消失後再顯示。
+ * ⚠️ AFK 卡原本的契約是「`pointer-events: none`、任何活動即消失」，
+ * 2026-08-03 由艾斯維爾反轉。理由是那個設計在真實情境下會自我抵銷：
+ * 從 DevTools 觸發後必須動滑鼠去關視窗，卡片當場就被自己的關閉條件收掉；
+ * 更根本的是「動一下就消失」讓提示可以在使用者完全沒看到的情況下來去一遍。
+ * 現在改由 `afkOpen` 這個閂鎖控制——**進 idle 時上鎖，離開 idle 不解鎖**，
+ * 只有按下確認才解。
+ *
+ * 兩者共用同一層，同一時間只顯示一張：AFK 優先，休息提醒暫存，
+ * 等 AFK 被確認後再顯示。
  *
  * 資料流走 context 而不是 window event bridge——ReaderShell 是 HistoryReader
  * 的父層，資訊本來就能往上傳，專案已有三套島訊號 bridge，再加一套的門檻
@@ -23,11 +28,13 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import {
   isIdleNudgeEnabled,
+  noteActivity,
   startActivityWatch,
   stopActivityWatch,
 } from '../../lib/activityWatch';
@@ -62,7 +69,66 @@ export function useReaderNudge(): ReaderNudgeContextValue {
 }
 
 const AFK_TITLE = '你還在嗎';
-const AFK_BODY = '這一頁還開著。動一下就好。';
+const AFK_BODY = '這一頁還開著，但已經有一陣子沒有動靜了。';
+const AFK_ACTION = '我還在';
+
+/**
+ * 兩張卡共用的外殼。差別只有 backdrop 的遮蔽強度與強調色，
+ * 結構、無障礙語意、焦點處理都一樣，沒有理由寫兩份。
+ */
+function NudgeDialog({
+  variant,
+  eyebrow,
+  title,
+  body,
+  actionLabel,
+  onConfirm,
+}: {
+  variant: 'afk' | 'rest';
+  eyebrow: string;
+  title: string;
+  body: string;
+  actionLabel: string;
+  onConfirm: () => void;
+}) {
+  const titleId = React.useId();
+  const actionRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    // preventScroll：卡片是 fixed 定位，聚焦不該把底下的內容捲走
+    actionRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  return (
+    <div
+      className={`rnudge rnudge--${variant}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      // 卡片內只有一個可聚焦元素，Tab 沒有去處——放它走會把焦點交給
+      // backdrop 底下那些看不見也點不到的東西
+      onKeyDown={(e) => {
+        if (e.key === 'Tab') e.preventDefault();
+      }}
+    >
+      <div className="rnudge-card">
+        <div className="rnudge-eyebrow">{eyebrow}</div>
+        <div className="rnudge-title" id={titleId}>
+          {title}
+        </div>
+        <div className="rnudge-body">{body}</div>
+        <button
+          ref={actionRef}
+          type="button"
+          className="rnudge-action"
+          onClick={onConfirm}
+        >
+          {actionLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function ReaderNudgeProvider({
   children,
@@ -72,6 +138,8 @@ export function ReaderNudgeProvider({
   const { idle } = useIdleState();
   const [nudgeEnabled, setNudgeEnabled] = useState(false);
   const [rest, setRest] = useState<RestNudgeRequest | null>(null);
+  /** AFK 卡的閂鎖。進 idle 時上鎖，只有按下確認才解 */
+  const [afkOpen, setAfkOpen] = useState(false);
 
   // activityWatch 是全站單例，但生命週期綁在 Reader 上——離開 Reader 就
   // 沒有消費端了，繼續掛著全域 listener 只是徒增負擔
@@ -87,6 +155,18 @@ export function ReaderNudgeProvider({
     };
   }, []);
 
+  // 上鎖只看「有沒有進 idle」，不看它現在是不是還 idle——解鎖權在使用者手上
+  useEffect(() => {
+    if (idle && nudgeEnabled) setAfkOpen(true);
+  }, [idle, nudgeEnabled]);
+
+  const acknowledgeAfk = useCallback(() => {
+    setAfkOpen(false);
+    // 確認即重新起算：不做的話 activityWatch 若仍在 idle（例如用鍵盤按下
+    // 確認鈕，沒有任何 pointer 事件），下一個 tick 會立刻把卡片再叫回來
+    noteActivity();
+  }, []);
+
   const requestRestNudge = useCallback((req: RestNudgeRequest) => {
     setRest(req);
   }, []);
@@ -100,39 +180,35 @@ export function ReaderNudgeProvider({
     [requestRestNudge, dismissRestNudge]
   );
 
-  const showAfk = idle && nudgeEnabled;
-  const showRest = !showAfk && rest !== null;
+  const showRest = !afkOpen && rest !== null;
 
   return (
     <ReaderNudgeContext.Provider value={api}>
       {children}
 
-      {showAfk && (
-        <div className="rnudge rnudge--afk" role="status" aria-live="polite">
-          <div className="rnudge-card">
-            <div className="rnudge-title">{AFK_TITLE}</div>
-            <div className="rnudge-body">{AFK_BODY}</div>
-          </div>
-        </div>
+      {afkOpen && (
+        <NudgeDialog
+          variant="afk"
+          eyebrow="AWAY FROM KEYBOARD"
+          title={AFK_TITLE}
+          body={AFK_BODY}
+          actionLabel={AFK_ACTION}
+          onConfirm={acknowledgeAfk}
+        />
       )}
 
       {showRest && rest && (
-        <div className="rnudge rnudge--rest" role="status" aria-live="polite">
-          <div className="rnudge-card">
-            <div className="rnudge-title">{rest.title}</div>
-            <div className="rnudge-body">{rest.body}</div>
-            <button
-              type="button"
-              className="rnudge-action"
-              onClick={() => {
-                rest.onAcknowledge();
-                setRest(null);
-              }}
-            >
-              知道了
-            </button>
-          </div>
-        </div>
+        <NudgeDialog
+          variant="rest"
+          eyebrow="READING RHYTHM"
+          title={rest.title}
+          body={rest.body}
+          actionLabel="知道了"
+          onConfirm={() => {
+            rest.onAcknowledge();
+            setRest(null);
+          }}
+        />
       )}
     </ReaderNudgeContext.Provider>
   );

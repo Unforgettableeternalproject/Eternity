@@ -1,9 +1,9 @@
 /**
  * ReaderNudge 測試
  *
- * 核心契約：AFK 與休息提醒共用一層但不疊卡、AFK 由 activityWatch 直接
- * 驅動、休息提醒要按下確認才消失（不被活動事件關掉）、idleNudgeMode
- * 只關提示不關量測。
+ * 核心契約：AFK 與休息提醒共用一層但不疊卡、兩者都要按下確認才消失
+ * （活動事件關不掉——AFK 的閂鎖不隨 idle 解除）、idleNudgeMode 只關提示
+ * 不關量測。
  */
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -89,7 +89,7 @@ describe('ReaderNudge', () => {
     vi.restoreAllMocks();
   });
 
-  it('閒置超過閾值時淡入 AFK 卡，恢復活動即消失', async () => {
+  it('閒置超過閾值時跳出 AFK 卡，按下確認才消失', async () => {
     render(
       <ReaderNudgeProvider>
         <div>內容</div>
@@ -101,11 +101,32 @@ describe('ReaderNudge', () => {
     await idleOut();
     expect(screen.getByText('你還在嗎')).toBeTruthy();
 
-    await poke();
+    await act(async () => {
+      screen.getByText('我還在').click();
+    });
     expect(screen.queryByText('你還在嗎')).toBeNull();
   });
 
-  it('AFK 卡沒有按鈕——動一下就是答案，不需要特定動作', async () => {
+  /**
+   * 這是 2026-08-03 反轉舊契約的理由本身：從 DevTools 觸發後，使用者必須
+   * 動滑鼠去關掉 DevTools 視窗，舊版的「動一下就消失」會讓卡片在被看清楚
+   * 之前就自己收掉。
+   */
+  it('AFK 卡的閂鎖不隨活動事件解除', async () => {
+    render(
+      <ReaderNudgeProvider>
+        <div>內容</div>
+      </ReaderNudgeProvider>
+    );
+    await settle();
+    await idleOut();
+    expect(screen.getByText('你還在嗎')).toBeTruthy();
+
+    await poke();
+    expect(screen.getByText('你還在嗎')).toBeTruthy();
+  });
+
+  it('AFK 卡是 modal：有 backdrop、有確認鈕、焦點落在鈕上', async () => {
     render(
       <ReaderNudgeProvider>
         <div>內容</div>
@@ -114,8 +135,30 @@ describe('ReaderNudge', () => {
     await settle();
     await idleOut();
 
-    const card = screen.getByText('你還在嗎').closest('.rnudge');
-    expect(card?.querySelector('button')).toBeNull();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.classList.contains('rnudge--afk')).toBe(true);
+
+    const action = screen.getByText('我還在');
+    expect(document.activeElement).toBe(action);
+  });
+
+  it('確認後重新起算，再次閒置會再跳一次', async () => {
+    render(
+      <ReaderNudgeProvider>
+        <div>內容</div>
+      </ReaderNudgeProvider>
+    );
+    await settle();
+    await idleOut();
+
+    await act(async () => {
+      screen.getByText('我還在').click();
+    });
+    expect(screen.queryByText('你還在嗎')).toBeNull();
+
+    await idleOut();
+    expect(screen.getByText('你還在嗎')).toBeTruthy();
   });
 
   it('idleNudgeMode=disabled 不顯示提示卡', async () => {
@@ -143,7 +186,9 @@ describe('ReaderNudge', () => {
     await act(async () => {
       screen.getByText('提交休息提醒').click();
     });
-    expect(screen.getByText('讀了一陣子了')).toBeTruthy();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.classList.contains('rnudge--rest')).toBe(true);
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
 
     await poke();
     expect(screen.getByText('讀了一陣子了')).toBeTruthy();
@@ -155,7 +200,7 @@ describe('ReaderNudge', () => {
     expect(screen.queryByText('讀了一陣子了')).toBeNull();
   });
 
-  it('兩者不疊卡：idle 時 AFK 優先，恢復活動後休息提醒才現身', async () => {
+  it('兩者不疊卡：AFK 優先，確認之後休息提醒才現身', async () => {
     render(
       <ReaderNudgeProvider>
         <RestTrigger onAcknowledge={() => {}} />
@@ -171,7 +216,9 @@ describe('ReaderNudge', () => {
     expect(screen.getByText('你還在嗎')).toBeTruthy();
     expect(screen.queryByText('讀了一陣子了')).toBeNull();
 
-    await poke();
+    await act(async () => {
+      screen.getByText('我還在').click();
+    });
     expect(screen.queryByText('你還在嗎')).toBeNull();
     expect(screen.getByText('讀了一陣子了')).toBeTruthy();
   });

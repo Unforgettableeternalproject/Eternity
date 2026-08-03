@@ -1,8 +1,13 @@
 /* ──────────────────────────────────────────────────────────────
-   ReaderNudge — Reader 共用的低調提示層（AFK / 休息提醒）
+   ReaderNudge — Reader 共用的提示層（AFK / 休息提醒）
 
    刻意不沿用觀測失效遮罩的 glitch 語彙：那是「你被擋下了」，
-   這裡是「你還在嗎」，語氣不同。低飽和襯線、淡入、不遮擋內容。
+   這裡是「你還在嗎」，語氣不同。用站點主體的 UEP 金色作骨幹——
+   雙框線、頂端金線、夾線 eyebrow，是同一套典雅語彙的兩個音量。
+
+   兩張卡的差別只在 backdrop 的遮蔽強度：
+   - AFK：暗化 + 模糊。人不在時內容不該裸露在螢幕上。
+   - 休息：只暗化。它是善意提示不是攔阻，內容仍隱約可見。
    ────────────────────────────────────────────────────────────── */
 
 .rnudge {
@@ -11,60 +16,166 @@
   z-index: 2400;
   display: grid;
   place-items: center;
-  /* 不擋捲動也不擋點擊——提示不是懲罰。休息提醒的按鈕自己放行 */
-  pointer-events: none;
-}
-
-.rnudge-card {
-  max-width: 320px;
-  padding: 20px 26px;
-  text-align: center;
-  background: var(--bg-card);
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 18%);
-  font-family: var(--font-serif-tc);
-  animation: rnudge-in 520ms ease-out both;
-}
-
-.rnudge-title {
-  color: var(--ink);
-  font-size: 15px;
-  letter-spacing: 0.08em;
-  margin-bottom: 8px;
-}
-
-.rnudge-body {
-  color: var(--ink-mute);
-  font-size: 12.5px;
-  line-height: 1.7;
-}
-
-/* 休息提醒要求一個決定，所以它的卡片可以互動 */
-.rnudge--rest .rnudge-card {
+  padding: 24px;
+  /* 兩張卡都要求一個決定，backdrop 攔下期間的所有互動 */
   pointer-events: auto;
 }
 
-.rnudge-action {
-  margin-top: 14px;
-  border: 1px solid var(--line-strong);
-  background: transparent;
-  color: var(--ink);
-  padding: 6px 18px;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  transition: background 0.2s;
+.rnudge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  animation: rnudge-veil 420ms ease-out both;
 }
 
-.rnudge-action:hover {
-  background: var(--line-strong);
+.rnudge--afk::before {
+  background: rgb(10 11 15 / 66%);
+  backdrop-filter: blur(14px) saturate(0.7);
+}
+
+.rnudge--rest::before {
+  background: rgb(10 11 15 / 42%);
+}
+
+.rnudge-card {
+  position: relative;
+  width: min(380px, 100%);
+  padding: 32px 30px 26px;
+  text-align: center;
+  background:
+    radial-gradient(
+      120% 90% at 50% -10%,
+      rgb(213 182 24 / 14%),
+      transparent 62%
+    ),
+    var(--bg-card);
+  border: 1px solid rgb(213 182 24 / 38%);
+  box-shadow:
+    0 26px 70px rgb(0 0 0 / 45%),
+    0 0 60px -20px var(--uep-gold-glow);
+  font-family: var(--font-serif-tc);
+  animation: rnudge-in 520ms var(--ease-out) both;
+}
+
+/* 頂端金線：卡片的重心，也是兩張卡共同的識別 */
+.rnudge-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--uep-gold) 20%,
+    var(--uep-gold-soft) 50%,
+    var(--uep-gold) 80%,
+    transparent
+  );
+}
+
+/* 內襯細框。單框線在深色 backdrop 上會顯得單薄 */
+.rnudge-card::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgb(213 182 24 / 16%);
+  pointer-events: none;
+}
+
+.rnudge-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: var(--uep-gold);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.rnudge-eyebrow::before,
+.rnudge-eyebrow::after {
+  content: '';
+  width: 26px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(213 182 24 / 60%));
+}
+
+.rnudge-eyebrow::after {
+  transform: scaleX(-1);
+}
+
+.rnudge-title {
+  /* 亮色主題下純金字在白卡上讀不清，用深金；暗色才放亮 */
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-size: 25px;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+[data-theme='dark'] .rnudge-title {
+  color: var(--uep-gold-soft);
+  text-shadow: 0 0 22px rgb(213 182 24 / 28%);
+}
+
+.rnudge-body {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+.rnudge-action {
+  position: relative;
+  margin-top: 22px;
+  padding: 9px 26px;
+  border: 1px solid rgb(213 182 24 / 55%);
+  background: transparent;
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  transition:
+    background 0.28s var(--ease),
+    color 0.28s var(--ease),
+    box-shadow 0.28s var(--ease);
+}
+
+[data-theme='dark'] .rnudge-action {
+  color: var(--uep-gold-soft);
+}
+
+.rnudge-action:hover,
+.rnudge-action:focus-visible {
+  background: var(--uep-gold);
+  color: #241f08;
+  box-shadow: 0 0 26px -6px var(--uep-gold-glow);
+  outline: none;
+}
+
+/* 焦點自動落在這顆按鈕上，環要看得出來但不能蓋掉填色 */
+.rnudge-action:focus-visible {
+  outline: 1px solid var(--uep-gold-soft);
+  outline-offset: 3px;
+}
+
+@keyframes rnudge-veil {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes rnudge-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(10px) scale(0.985);
   }
 
   to {
@@ -73,8 +184,42 @@
   }
 }
 
+/* AFK 是等待中的狀態，卡片緩慢呼吸；休息提醒是一次性的告知，不需要 */
+@keyframes rnudge-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 26px 70px rgb(0 0 0 / 45%),
+      0 0 60px -20px var(--uep-gold-glow);
+  }
+
+  50% {
+    box-shadow:
+      0 26px 70px rgb(0 0 0 / 45%),
+      0 0 78px -12px var(--uep-gold-glow);
+  }
+}
+
+.rnudge--afk .rnudge-card {
+  animation:
+    rnudge-in 520ms var(--ease-out) both,
+    rnudge-breathe 4.6s ease-in-out 520ms infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .rnudge-card {
+  .rnudge::before,
+  .rnudge-card,
+  .rnudge--afk .rnudge-card {
     animation: none;
+  }
+}
+
+@media (width <= 480px) {
+  .rnudge-card {
+    padding: 26px 22px 22px;
+  }
+
+  .rnudge-title {
+    font-size: 22px;
   }
 }
