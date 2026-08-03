@@ -85,11 +85,20 @@ async function activeAdvance(ms: number) {
   }
 }
 
-const card = () => screen.queryByText('讀了一段時間了');
+/** 與 `useRestReminder.ts` 的 `REST_TITLE` 對齊——文案改了這裡要跟著改 */
+const card = () => screen.queryByText('看了好多東西了');
 
+/**
+ * 按下「知道了」並等退場動畫演完。
+ *
+ * 2026-08-04 起休息提醒是側邊滑出的卡片，按鈕按下後會先播 460ms 的滑回
+ * 動畫，**動畫結束才呼叫 `onAcknowledge`**——也就是冷卻與 baseline 的重設
+ * 都發生在那之後。這裡不推進時間的話，後續斷言看到的是還沒重設的狀態。
+ */
 async function acknowledge() {
   await act(async () => {
     screen.getByText('知道了').click();
+    await vi.advanceTimersByTimeAsync(500);
   });
 }
 

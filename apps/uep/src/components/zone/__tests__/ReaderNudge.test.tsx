@@ -1,18 +1,22 @@
 /**
  * ReaderNudge 測試
  *
- * 核心契約：AFK 與休息提醒共用一層但不疊卡、兩者都要按下確認才消失
- * （活動事件關不掉——AFK 的閂鎖不隨 idle 解除）、idleNudgeMode 只關提示
- * 不關量測。
+ * 2026-08-04 起這一層只剩休息提醒——閒置改由 `IdleVeil` 承擔，測試在
+ * `lib/__tests__/idleVeil.test.ts`。
+ *
+ * 核心契約：休息提醒要按下確認才消失（活動事件關不掉）、確認後要等退場
+ * 動畫演完才通知提交方、提交方可以撤銷尚未確認的提醒。
  */
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { stopActivityWatch } from '../../../lib/activityWatch';
+import { stopIdleVeil } from '../../../lib/idleVeil';
 import { clearUepSettingsCache } from '../../../lib/uepSettings';
 import { ReaderNudgeProvider, useReaderNudge } from '../ReaderNudge';
 
-const THRESHOLD_SEC = 60;
+/** 與 ReaderNudge 的 LEAVE_MS 對齊 */
+const LEAVE_MS = 460;
 
 function mockSettings(overrides: Record<string, string | number> = {}) {
   globalThis.fetch = vi.fn(async () => ({
@@ -21,7 +25,7 @@ function mockSettings(overrides: Record<string, string | number> = {}) {
       ok: true,
       data: {
         settings: {
-          'reader.activityIdleThresholdSec': THRESHOLD_SEC,
+          'reader.activityIdleThresholdSec': 60,
           'reader.idleNudgeMode': 'enabled',
           ...overrides,
         },
@@ -54,12 +58,6 @@ function RestTrigger({ onAcknowledge }: { onAcknowledge: () => void }) {
   );
 }
 
-async function idleOut() {
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(THRESHOLD_SEC * 1000);
-  });
-}
-
 async function poke() {
   await act(async () => {
     window.dispatchEvent(new Event('pointermove'));
@@ -84,94 +82,10 @@ describe('ReaderNudge', () => {
   });
 
   afterEach(() => {
+    stopIdleVeil();
     stopActivityWatch();
     vi.useRealTimers();
     vi.restoreAllMocks();
-  });
-
-  it('閒置超過閾值時跳出 AFK 卡，按下確認才消失', async () => {
-    render(
-      <ReaderNudgeProvider>
-        <div>內容</div>
-      </ReaderNudgeProvider>
-    );
-    await settle();
-
-    expect(screen.queryByText('你還在嗎')).toBeNull();
-    await idleOut();
-    expect(screen.getByText('你還在嗎')).toBeTruthy();
-
-    await act(async () => {
-      screen.getByText('我還在').click();
-    });
-    expect(screen.queryByText('你還在嗎')).toBeNull();
-  });
-
-  /**
-   * 這是 2026-08-03 反轉舊契約的理由本身：從 DevTools 觸發後，使用者必須
-   * 動滑鼠去關掉 DevTools 視窗，舊版的「動一下就消失」會讓卡片在被看清楚
-   * 之前就自己收掉。
-   */
-  it('AFK 卡的閂鎖不隨活動事件解除', async () => {
-    render(
-      <ReaderNudgeProvider>
-        <div>內容</div>
-      </ReaderNudgeProvider>
-    );
-    await settle();
-    await idleOut();
-    expect(screen.getByText('你還在嗎')).toBeTruthy();
-
-    await poke();
-    expect(screen.getByText('你還在嗎')).toBeTruthy();
-  });
-
-  it('AFK 卡是 modal：有 backdrop、有確認鈕、焦點落在鈕上', async () => {
-    render(
-      <ReaderNudgeProvider>
-        <div>內容</div>
-      </ReaderNudgeProvider>
-    );
-    await settle();
-    await idleOut();
-
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.getAttribute('aria-modal')).toBe('true');
-    expect(dialog.classList.contains('rnudge--afk')).toBe(true);
-
-    const action = screen.getByText('我還在');
-    expect(document.activeElement).toBe(action);
-  });
-
-  it('確認後重新起算，再次閒置會再跳一次', async () => {
-    render(
-      <ReaderNudgeProvider>
-        <div>內容</div>
-      </ReaderNudgeProvider>
-    );
-    await settle();
-    await idleOut();
-
-    await act(async () => {
-      screen.getByText('我還在').click();
-    });
-    expect(screen.queryByText('你還在嗎')).toBeNull();
-
-    await idleOut();
-    expect(screen.getByText('你還在嗎')).toBeTruthy();
-  });
-
-  it('idleNudgeMode=disabled 不顯示提示卡', async () => {
-    mockSettings({ 'reader.idleNudgeMode': 'disabled' });
-    render(
-      <ReaderNudgeProvider>
-        <div>內容</div>
-      </ReaderNudgeProvider>
-    );
-    await settle();
-    await idleOut();
-
-    expect(screen.queryByText('你還在嗎')).toBeNull();
   });
 
   it('休息提醒要按下確認才消失，活動事件不會關掉它', async () => {
@@ -186,41 +100,65 @@ describe('ReaderNudge', () => {
     await act(async () => {
       screen.getByText('提交休息提醒').click();
     });
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.classList.contains('rnudge--rest')).toBe(true);
-    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(screen.getByText('讀了一陣子了')).toBeTruthy();
 
     await poke();
     expect(screen.getByText('讀了一陣子了')).toBeTruthy();
 
     await act(async () => {
       screen.getByText('知道了').click();
+      // 退場動畫演完才會通知提交方
+      await vi.advanceTimersByTimeAsync(LEAVE_MS);
     });
     expect(onAcknowledge).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('讀了一陣子了')).toBeNull();
   });
 
-  it('兩者不疊卡：AFK 優先，確認之後休息提醒才現身', async () => {
+  it('確認後先播退場動畫，動畫途中不通知提交方', async () => {
+    const onAcknowledge = vi.fn();
     render(
       <ReaderNudgeProvider>
-        <RestTrigger onAcknowledge={() => {}} />
+        <RestTrigger onAcknowledge={onAcknowledge} />
       </ReaderNudgeProvider>
     );
     await settle();
-
-    await idleOut();
     await act(async () => {
       screen.getByText('提交休息提醒').click();
     });
 
-    expect(screen.getByText('你還在嗎')).toBeTruthy();
-    expect(screen.queryByText('讀了一陣子了')).toBeNull();
+    await act(async () => {
+      screen.getByText('知道了').click();
+      await vi.advanceTimersByTimeAsync(LEAVE_MS - 100);
+    });
+    // 還在滑回去的路上：卡片仍在，冷卻也還沒開始
+    expect(onAcknowledge).not.toHaveBeenCalled();
+    expect(document.querySelector('.rnudge--leaving')).toBeTruthy();
 
     await act(async () => {
-      screen.getByText('我還在').click();
+      await vi.advanceTimersByTimeAsync(100);
     });
-    expect(screen.queryByText('你還在嗎')).toBeNull();
-    expect(screen.getByText('讀了一陣子了')).toBeTruthy();
+    expect(onAcknowledge).toHaveBeenCalledTimes(1);
+  });
+
+  it('重複按確認只會通知一次', async () => {
+    const onAcknowledge = vi.fn();
+    render(
+      <ReaderNudgeProvider>
+        <RestTrigger onAcknowledge={onAcknowledge} />
+      </ReaderNudgeProvider>
+    );
+    await settle();
+    await act(async () => {
+      screen.getByText('提交休息提醒').click();
+    });
+
+    await act(async () => {
+      screen.getByText('知道了').click();
+      screen.getByText('知道了').click();
+      screen.getByText('知道了').click();
+      await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    });
+    expect(onAcknowledge).toHaveBeenCalledTimes(1);
   });
 
   it('提交方可以撤銷尚未確認的休息提醒', async () => {
@@ -240,6 +178,23 @@ describe('ReaderNudge', () => {
       screen.getByText('撤銷休息提醒').click();
     });
     expect(screen.queryByText('讀了一陣子了')).toBeNull();
+  });
+
+  it('卡片帶著 U.E.P 立繪，且不擋整個畫面', async () => {
+    render(
+      <ReaderNudgeProvider>
+        <RestTrigger onAcknowledge={() => {}} />
+      </ReaderNudgeProvider>
+    );
+    await settle();
+    await act(async () => {
+      screen.getByText('提交休息提醒').click();
+    });
+
+    const layer = document.querySelector('.rnudge');
+    expect(layer?.querySelector('img.rnudge-art')).toBeTruthy();
+    // 沒有 backdrop 元素——側邊卡不遮內容
+    expect(document.querySelector('.rnudge-backdrop')).toBeNull();
   });
 
   it('Provider 外呼叫 useReaderNudge 是 no-op，不丟錯', () => {

@@ -45,8 +45,8 @@ const CHECK_INTERVAL_MS = 15_000;
 
 const MINUTE_MS = 60_000;
 
-const REST_TITLE = '讀了一段時間了';
-const REST_BODY = '這裡會等你。起來走走，回來時進度都還在。';
+const REST_TITLE = '看了好多東西了';
+const REST_BODY = '要不要休息一下呢?';
 
 /**
  * 手動驗收用的 bridge（同 LostBookmark 的既有模式）。

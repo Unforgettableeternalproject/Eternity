@@ -67,9 +67,12 @@ lastActivityAt ──(事件)──> 更新（純變數寫入，零渲染）
 一個數值快照，結束時用新值減快照，不用 timestamp 反查歷史清單。這讓長時間開頁
 的記憶體用量維持 O(1)。
 
-`useIdleState()` hook 訂閱這個單例，回傳 `{ idle, idleSince }`。AFK nudge 是否顯示
-只看 `reader.idleNudgeMode`；活動分類與計時永遠以
-`reader.activityIdleThresholdSec` 為準。
+消費端用 `subscribeActivity()` 訂閱這個單例。帷幕是否升起只看
+`reader.idleNudgeMode`；活動分類與計時永遠以 `reader.activityIdleThresholdSec`
+為準。
+
+> 原本另有一個 `useIdleState()` hook 給 React 端訂閱，2026-08-04 隨 AFK 卡一起
+> 刪除——帷幕的訂閱在 `idleVeil` 模組層級（不是元件層級），hook 沒有消費端了。
 
 ### 2-3 ⚠️ 與觀測失效的時間軸協調（本段最重要的一條）
 
@@ -133,25 +136,48 @@ return () => {
 **`READING_TIME_CAP_MS` 隨之退休**——它存在的唯一理由被真正的閒置扣除取代了。
 留著會變成第二套判定，而且是比較笨的那套。
 
-### 2-6 提示的形狀
+### 2-6 提示的形狀 —— 不是提示，是帷幕
 
-**中央的 modal 卡片，backdrop 暗化 + 模糊，按下「我還在」才收起。**
+**掛機時從畫面四周漫入帶靜電的霧，越久越濃；要撥開它得真的動，而且拖得
+越久要動得越多。全遮時中央浮現「空曠~」。** 實作在 `lib/idleVeil.ts` +
+`components/zone/IdleVeil.tsx`。
 
-> ⚠️ 本節於 2026-08-03 由艾斯維爾反轉。原設計是「`pointer-events: none`、
-> 不放按鈕、任何活動事件即消失」，理由是「動一下滑鼠本來就是 activityWatch
-> 在聽的東西」。實測推翻了它：從 DevTools 觸發後必須動滑鼠去關掉 DevTools
-> 視窗，卡片當場被自己的關閉條件收掉；更根本的是那個設計讓提示可以在使用者
-> 完全沒看到的情況下來去一遍——一個沒人看得到的提示等於沒有提示。
+> ⚠️ 這一節被改寫過兩次，兩次都值得記著：
+>
+> **08/03（modal）**：原設計是「`pointer-events: none`、不放按鈕、任何活動
+> 即消失」，理由是「動一下滑鼠本來就是 activityWatch 在聽的東西」。實測推翻
+> 了它——從 DevTools 觸發後必須動滑鼠去關掉 DevTools 視窗，卡片當場被自己的
+> 關閉條件收掉；更根本的是提示可以在使用者完全沒看到的情況下來去一遍。
+> 於是改成要按「我還在」的 modal。
+>
+> **08/04（帷幕）**：測試者提出「掛機就讓迷霧漸漸占滿整個螢幕，動一動可以
+> 再次出現」，艾斯維爾採納。modal 診斷的問題是對的，解法選錯了——它把
+> 「你還在嗎」變成一道要人回答的關卡。**舊設計真正缺的不是門檻，是回饋**：
+> 使用者看不出自己做了什麼、還差多少。帷幕把回饋補上（看得到霧、看得到自己
+> 撥開多少），同時不需要任何按鈕。
 
-閂鎖 `afkOpen` 在進 idle 時上鎖，**離開 idle 不解鎖**，只有確認鈕解。確認時
-同步呼叫 `noteActivity()` 重新起算（鍵盤按下確認鈕不會產生任何 pointer 事件，
-不補這一下，下一個 tick 會立刻把卡片再叫回來）。再次閒置到閾值會再跳一次，
-不設冷卻。
+三個階段，從 `activityWatch` 判定閒置那一刻起算（**接在
+`reader.activityIdleThresholdSec` 之後，不是取代它**——預設情境下全遮發生在
+停手 5 分鐘）：
 
-backdrop 遮蔽強度兩張卡不同：**AFK 暗化 + 模糊**（人不在時內容不該裸露在
-螢幕上），**休息提醒只暗化**（它是善意提示不是攔阻）。視覺以 UEP 金色為骨幹
-——頂端金線、內襯細框、夾線 eyebrow、金色確認鈕；標題在亮色主題用 `--accent-ink`
-深金（純金字在白卡上讀不清），暗色主題才放亮成 `--uep-gold-soft`。
+| 進入 | 帷幕 | 驅散所需活動量 |
+| --- | --- | --- |
+| 20s | 邊緣起霧（coverage 0.34） | 80px |
+| 60s | 逼近中央（0.7） | 400px |
+| 120s | 全遮（1.0）+「空曠~」 | 1200px |
+
+- **帷幕的生命週期與 `idle` 是兩件事**：`idle` 只描述時間軸事實，使用者動一下
+  就 false。帷幕自己閂住，只有累積夠活動量才散——這是「拖越久越難散」的前提
+  （半調子的動作累積 dispel 但不重置 stage，於是霧繼續濃、門檻繼續高）。
+- **驅散進度直接扣在濃度上**（`coverage × (1 - dispel)`），這就是回饋本身。
+- 鍵盤／滾輪／點擊各等效 40px——只用鍵盤閱讀的人不能被永遠關在霧裡。
+- 散去時呼叫 `noteActivity()` 把時間軸一併重設，兩邊回到同一起點。
+- `reader.idleNudgeMode = disabled` 在 `idleVeil` 這一層擋，不在 activityWatch
+  擋（關 UI 不關量測的原則不變）。
+- **DevTools 面板開著時暫停驅散累積**（`setDispelPaused`，由 `UepDevTools` 的
+  open state 驅動）。不做這件事就沒辦法驗收：按面板上的按鈕本來就得移動滑鼠，
+  那些位移會被算成驅散，一叫出來就被自己的操作撥掉。只停驅散不停階段推進；
+  恢復時清掉 `lastPointer`，免得「把滑鼠從面板移回內容」那一段被追認成距離。
 
 ---
 
@@ -190,12 +216,24 @@ ProgressState**——「剛剛提醒過」是本次閱讀 session 的狀態，�
 queue；hydrate、跨裝置既有完成與重讀都不得算成本次大量閱讀。每次判定前剔除
 `restWindowMinutes` 之外的舊項。
 
-### 3-4 提示的形狀
+### 3-4 提示的形狀 —— U.E.P 從側邊探出來
 
-與 AFK 共用同一層與同一個卡片外殼（`ReaderNudge` 的 `NudgeDialog`）。兩者都是
-需要確認才消失的 modal，差別只在 backdrop 強度與 eyebrow 文案（見 2-6）。
+**畫面右下角滑出的小卡，U.E.P 立繪站在卡片上緣，按「知道了」滑回去。**
+不擋內容、沒有 backdrop——休息提醒是善意的提議，不是攔阻（2026-08-04 由
+測試者提案、艾斯維爾定案：「讓 UEP 來提醒該休息」）。
 
-資料流用 `ReaderNudgeProvider`：Provider 掛在 `ReaderShell`，AFK 直接由 Provider 消費；
+- 立繪暫時借用 `Fence.webp`（root 站那顆壓過的 9.8KB 版本已複製進本站
+  `public/uep/`）。本站原有的 `Fence.PNG` 是 12MB 未壓縮版，**不要用**。
+  之後有專屬姿勢時只要換 `ReaderNudge.tsx` 的 `UEP_ART`。
+- **滑回去的動畫演完（460ms）才呼叫 `onAcknowledge`**——提前呼叫的話卡片會在
+  半路上被拔掉。所以冷卻與 baseline 的重設也都發生在那之後，寫測試要記得推進
+  這段時間。
+- 連按確認的擋鎖用 **ref 不用 state**：三次 onClick 在同一批更新內同步跑完，
+  那時 state 還沒變，擋不住（實測踩到）。
+- 金色語彙沿用 08/03 那版（頂端金線、內襯細框、夾線 eyebrow、金色按鈕），
+  標題在亮色主題用 `--accent-ink` 深金——純金字在白卡上讀不清。
+
+資料流用 `ReaderNudgeProvider`：Provider 掛在 `ReaderShell`，
 休息提醒透過 `useReaderNudge()` 提交／撤銷。不要為此新增 window event bridge。
 
 ⚠️ **實作時更正（2026-08-02）**：本文件原寫「HistoryReader 透過 `useReaderNudge()`
@@ -206,8 +244,9 @@ queue；hydrate、跨裝置既有完成與重讀都不得算成本次大量閱�
 `<ReaderShell>` 的 children 裡；判定邏輯仍全在 `useRestReminder()`。
 五個 Reader 都是這個結構，C 段之外若有新的 Reader 層提示要走 context，同樣適用。
 
-同一時間只顯示一張：AFK 卡優先，pending 的休息提醒暫存，等 AFK 被確認後才顯示。
-兩張卡都不被 pointermove 自動關閉。
+**兩者不再需要互斥**：帷幕在背景（z-index 2300、不吃互動），休息提醒在角落
+（2400、只有卡片吃互動），同時出現也不打架——這是把閒置從「一張卡」改成
+「一層帷幕」順帶解決掉的問題。休息提醒仍不被 pointermove 自動關閉。
 
 ---
 
@@ -458,7 +497,7 @@ subprocess 級測試證明 exit code 有接上，不接受只測 helper、main �
 | R1 | 全域活動監聽與內容保護的既有 listener 疊加 | 活動事件全部 `passive: true`；高頻 handler 只寫模組變數，不做 DOM 讀取；visibility／blur／focus 走明確狀態機 |
 | R2 | `readingStats` 改語意後，既有讀者的 `totalMs` 含掛機時間，新舊資料不同質 | **不做遷移**——舊值就是舊值，這是統計輔助值不是進度事實。平均閱讀時間會隨新資料逐步收斂 |
 | R3 | 聚光燈位置在島被拖曳／視窗 resize／內容改尺寸後失準 | 每步進場現算 + window resize + anchor ResizeObserver + island runtime move/open/close；拖曳中暫藏，結束後重算 |
-| R4 | AFK 提示在使用者「正在讀但沒動作」時誤觸發（長段落慢讀） | 預設閾值 180 秒偏保守。⚠️ 2-6 改成 modal 之後誤觸發的代價變高了——它會遮住正在讀的內容並要求一次點擊。若實測發現慢讀者被打斷，調高 `reader.activityIdleThresholdSec` 是第一手段 |
+| R4 | 帷幕在使用者「正在讀但沒動作」時誤升起（長段落慢讀） | 預設閾值 180 秒 + 階段一還要再 20 秒，誤觸發的門檻其實很高；真的踩到時階段一只需 80px 就撥開，代價比 08/03 那版 modal 低得多。仍嫌吵就調高 `reader.activityIdleThresholdSec` |
 | R5 | 6-1 修法動到 `/api/homepage` 授權 | 該端點是 admin 寫入端點，放寬到 `isAuthorized` 仍需 API_TOKEN 或 admin JWT，不存在匿名路徑。要有回歸測試斷言未授權仍 401 |
 | R6 | settings 首訪非同步導致第一頁鎖定 fallback | `initUepSettings` Promise 去重；activityWatch 等初始化 resolve，失敗才使用 fallback |
 
@@ -468,9 +507,9 @@ subprocess 級測試證明 exit code 有接上，不接受只測 helper、main �
 
 **本文件目前沒有阻塞實作的開放問題。** 以下三項可在實作時由實作者決定並記錄：
 
-- ~~AFK 提示卡的具體文案與視覺語彙~~（2026-08-03 定案：UEP 金色骨幹的 modal，
-  見 2-6。仍**不沿用觀測失效的 glitch 語彙**——那是「你被擋下了」，
-  AFK 是「你還在嗎」，語氣不同）
+- ~~AFK 提示卡的具體文案與視覺語彙~~（2026-08-04 定案：改為靜電霧帷幕，
+  見 2-6。**與觀測失效的 glitch 語彙刻意區分**——那是「訊號被切斷」，
+  帷幕是「沒有人在看」：霧是靜的、慢的，靜電只是它的底噪不是主體）
 - 五島教學各 2 步或 3 步
 - 6-4 的四項零星債要在本 session 收哪幾項（建議至少收 `login.astro` 與
   `GateConditionEditor` 警告，另兩項需獨立任務）
@@ -482,7 +521,7 @@ subprocess 級測試證明 exit code 有接上，不接受只測 helper、main �
 **A 段（地基，其餘都依賴它）**
 
 1. 六個站台設定 key + `validateSetting`／預設／表單，並讓 `initUepSettings` Promise 去重
-2. `lib/activityWatch.ts` + `useIdleState()`，含 visibility／blur／focus 狀態機與
+2. `lib/activityWatch.ts`，含 visibility／blur／focus 狀態機與
    O(1) 活躍毫秒累加
 3. `ReaderNudgeProvider` + `ReaderShell` 接線（先只做 AFK 型）
 4. `readingStats` 改用 active-total 快照差，`READING_TIME_CAP_MS` 退休

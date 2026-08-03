@@ -11,6 +11,7 @@
  */
 
 import { forceIdleNow, getActivityDebug } from '../../lib/activityWatch';
+import { forceVeilStage, getVeilDebug } from '../../lib/idleVeil';
 import { clearUepSettingsCache } from '../../lib/uepSettings';
 import { getProgressManager } from '../../progress';
 import { clearGuideSessionLimit } from '../../islands/guide/IslandGuideAuto';
@@ -52,9 +53,9 @@ export function registerRhythmActions(): void {
     {
       group: GROUP_RHYTHM,
       id: 'rhythm:force-idle',
-      label: '立刻進入閒置（跳出 AFK 卡）',
+      label: '立刻進入閒置（帷幕開始生長）',
       description:
-        '把最後活動時間推到閾值之外再跑一次判定——封存與恢復條件都與真實閒置一致。卡片要按「我還在」才收起',
+        '把最後活動時間推到閾值之外再跑一次判定——封存與恢復條件都與真實閒置一致。之後 20／60／120 秒依序進三個階段，想直接看某一階用下面的入口',
       available: isReaderPage,
       execute: () => {
         forceIdleNow();
@@ -68,8 +69,39 @@ export function registerRhythmActions(): void {
           return;
         }
         if (!debug.nudgeEnabled) {
-          log('已進入閒置，但站台設定的「閒置提示」是不顯示，所以沒有卡片');
+          log('已進入閒置，但站台設定的「閒置提示」是不顯示，所以不會有帷幕');
         }
+      },
+    },
+    ...([1, 2, 3] as const).map((stage) => ({
+      group: GROUP_RHYTHM,
+      id: `rhythm:veil-stage-${stage}`,
+      label: `帷幕直接跳到階段 ${stage}`,
+      description: [
+        '邊緣起霧，動一下（80px）就散',
+        '逼近中央，要劃一段（400px）才散',
+        '全遮 + 「空曠~」，要繞幾圈（1200px）才散',
+      ][stage - 1],
+      available: isReaderPage,
+      execute: () => {
+        forceVeilStage(stage);
+        const debug = getVeilDebug();
+        if (debug.stage !== stage) {
+          log(
+            `已要求階段 ${stage}，但目前是 ${debug.stage}——` +
+              '帷幕可能沒啟動（這一頁不是 Reader，或站台設定關掉了閒置提示）'
+          );
+        }
+      },
+    })),
+    {
+      group: GROUP_RHYTHM,
+      id: 'rhythm:veil-status',
+      label: '印出帷幕狀態',
+      description:
+        '階段、濃度、已累積／還需要多少驅散距離。`dispelPaused` 在面板開著時為 true——關掉面板才開始追蹤驅散',
+      execute: () => {
+        log(`idleVeil: ${JSON.stringify(getVeilDebug(), null, 2)}`);
       },
     },
     {

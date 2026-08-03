@@ -1,22 +1,23 @@
 /**
  * Reader 提示層（S10-4 A／B 段）
  *
- * 五個 Reader 共用的提示位，目前有兩種，都是**需要確認才消失的強制卡**：
+ * 兩套機制共用這一層，但形狀完全不同：
  *
- * - **AFK 提示**：閒置超過閾值時跳出，backdrop 模糊遮住內容——人不在時
- *   內容不該裸露在螢幕上。按「我還在」才收起。
- * - **休息提醒**（只 History 會提交）：backdrop 只暗化不模糊，語氣是善意
- *   提示而不是攔阻，內容仍隱約可見。
+ * - **閒置**：不是提示卡，是從四周漫入的靜電霧（`IdleVeil`）。狀態機在
+ *   `lib/idleVeil.ts`，這裡只負責啟動它與掛上渲染層。
+ * - **休息提醒**（只 History 會提交）：U.E.P 從畫面右側探出來的小卡，
+ *   不擋內容、不遮畫面，按「知道了」就滑回去。
  *
- * ⚠️ AFK 卡原本的契約是「`pointer-events: none`、任何活動即消失」，
- * 2026-08-03 由艾斯維爾反轉。理由是那個設計在真實情境下會自我抵銷：
- * 從 DevTools 觸發後必須動滑鼠去關視窗，卡片當場就被自己的關閉條件收掉；
- * 更根本的是「動一下就消失」讓提示可以在使用者完全沒看到的情況下來去一遍。
- * 現在改由 `afkOpen` 這個閂鎖控制——**進 idle 時上鎖，離開 idle 不解鎖**，
- * 只有按下確認才解。
+ * ## 兩次改版都是同一個教訓
  *
- * 兩者共用同一層，同一時間只顯示一張：AFK 優先，休息提醒暫存，
- * 等 AFK 被確認後再顯示。
+ * 08/03 把閒置提示從「動一下就消失的浮字」改成「要按確認的 modal」，
+ * 08/04 又整個換成帷幕。中間那版 modal 解決的是真問題（提示會在使用者
+ * 沒看到的情況下來去一遍），但解法選錯了——它把「你還在嗎」變成一道
+ * 要人回答的關卡。帷幕保留了回饋（看得到霧、看得到自己撥開多少），
+ * 卻不需要任何按鈕。
+ *
+ * 📌 所以這一層現在只剩休息提醒需要 context：它要求的是一個決定
+ * （現在休不休息），而掛機不是問題，是狀態。
  *
  * 資料流走 context 而不是 window event bridge——ReaderShell 是 HistoryReader
  * 的父層，資訊本來就能往上傳，專案已有三套島訊號 bridge，再加一套的門檻
@@ -32,13 +33,10 @@ import React, {
   useState,
 } from 'react';
 
-import {
-  isIdleNudgeEnabled,
-  noteActivity,
-  startActivityWatch,
-  stopActivityWatch,
-} from '../../lib/activityWatch';
-import { useIdleState } from '../../lib/useIdleState';
+import { startActivityWatch, stopActivityWatch } from '../../lib/activityWatch';
+import { startIdleVeil, stopIdleVeil } from '../../lib/idleVeil';
+
+import IdleVeil from './IdleVeil';
 
 import './ReaderNudge.css';
 
@@ -68,62 +66,62 @@ export function useReaderNudge(): ReaderNudgeContextValue {
   return useContext(ReaderNudgeContext);
 }
 
-const AFK_TITLE = '你還在嗎';
-const AFK_BODY = '這一頁還開著，但已經有一陣子沒有動靜了。';
-const AFK_ACTION = '我還在';
+/** 滑回去的動畫時間，與 CSS 的 `ivl`／`rnudge--leaving` 對齊 */
+const LEAVE_MS = 460;
 
 /**
- * 兩張卡共用的外殼。差別只有 backdrop 的遮蔽強度與強調色，
- * 結構、無障礙語意、焦點處理都一樣，沒有理由寫兩份。
+ * U.E.P 帶著提醒從右側探出來。
+ *
+ * 立繪暫時借用 `Fence.webp`（root 站那顆壓過的 9.8KB 版本，已複製進本站
+ * public）——這一版還沒有專屬的提醒姿勢，之後換圖只要動 `UEP_ART`。
  */
-function NudgeDialog({
-  variant,
-  eyebrow,
-  title,
-  body,
-  actionLabel,
-  onConfirm,
-}: {
-  variant: 'afk' | 'rest';
-  eyebrow: string;
-  title: string;
-  body: string;
-  actionLabel: string;
-  onConfirm: () => void;
-}) {
-  const titleId = React.useId();
-  const actionRef = useRef<HTMLButtonElement>(null);
+const UEP_ART = '/uep/Fence.webp';
 
-  useEffect(() => {
-    // preventScroll：卡片是 fixed 定位，聚焦不該把底下的內容捲走
-    actionRef.current?.focus({ preventScroll: true });
-  }, []);
+function RestNudgeCard({
+  rest,
+  onDone,
+}: {
+  rest: RestNudgeRequest;
+  onDone: () => void;
+}) {
+  const [leaving, setLeaving] = useState(false);
+  const timerRef = useRef<number | null>(null);
+  /**
+   * 退場只能觸發一次。用 ref 不用上面那個 state——連按時三次 onClick 會在
+   * 同一批更新內同步跑完，那時 `leaving` 還是 false，state 擋不住。
+   */
+  const leavingRef = useRef(false);
+
+  // 卸載時清掉退場計時器：換頁時 React 會直接拔掉這棵樹，
+  // 留著的 setTimeout 會對已卸載的元件呼叫 setState
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    },
+    []
+  );
+
+  const acknowledge = useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    // 動畫演完才通知提交方——提前通知的話卡片會在滑回去的半路上被拔掉
+    timerRef.current = window.setTimeout(onDone, LEAVE_MS);
+  }, [onDone]);
 
   return (
     <div
-      className={`rnudge rnudge--${variant}`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      // 卡片內只有一個可聚焦元素，Tab 沒有去處——放它走會把焦點交給
-      // backdrop 底下那些看不見也點不到的東西
-      onKeyDown={(e) => {
-        if (e.key === 'Tab') e.preventDefault();
-      }}
+      className={`rnudge rnudge--rest${leaving ? ' rnudge--leaving' : ''}`}
+      role="status"
+      aria-live="polite"
     >
+      <img className="rnudge-art" src={UEP_ART} alt="" aria-hidden="true" />
       <div className="rnudge-card">
-        <div className="rnudge-eyebrow">{eyebrow}</div>
-        <div className="rnudge-title" id={titleId}>
-          {title}
-        </div>
-        <div className="rnudge-body">{body}</div>
-        <button
-          ref={actionRef}
-          type="button"
-          className="rnudge-action"
-          onClick={onConfirm}
-        >
-          {actionLabel}
+        <div className="rnudge-eyebrow">READING RHYTHM</div>
+        <div className="rnudge-title">{rest.title}</div>
+        <div className="rnudge-body">{rest.body}</div>
+        <button type="button" className="rnudge-action" onClick={acknowledge}>
+          知道了
         </button>
       </div>
     </div>
@@ -135,36 +133,20 @@ export function ReaderNudgeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { idle } = useIdleState();
-  const [nudgeEnabled, setNudgeEnabled] = useState(false);
   const [rest, setRest] = useState<RestNudgeRequest | null>(null);
-  /** AFK 卡的閂鎖。進 idle 時上鎖，只有按下確認才解 */
-  const [afkOpen, setAfkOpen] = useState(false);
 
-  // activityWatch 是全站單例，但生命週期綁在 Reader 上——離開 Reader 就
-  // 沒有消費端了，繼續掛著全域 listener 只是徒增負擔
+  // activityWatch 與帷幕都是全站單例，但生命週期綁在 Reader 上——離開
+  // Reader 就沒有消費端了，繼續掛著全域 listener 只是徒增負擔
   useEffect(() => {
-    let cancelled = false;
     void startActivityWatch().then(() => {
-      // 提示開關要等設定就緒才知道，start 前讀到的是程式碼預設值
-      if (!cancelled) setNudgeEnabled(isIdleNudgeEnabled());
+      // 帷幕要讀 `reader.idleNudgeMode`，等 settings 就緒才啟動；
+      // start 之前讀到的是程式碼預設值
+      startIdleVeil();
     });
     return () => {
-      cancelled = true;
+      stopIdleVeil();
       stopActivityWatch();
     };
-  }, []);
-
-  // 上鎖只看「有沒有進 idle」，不看它現在是不是還 idle——解鎖權在使用者手上
-  useEffect(() => {
-    if (idle && nudgeEnabled) setAfkOpen(true);
-  }, [idle, nudgeEnabled]);
-
-  const acknowledgeAfk = useCallback(() => {
-    setAfkOpen(false);
-    // 確認即重新起算：不做的話 activityWatch 若仍在 idle（例如用鍵盤按下
-    // 確認鈕，沒有任何 pointer 事件），下一個 tick 會立刻把卡片再叫回來
-    noteActivity();
   }, []);
 
   const requestRestNudge = useCallback((req: RestNudgeRequest) => {
@@ -180,31 +162,16 @@ export function ReaderNudgeProvider({
     [requestRestNudge, dismissRestNudge]
   );
 
-  const showRest = !afkOpen && rest !== null;
-
   return (
     <ReaderNudgeContext.Provider value={api}>
       {children}
 
-      {afkOpen && (
-        <NudgeDialog
-          variant="afk"
-          eyebrow="AWAY FROM KEYBOARD"
-          title={AFK_TITLE}
-          body={AFK_BODY}
-          actionLabel={AFK_ACTION}
-          onConfirm={acknowledgeAfk}
-        />
-      )}
+      <IdleVeil />
 
-      {showRest && rest && (
-        <NudgeDialog
-          variant="rest"
-          eyebrow="READING RHYTHM"
-          title={rest.title}
-          body={rest.body}
-          actionLabel="知道了"
-          onConfirm={() => {
+      {rest && (
+        <RestNudgeCard
+          rest={rest}
+          onDone={() => {
             rest.onAcknowledge();
             setRest(null);
           }}

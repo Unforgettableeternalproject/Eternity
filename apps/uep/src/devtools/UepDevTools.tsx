@@ -26,6 +26,7 @@ import { createPortal } from 'react-dom';
 import { uepDialog } from '../components/ui/UepDialog';
 
 import { isTestMode } from '../lib/apiBase';
+import { setDispelPaused } from '../lib/idleVeil';
 import { getRegistry, type DevToolAction } from './actionRegistry';
 import { registerAllActions } from './actions';
 
@@ -257,6 +258,18 @@ function DevToolsPanel({
 export default function UepDevToolsHost(): React.ReactElement | null {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+
+  /**
+   * 面板開著時停掉閒置帷幕的驅散累積。
+   *
+   * 不做這件事就沒辦法驗收帷幕：按面板上的按鈕本來就得移動滑鼠，那些位移
+   * 會被算成驅散——一叫出來就被自己的操作撥掉。階段推進不受影響（時間照走），
+   * 停的只有「使用者正在撥開它」這件事的認定。
+   */
+  useEffect(() => {
+    setDispelPaused(open);
+    return () => setDispelPaused(false);
+  }, [open]);
 
   useEffect(() => {
     if (!shouldMount()) return;
