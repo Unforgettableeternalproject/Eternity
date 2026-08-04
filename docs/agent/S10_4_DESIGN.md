@@ -326,6 +326,19 @@ overlay 是 modal 教學，不讓滑鼠事件穿過挖空處直接操作島：�
 
 ### 5-4 觸發：由 IslandHost 衍生，不新增 bridge
 
+> ⚠️ **2026-08-04 已推翻本節。** 教學改為事件驅動：解鎖儀式收束
+> （`completeUnlockRitual`）與偏好面板的回顧各自打進 `guide/guideRequest.ts`，
+> `islandGuidesSeen` 欄位與每分頁自動播放上限一併移除。
+>
+> 原因是這套純衍生條件（`unlocked ∖ seen`，每次 progress 變動都重算）自己
+> 製造了一整排問題：舊帳號 hydrate 後五島全 unseen 要防連播（sessionStorage
+> 分頁額度）、額度是分頁級的所以換人登入會誤擋、元件 mount 在解鎖之後收不到
+> 訊號要靠模組層級旗標補延遲。教學實際上只有兩個該播的時機，而兩者都是
+> 一次性動作。取捨是「錯過就是錯過」（Escape 或當下不具資格則不補），
+> 想看從偏好面板叫——教學不是關鍵路徑。
+>
+> 以下保留原始設計，供理解演進脈絡。
+
 「已看過的教學」存進 `ProgressState.islandGuidesSeen: string[]`——與
 `islandsUnlocked` 同層級，換裝置不該重看。五個字串對 128KB 額度可忽略。
 

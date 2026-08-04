@@ -2,7 +2,7 @@
  * 閱讀節奏與浮島教學的 DevTools actions（S10-4）
  *
  * 這三套機制的共同問題是**驗收成本高到不合理**：AFK 要等三分鐘、休息提醒要
- * 讀四十分鐘、教學一個帳號只演一次。它們要驗的都是視覺與手感（提示卡的
+ * 讀四十分鐘、教學只在解鎖儀式收束時演。它們要驗的都是視覺與手感（提示卡的
  * 版面與遮罩、聚光燈對不對得準），不是計時器準不準——那部分有 fake timers
  * 的單元測試顧著。
  *
@@ -14,8 +14,7 @@ import { forceIdleNow, getActivityDebug } from '../../lib/activityWatch';
 import { forceVeilStage, getVeilDebug } from '../../lib/idleVeil';
 import { clearUepSettingsCache } from '../../lib/uepSettings';
 import { getProgressManager } from '../../progress';
-import { clearGuideSessionLimit } from '../../islands/guide/IslandGuideAuto';
-import { requestGuideReplay } from '../../islands/guide/guideReplay';
+import { requestIslandGuide } from '../../islands/guide/guideRequest';
 import { shouldMountIsland } from '../../islands/islandRuntime';
 import { getRegistry } from '../actionRegistry';
 import { GROUPS } from '../groups';
@@ -180,54 +179,23 @@ export function registerRhythmActions(): void {
 
   // ── 浮島教學 ──
 
-  registry.register([
-    {
+  // 2026-08-04：教學改為事件驅動（解鎖儀式收束 + 偏好面板回顧兩個入口），
+  // 「已看過」紀錄與每分頁上限一併移除，所以這裡不再有對應的清除 action。
+  registry.register(
+    ISLAND_IDS.map((id: IslandId) => ({
       group: GROUP_GUIDE,
-      id: 'guide:clear-seen-all',
-      label: '清除全部「已看過教學」',
-      description:
-        '五島都會重新符合自動播放條件（仍受每分頁一座的上限管，要連著看請一併清除 session 上限）',
+      id: `guide:play:${id}`,
+      label: `播放 ${id} 島的教學`,
+      description: '與偏好面板的回顧同一條路徑。島必須已解鎖且未停用',
+      // 守門條件與 IslandGuideAuto 完全一致——不合格時那邊會直接 return，
+      // 按鈕按下去毫無反應。灰掉才看得出原因
+      available: () => {
+        const state = getProgressManager().getState();
+        return shouldMountIsland(state, id);
+      },
       execute: () => {
-        getProgressManager().clearIslandGuidesSeen();
-        log('已清除；重新整理或換頁後會重新排程');
+        requestIslandGuide(id);
       },
-    },
-    {
-      group: GROUP_GUIDE,
-      id: 'guide:clear-session-limit',
-      label: '解除本分頁的自動播放上限',
-      description:
-        '清掉 sessionStorage 的 uep-island-guide-auto-shown，不必開新分頁',
-      execute: () => {
-        clearGuideSessionLimit();
-        log('已解除；下一次符合條件時會再自動播一座');
-      },
-    },
-    ...ISLAND_IDS.flatMap((id: IslandId) => [
-      {
-        group: GROUP_GUIDE,
-        id: `guide:play:${id}`,
-        label: `播放 ${id} 島的教學`,
-        description:
-          '走回顧路徑：不受 session 上限與 seen 限制，也不會改寫 seen。島必須已解鎖且未停用',
-        // 守門條件與 IslandGuideAuto 的 replay 分支完全一致——不合格時
-        // 那邊會直接 return，按鈕按下去毫無反應。灰掉才看得出原因
-        available: () => {
-          const state = getProgressManager().getState();
-          return shouldMountIsland(state, id);
-        },
-        execute: () => {
-          requestGuideReplay(id);
-        },
-      },
-      {
-        group: GROUP_GUIDE,
-        id: `guide:clear-seen:${id}`,
-        label: `清除 ${id} 島的已看過紀錄`,
-        execute: () => {
-          getProgressManager().clearIslandGuidesSeen(id);
-        },
-      },
-    ]),
-  ]);
+    }))
+  );
 }

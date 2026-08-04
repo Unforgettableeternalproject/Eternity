@@ -1,36 +1,25 @@
 /**
- * IslandGuideAuto 測試
+ * IslandGuideAuto 測試（2026-08-04 改為事件驅動後重寫）
  *
- * 核心契約：多島 unseen 只排一座且順序決定性、每 tab session 上限一次、
- * 自動開島後才量 anchor、守門失效即取消且不消耗額度、完成／略過／Escape
- * 的 seen 差異。
+ * 核心契約：收到請求才播、播放前先開島、等島 mount 才量 anchor、
+ * 守門（停用／手機／無教學）一律不播、顯示中失去資格要收掉，
+ * 以及 latch——請求早於元件 mount 時不能掉。
  */
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import IslandGuideAuto from '../IslandGuideAuto';
-
-const SESSION_KEY = 'uep-island-guide-auto-shown';
+import { requestIslandGuide, _resetGuideRequestForTest } from '../guideRequest';
 
 const state = {
   canUse: true,
   desktop: true,
-  unlocked: ['history', 'echoes'] as string[],
+  unlocked: ['history'] as string[],
   disabled: [] as string[],
-  seen: [] as string[],
+  hasGuide: true,
 };
 
-const markSeen = vi.fn();
 const openIsland = vi.fn();
-
-/** 解鎖通知走 window 事件——與 IslandGuideAuto 模組層級聽的是同一條路 */
-function emitIslandUnlocked() {
-  window.dispatchEvent(
-    new CustomEvent('uep:progress-change', {
-      detail: { source: 'island-unlocked' },
-    })
-  );
-}
 
 vi.mock('../../../progress', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../progress')>();
@@ -39,11 +28,6 @@ vi.mock('../../../progress', async (importOriginal) => {
     useProgress: () => ({
       islandsUnlocked: state.unlocked,
       islandsDisabled: state.disabled,
-      islandGuidesSeen: state.seen,
-    }),
-    getProgressManager: () => ({
-      markIslandGuideSeen: markSeen,
-      subscribe: () => () => {},
     }),
   };
 });
@@ -68,13 +52,12 @@ vi.mock('../../useIslands', () => ({
   useDesktopIslandViewport: () => state.desktop,
 }));
 
-/** 三座島都有教學，讓「挑第一個」的順序真的被測到 */
 vi.mock('../guideSteps', async () => {
   const actual =
     await vi.importActual<typeof import('../guideSteps')>('../guideSteps');
   return {
     ...actual,
-    hasGuide: () => true,
+    hasGuide: () => state.hasGuide,
     getGuideSteps: (id: string) => [
       { anchor: () => null, title: `${id} 第一步`, body: '說明' },
       { anchor: () => null, title: `${id} 第二步`, body: '說明' },
@@ -89,36 +72,25 @@ function mountIslandRoot(id: string) {
   document.body.appendChild(el);
 }
 
-/** 推進排程：延遲 + 等島 mount 的 rAF 迴圈 */
-async function runSchedule(ms = 2000) {
+/** 推進等島 mount 的 rAF 迴圈 */
+async function settle(ms = 2000) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
   });
 }
 
-/**
- * 「最近解鎖時刻」是模組層級狀態（必須如此，見下方第一座島的測試）。
- * 每個測試把時鐘往前推一大段，讓上一個測試留下的解鎖時刻自然過期，
- * 否則會互相污染。
- */
-let clock = new Date('2026-08-02T00:00:00Z').getTime();
-
 describe('IslandGuideAuto', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    clock += 60_000;
-    vi.setSystemTime(clock);
-    sessionStorage.clear();
     document.body.innerHTML = '';
+    _resetGuideRequestForTest();
     state.canUse = true;
     state.desktop = true;
-    state.unlocked = ['history', 'echoes'];
+    state.unlocked = ['history'];
     state.disabled = [];
-    state.seen = [];
-    markSeen.mockClear();
+    state.hasGuide = true;
     openIsland.mockClear();
     mountIslandRoot('history');
-    mountIslandRoot('echoes');
   });
 
   afterEach(() => {
@@ -126,127 +98,113 @@ describe('IslandGuideAuto', () => {
     vi.restoreAllMocks();
   });
 
-  it('多島 unseen 只播一座，且依 ISLAND_IDS 的順序而非解鎖順序', async () => {
-    // 解鎖清單刻意把 echoes 放前面——若照它挑就會播錯島
-    state.unlocked = ['echoes', 'history'];
+  it('沒有請求時什麼都不做', async () => {
     render(<IslandGuideAuto />);
-    await runSchedule();
-
-    expect(screen.getByText('history 第一步')).toBeTruthy();
-    expect(screen.queryByText('echoes 第一步')).toBeNull();
-  });
-
-  it('播放前先把島打開', async () => {
-    render(<IslandGuideAuto />);
-    await runSchedule();
-    expect(openIsland).toHaveBeenCalledWith('history');
-  });
-
-  it('已 seen 的島跳過，換下一座', async () => {
-    state.seen = ['history'];
-    render(<IslandGuideAuto />);
-    await runSchedule();
-    expect(screen.getByText('echoes 第一步')).toBeTruthy();
-  });
-
-  it('每個 tab session 只自動播一次', async () => {
-    sessionStorage.setItem(SESSION_KEY, 'true');
-    render(<IslandGuideAuto />);
-    await runSchedule();
+    await settle();
     expect(screen.queryByText('history 第一步')).toBeNull();
     expect(openIsland).not.toHaveBeenCalled();
   });
 
-  it('顯示時才寫 session key——排程被取消不該消耗額度', async () => {
-    state.canUse = false;
+  it('收到請求 → 先開島再播', async () => {
     render(<IslandGuideAuto />);
-    await runSchedule();
-    expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
-  });
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
 
-  it('島還沒 mount 就逾時作廢，不寫 session key', async () => {
-    document.body.innerHTML = '';
-    render(<IslandGuideAuto />);
-    await runSchedule(4000);
-    expect(screen.queryByText('history 第一步')).toBeNull();
-    expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(openIsland).toHaveBeenCalledWith('history');
+    expect(screen.getByText('history 第一步')).toBeTruthy();
   });
 
   /**
-   * ⚠️ 這一段刻意模擬 **IslandHost 的真實結構**：`activeIds.length === 0`
-   * 時整個 Host return null，所以第一座島解鎖**之前**，IslandGuideAuto
-   * 根本沒有 mount。
-   *
-   * 訂閱若放在元件的 effect 裡，這個情境下會整個錯過 `island-unlocked`，
-   * 延遲走 0，教學直接蓋在剛開始播的甦醒動畫上——而第一座島正是最需要
-   * 那個延遲的一次。所以訂閱必須在模組層級。
+   * ⚠️ 這一段模擬 **IslandHost 的真實結構**：`activeIds.length === 0` 時
+   * 整個 Host return null，所以第一座島解鎖**之前** IslandGuideAuto 根本
+   * 沒有 mount。解鎖儀式的請求發生在那個當下，若請求就地丟掉，
+   * 第一座島——最需要教學的那一次——永遠等不到。
    */
-  it('第一座島解鎖時仍等甦醒動畫演完（元件在解鎖後才 mount）', async () => {
-    state.unlocked = [];
-    // Host 此刻不會 render IslandGuideAuto
+  it('請求早於元件 mount 時不會掉（latch）', async () => {
     const { rerender } = render(<div />);
-    await runSchedule();
-
-    // 解鎖：progressStore 同步通知模組層級的訂閱者，React 重渲染在其後
     await act(async () => {
-      emitIslandUnlocked();
+      requestIslandGuide('history');
     });
-    state.unlocked = ['history'];
+
     await act(async () => {
       rerender(<IslandGuideAuto />);
     });
+    await settle();
 
-    // AWAKEN_MS 是 1400
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
-    });
-    expect(screen.queryByText('history 第一步')).toBeNull();
-
-    await runSchedule();
     expect(screen.getByText('history 第一步')).toBeTruthy();
   });
 
-  it('沒有解鎖事件時不多等——一般換頁應該立刻排', async () => {
-    render(<IslandGuideAuto />);
-    // 只推進不到 AWAKEN_MS 的時間，加上等島 mount 的幾幀
+  it('latch 只補播一次——重新 mount 不會又跳出來', async () => {
+    const { rerender, unmount } = render(<div />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(200);
+      requestIslandGuide('history');
     });
-    expect(screen.getByText('history 第一步')).toBeTruthy();
-  });
-
-  it('完成最後一步寫 seen', async () => {
-    render(<IslandGuideAuto />);
-    await runSchedule();
-
-    await act(async () => screen.getByText('下一步').click());
-    await act(async () => screen.getByText('知道了').click());
-    expect(markSeen).toHaveBeenCalledWith('history');
-  });
-
-  it('略過教學同樣寫 seen', async () => {
-    render(<IslandGuideAuto />);
-    await runSchedule();
-
-    await act(async () => screen.getByText('略過教學').click());
-    expect(markSeen).toHaveBeenCalledWith('history');
-  });
-
-  it('Escape 不寫 seen，但本 session 不再自動打擾', async () => {
-    render(<IslandGuideAuto />);
-    await runSchedule();
-
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      rerender(<IslandGuideAuto />);
     });
-    expect(markSeen).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem(SESSION_KEY)).toBe('true');
+    await settle();
+    unmount();
+
+    render(<IslandGuideAuto />);
+    await settle();
     expect(screen.queryByText('history 第一步')).toBeNull();
   });
 
-  it('顯示中被停用該島 → 收掉且不寫 seen', async () => {
+  it('島還沒 mount 就逾時作廢', async () => {
+    document.body.innerHTML = '';
+    render(<IslandGuideAuto />);
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle(4000);
+
+    expect(screen.queryByText('history 第一步')).toBeNull();
+  });
+
+  it('島已停用時請求無效', async () => {
+    state.disabled = ['history'];
+    render(<IslandGuideAuto />);
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
+
+    expect(screen.queryByText('history 第一步')).toBeNull();
+    expect(openIsland).not.toHaveBeenCalled();
+  });
+
+  it('手機視窗不播', async () => {
+    state.desktop = false;
+    render(<IslandGuideAuto />);
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
+
+    expect(screen.queryByText('history 第一步')).toBeNull();
+    expect(openIsland).not.toHaveBeenCalled();
+  });
+
+  it('沒有寫教學的島不播', async () => {
+    state.hasGuide = false;
+    render(<IslandGuideAuto />);
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
+
+    expect(screen.queryByText('history 第一步')).toBeNull();
+    expect(openIsland).not.toHaveBeenCalled();
+  });
+
+  it('顯示中被停用該島 → 收掉', async () => {
     const { rerender } = render(<IslandGuideAuto />);
-    await runSchedule();
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
     expect(screen.getByText('history 第一步')).toBeTruthy();
 
     state.disabled = ['history'];
@@ -255,13 +213,40 @@ describe('IslandGuideAuto', () => {
     });
 
     expect(screen.queryByText('history 第一步')).toBeNull();
-    expect(markSeen).not.toHaveBeenCalled();
   });
 
-  it('手機視窗不自動播', async () => {
-    state.desktop = false;
+  it('走完最後一步就收掉，不留任何待播狀態', async () => {
     render(<IslandGuideAuto />);
-    await runSchedule();
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
+
+    await act(async () => screen.getByText('下一步').click());
+    await act(async () => screen.getByText('知道了').click());
+    expect(screen.queryByText('history 第一步')).toBeNull();
+
+    // 沒有任何持久紀錄，所以再請求一次就會再播——回顧入口正是靠這個
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
+    expect(screen.getByText('history 第一步')).toBeTruthy();
+  });
+
+  it('Escape 關掉後不會自己補播', async () => {
+    render(<IslandGuideAuto />);
+    await act(async () => {
+      requestIslandGuide('history');
+    });
+    await settle();
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(screen.queryByText('history 第一步')).toBeNull();
+
+    await settle();
     expect(screen.queryByText('history 第一步')).toBeNull();
   });
 });

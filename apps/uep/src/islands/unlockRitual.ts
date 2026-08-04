@@ -17,6 +17,7 @@
 import { useReaderAuth } from '../auth';
 import { getProgressManager, useProgress } from '../progress';
 
+import { requestIslandGuide } from './guide/guideRequest';
 import {
   canUseIslands,
   getIslandRuntime,
@@ -141,6 +142,14 @@ export function completeUnlockRitual(
       : opts.toast;
   if (message) {
     window.__uepToastManager?.info(message);
+  }
+
+  // 教學接在儀式後面演。**這裡是它唯一的自動觸發點**——呼叫端已經播完
+  // 甦醒動畫才進來，不必再自己算延遲；請求端與播放端的 mount 時序差由
+  // guideRequest 的 latch 吸收。不展開島時不請求：教學卡要指著島上的元件，
+  // 島沒開就沒有東西可指。
+  if (opts.open !== false) {
+    requestIslandGuide(zoneId);
   }
   return true;
 }

@@ -69,7 +69,6 @@ function buildHeavyState(pageCount = CURRENT_PAGE_COUNT): ProgressState {
     'concepts',
     'storage',
   ];
-  state.islandGuidesSeen = [...state.islandsUnlocked];
   // 便條是最貴的一塊：硬上限張數 × 硬上限字數，全中文
   state.storageNotes = Array.from(
     { length: STORAGE_NOTE_HARD_MAX },
@@ -144,13 +143,5 @@ describe('ProgressState blob 體積', () => {
     const state = buildHeavyState();
     const notesBytes = byteLength(JSON.stringify(state.storageNotes));
     expect(notesBytes).toBeGreaterThan(byteLength(JSON.stringify(state)) * 0.5);
-  });
-
-  it('islandGuidesSeen 對總量可忽略（S10-4 新欄位）', () => {
-    const without = buildHeavyState();
-    without.islandGuidesSeen = [];
-    expect(
-      sizeOf(CURRENT_PAGE_COUNT) - byteLength(JSON.stringify(without))
-    ).toBeLessThan(100);
   });
 });

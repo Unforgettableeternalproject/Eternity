@@ -16,6 +16,7 @@ import {
 } from '../../../lib/activityWatch';
 import { clearUepSettingsCache } from '../../../lib/uepSettings';
 import { getProgressManager } from '../../../progress';
+import { subscribeIslandGuide } from '../../../islands/guide/guideRequest';
 import { registerRhythmActions } from '../rhythmActions';
 
 const ACTION_IDS = [
@@ -24,10 +25,7 @@ const ACTION_IDS = [
   'rhythm:apply-settings',
   'rhythm:trigger-rest',
   'rhythm:rest-status',
-  'guide:clear-seen-all',
-  'guide:clear-session-limit',
   'guide:play:history',
-  'guide:clear-seen:history',
 ];
 
 function mockSettings() {
@@ -117,21 +115,22 @@ describe('rhythmActions', () => {
     delete window.__uepRestReminderTest;
   });
 
-  it('清除已看過的教學真的動到 progress', async () => {
+  it('播放教學打進 guideRequest 通道', async () => {
     const progress = getProgressManager();
-    progress.markIslandGuideSeen('history');
-    progress.markIslandGuideSeen('echoes');
+    progress.unlockIsland('history');
 
-    await getRegistry().dispatch('guide:clear-seen:history');
-    expect(progress.getState().islandGuidesSeen).toEqual(['echoes']);
+    const played: string[] = [];
+    const off = subscribeIslandGuide((id) => played.push(id));
+    await getRegistry().dispatch('guide:play:history');
+    off();
 
-    await getRegistry().dispatch('guide:clear-seen-all');
-    expect(progress.getState().islandGuidesSeen).toEqual([]);
+    expect(played).toEqual(['history']);
   });
 
-  it('解除 session 上限會清掉 sessionStorage key', async () => {
-    sessionStorage.setItem('uep-island-guide-auto-shown', 'true');
-    await getRegistry().dispatch('guide:clear-session-limit');
-    expect(sessionStorage.getItem('uep-island-guide-auto-shown')).toBeNull();
+  it('島未解鎖時「播放教學」是灰的', () => {
+    const action = getRegistry()
+      .getAll()
+      .find((a) => a.id === 'guide:play:history');
+    expect(action?.available?.()).toBe(false);
   });
 });

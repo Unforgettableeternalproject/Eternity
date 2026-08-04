@@ -74,43 +74,31 @@ describe('islandActions', () => {
     expect([...groups]).toEqual([GROUPS.ISLANDS]);
   });
 
-  it('解鎖單島時一併記為「教學已看過」', async () => {
+  /* DevTools 的解鎖直接走 bridge，跳過 completeUnlockRitual——所以不會
+     觸發教學，聚光燈不會蓋在正要驗收的島上。要看教學用 guide:play:{id}。 */
+  it('解鎖單島走 bridge', async () => {
     const calls = mockIslandBridge();
-    const progress = getProgressManager();
-    expect(progress.getState().islandGuidesSeen).toEqual([]);
 
     await getRegistry().dispatch('island:unlock:history');
 
     expect(calls.unlocked).toEqual(['history']);
-    expect(progress.getState().islandsUnlocked).toContain('history');
-    // 這一條是重點：少了它，聚光燈會蓋在剛解鎖的島上
-    expect(progress.getState().islandGuidesSeen).toEqual(['history']);
+    expect(getProgressManager().getState().islandsUnlocked).toContain(
+      'history'
+    );
   });
 
-  it('解鎖全部島時五座都記為已看過', async () => {
-    mockIslandBridge();
+  it('解鎖全部島', async () => {
+    const calls = mockIslandBridge();
     await getRegistry().dispatch('island:unlock-all');
 
-    const state = getProgressManager().getState();
-    expect([...state.islandGuidesSeen].sort()).toEqual([...ISLAND_IDS].sort());
+    expect([...calls.unlocked].sort()).toEqual([...ISLAND_IDS].sort());
   });
 
-  it('bridge 未掛載時解鎖是 no-op 且不寫 seen', async () => {
+  it('bridge 未掛載時解鎖是 no-op 並 warn', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await getRegistry().dispatch('island:unlock:history');
 
     expect(warn).toHaveBeenCalled();
-    expect(getProgressManager().getState().islandGuidesSeen).toEqual([]);
-  });
-
-  it('重新上鎖不會清掉已看過的紀錄', async () => {
-    mockIslandBridge();
-    await getRegistry().dispatch('island:unlock:history');
-    await getRegistry().dispatch('island:relock:history');
-
-    const state = getProgressManager().getState();
-    expect(state.islandsUnlocked).not.toContain('history');
-    // seen 是「使用者看過教學」的事實，與島現在鎖不鎖無關
-    expect(state.islandGuidesSeen).toEqual(['history']);
+    expect(getProgressManager().getState().islandsUnlocked).toEqual([]);
   });
 });

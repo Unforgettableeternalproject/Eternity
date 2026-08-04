@@ -443,8 +443,7 @@ export default function IslandHost() {
       {echoPreview && shouldMountIsland(progress, 'echoes') && (
         <SongPreviewCard track={echoPreview} onDismiss={dismissEchoPreview} />
       )}
-      {/* 浮島教學：條件由 islandsUnlocked ∖ islandGuidesSeen 純衍生，
-          每個 tab session 最多自動播一座 */}
+      {/* 浮島教學：由解鎖儀式收束與偏好面板的回顧兩個入口請求（guideRequest） */}
       <IslandGuideAuto />
       {openIds.map((id) => {
         const Body = ISLAND_COMPONENTS[id]!;

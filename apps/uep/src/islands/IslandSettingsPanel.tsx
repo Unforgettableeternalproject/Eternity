@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 
 import { getProgressManager, useProgress } from '../progress';
 
-import { requestGuideReplay } from './guide/guideReplay';
+import { requestIslandGuide } from './guide/guideRequest';
 import { hasGuide } from './guide/guideSteps';
 import IslandIcon from './IslandIcon';
 import { isIslandDisabled, isIslandUnlocked } from './islandRuntime';
@@ -98,7 +98,7 @@ export default function IslandSettingsPanel({
                     onClick={() => {
                       // 先關掉自己：面板是 modal，留著會蓋住教學
                       onClose();
-                      requestGuideReplay(id);
+                      requestIslandGuide(id);
                     }}
                   >
                     ?

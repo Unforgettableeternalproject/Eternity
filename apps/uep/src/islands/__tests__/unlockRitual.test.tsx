@@ -4,7 +4,7 @@
  * 驗證：
  * - useUnlockEligibility 四關拆解（可用／已到訪／已解鎖／eligible）
  * - 非浮島 zone（portal）一律全假
- * - completeUnlockRitual 收束：解鎖 + 展開 + toast，且三者各自可關
+ * - completeUnlockRitual 收束：解鎖 + 展開 + toast + 教學請求，且各自可關
  */
 
 import { renderHook } from '@testing-library/react';
@@ -40,6 +40,10 @@ vi.mock('../../progress', async (importOriginal) => ({
   }),
 }));
 
+import {
+  _resetGuideRequestForTest,
+  subscribeIslandGuide,
+} from '../guide/guideRequest';
 import { completeUnlockRitual, useUnlockEligibility } from '../unlockRitual';
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
@@ -186,6 +190,36 @@ describe('completeUnlockRitual', () => {
 
   it('資格齊備時回報成功', () => {
     expect(completeUnlockRitual('concepts')).toBe(true);
+  });
+
+  /* 2026-08-04：教學改為事件驅動，這裡是它唯一的自動觸發點。
+     呼叫端已經播完甦醒動畫才進來，所以不必再自己算延遲。 */
+  describe('教學請求', () => {
+    beforeEach(() => {
+      _resetGuideRequestForTest();
+    });
+
+    it('收束後請求播放該島的教學', () => {
+      const played: string[] = [];
+      subscribeIslandGuide((id) => played.push(id));
+      completeUnlockRitual('concepts');
+      expect(played).toEqual(['concepts']);
+    });
+
+    it('不展開島時不請求——教學卡要指著島上的元件', () => {
+      const played: string[] = [];
+      subscribeIslandGuide((id) => played.push(id));
+      completeUnlockRitual('storage', { open: false });
+      expect(played).toEqual([]);
+    });
+
+    it('資格已失效而拒絕解鎖時不請求', () => {
+      authMock.loggedIn = false;
+      const played: string[] = [];
+      subscribeIslandGuide((id) => played.push(id));
+      completeUnlockRitual('concepts');
+      expect(played).toEqual([]);
+    });
   });
 
   /* 發現與收束之間隔著對話框與 1.4 秒動畫，這段時間資格可能已經消失。
