@@ -43,6 +43,18 @@
   }
 }
 
+/* Welcome 儀式進行中：識別證完全不可見。
+   遮罩底下 drop 照跑（0.7s，儀式 2.2s 內早就結束），只是看不到；
+   儀式結束後由 IdentCard 在播 arrival 的同一刻移除本 class。
+
+   刻意用 visibility 而不是 animation: none——後者在 class 移除時
+   會讓 animation 屬性從 none 切回 uep-ident-drop，觸發整段 drop
+   重播（同下方第 49 行的坑）。visibility 不碰動畫時間軸。 */
+.uep-ident.is-welcome-pending {
+  visibility: hidden;
+  opacity: 0;
+}
+
 /* 「掛上」加強動畫——剛從 /login 完成 auth 回來時播一次：
    吊繩從 0 高度生長出來，識別證從上方降落 + 微幅擺盪定位。
 

@@ -98,6 +98,7 @@ describe('IdentCard', () => {
 
     afterEach(() => {
       vi.useRealTimers();
+      document.documentElement.classList.remove('uep-welcome-pending');
     });
 
     /** 登入儀式結束 → 掛上動畫 → 才輪到教學 */
@@ -136,6 +137,58 @@ describe('IdentCard', () => {
         await vi.advanceTimersByTimeAsync(3000);
       });
       expect(requestGuide).not.toHaveBeenCalled();
+    });
+
+    /* 儀式期間識別證必須完全不可見：否則它會在全屏遮罩底下把 drop 動畫
+       跑完，遮罩一淡出就是「已經掛好的識別證」，接著才播 arrival——
+       同一張卡出現兩次 */
+    it('儀式進行中先藏起來，直到 arrival 開播才現身', async () => {
+      document.documentElement.classList.add('uep-welcome-pending');
+      const { container } = render(<IdentCard />);
+      expect(
+        container.querySelector('.uep-ident.is-welcome-pending')
+      ).toBeTruthy();
+
+      await playWelcome();
+
+      expect(
+        container.querySelector('.uep-ident.is-welcome-pending')
+      ).toBeNull();
+    });
+
+    it('解除隱藏與 arrival 同一刻發生——中間不留靜止的一幀', async () => {
+      document.documentElement.classList.add('uep-welcome-pending');
+      const { container } = render(<IdentCard />);
+
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent(WELCOME_DONE_EVENT));
+        /* 剛好跨過 ARRIVAL_POST_WELCOME_DELAY_MS，還沒到動畫結束 */
+        await vi.advanceTimersByTimeAsync(400);
+      });
+
+      const root = container.querySelector('.uep-ident')!;
+      expect(root.className).not.toContain('is-welcome-pending');
+      expect(root.className).toContain('is-arriving');
+    });
+
+    it('儀式沒送出結束事件時，保險計時器仍會讓識別證現身', async () => {
+      document.documentElement.classList.add('uep-welcome-pending');
+      const { container } = render(<IdentCard />);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6100);
+      });
+
+      expect(
+        container.querySelector('.uep-ident.is-welcome-pending')
+      ).toBeNull();
+    });
+
+    it('一般換頁不隱藏識別證', () => {
+      const { container } = render(<IdentCard />);
+      expect(
+        container.querySelector('.uep-ident.is-welcome-pending')
+      ).toBeNull();
     });
 
     it('收到翻開事件就展開證卡', async () => {

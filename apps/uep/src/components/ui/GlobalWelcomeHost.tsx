@@ -39,10 +39,15 @@ function readPending(): Pending | null {
         obj.kind !== 'logout') ||
       typeof obj.alias !== 'string'
     ) {
+      /* 認不得的 flag 一定要清掉：留著的話 DesignLayout 的 inline script
+         每一頁都會掛上 uep-welcome-pending class，而儀式永遠不會播——
+         那個 class 是識別證的隱藏開關，等於每頁都要等保險計時器 */
+      clearPending();
       return null;
     }
     return { kind: obj.kind, alias: obj.alias };
   } catch {
+    clearPending();
     return null;
   }
 }
@@ -60,17 +65,23 @@ export default function GlobalWelcomeHost() {
 
   useEffect(() => {
     const p = readPending();
-    if (p) setPending(p);
+    if (!p) return;
+    /* 消費即清：flag 一被讀走就從 sessionStorage 移除，儀式狀態只留在
+       記憶體。若等播完才清，使用者在這 2.2 秒內導航離開（例如登出儀式
+       播到一半就去 /login），flag 會跟著到下一頁被重新讀取——看起來像
+       動畫「接續播放」，實際上是從頭再播一次。
+       離開頁面即作廢是刻意的契約：儀式不補播、不跨頁接續。 */
+    clearPending();
+    setPending(p);
   }, []);
 
   function handleDone() {
     /* 順序重要：
-       1. 清 sessionStorage flag（防止 identcard 收 event 時還看見 pending）
-       2. 移除 body/html 的 uep-welcome-pending class——已經播完儀式，
+       1. 移除 body/html 的 uep-welcome-pending class——已經播完儀式，
           若使用者在頁面上再度導航（例如點側欄），入場動畫該恢復正常
-       3. dispatch event 讓 identcard 接續 arrival
-       4. unmount ceremony */
-    clearPending();
+       2. dispatch event 讓 identcard 接續 arrival
+       3. unmount ceremony
+       （sessionStorage flag 已在讀取時清掉，見上方 effect） */
     if (typeof document !== 'undefined') {
       document.documentElement.classList.remove('uep-welcome-pending');
       document.body.classList.remove('uep-welcome-pending');

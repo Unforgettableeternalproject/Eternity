@@ -39,6 +39,11 @@ const ARRIVAL_ANIM_MS = 1600;
  *  下來，避免識別證接上時視覺焦點還在頁面 boot 動畫上 */
 const ARRIVAL_POST_WELCOME_DELAY_MS = 350;
 
+/** 儀式遲遲沒有結束時的保險：超過這段時間就無條件顯示識別證。
+ *  沒有它的話，任何讓 WELCOME_DONE 送不出來的情況（layout 沒掛
+ *  GlobalWelcomeHost、儀式元件擲錯）都會讓識別證永遠隱形 */
+const ARRIVAL_FAILSAFE_MS = 6000;
+
 /** 拖曳判定：小於此距離視為 click（翻面），超過才進入 tear mode */
 const DRAG_THRESHOLD_PX = 8;
 /** 撕下閾值：拉超過此距離鬆手即觸發確認登出 */
@@ -54,6 +59,17 @@ export default function IdentCard() {
   const [showSettings, setShowSettings] = useState(false);
   /** 是否播「剛從 /login 完成、識別證正在掛上」的加強動畫 */
   const [arriving, setArriving] = useState(false);
+  /* 儀式進行中先藏起來——否則識別證會在 Welcome 全屏遮罩底下把自己的
+     drop 動畫（0.7s）跑完，遮罩一淡出就是「已經掛好的識別證」，接著才
+     播 arrival，視覺上變成同一張卡出現兩次。
+     判定來源是 <html> 上的 uep-welcome-pending class：它由 DesignLayout
+     的 head inline script 掛上，必定早於 React 掛載，比讀 sessionStorage
+     可靠（那個 flag 已被 GlobalWelcomeHost 消費即清）。 */
+  const [pendingHidden, setPendingHidden] = useState(
+    () =>
+      typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('uep-welcome-pending')
+  );
   const rootRef = useRef<HTMLDivElement>(null);
 
   /* 掛上動畫由 WelcomeCeremony 完成事件驅動——不再自己讀 sessionStorage。
@@ -64,10 +80,14 @@ export default function IdentCard() {
     if (typeof window === 'undefined') return undefined;
     let animTimer: ReturnType<typeof setTimeout> | null = null;
     let delayTimer: ReturnType<typeof setTimeout> | null = null;
+    let failsafeTimer: ReturnType<typeof setTimeout> | null = null;
 
     function handleWelcomeDone() {
       /* 延遲一小段時間再播 arrival，等 zone/主頁的入場動畫穩下來 */
       delayTimer = setTimeout(() => {
+        /* 解除隱藏與播動畫必須是同一刻：先顯示再播，中間會有一幀
+           靜止的識別證，那正是要消掉的破綻 */
+        setPendingHidden(false);
         setArriving(true);
         animTimer = setTimeout(() => {
           setArriving(false);
@@ -88,6 +108,13 @@ export default function IdentCard() {
       setOpen((v) => (v ? v : true));
     }
 
+    if (document.documentElement.classList.contains('uep-welcome-pending')) {
+      failsafeTimer = setTimeout(
+        () => setPendingHidden(false),
+        ARRIVAL_FAILSAFE_MS
+      );
+    }
+
     window.addEventListener(WELCOME_DONE_EVENT, handleWelcomeDone);
     window.addEventListener(IDENT_OPEN_EVENT, handleGuideOpen);
     return () => {
@@ -95,6 +122,7 @@ export default function IdentCard() {
       window.removeEventListener(IDENT_OPEN_EVENT, handleGuideOpen);
       if (delayTimer) clearTimeout(delayTimer);
       if (animTimer) clearTimeout(animTimer);
+      if (failsafeTimer) clearTimeout(failsafeTimer);
     };
   }, []);
   /** 證卡背面的內容層，量它決定展開高度 */
@@ -287,7 +315,7 @@ export default function IdentCard() {
 
   return (
     <div
-      className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}`}
+      className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}${pendingHidden ? ' is-welcome-pending' : ''}`}
       ref={rootRef}
     >
       {/* 吊繩：從 TopBar 下緣垂下，撕下拖曳時會被拉長 */}
