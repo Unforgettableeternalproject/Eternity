@@ -6,7 +6,10 @@
   z-index: 4000; /* Dialog(3000) 之上——儀式期間不允許其他互動 */
   display: grid;
   place-items: center;
-  padding: 20px;
+  /* safe-area 與 IntroOverlay 同一套：行動瀏覽器的工具列會吃掉可用高度，
+     固定 padding 會讓面板兩端被切在畫面外 */
+  padding: max(20px, env(safe-area-inset-top)) 20px
+    max(20px, env(safe-area-inset-bottom));
 }
 
 /* 儀式期間隱藏 Minimap 等浮島固定元素——
@@ -43,6 +46,16 @@ body.uep-onboarding-active [data-uep-hide-on-onboard] {
   border: 1px solid var(--hairline-strong);
   text-align: center;
   animation: uep-onboard-panel 0.5s ease-out 0.2s both;
+  /* 面板高過視窗時自己捲，不要溢出到畫面外。
+     父層是 position: fixed 且不捲動——沒有這段的話超出的部分完全不可及，
+     使用者往下滑只會被 iOS 判定成選字（文字反藍、頁面不動）。
+     窄視窗下兩張身分卡改單欄排列，高度加倍，必定觸發。 */
+  max-height: calc(
+    100dvh - max(40px, env(safe-area-inset-top) + env(safe-area-inset-bottom))
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 @keyframes uep-onboard-panel {
