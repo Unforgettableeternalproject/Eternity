@@ -56,6 +56,22 @@ const FADE_THRESHOLD = 600;
  * 不設 1.0 是留一點餘裕——最後幾 px 要求精準命中只會讓人覺得卡住。
  */
 export const MOBILE_FADE_TRIGGER_PROGRESS = 0.92;
+/**
+ * 手機淡出區間：下一區塊頂緣的位置，以視窗高度為單位。
+ *
+ * **不能沿用 gate band [0.42, 0.90]。** 手機的 `.journey-scroll` 刻意關掉了
+ * scroll snap（桌面是 y mandatory），所以捲動可以停在任意位置——遮罩還沒
+ * 夠暗時，下一區塊的開頭就已經是畫面上一大片空白。用 gate band 當淡出區，
+ * 進度走到一半（半透明）時下一區塊已經露出三分之一，半黑的遮罩蓋不住。
+ *
+ * 所以淡出要**趕在露出之前**開始：起點取 1.10vh——頂緣還在畫面外，
+ * 使用者只是接近當前區塊底部；終點 0.85vh 只露出 15%，而那時遮罩已經
+ * 接近全黑，看不出來。
+ *
+ * 區間 0.25vh（約 210px 的滑動距離）足夠感受到漸變，又短到不會露出接縫。
+ */
+const MOBILE_FADE_START_VH = 1.1;
+const MOBILE_FADE_END_VH = 0.85;
 const ATLAS_SCENE_INDEX = -3;
 
 /** 大廳動畫 — 墜落速度線 */
@@ -143,8 +159,8 @@ function isWithinViewportBand(
  * 該轉場就轉場，不會卡住。
  */
 export function mobileFadeProgress(topPx: number, vh: number): number {
-  const start = MOBILE_DOWN_GATE_MAX * vh;
-  const end = MOBILE_DOWN_GATE_MIN * vh;
+  const start = MOBILE_FADE_START_VH * vh;
+  const end = MOBILE_FADE_END_VH * vh;
   if (topPx >= start) return 0;
   if (topPx <= end) return 1;
   return (start - topPx) / (start - end);
@@ -772,48 +788,77 @@ export default function HomePage({
              startZoneTransition 裡那句「手機預暗化設成 1」變成無縫銜接，
              不再是啪一下全黑。
              回傳「該不該轉場」，順帶把進度落地——三條路徑共用。 */
-          const advanceFade = (targetTop: number): boolean => {
+          const advanceFade = (
+            targetTop: number
+          ): 'transition' | 'overshoot' | 'none' => {
             const progress = mobileFadeProgress(targetTop, vh);
             fadeOverlayRef.current?.style.setProperty(
               '--fade-progress',
               progress.toFixed(3)
             );
-            /* 仍要求落在 band 內：進度到 1 也可能是早就捲過頭了，
-               那種情況由下面的 overshoot 同步邏輯處理，不該補放轉場 */
-            return (
-              progress >= MOBILE_FADE_TRIGGER_PROGRESS &&
-              isWithinViewportBand(
-                targetTop,
-                vh,
-                MOBILE_DOWN_GATE_MIN,
-                MOBILE_DOWN_GATE_MAX
-              )
-            );
+            /* 已經捲過整個觸發窗口：慣性滑動一幀可以跨掉 0.45vh，
+               窗口被整個跳過。此時補放轉場只會在使用者早就看到下一區
+               之後才蓋幕，比不做更突兀——改為靜默同步狀態，
+               與桌面的 overshoot 處理同一個語意。
+               沒有這條的話 previousSceneRef 永遠停在前一區，
+               之後每個 gate 都對不上，整頁退化成普通長頁捲動。 */
+            if (targetTop < MOBILE_DOWN_GATE_MIN * vh) return 'overshoot';
+            return progress >= MOBILE_FADE_TRIGGER_PROGRESS
+              ? 'transition'
+              : 'none';
+          };
+
+          /** overshoot 的收尾：狀態跟上，不播動畫 */
+          const syncOvershoot = (index: number) => {
+            previousSceneRef.current = index;
+            setActiveScene(index);
+            fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
           };
 
           if (current === -1) {
             const firstScene = scenes[0];
-            if (firstScene && advanceFade(firstScene.offsetTop - scrollTop)) {
-              startZoneTransition(0, mergedZonesRef.current[0], 'down');
-              return;
+            if (firstScene) {
+              const verdict = advanceFade(firstScene.offsetTop - scrollTop);
+              if (verdict === 'transition') {
+                startZoneTransition(0, mergedZonesRef.current[0], 'down');
+                return;
+              }
+              if (verdict === 'overshoot') {
+                syncOvershoot(0);
+                return;
+              }
             }
           } else if (current >= 0 && current < ZONES.length - 1) {
             const nextIndex = current + 1;
             const nextScene = scenes[nextIndex];
-            if (nextScene && advanceFade(nextScene.offsetTop - scrollTop)) {
-              startZoneTransition(
-                nextIndex,
-                mergedZonesRef.current[nextIndex],
-                'down'
-              );
-              return;
+            if (nextScene) {
+              const verdict = advanceFade(nextScene.offsetTop - scrollTop);
+              if (verdict === 'transition') {
+                startZoneTransition(
+                  nextIndex,
+                  mergedZonesRef.current[nextIndex],
+                  'down'
+                );
+                return;
+              }
+              if (verdict === 'overshoot') {
+                syncOvershoot(nextIndex);
+                return;
+              }
             }
           } else if (current === ZONES.length - 1) {
             const verseEl =
               container.querySelector<HTMLElement>('#verse-section');
-            if (verseEl && advanceFade(verseEl.offsetTop - scrollTop)) {
-              startSectionTransition(verseEl, 5, 'plain', 'down');
-              return;
+            if (verseEl) {
+              const verdict = advanceFade(verseEl.offsetTop - scrollTop);
+              if (verdict === 'transition') {
+                startSectionTransition(verseEl, 5, 'plain', 'down');
+                return;
+              }
+              if (verdict === 'overshoot') {
+                syncOvershoot(5);
+                return;
+              }
             }
           }
         }
