@@ -16,7 +16,7 @@
  */
 
 /* global ResizeObserver */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { computeContentRatio } from '../../progress';
 
 /** 捲動中的 body class（開關由 HistoryReader 的捲動 effect 負責）。
@@ -49,27 +49,49 @@ export default function HistoryFogOverlay({
 }: HistoryFogOverlayProps) {
   const [metrics, setMetrics] = useState({ scrollHeight: 0, clientHeight: 0 });
 
-  // 版面高度會隨圖片非同步載入變動，ratio 對應的絕對位置要跟著修正。
-  useEffect(() => {
+  /**
+   * 內容高度一律量 flow，**不讀捲動容器的 scrollHeight**。
+   *
+   * 本元件是捲動容器的 absolute 子元素，而 absolute 後代會計入容器的
+   * scrollable overflow——`el.scrollHeight` 因此包含遮罩自己。遮罩底邊
+   * 又剛好等於量到的 scrollHeight（top + height 的定義），於是只要有一次
+   * 擾動讓底邊超過內容底邊（700ms 補間的中間幀、或補間期間內容被時間軸／
+   * 導航／圖片撐高），下一次量測就會讀到被自己撐大的值，據此算出更長的
+   * 遮罩，再撐大一點——正回饋，追不回來。
+   *
+   * 症狀有三：文末出現捲不完的空白、迷霧線永遠追不到底、
+   * 以及 ratio 分母持續變大導致掃描線的位置閘門擋掉所有標記。
+   * ratio 到 1 時本元件 return null，空白才會突然消失（「過一陣子就好」）。
+   *
+   * flow 涵蓋文章、時間軸、導航與文末哨兵，又不含本元件——量它既完整
+   * 又不會量到自己。ResizeObserver 早就是觀察 flow（原意即為避開迴圈），
+   * 這裡把同一個道理補到取值端。
+   */
+  const readMetrics = useCallback(() => {
     const el = scrollRef.current;
     const flow = flowRef.current;
     if (!el) return;
-    const measure = () =>
-      setMetrics((prev) =>
-        prev.scrollHeight === el.scrollHeight &&
-        prev.clientHeight === el.clientHeight
-          ? prev
-          : { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }
-      );
-    measure();
+    const contentHeight = flow ? flow.scrollHeight : el.scrollHeight;
+    setMetrics((prev) =>
+      prev.scrollHeight === contentHeight &&
+      prev.clientHeight === el.clientHeight
+        ? prev
+        : { scrollHeight: contentHeight, clientHeight: el.clientHeight }
+    );
+  }, [scrollRef, flowRef]);
+
+  // 版面高度會隨圖片非同步載入變動，ratio 對應的絕對位置要跟著修正。
+  useEffect(() => {
+    const flow = flowRef.current;
+    readMetrics();
     if (typeof ResizeObserver === 'undefined' || !flow) return;
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(readMetrics);
     observer.observe(flow);
     return () => observer.disconnect();
-  }, [contentKey, scrollRef, flowRef]);
+  }, [contentKey, flowRef, readMetrics]);
 
-  // 時間軸／導航等內容之後才載入時 scrollHeight 會過期，事件盾就會短
-  // 一截讓文末互動漏出來——捲動當下順手校正，比對擋住無變化的 setState
+  // 時間軸／導航等內容之後才載入時量到的高度會過期，事件盾就會短一截
+  // 讓文末互動漏出來——捲動當下順手校正，比對擋住無變化的 setState
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -78,12 +100,7 @@ export default function HistoryFogOverlay({
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        setMetrics((prev) =>
-          prev.scrollHeight === el.scrollHeight &&
-          prev.clientHeight === el.clientHeight
-            ? prev
-            : { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }
-        );
+        readMetrics();
       });
     };
     el.addEventListener('scroll', onScroll, { passive: true });
@@ -91,7 +108,7 @@ export default function HistoryFogOverlay({
       el.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [scrollRef]);
+  }, [scrollRef, readMetrics]);
 
   const { scrollHeight, clientHeight } = metrics;
   /**
