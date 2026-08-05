@@ -25,6 +25,8 @@ import { createPortal } from 'react-dom';
 
 import { uepDialog } from '../components/ui/UepDialog';
 
+import { useDesktopIslandViewport } from '../islands';
+
 import { isTestMode } from '../lib/apiBase';
 import { setDispelPaused } from '../lib/idleVeil';
 import { getRegistry, type DevToolAction } from './actionRegistry';
@@ -258,6 +260,10 @@ function DevToolsPanel({
 export default function UepDevToolsHost(): React.ReactElement | null {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  /* 手機不掛 DevTools：面板本身是三欄命令列表，在 390px 上不可用，
+     而 FAB 會擋住右下角。沿用浮島的桌面斷點，不另立第二個數字。
+     用 hook 而非一次性讀 innerWidth——縮窗／旋轉要能即時反應。 */
+  const desktopViewport = useDesktopIslandViewport();
 
   /**
    * 面板開著時停掉閒置帷幕的驅散累積。
@@ -287,7 +293,9 @@ export default function UepDevToolsHost(): React.ReactElement | null {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  if (!mounted) return null;
+  /* 守門放在渲染而非 mount effect：effect 只跑一次，之後縮窗到手機寬度
+     不會再evaluate。keydown 監聽留著無妨（手機沒有 Ctrl+Shift+D） */
+  if (!mounted || !desktopViewport) return null;
   if (!open) {
     // 隱藏但仍 mount：小小的角落 hint（僅顯示於 hover 附近）
     return createPortal(
