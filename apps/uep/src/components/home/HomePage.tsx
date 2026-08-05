@@ -1679,6 +1679,27 @@ export default function HomePage({
         onNavigate={handleJourneyNav}
       />
 
+      {/* 手機專用「回到導覽」：右側導航欄在 760px 以下隱藏，於是往下逛完
+          五個 zone 之後沒有任何回入口的捷徑，只能一路往上捲——而往上捲會
+          逐一觸發每個 zone 的 up gate 與轉場。
+          走的是與導航欄入口鈕同一條 handleJourneyNav(-1)，因此那套
+          threshold 轉場動畫（ring/line/label）原封不動沿用。
+          只在已經進入 zone 區塊之後出現：Hero／Atlas／入口本身不需要。 */}
+      {isMobile && activeScene >= 0 && (
+        <button
+          type="button"
+          className="journey-back-fab"
+          onClick={() => handleJourneyNav(-1)}
+          aria-label="回到導覽入口"
+          title="回到導覽入口"
+        >
+          <span className="journey-back-fab__glyph" aria-hidden="true">
+            ◇
+          </span>
+          <span className="journey-back-fab__label">導覽</span>
+        </button>
+      )}
+
       <div
         ref={scrollContainerRef}
         className="journey-scroll"
