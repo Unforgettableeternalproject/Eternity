@@ -1,0 +1,107 @@
+/* 掃描線診斷 HUD
+ *
+ * 刻意做成不好看但極度好讀的樣子：等寬字、高對比、固定在畫面底部。
+ * 它的使用場景是一邊用拇指滑動一邊盯著數字跳，任何動畫或漸變
+ * 都只會干擾判讀，所以這裡完全沒有 transition。 */
+
+.uep-sl-hud {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  /* 高於浮島（2000+）與大地圖（400）——診斷層要蓋住一切 */
+  z-index: 9000;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #d8ffe4;
+  background: rgba(6, 12, 8, 0.94);
+  border: 1px solid rgba(120, 255, 170, 0.35);
+  border-radius: 6px;
+  /* 診斷層不該擋住被觀測的捲動——只有標題列可以點 */
+  pointer-events: none;
+}
+
+.uep-sl-hud__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: rgba(120, 255, 170, 0.1);
+  border: none;
+  border-bottom: 1px solid rgba(120, 255, 170, 0.2);
+  color: #9dffc4;
+  font: inherit;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.uep-sl-hud.is-collapsed .uep-sl-hud__bar {
+  border-bottom: none;
+}
+
+.uep-sl-hud__sum {
+  letter-spacing: 0;
+  color: #d8ffe4;
+}
+
+.uep-sl-hud__chev {
+  opacity: 0.6;
+}
+
+.uep-sl-hud__body {
+  padding: 6px 10px 8px;
+  /* 標記多的時候不要把整個畫面吃掉 */
+  max-height: 45vh;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.uep-sl-hud__row {
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.uep-sl-hud__row b {
+  color: #6fe39b;
+  font-weight: 500;
+}
+
+.uep-sl-hud__row--fog {
+  white-space: normal;
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px dotted rgba(120, 255, 170, 0.2);
+}
+
+.uep-sl-hud__table {
+  width: 100%;
+  margin-top: 4px;
+  border-collapse: collapse;
+}
+
+.uep-sl-hud__table th,
+.uep-sl-hud__table td {
+  padding: 1px 4px;
+  text-align: right;
+  border-top: 1px dotted rgba(120, 255, 170, 0.18);
+}
+
+.uep-sl-hud__table th {
+  color: #6fe39b;
+  font-weight: 500;
+}
+
+/* 異常值一律紅字——手機上瞄一眼就要看得出哪一格不對 */
+.uep-sl-hud .is-bad {
+  color: #ff8f8f;
+  font-weight: 600;
+}
+
+.uep-sl-hud__more {
+  margin-top: 3px;
+  opacity: 0.6;
+}

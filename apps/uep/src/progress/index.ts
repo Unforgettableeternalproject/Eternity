@@ -96,6 +96,16 @@ export { useScanline } from './useScanline';
 export type { UseScanlineOptions } from './useScanline';
 
 export {
+  isDiagEnabled,
+  getDiagSnapshot,
+  subscribeDiag,
+  publishFogDiag,
+  resetDiag,
+  resetDiagEnabledCache,
+} from './scanlineDiag';
+export type { ScanlineDiagSnapshot, ScanlineDiagMarker } from './scanlineDiag';
+
+export {
   FOG_JUMP_THRESHOLD_VH,
   FOG_MAX_ADVANCE_VH_PER_SEC,
   computeContentRatio,

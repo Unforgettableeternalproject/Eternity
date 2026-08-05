@@ -44,6 +44,8 @@ import {
   isWithinFogReach,
   limitFogAdvance,
   ratioToScrollTop,
+  isDiagEnabled,
+  publishFogDiag,
   PROGRESS_CHANGE_EVENT,
 } from '../../progress';
 import type {
@@ -429,6 +431,8 @@ export default function HistoryReader() {
   const fogAccumRef = useRef(0);
   /** 追趕取樣的 timer（語意見 FOG_CATCHUP_INTERVAL_MS） */
   const fogCatchupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 診斷用的取樣次數（見 scanlineDiag；診斷關閉時不會被讀） */
+  const fogSampleCountRef = useRef(0);
 
   const sampleFog = useCallback(() => {
     // 捲動取樣與追趕取樣共用入口——先清掉排程中的追趕，避免雙鏈並行
@@ -442,7 +446,13 @@ export default function HistoryReader() {
     const first = lastFogSampleAtRef.current === 0;
     const elapsed = first ? 0 : now - lastFogSampleAtRef.current;
     lastFogSampleAtRef.current = now;
-    if (!fogAppliesRef.current || !pageId || !el) return;
+    if (!fogAppliesRef.current || !pageId || !el) {
+      /* 這頁不套用迷霧＝位置閘門一律放行，第四條路徑可以直接排除。
+         沒有這筆發布的話 HUD 會顯示一組永遠是初始值的迷霧欄位，
+         看起來像「迷霧卡在 0」，與真的卡住無法分辨 */
+      if (isDiagEnabled()) publishFogDiag({ applies: false });
+      return;
+    }
     const state = getProgressManager().getState();
     if (state.completedPageIds.includes(pageId)) return;
     if (isNonScrollable(el.scrollHeight, el.clientHeight)) return;
@@ -455,7 +465,27 @@ export default function HistoryReader() {
     const base = Math.max(fogAccumRef.current, state.fogRatio[pageId] ?? 0);
     // 跳躍門檻擋「單次瞬移」，速率上限擋「讀得多快」——快速捲動是連續
     // 多幀各走一小步，每步都過得了跳躍門檻，只有速率上限攔得住
-    if (!isWithinFogReach(ratio, base, el.clientHeight, el.scrollHeight)) {
+    const withinReach = isWithinFogReach(
+      ratio,
+      base,
+      el.clientHeight,
+      el.scrollHeight
+    );
+    /* 診斷：迷霧不推進會讓掃描線的位置閘門擋掉所有標記，症狀與
+       IntersectionObserver 失效完全一樣。把兩道閘的判定值各自暴露出來，
+       才分得出是哪一邊卡住 */
+    const diagOn = isDiagEnabled();
+    if (diagOn) {
+      publishFogDiag({
+        applies: true,
+        ratio: state.fogRatio[pageId] ?? 0,
+        accum: Number(fogAccumRef.current.toFixed(4)),
+        scrollRatio: Number(ratio.toFixed(4)),
+        withinReach,
+        sampleCount: (fogSampleCountRef.current += 1),
+      });
+    }
+    if (!withinReach) {
       return;
     }
     // 進頁第一次取樣不限速：掃描線一載入就在視窗 80% 處，第一屏本來就
@@ -463,6 +493,7 @@ export default function HistoryReader() {
     const next = first
       ? ratio
       : limitFogAdvance(ratio, base, elapsed, el.clientHeight, el.scrollHeight);
+    if (diagOn) publishFogDiag({ limited: next });
     if (next == null || next <= fogAccumRef.current) return;
     fogAccumRef.current = next;
     // 首拍只建立積分基準，不寫進紀錄——讀者還沒動，進度就該是 0%。

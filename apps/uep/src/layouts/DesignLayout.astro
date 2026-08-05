@@ -4,6 +4,7 @@ import UepDialogContainer from '../components/ui/UepDialog';
 import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
 import TestModeBanner from '../components/ui/TestModeBanner';
 import UepDevTools from '../devtools/UepDevTools';
+import { ScanlineHudPortal } from '../devtools/ScanlineHud';
 
 interface Props {
   title: string;
@@ -182,6 +183,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <UepDialogContainer client:idle />
     <GlobalWelcomeHost client:idle />
     <UepDevTools client:idle />
+    <ScanlineHudPortal client:idle />
   </body>
 </html>
 

@@ -30,6 +30,12 @@ import {
 } from './fogGate';
 import { collectMarkers, completionFlag } from './markers';
 import { getProgressManager } from './progressStore';
+import {
+  isDiagEnabled,
+  publishDiag,
+  resetDiag,
+  type ScanlineDiagMarker,
+} from './scanlineDiag';
 
 /** lastMarkerIdx 的寫入節流間隔（ms）——max 進度前進不受此限 */
 const LAST_IDX_WRITE_DEBOUNCE = 800;
@@ -142,6 +148,61 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
 
   const indexOf = new Map<Element, number>(markers.map((m) => [m.el, m.index]));
 
+  /* ── 診斷通道（預設關閉，見 scanlineDiag）────────────────────
+     每個標記的最近觀測結果暫存在這裡，快照時一次組出去。
+     關閉時這個陣列不會被寫入，也不會有人來讀。 */
+  const diagMarkers: ScanlineDiagMarker[] = markers.map((m) => ({
+    index: m.index,
+    role: m.role,
+    top: 0,
+    height: 0,
+    intersecting: false,
+    everReported: false,
+    passedFogGate: null,
+  }));
+  let diagSentinelReported = false;
+  let diagSentinelIntersecting = false;
+  let diagCallbackCount = 0;
+  let diagLastCallbackAt: number | null = null;
+
+  /** 組快照——只在診斷開啟時被呼叫，內含 layout 讀取 */
+  const publishScanlineDiag = (
+    rootBoundsHeight: number | null,
+    gap: number | null
+  ) => {
+    const rootRect = root
+      ? { top: root.getBoundingClientRect().top }
+      : { top: 0 };
+    diagMarkers.forEach((d, i) => {
+      const rect = markers[i].el.getBoundingClientRect();
+      d.top = Math.round(rect.top - rootRect.top);
+      d.height = Math.round(rect.height);
+    });
+    publishDiag({
+      pageId,
+      totalMarkers,
+      maxIdx,
+      lastIdx,
+      fogEnabled,
+      root: root
+        ? {
+            clientHeight: root.clientHeight,
+            scrollHeight: root.scrollHeight,
+            scrollTop: Math.round(root.scrollTop),
+          }
+        : null,
+      rootBoundsHeight,
+      lastCallbackAt: diagLastCallbackAt,
+      lastCallbackGap: gap,
+      callbackCount: diagCallbackCount,
+      markers: diagMarkers.map((d) => ({ ...d })),
+      sentinel: {
+        intersecting: diagSentinelIntersecting,
+        everReported: diagSentinelReported,
+      },
+    });
+  };
+
   // 以既有進度為基準（跨 session 續讀時不倒退）
   let maxIdx = store.getState().pageMarkers[pageId]?.maxMarkerIdx ?? -1;
   let lastIdx = -1;
@@ -203,6 +264,25 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
     (entries) => {
       let maxAdvanced = false;
       let anyPassed = false;
+      /* 診斷：先把「這一批回呼看到了什麼」記下來，再進正常流程。
+         非交集的 entry 也要記——「從未被回報過」本身就是證據。 */
+      const diagOn = isDiagEnabled();
+      let diagGap: number | null = null;
+      if (diagOn) {
+        const now = performance.now();
+        diagGap =
+          diagLastCallbackAt === null
+            ? null
+            : Math.round(now - diagLastCallbackAt);
+        diagLastCallbackAt = now;
+        diagCallbackCount += 1;
+        for (const entry of entries) {
+          const i = indexOf.get(entry.target);
+          if (i === undefined) continue;
+          diagMarkers[i].intersecting = entry.isIntersecting;
+          diagMarkers[i].everReported = true;
+        }
+      }
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         const idx = indexOf.get(entry.target);
@@ -212,7 +292,9 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
         // 安心處理」的心智模型——useEchoSpots 一收到事件就把 spotId
         // 記進去重集合，若讓事件發出去再擋，rush 經過的回聲點會被記成
         // 已觸發，迷霧推進後就永遠不再響。
-        if (!passesFogGate(entry.target)) continue;
+        const fogPassed = passesFogGate(entry.target);
+        if (diagOn) diagMarkers[idx].passedFogGate = fogPassed;
+        if (!fogPassed) continue;
 
         anyPassed = true;
         lastIdx = idx;
@@ -239,6 +321,12 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
       }
       // max 進度前進立即寫入；單純位置變更節流寫入
       if (anyPassed) scheduleWrite(maxAdvanced);
+      if (diagOn) {
+        /* rootBounds 是 IO 自己算的 root 尺寸——與 root.clientHeight
+           對不上就是動態工具列改變了視窗而 observer 沒跟上 */
+        const rb = entries[0]?.rootBounds;
+        publishScanlineDiag(rb ? Math.round(rb.height) : null, diagGap);
+      }
     },
     {
       root,
@@ -253,6 +341,11 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
   const sentinelObserver = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) sentinelVisible = entry.isIntersecting;
+      if (isDiagEnabled()) {
+        diagSentinelReported = true;
+        diagSentinelIntersecting = sentinelVisible;
+        publishScanlineDiag(null, null);
+      }
       if (sentinelVisible) passSentinel();
     },
     { root, threshold: 0 }
@@ -275,6 +368,14 @@ export function createScanline(options: ScanlineOptions): ScanlineHandle {
 
   markers.forEach((m) => markerObserver.observe(m.el));
   sentinelObserver.observe(sentinel);
+
+  /* 建立當下先發一次：標記位置與 root 尺寸在還沒有任何回呼時就已經
+     是證據——「observer 建好了但一次都沒回呼」與「根本沒建起來」
+     在畫面上長得一樣，要能分辨 */
+  if (isDiagEnabled()) {
+    resetDiag(pageId);
+    publishScanlineDiag(null, null);
+  }
 
   return {
     destroy() {
