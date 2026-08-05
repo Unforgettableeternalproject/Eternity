@@ -5,10 +5,12 @@
 .uep-ident {
   --tear-y: 0px; /* 撕下拖曳的當前拉伸距離（由 JS 更新） */
   --tear-progress: 0; /* 拉伸進度 0~1（由 JS 更新，驅動吊繩顏色漸變） */
-  --ident-open-h: 326px; /* 展開高度基準：資料列為四列時 */
-  /* 每多／少一列的高度增減。實測單列 18.4px + row gap 6px = 24.4px，
-     取 25px 讓各種列數都留一點餘裕（字型渲染會讓實際值浮動）。 */
-  --ident-row-h: 25px;
+  /* 展開後的證卡寬度。背面永遠用這個寬度佈局（見 .uep-ident__face--back），
+     所以量測不受「現在是吊牌還是證卡」影響 */
+  --ident-w: 248px;
+  /* 展開高度：由 IdentCard.tsx 量背面內容後寫入。這裡只是 SSR 與
+     量測落地前的過渡值 */
+  --ident-open-h: 326px;
   position: absolute;
   top: 100%;
   right: 36px; /* 對齊 TopBar 的水平 padding */
@@ -175,17 +177,16 @@
     height 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
-/* 展開高度隨資料列數變動。
+/* 展開高度由 IdentCard.tsx 量背面內容後寫入 `--ident-open-h`。
    背面是 `position: absolute; inset: 0`，容器不會被內容撐開——高度給死的話，
-   「喚醒的浮島」與「印記」這兩列出現時就會把底部的撕下提示擠出可視範圍
-   （overflow: hidden 直接切掉，使用者看不到唯一的登出說明）。
-   基準是四列時的高度，每多／少一列加減一個列高。
-   `--ident-rows` 由 IdentCard.tsx 依實際渲染的列數寫入（變數宣告在檔頭）。 */
+   多出來的內容會被 `overflow: hidden` 切掉，首當其衝的是底部那行撕下提示
+   （使用者看不到唯一的登出說明）。
+
+   一開始是用「列數 × 列高」推算的，但那治不了本：手機寬度下長代稱會折成
+   兩行，內容高度與列數無關（2026-08-05 手機驗收）。 */
 .uep-ident.is-open .uep-ident__flip {
-  width: 248px;
-  height: calc(
-    var(--ident-open-h) + (var(--ident-rows, 4) - 4) * var(--ident-row-h)
-  );
+  width: var(--ident-w);
+  height: var(--ident-open-h);
 }
 
 /* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向。
@@ -269,14 +270,27 @@
 }
 
 /* 背面：完整證卡（rotateY 180 讓正向可讀，backface-visibility 由父層處理） */
+/* 背面固定用展開寬度佈局，不隨容器縮成吊牌的 44px。
+   卡片收起時它朝向背面（backface-visibility: hidden）本來就看不見，
+   而這讓「內容需要多高」隨時都量得準——否則得等展開的 0.55s transition
+   跑完才能量，量完再改高度會看到二次跳動。 */
 .uep-ident__face--back {
   transform: rotateY(180deg);
+  right: auto;
+  width: var(--ident-w);
   padding: 22px 20px 18px;
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4);
   /* 內容按鈕 hover 時不希望翻回，用預設 cursor 覆蓋按鈕 cursor */
   cursor: default;
   text-align: left;
   overflow: hidden;
+}
+
+/* 內容層（量高度的對象）。
+   flow-root 是必要的：沒有它，第一個子元素的 margin-top 會穿透到這一層
+   外面，量到的高度就會少一截——視覺位置不變，但卡片會矮一點點。 */
+.uep-ident__back-inner {
+  display: flow-root;
 }
 
 /* 證卡打孔（掛孔裝飾） */
@@ -442,7 +456,7 @@
 }
 
 @media (max-width: 560px) {
-  .uep-ident.is-open .uep-ident__flip {
-    width: 228px;
+  .uep-ident {
+    --ident-w: 228px;
   }
 }

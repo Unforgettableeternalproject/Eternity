@@ -15,7 +15,8 @@
  * 未來會加上小工具開關（哪些浮島/元件要顯示），目前在右上齒輪按鈕預留。
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+/* global ResizeObserver, getComputedStyle */
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
 import { getProgressManager } from '../../progress';
@@ -96,6 +97,41 @@ export default function IdentCard() {
       if (animTimer) clearTimeout(animTimer);
     };
   }, []);
+  /** 證卡背面的內容層，量它決定展開高度 */
+  const backInnerRef = useRef<HTMLDivElement>(null);
+
+  /* 展開高度不能寫死：資料列有兩列是條件渲染，代稱在窄視窗還會折行——
+     兩者都會改變內容高度，而背面是 absolute 定位、撐不開容器，
+     多出來的部分會被 overflow: hidden 切掉（首當其衝是唯一的登出說明）。
+
+     所以量實際內容。背面固定用展開寬度佈局（見 CSS 的 --ident-w），
+     卡片收著時也量得準，不必等展開動畫跑完。
+     ResizeObserver 顧的是字型載入、代稱變化、resize 換斷點。 */
+  useLayoutEffect(() => {
+    const inner = backInnerRef.current;
+    const root = rootRef.current;
+    if (!inner || !root || typeof ResizeObserver === 'undefined')
+      return undefined;
+
+    const apply = () => {
+      const face = inner.parentElement;
+      if (!face) return;
+      const cs = getComputedStyle(face);
+      const padding = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      root.style.setProperty(
+        '--ident-open-h',
+        `${Math.ceil(inner.offsetHeight + padding)}px`
+      );
+    };
+
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(inner);
+    return () => ro.disconnect();
+    // 依賴 session：訪客不 render 證卡，此時 ref 是 null、effect 直接空轉。
+    // 少了這條依賴，登入狀態晚一拍抵達時就再也沒有機會量了
+  }, [session]);
+
   /** 拖曳狀態透過 ref 存，避免每一 pointermove 都 rerender */
   const dragRef = useRef<{
     startY: number;
@@ -110,15 +146,6 @@ export default function IdentCard() {
   if (!session) return null;
 
   const isObserver = progress.view === 'observer';
-
-  /* 資料列數決定展開高度（見 IdentCard.css 的 --ident-rows）。
-     視角／篇章／印象三列恆在，浮島與印記兩列有條件——證卡背面是
-     absolute 定位，容器不會被內容撐開，列數變動時高度得跟著走，
-     否則底部的撕下提示會被 overflow: hidden 切掉。 */
-  const rowCount =
-    3 +
-    (progress.islandsUnlocked.length > 0 ? 1 : 0) +
-    (session.observerEver ? 1 : 0);
 
   /* ── 拖曳處理：吊繩隨拉伸拉長 + flip 順勢下移 ── */
 
@@ -262,11 +289,6 @@ export default function IdentCard() {
     <div
       className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}`}
       ref={rootRef}
-      /* ⚠️ 必須是字串。React 對 style 裡的 number 會補上 px，連自訂屬性
-         也不例外——`--ident-rows: 3px` 會讓 CSS 那條 calc 變成 invalid at
-         computed-value time，height 直接掉回 auto（背面是 absolute，
-         結果整張卡塌成 0 高）。專案既有的 `--diff-cols` 也是這樣包 String。 */
-      style={{ '--ident-rows': String(rowCount) } as React.CSSProperties}
     >
       {/* 吊繩：從 TopBar 下緣垂下，撕下拖曳時會被拉長 */}
       <div className="uep-ident__cord" aria-hidden="true" />
@@ -320,71 +342,75 @@ export default function IdentCard() {
               ⚙
             </button>
 
-            <div className="uep-ident__kicker">U.E.P · IDENTIFICATION</div>
+            {/* 內容層：量它決定卡片高度（punch 與 gear 是絕對定位，
+                不進流也就不影響高度，所以留在外面） */}
+            <div className="uep-ident__back-inner" ref={backInnerRef}>
+              <div className="uep-ident__kicker">U.E.P · IDENTIFICATION</div>
 
-            <div className="uep-ident__alias">
-              {getReaderAuth().displayAlias()}
-            </div>
-            <div className="uep-ident__username">@{session.username}</div>
+              <div className="uep-ident__alias">
+                {getReaderAuth().displayAlias()}
+              </div>
+              <div className="uep-ident__username">@{session.username}</div>
 
-            <div className="uep-ident__sep" />
+              <div className="uep-ident__sep" />
 
-            <div className="uep-ident__rows">
-              <div className="uep-ident__row">
-                <span className="uep-ident__row-label">視角</span>
-                <span className="uep-ident__row-value">
-                  {isObserver ? '◉ 觀測者' : '◈ 探索者'}
-                </span>
-              </div>
-              <div className="uep-ident__row">
-                <span className="uep-ident__row-label">走過的篇章</span>
-                <span className="uep-ident__row-value">
-                  {progress.completedPageIds.length}
-                </span>
-              </div>
-              <div className="uep-ident__row">
-                <span className="uep-ident__row-label">留下的印象</span>
-                <span className="uep-ident__row-value">
-                  {progress.flags.length}
-                </span>
-              </div>
-              {progress.islandsUnlocked.length > 0 && (
+              <div className="uep-ident__rows">
                 <div className="uep-ident__row">
-                  <span className="uep-ident__row-label">喚醒的浮島</span>
+                  <span className="uep-ident__row-label">視角</span>
                   <span className="uep-ident__row-value">
-                    {progress.islandsUnlocked.length}
+                    {isObserver ? '◉ 觀測者' : '◈ 探索者'}
                   </span>
                 </div>
-              )}
-              {session.observerEver && (
-                <div className="uep-ident__row uep-ident__row--mark">
-                  <span className="uep-ident__row-label">印記</span>
-                  <span className="uep-ident__row-value">已見證</span>
+                <div className="uep-ident__row">
+                  <span className="uep-ident__row-label">走過的篇章</span>
+                  <span className="uep-ident__row-value">
+                    {progress.completedPageIds.length}
+                  </span>
                 </div>
-              )}
-            </div>
+                <div className="uep-ident__row">
+                  <span className="uep-ident__row-label">留下的印象</span>
+                  <span className="uep-ident__row-value">
+                    {progress.flags.length}
+                  </span>
+                </div>
+                {progress.islandsUnlocked.length > 0 && (
+                  <div className="uep-ident__row">
+                    <span className="uep-ident__row-label">喚醒的浮島</span>
+                    <span className="uep-ident__row-value">
+                      {progress.islandsUnlocked.length}
+                    </span>
+                  </div>
+                )}
+                {session.observerEver && (
+                  <div className="uep-ident__row uep-ident__row--mark">
+                    <span className="uep-ident__row-label">印記</span>
+                    <span className="uep-ident__row-value">已見證</span>
+                  </div>
+                )}
+              </div>
 
-            <div className="uep-ident__sep" />
+              <div className="uep-ident__sep" />
 
-            {/* 觀看世界的方式：一律只在識別證內切換（S5 起唯一入口） */}
-            <div
-              className="uep-ident__view-row"
-              /* 阻止事件冒泡到翻面按鈕，避免切換視角時把證卡翻回去 */
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span className="uep-ident__row-label">觀看世界的方式</span>
-              <ViewSwitch />
-            </div>
+              {/* 觀看世界的方式：一律只在識別證內切換（S5 起唯一入口） */}
+              <div
+                className="uep-ident__view-row"
+                /* 阻止事件冒泡到翻面按鈕，避免切換視角時把證卡翻回去 */
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="uep-ident__row-label">觀看世界的方式</span>
+                <ViewSwitch />
+              </div>
 
-            {/* 撕下登出是純手勢互動，沒有任何按鈕可循——證卡底部明說一次。
+              {/* 撕下登出是純手勢互動，沒有任何按鈕可循——證卡底部明說一次。
                 撕下只在吊牌狀態允許（避免拖到 ViewSwitch 誤觸），
                 所以文案要先講「收起」。 */}
-            <p className="uep-ident__tear-hint">
-              <span className="uep-ident__tear-hint-glyph" aria-hidden="true">
-                ↓
-              </span>
-              收起後往下拉，可撕下識別證（登出）
-            </p>
+              <p className="uep-ident__tear-hint">
+                <span className="uep-ident__tear-hint-glyph" aria-hidden="true">
+                  ↓
+                </span>
+                收起後往下拉，可撕下識別證（登出）
+              </p>
+            </div>
           </div>
         </div>
       </div>

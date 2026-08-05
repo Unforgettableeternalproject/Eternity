@@ -3,10 +3,10 @@
  *
  * 兩組契約：
  *
- * 1. 展開高度所依賴的 `--ident-rows` 要跟著實際渲染的列數走。證卡背面是
- *    `position: absolute; inset: 0`，容器不會被內容撐開——高度給死的話，
- *    多出來的列會把底部的撕下提示（唯一的登出說明）擠進 overflow: hidden
- *    的裁切區。這是 2026-08-05 回報的實際災情。
+ * 1. 背面內容必須包在 `.uep-ident__back-inner` 裡。展開高度是量那一層算出來
+ *    的（背面 absolute 定位，撐不開容器；高度不夠時底部的撕下提示——唯一的
+ *    登出說明——會被 overflow: hidden 切掉）。jsdom 沒有版面，量不到真實
+ *    高度，所以這裡只釘結構，實際高度靠瀏覽器驗收。
  * 2. 識別證教學的觸發：登入儀式演完 + 沒看過 → 請求；以及外部要求翻開時
  *    真的翻開（教學要指的東西全在背面）。
  */
@@ -60,9 +60,8 @@ vi.mock('../../../islands/IslandSettingsPanel', () => ({
   default: () => null,
 }));
 
-function rowsOf(container: HTMLElement): string {
-  const root = container.querySelector('.uep-ident') as HTMLElement;
-  return root.style.getPropertyValue('--ident-rows');
+function backInner(container: HTMLElement): HTMLElement | null {
+  return container.querySelector('.uep-ident__back-inner');
 }
 
 describe('IdentCard', () => {
@@ -73,26 +72,23 @@ describe('IdentCard', () => {
     requestGuide.mockClear();
   });
 
-  it('只有恆在的三列時 --ident-rows 是 3', () => {
+  it('背面內容包在可量測的內容層裡', () => {
     const { container } = render(<IdentCard />);
-    expect(rowsOf(container)).toBe('3');
-    expect(container.querySelectorAll('.uep-ident__row')).toHaveLength(3);
+    const inner = backInner(container);
+    expect(inner).toBeTruthy();
+    expect(inner!.parentElement!.className).toContain('uep-ident__face--back');
   });
 
-  it('浮島與印記兩列都出現時算到 5', () => {
+  it('會變動的區塊都在內容層之內——量它才算得出正確高度', () => {
     session.observerEver = true;
-    progress.islandsUnlocked = ['history', 'echoes'];
-    const { container } = render(<IdentCard />);
-    expect(rowsOf(container)).toBe('5');
-    expect(container.querySelectorAll('.uep-ident__row')).toHaveLength(5);
-  });
-
-  it('--ident-rows 與實際列數一致（只有浮島）', () => {
     progress.islandsUnlocked = ['history'];
     const { container } = render(<IdentCard />);
-    expect(rowsOf(container)).toBe(
-      String(container.querySelectorAll('.uep-ident__row').length)
-    );
+    const inner = backInner(container)!;
+
+    // 代稱（窄視窗會折行）、資料列（兩列是條件渲染）、撕下提示（最容易被切掉）
+    expect(inner.querySelector('.uep-ident__alias')).toBeTruthy();
+    expect(inner.querySelectorAll('.uep-ident__row')).toHaveLength(5);
+    expect(inner.querySelector('.uep-ident__tear-hint')).toBeTruthy();
   });
 
   describe('教學觸發', () => {
