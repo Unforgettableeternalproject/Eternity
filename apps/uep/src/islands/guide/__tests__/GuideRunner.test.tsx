@@ -47,7 +47,15 @@ vi.mock('../../../progress', async (importOriginal) => {
       islandsUnlocked: state.unlocked,
       islandsDisabled: state.disabled,
     }),
-    getProgressManager: () => ({ grantFlags }),
+    // 資格判定讀即時 state（不讀 render 快照，見 GuideRunner 的說明），
+    // 所以 mock 也要提供 getState
+    getProgressManager: () => ({
+      grantFlags,
+      getState: () => ({
+        islandsUnlocked: state.unlocked,
+        islandsDisabled: state.disabled,
+      }),
+    }),
   };
 });
 
@@ -56,6 +64,7 @@ vi.mock('../../islandRuntime', async (importOriginal) => {
   return {
     ...actual,
     canUseIslands: () => state.canUse,
+    isDesktopIslandViewport: () => state.desktop,
     shouldMountIsland: (_p: unknown, id: string) =>
       state.canUse &&
       state.unlocked.includes(id) &&

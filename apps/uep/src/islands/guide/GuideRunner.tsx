@@ -27,14 +27,15 @@
  * 兩者共用。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { useReaderAuth } from '../../auth';
+import { getReaderAuth, useReaderAuth } from '../../auth';
 import { getProgressManager, useProgress } from '../../progress';
 import {
   canUseIslands,
   getIslandRuntime,
+  isDesktopIslandViewport,
   shouldMountIsland,
 } from '../islandRuntime';
 import type { IslandId } from '../types';
@@ -80,22 +81,26 @@ export default function GuideRunner() {
   const desktop = useDesktopIslandViewport();
   const [active, setActive] = useState<GuideTargetId | null>(null);
 
-  const progressRef = useRef(progress);
-  progressRef.current = progress;
-  const desktopRef = useRef(desktop);
-  desktopRef.current = desktop;
-  const loggedInRef = useRef(session !== null);
-  loggedInRef.current = session !== null;
-
-  /** 對象現在能不能演教學 */
+  /**
+   * 對象現在能不能演教學。
+   *
+   * ⚠️ **一律讀即時狀態，不讀 render 時的快照**（2026-08-05 修）。
+   * `completeUnlockRitual` 是在解鎖後的**同一個同步堆疊**裡呼叫
+   * `requestGuide` 的，而 React 的重渲染排在那之後——用 render 時的
+   * progress（無論放 ref 還是直接閉包）判定，看到的都是解鎖前的快照，
+   * 於是 `shouldMountIsland` 判成「這座島還沒解鎖」而把請求整個丟掉。
+   * 症狀是浮島教學在正式解鎖時永遠不播，而且不會有任何錯誤。
+   *
+   * 下面的 `useProgress()` / `useReaderAuth()` / `useDesktopIslandViewport()`
+   * 仍要留著——它們負責在狀態變化時重渲染，讓「顯示中失去資格就收掉」
+   * 的 effect 重跑。訂閱與判定是兩件事。
+   */
   const available = useCallback((id: GuideTargetId): boolean => {
-    if (!hasGuide(id) || !desktopRef.current) return false;
+    if (!hasGuide(id) || !isDesktopIslandViewport()) return false;
     // 識別證是登入者才有的東西，且不歸浮島的解鎖／停用規則管
-    if (id === 'ident') return loggedInRef.current;
-    return (
-      canUseIslands(progressRef.current) &&
-      shouldMountIsland(progressRef.current, id as IslandId)
-    );
+    if (id === 'ident') return getReaderAuth().isLoggedIn();
+    const state = getProgressManager().getState();
+    return canUseIslands(state) && shouldMountIsland(state, id as IslandId);
   }, []);
 
   useEffect(
