@@ -57,8 +57,8 @@ import {
   getIslandRuntime,
   isLostBookmarkVisible,
   mountLostBookmarkTestBridge,
+  openLostBookmark,
   rollLostBookmark,
-  settleLostBookmark,
   isPhantomEligibleDivision,
   parsePhantomImages,
   focusClueImage,
@@ -67,7 +67,6 @@ import {
   UEP_PHANTOM_CLUE_CLEAR_EVENT,
   setClueWaitingCount,
   shouldMountIsland,
-  unlockIsland,
   useDesktopIslandViewport,
   useEntityDragSource,
   useIslandRuntimeState,
@@ -1620,12 +1619,10 @@ export default function HistoryReader() {
     );
   }
 
-  /** 儀式完成：解鎖旅程之書並回到閱讀（內容區本來就停在上次閱讀頁） */
+  /** 儀式完成：解鎖旅程之書並回到閱讀（內容區本來就停在上次閱讀頁）。
+   *  解鎖收束的內容全在 `openLostBookmark`，這裡只負責關掉儀式頁 */
   function handleLostBookmarkOpen() {
-    settleLostBookmark();
-    unlockIsland('history');
-    getIslandRuntime().open('history');
-    window.__uepToastManager?.info('旅程之書甦醒了，加入了你的浮島。');
+    openLostBookmark();
     setBookmarkGateOpen(false);
   }
 

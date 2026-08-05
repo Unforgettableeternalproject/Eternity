@@ -8,15 +8,14 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
+import { AWAKEN_MS } from '../../islands';
+
 import './LostBookmarkGate.css';
 
 interface LostBookmarkGateProps {
   /** 甦醒動畫播完後呼叫（解鎖 + 導回上次閱讀頁由呼叫端執行） */
   onOpen: () => void;
 }
-
-/** 甦醒動畫時長（ms），與 CSS keyframes 對齊 */
-const AWAKEN_MS = 1400;
 
 export default function LostBookmarkGate({ onOpen }: LostBookmarkGateProps) {
   const [awakening, setAwakening] = useState(false);

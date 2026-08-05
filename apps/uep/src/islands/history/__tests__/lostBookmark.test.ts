@@ -274,6 +274,61 @@ describe('mountLostBookmarkTestBridge（S6-3 dev hook）', () => {
     cleanup();
   });
 
+  /* 這條路徑一度在 HistoryReader 裡手寫成 `unlockIsland + open + toast`，
+     漏掉了自動教學與完成時的資格重驗，而測試全綠——因為沒有任何一條
+     測試走真實的收束出口。以下四條就是為了守住那個缺口。 */
+  describe('openLostBookmark', () => {
+    async function ready() {
+      const mods = await freshModules();
+      mods.store.setView('explorer');
+      return mods;
+    }
+
+    it('解鎖旅程之書並收掉書籤條目', async () => {
+      const { store, lb } = await ready();
+      store.updateLostBookmark({ visible: true });
+
+      expect(lb.openLostBookmark()).toBe(true);
+      expect(store.getState().islandsUnlocked).toContain('history');
+      expect(store.getState().lostBookmark.visible).toBe(false);
+    });
+
+    it('請求旅程之書的教學——這是它唯一的自動觸發點', async () => {
+      const { store, lb } = await ready();
+      const guide = await import('../../guide/guideRequest');
+      const seen: string[] = [];
+      const unsubscribe = guide.subscribeGuide((id) => seen.push(id));
+
+      store.updateLostBookmark({ visible: true });
+      lb.openLostBookmark();
+      unsubscribe();
+
+      expect(seen).toEqual(['history']);
+    });
+
+    it('展開旅程之書', async () => {
+      const { store, lb } = await ready();
+      const runtime = await import('../../islandRuntime');
+      store.updateLostBookmark({ visible: true });
+
+      lb.openLostBookmark();
+      expect(runtime.getIslandRuntime().getState().windows.history?.open).toBe(
+        true
+      );
+    });
+
+    /* 發現與收束之間隔著對話框與 1.4 秒甦醒動畫，這段時間夠使用者
+       切成觀測者——resize 甚至不會 unmount Reader，計時器照樣走完 */
+    it('資格在儀式途中消失時不解鎖', async () => {
+      const { store, lb } = await ready();
+      store.updateLostBookmark({ visible: true });
+      store.setView('observer');
+
+      expect(lb.openLostBookmark()).toBe(false);
+      expect(store.getState().islandsUnlocked).not.toContain('history');
+    });
+  });
+
   it('openGate 廣播儀式頁開啟事件', async () => {
     const { lb } = await freshModules();
     const cleanup = lb.mountLostBookmarkTestBridge();

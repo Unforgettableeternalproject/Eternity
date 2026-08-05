@@ -25,6 +25,7 @@ import {
 import { getSetting } from '../../lib/uepSettings';
 
 import { canUseIslands, isIslandUnlocked } from '../islandRuntime';
+import { completeUnlockRitual } from '../unlockRitual';
 
 export { LOST_BOOKMARK_STEP_PCT };
 
@@ -116,9 +117,26 @@ export function dismissLostBookmark(state: ProgressState): void {
   getProgressManager().updateLostBookmark({ visible: false, missCount: 0 });
 }
 
-/** 解鎖完成：條目永久消失（visible 落回 false，島解鎖由呼叫端執行） */
+/** 條目永久消失（visible 落回 false）。島的解鎖由 `openLostBookmark` 負責 */
 export function settleLostBookmark(): void {
   getProgressManager().updateLostBookmark({ visible: false });
+}
+
+/**
+ * 儀式收束：收掉書籤條目並解鎖旅程之書。回傳是否真的解鎖了。
+ *
+ * 收束住在這裡而不是 `HistoryReader` 裡，是因為它必須走
+ * `completeUnlockRitual`——那是自動教學的**唯一**觸發點，也帶著完成時的
+ * 資格重驗（發現與收束之間隔著對話框與 1.4 秒甦醒動畫，這段時間足夠
+ * 使用者登出、切觀測者或把視窗縮到手機寬度）。
+ *
+ * 這條路徑曾經是在 Reader 內手寫展開的 `unlockIsland + open + toast`，
+ * 兩件事都漏掉，症狀是旅程之書正式解鎖後不會播教學。搬進模組是為了
+ * 讓它跟其他四個 zone 一樣只有一個收束出口，也才測得到。
+ */
+export function openLostBookmark(): boolean {
+  settleLostBookmark();
+  return completeUnlockRitual('history');
 }
 
 /* ── 測試 hook（S6-3，dev only）──

@@ -75,6 +75,7 @@ export {
   rollLostBookmark,
   dismissLostBookmark,
   settleLostBookmark,
+  openLostBookmark,
   mountLostBookmarkTestBridge,
 } from './history/lostBookmark';
 
