@@ -1,11 +1,22 @@
-import React, { useRef } from 'react';
+import React, { Suspense, lazy, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import type { JourneyNarrative } from '../../data/journey';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
-import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import './JourneyScene.css';
+
+/**
+ * 背景氛圍層走 lazy——首頁一次渲染五個 zone，每個都掛一份，
+ * 而首屏是 Hero，五份氛圍層沒有一個在第一眼看得到。
+ *
+ * 兩個收益：它退出首屏 JS（是第二波裡最大的一塊），
+ * 而且 SSR 不再輸出這五份的 DOM，HTML 跟著變小。
+ * 純裝飾層晚一點浮現不影響任何功能與版面（它是 absolute 疊層）。
+ *
+ * 其餘 Reader 各自只掛一份、且就在首屏，維持直接 import。
+ */
+const ZoneAtmosphere = lazy(() => import('../ui/ZoneAtmosphere'));
 
 interface JourneySceneProps {
   zone: ZoneData;
@@ -69,7 +80,9 @@ export default function JourneyScene({
       }
       data-zone-id={zone.id}
     >
-      <ZoneAtmosphere zone={zone} intensity={isMobile ? 'subtle' : 'rich'} />
+      <Suspense fallback={null}>
+        <ZoneAtmosphere zone={zone} intensity={isMobile ? 'subtle' : 'rich'} />
+      </Suspense>
       <div className="journey-scene__bg" />
 
       <div className="journey-scene__inner">

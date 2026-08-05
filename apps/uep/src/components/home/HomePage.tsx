@@ -1,4 +1,6 @@
 import React, {
+  Suspense,
+  lazy,
   useState,
   useCallback,
   useRef,
@@ -17,7 +19,6 @@ import type { ZoneData } from '../../data/zones';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
 import { useIsMobile } from '../../utils/useIsMobile';
 import PieMap3D from '../map/PieMap3D';
-import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import Minimap from '../ui/Minimap';
 import PortalTransition from '../ui/PortalTransition';
@@ -28,6 +29,16 @@ import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 
 import JourneyNav from './JourneyNav';
 import JourneyScene from './JourneyScene';
+
+/**
+ * 大地圖彈窗走 lazy——它本來就是條件渲染（showMap），使用者不點就
+ * 永遠不會出現，沒有理由讓它佔首屏 bundle。
+ *
+ * ⚠️ 同一區的 PieMap3D **不能**比照辦理：scroll gate 會讀 Atlas 的
+ * offsetTop／offsetHeight 判斷區塊邊界，地圖延後載入會讓 Atlas 高度在
+ * 載入前後改變，整組 gate 跟著錯位。
+ */
+const BigMapModal = lazy(() => import('../ui/BigMapModal'));
 import './HomePage.css';
 import { getApiBase } from '../../lib/apiBase';
 
@@ -2560,15 +2571,19 @@ export default function HomePage({
 
       {/* modals */}
       {showMap && (
-        <BigMapModal
-          zones={mergedZones}
-          tone="dark"
-          onClose={() => setShowMap(false)}
-          onPick={(z) => {
-            setShowMap(false);
-            setIntro(z);
-          }}
-        />
+        /* lazy 元件必須有 Suspense 邊界；chunk 只有 1.3KB，
+           載入期間不需要任何佔位視覺 */
+        <Suspense fallback={null}>
+          <BigMapModal
+            zones={mergedZones}
+            tone="dark"
+            onClose={() => setShowMap(false)}
+            onPick={(z) => {
+              setShowMap(false);
+              setIntro(z);
+            }}
+          />
+        </Suspense>
       )}
 
       <IntroOverlay
