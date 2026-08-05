@@ -90,6 +90,8 @@ let started = false;
 
 /** 帷幕升起的時刻；0 代表目前沒有帷幕 */
 let raisedAt = 0;
+/** 時間軸凍結的起點（頁面離開前景）；0 代表沒在凍結 */
+let frozenAt = 0;
 /** 本次帷幕累積的等效移動距離 */
 let movedPx = 0;
 let lastPointer: { x: number; y: number } | null = null;
@@ -145,9 +147,37 @@ function coverageFor(elapsedSec: number): number {
   );
 }
 
+/**
+ * 頁面離開前景：凍結帷幕的時間軸。
+ *
+ * 階段是用 `Date.now() - raisedAt` 推的，那是牆鐘——切出去一小時再回來，
+ * 第一次 tick 就會算出 3600 秒而直接跳到全遮，還得劃 1200px 才撥得開。
+ * 契約是背景不計掛機（S10-4 §2-3），所以停表，回來時把這段還回去。
+ *
+ * 帷幕還沒升起時不必凍：背景期間 activityWatch 停表、不會判定閒置，
+ * 也就不會有人叫 raise()。
+ */
+function freezeVeil(): void {
+  if (raisedAt === 0 || frozenAt !== 0) return;
+  frozenAt = Date.now();
+  stopTick();
+}
+
+/** 回到前景：把背景停留的時間補回起點，帷幕從離開時的濃度接著長 */
+function thawVeil(): void {
+  if (frozenAt === 0) return;
+  raisedAt += Date.now() - frozenAt;
+  frozenAt = 0;
+  // 回來時指標多半已經在別的位置，留著舊座標會讓第一次 pointermove
+  // 算出一整段沒有發生過的位移（同 setDispelPaused 的理由）
+  lastPointer = null;
+  if (raisedAt !== 0) startTick();
+}
+
 /** 收掉帷幕並把時間軸一併重設 */
 function clearVeil(): void {
   raisedAt = 0;
+  frozenAt = 0;
   movedPx = 0;
   lastPointer = null;
   unbindDispelEvents();
@@ -242,6 +272,11 @@ export function startIdleVeil(): void {
     if (getSetting<string>('reader.idleNudgeMode', 'enabled') === 'disabled') {
       return;
     }
+    if (activity.suspended) {
+      freezeVeil();
+      return;
+    }
+    thawVeil();
     if (activity.idle) raise();
     // 離開 idle 不收帷幕：那是使用者「動了一下」，收不收由累積的活動量決定
   });
@@ -256,6 +291,7 @@ export function stopIdleVeil(): void {
   stopTick();
   started = false;
   raisedAt = 0;
+  frozenAt = 0;
   movedPx = 0;
   lastPointer = null;
   dispelPaused = false;
@@ -333,8 +369,11 @@ export function getVeilDebug(): VeilState & {
   movedPx: number;
   needPx: number;
   dispelPaused: boolean;
+  frozen: boolean;
 } {
-  const elapsedSec = raisedAt === 0 ? 0 : (Date.now() - raisedAt) / 1000;
+  // 凍結期間時間軸停在離開前景那一刻，顯示的經過秒數也該停住
+  const now = frozenAt !== 0 ? frozenAt : Date.now();
+  const elapsedSec = raisedAt === 0 ? 0 : (now - raisedAt) / 1000;
   return {
     ...snapshot,
     started,
@@ -342,5 +381,6 @@ export function getVeilDebug(): VeilState & {
     movedPx: Math.round(movedPx),
     needPx: STAGE_DISPEL_PX[snapshot.stage],
     dispelPaused,
+    frozen: frozenAt !== 0,
   };
 }

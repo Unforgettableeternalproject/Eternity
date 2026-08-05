@@ -256,6 +256,75 @@ describe('idleVeil', () => {
     expect(getVeilState().stage).toBe(2);
   });
 
+  /* 背景不計掛機（S10-4 §2-3）。階段是用牆鐘推的，不停表的話切出去一小時
+     回來就直接全遮，還要劃 1200px 才撥得開 */
+  describe('離開前景時凍結時間軸', () => {
+    /** 切到背景分頁 */
+    function hide() {
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+    }
+
+    function show() {
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+    }
+
+    it('背景停留的時間不計入階段推進', async () => {
+      await boot();
+      await goIdle();
+      await wait(21);
+      expect(getVeilState().stage).toBe(1);
+
+      hide();
+      expect(getVeilDebug().frozen).toBe(true);
+      await wait(3600); // 切出去一小時
+      show();
+
+      // 回來時仍停在離開前的階段，而不是跳到全遮
+      expect(getVeilDebug().frozen).toBe(false);
+      expect(getVeilState().stage).toBe(1);
+    });
+
+    it('回到前景後接著長，不是從頭重來', async () => {
+      await boot();
+      await goIdle();
+      await wait(21);
+
+      hide();
+      await wait(600);
+      show();
+
+      // 離開時累積了 21 秒，再走 40 秒就該跨進階段二
+      await wait(40);
+      expect(getVeilState().stage).toBe(2);
+    });
+
+    it('視窗失焦同樣凍結', async () => {
+      await boot();
+      await goIdle();
+      await wait(21);
+
+      window.dispatchEvent(new Event('blur'));
+      expect(getVeilDebug().frozen).toBe(true);
+      await wait(3600);
+      window.dispatchEvent(new Event('focus'));
+
+      expect(getVeilState().stage).toBe(1);
+    });
+
+    it('凍結期間顯示的經過秒數停住', async () => {
+      await boot();
+      await goIdle();
+      await wait(21);
+      const before = getVeilDebug().elapsedSec;
+
+      hide();
+      await wait(300);
+      expect(getVeilDebug().elapsedSec).toBe(before);
+    });
+  });
+
   it('重複進入 idle 不會重置已經在生長的帷幕', async () => {
     await boot();
     await goIdle();

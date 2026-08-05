@@ -41,6 +41,14 @@ export interface ActivityState {
   idle: boolean;
   /** 進入 idle 的時刻；idle 為 false 時是 null */
   idleSince: number | null;
+  /**
+   * 頁面是否離開前景（hidden 或視窗失焦）而暫停計時。
+   *
+   * 與 `idle` 是互斥的兩件事：idle 是「人在但沒動」，suspended 是「人不在
+   * 這個頁面」。凡是自己推算經過時間的消費端都必須訂閱這個——牆鐘會把
+   * 背景停留算進去，而契約是背景不計。
+   */
+  suspended: boolean;
 }
 
 type Listener = (state: ActivityState) => void;
@@ -74,12 +82,17 @@ let nudgeEnabled = true;
 let lastActivityAt = 0;
 let idle = false;
 let idleSince: number | null = null;
+let suspended = false;
 
 /**
  * 對外的狀態快照。只在狀態真的改變時重建——`useSyncExternalStore` 用
  * `Object.is` 比對，每次呼叫都回新物件會讓它判定「一直在變」而無限重渲染。
  */
-let snapshot: ActivityState = { idle: false, idleSince: null };
+let snapshot: ActivityState = {
+  idle: false,
+  idleSince: null,
+  suspended: false,
+};
 
 /** 已封存區間的累計毫秒 */
 let sealedActiveMs = 0;
@@ -89,7 +102,7 @@ let activeStartedAt: number | null = null;
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 
 function notify(): void {
-  snapshot = { idle, idleSince };
+  snapshot = { idle, idleSince, suspended };
   for (const fn of listeners) fn(snapshot);
 }
 
@@ -142,11 +155,12 @@ function tick(): void {
 function suspend(): void {
   sealInterval(Date.now());
   stopTick();
-  if (idle) {
-    idle = false;
-    idleSince = null;
-    notify();
-  }
+  // blur 與 visibilitychange 常常接連抵達，狀態沒變就不要重複通知
+  const changed = !suspended || idle;
+  suspended = true;
+  idle = false;
+  idleSince = null;
+  if (changed) notify();
 }
 
 /** 回到前景：時間軸從當下重新起算，不追認離開期間的「沒動作」 */
@@ -154,12 +168,12 @@ function resume(): void {
   const now = Date.now();
   lastActivityAt = now;
   if (activeStartedAt === null) activeStartedAt = now;
-  if (idle) {
-    idle = false;
-    idleSince = null;
-    notify();
-  }
+  const changed = suspended || idle;
+  suspended = false;
+  idle = false;
+  idleSince = null;
   startTick();
+  if (changed) notify();
 }
 
 function onActivity(): void {
@@ -244,7 +258,10 @@ export function startActivityWatch(): Promise<void> {
     if (document.visibilityState !== 'hidden' && document.hasFocus()) {
       activeStartedAt = lastActivityAt;
       startTick();
+    } else {
+      suspended = true;
     }
+    snapshot = { idle, idleSince, suspended };
   })();
 
   return startPromise;
@@ -259,7 +276,8 @@ export function stopActivityWatch(): void {
   startPromise = null;
   idle = false;
   idleSince = null;
-  snapshot = { idle: false, idleSince: null };
+  suspended = false;
+  snapshot = { idle: false, idleSince: null, suspended: false };
   sealedActiveMs = 0;
   activeStartedAt = null;
   lastActivityAt = 0;
@@ -339,7 +357,6 @@ export function getActivityDebug(): {
     nudgeEnabled,
     activeTotalMs: getActiveTotalMs(),
     msSinceActivity: lastActivityAt ? Date.now() - lastActivityAt : 0,
-    // 區間沒開著又不是 idle = 被 hidden／blur 暫停了
-    suspended: started && activeStartedAt === null && !idle,
+    suspended: started && suspended,
   };
 }

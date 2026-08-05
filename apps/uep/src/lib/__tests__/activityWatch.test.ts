@@ -95,7 +95,9 @@ describe('activityWatch', () => {
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(getActivityState().idle).toBe(true);
-    expect(seen).toEqual([{ idle: true, idleSince: Date.now() }]);
+    expect(seen).toEqual([
+      { idle: true, idleSince: Date.now(), suspended: false },
+    ]);
   });
 
   it('任一活動事件即恢復，且不必等下一個 tick', async () => {
@@ -108,7 +110,11 @@ describe('activityWatch', () => {
 
     activity();
     // 沒有推進計時器——恢復是同步的
-    expect(getActivityState()).toEqual({ idle: false, idleSince: null });
+    expect(getActivityState()).toEqual({
+      idle: false,
+      idleSince: null,
+      suspended: false,
+    });
     expect(seen).toHaveLength(2);
   });
 
@@ -139,7 +145,13 @@ describe('activityWatch', () => {
     expect(getActivityState().idle).toBe(true);
 
     setVisibility('hidden');
-    expect(getActivityState()).toEqual({ idle: false, idleSince: null });
+    // suspended 是對外契約的一部分：自己推算經過時間的消費端（帷幕）
+    // 靠它停表，否則背景停留會被牆鐘算進去
+    expect(getActivityState()).toEqual({
+      idle: false,
+      idleSince: null,
+      suspended: true,
+    });
 
     // 背景期間再久也不會重新進 idle——tick 已停
     await vi.advanceTimersByTimeAsync(THRESHOLD_SEC * 10 * 1000);
