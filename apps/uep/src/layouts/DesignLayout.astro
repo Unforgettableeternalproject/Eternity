@@ -165,12 +165,34 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
           !welcomePending
         ) {
           var bg = t === 'dark' ? '#14151a' : '#fafaf7';
+          /* 與 .lobby-overlay 同一層光暈（HomePage.css 的 --lobby-glow）。
+             搬過來有兩個作用：
+             1. 視覺連續——原本是「純色 → JS 到了才突然出現光暈與動畫」，
+                現在遮罩一出現就是大廳的靜態首幀，React 接手時無縫。
+             2. FCP：Lighthouse 只認文字或圖片的繪製，**純色背景不算**，
+                所以在 JS 抵達前它眼中的畫面完全是空的——行動版量到的
+                FCP 14.3s 就是這麼來的（TBT 卻是 0ms，瓶頸從來不是執行）。
+                CSS 漸層屬於 background-image，會觸發 FCP。
+             遮罩的遮蔽能力完全不變，儀式該擋的東西一樣擋著。 */
+          var glow =
+            t === 'dark' ? 'rgba(213,182,24,0.22)' : 'rgba(213,182,24,0.1)';
           var s = document.createElement('style');
           s.id = 'lobby-block-style';
+          /* 遮罩的職責只到「大廳動畫接手」為止——lobby overlay 一出現就
+             自己負責遮蔽，所以這裡不必撐滿 4.2s 的儀式全長。
+             保底存在的理由是它唯一的移除者是 HomePage 的 React effect：
+             JS 整個載入失敗的話，畫面會永遠是一片純色，沒有內容也沒有
+             任何錯誤提示。純 CSS 動畫不依賴 JS，只在異常時才會走到。
+             2.5s 遠大於正常的掛載時間；真的走到保底時使用者會先看到內容、
+             稍後才被動畫蓋上，順序略怪但遠勝於長時間白屏。 */
           s.textContent =
-            'body::before{content:"";position:fixed;inset:0;z-index:9999;background:' +
+            'body::before{content:"";position:fixed;inset:0;z-index:9999;' +
+            'background:radial-gradient(ellipse 50% 40% at 50% 50%,' +
+            glow +
+            ',transparent 70%),' +
             bg +
-            ';pointer-events:none}';
+            ';pointer-events:none;animation:uep-lobby-block-failsafe 600ms ease-out 2.5s forwards}' +
+            '@keyframes uep-lobby-block-failsafe{to{opacity:0;visibility:hidden}}';
           document.head.appendChild(s);
         }
       })();
