@@ -138,12 +138,18 @@ export function ReaderNudgeProvider({
   // activityWatch 與帷幕都是全站單例，但生命週期綁在 Reader 上——離開
   // Reader 就沒有消費端了，繼續掛著全域 listener 只是徒增負擔
   useEffect(() => {
+    /* start 會等 settings fetch，這段期間離開 Reader 的話 cleanup 早就跑完，
+       promise 才 resolve——沒有這道 guard 就會在沒有消費端的情況下把帷幕的
+       全域訂閱重新掛上，而且再也沒有人會去解除它 */
+    let cancelled = false;
     void startActivityWatch().then(() => {
+      if (cancelled) return;
       // 帷幕要讀 `reader.idleNudgeMode`，等 settings 就緒才啟動；
       // start 之前讀到的是程式碼預設值
       startIdleVeil();
     });
     return () => {
+      cancelled = true;
       stopIdleVeil();
       stopActivityWatch();
     };
