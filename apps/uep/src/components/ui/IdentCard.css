@@ -5,6 +5,10 @@
 .uep-ident {
   --tear-y: 0px; /* 撕下拖曳的當前拉伸距離（由 JS 更新） */
   --tear-progress: 0; /* 拉伸進度 0~1（由 JS 更新，驅動吊繩顏色漸變） */
+  --ident-open-h: 326px; /* 展開高度基準：資料列為四列時 */
+  /* 每多／少一列的高度增減。實測單列 18.4px + row gap 6px = 24.4px，
+     取 25px 讓各種列數都留一點餘裕（字型渲染會讓實際值浮動）。 */
+  --ident-row-h: 25px;
   position: absolute;
   top: 100%;
   right: 36px; /* 對齊 TopBar 的水平 padding */
@@ -171,10 +175,17 @@
     height 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
+/* 展開高度隨資料列數變動。
+   背面是 `position: absolute; inset: 0`，容器不會被內容撐開——高度給死的話，
+   「喚醒的浮島」與「印記」這兩列出現時就會把底部的撕下提示擠出可視範圍
+   （overflow: hidden 直接切掉，使用者看不到唯一的登出說明）。
+   基準是四列時的高度，每多／少一列加減一個列高。
+   `--ident-rows` 由 IdentCard.tsx 依實際渲染的列數寫入（變數宣告在檔頭）。 */
 .uep-ident.is-open .uep-ident__flip {
   width: 248px;
-  /* 容納 view-row + 撕下提示；印記那一列出現時仍留有餘裕，避免下方被截 */
-  height: 326px;
+  height: calc(
+    var(--ident-open-h) + (var(--ident-rows, 4) - 4) * var(--ident-row-h)
+  );
 }
 
 /* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向。
@@ -433,6 +444,5 @@
 @media (max-width: 560px) {
   .uep-ident.is-open .uep-ident__flip {
     width: 228px;
-    height: 326px;
   }
 }

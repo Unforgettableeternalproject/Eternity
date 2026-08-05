@@ -17,7 +17,7 @@
 import { useReaderAuth } from '../auth';
 import { getProgressManager, useProgress } from '../progress';
 
-import { requestIslandGuide } from './guide/guideRequest';
+import { requestGuide } from './guide/guideRequest';
 import {
   canUseIslands,
   getIslandRuntime,
@@ -149,7 +149,7 @@ export function completeUnlockRitual(
   // guideRequest 的 latch 吸收。不展開島時不請求：教學卡要指著島上的元件，
   // 島沒開就沒有東西可指。
   if (opts.open !== false) {
-    requestIslandGuide(zoneId);
+    requestGuide(zoneId);
   }
   return true;
 }

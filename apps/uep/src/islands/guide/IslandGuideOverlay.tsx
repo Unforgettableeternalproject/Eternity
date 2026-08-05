@@ -25,9 +25,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getIslandRuntime, ISLAND_CHANGE_EVENT } from '../islandRuntime';
 import type { IslandChangeDetail } from '../islandRuntime';
-import type { IslandId } from '../types';
 
-import { islandRoot, type GuideStep } from './guideSteps';
+import { guideRoot, type GuideStep, type GuideTargetId } from './guideSteps';
 import './IslandGuideOverlay.css';
 
 /** 聚光框往外留的呼吸空間 */
@@ -70,7 +69,7 @@ function measureAnchor(step: GuideStep | undefined): Rect | null {
  * 再次出現時自動恢復（不保留舊 rect：舊位置比沒有位置更誤導）。
  */
 function useSpotlightRect(
-  islandId: IslandId,
+  targetId: GuideTargetId,
   step: GuideStep | undefined
 ): { rect: Rect | null; dragging: boolean } {
   const [rect, setRect] = useState<Rect | null>(null);
@@ -83,11 +82,11 @@ function useSpotlightRect(
     // 而 getBoundingClientRect 是同步佈局讀取
     frameRef.current = requestAnimationFrame(() => {
       frameRef.current = null;
-      const root = islandRoot(islandId);
+      const root = guideRoot(targetId);
       setDragging(root?.classList.contains('uep-island--dragging') === true);
       setRect(measureAnchor(step));
     });
-  }, [islandId, step]);
+  }, [targetId, step]);
 
   useEffect(() => {
     remeasure();
@@ -100,7 +99,7 @@ function useSpotlightRect(
     window.addEventListener(ISLAND_CHANGE_EVENT, onIslandChange);
 
     const observers: Array<ResizeObserver | MutationObserver> = [];
-    const root = islandRoot(islandId);
+    const root = guideRoot(targetId);
     if (root && typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(remeasure);
       // 觀察島根與 anchor 兩者：島的外殼尺寸與 anchor 自己的尺寸
@@ -131,25 +130,25 @@ function useSpotlightRect(
       window.removeEventListener(ISLAND_CHANGE_EVENT, onIslandChange);
       observers.forEach((o) => o.disconnect());
     };
-  }, [islandId, step, remeasure]);
+  }, [targetId, step, remeasure]);
 
   return { rect, dragging };
 }
 
 interface IslandGuideOverlayProps {
-  islandId: IslandId;
+  targetId: GuideTargetId;
   steps: GuideStep[];
   onClose: (reason: GuideCloseReason) => void;
 }
 
 export default function IslandGuideOverlay({
-  islandId,
+  targetId,
   steps,
   onClose,
 }: IslandGuideOverlayProps) {
   const [index, setIndex] = useState(0);
   const step = steps[index];
-  const { rect, dragging } = useSpotlightRect(islandId, step);
+  const { rect, dragging } = useSpotlightRect(targetId, step);
   const cardRef = useRef<HTMLDivElement>(null);
   /** 卡片實際高度，量到之前用保守估計值（文案長度不一，寫死會失準） */
   const [cardHeight, setCardHeight] = useState(220);
@@ -158,19 +157,22 @@ export default function IslandGuideOverlay({
 
   const isLast = index >= steps.length - 1;
 
-  // 島被關掉就沒有東西可介紹了——這不算看過
+  // 島被關掉就沒有東西可介紹了——這不算看過。
+  // 識別證不歸 islandRuntime 管（windows 裡沒有它的位置），套這條會因為
+  // 「查不到 → 視為已關閉」而被任何一座島的關閉事件誤收
   useEffect(() => {
+    if (targetId === 'ident') return undefined;
     const onIslandChange = (event: Event) => {
       const detail = (event as CustomEvent<IslandChangeDetail>).detail;
       if (detail?.source !== 'close') return;
-      if (!getIslandRuntime().getState().windows[islandId]?.open) {
+      if (!getIslandRuntime().getState().windows[targetId]?.open) {
         closeRef.current('dismissed');
       }
     };
     window.addEventListener(ISLAND_CHANGE_EVENT, onIslandChange);
     return () =>
       window.removeEventListener(ISLAND_CHANGE_EVENT, onIslandChange);
-  }, [islandId]);
+  }, [targetId]);
 
   // Escape 只停止這次播放，不寫 seen——使用者可能只是想先看眼前的東西
   useEffect(() => {

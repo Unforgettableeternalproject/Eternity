@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 
 import { getProgressManager, useProgress } from '../progress';
 
-import { requestIslandGuide } from './guide/guideRequest';
+import { requestGuide } from './guide/guideRequest';
 import { hasGuide } from './guide/guideSteps';
 import IslandIcon from './IslandIcon';
 import { isIslandDisabled, isIslandUnlocked } from './islandRuntime';
@@ -98,7 +98,7 @@ export default function IslandSettingsPanel({
                     onClick={() => {
                       // 先關掉自己：面板是 modal，留著會蓋住教學
                       onClose();
-                      requestIslandGuide(id);
+                      requestGuide(id);
                     }}
                   >
                     ?
@@ -117,6 +117,28 @@ export default function IslandSettingsPanel({
               </div>
             );
           })}
+
+          {/* 識別證不是浮島（沒有視窗、不能停用），但它的教學同樣只在
+              首次登入演一次——沒有這個入口就再也叫不出來。放在島列表下方
+              而不是混進去：它沒有開關，混進去會讓那一列少一顆按鈕。 */}
+          <div className="uep-island-settings__row uep-island-settings__row--ident">
+            <span className="uep-island-settings__row-icon" aria-hidden>
+              ◈
+            </span>
+            <span className="uep-island-settings__row-name">識別證</span>
+            <button
+              type="button"
+              className="uep-island-settings__guide"
+              aria-label="重看識別證的說明"
+              title="重看說明"
+              onClick={() => {
+                onClose();
+                requestGuide('ident');
+              }}
+            >
+              ?
+            </button>
+          </div>
         </div>
 
         <button

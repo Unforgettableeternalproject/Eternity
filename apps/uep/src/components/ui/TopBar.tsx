@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+import GuideRunner from '../../islands/guide/GuideRunner';
 import IslandHost from '../../islands/IslandHost';
 
 import IdentCard from './IdentCard';
@@ -153,6 +154,10 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
 
       {/* 浮島系統：portal 到 body，逃出 TopBar 的 sticky 堆疊上下文 */}
       <IslandHost />
+
+      {/* 教學播放層：掛在這裡而不是 IslandHost 內——後者在一座島都沒解鎖時
+          整個 return null，而識別證教學的對象正是還沒有任何島的新使用者 */}
+      <GuideRunner />
     </div>
   );
 }

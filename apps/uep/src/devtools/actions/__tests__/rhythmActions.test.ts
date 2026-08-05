@@ -16,7 +16,7 @@ import {
 } from '../../../lib/activityWatch';
 import { clearUepSettingsCache } from '../../../lib/uepSettings';
 import { getProgressManager } from '../../../progress';
-import { subscribeIslandGuide } from '../../../islands/guide/guideRequest';
+import { subscribeGuide } from '../../../islands/guide/guideRequest';
 import { registerRhythmActions } from '../rhythmActions';
 
 const ACTION_IDS = [
@@ -120,7 +120,7 @@ describe('rhythmActions', () => {
     progress.unlockIsland('history');
 
     const played: string[] = [];
-    const off = subscribeIslandGuide((id) => played.push(id));
+    const off = subscribeGuide((id) => played.push(id));
     await getRegistry().dispatch('guide:play:history');
     off();
 

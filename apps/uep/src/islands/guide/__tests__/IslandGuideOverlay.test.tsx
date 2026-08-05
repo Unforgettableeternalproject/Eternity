@@ -73,7 +73,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={onClose}
       />
@@ -98,7 +98,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={vi.fn()}
       />
@@ -119,7 +119,7 @@ describe('IslandGuideOverlay', () => {
 
     const { unmount } = render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={onClose}
       />
@@ -133,7 +133,7 @@ describe('IslandGuideOverlay', () => {
     onClose.mockClear();
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={onClose}
       />
@@ -155,7 +155,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => (visible ? target : null))}
         onClose={vi.fn()}
       />
@@ -184,7 +184,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={vi.fn()}
       />
@@ -201,7 +201,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={vi.fn()}
       />
@@ -232,7 +232,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={onClose}
       />
@@ -265,7 +265,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={vi.fn()}
       />
@@ -285,7 +285,7 @@ describe('IslandGuideOverlay', () => {
 
     render(
       <IslandGuideOverlay
-        islandId="history"
+        targetId="history"
         steps={makeSteps(() => target)}
         onClose={vi.fn()}
       />

@@ -18,6 +18,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
+import { getProgressManager } from '../../progress';
+import { requestGuide } from '../../islands/guide/guideRequest';
+import {
+  IDENT_GUIDE_FLAG,
+  IDENT_OPEN_EVENT,
+} from '../../islands/guide/identGuide';
 import IslandSettingsPanel from '../../islands/IslandSettingsPanel';
 import { useProgress } from '../../progress/useProgress';
 
@@ -62,13 +68,30 @@ export default function IdentCard() {
       /* 延遲一小段時間再播 arrival，等 zone/主頁的入場動畫穩下來 */
       delayTimer = setTimeout(() => {
         setArriving(true);
-        animTimer = setTimeout(() => setArriving(false), ARRIVAL_ANIM_MS);
+        animTimer = setTimeout(() => {
+          setArriving(false);
+          /* 掛上動畫演完才請求教學——與浮島「甦醒動畫演完才請求」對稱，
+             教學蓋在正在播的動畫上等於把剛給的東西立刻搶走。
+             這裡是識別證教學唯一的自動觸發點：WELCOME_DONE 只在登入／註冊
+             儀式後發出，一般換頁不會走到。看過的人由旗標擋下。 */
+          if (!getProgressManager().hasFlag(IDENT_GUIDE_FLAG)) {
+            requestGuide('ident');
+          }
+        }, ARRIVAL_ANIM_MS);
       }, ARRIVAL_POST_WELCOME_DELAY_MS);
     }
 
+    /* 教學要指的東西全在證卡背面，所以播放前由 GuideRunner 要求翻開。
+       已經開著就不必動——重設 state 會讓 React 多跑一次渲染 */
+    function handleGuideOpen() {
+      setOpen((v) => (v ? v : true));
+    }
+
     window.addEventListener(WELCOME_DONE_EVENT, handleWelcomeDone);
+    window.addEventListener(IDENT_OPEN_EVENT, handleGuideOpen);
     return () => {
       window.removeEventListener(WELCOME_DONE_EVENT, handleWelcomeDone);
+      window.removeEventListener(IDENT_OPEN_EVENT, handleGuideOpen);
       if (delayTimer) clearTimeout(delayTimer);
       if (animTimer) clearTimeout(animTimer);
     };
@@ -87,6 +110,15 @@ export default function IdentCard() {
   if (!session) return null;
 
   const isObserver = progress.view === 'observer';
+
+  /* 資料列數決定展開高度（見 IdentCard.css 的 --ident-rows）。
+     視角／篇章／印象三列恆在，浮島與印記兩列有條件——證卡背面是
+     absolute 定位，容器不會被內容撐開，列數變動時高度得跟著走，
+     否則底部的撕下提示會被 overflow: hidden 切掉。 */
+  const rowCount =
+    3 +
+    (progress.islandsUnlocked.length > 0 ? 1 : 0) +
+    (session.observerEver ? 1 : 0);
 
   /* ── 拖曳處理：吊繩隨拉伸拉長 + flip 順勢下移 ── */
 
@@ -230,6 +262,11 @@ export default function IdentCard() {
     <div
       className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}`}
       ref={rootRef}
+      /* ⚠️ 必須是字串。React 對 style 裡的 number 會補上 px，連自訂屬性
+         也不例外——`--ident-rows: 3px` 會讓 CSS 那條 calc 變成 invalid at
+         computed-value time，height 直接掉回 auto（背面是 absolute，
+         結果整張卡塌成 0 高）。專案既有的 `--diff-cols` 也是這樣包 String。 */
+      style={{ '--ident-rows': String(rowCount) } as React.CSSProperties}
     >
       {/* 吊繩：從 TopBar 下緣垂下，撕下拖曳時會被拉長 */}
       <div className="uep-ident__cord" aria-hidden="true" />

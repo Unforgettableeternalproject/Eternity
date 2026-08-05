@@ -1,5 +1,5 @@
 /**
- * 浮島教學的請求通道（S10-4 C 段；2026-08-04 改為唯一觸發源）
+ * 教學的請求通道（S10-4 C 段；2026-08-04 改為唯一觸發源）
  *
  * ## 教學由事件觸發，不再由狀態衍生
  *
@@ -8,19 +8,20 @@
  * hydrate 後五島全 unseen 要防連播（sessionStorage 分頁額度）、額度換人時
  * 要還原、元件 mount 在解鎖事件之後收不到訊號要靠模組層級旗標補延遲。
  *
- * 實際上教學只有兩個該播的時機，而兩者都是**一次性的動作**：
+ * 實際上教學只有這些該播的時機，而它們都是**一次性的動作**：
  *
  * 1. 解鎖儀式收束（`completeUnlockRitual`）——甦醒動畫演完，島剛出現
- * 2. 使用者從浮島偏好面板明確要求回顧
+ * 2. 識別證首次掛上（登入儀式演完，`IdentCard`）
+ * 3. 使用者從偏好面板明確要求回顧
  *
- * 改成兩者都打進這個通道之後，上述那一整排問題連同它們的旗標一起消失。
+ * 改成都打進這個通道之後，上述那一整排問題連同它們的旗標一起消失。
  * 代價是「錯過就是錯過」：Escape 關掉、或解鎖當下條件不成立，就不會再
  * 自動補，得從偏好面板叫。教學不是關鍵路徑，這個取捨划算（艾斯維爾定案）。
  *
  * ## 為什麼要 latch
  *
  * `IslandHost` 在 `activeIds.length === 0` 時整個 `return null`——**第一座島
- * 解鎖之前 `IslandGuideAuto` 根本沒 mount**，訂閱掛不上。而第一座島正是最
+ * 解鎖之前 `GuideRunner` 根本沒 mount**，訂閱掛不上。而第一座島正是最
  * 需要教學的那一次。所以請求在沒有訂閱者時不能就地丟掉，要留著等第一個
  * 訂閱者掛上來領。
  *
@@ -29,17 +30,17 @@
  * 不合格時直接 return。
  */
 
-import type { IslandId } from '../types';
+import type { GuideTargetId } from './guideSteps';
 
-type GuideListener = (id: IslandId) => void;
+type GuideListener = (id: GuideTargetId) => void;
 
 const listeners = new Set<GuideListener>();
 
 /** 還沒有人領走的請求（見檔頭「為什麼要 latch」） */
-let pending: IslandId | null = null;
+let pending: GuideTargetId | null = null;
 
-/** 請求播放某座島的教學。播放端不存在時請求會等到它出現為止 */
-export function requestIslandGuide(id: IslandId): void {
+/** 請求播放某個對象的教學。播放端不存在時請求會等到它出現為止 */
+export function requestGuide(id: GuideTargetId): void {
   if (listeners.size === 0) {
     pending = id;
     return;
@@ -47,7 +48,7 @@ export function requestIslandGuide(id: IslandId): void {
   listeners.forEach((fn) => fn(id));
 }
 
-export function subscribeIslandGuide(fn: GuideListener): () => void {
+export function subscribeGuide(fn: GuideListener): () => void {
   listeners.add(fn);
   if (pending !== null) {
     const id = pending;

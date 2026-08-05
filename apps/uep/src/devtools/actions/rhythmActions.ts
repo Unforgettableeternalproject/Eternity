@@ -14,7 +14,9 @@ import { forceIdleNow, getActivityDebug } from '../../lib/activityWatch';
 import { forceVeilStage, getVeilDebug } from '../../lib/idleVeil';
 import { clearUepSettingsCache } from '../../lib/uepSettings';
 import { getProgressManager } from '../../progress';
-import { requestIslandGuide } from '../../islands/guide/guideRequest';
+import { getReaderAuth } from '../../auth';
+import { requestGuide } from '../../islands/guide/guideRequest';
+import { IDENT_GUIDE_FLAG } from '../../islands/guide/identGuide';
 import { shouldMountIsland } from '../../islands/islandRuntime';
 import { getRegistry } from '../actionRegistry';
 import { GROUPS } from '../groups';
@@ -23,14 +25,15 @@ import { GROUPS } from '../groups';
 const GROUP_RHYTHM = GROUPS.READER;
 const GROUP_GUIDE = GROUPS.GUIDE;
 
-const ISLAND_IDS = [
+const GUIDE_TARGETS = [
+  'ident',
   'history',
   'concepts',
   'echoes',
   'visuals',
   'storage',
 ] as const;
-type IslandId = (typeof ISLAND_IDS)[number];
+type GuideTarget = (typeof GUIDE_TARGETS)[number];
 
 const hasRestBridge = (): boolean =>
   typeof window !== 'undefined' && !!window.__uepRestReminderTest;
@@ -177,25 +180,38 @@ export function registerRhythmActions(): void {
     },
   ]);
 
-  // ── 浮島教學 ──
+  // ── 教學 ──
 
-  // 2026-08-04：教學改為事件驅動（解鎖儀式收束 + 偏好面板回顧兩個入口），
+  // 2026-08-04：教學改為事件驅動（解鎖儀式收束／識別證掛上／偏好面板回顧），
   // 「已看過」紀錄與每分頁上限一併移除，所以這裡不再有對應的清除 action。
-  registry.register(
-    ISLAND_IDS.map((id: IslandId) => ({
+  registry.register([
+    ...GUIDE_TARGETS.map((id: GuideTarget) => ({
       group: GROUP_GUIDE,
       id: `guide:play:${id}`,
-      label: `播放 ${id} 島的教學`,
-      description: '與偏好面板的回顧同一條路徑。島必須已解鎖且未停用',
-      // 守門條件與 IslandGuideAuto 完全一致——不合格時那邊會直接 return，
+      label: id === 'ident' ? '播放識別證的教學' : `播放 ${id} 島的教學`,
+      description:
+        id === 'ident'
+          ? '與偏好面板的回顧同一條路徑。需已登入，教學會自己把證卡翻開'
+          : '與偏好面板的回顧同一條路徑。島必須已解鎖且未停用',
+      // 守門條件與 GuideRunner 完全一致——不合格時那邊會直接 return，
       // 按鈕按下去毫無反應。灰掉才看得出原因
-      available: () => {
-        const state = getProgressManager().getState();
-        return shouldMountIsland(state, id);
-      },
+      available: () =>
+        id === 'ident'
+          ? getReaderAuth().isLoggedIn()
+          : shouldMountIsland(getProgressManager().getState(), id),
       execute: () => {
-        requestIslandGuide(id);
+        requestGuide(id);
       },
-    }))
-  );
+    })),
+    {
+      group: GROUP_GUIDE,
+      id: 'guide:reset-ident-flag',
+      label: '清除識別證教學的「已看過」',
+      description: `撤銷 ${IDENT_GUIDE_FLAG} 旗標。下次登入儀式後會再演一次`,
+      execute: () => {
+        getProgressManager().revokeFlags([IDENT_GUIDE_FLAG]);
+        log('已撤銷；下次登入時會重演');
+      },
+    },
+  ]);
 }

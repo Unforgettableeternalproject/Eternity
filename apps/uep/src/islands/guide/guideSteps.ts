@@ -1,5 +1,5 @@
 /**
- * 浮島教學的步驟骨架與文案（S10-4 C 段）
+ * 教學的步驟骨架與文案（S10-4 C 段；2026-08-05 加入識別證）
  *
  * 同一個檔案但概念上分兩層：**哪幾步、指向哪個元素**屬於程式結構（那是
  * DOM 事實，島改版就要跟著改）；**說什麼**是文案。改文案不該需要碰
@@ -11,6 +11,15 @@
 
 import type { IslandId } from '../types';
 
+/**
+ * 教學對象。五座島 + 識別證。
+ *
+ * 識別證不是島（沒有視窗、不能拖曳、不歸 islandRuntime 管），但教學的形狀
+ * 完全一樣：指著畫面上的元素講幾句話。與其複製一套 overlay，不如把「對象」
+ * 這個概念從島放寬到「畫面上有根節點的東西」。
+ */
+export type GuideTargetId = IslandId | 'ident';
+
 export interface GuideStep {
   /**
    * 指向的元素。**是函式不是 selector 字串**——島可拖曳、內容會隨資料
@@ -21,15 +30,16 @@ export interface GuideStep {
   body: string;
 }
 
-/** 島的根節點。IslandHost 給每座島掛了 `uep-island--{id}` */
-export function islandRoot(id: IslandId): Element | null {
+/** 教學對象的根節點。島是 IslandHost 掛的 `uep-island--{id}`，識別證是它自己 */
+export function guideRoot(id: GuideTargetId): Element | null {
   if (typeof document === 'undefined') return null;
-  return document.querySelector(`.uep-island--${id}`);
+  const selector = id === 'ident' ? '.uep-ident' : `.uep-island--${id}`;
+  return document.querySelector(selector);
 }
 
-/** 島內元素。查不到回 null，該步自然降級成置中卡 */
-function within(id: IslandId, selector: string): () => Element | null {
-  return () => islandRoot(id)?.querySelector(selector) ?? null;
+/** 對象內的元素。查不到回 null，該步自然降級成置中卡 */
+function within(id: GuideTargetId, selector: string): () => Element | null {
+  return () => guideRoot(id)?.querySelector(selector) ?? null;
 }
 
 const HISTORY_STEPS: GuideStep[] = [
@@ -44,7 +54,7 @@ const HISTORY_STEPS: GuideStep[] = [
     body: '已經走過的篇章會在這裡展開，數字是那一卷讀完的頁數。還沒開啟的部分不會出現。',
   },
   {
-    anchor: () => islandRoot('history'),
+    anchor: () => guideRoot('history'),
     title: '它可以移動',
     body: '拖曳上緣就能把書挪到順手的地方，位置會記住。右上角收起來後，它會回到畫面邊緣的停靠列。',
   },
@@ -60,7 +70,7 @@ const HISTORY_STEPS: GuideStep[] = [
  * 指向的元素若因狀態而不存在（沒在播放的回聲、還沒投影的幻影），該步會
  * 自動降級成置中卡，文案仍然成立——這是可接受的降級，不是故障。
  */
-const GUIDE_STEPS: Partial<Record<IslandId, GuideStep[]>> = {
+const GUIDE_STEPS: Partial<Record<GuideTargetId, GuideStep[]>> = {
   history: HISTORY_STEPS,
 
   concepts: [
@@ -102,6 +112,37 @@ const GUIDE_STEPS: Partial<Record<IslandId, GuideStep[]>> = {
     },
   ],
 
+  /* 識別證：登入後第一次掛上來時演一次。
+     教學播放前會自己把證卡翻開（見 GuideRunner），所以第一步指的是
+     已經翻到背面的證卡本身，不是吊牌。 */
+  ident: [
+    {
+      anchor: within('ident', '.uep-ident__flip'),
+      title: '這是你的識別證',
+      body: '它會一直掛在畫面右上。再點一下就翻回吊牌，收在角落不擋路。',
+    },
+    {
+      anchor: within('ident', '.uep-ident__rows'),
+      title: '這些數字',
+      body: '走過的篇章是你讀完的段落數，留下的印象是沿途觸發的事件，喚醒的浮島則是已經醒來的幾座。它們只增不減。',
+    },
+    {
+      anchor: within('ident', '.uep-ident__gear'),
+      title: '偏好設定',
+      body: '浮島的開關收在這裡。看過的教學也能從這裡再看一次。',
+    },
+    {
+      anchor: within('ident', '.uep-ident__view-row'),
+      title: '觀看世界的方式',
+      body: '探索者會留下足跡，也才能喚醒浮島；觀測者只是路過，什麼都不會被記下。隨時可以換，但換成觀測者的事實會留下印記。',
+    },
+    {
+      anchor: within('ident', '.uep-ident__tear-hint'),
+      title: '撕下就是離開',
+      body: '先把證卡收回吊牌，再往下拉——扯過閾值就會問你要不要闔上記錄。那是登出唯一的方式。',
+    },
+  ],
+
   storage: [
     {
       anchor: within('storage', '.uep-stoland__form'),
@@ -116,11 +157,11 @@ const GUIDE_STEPS: Partial<Record<IslandId, GuideStep[]>> = {
   ],
 };
 
-/** 沒有教學的島回空陣列——呼叫端據此跳過，不必個別判斷 */
-export function getGuideSteps(id: IslandId): GuideStep[] {
+/** 沒有教學的對象回空陣列——呼叫端據此跳過，不必個別判斷 */
+export function getGuideSteps(id: GuideTargetId): GuideStep[] {
   return GUIDE_STEPS[id] ?? [];
 }
 
-export function hasGuide(id: IslandId): boolean {
+export function hasGuide(id: GuideTargetId): boolean {
   return getGuideSteps(id).length > 0;
 }

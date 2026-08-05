@@ -42,7 +42,7 @@ vi.mock('../../progress', async (importOriginal) => ({
 
 import {
   _resetGuideRequestForTest,
-  subscribeIslandGuide,
+  subscribeGuide,
 } from '../guide/guideRequest';
 import { completeUnlockRitual, useUnlockEligibility } from '../unlockRitual';
 
@@ -201,14 +201,14 @@ describe('completeUnlockRitual', () => {
 
     it('收束後請求播放該島的教學', () => {
       const played: string[] = [];
-      subscribeIslandGuide((id) => played.push(id));
+      subscribeGuide((id) => played.push(id));
       completeUnlockRitual('concepts');
       expect(played).toEqual(['concepts']);
     });
 
     it('不展開島時不請求——教學卡要指著島上的元件', () => {
       const played: string[] = [];
-      subscribeIslandGuide((id) => played.push(id));
+      subscribeGuide((id) => played.push(id));
       completeUnlockRitual('storage', { open: false });
       expect(played).toEqual([]);
     });
@@ -216,7 +216,7 @@ describe('completeUnlockRitual', () => {
     it('資格已失效而拒絕解鎖時不請求', () => {
       authMock.loggedIn = false;
       const played: string[] = [];
-      subscribeIslandGuide((id) => played.push(id));
+      subscribeGuide((id) => played.push(id));
       completeUnlockRitual('concepts');
       expect(played).toEqual([]);
     });

@@ -504,6 +504,13 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   opacity: 0.45;
 }
 
+/* 識別證不是浮島，用一條分隔線與島列表分開 */
+.uep-island-settings__row--ident {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--hairline);
+}
+
 .uep-island-settings__row-icon {
   display: grid;
   place-items: center;
