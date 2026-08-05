@@ -60,6 +60,13 @@ vi.mock('../../../islands/IslandSettingsPanel', () => ({
   default: () => null,
 }));
 
+/* 視窗寬度替身。順帶隔開 islandRuntime 的模組載入副作用——它在載入
+   當下就會讀 readerAuth，本檔的 auth 替身沒有那些方法 */
+const viewport = { desktop: true };
+vi.mock('../../../islands/useIslands', () => ({
+  useDesktopIslandViewport: () => viewport.desktop,
+}));
+
 function backInner(container: HTMLElement): HTMLElement | null {
   return container.querySelector('.uep-ident__back-inner');
 }
@@ -69,6 +76,7 @@ describe('IdentCard', () => {
     session.observerEver = false;
     progress.islandsUnlocked = [];
     flags.has = false;
+    viewport.desktop = true;
     requestGuide.mockClear();
   });
 
@@ -89,6 +97,34 @@ describe('IdentCard', () => {
     expect(inner.querySelector('.uep-ident__alias')).toBeTruthy();
     expect(inner.querySelectorAll('.uep-ident__row')).toHaveLength(5);
     expect(inner.querySelector('.uep-ident__tear-hint')).toBeTruthy();
+  });
+
+  /* 手機沒有浮島，所以齒輪開的偏好面板必然是空的；而撕下手勢在手機上
+     與瀏覽器下拉重整衝突，登出改走明確按鈕 */
+  describe('手機分支', () => {
+    it('桌面：有齒輪、有撕下提示、沒有登出按鈕', () => {
+      const { container } = render(<IdentCard />);
+      expect(container.querySelector('.uep-ident__gear')).toBeTruthy();
+      expect(container.querySelector('.uep-ident__tear-hint')).toBeTruthy();
+      expect(container.querySelector('.uep-ident__logout')).toBeNull();
+    });
+
+    it('手機：齒輪與撕下提示都消失，換成登出按鈕', () => {
+      viewport.desktop = false;
+      const { container } = render(<IdentCard />);
+      expect(container.querySelector('.uep-ident__gear')).toBeNull();
+      expect(container.querySelector('.uep-ident__tear-hint')).toBeNull();
+      expect(container.querySelector('.uep-ident__logout')).toBeTruthy();
+    });
+
+    it('手機的登出按鈕在可量測的內容層之內', () => {
+      viewport.desktop = false;
+      const { container } = render(<IdentCard />);
+      // 與撕下提示同一個位置——它是展開高度的最後一個元素，最容易被切掉
+      expect(
+        backInner(container)!.querySelector('.uep-ident__logout')
+      ).toBeTruthy();
+    });
   });
 
   describe('教學觸發', () => {

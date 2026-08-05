@@ -434,6 +434,31 @@
   line-height: 1.3;
 }
 
+/* 手機版登出按鈕：取代撕下手勢提示（手勢與下拉重整衝突）。
+   位置與 tear-hint 相同，沿用同一條分隔線與間距；但它是可按的實體
+   按鈕，字要看得清楚，且要有足夠的觸控面積。 */
+.uep-ident__logout {
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 10px 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 2px;
+  background: var(--bg-soft);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  /* iOS 點擊時的預設灰色高光會蓋掉卡片質感 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.uep-ident__logout:active {
+  background: color-mix(in srgb, var(--uep-gold) 12%, var(--bg-soft));
+  border-color: var(--uep-gold);
+}
+
 .uep-ident__tear-hint-glyph {
   color: var(--uep-gold);
   font-size: 10px;

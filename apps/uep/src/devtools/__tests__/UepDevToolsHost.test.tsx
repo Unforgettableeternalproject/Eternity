@@ -16,7 +16,7 @@ vi.mock('../../lib/apiBase', () => ({
 vi.mock('../actions', () => ({ registerAllActions: () => {} }));
 
 let desktop = true;
-vi.mock('../../islands', () => ({
+vi.mock('../../islands/useIslands', () => ({
   useDesktopIslandViewport: () => desktop,
 }));
 

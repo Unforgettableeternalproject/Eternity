@@ -25,7 +25,7 @@ import { createPortal } from 'react-dom';
 
 import { uepDialog } from '../components/ui/UepDialog';
 
-import { useDesktopIslandViewport } from '../islands';
+import { useDesktopIslandViewport } from '../islands/useIslands';
 
 import { isTestMode } from '../lib/apiBase';
 import { setDispelPaused } from '../lib/idleVeil';

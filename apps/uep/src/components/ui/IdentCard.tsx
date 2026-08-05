@@ -26,6 +26,10 @@ import {
   IDENT_OPEN_EVENT,
 } from '../../islands/guide/identGuide';
 import IslandSettingsPanel from '../../islands/IslandSettingsPanel';
+/* 走子路徑而非 islands barrel：barrel 會一併拉進 islandRuntime 的模組
+   載入副作用（它在載入當下就讀 readerAuth），本檔其餘 islands 相依
+   也都是子路徑，維持一致 */
+import { useDesktopIslandViewport } from '../../islands/useIslands';
 import { useProgress } from '../../progress/useProgress';
 
 import { WELCOME_DONE_EVENT, WELCOME_PENDING_KEY } from './GlobalWelcomeHost';
@@ -54,6 +58,10 @@ const TEAR_MAX_PX = 140;
 export default function IdentCard() {
   const session = useReaderAuth();
   const progress = useProgress();
+  /* 手機沒有浮島（浮島根守門同一個斷點），於是齒輪開的偏好面板必然是
+     空的；而撕下手勢在手機上與瀏覽器的下拉重整直接衝突——識別證掛在
+     頂端，往下拉正是觸發重整的區域。兩者都改走手機分支。 */
+  const desktopViewport = useDesktopIslandViewport();
   const [open, setOpen] = useState(false);
   /** 浮島偏好設定視窗（右上齒輪開啟） */
   const [showSettings, setShowSettings] = useState(false);
@@ -202,6 +210,9 @@ export default function IdentCard() {
   function handlePointerDown(e: React.PointerEvent) {
     /* 主鍵才響應；觸控/滑鼠皆走 pointer events */
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    /* 手機不用撕下手勢：往下拉會先被瀏覽器判定成下拉重整。
+       登出改由證卡內的按鈕提供 */
+    if (!desktopViewport) return;
     /* 展開狀態下讓內部互動優先——只在吊牌狀態允許拖曳撕下
        （避免拖到 view row / gear 時觸發撕下） */
     if (open) return;
@@ -236,6 +247,52 @@ export default function IdentCard() {
     }
   }
 
+  /**
+   * 登出本體：確認 → 撕開動畫 → 登出 → 種儀式 flag → 回主頁。
+   *
+   * 撕下手勢與手機版登出按鈕共用這一條，不各寫一份——兩者只有「怎麼
+   * 發起」不同，之後的每一步都必須一致。撕開動畫也在共用範圍內：
+   * 那是登出的視覺語彙，不是手勢的裝飾（`is-torn` 動的是整個 flip
+   * 容器，證卡展開著也成立）。
+   *
+   * @returns 是否真的登出了。false = 使用者取消或 dialog 尚未就緒，
+   *          呼叫端自行決定要不要回彈。
+   */
+  async function performLogout(): Promise<boolean> {
+    const mgr = window.__uepDialogManager;
+    /* dialog 尚未 mount：保守起見不當作已登出 */
+    if (!mgr) return false;
+
+    const ok = await mgr.confirm(
+      '要把識別證從吊繩上撕下嗎？闔上這份記錄後，你的足跡會留在此地，但不會跟你走。',
+      {
+        title: '闔上記錄',
+        confirmText: '撕下（登出）',
+        cancelText: '掛回去',
+      }
+    );
+    if (!ok) return false;
+
+    /* 撕開動畫（cord 斷裂 + 卡片墜落），完成後真正登出 */
+    rootRef.current?.classList.add('is-torn');
+    const alias = session?.alias ?? '';
+    await new Promise((r) => setTimeout(r, 550));
+    await getReaderAuth().logout();
+    /* 登出儀式（S7 驗收 #14）：鏡射登入的 pending 模式——
+       種 flag + 導向主頁，GlobalWelcomeHost 在主頁播放登出變體
+       （WelcomeCeremony kind='logout'），取代原本的 toast 提示 */
+    try {
+      sessionStorage.setItem(
+        WELCOME_PENDING_KEY,
+        JSON.stringify({ kind: 'logout', alias })
+      );
+    } catch {
+      /* sessionStorage 不可用時就沒儀式，不影響登出 */
+    }
+    window.location.assign('/');
+    return true;
+  }
+
   async function handlePointerUp(e: React.PointerEvent) {
     const drag = dragRef.current;
     dragRef.current = null;
@@ -258,40 +315,10 @@ export default function IdentCard() {
       resetTear(true);
       return;
     }
-    /* 拉夠了——固定在拉伸位置詢問是否闔上記錄 */
-    const mgr = window.__uepDialogManager;
-    if (!mgr) {
-      /* dialog 尚未 mount：保守起見不當作已登出，先回彈 */
-      resetTear(true);
-      return;
-    }
-    const ok = await mgr.confirm(
-      '要把識別證從吊繩上撕下嗎？闔上這份記錄後，你的足跡會留在此地，但不會跟你走。',
-      {
-        title: '闔上記錄',
-        confirmText: '撕下（登出）',
-        cancelText: '掛回去',
-      }
-    );
-    if (ok) {
-      /* 撕開動畫（cord 斷裂 + 卡片墜落），完成後真正登出 */
-      rootRef.current?.classList.add('is-torn');
-      const alias = session?.alias ?? '';
-      await new Promise((r) => setTimeout(r, 550));
-      await getReaderAuth().logout();
-      /* 登出儀式（S7 驗收 #14）：鏡射登入的 pending 模式——
-         種 flag + 導向主頁，GlobalWelcomeHost 在主頁播放登出變體
-         （WelcomeCeremony kind='logout'），取代原本的 toast 提示 */
-      try {
-        sessionStorage.setItem(
-          WELCOME_PENDING_KEY,
-          JSON.stringify({ kind: 'logout', alias })
-        );
-      } catch {
-        /* sessionStorage 不可用時就沒儀式，不影響登出 */
-      }
-      window.location.assign('/');
-    } else {
+    /* 拉夠了——固定在拉伸位置詢問是否闔上記錄。
+       dialog 未就緒與使用者取消都回 false，兩者都該回彈 */
+    const ok = await performLogout();
+    if (!ok) {
       /* 掛回去：回彈 */
       resetTear(true);
     }
@@ -356,19 +383,23 @@ export default function IdentCard() {
             <div className="uep-ident__punch" aria-hidden="true" />
 
             {/* 右上角設定按鈕：開啟浮島偏好設定視窗。
-                stopPropagation 避免點下去把證卡翻回吊牌 */}
-            <button
-              type="button"
-              className="uep-ident__gear"
-              aria-label="偏好設定"
-              title="偏好設定"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowSettings(true);
-              }}
-            >
-              ⚙
-            </button>
+                stopPropagation 避免點下去把證卡翻回吊牌。
+                手機不顯示——面板內容（浮島開關、教學回顧）全部以浮島
+                存在為前提，而浮島在手機根本不掛，點開必然是空的 */}
+            {desktopViewport && (
+              <button
+                type="button"
+                className="uep-ident__gear"
+                aria-label="偏好設定"
+                title="偏好設定"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSettings(true);
+                }}
+              >
+                ⚙
+              </button>
+            )}
 
             {/* 內容層：量它決定卡片高度（punch 與 gear 是絕對定位，
                 不進流也就不影響高度，所以留在外面） */}
@@ -429,15 +460,33 @@ export default function IdentCard() {
                 <ViewSwitch />
               </div>
 
-              {/* 撕下登出是純手勢互動，沒有任何按鈕可循——證卡底部明說一次。
-                撕下只在吊牌狀態允許（避免拖到 ViewSwitch 誤觸），
-                所以文案要先講「收起」。 */}
-              <p className="uep-ident__tear-hint">
-                <span className="uep-ident__tear-hint-glyph" aria-hidden="true">
-                  ↓
-                </span>
-                收起後往下拉，可撕下識別證（登出）
-              </p>
+              {/* 桌面：撕下登出是純手勢互動，沒有任何按鈕可循——證卡底部
+                明說一次。撕下只在吊牌狀態允許（避免拖到 ViewSwitch 誤觸），
+                所以文案要先講「收起」。
+                手機：手勢與下拉重整衝突，改給明確按鈕；走的是同一條
+                performLogout（確認 → 撕開動畫 → 登出 → 儀式 → 回主頁）。 */}
+              {desktopViewport ? (
+                <p className="uep-ident__tear-hint">
+                  <span
+                    className="uep-ident__tear-hint-glyph"
+                    aria-hidden="true"
+                  >
+                    ↓
+                  </span>
+                  收起後往下拉，可撕下識別證（登出）
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="uep-ident__logout"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void performLogout();
+                  }}
+                >
+                  撕下識別證（登出）
+                </button>
+              )}
             </div>
           </div>
         </div>
