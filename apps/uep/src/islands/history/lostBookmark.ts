@@ -133,10 +133,15 @@ export function settleLostBookmark(): void {
  * 這條路徑曾經是在 Reader 內手寫展開的 `unlockIsland + open + toast`，
  * 兩件事都漏掉，症狀是旅程之書正式解鎖後不會播教學。搬進模組是為了
  * 讓它跟其他四個 zone 一樣只有一個收束出口，也才測得到。
+ *
+ * ⚠️ **順序是契約：解鎖成功才收掉條目。** 反過來寫的話，資格在那 1.4 秒
+ * 動畫期間失效（登出／切觀測者／縮成手機寬度）會讓解鎖被取消，而書籤
+ * 已經消失——使用者白白消耗掉一次得來不易的機率，還得重新累積才能再遇到。
  */
 export function openLostBookmark(): boolean {
-  settleLostBookmark();
-  return completeUnlockRitual('history');
+  const unlocked = completeUnlockRitual('history');
+  if (unlocked) settleLostBookmark();
+  return unlocked;
 }
 
 /* ── 測試 hook（S6-3，dev only）──

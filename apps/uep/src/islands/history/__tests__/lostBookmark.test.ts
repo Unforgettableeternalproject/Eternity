@@ -327,6 +327,17 @@ describe('mountLostBookmarkTestBridge（S6-3 dev hook）', () => {
       expect(lb.openLostBookmark()).toBe(false);
       expect(store.getState().islandsUnlocked).not.toContain('history');
     });
+
+    /* 書籤是累積機率換來的，取消解鎖不該連它一起花掉——不然使用者要
+       從頭累積才能再遇到一次 */
+    it('解鎖被取消時不消耗書籤條目', async () => {
+      const { store, lb } = await ready();
+      store.updateLostBookmark({ visible: true });
+      store.setView('observer');
+
+      lb.openLostBookmark();
+      expect(store.getState().lostBookmark.visible).toBe(true);
+    });
   });
 
   it('openGate 廣播儀式頁開啟事件', async () => {
