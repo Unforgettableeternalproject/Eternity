@@ -44,6 +44,18 @@ const MOBILE_UP_GATE_MIN = -0.08;
 const MOBILE_UP_GATE_MAX = 0.42;
 /** wheel delta 累積到此值時觸發全黑 → 播放動畫 */
 const FADE_THRESHOLD = 600;
+/**
+ * 手機淡出走完多少比例才允許轉場。
+ *
+ * 桌面靠 wheel delta 累積表達「我真的要離開這一區」；手機沒有 wheel，
+ * 原本是一進 gate band 就轉場——使用者的閱讀線還在螢幕中央、當前區塊
+ * 底部的文字根本還沒讀到，就已經被帶走了。
+ *
+ * 改成 band 的前段是淡出區、走到尾段才轉場：淡出既是緩衝也是預告，
+ * 而且因為進度是捲動位置的純函數，往回滑會自己退回去。
+ * 不設 1.0 是留一點餘裕——最後幾 px 要求精準命中只會讓人覺得卡住。
+ */
+export const MOBILE_FADE_TRIGGER_PROGRESS = 0.92;
 const ATLAS_SCENE_INDEX = -3;
 
 /** 大廳動畫 — 墜落速度線 */
@@ -120,6 +132,22 @@ function isWithinViewportBand(
   maxRatio: number
 ) {
   return value >= vh * minRatio && value <= vh * maxRatio;
+}
+
+/**
+ * 手機切區塊的淡出進度：目標區塊頂緣穿越 gate band 的比例（0 → 1）。
+ *
+ * 純粹是捲動位置的函數——沒有累積量、沒有方向鎖，所以手指往回滑
+ * 進度就自己退回去，不必像桌面那套 wheel fade 一樣維護 direction／
+ * target ref。慣性滑動一口氣衝過整個 band 時進度直接到 1，
+ * 該轉場就轉場，不會卡住。
+ */
+export function mobileFadeProgress(topPx: number, vh: number): number {
+  const start = MOBILE_DOWN_GATE_MAX * vh;
+  const end = MOBILE_DOWN_GATE_MIN * vh;
+  if (topPx >= start) return 0;
+  if (topPx <= end) return 1;
+  return (start - topPx) / (start - end);
 }
 
 function isSettledAtElement(
@@ -681,6 +709,11 @@ export default function HomePage({
       const scrollTop = container.scrollTop;
       const direction = scrollTop >= lastScrollTopRef.current ? 'down' : 'up';
       lastScrollTopRef.current = scrollTop;
+      /* 手機淡出只由 down 分支推進，往上滑不會再經過它——沒有這道歸零，
+         使用者在淡出中途改變主意往回滑，畫面就永遠停在半黑 */
+      if (isMobile && direction === 'up') {
+        fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+      }
       const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
       const trans = container.querySelector<HTMLElement>('#journey-start');
       const atlas = container.querySelector<HTMLElement>('#atlas');
@@ -734,32 +767,40 @@ export default function HomePage({
         }
 
         if (isMobile) {
-          if (current === -1) {
-            const firstScene = scenes[0];
-            if (
-              firstScene &&
+          /* 目標區塊頂緣穿越 band 的過程就是淡出過程，走到尾段才轉場。
+             進度寫進與桌面 wheel fade 同一個 overlay 變數，所以
+             startZoneTransition 裡那句「手機預暗化設成 1」變成無縫銜接，
+             不再是啪一下全黑。
+             回傳「該不該轉場」，順帶把進度落地——三條路徑共用。 */
+          const advanceFade = (targetTop: number): boolean => {
+            const progress = mobileFadeProgress(targetTop, vh);
+            fadeOverlayRef.current?.style.setProperty(
+              '--fade-progress',
+              progress.toFixed(3)
+            );
+            /* 仍要求落在 band 內：進度到 1 也可能是早就捲過頭了，
+               那種情況由下面的 overshoot 同步邏輯處理，不該補放轉場 */
+            return (
+              progress >= MOBILE_FADE_TRIGGER_PROGRESS &&
               isWithinViewportBand(
-                firstScene.offsetTop - scrollTop,
+                targetTop,
                 vh,
                 MOBILE_DOWN_GATE_MIN,
                 MOBILE_DOWN_GATE_MAX
               )
-            ) {
+            );
+          };
+
+          if (current === -1) {
+            const firstScene = scenes[0];
+            if (firstScene && advanceFade(firstScene.offsetTop - scrollTop)) {
               startZoneTransition(0, mergedZonesRef.current[0], 'down');
               return;
             }
           } else if (current >= 0 && current < ZONES.length - 1) {
             const nextIndex = current + 1;
             const nextScene = scenes[nextIndex];
-            if (
-              nextScene &&
-              isWithinViewportBand(
-                nextScene.offsetTop - scrollTop,
-                vh,
-                MOBILE_DOWN_GATE_MIN,
-                MOBILE_DOWN_GATE_MAX
-              )
-            ) {
+            if (nextScene && advanceFade(nextScene.offsetTop - scrollTop)) {
               startZoneTransition(
                 nextIndex,
                 mergedZonesRef.current[nextIndex],
@@ -770,15 +811,7 @@ export default function HomePage({
           } else if (current === ZONES.length - 1) {
             const verseEl =
               container.querySelector<HTMLElement>('#verse-section');
-            if (
-              verseEl &&
-              isWithinViewportBand(
-                verseEl.offsetTop - scrollTop,
-                vh,
-                MOBILE_DOWN_GATE_MIN,
-                MOBILE_DOWN_GATE_MAX
-              )
-            ) {
+            if (verseEl && advanceFade(verseEl.offsetTop - scrollTop)) {
               startSectionTransition(verseEl, 5, 'plain', 'down');
               return;
             }
