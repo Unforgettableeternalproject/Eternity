@@ -91,23 +91,23 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
     <!-- Fonts：非阻塞載入，避免 render-blocking 300ms 延遲
 
-         ⚠️ Noto Serif TC 只載 400。CJK 字型的每個字重都是一整套 unicode-range
-         分片，首頁實測會抓十幾個分片共約 1.5MB——兩個字重就是雙倍。它雖然
-         不阻斷渲染（下面已是非阻塞載入），但在慢速 4G 上會排擠 LCP 圖片的
-         頻寬，是行動版 LCP 十幾秒的主因。
-         砍掉 600 之後 `font-weight: 600` 由瀏覽器合成偽粗體，中文標題視覺上
-         仍是粗的、筆畫較機械。要還原只需在三處 URL 補回 `;600`。 -->
+         ⚠️ Noto Serif TC 的 400 與 600 兩個字重都要留著。
+         CJK 每個字重都是一整套 unicode-range 分片，首頁實測會抓十幾個分片
+         共約 1.5MB，砍掉 600 確實能省一半——**但視覺代價不可接受**：
+         缺字重時瀏覽器會合成偽粗體，那是把字面機械式加粗，比真正的 600
+         更笨重，滿頁看起來「處處都在強調」（2026-08-06 實測後撤回）。
+         字型體積要省，得走自架子集化那條路，不能靠砍字重。 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- 先 preload 字體 CSS，讓瀏覽器提早發現 -->
     <link
       rel="preload"
       as="style"
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
     />
     <!-- 以 print media 非同步載入，onload 切換為 all 完成套用 -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
       rel="stylesheet"
       media="print"
       onload="this.media='all'"
@@ -115,7 +115,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- 停用 JavaScript 時的退路 -->
     <noscript>
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
         rel="stylesheet"
       />
     </noscript>
