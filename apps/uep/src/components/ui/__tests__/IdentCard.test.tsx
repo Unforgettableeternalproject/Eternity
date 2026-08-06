@@ -67,8 +67,11 @@ vi.mock('../../../islands/useIslands', () => ({
   useDesktopIslandViewport: () => viewport.desktop,
 }));
 
-function backInner(container: HTMLElement): HTMLElement | null {
-  return container.querySelector('.uep-ident__back-inner');
+/* 一律查 baseElement（＝document.body）而不是 render 回傳的 container：
+   識別證 portal 到 body 才能逃出 TopBar 的堆疊上下文，DOM 上並不在
+   container 裡面。 */
+function backInner(root: HTMLElement): HTMLElement | null {
+  return root.querySelector('.uep-ident__back-inner');
 }
 
 describe('IdentCard', () => {
@@ -81,8 +84,8 @@ describe('IdentCard', () => {
   });
 
   it('背面內容包在可量測的內容層裡', () => {
-    const { container } = render(<IdentCard />);
-    const inner = backInner(container);
+    const { baseElement } = render(<IdentCard />);
+    const inner = backInner(baseElement);
     expect(inner).toBeTruthy();
     expect(inner!.parentElement!.className).toContain('uep-ident__face--back');
   });
@@ -90,8 +93,8 @@ describe('IdentCard', () => {
   it('會變動的區塊都在內容層之內——量它才算得出正確高度', () => {
     session.observerEver = true;
     progress.islandsUnlocked = ['history'];
-    const { container } = render(<IdentCard />);
-    const inner = backInner(container)!;
+    const { baseElement } = render(<IdentCard />);
+    const inner = backInner(baseElement)!;
 
     // 代稱（窄視窗會折行）、資料列（兩列是條件渲染）、撕下提示（最容易被切掉）
     expect(inner.querySelector('.uep-ident__alias')).toBeTruthy();
@@ -99,30 +102,76 @@ describe('IdentCard', () => {
     expect(inner.querySelector('.uep-ident__tear-hint')).toBeTruthy();
   });
 
+  /* 識別證掛在 TopBar 下緣，但不能是它的子元素：sticky 讓 TopBar 成為
+     堆疊上下文，整個子樹都畫在 100 那一層，浮島（2000+）一律蓋在上面。
+     抬高 TopBar 不是解法——整條頂欄會浮到浮島之上把它們裁掉。 */
+  describe('脫離 TopBar 的堆疊上下文', () => {
+    afterEach(() => {
+      document.querySelector('.uep-topbar')?.remove();
+    });
+
+    function mountTopBar(bottom: number): HTMLElement {
+      const bar = document.createElement('div');
+      bar.className = 'uep-topbar';
+      bar.getBoundingClientRect = () => ({ bottom }) as DOMRect;
+      document.body.appendChild(bar);
+      return bar;
+    }
+
+    it('render 到 body 而不是呼叫端的容器裡', () => {
+      const { container, baseElement } = render(<IdentCard />);
+      expect(container.querySelector('.uep-ident')).toBeNull();
+      expect(baseElement.querySelector('.uep-ident')).toBeTruthy();
+    });
+
+    it('垂直位置量 TopBar 的下緣', () => {
+      class MockResizeObserver {
+        observe() {}
+        disconnect() {}
+      }
+      vi.stubGlobal('ResizeObserver', MockResizeObserver);
+      mountTopBar(88);
+
+      const { baseElement } = render(<IdentCard />);
+      const root = baseElement.querySelector('.uep-ident') as HTMLElement;
+      expect(root.style.getPropertyValue('--ident-anchor-top')).toBe('88px');
+
+      vi.unstubAllGlobals();
+    });
+
+    /* 沒有頂欄的頁面本來就不掛識別證；量測失敗不該讓整張卡消失或
+       疊到畫面左上角，交給 CSS 的預設值 */
+    it('找不到 TopBar 時不寫錨點，由 CSS 預設值接手', () => {
+      const { baseElement } = render(<IdentCard />);
+      const root = baseElement.querySelector('.uep-ident') as HTMLElement;
+      expect(root.style.getPropertyValue('--ident-anchor-top')).toBe('');
+    });
+  });
+
   /* 手機沒有浮島，所以齒輪開的偏好面板必然是空的；而撕下手勢在手機上
      與瀏覽器下拉重整衝突，登出改走明確按鈕 */
   describe('手機分支', () => {
     it('桌面：有齒輪、有撕下提示、沒有登出按鈕', () => {
-      const { container } = render(<IdentCard />);
-      expect(container.querySelector('.uep-ident__gear')).toBeTruthy();
-      expect(container.querySelector('.uep-ident__tear-hint')).toBeTruthy();
-      expect(container.querySelector('.uep-ident__logout')).toBeNull();
+      const { baseElement } = render(<IdentCard />);
+      expect(baseElement.querySelector('.uep-ident__gear')).toBeTruthy();
+      expect(baseElement.querySelector('.uep-ident__tear-hint')).toBeTruthy();
+      expect(baseElement.querySelector('.uep-ident__logout')).toBeNull();
     });
 
     it('手機：齒輪與撕下提示都消失，換成登出按鈕', () => {
       viewport.desktop = false;
-      const { container } = render(<IdentCard />);
-      expect(container.querySelector('.uep-ident__gear')).toBeNull();
-      expect(container.querySelector('.uep-ident__tear-hint')).toBeNull();
-      expect(container.querySelector('.uep-ident__logout')).toBeTruthy();
+      const { baseElement } = render(<IdentCard />);
+      expect(baseElement.querySelector('.uep-ident__gear')).toBeNull();
+      expect(baseElement.querySelector('.uep-ident__tear-hint')).toBeNull();
+      expect(baseElement.querySelector('.uep-ident__logout')).toBeTruthy();
     });
 
     it('手機的登出按鈕在可量測的內容層之內', () => {
       viewport.desktop = false;
-      const { container } = render(<IdentCard />);
+      const { baseElement } = render(<IdentCard />);
       // 與撕下提示同一個位置——它是展開高度的最後一個元素，最容易被切掉
       expect(
-        backInner(container)!.querySelector('.uep-ident__logout')
+        backInner(baseElement)!.querySelector('.uep-ident__logout')
       ).toBeTruthy();
     });
   });
@@ -142,26 +191,26 @@ describe('IdentCard', () => {
         info,
       };
       viewport.desktop = false;
-      const { container } = render(<IdentCard />);
+      const { baseElement } = render(<IdentCard />);
 
-      const btn = container.querySelector('.uep-ident__logout')!;
+      const btn = baseElement.querySelector('.uep-ident__logout')!;
       await act(async () => {
         btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
 
       expect(info).toHaveBeenCalled();
       // 沒有 dialog 就不該播撕開動畫（那代表登出已成立）
-      expect(container.querySelector('.uep-ident.is-torn')).toBeNull();
+      expect(baseElement.querySelector('.uep-ident.is-torn')).toBeNull();
     });
 
     it('連 toast 都缺席也不擲錯——選擇性串連不能變成例外', async () => {
       viewport.desktop = false;
-      const { container } = render(<IdentCard />);
-      const btn = container.querySelector('.uep-ident__logout')!;
+      const { baseElement } = render(<IdentCard />);
+      const btn = baseElement.querySelector('.uep-ident__logout')!;
       await act(async () => {
         btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
-      expect(container.querySelector('.uep-ident.is-torn')).toBeNull();
+      expect(baseElement.querySelector('.uep-ident.is-torn')).toBeNull();
     });
   });
 
@@ -218,21 +267,21 @@ describe('IdentCard', () => {
        同一張卡出現兩次 */
     it('儀式進行中先藏起來，直到 arrival 開播才現身', async () => {
       document.documentElement.classList.add('uep-welcome-pending');
-      const { container } = render(<IdentCard />);
+      const { baseElement } = render(<IdentCard />);
       expect(
-        container.querySelector('.uep-ident.is-welcome-pending')
+        baseElement.querySelector('.uep-ident.is-welcome-pending')
       ).toBeTruthy();
 
       await playWelcome();
 
       expect(
-        container.querySelector('.uep-ident.is-welcome-pending')
+        baseElement.querySelector('.uep-ident.is-welcome-pending')
       ).toBeNull();
     });
 
     it('解除隱藏與 arrival 同一刻發生——中間不留靜止的一幀', async () => {
       document.documentElement.classList.add('uep-welcome-pending');
-      const { container } = render(<IdentCard />);
+      const { baseElement } = render(<IdentCard />);
 
       await act(async () => {
         window.dispatchEvent(new CustomEvent(WELCOME_DONE_EVENT));
@@ -240,40 +289,40 @@ describe('IdentCard', () => {
         await vi.advanceTimersByTimeAsync(400);
       });
 
-      const root = container.querySelector('.uep-ident')!;
+      const root = baseElement.querySelector('.uep-ident')!;
       expect(root.className).not.toContain('is-welcome-pending');
       expect(root.className).toContain('is-arriving');
     });
 
     it('儀式沒送出結束事件時，保險計時器仍會讓識別證現身', async () => {
       document.documentElement.classList.add('uep-welcome-pending');
-      const { container } = render(<IdentCard />);
+      const { baseElement } = render(<IdentCard />);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(6100);
       });
 
       expect(
-        container.querySelector('.uep-ident.is-welcome-pending')
+        baseElement.querySelector('.uep-ident.is-welcome-pending')
       ).toBeNull();
     });
 
     it('一般換頁不隱藏識別證', () => {
-      const { container } = render(<IdentCard />);
+      const { baseElement } = render(<IdentCard />);
       expect(
-        container.querySelector('.uep-ident.is-welcome-pending')
+        baseElement.querySelector('.uep-ident.is-welcome-pending')
       ).toBeNull();
     });
 
     it('收到翻開事件就展開證卡', async () => {
-      const { container } = render(<IdentCard />);
-      expect(container.querySelector('.uep-ident.is-open')).toBeNull();
+      const { baseElement } = render(<IdentCard />);
+      expect(baseElement.querySelector('.uep-ident.is-open')).toBeNull();
 
       await act(async () => {
         window.dispatchEvent(new CustomEvent('uep:ident-open'));
       });
 
-      expect(container.querySelector('.uep-ident.is-open')).toBeTruthy();
+      expect(baseElement.querySelector('.uep-ident.is-open')).toBeTruthy();
     });
   });
 });

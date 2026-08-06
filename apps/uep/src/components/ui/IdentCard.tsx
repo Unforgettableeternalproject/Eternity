@@ -17,6 +17,7 @@
 
 /* global ResizeObserver, getComputedStyle */
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
 import { getProgressManager } from '../../progress';
@@ -36,6 +37,60 @@ import { WELCOME_DONE_EVENT, WELCOME_PENDING_KEY } from './GlobalWelcomeHost';
 import ViewSwitch from './ViewSwitch';
 
 import './IdentCard.css';
+
+/**
+ * 識別證掛在 TopBar 下緣，但**不能**是 TopBar 的子元素。
+ *
+ * TopBar 是 `position: sticky`，本身就是一個堆疊上下文，整個子樹都畫在
+ * 它那一層（100）——浮島（2000–2999）與便條（3000）一律蓋在上面，
+ * 指著識別證的教學聚光燈挖出來的洞裡看到的會是浮島。
+ * 而把 TopBar 抬高不是解法：整條頂欄會跟著浮到浮島之上，浮島往上捲就被
+ * 頂欄裁掉一截。
+ *
+ * 所以 portal 到 body 自己站一層，改用 `position: fixed`，垂直位置量
+ * TopBar 的下緣。量測是必要的：TopBar 是 sticky 不是 fixed，捲到頂之前
+ * 它還在文件流裡（上方可能有 TEST MODE banner），下緣位置會變。
+ *
+ * 找不到 TopBar 時回傳 null，呼叫端退回 CSS 的預設值——沒有頂欄的頁面
+ * 本來就不該掛識別證，這只是不讓量測失敗變成整張卡消失。
+ */
+function useTopBarBottom(): number | null {
+  const [bottom, setBottom] = useState<number | null>(null);
+
+  useEffect(() => {
+    const bar = document.querySelector('.uep-topbar');
+    if (!bar) return undefined;
+
+    let frame = 0;
+    function measure() {
+      frame = 0;
+      const next = (bar as HTMLElement).getBoundingClientRect().bottom;
+      /* 次像素抖動不觸發 re-render——捲動時這個函式每一幀都會跑 */
+      setBottom((prev) =>
+        prev !== null && Math.abs(prev - next) < 0.5 ? prev : next
+      );
+    }
+    function schedule() {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    }
+
+    measure();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    const observer = new ResizeObserver(schedule);
+    observer.observe(bar);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      observer.disconnect();
+    };
+  }, []);
+
+  return bottom;
+}
 
 /** 掛上動畫總時長，動畫走完後移除 class */
 const ARRIVAL_ANIM_MS = 1600;
@@ -79,6 +134,7 @@ export default function IdentCard() {
       document.documentElement.classList.contains('uep-welcome-pending')
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  const topBarBottom = useTopBarBottom();
 
   /* 掛上動畫由 WelcomeCeremony 完成事件驅動——不再自己讀 sessionStorage。
      這樣時序上：頁面入場動畫先跑（Welcome 遮罩下）→ Welcome 播完 dispatch
@@ -347,10 +403,17 @@ export default function IdentCard() {
     handleClick();
   }
 
-  return (
+  const card = (
     <div
       className={`uep-ident${open ? ' is-open' : ''}${arriving ? ' is-arriving' : ''}${pendingHidden ? ' is-welcome-pending' : ''}`}
       ref={rootRef}
+      style={
+        topBarBottom === null
+          ? undefined
+          : ({
+              '--ident-anchor-top': `${topBarBottom}px`,
+            } as React.CSSProperties)
+      }
     >
       {/* 吊繩：從 TopBar 下緣垂下，撕下拖曳時會被拉長 */}
       <div className="uep-ident__cord" aria-hidden="true" />
@@ -499,10 +562,17 @@ export default function IdentCard() {
         </div>
       </div>
 
-      {/* 浮島偏好設定視窗（portal 到 body，逃出 TopBar 堆疊上下文） */}
+      {/* 浮島偏好設定視窗（自己也 portal，它要蓋在識別證之上） */}
       {showSettings && (
         <IslandSettingsPanel onClose={() => setShowSettings(false)} />
       )}
     </div>
   );
+
+  /* 見 useTopBarBottom 的說明：一定要離開 TopBar 的堆疊上下文。
+     document 不存在（SSR）時直接回傳——這條路實務上走不到，
+     session 在伺服器端一律是 null，上面早就 return 了。 */
+  return typeof document === 'undefined'
+    ? card
+    : createPortal(card, document.body);
 }

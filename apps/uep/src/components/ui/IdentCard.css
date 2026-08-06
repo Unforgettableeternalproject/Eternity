@@ -1,7 +1,9 @@
 /* 身分證吊掛面板 — 登入後的固定識別證（Epic 2 S5，翻面展開版） */
 
-/* 錨定在 TopBar 下緣（TopBar 是 position:sticky，即為定位祖先）：
-   看起來像掛在橫杆上，且隨 sticky bar 一起停留在視窗頂 */
+/* 錨定在 TopBar 下緣，看起來像掛在橫杆上。
+   本體 portal 到 body（見 IdentCard.tsx 的 useTopBarBottom），所以是
+   fixed + 量出來的 --ident-anchor-top，而不是 TopBar 的 absolute 子元素。
+   量不到時退回 72px：那是 TopBar 的一般高度，只在沒有頂欄的頁面才會用到。 */
 .uep-ident {
   --tear-y: 0px; /* 撕下拖曳的當前拉伸距離（由 JS 更新） */
   --tear-progress: 0; /* 拉伸進度 0~1（由 JS 更新，驅動吊繩顏色漸變） */
@@ -11,10 +13,12 @@
   /* 展開高度：由 IdentCard.tsx 量背面內容後寫入。這裡只是 SSR 與
      量測落地前的過渡值 */
   --ident-open-h: 326px;
-  position: absolute;
-  top: 100%;
+  position: fixed;
+  top: var(--ident-anchor-top, 72px);
   right: 36px; /* 對齊 TopBar 的水平 padding */
-  z-index: 50; /* TopBar 堆疊上下文內：RecordPanel(1500) 之下 */
+  /* 高於浮島層帶（2000–2999）與便條層（3000）：指著識別證的教學聚光燈
+     （3200）挖出來的洞裡不能是浮島。低於教學層與所有 modal（≥9990）。 */
+  z-index: 3100;
   display: flex;
   flex-direction: column;
   align-items: center; /* 吊繩與翻面容器都以中心軸對齊 */
