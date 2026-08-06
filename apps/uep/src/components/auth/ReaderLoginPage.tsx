@@ -39,6 +39,15 @@ function sanitizeReturn(raw: string | undefined): string {
   return raw;
 }
 
+/**
+ * 回跳目標是不是主頁。sanitizeReturn 保證是站內絕對路徑，但可能帶
+ * query 或 hash（`/?x=1`、`/#journey`），所以不能只比對字串相等。
+ */
+export function isHomeReturn(target: string): boolean {
+  const path = target.split(/[?#]/)[0];
+  return path === '/' || path === '';
+}
+
 interface RegisterDraft {
   username: string;
   password: string;
@@ -379,13 +388,18 @@ export default function ReaderLoginPage({ returnUrl }: Props) {
    * 而不是「儀式播 → 導頁 → 目標頁動畫蓋過識別證」。
    */
   function done(kind: 'login' | 'register', alias: string) {
-    try {
-      sessionStorage.setItem(
-        WELCOME_PENDING_KEY,
-        JSON.stringify({ kind, alias })
-      );
-    } catch {
-      /* sessionStorage 不可用時就沒儀式，不影響 auth 流程 */
+    /* 儀式只在主頁播。回到 zone 頁時該頁自己就有入場動畫與 Reader 的
+       進場節奏，全屏儀式疊上去是兩套開場互相打架。錯過就錯過——
+       不補播、不排隊（登出一律導回主頁，所以不受這條影響）。 */
+    if (isHomeReturn(safeReturn)) {
+      try {
+        sessionStorage.setItem(
+          WELCOME_PENDING_KEY,
+          JSON.stringify({ kind, alias })
+        );
+      } catch {
+        /* sessionStorage 不可用時就沒儀式，不影響 auth 流程 */
+      }
     }
     window.location.href = safeReturn;
   }
@@ -463,7 +477,7 @@ export default function ReaderLoginPage({ returnUrl }: Props) {
               </button>
               <button
                 type="button"
-                className="uep-login-choice-card uep-login-choice-card--primary"
+                className="uep-login-choice-card"
                 onClick={() => setMode('register')}
               >
                 <div className="uep-login-choice-glyph">✎</div>

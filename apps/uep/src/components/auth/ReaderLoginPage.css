@@ -177,7 +177,13 @@
   align-items: center;
   gap: 10px;
   padding: 26px 20px;
-  background: var(--bg-soft);
+  /* 兩張卡共用同一層底光。原本只有「建立記錄」有，於是「接續記錄」看起來
+     像是次要選項——但回訪者走的正是那一張，兩者地位相同。 */
+  background: linear-gradient(
+    180deg,
+    var(--bg-soft) 0%,
+    rgba(213, 182, 24, 0.06) 100%
+  );
   border: 1px solid var(--hairline-strong);
   cursor: pointer;
   text-align: center;
@@ -193,14 +199,6 @@
   transform: translateY(-2px);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
   outline: none;
-}
-
-.uep-login-choice-card--primary {
-  background: linear-gradient(
-    180deg,
-    var(--bg-soft) 0%,
-    rgba(213, 182, 24, 0.06) 100%
-  );
 }
 
 .uep-login-choice-glyph {
