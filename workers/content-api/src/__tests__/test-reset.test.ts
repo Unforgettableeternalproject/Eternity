@@ -192,6 +192,43 @@ describe('POST /api/test/reset', () => {
   });
 
   /**
+   * uep_user_notes 是 progress blob 拆出的使用者資料（S11 C 段），
+   * 走獨立 DELETE 而非 BUSINESS_TABLES（那份清單管 pages 衍生資料）。
+   * 進度歸零卻留著便條會是矛盾狀態——便條屬於進度的一部分。
+   */
+  it('reset 清空便條表 uep_user_notes，且不將其列入 BUSINESS_TABLES 回報', async () => {
+    await env.CONTENT_DB.batch([
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO uep_users
+         (username, password_hash, alias, observer_ever, progress)
+         VALUES ('reset-note-reader', 'hash', 'reader', 0, '{}')`
+      ),
+      env.CONTENT_DB.prepare(
+        `INSERT OR REPLACE INTO uep_user_notes
+         (user_id, note_id, text, tilt, created_at, updated_at)
+         SELECT id, 'n1', '要被清掉', 0, '2026-08-06', '2026-08-06'
+         FROM uep_users WHERE username = 'reset-note-reader'`
+      ),
+    ]);
+    expect(await countRows('uep_user_notes')).toBeGreaterThan(0);
+
+    const token = await signWith('super_admin');
+    const res = await worker.fetch(
+      createRequest('/api/test/reset', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ clearOnly: true }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { data?: { tables: string[] } };
+    expect(json.data?.tables).not.toContain('uep_user_notes');
+    expect(await countRows('uep_user_notes')).toBe(0);
+  });
+
+  /**
    * 互聯兩張表是從 pages 衍生的（S10-1）。reset 若只重建 pages 不清衍生表，
    * 殘留的錨點會被同 page id 的新頁重新 join 出來——看起來像「這篇文章
    * 提過某個 key」，但實際內容裡根本沒有。

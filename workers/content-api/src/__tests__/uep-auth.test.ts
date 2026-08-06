@@ -373,6 +373,9 @@ describe('進度同步', () => {
         updatedAt: '2026-07-03T00:00:00.000Z',
       },
     },
+    // S11 C 段拆分後 GET 一律回組裝過的 storageNotes 欄位（空帳號為 []），
+    // sample 對齊真實 ProgressState 的形狀（該欄位必定存在）
+    storageNotes: [],
     updatedAt: '2026-07-03T00:00:00.000Z',
   };
 

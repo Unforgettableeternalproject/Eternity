@@ -1,10 +1,16 @@
 /* global TextEncoder */
 /**
- * ProgressState blob 的體積基準（S10-4 D 段）
+ * ProgressState blob 的體積基準（S10-4 D 段建立，S11 C 段拆分後更新）
  *
  * 進度以**單一 JSON blob** 存進 D1，上限 128KB。這個限制自 S9 便條擴充起
  * 就被標成殘留風險，但一直沒有實測基準——每次要加欄位時只能靠直覺說
  * 「這個很小應該沒差」。
+ *
+ * S11 C 段起，worker 在 PUT 時把 `storageNotes` 剝出 blob 存進獨立表
+ * `uep_user_notes`（客戶端協定不變，整包照傳）——**128KB 守門量的是
+ * 剝離後的 blob**。本檔的斷言因此分兩層：
+ *   - D1 額度：不含便條的 state（真正受限的那份）
+ *   - 線上傳輸：完整 state（便條仍在 PUT body 裡，由硬 cap 60×400 自己管）
  *
  * 這裡把重度使用者的 worst-case 建出來實際量，並斷言留有餘裕。它是回歸
  * 測試不是一次性量測：往後任何人加欄位，超出預算時會在這裡先失敗，而不是
@@ -91,8 +97,10 @@ function buildHeavyState(pageCount = CURRENT_PAGE_COUNT): ProgressState {
   return state;
 }
 
-function sizeOf(pageCount: number): number {
-  return byteLength(JSON.stringify(buildHeavyState(pageCount)));
+/** D1 實際儲存的形狀：worker 剝掉 storageNotes 後的 blob */
+function strippedSizeOf(pageCount: number): number {
+  const { storageNotes: _stripped, ...rest } = buildHeavyState(pageCount);
+  return byteLength(JSON.stringify(rest));
 }
 
 function breakdown(pageCount: number): string {
@@ -105,8 +113,8 @@ function breakdown(pageCount: number): string {
 }
 
 describe('ProgressState blob 體積', () => {
-  it('今天的重度使用者仍在額度內', () => {
-    const bytes = sizeOf(CURRENT_PAGE_COUNT);
+  it('今天的重度使用者仍在額度內（D1 存剝離便條後的 blob）', () => {
+    const bytes = strippedSizeOf(CURRENT_PAGE_COUNT);
     if (bytes > BLOB_LIMIT_BYTES) {
       throw new Error(
         `blob ${(bytes / 1024).toFixed(1)}KB 超過 ${BLOB_LIMIT_BYTES / 1024}KB — ${breakdown(CURRENT_PAGE_COUNT)}`
@@ -116,32 +124,37 @@ describe('ProgressState blob 體積', () => {
   });
 
   /**
-   * ⚠️ 2026-08-02 首次實測的結論，寫成斷言而不是註解，才不會隨時間失真。
+   * ⚠️ 2026-08-02 首次實測：每頁固定成本約 380 bytes（pageMarkers +
+   * fogRatio + completedPageIds + `completed:` 旗標各一份），與便條的
+   * 86KB 疊加後天花板只有 **134 頁**。
    *
-   * 每頁的固定成本約 380 bytes（pageMarkers + fogRatio + completedPageIds +
-   * `completed:` 旗標各一份），與便條的 86KB 疊加後，**額度只夠再長到
-   * 一百多頁**。History 目前 44 頁，看起來還早，但這是持續累積的內容站。
-   *
-   * 這條界線一旦逼近，解法不是調參數而是把便條移出 blob（獨立表）——
-   * 便條佔了三分之二以上，砍其他欄位都只是拖延。
+   * S11 C 段把便條剝出 blob 後（2026-08-06），額度全數留給每頁固定成本，
+   * 天花板升到 **三百多頁**——History 目前 44 頁，中期內不再是風險。
+   * 若未來再逼近，下一個該搬出去的是 pageMarkers（每頁最大的單筆）。
    */
-  it('記錄成長天花板：便條寫滿時，額度只夠約一百多頁', () => {
+  it('記錄成長天花板：便條拆分後約三百多頁', () => {
     const ceiling = (() => {
       for (let pages = CURRENT_PAGE_COUNT; pages <= 2000; pages += 10) {
-        if (sizeOf(pages) > BLOB_LIMIT_BYTES) return pages;
+        if (strippedSizeOf(pages) > BLOB_LIMIT_BYTES) return pages;
       }
       return Infinity;
     })();
 
-    expect(ceiling).toBeGreaterThan(CURRENT_PAGE_COUNT);
-    // 天花板顯著上移（例如便條搬出 blob）時這裡會失敗——那是好事，
-    // 但要順手更新這份基準與上面的說明
-    expect(ceiling).toBeLessThan(400);
+    expect(ceiling).toBeGreaterThan(250);
+    // 天花板再度顯著移動（欄位增刪）時這裡會失敗——順手更新基準與說明
+    expect(ceiling).toBeLessThan(500);
   });
 
-  it('便條是最大的單一來源——調整硬上限前先看這裡', () => {
+  /**
+   * 便條不再計入 D1 額度，但仍在 PUT body 裡走線上傳輸——worst-case
+   * 約 88KB（60 張 × 400 全中文字）。這條斷言鎖住「硬上限沒有被悄悄
+   * 調大」：wire 體積與 uep_user_notes 表的成長邊界都靠這兩個常數。
+   */
+  it('便條 worst-case 線上傳輸體積由硬上限鎖住（約 88KB）', () => {
     const state = buildHeavyState();
     const notesBytes = byteLength(JSON.stringify(state.storageNotes));
-    expect(notesBytes).toBeGreaterThan(byteLength(JSON.stringify(state)) * 0.5);
+    expect(state.storageNotes).toHaveLength(STORAGE_NOTE_HARD_MAX);
+    expect(notesBytes).toBeGreaterThan(80 * 1024);
+    expect(notesBytes).toBeLessThan(100 * 1024);
   });
 });

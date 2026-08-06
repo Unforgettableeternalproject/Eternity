@@ -226,6 +226,11 @@ export async function resetAndSeedTestData(
        WHERE progress IS NOT NULL OR observer_ever != 0`
     )
   );
+  /* uep_user_notes 是使用者擁有的資料（progress blob 拆出的便條，S11 C 段），
+     不是 pages 衍生物——比照上面 uep_users.progress 的模式走獨立陳述式，
+     **不要**加進 BUSINESS_TABLES（那份清單管的是「從 pages 衍生、seed 會
+     種回來」的表，混進使用者資料會讓註解與用途自相矛盾）。 */
+  statements.push(db.prepare('DELETE FROM uep_user_notes'));
 
   for (const row of snapshot.pages) {
     statements.push(

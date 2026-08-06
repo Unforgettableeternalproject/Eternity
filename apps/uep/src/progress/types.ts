@@ -76,8 +76,13 @@ export const STORAGE_NOTE_TEXT_MAX = 200;
  * note.max／note.textMax 可由 /admin/settings 調高，但載入時的資料防禦
  * **絕不能**用可調值截斷：設定尚未載入時 getSetting 退回上面的常數，
  * 用它截斷會把使用者在較高上限下寫的便條砍掉——那是資料損失不是防禦。
- * 硬上限只防 blob 爆炸（128KB 額度：60 張 × 400 字 worst-case ≈ 88KB）。
- * workers/content-api/src/settings.ts 的驗證範圍與此對齊，改這裡要同步。
+ *
+ * S11 C 段起便條由 worker 剝出 blob 存進 uep_user_notes 表（128KB 額度
+ * 不再算便條），硬上限的用途改為：PUT body 的線上傳輸體積邊界
+ * （worst-case 60 張 × 400 字 ≈ 88KB）＋ uep_user_notes 表的成長邊界。
+ * workers/content-api/src/settings.ts 的驗證範圍與
+ * workers/content-api/src/uep-notes.ts 的 NOTE_HARD_MAX 皆與此對齊，
+ * 改這裡要三處同步。
  */
 export const STORAGE_NOTE_HARD_MAX = 60;
 export const STORAGE_NOTE_TEXT_HARD_MAX = 400;

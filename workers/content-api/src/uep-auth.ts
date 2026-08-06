@@ -32,6 +32,13 @@ import {
   verifyPassword,
 } from './auth';
 import { isValidAlias, rollAlias } from './uep-alias';
+import {
+  assembleProgress,
+  buildNoteSyncStatements,
+  loadNotes,
+  sanitizeNotes,
+  stripNotes,
+} from './uep-notes';
 
 /** 讀者 token 有效期：30 天（閱讀進度帳號，不需像 admin 一樣每日過期） */
 const READER_TOKEN_TTL = 30 * 86400;
@@ -333,10 +340,12 @@ async function handleGetProgress(
   }
   const row = await db
     .prepare(
-      'SELECT progress, progress_rev, observer_ever FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+      'SELECT id, progress, progress_rev, observer_ever FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
-    .first<Pick<UepUserRow, 'progress' | 'progress_rev' | 'observer_ever'>>();
+    .first<
+      Pick<UepUserRow, 'id' | 'progress' | 'progress_rev' | 'observer_ever'>
+    >();
   if (!row) {
     return json({ ok: false, error: '帳號不存在或已停用' }, 401, cors);
   }
@@ -353,12 +362,45 @@ async function handleGetProgress(
   if (!row.progress) {
     return json({ ok: true, data: null, meta }, 200, cors);
   }
+  let blob: Record<string, unknown> | null = null;
   try {
-    return json({ ok: true, data: JSON.parse(row.progress), meta }, 200, cors);
+    blob = JSON.parse(row.progress) as Record<string, unknown>;
   } catch {
     // 資料毀損：視為無進度（客戶端會以本地資料重新上傳）
     return json({ ok: true, data: null, meta }, 200, cors);
   }
+
+  const notes = await loadNotes(db, row.id);
+
+  /* lazy migration：blob 還帶著便條（0026 之前的存量）就搬進表、清欄位。
+     不遞增 rev——組裝後的邏輯內容沒有變，客戶端手上的 rev 仍然有效。
+     UPDATE 帶 CAS 防止蓋掉並發 PUT（PUT 自己會處理便條），失敗就留給
+     下一次 GET 重試；INSERT OR REPLACE 讓中途失敗的重跑天然冪等。 */
+  const legacyNotes = sanitizeNotes(blob.storageNotes);
+  if (legacyNotes.length > 0) {
+    const statements = buildNoteSyncStatements(
+      db,
+      row.id,
+      // 遷移是「疊加」不是「取代」：表內已有的列（前次部分遷移）保留
+      [...new Map([...notes, ...legacyNotes].map((n) => [n.id, n])).values()],
+      notes,
+      { rev: row.progress_rev }
+    );
+    statements.push(
+      db
+        .prepare(
+          'UPDATE uep_users SET progress = ? WHERE id = ? AND progress_rev = ?'
+        )
+        .bind(JSON.stringify(stripNotes(blob)), row.id, row.progress_rev)
+    );
+    await db.batch(statements);
+  }
+
+  return json(
+    { ok: true, data: assembleProgress(blob, notes), meta },
+    200,
+    cors
+  );
 }
 
 async function handlePutProgress(
@@ -384,34 +426,43 @@ async function handlePutProgress(
 
   const row = await db
     .prepare(
-      'SELECT observer_ever, progress_reset_at, progress_rev, progress FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+      'SELECT id, observer_ever, progress_reset_at, progress_rev, progress FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
     )
     .bind(payload.sub)
     .first<
       Pick<
         UepUserRow,
-        'observer_ever' | 'progress_reset_at' | 'progress_rev' | 'progress'
+        | 'id'
+        | 'observer_ever'
+        | 'progress_reset_at'
+        | 'progress_rev'
+        | 'progress'
       >
     >();
   if (!row) {
     return json({ ok: false, error: '帳號不存在或已停用' }, 401, cors);
   }
 
-  /** 版本衝突回應：帶上最新 rev 與 progress，客戶端可直接收斂不必再 GET */
-  const conflict = (): Response => {
-    let current: unknown = null;
+  /** 版本衝突回應：帶上最新 rev 與 progress，客戶端可直接收斂不必再 GET。
+      blob 必須經 assembleProgress 組裝便條——客戶端會拿這份 data 當
+      收斂基準，缺了便條的話下一次 PUT 的差分同步會把整張表清掉。 */
+  const conflict = async (): Promise<Response> => {
+    let current: Record<string, unknown> | null = null;
     if (row.progress) {
       try {
-        current = JSON.parse(row.progress);
+        current = JSON.parse(row.progress) as Record<string, unknown>;
       } catch {
         current = null;
       }
     }
+    const assembled = current
+      ? assembleProgress(current, await loadNotes(db, row.id))
+      : null;
     return json(
       {
         ok: false,
         error: '進度已被更新，請重新載入',
-        data: current,
+        data: assembled,
         meta: { rev: row.progress_rev, observerEver: row.observer_ever === 1 },
       },
       409,
@@ -448,22 +499,53 @@ async function handlePutProgress(
   const observerEver = row.observer_ever === 1 || body.observerEver === true;
   body.observerEver = observerEver;
 
-  const serialized = JSON.stringify(body);
+  /* ── 便條拆分（S11 C 段）──
+     storageNotes 剝出 blob 差分寫入 uep_user_notes；blob 只存剩餘欄位，
+     128KB 守門也只量剝離後的體積（便條的上限由硬 cap 60×400 自己管）。
+     body 沒帶 storageNotes 陣列時不動表——防禦缺欄位的舊資料把表清空。 */
+  const hasNotesField = Array.isArray(body.storageNotes);
+  const incomingNotes = hasNotesField ? sanitizeNotes(body.storageNotes) : null;
+  const stripped = stripNotes(body);
+
+  const serialized = JSON.stringify(stripped);
   if (serialized.length > PROGRESS_MAX_BYTES) {
     return json({ ok: false, error: '進度資料過大' }, 413, cors);
   }
 
   /* compare-and-swap：WHERE 帶上剛讀到的 rev，寫入才 +1。
      即使客戶端沒送 X-Progress-Rev 也有這層保護——它擋的是本次
-     read-modify-write 之間插進來的另一個寫入（admin 或另一個分頁）。 */
+     read-modify-write 之間插進來的另一個寫入（admin 或另一個分頁）。
+
+     便條陳述式與 blob 更新走同一個 db.batch（具交易性），且每條便條
+     陳述式都掛同一個 rev 守門——rev 已被推進時整批一起 no-op，
+     不會出現「表反映輸家、blob 反映贏家」的撕裂。blob 更新必須是
+     batch 的最後一條：守門檢查的是遞增前的 rev。 */
   const now = new Date().toISOString();
-  const result = await db
-    .prepare(
-      'UPDATE uep_users SET progress = ?, observer_ever = ?, progress_rev = progress_rev + 1, updated_at = ? WHERE username = ? AND progress_rev = ?'
-    )
-    .bind(serialized, observerEver ? 1 : 0, now, payload.sub, row.progress_rev)
-    .run();
-  if (result.meta.changes === 0) return conflict();
+  const statements: D1PreparedStatement[] = [];
+  if (incomingNotes !== null) {
+    const existingNotes = await loadNotes(db, row.id);
+    statements.push(
+      ...buildNoteSyncStatements(db, row.id, incomingNotes, existingNotes, {
+        rev: row.progress_rev,
+      })
+    );
+  }
+  statements.push(
+    db
+      .prepare(
+        'UPDATE uep_users SET progress = ?, observer_ever = ?, progress_rev = progress_rev + 1, updated_at = ? WHERE username = ? AND progress_rev = ?'
+      )
+      .bind(
+        serialized,
+        observerEver ? 1 : 0,
+        now,
+        payload.sub,
+        row.progress_rev
+      )
+  );
+  const results = await db.batch(statements);
+  const blobResult = results[results.length - 1];
+  if (blobResult.meta.changes === 0) return conflict();
 
   return json(
     {
@@ -612,6 +694,9 @@ async function handleAdminUpdateUser(
      ServerAdapter 伺服器優先 hydrate 即對齊。 */
   const hasObserverEdit = typeof body.observerEver === 'boolean';
   const hasProgressEdit = body.progress !== undefined;
+  /* 便條同步陳述式（S11 C 段拆分）：與最終的使用者 UPDATE 走同一個
+     db.batch。admin 路徑自己遞增 rev、無並發競爭語意，不掛 rev 守門。 */
+  const noteStatements: D1PreparedStatement[] = [];
   if (hasObserverEdit || hasProgressEdit) {
     // 解析目標 progress：本次上傳的優先，否則沿用既有 blob
     let progressObj: Record<string, unknown> | null = null;
@@ -654,6 +739,33 @@ async function handleAdminUpdateUser(
         : existing.observer_ever === 1;
 
     if (progressObj) progressObj.observerEver = finalObserver;
+
+    /* ── 便條拆分（S11 C 段）──
+       - 重置進度（progress: null）連帶清空便條表：便條屬於進度的一部分，
+         維持拆分前「重置＝便條也沒了」的語意。
+       - admin 給整包 blob（進度編輯器）：storageNotes 為權威 replace-all。
+       - 純 observerEver toggle 沿用既有 blob：blob 內殘留的便條（0026 前
+         的存量）疊加進表（機會性遷移），不刪表內既有列。
+       兩種寫入路徑最後都把 storageNotes 從存入的 blob 剝掉。 */
+    if (hasProgressEdit && body.progress === null) {
+      noteStatements.push(
+        db.prepare('DELETE FROM uep_user_notes WHERE user_id = ?').bind(userId)
+      );
+    } else if (progressObj && Array.isArray(progressObj.storageNotes)) {
+      const incoming = sanitizeNotes(progressObj.storageNotes);
+      const existingNotes = await loadNotes(db, userId);
+      const target = hasProgressEdit
+        ? incoming
+        : [
+            ...new Map(
+              [...existingNotes, ...incoming].map((n) => [n.id, n])
+            ).values(),
+          ];
+      noteStatements.push(
+        ...buildNoteSyncStatements(db, userId, target, existingNotes, null)
+      );
+      progressObj = stripNotes(progressObj);
+    }
 
     // blob 只在有內容要寫時才動：純 observerEver toggle 且進度已是 null 時
     // 沒有 blob 可鏡射，欄位自己改就夠了。
@@ -699,10 +811,13 @@ async function handleAdminUpdateUser(
   values.push(now);
   values.push(userId);
 
-  await db
-    .prepare(`UPDATE uep_users SET ${updates.join(', ')} WHERE id = ?`)
-    .bind(...values)
-    .run();
+  // 便條同步與使用者欄位更新走同一個 batch（具交易性），避免只寫到一半
+  await db.batch([
+    ...noteStatements,
+    db
+      .prepare(`UPDATE uep_users SET ${updates.join(', ')} WHERE id = ?`)
+      .bind(...values),
+  ]);
 
   // 回傳更新後的資料
   return handleAdminGetUser(userId, db, cors);
@@ -726,7 +841,11 @@ async function handleAdminGetUserProgress(
     return json({ ok: true, data: null }, 200, cors);
   }
   try {
-    return json({ ok: true, data: JSON.parse(row.progress) }, 200, cors);
+    const blob = JSON.parse(row.progress) as Record<string, unknown>;
+    // 便條組裝回 blob——admin 進度編輯器看到的必須是完整 state，
+    // 它 PUT 回來時 storageNotes 才會走 replace-all 同步而不是清空
+    const assembled = assembleProgress(blob, await loadNotes(db, userId));
+    return json({ ok: true, data: assembled }, 200, cors);
   } catch {
     return json({ ok: true, data: null }, 200, cors);
   }
