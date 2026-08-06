@@ -39,7 +39,13 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
         fontFamily: 'var(--font-sans)',
         position: 'sticky',
         top: 0,
-        zIndex: 100,
+        /* 必須高於浮島層帶（2000–2999）與便條層（3000）：識別證是 TopBar 的
+           子元素，`position: sticky` 讓 TopBar 成為堆疊上下文，裡面的
+           z-index 再高也只能到這個數字為止。識別證被浮島蓋住時，指著它的
+           教學聚光燈（3200）挖出來的洞裡看到的會是浮島。
+           低於教學層（3200）與所有 modal（≥9990）。
+           ⚠️ 動這個數字要連 IdleVeil 一起看——閒置帷幕要蓋得住 TopBar。 */
+        zIndex: 3100,
         background: 'var(--bg)',
       }}
     >

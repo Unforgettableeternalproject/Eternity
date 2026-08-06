@@ -19,6 +19,12 @@
   flex-direction: column;
   align-items: center; /* 吊繩與翻面容器都以中心軸對齊 */
   pointer-events: none; /* 只有 flip 主體可互動 */
+  /* 整張證卡都不可選取：它是一個可拖曳的物件而不是一段文字，
+     手指按住要拉的時候跳出選取反白或 iOS 的長按選單都會打斷手勢。
+     原本只在拖曳中才關，但反白往往就發生在手勢開始的那一下。 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   animation: uep-ident-drop 0.7s cubic-bezier(0.34, 1.4, 0.64, 1);
   transform-origin: top center;
 }
