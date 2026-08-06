@@ -564,6 +564,86 @@ describe('POST /api/test/reset', () => {
     expect(res.status).toBe(401);
   });
 
+  /* 旗標註冊表以前不在清單裡，於是 test 的旗標只進不出，累積著前幾輪
+     實驗留下的名字。現在跟著清、也跟著種——兩件事必須成對，只清不種
+     會讓 seed 種回來的頁面內容帶著未註冊旗標，之後編輯任何一頁都被
+     存檔時的未註冊檢查 409 擋住。 */
+  it('reset 清空旗標註冊表，並依 snapshot 種回去', async () => {
+    await env.CONTENT_DB.prepare(
+      `INSERT OR REPLACE INTO uep_flags (name, label, description, category)
+       VALUES (?, ?, ?, ?)`
+    )
+      .bind('leftover-from-last-round', '上一輪的殘留', null, 'debug')
+      .run();
+    expect(await countRows('uep_flags')).toBeGreaterThan(0);
+
+    const token = await signWith('super_admin');
+    const res = await worker.fetch(
+      createRequest('/api/test/reset', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          snapshot: {
+            version: 1,
+            generatedAt: new Date().toISOString(),
+            pages: [],
+            rootProjects: [],
+            rootLinks: [],
+            rootUpdates: [],
+            rootSingletons: [],
+            rootCards: [],
+            siteHomepage: [],
+            flags: [
+              {
+                name: 'seeded-flag',
+                label: '正式環境來的',
+                description: null,
+                category: 'story',
+              },
+            ],
+          },
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      data?: { tables: string[]; seeded: { flags: number } };
+    };
+    expect(json.data?.tables).toContain('uep_flags');
+    expect(json.data?.seeded.flags).toBe(1);
+
+    const rows = await env.CONTENT_DB.prepare(
+      'SELECT name FROM uep_flags ORDER BY name'
+    ).all<{ name: string }>();
+    expect(rows.results?.map((r) => r.name)).toEqual(['seeded-flag']);
+  });
+
+  /* clearOnly 是 CLI 的流程：worker 只負責清空，旗標由 seed-test-env.mjs
+     從正式環境複製回來。這裡確認「清」這一半確實發生。 */
+  it('clearOnly 也會清掉旗標註冊表', async () => {
+    await env.CONTENT_DB.prepare(
+      `INSERT OR REPLACE INTO uep_flags (name, label, description, category)
+       VALUES (?, ?, ?, ?)`
+    )
+      .bind('to-be-cleared', null, null, null)
+      .run();
+
+    const token = await signWith('super_admin');
+    const res = await worker.fetch(
+      createRequest('/api/test/reset', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ clearOnly: true }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    expect(await countRows('uep_flags')).toBe(0);
+  });
+
   it('保留系統表格：admin_users / sync_log 未被清', async () => {
     // 先插一筆 admin_user 標記
     await env.CONTENT_DB.prepare(

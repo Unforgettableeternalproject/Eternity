@@ -31,6 +31,16 @@ export interface TestSeedSnapshot {
     content: string;
     updated_at: string;
   }>;
+  /** 舊 snapshot 沒有這個欄位，所以是 optional——缺席時等同空陣列 */
+  flags?: FlagSeedRow[];
+}
+
+/** `uep_flags` 的可攜欄位。時間戳不帶，由 test 端重新產生。 */
+export interface FlagSeedRow {
+  name: string;
+  label: string | null;
+  description: string | null;
+  category: string | null;
 }
 
 export interface TestResetResult {
@@ -45,6 +55,7 @@ export interface TestResetResult {
     rootSingletons: number;
     rootCards: number;
     siteHomepage: number;
+    flags: number;
     /** 依 seed 內容重建的 History 錨點數（S10-1 衍生表） */
     interlinkAnchors: number;
     /** 依 seed 內容重建的 key 殼列數（entity 與 story 合計） */
@@ -97,24 +108,39 @@ function selectSeedPages(rows: PageRow[]): PageRow[] {
 export async function buildTestSeedSnapshot(
   db: D1Database
 ): Promise<TestSeedSnapshot> {
-  const [pages, projects, links, updates, singletons, cards, siteHomepage] =
-    await Promise.all([
-      db.prepare('SELECT * FROM pages WHERE deleted_at IS NULL').all<PageRow>(),
-      db
-        .prepare('SELECT * FROM root_projects WHERE deleted_at IS NULL')
-        .all<RootProjectRow>(),
-      db
-        .prepare('SELECT * FROM root_links WHERE deleted_at IS NULL')
-        .all<RootLinkRow>(),
-      db
-        .prepare('SELECT * FROM root_updates WHERE deleted_at IS NULL')
-        .all<RootUpdateRow>(),
-      db.prepare('SELECT * FROM root_singletons').all<RootSingletonRow>(),
-      db.prepare('SELECT * FROM root_cards').all<RootCardRow>(),
-      db
-        .prepare('SELECT section_id, content, updated_at FROM site_homepage')
-        .all<{ section_id: string; content: string; updated_at: string }>(),
-    ]);
+  const [
+    pages,
+    projects,
+    links,
+    updates,
+    singletons,
+    cards,
+    siteHomepage,
+    flags,
+  ] = await Promise.all([
+    db.prepare('SELECT * FROM pages WHERE deleted_at IS NULL').all<PageRow>(),
+    db
+      .prepare('SELECT * FROM root_projects WHERE deleted_at IS NULL')
+      .all<RootProjectRow>(),
+    db
+      .prepare('SELECT * FROM root_links WHERE deleted_at IS NULL')
+      .all<RootLinkRow>(),
+    db
+      .prepare('SELECT * FROM root_updates WHERE deleted_at IS NULL')
+      .all<RootUpdateRow>(),
+    db.prepare('SELECT * FROM root_singletons').all<RootSingletonRow>(),
+    db.prepare('SELECT * FROM root_cards').all<RootCardRow>(),
+    db
+      .prepare('SELECT section_id, content, updated_at FROM site_homepage')
+      .all<{ section_id: string; content: string; updated_at: string }>(),
+    /* 墓碑不帶：test 是重建出來的乾淨環境，沒有「這裡曾經有個旗標被刪」
+         這件事要傳達，帶過去只會讓 test 端的 PK 被墓碑佔著 */
+    db
+      .prepare(
+        'SELECT name, label, description, category FROM uep_flags WHERE deleted_at IS NULL'
+      )
+      .all<FlagSeedRow>(),
+  ]);
 
   return {
     version: 1,
@@ -126,6 +152,7 @@ export async function buildTestSeedSnapshot(
     rootSingletons: singletons.results || [],
     rootCards: cards.results || [],
     siteHomepage: siteHomepage.results || [],
+    flags: flags.results || [],
   };
 }
 
@@ -141,7 +168,8 @@ export function isTestSeedSnapshot(value: unknown): value is TestSeedSnapshot {
     Array.isArray(snapshot.rootSingletons) &&
     Array.isArray(snapshot.rootCards) &&
     (snapshot.siteHomepage === undefined ||
-      Array.isArray(snapshot.siteHomepage))
+      Array.isArray(snapshot.siteHomepage)) &&
+    (snapshot.flags === undefined || Array.isArray(snapshot.flags))
   );
 }
 
@@ -154,11 +182,12 @@ export function isTestSeedSnapshot(value: unknown): value is TestSeedSnapshot {
  * page id，舊錨點會被重新 join 出來，看起來像「這篇文章提過某個 key」，
  * 而實際內容裡根本沒有。
  *
- * ⚠️ `uep_flags` 刻意**不列入**。它不是從 pages 衍生，而是管理者直接輸入的
- * 註冊表，而 seed 並不會從正式環境複製旗標註冊。清掉它等於讓 test 環境的
- * 所有自訂旗標變成「未註冊」，而 seed 種回來的頁面內容裡仍帶著那些旗標——
- * 之後在 test 編輯任何一頁都會被存檔時的未註冊檢查 409 擋住。
- * 若之後讓 seed 一併複製旗標註冊，這裡才可以（也才應該）加上 `uep_flags`。
+ * `uep_flags` 曾經刻意不列入：它不是從 pages 衍生而是管理者輸入的註冊表，
+ * 當時 seed 不複製旗標註冊，清掉會讓 test 的所有旗標變成「未註冊」，而
+ * seed 種回來的頁面內容裡仍帶著那些旗標，之後編輯任何一頁都會被存檔時的
+ * 未註冊檢查 409 擋住。現在 snapshot 帶了 `flags`、CLI 的 seed 也會從正式
+ * 環境複製一份，那個前提消失，所以它跟著一起清、一起種——否則 test 的
+ * 旗標表只會單向累積，reset 之後仍留著前一輪實驗的旗標。
  */
 const BUSINESS_TABLES = [
   'pages',
@@ -172,6 +201,7 @@ const BUSINESS_TABLES = [
   'root_deleted_assets',
   'history_interlink_index',
   'interlink_keys',
+  'uep_flags',
 ] as const;
 
 export async function resetAndSeedTestData(
@@ -351,6 +381,17 @@ export async function resetAndSeedTestData(
     );
   }
 
+  for (const row of snapshot.flags ?? []) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO uep_flags (name, label, description, category)
+           VALUES (?, ?, ?, ?)`
+        )
+        .bind(row.name, row.label, row.description, row.category)
+    );
+  }
+
   const results = await db.batch(statements);
   const resetUserProgress = results[BUSINESS_TABLES.length]?.meta.changes ?? 0;
 
@@ -382,6 +423,7 @@ export async function resetAndSeedTestData(
       rootSingletons: snapshot.rootSingletons.length,
       rootCards: snapshot.rootCards.length,
       siteHomepage: snapshot.siteHomepage?.length ?? 0,
+      flags: snapshot.flags?.length ?? 0,
       interlinkAnchors: interlink.anchors,
       interlinkKeys: interlinkKeys.size,
     },

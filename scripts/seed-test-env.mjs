@@ -129,6 +129,13 @@ async function prodGet(path) {
   return apiFetch(PROD_WORKER_URL, path);
 }
 
+/** 需要授權的 prod 讀取（`/api/flags` 整段都在 isAuthorized 之後）。 */
+async function prodGetAuthed(path, token) {
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return apiFetch(PROD_WORKER_URL, path, { headers });
+}
+
 async function testPut(path, body, token) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -361,6 +368,19 @@ async function fetchSeedUpdates() {
   return resp.data || [];
 }
 
+/**
+ * 從 prod 讀取旗標註冊表。
+ *
+ * reset 會清空 test 的 `uep_flags`，所以這裡一定要種回去——否則 seed 種下的
+ * 頁面內容裡帶著旗標，而註冊表是空的，之後在 test 編輯任何一頁都會被存檔時
+ * 的未註冊檢查 409 擋住。
+ * 不帶墓碑（不加 include_deleted）：test 是重建出來的乾淨環境。
+ */
+async function fetchSeedFlags(token) {
+  const resp = await prodGetAuthed('/api/flags', token);
+  return resp.data?.flags || [];
+}
+
 async function fetchSeedSiteHomepage() {
   const resp = await prodGet('/api/homepage');
   return Object.entries(resp.data || {}).map(([sectionId, value]) => ({
@@ -521,6 +541,31 @@ async function writeUpdate(update, token) {
   });
 }
 
+/**
+ * 寫入旗標註冊（POST /api/flags）。
+ *
+ * 409 代表 test 端已經有同名旗標——`pnpm test:seed` 是增量的（不像 reset 會
+ * 先清空），重複執行時多數旗標都會落在這裡。那不是錯誤，直接跳過。
+ */
+async function writeFlag(flag, token) {
+  try {
+    await testPost(
+      '/api/flags',
+      {
+        name: flag.name,
+        label: flag.label,
+        description: flag.description,
+        category: flag.category,
+      },
+      token
+    );
+    return 'created';
+  } catch (err) {
+    if (err.status === 409) return 'exists';
+    throw err;
+  }
+}
+
 async function writeSiteHomepage(section, token) {
   const headers = { 'Content-Type': 'application/json' };
   headers['Authorization'] = `Bearer ${token}`;
@@ -589,9 +634,13 @@ async function main() {
   const updates = await fetchSeedUpdates();
   console.log(`  找到 ${updates.length} 筆 updates`);
 
-  console.log('\n[ 7/7 ] 從 prod 讀取 site_homepage...');
+  console.log('\n[ 7/8 ] 從 prod 讀取 site_homepage...');
   const siteHomepage = await fetchSeedSiteHomepage();
   console.log(`  找到 ${siteHomepage.length} 筆 site_homepage`);
+
+  console.log('\n[ 8/8 ] 從 prod 讀取旗標註冊表...');
+  const flags = await fetchSeedFlags(token);
+  console.log(`  找到 ${flags.length} 筆 flags`);
 
   // 必要骨架讀到 0 筆就停在這裡，不要寫出一份看起來成功的殘缺 seed
   const problems = collectSourceProblems({
@@ -701,6 +750,20 @@ async function main() {
   }
   console.log(`  site_homepage: ${homepageOk} 成功, ${homepageFail} 失敗`);
 
+  let flagOk = 0,
+    flagSkip = 0,
+    flagFail = 0;
+  for (const f of flags) {
+    try {
+      if ((await writeFlag(f, token)) === 'exists') flagSkip++;
+      else flagOk++;
+    } catch (err) {
+      flagFail++;
+      console.error(`  ✘ flag ${f.name}: ${err.message}`);
+    }
+  }
+  console.log(`  flags: ${flagOk} 新增, ${flagSkip} 已存在, ${flagFail} 失敗`);
+
   // ── 摘要 ──
   console.log('\n=== 種子完成摘要 ===\n');
   console.log(
@@ -712,6 +775,7 @@ async function main() {
   console.log(`  projects    : ${projectOk} 筆`);
   console.log(`  updates     : ${updateOk} 筆`);
   console.log(`  homepage    : ${homepageOk} 筆`);
+  console.log(`  flags       : ${flagOk} 筆（另 ${flagSkip} 筆已存在）`);
   console.log(`  目標        : ${TEST_WORKER_URL}`);
   console.log();
 
@@ -722,7 +786,8 @@ async function main() {
       linkFail +
       projectFail +
       updateFail +
-      homepageFail >
+      homepageFail +
+      flagFail >
     0
   ) {
     console.warn('  ⚠ 部分資料寫入失敗，請檢查上方錯誤訊息。');
