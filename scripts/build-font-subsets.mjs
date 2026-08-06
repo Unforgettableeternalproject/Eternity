@@ -140,6 +140,16 @@ const chunk = (arr, size) => {
 rmSync(OUT_FONT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_FONT_DIR, { recursive: true });
 
+/* OFL 授權義務：散布字型副本（含子集化衍生物）必須保留 copyright notice
+   與授權全文。OFL.txt 與來源字型不同、**必須進版控**（scripts/font-subset/src
+   是 gitignored 的，授權檔放上一層），每次建置複製進輸出目錄一起部署。 */
+const LICENSE_SRC = join(__dirname, 'font-subset', 'OFL.txt');
+if (!existsSync(LICENSE_SRC)) {
+  console.error(`找不到授權檔：${LICENSE_SRC}（OFL 要求隨字型散布，不可略過）`);
+  process.exit(1);
+}
+writeFileSync(join(OUT_FONT_DIR, 'OFL.txt'), readFileSync(LICENSE_SRC));
+
 const slices = [
   { name: 'core', cps: coreCps },
   ...chunk(contentCps, SLICE_SIZE).map((cps, i) => ({
@@ -195,6 +205,10 @@ for (const weight of WEIGHTS) {
 // lazy 會碎成上千段，CSS gzip 後 56KB，跟當初 Google 那支 68KB 一樣肥。）
 const cssLines = [
   '/* 自動產生，勿手改。來源：scripts/build-font-subsets.mjs（T-B3 字型子集化）',
+  ' *',
+  ' * Noto Serif TC © 2012 Google Inc. All Rights Reserved.',
+  ' * Licensed under the SIL Open Font License, Version 1.1 — 全文見同目錄 OFL.txt',
+  ' *',
   ` * 產生時間：${new Date().toISOString()}`,
   ` * core：首頁+UI 用字 ${coreCps.length} 字；content：內頁用字 ${contentCps.length} 字；`,
   ' * lazy：字型其餘字符（罕字保底，涵蓋 admin 新增內容的空窗）。',

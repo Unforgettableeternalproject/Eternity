@@ -1,5 +1,9 @@
 /* 自動產生，勿手改。來源：scripts/build-font-subsets.mjs（T-B3 字型子集化）
- * 產生時間：2026-08-06T11:22:56.907Z
+ *
+ * Noto Serif TC © 2012 Google Inc. All Rights Reserved.
+ * Licensed under the SIL Open Font License, Version 1.1 — 全文見同目錄 OFL.txt
+ *
+ * 產生時間：2026-08-06T13:24:19.848Z
  * core：首頁+UI 用字 1524 字；content：內頁用字 1744 字；
  * lazy：字型其餘字符（罕字保底，涵蓋 admin 新增內容的空窗）。
  * 內容大量新增後：重跑 scan-used-chars.mjs → build-font-subsets.mjs
