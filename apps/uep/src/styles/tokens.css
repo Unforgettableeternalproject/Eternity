@@ -54,8 +54,8 @@
   /* ── Type ──
      字型 stack 是逐字解析的：Georgia 沒有中文字符，所以拉丁字母吃 Georgia、
      中文往後掉。Georgia 之後補上各平台實際裝得到的中文襯線，是因為
-     `display=optional`（見 DesignLayout）讓**首次造訪一定看不到 Noto
-     Serif TC**——這條 fallback 從「異常時的退路」變成了多數人的第一印象。
+     Noto Serif TC 有 2.2MB，慢速連線下要十幾秒才到——在那之前所有中文
+     都靠這條 fallback，它不是「異常時的退路」而是常態會看到的畫面。
      不補的話會直接掉到 generic serif，Windows 上是新細明體。 */
   --font-display:
     'Cormorant Garamond', 'Source Han Serif TC', 'Noto Serif TC', Georgia,
