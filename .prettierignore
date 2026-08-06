@@ -31,3 +31,6 @@ apps/uep/content/
 # Documents
 docs/**/*.html
 docs/**/*.md
+
+# Playwright MCP 暫存產物
+.playwright-mcp/
