@@ -89,40 +89,39 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       )
     }
 
-    <!-- Fonts：非阻塞載入，避免 render-blocking 300ms 延遲
+    <!-- Fonts：非阻塞載入，避免 render-blocking 延遲
 
-         這是全站最大的一筆下載：行動版首頁實測 **36 個分片、2245KB，
-         佔總傳輸量 2336KB 的 96%**（JS 只有 142KB）。慢速 4G 下光這一項
-         就要十一秒——`Load` 遠晚於 `DOMContentLoaded` 的尾巴全是它。
+         Noto Serif TC 走自架子集化（T-B3，2026-08-06）。Google Fonts 版
+         兩個字重共 36 個分片 2245KB、佔行動版首頁總傳輸量 96%，是 PageSpeed
+         FCP/LCP/SI 的唯一真兇。自架版分三層（core／content／lazy），
+         首頁只下載 core 分片（兩字重合計約 570KB），內頁用字進了內頁才抓，
+         罕字有懶載分片保底。產出與重跑方式見 scripts/build-font-subsets.mjs。
 
          ⚠️ Noto Serif TC 的 400 與 600 兩個字重都要留著。
-         砍掉 600 確實能省一半——**但視覺代價不可接受**：缺字重時瀏覽器
-         會合成偽粗體，那是把字面機械式加粗，比真正的 600 更笨重，滿頁
-         看起來「處處都在強調」（2026-08-06 實測後撤回）。
-         字型體積要省，得走自架子集化那條路，不能靠砍字重。
+         砍掉 600 缺字重時瀏覽器會合成偽粗體——機械式加粗比真正的 600
+         更笨重，滿頁看起來「處處都在強調」（2026-08-06 實測後撤回）。
 
-         ⚠️ `display` 維持 `swap`，**不要改成 `optional`**（2026-08-06 實測後撤回）。
-         optional 的理論賣點是「沒趕上就整趟用系統襯線、不中途換字」，
-         實際量下來位元組一個都沒少（2245KB → 2231KB），FCP 的差距落在噪音裡；
-         Chrome 那個「慢速連線放棄下載 optional 字型」的啟發式在節流模擬下
-         不會觸發。而 swap 本來就是零阻擋期、立刻用 fallback 繪製，
-         optional 唯一多買到的是「無換字重排」——CLS 本來就只有 0.039，
-         沒有分數可賺。收益量不出來，代價卻是首次造訪的人整站看不到
-         Noto Serif TC，不划算。
+         ⚠️ `font-display` 維持 `swap`，不要改 `optional`（2026-08-06 實測後撤回，
+         位元組一個都沒省，代價是首次造訪整站看不到 Noto Serif TC）。
 
-         ⚠️ **不要為這支 CSS 加 `rel="preload"`。** 它有 68KB（Noto Serif TC
-         的上百段 unicode-range 佔絕大部分），preload 會把它提到 High 優先權，
-         於是在慢速連線上跟真正阻斷繪製的樣式表**搶同一條管線**。行動版實測
-         FCP 之前總共只下載 201KB，這一支就佔三分之一。
-         拿掉 preload 後它回到 media="print" 應有的 Lowest 優先權，排在阻斷
-         繪製的 CSS 之後——瀏覽器仍在 preload scanner 階段就發現它，不會晚發，
-         只是不再插隊。代價是中文字型套用晚幾百毫秒（先顯示系統襯線）。
-         apps/root 的 BaseLayout 一直是這個形狀。 -->
+         ⚠️ **不要為字型 CSS 加 `rel="preload"`**（2026-08-06 實測後撤回）。
+         preload 會把它提到 High 優先權，在慢速連線上跟真正阻斷繪製的
+         樣式表搶同一條管線。media="print" 的 Lowest 優先權不會晚發
+         （preload scanner 階段就發現），只是不再插隊。
+
+         拉丁字型（Cormorant Garamond／Inter／JetBrains Mono）維持 Google Fonts
+         ——體積小（latin 子集各約 15-30KB），不值得自架。 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- 以 print media 非同步載入，onload 切換為 all 完成套用 -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <link
+      href="/fonts/noto-serif-tc/fonts.css"
       rel="stylesheet"
       media="print"
       onload="this.media='all'"
@@ -130,9 +129,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- 停用 JavaScript 時的退路 -->
     <noscript>
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
+      <link href="/fonts/noto-serif-tc/fonts.css" rel="stylesheet" />
     </noscript>
 
     <!-- 閒置感知系統 -->

@@ -92,3 +92,4 @@ scripts/archive/entity-key-map.proposed.json
 
 # Playwright MCP 的暫存產物（頁面快照/截圖，非專案檔案）
 .playwright-mcp/
+scripts/font-subset/src/

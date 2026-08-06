@@ -34,3 +34,5 @@ docs/**/*.md
 
 # Playwright MCP 暫存產物
 .playwright-mcp/
+# 字型子集化建置產物（build-font-subsets.mjs 自動產生）
+apps/uep/public/fonts/noto-serif-tc/
