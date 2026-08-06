@@ -219,11 +219,20 @@ export async function resetAndSeedTestData(
   const statements: D1PreparedStatement[] = BUSINESS_TABLES.map((table) =>
     db.prepare(`DELETE FROM ${table}`)
   );
+  /* 進度歸零必須同時遞增 progress_rev 並蓋 progress_reset_at——
+     否則 reset 前已開啟的分頁仍持有相同 rev，debounce PUT 會通過 CAS
+     把舊 progress（連同便條）原封寫回，reset 形同沒發生。
+     WHERE 額外涵蓋「只有便條」的帳號：便條表整批清空，凡有便條的
+     使用者 canonical 狀態都變了，rev 不動的話舊快照一樣復活便條。 */
   statements.push(
     db.prepare(
       `UPDATE uep_users
-       SET progress = NULL, observer_ever = 0, updated_at = datetime('now')
-       WHERE progress IS NOT NULL OR observer_ever != 0`
+       SET progress = NULL, observer_ever = 0,
+           progress_rev = progress_rev + 1,
+           progress_reset_at = datetime('now'),
+           updated_at = datetime('now')
+       WHERE progress IS NOT NULL OR observer_ever != 0
+          OR id IN (SELECT DISTINCT user_id FROM uep_user_notes)`
     )
   );
   /* uep_user_notes 是使用者擁有的資料（progress blob 拆出的便條，S11 C 段），

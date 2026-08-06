@@ -229,6 +229,95 @@ describe('POST /api/test/reset', () => {
   });
 
   /**
+   * reset 必須讓重置前發出的快照全數失效——不遞增 progress_rev 的話，
+   * 還開著的分頁 debounce PUT 會通過 CAS 把舊 progress（連同便條）
+   * 原封寫回，reset 形同沒發生。
+   */
+  it('reset 遞增 progress_rev：舊 rev 的 PUT 回 409，清掉的便條不復活', async () => {
+    // 走正式註冊流程拿 reader token（reset 後帳號仍在，只清進度）
+    const regRes = await worker.fetch(
+      createRequest('/api/uep/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'reset-rev-reader',
+          password: 'reset-rev-pass-123',
+        }),
+      }),
+      env,
+      ctx
+    );
+    const reg = (await regRes.json()) as { data?: { token: string } };
+    const readerToken = reg.data!.token;
+
+    const progress = {
+      version: 1,
+      view: 'explorer',
+      observerEver: false,
+      flags: [],
+      completedPageIds: ['history/1-1'],
+      islandsUnlocked: ['storage'],
+      storageNotes: [
+        {
+          id: 'revive-me',
+          text: '不該復活的便條',
+          tilt: 0,
+          createdAt: '2026-08-06T00:00:00.000Z',
+          updatedAt: '2026-08-06T00:00:00.000Z',
+        },
+      ],
+      updatedAt: '2026-08-06T00:00:00.000Z',
+    };
+    const putRes = await worker.fetch(
+      createRequest('/api/uep/progress', {
+        method: 'PUT',
+        token: readerToken,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(progress),
+      }),
+      env,
+      ctx
+    );
+    const put = (await putRes.json()) as { meta?: { rev: number } };
+    expect(putRes.status).toBe(200);
+    const revBeforeReset = put.meta!.rev;
+
+    const adminToken = await signWith('super_admin');
+    const resetRes = await worker.fetch(
+      createRequest('/api/test/reset', {
+        method: 'POST',
+        token: adminToken,
+        body: JSON.stringify({ clearOnly: true }),
+      }),
+      env,
+      ctx
+    );
+    expect(resetRes.status).toBe(200);
+
+    // 模擬 reset 前就開著的分頁：拿舊 rev 把整包舊 state 推回來
+    const staleRes = await worker.fetch(
+      createRequest('/api/uep/progress', {
+        method: 'PUT',
+        token: readerToken,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Progress-Rev': String(revBeforeReset),
+        },
+        body: JSON.stringify(progress),
+      }),
+      env,
+      ctx
+    );
+    expect(staleRes.status).toBe(409);
+    expect(await countRows('uep_user_notes')).toBe(0);
+    const row = await env.CONTENT_DB.prepare(
+      `SELECT progress, progress_reset_at FROM uep_users WHERE username = 'reset-rev-reader'`
+    ).first<{ progress: string | null; progress_reset_at: string | null }>();
+    expect(row!.progress).toBeNull();
+    expect(row!.progress_reset_at).not.toBeNull();
+  });
+
+  /**
    * 互聯兩張表是從 pages 衍生的（S10-1）。reset 若只重建 pages 不清衍生表，
    * 殘留的錨點會被同 page id 的新頁重新 join 出來——看起來像「這篇文章
    * 提過某個 key」，但實際內容裡根本沒有。
