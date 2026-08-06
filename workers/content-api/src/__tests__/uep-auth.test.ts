@@ -219,6 +219,126 @@ describe('登入與 me', () => {
     expect(status).toBe(401);
   });
 
+  /* 信箱是登入識別名的替代路徑。識別名不允許 `@`（USERNAME_RE），
+     所以兩者不會互撞，同一格輸入不必先問使用者是哪一種。 */
+  describe('用信箱登入', () => {
+    async function registerWithEmail(username: string, email: string) {
+      const { status } = await fetchJson('/api/uep/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          username,
+          password: 'test-password-123',
+          email,
+        }),
+      });
+      expect(status).toBe(201);
+    }
+
+    it('填過信箱的帳號可以用信箱登入', async () => {
+      /* 刻意不用 reader@example.com——上面的註冊測試已經佔用了它，
+         共用會變成「同一信箱兩個帳號」而撞到歧義分支 */
+      await registerWithEmail('mail-login', 'mail-login@example.com');
+      const { status, body } = await fetchJson<{ username: string }>(
+        '/api/uep/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            username: 'mail-login@example.com',
+            password: 'test-password-123',
+          }),
+        }
+      );
+      expect(status).toBe(200);
+      expect(body.data!.username).toBe('mail-login');
+    });
+
+    it('信箱比對不分大小寫——沒人會記得當初怎麼打的', async () => {
+      await registerWithEmail('mail-case', 'Mixed.Case@Example.com');
+      const { status } = await fetchJson('/api/uep/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: 'mixed.case@example.com',
+          password: 'test-password-123',
+        }),
+      });
+      expect(status).toBe(200);
+    });
+
+    /* 信箱沒有 unique 約束，兩個帳號填同一個是合法的。無從得知要登入
+       哪一個，但也不能回「憑證錯誤」讓人反覆試密碼。 */
+    it('同一信箱掛多個帳號時回 409 並要求改用識別名', async () => {
+      await registerWithEmail('dup-mail-a', 'shared@example.com');
+      await registerWithEmail('dup-mail-b', 'shared@example.com');
+      const { status, body } = await fetchJson('/api/uep/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: 'shared@example.com',
+          password: 'test-password-123',
+        }),
+      });
+      expect(status).toBe(409);
+      expect(body.error).toContain('識別名');
+    });
+
+    it('識別名仍然優先——就算它剛好也是別人的信箱值', async () => {
+      await registerWithEmail('collide-name', 'collide-name@example.com');
+      const { status, body } = await fetchJson<{ username: string }>(
+        '/api/uep/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            username: 'collide-name',
+            password: 'test-password-123',
+          }),
+        }
+      );
+      expect(status).toBe(200);
+      expect(body.data!.username).toBe('collide-name');
+    });
+  });
+
+  /* 被停用的帳號要讓讀者知道「有東西擋著」而不是以為自己記錯密碼，
+     但這件事只能在密碼驗過之後說——先擋的話等於不用知道密碼就能
+     問出「這個帳號存在且被停用」。 */
+  describe('被停用的帳號', () => {
+    async function deactivate(username: string) {
+      await env.CONTENT_DB.prepare(
+        'UPDATE uep_users SET is_active = 0 WHERE username = ?'
+      )
+        .bind(username)
+        .run();
+    }
+
+    it('密碼正確時回 403，訊息是世界裡的阻力而非系統狀態', async () => {
+      await registerUser('inactive-ok');
+      await deactivate('inactive-ok');
+      const { status, body } = await fetchJson('/api/uep/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: 'inactive-ok',
+          password: 'test-password-123',
+        }),
+      });
+      expect(status).toBe(403);
+      expect(body.error).toContain('未知的力量');
+      expect(body.error).not.toContain('停用');
+    });
+
+    it('密碼錯誤時仍是 401——不知道密碼就問不出帳號被停用', async () => {
+      await registerUser('inactive-bad');
+      await deactivate('inactive-bad');
+      const { status, body } = await fetchJson('/api/uep/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: 'inactive-bad',
+          password: 'wrong-password',
+        }),
+      });
+      expect(status).toBe(401);
+      expect(body.error).not.toContain('未知的力量');
+    });
+  });
+
   it('me 回傳使用者資訊', async () => {
     const { token, alias } = await registerUser('reader-me');
     const { status, body } = await fetchJson<{
@@ -963,7 +1083,9 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
         password: 'deact-password-1',
       }),
     });
-    expect(blocked.status).toBe(401);
+    /* 403 而不是 401：密碼是對的，擋下來的是帳號狀態。
+       訊息與判定順序見「被停用的帳號」那組測試。 */
+    expect(blocked.status).toBe(403);
 
     await fetchJson(`/api/uep/admin/users/${user!.id}`, {
       method: 'PUT',
@@ -987,6 +1109,20 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
       'del-password-1'
     );
     const user = await findUser(adminToken, 'um-del-user');
+
+    /* 啟用中的帳號刪不掉——刪除是清單上最容易點錯的一格，
+       「先停用、確認沒事再刪」讓誤刪需要兩個刻意的動作 */
+    const tooSoon = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'DELETE',
+      token: adminToken,
+    });
+    expect(tooSoon.status).toBe(409);
+
+    await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ isActive: false }),
+    });
 
     const del = await fetchJson(`/api/uep/admin/users/${user!.id}`, {
       method: 'DELETE',
@@ -1039,6 +1175,23 @@ describe('Admin 使用者管理（/api/uep/admin/users）', () => {
       { method: 'POST', token: adminToken }
     );
     expect(restore.status).toBe(200);
+
+    /* restore 只撤銷刪除，不會順手把帳號重新啟用——刪除的前提就是先停用，
+       所以復原後仍是停用狀態（403），要不要放人回來是另一個決定。 */
+    const stillInactive = await fetchJson('/api/uep/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'um-del-user',
+        password: 'del-password-1',
+      }),
+    });
+    expect(stillInactive.status).toBe(403);
+
+    await fetchJson(`/api/uep/admin/users/${user!.id}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: JSON.stringify({ isActive: true }),
+    });
     const loginAfter = await fetchJson('/api/uep/auth/login', {
       method: 'POST',
       body: JSON.stringify({

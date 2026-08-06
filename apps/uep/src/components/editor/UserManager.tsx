@@ -737,10 +737,17 @@ export default function UserManager() {
                   復原使用者
                 </button>
               ) : (
+                /* 只有已停用的帳號能刪。刪除是這個面板上最容易點錯的一格，
+                   「先停用、確認沒事再刪」讓誤刪需要兩個刻意的動作。
+                   停用中的帳號還登得進 admin 面板看，停用本身可直接復原。
+                   Worker 端同樣擋著（回 409），這裡只是不讓人白按。 */
                 <button
                   className="um-btn um-btn--danger"
                   onClick={handleDelete}
-                  disabled={saving}
+                  disabled={saving || selected.isActive}
+                  title={
+                    selected.isActive ? '請先停用這個紀錄，才能刪除' : undefined
+                  }
                 >
                   刪除使用者
                 </button>

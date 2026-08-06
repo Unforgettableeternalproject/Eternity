@@ -219,12 +219,24 @@ async function handleLogin(
   jwtSecret: string,
   cors: Record<string, string>
 ): Promise<Response> {
-  const row = await db
+  const identifier = (body.username || '').trim();
+
+  /* 識別名或信箱都可以登入。兩者不會互撞——USERNAME_RE 不允許 `@`，
+     所以任何帶 `@` 的字串一定是信箱、不帶的一定是識別名。
+     信箱沒有 unique 約束（多個帳號可以填同一個），所以取兩筆判斷歧義；
+     識別名是 UNIQUE，命中就一定只有一筆，故排序讓它優先。 */
+  const matches = await db
     .prepare(
-      'SELECT * FROM uep_users WHERE username = ? AND is_active = 1 AND deleted_at IS NULL'
+      `SELECT * FROM uep_users
+       WHERE deleted_at IS NULL
+         AND (username = ? OR (email IS NOT NULL AND email = ? COLLATE NOCASE))
+       ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, id
+       LIMIT 2`
     )
-    .bind(body.username || '')
-    .first<UepUserRow>();
+    .bind(identifier, identifier, identifier)
+    .all<UepUserRow>();
+  const rows = matches.results || [];
+  const row = rows[0];
 
   if (!row) {
     // 與 admin login 相同：固定延遲防 timing 洩漏帳號存在性
@@ -232,10 +244,37 @@ async function handleLogin(
     return json({ ok: false, error: '憑證錯誤' }, 401, cors);
   }
 
+  /* 同一個信箱掛在多個帳號上時無從得知要登入哪一個。這裡不能猜，
+     但也不該回「憑證錯誤」讓人反覆試密碼——直接說清楚要改用識別名。
+     識別名命中時 rows[0] 一定是它（見上方排序），不會走到這裡。 */
+  if (rows.length > 1 && row.username !== identifier) {
+    return json(
+      { ok: false, error: '這個信箱對應到多個紀錄，請改用識別名登入' },
+      409,
+      cors
+    );
+  }
+
   const valid = await verifyPassword(body.password || '', row.password_hash);
   if (!valid) {
     await new Promise((r) => setTimeout(r, 200));
     return json({ ok: false, error: '憑證錯誤' }, 401, cors);
+  }
+
+  /* 停用的帳號在密碼**驗過之後**才回報。順序不能顛倒：先擋的話等於
+     不用知道密碼就能問出「這個帳號存在且被停用」。
+     訊息刻意不說「帳號已停用」——對讀者而言那是世界裡的一道阻力，
+     不是系統管理狀態。 */
+  if (row.is_active !== 1) {
+    return json(
+      {
+        ok: false,
+        error: '有一股未知的力量阻止你回復這段紀錄。',
+        data: { reason: 'inactive' },
+      },
+      403,
+      cors
+    );
   }
 
   const token = await issueReaderToken(row, jwtSecret);
@@ -700,14 +739,30 @@ async function handleAdminDeleteUser(
   cors: Record<string, string>
 ): Promise<Response> {
   const now = new Date().toISOString();
+  /* 只有已停用的帳號可以刪。刪除是清單上最容易點錯的一格，而「先停用、
+     確認沒事再刪」讓誤刪需要兩個刻意的動作。停用本身可以直接復原，
+     刪除雖然是軟刪但要走另一個端點。 */
   const result = await db
     .prepare(
-      'UPDATE uep_users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE uep_users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND is_active = 0'
     )
     .bind(now, now, userId)
     .run();
 
   if (result.meta.changes === 0) {
+    const existing = await db
+      .prepare(
+        'SELECT is_active FROM uep_users WHERE id = ? AND deleted_at IS NULL'
+      )
+      .bind(userId)
+      .first<{ is_active: number }>();
+    if (existing && existing.is_active === 1) {
+      return json(
+        { ok: false, error: '請先停用這個紀錄，才能刪除' },
+        409,
+        cors
+      );
+    }
     return json({ ok: false, error: '使用者不存在或已被刪除' }, 404, cors);
   }
 

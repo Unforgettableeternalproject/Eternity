@@ -311,10 +311,12 @@ function LoginFlow({
   async function submit() {
     setError('');
     if (!username.trim() || !password) {
-      setError('識別名與通行密語都需要填寫');
+      setError('識別名或信箱、以及通行密語都需要填寫');
       return;
     }
     setBusy(true);
+    /* 識別名與信箱共用這一格：識別名不允許 `@`（USERNAME_RE），
+       所以伺服器端不必再問是哪一種，帶 `@` 就一定是信箱 */
     const result = await getReaderAuth().login(username.trim(), password);
     setBusy(false);
     if (!result.ok) {
@@ -334,7 +336,7 @@ function LoginFlow({
         type="text"
         value={username}
         autoComplete="username"
-        placeholder="辨識符"
+        placeholder="辨識符或信箱"
         onChange={(e) => setUsername(e.target.value)}
       />
       <input
@@ -472,7 +474,7 @@ export default function ReaderLoginPage({ returnUrl }: Props) {
                 <div className="uep-login-choice-glyph">◈</div>
                 <div className="uep-login-choice-name">接續記錄</div>
                 <div className="uep-login-choice-desc">
-                  你曾在此留下名字——輸入識別名與通行密語，把足跡接回來。
+                  你曾在此留下名字——輸入識別名（或信箱）與通行密語，把足跡接回來。
                 </div>
               </button>
               <button
