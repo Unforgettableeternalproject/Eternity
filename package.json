@@ -1,6 +1,6 @@
 {
   "name": "eternity-monorepo",
-  "version": "0.9.18.12",
+  "version": "0.9.18.13",
   "private": true,
   "description": "Bernie's personal website monorepo with Astro",
   "packageManager": "pnpm@9.15.0",
@@ -48,7 +48,9 @@
     "deploy:discord-widget": "pnpm --filter discord-widget-sync-worker ship",
     "db:migrate:local": "pnpm --filter content-api-worker db:migrate:local",
     "db:migrate:remote": "pnpm --filter content-api-worker db:migrate:remote",
-    "db:migrate:test": "pnpm --filter content-api-worker db:migrate:test"
+    "db:migrate:test": "pnpm --filter content-api-worker db:migrate:test",
+    "perf": "node scripts/perf-measure.mjs",
+    "perf:desktop": "node scripts/perf-measure.mjs --profile=desktop"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
