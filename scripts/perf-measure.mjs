@@ -28,12 +28,20 @@
  *
  * ## 已知限制
  *
- * - **字型量不準**：headless chromium 的字型載入策略與真實瀏覽器不同，
- *   CJK 分片常常一個都不抓，於是「字型 0 個」不代表優化生效。字型體積
- *   請用真實瀏覽器的 DevTools Network 面板確認。
- * - 跨網域資源沒有 Timing-Allow-Origin 時 `encodedBodySize` 恆為 0，
- *   所以大小欄位會顯示「不可見」而不是 0 KB——兩者意義完全不同。
  * - 量的是**初次載入**（每次開新 context），不反映回訪的快取效益。
+ *
+ * ## ⚠️ 不要用 Resource Timing 量跨網域資源的體積
+ *
+ * 跨網域資源沒有 `Timing-Allow-Origin` 時 `encodedBodySize` 恆為 0。
+ * 這支腳本一開始就是這樣量的，於是 Google Fonts 全部顯示成「0 個 / 0 KB」，
+ * 被讀成「headless 不抓 CJK 分片」，進而推翻了「效能根因是中文字型」這個
+ * 一開始就正確的判斷。實際上 headless 抓得很勤：**36 個分片、2245KB，
+ * 佔首頁總下載量的 96%**。
+ *
+ * 現在改從 CDP `response` 事件讀 `content-length` header，跨網域一樣看得到。
+ * 代價是伺服器用 chunked encoding 時沒有這個 header（Cloudflare 對自家的
+ * JS/CSS 就是如此），所以同站資源的體積仍沿用 Resource Timing。
+ * 兩種來源各補對方的盲區，缺一不可。
  */
 
 /* 從 @playwright/test 取用，不另裝 playwright——專案已有前者（e2e 用），
@@ -136,6 +144,13 @@ async function measureOnce(browser, url, profile) {
     }
   });
 
+  /* 跨網域體積只有這條路看得到——見檔頭警告 */
+  const wire = [];
+  page.on('response', (res) => {
+    const len = Number(res.headers()['content-length'] || 0);
+    wire.push({ url: res.url(), bytes: len });
+  });
+
   await page.goto(url, { waitUntil: 'load', timeout: 120_000 });
   /* LCP 會隨著後續繪製往後更新，載入完成後再等一段讓它收斂 */
   await page.waitForTimeout(2500);
@@ -199,17 +214,18 @@ async function measureOnce(browser, url, profile) {
       fontCount: fonts.length,
       imgKB: sum(images) / 1024,
       imgCount: images.length,
-      /* 跨網域資源若沒有 Timing-Allow-Origin，encodedBodySize 一律是 0——
-         Google Fonts 的字型檔就是這種情況。大小量不到時至少要能看出
-         「抓了幾個」，否則 0 KB 會被誤讀成「根本沒下載」。 */
-      crossOriginOpaque: resources.filter(
-        (r) => r.encodedBodySize === 0 && r.duration > 0
-      ).length,
     };
   });
 
   await context.close();
-  return metrics;
+
+  const fontWire = wire.filter((w) => w.url.includes('fonts.gstatic.com'));
+  return {
+    ...metrics,
+    fontCount: fontWire.length,
+    fontKB: fontWire.reduce((a, w) => a + w.bytes, 0) / 1024,
+    wireKB: wire.reduce((a, w) => a + w.bytes, 0) / 1024,
+  };
 }
 
 async function main() {
@@ -269,7 +285,7 @@ async function main() {
     fontCount: pick('fontCount'),
     imgKB: pick('imgKB'),
     imgCount: pick('imgCount'),
-    crossOriginOpaque: pick('crossOriginOpaque'),
+    wireKB: pick('wireKB'),
   };
 
   if (args.json) {
@@ -294,11 +310,12 @@ async function main() {
   console.log(`  CSS               ${res(summary.cssCount, summary.cssKB)}`);
   console.log(`  字型              ${res(summary.fontCount, summary.fontKB)}`);
   console.log(`  圖片              ${res(summary.imgCount, summary.imgKB)}`);
-  if (summary.crossOriginOpaque > 0) {
-    console.log(
-      `\n  ※ ${summary.crossOriginOpaque} 個跨網域資源量不到大小` +
-        '（缺 Timing-Allow-Origin，多半是 Google Fonts）'
-    );
+  console.log(
+    `  ── 實際傳輸總量    ${kb(summary.wireKB)}（含跨網域，取自 content-length）`
+  );
+  if (summary.wireKB > 0) {
+    const share = Math.round((summary.fontKB / summary.wireKB) * 100);
+    console.log(`     其中字型佔 ${share}%`);
   }
   if (summary.lcpUrl) console.log(`  LCP 元素：${summary.lcpUrl}`);
 
