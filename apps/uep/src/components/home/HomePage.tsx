@@ -83,6 +83,19 @@ export const MOBILE_FADE_TRIGGER_PROGRESS = 0.92;
  */
 const MOBILE_FADE_START_VH = 1.1;
 const MOBILE_FADE_END_VH = 0.85;
+
+/**
+ * 手機往回捲的淡出終點：當前區塊頂緣下沉多少就算全黑。
+ *
+ * 往上不能沿用往下那組數字，因為兩邊的幾何是不對稱的：往下時下一區塊
+ * 還在畫面外，band 有 0.10vh 的「跑道」可以先暗起來；往上時只要手指一動，
+ * 上一區塊的底部**立刻**開始露出，沒有任何跑道。
+ *
+ * 所以起點固定在 0（當前區塊頂緣與視窗頂緣切齊、上方什麼都還沒露），
+ * 終點取 0.16vh——那正是原本硬門檻的位置，也讓全黑時的露出量（16%）
+ * 對齊往下那組的 15%。可見的漸變距離兩邊因此一致（各約 0.15vh）。
+ */
+const MOBILE_UP_FADE_END_VH = 0.16;
 const ATLAS_SCENE_INDEX = -3;
 
 /** 大廳動畫 — 墜落速度線 */
@@ -175,6 +188,23 @@ export function mobileFadeProgress(topPx: number, vh: number): number {
   if (topPx >= start) return 0;
   if (topPx <= end) return 1;
   return (start - topPx) / (start - end);
+}
+
+/**
+ * 手機往回捲的淡出進度：**當前**區塊頂緣下沉的比例（0 → 1）。
+ *
+ * 與往下那支互為鏡像，只是量的對象不同——往下看的是還沒到的下一區塊
+ * 頂緣（由下往上逼近），往上看的是腳下這一區塊的頂緣（往下沉，沉多少
+ * 就露出多少上一區塊）。
+ *
+ * 同樣是捲動位置的純函數：手指改變方向進度就自己退回去。
+ * 頂緣還在視窗頂之上（負值）代表使用者仍在區塊內往上讀，尚未觸及邊界。
+ */
+export function mobileUpFadeProgress(currentTopPx: number, vh: number): number {
+  const end = MOBILE_UP_FADE_END_VH * vh;
+  if (currentTopPx <= 0) return 0;
+  if (currentTopPx >= end) return 1;
+  return currentTopPx / end;
 }
 
 function isSettledAtElement(
@@ -967,6 +997,40 @@ export default function HomePage({
 
       const current = previousSceneRef.current;
 
+      /* 往回捲的淡出——與往下那支 advanceFade 對稱。
+         沒有這段的話往上是硬門檻（頂緣下沉超過 0.16vh 就直接轉場），
+         使用者看到的是「啪一下」，而往下是漸暗，同一個手勢兩種質感。
+
+         只有手機需要：桌面的往上轉場由 wheel fade 累積，這裡的 scroll
+         handler 對桌面只是保底。 */
+      const advanceUpFade = (
+        currentTop: number
+      ): 'transition' | 'overshoot' | 'none' => {
+        if (!isMobile) {
+          /* 桌面維持原本的硬門檻語意——它的漸變在 wheel handler 裡 */
+          return currentTop > vh * MOBILE_UP_FADE_END_VH
+            ? 'transition'
+            : 'none';
+        }
+        const progress = mobileUpFadeProgress(currentTop, vh);
+        fadeOverlayRef.current?.style.setProperty(
+          '--fade-progress',
+          progress.toFixed(3)
+        );
+        /* 慣性一幀可以跨掉整個 band。此時上一區塊早就露出大半，
+           補放轉場只會在使用者已經看到之後才蓋幕，比不做更突兀——
+           與往下的 overshoot 同一個語意：靜默同步狀態即可。 */
+        if (currentTop > vh * MOBILE_UP_GATE_MAX) return 'overshoot';
+        return progress >= MOBILE_FADE_TRIGGER_PROGRESS ? 'transition' : 'none';
+      };
+
+      /** overshoot 的收尾：狀態跟上，不播動畫 */
+      const syncUpOvershoot = (index: number) => {
+        previousSceneRef.current = index;
+        setActiveScene(index);
+        fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+      };
+
       // 位置矯正：previousSceneRef 卡在 Storage(4) 但實際已滑到 Verse 附近
       if (current === ZONES.length - 1) {
         const verseEl = container.querySelector<HTMLElement>('#verse-section');
@@ -983,8 +1047,28 @@ export default function HomePage({
       // Verse → Storage
       if (current === 5) {
         const verseEl = container.querySelector<HTMLElement>('#verse-section');
-        if (verseEl && verseEl.offsetTop - scrollTop > vh * 0.16) {
-          const verseTop = verseEl.offsetTop - scrollTop;
+        const verseTopRaw = verseEl ? verseEl.offsetTop - scrollTop : 0;
+
+        /* 手機的淡出區間是 [0, 0.16vh]，所以進場條件必須放寬到「頂緣一開始
+           下沉」——照桌面那樣等到 > 0.16vh 才進來，進度算出來永遠是 1，
+           漸變等於沒有。 */
+        if (verseEl && verseTopRaw > (isMobile ? 0 : vh * 0.16)) {
+          const verseTop = verseTopRaw;
+
+          if (isMobile) {
+            /* verseTop 就是「當前區塊頂緣」——current === 5 代表人在 Verse。
+               改走漸進淡出後不再需要「來不及就直接全黑」那種補救，
+               進度本來就是位置的函數，跟得上任何速度。
+               還沒走到觸發點時直接 return：不能落到下面那句無條件的
+               `previousSceneRef = 4`，否則狀態會在轉場前就先跳走。 */
+            const verdict = advanceUpFade(verseTop);
+            if (verdict === 'transition') {
+              startZoneTransition(4, mergedZonesRef.current[4], 'up');
+            } else if (verdict === 'overshoot') {
+              syncUpOvershoot(4);
+            }
+            return;
+          }
 
           // 輔助：從 Verse 深處快速滾回時 fade 來不及累積，
           // 先強制全黑再播轉場，避免 boot overlay 閃現。
@@ -995,47 +1079,21 @@ export default function HomePage({
             }
           };
 
-          if (isMobile) {
-            if (
-              isWithinViewportBand(
-                verseTop,
-                vh,
-                MOBILE_UP_GATE_MIN,
-                MOBILE_UP_GATE_MAX
-              )
-            ) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
-            // mobile 越過 gate band 的保底
-            if (verseTop > vh * MOBILE_UP_GATE_MAX && verseTop <= vh * 0.82) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
+          // 桌面快速回拉可能直接跨過 up gate，補一層保底觸發。
+          if (verseTop <= vh * DESKTOP_UP_GATE_MAX && verseTop >= -vh * 0.12) {
+            ensureFade();
+            startZoneTransition(4, mergedZonesRef.current[4], 'up');
+            return;
           }
 
-          if (!isMobile) {
-            // 桌面快速回拉可能直接跨過 up gate，補一層保底觸發。
-            if (
-              verseTop <= vh * DESKTOP_UP_GATE_MAX &&
-              verseTop >= -vh * 0.12
-            ) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
+          if (verseTop > vh * DESKTOP_UP_GATE_MAX && verseTop <= vh * 0.82) {
+            ensureFade();
+            startZoneTransition(4, mergedZonesRef.current[4], 'up');
+            return;
+          }
 
-            if (verseTop > vh * DESKTOP_UP_GATE_MAX && verseTop <= vh * 0.82) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
-
-            if (verseTop > vh * 0.82) {
-              previousSceneRef.current = 4;
-            }
+          if (verseTop > vh * 0.82) {
+            previousSceneRef.current = 4;
           }
 
           // 只要已判定離開 Verse，就同步到 Storage 狀態，避免下一次下滑仍卡在 scene=5。
@@ -1047,25 +1105,35 @@ export default function HomePage({
 
       if (current >= 1) {
         const currentScene = scenes[current];
-        if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
-          // mobile / 桌面都觸發轉場，鎖住容器以攔截中鍵自動滾動等快速捲動
+        if (currentScene) {
           const targetIndex = current - 1;
-          startZoneTransition(
-            targetIndex,
-            mergedZonesRef.current[targetIndex],
-            'up'
-          );
+          const verdict = advanceUpFade(currentScene.offsetTop - scrollTop);
+          if (verdict === 'transition') {
+            // mobile / 桌面都觸發轉場，鎖住容器以攔截中鍵自動滾動等快速捲動
+            startZoneTransition(
+              targetIndex,
+              mergedZonesRef.current[targetIndex],
+              'up'
+            );
+          } else if (verdict === 'overshoot') {
+            syncUpOvershoot(targetIndex);
+          }
         }
         return;
       }
 
       if (current === 0) {
         const currentScene = scenes[0];
-        if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
-          const thresholdEl =
-            container.querySelector<HTMLElement>('#journey-start');
-          if (thresholdEl) {
-            startSectionTransition(thresholdEl, -1, 'plain', 'up');
+        if (currentScene) {
+          const verdict = advanceUpFade(currentScene.offsetTop - scrollTop);
+          if (verdict === 'transition') {
+            const thresholdEl =
+              container.querySelector<HTMLElement>('#journey-start');
+            if (thresholdEl) {
+              startSectionTransition(thresholdEl, -1, 'plain', 'up');
+            }
+          } else if (verdict === 'overshoot') {
+            syncUpOvershoot(-1);
           }
         }
         return;
