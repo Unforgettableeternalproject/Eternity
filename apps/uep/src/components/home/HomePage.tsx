@@ -72,30 +72,39 @@ export const MOBILE_FADE_TRIGGER_PROGRESS = 0.92;
  *
  * **不能沿用 gate band [0.42, 0.90]。** 手機的 `.journey-scroll` 刻意關掉了
  * scroll snap（桌面是 y mandatory），所以捲動可以停在任意位置——遮罩還沒
- * 夠暗時，下一區塊的開頭就已經是畫面上一大片空白。用 gate band 當淡出區，
- * 進度走到一半（半透明）時下一區塊已經露出三分之一，半黑的遮罩蓋不住。
+ * 夠暗時，下一區塊的開頭就已經是畫面上一大片空白。
  *
- * 所以淡出要**趕在露出之前**開始：起點取 1.10vh——頂緣還在畫面外，
- * 使用者只是接近當前區塊底部；終點 0.85vh 只露出 15%，而那時遮罩已經
- * 接近全黑，看不出來。
+ * 終點取 **1.02vh**：那時下一區塊的頂緣還在視窗底緣之下，也就是**接縫
+ * 完全還沒進畫面**時遮罩就已經全黑。前一版終點放在 0.85vh（露出 15%
+ * 才全黑），實測仍看得到邊界——遮罩本身有淡入的時間差，等到「快全黑」
+ * 時接縫早就露出來了。寧可全黑得比需要的更早，那一段反正也沒東西可看。
  *
- * 區間 0.25vh（約 210px 的滑動距離）足夠感受到漸變，又短到不會露出接縫。
+ * 起點 1.45vh 給 0.43vh（約 360px）的漸變距離。上限受最矮的區塊約束：
+ * 實測手機版各區塊高 1.70～2.15vh，靜止對齊時 `nextTop` 等於當前區塊的
+ * 高度，所以起點必須明顯低於 1.70vh，否則一停下來就已經是半黑的。
  */
-const MOBILE_FADE_START_VH = 1.1;
-const MOBILE_FADE_END_VH = 0.85;
+const MOBILE_FADE_START_VH = 1.45;
+const MOBILE_FADE_END_VH = 1.02;
 
 /**
- * 手機往回捲的淡出終點：當前區塊頂緣下沉多少就算全黑。
+ * 手機往回捲的淡出區間：**當前**區塊頂緣的位置。
  *
- * 往上不能沿用往下那組數字，因為兩邊的幾何是不對稱的：往下時下一區塊
- * 還在畫面外，band 有 0.10vh 的「跑道」可以先暗起來；往上時只要手指一動，
- * 上一區塊的底部**立刻**開始露出，沒有任何跑道。
+ * 兩個方向的幾何不對稱：往下時下一區塊還在畫面外，天然就有跑道；
+ * 往上時手指一動，上一區塊的底部立刻開始露出。
  *
- * 所以起點固定在 0（當前區塊頂緣與視窗頂緣切齊、上方什麼都還沒露），
- * 終點取 0.16vh——那正是原本硬門檻的位置，也讓全黑時的露出量（16%）
- * 對齊往下那組的 15%。可見的漸變距離兩邊因此一致（各約 0.15vh）。
+ * 所以往上的跑道要向內取——起點 -0.30vh 代表「頂緣還在視窗頂上方
+ * 0.30vh」，也就是使用者在區塊內往上讀、快到頂了的那一段。終點 0.02vh
+ * 幾乎就是切齊的瞬間：接縫還沒露出來，遮罩已經全黑。
  */
-const MOBILE_UP_FADE_END_VH = 0.16;
+const MOBILE_UP_FADE_START_VH = -0.3;
+const MOBILE_UP_FADE_END_VH = 0.02;
+
+/**
+ * 桌面往回捲的硬門檻（當前區塊頂緣下沉多少就轉場）。
+ * 桌面的漸變由 wheel handler 累積，scroll handler 只是保底，所以維持
+ * 原本的單一門檻——**不要**改用手機那組區間常數，那是兩套不同的機制。
+ */
+const DESKTOP_UP_SCROLL_THRESHOLD_VH = 0.16;
 const ATLAS_SCENE_INDEX = -3;
 
 /** 大廳動畫 — 墜落速度線 */
@@ -201,10 +210,11 @@ export function mobileFadeProgress(topPx: number, vh: number): number {
  * 頂緣還在視窗頂之上（負值）代表使用者仍在區塊內往上讀，尚未觸及邊界。
  */
 export function mobileUpFadeProgress(currentTopPx: number, vh: number): number {
+  const start = MOBILE_UP_FADE_START_VH * vh;
   const end = MOBILE_UP_FADE_END_VH * vh;
-  if (currentTopPx <= 0) return 0;
+  if (currentTopPx <= start) return 0;
   if (currentTopPx >= end) return 1;
-  return currentTopPx / end;
+  return (currentTopPx - start) / (end - start);
 }
 
 function isSettledAtElement(
@@ -1008,7 +1018,7 @@ export default function HomePage({
       ): 'transition' | 'overshoot' | 'none' => {
         if (!isMobile) {
           /* 桌面維持原本的硬門檻語意——它的漸變在 wheel handler 裡 */
-          return currentTop > vh * MOBILE_UP_FADE_END_VH
+          return currentTop > vh * DESKTOP_UP_SCROLL_THRESHOLD_VH
             ? 'transition'
             : 'none';
         }
@@ -1052,7 +1062,14 @@ export default function HomePage({
         /* 手機的淡出區間是 [0, 0.16vh]，所以進場條件必須放寬到「頂緣一開始
            下沉」——照桌面那樣等到 > 0.16vh 才進來，進度算出來永遠是 1，
            漸變等於沒有。 */
-        if (verseEl && verseTopRaw > (isMobile ? 0 : vh * 0.16)) {
+        if (
+          verseEl &&
+          verseTopRaw >
+            vh *
+              (isMobile
+                ? MOBILE_UP_FADE_START_VH
+                : DESKTOP_UP_SCROLL_THRESHOLD_VH)
+        ) {
           const verseTop = verseTopRaw;
 
           if (isMobile) {
