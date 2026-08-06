@@ -360,14 +360,26 @@
 }
 
 @media (max-width: 760px) {
+  /* 手機用 proximity 而不是 mandatory。
+     mandatory 在這裡不能用：手機的區塊實測高 1.70～2.15vh（內容撐開的，
+     比視窗高），mandatory 會讓人一放手就被拉回區塊開頭，讀不到中段——
+     那正是當初手機把 snap 整個關掉的原因。
+     proximity 只在放手時「附近剛好有 snap point」才吸附，中段完全自由
+     捲動，接近邊界才輕輕落位。邊界因此有阻力與落位感，而且是原生行為，
+     不像自己接管捲動那樣沒有慣性。
+
+     ⚠️ `scroll-snap-stop` 必須顯式設回 normal。基礎規則是 always，
+     那會強制每個 snap point 都停下來，等於把 proximity 變成 mandatory
+     的手感（快速滑動會被一格一格卡住）。 */
   .journey-scroll {
-    scroll-snap-type: none;
+    scroll-snap-type: y proximity;
   }
 
   .journey-scene {
     min-height: calc(100dvh - var(--topbar-h, 0px));
     padding: 60px 20px 48px;
-    scroll-snap-align: none;
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
   }
 
   .journey-scene__inner {
@@ -411,7 +423,8 @@
   .journey-transition {
     min-height: 80dvh;
     padding: 60px 20px;
-    scroll-snap-align: none;
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
   }
 
   .journey-transition__title {

@@ -97,16 +97,25 @@ describe('mobileFadeProgress', () => {
  * 幾何是不對稱的：往下時下一區塊還在畫面外，有跑道可以先暗起來；
  * 往上時手指一動，上一區塊立刻開始露出，沒有跑道。所以起點固定在 0。
  */
-const UP_START = -0.3;
-const UP_END = 0.02;
+const UP_START = 0;
+const UP_END = 0.1;
 
 describe('mobileUpFadeProgress', () => {
-  it('還在區塊深處往上讀 —— 完全不暗', () => {
-    expect(mobileUpFadeProgress(UP_START * VH - 1, VH)).toBe(0);
+  /* 起點取負值曾經是個真 bug：頂緣切齊就是每個區塊的靜止位置，
+     那時進度接近 1 代表停著就半黑，而且超過觸發門檻——往上捲到區塊
+     頂端的那一刻會被直接丟進上一個區塊。 */
+  it('頂緣切齊視窗頂時完全不暗 —— 那是靜止位置', () => {
+    expect(mobileUpFadeProgress(0, VH)).toBe(0);
     expect(mobileUpFadeProgress(-0.8 * VH, VH)).toBe(0);
   });
 
-  it('頂緣切齊之前就已經全暗 —— 接縫不該有機會露出', () => {
+  it('切齊時的進度遠低於觸發門檻', () => {
+    expect(mobileUpFadeProgress(0, VH)).toBeLessThan(
+      MOBILE_FADE_TRIGGER_PROGRESS
+    );
+  });
+
+  it('接縫露出一小段就全暗', () => {
     expect(mobileUpFadeProgress(UP_END * VH, VH)).toBe(1);
     expect(mobileUpFadeProgress(0.5 * VH, VH)).toBe(1);
   });
@@ -117,7 +126,7 @@ describe('mobileUpFadeProgress', () => {
   });
 
   it('單調遞增：頂緣沉得越深越暗', () => {
-    const samples = [-300, -220, -150, -80, -20, 0, 20].map((top) =>
+    const samples = [-300, -100, 0, 20, 50, 80, 100].map((top) =>
       mobileUpFadeProgress(top, VH)
     );
     for (let i = 1; i < samples.length; i += 1) {
@@ -126,25 +135,25 @@ describe('mobileUpFadeProgress', () => {
   });
 
   it('改變方向進度自己退回去——與往下同一個性質', () => {
-    expect(mobileUpFadeProgress(-200, VH)).toBeLessThan(
-      mobileUpFadeProgress(-40, VH)
+    expect(mobileUpFadeProgress(20, VH)).toBeLessThan(
+      mobileUpFadeProgress(70, VH)
     );
   });
 
-  /* 往上沒有畫面外的跑道可用，所以跑道向內取——趕在接縫露出之前全黑 */
-  it('觸發轉場時接縫還沒露出', () => {
+  /* 往上沒有畫面外的跑道，註定會看到一點接縫，只能讓那一段夠短 */
+  it('觸發轉場時的露出量壓在 10% 以內', () => {
     const triggerTop =
       (UP_START + (UP_END - UP_START) * MOBILE_FADE_TRIGGER_PROGRESS) * VH;
     expect(mobileUpFadeProgress(triggerTop, VH)).toBeCloseTo(
       MOBILE_FADE_TRIGGER_PROGRESS,
       5
     );
-    expect(triggerTop).toBeLessThanOrEqual(0.02 * VH);
+    expect(triggerTop / VH).toBeLessThan(0.1);
   });
 
   it('視窗高度不同時比例一致', () => {
-    expect(mobileUpFadeProgress(-0.15 * 800, 800)).toBeCloseTo(
-      mobileUpFadeProgress(-0.15 * 1200, 1200),
+    expect(mobileUpFadeProgress(0.05 * 800, 800)).toBeCloseTo(
+      mobileUpFadeProgress(0.05 * 1200, 1200),
       5
     );
   });
