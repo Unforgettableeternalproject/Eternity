@@ -6,6 +6,10 @@
  * 改成 band 前段淡出、尾段才轉場。
  *
  * 進度是捲動位置的純函數（沒有累積量、沒有方向鎖），這裡把邊界釘死。
+ *
+ * ⚠️ 區間**依當前區塊的高度而定**，不是固定的 vh 比例。實測手機各段高度
+ * 差了兩倍以上（以捲動容器高為單位：導覽 0.86、Atlas 1.00、Verse 1.10、
+ * zone 區塊 2.11），用同一組常數會讓矮的那幾段靜止時就已經滿格。
  */
 import { describe, expect, it } from 'vitest';
 
@@ -15,76 +19,62 @@ import {
   MOBILE_FADE_TRIGGER_PROGRESS,
 } from '../HomePage';
 
-/** 與 HomePage 的淡出區間常數對齊 */
-const START = 1.45;
-const END = 1.02;
-const VH = 1000;
+/** 捲動容器的高度（不是 window.innerHeight——兩者差一個 topbar） */
+const VIEW = 789;
+/** 實測的 zone 區塊高度：比視窗高，接縫進畫面前有跑道 */
+const TALL = 1662;
+/** 實測的導覽區塊高度：比視窗矮，沒有跑道 */
+const SHORT = 681;
 
-describe('mobileFadeProgress', () => {
-  it('下一區塊還在畫面外 —— 完全不暗', () => {
-    expect(mobileFadeProgress(START * VH + 1, VH)).toBe(0);
-    expect(mobileFadeProgress(1.5 * VH, VH)).toBe(0);
+describe('mobileFadeProgress — 區塊比視窗高（有跑道）', () => {
+  const p = (top: number) => mobileFadeProgress(top, VIEW, TALL);
+
+  it('靜止對齊時完全不暗', () => {
+    expect(p(TALL)).toBe(0);
   });
 
-  it('走到區間尾端 —— 全暗', () => {
-    expect(mobileFadeProgress(END * VH, VH)).toBe(1);
-    expect(mobileFadeProgress(END * VH - 200, VH)).toBe(1);
+  it('接縫還沒進畫面就已經全暗', () => {
+    expect(p(VIEW)).toBe(1);
+    expect(p(VIEW - 100)).toBe(1);
   });
 
-  it('區間中點 —— 一半', () => {
-    const mid = (START + END) / 2;
-    expect(mobileFadeProgress(mid * VH, VH)).toBeCloseTo(0.5, 5);
-  });
-
-  it('單調遞增：越接近下一區塊越暗', () => {
-    const samples = [1300, 1220, 1150, 1100, 1050, 1000, 950].map((top) =>
-      mobileFadeProgress(top, VH)
-    );
+  it('單調遞增', () => {
+    const samples = [1600, 1400, 1250, 1100, 950, 800, 780].map(p);
     for (let i = 1; i < samples.length; i += 1) {
       expect(samples[i]).toBeGreaterThanOrEqual(samples[i - 1]);
     }
   });
 
   it('往回滑進度自己退回去——不需要方向鎖', () => {
-    const forward = mobileFadeProgress(1050, VH);
-    const back = mobileFadeProgress(1250, VH);
-    expect(back).toBeLessThan(forward);
-  });
-
-  /**
-   * 這是本次調整的核心：手機關掉了 scroll snap，捲動可以停在任意位置。
-   * 遮罩必須趕在下一區塊露出之前就暗下來，否則半透明的遮罩蓋不住那片空白。
-   */
-  /* 全黑必須發生在接縫進畫面之前。前一版終點放在 0.85vh（露出 15% 才
-     全黑），實測仍看得到邊界——遮罩淡入本身有時間差，等到「快全黑」時
-     接縫早就露出來了。現在終點 1.02vh 還在視窗底緣之下。 */
-  it('全黑時下一區塊還完全在視窗之外', () => {
-    expect(END).toBeGreaterThan(1);
-    expect(mobileFadeProgress(END * VH, VH)).toBe(1);
+    expect(p(1250)).toBeLessThan(p(900));
   });
 
   it('觸發轉場時接縫也還沒露出', () => {
-    const triggerTop =
-      (START - (START - END) * MOBILE_FADE_TRIGGER_PROGRESS) * VH;
-    expect(mobileFadeProgress(triggerTop, VH)).toBeCloseTo(
-      MOBILE_FADE_TRIGGER_PROGRESS,
-      5
-    );
-    expect(triggerTop).toBeGreaterThan(VH);
+    // 解出剛好達門檻的位置，必須仍在視窗底緣之下
+    const start = Math.min(TALL, VIEW * 1.55);
+    const triggerTop = start - (start - VIEW) * MOBILE_FADE_TRIGGER_PROGRESS;
+    expect(p(triggerTop)).toBeCloseTo(MOBILE_FADE_TRIGGER_PROGRESS, 5);
+    expect(triggerTop).toBeGreaterThan(VIEW);
+  });
+});
+
+/* 導覽區塊（0.86 個容器高）曾經整個沒有淡出：固定區間的終點比它的靜止
+   位置還遠，進度恆為 1，第一次捲動就直接轉場。 */
+describe('mobileFadeProgress — 區塊比視窗矮（沒有跑道）', () => {
+  const p = (top: number) => mobileFadeProgress(top, VIEW, SHORT);
+
+  it('靜止對齊時仍然完全不暗——這是先前壞掉的那一項', () => {
+    expect(p(SHORT)).toBe(0);
   });
 
-  /* 靜止對齊時 nextTop 等於當前區塊的高度。實測手機各區塊高
-     1.70～2.15vh，起點必須明顯低於最矮的那個，否則一停下來就半黑。 */
-  it('起點低於實測最矮的區塊高度（1.70vh）', () => {
-    expect(START).toBeLessThan(1.7);
-    expect(mobileFadeProgress(1.7 * VH, VH)).toBe(0);
+  it('不是瞬間跳到全暗，中間有真正的漸變', () => {
+    const mid = p(SHORT * 0.78);
+    expect(mid).toBeGreaterThan(0.1);
+    expect(mid).toBeLessThan(0.9);
   });
 
-  it('視窗高度不同時比例一致——用的是 vh 而非絕對 px', () => {
-    expect(mobileFadeProgress(1.2 * 800, 800)).toBeCloseTo(
-      mobileFadeProgress(1.2 * 1200, 1200),
-      5
-    );
+  it('走到區塊高度的一半略多就全暗', () => {
+    expect(p(SHORT * 0.55)).toBe(1);
   });
 });
 
@@ -105,29 +95,29 @@ describe('mobileUpFadeProgress', () => {
      那時進度接近 1 代表停著就半黑，而且超過觸發門檻——往上捲到區塊
      頂端的那一刻會被直接丟進上一個區塊。 */
   it('頂緣切齊視窗頂時完全不暗 —— 那是靜止位置', () => {
-    expect(mobileUpFadeProgress(0, VH)).toBe(0);
-    expect(mobileUpFadeProgress(-0.8 * VH, VH)).toBe(0);
+    expect(mobileUpFadeProgress(0, VIEW)).toBe(0);
+    expect(mobileUpFadeProgress(-0.8 * VIEW, VIEW)).toBe(0);
   });
 
   it('切齊時的進度遠低於觸發門檻', () => {
-    expect(mobileUpFadeProgress(0, VH)).toBeLessThan(
+    expect(mobileUpFadeProgress(0, VIEW)).toBeLessThan(
       MOBILE_FADE_TRIGGER_PROGRESS
     );
   });
 
   it('接縫露出一小段就全暗', () => {
-    expect(mobileUpFadeProgress(UP_END * VH, VH)).toBe(1);
-    expect(mobileUpFadeProgress(0.5 * VH, VH)).toBe(1);
+    expect(mobileUpFadeProgress(UP_END * VIEW, VIEW)).toBe(1);
+    expect(mobileUpFadeProgress(0.5 * VIEW, VIEW)).toBe(1);
   });
 
   it('區間中點 —— 一半', () => {
     const mid = (UP_START + UP_END) / 2;
-    expect(mobileUpFadeProgress(mid * VH, VH)).toBeCloseTo(0.5, 5);
+    expect(mobileUpFadeProgress(mid * VIEW, VIEW)).toBeCloseTo(0.5, 5);
   });
 
   it('單調遞增：頂緣沉得越深越暗', () => {
     const samples = [-300, -100, 0, 20, 50, 80, 100].map((top) =>
-      mobileUpFadeProgress(top, VH)
+      mobileUpFadeProgress(top, VIEW)
     );
     for (let i = 1; i < samples.length; i += 1) {
       expect(samples[i]).toBeGreaterThanOrEqual(samples[i - 1]);
@@ -135,20 +125,20 @@ describe('mobileUpFadeProgress', () => {
   });
 
   it('改變方向進度自己退回去——與往下同一個性質', () => {
-    expect(mobileUpFadeProgress(20, VH)).toBeLessThan(
-      mobileUpFadeProgress(70, VH)
+    expect(mobileUpFadeProgress(20, VIEW)).toBeLessThan(
+      mobileUpFadeProgress(70, VIEW)
     );
   });
 
   /* 往上沒有畫面外的跑道，註定會看到一點接縫，只能讓那一段夠短 */
   it('觸發轉場時的露出量壓在 10% 以內', () => {
     const triggerTop =
-      (UP_START + (UP_END - UP_START) * MOBILE_FADE_TRIGGER_PROGRESS) * VH;
-    expect(mobileUpFadeProgress(triggerTop, VH)).toBeCloseTo(
+      (UP_START + (UP_END - UP_START) * MOBILE_FADE_TRIGGER_PROGRESS) * VIEW;
+    expect(mobileUpFadeProgress(triggerTop, VIEW)).toBeCloseTo(
       MOBILE_FADE_TRIGGER_PROGRESS,
       5
     );
-    expect(triggerTop / VH).toBeLessThan(0.1);
+    expect(triggerTop / VIEW).toBeLessThan(0.1);
   });
 
   it('視窗高度不同時比例一致', () => {

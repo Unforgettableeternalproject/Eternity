@@ -68,23 +68,18 @@ const FADE_THRESHOLD = 600;
  */
 export const MOBILE_FADE_TRIGGER_PROGRESS = 0.92;
 /**
- * 手機淡出區間：下一區塊頂緣的位置，以視窗高度為單位。
+ * 淡出的跑道長度，以**捲動容器高**為單位（不是 window.innerHeight——
+ * 兩者差一個 topbar，實測 789 vs 844）。
  *
- * **不能沿用 gate band [0.42, 0.90]。** 手機的 `.journey-scroll` 刻意關掉了
- * scroll snap（桌面是 y mandatory），所以捲動可以停在任意位置——遮罩還沒
- * 夠暗時，下一區塊的開頭就已經是畫面上一大片空白。
- *
- * 終點取 **1.02vh**：那時下一區塊的頂緣還在視窗底緣之下，也就是**接縫
- * 完全還沒進畫面**時遮罩就已經全黑。前一版終點放在 0.85vh（露出 15%
- * 才全黑），實測仍看得到邊界——遮罩本身有淡入的時間差，等到「快全黑」
- * 時接縫早就露出來了。寧可全黑得比需要的更早，那一段反正也沒東西可看。
- *
- * 起點 1.45vh 給 0.43vh（約 360px）的漸變距離。上限受最矮的區塊約束：
- * 實測手機版各區塊高 1.70～2.15vh，靜止對齊時 `nextTop` 等於當前區塊的
- * 高度，所以起點必須明顯低於 1.70vh，否則一停下來就已經是半黑的。
+ * 終點取視窗底緣：下一區塊的頂緣還在畫面外時遮罩就已經全黑。
+ * 更早的版本讓終點落在「已露出 15%」，實測仍看得到邊界——遮罩淡入本身
+ * 有時間差，等到「快全黑」時接縫早就進畫面了。
  */
-const MOBILE_FADE_START_VH = 1.45;
-const MOBILE_FADE_END_VH = 1.02;
+const MOBILE_FADE_RUNWAY = 0.55;
+/** 短於這個比例就沒有真正的跑道可用，改走區塊自身的比例 */
+const MOBILE_FADE_MIN_RUNWAY = 0.15;
+/** 沒有跑道時，淡出在區塊高度的這個位置結束 */
+const MOBILE_FADE_SHORT_END_RATIO = 0.55;
 
 /**
  * 手機往回捲的淡出區間：**當前**區塊頂緣的位置。
@@ -198,12 +193,45 @@ function isWithinViewportBand(
  * target ref。慣性滑動一口氣衝過整個 band 時進度直接到 1，
  * 該轉場就轉場，不會卡住。
  */
-export function mobileFadeProgress(topPx: number, vh: number): number {
-  const start = MOBILE_FADE_START_VH * vh;
-  const end = MOBILE_FADE_END_VH * vh;
+export function mobileFadeProgress(
+  topPx: number,
+  viewportPx: number,
+  sectionHeightPx: number
+): number {
+  const { start, end } = mobileFadeBand(viewportPx, sectionHeightPx);
   if (topPx >= start) return 0;
   if (topPx <= end) return 1;
   return (start - topPx) / (start - end);
+}
+
+/**
+ * 依「目前這個區塊有多高」算出淡出區間。
+ *
+ * 固定的 vh 比例行不通——實測手機各段高度差了兩倍以上（導覽 0.86、
+ * Atlas 1.00、Verse 1.10、zone 區塊 2.11，皆以捲動容器高為單位）。
+ * 用同一組常數的話，比視窗矮的那幾段**靜止時就已經在區間終點之後**，
+ * 進度恆為 1，第一次捲動就直接轉場——導覽往下沒有淡出就是這麼來的。
+ *
+ * 兩種情形：
+ *
+ * - **區塊比視窗高**（zone 區塊）：接縫進畫面前有跑道，終點就取視窗底緣，
+ *   起點往回推 `MOBILE_FADE_RUNWAY` 個視窗高，但不超過靜止位置
+ *   （超過的話一停下來就已經在淡出）。
+ * - **區塊不比視窗高**（導覽、Atlas）：接縫在靜止時就露著，沒有跑道可用。
+ *   退而求其次，用區塊自身的高度切一段出來，至少有漸變而不是瞬間。
+ */
+function mobileFadeBand(
+  viewportPx: number,
+  sectionHeightPx: number
+): { start: number; end: number } {
+  const rest = sectionHeightPx > 0 ? sectionHeightPx : viewportPx;
+  if (rest > viewportPx * (1 + MOBILE_FADE_MIN_RUNWAY)) {
+    return {
+      start: Math.min(rest, viewportPx * (1 + MOBILE_FADE_RUNWAY)),
+      end: viewportPx,
+    };
+  }
+  return { start: rest, end: rest * MOBILE_FADE_SHORT_END_RATIO };
 }
 
 /**
@@ -847,9 +875,16 @@ export default function HomePage({
              不再是啪一下全黑。
              回傳「該不該轉場」，順帶把進度落地——三條路徑共用。 */
           const advanceFade = (
-            targetTop: number
+            targetTop: number,
+            sectionHeight: number
           ): 'transition' | 'overshoot' | 'none' => {
-            const progress = mobileFadeProgress(targetTop, vh);
+            /* 量的是捲動容器而不是 window.innerHeight——兩者差一個
+               topbar（實測 789 vs 844），用錯的話所有區間都會偏一截 */
+            const progress = mobileFadeProgress(
+              targetTop,
+              container.clientHeight,
+              sectionHeight
+            );
             fadeOverlayRef.current?.style.setProperty(
               '--fade-progress',
               progress.toFixed(3)
@@ -876,7 +911,12 @@ export default function HomePage({
           if (current === -1) {
             const firstScene = scenes[0];
             if (firstScene) {
-              const verdict = advanceFade(firstScene.offsetTop - scrollTop);
+              const thresholdEl =
+                container.querySelector<HTMLElement>('#journey-start');
+              const verdict = advanceFade(
+                firstScene.offsetTop - scrollTop,
+                thresholdEl?.offsetHeight ?? 0
+              );
               if (verdict === 'transition') {
                 startZoneTransition(0, mergedZonesRef.current[0], 'down');
                 return;
@@ -890,7 +930,10 @@ export default function HomePage({
             const nextIndex = current + 1;
             const nextScene = scenes[nextIndex];
             if (nextScene) {
-              const verdict = advanceFade(nextScene.offsetTop - scrollTop);
+              const verdict = advanceFade(
+                nextScene.offsetTop - scrollTop,
+                scenes[current]?.offsetHeight ?? 0
+              );
               if (verdict === 'transition') {
                 startZoneTransition(
                   nextIndex,
@@ -908,7 +951,10 @@ export default function HomePage({
             const verseEl =
               container.querySelector<HTMLElement>('#verse-section');
             if (verseEl) {
-              const verdict = advanceFade(verseEl.offsetTop - scrollTop);
+              const verdict = advanceFade(
+                verseEl.offsetTop - scrollTop,
+                scenes[current]?.offsetHeight ?? 0
+              );
               if (verdict === 'transition') {
                 startSectionTransition(verseEl, 5, 'plain', 'down');
                 return;
@@ -1029,7 +1075,10 @@ export default function HomePage({
             ? 'transition'
             : 'none';
         }
-        const progress = mobileUpFadeProgress(currentTop, vh);
+        const progress = mobileUpFadeProgress(
+          currentTop,
+          container.clientHeight
+        );
         fadeOverlayRef.current?.style.setProperty(
           '--fade-progress',
           progress.toFixed(3)

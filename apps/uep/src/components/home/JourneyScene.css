@@ -420,8 +420,12 @@
     font-size: 1.8em;
   }
 
+  /* 撐滿捲動容器，與 .journey-scene 同一個公式。
+     原本 80dvh 比視窗矮，落位到它的頂端時下一個區塊會從底部探進來
+     ——接縫永遠露在畫面上，而且淡出區間算出來靜止時就已經滿格，
+     往下的第一次捲動會直接轉場（沒有漸變）。 */
   .journey-transition {
-    min-height: 80dvh;
+    min-height: calc(100dvh - var(--topbar-h, 0px));
     padding: 60px 20px;
     scroll-snap-align: start;
     scroll-snap-stop: normal;
