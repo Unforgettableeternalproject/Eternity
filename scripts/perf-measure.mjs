@@ -159,6 +159,17 @@ async function measureOnce(browser, url, profile) {
       load: nav ? nav.loadEventEnd : null,
       htmlKB: nav ? nav.encodedBodySize / 1024 : null,
       requests: resources.length,
+      /* Load 遠晚於 DOMContentLoaded 時，差距是誰造成的。
+         只留最晚結束的幾筆——排查時要的是「誰拖到最後」。 */
+      slowest: resources
+        .map((r) => ({
+          name: r.name.split('?')[0].slice(-52),
+          start: Math.round(r.startTime),
+          end: Math.round(r.responseEnd),
+          type: r.initiatorType,
+        }))
+        .sort((a, b) => b.end - a.end)
+        .slice(0, 8),
       jsKB: sum(byExt('.js')) / 1024,
       jsCount: byExt('.js').length,
       cssKB: sum(byExt('.css')) / 1024,
@@ -269,6 +280,18 @@ async function main() {
     );
   }
   if (summary.lcpUrl) console.log(`  LCP 元素：${summary.lcpUrl}`);
+
+  /* Load 明顯晚於 DOMContentLoaded 就把尾巴攤出來——差距通常是某個
+     延遲發出或長時間掛著的請求，光看總量看不出來 */
+  const lastRun = runs[runs.length - 1];
+  if (lastRun && summary.load - summary.domContentLoaded > 1000) {
+    console.log(
+      `\n  ※ Load 比 DOMContentLoaded 晚 ${Math.round(summary.load - summary.domContentLoaded)}ms，最晚結束的請求：`
+    );
+    for (const r of lastRun.slowest ?? []) {
+      console.log(`     ${String(r.end).padStart(6)}ms  ${r.type}  ${r.name}`);
+    }
+  }
   console.log('');
 }
 
