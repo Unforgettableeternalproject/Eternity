@@ -1424,9 +1424,10 @@
     min-height: unset;
   }
 
-  .home-hero-right {
-    display: none;
-  }
+  /* .home-hero-right 的 display 由 JSX 的 inline style 決定（grid），
+     這裡曾有一條 display:none——inline style 優先權更高，那條規則從來
+     沒生效過。手機版一樣要有主視覺，所以是移除死規則而不是改用
+     !important 讓它「終於生效」。 */
 
   .home-hero-h1 {
     font-size: 44px !important;
