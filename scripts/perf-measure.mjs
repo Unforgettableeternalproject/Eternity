@@ -18,6 +18,7 @@
  *   node scripts/perf-measure.mjs --profile=desktop
  *   node scripts/perf-measure.mjs --url=https://... --runs=5
  *   node scripts/perf-measure.mjs --json                 # 輸出 JSON 供前後對照
+ *   node scripts/perf-measure.mjs --waterfall            # 列出 FCP 之前的完整請求瀑布
  *
  * ## 節流參數
  *
@@ -73,10 +74,15 @@ function parseArgs(argv) {
     runs: DEFAULT_RUNS,
     profile: 'mobile',
     json: false,
+    waterfall: false,
   };
   for (const raw of argv.slice(2)) {
     if (raw === '--json') {
       args.json = true;
+      continue;
+    }
+    if (raw === '--waterfall') {
+      args.waterfall = true;
       continue;
     }
     const match = /^--([^=]+)=(.*)$/.exec(raw);
@@ -170,6 +176,21 @@ async function measureOnce(browser, url, profile) {
         }))
         .sort((a, b) => b.end - a.end)
         .slice(0, 8),
+      /* 首次繪製之前發生的所有請求，依開始時間排序。
+         FCP 遲遲不來時要看的是「這段時間在等誰」，總量與最慢幾筆都答不了
+         這個問題——阻斷繪製的往往是一支不大但排在關鍵路徑上的資源。
+         多留 300ms 尾巴，讓剛好跨過 FCP 的那筆也看得到。 */
+      timeline: resources
+        .filter((r) => r.startTime < (fcp ? fcp.startTime + 300 : 3000))
+        .map((r) => ({
+          name: r.name.split('?')[0].slice(-46),
+          start: Math.round(r.startTime),
+          end: Math.round(r.responseEnd),
+          kb: Math.round((r.encodedBodySize || 0) / 1024),
+          type: r.initiatorType,
+          blocking: r.renderBlockingStatus || '',
+        }))
+        .sort((a, b) => a.start - b.start),
       jsKB: sum(byExt('.js')) / 1024,
       jsCount: byExt('.js').length,
       cssKB: sum(byExt('.css')) / 1024,
@@ -280,6 +301,19 @@ async function main() {
     );
   }
   if (summary.lcpUrl) console.log(`  LCP 元素：${summary.lcpUrl}`);
+
+  if (args.waterfall) {
+    const run = runs[runs.length - 1];
+    console.log(`\n  ── FCP(${Math.round(run.fcp ?? 0)}ms) 之前的請求 ──`);
+    for (const r of run.timeline ?? []) {
+      const size = r.kb > 0 ? `${String(r.kb).padStart(4)}KB` : '   ── ';
+      const flag = r.blocking === 'blocking' ? ' ⛔阻斷' : '';
+      console.log(
+        `  ${String(r.start).padStart(5)}→${String(r.end).padStart(5)}ms  ` +
+          `${size}  ${r.type.padEnd(6)} ${r.name}${flag}`
+      );
+    }
+  }
 
   /* Load 明顯晚於 DOMContentLoaded 就把尾巴攤出來——差距通常是某個
      延遲發出或長時間掛著的請求，光看總量看不出來 */
