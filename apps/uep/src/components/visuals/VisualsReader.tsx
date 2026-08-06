@@ -1178,6 +1178,12 @@ function VisualsReaderInner() {
                           data-area={road.area}
                           onClick={() => divId && navigateToDivision(divId)}
                           onMouseEnter={() => setCrossroadHover(road.area)}
+                          /* 卡片自己也要收——外層的 onMouseLeave 只在指標
+                             離開整個十字路口時才觸發，從卡片移到中央羅盤
+                             那一帶仍在容器內，引導線會一直亮著 */
+                          onMouseLeave={() => setCrossroadHover(null)}
+                          onFocus={() => setCrossroadHover(road.area)}
+                          onBlur={() => setCrossroadHover(null)}
                         >
                           <span className="visuals-crossroad-dir">
                             {road.dir}

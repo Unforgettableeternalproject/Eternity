@@ -142,13 +142,9 @@ body.uep-onboarding-active [data-uep-hide-on-onboard] {
   color: var(--uep-gold);
 }
 
-.uep-onboard__card--observer .uep-onboard__card-glyph {
-  color: var(--ink-mute);
-}
-
-.uep-onboard__card--observer:hover .uep-onboard__card-glyph {
-  color: var(--uep-gold);
-}
+/* 兩張卡的標記同色。觀測者的標記原本預設是 --ink-mute、hover 才轉金，
+   於是兩張並排時看起來像「一個可選、一個未啟用」——但這是兩條對等的
+   路。觀測者的份量由底下那行金棕色的「包含大量劇透」承擔就夠了。 */
 
 .uep-onboard__card-name {
   font-family: var(--font-display);

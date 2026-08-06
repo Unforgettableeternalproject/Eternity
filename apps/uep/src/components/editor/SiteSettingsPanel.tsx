@@ -38,16 +38,19 @@ const PROTECTION_OPTIONS = [
   },
 ] as const;
 
+/* 這一組的敘述在 08/04 換成帷幕之後沒跟著改，一直還在講「提示卡」。
+   閒置的呈現已經歷兩次改版（浮字 → 要按確認的 modal → 帷幕），
+   改這裡時記得對照 lib/idleVeil.ts 的實際階段。 */
 const IDLE_NUDGE_OPTIONS = [
   {
     value: 'enabled',
     label: '顯示',
-    hint: '閒置超過閾值時，Reader 中央淡入一張低調提示卡，任何動作即消失',
+    hint: '判定閒置後再過 20 秒，靜電霧從四周漫入，分三階越蓋越滿；動一下就開始撥開，不需要按任何東西',
   },
   {
     value: 'disabled',
     label: '不顯示',
-    hint: '只關掉提示卡。閒置量測照常運作——閱讀時數與休息提醒仍會扣除掛機時間',
+    hint: '只關掉那層霧。閒置量測照常運作——閱讀時數與休息提醒仍會扣除掛機時間',
   },
 ] as const;
 
@@ -277,13 +280,13 @@ export default function SiteSettingsPanel() {
           {numberField(
             'reader.activityIdleThresholdSec',
             '判定閒置的秒數',
-            '無任何動作超過這個秒數即視為離開。閱讀時數統計與休息提醒都以此為準，沒有停用值，30–3600',
+            '無任何動作超過這個秒數即視為離開。閱讀時數統計、休息提醒與閒置帷幕的起算點都以此為準，沒有停用值，30–3600',
             { min: 30, max: 3600 }
           )}
           <div
             className="ssp-radio-group"
             role="radiogroup"
-            aria-label="閒置提示"
+            aria-label="閒置帷幕"
           >
             {IDLE_NUDGE_OPTIONS.map((opt) => (
               <label key={opt.value} className="ssp-radio">
@@ -299,7 +302,7 @@ export default function SiteSettingsPanel() {
                     }))
                   }
                 />
-                <span className="ssp-radio-label">閒置提示：{opt.label}</span>
+                <span className="ssp-radio-label">閒置帷幕：{opt.label}</span>
                 <span className="ssp-hint">{opt.hint}</span>
               </label>
             ))}

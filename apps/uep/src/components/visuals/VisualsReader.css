@@ -455,15 +455,16 @@
   stroke-dashoffset: 0 !important;
 }
 
-/* 非 hover 的引導線完全隱藏（用 dashoffset = 線長） */
-.visuals-road-guide {
-  stroke-opacity: 0.7;
-}
-
-/* 沒有 hover 時全部隱藏 */
+/* 沒有 hover 時收回中心。
+   ⚠️ 這裡的 `transition` 必須把 stroke-dashoffset 一起寫進去——transition
+   是整份覆蓋而不是疊加，只列 stroke-opacity 會把基礎規則裡的
+   `stroke-dashoffset 0.45s` 一併抹掉，線就不是縮回去而是原地淡掉。
+   兩者同步長，否則線還沒收完就已經看不見了。 */
 .visuals-crossroad:not([data-hover]) .visuals-road-guide {
   stroke-opacity: 0;
-  transition: stroke-opacity 0.2s;
+  transition:
+    stroke-opacity 0.45s var(--ease, ease),
+    stroke-dashoffset 0.45s var(--ease, ease);
 }
 
 /* Hover 時路盡頭微光加強 */
