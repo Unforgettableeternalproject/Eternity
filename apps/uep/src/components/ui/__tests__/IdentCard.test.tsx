@@ -127,6 +127,44 @@ describe('IdentCard', () => {
     });
   });
 
+  /* 基礎設施缺席時的行為。Dialog／Toast 都掛在 DesignLayout 且已改為
+     client:load，正常情況走不到這裡；但慢裝置上的 hydration 競態一旦
+     重演，使用者至少要知道發生了什麼，而不是以為自己按錯。 */
+  describe('對話框尚未就緒', () => {
+    afterEach(() => {
+      delete (window as unknown as Record<string, unknown>).__uepDialogManager;
+      delete (window as unknown as Record<string, unknown>).__uepToastManager;
+    });
+
+    it('沒有 dialog manager 時不登出，改用 toast 告知', async () => {
+      const info = vi.fn();
+      (window as unknown as Record<string, unknown>).__uepToastManager = {
+        info,
+      };
+      viewport.desktop = false;
+      const { container } = render(<IdentCard />);
+
+      const btn = container.querySelector('.uep-ident__logout')!;
+      await act(async () => {
+        btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      expect(info).toHaveBeenCalled();
+      // 沒有 dialog 就不該播撕開動畫（那代表登出已成立）
+      expect(container.querySelector('.uep-ident.is-torn')).toBeNull();
+    });
+
+    it('連 toast 都缺席也不擲錯——選擇性串連不能變成例外', async () => {
+      viewport.desktop = false;
+      const { container } = render(<IdentCard />);
+      const btn = container.querySelector('.uep-ident__logout')!;
+      await act(async () => {
+        btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      expect(container.querySelector('.uep-ident.is-torn')).toBeNull();
+    });
+  });
+
   describe('教學觸發', () => {
     beforeEach(() => {
       vi.useFakeTimers();

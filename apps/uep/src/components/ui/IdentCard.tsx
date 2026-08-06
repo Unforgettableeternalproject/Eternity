@@ -260,8 +260,15 @@ export default function IdentCard() {
    */
   async function performLogout(): Promise<boolean> {
     const mgr = window.__uepDialogManager;
-    /* dialog 尚未 mount：保守起見不當作已登出 */
-    if (!mgr) return false;
+    /* dialog 尚未 mount：保守起見不當作已登出。
+       Container 已改 client:load（見 DesignLayout），正常情況下不會走到
+       這裡；但仍要出聲——回彈與「手勢沒做對」在體感上無法區分，使用者
+       只會一直重試。不 fallback 到 uepDialog 單例：沒有 Container 訂閱時
+       它的 confirm 永遠不 resolve，卡住比失敗更糟。 */
+    if (!mgr) {
+      window.__uepToastManager?.info('介面尚未就緒，請稍候再試');
+      return false;
+    }
 
     const ok = await mgr.confirm(
       '要把識別證從吊繩上撕下嗎？闔上這份記錄後，你的足跡會留在此地，但不會跟你走。',

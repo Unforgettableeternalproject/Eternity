@@ -208,9 +208,32 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   <body data-zone={zone}>
     <TestModeBanner client:load />
     <slot />
-    <UepToastContainer client:idle />
-    <UepDialogContainer client:idle />
-    <GlobalWelcomeHost client:idle />
+    {
+      /*
+      這三個必須 client:load，不能 idle：它們是「使用者操作前就得就緒」的
+      基礎設施，而互動層（HomePage / ReaderShell 都是 client:load，TopBar 與
+      識別證跟著它們走）一定比 idle 早到，形成結構性競態——
+
+      · UepToastContainer 掛的 __uepToastManager 是全站唯一的回饋出口，
+        25 處在用：登入登出結果、浮島解鎖、編輯器儲存成敗。它沒就緒時
+        那些提示全部靜默消失，使用者只看到「按了沒反應」
+      · UepDialogContainer 掛的 __uepDialogManager 是撕下登出的確認對話框，
+        沒有它 IdentCard.performLogout 會靜默失敗（拉到紅色鬆手沒反應）
+      · GlobalWelcomeHost 是登入／登出儀式的唯一播放者，而儀式 flag 是
+        「消費即清」——沒 hydrate 就沒人消費，flag 原封不動跟到下一頁才播
+
+      requestIdleCallback 在主執行緒持續繁忙時可以無限期不觸發，而首頁正是
+      全站最重的一頁（3D 地圖與粒子背景都是常駐 rAF）。高效能裝置上 idle
+      幾十毫秒內就到，所以這是只有慢裝置才看得見的故障。
+
+      ⚠️ Toast 與 Dialog 必須同進退：IdentCard 在 dialog 缺席時會改用 toast
+      告知使用者，若 toast 仍是 idle，那條 fallback 在它唯一會被觸發的情境
+      （主執行緒繁忙）下同樣不會出現，等於死碼。
+    */
+    }
+    <UepToastContainer client:load />
+    <UepDialogContainer client:load />
+    <GlobalWelcomeHost client:load />
     <UepDevTools client:idle />
     <ScanlineHudPortal client:idle />
   </body>
