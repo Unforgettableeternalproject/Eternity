@@ -91,12 +91,23 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
     <!-- Fonts：非阻塞載入，避免 render-blocking 300ms 延遲
 
+         這是全站最大的一筆下載：行動版首頁實測 **36 個分片、2245KB，
+         佔總傳輸量 2336KB 的 96%**（JS 只有 142KB）。慢速 4G 下光這一項
+         就要十一秒——`Load` 遠晚於 `DOMContentLoaded` 的尾巴全是它。
+
          ⚠️ Noto Serif TC 的 400 與 600 兩個字重都要留著。
-         CJK 每個字重都是一整套 unicode-range 分片，首頁實測會抓十幾個分片
-         共約 1.5MB，砍掉 600 確實能省一半——**但視覺代價不可接受**：
-         缺字重時瀏覽器會合成偽粗體，那是把字面機械式加粗，比真正的 600
-         更笨重，滿頁看起來「處處都在強調」（2026-08-06 實測後撤回）。
+         砍掉 600 確實能省一半——**但視覺代價不可接受**：缺字重時瀏覽器
+         會合成偽粗體，那是把字面機械式加粗，比真正的 600 更笨重，滿頁
+         看起來「處處都在強調」（2026-08-06 實測後撤回）。
          字型體積要省，得走自架子集化那條路，不能靠砍字重。
+
+         `display=optional`（不是 swap）：給字型 100ms 的阻擋期、零交換期，
+         沒趕上就整趟都用系統襯線，**不會中途換字**。三個作用——
+         · 首次繪製完全不等字型，FCP／LCP 不再被那 2.2MB 拖住
+         · 沒有交換就沒有換字造成的重排，CLS 歸零
+         · Chrome 在慢速連線下對 optional 字型會直接放棄本次下載、
+           只留給下次造訪，於是最吃虧的那群使用者反而省掉整包
+         代價是首次造訪整站是系統襯線，第二次造訪起才是 Noto Serif TC。
 
          ⚠️ **不要為這支 CSS 加 `rel="preload"`。** 它有 68KB（Noto Serif TC
          的上百段 unicode-range 佔絕大部分），preload 會把它提到 High 優先權，
@@ -110,7 +121,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- 以 print media 非同步載入，onload 切換為 all 完成套用 -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=optional"
       rel="stylesheet"
       media="print"
       onload="this.media='all'"
@@ -118,7 +129,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- 停用 JavaScript 時的退路 -->
     <noscript>
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=optional"
         rel="stylesheet"
       />
     </noscript>

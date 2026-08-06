@@ -51,10 +51,18 @@
   --storage-soft: #d5b618;
   --storage-tint: #f5f5f0;
 
-  /* ── Type ── */
+  /* ── Type ──
+     字型 stack 是逐字解析的：Georgia 沒有中文字符，所以拉丁字母吃 Georgia、
+     中文往後掉。Georgia 之後補上各平台實際裝得到的中文襯線，是因為
+     `display=optional`（見 DesignLayout）讓**首次造訪一定看不到 Noto
+     Serif TC**——這條 fallback 從「異常時的退路」變成了多數人的第一印象。
+     不補的話會直接掉到 generic serif，Windows 上是新細明體。 */
   --font-display:
-    'Cormorant Garamond', 'Source Han Serif TC', 'Noto Serif TC', Georgia, serif;
-  --font-serif-tc: 'Noto Serif TC', 'Source Han Serif TC', Georgia, serif;
+    'Cormorant Garamond', 'Source Han Serif TC', 'Noto Serif TC', Georgia,
+    'Songti TC', 'Noto Serif CJK TC', serif;
+  --font-serif-tc:
+    'Noto Serif TC', 'Source Han Serif TC', Georgia, 'Songti TC',
+    'Noto Serif CJK TC', serif;
   --font-sans:
     'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
