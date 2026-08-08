@@ -236,13 +236,28 @@
 .ivl-face {
   position: absolute;
   inset: 0;
+
+  /* 顯示寬度要拿出來當變數：水平補償的量是它的百分比 */
+  --ivl-face-w: min(68vw, 94vh);
+
   background-image: url('/uep/art/afk-fade.webp');
   background-repeat: no-repeat;
-  /* 偏上，把畫面下緣讓給「空曠~」。這兩個值與 `.ivl-word` 的
-     padding-bottom 是一組的——臉再大或再低一點，下巴就會壓到字上 */
-  background-position: center 34%;
-  background-size: min(68vw, 94vh) auto;
-  opacity: 0.8;
+  background-size: var(--ivl-face-w) auto;
+
+  /*
+   * 水平：置中再左移 5.1%。
+   *
+   * 素材的透明邊是依 alpha bbox 裁的，而原稿左上角有幾筆零星筆觸把 bbox
+   * 往左撐開——臉因此不在圖片的幾何中心。實測墨線 bbox 是 327~1436
+   * （圖寬 1600），中心 881，偏右 81px 正好是 5.1%。單純 center 會看起來
+   * 微妙地偏右。
+   *
+   * 垂直：偏上，把畫面下緣讓給「空曠~」。這個值與 `--ivl-face-w`、
+   * `.ivl-word` 的 padding-bottom 是一組的——臉再大或再低一點，下巴就會
+   * 壓到字上。
+   */
+  background-position: calc(50% - var(--ivl-face-w) * 0.051) 34%;
+  opacity: 0.6;
   mask-image: linear-gradient(#000, #000), var(--ivl-hole);
   -webkit-mask-composite: source-out;
   mask-composite: subtract;
@@ -257,7 +272,7 @@
   }
 
   to {
-    opacity: 0.8;
+    opacity: 0.6;
     transform: scale(1);
     filter: blur(0);
   }
