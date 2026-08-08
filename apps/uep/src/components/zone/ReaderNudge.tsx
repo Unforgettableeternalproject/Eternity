@@ -70,12 +70,15 @@ export function useReaderNudge(): ReaderNudgeContextValue {
 const LEAVE_MS = 460;
 
 /**
- * U.E.P 帶著提醒從右側探出來。
+ * U.E.P 趴在卡片上緣。
  *
- * 立繪暫時借用 `Fence.webp`（root 站那顆壓過的 9.8KB 版本，已複製進本站
- * public）——這一版還沒有專屬的提醒姿勢，之後換圖只要動 `UEP_ART`。
+ * 立繪與卡片同寬、底邊對齊卡片頂線——她是躺在這張牌子上休息，順帶把
+ * 「該休息了」這件事演給你看，而不是站在旁邊指著牌子。素材下緣就是她
+ * 貼地的那條線（轉檔時已去掉透明邊），所以直接對齊就是趴著的樣子。
  */
-const UEP_ART = '/uep/Fence.webp';
+const UEP_ART = '/uep/art/rest-lazy.webp';
+/** 原始像素，給瀏覽器先算好版面比例 */
+const UEP_ART_SIZE = { width: 1200, height: 635 };
 
 function RestNudgeCard({
   rest,
@@ -115,7 +118,14 @@ function RestNudgeCard({
       role="status"
       aria-live="polite"
     >
-      <img className="rnudge-art" src={UEP_ART} alt="" aria-hidden="true" />
+      <img
+        className="rnudge-art"
+        src={UEP_ART}
+        width={UEP_ART_SIZE.width}
+        height={UEP_ART_SIZE.height}
+        alt=""
+        aria-hidden="true"
+      />
       <div className="rnudge-card">
         <div className="rnudge-eyebrow">READING RHYTHM</div>
         <div className="rnudge-title">{rest.title}</div>

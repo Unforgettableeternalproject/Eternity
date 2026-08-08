@@ -24,20 +24,26 @@
   animation: rnudge-slide-out 460ms var(--ease) both;
 }
 
-/* U.E.P 站在卡片上緣，像是趴在牌子後面探頭 */
+/* 卡片與立繪共用同一個寬度：她要橫躺在整條上緣上，兩者寬度一旦不同就
+   會露出對不齊的邊 */
+.rnudge {
+  --rnudge-w: min(320px, calc(100vw - 32px));
+}
+
+/* U.E.P 橫躺在卡片上緣，整條邊都被她佔滿 */
 .rnudge-art {
-  width: 108px;
+  width: var(--rnudge-w);
   height: auto;
-  margin-right: 26px;
-  /* 疊在卡片頂線上；負 margin 讓兩者接在一起而不是各站各的 */
-  margin-bottom: -14px;
-  filter: drop-shadow(0 10px 18px rgb(0 0 0 / 22%));
+  /* 底邊壓在卡片頂線上一點點——素材下緣就是她貼地的線，完全對齊反而
+     像浮在上面 */
+  margin-bottom: -6px;
+  filter: drop-shadow(0 8px 16px rgb(0 0 0 / 20%));
   animation: rnudge-bob 3.8s ease-in-out infinite;
 }
 
 .rnudge-card {
   position: relative;
-  width: min(320px, calc(100vw - 32px));
+  width: var(--rnudge-w);
   padding: 22px 24px 20px;
   /* 貼著右緣，右邊不留圓角也不留邊——它是從畫面外滑進來的 */
   background:
@@ -176,7 +182,7 @@
   }
 }
 
-/* 站在那裡的細微上下浮動，讓它不像一張貼紙 */
+/* 趴著的呼吸幅度要比站著小——起伏太大會變成「在卡片上彈跳」 */
 @keyframes rnudge-bob {
   0%,
   100% {
@@ -184,18 +190,13 @@
   }
 
   50% {
-    transform: translateY(-5px);
+    transform: translateY(-3px);
   }
 }
 
 @media (width <= 480px) {
   .rnudge {
     bottom: 76px;
-  }
-
-  .rnudge-art {
-    width: 84px;
-    margin-right: 18px;
   }
 
   .rnudge-card {

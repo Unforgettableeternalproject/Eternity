@@ -61,11 +61,14 @@ describe('IdleVeil', () => {
     const classes = [...(container.querySelector('.ivl')?.children ?? [])].map(
       (el) => el.className
     );
+    // `ivl-face` 是裝飾層：它跟每一層霧共用 `--ivl-hole`，靠
+    // mask-composite 把洞從自己身上扣掉，而不是自己畫一層擦拭
     expect(classes).toEqual([
       'ivl-fog ivl-fog--a',
       'ivl-fog ivl-fog--b',
       'ivl-static',
       'ivl-surge',
+      'ivl-face',
       'ivl-word',
     ]);
   });

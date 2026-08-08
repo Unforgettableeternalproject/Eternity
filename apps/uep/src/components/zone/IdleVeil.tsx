@@ -79,7 +79,14 @@ export default function IdleVeil() {
       {/* key 換掉 → React 重新掛載 → 湧入動畫重播。用 class 切換的話
           同一個元素不會重新觸發 animation */}
       <div className="ivl-surge" key={veil.stage} />
-      {veil.stage === 3 && <div className="ivl-word">空曠~</div>}
+      {veil.stage === 3 && (
+        <>
+          {/* 霧最濃的時候她的臉浮出來。跟每一層霧套同一個擦拭洞，
+              所以指標撥過去時臉也會跟著被擦開 */}
+          <div className="ivl-face" />
+          <div className="ivl-word">空曠~</div>
+        </>
+      )}
     </div>
   );
 }

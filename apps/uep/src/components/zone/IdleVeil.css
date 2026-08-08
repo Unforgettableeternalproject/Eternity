@@ -227,12 +227,50 @@
   }
 }
 
-/* ── 全遮時中央的那句話 ── */
+/* ── 全遮時浮出來的臉 ──
+   素材本身就是一張灰色虛線畫的大臉，直接放不需要再加濾鏡。
+
+   關鍵是它跟 `.ivl-fog` / `.ivl-static` 套**同一個** `--ivl-hole`：
+   指標撥開霧的時候，臉在洞裡的那塊也一起被扣掉。少了這道遮罩，擦出來的
+   洞裡會露出一張浮在乾淨內容上的臉，看起來像是臉在霧的前面而不是霧的一部分。 */
+.ivl-face {
+  position: absolute;
+  inset: 0;
+  background-image: url('/uep/art/afk-fade.webp');
+  background-repeat: no-repeat;
+  /* 偏上，把畫面下緣讓給「空曠~」。這兩個值與 `.ivl-word` 的
+     padding-bottom 是一組的——臉再大或再低一點，下巴就會壓到字上 */
+  background-position: center 34%;
+  background-size: min(68vw, 94vh) auto;
+  opacity: 0.8;
+  mask-image: linear-gradient(#000, #000), var(--ivl-hole);
+  -webkit-mask-composite: source-out;
+  mask-composite: subtract;
+  animation: ivl-face-in 2200ms var(--ease-out) both;
+}
+
+@keyframes ivl-face-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 0.8;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ── 全遮時的那句話 ──
+   臉佔了中央，字讓到下方 ── */
 .ivl-word {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  place-items: end center;
+  padding-bottom: 12vh;
   color: rgb(var(--ivl-word) / 34%);
   font-family: var(--font-display);
   font-size: clamp(28px, 6vw, 56px);
@@ -276,6 +314,7 @@
   .ivl-fog--b,
   .ivl-static,
   .ivl-surge,
+  .ivl-face,
   .ivl-word {
     animation: none;
   }
