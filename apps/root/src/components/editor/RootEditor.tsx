@@ -16,6 +16,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { Markdown } from '@tiptap/markdown';
 import { MarkdownPaste } from './MarkdownPaste';
+import { Video } from './VideoNode';
 import ImagePickerDialog from './ImagePickerDialog';
 import RootMediaLibrary from './RootMediaLibrary';
 import ConfirmDialog, {
@@ -288,6 +289,7 @@ export function TipTapEditor({
         Placeholder.configure({ placeholder: placeholder || '開始撰寫內容…' }),
         TextAlign.configure({ types: ['heading', 'paragraph'] }),
         Image,
+        Video,
         Highlight,
         TextStyle,
         Color,

@@ -118,7 +118,11 @@ export default function RootMediaLibrary({
       const allowed = Array.from(files).filter((f) => {
         if (filterType === 'audio') return f.type.startsWith('audio/');
         if (filterType === 'image') return f.type.startsWith('image/');
-        return f.type.startsWith('image/') || f.type.startsWith('audio/');
+        return (
+          f.type.startsWith('image/') ||
+          f.type.startsWith('audio/') ||
+          f.type.startsWith('video/')
+        );
       });
       if (allowed.length === 0) return;
 
@@ -224,12 +228,16 @@ export default function RootMediaLibrary({
   // ── filter helpers ──
   const AUDIO_EXTS = /\.(mp3|wav|ogg|flac|m4a|aac|wma|opus)$/i;
   const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i;
+  const VIDEO_EXTS = /\.(mp4|webm|mov)$/i;
 
   function isAudio(item: AssetItem): boolean {
     return item.contentType?.startsWith('audio/') || AUDIO_EXTS.test(item.key);
   }
   function isImage(item: AssetItem): boolean {
     return item.contentType?.startsWith('image/') || IMAGE_EXTS.test(item.key);
+  }
+  function isVideo(item: AssetItem): boolean {
+    return item.contentType?.startsWith('video/') || VIDEO_EXTS.test(item.key);
   }
 
   // ── filter ──
@@ -289,7 +297,13 @@ export default function RootMediaLibrary({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={
+              filterType === 'audio'
+                ? 'audio/*'
+                : filterType === 'image'
+                  ? 'image/*'
+                  : 'image/*,audio/*,video/*'
+            }
             multiple
             style={{ display: 'none' }}
             onChange={(e) => handleUpload(e.target.files)}
@@ -314,12 +328,25 @@ export default function RootMediaLibrary({
                   className={`qe-ml__card${selected?.key === item.key ? ' qe-ml__card--selected' : ''}`}
                   onClick={() => handleCardClick(item)}
                 >
-                  <img
-                    className="qe-ml__thumb"
-                    src={buildAssetUrl(apiBase, item.key)}
-                    alt={item.originalName || item.key}
-                    loading="lazy"
-                  />
+                  {isVideo(item) ? (
+                    <video
+                      className="qe-ml__thumb"
+                      src={buildAssetUrl(apiBase, item.key)}
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      onMouseEnter={(e) => void e.currentTarget.play()}
+                      onMouseLeave={(e) => e.currentTarget.pause()}
+                    />
+                  ) : (
+                    <img
+                      className="qe-ml__thumb"
+                      src={buildAssetUrl(apiBase, item.key)}
+                      alt={item.originalName || item.key}
+                      loading="lazy"
+                    />
+                  )}
                   <div className="qe-ml__card-meta">
                     <div className="qe-ml__card-name">
                       {item.originalName || getFilename(item.key)}
@@ -350,11 +377,22 @@ export default function RootMediaLibrary({
       {/* detail panel (page mode only) */}
       {mode === 'page' && selected && (
         <div className="qe-ml__detail">
-          <img
-            className="qe-ml__detail-preview"
-            src={buildAssetUrl(apiBase, selected.key)}
-            alt=""
-          />
+          {isVideo(selected) ? (
+            <video
+              className="qe-ml__detail-preview"
+              src={buildAssetUrl(apiBase, selected.key)}
+              controls
+              muted
+              loop
+              playsInline
+            />
+          ) : (
+            <img
+              className="qe-ml__detail-preview"
+              src={buildAssetUrl(apiBase, selected.key)}
+              alt=""
+            />
+          )}
 
           <div className="qe-ml__detail-field">
             <div className="qe-ml__detail-label">filename</div>
