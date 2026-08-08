@@ -64,7 +64,7 @@ function DevToolsPanel({
   onClose,
 }: {
   onClose: () => void;
-}): React.ReactElement {
+}): React.JSX.Element {
   const registry = getRegistry();
   const [query, setQuery] = useState('');
   const [tick, setTick] = useState(0);
@@ -257,7 +257,7 @@ function DevToolsPanel({
  * 3. 監聽 Ctrl+Shift+D 開關面板
  * 4. 用 createPortal 渲染面板到 document.body
  */
-export default function UepDevToolsHost(): React.ReactElement | null {
+export default function UepDevToolsHost(): React.JSX.Element | null {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   /* 手機不掛 DevTools：面板本身是三欄命令列表，在 390px 上不可用，

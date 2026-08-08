@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # feature/** 也要跑：長期功能分支（epic 等級的開發一開就是好幾週）在合併前
+  # 完全沒有 CI 覆蓋，所有驗證都只發生在本機，而本機的 node_modules 可能與
+  # lockfile 不同步——`--frozen-lockfile` 的乾淨安裝底下是紅的，本機卻是綠的。
   push:
-    branches: [main, develop, staging]
+    branches: [main, develop, staging, 'feature/**']
   pull_request:
     branches: [main, develop, staging]
 

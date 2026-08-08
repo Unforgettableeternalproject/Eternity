@@ -32,7 +32,7 @@ function detectSource(): 'cookie' | 'env' | null {
   return isTestMode() ? 'env' : null;
 }
 
-export default function TestModeBanner(): React.ReactElement | null {
+export default function TestModeBanner(): React.JSX.Element | null {
   // SSR 首次渲染時預設 false，避免 Astro hydration mismatch；
   // 掛載後才依 isTestMode() 決定顯示（架構稿接受 0.1~0.3s 閃爍）。
   const [visible, setVisible] = useState(false);

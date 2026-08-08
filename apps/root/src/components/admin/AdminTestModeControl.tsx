@@ -70,7 +70,7 @@ interface DragSnapshot {
   height: number;
 }
 
-export default function AdminTestModeControl(): React.ReactElement {
+export default function AdminTestModeControl(): React.JSX.Element {
   const [source, setSource] = useState<Source>('none');
   const [apiBase, setApiBase] = useState<string>('');
   const [resetConfirmInput, setResetConfirmInput] = useState('');

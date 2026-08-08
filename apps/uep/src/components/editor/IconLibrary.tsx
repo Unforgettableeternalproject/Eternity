@@ -195,7 +195,7 @@ export function renderIcon(
   iconId: string | undefined | null,
   size = 16,
   className?: string
-): React.ReactElement | null {
+): React.JSX.Element | null {
   if (!iconId) return null;
   const icon = ICON_MAP.get(iconId);
   if (!icon) return null;
