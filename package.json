@@ -21,6 +21,8 @@
     "sync:all": "node scripts/sync.mjs --site all",
     "sync:push": "node scripts/sync.mjs --site all --push",
     "sync:pull": "node scripts/sync.mjs --site all --pull",
+    "optimize:assets": "node scripts/optimize-assets.mjs",
+    "optimize:assets:dry": "node scripts/optimize-assets.mjs --dry-run",
     "dev:discord-widget": "pnpm --filter discord-widget-sync-worker dev",
     "test": "vitest run",
     "test:watch": "vitest",
