@@ -29,6 +29,7 @@ import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 
 import JourneyNav from './JourneyNav';
 import JourneyScene from './JourneyScene';
+import LobbyUep, { shouldShowLobbyArt } from './LobbyUep';
 
 /**
  * 大地圖彈窗走 lazy——它本來就是條件渲染（showMap），使用者不點就
@@ -330,6 +331,8 @@ export default function HomePage({
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
+  /** 這次入場動畫要不要讓 U.E.P 一起進來（第一次必定，之後機率制） */
+  const [lobbyArt, setLobbyArt] = useState(false);
   const [veilZone, setVeilZone] = useState<ZoneData | null>(null);
   const [sectionVeil, setSectionVeil] = useState<{
     id: 'plain' | 'threshold' | 'verse';
@@ -384,6 +387,10 @@ export default function HomePage({
     // ── 啟用大廳動畫 ──
     // 刻意每次進站都播（不做 session 「看過就跳過」判定）：4.2s 是入場儀式的
     // 一部分，也剛好讓資源載完。唯一的例外是上方 welcomePending 那條。
+    //
+    // U.E.P 的機率判定只在真的要播大廳時做——它會寫下「見過」標記，
+    // 在跳過大廳的路徑上判定等於白白燒掉那次保證出現的機會。
+    setLobbyArt(shouldShowLobbyArt());
     setLobbyPhase('playing');
   }, []);
 
@@ -1891,6 +1898,8 @@ export default function HomePage({
                 }
               />
             ))}
+            {/* Phase 1~2 — U.E.P 跟著速度線的方向抵達，落在 Hero 立繪的位置上 */}
+            {lobbyArt && <LobbyUep isDark={isDark} />}
           </>
         </div>
       )}

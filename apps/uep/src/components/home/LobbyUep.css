@@ -1,0 +1,133 @@
+/**
+ * 大廳入場動畫裡的 U.E.P
+ *
+ * 三層結構，各自只做一件事：
+ *   .lobby-uep       落點定位 + 飛入（left/top 由 JS 量 Hero 立繪得到）
+ *   .lobby-uep__bob  抵達後的滯空浮動
+ *   .lobby-uep__art  圖片本身、錨點偏移（inline style）與光暈
+ *
+ * 拆三層是為了不讓三種 transform 互相覆蓋——飛入、浮動、錨點若寫在同一個
+ * 元素上，後宣告的會把前面的整條 transform 蓋掉。
+ *
+ * ## 時間軸
+ *
+ * 大廳外殼是 `lobby-shell` 4.2s，75%（3.15s）開始淡出。兩個變體的
+ * `delay + duration` 都收在 3.1s——**抵達即落幕**，而不是先到位再乾等。
+ * 早到多久就會在 Hero 位置上滯留多久，那段停頓看起來像動畫卡住了。
+ * 調整任一邊的時長時，另一邊的 delay 要跟著補，兩者的總和必須一致。
+ */
+
+.lobby-uep {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.lobby-uep__art {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* 兩段式光暈：內圈貼著輪廓、外圈散開，讓她自己發光而不是被打光。
+     亮色的米白底吃掉大半金色，同一組數值在兩個主題下的可見度差很多，
+     所以亮色這邊要下得比直覺上更重。 */
+  filter: drop-shadow(0 0 14px rgba(213, 182, 24, 0.62))
+    drop-shadow(0 0 48px rgba(213, 182, 24, 0.36));
+}
+
+[data-theme='dark'] .lobby-uep__art {
+  filter: drop-shadow(0 0 16px rgba(233, 205, 63, 0.55))
+    drop-shadow(0 0 54px rgba(213, 182, 24, 0.35));
+}
+
+/* ── 亮色：撐傘從下方飄上來 ──
+   速度線在亮色是往上跑的，她跟著同一個方向來。橫向的來回擺盪讓上升看起來
+   是「飄」而不是「被拉上去」，幅度隨高度收斂，落點才不會晃。
+   全程不縮放——她本來就是這麼大，飄過來不會長大。 */
+.lobby-uep--float {
+  animation: lobby-uep-rise 2.15s var(--ease-out) 0.95s forwards;
+}
+
+@keyframes lobby-uep-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-7vw, 78vh);
+  }
+  14% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate(3.5vw, 34vh);
+  }
+  75% {
+    transform: translate(-1.4vw, 9vh);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+.lobby-uep--float .lobby-uep__bob {
+  /* 飛入結束才接手，否則兩段位移會疊在一起 */
+  animation: lobby-uep-bob 4.5s ease-in-out 3.1s infinite;
+}
+
+@keyframes lobby-uep-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ── 暗色：從上方摔下來 ──
+   比亮色短得多，而且用加速曲線——墜落沒有猶豫的餘地。落地後一次小回彈
+   代替緩衝，不做浮動：她是躺在那裡，不是飄著。 */
+.lobby-uep--drop {
+  animation: lobby-uep-fall 1.05s cubic-bezier(0.5, 0.02, 0.35, 1) 2.05s
+    forwards;
+}
+
+@keyframes lobby-uep-fall {
+  0% {
+    opacity: 0;
+    transform: translate(2.5vw, -76vh) scale(0.72);
+  }
+  12% {
+    opacity: 1;
+  }
+  86% {
+    transform: translate(0, 2.5vh) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* 飛行本身就是這段動畫的內容，關掉之後只剩「她在那裡」——所以不是縮短
+   動畫而是直接就位淡入，並且對齊同一個抵達時刻。 */
+@media (prefers-reduced-motion: reduce) {
+  .lobby-uep--float,
+  .lobby-uep--drop {
+    animation: lobby-uep-appear 0.6s ease-out 2.5s forwards;
+  }
+
+  .lobby-uep--float .lobby-uep__bob {
+    animation: none;
+  }
+
+  @keyframes lobby-uep-appear {
+    from {
+      opacity: 0;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
