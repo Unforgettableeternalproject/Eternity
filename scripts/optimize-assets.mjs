@@ -19,7 +19,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveWriteToken, getAuthHeaders } from './sync-auth.mjs';
@@ -40,6 +40,16 @@ const AUTO_YES = args.includes('--yes');
 const MIN_SIZE_KB = Number(
   args.find((a) => a.startsWith('--min-size='))?.split('=')[1] ?? 150
 );
+/**
+ * 原檔備份目錄。
+ *
+ * R2 是這些素材唯一的存放處（public 下的舊副本已於 0.9.18.x 移除），而本腳本
+ * 會在改寫引用後刪掉舊 key——刪掉就沒有第二份了。轉檔參數不理想、想重來，
+ * 或轉出來的畫質不能接受時，都得靠這份備份。
+ */
+const BACKUP_DIR =
+  args.find((a) => a.startsWith('--backup-dir='))?.split('=')[1] ??
+  '.asset-backup';
 
 /** 轉檔後的體積必須小於原檔的這個比例才值得換，否則徒增一次遷移風險 */
 const WORTH_IT_RATIO = 0.9;
@@ -158,6 +168,12 @@ async function main() {
           await (await fetch(assetUrl(key))).arrayBuffer()
         );
         await writeFile(input, buf);
+
+        // 備份原檔後才動它——R2 是唯一的一份，刪掉就回不來了
+        const backupPath = path.join(BACKUP_DIR, key);
+        await mkdir(path.dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, buf);
+
         await run('ffmpeg', plan.ffmpegArgs(input, output));
         const outBuf = await readFile(output);
 
