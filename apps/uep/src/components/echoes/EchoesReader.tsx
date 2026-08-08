@@ -17,6 +17,7 @@ import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { activateEntityKey } from '../../embed';
@@ -2407,6 +2408,7 @@ function EchoesReaderInner() {
         <div className="echo-boot-wave" />
         <div className="echo-boot-wave" />
         <div className="echo-boot-wave" />
+        <ZoneBootArt zoneId="echoes" />
       </div>
 
       <div className="echoes-main">

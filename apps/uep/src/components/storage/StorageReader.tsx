@@ -16,6 +16,7 @@ import StorageDust from './StorageDust';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isLocked } from '../zone/contentVisibility';
@@ -1761,6 +1762,7 @@ export default function StorageReader() {
           <div className="sto-boot-box sto-box-7" />
         </div>
         <div className="sto-boot-floor" />
+        <ZoneBootArt zoneId="storage" />
       </div>
 
       <div className="sto-main">

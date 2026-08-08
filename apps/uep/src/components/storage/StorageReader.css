@@ -246,6 +246,11 @@
    入場動畫 — 箱子掉落
    ═══════════════════════════════════════════════════════════════════ */
 .sto-boot {
+  /* 箱堆的地面高度。地板、箱子容器與坐在頂端的 U.E.P（見 ZoneBootArt.css
+     的 .zone-boot-art--storage）全部從這一條算起——三處各自寫死的話，
+     調整基準線就得同時改三個數字而且很容易漏掉一個 */
+  --sto-boot-base: 22%;
+
   position: fixed;
   inset: 0;
   z-index: 350;
@@ -267,7 +272,7 @@
 
 .sto-boot-boxes {
   position: absolute;
-  bottom: 32%;
+  bottom: var(--sto-boot-base);
   left: 50%;
   transform: translateX(-50%);
   width: 480px;
@@ -276,7 +281,8 @@
 
 .sto-boot-floor {
   position: absolute;
-  bottom: 30%;
+  /* 地板略低於箱底，看起來才像箱子壓在上面而不是浮著 */
+  bottom: calc(var(--sto-boot-base) - 2%);
   left: 50%;
   transform: translateX(-50%);
   width: 400px;

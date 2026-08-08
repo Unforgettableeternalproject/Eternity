@@ -138,11 +138,14 @@
 }
 
 /* 中央終端文字 */
+/* 開機文字與入場的 U.E.P 一左一右**貼著中線**分開（見 ZoneBootArt.css）。
+   原本是置中——兩者都在中央會疊成一團；但改用百分比靠邊的話，寬螢幕上
+   兩人會被推到畫面兩端，所以座標從中心算起 */
 .conc-boot-center {
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  left: calc(50% - 268px);
+  transform: translateY(-50%);
   font-family: var(--font-mono);
   font-size: 13px;
   color: #74c69d;

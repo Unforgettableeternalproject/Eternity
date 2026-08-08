@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
+import { preloadZoneArt } from '../zone/ZoneBootArt';
 import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 import UepDialogue from './UepDialogue';
 import './IntroOverlay.css';
@@ -32,6 +33,18 @@ export default function IntroOverlay({
   useEffect(() => {
     if (!zone) return;
     return acquireZoneEntryLock();
+  }, [zone]);
+
+  /*
+   * 先把該區入場動畫要用的立繪載好。
+   *
+   * 立繪有 70~160KB，而 boot 只播 1800ms 且要與其他資源搶頻寬——等導頁
+   * 之後才開始下載，很可能她浮現到一半 boot 就收掉了。這張卡是進入該區域
+   * 的必經之路，而且使用者至少會停留幾秒讀 U.E.P 的開場白，時間綽綽有餘。
+   */
+  useEffect(() => {
+    if (!zone) return;
+    preloadZoneArt(zone.id);
   }, [zone]);
 
   const handleClose = useCallback(() => {

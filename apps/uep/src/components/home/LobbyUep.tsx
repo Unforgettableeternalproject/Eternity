@@ -25,8 +25,8 @@ export const LOBBY_ART_KEY = isTestMode()
   ? 'uep.lobbyArt.v1:test'
   : 'uep.lobbyArt.v1';
 
-/** 第一次之後，每次進站出現的機率 */
-export const LOBBY_ART_CHANCE = 0.9;
+/** 第一次之後，每次進站出現的機率，之後應該要能夠從後台的設定那裏調整 */
+export const LOBBY_ART_CHANCE = 0.4;
 
 /**
  * 這次入場要不要讓她出現。

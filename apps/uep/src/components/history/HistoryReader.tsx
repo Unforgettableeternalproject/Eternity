@@ -17,6 +17,7 @@ import ZoneAtmosphere from '../ui/ZoneAtmosphere';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import {
@@ -1710,6 +1711,7 @@ export default function HistoryReader() {
         <div className="hist-boot-drip hist-boot-drip--1" />
         <div className="hist-boot-drip hist-boot-drip--2" />
         <div className="hist-boot-stroke" />
+        <ZoneBootArt zoneId="history" />
       </div>
 
       <div className="history-main">

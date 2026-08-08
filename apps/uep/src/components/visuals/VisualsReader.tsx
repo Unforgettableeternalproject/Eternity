@@ -45,6 +45,7 @@ import { shouldRevealPhantomCard } from './phantomCardRoll';
 import type { GroupSlot } from './phantomCardRoll';
 import { isHidden, isLocked } from '../zone/contentVisibility';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { activateEntityKey } from '../../embed';
@@ -2326,6 +2327,7 @@ function VisualsReaderInner() {
         <div className="vis-boot-flash vis-boot-flash--l2" />
         <div className="vis-boot-flash vis-boot-flash--r2" />
         <div className="vis-boot-grain" />
+        <ZoneBootArt zoneId="visuals" />
       </div>
 
       <div className="visuals-main">

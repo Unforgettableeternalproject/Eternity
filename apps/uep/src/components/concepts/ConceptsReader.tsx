@@ -27,6 +27,7 @@ import type {
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
@@ -2019,6 +2020,7 @@ export default function ConceptsReader() {
             <span className="conc-boot-cursor" />
           </div>
         </div>
+        <ZoneBootArt zoneId="concepts" />
       </div>
 
       <div className="conc-main">
