@@ -4,6 +4,7 @@ import {
   assetPath,
   collectKeys,
   planFor,
+  convertedKeyFor,
   rewriteHtml,
 } from '../optimize-assets-utils.mjs';
 
@@ -215,5 +216,69 @@ describe('rewriteHtml', () => {
   it('空內容不拋錯', () => {
     expect(rewriteHtml('', 'a', 'b', false).changed).toBe(0);
     expect(rewriteHtml(null, 'a', 'b', false).changed).toBe(0);
+  });
+});
+
+describe('convertedKeyFor', () => {
+  it('推得出 gif 與 png 轉檔後的 key', () => {
+    expect(convertedKeyFor('a/b.gif')).toEqual({
+      newKey: 'a/b.mp4',
+      contentType: 'video/mp4',
+      toVideo: true,
+    });
+    expect(convertedKeyFor('a/b.png').newKey).toBe('a/b.webp');
+  });
+
+  it('不轉的格式回 null', () => {
+    expect(convertedKeyFor('a/b.webp')).toBeNull();
+    expect(convertedKeyFor('a/b.svg')).toBeNull();
+  });
+});
+
+describe('同一專案多個資產的連續改寫', () => {
+  /**
+   * 實際咬過一次的 bug：每個資產都拿「迴圈開始前的 project 快照」去改寫，
+   * 後一次 PUT 會把前一次的改寫覆蓋掉，同專案只有最後處理的資產存活，
+   * 其餘的舊檔已刪、引用卻還指著它 —— 頁面上就是破圖。
+   *
+   * 正確做法是把每次的改寫結果寫回手上這份 project 再處理下一個。
+   */
+  const project = {
+    id: 'demo',
+    contentZh:
+      '<img src="/images/a.png"><img src="/images/b.png"><img src="/images/c.png">',
+  };
+
+  it('逐一改寫且每次都接續上一次的結果，三張圖都會換掉', () => {
+    let html = project.contentZh;
+    for (const name of ['a', 'b', 'c']) {
+      const result = rewriteHtml(
+        html,
+        `images/${name}.png`,
+        `images/${name}.webp`,
+        false
+      );
+      expect(result.changed).toBe(1);
+      html = result.html;
+    }
+    expect(html).not.toContain('.png');
+    expect(html).toContain('images/a.webp');
+    expect(html).toContain('images/b.webp');
+    expect(html).toContain('images/c.webp');
+  });
+
+  it('每次都從原始快照改寫的話，只有最後一張存活（這是要防的行為）', () => {
+    let lastHtml = '';
+    for (const name of ['a', 'b', 'c']) {
+      lastHtml = rewriteHtml(
+        project.contentZh,
+        `images/${name}.png`,
+        `images/${name}.webp`,
+        false
+      ).html;
+    }
+    expect(lastHtml).toContain('images/c.webp');
+    expect(lastHtml).toContain('images/a.png');
+    expect(lastHtml).toContain('images/b.png');
   });
 });

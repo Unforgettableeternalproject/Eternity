@@ -72,6 +72,33 @@ export function collectKeys(project) {
 }
 
 /**
+ * 這個 key 轉檔後會變成什麼；不會被轉的格式回 null。
+ *
+ * 除了規劃轉檔，也用來修復孤兒引用：舊檔已刪但引用還在時，要靠它推出
+ * 「應該指向哪個新檔」。
+ *
+ * @returns {{ newKey: string, contentType: string, toVideo: boolean } | null}
+ */
+export function convertedKeyFor(key) {
+  const ext = path.extname(key).toLowerCase();
+  if (ext === '.gif') {
+    return {
+      newKey: key.replace(/\.gif$/i, '.mp4'),
+      contentType: 'video/mp4',
+      toVideo: true,
+    };
+  }
+  if (['.png', '.jpg', '.jpeg'].includes(ext)) {
+    return {
+      newKey: key.replace(/\.(png|jpe?g)$/i, '.webp'),
+      contentType: 'image/webp',
+      toVideo: false,
+    };
+  }
+  return null;
+}
+
+/**
  * 決定一個資產要怎麼轉；不值得動的回 null。
  *
  * @param {string} key R2 key

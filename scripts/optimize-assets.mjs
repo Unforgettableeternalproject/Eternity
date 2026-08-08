@@ -29,6 +29,7 @@ import {
   assetPath,
   collectKeys,
   planFor,
+  convertedKeyFor,
   rewriteHtml,
 } from './optimize-assets-utils.mjs';
 
@@ -98,13 +99,28 @@ async function main() {
 
   // 1. 收集所有引用並量測大小
   const jobs = [];
+  const repairs = [];
   for (const project of projects) {
     for (const [key, fields] of collectKeys(project)) {
       const res = await fetch(assetUrl(key), { method: 'HEAD' });
+
       if (!res.ok) {
-        console.log(`   ⚠️  R2 找不到，略過： ${key}`);
+        // 舊檔不在了，但引用還指著它——上一輪轉檔中途失敗會留下這種孤兒。
+        // 若轉好的新檔已經在 R2，那就只差 D1 沒改到，補上即可（不需重新轉檔）。
+        const converted = convertedKeyFor(key);
+        if (converted) {
+          const newRes = await fetch(assetUrl(converted.newKey), {
+            method: 'HEAD',
+          });
+          if (newRes.ok) {
+            repairs.push({ project, key, fields, converted });
+            continue;
+          }
+        }
+        console.log(`   ⚠️  R2 找不到且無新檔可指，略過： ${key}`);
         continue;
       }
+
       const size = Number(res.headers.get('content-length') || 0);
       const plan = planFor(key, size, MIN_SIZE_KB);
       if (!plan) continue;
@@ -112,21 +128,35 @@ async function main() {
     }
   }
 
-  if (jobs.length === 0) {
+  if (repairs.length > 0) {
+    console.log(`   ${repairs.length} 個引用指向已刪除的舊檔，將改指新檔：\n`);
+    for (const r of repairs) {
+      console.log(`   修復       ${r.key}`);
+      console.log(`   ${' '.repeat(10)} → ${r.converted.newKey}`);
+      console.log(
+        `   ${' '.repeat(10)}   ↳ ${r.project.id} · ${[...r.fields].join(', ')}`
+      );
+    }
+    console.log('');
+  }
+
+  if (jobs.length === 0 && repairs.length === 0) {
     console.log('   沒有需要處理的資產。\n');
     return;
   }
 
-  console.log(`   ${jobs.length} 個資產待處理：\n`);
-  for (const j of jobs) {
-    console.log(
-      `   ${j.plan.kind.padEnd(10)} ${KB(j.size).padStart(8)}  ${j.key}`
-    );
-    console.log(
-      `   ${' '.repeat(20)}  ↳ ${j.project.id} · ${[...j.fields].join(', ')}`
-    );
+  if (jobs.length > 0) {
+    console.log(`   ${jobs.length} 個資產待轉檔：\n`);
+    for (const j of jobs) {
+      console.log(
+        `   ${j.plan.kind.padEnd(10)} ${KB(j.size).padStart(8)}  ${j.key}`
+      );
+      console.log(
+        `   ${' '.repeat(20)}  ↳ ${j.project.id} · ${[...j.fields].join(', ')}`
+      );
+    }
+    console.log('');
   }
-  console.log('');
 
   if (DRY_RUN) {
     console.log('   DRY RUN 結束，未做任何變更。\n');
@@ -156,6 +186,39 @@ async function main() {
   const done = [];
   const skipped = [];
   const failed = [];
+  const repaired = [];
+
+  // 先修好孤兒引用再轉檔：那些是眼下真正的破圖，而且不需要動到 R2
+  for (const { project, key, converted } of repairs) {
+    try {
+      const patch = {};
+      if (normalizeKey(project.image || '') === key && !converted.toVideo) {
+        patch.image = converted.newKey;
+      }
+      for (const field of ['contentZh', 'contentEn']) {
+        const result = rewriteHtml(
+          project[field],
+          key,
+          converted.newKey,
+          converted.toVideo
+        );
+        if (result.changed > 0) patch[field] = result.html;
+      }
+      if (Object.keys(patch).length > 0) {
+        await fetchJson(`${REMOTE_API}/api/root/projects/${project.id}`, {
+          method: 'PUT',
+          headers: { ...auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        Object.assign(project, patch);
+      }
+      console.log(`   ✓ 修復引用  ${key} → ${converted.newKey}`);
+      repaired.push(key);
+    } catch (e) {
+      console.log(`   ✗ 修復失敗  ${key}\n      ${e.message}`);
+      failed.push({ key, error: e.message });
+    }
+  }
 
   try {
     for (const job of jobs) {
@@ -219,6 +282,13 @@ async function main() {
             headers: { ...auth, 'Content-Type': 'application/json' },
             body: JSON.stringify(patch),
           });
+          // 🚨 改寫結果必須寫回手上這份 project。
+          //
+          // projects 是迴圈開始前一次讀進來的快照，同一專案的多個資產共用同一個
+          // 物件；不同步的話，下一個資產會拿「還沒改寫過」的 HTML 去改，PUT 上去
+          // 就把前一次的改寫整個覆蓋掉——同專案只有最後處理的那個資產存活，
+          // 其餘的舊檔已刪、引用卻還指著它，變成真正的破圖。
+          Object.assign(project, patch);
         }
 
         // 6. 舊資產只在確定沒有引用殘留時才刪。
@@ -253,7 +323,7 @@ async function main() {
   const before = done.reduce((a, d) => a + d.before, 0);
   const after = done.reduce((a, d) => a + d.after, 0);
   console.log(
-    `\n   完成 ${done.length}／略過 ${skipped.length}／失敗 ${failed.length}`
+    `\n   轉檔 ${done.length}／修復引用 ${repaired.length}／略過 ${skipped.length}／失敗 ${failed.length}`
   );
   if (done.length) {
     console.log(
