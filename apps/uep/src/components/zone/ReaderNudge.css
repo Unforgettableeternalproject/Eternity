@@ -34,9 +34,10 @@
 .rnudge-art {
   width: var(--rnudge-w);
   height: auto;
-  /* 底邊壓在卡片頂線上一點點——素材下緣就是她貼地的線，完全對齊反而
-     像浮在上面 */
-  margin-bottom: -6px;
+  /* 沉進卡片而不是站在卡片上。素材的下緣只有腳尖與髮梢碰得到那條線，
+     身體中段本來就離地——只壓 6px 的話最低點勉強貼著、整個人卻是懸空的，
+     看起來像浮在卡片上方。壓深一點才是趴在上面。 */
+  margin-bottom: -22px;
   filter: drop-shadow(0 8px 16px rgb(0 0 0 / 20%));
   animation: rnudge-bob 3.8s ease-in-out infinite;
 }
@@ -182,7 +183,8 @@
   }
 }
 
-/* 趴著的呼吸幅度要比站著小——起伏太大會變成「在卡片上彈跳」 */
+/* 趴著的呼吸幅度要比站著小——起伏太大會變成「在卡片上彈跳」，而且
+   一浮起來就離開了剛壓進去的那條接觸線 */
 @keyframes rnudge-bob {
   0%,
   100% {
@@ -190,7 +192,7 @@
   }
 
   50% {
-    transform: translateY(-3px);
+    transform: translateY(-2px);
   }
 }
 

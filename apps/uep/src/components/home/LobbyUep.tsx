@@ -26,7 +26,7 @@ export const LOBBY_ART_KEY = isTestMode()
   : 'uep.lobbyArt.v1';
 
 /** 第一次之後，每次進站出現的機率 */
-export const LOBBY_ART_CHANCE = 0.2;
+export const LOBBY_ART_CHANCE = 0.9;
 
 /**
  * 這次入場要不要讓她出現。
@@ -84,7 +84,7 @@ const ART = {
  * 刻意小於 Hero 立繪：她是路過這裡停下來，不是來取代主視覺。等大反而會讓
  * overlay 淡出時兩張圖疊成一團。
  */
-const SCALE_PER_HERO_PX = 1.3 / ART.light.width;
+const SCALE_PER_HERO_PX = 1.0 / ART.light.width;
 
 /** 傘頂與視窗上緣至少留這麼多，看起來才不像被切掉 */
 const TOP_MARGIN = 14;

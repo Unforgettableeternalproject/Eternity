@@ -272,7 +272,7 @@
   }
 
   to {
-    opacity: 0.6;
+    opacity: 0.35;
     transform: scale(1);
     filter: blur(0);
   }

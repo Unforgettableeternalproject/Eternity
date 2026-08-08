@@ -165,6 +165,35 @@ export function ReaderNudgeProvider({
     };
   }, []);
 
+  /*
+   * 立繪要先熱好，不然滑入動畫等於白做。
+   *
+   * 卡片是 620ms 滑進來的，而立繪要等到卡片掛載那一刻才開始下載——第一次
+   * 觸發時滑入早就跑完了圖才蹦出來，看起來就是「卡片滑進來、然後圖直接
+   * 出現」。第二次之後有快取才正常，所以這個問題只在最需要它好看的那次發生。
+   *
+   * 走 idle callback 而不是直接 new Image()：休息提醒平均要等幾十分鐘才
+   * 觸發，沒有理由跟首屏內容搶頻寬。
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const warm = () => {
+      if (cancelled) return;
+      new Image().src = UEP_ART;
+    };
+    // 型別上 requestIdleCallback 一定存在，實際上 Safari 16.4 之前沒有——
+    // 用 typeof 檢查而不是真值判斷，才不會被判成恆真
+    const hasIdle = typeof window.requestIdleCallback === 'function';
+    const handle = hasIdle
+      ? window.requestIdleCallback(warm, { timeout: 4000 })
+      : window.setTimeout(warm, 2000);
+    return () => {
+      cancelled = true;
+      if (hasIdle) window.cancelIdleCallback(handle);
+      else window.clearTimeout(handle);
+    };
+  }, []);
+
   const requestRestNudge = useCallback((req: RestNudgeRequest) => {
     setRest(req);
   }, []);
