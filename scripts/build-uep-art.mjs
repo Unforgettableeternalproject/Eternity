@@ -38,6 +38,11 @@ const WEBP = { quality: 80, effort: 6 };
  * 首頁那組（Float 亮色／Drop 暗色）是同一個動畫的兩種主題，本體必須等大：
  * 以小腿寬校準（Float 約 100px、Drop 約 275px），Drop 需縮到 0.36。
  * 小腿是兩張裡唯一不隨姿勢改變的共通量——臉會被眼鏡切開、頭髮會鋪散。
+ *
+ * `frames` 相同的更嚴格：**共用同一個裁切框**（取各自 bbox 的聯集）。
+ * 同一個構圖的多幀若各自依 bbox 裁切，畫面上的東西會因為裁切框不同而
+ * 整體位移——切換差分時人物會跳一下，串成動畫則是逐幀抖動。
+ * 共用裁切框的組自然也共用縮放係數。
  */
 const ART = [
   { src: 'History.png', out: 'zone-history.webp' },
@@ -50,7 +55,14 @@ const ART = [
   // 滿版覆蓋在 AFK 遮罩上，會鋪到整個視窗，長邊給得比其他張寬裕
   { src: 'Fade.png', out: 'afk-fade.webp', maxEdge: 1600 },
   { src: 'No.png', out: 'protect-no.webp' },
-  { src: 'Lazy.png', out: 'rest-lazy.webp' },
+  // 休息提醒的兩個差分：同一個躺姿，Invite 手上多一杯茶。兩張在卡片上
+  // 是原地替換的，裁切框一旦不同她就會跳位
+  { src: 'Lazy.png', out: 'rest-lazy.webp', frames: 'rest' },
+  { src: 'Invite.png', out: 'rest-invite.webp', frames: 'rest' },
+  // 茶會頁：舉杯與喝下去兩幀（之後要串成循環），以及只有桌子的空景
+  { src: 'Tea.png', out: 'tea-raise.webp', frames: 'teatime' },
+  { src: 'Drinking.png', out: 'tea-sip.webp', frames: 'teatime' },
+  { src: 'Table.png', out: 'teatime-table.webp' },
 ];
 
 const args = process.argv.slice(2);
@@ -116,32 +128,64 @@ async function main() {
     const box = alphaBounds(data, info.width, info.height, info.channels);
     if (!box) throw new Error(`${entry.src} 整張都是透明的`);
 
-    const scale = entry.scale ?? 1;
     items.push({
       ...entry,
       buf,
       box,
       source: { width: info.width, height: info.height, bytes: buf.length },
-      // 套用個別尺度後的邏輯尺寸，群組係數以此為準
-      scaledEdge: Math.max(box.width, box.height) * scale,
-      scale,
+      scale: entry.scale ?? 1,
     });
   }
 
-  // 2. 決定每張的最終縮放係數。
+  // 2. 同一組多幀共用裁切框：取聯集，任何一幀的內容都不會被裁掉，而且
+  //    每一幀的座標系完全一致（換幀時畫面上的東西不會整體位移）。
+  const frameBox = new Map();
+  for (const it of items) {
+    if (!it.frames) continue;
+    const cur = frameBox.get(it.frames);
+    frameBox.set(
+      it.frames,
+      cur
+        ? {
+            left: Math.min(cur.left, it.box.left),
+            top: Math.min(cur.top, it.box.top),
+            right: Math.max(cur.left + cur.width, it.box.left + it.box.width),
+            bottom: Math.max(cur.top + cur.height, it.box.top + it.box.height),
+          }
+        : {
+            ...it.box,
+            right: it.box.left + it.box.width,
+            bottom: it.box.top + it.box.height,
+          }
+    );
+    const u = frameBox.get(it.frames);
+    u.width = u.right - u.left;
+    u.height = u.bottom - u.top;
+  }
+  for (const it of items) {
+    if (!it.frames) continue;
+    const u = frameBox.get(it.frames);
+    it.box = { left: u.left, top: u.top, width: u.width, height: u.height };
+  }
+
+  // 套用個別尺度後的邏輯尺寸，群組係數以此為準
+  for (const it of items) {
+    it.scaledEdge = Math.max(it.box.width, it.box.height) * it.scale;
+  }
+
+  // 3. 決定每張的最終縮放係數。
   //    同群組共用一個係數——各自縮到自己的長邊上限，會把刻意校準過的相對大小抹掉。
   const groupEdge = new Map();
   for (const it of items) {
-    if (!it.group) continue;
-    groupEdge.set(
-      it.group,
-      Math.max(groupEdge.get(it.group) ?? 0, it.scaledEdge)
-    );
+    const key = it.group ?? it.frames;
+    if (!key) continue;
+    groupEdge.set(key, Math.max(groupEdge.get(key) ?? 0, it.scaledEdge));
   }
 
   for (const it of items) {
     const limit = it.maxEdge ?? MAX_EDGE;
-    const refEdge = it.group ? groupEdge.get(it.group) : it.scaledEdge;
+    const groupKey = it.group ?? it.frames;
+    const refEdge = groupKey ? groupEdge.get(groupKey) : it.scaledEdge;
     const fit = Math.min(1, limit / refEdge);
     it.finalScale = it.scale * fit;
     it.outWidth = Math.max(1, Math.round(it.box.width * it.finalScale));
@@ -157,7 +201,9 @@ async function main() {
       `   ${it.out.padEnd(20)} ${String(it.source.width + 'x' + it.source.height).padStart(10)}` +
         ` → 裁 ${String(it.box.width + 'x' + it.box.height).padStart(10)} (-${trimmed.toFixed(0)}%)` +
         ` → ${String(it.outWidth + 'x' + it.outHeight).padStart(10)}` +
-        `  ×${it.finalScale.toFixed(3)}${it.group ? `  [${it.group}]` : ''}`
+        `  ×${it.finalScale.toFixed(3)}` +
+        (it.group ? `  [${it.group}]` : '') +
+        (it.frames ? `  [frames:${it.frames}]` : '')
     );
   }
   console.log('');
@@ -167,7 +213,7 @@ async function main() {
     return;
   }
 
-  // 3. 裁切 → 縮放 → 編碼
+  // 4. 裁切 → 縮放 → 編碼
   await mkdir(OUT_DIR, { recursive: true });
   let before = 0;
   let after = 0;
