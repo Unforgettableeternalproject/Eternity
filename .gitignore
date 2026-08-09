@@ -61,6 +61,7 @@ temp/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+scripts/local/
 
 # Wrangler local state
 .wrangler/

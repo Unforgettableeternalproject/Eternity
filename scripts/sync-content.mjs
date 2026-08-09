@@ -28,8 +28,13 @@ import {
   ask,
   checkLocalApi,
   checkRemoteApi,
+  abortOnAuthFailure,
 } from './sync-utils.mjs';
-import { resolveWriteToken, getAuthHeaders } from './sync-auth.mjs';
+import {
+  resolveWriteToken,
+  getAuthHeaders,
+  getEnvToken,
+} from './sync-auth.mjs';
 
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
@@ -426,6 +431,10 @@ async function main() {
       }
       remoteToken = token;
     }
+  } else {
+    // dry-run 不強制登入，但有 API_TOKEN 就帶上——旗標註冊表與 key 說明
+    // 兩個端點掛了 isAuthorized，不帶 token 會被靜默跳過，差異表少一截
+    remoteToken = process.env.SYNC_REMOTE_TOKEN || getEnvToken();
   }
 
   // === Purge 模式：只清除兩端的過期軟刪除記錄 ===
@@ -654,6 +663,7 @@ async function listAssets(apiBase) {
     const res = await fetch(`${apiBase}/api/assets`, {
       headers: authHeaders(apiBase),
     });
+    abortOnAuthFailure(res, '文件站 R2 資產', apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? (json.data?.items || []).map((i) => i.key) : [];
@@ -668,6 +678,7 @@ async function listDeletedAssets(apiBase) {
     const res = await fetch(`${apiBase}/api/assets/deleted`, {
       headers: authHeaders(apiBase),
     });
+    abortOnAuthFailure(res, '文件站資產刪除紀錄', apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? json.data || [] : [];

@@ -6,6 +6,7 @@
  */
 
 import { ask, askPassword, safeJson } from './sync-utils.mjs';
+import { loadRootEnv, ROOT_ENV_PATH } from './load-env.mjs';
 
 /**
  * 互動式登入遠端 API
@@ -73,7 +74,23 @@ export function getAuthHeaders(token) {
  * @param {string} [options.purpose] 提示文字用的用途描述
  * @returns {Promise<string | null>} token；登入失敗回 null（由呼叫端決定如何處理）
  */
+/**
+ * 只從環境變數取 token，不做任何互動。
+ *
+ * 給 dry-run 這種「不該打斷使用者去輸入帳密、但有授權的話應該讀得更完整」
+ * 的情境用：旗標註冊表與 key 說明這兩個端點掛了 isAuthorized，沒有 token
+ * 就會被跳過，差異表因此少一截而且看不出原因。
+ *
+ * @returns {string | null}
+ */
+export function getEnvToken() {
+  loadRootEnv();
+  return process.env.API_TOKEN || process.env.ETERNITY_API_TOKEN || null;
+}
+
 export async function resolveWriteToken({ loginApiUrl, purpose = '寫入' }) {
+  // 獨立的 node 腳本不像 Astro/Vite 會自動吃 .env，要自己載
+  loadRootEnv();
   const envToken = process.env.API_TOKEN || process.env.ETERNITY_API_TOKEN;
   if (envToken) return envToken;
 
@@ -83,14 +100,12 @@ export async function resolveWriteToken({ loginApiUrl, purpose = '寫入' }) {
   if (!process.stdin.isTTY) {
     console.error(
       `\n   [ERROR] ${purpose}需要授權，但目前是非互動環境，無法登入。` +
-        `\n           請改設 API_TOKEN 環境變數，或在互動式終端執行。\n`
+        `\n           請設 API_TOKEN（環境變數，或寫進 ${ROOT_ENV_PATH}）。\n`
     );
     return null;
   }
 
-  console.log(
-    `\n   未設定 API_TOKEN 環境變數——${purpose}需要授權，改用帳號登入。`
-  );
+  console.log(`\n   未設定 API_TOKEN——${purpose}需要授權，改用帳號登入。`);
   console.log(`   （登入對象是正式 API，取得的 admin JWT 對兩邊都有效）`);
   const session = await login(loginApiUrl);
   return session?.token ?? null;

@@ -17,7 +17,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ask, checkLocalApi, checkRemoteApi } from './sync-utils.mjs';
-import { resolveWriteToken } from './sync-auth.mjs';
+import { resolveWriteToken, getEnvToken } from './sync-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -105,6 +105,10 @@ async function main() {
       process.exit(1);
     }
     syncToken = token;
+  } else {
+    // dry-run 不強制登入，但有 API_TOKEN 就往下傳——需授權的端點
+    // （旗標註冊表、key 說明）否則會被靜默跳過，差異表少一截
+    syncToken = getEnvToken() || '';
   }
 
   // 決定同步站點

@@ -279,3 +279,34 @@ export function diffByTimestamp(localMap, remoteMap) {
   }
   return { toPush, toPull, deleteOnRemote, deleteOnLocal, inSync };
 }
+
+/**
+ * 清單類請求遇到授權失敗時直接中止整個同步。
+ *
+ * ⚠️ 這道防護救的是一個很難察覺的災難：所有 list* 函式在 `!res.ok` 時
+ * 都 `return []`，於是 401 會被讀成**「遠端是空的」**——差異表接著顯示
+ * 「本地 N 筆要推送」，看起來像是遠端真的少了東西。照著按下去就是拿
+ * 本地整份覆蓋遠端。2026-08-10 實際踩到：API_TOKEN 對 `/api/root/*`
+ * 無效（當時只認 admin JWT），dry-run 顯示 91 個資產待推送。
+ *
+ * 授權失敗時沒有任何「部分同步」是合理的，所以直接 exit 而不是回傳錯誤
+ * 讓呼叫端自己決定——那只會讓下一個人再漏接一次。
+ *
+ * @param {Response} res      fetch 回應
+ * @param {string} what       正在讀什麼（訊息用，如 'R2 資產'）
+ * @param {string} apiBase    目標 API（訊息用）
+ */
+export function abortOnAuthFailure(res, what, apiBase) {
+  if (res.status !== 401 && res.status !== 403) return;
+  console.error(
+    `\n❌ 讀取${what}時授權失敗（${res.status}）\n` +
+      `   目標：${apiBase}\n\n` +
+      `   同步已中止——繼續下去會把「讀不到」誤判成「遠端沒有」，\n` +
+      `   接著要求你用本地整份覆蓋遠端。\n\n` +
+      `   可能原因：\n` +
+      `   · API_TOKEN 與 worker 上的 secret 不一致\n` +
+      `   · worker 尚未部署最新版（舊版的 /api/root/* 與 /api/assets/* 不認 API_TOKEN）\n` +
+      `   · 登入取得的 JWT 已過期\n`
+  );
+  process.exit(1);
+}
