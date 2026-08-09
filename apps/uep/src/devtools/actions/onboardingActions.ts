@@ -5,6 +5,7 @@
  * 用於模擬入站儀式的各種階段，測試 IdentCard / ObserverGate 等元件。
  */
 
+import { LOBBY_ART_KEY } from '../../components/home/LobbyUep';
 import { getRegistry } from '../actionRegistry';
 import { GROUPS } from '../groups';
 
@@ -66,6 +67,23 @@ export function registerOnboardingActions(): void {
       execute: () => {
         if (!window.__uepOnboardingTest) return warn();
         void window.__uepOnboardingTest.resetLocalIdentity({ reload: true });
+      },
+    },
+    {
+      group: GROUP,
+      id: 'onboarding:lobby-art-again',
+      label: '讓大廳的 U.E.P 下次必定出現',
+      description:
+        '清掉「已見過」標記後導回首頁。第一次進站是必定出現的，之後才轉機率制（站台設定 home.lobbyArtChancePct），清掉標記等於回到第一次',
+      // localStorage 存不進去時 shouldShowLobbyArt 整個停用，清標記也叫不出來，
+      // 但那條路徑本身就不可用，這裡不另外守門
+      execute: () => {
+        try {
+          localStorage.removeItem(LOBBY_ART_KEY);
+        } catch {
+          throw new Error('無法寫入 localStorage');
+        }
+        window.location.assign('/');
       },
     },
     {

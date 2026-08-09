@@ -99,6 +99,8 @@ describe('/api/settings', () => {
     expect(headers.get('Cache-Control')).toBe('private, no-store');
     expect(json.data?.settings).toEqual({
       'protection.mode': 'env',
+      'protection.noChancePct': 10,
+      'home.lobbyArtChancePct': 40,
       'bookmark.baseChancePct': 20,
       'bookmark.stepChancePct': 20,
       'echoes.lostOrbChancePct': 6,
@@ -113,15 +115,19 @@ describe('/api/settings', () => {
       'reader.restPageCount': 5,
       'reader.restWindowMinutes': 30,
       'reader.restCooldownMinutes': 60,
+      'reader.teaInviteChancePct': 10,
     });
   });
 
-  it('五項儀式機率共用 0-100，兩端皆合法（0 = 關掉該座島的儀式）', async () => {
+  it('機率鍵共用 0-100，兩端皆合法（0 = 關掉該項）', async () => {
     const keys = [
       'bookmark.stepChancePct',
       'echoes.lostOrbChancePct',
       'visuals.phantomEnterChancePct',
       'visuals.phantomSwitchChancePct',
+      'protection.noChancePct',
+      'home.lobbyArtChancePct',
+      'reader.teaInviteChancePct',
     ];
     for (const key of keys) {
       expect((await putSettings({ [key]: 0 })).status).toBe(200);
@@ -138,6 +144,9 @@ describe('/api/settings', () => {
       'echoes.lostOrbChancePct',
       'visuals.phantomEnterChancePct',
       'visuals.phantomSwitchChancePct',
+      'protection.noChancePct',
+      'home.lobbyArtChancePct',
+      'reader.teaInviteChancePct',
     ]) {
       expect((await putSettings({ [key]: 6.5 })).status).toBe(400);
       expect((await putSettings({ [key]: 6 })).status).toBe(200);

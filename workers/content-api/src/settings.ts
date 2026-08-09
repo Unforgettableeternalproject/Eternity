@@ -21,6 +21,8 @@
 
 export type SettingKey =
   | 'protection.mode'
+  | 'protection.noChancePct'
+  | 'home.lobbyArtChancePct'
   | 'bookmark.baseChancePct'
   | 'bookmark.stepChancePct'
   | 'echoes.lostOrbChancePct'
@@ -34,13 +36,16 @@ export type SettingKey =
   | 'reader.restActiveMinutes'
   | 'reader.restPageCount'
   | 'reader.restWindowMinutes'
-  | 'reader.restCooldownMinutes';
+  | 'reader.restCooldownMinutes'
+  | 'reader.teaInviteChancePct';
 
 export type SettingValue = string | number;
 
 /** 預設值（權威來源見檔頭；protection.mode 的 'env' = 現行環境判斷邏輯） */
 export const SETTING_DEFAULTS: Record<SettingKey, SettingValue> = {
   'protection.mode': 'env',
+  'protection.noChancePct': 10,
+  'home.lobbyArtChancePct': 40,
   'bookmark.baseChancePct': 20,
   'bookmark.stepChancePct': 20,
   'echoes.lostOrbChancePct': 6,
@@ -55,6 +60,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, SettingValue> = {
   'reader.restPageCount': 5,
   'reader.restWindowMinutes': 30,
   'reader.restCooldownMinutes': 60,
+  'reader.teaInviteChancePct': 10,
 };
 
 export const SETTING_KEYS = Object.keys(SETTING_DEFAULTS) as SettingKey[];
@@ -84,7 +90,7 @@ export function validateSetting(
         };
       }
       return { ok: true, value };
-    // 五項機率共用 0–100 的**整數**檢查。0 = 永遠不出現（可用來整個關掉
+    // 機率鍵共用 0–100 的**整數**檢查。0 = 永遠不出現（可用來整個關掉
     // 某座島的儀式），100 = 必中，兩端都是合法的營運選擇所以不另外收窄。
     //
     // ⚠️ 必須是整數：這幾個鍵的契約是「整數百分比」（前端常數是 0–1 的小數，
@@ -95,6 +101,9 @@ export function validateSetting(
     case 'echoes.lostOrbChancePct':
     case 'visuals.phantomEnterChancePct':
     case 'visuals.phantomSwitchChancePct':
+    case 'protection.noChancePct':
+    case 'home.lobbyArtChancePct':
+    case 'reader.teaInviteChancePct':
       if (
         !Number.isInteger(value) ||
         (value as number) < 0 ||

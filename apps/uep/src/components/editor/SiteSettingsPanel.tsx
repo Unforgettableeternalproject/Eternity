@@ -63,6 +63,8 @@ const IDLE_NUDGE_OPTIONS = [
  * `Number.isInteger` 檢查對它恆為 false 之外還誤導後續維護者。
  */
 const NUMERIC_KEYS = [
+  'protection.noChancePct',
+  'home.lobbyArtChancePct',
   'bookmark.baseChancePct',
   'bookmark.stepChancePct',
   'echoes.lostOrbChancePct',
@@ -76,6 +78,7 @@ const NUMERIC_KEYS = [
   'reader.restPageCount',
   'reader.restWindowMinutes',
   'reader.restCooldownMinutes',
+  'reader.teaInviteChancePct',
 ];
 
 export default function SiteSettingsPanel() {
@@ -203,6 +206,22 @@ export default function SiteSettingsPanel() {
               </label>
             ))}
           </div>
+          {numberField(
+            'protection.noChancePct',
+            '改用立繪的機率（%）',
+            '遮罩每次升起時擲一次骰。中了就不顯示「觀測失效」字樣，改由 U.E.P 本人比出不行的手勢（灰階＋雜訊處理，與斷訊語彙一致）。0 = 永遠只有文字',
+            { min: 0, max: 100 }
+          )}
+        </section>
+
+        <section className="ssp-section">
+          <div className="ssp-section-title">大廳入場的 U.E.P（首頁）</div>
+          {numberField(
+            'home.lobbyArtChancePct',
+            '出現機率（%）',
+            '第一次進站不受此值影響（必定出現，那是介紹她的唯一保證機會），之後每次進站擲一次骰',
+            { min: 0, max: 100 }
+          )}
         </section>
 
         {/* 四座島的解鎖儀式。Concepts 的「斷線的終端」是純條件式，沒有
@@ -336,6 +355,12 @@ export default function SiteSettingsPanel() {
             '確認後的冷卻（分鐘）',
             '從按下「知道了」起算，不是從卡片出現起算，1–1440',
             { min: 1, max: 1440 }
+          )}
+          {numberField(
+            'reader.teaInviteChancePct',
+            '改成邀請喝茶的機率（%）',
+            '提醒要跳出時擲一次骰。中了就換一組文案與立繪，並多一顆前往 /teatime 的按鈕。0 = 永遠是一般的休息提醒',
+            { min: 0, max: 100 }
           )}
         </section>
       </div>

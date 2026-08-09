@@ -18,6 +18,7 @@
 import { useLayoutEffect, useState } from 'react';
 
 import { isTestMode } from '../../lib/apiBase';
+import { getSetting } from '../../lib/uepSettings';
 
 import './LobbyUep.css';
 
@@ -25,8 +26,19 @@ export const LOBBY_ART_KEY = isTestMode()
   ? 'uep.lobbyArt.v1:test'
   : 'uep.lobbyArt.v1';
 
-/** 第一次之後，每次進站出現的機率，之後應該要能夠從後台的設定那裏調整 */
+/** 設定未載入時的預設機率（站台設定 `home.lobbyArtChancePct` 的權威預設） */
 export const LOBBY_ART_CHANCE = 0.4;
+
+/**
+ * 第一次之後每次進站出現的機率。
+ *
+ * 大廳只有 4.2 秒且判定發生在最開頭，settings fetch 常常還沒回來——首訪
+ * 第一頁吃到的是上面那個常數，這與其他設定鍵的契約一致（生效時機是
+ * 「下一次頁面載入」）。
+ */
+function lobbyArtChance(): number {
+  return getSetting('home.lobbyArtChancePct', LOBBY_ART_CHANCE * 100) / 100;
+}
 
 /**
  * 這次入場要不要讓她出現。
@@ -50,7 +62,7 @@ export function shouldShowLobbyArt(
     // 她會變成每次進站都出現的常駐元素
     return false;
   }
-  return seen ? random() < LOBBY_ART_CHANCE : true;
+  return seen ? random() < lobbyArtChance() : true;
 }
 
 /**
