@@ -20,7 +20,7 @@
  *
  * loop 只在帷幕升起時跑，收掉就停。
  */
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   getDispelPointer,
@@ -34,6 +34,9 @@ import {
 
 import './IdleVeil.css';
 
+/** 散去動畫的長度，與 CSS 的 `.ivl--leaving` 對齊 */
+const LEAVE_MS = 620;
+
 export default function IdleVeil() {
   const veil = useSyncExternalStore(
     subscribeVeil,
@@ -41,8 +44,37 @@ export default function IdleVeil() {
     getVeilServerState
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  const [leaving, setLeaving] = useState(false);
 
   const active = veil.stage > 0;
+  /**
+   * 散去期間狀態已經歸零（stage 0、coverage 0），但畫面上還要有東西可以淡。
+   * 留住最後一次可見的樣子，淡出時照著它渲染。
+   */
+  const lastVisible = useRef(veil);
+  if (active) lastVisible.current = veil;
+
+  /*
+   * 撥開的那一刻不要直接卸載——整層淡出之後才收。
+   *
+   * 這裡刻意只看 `active` 的變化：帷幕收掉的路徑不只一條（撥散、換頁前的
+   * stop、DevTools 重置），全部都會落到 stage 0，在這裡統一處理比在每個
+   * 出口各補一次淡出可靠。
+   */
+  useEffect(() => {
+    if (active) {
+      setLeaving(false);
+      return undefined;
+    }
+    // 從來沒顯示過就不必演散去（初次掛載時 stage 本來就是 0）
+    if (lastVisible.current.stage === 0) return undefined;
+    setLeaving(true);
+    const timer = window.setTimeout(() => {
+      setLeaving(false);
+      lastVisible.current = getVeilState();
+    }, LEAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -79,31 +111,31 @@ export default function IdleVeil() {
     return () => cancelAnimationFrame(raf);
   }, [active]);
 
-  if (!active || veil.coverage <= 0) return null;
+  const shown = active ? veil : lastVisible.current;
+  if ((!active && !leaving) || shown.coverage <= 0) return null;
 
   return (
     <div
       ref={rootRef}
-      className={`ivl ivl--s${veil.stage}`}
+      className={`ivl ivl--s${shown.stage}${leaving ? ' ivl--leaving' : ''}`}
       // --ivl-c 註冊成 <number>（見 CSS 的 @property），所以這個值的變化
       // 會被 transition 插值——不然 gradient 是逐格硬跳的
-      style={{ '--ivl-c': veil.coverage } as React.CSSProperties}
+      style={{ '--ivl-c': shown.coverage } as React.CSSProperties}
       aria-hidden="true"
     >
-      <div className="ivl-fog ivl-fog--a" />
-      <div className="ivl-fog ivl-fog--b" />
-      <div className="ivl-static" />
+      {/* 會被擦開的東西全放這一層裡：洞掛在它身上，而它與 viewport 對齊
+          且不動。放到外面或各層自己扣，洞就會跟著那層的 inset 與 drift 跑掉
+          （見 IdleVeil.css 的 .ivl-wipe） */}
+      <div className="ivl-wipe">
+        <div className="ivl-fog ivl-fog--a" />
+        <div className="ivl-fog ivl-fog--b" />
+        <div className="ivl-static" />
+        {shown.stage === 3 && <div className="ivl-face" />}
+      </div>
       {/* key 換掉 → React 重新掛載 → 湧入動畫重播。用 class 切換的話
           同一個元素不會重新觸發 animation */}
-      <div className="ivl-surge" key={veil.stage} />
-      {veil.stage === 3 && (
-        <>
-          {/* 霧最濃的時候她的臉浮出來。跟每一層霧套同一個擦拭洞，
-              所以指標撥過去時臉也會跟著被擦開 */}
-          <div className="ivl-face" />
-          <div className="ivl-word">空曠~</div>
-        </>
-      )}
+      <div className="ivl-surge" key={shown.stage} />
+      {shown.stage === 3 && <div className="ivl-word">空曠~</div>}
     </div>
   );
 }

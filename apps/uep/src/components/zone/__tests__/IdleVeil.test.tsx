@@ -7,10 +7,12 @@
  * - 兩層 fog：邊界要蠕動，單層是一個完美橢圓
  * - surge 掛 `key={stage}`：靠重新掛載重播湧入動畫，class 切換不會觸發
  * - `--ivl-c` 寫在 root：CSS 的 @property 靠它插值，寫錯位置就退回逐格硬跳
- * - **沒有獨立的擦拭圖層**：擦拭洞是每層霧遮罩的一部分（`--ivl-hole` +
- *   `mask-composite: subtract`）。曾經有一個 `.ivl-wipe` 元素想用
- *   `mix-blend-mode: destination-out` 擦霧——那不是合法的 blend mode 值，
- *   宣告被丟棄後它就把自己的黑色 gradient 畫成一顆大黑球。
+ * - **沒有獨立的擦拭圖層**：擦拭洞是遮罩的一部分（`--ivl-hole` +
+ *   `mask-composite: subtract`），掛在 `.ivl-wipe` 宿主的 mask 上而不是
+ *   自己畫一層。曾經有一個同名元素想用 `mix-blend-mode: destination-out`
+ *   擦霧——那不是合法的 blend mode 值，宣告被丟棄後它就把自己的黑色
+ *   gradient 畫成一顆大黑球。名字一樣，但現在它是遮罩宿主，不畫任何東西。
+ * - 散去時不立即卸載：要留一段淡出
  */
 import { render, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -61,16 +63,57 @@ describe('IdleVeil', () => {
     const classes = [...(container.querySelector('.ivl')?.children ?? [])].map(
       (el) => el.className
     );
-    // `ivl-face` 是裝飾層：它跟每一層霧共用 `--ivl-hole`，靠
-    // mask-composite 把洞從自己身上扣掉，而不是自己畫一層擦拭
-    expect(classes).toEqual([
-      'ivl-fog ivl-fog--a',
-      'ivl-fog ivl-fog--b',
-      'ivl-static',
-      'ivl-surge',
-      'ivl-face',
-      'ivl-word',
-    ]);
+    // `.ivl-wipe` 不是擦拭圖層而是**遮罩宿主**：它自己什麼都不畫，只是提供
+    // 一個與 viewport 對齊且不動的座標系，洞掛在它的 mask 上
+    expect(classes).toEqual(['ivl-wipe', 'ivl-surge', 'ivl-word']);
+  });
+
+  it('會被擦開的四層都在遮罩宿主裡', () => {
+    const { container } = render(<IdleVeil />);
+    act(() => forceVeilStage(3));
+
+    /* 洞掛在 `.ivl-wipe` 上，所以只有它的子孫會被擦開。任何一層漏在外面
+       的症狀都很難察覺——擦出來的洞裡會留著那一層（例如一張浮在乾淨
+       內容上的臉），看起來像素材出錯而不是結構出錯 */
+    const wipe = container.querySelector('.ivl-wipe');
+    expect(wipe?.querySelectorAll('.ivl-fog').length).toBe(2);
+    expect(wipe?.querySelector('.ivl-static')).toBeTruthy();
+    expect(wipe?.querySelector('.ivl-face')).toBeTruthy();
+  });
+
+  it('散去時先淡出再卸載，不是一格切掉', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<IdleVeil />);
+      act(() => forceVeilStage(1));
+      expect(container.querySelector('.ivl')).toBeTruthy();
+
+      /* 走真正的撥散路徑：階段一只要 80px。狀態會歸零，但畫面要留著演完散去 */
+      act(() => {
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { clientX: 0, clientY: 0 })
+        );
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { clientX: 200, clientY: 0 })
+        );
+        vi.advanceTimersByTime(300);
+      });
+      const root = container.querySelector('.ivl');
+      expect(root).toBeTruthy();
+      expect(root?.className).toContain('ivl--leaving');
+
+      act(() => {
+        vi.advanceTimersByTime(700);
+      });
+      expect(container.querySelector('.ivl')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('從未升起過就不演散去（初次掛載時 stage 本來就是 0）', () => {
+    const { container } = render(<IdleVeil />);
+    expect(container.querySelector('.ivl--leaving')).toBeNull();
   });
 
   it('濃度寫成 root 的 --ivl-c（CSS 靠它插值）', () => {

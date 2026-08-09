@@ -86,10 +86,12 @@
   --ivl-ty7: -100vh;
 
   /* 指標當下的洞，加上走過的路。
-     🚨 這個變數會展開成**多層** mask，而套用它的地方都只寫一個
+     🚨 這個變數會展開成**多層** mask，而套用它的地方只寫一個
      `mask-composite: subtract`——CSS 的 layer list 在值不足時會循環補齊
      （與 background 同規則），所以那一個 subtract 會套到每一層，
-     結果是「依序把每個洞都扣掉」。改成多值時要連同這個假設一起檢查。 */
+     結果是「依序把每個洞都扣掉」。改成多值時要連同這個假設一起檢查。
+
+     ⚠️ 只能掛在 `.ivl-wipe` 上，不可以再放回各霧層——見那條規則的說明。 */
   --ivl-hole:
     radial-gradient(
       circle var(--ivl-r) at var(--ivl-px) var(--ivl-py),
@@ -150,6 +152,66 @@
   transition: --ivl-c 1100ms cubic-bezier(0.32, 0.06, 0.28, 1);
 }
 
+/* ── 散去 ──
+   撥開的那一刻整層直接消失太生硬：使用者剛做完一個持續的動作（劃了
+   幾百 px），結果畫面用一格切掉，前面所有「越撥越淡」的回饋在最後一步
+   被作廢。改成整層淡出，並讓它稍微往外擴一點，像是散開而不是關掉。
+
+   時間與 `IdleVeil.tsx` 的 `LEAVE_MS` 對齊。 */
+.ivl--leaving {
+  animation: ivl-dissolve 620ms ease-out both;
+  /* 散開途中不再吃任何互動判定，也不該再被 rAF 更新 */
+  pointer-events: none;
+}
+
+@keyframes ivl-dissolve {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ivl--leaving {
+    animation: ivl-dissolve-fade 400ms linear both;
+  }
+
+  @keyframes ivl-dissolve-fade {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+    }
+  }
+}
+
+/* ── 擦拭宿主 ──
+   所有會被擦開的東西（兩層霧、靜電、臉）都放在這一層裡，洞掛在**它**身上。
+
+   🚨 2026-08-09：洞原本是各層自己 subtract 的，那有兩個致命問題——
+   mask 的座標系是元素自己的 box，而 `.ivl-fog` 是 `inset: -8%`、
+   `.ivl-static` 是 `inset: -12%`，兩層各自往左上外擴，於是同一組 viewport
+   座標在它們身上畫出來的洞**都偏左上、而且偏的量還不一樣**（看起來就是
+   「洞不在滑鼠上，還分裂成兩個」）。更糟的是霧層都掛著 drift 動畫的
+   transform，mask 跟著元素一起漂，擦開的位置會自己慢慢跑掉。
+
+   所以這一層必須 `inset: 0`、**不得加任何 transform 或 animation**——
+   它存在的唯一理由就是提供一個與 viewport 對齊且不動的座標系。 */
+.ivl-wipe {
+  position: absolute;
+  inset: 0;
+  mask-image: linear-gradient(#000, #000), var(--ivl-hole);
+  -webkit-mask-composite: source-out;
+  mask-composite: subtract;
+}
+
 /* ── 霧本體：兩層各自漂移，邊界才不會是一個完美的橢圓 ── */
 .ivl-fog {
   position: absolute;
@@ -166,19 +228,13 @@
   );
   backdrop-filter: blur(calc(var(--ivl-c) * 7px));
 
-  /* vignette 減去擦拭洞。順序是契約：第一層是 source（要保留的），
-     第二層是 destination（要扣掉的），subtract ＝ source 在 destination
-     之外的部分。反過來寫會變成「只留下洞」。
-     -webkit- 前綴給 Safari，語意等價（source-out ≡ subtract）。 */
-  mask-image:
-    radial-gradient(
-      ellipse 78% 76% at 48% 46%,
-      transparent calc((1 - var(--ivl-c)) * 56%),
-      #000 calc((1 - var(--ivl-c)) * 56% + 20%)
-    ),
-    var(--ivl-hole);
-  -webkit-mask-composite: source-out;
-  mask-composite: subtract;
+  /* 只留自己的 vignette（霧的形狀）。擦拭洞在 `.ivl-wipe` 上統一處理——
+     這一層帶著 drift 的 transform，洞放這裡會跟著漂走 */
+  mask-image: radial-gradient(
+    ellipse 78% 76% at 48% 46%,
+    transparent calc((1 - var(--ivl-c)) * 56%),
+    #000 calc((1 - var(--ivl-c)) * 56% + 20%)
+  );
   animation: ivl-drift-a 34s ease-in-out infinite;
 }
 
@@ -190,9 +246,7 @@
     rgb(var(--ivl-tint) / 52%) calc((1 - var(--ivl-c)) * 60% + 26%),
     rgb(var(--ivl-tint) / 82%) 100%
   );
-  mask-image: linear-gradient(#000, #000), var(--ivl-hole);
-  -webkit-mask-composite: source-out;
-  mask-composite: subtract;
+  /* 形狀是滿版矩形，擦拭在 .ivl-wipe——這裡不需要任何 mask */
   animation: ivl-drift-b 47s ease-in-out infinite;
 }
 
@@ -232,15 +286,12 @@
   inset: -12%;
   opacity: calc(var(--ivl-c) * 0.16);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
-  mask-image:
-    radial-gradient(
-      ellipse 80% 80% at 50% 50%,
-      transparent calc((1 - var(--ivl-c)) * 56%),
-      #000 calc((1 - var(--ivl-c)) * 56% + 28%)
-    ),
-    var(--ivl-hole);
-  -webkit-mask-composite: source-out;
-  mask-composite: subtract;
+  /* 同 .ivl-fog：只留形狀，擦拭統一在 .ivl-wipe */
+  mask-image: radial-gradient(
+    ellipse 80% 80% at 50% 50%,
+    transparent calc((1 - var(--ivl-c)) * 56%),
+    #000 calc((1 - var(--ivl-c)) * 56% + 28%)
+  );
   /* 位移而不是重畫：turbulence 很貴，只讓它平移就有靜電感 */
   animation: ivl-static-jitter 620ms steps(3) infinite;
   transition: opacity 900ms linear;
@@ -305,9 +356,9 @@
 /* ── 全遮時浮出來的臉 ──
    素材本身就是一張灰色虛線畫的大臉，直接放不需要再加濾鏡。
 
-   關鍵是它跟 `.ivl-fog` / `.ivl-static` 套**同一個** `--ivl-hole`：
-   指標撥開霧的時候，臉在洞裡的那塊也一起被扣掉。少了這道遮罩，擦出來的
-   洞裡會露出一張浮在乾淨內容上的臉，看起來像是臉在霧的前面而不是霧的一部分。 */
+   ⚠️ 它必須跟兩層霧、靜電一起待在 `.ivl-wipe` 裡：指標撥開霧的時候，
+   臉在洞裡的那塊也要跟著被扣掉。掛到宿主外面的話，擦出來的洞裡會露出
+   一張浮在乾淨內容上的臉，看起來像是臉在霧的前面而不是霧的一部分。 */
 .ivl-face {
   position: absolute;
   inset: 0;
@@ -333,9 +384,6 @@
    */
   background-position: calc(50% - var(--ivl-face-w) * 0.051) 34%;
   opacity: 0.6;
-  mask-image: linear-gradient(#000, #000), var(--ivl-hole);
-  -webkit-mask-composite: source-out;
-  mask-composite: subtract;
   animation: ivl-face-in 2200ms var(--ease-out) both;
 }
 
