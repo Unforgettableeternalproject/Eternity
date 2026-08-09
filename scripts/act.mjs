@@ -164,7 +164,13 @@ const GROUPS = [
         needs: 'content-api',
       },
       { cmd: 'interlink:reindex:test', desc: '補建互聯衍生表（test）' },
-      { cmd: 'interlink:reindex:remote', desc: '補建互聯衍生表（正式）' },
+      {
+        cmd: 'interlink:reindex:remote',
+        desc: '補建互聯衍生表（正式）',
+        danger: true,
+        confirm: 'reindex remote',
+        warn: '會對正式 worker 發出寫入，重建 history_interlink_index 與 story_points；腳本本身不再確認。',
+      },
     ],
   },
   {
@@ -218,7 +224,13 @@ const GROUPS = [
     items: [
       { cmd: 'build:art', desc: '產出 U.E.P 差分素材' },
       { cmd: 'build:art:dry', desc: '產出差分素材（dry-run）' },
-      { cmd: 'optimize:assets', desc: '最佳化 R2 資產' },
+      {
+        cmd: 'optimize:assets',
+        desc: '最佳化 R2 資產（正式）',
+        danger: true,
+        confirm: 'optimize',
+        warn: '會對正式 R2 上傳最佳化版本並刪除原檔；腳本本身不再確認。先跑 dry-run。',
+      },
       { cmd: 'optimize:assets:dry', desc: '最佳化 R2 資產（dry-run）' },
       { cmd: 'perf', desc: '節流效能量測（行動版）', slow: true },
       { cmd: 'perf:desktop', desc: '節流效能量測（桌面）', slow: true },
