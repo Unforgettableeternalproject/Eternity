@@ -108,6 +108,46 @@
   }
 }
 
+/* ── 手機：直接飄上來，不繞 ──
+   桌面的三段擺盪是靠橫向來回讓上升看起來像「飄」，那需要一段夠寬的路徑。
+   手機的可用寬度只有它的一半不到，同樣的 vw 位移看起來不是飄逸而是左右
+   亂晃；而且落點改到標題正上方之後，那段繞行也失去了對齊的理由。
+   時長與抵達時刻完全沿用，只是路徑拉直。 */
+@media (max-width: 760px) {
+  .lobby-uep--float {
+    animation-name: lobby-uep-rise-mobile;
+  }
+
+  @keyframes lobby-uep-rise-mobile {
+    0% {
+      opacity: 0;
+      transform: translate(0, 64vh);
+    }
+    16% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+      transform: translate(0, 0);
+    }
+  }
+
+  /* 縮到四成之後，桌面那 10px 的浮動幅度相對整個人變得很大 */
+  .lobby-uep--float .lobby-uep__bob {
+    animation-name: lobby-uep-bob-mobile;
+  }
+
+  @keyframes lobby-uep-bob-mobile {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+}
+
 /* 飛行本身就是這段動畫的內容，關掉之後只剩「她在那裡」——所以不是縮短
    動畫而是直接就位淡入，並且對齊同一個抵達時刻。 */
 @media (prefers-reduced-motion: reduce) {

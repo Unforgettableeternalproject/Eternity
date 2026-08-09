@@ -101,6 +101,34 @@ const SCALE_PER_HERO_PX = 1.0 / ART.light.width;
 /** 傘頂與視窗上緣至少留這麼多，看起來才不像被切掉 */
 const TOP_MARGIN = 14;
 
+/**
+ * 手機版的斷點，沿用站上既有的 760px（`useDesktopIslandViewport`）。
+ *
+ * 手機的 Hero 是單欄，`.home-hero-portrait` 的寬度幾乎等於視窗寬——照它
+ * 等寬的立繪會撐破畫面。而且單欄之後主視覺被推到標題下方，「疊在主視覺上」
+ * 這個構圖本身也不成立了。
+ */
+const MOBILE_MAX_WIDTH = 760;
+
+/** 手機版相對桌面算法的縮小倍率（艾斯維爾實測後定的） */
+const MOBILE_SCALE = 0.4;
+
+/** 立繪與標題之間留的間距 */
+const MOBILE_GAP = 16;
+
+/**
+ * 標題下方還有一顆著陸菱形（`.lobby-diamond`），它固定在視窗的垂直中心，
+ * 16px 見方轉 45° 之後半對角線約 11.3px。而標題的底邊只在中心上方 28px
+ * ——只算「標題下方一點」的話，暗色那張正好落在菱形上。
+ *
+ * ⚠️ 不去量菱形的 rect：它著陸前的 transform 是 `-32vh`，掛載當下量到的
+ * 是動畫起點而不是落點。這裡的幾何是常數，直接算比較準。
+ */
+const LOBBY_DIAMOND_RADIUS = 12;
+
+/** 暗色落在菱形下方，間距給得比亮色寬一些——那一帶的東西比較密 */
+const MOBILE_DROP_GAP = 24;
+
 interface Placement {
   cx: number;
   cy: number;
@@ -116,6 +144,50 @@ export default function LobbyUep({ isDark }: { isDark: boolean }) {
     const rect = hero.getBoundingClientRect();
     // 圖還沒載完時 rect 仍然正確：img 標籤帶了 width/height，版面尺寸不依賴解碼
     if (rect.width <= 0) return;
+
+    /*
+     * 手機版不疊在主視覺上，改停在**大廳自己的標題**（「邊際世界」）旁邊：
+     * 亮色從下方飛上來就停在標題上方，暗色從上方摔下來就落在標題下方，
+     * 各自維持原本的來向。
+     *
+     * ⚠️ 要對齊的是 `.lobby-title` 而不是底層的 `.home-hero-h1`——入場期間
+     * 畫面上只有大廳這一層，Hero 的標題還被遮著。對錯的話兩個變體會一起
+     * 往上偏，暗色甚至會落在使用者看得到的那個標題**上方**。
+     *
+     * 尺寸仍以主視覺的寬度為基準：標題只有四個字寬，拿它當縮放基準會把她
+     * 縮成一丁點。位置與尺寸的錨點本來就不必是同一個。
+     */
+    const mobile = window.innerWidth <= MOBILE_MAX_WIDTH;
+    const title = mobile
+      ? document.querySelector('.lobby-title')?.getBoundingClientRect()
+      : null;
+
+    if (mobile && title && title.width > 0) {
+      const art = isDark ? ART.dark : ART.light;
+      const scale = rect.width * SCALE_PER_HERO_PX * MOBILE_SCALE;
+      const height = art.height * scale;
+      /*
+       * 定位的是「本體中心」（transform 用 anchorY 把圖往上推），所以要自己
+       * 把中心換算回圖的邊緣：Float 的圖底距中心 (1 - anchorY) 個圖高，
+       * Drop 的圖頂距中心 anchorY 個圖高。
+       */
+      const cy = isDark
+        ? // 標題與菱形都要讓過去，取兩者較低的那條線
+          Math.max(
+            title.bottom + MOBILE_DROP_GAP,
+            window.innerHeight / 2 + LOBBY_DIAMOND_RADIUS + MOBILE_DROP_GAP
+          ) +
+          height * art.anchorY
+        : // 傘頂不能被視窗上緣切掉。矮視窗下寧可壓到標題一點，
+          // 也不要讓她只露出半截——被切掉看起來是壞掉，重疊只是擠
+          Math.max(
+            TOP_MARGIN + height * art.anchorY,
+            title.top - MOBILE_GAP - height * (1 - art.anchorY)
+          );
+      setPlacement({ cx: title.left + title.width / 2, cy, scale });
+      return;
+    }
+
     const cy = rect.top + rect.height / 2;
 
     /*
@@ -132,7 +204,8 @@ export default function LobbyUep({ isDark }: { isDark: boolean }) {
     );
 
     setPlacement({ cx: rect.left + rect.width / 2, cy, scale });
-  }, []);
+    // 手機版的落點依變體而異（亮色在標題上、暗色在標題下），isDark 是真依賴
+  }, [isDark]);
 
   if (!placement) return null;
 

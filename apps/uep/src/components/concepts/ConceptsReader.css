@@ -140,14 +140,20 @@
 /* 中央終端文字 */
 /* 開機文字與入場的 U.E.P 一左一右**貼著中線**分開（見 ZoneBootArt.css）。
    原本是置中——兩者都在中央會疊成一團；但改用百分比靠邊的話，寬螢幕上
-   兩人會被推到畫面兩端，所以座標從中心算起 */
+   兩人會被推到畫面兩端，所以座標從中心算起。
+
+   ⚠️ 偏移與字級都要能收斂：268px 是照 13px 字下的文字寬（約 275）配的，
+   手機上這一組會把文字整段推到畫面左邊之外。`min()` 讓寬螢幕維持原本的
+   絕對值、窄螢幕改吃 vw——**字級一起縮**才有意義，只縮偏移的話文字寬度
+   不變，照樣出界。43.6vw／3vw／立繪那邊的 33.75vw 是同一組算出來的
+   （文字寬 + 間隙 + 立繪寬 ≈ 96vw，兩側各留 2vw），改任一個都要重算。 */
 .conc-boot-center {
   position: absolute;
   top: 50%;
-  left: calc(50% - 268px);
+  left: calc(50% - min(268px, 43.6vw));
   transform: translateY(-50%);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: min(13px, 3vw);
   color: #74c69d;
   text-shadow: 0 0 6px rgba(116, 198, 157, 0.6);
   letter-spacing: 0.04em;
