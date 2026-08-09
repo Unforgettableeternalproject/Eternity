@@ -1,7 +1,8 @@
 /* eslint-disable no-undef */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import UepDialogue from './UepDialogue';
-import './InlineAudioPlayer.css';
+import audioPlayerCss from './InlineAudioPlayer.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 import { getApiBase } from '../../lib/apiBase';
 
 const API_BASE = getApiBase();
@@ -39,6 +40,7 @@ function InlineAudioPlayerSimple({
   src: string;
   label: string;
 }) {
+  useDeferredStyle('inline-audio-player', audioPlayerCss);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number>(0);
   const isSeekingRef = useRef(false);

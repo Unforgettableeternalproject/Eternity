@@ -4,7 +4,8 @@ import { zoneTextColor } from '../../data/zones';
 import { preloadZoneArt } from '../zone/ZoneBootArt';
 import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 import UepDialogue from './UepDialogue';
-import './IntroOverlay.css';
+import introCss from './IntroOverlay.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 interface IntroOverlayProps {
   zone: ZoneData | null;
@@ -17,6 +18,7 @@ export default function IntroOverlay({
   onClose,
   onEnter,
 }: IntroOverlayProps) {
+  useDeferredStyle('intro-overlay', introCss);
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const prevZoneRef = useRef<ZoneData | null>(null);

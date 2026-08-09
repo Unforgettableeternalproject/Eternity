@@ -27,7 +27,8 @@ import { getIslandRuntime, ISLAND_CHANGE_EVENT } from '../islandRuntime';
 import type { IslandChangeDetail } from '../islandRuntime';
 
 import { guideRoot, type GuideStep, type GuideTargetId } from './guideSteps';
-import './IslandGuideOverlay.css';
+import guideCss from './IslandGuideOverlay.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 /** 聚光框往外留的呼吸空間 */
 const PADDING = 8;
@@ -146,6 +147,7 @@ export default function IslandGuideOverlay({
   steps,
   onClose,
 }: IslandGuideOverlayProps) {
+  useDeferredStyle('island-guide', guideCss);
   const [index, setIndex] = useState(0);
   const step = steps[index];
   const { rect, dragging } = useSpotlightRect(targetId, step);

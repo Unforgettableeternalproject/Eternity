@@ -1,7 +1,8 @@
 import { useEffect, type CSSProperties } from 'react';
 import { getAudioStore } from '../../audio';
 import { echoClusterStyle, type EchoPreviewTrack } from './echoPreview';
-import './SongPreviewCard.css';
+import previewCss from './SongPreviewCard.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 interface SongPreviewCardProps {
   track: EchoPreviewTrack;
@@ -22,6 +23,7 @@ export default function SongPreviewCard({
   track,
   onDismiss,
 }: SongPreviewCardProps) {
+  useDeferredStyle('song-preview-card', previewCss);
   const style = echoClusterStyle(track.clusterId);
   const color = track.accent || style.color;
 

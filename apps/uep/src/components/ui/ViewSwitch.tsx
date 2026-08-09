@@ -18,11 +18,13 @@ import { useProgress } from '../../progress/useProgress';
 import ObserverGate from './ObserverGate';
 import ViewSwitchCeremony from './ViewSwitchCeremony';
 
-import './ViewSwitch.css';
+import viewSwitchCss from './ViewSwitch.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 type View = 'explorer' | 'observer';
 
 export default function ViewSwitch() {
+  useDeferredStyle('view-switch', viewSwitchCss);
   const progress = useProgress();
   const [gateOpen, setGateOpen] = useState(false);
   /** 儀式進行中：記錄 from → to，動畫完成後真正 setView */

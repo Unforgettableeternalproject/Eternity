@@ -14,7 +14,8 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
-import './ViewSwitchCeremony.css';
+import ceremonyCss from './ViewSwitchCeremony.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 type View = 'explorer' | 'observer';
 
@@ -34,6 +35,7 @@ const CEREMONY_MS = 1800;
 const CEREMONY_MS_REDUCED = 500;
 
 export default function ViewSwitchCeremony({ from, to, onDone }: Props) {
+  useDeferredStyle('view-switch-ceremony', ceremonyCss);
   useEffect(() => {
     const reduced =
       typeof window !== 'undefined' &&

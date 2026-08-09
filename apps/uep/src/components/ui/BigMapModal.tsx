@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import PieMap3D from '../map/PieMap3D';
-import './BigMapModal.css';
+import bigMapCss from './BigMapModal.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 interface BigMapModalProps {
   zones: ZoneData[];
@@ -27,6 +28,7 @@ export default function BigMapModal({
   onCenterClick,
   tone = 'dark',
 }: BigMapModalProps) {
+  useDeferredStyle('big-map-modal', bigMapCss);
   const [hover, setHover] = useState<string | null>(null);
   /* lazy initializer：第一次 render 就是正確尺寸。
      寫死 520 再靠 effect 修正的話，手機上第一幀必定是一個溢出畫面的
