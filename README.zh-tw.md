@@ -6,32 +6,32 @@
 
 ## U.E.P 和 Exera 的對話
 
-「等等——主站整個重新設計了？」
+「所以是 v1.0.0 了。我們真的要做這件事。」
 
-「對啊！Quartz 設計系統、D1 後端、完整的後台編輯器⋯⋯Keystatic 已經完全拿掉了。噢，還有可以拖曳的卡片，有物理效果的那種！」
+「對！閱讀現在是有狀態的——掃描線記得你走到哪裡，門會在你有資格的時候打開，還有五座浮島會跟著你。」
 
-「物理效果。在卡片上。」
+「浮島。跟著人跑。」
 
-「甩動的時候會噴粒子，放開會彈簧彈回去。Bernie 說這是『必要功能』。」
+「它們記得你把它放在哪裡！而且流浪回聲那座換頁也不會斷。Bernie 說這是『必要功能』。」
 
-「⋯⋯果然是他會說的話。文件站呢？」
+「⋯⋯果然是他會說的話。那個觀測者呢？」
 
-「一樣好好的——五個區域、所有閱讀器都正常運作，透過同一個 Content API 同步。現在全部統一了。」
+「印記是永久的。你可以切回去，但紀錄留著。那是刻意的。」
 
-「所以我們真的要上線了。」
+「所以現在真的全部連起來了。」
 
-「快了。只需要確保不會爆炸就好。」
+「劇情點、實體 key、隨著閱讀散去的迷霧。是啊，這是一個世界，不是百科。」
 
 ## 專案概覽
 
-**Eternity** 是使用 **pnpm workspaces + Turborepo** 管理的個人網站 monorepo，部署在 **Cloudflare Pages + Workers**。包含兩個 Astro 站點、兩個 Cloudflare Worker 和共用套件——結合了個人作品集與沉浸式世界觀文件平台。
+**Eternity** 是使用 **pnpm workspaces + Turborepo** 管理的個人網站 monorepo，部署在 **Cloudflare Pages + Workers**。包含兩個 Astro 站點、三個 Cloudflare Worker 和共用套件——結合了個人作品集與沉浸式世界觀文件平台。
 
 | 站點          | 網域                                                                               | 說明                                       |
 | ------------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
 | 🌟 **主站**   | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | 作品集、專案展示、動態、連結 — Quartz 設計 |
 | 📚 **文件站** | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | 世界觀文件，5 個主題區域                   |
 
-> **目前版本：v0.9.8.2** — UI 微調與編輯器強化（Markdown 匯入/匯出、混合樣式偵測、內容保護）。
+> **目前版本：v1.0.0** — 首個穩定版。Epic 2（進度系統）全段完成：讀者帳號、雙視角、掃描線閱讀追蹤、內容閘門、互動式嵌入、五座區域浮島，以及跨區域互聯。
 
 ## 專案結構
 
@@ -45,18 +45,25 @@ Eternity/
 │   └── ui/                     # 共用 UI 元件
 ├── workers/
 │   ├── content-api/            # D1 + R2 內容 API (port 8788)
-│   └── visitor-counter/        # KV 訪客計數器 (port 8787)
+│   ├── visitor-counter/        # KV 訪客計數器 (port 8787)
+│   └── discord-widget-sync/    # Discord 統計同步（Cron，port 8790）
 ├── scripts/
-│   ├── migrate-*.mjs           # 內容匯入腳本（各 zone + 主站）
-│   ├── seed-*.mjs              # 資料填充（about、contact、page text）
 │   ├── sync.mjs                # 統一同步 dispatcher
 │   ├── sync-content.mjs        # 文件站 D1 同步（本地 ↔ 遠端）
 │   ├── sync-root.mjs           # 主站 D1 + R2 同步
 │   ├── sync-utils.mjs          # 共用同步工具
 │   ├── sync-auth.mjs           # 共用同步認證
-│   └── convert-content-to-html.mjs  # Markdown → HTML 轉換器
+│   ├── seed-test-env.mjs       # 從正式環境種 test D1
+│   ├── reset-test-env.mjs      # 清空並重建 test D1
+│   ├── reindex-interlink.mjs   # 補建互聯衍生表
+│   ├── scan-used-chars.mjs     # 掃描全站用字（字型子集化）
+│   ├── build-font-subsets.mjs  # 產出自架 Noto Serif TC 子集
+│   ├── perf-measure.mjs        # Playwright + CDP 效能量測
+│   └── archive/                # 一次性遷移腳本（任務已完成）
 ├── e2e/                        # Playwright E2E 測試
 ├── docs/                       # 專案文件
+│   ├── release-workflow.md     # Release 流程
+│   └── agent/                  # 設計文件、拆卡、測試清單
 ├── turbo.json                  # Turborepo 管線設定
 ├── pnpm-workspace.yaml         # pnpm workspace 定義
 └── package.json
@@ -139,24 +146,41 @@ pnpm format:check    # Prettier 格式檢查
 ### 測試
 
 ```bash
-pnpm test            # 前端單元測試（Vitest）
-pnpm test:workers    # Worker 整合測試（Vitest + Cloudflare pool）
-pnpm test:all        # 全部單元 + Worker 測試
-pnpm test:e2e        # E2E 煙霧測試（Playwright）
+pnpm test              # 前端單元測試（Vitest）
+pnpm test:workers      # Worker 整合測試（Vitest + Cloudflare pool）
+pnpm test:all          # 全部單元 + Worker 測試
+pnpm test:e2e          # E2E 煙霧測試（Playwright，需 dev server）
+pnpm test:e2e:stress   # 壓力 + 效能門檻測試
+pnpm test:load         # 負載測試（本地 content-api + 主站）
+pnpm test:release      # Release 前完整測試（單元 + 壓力）
+pnpm perf              # 節流效能量測（行動版設定）
 ```
+
+手動驗收清單在 `docs/agent/TEST_CHECKLIST.md`——涵蓋自動化證實做不到的部分
+（真實捲動、音訊競態、iOS 動態工具列、跨裝置同步）。
 
 ### Worker 部署
 
 ```bash
-pnpm deploy:content-api    # 部署 content-api Worker
-pnpm deploy:visitor        # 部署 visitor-counter Worker
+pnpm deploy:content-api        # 部署 content-api Worker
+pnpm deploy:content-api:test   # 部署 test content-api Worker
+pnpm deploy:visitor            # 部署 visitor-counter Worker
+pnpm deploy:discord-widget     # 部署 Discord widget sync Worker
 ```
 
 ### D1 資料庫
 
 ```bash
-pnpm --filter content-api-worker db:migrate:local    # 執行遷移（本地）
-pnpm --filter content-api-worker db:migrate:remote   # 執行遷移（遠端）
+pnpm db:migrate:local     # 執行遷移（本地）
+pnpm db:migrate:test      # 執行遷移（test）
+pnpm db:migrate:remote    # 執行遷移（正式）
+
+# 套完 migration 一定要補建互聯衍生表——它們是從頁面內容衍生的，
+# 只跑 SQL migration 會留下空表，觸發模型會靜默失效（沒有錯誤，
+# 只是永遠不會浮出線索卡）。
+pnpm interlink:reindex:local
+pnpm interlink:reindex:test
+pnpm interlink:reindex:remote
 ```
 
 ### 內容同步
@@ -167,25 +191,28 @@ pnpm sync                  # 互動模式（差異預覽、逐一確認）
 pnpm sync:push             # 本地 → 遠端
 pnpm sync:pull             # 遠端 → 本地
 
-# 從來源 repo 匯入內容
-node scripts/migrate-history.mjs              # 匯入到本地 D1
-node scripts/migrate-history.mjs --remote     # 匯入到遠端 D1
+# 測試環境
+pnpm test:seed             # 從正式環境增量 seed test D1
+pnpm test:reset            # 清空並重建 test D1（需 --confirm）
 ```
 
-> ⚠️ `--clean` 會重置所有 metadata（包含手動設定的圖示）。建議改用 `pnpm sync` 做增量同步。
+> 一次性匯入腳本已歸檔到 `scripts/archive/`，任務已完成。
+> 日常內容變動一律走 `pnpm sync`。
 
 ## 部署
 
 站點部署在 **Cloudflare Pages**，API 部署在 **Cloudflare Workers**。
 
-| 專案                   | 分支    | 網域                                          |
-| ---------------------- | ------- | --------------------------------------------- |
-| eternity-root          | main    | unforgettableeternalproject.com               |
-| eternity-root-staging  | staging | staging-root.pages.dev                        |
-| eternity-uep           | main    | uep.unforgettableeternalproject.com           |
-| eternity-uep-staging   | staging | staging-uep.pages.dev                         |
-| content-api Worker     | —       | eternity-content-api.ptyc4076.workers.dev     |
-| visitor-counter Worker | —       | eternity-visitor-counter.ptyc4076.workers.dev |
+| 專案                   | 分支    | 網域                                           |
+| ---------------------- | ------- | ---------------------------------------------- |
+| eternity-root          | main    | unforgettableeternalproject.com                |
+| eternity-root-staging  | staging | staging-root.pages.dev                         |
+| eternity-uep           | main    | uep.unforgettableeternalproject.com            |
+| eternity-uep-staging   | staging | staging-uep.pages.dev                          |
+| content-api Worker     | —       | eternity-content-api.ptyc4076.workers.dev      |
+| content-api（test）    | —       | eternity-content-api-test.ptyc4076.workers.dev |
+| visitor-counter Worker | —       | eternity-visitor-counter.ptyc4076.workers.dev  |
+| discord-widget-sync    | —       | 僅 Cron（每 30 分鐘）                          |
 
 ### 分支策略
 
@@ -197,6 +224,8 @@ release/*    → Release candidate（staging 自動部署）
 ```
 
 推送到 staging 預覽：`git push origin develop:staging`
+
+完整 release 流程見 `docs/release-workflow.md`。
 
 ## 架構亮點
 
@@ -215,15 +244,27 @@ release/*    → Release candidate（staging 自動部署）
 
 ### 文件站 — Zone 系統
 
-五個主題區域，各有專屬 Reader、入場動畫、背景特效、頁面轉場：
+五個主題區域，各有專屬 Reader、入場動畫、背景特效、頁面轉場，以及自己的浮島：
 
-| Zone        | 背景特效            | 說明                                  |
-| ----------- | ------------------- | ------------------------------------- |
-| 📜 History  | 文字粒子飄浮        | 時序敘事，章節樹狀結構                |
-| 🔊 Echoes   | 回聲漣漪波紋        | 音訊內容，cluster 導航                |
-| 🎨 Visuals  | 光柱 + 浮動框架     | 圖庫，division/subcategory/group 分層 |
-| 💡 Concepts | 格線 + 數位雨       | 結構化資料，四種 variant Reader       |
-| 📦 Storage  | 灰塵粒子 + 飄浮 SVG | 檔案庫，clearing 卡片系統             |
+| Zone        | 背景特效            | 浮島     | 說明                            |
+| ----------- | ------------------- | -------- | ------------------------------- |
+| 📜 History  | 文字粒子飄浮        | 導航樹   | 時序敘事，章節樹狀結構          |
+| 🔊 Echoes   | 回聲漣漪波紋        | 流浪回聲 | 換頁不中斷的音訊播放            |
+| 🎨 Visuals  | 光柱 + 浮動框架     | 浮動幻影 | 圖片投射，Visual Clue 書籤      |
+| 💡 Concepts | 格線 + 數位雨       | 終端     | 結構化資料，四種 variant Reader |
+| 📦 Storage  | 灰塵粒子 + 飄浮 SVG | 便條層   | 檔案庫，clearing 卡片系統       |
+
+### 文件站 — 進度系統
+
+閱讀本身是有狀態的。讀者的位置、讀過什麼、解鎖了什麼，構成一條可累積的軸線。
+
+- **雙視角** — 探索者（依進度逐步解鎖）／觀測者（全解鎖，但留下永久且不可逆的印記）
+- **掃描線** — 視窗 80% 處的隱形線通過標記時記錄進度；文末哨兵負責完成判定，**沒有任何 `hr` 的短文也算得出來**
+- **內容閘門** — 四維條件是 AND 聯集：進度頁繼承、需先讀完某篇、自訂旗標、純潔者限定
+- **進度迷霧** — 未讀內容藏在迷霧線之後，隨閱讀散去；線以下的 echo spot 與 visual clue 一併遮蔽
+- **互動式嵌入** — entity 標記在你於敘事中「認識」該對象之前就是普通文字，之後才變可點並交給對應浮島
+- **互聯** — 劇情點與實體 key 串連散落在五個區域的錨點
+- **讀者帳號** — 與 admin 認證完全分離；進度以單一 blob 同步到 D1，由 CAS 版號守門
 
 ### Content API Worker
 
@@ -232,7 +273,9 @@ release/*    → Release candidate（staging 自動部署）
 - **D1 資料庫** (`eternity-content`) — 頁面、樹狀結構、同步日誌
 - **R2 儲存** — 兩個隔離的 bucket（`eternity-assets` + `eternity-root-assets`）
 - **5 張主站表** — `root_projects`、`root_links`、`root_updates`、`root_singletons`、`root_cards`
+- **進度系統表** — `uep_users`、`uep_user_notes`、`uep_flags`、`interlink_keys`、`uep_settings`，加上衍生表 `history_interlink_index`
 - **同步工具** — 統一 dispatcher、共用認證、R2 刪除追蹤與傳播
+- **隔離的測試環境** — 平行的 worker／D1／R2，admin 編輯與 Reader 驗證完全不碰正式資料
 
 ## 開發狀態
 
@@ -246,19 +289,30 @@ release/*    → Release candidate（staging 自動部署）
   - Widget 系統、可拖曳卡片、暗色模式正規化
   - Quartz 導覽列、搜尋、Footer、固定目錄
 - **文件站 — 5 個主題區域**，各有專屬 Reader、入場動畫、背景特效、頁面轉場
+- **進度系統（Epic 2）** — L0～L5 整套
+  - Progress Store、旗標系統、雙視角
+  - 掃描線閱讀追蹤、進度標記、進度迷霧
+  - 四維 AND 聯集的內容閘門
+  - 互動式嵌入（entity 標記 → 浮島接手）
+  - 讀者帳號與 CAS 守門的跨裝置同步
+  - 五座區域浮島，共用 runtime、dock 與位置持久化
+  - 跨區域互聯（劇情點 + 實體 key）
+- **Admin 設定** — key／flag／進度／站台參數集中管理
 - **3D 地圖** — Three.js PieMap3D，zone 導航
 - **內容 API** — D1 驅動的 CRUD，支援樹狀結構、雙 R2、同步
 - **同步工具** — 統一 dispatcher、雙向 D1 + R2 同步、R2 刪除追蹤
+- **隔離的測試環境** — 平行 worker／D1／R2，三層防誤操作機制
+- **自架字型子集化** — Noto Serif TC 三層分片，首屏從 2245 KB 降到約 570 KB
+- **Discord widget 同步** — Cron worker 供應 profile 統計
 - **CI/CD** — GitHub Actions 品質檢查與 Worker 部署
-- **測試基礎設施** — Vitest（單元 + Worker）+ Playwright（E2E）
+- **測試基礎設施** — Vitest（單元 + Worker）+ Playwright（E2E／壓力／負載）+ 手動驗收清單
 
 ### 📅 計劃中（上線後）
 
-- History 章節門控 / 防劇透策略
-- History 互動式嵌入（entity/media cue 系統）
-- Zone Islands（互動式嵌入工具）
 - Console 指令系統（主站彩蛋）
-- 主題與進度設定後台
+- 圖庫內容的 responsive images / `srcset`
+- 主站字型子集化（目前只做了文件站）
+- 讀者帳號的密碼找回機制
 
 ## 相關 Repository
 
@@ -281,4 +335,4 @@ Copyright © 2025-2026 Bernie. All rights reserved.
 
 ---
 
-_最後更新：2026 年 6 月_
+_最後更新：2026 年 8 月_
