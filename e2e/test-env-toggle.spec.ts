@@ -25,6 +25,35 @@ const TEST_WORKER_URL =
   'https://eternity-content-api-test.ptyc4076.workers.dev';
 
 /**
+ * 本地 dev 下帶 test cookie 進 /admin 會被 middleware 導去真登入
+ * （`middleware.ts` 的 isTestModeDev 分支——test worker 會驗簽章、
+ * 沒有 dev bypass，所以 SSR proxy 需要轉發真 JWT）。
+ * 那道守門只檢查 cookie **存在**、不驗內容，測試補一個佔位值即可進頁面。
+ *
+ * ⚠️ 沒有這個 cookie 的話，所有「預設 test cookie 再進 admin」的案例
+ * 都會停在登入頁，症狀是找不到卡片上的任何按鈕。
+ */
+const ADMIN_JWT_COOKIE = 'uep-admin-jwt';
+
+/** test mode + 已登入的 cookie 組合（進 /admin 操作卡片用） */
+const testModeAdminCookies = [
+  {
+    name: TEST_COOKIE,
+    value: encodeURIComponent(TEST_WORKER_URL),
+    domain: 'localhost',
+    path: '/',
+    sameSite: 'Strict' as const,
+  },
+  {
+    name: ADMIN_JWT_COOKIE,
+    value: 'e2e-dev-placeholder',
+    domain: 'localhost',
+    path: '/',
+    sameSite: 'Strict' as const,
+  },
+];
+
+/**
  * 讀取 cookie 值（包含 encodeURIComponent 的結果）。
  * Playwright 的 context.cookies() 只回傳未解碼值。
  */
@@ -193,15 +222,7 @@ test.describe('T-14-3：Admin toggle 退出測試環境', () => {
     page,
   }) => {
     // 先設好 cookie
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await page.context().addCookies(testModeAdminCookies);
 
     await page.goto('/admin');
     await page.waitForLoadState('domcontentloaded');
@@ -234,15 +255,7 @@ test.describe('T-14-3：Admin toggle 退出測試環境', () => {
   test('帶 test cookie 進 admin → 點退出 → Dialog 取消 → cookie 仍存在', async ({
     page,
   }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await page.context().addCookies(testModeAdminCookies);
 
     await page.goto('/admin');
     await page.waitForLoadState('domcontentloaded');
@@ -280,15 +293,7 @@ test.describe('T-14-4：Reset 輸入未匹配 → 按鈕 disabled', () => {
 
     // 進入 test mode（cookie 觸發，才會顯示 reset section）
     await clearTestCookie(page);
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await page.context().addCookies(testModeAdminCookies);
 
     await page.goto('/admin');
     await page.waitForLoadState('domcontentloaded');
@@ -356,15 +361,7 @@ test.describe('T-14-5：Reset 輸入匹配 → 按鈕 enabled → 呼叫 API', (
 
     // 進入 test mode
     await clearTestCookie(page);
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await page.context().addCookies(testModeAdminCookies);
 
     await page.goto('/admin');
     await page.waitForLoadState('domcontentloaded');

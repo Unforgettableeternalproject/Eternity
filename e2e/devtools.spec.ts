@@ -5,13 +5,19 @@ import { test, expect } from '@playwright/test';
  *
  * 快捷鍵：Ctrl+Shift+D
  *
- * shouldMount() 條件（滿足任一）：
+ * shouldMount() 條件（三選一，**且必須是桌面視窗**）：
+ *   0. 視窗寬度 ≥ 761px（useDesktopIslandViewport）——手機一律不掛
  *   1. isTestMode() === true（cookie 為合法 test worker URL）
  *   2. localStorage['uep-devtools-force'] === 'true'（強制開啟）
  *   3. import.meta.env.DEV === true（本地 dev server 永遠開）
  *
  * 本地 dev server 在 DEV === true 的條件下 shouldMount() 恆為 true，
  * 因此不帶 cookie 也能觸發面板。
+ *
+ * ⚠️ 條件 0 是 S11 A 段（`8b1e0c1`，0.9.18.1）加的：面板本身是三欄命令
+ *    列表，在 390px 上不可用，而 FAB 會擋住右下角。守門擋在 useEffect 內，
+ *    連 keydown 監聽都不掛——所以手機上快捷鍵也不會有反應。
+ *    下方主要測項因此限定桌面執行，手機的預期行為另有專屬測項驗證。
  *
  * ⚠️ 注意：不要真的執行破壞性 actions（progress:reset / onboarding:reset-identity）
  *    會影響其他 E2E 測試的 localStorage/sessionStorage 狀態。
@@ -34,6 +40,12 @@ const META_SELECTOR = '.uep-devtools-panel__meta';
 //  測項 1 — 帶 test cookie 進 uep home → Ctrl+Shift+D → 面板出現
 // ─────────────────────────────────────────────
 test.describe('T-21-1：帶 test cookie → DevTools 面板開啟', () => {
+  // DevTools 只在桌面掛載（見檔頭條件 0）；手機的預期行為由 T-21-6 驗證
+  test.skip(
+    ({ viewport }) => !!viewport && viewport.width <= 760,
+    'DevTools 在 760px 以下刻意不掛載'
+  );
+
   test('Ctrl+Shift+D 打開面板，顯示 actions 清單', async ({ page }) => {
     // 先注入 test cookie（讓 isTestMode() === true）
     await page.context().addCookies([
@@ -102,6 +114,12 @@ test.describe('T-21-1：帶 test cookie → DevTools 面板開啟', () => {
 //  測項 2 — 搜尋功能過濾 actions
 // ─────────────────────────────────────────────
 test.describe('T-21-2：面板搜尋 "reset" 過濾出 progress:reset', () => {
+  // DevTools 只在桌面掛載（見檔頭條件 0）；手機的預期行為由 T-21-6 驗證
+  test.skip(
+    ({ viewport }) => !!viewport && viewport.width <= 760,
+    'DevTools 在 760px 以下刻意不掛載'
+  );
+
   test.beforeEach(async ({ page }) => {
     await page.context().addCookies([
       {
@@ -169,6 +187,12 @@ test.describe('T-21-2：面板搜尋 "reset" 過濾出 progress:reset', () => {
 //  測項 3 — 執行安全 action（dump state）→ console 有輸出
 // ─────────────────────────────────────────────
 test.describe('T-21-3：執行 "傾印 progress state 到 console"', () => {
+  // DevTools 只在桌面掛載（見檔頭條件 0）；手機的預期行為由 T-21-6 驗證
+  test.skip(
+    ({ viewport }) => !!viewport && viewport.width <= 760,
+    'DevTools 在 760px 以下刻意不掛載'
+  );
+
   test('點擊 progress:dump-state → console 有 [UEP Progress State] 輸出', async ({
     page,
   }) => {
@@ -223,6 +247,12 @@ test.describe('T-21-3：執行 "傾印 progress state 到 console"', () => {
 //  測項 4 — Escape 關閉面板
 // ─────────────────────────────────────────────
 test.describe('T-21-4：Escape 關閉面板', () => {
+  // DevTools 只在桌面掛載（見檔頭條件 0）；手機的預期行為由 T-21-6 驗證
+  test.skip(
+    ({ viewport }) => !!viewport && viewport.width <= 760,
+    'DevTools 在 760px 以下刻意不掛載'
+  );
+
   test('面板開啟時按 Escape → 面板關閉，FAB 重新出現', async ({ page }) => {
     await page.context().addCookies([
       {
@@ -290,6 +320,12 @@ test.describe('T-21-4：Escape 關閉面板', () => {
 //  在 dev server 下此測試改為驗證「force flag 可強制顯示 FAB」。
 // ─────────────────────────────────────────────
 test.describe('T-21-5：shouldMount 條件驗證（dev server 情境）', () => {
+  // DevTools 只在桌面掛載（見檔頭條件 0）；手機的預期行為由 T-21-6 驗證
+  test.skip(
+    ({ viewport }) => !!viewport && viewport.width <= 760,
+    'DevTools 在 760px 以下刻意不掛載'
+  );
+
   test('dev server 下不帶 cookie → FAB 仍出現（DEV === true）', async ({
     page,
   }) => {
@@ -323,6 +359,59 @@ test.describe('T-21-5：shouldMount 條件驗證（dev server 情境）', () => 
     await expect(fab).toBeVisible({ timeout: 5000 });
 
     // 清理 force flag
+    await page.evaluate(() => {
+      localStorage.removeItem('uep-devtools-force');
+    });
+  });
+});
+
+// ─────────────────────────────────────────────
+//  測項 6 — 手機一律不掛 DevTools（S11 A 段，0.9.18.1）
+//
+//  這組與上方主測項互斥：上面 skip 掉手機，這裡只在手機跑。
+//  之所以要正向斷言而不是單純跳過——手機不掛是**刻意的行為**，
+//  它退化時應該有東西紅起來。此前這條規則上線三週都沒有任何測試守著。
+// ─────────────────────────────────────────────
+test.describe('T-21-6：手機視窗不掛載 DevTools', () => {
+  test.skip(
+    ({ viewport }) => !viewport || viewport.width > 760,
+    '本組只驗證手機視窗'
+  );
+
+  test('帶 test cookie 也不出現 FAB，快捷鍵同樣沒有反應', async ({ page }) => {
+    await page.context().addCookies([
+      {
+        name: TEST_COOKIE,
+        value: encodeURIComponent(TEST_WORKER_URL),
+        domain: 'localhost',
+        path: '/',
+        sameSite: 'Strict',
+      },
+    ]);
+
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(3000);
+
+    await expect(page.locator(FAB_SELECTOR)).toHaveCount(0);
+
+    // 守門擋在 useEffect 內，連 keydown 監聽都不掛——快捷鍵也該無效
+    await page.keyboard.press('Control+Shift+D');
+    await page.waitForTimeout(500);
+    await expect(page.locator(PANEL_SELECTOR)).toHaveCount(0);
+  });
+
+  test('force flag 也無法在手機上開啟', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.setItem('uep-devtools-force', 'true');
+    });
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(3000);
+
+    await expect(page.locator(FAB_SELECTOR)).toHaveCount(0);
+
     await page.evaluate(() => {
       localStorage.removeItem('uep-devtools-force');
     });
