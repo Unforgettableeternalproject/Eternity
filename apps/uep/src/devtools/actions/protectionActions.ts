@@ -61,5 +61,38 @@ export function registerProtectionActions(): void {
         toolkit?.status?.();
       },
     },
+    /*
+     * 兩種面孔各給一個入口。正式的擲骰只有一成會抽到立繪，靠切視窗碰運氣
+     * 驗收要試十幾次；而這兩個 action 要驗的是版面與濾鏡，不是機率。
+     * 走 `__uepProtection.test()` 與真實顯示同一條路徑，只是跳過擲骰。
+     */
+    ...(
+      [
+        ['text', '文字版（觀測失效）', '中央是字樣與色差複影'],
+        [
+          'art',
+          '立繪版（U.E.P 比出不行）',
+          '中央換成灰階＋雜訊處理的立繪，字樣讓位；只有角落浮水印兩種都在',
+        ],
+      ] as const
+    ).map(([variant, label, description]) => ({
+      group: GROUP,
+      id: `protection:overlay-${variant}`,
+      label: `閃現保護遮罩：${label}`,
+      description: `${description}。1.5 秒後照正常流程演「重新接上訊號」的退場`,
+      available: () =>
+        typeof window !== 'undefined' &&
+        Boolean(
+          (window as unknown as { __uepProtection?: unknown }).__uepProtection
+        ),
+      execute: () => {
+        const toolkit = (
+          window as unknown as {
+            __uepProtection?: { test?: (variant?: string) => void };
+          }
+        ).__uepProtection;
+        toolkit?.test?.(variant);
+      },
+    })),
   ]);
 }

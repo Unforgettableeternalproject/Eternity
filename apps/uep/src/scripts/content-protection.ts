@@ -79,6 +79,53 @@ const OVERLAY_FADE_MS = 400;
 const OVERLAY_RESTORE_MS = 1400;
 
 /**
+ * 遮罩的第二種面孔：U.E.P 本人比出「不行」。
+ *
+ * 素材本身就是這個意思的圖示，所以它取代的是中央那組「觀測失效／
+ * Observation Failed」文字，而不是角落的浮水印——兩者同時在場會變成
+ * 一張說明圖配一句說明文，重複講同一件事。
+ *
+ * 立繪是彩稿，直接貼上去會像另一個系統的東西掉進斷訊畫面裡，所以套上
+ * 灰階並讓雜訊只落在她身上（雜訊層以同一張圖當遮罩，不然透明區會出現
+ * 一塊矩形雜訊）。
+ */
+const PROTECT_ART = '/uep/art/protect-no.webp';
+const PROTECT_ART_SIZE = { width: 1200, height: 1187 };
+
+/** 設定未載入時的預設機率（權威預設，與 worker 的 SETTING_DEFAULTS 對齊） */
+const PROTECT_ART_CHANCE_PCT = 10;
+
+/**
+ * 這次升起要用哪一種面孔。每次遮罩從隱藏轉為顯示時擲一次——
+ * 已經在場時不重擲，否則 visibilitychange 與 blur 接連抵達會讓畫面中途換臉。
+ */
+export function rollProtectionVariant(
+  random: () => number = Math.random
+): string {
+  const pct = getSetting('protection.noChancePct', PROTECT_ART_CHANCE_PCT);
+  return random() * 100 < pct ? 'art' : 'text';
+}
+
+/**
+ * 預熱立繪。
+ *
+ * 遮罩是「瞬間切換」的（`transition: opacity 0ms`，避免淡入過程中看到底下
+ * 的內容），圖沒載好就是一片空的保護畫面——而它出現的時機正是使用者切走
+ * 視窗那一刻，沒有第二次機會。走 idle callback：這張圖多數情況下用不到，
+ * 沒有理由跟首屏搶頻寬。
+ */
+function warmProtectionArt(): void {
+  const warm = () => {
+    new Image().src = PROTECT_ART;
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(warm, { timeout: 5000 });
+  } else {
+    window.setTimeout(warm, 2500);
+  }
+}
+
+/**
  * 初始化內容保護
  * 在 DesignLayout 的 <script> 中呼叫
  */
@@ -103,6 +150,11 @@ export function initContentProtection(): void {
   setupProtectionOverlay();
   setupPrintScreenProtection();
   setupVisibilityProtection();
+
+  // 機率設為 0 時那張圖永遠不會用到，不必為它花一次下載
+  if (getSetting('protection.noChancePct', PROTECT_ART_CHANCE_PCT) > 0) {
+    warmProtectionArt();
+  }
 }
 
 /**
@@ -152,14 +204,19 @@ function exposeDevToolkit(): void {
       );
       return { isDev, testMode, forced, readerPage, active, effective };
     },
-    test() {
-      // 即時測試遮罩外觀——若尚未 setup 則臨時 setup
+    /**
+     * 即時測試遮罩外觀——若尚未 setup 則臨時 setup。
+     * `variant` 指定 'text'／'art' 可跳過擲骰，不給就照設定的機率擲。
+     */
+    test(variant?: string) {
       if (!document.getElementById('uep-protection-overlay')) {
         setupProtectionOverlay();
       }
-      showProtectionOverlay();
+      showProtectionOverlay(variant);
       // eslint-disable-next-line no-console
-      console.info('[UEP Protection] 已觸發測試遮罩。');
+      console.info(
+        `[UEP Protection] 已觸發測試遮罩${variant ? `（${variant}）` : ''}。`
+      );
     },
   };
 
@@ -499,6 +556,66 @@ function setupProtectionOverlay(): void {
       animation: uep-protection-sweep 9s ease-in-out infinite;
     }
 
+    /* ── 立繪版（data-variant="art"）──
+       兩種面孔互斥：她本人就是那句「觀測失效」，同時出現只是把同一件事
+       講兩次。角落的 __mark 兩種都留著——那是浮水印不是說明。 */
+    .uep-protection-overlay[data-variant="text"] .uep-protection-overlay__art,
+    .uep-protection-overlay[data-variant="art"] .uep-protection-overlay__title,
+    .uep-protection-overlay[data-variant="art"] .uep-protection-overlay__sub {
+      display: none;
+    }
+
+    .uep-protection-overlay__art {
+      position: relative;
+      /* 高度優先讓她完整入鏡，窄視窗時才由寬度接手 */
+      height: min(62vh, 62vw);
+      animation: uep-protection-glitch 4.2s ease-in-out infinite;
+    }
+
+    .uep-protection-overlay__art img {
+      height: 100%;
+      width: auto;
+      /* 彩稿要收進斷訊畫面的灰階語彙裡，不然像是別的系統掉進來的東西 */
+      filter: grayscale(1) contrast(1.08) brightness(0.94);
+      user-select: none;
+    }
+
+    /* 雜訊只落在她身上：以同一張圖當遮罩，否則透明區會蓋出一塊矩形雜訊 */
+    .uep-protection-overlay__art::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.42;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E");
+      -webkit-mask-image: url('${PROTECT_ART}');
+      mask-image: url('${PROTECT_ART}');
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      animation: uep-protection-art-noise 1.1s steps(1, end) infinite;
+    }
+
+    /* 位移量刻意大於雜訊紋理的週期，每一跳都是全新的雜點分布 */
+    @keyframes uep-protection-art-noise {
+      0% { background-position: 0 0; opacity: 0.42; }
+      25% { background-position: 37px -23px; opacity: 0.3; }
+      50% { background-position: -29px 41px; opacity: 0.46; }
+      75% { background-position: 19px 27px; opacity: 0.34; }
+      100% { background-position: -41px -17px; opacity: 0.42; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .uep-protection-overlay__art,
+      .uep-protection-overlay__art::after {
+        animation: none;
+      }
+    }
+
     .uep-protection-overlay__title {
       position: relative;
       font-size: clamp(1.75rem, 4vw, 2.5rem);
@@ -605,8 +722,12 @@ function setupProtectionOverlay(): void {
   overlay.id = 'uep-protection-overlay';
   overlay.setAttribute('data-visible', 'false');
   overlay.setAttribute('aria-hidden', 'true');
+  overlay.setAttribute('data-variant', 'text');
   overlay.innerHTML = `
     <div class="uep-protection-overlay__plate">
+      <div class="uep-protection-overlay__art" aria-hidden="true">
+        <img src="${PROTECT_ART}" width="${PROTECT_ART_SIZE.width}" height="${PROTECT_ART_SIZE.height}" alt="" draggable="false" />
+      </div>
       <div class="uep-protection-overlay__title" data-text="觀測失效">觀測失效</div>
       <div class="uep-protection-overlay__sub">Observation Failed</div>
       <div class="uep-protection-overlay__mark">UEP · ${new Date().toISOString().slice(0, 10)}</div>
@@ -628,22 +749,30 @@ let overlayTimer: number | null = null;
 let restoreTimer: number | null = null;
 
 /** 顯示遮罩的共用起點：清掉退場狀態，避免上一次還原尚未走完就重新遮蔽 */
-function markOverlayVisible(overlay: HTMLElement): void {
+function markOverlayVisible(overlay: HTMLElement, forced?: string): void {
   if (restoreTimer !== null) {
     window.clearTimeout(restoreTimer);
     restoreTimer = null;
+  }
+  // 從隱藏轉為顯示時才擲骰。已經在場時重擲會讓畫面中途換臉——
+  // 切走視窗一次可能同時收到 visibilitychange 與 blur。
+  // DevTools 指定的變體不受這道門檻限制：驗收要的就是「我按了就看到那一種」
+  if (forced) {
+    overlay.setAttribute('data-variant', forced);
+  } else if (overlay.getAttribute('data-visible') !== 'true') {
+    overlay.setAttribute('data-variant', rollProtectionVariant());
   }
   overlay.removeAttribute('data-restoring');
   overlay.setAttribute('data-visible', 'true');
   overlay.setAttribute('aria-hidden', 'false');
 }
 
-/** 顯示保護遮罩（自動退場） */
-function showProtectionOverlay(): void {
+/** 顯示保護遮罩（自動退場）。`forced` 只有 DevTools 會給 */
+function showProtectionOverlay(forced?: string): void {
   const overlay = document.getElementById('uep-protection-overlay');
   if (!overlay) return;
 
-  markOverlayVisible(overlay);
+  markOverlayVisible(overlay, forced);
 
   if (overlayTimer !== null) {
     window.clearTimeout(overlayTimer);
