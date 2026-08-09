@@ -25,6 +25,10 @@ const DEFAULTS = {
   'reader.restPageCount': 5,
   'reader.restWindowMinutes': 30,
   'reader.restCooldownMinutes': 60,
+  /* 邀茶差分預設有一成機率，不關掉的話每十次就有一次抽到另一組文案，
+     下面所有靠 `card()` 找標題的斷言都會偶發失敗。驗邀茶版的那幾條
+     自己把它調成 100 */
+  'reader.teaInviteChancePct': 0,
 };
 
 function mockSettings(overrides: Record<string, string | number> = {}) {
@@ -252,5 +256,51 @@ describe('useRestReminder', () => {
 
     await activeAdvance(40_000);
     expect(card()).toBeTruthy();
+  });
+
+  /* ── 邀茶差分 ── */
+
+  it('機率 100 時換成邀茶的文案與按鈕', async () => {
+    await mount({
+      'reader.restActiveMinutes': 1,
+      'reader.restPageCount': 0,
+      'reader.teaInviteChancePct': 100,
+    });
+
+    await advance(70_000);
+    expect(card()).toBeNull();
+    expect(screen.queryByText('已經看很多了，要不要去休息一下?')).toBeTruthy();
+    // 「知道了」不會被取代，只是旁邊多一顆
+    expect(screen.queryByText('知道了')).toBeTruthy();
+    expect(screen.queryByText('前往茶會')).toBeTruthy();
+  });
+
+  it('機率 0 時永遠是一般版，不會有前往茶會', async () => {
+    await mount({ 'reader.restActiveMinutes': 1, 'reader.restPageCount': 0 });
+
+    await advance(70_000);
+    expect(card()).toBeTruthy();
+    expect(screen.queryByText('前往茶會')).toBeNull();
+  });
+
+  it('按下前往茶會會先寫下邀請旗標', async () => {
+    await mount({
+      'reader.restActiveMinutes': 1,
+      'reader.restPageCount': 0,
+      'reader.teaInviteChancePct': 100,
+    });
+    await advance(70_000);
+
+    // jsdom 的 location.assign 攔不住也不會真的跳頁，呼叫時可能擲
+    // Not implemented——實作已經先寫下旗標，那才是這條要釘的契約
+    await act(async () => {
+      try {
+        screen.getByText('前往茶會').click();
+      } catch {
+        /* jsdom navigation */
+      }
+    });
+
+    expect(sessionStorage.getItem('uep.teatime.invite.v1')).toBe('1');
   });
 });

@@ -130,8 +130,16 @@
   line-height: 1.8;
 }
 
-.rnudge-action {
+/* 邀茶時會有第二顆鈕。卡片只有 320px 寬，兩顆並排在窄視窗會擠成兩行字，
+   所以讓它們自然換行而不是硬塞同一列 */
+.rnudge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 16px;
+}
+
+.rnudge-action {
   padding: 7px 22px;
   border: 1px solid rgb(213 182 24 / 55%);
   background: transparent;
@@ -161,6 +169,25 @@
 .rnudge-action:focus-visible {
   outline: 1px solid var(--uep-gold-soft);
   outline-offset: 3px;
+}
+
+/* 邀請鈕預先填上金色：她已經開口邀了，那顆才是這張卡在講的事，
+   「知道了」退成旁邊那個總是在的選項 */
+.rnudge-action--primary {
+  background: var(--uep-gold);
+  border-color: var(--uep-gold);
+  color: #241f08;
+  box-shadow: 0 0 22px -8px var(--uep-gold-glow);
+}
+
+[data-theme='dark'] .rnudge-action--primary {
+  color: #241f08;
+}
+
+.rnudge-action--primary:hover,
+.rnudge-action--primary:focus-visible {
+  background: var(--uep-gold-soft);
+  box-shadow: 0 0 30px -6px var(--uep-gold-glow);
 }
 
 @keyframes rnudge-slide-in {

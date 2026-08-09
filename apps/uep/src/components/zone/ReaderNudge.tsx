@@ -40,9 +40,22 @@ import IdleVeil from './IdleVeil';
 
 import './ReaderNudge.css';
 
+/**
+ * 休息提醒的兩種面孔：`lazy` 是單純的「該休息了」，`invite` 是她順便邀你
+ * 去喝杯茶。差別在立繪與是否多一顆行動鈕，判定（擲骰）留在提交方。
+ */
+export type RestNudgeVariant = 'lazy' | 'invite';
+
 export interface RestNudgeRequest {
   title: string;
   body: string;
+  /** 預設 `lazy` */
+  variant?: RestNudgeVariant;
+  /**
+   * 確認鈕之外的第二顆按鈕。按下後不播退場動畫——它的行為是導航，
+   * 演給正在離開的畫面看沒有意義。
+   */
+  action?: { label: string; onClick: () => void };
   /** 按下確認鈕時呼叫——冷卻與 baseline 的重設由提交方負責 */
   onAcknowledge: () => void;
 }
@@ -76,8 +89,15 @@ const LEAVE_MS = 460;
  * 「該休息了」這件事演給你看，而不是站在旁邊指著牌子。素材下緣就是她
  * 貼地的那條線（轉檔時已去掉透明邊），所以直接對齊就是趴著的樣子。
  */
-const UEP_ART = '/uep/art/rest-lazy.webp';
-/** 原始像素，給瀏覽器先算好版面比例 */
+const UEP_ART: Record<RestNudgeVariant, string> = {
+  lazy: '/uep/art/rest-lazy.webp',
+  invite: '/uep/art/rest-invite.webp',
+};
+/**
+ * 原始像素，給瀏覽器先算好版面比例。兩張是同一構圖的差分，在轉檔階段就
+ * 共用同一個裁切框（`frames: 'rest'`），所以尺寸必然相同——這也是換圖時
+ * 她不會跳位的原因。
+ */
 const UEP_ART_SIZE = { width: 1200, height: 635 };
 
 function RestNudgeCard({
@@ -120,7 +140,7 @@ function RestNudgeCard({
     >
       <img
         className="rnudge-art"
-        src={UEP_ART}
+        src={UEP_ART[rest.variant ?? 'lazy']}
         width={UEP_ART_SIZE.width}
         height={UEP_ART_SIZE.height}
         alt=""
@@ -130,9 +150,20 @@ function RestNudgeCard({
         <div className="rnudge-eyebrow">READING RHYTHM</div>
         <div className="rnudge-title">{rest.title}</div>
         <div className="rnudge-body">{rest.body}</div>
-        <button type="button" className="rnudge-action" onClick={acknowledge}>
-          知道了
-        </button>
+        <div className="rnudge-actions">
+          <button type="button" className="rnudge-action" onClick={acknowledge}>
+            知道了
+          </button>
+          {rest.action && (
+            <button
+              type="button"
+              className="rnudge-action rnudge-action--primary"
+              onClick={rest.action.onClick}
+            >
+              {rest.action.label}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -177,9 +208,10 @@ export function ReaderNudgeProvider({
    */
   useEffect(() => {
     let cancelled = false;
+    /* 兩個差分都要熱：哪一張會用到是觸發當下才擲的骰，等到那時再載就晚了 */
     const warm = () => {
       if (cancelled) return;
-      new Image().src = UEP_ART;
+      for (const src of Object.values(UEP_ART)) new Image().src = src;
     };
     // 型別上 requestIdleCallback 一定存在，實際上 Safari 16.4 之前沒有——
     // 用 typeof 檢查而不是真值判斷，才不會被判成恆真

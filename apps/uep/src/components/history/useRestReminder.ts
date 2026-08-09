@@ -35,10 +35,12 @@
 import { useEffect, useRef } from 'react';
 
 import { getActiveTotalMs } from '../../lib/activityWatch';
+import { markTeatimeInvited } from '../../lib/teatime';
 import { getSetting, initUepSettings } from '../../lib/uepSettings';
 import { PROGRESS_CHANGE_EVENT } from '../../progress';
 import type { ProgressChangeDetail } from '../../progress';
 import { useReaderNudge } from '../zone/ReaderNudge';
+import type { RestNudgeRequest, RestNudgeVariant } from '../zone/ReaderNudge';
 
 /** 判定週期。門檻以分鐘計，15 秒的解析度已經遠比需要的細 */
 const CHECK_INTERVAL_MS = 15_000;
@@ -49,6 +51,17 @@ const REST_TITLE = '看了好多東西了';
 const REST_BODY = '要不要休息一下呢?';
 
 /**
+ * 邀茶差分：同一個提醒的另一種說法，多一條出路。
+ *
+ * 門檻與冷卻完全共用——它不是第二種提醒，是同一個提醒偶爾換一張臉。
+ */
+const INVITE_TITLE = '已經看很多了，要不要去休息一下?';
+const INVITE_BODY = 'U.E.P 有泡一些茶，可以去嘗嘗看';
+
+/** 設定未載入時的預設機率（權威預設，與 worker 的 SETTING_DEFAULTS 對齊） */
+const TEA_INVITE_CHANCE_PCT = 10;
+
+/**
  * 手動驗收用的 bridge（同 LostBookmark 的既有模式）。
  *
  * 休息提醒的預設門檻是 45 分鐘活躍或 30 分鐘內讀完 5 頁——照正常流程驗收
@@ -57,8 +70,12 @@ const REST_BODY = '要不要休息一下呢?';
 declare global {
   interface Window {
     __uepRestReminderTest?: {
-      /** 立刻跳出休息提醒（走正規提交路徑，確認鈕的行為完全一致） */
-      trigger: () => void;
+      /**
+       * 立刻跳出休息提醒（走正規提交路徑，確認鈕的行為完全一致）。
+       * 不指定 variant 就照設定的機率擲骰——邀茶版預設只有一成，
+       * 要驗收它得明確指定。
+       */
+      trigger: (variant?: RestNudgeVariant) => void;
       /** 收掉目前的提醒，不算確認（不重設 baseline、不開始冷卻） */
       dismiss: () => void;
       /** 目前的判定狀態 */
@@ -135,6 +152,41 @@ export function useRestReminder(): void {
         pendingRef.current = false;
       };
 
+      /**
+       * 這次要用哪一種說法。擲骰在提交當下——提前決定的話，設定改了要等
+       * 下一次觸發才反映，而兩次觸發之間可能隔一小時。
+       */
+      const buildRequest = (forced?: RestNudgeVariant): RestNudgeRequest => {
+        const chance = getSetting(
+          'reader.teaInviteChancePct',
+          TEA_INVITE_CHANCE_PCT
+        );
+        const variant =
+          forced ?? (Math.random() * 100 < chance ? 'invite' : 'lazy');
+        if (variant !== 'invite') {
+          return {
+            title: REST_TITLE,
+            body: REST_BODY,
+            variant: 'lazy',
+            onAcknowledge: acknowledge,
+          };
+        }
+        return {
+          title: INVITE_TITLE,
+          body: INVITE_BODY,
+          variant: 'invite',
+          action: {
+            label: '前往茶會',
+            onClick: () => {
+              // 旗標要在導航之前寫下——assign 之後這一頁的 JS 不保證還跑得完
+              markTeatimeInvited();
+              window.location.assign('/teatime');
+            },
+          },
+          onAcknowledge: acknowledge,
+        };
+      };
+
       const check = () => {
         if (pendingRef.current) return;
         const now = Date.now();
@@ -152,25 +204,17 @@ export function useRestReminder(): void {
         if (!byTime && !byPages) return;
 
         pendingRef.current = true;
-        nudgeRef.current.requestRestNudge({
-          title: REST_TITLE,
-          body: REST_BODY,
-          onAcknowledge: acknowledge,
-        });
+        nudgeRef.current.requestRestNudge(buildRequest());
       };
 
       timer = setInterval(check, CHECK_INTERVAL_MS);
 
       // 手動驗收：走與 check 相同的提交路徑，只是跳過門檻判定
       window.__uepRestReminderTest = {
-        trigger: () => {
+        trigger: (variant?: RestNudgeVariant) => {
           if (pendingRef.current) return;
           pendingRef.current = true;
-          nudgeRef.current.requestRestNudge({
-            title: REST_TITLE,
-            body: REST_BODY,
-            onAcknowledge: acknowledge,
-          });
+          nudgeRef.current.requestRestNudge(buildRequest(variant));
         },
         dismiss: () => {
           pendingRef.current = false;

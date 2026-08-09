@@ -1,0 +1,266 @@
+/* ──────────────────────────────────────────────────────────────
+   茶會頁（S11 彩蛋）
+
+   幾乎是空的一頁，但不是白紙：站上的暖金語彙、紙質底色、一圈從上方
+   落下的光。空曠是這裡的內容——她在不在，是這一頁唯一會變的東西。
+   ────────────────────────────────────────────────────────────── */
+
+.tt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 48px 24px 40px;
+  background:
+    radial-gradient(
+      120% 70% at 50% -8%,
+      rgb(213 182 24 / 13%),
+      transparent 58%
+    ),
+    var(--bg);
+  overflow: hidden;
+}
+
+/* 地板。桌腳與矮台底下沒有任何接地資訊，缺了這一條她們會像浮在空中 */
+.tt::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% - var(--tt-h) * 0.5 - 6px);
+  width: min(560px, 82vw);
+  height: 46px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgb(42 38 32 / 16%),
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+[data-theme='dark'] .tt::after {
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgb(0 0 0 / 34%),
+    transparent 72%
+  );
+}
+
+.tt-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--uep-gold);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+}
+
+.tt-eyebrow::before,
+.tt-eyebrow::after {
+  content: '';
+  width: 52px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(213 182 24 / 55%));
+}
+
+.tt-eyebrow::after {
+  background: linear-gradient(90deg, rgb(213 182 24 / 55%), transparent);
+}
+
+/* 場景高度的單一來源：桌子與她都照這個值縮放，地板陰影也靠它定位 */
+.tt {
+  --tt-h: min(52vh, 420px);
+}
+
+.tt-stage {
+  position: relative;
+  display: flex;
+  /* 底線對齊——兩張素材是各自獨立的物件，共用的只有地面 */
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  height: var(--tt-h);
+}
+
+.tt-table {
+  height: calc(var(--tt-h) * 0.93);
+  width: auto;
+  filter: drop-shadow(0 10px 18px rgb(0 0 0 / 14%));
+  animation: tt-rise 900ms var(--ease-out) both;
+}
+
+/* 她在的時候桌子讓出中線：兩個人的場景不該讓桌子還站在正中央 */
+.tt-stage--served .tt-table {
+  margin-right: -8px;
+}
+
+.tt-uep {
+  position: relative;
+  height: var(--tt-h);
+  aspect-ratio: 962 / 1200;
+  filter: drop-shadow(0 12px 20px rgb(0 0 0 / 16%));
+  /* 比桌子晚一點到，像是她剛坐下來 */
+  animation:
+    tt-rise 900ms 220ms var(--ease-out) both,
+    tt-breathe 4.6s 1.1s ease-in-out infinite;
+}
+
+.tt-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * 兩幀硬切，不做 crossfade——差分動畫溶接會讓兩張臉同時半透明地疊著，
+ * 那是殘影不是動作。steps(1, end) 讓每個關鍵影格都是瞬間切換。
+ *
+ * 節奏刻意不對半：舉著杯子的時間長（那是她待著的樣子），喝一口很短。
+ */
+.tt-frame--raise {
+  animation: tt-frame-raise 3.6s steps(1, end) infinite;
+}
+
+.tt-frame--sip {
+  animation: tt-frame-sip 3.6s steps(1, end) infinite;
+}
+
+@keyframes tt-frame-raise {
+  0%,
+  61% {
+    opacity: 1;
+  }
+
+  62%,
+  92% {
+    opacity: 0;
+  }
+
+  93%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes tt-frame-sip {
+  0%,
+  61% {
+    opacity: 0;
+  }
+
+  62%,
+  92% {
+    opacity: 1;
+  }
+
+  93%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes tt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 坐著的呼吸幅度要小，一大就變成在椅子上彈 */
+@keyframes tt-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.tt-note {
+  max-width: 30em;
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  line-height: 2;
+  letter-spacing: 0.04em;
+  text-align: center;
+  animation: tt-rise 700ms 420ms var(--ease-out) both;
+}
+
+.tt-back {
+  padding: 7px 22px;
+  border: 1px solid rgb(213 182 24 / 45%);
+  background: transparent;
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition:
+    background 0.28s var(--ease),
+    color 0.28s var(--ease),
+    box-shadow 0.28s var(--ease);
+}
+
+[data-theme='dark'] .tt-back {
+  color: var(--uep-gold-soft);
+}
+
+.tt-back:hover,
+.tt-back:focus-visible {
+  background: var(--uep-gold);
+  color: #241f08;
+  box-shadow: 0 0 24px -6px var(--uep-gold-glow);
+  outline: none;
+}
+
+.tt-back:focus-visible {
+  outline: 1px solid var(--uep-gold-soft);
+  outline-offset: 3px;
+}
+
+@media (width <= 560px) {
+  .tt {
+    --tt-h: min(42vh, 320px);
+
+    gap: 20px;
+  }
+
+  .tt-stage {
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-table,
+  .tt-uep,
+  .tt-note {
+    animation: none;
+  }
+
+  /* 兩幀動畫停用時只留舉杯那張——喝到一半的定格看起來像壞掉 */
+  .tt-frame--raise {
+    animation: none;
+    opacity: 1;
+  }
+
+  .tt-frame--sip {
+    animation: none;
+    opacity: 0;
+  }
+}

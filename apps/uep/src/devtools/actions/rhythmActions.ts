@@ -12,6 +12,7 @@
 
 import { forceIdleNow, getActivityDebug } from '../../lib/activityWatch';
 import { forceVeilStage, getVeilDebug } from '../../lib/idleVeil';
+import { markTeatimeInvited } from '../../lib/teatime';
 import { clearUepSettingsCache } from '../../lib/uepSettings';
 import { getProgressManager } from '../../progress';
 import { getReaderAuth } from '../../auth';
@@ -141,9 +142,9 @@ export function registerRhythmActions(): void {
     {
       group: GROUP_RHYTHM,
       id: 'rhythm:trigger-rest',
-      label: '立刻跳出休息提醒',
+      label: '立刻跳出休息提醒（照機率擲骰）',
       description:
-        '走與正常判定相同的提交路徑，「知道了」的行為（重設 baseline + 開始冷卻）完全一致。只在 History Reader 可用',
+        '走與正常判定相同的提交路徑，「知道了」的行為（重設 baseline + 開始冷卻）完全一致。變體照站台設定的機率決定，所以多半會是一般版。只在 History Reader 可用',
       available: hasRestBridge,
       execute: () => {
         if (!window.__uepRestReminderTest) {
@@ -151,6 +152,50 @@ export function registerRhythmActions(): void {
           return;
         }
         window.__uepRestReminderTest.trigger();
+      },
+    },
+    /* 兩個變體各給一個入口：邀茶版預設只有一成，靠擲骰驗收要按很多次 */
+    ...(
+      [
+        ['lazy', '一般版', '趴著的立繪，只有「知道了」一顆鈕'],
+        [
+          'invite',
+          '邀茶版',
+          '換成手上有茶的立繪與另一組文案，多一顆「前往茶會」（按下去會標記旗標並導向 /teatime）',
+        ],
+      ] as const
+    ).map(([variant, label, description]) => ({
+      group: GROUP_RHYTHM,
+      id: `rhythm:trigger-rest-${variant}`,
+      label: `跳出休息提醒：${label}`,
+      description,
+      available: hasRestBridge,
+      execute: () => {
+        if (!window.__uepRestReminderTest) {
+          log('休息提醒 bridge 未掛載——請在 History Reader 頁面使用');
+          return;
+        }
+        window.__uepRestReminderTest.trigger(variant);
+      },
+    })),
+    {
+      group: GROUP_RHYTHM,
+      id: 'rhythm:teatime-served',
+      label: '開啟茶會頁（有人版）',
+      description:
+        '先寫下邀請旗標再導向 /teatime，等同從休息提醒按「前往茶會」。直接打網址進去看到的是空桌子——旗標是消費即清的，重整一次就會退回空景',
+      execute: () => {
+        markTeatimeInvited();
+        window.location.assign('/teatime');
+      },
+    },
+    {
+      group: GROUP_RHYTHM,
+      id: 'rhythm:teatime-empty',
+      label: '開啟茶會頁（空景）',
+      description: '不帶旗標，看的是直接打網址進來的樣子',
+      execute: () => {
+        window.location.assign('/teatime');
       },
     },
     {
