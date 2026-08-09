@@ -19,19 +19,44 @@ describe('TeatimePage', () => {
     getProgressManager().revokeFlags([TEATIME_FLAG]);
   });
 
-  it('沒有旗標時只有桌子與「這裡沒有人」的敘述', () => {
+  const table = (container: HTMLElement) =>
+    container.querySelector('.tt-table')?.getAttribute('src') ?? '';
+
+  it('從沒見過她的人走進來，這裡就只是一張桌子', () => {
+    const { container } = render(<TeatimePage />);
+
+    expect(uep()).toBeNull();
+    expect(screen.getByText(/其他什麼都沒有/)).toBeTruthy();
+    // 她不在的時候連茶壺都不該在桌上
+    expect(table(container)).toContain('teatime-table-empty');
+  });
+
+  it('見過她之後再回來，敘述才會提到她不在', () => {
+    getProgressManager().grantFlags([TEATIME_FLAG]);
     render(<TeatimePage />);
 
     expect(uep()).toBeNull();
-    expect(screen.getByText(/只有一張桌子/)).toBeTruthy();
+    expect(screen.getByText(/她不在/)).toBeTruthy();
   });
 
-  it('帶著邀請旗標進來時她在桌邊', () => {
+  it('第一次被邀請進來不算「以前見過」——授旗不能早於判讀', () => {
     markTeatimeInvited();
+    const first = render(<TeatimePage />);
+    expect(screen.getByText(/也倒了一杯/)).toBeTruthy();
+    first.unmount();
+
+    // 這一次見過了，所以下一次的空景才輪到「她不在」
     render(<TeatimePage />);
+    expect(screen.getByText(/她不在/)).toBeTruthy();
+  });
+
+  it('帶著邀請旗標進來時她在桌邊，茶壺也回到桌上', () => {
+    markTeatimeInvited();
+    const { container } = render(<TeatimePage />);
 
     expect(uep()).toBeTruthy();
     expect(screen.getByText(/也倒了一杯/)).toBeTruthy();
+    expect(table(container)).toContain('teatime-table.webp');
   });
 
   it('旗標消費即清：重新進來就退回空景', () => {

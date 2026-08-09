@@ -59,10 +59,19 @@ const ART = [
   // 是原地替換的，裁切框一旦不同她就會跳位
   { src: 'Lazy.png', out: 'rest-lazy.webp', frames: 'rest' },
   { src: 'Invite.png', out: 'rest-invite.webp', frames: 'rest' },
-  // 茶會頁：舉杯與喝下去兩幀（之後要串成循環），以及只有桌子的空景
+  // 茶會頁：舉杯與喝下去兩幀（之後要串成循環）
   { src: 'Tea.png', out: 'tea-raise.webp', frames: 'teatime' },
   { src: 'Drinking.png', out: 'tea-sip.webp', frames: 'teatime' },
-  { src: 'Table.png', out: 'teatime-table.webp' },
+  // 桌子的兩種樣子：她在時茶壺在桌上，她不在時連茶壺都收走了。
+  // 同組共用裁切框，桌子本體在畫面上的位置與大小才會一模一樣——各自 trim
+  // 的話少了茶壺的那張會整個放大（高度變矮、按高度縮放就等比撐大），
+  // 兩種情境的桌子看起來會是兩張不同的桌子
+  { src: 'Table.png', out: 'teatime-table.webp', frames: 'teatime-table' },
+  {
+    src: 'Empty Table.png',
+    out: 'teatime-table-empty.webp',
+    frames: 'teatime-table',
+  },
 ];
 
 const args = process.argv.slice(2);
