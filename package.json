@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "turbo dev --parallel",
+    "act": "node scripts/act.mjs",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
