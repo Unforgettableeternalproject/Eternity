@@ -23,7 +23,7 @@ import {
   checkLocalApi,
   checkRemoteApi,
 } from './sync-utils.mjs';
-import { login, getAuthHeaders } from './sync-auth.mjs';
+import { resolveWriteToken, getAuthHeaders } from './sync-auth.mjs';
 
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
@@ -971,12 +971,16 @@ async function main() {
     if (envToken) {
       remoteToken = envToken;
     } else {
-      const result = await login(REMOTE_API);
-      if (!result) {
+      // 獨立執行：有 API_TOKEN 環境變數就用，沒有才互動登入
+      const token = await resolveWriteToken({
+        loginApiUrl: REMOTE_API,
+        purpose: '同步',
+      });
+      if (!token) {
         console.error('\n❌ 認證失敗，無法繼續同步\n');
         process.exit(1);
       }
-      remoteToken = result.token;
+      remoteToken = token;
     }
   }
 
