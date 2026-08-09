@@ -5,8 +5,14 @@
 ## 流程總覽
 
 ```
-develop → release/vX.Y.Z → staging 自動部署 → 驗證 → main（正式機）
+develop → release/vX.Y.Z → staging 自動部署 → 驗證
+        → 正式 D1 migration → Worker 部署 → main（Pages 自動部署）→ smoke
 ```
+
+> ⚠️ **merge 到 main 不等於全站上線。** Cloudflare Pages（兩個前端站）由 main
+> 自動部署，但三個 Worker 一律是手動 `pnpm deploy:*`，D1 migration 也不會跟著
+> 跑。只 merge 不部署 Worker，等於把新前端接到舊 API 上——本輪 v1.0.0 就發生過
+> 「正式 migration 0026 已套、新版 content-api 未部署」的狀態。詳見階段 7。
 
 ```mermaid
 graph LR
@@ -18,8 +24,11 @@ graph LR
     D -->|Code Review| G[關鍵元件審查]
     D -->|自動化壓測| H[深度 E2E 測試]
     D -->|手動壓測| I[公測 / 使用者測試]
-    E & F & G & H & I -->|全部通過| J[PR → main]
-    J --> K[正式上線]
+    E & F & G & H & I -->|全部通過| P[正式 D1 migration]
+    P --> Q[部署三個 Worker]
+    Q --> J[PR → main]
+    J --> K[Pages 自動部署]
+    K --> L[正式 smoke 驗證]
 ```
 
 ## 階段詳細說明
@@ -179,9 +188,71 @@ git commit -m "fix: 修復首頁捲動卡死問題"
 # staging 自動更新，去 staging URL 驗證
 ```
 
-### 階段 7：合併到 main
+### 階段 7：正式環境部署（Worker 與 D1）
 
-所有問題修復完畢、測試全通過後：
+**在 merge 到 main 之前完成。** 前端由 Pages 隨 main 自動部署，Worker 與 D1 不會——
+順序顛倒的話，新前端會打到舊 API。
+
+#### 7-1 版本相容檢查
+
+先確認這一輪的 Worker 改動是否向後相容（新 API 要能被舊前端呼叫，新 schema 要能被舊
+Worker 讀）。任一項不相容就必須排出停機窗口或改成兩階段發布（先加後刪）。
+
+| 檢查 | 怎麼看 |
+|------|--------|
+| 新增 migration | `git diff main -- workers/*/migrations/` |
+| 端點簽章變更 | `git diff main -- workers/*/src/` 找 `path ===` 與回應欄位 |
+| 移除欄位／端點 | 舊前端仍在正式站跑，移除一律要兩階段 |
+| 新增必要 secret / var | 部署前先 `wrangler secret put`，否則新版一上線就 fail closed |
+
+#### 7-2 套用正式 D1 migration
+
+```bash
+pnpm act db:migrate:remote      # 危險項，需輸入確認字串
+```
+
+⚠️ 套完衍生表相關的 migration 要補建索引，否則觸發模型靜默失效：
+
+```bash
+pnpm act interlink:reindex:remote
+```
+
+#### 7-3 部署 Worker
+
+只部署這一輪有改動的；不確定就三個都部署（冪等）。
+
+```bash
+pnpm act deploy:content-api      # 內容 / 進度 / 資產 API
+pnpm act deploy:visitor          # 訪客計數
+pnpm act deploy:discord-widget   # Discord widget 同步
+```
+
+#### 7-4 API smoke 驗證
+
+Worker 部署後、merge 之前先確認 API 活著：
+
+```bash
+curl -s https://eternity-content-api.ptyc4076.workers.dev/api/content/history | head -c 200
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://eternity-content-api.ptyc4076.workers.dev/api/uep/alias/roll
+```
+
+- [ ] 內容端點回 `ok: true`
+- [ ] 讀者端點回 200（回 503 代表 `JWT_SECRET` 沒設到，認證已 fail closed）
+- [ ] 本輪新增／變更的端點各打一次
+- [ ] 舊前端（正式站尚未更新）仍能正常讀取
+
+#### 7-5 Rollback
+
+| 出問題的層 | 回復方式 |
+|------------|----------|
+| Worker | `wrangler rollback`（Cloudflare 保留前一版），或 checkout 上一個 tag 重新 `pnpm deploy:*` |
+| 前端 | Cloudflare Pages dashboard 將前一次 deployment 設為 production |
+| D1 migration | **無自動回復**——這是 7-1 要求向後相容的理由。真的要退，只能手寫反向 SQL |
+
+### 階段 8：合併到 main
+
+Worker 與 D1 就緒、smoke 通過後：
 
 ```bash
 # 確認所有測試通過
@@ -190,8 +261,15 @@ pnpm test:all
 pnpm test:e2e
 
 # 建立 PR: release/vX.Y.Z → main
-# PR 通過後合併，觸發正式部署
+# PR 通過後合併，Pages 自動部署前端
 ```
+
+合併後的正式驗證：
+
+- [ ] 兩站首頁載入正常、無白屏
+- [ ] Admin 可登入（認證未因 secret 缺漏而 fail closed）
+- [ ] 讀者註冊／登入／進度同步可用
+- [ ] PageSpeed Insights 量測（正式機才有意義）
 
 ## 分支清理
 
@@ -211,4 +289,9 @@ pnpm test:all                 # 全部單元 + Worker 測試
 pnpm test:e2e                 # E2E 煙霧測試
 pnpm test:e2e --headed        # E2E 可視化模式
 git push origin HEAD:staging  # 推送到 staging 預覽
+
+# 正式部署（階段 7，merge 之前）
+pnpm act db:migrate:remote        # 套正式 D1 migration
+pnpm act interlink:reindex:remote # 補建衍生表（有相關 migration 才需要）
+pnpm act deploy:content-api       # 部署 Worker
 ```
