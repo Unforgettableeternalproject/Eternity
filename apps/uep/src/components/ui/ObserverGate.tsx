@@ -7,7 +7,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-import './ViewSwitch.css';
+import viewSwitchCss from './ViewSwitch.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 const PROTOCOL_LINES = [
   '你將卸下探索者的身分，以觀測者之眼俯瞰這個世界。',
@@ -26,6 +27,9 @@ export default function ObserverGate({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  // 與 ViewSwitch 共用同一份 CSS，故共用同一個 id——ObserverGate 從
+  // ViewSwitch 抽出時 CSS 留在原檔，兩處都要注入才涵蓋所有出現路徑
+  useDeferredStyle('view-switch', viewSwitchCss);
   const [ready, setReady] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
 

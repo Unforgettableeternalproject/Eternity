@@ -18,7 +18,9 @@ export default function IntroOverlay({
   onClose,
   onEnter,
 }: IntroOverlayProps) {
-  useDeferredStyle('intro-overlay', introCss);
+  // enabled 帶 zone：本元件在 HomePage/ReaderShell 是無條件掛載的，
+  // 不帶條件的話 hydrate 當下就注入，等於沒有延後
+  useDeferredStyle('intro-overlay', introCss, Boolean(zone));
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const prevZoneRef = useRef<ZoneData | null>(null);
