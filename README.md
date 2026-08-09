@@ -156,9 +156,9 @@ pnpm test:release      # Full pre-release suite (unit + stress)
 pnpm perf              # Throttled performance measurement (mobile profile)
 ```
 
-Manual acceptance is tracked in `docs/agent/TEST_CHECKLIST.md` — it covers
-the behaviours automation provably cannot reach (real scrolling, audio race
-conditions, iOS dynamic toolbars, cross-device sync).
+Automation is not the whole story: real scrolling, audio race conditions,
+iOS dynamic toolbars, and cross-device sync are all verified by hand against
+a separate acceptance checklist before each release.
 
 ### Worker Deployment
 
