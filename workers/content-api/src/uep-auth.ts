@@ -33,6 +33,14 @@ import {
 } from './auth';
 import { isValidAlias, rollAlias } from './uep-alias';
 import {
+  accountKey,
+  checkLoginThrottle,
+  checkRegisterThrottle,
+  clearBucket,
+  clientIp,
+  type ThrottleVerdict,
+} from './uep-throttle';
+import {
   assembleProgress,
   buildNoteSyncStatements,
   loadNotes,
@@ -66,6 +74,22 @@ function readerSecret(env: Env): string | null {
   if (env.JWT_SECRET) return env.JWT_SECRET;
   if (env.ETERNITY_DEV === 'true') return DEV_JWT_SECRET;
   return null;
+}
+
+/**
+ * 節流命中的回應。
+ *
+ * 訊息刻意不分「是 IP 還是帳號被擋」——說了等於告訴攻擊者換 IP 就能繼續，
+ * 或反過來確認某個帳號存在。`Retry-After` 是給正常使用者看的。
+ */
+function throttled(
+  verdict: ThrottleVerdict,
+  cors: Record<string, string>
+): Response {
+  return json({ ok: false, error: '嘗試次數過多，請稍後再試' }, 429, {
+    ...cors,
+    'Retry-After': String(verdict.retryAfter),
+  });
 }
 
 /** progress blob 大小上限（bytes）——防止濫用；正常 ProgressState 遠小於此 */
@@ -299,6 +323,14 @@ async function handleLogin(
   }
 
   const token = await issueReaderToken(row, jwtSecret);
+
+  /* 登入成功即清掉該帳號的失敗累計，否則正常使用者打錯幾次密碼、改對之後
+     仍會帶著計數走到窗口結束。IP 桶不清——那擋的是洪水，不因為其中一次
+     成功就歸零。identifier 與 username 各自成桶（信箱登入也算），兩個都清。 */
+  await clearBucket(db, accountKey(identifier));
+  if (row.username.toLowerCase() !== identifier.toLowerCase()) {
+    await clearBucket(db, accountKey(row.username));
+  }
 
   return json(
     {
@@ -952,6 +984,8 @@ export async function handleUepRoutes(
     // secret 缺席時不可簽發 token——簽了也是用一個公開已知的字串
     if (!secret)
       return json({ ok: false, error: '服務暫時無法使用' }, 503, cors);
+    const verdict = await checkRegisterThrottle(db, clientIp(request));
+    if (verdict.limited) return throttled(verdict, cors);
     const body = (await request.json()) as UepRegisterRequest;
     return handleRegister(body, db, secret, cors);
   }
@@ -961,6 +995,11 @@ export async function handleUepRoutes(
     if (!secret)
       return json({ ok: false, error: '服務暫時無法使用' }, 503, cors);
     const body = (await request.json()) as LoginRequest;
+    /* 節流在驗密碼之前——計數本身就是防線，不能等到「試錯之後」才算。
+       identifier 取 body 的原值：登入允許用識別名或信箱，兩者各自成桶。 */
+    const identifier = (body.username || '').trim();
+    const verdict = await checkLoginThrottle(db, clientIp(request), identifier);
+    if (verdict.limited) return throttled(verdict, cors);
     return handleLogin(body, db, secret, cors);
   }
 

@@ -77,6 +77,7 @@ import {
 } from './visuals-gallery';
 import { handleRootRoutes } from './root-routes';
 import { handleUepRoutes } from './uep-auth';
+import { purgeExpiredThrottleBuckets } from './uep-throttle';
 import { buildDiscordStats } from './widget-stats';
 import {
   buildTestSeedSnapshot,
@@ -1707,6 +1708,12 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
     }
   } catch {
     // deleted_assets 表不存在則忽略
+  }
+
+  // ── 4. 清理過期的認證節流桶 ──
+  const throttlePurged = await purgeExpiredThrottleBuckets(env);
+  if (throttlePurged > 0) {
+    log.push(`清理 ${throttlePurged} 筆過期節流紀錄`);
   }
 
   if (log.length > 0) {
