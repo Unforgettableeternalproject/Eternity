@@ -39,7 +39,8 @@ import {
 } from './phantomBridge';
 import type { PhantomGallery, PhantomImage } from './phantomBridge';
 
-import './VisualsIsland.css';
+import islandCss from './VisualsIsland.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 const API_BASE = getApiBase();
 
@@ -71,6 +72,7 @@ function LockedCell({ compact }: { compact?: boolean }) {
 }
 
 export default function VisualsIsland() {
+  useDeferredStyle('visuals-island', islandCss);
   const progress = useProgress();
   const chrome = useIslandChrome();
 

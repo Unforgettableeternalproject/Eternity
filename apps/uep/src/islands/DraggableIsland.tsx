@@ -31,7 +31,8 @@ import { DEFAULT_LEAVE_ANIM_MS, ISLAND_DEFINITIONS } from './types';
 import type { IslandId } from './types';
 import { useIslandRuntimeState, useZoneEntryActive } from './useIslands';
 
-import './islands.css';
+import islandsCss from './islands.css?inline';
+import { useDeferredStyle } from './useDeferredStyle';
 
 interface DraggableIslandProps {
   id: IslandId;
@@ -45,6 +46,7 @@ export default function DraggableIsland({
   children,
   className,
 }: DraggableIslandProps) {
+  useDeferredStyle('islands-shell', islandsCss);
   const def = ISLAND_DEFINITIONS[id];
   const runtime = getIslandRuntime();
   const runtimeState = useIslandRuntimeState();

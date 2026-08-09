@@ -23,7 +23,8 @@ import type { IslandId } from './types';
 import { useChipAttentions } from './useChipAttention';
 import { useIslandRuntimeState, useZoneEntryActive } from './useIslands';
 
-import './islands.css';
+import islandsCss from './islands.css?inline';
+import { useDeferredStyle } from './useDeferredStyle';
 
 /** dock 離場動畫時長（ms）——必須與 islands.css 的 uep-dock-out 對齊 */
 const DOCK_LEAVE_MS = 220;
@@ -34,6 +35,7 @@ interface IslandDockProps {
 }
 
 export default function IslandDock({ unlockedIds }: IslandDockProps) {
+  useDeferredStyle('islands-shell', islandsCss);
   const runtime = getIslandRuntime();
   const state = useIslandRuntimeState();
 

@@ -46,7 +46,8 @@ import { usePinnedNotes } from './usePinnedNotes';
 
 import type { GrabOffset } from './dragToPin';
 
-import './StorageIsland.css';
+import islandCss from './StorageIsland.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 /**
  * 拖曳 ghost 左上角相對指標的偏移——ghost 大致在指標的左上方，讓使用者
@@ -81,6 +82,7 @@ function stripSiteSuffix(label: string): string {
 }
 
 export default function StorageIsland() {
+  useDeferredStyle('storage-island', islandCss);
   const progress = useProgress();
   const chrome = useIslandChrome();
   const location = useCurrentLocation();

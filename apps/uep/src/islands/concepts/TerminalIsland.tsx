@@ -45,7 +45,8 @@ import {
 } from './terminalLog';
 import type { TermAction, TermLine } from './terminalLog';
 
-import './TerminalIsland.css';
+import islandCss from './TerminalIsland.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 const BOOT_LINES: TermLine[] = [
   { kind: 'meta', text: 'uep.terminal v1.0 — 輸入 ? 查看指令' },
@@ -85,6 +86,7 @@ function navigateToConceptsPage(pageId: string): void {
 }
 
 export default function TerminalIsland() {
+  useDeferredStyle('concepts-island', islandCss);
   const progress = useProgress();
   const chrome = useIslandChrome();
   // 輸出歷史持久化（S7-C 驗收定案）：mount 時還原上次內容，

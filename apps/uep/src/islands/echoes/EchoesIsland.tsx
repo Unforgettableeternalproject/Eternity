@@ -34,7 +34,8 @@ import {
   UEP_ECHO_SUGGESTION_EVENT,
 } from './echoSuggestionBridge';
 
-import './EchoesIsland.css';
+import islandCss from './EchoesIsland.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 /** Echoes zone 預設 accent（無分類色資訊時的 fallback）＝ --echoes-main */
 const DEFAULT_ACCENT = '#355C7D';
@@ -194,6 +195,7 @@ function EchoOrb({
  * EchoesIsland 本體
  * ──────────────────────────────────────────────────────────────── */
 export default function EchoesIsland() {
+  useDeferredStyle('echoes-island', islandCss);
   const store = getAudioStore();
   const chrome = useIslandChrome();
   const state: AudioState = useSyncExternalStore(

@@ -19,7 +19,8 @@ import IslandIcon from './IslandIcon';
 import { isIslandDisabled, isIslandUnlocked } from './islandRuntime';
 import { ISLAND_DEFINITIONS, ISLAND_IDS } from './types';
 
-import './islands.css';
+import islandsCss from './islands.css?inline';
+import { useDeferredStyle } from './useDeferredStyle';
 
 interface IslandSettingsPanelProps {
   onClose: () => void;
@@ -28,6 +29,7 @@ interface IslandSettingsPanelProps {
 export default function IslandSettingsPanel({
   onClose,
 }: IslandSettingsPanelProps) {
+  useDeferredStyle('islands-shell', islandsCss);
   const progress = useProgress();
 
   // Esc 關閉

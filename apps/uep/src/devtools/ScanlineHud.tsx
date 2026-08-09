@@ -26,7 +26,8 @@ import {
   type ScanlineDiagSnapshot,
 } from '../progress';
 
-import './ScanlineHud.css';
+import hudCss from './ScanlineHud.css?inline';
+import { useDeferredStyle } from '../islands/useDeferredStyle';
 
 /** 標記列最多顯示幾筆——手機螢幕塞不下更多，且前幾筆就足以判定 */
 const MAX_ROWS = 8;
@@ -37,6 +38,7 @@ function yn(v: boolean | null): string {
 }
 
 export default function ScanlineHud() {
+  useDeferredStyle('scanline-hud', hudCss);
   const [snap, setSnap] = useState<ScanlineDiagSnapshot | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   /** 觀察到的最大回呼間隔——慣性空窗是瞬間發生的，當下沒看到就過去了 */

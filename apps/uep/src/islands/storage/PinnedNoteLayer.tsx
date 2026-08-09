@@ -71,7 +71,8 @@ import {
   findScrollContainer,
 } from './zoneContentTargets';
 
-import './PinnedNoteLayer.css';
+import layerCss from './PinnedNoteLayer.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 /** 定位計算的結果 */
 interface PinnedPlacement {
@@ -262,6 +263,7 @@ function scrollToPin(pinned: PinnedNote, placement: PinnedPlacement): void {
  * ───────────────────────────────────────────────────────── */
 
 export default function PinnedNoteLayer() {
+  useDeferredStyle('pinned-note-layer', layerCss);
   const progress = useProgress();
   const pinnedAll = usePinnedNotes();
   const location = useCurrentLocation();

@@ -44,7 +44,8 @@ import {
 import type { ChapterEntry, HistoryTreeIndex } from './historyIslandData';
 import { getSeenTocCounts, setSeenTocCounts } from './tocSeen';
 
-import './HistoryIsland.css';
+import islandCss from './HistoryIsland.css?inline';
+import { useDeferredStyle } from '../useDeferredStyle';
 
 const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
@@ -118,6 +119,7 @@ function ScrollTitle({
 }
 
 export default function HistoryIsland() {
+  useDeferredStyle('history-island', islandCss);
   const progress = useProgress();
   const chrome = useIslandChrome();
   const [index, setIndex] = useState<HistoryTreeIndex | null>(null);

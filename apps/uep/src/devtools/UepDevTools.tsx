@@ -32,7 +32,8 @@ import { setDispelPaused } from '../lib/idleVeil';
 import { getRegistry, type DevToolAction } from './actionRegistry';
 import { registerAllActions } from './actions';
 
-import './UepDevTools.css';
+import devToolsCss from './UepDevTools.css?inline';
+import { useDeferredStyle } from '../islands/useDeferredStyle';
 
 const FORCE_STORAGE_KEY = 'uep-devtools-force';
 
@@ -258,6 +259,7 @@ function DevToolsPanel({
  * 4. 用 createPortal 渲染面板到 document.body
  */
 export default function UepDevToolsHost(): React.JSX.Element | null {
+  useDeferredStyle('uep-devtools', devToolsCss);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   /* 手機不掛 DevTools：面板本身是三欄命令列表，在 390px 上不可用，

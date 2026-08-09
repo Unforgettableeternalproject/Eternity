@@ -36,7 +36,8 @@ import { useProgress } from '../../progress/useProgress';
 import { WELCOME_DONE_EVENT, WELCOME_PENDING_KEY } from './GlobalWelcomeHost';
 import ViewSwitch from './ViewSwitch';
 
-import './IdentCard.css';
+import identCardCss from './IdentCard.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 /**
  * 識別證掛在 TopBar 下緣，但**不能**是 TopBar 的子元素。
@@ -112,6 +113,8 @@ const TEAR_MAX_PX = 140;
 
 export default function IdentCard() {
   const session = useReaderAuth();
+  // 未登入時識別證整個 return null，樣式一併省下（訪客首屏不必付這 14KB）
+  useDeferredStyle('ident-card', identCardCss, Boolean(session));
   const progress = useProgress();
   /* 手機沒有浮島（浮島根守門同一個斷點），於是齒輪開的偏好面板必然是
      空的；而撕下手勢在手機上與瀏覽器的下拉重整直接衝突——識別證掛在
