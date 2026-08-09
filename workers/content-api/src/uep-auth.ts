@@ -51,9 +51,19 @@ const READER_TOKEN_TTL = 30 * 86400;
  */
 const DEV_JWT_SECRET = 'uep-dev-jwt-secret';
 
-/** 取得讀者 JWT 用的 secret（正式 secret 優先，本地 fallback） */
-function readerSecret(env: Env): string {
-  return env.JWT_SECRET || DEV_JWT_SECRET;
+/**
+ * 取得讀者 JWT 用的 secret（正式 secret 優先，本地 fallback）。
+ *
+ * ⚠️ 與 admin 的 `requireJwt` 對稱：test worker 未設 `JWT_SECRET` 屬部署錯誤，
+ * **fail closed 回 null**，不可退回 `DEV_JWT_SECRET`——那個值就寫在原始碼裡，
+ * 任何人都能拿它簽一個 `role: 'reader'` 的 token 冒充任意讀者，讀寫其進度
+ * 與便條。而且是靜默的：端點會「正常運作」，沒有任何跡象顯示 secret 漏設。
+ * 只有非 test 的本機開發保留無 secret 的 fallback。
+ */
+function readerSecret(env: Env): string | null {
+  if (env.JWT_SECRET) return env.JWT_SECRET;
+  if (env.ETERNITY_TEST_ENV === 'true') return null;
+  return DEV_JWT_SECRET;
 }
 
 /** progress blob 大小上限（bytes）——防止濫用；正常 ProgressState 遠小於此 */
@@ -85,7 +95,9 @@ export async function requireReaderJwt(
   const auth = request.headers.get('Authorization');
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
   if (!token) return null;
-  const payload = await verifyJwt(token, readerSecret(env));
+  const secret = readerSecret(env);
+  if (!secret) return null;
+  const payload = await verifyJwt(token, secret);
   if (!payload || payload.role !== 'reader') return null;
   return payload;
 }
@@ -934,13 +946,20 @@ export async function handleUepRoutes(
   }
 
   if (path === '/api/uep/auth/register' && method === 'POST') {
+    const secret = readerSecret(env);
+    // secret 缺席時不可簽發 token——簽了也是用一個公開已知的字串
+    if (!secret)
+      return json({ ok: false, error: '服務暫時無法使用' }, 503, cors);
     const body = (await request.json()) as UepRegisterRequest;
-    return handleRegister(body, db, readerSecret(env), cors);
+    return handleRegister(body, db, secret, cors);
   }
 
   if (path === '/api/uep/auth/login' && method === 'POST') {
+    const secret = readerSecret(env);
+    if (!secret)
+      return json({ ok: false, error: '服務暫時無法使用' }, 503, cors);
     const body = (await request.json()) as LoginRequest;
-    return handleLogin(body, db, readerSecret(env), cors);
+    return handleLogin(body, db, secret, cors);
   }
 
   if (path === '/api/uep/auth/me' && method === 'GET') {
