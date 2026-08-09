@@ -63,13 +63,88 @@
 
      半徑從 0 起算（`--ivl-d` 為 0 時完全沒有洞）——指標只是停在那裡而已，
      還沒開始撥就不該先破一個口。 */
-  --ivl-hole: radial-gradient(
-    circle calc(var(--ivl-d) * 46vmax + min(1, var(--ivl-d) * 10) * 90px) at
-      var(--ivl-px) var(--ivl-py),
-    #000 0%,
-    rgb(0 0 0 / 62%) 44%,
-    transparent 72%
-  );
+  /* 洞的半徑，指標與軌跡共用一份 */
+  --ivl-r: calc(var(--ivl-d) * 46vmax + min(1, var(--ivl-d) * 10) * 90px);
+
+  /* 軌跡取樣點的預設座標：畫面外＝那一層等於不存在。
+     組數必須與 `lib/idleVeil.ts` 的 TRAIL_MAX 一致。 */
+  --ivl-tx0: -100vw;
+  --ivl-ty0: -100vh;
+  --ivl-tx1: -100vw;
+  --ivl-ty1: -100vh;
+  --ivl-tx2: -100vw;
+  --ivl-ty2: -100vh;
+  --ivl-tx3: -100vw;
+  --ivl-ty3: -100vh;
+  --ivl-tx4: -100vw;
+  --ivl-ty4: -100vh;
+  --ivl-tx5: -100vw;
+  --ivl-ty5: -100vh;
+  --ivl-tx6: -100vw;
+  --ivl-ty6: -100vh;
+  --ivl-tx7: -100vw;
+  --ivl-ty7: -100vh;
+
+  /* 指標當下的洞，加上走過的路。
+     🚨 這個變數會展開成**多層** mask，而套用它的地方都只寫一個
+     `mask-composite: subtract`——CSS 的 layer list 在值不足時會循環補齊
+     （與 background 同規則），所以那一個 subtract 會套到每一層，
+     結果是「依序把每個洞都扣掉」。改成多值時要連同這個假設一起檢查。 */
+  --ivl-hole:
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-px) var(--ivl-py),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx0) var(--ivl-ty0),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx1) var(--ivl-ty1),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx2) var(--ivl-ty2),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx3) var(--ivl-ty3),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx4) var(--ivl-ty4),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx5) var(--ivl-ty5),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx6) var(--ivl-ty6),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx7) var(--ivl-ty7),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    );
 
   /* 階段之間的濃度變化走這條，1.1 秒是「漫過來」而不是「切過去」的關鍵 */
   transition: --ivl-c 1100ms cubic-bezier(0.32, 0.06, 0.28, 1);

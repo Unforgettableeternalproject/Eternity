@@ -81,6 +81,25 @@ const KEY_EQUIV_PX = 40;
 /** 判定週期。CSS transition 會把 250ms 的階梯補成連續變化 */
 const TICK_MS = 250;
 
+/**
+ * 擦開的軌跡要留幾個點。
+ *
+ * 原本只有「指標當下的位置」一個洞，於是移開之後霧就在原地補回來——
+ * 使用者划了一大圈，看到的卻是一顆洞跟著滑鼠跑，撥開的地方沒有留下痕跡。
+ * 記住最近幾個取樣點，讓走過的路一起被扣掉。
+ *
+ * ⚠️ 這個數字直接決定 CSS 那邊的 mask 層數（`--ivl-hole` 展開成
+ * 1 + TRAIL_MAX 個 radial-gradient，再乘上四個套用它的圖層），加大要連
+ * `IdleVeil.css` 的清單一起改，而且要留意合成成本。
+ */
+export const TRAIL_MAX = 8;
+
+/**
+ * 取樣間距（px）。比洞的基礎半徑（90px）小一些，相鄰兩個洞才會咬合成
+ * 一條通道而不是一串分開的圓點。
+ */
+const TRAIL_GAP_PX = 56;
+
 const listeners = new Set<Listener>();
 
 const IDLE: VeilState = { stage: 0, coverage: 0, dispel: 0 };
@@ -95,6 +114,8 @@ let frozenAt = 0;
 /** 本次帷幕累積的等效移動距離 */
 let movedPx = 0;
 let lastPointer: { x: number; y: number } | null = null;
+/** 已擦開的軌跡取樣點（最舊在前），本次帷幕內累積 */
+let trail: { x: number; y: number }[] = [];
 
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let unsubscribeActivity: (() => void) | null = null;
@@ -180,6 +201,7 @@ function clearVeil(): void {
   frozenAt = 0;
   movedPx = 0;
   lastPointer = null;
+  trail = [];
   unbindDispelEvents();
   stopTick();
   notify(IDLE);
@@ -211,6 +233,20 @@ function onPointerMove(event: PointerEvent): void {
   if (dispelPaused) return;
   const prev = lastPointer;
   lastPointer = { x: event.clientX, y: event.clientY };
+
+  /*
+   * 依「距離」取樣而不是每次 pointermove 都記：一秒數十次的事件在慢速移動
+   * 時會擠出一整排幾乎重疊的點，額度瞬間用完，反而讓軌跡變短。
+   */
+  const tail = trail[trail.length - 1];
+  if (
+    !tail ||
+    Math.hypot(event.clientX - tail.x, event.clientY - tail.y) >= TRAIL_GAP_PX
+  ) {
+    trail.push({ x: event.clientX, y: event.clientY });
+    if (trail.length > TRAIL_MAX) trail.shift();
+  }
+
   if (!prev) return;
   movedPx += Math.hypot(event.clientX - prev.x, event.clientY - prev.y);
 }
@@ -253,6 +289,8 @@ function raise(): void {
   raisedAt = Date.now();
   movedPx = 0;
   lastPointer = null;
+  // 新的一次帷幕從全遮開始，上一次擦開的痕跡不留到這一次
+  trail = [];
   bindDispelEvents();
   startTick();
 }
@@ -294,6 +332,7 @@ export function stopIdleVeil(): void {
   frozenAt = 0;
   movedPx = 0;
   lastPointer = null;
+  trail = [];
   dispelPaused = false;
   snapshot = IDLE;
 }
@@ -329,6 +368,17 @@ export function getLiveDispel(): number {
  */
 export function getDispelPointer(): { x: number; y: number } | null {
   return lastPointer;
+}
+
+/**
+ * 已擦開的軌跡取樣點（最舊在前，最多 `TRAIL_MAX` 個）。
+ *
+ * ⚠️ 刻意不在頁面回到前景（`thawVeil`）或面板關閉時清空——那些情境下
+ * 使用者先前確實把那幾塊擦開過了，清掉等於霧在他沒看的時候長回來。
+ * 只有「帷幕整個收掉」與「新的一次升起」才重來。
+ */
+export function getDispelTrail(): { x: number; y: number }[] {
+  return trail;
 }
 
 /** SSR 快照：伺服器端沒有掛機可言 */

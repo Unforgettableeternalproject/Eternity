@@ -24,10 +24,12 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 
 import {
   getDispelPointer,
+  getDispelTrail,
   getLiveDispel,
   getVeilServerState,
   getVeilState,
   subscribeVeil,
+  TRAIL_MAX,
 } from '../../lib/idleVeil';
 
 import './IdleVeil.css';
@@ -54,6 +56,21 @@ export default function IdleVeil() {
         if (pointer) {
           root.style.setProperty('--ivl-px', `${pointer.x}px`);
           root.style.setProperty('--ivl-py', `${pointer.y}px`);
+        }
+        /*
+         * 走過的路也要留著。CSS 那邊寫死了 TRAIL_MAX 組座標變數，這裡
+         * 逐一填——沒填到的維持在畫面外（CSS 的預設值），那幾層 gradient
+         * 就等於不存在。
+         *
+         * 用固定變數而不是每幀組一長串 gradient 字串：字串每幀都要重新
+         * 解析整份 mask，變數只是改幾個數字。
+         */
+        const trail = getDispelTrail();
+        for (let i = 0; i < TRAIL_MAX; i += 1) {
+          const point = trail[i];
+          if (!point) break;
+          root.style.setProperty(`--ivl-tx${i}`, `${point.x}px`);
+          root.style.setProperty(`--ivl-ty${i}`, `${point.y}px`);
         }
       }
       raf = requestAnimationFrame(paint);

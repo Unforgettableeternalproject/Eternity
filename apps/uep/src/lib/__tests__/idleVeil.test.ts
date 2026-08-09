@@ -14,11 +14,13 @@ import {
 } from '../activityWatch';
 import {
   forceVeilStage,
+  getDispelTrail,
   getVeilDebug,
   getVeilState,
   setDispelPaused,
   startIdleVeil,
   stopIdleVeil,
+  TRAIL_MAX,
 } from '../idleVeil';
 import { clearUepSettingsCache } from '../uepSettings';
 
@@ -322,6 +324,60 @@ describe('idleVeil', () => {
       hide();
       await wait(300);
       expect(getVeilDebug().elapsedSec).toBe(before);
+    });
+  });
+
+  describe('擦開的軌跡', () => {
+    /** 沿水平線每 step px 送一次 pointermove */
+    async function drag(points: number, step: number) {
+      for (let i = 0; i <= points; i += 1) {
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { clientX: i * step, clientY: 300 })
+        );
+      }
+      await vi.advanceTimersByTimeAsync(300);
+    }
+
+    it('走過的路留下取樣點，不只有指標當下的位置', async () => {
+      await boot();
+      await goIdle();
+      await wait(121);
+
+      await drag(4, 70);
+      expect(getDispelTrail().length).toBeGreaterThan(1);
+    });
+
+    it('依距離取樣：擠在一起的微小移動不會吃掉額度', async () => {
+      await boot();
+      await goIdle();
+      await wait(121);
+
+      // 30 次移動但每次只走 5px，總距離 150px——不該記到 30 個點
+      await drag(30, 5);
+      expect(getDispelTrail().length).toBeLessThanOrEqual(3);
+    });
+
+    it('上限是 TRAIL_MAX，最舊的先丟', async () => {
+      await boot();
+      await goIdle();
+      await wait(121);
+
+      // 12 個取樣點但總距離 720px——階段三要 1200px 才散得掉，
+      // 拖太長會連帷幕一起撥開，那時 trail 被清空就測不到上限了
+      await drag(TRAIL_MAX + 4, 60);
+      expect(getVeilState().stage).toBe(3);
+      expect(getDispelTrail()).toHaveLength(TRAIL_MAX);
+    });
+
+    it('帷幕散掉後軌跡清空——下一次是新的一片霧', async () => {
+      await boot();
+      await goIdle();
+      await wait(21);
+
+      // 階段一只要 80px 就散
+      await drag(4, 70);
+      expect(getVeilState().stage).toBe(0);
+      expect(getDispelTrail()).toHaveLength(0);
     });
   });
 

@@ -182,26 +182,30 @@ describe('useRestReminder', () => {
     await mount({
       'reader.restActiveMinutes': 1,
       'reader.restPageCount': 0,
-      'reader.restCooldownMinutes': 10,
+      'reader.restCooldownMinutes': 2,
     });
 
     await advance(70_000);
     expect(card()).toBeTruthy();
 
-    // 卡片停留期間不重複提交，也還沒開始冷卻
-    await advance(300_000);
+    /* 卡片停留期間不重複提交，也還沒開始冷卻。
+       停留 19 秒——20 秒就自動退場了，「出現」與「確認」之間能拉開的
+       距離只有這麼寬，下面兩個斷言的時間點都是照這個窗口算的 */
+    await advance(19_000);
     await acknowledge();
     expect(card()).toBeNull();
 
-    // baseline 重設：即使剛才已累積五分鐘，也要重新累積滿一分鐘
+    // baseline 重設：即使剛才已累積一分半，也要重新累積滿一分鐘
     await advance(70_000);
     expect(card()).toBeNull();
 
-    // 冷卻十分鐘內都不再提醒（前面已經走掉 70 秒）
-    await advance(8 * 60_000);
+    /* 確認後 110 秒，還在兩分鐘的冷卻內。
+       ⚠️ 若冷卻是從「卡片出現」起算，此刻已經過了 129 秒——那樣這裡就會
+       跳出來，所以這一條才是真正在釘冷卻的起點 */
+    await advance(40_000);
     expect(card()).toBeNull();
 
-    await advance(2 * 60_000);
+    await advance(15_000);
     expect(card()).toBeTruthy();
   });
 
@@ -256,6 +260,30 @@ describe('useRestReminder', () => {
 
     await activeAdvance(40_000);
     expect(card()).toBeTruthy();
+  });
+
+  it('沒人理會的話 20 秒後自己收起來，並且開始冷卻', async () => {
+    await mount({
+      'reader.restActiveMinutes': 1,
+      'reader.restPageCount': 0,
+      'reader.restCooldownMinutes': 30,
+    });
+
+    await advance(70_000);
+    expect(card()).toBeTruthy();
+
+    // 19 秒還在
+    await advance(19_000);
+    expect(card()).toBeTruthy();
+
+    // 20 秒 + 退場動畫
+    await advance(1_500);
+    expect(card()).toBeNull();
+
+    /* 只把卡片拿掉而不重設判定的話，門檻早就達標了，下一次 15 秒的巡檢
+       會立刻再送一張出來——這條釘的就是那個迴圈不存在 */
+    await activeAdvance(60_000);
+    expect(card()).toBeNull();
   });
 
   /* ── 邀茶差分 ── */

@@ -83,6 +83,18 @@ export function useReaderNudge(): ReaderNudgeContextValue {
 const LEAVE_MS = 460;
 
 /**
+ * 沒有人回應的話，卡片自己退場的時間。
+ *
+ * 提醒是善意的提議，不是待辦事項——沒被理會就該安靜地收起來，而不是
+ * 一直掛在畫面角落。退場走的是**與按下「知道了」完全相同的路徑**：
+ * 重設 baseline、開始冷卻。
+ *
+ * ⚠️ 不能只是把卡片拿掉而不重設判定：門檻早就達標了，下一次 15 秒的
+ * 巡檢會立刻再送一張出來，變成每 20 秒閃一次的迴圈。
+ */
+const AUTO_DISMISS_MS = 20_000;
+
+/**
  * U.E.P 趴在卡片上緣。
  *
  * 立繪與卡片同寬、底邊對齊卡片頂線——她是躺在這張牌子上休息，順帶把
@@ -109,17 +121,21 @@ function RestNudgeCard({
 }) {
   const [leaving, setLeaving] = useState(false);
   const timerRef = useRef<number | null>(null);
+  const autoTimerRef = useRef<number | null>(null);
   /**
    * 退場只能觸發一次。用 ref 不用上面那個 state——連按時三次 onClick 會在
    * 同一批更新內同步跑完，那時 `leaving` 還是 false，state 擋不住。
    */
   const leavingRef = useRef(false);
 
-  // 卸載時清掉退場計時器：換頁時 React 會直接拔掉這棵樹，
+  // 卸載時清掉兩個計時器：換頁時 React 會直接拔掉這棵樹，
   // 留著的 setTimeout 會對已卸載的元件呼叫 setState
   useEffect(
     () => () => {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      if (autoTimerRef.current !== null) {
+        window.clearTimeout(autoTimerRef.current);
+      }
     },
     []
   );
@@ -128,9 +144,26 @@ function RestNudgeCard({
     if (leavingRef.current) return;
     leavingRef.current = true;
     setLeaving(true);
+    if (autoTimerRef.current !== null) {
+      window.clearTimeout(autoTimerRef.current);
+      autoTimerRef.current = null;
+    }
     // 動畫演完才通知提交方——提前通知的話卡片會在滑回去的半路上被拔掉
     timerRef.current = window.setTimeout(onDone, LEAVE_MS);
   }, [onDone]);
+
+  /* 沒有人理會就自己收起來。走 acknowledge 而不是另一條路徑——
+     「使用者按了」與「使用者沒理」在判定上該有同樣的後果，兩者都表示
+     這一次的提醒已經完成任務了 */
+  useEffect(() => {
+    autoTimerRef.current = window.setTimeout(acknowledge, AUTO_DISMISS_MS);
+    return () => {
+      if (autoTimerRef.current !== null) {
+        window.clearTimeout(autoTimerRef.current);
+        autoTimerRef.current = null;
+      }
+    };
+  }, [acknowledge]);
 
   return (
     <div
