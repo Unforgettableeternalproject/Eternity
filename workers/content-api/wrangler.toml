@@ -28,6 +28,12 @@ bucket_name = "eternity-root-assets"
 crons = ["0 4 * * *"]
 
 # 環境變數
+#
+# ⚠️ 這裡與 [env.test.vars] 都**不可**設定 ETERNITY_DEV。認證在缺 JWT_SECRET 時
+#    是否退回原始碼裡的 dev secret，完全以該旗標為準；它只由 package.json 的
+#    dev script（`wrangler dev --var ETERNITY_DEV:true`）注入，任何部署出去的
+#    worker 都拿不到，因此缺 secret 一律 fail closed。設在這裡等於讓正式環境
+#    的認證變成 fail-open。
 [vars]
 ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
 # visitor-counter Worker base URL — /api/widget/discord-stats 由此拿文件站訪客數

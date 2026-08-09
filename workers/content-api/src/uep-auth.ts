@@ -44,26 +44,28 @@ import {
 const READER_TOKEN_TTL = 30 * 86400;
 
 /**
- * 開發模式 fallback secret——未設定 JWT_SECRET 時（本地 wrangler dev）使用，
- * 讓註冊/登入/進度同步在本地走完整的簽驗流程。
- * 與 admin 的開發模式哲學一致（requireJwt 未設 secret 時全通），
- * 正式環境一律以 `wrangler secret put JWT_SECRET` 設定，永遠不會用到此值。
+ * 開發模式 fallback secret——只在本機 `wrangler dev`（`ETERNITY_DEV=true`）
+ * 且未設定 JWT_SECRET 時使用，讓註冊/登入/進度同步在本地走完整的簽驗流程。
+ * 與 admin 的開發模式哲學一致，任何部署出去的 worker 都不會用到此值。
  */
 const DEV_JWT_SECRET = 'uep-dev-jwt-secret';
 
 /**
- * 取得讀者 JWT 用的 secret（正式 secret 優先，本地 fallback）。
+ * 取得讀者 JWT 用的 secret（正式 secret 優先，本機 dev fallback）。
  *
- * ⚠️ 與 admin 的 `requireJwt` 對稱：test worker 未設 `JWT_SECRET` 屬部署錯誤，
- * **fail closed 回 null**，不可退回 `DEV_JWT_SECRET`——那個值就寫在原始碼裡，
- * 任何人都能拿它簽一個 `role: 'reader'` 的 token 冒充任意讀者，讀寫其進度
- * 與便條。而且是靜默的：端點會「正常運作」，沒有任何跡象顯示 secret 漏設。
- * 只有非 test 的本機開發保留無 secret 的 fallback。
+ * ⚠️ 與 admin 的 `requireJwt` 對稱：部署出去的 worker 未設 `JWT_SECRET` 屬
+ * 部署錯誤，**fail closed 回 null**，不可退回 `DEV_JWT_SECRET`——那個值就
+ * 寫在原始碼裡，任何人都能拿它簽一個 `role: 'reader'` 的 token 冒充任意
+ * 讀者，讀寫其進度與便條。而且是靜默的：端點會「正常運作」，沒有任何跡象
+ * 顯示 secret 漏設。
+ *
+ * ⚠️ 判斷依據是 `ETERNITY_DEV` 白名單，不是「非 test 即開發」——正式 worker
+ * 同樣沒有 test 旗標，用排除法等於把正式環境也放進 fallback。
  */
 function readerSecret(env: Env): string | null {
   if (env.JWT_SECRET) return env.JWT_SECRET;
-  if (env.ETERNITY_TEST_ENV === 'true') return null;
-  return DEV_JWT_SECRET;
+  if (env.ETERNITY_DEV === 'true') return DEV_JWT_SECRET;
+  return null;
 }
 
 /** progress blob 大小上限（bytes）——防止濫用；正常 ProgressState 遠小於此 */

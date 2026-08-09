@@ -92,12 +92,15 @@ export async function requireJwt(
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
 
   if (!env.JWT_SECRET) {
-    // test worker 必須設定與正式相同的 JWT_SECRET 做本地驗證。
+    // 正式與 test worker 都必須設定 JWT_SECRET 做本地驗證，缺了就是部署錯誤，
+    // fail closed。
     // ⚠️ 不可改回「向正式 worker fetch /api/auth/me 遠端驗證」——兩者同屬
     // 一個 Cloudflare 帳號，worker-to-worker 的 HTTP fetch 會被擋成 error 1042，
-    // 遠端驗證在真實環境永遠失敗。test env 未設 JWT_SECRET 屬部署錯誤，fail closed。
-    if (env.ETERNITY_TEST_ENV === 'true') return null;
-    // 僅非 test 的本地開發環境保留無 secret bypass。
+    // 遠端驗證在真實環境永遠失敗。
+    // ⚠️ 判斷依據是 ETERNITY_DEV 白名單，不是「非 test 即開發」：正式 worker
+    // 也沒有 test 旗標，用排除法會讓正式環境缺 secret 時直接發一張 super_admin。
+    if (env.ETERNITY_DEV !== 'true') return null;
+    // 僅本機 wrangler dev 保留無 secret bypass。
     return {
       sub: 'dev',
       role: 'super_admin',

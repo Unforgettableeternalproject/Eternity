@@ -17,6 +17,16 @@ export interface Env {
    * prod worker 永遠不含此 var，用於啟用 /api/test/reset 等測試專屬端點。
    */
   ETERNITY_TEST_ENV?: string;
+  /**
+   * 本機開發旗標——只由 `wrangler dev --var ETERNITY_DEV:true`（見 package.json
+   * 的 dev script）注入，wrangler.toml 的頂層與 [env.test] 都不得設定。
+   *
+   * ⚠️ 認證的無 secret fallback 一律以「有沒有這個旗標」為準，不可改回以
+   * `ETERNITY_TEST_ENV` 判斷：正式 worker 同樣沒有 test 旗標，那樣寫等於
+   * 「正式環境缺 JWT_SECRET 就退回原始碼裡的公開字串」，安全邊界是 fail-open。
+   * 白名單放行、其餘 fail closed，才不會讓部署疏漏變成靜默的認證繞過。
+   */
+  ETERNITY_DEV?: string;
 }
 
 // ===== 內容區塊系統 =====

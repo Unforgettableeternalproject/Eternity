@@ -16,6 +16,16 @@ function testEnv(overrides: Partial<Env> = {}): Env {
   } as Env;
 }
 
+/** 正式 worker 的 env 形狀：兩個旗標都沒有 */
+function prodEnv(overrides: Partial<Env> = {}): Env {
+  return { ALLOWED_ORIGINS: '', ...overrides } as Env;
+}
+
+/** 本機 `wrangler dev --var ETERNITY_DEV:true` 的 env 形狀 */
+function devEnv(overrides: Partial<Env> = {}): Env {
+  return { ETERNITY_DEV: 'true', ALLOWED_ORIGINS: '', ...overrides } as Env;
+}
+
 async function requestWithRole(
   role: 'super_admin' | 'editor' | 'reader',
   secret = SECRET
@@ -120,12 +130,60 @@ describe('Test Worker 讀者 JWT 邊界（本地驗證）', () => {
     ).toBeNull();
   });
 
-  it('非 test 的本機開發仍保留 dev secret fallback', async () => {
+  it('本機 wrangler dev（ETERNITY_DEV）仍保留 dev secret fallback', async () => {
     const req = await readerRequest(LEAKED_DEV_SECRET);
-    const payload = await requireReaderJwt(req, {
-      ALLOWED_ORIGINS: '',
-    } as Env);
+    const payload = await requireReaderJwt(req, devEnv());
     expect(payload?.sub).toBe('victim');
+  });
+});
+
+// 正式 worker 既沒有 ETERNITY_TEST_ENV 也沒有 ETERNITY_DEV。原本兩處認證都用
+// 「非 test 即開發」的排除法判斷 fallback，於是正式環境一旦漏設／失去
+// JWT_SECRET，讀者端會接受原始碼裡公開字串簽的 token，admin 端更是直接發一張
+// super_admin——而且完全靜默。這組測試鎖住「白名單放行、其餘 fail closed」。
+describe('正式環境形狀（無 test 旗標、無 dev 旗標）缺 JWT_SECRET 時 fail closed', () => {
+  const LEAKED_DEV_SECRET = 'uep-dev-jwt-secret';
+
+  it('admin：requireJwt 不再發放 dev super_admin 身分', async () => {
+    const req = await requestWithRole('super_admin');
+    expect(await requireJwt(req, prodEnv())).toBeNull();
+  });
+
+  it('admin：連無 token 的裸請求也不通過', async () => {
+    const req = new Request('https://test.example/api/content/history');
+    expect(await requireJwt(req, prodEnv())).toBeNull();
+  });
+
+  it('讀者：寫死的 dev secret 簽的 token 一律拒絕', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = await signJwt(
+      {
+        sub: 'victim',
+        role: 'reader',
+        display_name: '受害者',
+        iat: now,
+        exp: now + 3600,
+        jti: 'jti-reader-prod',
+      },
+      LEAKED_DEV_SECRET
+    );
+    const req = new Request('https://test.example/api/uep/progress', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(await requireReaderJwt(req, prodEnv())).toBeNull();
+  });
+
+  it('CLI 閘：沒有 API_TOKEN 也沒有 JWT_SECRET 時不放行', async () => {
+    const req = new Request('https://test.example/api/root/assets', {
+      headers: { Authorization: 'Bearer anything' },
+    });
+    expect(await requireJwtOrApiToken(req, prodEnv())).toBeNull();
+  });
+
+  it('本機 dev 旗標下 admin 才回到無 secret bypass', async () => {
+    const req = new Request('https://test.example/api/content/history');
+    const payload = await requireJwt(req, devEnv());
+    expect(payload?.role).toBe('super_admin');
   });
 });
 

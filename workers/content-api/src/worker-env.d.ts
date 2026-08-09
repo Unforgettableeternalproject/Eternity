@@ -32,6 +32,9 @@ declare namespace Cloudflare {
     // ===== Test env 旗標 =====
     ETERNITY_TEST_ENV?: string;
 
+    // ===== 本機開發旗標（只由 wrangler dev --var 注入）=====
+    ETERNITY_DEV?: string;
+
     // ===== Vitest 測試用（vitest.config.ts 注入） =====
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     TEST_MIGRATIONS?: any;
