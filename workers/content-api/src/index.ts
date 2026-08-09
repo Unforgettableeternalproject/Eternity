@@ -21,6 +21,7 @@ import {
   hashPassword,
   verifyPassword,
   requireJwt,
+  requireJwtOrApiToken,
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
 import { buildConceptsEntityIndex } from './concepts-index';
@@ -1783,7 +1784,7 @@ export default {
 
     // GET /api/assets — 列出所有資產
     if (path === '/api/assets' && request.method === 'GET') {
-      const jwtUser = await requireJwt(request, env);
+      const jwtUser = await requireJwtOrApiToken(request, env);
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -1792,7 +1793,7 @@ export default {
 
     // DELETE /api/assets/batch — 批次刪除（必須在 assetMatch regex 之前）
     if (path === '/api/assets/batch' && request.method === 'DELETE') {
-      const jwtUser = await requireJwt(request, env);
+      const jwtUser = await requireJwtOrApiToken(request, env);
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -1823,7 +1824,7 @@ export default {
 
     // POST /api/assets/deleted/purge — 清除過期的刪除紀錄
     if (path === '/api/assets/deleted/purge' && request.method === 'POST') {
-      const jwtUser = await requireJwt(request, env);
+      const jwtUser = await requireJwtOrApiToken(request, env);
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -1842,7 +1843,7 @@ export default {
 
     // POST /api/assets/deleted/record — 記錄刪除（同步傳播用，不實際刪除 R2）
     if (path === '/api/assets/deleted/record' && request.method === 'POST') {
-      const jwtUser = await requireJwt(request, env);
+      const jwtUser = await requireJwtOrApiToken(request, env);
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -1867,7 +1868,7 @@ export default {
 
     // POST /api/assets/rename — 重新命名資產
     if (path === '/api/assets/rename' && request.method === 'POST') {
-      const jwtUser = await requireJwt(request, env);
+      const jwtUser = await requireJwtOrApiToken(request, env);
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -1878,7 +1879,7 @@ export default {
     // DELETE /api/assets/:key — 單筆刪除（JWT 保護，與批次刪除一致）
     const assetDeleteMatch = path.match(/^\/api\/assets\/(.+)$/);
     if (assetDeleteMatch && request.method === 'DELETE') {
-      const jwtUser = await requireJwt(request, env);
+      const jwtUser = await requireJwtOrApiToken(request, env);
       if (!jwtUser) {
         return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
       }
@@ -2840,7 +2841,7 @@ export default {
         url,
         env,
         cors,
-        requireJwt
+        requireJwtOrApiToken
       );
       if (rootResponse) return rootResponse;
     }

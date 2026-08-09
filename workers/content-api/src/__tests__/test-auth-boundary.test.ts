@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { requireJwt, signJwt } from '../auth';
+import { requireJwt, requireJwtOrApiToken, signJwt } from '../auth';
 import { requireReaderJwt } from '../uep-auth';
 import type { Env } from '../types';
 
@@ -126,5 +126,66 @@ describe('Test Worker 讀者 JWT 邊界（本地驗證）', () => {
       ALLOWED_ORIGINS: '',
     } as Env);
     expect(payload?.sub).toBe('victim');
+  });
+});
+
+// API_TOKEN 一度只對內容端點有效，`/api/root/*` 與 `/api/assets/*` 卻只認
+// admin JWT。CLI 設了 token 之後讀遠端清單會拿到 401，而那些清單函式把
+// 讀取失敗靜默當成「遠端是空的」——差異表於是顯示「本地整批要推送」。
+// 這組測試鎖住兩條路徑的一致性。
+describe('CLI 授權閘（API_TOKEN 或 admin JWT）', () => {
+  const API_TOKEN = 'cli-api-token';
+
+  function tokenRequest(token: string): Request {
+    return new Request('https://test.example/api/root/assets', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  it('正確的 API_TOKEN 放行，並標記為 CLI 而非真實使用者', async () => {
+    const payload = await requireJwtOrApiToken(
+      tokenRequest(API_TOKEN),
+      testEnv({ API_TOKEN, JWT_SECRET: SECRET })
+    );
+    expect(payload).not.toBeNull();
+    expect(payload?.sub).toBe('cli');
+    expect(payload?.role).toBe('super_admin');
+  });
+
+  it('錯誤的 API_TOKEN 不放行', async () => {
+    expect(
+      await requireJwtOrApiToken(
+        tokenRequest('wrong-token'),
+        testEnv({ API_TOKEN, JWT_SECRET: SECRET })
+      )
+    ).toBeNull();
+  });
+
+  it('未設 API_TOKEN 時不會因為湊巧相符而放行', async () => {
+    expect(
+      await requireJwtOrApiToken(
+        tokenRequest('anything'),
+        testEnv({ JWT_SECRET: SECRET })
+      )
+    ).toBeNull();
+  });
+
+  it('沒有 API_TOKEN 的情況下仍接受有效 admin JWT', async () => {
+    const req = await requestWithRole('super_admin');
+    const payload = await requireJwtOrApiToken(
+      req,
+      testEnv({ API_TOKEN, JWT_SECRET: SECRET })
+    );
+    expect(payload?.sub).toBe('test-super_admin');
+  });
+
+  it('reader token 一律拒絕（不因為多了 API_TOKEN 而鬆綁）', async () => {
+    const req = await requestWithRole('reader');
+    expect(
+      await requireJwtOrApiToken(
+        req,
+        testEnv({ API_TOKEN, JWT_SECRET: SECRET })
+      )
+    ).toBeNull();
   });
 });

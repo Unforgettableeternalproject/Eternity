@@ -115,6 +115,41 @@ export async function requireJwt(
   return payload;
 }
 
+/**
+ * CLI 授權閘：`API_TOKEN` 或 admin JWT。
+ *
+ * 存在的理由：`isAuthorized`（內容端點用）一直都認 API_TOKEN，但
+ * `/api/root/*` 與 `/api/assets/*` 只認 admin JWT——同一個 token 打得進
+ * 前者、打不進後者。CLI 設了 API_TOKEN 之後，sync 讀遠端清單會拿到 401，
+ * 而那些清單函式把讀取失敗**靜默當成「遠端是空的」**，於是本地每一筆都
+ * 被算成「要推送」（2026-08-10 實際踩到，差點對正式站送出整批覆蓋）。
+ *
+ * API_TOKEN 的語意本來就是「CLI 的完整寫入授權」，能打內容端點卻打不進
+ * 資產端點是不一致，不是刻意的權限分級。
+ *
+ * ⚠️ 回傳的 payload 是合成的，只為了讓既有 `if (!jwtUser) 401` 這種純
+ * 授權閘沿用同一個形狀。**不要拿它的 sub 當真實使用者記錄**——需要知道
+ * 「誰做的」的地方應該另外要求真正的 admin JWT。
+ */
+export async function requireJwtOrApiToken(
+  request: Request,
+  env: Env
+): Promise<JwtPayload | null> {
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (env.API_TOKEN && token === env.API_TOKEN) {
+    return {
+      sub: 'cli',
+      role: 'super_admin',
+      display_name: 'CLI (API_TOKEN)',
+      iat: 0,
+      exp: 0,
+      jti: 'api-token',
+    };
+  }
+  return requireJwt(request, env);
+}
+
 // ===== 密碼雜湊 (PBKDF2-SHA256) =====
 
 // Workers 免費方案 CPU 限制 10ms，310k iterations 會超時
