@@ -18,7 +18,7 @@ Widget 內的 stat value 請使用 `Data` / `Number` 類型，並填入下列 da
 
 ## Cloudflare 設定
 
-`wrangler.toml` 預設每 30 分鐘跑一次 cron，但 `DISCORD_WIDGET_SYNC_ENABLED` 預設為 `false`，避免 secret 或 Discord Portal 欄位尚未完成時誤同步。
+`wrangler.toml` 每 30 分鐘跑一次 cron，`DISCORD_WIDGET_SYNC_ENABLED` 目前是 `true`。這個開關存在的理由是「secret 或 Discord Portal 欄位尚未就緒時不要誤同步」——初次架設或欄位變動期間應該先設成 `false`。
 
 需要設定的 secrets：
 
@@ -29,7 +29,7 @@ pnpm --filter discord-widget-sync-worker exec wrangler secret put DISCORD_BOT_TO
 pnpm --filter discord-widget-sync-worker exec wrangler secret put SYNC_API_TOKEN
 ```
 
-上線後確認手動同步成功，再把 Worker 變數 `DISCORD_WIDGET_SYNC_ENABLED` 改成 `true`。
+初次上線的順序是：先部署並保持 `DISCORD_WIDGET_SYNC_ENABLED=false`，確認手動同步成功後再改成 `true`（現況已完成這一步）。
 
 ## 手動同步
 
