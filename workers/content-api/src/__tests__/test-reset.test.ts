@@ -241,7 +241,7 @@ describe('POST /api/test/reset', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: 'reset-rev-reader',
-          password: 'reset-rev-pass-123',
+          password: 'test-password-123',
         }),
       }),
       env,
