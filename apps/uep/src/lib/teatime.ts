@@ -16,6 +16,16 @@
 
 const TEATIME_INVITE_KEY = 'uep.teatime.invite.v1';
 
+/**
+ * 見過有人的茶會後留下的旗標。
+ *
+ * 形狀上屬於自訂旗標（`classifyFlag` 的 custom），但它由程式碼授予而非
+ * 編輯器手填，所以不受「授予端必須先註冊」的強制——同 `guide:ident`。
+ * ⚠️ 之後要在 gate 的 `requiresFlags` 或 FlagMarker 引用它時，**得先到
+ * /admin/settings 的 flag 分頁註冊這個名字**，否則存檔會被註冊強制擋下。
+ */
+export const TEATIME_FLAG = 'uep:teatime';
+
 /** 從休息提醒的「前往茶會」出發時標記。存不進去就只是看到空桌子，不致命 */
 export function markTeatimeInvited(): void {
   try {

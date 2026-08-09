@@ -7,7 +7,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { markTeatimeInvited } from '../../../lib/teatime';
+import { markTeatimeInvited, TEATIME_FLAG } from '../../../lib/teatime';
+import { getProgressManager } from '../../../progress';
 import TeatimePage from '../TeatimePage';
 
 const uep = () => screen.queryByAltText('U.E.P 舉起茶杯');
@@ -15,6 +16,7 @@ const uep = () => screen.queryByAltText('U.E.P 舉起茶杯');
 describe('TeatimePage', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    getProgressManager().revokeFlags([TEATIME_FLAG]);
   });
 
   it('沒有旗標時只有桌子與「這裡沒有人」的敘述', () => {
@@ -40,6 +42,19 @@ describe('TeatimePage', () => {
 
     render(<TeatimePage />);
     expect(uep()).toBeNull();
+  });
+
+  it('見到她時留下 uep:teatime 旗標', () => {
+    markTeatimeInvited();
+    render(<TeatimePage />);
+
+    expect(getProgressManager().hasFlag(TEATIME_FLAG)).toBe(true);
+  });
+
+  it('空景不授旗——那一次什麼都沒發生過', () => {
+    render(<TeatimePage />);
+
+    expect(getProgressManager().hasFlag(TEATIME_FLAG)).toBe(false);
   });
 
   it('兩幀都在 DOM 裡——切換是 CSS 動畫的事，不是條件渲染', () => {

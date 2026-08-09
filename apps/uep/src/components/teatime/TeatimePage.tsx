@@ -20,7 +20,8 @@
  */
 import { useEffect, useState } from 'react';
 
-import { consumeTeatimeInvite } from '../../lib/teatime';
+import { consumeTeatimeInvite, TEATIME_FLAG } from '../../lib/teatime';
+import { getProgressManager } from '../../progress';
 
 import './TeatimePage.css';
 
@@ -33,7 +34,16 @@ export default function TeatimePage() {
   const [invited, setInvited] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setInvited(consumeTeatimeInvite());
+    const served = consumeTeatimeInvite();
+    setInvited(served);
+    /*
+     * 見過有人的茶會會留下旗標，供之後的劇情引用。
+     *
+     * 授旗綁在「真的看到她」而不是「走到這個網址」——空景那次什麼都沒
+     * 發生過。旗標本身是冪等的（grantFlags 自動去重），所以不必擔心
+     * StrictMode 或重複造訪。
+     */
+    if (served) getProgressManager().grantFlags([TEATIME_FLAG]);
   }, []);
 
   const leave = () => {
