@@ -10,7 +10,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { resolveGatePanelMode } from '../editorModeRegistry';
+import {
+  resolveGateFlagPrefix,
+  resolveGatePanelMode,
+} from '../editorModeRegistry';
 
 function ctx(area: string, pageType: string, pageSlug = 'x/y') {
   return { area, zoneId: area, pageType, pageSlug };
@@ -63,5 +66,22 @@ describe('resolveGatePanelMode', () => {
   it('未分級 area 維持 full（分級前行為不變）', () => {
     expect(resolveGatePanelMode(ctx('homepage', 'homepage'))).toBe('full');
     expect(resolveGatePanelMode(ctx('other', 'page'))).toBe('full');
+  });
+});
+
+describe('resolveGateFlagPrefix', () => {
+  it('Storage dialogue / extras 限縮成 uep: 系統旗標', () => {
+    expect(resolveGateFlagPrefix(ctx('storage', 'stuff', 'boxes/a'))).toBe(
+      'uep:'
+    );
+    expect(resolveGateFlagPrefix(ctx('storage', 'stuff', 'extras/a'))).toBe(
+      'uep:'
+    );
+  });
+
+  it('其他 zone 不限縮——劇情旗標仍可自由填寫與新建', () => {
+    expect(resolveGateFlagPrefix(ctx('history', 'section'))).toBeUndefined();
+    expect(resolveGateFlagPrefix(ctx('echoes', 'song'))).toBeUndefined();
+    expect(resolveGateFlagPrefix(ctx('visuals', 'gallery'))).toBeUndefined();
   });
 });

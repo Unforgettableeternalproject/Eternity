@@ -49,6 +49,15 @@ interface FlagPickerProps {
    * 由它回報可以省掉呼叫端再查一次。
    */
   onSelectedLabel?: (label: string | null) => void;
+  /**
+   * 限縮成只能從註冊表挑這個前綴的旗標，並關閉自由輸入與新建。
+   *
+   * 用於 `uep-` 系統旗標：它們與劇情旗標不同，名字是程式碼裡的常數
+   * （授予端寫死在站台行為裡），編輯端只能引用不能發明。上面「註冊表是
+   * 建議清單不是白名單」的理由在這裡反過來——能自由填就代表能填出一個
+   * 永遠不會有人授予的名字，而症狀是永久靜默鎖死。
+   */
+  restrictPrefix?: string;
   accent?: string;
   placeholder?: string;
 }
@@ -59,6 +68,7 @@ export default function FlagPicker({
   showSelected = true,
   single = false,
   onSelectedLabel,
+  restrictPrefix,
   accent,
   placeholder = '搜尋或輸入新旗標…',
 }: FlagPickerProps) {
@@ -162,14 +172,19 @@ export default function FlagPicker({
    */
   const canUseRaw =
     !single &&
+    !restrictPrefix &&
     !!needleRaw &&
     !nameError &&
     !value.includes(needleRaw) &&
     !options.some((option) => option.name === needleRaw);
+  // 限縮模式：清單先砍成該前綴，之後的搜尋與去重都在這個子集上進行
+  const scoped = restrictPrefix
+    ? options.filter((option) => option.name.startsWith(restrictPrefix))
+    : options;
   // single 不排除已選：換選時清單要完整，也才看得出目前選的是哪一個
   const available = single
-    ? options
-    : options.filter((option) => !value.includes(option.name));
+    ? scoped
+    : scoped.filter((option) => !value.includes(option.name));
   const matched = filterNeedle
     ? available.filter(
         (option) =>
@@ -345,13 +360,15 @@ export default function FlagPicker({
               )}
               {matched.length === 0 && (
                 <div className="ned-flagpicker-empty">
-                  {options.length === 0
-                    ? '註冊表還沒有任何自訂旗標'
-                    : filterNeedle
-                      ? single
-                        ? '沒有同名的既有旗標——直接用這個名字'
-                        : '沒有符合的旗標'
-                      : '已經全部選取'}
+                  {restrictPrefix && scoped.length === 0
+                    ? `註冊表裡沒有 ${restrictPrefix} 開頭的旗標`
+                    : options.length === 0
+                      ? '註冊表還沒有任何自訂旗標'
+                      : filterNeedle
+                        ? single
+                          ? '沒有同名的既有旗標——直接用這個名字'
+                          : '沒有符合的旗標'
+                        : '已經全部選取'}
                 </div>
               )}
 
@@ -417,8 +434,11 @@ export default function FlagPicker({
                 </div>
               ) : (
                 // single 模式不需要這條路：呼叫端（marker bubble）自己就有
-                // 標籤欄，而旗標名直接打在輸入框裡
-                !single && (
+                // 標籤欄，而旗標名直接打在輸入框裡。
+                // 限縮模式一律關閉：系統旗標要先有授予端才有意義，
+                // 在這裡憑空建一個只會得到永遠不亮的條件。
+                !single &&
+                !restrictPrefix && (
                   <button
                     type="button"
                     className="ned-flagpicker-new"

@@ -55,7 +55,11 @@ import {
   htmlToMarkdown,
   resolveProgressToggles,
 } from './editorHelpers';
-import { resolveEditorMode, resolveGatePanelMode } from './editorModeRegistry';
+import {
+  resolveEditorMode,
+  resolveGateFlagPrefix,
+  resolveGatePanelMode,
+} from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
 import { canonicalizePagePath } from '../../lib/pagePath';
 import EditorPageTree from './EditorPageTree';
@@ -358,6 +362,13 @@ export default function RichEditor({
   // PROGRESS GATE 面板分級（S8 下半場 V-B.18）：full 全套／minimal 只留
   // 條件欄位／none 整塊移除。僅動 UI，metadata 求值行為不變。
   const gatePanelMode = resolveGatePanelMode({
+    area,
+    zoneId,
+    pageType,
+    pageSlug,
+  });
+  // 自訂旗標欄的前綴限縮：Storage 對話只吃 `uep-` 系統旗標
+  const gateFlagPrefix = resolveGateFlagPrefix({
     area,
     zoneId,
     pageType,
@@ -3206,6 +3217,7 @@ export default function RichEditor({
                       : {})}
                     apiBase={apiBase}
                     accent={accentMain}
+                    flagPrefix={gateFlagPrefix}
                   />
                 )
               }

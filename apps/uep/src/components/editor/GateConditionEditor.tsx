@@ -48,6 +48,12 @@ interface GateConditionEditorProps {
   accent: string;
   /** 某些專用編輯器（如 Echoes spoiler 鏈）已有自己的範圍說明。 */
   showScopeHint?: boolean;
+  /**
+   * 把自訂旗標欄限縮成只能挑這個前綴的既有旗標（並關閉新建）。
+   * 來源是 editorModeRegistry 的 `gateFlagPrefix`——Storage 的對話只吃
+   * `uep-` 系統旗標。
+   */
+  flagPrefix?: string;
 }
 
 /**
@@ -122,6 +128,7 @@ export default function GateConditionEditor({
   apiBase,
   accent,
   showScopeHint = true,
+  flagPrefix,
 }: GateConditionEditorProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pageTree, setPageTree] = useState<GatePageNode[]>([]);
@@ -342,8 +349,9 @@ export default function GateConditionEditor({
         value={flags}
         onChange={setFlags}
         showSelected={false}
+        restrictPrefix={flagPrefix}
         accent={accent}
-        placeholder="custom flag…"
+        placeholder={flagPrefix ? `${flagPrefix}…` : 'custom flag…'}
       />
 
       <div className="ned-inspector-toggle">

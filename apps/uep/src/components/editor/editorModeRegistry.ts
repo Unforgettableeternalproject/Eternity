@@ -5,6 +5,8 @@
  * 具體的內容解析、序列化、渲染由 registry 中對應的 mode 決定。
  */
 
+import { UEP_FLAG_PREFIX } from '../../progress/uepFlags';
+
 // ── 型別定義 ─────────────────────────────────────────────────
 
 export interface ContentBlock {
@@ -44,6 +46,15 @@ export interface EditorModeDefinition {
   needsSubcatSelector?: boolean;
   /** PROGRESS GATE 面板分級；未設定時依 area 規則 fallback */
   gatePanelMode?: GatePanelMode;
+  /**
+   * 自訂旗標欄限縮的前綴。設定後該欄只能挑註冊表裡此前綴的既有旗標，
+   * 不能自由輸入也不能新建。
+   *
+   * Storage 的對話只吃 `uep:` 系統旗標——那一系列由站台行為授予
+   * （進站、走遍五區、解鎖浮島、AFK 帷幕、茶會、從主站穿 portal），
+   * 名字是程式碼裡的常數，編輯端只能引用不能發明。
+   */
+  gateFlagPrefix?: string;
 }
 
 // ── Mode 定義 ────────────────────────────────────────────────
@@ -115,6 +126,7 @@ const modes: EditorModeDefinition[] = [
     // minimal 而非 full：Storage 求值不走 tree，progressPage 與容器繼承
     // 兩個欄位在這裡沒有消費端。
     gatePanelMode: 'minimal',
+    gateFlagPrefix: UEP_FLAG_PREFIX,
     needsSubcatSelector: true,
   },
   {
@@ -137,6 +149,7 @@ const modes: EditorModeDefinition[] = [
     toolbarLabel: 'extras mode',
     // 同 dialogue；番外多半公開，但保留擋住的能力
     gatePanelMode: 'minimal',
+    gateFlagPrefix: UEP_FLAG_PREFIX,
     needsSubcatSelector: true,
   },
   {
@@ -211,6 +224,13 @@ export function getAllModeIds(): string[] {
 /** 根據 mode ID 取得定義 */
 export function getModeById(id: string): EditorModeDefinition | undefined {
   return modes.find((m) => m.id === id);
+}
+
+/** 解析自訂旗標欄的前綴限縮；未設定回 undefined（＝不限縮） */
+export function resolveGateFlagPrefix(
+  ctx: EditorModeContext
+): string | undefined {
+  return resolveEditorMode(ctx).gateFlagPrefix;
 }
 
 // ── Page Tree 相關規則 ──────────────────────────────────────
