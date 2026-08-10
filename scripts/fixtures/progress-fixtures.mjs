@@ -21,9 +21,11 @@ export const ENTITY_KEYS = {
   warden: 'test-warden',
   /** 地點：只在 dossier */
   tower: 'test-relay-tower',
-  /** Echoes 歌曲實體 */
-  hymn: 'test-echo-hymn',
-  /** Visuals 圖庫實體 */
+  /** Echoes 場景主題曲的實體（⚠️ 只有 areas／characters cluster 掛 entityKey） */
+  towerTheme: 'test-echo-tower-theme',
+  /** Echoes 的第二首非劇情歌——沒有 entityKey 會被 EchoSongPicker 直接排除 */
+  afterglow: 'test-echo-afterglow',
+  /** Visuals 圖庫實體（⚠️ 只有陳列走廊 profiles 掛 entityKey） */
   gallery: 'test-gallery-relay',
 };
 
@@ -49,13 +51,18 @@ export const KEY_META = [
   },
   {
     keyType: 'entity',
-    key: ENTITY_KEYS.hymn,
-    description: '測試用歌曲實體，綁在 Echoes 的〈靜默讚歌〉。',
+    key: ENTITY_KEYS.towerTheme,
+    description: '測試用歌曲實體，綁在 Echoes 地點的回憶〈中繼塔主題〉。',
+  },
+  {
+    keyType: 'entity',
+    key: ENTITY_KEYS.afterglow,
+    description: '測試用歌曲實體，綁在〈餘燼〉——插播後要恢復的那首。',
   },
   {
     keyType: 'entity',
     key: ENTITY_KEYS.gallery,
-    description: '測試用圖庫實體，綁在 Visuals 的中繼塔影像集。',
+    description: '測試用圖庫實體，綁在 Visuals 陳列走廊〈中繼塔影像集〉。',
   },
   {
     keyType: 'story',
@@ -188,10 +195,21 @@ export const PAGE_IDS = {
   gateAll: `${HISTORY_ARC}/test-05-gate-all`,
   inherit1: `${PROGRESS_PAGE_ARC}/test-06-inherit-a`,
   inherit2: `${PROGRESS_PAGE_ARC}/test-07-inherit-b`,
-  songHymn: 'echoes/areas/ad_main/test-hymn-of-silence',
-  songSignal: 'echoes/areas/ad_main/test-relay-signal',
+  /* ⚠️ Echoes 的分類**只看 cluster**（`echoes/{cluster}/…` 第二段），
+     `metadata.category` 只是鏡像。放錯 cluster 的後果不是分類標籤難看，
+     而是 EchoSongPicker 直接篩掉：
+     - `stories` → 劇情歌，帶 storyKey
+     - `areas` / `characters` → 必須有 entityKey，否則不進 picker
+     - 其他 → special，一律不由 History Echo Spot 掛載 */
+  songBlackout: 'echoes/stories/u.s./test-blackout-hymn',
+  songSignal: 'echoes/stories/u.s./test-relay-signal',
+  songTowerTheme: 'echoes/areas/ad_main/test-tower-theme',
   songAfterglow: 'echoes/areas/ad_main/test-afterglow',
-  galleryRelay: 'visuals/profiles/characters/test-relay-gallery',
+  /* ⚠️ Visuals 同理，看 division（`visuals/{division}/…` 第二段）：
+     entityKey 只在陳列走廊 `profiles`、storyKey 只在鑲框室 `illustrations`，
+     編輯器依 division 顯隱這兩個欄位。放錯的欄位存得進 D1 但永遠不生效。 */
+  galleryBlackout: 'visuals/illustrations/era_u/test-blackout-scene',
+  galleryRelay: 'visuals/profiles/locations/test-relay-gallery',
   galleryWarden: 'visuals/profiles/characters/test-warden-portraits',
   stuffOpen: 'storage/boxes/test-crate-open',
   stuffLocked: 'storage/boxes/test-crate-locked',
@@ -256,9 +274,9 @@ const AFTER_ECHO = filler([
   '那裡有東西。',
   '很微弱，微弱到必須把耳朵貼在喇叭上才聽得見。是一段旋律，或者說是一段旋律的殘骸——只有輪廓，沒有細節，像隔著很厚的牆聽別人哼歌。它重複，大約每四十秒一次。',
   '四十秒。',
-  `他把那段聲音錄了下來，錄在一卷不知道從哪裡翻出來的舊磁帶上。之後的很多個晚上，他會在值完班之後把它放出來聽，一遍又一遍。他知道那是${entity('term', ENTITY_KEYS.hymn, '某種訊號')}，但他不知道是誰發的，也不知道發給誰。`,
+  `他把那段聲音錄了下來，錄在一卷不知道從哪裡翻出來的舊磁帶上。之後的很多個晚上，他會在值完班之後把它放出來聽，一遍又一遍。他知道那是${entity('term', ENTITY_KEYS.towerTheme, '某種訊號')}，但他不知道是誰發的，也不知道發給誰。`,
   // cue（媒體型引用）與 entity（文字型）互斥且行為不同——各留一個驗 dispatcher
-  `檔案庫後來把那卷磁帶編了號，附註欄寫著${cue('song', PAGE_IDS.songHymn, '〈靜默讚歌〉')}，來源不明。`,
+  `檔案庫後來把那卷磁帶編了號，附註欄寫著${cue('song', PAGE_IDS.songBlackout, '〈靜默讚歌〉')}，來源不明。`,
 ]);
 
 const BEFORE_CLUE = filler([
@@ -332,12 +350,12 @@ export const LONG_ARTICLE_HTML = [
   BEFORE_ECHO,
   echoSpot({
     spotId: 'test-spot-hymn',
-    songId: PAGE_IDS.songHymn,
-    songUrlKey: 'audio/test-hymn-of-silence.mp3',
+    songId: PAGE_IDS.songBlackout,
+    songUrlKey: 'audio/test-blackout-hymn.mp3',
     title: '靜默讚歌',
-    entityKey: ENTITY_KEYS.hymn,
+    // 劇情歌只帶 storyKey——EchoSongPicker 依 cluster 二擇一輸出
     storyKey: STORY_KEYS.blackout,
-    clusterId: 'echoes/areas',
+    clusterId: 'echoes/stories',
     songType: 'story',
     duration: 154,
   }),
@@ -348,7 +366,7 @@ export const LONG_ARTICLE_HTML = [
     edge: 'start',
     targetType: 'story',
     targetKey: STORY_KEYS.blackout,
-    galleryId: PAGE_IDS.galleryRelay,
+    galleryId: PAGE_IDS.galleryBlackout,
     title: '中繼塔影像集',
     imageId: 'test-img-tower',
     imageTitle: '靜默中的塔',
@@ -360,7 +378,7 @@ export const LONG_ARTICLE_HTML = [
     edge: 'gate',
     targetType: 'story',
     targetKey: STORY_KEYS.blackout,
-    galleryId: PAGE_IDS.galleryRelay,
+    galleryId: PAGE_IDS.galleryBlackout,
     imageId: 'test-img-figure',
     imageTitle: '荒地上的形狀',
     imageFile: 'images/test-figure.png',
@@ -371,7 +389,7 @@ export const LONG_ARTICLE_HTML = [
     edge: 'end',
     targetType: 'story',
     targetKey: STORY_KEYS.blackout,
-    galleryId: PAGE_IDS.galleryRelay,
+    galleryId: PAGE_IDS.galleryBlackout,
   }),
   BEFORE_SECOND_MARKER,
   flagMarker([FLAGS[1].name], '抵達中繼塔'),
@@ -383,7 +401,7 @@ export const LONG_ARTICLE_HTML = [
     songUrlKey: 'audio/test-relay-signal.mp3',
     title: '中繼訊號',
     storyKey: STORY_KEYS.signal,
-    clusterId: 'echoes/areas',
+    clusterId: 'echoes/stories',
     songType: 'story',
     duration: 98,
   }),
@@ -580,17 +598,19 @@ export const HISTORY_PAGES = [
  */
 
 export const ECHOES_PAGES = [
+  /* ── 劇情的回憶（stories）：songType = story，帶 storyKey ── */
   {
-    id: PAGE_IDS.songHymn,
+    id: PAGE_IDS.songBlackout,
     title: '[測試] 靜默讚歌',
     pageType: 'song',
     sortOrder: 90,
     content: richText(''),
     metadata: {
       subtitle: '第七中繼塔',
-      category: 'area',
+      // category 是 cluster 的鏡像，唯讀——這裡必須與 stories 推導的結果一致
+      category: 'story',
       spoilerLevel: 0,
-      audioFile: 'audio/test-hymn-of-silence.mp3',
+      audioFile: 'audio/test-blackout-hymn.mp3',
       audioMeta: {
         duration: 154,
         format: 'mp3',
@@ -601,8 +621,7 @@ export const ECHOES_PAGES = [
       appreciation: [
         '每四十秒重複一次的旋律殘骸，錄在一卷不知道從哪裡翻出來的舊磁帶上。',
       ],
-      // entity + story 兩種 key 都掛——這首是跨區互聯的主錨點
-      entityKey: ENTITY_KEYS.hymn,
+      // 劇情歌只掛 storyKey——與 Visuals 鑲框室共用同一個劇情點
       storyKey: STORY_KEYS.blackout,
     },
   },
@@ -614,7 +633,7 @@ export const ECHOES_PAGES = [
     content: richText(''),
     metadata: {
       subtitle: '荒地',
-      category: 'area',
+      category: 'story',
       spoilerLevel: 0,
       audioFile: 'audio/test-relay-signal.mp3',
       audioMeta: {
@@ -625,15 +644,38 @@ export const ECHOES_PAGES = [
         album: 'Progress System Fixtures',
       },
       appreciation: ['訊號穩定得反常，一次故障都沒有出過。'],
-      // 只掛 story——用來對照「單區錨點」與 hymn 的跨區行為
+      // 只掛 Echoes 的劇情點，對照 blackout 的跨區行為
       storyKey: STORY_KEYS.signal,
+    },
+  },
+  /* ── 地點的回憶（areas）：songType = area，**必須**有 entityKey ── */
+  {
+    id: PAGE_IDS.songTowerTheme,
+    title: '[測試] 中繼塔主題',
+    pageType: 'song',
+    sortOrder: 90,
+    content: richText(''),
+    metadata: {
+      subtitle: '第七中繼塔',
+      category: 'area',
+      spoilerLevel: 0,
+      audioFile: 'audio/test-tower-theme.mp3',
+      audioMeta: {
+        duration: 132,
+        format: 'mp3',
+        title: 'Relay Tower Theme',
+        artist: 'Test Fixture',
+        album: 'Progress System Fixtures',
+      },
+      appreciation: ['場景主題曲——用來驗非劇情歌的 entity 引用路徑。'],
+      entityKey: ENTITY_KEYS.towerTheme,
     },
   },
   {
     id: PAGE_IDS.songAfterglow,
     title: '[測試] 餘燼',
     pageType: 'song',
-    sortOrder: 92,
+    sortOrder: 91,
     content: richText(''),
     metadata: {
       subtitle: '檔案庫',
@@ -647,9 +689,9 @@ export const ECHOES_PAGES = [
         artist: 'Test Fixture',
         album: 'Progress System Fixtures',
       },
-      appreciation: [
-        '沒有綁任何 key——用來驗「使用者原本在播的曲子」被插播後能不能正確恢復。',
-      ],
+      appreciation: ['「使用者原本在播的曲子」——驗插播結束後能不能正確恢復。'],
+      // 非劇情歌沒有 entityKey 會被 EchoSongPicker 篩掉，即使只是手動播放用
+      entityKey: ENTITY_KEYS.afterglow,
     },
   },
 ];
@@ -661,9 +703,11 @@ export const ECHOES_PAGES = [
  */
 
 export const VISUALS_PAGES = [
+  /* ── 鑲框室（illustrations）：只有這裡掛 storyKey，Visual Clue 的 story 型
+        目標一定在這一館 ── */
   {
-    id: PAGE_IDS.galleryRelay,
-    title: '[測試] 中繼塔影像集',
+    id: PAGE_IDS.galleryBlackout,
+    title: '[測試] 靜默時刻的紀錄',
     pageType: 'gallery',
     sortOrder: 90,
     content: richText(''),
@@ -673,7 +717,7 @@ export const VISUALS_PAGES = [
       group: '測試素材',
       spoilerLevel: 0,
       layout: 'pinboard',
-      entityKey: ENTITY_KEYS.gallery,
+      // 與 Echoes〈靜默讚歌〉共用同一個劇情點——同一個 storyKey 同時掛歌與插圖
       storyKey: STORY_KEYS.blackout,
       images: [
         {
@@ -701,6 +745,37 @@ export const VISUALS_PAGES = [
           sortOrder: 3,
           // 未解鎖的圖：佔位要看得見，內容不可見
           gate: { requiresFlags: [FLAGS[1].name] },
+        },
+      ],
+    },
+  },
+  /* ── 陳列走廊（profiles）：只有這裡掛 entityKey，長文的 entity span 與
+        Visual Clue 的 entity 型目標都指向這一館 ── */
+  {
+    id: PAGE_IDS.galleryRelay,
+    title: '[測試] 中繼塔影像集',
+    pageType: 'gallery',
+    sortOrder: 90,
+    content: richText(''),
+    metadata: {
+      icon: 'tower-broadcast',
+      description: '設施本身的紀錄照，與劇情插圖分開建檔。',
+      group: '測試素材',
+      spoilerLevel: 0,
+      layout: 'pinboard',
+      entityKey: ENTITY_KEYS.gallery,
+      images: [
+        {
+          id: 'test-img-exterior',
+          file: 'images/test-relay-exterior.png',
+          caption: '塔的外觀',
+          sortOrder: 0,
+        },
+        {
+          id: 'test-img-interior',
+          file: 'images/test-relay-interior.png',
+          caption: '第四層',
+          sortOrder: 1,
         },
       ],
     },
@@ -1096,6 +1171,24 @@ export const CONCEPTS_PAGES = [
       stack_style: 'diff',
     },
   },
+];
+
+/**
+ * 早期版本寫錯位置、現已搬走的頁面 id。
+ *
+ * 素材第一版把劇情歌塞進 `echoes/areas`、劇情插圖塞進 `visuals/profiles`，
+ * 但兩邊的分類都是**由所在 cluster／division 推導**的：劇情歌一定在
+ * `echoes/stories`、劇情插圖一定在鑲框室 `visuals/illustrations`，編輯器
+ * 本身就依這個規則篩選與顯隱欄位。搬家之後舊 id 仍留在 D1，會在導覽樹裡
+ * 變成掛著測試標題卻永遠觸發不了的死頁。
+ *
+ * 保留這份清單而不是「刪掉就算了」：任何人重跑腳本都會一併清乾淨，
+ * 不必知道曾經有過那一版。
+ */
+export const STALE_PAGE_IDS = [
+  'echoes/areas/ad_main/test-hymn-of-silence',
+  'echoes/areas/ad_main/test-relay-signal',
+  'visuals/profiles/characters/test-relay-gallery',
 ];
 
 /** 所有要寫入的頁面（依區域分組，寫入順序＝依賴順序） */

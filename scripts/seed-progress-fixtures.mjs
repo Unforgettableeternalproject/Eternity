@@ -17,8 +17,8 @@
  *   2. hostname 檢查：目標主機第一段必須以 `-test` 結尾（local 例外）
  *   3. 沒有 `--remote` 這個選項——連打錯的機會都不留
  *
- * ⚠️ 冪等但不做清理：重跑會覆蓋同 id 的頁面，不會刪除上次寫入後被改名的
- * 殘留。要乾淨重來請先 `pnpm test:reset`（但 reset 只清 pages 與 root_*，
+ * ⚠️ 冪等：重跑會覆蓋同 id 的頁面，並清掉 `STALE_PAGE_IDS` 列出的舊位置殘留。
+ * 要完全乾淨重來請先 `pnpm test:reset`（但 reset 只清 pages 與 root_*，
  * uep_flags 與 interlink_keys 留著，重跑本腳本會原地更新）。
  */
 
@@ -28,6 +28,7 @@ import {
   KEY_META,
   PAGE_IDS,
   PROGRESS_PAGE_ARC,
+  STALE_PAGE_IDS,
 } from './fixtures/progress-fixtures.mjs';
 import { resolveWriteToken } from './sync-auth.mjs';
 
@@ -114,6 +115,31 @@ async function api(token, method, path, body) {
     // 非 JSON 回應（例如 502）——留 null，由呼叫端依 status 判斷
   }
   return { ok: res.ok && json?.ok !== false, status: res.status, body: json };
+}
+
+/**
+ * 清掉搬家後留在舊位置的頁面。
+ *
+ * 404 視為成功——多數環境本來就沒有這些殘留（第一版之後才建的 test D1，
+ * 或已經清過一次）。
+ */
+async function purgeStale(token) {
+  let removed = 0;
+  for (const id of STALE_PAGE_IDS) {
+    const [area, ...rest] = id.split('/');
+    const res = await api(
+      token,
+      'DELETE',
+      `/api/content/${area}/${rest.join('/')}`
+    );
+    if (res.ok) {
+      removed++;
+      process.stdout.write(`  ✓ 已移除 ${id}\n`);
+    } else if (res.status !== 404) {
+      process.stdout.write(`  ! ${id} 移除失敗（${res.status}）\n`);
+    }
+  }
+  return removed;
 }
 
 /** 註冊自訂旗標。已存在時回 409，視為成功（冪等）。 */
@@ -270,22 +296,28 @@ async function main() {
     process.exit(1);
   }
 
-  process.stdout.write('\n[1/5] 註冊自訂旗標\n');
+  /* 清除必須排在寫入之前：storyKey／entityKey 在同一個 zone 內唯一，
+     舊位置的頁面還佔著 key 的話，新頁面會被衝突檢查擋成 409。 */
+  process.stdout.write('\n[1/6] 清除舊位置殘留\n');
+  const purged = await purgeStale(token);
+  process.stdout.write(`  移除 ${purged} 筆\n`);
+
+  process.stdout.write('\n[2/6] 註冊自訂旗標\n');
   const flags = await seedFlags(token);
   process.stdout.write(`  新增 ${flags.created}、已存在 ${flags.existing}\n`);
 
-  process.stdout.write('\n[2/5] 寫入頁面\n');
+  process.stdout.write('\n[3/6] 寫入頁面\n');
   const pages = await seedPages(token);
 
-  process.stdout.write('\n[3/5] 標記進度頁容器\n');
+  process.stdout.write('\n[4/6] 標記進度頁容器\n');
   await markProgressPage(token);
   process.stdout.write(`  ✓ ${PROGRESS_PAGE_ARC}\n`);
 
-  process.stdout.write('\n[4/5] 補 key 說明\n');
+  process.stdout.write('\n[5/6] 補 key 說明\n');
   const keys = await seedKeyMeta(token);
   process.stdout.write(`  更新 ${keys}/${KEY_META.length} 筆\n`);
 
-  process.stdout.write('\n[5/5] 補建互聯衍生表\n');
+  process.stdout.write('\n[6/6] 補建互聯衍生表\n');
   const idx = await reindex(token);
   process.stdout.write(
     `  錨點 ${idx.anchors ?? '?'}、story ${idx.storyKeys ?? '?'}、entity ${idx.entityKeys ?? '?'}\n`
