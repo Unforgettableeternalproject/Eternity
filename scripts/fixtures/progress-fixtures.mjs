@@ -213,6 +213,8 @@ export const PAGE_IDS = {
   galleryWarden: 'visuals/profiles/characters/test-warden-portraits',
   stuffOpen: 'storage/boxes/test-crate-open',
   stuffLocked: 'storage/boxes/test-crate-locked',
+  stuffProgression: 'storage/boxes/test-crate-progression',
+  stuffPristine: 'storage/boxes/test-crate-pristine',
   conceptsDossier: 'concepts/server/records/test_entities',
   conceptsBrowser: 'concepts/server/browser/test_profiles',
   conceptsChrono: 'concepts/server/time_logs/test_timeline',
@@ -844,11 +846,50 @@ export const STORAGE_PAGES = [
         '封條上寫著「建議不要派人」，字跡和值班紀錄最後一頁相同。',
       ])
     ),
-    // 驗鎖定樣式在 Storage 區也正確（不是只有 History 導航樹有處理）
+    // 自訂旗標條件 → flag 鎖 → 整張從列表消失（不是模糊、不是封箱）。
+    // ⚠️ 這張在 Storage 接上進度求值前是**完全公開**的：那時 StorageReader
+    // 的 isLocked 不帶 progress，只判靜態 locked，gate 沒有任何消費端。
     metadata: {
       icon: 'box-archive',
-      description: '測試素材：被 gate 的收藏品。',
+      description: '測試素材：被自訂旗標 gate 的收藏品（flag 鎖）。',
       gate: { requiresFlags: [FLAGS[0].name] },
+    },
+  },
+  {
+    id: PAGE_IDS.stuffProgression,
+    title: '[測試] 檔案箱・待讀完',
+    pageType: 'stuff',
+    sortOrder: 92,
+    content: richText(
+      filler([
+        '箱底壓著一份未署名的談話稿，開頭第一句就假設讀者已經到過中繼塔。',
+        '沒到過的人讀了也不會懂——所以它被收在這裡等。',
+      ])
+    ),
+    // 純 completed:* 條件 → progression 鎖。Storage 與 History 不同，
+    // 這一類同樣整張藏起來（艾斯維爾 2026-08-10）：對話標題本身會劇透，
+    // 而這一區沒有「下一篇在前方」的敘事引導需求。
+    metadata: {
+      icon: 'box-archive',
+      description: '測試素材：需先讀完長文的收藏品（progression 鎖）。',
+      gate: { requiresFlags: [`completed:${PAGE_IDS.long}`] },
+    },
+  },
+  {
+    id: PAGE_IDS.stuffPristine,
+    title: '[測試] 檔案箱・純潔者限定',
+    pageType: 'stuff',
+    sortOrder: 93,
+    content: richText(
+      filler([
+        '一段沒有前情提要的閒聊，聽得懂的人此刻還不知道後面會發生什麼。',
+        '知道了的人再回來看，就只剩諷刺。',
+      ])
+    ),
+    metadata: {
+      icon: 'box-archive',
+      description: '測試素材：純潔者限定的收藏品。',
+      gate: { pristineOnly: true },
     },
   },
 ];

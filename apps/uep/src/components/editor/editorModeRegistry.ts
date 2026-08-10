@@ -111,7 +111,10 @@ const modes: EditorModeDefinition[] = [
       ctx.pageSlug.startsWith('boxes/'),
     needsTipTap: false,
     toolbarLabel: 'dialogue mode',
-    gatePanelMode: 'none',
+    // 與 UEP 的對話需要被事件擋住（例：茶會要先發生過）。
+    // minimal 而非 full：Storage 求值不走 tree，progressPage 與容器繼承
+    // 兩個欄位在這裡沒有消費端。
+    gatePanelMode: 'minimal',
     needsSubcatSelector: true,
   },
   {
@@ -132,7 +135,8 @@ const modes: EditorModeDefinition[] = [
       ctx.pageSlug.startsWith('extras/'),
     needsTipTap: true,
     toolbarLabel: 'extras mode',
-    gatePanelMode: 'none',
+    // 同 dialogue；番外多半公開，但保留擋住的能力
+    gatePanelMode: 'minimal',
     needsSubcatSelector: true,
   },
   {

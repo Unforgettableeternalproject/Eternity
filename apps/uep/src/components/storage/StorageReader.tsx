@@ -20,6 +20,9 @@ import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isLocked } from '../zone/contentVisibility';
+import { isGateBlocked, visibleEntries } from './storageVisibility';
+import { useProgress } from '../../progress';
+import { useReaderAuth } from '../../auth';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import {
   type HomepageBlock,
@@ -285,6 +288,12 @@ function WindowSvg() {
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function StorageReader() {
+  // === 進度狀態（對話 gate：gate 未通過的條目整張不存在）===
+  const progress = useProgress();
+  // auth 純訂閱重渲染——純潔者限定要看登入身分，而 auth 變化不保證觸發
+  // progress notify（S7-C 已知陷阱，同 EchoesReader / IslandHost 的處理）
+  useReaderAuth();
+
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -493,6 +502,15 @@ export default function StorageReader() {
   async function navigateToPage(pageSlug: string, push = true) {
     saveScroll(currentScrollKey());
     pageSlug = canonicalizePagePath(pageSlug);
+    // gate 未通過的頁面連網址直接進也擋掉——列表藏起來但 URL 讀得到，
+    // 等於沒藏。tree 尚未就緒時 node 找不到（deep link 有 treeReady 保證，
+    // 這裡只是保守），漏過去的交給 renderReading 的渲染層防禦兜底。
+    const targetNode = flatNodes.find((n) => n.slug === pageSlug);
+    if (targetNode && isGateBlocked(targetNode, progress)) {
+      navigateToLanding();
+      setBootNavPending(false);
+      return;
+    }
     setOpenSubcatId(null);
     setActivePageId(pageSlug);
     const page = await fetchPageData(pageSlug);
@@ -616,16 +634,21 @@ export default function StorageReader() {
                 {areas.map((area, i) => {
                   const pos = positions[i] || positions[0];
                   const cNode = clearingNodes.find((n) => n.slug === area.slug);
-                  const stuffCount = cNode
-                    ? (cNode.children || []).filter(
-                        (c) => c.pageType === 'stuff'
-                      ).length
-                    : 0;
-                  const openCount = cNode
-                    ? (cNode.children || []).filter(
-                        (c) => c.pageType === 'stuff' && !isLocked(c)
-                      ).length
-                    : 0;
+                  // 分母只算 gate 通過的條目——把被擋住的算進去，等於用數字
+                  // 洩漏「還有幾篇沒解鎖」。過濾後的集合裡 isLocked 只剩
+                  // static 鎖（封箱）要扣。
+                  const roomStuff = cNode
+                    ? visibleEntries(
+                        (cNode.children || []).filter(
+                          (c) => c.pageType === 'stuff'
+                        ),
+                        progress
+                      )
+                    : [];
+                  const stuffCount = roomStuff.length;
+                  const openCount = roomStuff.filter(
+                    (c) => !isLocked(c)
+                  ).length;
                   return (
                     <button
                       key={area.slug}
@@ -683,9 +706,12 @@ export default function StorageReader() {
       return <ZoneStateDisplay kind="not-found" message="找不到此區域" large />;
     const meta = cNode.metadata || {};
     const clearingDef = CLEARINGS.find((c) => c.slug === activeClearingId);
-    const entries = (cNode.children || [])
-      .filter((c) => c.pageType === 'stuff')
-      .sort((a, b) => a.sortOrder - b.sortOrder);
+    // gate 未通過的條目在這裡就從來源移除，下游（統計列、三種卡片列表、
+    // 場景箱模態窗）全部自然一致——分開過濾遲早會漏掉其中一處。
+    const entries = visibleEntries(
+      (cNode.children || []).filter((c) => c.pageType === 'stuff'),
+      progress
+    ).sort((a, b) => a.sortOrder - b.sortOrder);
 
     // 從 clearing metadata 讀取 subcategory 定義
     interface SubcatDef {
@@ -695,9 +721,14 @@ export default function StorageReader() {
       description?: string;
       hidden?: boolean;
     }
-    const subcatDefs: SubcatDef[] = Array.isArray(meta.subcategories)
-      ? (meta.subcategories as SubcatDef[]).filter((s) => !s.hidden)
-      : [];
+    // 一個可見條目都沒有的分類不渲染——空箱子站在那裡仍然在說「這裡有東西」，
+    // 與「gate 未通過即不存在」矛盾。副作用是編輯端真的還沒放東西的分類也
+    // 會一起消失，這是可接受的（前台本來就不該出現空箱）。
+    const subcatDefs: SubcatDef[] = (
+      Array.isArray(meta.subcategories)
+        ? (meta.subcategories as SubcatDef[]).filter((s) => !s.hidden)
+        : []
+    ).filter((s) => entries.some((e) => e.metadata?.subcategory === s.id));
     const hasSubcats = subcatDefs.length > 0;
 
     // D1 資料優先，靜態定義 fallback
@@ -1173,12 +1204,15 @@ export default function StorageReader() {
       return null;
     }
 
-    const entries = (cNode.children || [])
-      .filter(
+    // 模態窗直接從 tree 撈，不經過 renderClearing 的 entries——這裡必須自己
+    // 過濾一次，否則場景箱點開就會露出被藏起來的對話。
+    const entries = visibleEntries(
+      (cNode.children || []).filter(
         (c) =>
           c.pageType === 'stuff' && c.metadata?.subcategory === openSubcatId
-      )
-      .sort((a, b) => a.sortOrder - b.sortOrder);
+      ),
+      progress
+    ).sort((a, b) => a.sortOrder - b.sortOrder);
 
     return (
       <div
@@ -1224,6 +1258,14 @@ export default function StorageReader() {
   // ══════════════════════════════════════════════════════════════════
   function renderReading() {
     if (!readingPage) return <ZoneStateDisplay kind="not-found" large />;
+    // 渲染層防禦：讀者停在頁面上時進度被撤回（DevTools 清旗標、登出使純潔者
+    // 條件失效）就要立刻收掉。導航守衛只在換頁那一刻求值，攔不到這條路。
+    // 一律回 not-found——「未解鎖」的訊息本身就洩漏了這裡有東西。
+    const readingNode = flatNodes.find(
+      (n) => n.slug === (activePageId ?? readingPage.slug)
+    );
+    if (readingNode && isGateBlocked(readingNode, progress))
+      return <ZoneStateDisplay kind="not-found" large />;
     const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
     const meta = cNode?.metadata || {};
     const labelEn =
@@ -1232,11 +1274,14 @@ export default function StorageReader() {
         : activeClearingId?.toUpperCase() || '';
     const clearingStyle = typeof meta.style === 'string' ? meta.style : 'blog';
 
-    // 計算同一 clearing 下的 prev / next stuff 頁面（排除 locked）
+    // 計算同一 clearing 下的 prev / next stuff 頁面（排除 locked 與 gate 未通過）
     const siblingStuffs = cNode
-      ? (cNode.children || [])
-          .filter((c) => c.pageType === 'stuff' && !isLocked(c))
-          .sort((a, b) => a.sortOrder - b.sortOrder)
+      ? visibleEntries(
+          (cNode.children || []).filter(
+            (c) => c.pageType === 'stuff' && !isLocked(c)
+          ),
+          progress
+        ).sort((a, b) => a.sortOrder - b.sortOrder)
       : [];
     const currentStuffIdx = siblingStuffs.findIndex(
       (c) => c.slug === activePageId || c.slug === readingPage.slug
