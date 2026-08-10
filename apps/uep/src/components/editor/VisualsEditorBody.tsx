@@ -449,15 +449,29 @@ export default function VisualsEditorBody({
     file: string;
   } | null>(null);
 
+  /**
+   * 寫入的權威來源。
+   *
+   * 上傳／替換是非同步的，handler 裡的 `data` 是啟動當下的閉包快照；等 await
+   * 回來時它可能已經過期，用它組 next 會把期間完成的另一筆寫入整個蓋掉（新增
+   * 的圖片或替換的結果消失，已上傳的 R2 檔案變成孤兒，而使用者看到的是成功
+   * 回饋）。所有寫入都改讀這個 ref，就不受 re-render 時序影響。
+   *
+   * ⚠️ 不可在 render 期間賦值（`dataRef.current = data`）——那會用尚未更新的
+   * state 覆蓋掉 update 剛寫進去的新值。
+   */
+  const dataRef = useRef(data);
+
   const update = (patch: Partial<VisualsData>) => {
-    const next = { ...data, ...patch };
+    const next = { ...dataRef.current, ...patch };
+    dataRef.current = next;
     setData(next);
     onDataChange(next);
     onDirty();
   };
 
   const updateImage = (imageId: string, patch: Partial<ImageItem>) => {
-    const nextImages = data.images.map((img) =>
+    const nextImages = dataRef.current.images.map((img) =>
       img.id === imageId ? { ...img, ...patch } : img
     );
     update({ images: nextImages });
@@ -465,16 +479,27 @@ export default function VisualsEditorBody({
 
   const removeImage = (imageId: string) => {
     update({
-      images: data.images
+      images: dataRef.current.images
         .filter((img) => img.id !== imageId)
         .map((img, i) => ({ ...img, sortOrder: i })),
     });
   };
 
+  /**
+   * 素材操作互斥閘：新增、替換、媒體庫選取共用一把鎖，同時只跑一條。
+   * 光靠 ref 修好覆蓋問題還不夠——並行時使用者無從得知哪張圖在動。
+   */
+  const assetBusy = uploading || replacingId !== null;
+
   // 上傳圖片
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    // UI 已停用，這是防守第二層（例如拖放或鍵盤觸發的意外並行）
+    if (assetBusy) {
+      e.target.value = '';
+      return;
+    }
     setUploading(true);
     setUploadProgress({ current: 1, total: files.length });
     try {
@@ -487,12 +512,12 @@ export default function VisualsEditorBody({
             id: generateId(),
             file: result.key,
             caption: '',
-            sortOrder: data.images.length + newImages.length,
+            sortOrder: dataRef.current.images.length + newImages.length,
           });
         }
       }
       if (newImages.length > 0) {
-        update({ images: [...data.images, ...newImages] });
+        update({ images: [...dataRef.current.images, ...newImages] });
       }
     } finally {
       setUploading(false);
@@ -511,6 +536,10 @@ export default function VisualsEditorBody({
     const file = e.target.files?.[0];
     const targetId = replaceTargetId;
     if (!file || !targetId) return;
+    if (assetBusy) {
+      e.target.value = '';
+      return;
+    }
     setReplacingId(targetId);
     try {
       const result = await uploadAsset(file);
@@ -543,15 +572,15 @@ export default function VisualsEditorBody({
       closeImagePicker();
       return;
     }
-    const already = data.images.some((img) => img.file === item.key);
+    const already = dataRef.current.images.some((img) => img.file === item.key);
     if (already) return;
     const newImg: ImageItem = {
       id: generateId(),
       file: item.key,
       caption: '',
-      sortOrder: data.images.length,
+      sortOrder: dataRef.current.images.length,
     };
-    update({ images: [...data.images, newImg] });
+    update({ images: [...dataRef.current.images, newImg] });
     setPickerOpen(false);
   };
 
@@ -909,6 +938,7 @@ export default function VisualsEditorBody({
                 className="ned-btn-ghost ned-btn-sm"
                 type="button"
                 onClick={() => openImagePicker()}
+                disabled={assetBusy}
                 style={{ color: accent }}
               >
                 📂 媒體庫
@@ -917,7 +947,7 @@ export default function VisualsEditorBody({
                 className="ned-btn-ghost ned-btn-sm"
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                disabled={assetBusy}
                 aria-busy={uploading}
                 style={{ color: accent }}
               >
@@ -1095,7 +1125,7 @@ export default function VisualsEditorBody({
                             setReplaceTargetId(img.id);
                             replaceInputRef.current?.click();
                           }}
-                          disabled={replacingId != null}
+                          disabled={assetBusy}
                           aria-busy={replacingId === img.id}
                           style={{ color: accent }}
                           title="上傳新檔案取代這張圖"
@@ -1110,7 +1140,7 @@ export default function VisualsEditorBody({
                           className="ned-btn-ghost ned-btn-sm"
                           type="button"
                           onClick={() => openImagePicker(img.id)}
-                          disabled={replacingId != null}
+                          disabled={assetBusy}
                           style={{ color: accent }}
                           title="從媒體庫挑一張取代這張圖"
                         >
@@ -1574,7 +1604,7 @@ export default function VisualsEditorBody({
                       <button
                         key={item.key}
                         type="button"
-                        disabled={already}
+                        disabled={already || assetBusy}
                         onClick={() => selectFromLibrary(item)}
                         style={{
                           display: 'flex',
