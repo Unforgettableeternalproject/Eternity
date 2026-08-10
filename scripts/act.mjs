@@ -179,6 +179,14 @@ const GROUPS = [
     items: [
       { cmd: 'test:seed', desc: '從正式環境增量 seed test D1' },
       {
+        cmd: 'test:fixtures',
+        desc: '灌入進度系統驗收素材（section/song/gallery/stuff/concepts）',
+      },
+      {
+        cmd: 'test:fixtures:dry',
+        desc: '驗收素材 dry-run（只列出要寫什麼）',
+      },
+      {
         cmd: 'test:reset',
         desc: '清空並重建 test D1',
         danger: true,

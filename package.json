@@ -41,6 +41,8 @@
     "test:release": "pnpm test:all && pnpm test:e2e:stress",
     "test:seed": "node scripts/seed-test-env.mjs",
     "test:reset": "node scripts/reset-test-env.mjs --confirm",
+    "test:fixtures": "node scripts/seed-progress-fixtures.mjs --test",
+    "test:fixtures:dry": "node scripts/seed-progress-fixtures.mjs --test --dry-run",
     "interlink:reindex": "node scripts/reindex-interlink.mjs",
     "interlink:reindex:local": "node scripts/reindex-interlink.mjs --local",
     "interlink:reindex:test": "node scripts/reindex-interlink.mjs --test",
