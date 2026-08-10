@@ -35,9 +35,16 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 
-afterEach(() => {
-  // 先清除 fake timers 裡的 debounce，避免 destroy 的 flush 打到 unstub 後的 fetch
-  adapter?.destroy();
+afterEach(async () => {
+  /* 先清除 fake timers 裡的 debounce，避免 destroy 的 flush 打到 unstub 後的 fetch。
+     ⚠️ 必須 await：destroy 失敗時會在內部重試，沒等的話那些 fetch 會落到**下一個**
+     測試新建的 mock 上，害它憑空多出幾次呼叫。也要換上一定會回應的 mock——
+     案例裡留下的 pending promise 或錯誤 mock 會讓收尾的 flush 卡住或空轉。 */
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(
+    jsonResponse({ ok: true, data: {}, meta: { rev: 999 } })
+  );
+  await adapter?.destroy();
   adapter = null;
   vi.runAllTimers();
   vi.useRealTimers();
@@ -472,6 +479,52 @@ describe('destroy 的可等待性', () => {
 
     await a.destroy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('送出成功時回報 true', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+    );
+    await a.save(sampleState());
+    await expect(a.destroy()).resolves.toBe(true);
+  });
+
+  /*
+   * 登出時 flush 失敗過去是靜默的：restorePending 排的重試等不到執行——
+   * logout 隨即清 session，計時器醒來時 getToken() 已回 null，那份進度被當成
+   * 「已登出」丟棄；而本地鏡像又會被 logout 的 reset 清掉（隱私），連退路都沒有。
+   */
+  it('瞬時失敗會在同一次 destroy 內重試救回', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: false }, 502))
+      .mockResolvedValueOnce(
+        jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+      );
+    await a.save(sampleState());
+
+    await expect(a.destroy()).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('連續失敗時回報 false，讓呼叫端能告知使用者', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockRejectedValue(new Error('offline'));
+    await a.save(sampleState());
+
+    await expect(a.destroy()).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('沒有殘留進度時直接回報 true，不打 API', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    await expect(a.destroy()).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

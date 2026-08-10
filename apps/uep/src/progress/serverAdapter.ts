@@ -33,6 +33,15 @@ const MAX_RETRIES = 5;
 const MAX_BACKOFF_MS = 60_000;
 
 /**
+ * 關閉前（登出／切換 adapter）沖出殘留進度的嘗試次數。
+ *
+ * 刻意**不加延遲**：這條路徑上呼叫端正等著往下走（登出流程），拖住它會讓
+ * 使用者盯著沒反應的畫面。連續重試救得回 5xx 與代理瞬斷這類瞬時故障；
+ * 真的斷線就救不回，改由回傳值讓呼叫端告知使用者。
+ */
+const SHUTDOWN_FLUSH_ATTEMPTS = 3;
+
+/**
  * 這個 HTTP 狀態值得重試嗎？
  *
  * 只有暫時性故障該重試。400/413/422 這類請求本身就不合法的錯誤重送幾次
@@ -102,7 +111,16 @@ export class ServerAdapter implements ProgressAdapter {
   private retries = 0;
   /** flush 序列化的尾巴——保證同一時間只有一個 PUT 在飛（見 `flush()`） */
   private inflight: Promise<void> = Promise.resolve();
+  /**
+   * 頁面正在卸載。只有 `pagehide` 會設起來——重排的計時器此後不會有機會執行。
+   *
+   * ⚠️ 別拿 `keepalive` 當這件事的代理訊號。`destroy()`（登出／切換 adapter）
+   * 同樣用 keepalive，但那時頁面還好端端地在，重排是有意義的；
+   * `visibilitychange` 也一樣，切走的分頁隨時可能切回來。
+   */
+  private unloading = false;
   private readonly onPageHide = () => {
+    this.unloading = true;
     void this.flush(true);
   };
 
@@ -133,8 +151,12 @@ export class ServerAdapter implements ProgressAdapter {
    * PUT 至少要等到下一個 microtask 才會讀 token；呼叫端若不等就同步清掉
    * session，`doFlush()` 醒來時 `getToken()` 已經回 null，這份殘留進度會被
    * 當成「已登出」直接丟棄——debounce 窗口內（預設兩秒）的閱讀全部消失。
+   *
+   * @returns 殘留進度是否已經處理完畢。`false` 代表這一份**真的沒送出去**：
+   * 呼叫端（登出）接著就會清掉 session 與本地鏡像，沒有任何後續機會補送，
+   * 所以這個結果必須讓使用者知道，不能靜默吞掉。
    */
-  destroy(): Promise<void> {
+  async destroy(): Promise<boolean> {
     if (typeof window !== 'undefined') {
       window.removeEventListener('pagehide', this.onPageHide);
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
@@ -143,7 +165,21 @@ export class ServerAdapter implements ProgressAdapter {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    return this.flush(true);
+
+    /* 這裡不能只 flush 一次。失敗時 `restorePending()` 會把快照放回 pending
+       並排一次重試，但登出流程等不到那個計時器——session 隨即被清空，計時器
+       醒來時 `getToken()` 回 null，那份進度就被當成「已登出」丟棄。而本地鏡像
+       又會被 logout 的 reset 一併清掉（隱私要求），等於連退路都沒有。 */
+    for (let attempt = 0; attempt < SHUTDOWN_FLUSH_ATTEMPTS; attempt += 1) {
+      await this.flush(true);
+      if (!this.pending) return true;
+    }
+    // 仍有殘留：清掉排好的重試，別讓它在 session 消失後空跑一趟
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    return false;
   }
 
   /**
@@ -313,7 +349,7 @@ export class ServerAdapter implements ProgressAdapter {
       }
       // 暫時性故障（5xx、408、429、代理攔截…）：留著等重試
       if (isRetriableStatus(res.status)) {
-        this.restorePending(snapshot, keepalive);
+        this.restorePending(snapshot);
         return;
       }
       /* 其餘 4xx 是請求本身不合法（版本不相容的 400、blob 過大的 413…），
@@ -321,7 +357,7 @@ export class ServerAdapter implements ProgressAdapter {
       this.retries = 0;
     } catch {
       // 網路失敗：可重試
-      this.restorePending(snapshot, keepalive);
+      this.restorePending(snapshot);
     }
   }
 
@@ -358,13 +394,13 @@ export class ServerAdapter implements ProgressAdapter {
    * ⚠️ 只在期間沒有更新的 pending 時才放回——`save()` 可能在這次請求飛在天上
    * 時寫入了更新的快照，用舊的蓋掉它等於把進度倒退。
    *
-   * keepalive 代表這是 pagehide／visibilitychange 的最後一搏，頁面即將卸載，
-   * 重排計時器不會有機會執行，放回也只是讓狀態一致而已。
+   * 頁面正在卸載時只放回、不重排——計時器不會有機會執行了。判斷看的是
+   * `unloading` 而非 keepalive，兩者不等價（見該欄位的註解）。
    */
-  private restorePending(snapshot: ProgressState, keepalive: boolean): void {
+  private restorePending(snapshot: ProgressState): void {
     if (this.pending) return;
     this.pending = snapshot;
-    if (keepalive) return;
+    if (this.unloading) return;
 
     this.retries += 1;
     if (this.retries > MAX_RETRIES) {

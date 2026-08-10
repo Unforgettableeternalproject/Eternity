@@ -299,7 +299,7 @@ export const uepReaderAuth = {
    * @param expired token 過期觸發時為 true（UI 可顯示不同訊息）
    */
   async logout(expired = false): Promise<void> {
-    await serverAdapter?.destroy();
+    const flushed = await serverAdapter?.destroy();
     serverAdapter = null;
     session = null;
     persistSession();
@@ -307,8 +307,18 @@ export const uepReaderAuth = {
     await progress.setAdapter(new LocalStorageAdapter(), { hydrate: false });
     progress.reset({ keepObserverEver: false });
     notify();
-    if (expired && typeof window !== 'undefined') {
-      window.__uepToastManager?.info('記錄憑證已過期，請重新登入。');
+    if (typeof window !== 'undefined') {
+      if (expired) {
+        window.__uepToastManager?.info('記錄憑證已過期，請重新登入。');
+      }
+      /* 第 1 步的 flush 連試三次都沒送出去。第 4 步的 reset 已經把本地鏡像
+         清掉（隱私），這份進度不會再有任何補送機會——靜默吞掉的話，使用者
+         下次登入只會發現最後幾分鐘的閱讀莫名消失。 */
+      if (flushed === false) {
+        window.__uepToastManager?.warning(
+          '最後一段閱讀進度沒能同步到伺服器，下次登入可能會少一小段。'
+        );
+      }
     }
   },
 
