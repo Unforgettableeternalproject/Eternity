@@ -132,3 +132,60 @@ describe('POST /api/visitor/reset — 授權邊界', () => {
     expect(res.status).toBe(401);
   });
 });
+
+/**
+ * 缺 secret 時的行為。
+ *
+ * 原本的判斷是「`API_TOKEN` 與 `JWT_SECRET` 都沒設就跳過授權」——正式 worker
+ * 也可能因為 secret 漏設或被移除而落入這個形狀，匿名請求就能重置兩站計數。
+ * 改成只認 `ETERNITY_DEV` 白名單後，缺 secret 一律 fail closed。
+ */
+describe('POST /api/visitor/reset — 缺 secret 的 fail-closed 邊界', () => {
+  /** 部署環境形狀：沒有任何 secret，也沒有 dev 旗標 */
+  function bareEnv(overrides: Record<string, unknown> = {}) {
+    return {
+      ...env,
+      API_TOKEN: undefined,
+      JWT_SECRET: undefined,
+      ETERNITY_DEV: undefined,
+      ...overrides,
+    };
+  }
+
+  it('兩個 secret 都缺席時匿名請求拒絕（不再 fail-open）', async () => {
+    const res = await worker.fetch(resetRequest(), bareEnv(), ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it('兩個 secret 都缺席時任意 token 也拒絕', async () => {
+    const res = await worker.fetch(resetRequest('anything'), bareEnv(), ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it('只缺 API_TOKEN 時仍走 JWT 驗證（不因缺一個就放行）', async () => {
+    const res = await worker.fetch(
+      resetRequest('anything'),
+      bareEnv({ JWT_SECRET: SECRET }),
+      ctx
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('本機 wrangler dev（ETERNITY_DEV=true）保留無 token bypass', async () => {
+    const res = await worker.fetch(
+      resetRequest(),
+      bareEnv({ ETERNITY_DEV: 'true' }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('ETERNITY_DEV 不是字串 "true" 就不算 dev（避免誤設值放行）', async () => {
+    const res = await worker.fetch(
+      resetRequest(),
+      bareEnv({ ETERNITY_DEV: '1' }),
+      ctx
+    );
+    expect(res.status).toBe(401);
+  });
+});

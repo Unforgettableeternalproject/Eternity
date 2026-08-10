@@ -10,5 +10,9 @@ id = "4b8b9e1288e24d9eaf912d2a61ef74fc"
 # CORS 設定（支援通配符 *.pages.dev）
 # root 站：unforgettableeternalproject.com + eternity-8v7.pages.dev
 # uep 站：uep.unforgettableeternalproject.com + eternity-uep.pages.dev
+# ⚠️ 這裡**不可**設定 ETERNITY_DEV。/api/visitor/reset 在缺 secret 時 fail
+# closed，唯一的 bypass 是本機 dev script（`wrangler dev --var
+# ETERNITY_DEV:true`）注入的旗標；部署出去的 vars 一旦帶上它，匿名請求就能
+# 重置兩站訪客計數。
 [vars]
 ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"

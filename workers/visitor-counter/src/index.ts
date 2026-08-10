@@ -5,6 +5,16 @@ export interface Env {
   API_TOKEN?: string;
   /** JWT Secret（與 content-api 共用，讓 admin 編輯器的 JWT 也能驗證） */
   JWT_SECRET?: string;
+  /**
+   * 本機開發旗標——只由 `wrangler dev --var ETERNITY_DEV:true`（見
+   * package.json 的 dev script）注入，`wrangler.toml` 的任何 `[vars]`
+   * 都不可設定，否則會跟著部署出去。
+   *
+   * ⚠️ 判斷依據是白名單而非「缺 secret 即開發」：正式 worker 也可能因為
+   * secret 漏設而缺 `JWT_SECRET`／`API_TOKEN`，用排除法會讓匿名請求直接
+   * 重置兩站訪客計數。缺 secret 一律 fail closed（比照 content-api）。
+   */
+  ETERNITY_DEV?: string;
 }
 
 interface VisitorData {
@@ -260,9 +270,9 @@ export default {
 
     // ── 重置計數器（需要驗證：API_TOKEN 或 JWT） ──
     if (url.pathname === '/api/visitor/reset' && request.method === 'POST') {
-      // dev mode：兩個 secret 都沒設 → 跳過驗證
-      const hasAuth = env.API_TOKEN || env.JWT_SECRET;
-      if (hasAuth) {
+      // 只有本機 wrangler dev（ETERNITY_DEV=true）跳過驗證。缺 secret 的
+      // 部署環境一律 fail closed——那是部署錯誤，不是開發模式。
+      if (env.ETERNITY_DEV !== 'true') {
         const authHeader = request.headers.get('Authorization') || '';
         const bearerToken = authHeader.replace('Bearer ', '');
         let authorized = false;
