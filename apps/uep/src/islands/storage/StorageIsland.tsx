@@ -43,6 +43,9 @@ import {
 } from './dragToPin';
 import { formatCapturedAt, formatZoneLabel } from './noteMeta';
 import { usePinnedNotes } from './usePinnedNotes';
+import { subscribeUnlockNotice } from './unlockNotice';
+
+import type { StorageUnlockNotice } from './unlockNotice';
 
 import type { GrabOffset } from './dragToPin';
 
@@ -79,6 +82,103 @@ function sortNotes(
  */
 function stripSiteSuffix(label: string): string {
   return label.replace(/\s*[·\-–]\s*邊際世界\s*$/u, '');
+}
+
+/** Fence 探頭的四個角落，每次通知隨機挑一個 */
+const PEEK_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
+type PeekCorner = (typeof PEEK_CORNERS)[number];
+
+/**
+ * 卡片自行收走的時間。只管展開後的這張卡——收合狀態的 dock chip 不走
+ * 這個計時器，它跟其他提示一樣撐到展開或換頁為止。
+ */
+const PEEK_TTL_MS = 30_000;
+
+/** 導向解鎖的那篇對話（沿 navigateToPinned 的同頁 pushState 手法） */
+function goToDialogue(slug: string): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.pathname = '/storage';
+  url.search = '';
+  url.searchParams.set('page', slug);
+  const target = url.pathname + url.search;
+  if (window.location.pathname === url.pathname) {
+    // 同 pathname 的子頁切換：pushState 不會產生 popstate（規範限制），
+    // 必須手動派一個讓 useZoneRouter 接手載入內容。
+    window.history.pushState({}, '', target);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  } else {
+    window.location.assign(target);
+  }
+}
+
+/**
+ * UEP 從島的角落斜斜探出來，說有新的對話可以聊了。
+ *
+ * 對話 gate 未通過時整張從列表消失，解鎖那一刻因此毫無動靜——這張卡是
+ * 補回來的那一半。只提一篇（多篇同時解鎖時取第一篇），其餘讓讀者自己
+ * 在置物空間裡發現。
+ */
+function UnlockNoticePeek() {
+  const [notice, setNotice] = useState<StorageUnlockNotice | null>(null);
+  const [corner, setCorner] = useState<PeekCorner>('tr');
+
+  useEffect(
+    () =>
+      subscribeUnlockNotice((next) => {
+        setNotice(next);
+        if (next) {
+          setCorner(
+            PEEK_CORNERS[Math.floor(Math.random() * PEEK_CORNERS.length)]
+          );
+        }
+      }),
+    []
+  );
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), PEEK_TTL_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  if (!notice) return null;
+
+  return (
+    <div
+      className={`uep-stoland__peek uep-stoland__peek--${corner}`}
+      role="status"
+    >
+      <img
+        src="/uep/Fence.webp"
+        alt=""
+        aria-hidden
+        className="uep-stoland__peek-fence"
+      />
+      <button
+        type="button"
+        className="uep-stoland__peek-bubble"
+        onClick={() => {
+          setNotice(null);
+          goToDialogue(notice.slug);
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <span className="uep-stoland__peek-lead">欸，有空嗎？</span>
+        <span className="uep-stoland__peek-title">{notice.title}</span>
+        <span className="uep-stoland__peek-hint">點一下過來找我</span>
+      </button>
+      <button
+        type="button"
+        className="uep-stoland__peek-dismiss"
+        onClick={() => setNotice(null)}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-label="關閉通知"
+      >
+        ×
+      </button>
+    </div>
+  );
 }
 
 export default function StorageIsland() {
@@ -151,6 +251,9 @@ export default function StorageIsland() {
     <div className="uep-stoland">
       {/* 把整張紙貼在頁面上的膠帶（純裝飾） */}
       <span className="uep-stoland__tape" aria-hidden />
+
+      {/* 對話解鎖通知——UEP 從某個角落探出來 */}
+      <UnlockNoticePeek />
 
       {/* 紙上的標題＝拖曳把手（設計稿沒有白框 header） */}
       <div className="uep-stoland__masthead" {...chrome.dragHandleProps}>

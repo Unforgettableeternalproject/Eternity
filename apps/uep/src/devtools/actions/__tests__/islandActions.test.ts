@@ -28,6 +28,9 @@ const ACTION_IDS = [
   'lostbookmark:reset',
   'lostbookmark:open-gate',
   'lostbookmark:dump-status',
+  'storage-notice:force',
+  'storage-notice:clear',
+  'storage-notice:dump-status',
 ];
 
 /** 最小的 islands bridge：只記錄被解鎖了什麼 */
@@ -100,5 +103,47 @@ describe('islandActions', () => {
 
     expect(warn).toHaveBeenCalled();
     expect(getProgressManager().getState().islandsUnlocked).toEqual([]);
+  });
+
+  /* Storage 解鎖通知的三個入口靠自己的 bridge（掛在 IslandHost），
+     不在浮島頁面時要 disabled 而不是點下去沒反應。 */
+  it('Storage 通知 action 在 bridge 缺席時 disabled，掛上後可用', () => {
+    const actions = getRegistry()
+      .getAll()
+      .filter((a) => a.id.startsWith('storage-notice:'));
+    expect(actions).toHaveLength(3);
+    expect(actions.every((a) => a.available?.() === false)).toBe(true);
+
+    window.__uepStorageNoticeTest = {
+      force: vi.fn(),
+      clear: vi.fn(),
+      status: () => ({
+        indexed: 0,
+        blocked: [],
+        visible: [],
+        pending: false,
+      }),
+    };
+    expect(actions.every((a) => a.available?.() === true)).toBe(true);
+    delete window.__uepStorageNoticeTest;
+  });
+
+  it('推通知走 bridge', async () => {
+    const force = vi.fn();
+    window.__uepStorageNoticeTest = {
+      force,
+      clear: vi.fn(),
+      status: () => ({
+        indexed: 0,
+        blocked: [],
+        visible: [],
+        pending: false,
+      }),
+    };
+
+    await getRegistry().dispatch('storage-notice:force');
+
+    expect(force).toHaveBeenCalled();
+    delete window.__uepStorageNoticeTest;
   });
 });

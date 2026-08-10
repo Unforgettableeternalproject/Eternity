@@ -25,7 +25,9 @@ import { createPortal } from 'react-dom';
 import { useReaderAuth } from '../auth';
 import { UEP_ENTITY_ACTIVATE_EVENT } from '../embed';
 import type { EntityActivateDetail } from '../embed';
-import { useProgress } from '../progress';
+import { getProgressManager, useProgress } from '../progress';
+import type { ProgressState } from '../progress';
+import { isGateBlocked } from '../components/storage/storageVisibility';
 import { getAudioStore, resolveSpoilerLevel } from '../audio';
 import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
 import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
@@ -67,6 +69,12 @@ import {
   pushEchoSuggestion,
 } from './echoes/echoSuggestionBridge';
 import PinnedNoteLayer from './storage/PinnedNoteLayer';
+import {
+  fetchStorageDialogueIndex,
+  type StorageDialogueEntry,
+} from './storage/storageDialogueIndex';
+import { clearUnlockNotice, pushUnlockNotice } from './storage/unlockNotice';
+import { mountUnlockNoticeTestBridge } from './storage/unlockNoticeTestBridge';
 import { fetchZoneProgressTree } from './zoneProgressTree';
 import {
   UEP_ECHO_PREVIEW_EVENT,
@@ -362,9 +370,81 @@ export default function IslandHost() {
     clearPhantomSuggestion();
     clearPendingEntityActivate();
     clearRelated();
+    clearUnlockNotice();
     // 標記型提示同樣以「換頁」為終點——進度／便條的變動屬於剛才那一頁
     clearAllChipAttention();
   }, [pathname, search]);
+
+  /* Storage 對話解鎖 → UEP 從島的角落探出來說一聲
+     對話 gate 未通過時整張從列表消失（不劇透標題），代價是解鎖那一刻
+     毫無動靜。這裡補上那一半，全站任何頁面都偵測——讀者在 History 讀完
+     一章的當下就該被告知，而不是等他哪天走進置物空間。
+
+     ⚠️ 不能用「progress 變了就比對」：hydrate（本地→遠端合流）會把伺服器
+     上早就有的旗標當成剛剛拿到的，於是一登入就跳出一串「解鎖了」。因此
+     直接訂閱 store 讀 `detail.source`，hydrate／reset／sweep 只更新基準
+     不通知——這三者都是「重新得知既有狀態」，不是「剛剛發生了什麼」。 */
+  const dialogueIndexRef = useRef<StorageDialogueEntry[] | null>(null);
+  const visibleDialoguesRef = useRef<Set<string> | null>(null);
+  const evaluateStorageUnlock = useCallback(
+    (state: ProgressState, notify: boolean) => {
+      const entries = dialogueIndexRef.current;
+      if (!entries) return;
+      const visible = new Set(
+        entries
+          .filter((e) => !isGateBlocked({ metadata: e.metadata }, state))
+          .map((e) => e.slug)
+      );
+      const prev = visibleDialoguesRef.current;
+      visibleDialoguesRef.current = visible;
+      // 基準尚未建立時這一次就是基準——不是「剛剛解鎖」
+      if (!notify || prev === null) return;
+      const gained = entries.find(
+        (e) => visible.has(e.slug) && !prev.has(e.slug)
+      );
+      if (!gained) return;
+      // 島還沒解鎖 → 空消費。基準已經更新，所以日後解鎖島時不會把這期間
+      // 累積的全部一次倒出來。
+      if (!shouldMountIsland(state, 'storage')) return;
+      pushUnlockNotice({ slug: gained.slug, title: gained.title });
+    },
+    []
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void fetchStorageDialogueIndex()
+      .then((entries) => {
+        if (cancelled) return;
+        dialogueIndexRef.current = entries;
+        // 索引到手的當下先建基準：此刻看得到的就是讀者本來就看得到的
+        evaluateStorageUnlock(progressRef.current, false);
+      })
+      .catch(() => {
+        // 索引拿不到就不通知——寧可漏一次，也不要指向一個查不到的頁面
+      });
+    const unsubscribe = getProgressManager().subscribe((state, detail) => {
+      const silent =
+        detail.source === 'hydrate' ||
+        detail.source === 'reset' ||
+        detail.source === 'sweep';
+      evaluateStorageUnlock(state, !silent);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [evaluateStorageUnlock]);
+
+  // 通知的 dev bridge 掛在這裡——索引與基準集合都在這個元件手上，
+  // 其他地方組不出 status()
+  useEffect(
+    () =>
+      mountUnlockNoticeTestBridge({
+        getIndex: () => dialogueIndexRef.current,
+        getProgress: () => progressRef.current,
+      }),
+    []
+  );
 
   /* 進度推進 → 旅程之書 chip 閃一下（S9-D.6；2026-07-29 精準化）
      島收合時 HistoryIsland 沒有 mount，變動只能在這裡偵測。

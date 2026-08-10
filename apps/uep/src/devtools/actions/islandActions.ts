@@ -31,6 +31,8 @@ const hasIslandBridge = (): boolean =>
   typeof window !== 'undefined' && !!window.__uepIslandsTest;
 const hasLostBookmarkBridge = (): boolean =>
   typeof window !== 'undefined' && !!window.__uepLostBookmarkTest;
+const hasStorageNoticeBridge = (): boolean =>
+  typeof window !== 'undefined' && !!window.__uepStorageNoticeTest;
 
 function warnMissing(name: string): void {
   // eslint-disable-next-line no-console
@@ -168,6 +170,51 @@ export function registerIslandActions(): void {
         console.log(
           '[UEP LostBookmark Status]',
           window.__uepLostBookmarkTest.status()
+        );
+      },
+    },
+
+    // ── Storage 對話解鎖通知（Fence 探頭） ──
+    // 真實觸發條件是「gate 剛剛從擋住變成通過」，拿到旗標後就再也復現不了
+    // 那一瞬間——這幾個入口讓卡片本身可以反覆驗。
+    {
+      group: GROUP_ISLANDS,
+      id: 'storage-notice:force',
+      label: '推一則 Storage 解鎖通知',
+      description:
+        '優先挑目前被 gate 擋住的對話；島收合中會留 pending 並亮 chip',
+      available: hasStorageNoticeBridge,
+      execute: () => {
+        if (!window.__uepStorageNoticeTest)
+          return warnMissing('__uepStorageNoticeTest');
+        window.__uepStorageNoticeTest.force();
+      },
+    },
+    {
+      group: GROUP_ISLANDS,
+      id: 'storage-notice:clear',
+      label: '清除 Storage 解鎖通知',
+      description: '收掉顯示中與 pending 的通知（等同換頁）',
+      available: hasStorageNoticeBridge,
+      execute: () => {
+        if (!window.__uepStorageNoticeTest)
+          return warnMissing('__uepStorageNoticeTest');
+        window.__uepStorageNoticeTest.clear();
+      },
+    },
+    {
+      group: GROUP_ISLANDS,
+      id: 'storage-notice:dump-status',
+      label: '傾印 Storage 通知狀態到 console',
+      description: '通知沒出現時看這個：索引筆數、目前被擋／通過的 slug',
+      available: hasStorageNoticeBridge,
+      execute: () => {
+        if (!window.__uepStorageNoticeTest)
+          return warnMissing('__uepStorageNoticeTest');
+        // eslint-disable-next-line no-console
+        console.log(
+          '[UEP Storage Notice Status]',
+          window.__uepStorageNoticeTest.status()
         );
       },
     },
