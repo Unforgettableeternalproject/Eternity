@@ -45,11 +45,49 @@ function fingerprintKey(site: SiteKey, fingerprint: string): string {
     : `visitor:${site}:${fingerprint}`;
 }
 
-/** 簡易 JWT 驗證（只驗簽章，不檢查 exp 等 claims） */
-async function verifyJwt(token: string, secret: string): Promise<boolean> {
+/**
+ * 允許重置計數的角色白名單。
+ *
+ * ⚠️ 用白名單而非「排除 reader」：`JWT_SECRET` 與 content-api 共用，那邊
+ * 簽出的**讀者** token（`role: 'reader'`）帶的是同一把 secret，簽章一定
+ * 驗得過。任何人都能自行註冊一個讀者帳號，拿到的 token 就能重置兩站的
+ * 訪客計數。黑名單只擋得住今天已知的角色，白名單連未來新增的都一併擋。
+ */
+const RESET_ALLOWED_ROLES = new Set(['super_admin', 'editor', 'viewer']);
+
+/** JWT payload 中本 worker 在意的欄位 */
+interface JwtClaims {
+  role?: string;
+  exp?: number;
+}
+
+/** base64url → JSON */
+function decodeJwtPayload(payloadB64: string): JwtClaims | null {
+  try {
+    const json = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json) as JwtClaims;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * JWT 驗證——簽章、有效期、角色三者都要過。
+ *
+ * ⚠️ 三項缺一不可。原本只驗簽章，於是讀者 token 通得過，而且**過期之後
+ * 仍然通得過**：沒有 exp 檢查等於簽過一次就永久有效。
+ */
+async function verifyAdminJwt(token: string, secret: string): Promise<boolean> {
   try {
     const [headerB64, payloadB64, sigB64] = token.split('.');
     if (!headerB64 || !payloadB64 || !sigB64) return false;
+
+    const claims = decodeJwtPayload(payloadB64);
+    if (!claims) return false;
+    if (!claims.role || !RESET_ALLOWED_ROLES.has(claims.role)) return false;
+    // exp 缺席也視為不合格——content-api 簽發的 token 一定帶 exp
+    if (typeof claims.exp !== 'number') return false;
+    if (claims.exp <= Math.floor(Date.now() / 1000)) return false;
 
     const key = await crypto.subtle.importKey(
       'raw',
@@ -234,9 +272,9 @@ export default {
           authorized = true;
         }
 
-        // 方式 2：JWT 簽章驗證（admin 編輯器用）
+        // 方式 2：admin JWT（admin 編輯器用）——簽章 + 有效期 + 角色
         if (!authorized && env.JWT_SECRET && bearerToken) {
-          authorized = await verifyJwt(bearerToken, env.JWT_SECRET);
+          authorized = await verifyAdminJwt(bearerToken, env.JWT_SECRET);
         }
 
         if (!authorized) {
