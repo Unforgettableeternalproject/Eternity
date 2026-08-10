@@ -14,6 +14,8 @@ import VisualsEditorBody, { type VisualsData } from '../VisualsEditorBody';
  */
 
 const uploadAsset = vi.hoisted(() => vi.fn());
+/** 模式切換的確認對話框——預設直接同意，需要卡住時由測試改成 pending */
+const confirmDialog = vi.hoisted(() => vi.fn(async () => true));
 
 vi.mock('../editorHelpers', () => ({
   API_BASE: '',
@@ -22,7 +24,7 @@ vi.mock('../editorHelpers', () => ({
   fetchImageAssets: vi.fn(async () => []),
   buildAssetUrl: (key: string) => `/api/assets/${key}`,
   getDialog: () => ({
-    confirm: vi.fn(async () => true),
+    confirm: confirmDialog,
     alert: vi.fn(async () => {}),
   }),
   getToast: () => ({
@@ -85,6 +87,7 @@ function pngFile(name: string): File {
 }
 
 beforeEach(() => {
+  confirmDialog.mockImplementation(async () => true);
   // 唯一性查核的 tree fetch——回空樹即可，本測試不碰 key 驗證
   vi.stubGlobal(
     'fetch',
@@ -155,6 +158,106 @@ describe('VisualsEditorBody — 素材操作互斥', () => {
         screen.getByText('📂 媒體庫').closest('button')
       ).not.toBeDisabled();
     });
+  });
+});
+
+/**
+ * 模式切換會把 images 整個清空，是第三條會動到同一份資料的路徑。
+ * 上傳／替換進行中切換，回來的結果就沒有落點——新增的普通圖片被寫進
+ * sprite 模式，替換則完全落空，兩者都留下孤兒 R2 檔案。
+ */
+describe('VisualsEditorBody — 模式切換與素材操作互斥', () => {
+  it('新增上傳進行中時，精靈圖模式按鈕停用', async () => {
+    const user = userEvent.setup();
+    renderBody();
+
+    const pending = deferred<{ key: string; url: string; size: number }>();
+    uploadAsset.mockReturnValueOnce(pending.promise);
+
+    expect(screen.getByText('精靈圖').closest('button')).not.toBeDisabled();
+
+    const addInput = document.querySelector(
+      'input[type="file"][multiple]'
+    ) as HTMLInputElement;
+    await user.upload(addInput, pngFile('new.png'));
+
+    await waitFor(() => {
+      expect(screen.getByText('精靈圖').closest('button')).toBeDisabled();
+    });
+    // 目前所在的模式不停用——那顆按下去是 no-op，鎖了只是視覺噪音
+    expect(screen.getByText('普通圖片').closest('button')).not.toBeDisabled();
+
+    pending.resolve({ key: 'images/new.png', url: '', size: 1 });
+    await waitFor(() => {
+      expect(screen.getByText('精靈圖').closest('button')).not.toBeDisabled();
+    });
+  });
+
+  it('替換進行中時，精靈圖模式按鈕停用', async () => {
+    const user = userEvent.setup();
+    renderBody();
+
+    const pending = deferred<{ key: string; url: string; size: number }>();
+    uploadAsset.mockReturnValueOnce(pending.promise);
+
+    await user.click(screen.getByText('a.png'));
+    await user.click(screen.getByTitle('上傳新檔案取代這張圖'));
+    const replaceInput = document.querySelector(
+      'input[type="file"]:not([multiple])'
+    ) as HTMLInputElement;
+    await user.upload(replaceInput, pngFile('swap.png'));
+
+    await waitFor(() => {
+      expect(screen.getByText('精靈圖').closest('button')).toBeDisabled();
+    });
+
+    pending.resolve({ key: 'images/swap.png', url: '', size: 1 });
+    await waitFor(() => {
+      expect(screen.getByText('精靈圖').closest('button')).not.toBeDisabled();
+    });
+  });
+
+  it('確認對話框掛起期間啟動的上傳，不會被回來的模式切換清空', async () => {
+    const user = userEvent.setup();
+    const { onDataChange } = renderBody();
+
+    // 確認對話框卡住——使用者盯著「確定要清除嗎？」的那段時間
+    const confirmGate = deferred<boolean>();
+    confirmDialog.mockImplementation(() => confirmGate.promise);
+    await user.click(screen.getByText('精靈圖').closest('button')!);
+    await waitFor(() => expect(confirmDialog).toHaveBeenCalled());
+
+    // 這期間啟動上傳（模式按鈕當下還沒鎖，因為還沒有素材操作在跑）
+    const pending = deferred<{ key: string; url: string; size: number }>();
+    uploadAsset.mockReturnValueOnce(pending.promise);
+    const addInput = document.querySelector(
+      'input[type="file"][multiple]'
+    ) as HTMLInputElement;
+    await user.upload(addInput, pngFile('new.png'));
+
+    // 使用者按下「確定」——此時已有上傳在飛，切換必須放棄
+    confirmGate.resolve(true);
+    await waitFor(() => {
+      expect(screen.getByText('精靈圖').closest('button')).toBeDisabled();
+    });
+
+    pending.resolve({ key: 'images/new.png', url: '', size: 1 });
+    await waitFor(() => {
+      expect(latestImages(onDataChange)).toHaveLength(3);
+    });
+
+    const last = onDataChange.mock.calls[
+      onDataChange.mock.calls.length - 1
+    ][0] as VisualsData;
+    // images 沒有被清空，layout 也沒被改成 sprite
+    expect(last.images.map((i) => i.file)).toEqual([
+      'images/a.png',
+      'images/b.png',
+      'images/new.png',
+    ]);
+    expect(last.layout).toBe('');
+    // 仍留在普通圖片模式
+    expect(screen.getByText('+ 上傳圖片')).toBeTruthy();
   });
 });
 

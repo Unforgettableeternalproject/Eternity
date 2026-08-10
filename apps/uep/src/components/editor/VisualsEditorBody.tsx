@@ -486,20 +486,33 @@ export default function VisualsEditorBody({
   };
 
   /**
-   * 素材操作互斥閘：新增、替換、媒體庫選取共用一把鎖，同時只跑一條。
-   * 光靠 ref 修好覆蓋問題還不夠——並行時使用者無從得知哪張圖在動。
+   * 素材操作互斥閘：新增、替換、媒體庫選取、模式切換共用一把鎖，同時只跑
+   * 一條。光靠 dataRef 修好覆蓋問題還不夠——並行時使用者無從得知哪張圖在
+   * 動，而模式切換會直接把 images 清空，進行中的上傳回來就沒有落點。
+   *
+   * 這個 state 供 UI 停用用；判斷一律走 assetBusyRef。
    */
   const assetBusy = uploading || replacingId !== null;
+
+  /**
+   * 閘的同步鏡像。
+   *
+   * state 要等 re-render 才看得到，同一個 tick 內的第二次觸發用它判斷會直接
+   * 穿過去；`await` 之後讀閉包 state 也是舊值。所有 guard 判斷讀這個 ref，
+   * 由發起操作的 handler 自己負責開關。
+   */
+  const assetBusyRef = useRef(false);
 
   // 上傳圖片
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     // UI 已停用，這是防守第二層（例如拖放或鍵盤觸發的意外並行）
-    if (assetBusy) {
+    if (assetBusyRef.current) {
       e.target.value = '';
       return;
     }
+    assetBusyRef.current = true;
     setUploading(true);
     setUploadProgress({ current: 1, total: files.length });
     try {
@@ -520,6 +533,7 @@ export default function VisualsEditorBody({
         update({ images: [...dataRef.current.images, ...newImages] });
       }
     } finally {
+      assetBusyRef.current = false;
       setUploading(false);
       setUploadProgress({ current: 0, total: 0 });
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -536,15 +550,17 @@ export default function VisualsEditorBody({
     const file = e.target.files?.[0];
     const targetId = replaceTargetId;
     if (!file || !targetId) return;
-    if (assetBusy) {
+    if (assetBusyRef.current) {
       e.target.value = '';
       return;
     }
+    assetBusyRef.current = true;
     setReplacingId(targetId);
     try {
       const result = await uploadAsset(file);
       if (result) updateImage(targetId, { file: result.key });
     } finally {
+      assetBusyRef.current = false;
       setReplacingId(null);
       setReplaceTargetId(null);
       if (replaceInputRef.current) replaceInputRef.current.value = '';
@@ -628,8 +644,11 @@ export default function VisualsEditorBody({
   // 切換模式時清理資料
   const switchMode = async (mode: EditorMode) => {
     if (mode === editorMode) return;
+    // 清空 images 會抽掉進行中上傳／替換的落點：新增回來會把普通圖片寫進
+    // sprite 模式，替換則因為目標項目已消失而完全落空，兩者都留下孤兒 R2 檔案
+    if (assetBusyRef.current) return;
     if (
-      data.images.length > 0 &&
+      dataRef.current.images.length > 0 &&
       !(await getDialog().confirm(
         mode === 'sprite'
           ? '切換到精靈圖模式會清除目前的圖片，確定嗎？'
@@ -638,6 +657,8 @@ export default function VisualsEditorBody({
     ) {
       return;
     }
+    // 確認對話框是 await 的，這期間仍可能有操作啟動（例如拖放）
+    if (assetBusyRef.current) return;
     update({ images: [], layout: mode === 'sprite' ? 'sprite' : '' });
     setEditorMode(mode);
   };
@@ -901,6 +922,12 @@ export default function VisualsEditorBody({
             key={mode}
             type="button"
             onClick={() => switchMode(mode)}
+            disabled={assetBusy && editorMode !== mode}
+            title={
+              assetBusy && editorMode !== mode
+                ? '素材處理中，完成後才能切換模式'
+                : undefined
+            }
             style={{
               padding: '8px 20px',
               border: 'none',
@@ -912,7 +939,8 @@ export default function VisualsEditorBody({
               color: editorMode === mode ? accent : 'var(--ink-mute)',
               fontWeight: editorMode === mode ? 600 : 400,
               fontSize: 13,
-              cursor: 'pointer',
+              cursor: assetBusy && editorMode !== mode ? 'default' : 'pointer',
+              opacity: assetBusy && editorMode !== mode ? 0.5 : 1,
               transition: 'all 0.15s',
             }}
           >
