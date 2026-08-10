@@ -3,6 +3,7 @@ import UepToastContainer from '../components/ui/UepToast';
 import UepDialogContainer from '../components/ui/UepDialog';
 import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
 import TestModeBanner from '../components/ui/TestModeBanner';
+import UepFlagsHost from '../progress/UepFlagsHost';
 import UepDevTools from '../devtools/UepDevTools';
 import { ScanlineHudPortal } from '../devtools/ScanlineHud';
 
@@ -249,6 +250,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <UepToastContainer client:load />
     <UepDialogContainer client:load />
     <GlobalWelcomeHost client:load />
+    {
+      /* UepFlagsHost 同樣不能 idle：它授予 `uep:intro`（進站即得）與推導
+         `uep:all-zone` / `uep:all-island`，而這些旗標是 Storage 對話 gate
+         的條件。idle 不觸發的裝置上，那些對話會永久鎖住且無跡可循。 */
+    }
+    <UepFlagsHost client:load />
     <UepDevTools client:idle />
     <ScanlineHudPortal client:idle />
   </body>

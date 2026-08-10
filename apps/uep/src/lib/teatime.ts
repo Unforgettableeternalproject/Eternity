@@ -14,17 +14,18 @@
  * 而症狀是「明明沒被邀請卻有人在」，看起來像功能壞了而不是彩蛋。
  */
 
+import { UEP_FLAGS } from '../progress/uepFlags';
+
 const TEATIME_INVITE_KEY = 'uep.teatime.invite.v1';
 
 /**
  * 見過有人的茶會後留下的旗標。
  *
- * 形狀上屬於自訂旗標（`classifyFlag` 的 custom），但它由程式碼授予而非
- * 編輯器手填，所以不受「授予端必須先註冊」的強制——同 `guide:ident`。
- * ⚠️ 之後要在 gate 的 `requiresFlags` 或 FlagMarker 引用它時，**得先到
- * /admin/settings 的 flag 分頁註冊這個名字**，否則存檔會被註冊強制擋下。
+ * 2026-08-10 起併入 `progress/uepFlags` 的系統旗標系列（它是最早的一支，
+ * 整個系列的 `uep:` 前綴就是沿用它）並已預註冊，Storage 的對話 gate
+ * 選得到它。名稱定義搬過去，這裡只做 re-export 維持既有呼叫端不變。
  */
-export const TEATIME_FLAG = 'uep:teatime';
+export const TEATIME_FLAG = UEP_FLAGS.teatime;
 
 /** 從休息提醒的「前往茶會」出發時標記。存不進去就只是看到空桌子，不致命 */
 export function markTeatimeInvited(): void {

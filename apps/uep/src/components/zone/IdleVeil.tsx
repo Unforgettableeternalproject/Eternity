@@ -31,6 +31,7 @@ import {
   subscribeVeil,
   TRAIL_MAX,
 } from '../../lib/idleVeil';
+import { markUepAfk } from '../../progress/uepFlags';
 
 import './IdleVeil.css';
 
@@ -45,6 +46,14 @@ export default function IdleVeil() {
   );
   const rootRef = useRef<HTMLDivElement>(null);
   const [leaving, setLeaving] = useState(false);
+
+  /* `uep:afk`（見過閒置帷幕全遮）——授予點放在渲染端而不是 idleVeil 內部：
+     「見過」的定義是畫面真的被「空曠~」佔滿過，而 lib 層算出 stage 3 與
+     使用者實際看到之間還隔著這個元件有沒有掛載。順帶也避免純狀態模組
+     反過來依賴 progressStore。 */
+  useEffect(() => {
+    if (veil.stage === 3) markUepAfk();
+  }, [veil.stage]);
 
   const active = veil.stage > 0;
   /**
