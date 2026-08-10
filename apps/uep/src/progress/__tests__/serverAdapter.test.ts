@@ -268,6 +268,116 @@ describe('rev 未知時的上傳防線', () => {
  * 送出：伺服器讓先到的通過、後到的回 409，而 409 觸發的權威 hydrate 會
  * 把 state 收斂成**較舊**的第一筆，較新的第二筆憑空消失。
  */
+/*
+ * 送失敗的快照原本直接丟棄，靠「下次 save 會帶著最新狀態重試」兜底——但那句
+ * 話的前提是之後還有下一次 save。使用者停止操作或關掉分頁時沒有下一次，那筆
+ * 進度就只活在本地鏡像裡，下次開站的 server-first hydrate 會拿伺服器上較舊的
+ * 版本把它覆蓋掉。
+ */
+describe('上傳失敗後的重試', () => {
+  it('網路失敗後保留 pending，下一個週期自動重送', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('5xx 同樣重送', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: false }, 500));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(1000);
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('401 不重送——已登出，重試只會一直被拒', async () => {
+    const a = createAdapter('stale-token', vi.fn());
+    await primeRev(a);
+    fetchMock.mockResolvedValue(jsonResponse({ ok: false }, 401));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('409 不重送——手上這份必然過期，交給權威 hydrate 收斂', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValue(jsonResponse({ ok: false }, 409));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('重試期間有更新的 save 時不覆寫它——放回舊快照等於讓進度倒退', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+
+    let releaseFirst: (() => void) | null = null;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          releaseFirst = () => reject(new Error('offline'));
+        })
+    );
+    await a.save(sampleState({ flags: ['old'] }));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // 第一個 PUT 還在飛的時候寫入更新的狀態
+    await a.save(sampleState({ flags: ['new'] }));
+    releaseFirst!();
+    await vi.advanceTimersByTimeAsync(0);
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const body = JSON.parse((lastCall[1] as RequestInit).body as string);
+    expect(body.flags).toEqual(['new']);
+  });
+});
+
+/*
+ * `destroy()` 一度是同步 void，而 `flush()` 走 promise 鏈——呼叫端（logout）
+ * 不等就同步清掉 session，PUT 醒來時 getToken() 已回 null，debounce 窗口內的
+ * 閱讀被當成「已登出」丟棄。
+ */
+describe('destroy 的可等待性', () => {
+  it('回傳的 promise 完成時，殘留進度已經送出', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+    );
+    await a.save(sampleState());
+    expect(fetchMock).not.toHaveBeenCalled(); // 還在 debounce 中
+
+    await a.destroy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('flush 序列化', () => {
   it('前一個 PUT 未回來時，第二次 flush 必須排隊而非共用同一個 rev', async () => {
     const a = createAdapter();

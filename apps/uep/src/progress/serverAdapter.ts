@@ -100,8 +100,15 @@ export class ServerAdapter implements ProgressAdapter {
     if (document.visibilityState === 'hidden') void this.flush(true);
   };
 
-  /** 移除事件監聽並沖出殘留進度（登出/切換 adapter 時呼叫） */
-  destroy(): void {
+  /**
+   * 移除事件監聽並沖出殘留進度（登出／切換 adapter 時呼叫）。
+   *
+   * ⚠️ **回傳的 Promise 必須被 await**。`flush()` 走的是 `inflight` 鏈，實際的
+   * PUT 至少要等到下一個 microtask 才會讀 token；呼叫端若不等就同步清掉
+   * session，`doFlush()` 醒來時 `getToken()` 已經回 null，這份殘留進度會被
+   * 當成「已登出」直接丟棄——debounce 窗口內（預設兩秒）的閱讀全部消失。
+   */
+  destroy(): Promise<void> {
     if (typeof window !== 'undefined') {
       window.removeEventListener('pagehide', this.onPageHide);
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
@@ -110,7 +117,7 @@ export class ServerAdapter implements ProgressAdapter {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    void this.flush(true);
+    return this.flush(true);
   }
 
   /**
@@ -238,7 +245,8 @@ export class ServerAdapter implements ProgressAdapter {
       return;
     }
 
-    const body = JSON.stringify(this.pending);
+    const snapshot = this.pending;
+    const body = JSON.stringify(snapshot);
     this.pending = null;
     try {
       const headers: Record<string, string> = {
@@ -271,11 +279,40 @@ export class ServerAdapter implements ProgressAdapter {
       if (res.ok) {
         const json = (await res.json()) as ProgressResponse;
         if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
+        return;
       }
-      // 其他錯誤：靜默——下次 save 會帶著最新狀態重試
+      // 其他錯誤（5xx、代理攔截…）：留著等重試
+      this.restorePending(snapshot, keepalive);
     } catch {
-      // 網路失敗：靜默，本地鏡像已是最新，之後的 save 會重試
+      // 網路失敗：同上
+      this.restorePending(snapshot, keepalive);
     }
+  }
+
+  /**
+   * 把送失敗的快照放回 `pending` 並重排一次上傳。
+   *
+   * 原本這裡是「靜默丟棄，下次 save 會帶著最新狀態重試」——但那句話的前提是
+   * **之後還有下一次 save**。使用者停止操作或直接關掉分頁時沒有下一次，而
+   * 這筆進度已經從 `pending` 消失，於是只活在本地鏡像裡；下次開站的
+   * server-first hydrate 會拿伺服器上較舊的版本把鏡像覆蓋掉，那段閱讀就真的
+   * 不見了。
+   *
+   * ⚠️ 只在期間沒有更新的 pending 時才放回——`save()` 可能在這次請求飛在天上
+   * 時寫入了更新的快照，用舊的蓋掉它等於把進度倒退。
+   *
+   * keepalive 代表這是 pagehide／visibilitychange 的最後一搏，頁面即將卸載，
+   * 重排計時器不會有機會執行，放回也只是讓狀態一致而已。
+   */
+  private restorePending(snapshot: ProgressState, keepalive: boolean): void {
+    if (this.pending) return;
+    this.pending = snapshot;
+    if (keepalive) return;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.flush();
+    }, this.opts.debounceMs);
   }
 
   /**

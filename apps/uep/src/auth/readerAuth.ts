@@ -114,7 +114,8 @@ function notify(): void {
 
 /** 建立 ServerAdapter 並切換 progressStore 的儲存層 */
 async function attachServerAdapter(): Promise<void> {
-  serverAdapter?.destroy();
+  // 同 logout：舊 adapter 的殘留進度要在換掉它之前送完
+  await serverAdapter?.destroy();
   serverAdapter = new ServerAdapter({
     apiBase: API_BASE,
     getToken: () => session?.token ?? null,
@@ -281,7 +282,9 @@ export const uepReaderAuth = {
    *
    * ⚠️ **四個步驟的順序不可對調**，每一步都在擋一個具體事故：
    * 1. `destroy()` 先跑——它會 flush 殘留進度，此時 token 仍有效，
-   *    這些資料屬於原帳號，本來就該上傳。
+   *    這些資料屬於原帳號，本來就該上傳。**必須 await**：flush 走 promise
+   *    鏈，不等的話 PUT 醒來時第 2 步已經把 session 清掉，`getToken()` 回
+   *    null，殘留進度會被當成「已登出」丟棄。
    * 2. 清 session。**必須在 reset 之前**：`flush()` 靠 `getToken()` 回 null
    *    才放棄上傳，順序反過來會把重置後的空進度 PUT 上去，
    *    **直接清空伺服器上的帳號進度**。
@@ -296,7 +299,7 @@ export const uepReaderAuth = {
    * @param expired token 過期觸發時為 true（UI 可顯示不同訊息）
    */
   async logout(expired = false): Promise<void> {
-    serverAdapter?.destroy();
+    await serverAdapter?.destroy();
     serverAdapter = null;
     session = null;
     persistSession();
