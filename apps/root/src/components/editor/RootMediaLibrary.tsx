@@ -156,7 +156,7 @@ export default function RootMediaLibrary({
       fetchAssets();
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
-    [apiBase, authHeaders, fetchAssets]
+    [apiBase, authHeaders, fetchAssets, filterType]
   );
 
   // ── delete ──
