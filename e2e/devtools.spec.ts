@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * T-21 — UepDevTools 命令面板 E2E 測試
@@ -15,9 +15,10 @@ import { test, expect } from '@playwright/test';
  * 因此不帶 cookie 也能觸發面板。
  *
  * ⚠️ 條件 0 是 S11 A 段（`8b1e0c1`，0.9.18.1）加的：面板本身是三欄命令
- *    列表，在 390px 上不可用，而 FAB 會擋住右下角。守門擋在 useEffect 內，
- *    連 keydown 監聽都不掛——所以手機上快捷鍵也不會有反應。
- *    下方主要測項因此限定桌面執行，手機的預期行為另有專屬測項驗證。
+ *    列表，在 390px 上不可用，而 FAB 會擋住右下角。守門擋在渲染層而非
+ *    mount effect（effect 只跑一次，之後縮窗到手機寬度不會再 evaluate），
+ *    所以 keydown 監聽仍在，但手機上按快捷鍵只會翻 open state，元件照樣
+ *    回傳 null。下方主要測項限定桌面執行，手機的預期行為另有專屬測項驗證。
  *
  * ⚠️ 注意：不要真的執行破壞性 actions（progress:reset / onboarding:reset-identity）
  *    會影響其他 E2E 測試的 localStorage/sessionStorage 狀態。
@@ -36,6 +37,66 @@ const SEARCH_INPUT_SELECTOR = '.uep-devtools-panel__search input';
 // 面板標頭 meta（顯示 actions 數量）
 const META_SELECTOR = '.uep-devtools-panel__meta';
 
+/** 掛載等待上限。dev server 在多 worker 並行下 hydration 可以拖很久。 */
+const MOUNT_TIMEOUT = 20_000;
+
+async function addTestCookie(page: Page): Promise<void> {
+  await page.context().addCookies([
+    {
+      name: TEST_COOKIE,
+      value: encodeURIComponent(TEST_WORKER_URL),
+      domain: 'localhost',
+      path: '/',
+      sameSite: 'Strict',
+    },
+  ]);
+}
+
+/**
+ * 進首頁並等到 DevTools 真的掛好。
+ *
+ * 同步點取 FAB 而非固定睡眠：`UepDevTools.tsx` 的 mount effect 裡
+ * `setMounted(true)` 與 `window.addEventListener('keydown')` 是同一段，
+ * FAB 出現就代表快捷鍵監聽已註冊。睡固定秒數只是在賭 hydration 有沒有
+ * 跑完——並行負載下賭輸就變成整組 flaky。
+ */
+async function gotoWithDevTools(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.waitForLoadState('domcontentloaded');
+  await expect(page.locator(FAB_SELECTOR)).toBeVisible({
+    timeout: MOUNT_TIMEOUT,
+  });
+}
+
+/**
+ * 等 DevTools 這座 island 完成 hydration（Astro 在 hydrate 後拿掉 `ssr` 屬性）。
+ *
+ * 專給「不該掛載」的負面斷言用：手機上 FAB 永遠不出現，沒有東西可以等，
+ * 睡固定秒數的話 hydration 只要慢一點，斷言就會在元件還沒跑之前先通過——
+ * 手機守門真的壞掉也照樣綠燈。
+ */
+async function waitForDevToolsIslandHydrated(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const el = document.querySelector(
+            'astro-island[component-url*="UepDevTools"]'
+          );
+          return !!el && !el.hasAttribute('ssr');
+        }),
+      { timeout: MOUNT_TIMEOUT }
+    )
+    .toBe(true);
+}
+
+/** 進首頁 → 等掛載 → 用快捷鍵開面板 */
+async function openPanelByShortcut(page: Page): Promise<void> {
+  await gotoWithDevTools(page);
+  await page.keyboard.press('Control+Shift+D');
+  await expect(page.locator(PANEL_SELECTOR)).toBeVisible({ timeout: 5000 });
+}
+
 // ─────────────────────────────────────────────
 //  測項 1 — 帶 test cookie 進 uep home → Ctrl+Shift+D → 面板出現
 // ─────────────────────────────────────────────
@@ -48,32 +109,8 @@ test.describe('T-21-1：帶 test cookie → DevTools 面板開啟', () => {
 
   test('Ctrl+Shift+D 打開面板，顯示 actions 清單', async ({ page }) => {
     // 先注入 test cookie（讓 isTestMode() === true）
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
-
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    // 等 React hydrate + UepDevToolsHost 掛載（client:idle）
-    await page.waitForTimeout(3000);
-
-    // FAB 按鈕應該可見（面板尚未開啟）
-    const fab = page.locator(FAB_SELECTOR);
-    await expect(fab).toBeVisible({ timeout: 5000 });
-
-    // 按 Ctrl+Shift+D 開啟面板
-    await page.keyboard.press('Control+Shift+D');
-    await page.waitForTimeout(500);
-
-    // 面板應該出現
-    const panel = page.locator(PANEL_SELECTOR);
-    await expect(panel).toBeVisible({ timeout: 3000 });
+    await addTestCookie(page);
+    await openPanelByShortcut(page);
 
     // 面板標頭應顯示 actions 數量（實際 63 個，允許 ≥ 10 個）
     const meta = page.locator(META_SELECTOR);
@@ -87,26 +124,13 @@ test.describe('T-21-1：帶 test cookie → DevTools 面板開啟', () => {
   });
 
   test('點 FAB 按鈕也能開啟面板', async ({ page }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await addTestCookie(page);
+    await gotoWithDevTools(page);
 
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
-    const fab = page.locator(FAB_SELECTOR);
-    await expect(fab).toBeVisible({ timeout: 5000 });
-    await fab.click();
+    await page.locator(FAB_SELECTOR).click();
 
     const panel = page.locator(PANEL_SELECTOR);
-    await expect(panel).toBeVisible({ timeout: 3000 });
+    await expect(panel).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -121,24 +145,8 @@ test.describe('T-21-2：面板搜尋 "reset" 過濾出 progress:reset', () => {
   );
 
   test.beforeEach(async ({ page }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
-
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
-    // 開啟面板
-    await page.keyboard.press('Control+Shift+D');
-    const panel = page.locator(PANEL_SELECTOR);
-    await expect(panel).toBeVisible({ timeout: 3000 });
+    await addTestCookie(page);
+    await openPanelByShortcut(page);
   });
 
   test('搜尋 "reset" → 過濾出包含 reset 的 action', async ({ page }) => {
@@ -196,19 +204,8 @@ test.describe('T-21-3：執行 "傾印 progress state 到 console"', () => {
   test('點擊 progress:dump-state → console 有 [UEP Progress State] 輸出', async ({
     page,
   }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
-
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
+    await addTestCookie(page);
+    await gotoWithDevTools(page);
 
     // 攔截 console.log
     const consoleLogs: string[] = [];
@@ -218,28 +215,26 @@ test.describe('T-21-3：執行 "傾印 progress state 到 console"', () => {
 
     // 開啟面板
     await page.keyboard.press('Control+Shift+D');
-    const panel = page.locator(PANEL_SELECTOR);
-    await expect(panel).toBeVisible({ timeout: 3000 });
+    await expect(page.locator(PANEL_SELECTOR)).toBeVisible({ timeout: 5000 });
 
     // 搜尋定位到 dump-state action
     const searchInput = page.locator(SEARCH_INPUT_SELECTOR);
     await searchInput.fill('傾印 progress');
-    await page.waitForTimeout(300);
 
     const dumpBtn = page
       .locator('.uep-devtools-panel__btn')
       .filter({ hasText: '傾印 progress state 到 console' });
-    await expect(dumpBtn).toBeVisible({ timeout: 3000 });
+    await expect(dumpBtn).toBeVisible({ timeout: 5000 });
 
     await dumpBtn.click();
-    // 等 async action 完成
-    await page.waitForTimeout(1000);
 
-    // console 應有 [UEP Progress State] 輸出
-    const hasProgressLog = consoleLogs.some((log) =>
-      log.includes('[UEP Progress State]')
-    );
-    expect(hasProgressLog).toBe(true);
+    // action 是 async，輪詢等輸出而不是睡固定秒數
+    await expect
+      .poll(
+        () => consoleLogs.some((log) => log.includes('[UEP Progress State]')),
+        { timeout: 5000 }
+      )
+      .toBe(true);
   });
 });
 
@@ -254,61 +249,26 @@ test.describe('T-21-4：Escape 關閉面板', () => {
   );
 
   test('面板開啟時按 Escape → 面板關閉，FAB 重新出現', async ({ page }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
-
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
-    // 開啟
-    await page.keyboard.press('Control+Shift+D');
-    const panel = page.locator(PANEL_SELECTOR);
-    await expect(panel).toBeVisible({ timeout: 3000 });
+    await addTestCookie(page);
+    await openPanelByShortcut(page);
 
     // 按 Escape 關閉
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
 
     // 面板應消失
-    await expect(panel).toHaveCount(0);
+    await expect(page.locator(PANEL_SELECTOR)).toHaveCount(0);
 
     // FAB 應重新出現
-    const fab = page.locator(FAB_SELECTOR);
-    await expect(fab).toBeVisible({ timeout: 3000 });
+    await expect(page.locator(FAB_SELECTOR)).toBeVisible({ timeout: 5000 });
   });
 
   test('點 × 按鈕關閉面板', async ({ page }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await addTestCookie(page);
+    await openPanelByShortcut(page);
 
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
+    await page.locator('.uep-devtools-panel__close').click();
 
-    await page.keyboard.press('Control+Shift+D');
-    const panel = page.locator(PANEL_SELECTOR);
-    await expect(panel).toBeVisible({ timeout: 3000 });
-
-    const closeBtn = page.locator('.uep-devtools-panel__close');
-    await closeBtn.click();
-    await page.waitForTimeout(500);
-
-    await expect(panel).toHaveCount(0);
+    await expect(page.locator(PANEL_SELECTOR)).toHaveCount(0);
   });
 });
 
@@ -332,14 +292,9 @@ test.describe('T-21-5：shouldMount 條件驗證（dev server 情境）', () => 
     // 清除所有 cookie（無 test cookie）
     await page.context().clearCookies();
 
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
     // dev server 下 shouldMount() 因 import.meta.env.DEV === true 永遠回 true
     // FAB 應該出現
-    const fab = page.locator(FAB_SELECTOR);
-    await expect(fab).toBeVisible({ timeout: 5000 });
+    await gotoWithDevTools(page);
   });
 
   test('localStorage force flag 設為 true → FAB 出現', async ({ page }) => {
@@ -353,10 +308,10 @@ test.describe('T-21-5：shouldMount 條件驗證（dev server 情境）', () => 
 
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
 
-    const fab = page.locator(FAB_SELECTOR);
-    await expect(fab).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(FAB_SELECTOR)).toBeVisible({
+      timeout: MOUNT_TIMEOUT,
+    });
 
     // 清理 force flag
     await page.evaluate(() => {
@@ -379,25 +334,17 @@ test.describe('T-21-6：手機視窗不掛載 DevTools', () => {
   );
 
   test('帶 test cookie 也不出現 FAB，快捷鍵同樣沒有反應', async ({ page }) => {
-    await page.context().addCookies([
-      {
-        name: TEST_COOKIE,
-        value: encodeURIComponent(TEST_WORKER_URL),
-        domain: 'localhost',
-        path: '/',
-        sameSite: 'Strict',
-      },
-    ]);
+    await addTestCookie(page);
 
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
+    await waitForDevToolsIslandHydrated(page);
 
     await expect(page.locator(FAB_SELECTOR)).toHaveCount(0);
 
-    // 守門擋在 useEffect 內，連 keydown 監聽都不掛——快捷鍵也該無效
+    // 快捷鍵監聽本身有掛，但守門擋在渲染層——按下去只會翻 open state，
+    // `!desktopViewport` 仍讓元件回傳 null，面板不會出現
     await page.keyboard.press('Control+Shift+D');
-    await page.waitForTimeout(500);
     await expect(page.locator(PANEL_SELECTOR)).toHaveCount(0);
   });
 
@@ -408,7 +355,7 @@ test.describe('T-21-6：手機視窗不掛載 DevTools', () => {
     });
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
+    await waitForDevToolsIslandHydrated(page);
 
     await expect(page.locator(FAB_SELECTOR)).toHaveCount(0);
 

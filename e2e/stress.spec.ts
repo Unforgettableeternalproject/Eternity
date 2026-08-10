@@ -223,6 +223,14 @@ test.describe('Console 錯誤監控', () => {
       await page.waitForTimeout(500);
     }
 
+    /* WebKit 對「導航中斷了進行中的 fetch」報的是
+       "<url> due to access control checks."，措辭跟 Chromium 完全不同，
+       只在並行負載下切頁夠快時才出現。這不是真的跨域失敗——限定同源 URL
+       才放行，真正的 CORS 問題仍然會紅。 */
+    const isNavigationAbortedFetch = (msg: string): boolean =>
+      msg.includes('due to access control checks') &&
+      (msg.includes('localhost:4320') || msg.includes('localhost:4321'));
+
     // 過濾已知無害錯誤（dev 模式下快速切頁常見的 race condition）
     const IGNORED = [
       'favicon',
@@ -243,7 +251,8 @@ test.describe('Console 錯誤監控', () => {
       'TypeError: Load failed',
     ];
     const realErrors = errors.filter(
-      (e) => !IGNORED.some((pat) => e.includes(pat))
+      (e) =>
+        !IGNORED.some((pat) => e.includes(pat)) && !isNavigationAbortedFetch(e)
     );
 
     expect(
@@ -252,7 +261,8 @@ test.describe('Console 錯誤監控', () => {
     ).toHaveLength(0);
 
     const realRejections = unhandledRejections.filter(
-      (e) => !IGNORED.some((pat) => e.includes(pat))
+      (e) =>
+        !IGNORED.some((pat) => e.includes(pat)) && !isNavigationAbortedFetch(e)
     );
     expect(
       realRejections,
