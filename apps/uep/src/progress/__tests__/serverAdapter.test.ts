@@ -259,6 +259,48 @@ describe('rev 未知時的上傳防線', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  /*
+   * 上一條測的是「409 之後才 save」。真正會出事的是 PUT **飛行期間** save：
+   * 那份快照疊在衝突前的 canonical 上，而 409 觸發的權威 hydrate 會把伺服器
+   * 的新 rev 寫回 adapter。timer 醒來時 rev 有效，過期快照就帶著合法版本號
+   * 通過 CAS，把 admin／另一分頁剛做的變更無聲復原。
+   */
+  it('409 必須作廢競態期間累積的 pending——hydrate 補回 rev 後不得補送', async () => {
+    const a = createAdapter();
+    await primeRev(a, 2);
+
+    // 第一個 PUT 卡在天上，稍後回 409
+    let releaseConflict: (() => void) | null = null;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseConflict = () =>
+            resolve(jsonResponse({ ok: false }, 409) as unknown as Response);
+        })
+    );
+    await a.save(sampleState({ flags: ['before-conflict'] }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 請求還在飛的時候，UI 疊在舊 canonical 上又存了一次
+    await a.save(sampleState({ flags: ['before-conflict', 'racy'] }));
+
+    releaseConflict!();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // onProgressReset 觸發的權威 hydrate：GET 回來會把新 rev 寫進 adapter
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, data: null, meta: { rev: 9 } })
+    );
+    await a.loadAuthoritative();
+    fetchMock.mockClear();
+
+    // rev 已經有效，但競態期間那份快照必須已經被作廢——不能有任何 PUT
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 /**
@@ -326,6 +368,61 @@ describe('上傳失敗後的重試', () => {
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('400 這類永久錯誤不重送——重幾次都一樣，只是每個週期空打 Worker', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValue(jsonResponse({ ok: false }, 400));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('429 與 5xx 仍然重送', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: false }, 429));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, data: {}, meta: { rev: 8 } })
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('連續失敗到上限後停手，不無限重送', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValue(jsonResponse({ ok: false }, 500));
+    await a.save(sampleState());
+
+    // 退避是指數的，推進到遠超過上限所需的總時長
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    const attempts = fetchMock.mock.calls.length;
+    expect(attempts).toBeLessThanOrEqual(6); // 初次 + 最多 5 次重試
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(attempts);
+  });
+
+  it('停手之後新的 save 會重開一輪', async () => {
+    const a = createAdapter();
+    await primeRev(a);
+    fetchMock.mockResolvedValue(jsonResponse({ ok: false }, 500));
+    await a.save(sampleState());
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    const stalled = fetchMock.mock.calls.length;
+
+    await a.save(sampleState({ flags: ['resumed'] }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(stalled);
   });
 
   it('重試期間有更新的 save 時不覆寫它——放回舊快照等於讓進度倒退', async () => {

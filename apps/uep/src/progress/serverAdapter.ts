@@ -21,6 +21,30 @@ import type {
 /** debounce 預設間隔（毫秒） */
 const DEFAULT_DEBOUNCE_MS = 2000;
 
+/**
+ * 連續失敗幾次後放棄重試。
+ *
+ * 上限針對的是「使用者已經停止操作，分頁卻還在背景無限打 Worker」——
+ * 只要還有新的 `save()`，計數就歸零、重試繼續，所以正在閱讀的人不會被截斷。
+ */
+const MAX_RETRIES = 5;
+
+/** 退避上限，避免長時間離線後把間隔推到荒謬的長度 */
+const MAX_BACKOFF_MS = 60_000;
+
+/**
+ * 這個 HTTP 狀態值得重試嗎？
+ *
+ * 只有暫時性故障該重試。400/413/422 這類請求本身就不合法的錯誤重送幾次
+ * 都是同樣結果，只是固定每個週期空打一次 Worker——版本不相容或 blob 過大
+ * 時，每個開著的分頁都會變成穩定的無效流量來源。
+ *
+ * 401 與 409 不會走到這裡：前者交給 onAuthExpired、後者交給權威 hydrate。
+ */
+function isRetriableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 /** `/api/uep/progress` 的回應形狀（meta 與 data 平行） */
 interface ProgressResponse {
   ok: boolean;
@@ -74,6 +98,8 @@ export class ServerAdapter implements ProgressAdapter {
    * 呼叫端做權威 hydrate——不會退回時間戳弱鎖（見 `flush()` 的註解）。
    */
   private rev: number | null = null;
+  /** 連續失敗次數；任何一次成功上傳或新的 `save()` 都會歸零 */
+  private retries = 0;
   /** flush 序列化的尾巴——保證同一時間只有一個 PUT 在飛（見 `flush()`） */
   private inflight: Promise<void> = Promise.resolve();
   private readonly onPageHide = () => {
@@ -194,6 +220,8 @@ export class ServerAdapter implements ProgressAdapter {
     // write-through：本地鏡像永遠即時，登出切回 LocalStorageAdapter 無縫
     void this.local.save(state);
     this.pending = state;
+    // 使用者還在操作就是新的一輪，之前累積的失敗不該讓這筆被上限擋掉
+    this.retries = 0;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -273,19 +301,48 @@ export class ServerAdapter implements ProgressAdapter {
          hydrate 收斂。rev 一併作廢，避免下次又拿舊版本去撞。 */
       if (res.status === 409) {
         this.rev = null;
+        this.discardStalePending();
         this.opts.onProgressReset?.();
         return;
       }
       if (res.ok) {
         const json = (await res.json()) as ProgressResponse;
         if (typeof json.meta?.rev === 'number') this.rev = json.meta.rev;
+        this.retries = 0;
         return;
       }
-      // 其他錯誤（5xx、代理攔截…）：留著等重試
-      this.restorePending(snapshot, keepalive);
+      // 暫時性故障（5xx、408、429、代理攔截…）：留著等重試
+      if (isRetriableStatus(res.status)) {
+        this.restorePending(snapshot, keepalive);
+        return;
+      }
+      /* 其餘 4xx 是請求本身不合法（版本不相容的 400、blob 過大的 413…），
+         重送幾次都一樣。丟棄快照、不排重試；本地鏡像仍是最新的。 */
+      this.retries = 0;
     } catch {
-      // 網路失敗：同上
+      // 網路失敗：可重試
       this.restorePending(snapshot, keepalive);
+    }
+  }
+
+  /**
+   * 作廢「基於過期 canonical」的待送快照，連同已排的重試一起取消。
+   *
+   * 409 只清 `rev` 是不夠的。PUT 飛在天上時 UI 仍可能 `save()`，那份新快照
+   * 是疊在**衝突前**的 canonical 上算出來的；接著 `onProgressReset()` 觸發的
+   * 權威 hydrate 走 `fetchRemote()`，而它會把伺服器的新 rev 寫回 `this.rev`。
+   * 於是原本排好的 timer 醒來時 rev 已經有效，那份過期快照就帶著合法版本號
+   * 通過 CAS——admin 或另一個分頁剛做的變更被無聲復原。
+   *
+   * 語意上與 `rev === null` 那條防線一致：任何沒跟伺服器對過帳的 state 都
+   * 不准上傳。畫面會由 hydrate 收斂到伺服器版本，本地鏡像同時被更新。
+   */
+  private discardStalePending(): void {
+    this.pending = null;
+    this.retries = 0;
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
     }
   }
 
@@ -308,11 +365,34 @@ export class ServerAdapter implements ProgressAdapter {
     if (this.pending) return;
     this.pending = snapshot;
     if (keepalive) return;
+
+    this.retries += 1;
+    if (this.retries > MAX_RETRIES) {
+      /* 連續失敗到上限：停手。使用者顯然已經離開，繼續每個週期空打一次
+         Worker 沒有意義。本地鏡像仍是最新的，下次 save 會重開一輪。 */
+      return;
+    }
+
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.flush();
-    }, this.opts.debounceMs);
+    }, this.nextRetryDelay());
+  }
+
+  /**
+   * 指數退避 + jitter。
+   *
+   * jitter 刻意只往**下**抖（0.85~1.0 倍）而非上下各半：多分頁同時斷線時
+   * 需要打散重試時點，但第一次重試仍要落在一個 debounce 週期內——往上抖會
+   * 讓「失敗後隔一個週期重送」這個最基本的保證變成有時成立有時不成立。
+   */
+  private nextRetryDelay(): number {
+    const backoff = Math.min(
+      this.opts.debounceMs * 2 ** (this.retries - 1),
+      MAX_BACKOFF_MS
+    );
+    return Math.round(backoff * (0.85 + Math.random() * 0.15));
   }
 
   /**
