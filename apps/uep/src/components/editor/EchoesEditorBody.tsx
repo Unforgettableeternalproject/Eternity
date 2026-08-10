@@ -11,6 +11,7 @@ import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
 import { deriveSongCategoryFromPageId } from './echoesCategory';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
 import GateConditionEditor from './GateConditionEditor';
+import { UploadSpinner } from './UploadSpinner';
 
 interface EchoesEditorBodyProps {
   accent: string;
@@ -885,8 +886,13 @@ export default function EchoesEditorBody({
               type="button"
               onClick={() => audioInputRef.current?.click()}
               disabled={uploading === 'audio'}
+              aria-busy={uploading === 'audio'}
             >
-              替換
+              {uploading === 'audio' ? (
+                <UploadSpinner label="上傳中" />
+              ) : (
+                '替換'
+              )}
             </button>
             <button
               className="ned-btn-ghost ned-btn-sm"
@@ -912,9 +918,10 @@ export default function EchoesEditorBody({
               type="button"
               onClick={() => audioInputRef.current?.click()}
               disabled={uploading === 'audio'}
+              aria-busy={uploading === 'audio'}
               style={{ flex: 1, textAlign: 'center', padding: '14px' }}
             >
-              {uploading === 'audio' ? '上傳中...' : '+ 上傳音檔'}
+              {uploading === 'audio' ? <UploadSpinner /> : '+ 上傳音檔'}
             </button>
             <button
               className="ned-btn-ghost"
@@ -1042,8 +1049,13 @@ export default function EchoesEditorBody({
                   type="button"
                   onClick={() => coverInputRef.current?.click()}
                   disabled={uploading === 'cover'}
+                  aria-busy={uploading === 'cover'}
                 >
-                  替換
+                  {uploading === 'cover' ? (
+                    <UploadSpinner label="上傳中" />
+                  ) : (
+                    '替換'
+                  )}
                 </button>
                 <button
                   className="ned-btn-ghost ned-btn-sm"
@@ -1063,9 +1075,10 @@ export default function EchoesEditorBody({
             type="button"
             onClick={() => coverInputRef.current?.click()}
             disabled={uploading === 'cover'}
+            aria-busy={uploading === 'cover'}
             style={{ width: '100%', textAlign: 'center', padding: '14px' }}
           >
-            {uploading === 'cover' ? '上傳中...' : '+ 選擇封面圖上傳'}
+            {uploading === 'cover' ? <UploadSpinner /> : '+ 選擇封面圖上傳'}
           </button>
         )}
       </div>

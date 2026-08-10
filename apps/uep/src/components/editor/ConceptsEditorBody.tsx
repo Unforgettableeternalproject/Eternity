@@ -22,6 +22,7 @@ import EntityKeyField from './EntityKeyField';
 import GateConditionEditor from './GateConditionEditor';
 import MiniEditor from './MiniEditor';
 import RevisionModal from './RevisionModal';
+import { UploadSpinner } from './UploadSpinner';
 import type {
   DossierContent,
   DossierVariant,
@@ -1098,6 +1099,7 @@ function BrowserEditor({
     { key: string; size: number }[]
   >([]);
   const [pickerLoading, setPickerLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarDeleteOpen, setAvatarDeleteOpen] = useState(false);
   const [revModalOpen, setRevModalOpen] = useState(false);
   // 列表結構版本：刪除角色/區段、區段拖曳會 shift index——
@@ -1429,19 +1431,29 @@ function BrowserEditor({
                     <label
                       className="ced-avatar-upload-btn"
                       style={{ borderColor: accent, color: accent }}
+                      title={avatarUploading ? '上傳中...' : '上傳頭像'}
+                      aria-busy={avatarUploading}
                     >
-                      ⬆
+                      {avatarUploading ? <UploadSpinner label={null} /> : '⬆'}
                       <input
                         type="file"
                         accept="image/*"
                         hidden
+                        disabled={avatarUploading}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          const result = await uploadAsset(file);
-                          if (result)
-                            updateProfile({ avatar: toAssetPath(result.key) });
-                          e.target.value = '';
+                          setAvatarUploading(true);
+                          try {
+                            const result = await uploadAsset(file);
+                            if (result)
+                              updateProfile({
+                                avatar: toAssetPath(result.key),
+                              });
+                          } finally {
+                            setAvatarUploading(false);
+                            e.target.value = '';
+                          }
                         }}
                       />
                     </label>

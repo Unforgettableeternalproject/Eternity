@@ -1,0 +1,41 @@
+/* 上傳／忙碌指示器——主站 admin 所有素材上傳按鈕共用的視覺回饋 */
+
+.qe-upload-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: qe-upload-spin 0.7s linear infinite;
+}
+
+.qe-upload-spinner + .qe-upload-spinner-label {
+  margin-left: 6px;
+}
+
+@keyframes qe-upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 停用動畫時轉圈完全看不出來，改用透明度脈動維持「還在動」的訊息 */
+@media (prefers-reduced-motion: reduce) {
+  .qe-upload-spinner {
+    border-top-color: currentColor;
+    animation: qe-upload-pulse 1.1s ease-in-out infinite;
+  }
+}
+
+@keyframes qe-upload-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}

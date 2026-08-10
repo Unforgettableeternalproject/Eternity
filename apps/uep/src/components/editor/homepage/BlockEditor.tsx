@@ -15,6 +15,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import { UploadSpinner } from '../UploadSpinner';
 const RT_API_BASE = '';
 import type {
   HomepageBlock,
@@ -860,6 +861,7 @@ function VisualsAudioForm({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
+          aria-busy={uploading}
           style={{
             ...inputStyle,
             cursor: 'pointer',
@@ -868,7 +870,13 @@ function VisualsAudioForm({
             padding: '6px 16px',
           }}
         >
-          {uploading ? '上傳中...' : data.audioKey ? '重新上傳' : '上傳音訊'}
+          {uploading ? (
+            <UploadSpinner label="上傳中" />
+          ) : data.audioKey ? (
+            '重新上傳'
+          ) : (
+            '上傳音訊'
+          )}
         </button>
         {data.audioKey && (
           <span
@@ -927,6 +935,7 @@ interface RichTextFormProps {
 }
 function RichTextForm({ html, onChange }: RichTextFormProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [imgUploading, setImgUploading] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
 
@@ -966,13 +975,17 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
     label: string,
     cmd: () => void,
     active: boolean,
-    title?: string
+    title?: string,
+    /** 忙碌中：以 node 取代 label 顯示（上傳 spinner），並停用點擊 */
+    busy?: { node: ReactNode }
   ) => (
     <button
       key={label}
       type="button"
       onClick={cmd}
       title={title || label}
+      disabled={!!busy}
+      aria-busy={!!busy}
       style={{
         all: 'unset',
         cursor: 'pointer',
@@ -988,7 +1001,7 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
           : '1px solid transparent',
       }}
     >
-      {label}
+      {busy ? busy.node : label}
     </button>
   );
 
@@ -1010,6 +1023,7 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
+    setImgUploading(true);
     try {
       const res = await fetch(`${RT_API_BASE}/api/assets`, {
         method: 'POST',
@@ -1023,8 +1037,10 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
       }
     } catch {
       /* ignore */
+    } finally {
+      setImgUploading(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
     }
-    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   const applyLink = () => {
@@ -1148,7 +1164,13 @@ function RichTextForm({ html, onChange }: RichTextFormProps) {
           false,
           '分隔線'
         )}
-        {tbBtn('🖼', () => imageInputRef.current?.click(), false, '插入圖片')}
+        {tbBtn(
+          '🖼',
+          () => imageInputRef.current?.click(),
+          false,
+          imgUploading ? '上傳中...' : '插入圖片',
+          imgUploading ? { node: <UploadSpinner label={null} /> } : undefined
+        )}
         {!editor.isActive('table') ? (
           tbBtn(
             '表格',

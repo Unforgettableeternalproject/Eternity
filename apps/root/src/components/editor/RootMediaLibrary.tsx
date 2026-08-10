@@ -3,6 +3,7 @@ import ConfirmDialog, {
   type ConfirmDialogState,
   DIALOG_CLOSED,
 } from './ConfirmDialog';
+import { UploadSpinner } from './UploadSpinner';
 import './RootMediaLibrary.css';
 
 // ── types ──
@@ -66,6 +67,11 @@ export default function RootMediaLibrary({
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AssetItem | null>(null);
   const [uploading, setUploading] = useState(false);
+  /** 多檔上傳的第 N 個——單檔時 total 為 1，spinner 自動省略計數 */
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -128,7 +134,8 @@ export default function RootMediaLibrary({
 
       setUploading(true);
       const failed: string[] = [];
-      for (const file of allowed) {
+      for (const [idx, file] of allowed.entries()) {
+        setUploadProgress({ current: idx + 1, total: allowed.length });
         try {
           const res = await fetch(`${apiBase}/api/root/assets`, {
             method: 'POST',
@@ -145,6 +152,7 @@ export default function RootMediaLibrary({
         }
       }
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
       if (failed.length > 0) {
         setDialog({
           open: true,
@@ -291,8 +299,16 @@ export default function RootMediaLibrary({
             className="qe-ml__upload-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            aria-busy={uploading}
           >
-            {uploading ? 'uploading…' : '＋ upload'}
+            {uploading ? (
+              <UploadSpinner
+                current={uploadProgress.current}
+                total={uploadProgress.total}
+              />
+            ) : (
+              '＋ upload'
+            )}
           </button>
           <input
             ref={fileInputRef}

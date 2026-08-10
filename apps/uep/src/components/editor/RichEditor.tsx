@@ -90,6 +90,7 @@ import ChangelogEditorBody, { type ChangelogMeta } from './ChangelogEditorBody';
 import ThoughtStream from './ThoughtStream';
 import StorageSubcatEditor, { type SubcatDef } from './StorageSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
+import { UploadSpinner } from './UploadSpinner';
 import './StorageDialogueEditor.css';
 import './ChangelogEditorBody.css';
 import './ThoughtStream.css';
@@ -2380,11 +2381,12 @@ export default function RichEditor({
                         activeDropdown === 'image' ? null : 'image'
                       )
                     }
-                    title="插入圖片"
+                    title={uploading ? '上傳中...' : '插入圖片'}
                     disabled={uploading}
+                    aria-busy={uploading}
                   >
                     {uploading ? (
-                      '⏳'
+                      <UploadSpinner label={null} />
                     ) : (
                       <svg
                         width="16"

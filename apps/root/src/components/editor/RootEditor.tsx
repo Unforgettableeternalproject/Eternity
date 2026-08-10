@@ -16,6 +16,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { Markdown } from '@tiptap/markdown';
 import { MarkdownPaste } from './MarkdownPaste';
+import { UploadSpinner } from './UploadSpinner';
 import { Video } from './VideoNode';
 import ImagePickerDialog from './ImagePickerDialog';
 import RootMediaLibrary from './RootMediaLibrary';
@@ -624,6 +625,7 @@ function ProjectsEditor({
   const [filterDialog, setFilterDialog] =
     useState<ConfirmDialogState>(DIALOG_CLOSED);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
 
   // ── 排序 + 拖曳 ──
   const sorted = useMemo(
@@ -1101,8 +1103,12 @@ function ProjectsEditor({
                 className="qe-topbar__btn"
                 style={{ flex: 1, padding: '5px 8px' }}
                 onClick={() => coverInputRef.current?.click()}
+                disabled={coverUploading}
+                aria-busy={coverUploading}
               >
-                <Mono style={{ color: 'inherit' }}>上傳</Mono>
+                <Mono style={{ color: 'inherit' }}>
+                  {coverUploading ? <UploadSpinner label="上傳中" /> : '上傳'}
+                </Mono>
               </button>
               {p.image && (
                 <button
@@ -1124,6 +1130,7 @@ function ProjectsEditor({
                 if (!file) return;
                 const formData = new FormData();
                 formData.append('file', file);
+                setCoverUploading(true);
                 try {
                   const headers: Record<string, string> = {};
                   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -1141,8 +1148,10 @@ function ProjectsEditor({
                   }
                 } catch {
                   /* silent */
+                } finally {
+                  setCoverUploading(false);
+                  if (coverInputRef.current) coverInputRef.current.value = '';
                 }
-                if (coverInputRef.current) coverInputRef.current.value = '';
               }}
             />
           </Field>

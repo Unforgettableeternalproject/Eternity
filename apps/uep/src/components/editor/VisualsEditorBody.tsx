@@ -11,6 +11,7 @@ import {
 } from './editorHelpers';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
 import GateConditionEditor from './GateConditionEditor';
+import { UploadSpinner } from './UploadSpinner';
 import { isSamePagePath } from '../../lib/pagePath';
 import type { GateCondition } from '../../progress';
 import type { ImageDisplayState } from '../../visuals';
@@ -325,8 +326,17 @@ export default function VisualsEditorBody({
 }: VisualsEditorBodyProps) {
   const [data, setData] = useState<VisualsData>(initialData);
   const [uploading, setUploading] = useState(false);
+  /** 多檔上傳的第 N 張——單檔時 total 為 1，spinner 自動省略計數 */
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** 替換中的圖片 id——替換共用同一個隱藏 input，靠這個決定寫回哪一筆 */
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
 
   // 分館規則：entityKey 僅陳列走廊（profiles）、storyKey 僅鑲框室
   // （illustrations）——依 division 顯隱（§1-1）
@@ -466,9 +476,11 @@ export default function VisualsEditorBody({
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploading(true);
+    setUploadProgress({ current: 1, total: files.length });
     try {
       const newImages: ImageItem[] = [];
       for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length });
         const result = await uploadAsset(files[i]);
         if (result) {
           newImages.push({
@@ -484,12 +496,35 @@ export default function VisualsEditorBody({
       }
     } finally {
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // 從媒體庫選擇
-  const openImagePicker = async () => {
+  /**
+   * 替換單張圖片：只改寫這一筆的 `file`，caption／排序／解鎖設定原封不動。
+   *
+   * 刻意不刪 R2 上的舊檔——同一個 key 可能被其他 gallery 或富文本引用，
+   * 真要清掉走圖片列的刪除流程（那裡才有「僅移除引用 / 永久刪除」的選擇）。
+   */
+  const handleImageReplace = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const targetId = replaceTargetId;
+    if (!file || !targetId) return;
+    setReplacingId(targetId);
+    try {
+      const result = await uploadAsset(file);
+      if (result) updateImage(targetId, { file: result.key });
+    } finally {
+      setReplacingId(null);
+      setReplaceTargetId(null);
+      if (replaceInputRef.current) replaceInputRef.current.value = '';
+    }
+  };
+
+  // 從媒體庫選擇；targetId 非空代表替換該筆而非新增
+  const openImagePicker = async (targetId?: string) => {
+    setReplaceTargetId(targetId ?? null);
     setPickerOpen(true);
     setPickerLoading(true);
     const items = await fetchImageAssets();
@@ -497,7 +532,17 @@ export default function VisualsEditorBody({
     setPickerLoading(false);
   };
 
+  const closeImagePicker = () => {
+    setPickerOpen(false);
+    setReplaceTargetId(null);
+  };
+
   const selectFromLibrary = (item: ImagePickerItem) => {
+    if (replaceTargetId) {
+      updateImage(replaceTargetId, { file: item.key });
+      closeImagePicker();
+      return;
+    }
     const already = data.images.some((img) => img.file === item.key);
     if (already) return;
     const newImg: ImageItem = {
@@ -863,7 +908,7 @@ export default function VisualsEditorBody({
               <button
                 className="ned-btn-ghost ned-btn-sm"
                 type="button"
-                onClick={openImagePicker}
+                onClick={() => openImagePicker()}
                 style={{ color: accent }}
               >
                 📂 媒體庫
@@ -873,9 +918,18 @@ export default function VisualsEditorBody({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
+                aria-busy={uploading}
                 style={{ color: accent }}
               >
-                {uploading ? '上傳中...' : '+ 上傳圖片'}
+                {uploading ? (
+                  <UploadSpinner
+                    label="上傳中"
+                    current={uploadProgress.current}
+                    total={uploadProgress.total}
+                  />
+                ) : (
+                  '+ 上傳圖片'
+                )}
               </button>
             </div>
           </div>
@@ -887,6 +941,14 @@ export default function VisualsEditorBody({
             multiple
             style={{ display: 'none' }}
             onChange={handleImageUpload}
+          />
+
+          <input
+            ref={replaceInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageReplace}
           />
 
           {data.images.length === 0 && (
@@ -1017,6 +1079,45 @@ export default function VisualsEditorBody({
                           />
                         </div>
                       )}
+
+                      {/* 替換圖檔：只換 file，caption 與解鎖設定留著 */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <button
+                          className="ned-btn-ghost ned-btn-sm"
+                          type="button"
+                          onClick={() => {
+                            setReplaceTargetId(img.id);
+                            replaceInputRef.current?.click();
+                          }}
+                          disabled={replacingId != null}
+                          aria-busy={replacingId === img.id}
+                          style={{ color: accent }}
+                          title="上傳新檔案取代這張圖"
+                        >
+                          {replacingId === img.id ? (
+                            <UploadSpinner label="上傳中" />
+                          ) : (
+                            '⟳ 替換圖片'
+                          )}
+                        </button>
+                        <button
+                          className="ned-btn-ghost ned-btn-sm"
+                          type="button"
+                          onClick={() => openImagePicker(img.id)}
+                          disabled={replacingId != null}
+                          style={{ color: accent }}
+                          title="從媒體庫挑一張取代這張圖"
+                        >
+                          📂 從媒體庫替換
+                        </button>
+                      </div>
+
                       <label className="ned-field-label ned-field-label--sm">
                         說明 (Caption)
                       </label>
@@ -1379,7 +1480,7 @@ export default function VisualsEditorBody({
             alignItems: 'center',
             justifyContent: 'center',
           }}
-          onClick={() => setPickerOpen(false)}
+          onClick={closeImagePicker}
         >
           <div
             style={{
@@ -1405,7 +1506,9 @@ export default function VisualsEditorBody({
               }}
             >
               <div>
-                <strong>從媒體庫選擇圖片</strong>
+                <strong>
+                  {replaceTargetId ? '從媒體庫替換圖片' : '從媒體庫選擇圖片'}
+                </strong>
                 <span
                   style={{
                     marginLeft: 10,
@@ -1418,7 +1521,7 @@ export default function VisualsEditorBody({
               </div>
               <button
                 type="button"
-                onClick={() => setPickerOpen(false)}
+                onClick={closeImagePicker}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1462,8 +1565,10 @@ export default function VisualsEditorBody({
                   }}
                 >
                   {pickerItems.map((item) => {
+                    // 替換模式下，被替換的那一筆自己不算佔用（否則整格灰掉無從點選）
                     const already = data.images.some(
-                      (img) => img.file === item.key
+                      (img) =>
+                        img.file === item.key && img.id !== replaceTargetId
                     );
                     return (
                       <button
