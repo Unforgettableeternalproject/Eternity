@@ -1,4 +1,5 @@
-import React, { useLayoutEffect, useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
 // S6 行為對齊：拖曳定位邏輯與浮島系統共用同一份實作
@@ -96,7 +97,7 @@ export default function Minimap({
   }
 
   /* ---------- mount：讀取存儲位置 ---------- */
-  useLayoutEffect(() => {
+  useBrowserLayoutEffect(() => {
     if (!ref.current) return;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;

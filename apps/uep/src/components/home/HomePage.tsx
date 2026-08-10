@@ -5,7 +5,6 @@ import React, {
   useCallback,
   useRef,
   useEffect,
-  useLayoutEffect,
 } from 'react';
 
 import {
@@ -17,6 +16,7 @@ import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
 import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
+import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
 import { useIsMobile } from '../../utils/useIsMobile';
 import PieMap3D from '../map/PieMap3D';
 import IntroOverlay from '../ui/IntroOverlay';
@@ -173,9 +173,6 @@ const LOBBY_MOTES: { top: string; left: string; delay: number }[] = [
 ];
 
 type LobbyPhase = 'idle' | 'waiting' | 'playing' | 'done';
-
-const useBrowserLayoutEffect =
-  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 function isWithinViewportBand(
   value: number,

@@ -16,7 +16,8 @@
  */
 
 /* global ResizeObserver, getComputedStyle */
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
 import { createPortal } from 'react-dom';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
@@ -202,7 +203,7 @@ export default function IdentCard() {
      所以量實際內容。背面固定用展開寬度佈局（見 CSS 的 --ident-w），
      卡片收著時也量得準，不必等展開動畫跑完。
      ResizeObserver 顧的是字型載入、代稱變化、resize 換斷點。 */
-  useLayoutEffect(() => {
+  useBrowserLayoutEffect(() => {
     const inner = backInnerRef.current;
     const root = rootRef.current;
     if (!inner || !root || typeof ResizeObserver === 'undefined')
