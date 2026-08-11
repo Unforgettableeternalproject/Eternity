@@ -27,6 +27,16 @@ export const ENTITY_KEYS = {
   afterglow: 'test-echo-afterglow',
   /** Visuals 圖庫實體（⚠️ 只有陳列走廊 profiles 掛 entityKey） */
   gallery: 'test-gallery-relay',
+  /**
+   * 被群組 gate 擋住的 dossier 條目——「相應浮島查得到內容」的反例。
+   * 探索者未持 test.reached-tower 前是普通文字，拿旗後即時變可點。
+   */
+  substructure: 'test-substructure',
+  /**
+   * 純潔者限定的 dossier 條目——唯一「當過觀測者後永久退回普通文字」
+   * 的 entity，驗 S1「切回探索者不殘留可點樣式」的主力。
+   */
+  figure: 'test-figure',
 };
 
 export const STORY_KEYS = {
@@ -63,6 +73,18 @@ export const KEY_META = [
     keyType: 'entity',
     key: ENTITY_KEYS.gallery,
     description: '測試用圖庫實體，綁在 Visuals 陳列走廊〈中繼塔影像集〉。',
+  },
+  {
+    keyType: 'entity',
+    key: ENTITY_KEYS.substructure,
+    description:
+      '測試用受限條目：荒地下方的緻密結構，dossier 群組被 test.reached-tower gate 擋住。',
+  },
+  {
+    keyType: 'entity',
+    key: ENTITY_KEYS.figure,
+    description:
+      '測試用純潔者限定條目：荒地上的形狀，當過觀測者的帳號永遠查不到。',
   },
   {
     keyType: 'story',
@@ -195,6 +217,7 @@ export const PAGE_IDS = {
   gateAll: `${HISTORY_ARC}/test-05-gate-all`,
   inherit1: `${PROGRESS_PAGE_ARC}/test-06-inherit-a`,
   inherit2: `${PROGRESS_PAGE_ARC}/test-07-inherit-b`,
+  annex: `${HISTORY_ARC}/test-08-annex`,
   /* ⚠️ Echoes 的分類**只看 cluster**（`echoes/{cluster}/…` 第二段），
      `metadata.category` 只是鏡像。放錯 cluster 的後果不是分類標籤難看，
      而是 EchoSongPicker 直接篩掉：
@@ -505,6 +528,91 @@ export const INHERIT_B_HTML = filler([
   '沒有人解釋為什麼備用件會被立起來。',
 ]);
 
+/* ── 附錄長文（受限 entity + met: fallback 專用）──────────────
+ *
+ * 主力長文的標記節奏經過調校，不動它——這一篇獨立承擔三種主力沒有的
+ * entity 狀態（Ariel 2026-08-12 回饋：素材裡沒有任何被 gate 的 entity，
+ * S1／S4 的鎖定鏈無從驗起）：
+ *
+ * 1. 舊格式路徑 ref：唯一消費 `met:{完整 ref}` 旗標的 entity。文中先出現
+ *    （普通文字），捲過認識點的 FlagMarker 後應即時變可點。met:* 是
+ *    derived 旗標，豁免註冊強制，不進 FLAGS。
+ * 2. 群組 gate 條目（test-substructure）：未持 test.reached-tower 前是
+ *    普通文字，讀完主力長文拿旗後回來看應已可點。
+ * 3. 純潔者限定條目（test-figure）：純潔探索者可點；一旦當過觀測者，
+ *    切回後必須退回普通文字且永不恢復——S1「不殘留可點樣式」的判定。
+ */
+
+/** 舊格式 ref 指向實體名錄頁本身——met: fallback 的消費對象 */
+export const LEGACY_ENTITY_REF = PAGE_IDS.conceptsDossier;
+
+/** 舊格式（路徑型 ref）entity 標記——`entity()` 只組新格式，這裡自組 */
+const legacyEntity = (kind, ref, text) =>
+  `<span data-uep-entity="${kind}" data-ref="${ref}">${text}</span>`;
+
+const ANNEX_OPENING = filler([
+  '調查結束之後，卷宗並沒有闔上。',
+  '第七中繼塔的檔案在歸檔系統裡被拆成了兩份：一份是正卷，編號齊全，任何人都調得到；另一份是附錄，沒有編號，存放位置的欄位寫著「另行保管」。',
+  '附錄的存在本身不是秘密。正卷的目錄最後一行就列著它，像一扇看得見但沒有把手的門。',
+  '申請調閱的人不少。批准的紀錄一筆都沒有。',
+  '負責保管的部門換過三次名字，職掌越改越模糊，最後一次改組之後，它在組織圖上的位置變成了一條虛線。虛線的另一端沒有連著任何東西。',
+  '有人說那是行政疏失。也有人說，虛線畫成那樣才是準確的。',
+]);
+
+const ANNEX_BEFORE_MET = filler([
+  '能確定的只有一件事：附錄裡的東西曾經被整理過。',
+  '整理的痕跡藏在正卷裡——某些段落的敘述順序不自然，像是繞開了什麼；某些照片的編號跳號，跳過的號碼加起來剛好是一卷膠卷的張數。',
+  '做過檔案工作的人一眼就看得出來：這不是遺失，是抽走。',
+  '抽走的東西去了哪裡，正卷當然不會寫。但抽走這個動作本身留下了形狀，就像從書架上拿走一本書，留下的空隙會告訴你它有多厚。',
+  '那個空隙很厚。',
+]);
+
+const ANNEX_AFTER_MET = filler([
+  '認識了索引的形狀之後，再回頭讀正卷，很多段落會變得不一樣。',
+  '之前讀起來只是節奏怪異的句子，現在能看出斷口在哪裡；之前以為是排版錯誤的空行，現在知道那裡原本有一張照片。',
+  '閱讀這件事，有時候不是往前推進，而是回頭重讀。',
+  '同一份文件，第二次讀的人和第一次讀的人，拿到的東西不一樣。這不是文件變了，是讀的人變了。',
+  '附錄的保管者大概很清楚這一點。所以他們抽走的從來不是結論，而是讓人變成「第二次讀的人」的那些東西。',
+]);
+
+const ANNEX_ENDING = filler([
+  '附錄的最後一頁是一張借閱單，格式老舊，手寫。',
+  '借閱人欄位的字跡被水漬暈開了，讀不出來。日期欄是空的。事由欄只寫了兩個字：「核對」。',
+  '沒有人知道核對的結果。',
+  '只知道那張借閱單之後，附錄再也沒有新增過任何一頁。',
+]);
+
+/** 附錄長文的完整 HTML */
+export const ANNEX_HTML = [
+  ANNEX_OPENING,
+  p(
+    `拆分的依據找不到明文規定，唯一的線索是${legacyEntity(
+      'term',
+      LEGACY_ENTITY_REF,
+      '原始檔案索引'
+    )}——一份用舊制編目寫成的清單，正卷引用過它三次，每次都只引編號不引內容。`
+  ),
+  p(
+    `清單裡有一個反覆出現的條目。地質報告裡被劃掉又改寫的那行備註指的就是它：${entity(
+      'location',
+      ENTITY_KEYS.substructure,
+      '荒地下方的結構'
+    )}。改寫的人大概以為劃掉就夠了。`
+  ),
+  ANNEX_BEFORE_MET,
+  // 認識點：捲過即授 met: 旗標，上方的舊格式 entity 應即時變可點
+  flagMarker([`met:${LEGACY_ENTITY_REF}`], '認識點・檔案索引'),
+  ANNEX_AFTER_MET,
+  p(
+    `至於照片邊緣那個${entity(
+      'character',
+      ENTITY_KEYS.figure,
+      '荒地上的形狀'
+    )}，附錄裡收了一份手寫的觀察備忘。備忘的結論欄是空的——寫的人似乎認為，看過答案的人不該再回來讀這一條。`
+  ),
+  ANNEX_ENDING,
+].join('');
+
 /* ── 頁面定義 ───────────────────────────────────────────────
  *
  * `content` 一律是 ContentBlock[]，`metadata` 的形狀依 page_type 而異。
@@ -589,6 +697,14 @@ export const HISTORY_PAGES = [
     sortOrder: 96,
     content: richText(INHERIT_B_HTML),
     metadata: { icon: 'layer-group' },
+  },
+  {
+    id: PAGE_IDS.annex,
+    title: '[測試] 附錄・受限檔案',
+    pageType: 'section',
+    sortOrder: 97,
+    content: richText(ANNEX_HTML),
+    metadata: { icon: 'folder-tree' },
   },
 ];
 
@@ -971,9 +1087,32 @@ export const CONCEPTS_PAGES = [
                     gate: { requiresFlags: [FLAGS[1].name] },
                     entries: [
                       {
+                        /* ⚠️ 掛 entityKey 是刻意的：長文附錄的 entity span
+                           指向這條，探索者未持旗前「浮島查不到內容」→
+                           普通文字，拿旗後即時變可點——gate entity 的
+                           唯一驗收路徑（Ariel 2026-08-12 回饋補洞）。 */
                         name: '荒地下方的結構',
+                        entityKey: ENTITY_KEYS.substructure,
+                        aliases: ['地下結構'],
                         content_html:
                           '<p>鑽探紀錄上被劃掉的那一行備註。整組被 gate 擋住時這條也看不見。</p>',
+                        spoiler: 1,
+                      },
+                    ],
+                  },
+                  {
+                    label: '未歸類',
+                    entries: [
+                      {
+                        /* 條目層 gate（pristineOnly）：純潔探索者可點，
+                           一旦當過觀測者（observerEver）永久退回普通文字
+                           ——S1「切回不殘留可點樣式」的判定素材。 */
+                        name: '荒地上的形狀',
+                        entityKey: ENTITY_KEYS.figure,
+                        aliases: ['形狀'],
+                        gate: { pristineOnly: true },
+                        content_html:
+                          '<p>只有從未見證過一切的人查得到這一條。照片邊緣站著的形狀，面朝塔，距離不可能是人。</p>',
                         spoiler: 1,
                       },
                     ],
