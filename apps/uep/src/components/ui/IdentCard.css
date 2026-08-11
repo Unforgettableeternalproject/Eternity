@@ -16,9 +16,9 @@
   position: fixed;
   top: var(--ident-anchor-top, 72px);
   right: 36px; /* 對齊 TopBar 的水平 padding */
-  /* 高於浮島層帶（2000–2999）與便條層（3000）：指著識別證的教學聚光燈
-     （3200）挖出來的洞裡不能是浮島。低於教學層與所有 modal（≥9990）。 */
-  z-index: 3100;
+  /* 收合的吊牌是背景配件，落在浮島層帶（2000–2999）之下——一張沒展開的
+     吊牌沒有理由蓋住讀者正在用的浮島。展開與撕下拖曳時才抬升（見下）。 */
+  z-index: 1900;
   display: flex;
   flex-direction: column;
   align-items: center; /* 吊繩與翻面容器都以中心軸對齊 */
@@ -31,6 +31,25 @@
   -webkit-touch-callout: none;
   animation: uep-ident-drop 0.7s cubic-bezier(0.34, 1.4, 0.64, 1);
   transform-origin: top center;
+}
+
+/* 展開的證卡與撕下手勢是前景互動，抬到浮島（2000–2999）與便條（3000）
+   之上：指著識別證的教學聚光燈（3200）會先請卡片翻開再挖洞，洞裡不能是
+   浮島。仍低於教學層與所有 modal（≥9990）。 */
+.uep-ident.is-open,
+.uep-ident.is-dragging {
+  z-index: 3100;
+}
+
+/* 區域入場動畫期間讓位（zoneEntryLock 掛的 body class）——入場動畫層
+   （350–600）刻意低於浮島帶，蓋不住任何浮動 UI，靠的是大家各自退場。
+   淡出即可，不用 display:none：識別證位置固定，硬切再硬回會很跳。 */
+body.uep-zone-entry-active .uep-ident {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.22s ease,
+    visibility 0s linear 0.22s;
 }
 
 @keyframes uep-ident-drop {
@@ -289,6 +308,9 @@
   color: var(--ink-mute);
   letter-spacing: 0.24em;
   writing-mode: vertical-rl;
+  /* 直排文字空間不足時會折成第二欄，「識別證」三個字被拆成兩行
+     （Ariel 08/12 手機截圖）——吊牌上的標籤永遠單行 */
+  white-space: nowrap;
 }
 
 /* 背面：完整證卡（rotateY 180 讓正向可讀，backface-visibility 由父層處理） */
