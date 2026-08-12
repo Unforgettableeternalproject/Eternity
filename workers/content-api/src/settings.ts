@@ -56,10 +56,11 @@ export const SETTING_DEFAULTS: Record<SettingKey, SettingValue> = {
   'note.textMax': 200,
   'reader.activityIdleThresholdSec': 180,
   'reader.idleNudgeMode': 'enabled',
-  'reader.restActiveMinutes': 45,
-  'reader.restPageCount': 5,
+  // 2026-08-12 Ariel 驗收回饋調高：45/5/60 在長文測讀情境下體感太早
+  'reader.restActiveMinutes': 75,
+  'reader.restPageCount': 8,
   'reader.restWindowMinutes': 30,
-  'reader.restCooldownMinutes': 60,
+  'reader.restCooldownMinutes': 90,
   'reader.teaInviteChancePct': 10,
 };
 

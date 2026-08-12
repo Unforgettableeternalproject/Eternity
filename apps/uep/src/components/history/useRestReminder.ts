@@ -37,7 +37,7 @@ import { useEffect, useRef } from 'react';
 import { getActiveTotalMs } from '../../lib/activityWatch';
 import { markTeatimeInvited } from '../../lib/teatime';
 import { getSetting, initUepSettings } from '../../lib/uepSettings';
-import { PROGRESS_CHANGE_EVENT } from '../../progress';
+import { PROGRESS_CHANGE_EVENT, getProgressManager } from '../../progress';
 import type { ProgressChangeDetail } from '../../progress';
 import { useReaderNudge } from '../zone/ReaderNudge';
 import type { RestNudgeRequest, RestNudgeVariant } from '../zone/ReaderNudge';
@@ -98,10 +98,10 @@ interface RestConfig {
 
 function readConfig(): RestConfig {
   return {
-    activeMs: getSetting('reader.restActiveMinutes', 45) * MINUTE_MS,
-    pageCount: getSetting('reader.restPageCount', 5),
+    activeMs: getSetting('reader.restActiveMinutes', 75) * MINUTE_MS,
+    pageCount: getSetting('reader.restPageCount', 8),
     windowMs: getSetting('reader.restWindowMinutes', 30) * MINUTE_MS,
-    cooldownMs: getSetting('reader.restCooldownMinutes', 60) * MINUTE_MS,
+    cooldownMs: getSetting('reader.restCooldownMinutes', 90) * MINUTE_MS,
   };
 }
 
@@ -112,6 +112,19 @@ export function useRestReminder(): void {
   const baselineRef = useRef(0);
   /** 本 session 完成頁的時間戳，判定前剔除視窗外的舊項 */
   const completedAtRef = useRef<number[]>([]);
+  /**
+   * 見過的完成頁 id——byPages 只計「本 session 首次讀完的不重複頁面」。
+   *
+   * 沒有這道防線的實際事故（Ariel 2026-08-12）：跨裝置 409 覆蓋（修掉前）
+   * 會把 completedPageIds 倒帶，掃描線還停在文末，於是同一頁反覆
+   * 重新標記完成，五次 `page-completed` 在幾分鐘內湊滿門檻，讀第一篇
+   * 捲到底提醒就跳出來。覆蓋 bug 已修（改聯集合併），這裡再擋一層。
+   *
+   * 集合吸收**所有來源**的 completedPageIds（掛載快照、hydrate 匯入都算
+   * 「見過」），但只有 `page-completed` 來源的新增才記時間戳——否則登入
+   * hydrate 帶進來的既有完成頁會在下一次真實完成時被整批誤算成本次閱讀。
+   */
+  const seenPagesRef = useRef(new Set<string>());
   /** 冷卻結束時刻。從按下「知道了」起算，不是從卡片出現起算 */
   const cooldownUntilRef = useRef(0);
   /** 卡片正在顯示（或排隊中），不重複提交 */
@@ -124,12 +137,23 @@ export function useRestReminder(): void {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
 
+    // 掛載當下的完成頁是歷史，不是本次閱讀（見 seenPagesRef）
+    seenPagesRef.current = new Set(
+      getProgressManager().getState().completedPageIds
+    );
+
     const onProgressChange = (event: Event) => {
       const detail = (event as CustomEvent<ProgressChangeDetail>).detail;
-      // 只收本 session 真的讀完的那一刻。hydrate 與跨裝置既有完成不發這個
-      // source，重讀也不會——它只在 completedPageIds 首次新增時發出
-      if (detail?.source !== 'page-completed') return;
-      completedAtRef.current.push(Date.now());
+      const ids = detail?.state?.completedPageIds;
+      if (!ids) return;
+      // 只有 page-completed 來源的新增算本次閱讀；其餘來源（hydrate、
+      // reset 後重建等）只吸收進「見過」集合，不記時間戳
+      const isCompletion = detail.source === 'page-completed';
+      for (const pageId of ids) {
+        if (seenPagesRef.current.has(pageId)) continue;
+        seenPagesRef.current.add(pageId);
+        if (isCompletion) completedAtRef.current.push(Date.now());
+      }
     };
 
     window.addEventListener(PROGRESS_CHANGE_EVENT, onProgressChange);

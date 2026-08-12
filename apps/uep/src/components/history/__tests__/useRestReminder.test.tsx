@@ -60,11 +60,21 @@ async function advance(ms: number) {
   });
 }
 
-/** 模擬「首次讀完一篇」——只有這個 source 會被計入 */
+/** 事件裡累積的完成頁 id（byPages 只計不重複頁面，每次模擬都是新頁） */
+let completedIds: string[] = [];
+
+/**
+ * 模擬「completedPageIds 多了一頁」。source 為 page-completed 時是
+ * 本 session 的首次讀完（計入 byPages）；其他 source（hydrate 匯入等）
+ * 只是頁面清單變長，不算本次閱讀。
+ */
 async function completePage(source = 'page-completed') {
+  completedIds = [...completedIds, `history/p-${completedIds.length + 1}`];
   await act(async () => {
     window.dispatchEvent(
-      new CustomEvent(PROGRESS_CHANGE_EVENT, { detail: { source } })
+      new CustomEvent(PROGRESS_CHANGE_EVENT, {
+        detail: { source, state: { completedPageIds: completedIds } },
+      })
     );
   });
 }
@@ -112,6 +122,7 @@ describe('useRestReminder', () => {
     sessionStorage.clear();
     clearUepSettingsCache();
     delete window.__uepSettings;
+    completedIds = [];
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
   });
 
@@ -142,6 +153,30 @@ describe('useRestReminder', () => {
     await completePage();
     await advance(20_000);
     expect(card()).toBeTruthy();
+  });
+
+  /**
+   * 【回歸】Ariel 2026-08-12：跨裝置 409 覆蓋（修掉前）會倒帶
+   * completedPageIds，掃描線還在文末於是同一頁反覆重新標記完成——
+   * 五次事件幾分鐘內湊滿門檻，讀第一篇捲到底提醒就跳出來。
+   */
+  it('同一頁反覆重新完成只算一次', async () => {
+    await mount({ 'reader.restActiveMinutes': 0, 'reader.restPageCount': 3 });
+
+    for (let i = 0; i < 5; i += 1) {
+      await act(async () => {
+        window.dispatchEvent(
+          new CustomEvent(PROGRESS_CHANGE_EVENT, {
+            detail: {
+              source: 'page-completed',
+              state: { completedPageIds: ['history/p-same'] },
+            },
+          })
+        );
+      });
+    }
+    await advance(20_000);
+    expect(card()).toBeNull();
   });
 
   it('只計 page-completed——hydrate 與重讀不算本次的大量閱讀', async () => {

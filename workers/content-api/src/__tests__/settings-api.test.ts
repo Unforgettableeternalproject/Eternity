@@ -111,10 +111,10 @@ describe('/api/settings', () => {
       'note.textMax': 200,
       'reader.activityIdleThresholdSec': 180,
       'reader.idleNudgeMode': 'enabled',
-      'reader.restActiveMinutes': 45,
-      'reader.restPageCount': 5,
+      'reader.restActiveMinutes': 75,
+      'reader.restPageCount': 8,
       'reader.restWindowMinutes': 30,
-      'reader.restCooldownMinutes': 60,
+      'reader.restCooldownMinutes': 90,
       'reader.teaInviteChancePct': 10,
     });
   });
