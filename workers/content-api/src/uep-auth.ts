@@ -314,7 +314,8 @@ async function handleLogin(
     return json(
       {
         ok: false,
-        error: '有一股未知的力量阻止你回復這段紀錄。',
+        error:
+          '有一股未知的力量阻止你回復這段紀錄。若有疑問，請聯絡這個世界的管理員。',
         data: { reason: 'inactive' },
       },
       403,
