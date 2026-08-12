@@ -23,7 +23,11 @@ const ATOMIC_TOKEN_REGEX = new RegExp(
  * （像「（笑）」）不算，維持原樣參與斷行。
  */
 function isKaomoji(run: string): boolean {
-  return /[^一-鿿　-〿A-Za-z0-9\s（）()，。、！？!?,.;：:'"~\-·]/.test(run);
+  // U+4E00–U+9FFF = CJK 統一表意文字；U+3000–U+303F = CJK 標點——
+  // 全形空白（U+3000）用跳脫寫法，字面字元會被 no-irregular-whitespace 擋下
+  return /[^\u4e00-\u9fff\u3000-\u303fA-Za-z0-9\s（）()，。、！？!?,.;：:'"~\-·]/.test(
+    run
+  );
 }
 
 /**
