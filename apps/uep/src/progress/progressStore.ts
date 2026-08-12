@@ -946,6 +946,23 @@ export const uepProgress = {
     }));
   },
 
+  /**
+   * 以外部快照整份還原 state（登出還原訪客足跡用，2026-08-12 訪客獨立
+   * 實體）。與 `reset()` 同屬「整份替換」語意，不做任何合併——快照裡的
+   * `observerEver` 是訪客自己登入前落下的印記，照原樣還原，不套帳號的
+   * 「印記必須清」規則（那條防的是帳號印記外洩到裝置，這份快照先於
+   * 登入存在，本來就屬於這台裝置的訪客）。
+   *
+   * ⚠️ 呼叫端先確保 adapter 已切回 LocalStorageAdapter——persist 會把
+   * 快照寫進本地鏡像；若 adapter 還是 ServerAdapter，這份訪客足跡會被
+   * 推上帳號的雲端進度。
+   */
+  restoreSnapshot(snapshot: ProgressState): void {
+    state = { ...snapshot, updatedAt: new Date().toISOString() };
+    persist();
+    notify('reset');
+  },
+
   /** 訂閱狀態變更，回傳取消訂閱函式 */
   subscribe(listener: Listener): () => void {
     listeners.push(listener);

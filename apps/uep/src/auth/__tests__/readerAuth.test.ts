@@ -249,6 +249,127 @@ describe('登出', () => {
   });
 });
 
+/**
+ * 【回歸】訪客獨立實體（艾斯維爾 2026-08-12 定案，Ariel 驗收回饋）：
+ * 訪客與帳號是兩個身分。**既有帳號登入**進度以帳號為主、不繼承訪客，
+ * 登出時還原登入前的訪客快照；**註冊**則由新帳號繼承訪客進度，
+ * 登出後以全新訪客看待。
+ */
+describe('訪客獨立實體', () => {
+  /** 帳號在雲端的完整進度 blob（normalizeState 要求完整形狀） */
+  const ACCOUNT_STATE = {
+    version: 1,
+    view: 'explorer',
+    observerEver: false,
+    flags: ['account-flag'],
+    completedPageIds: ['history/acct-page'],
+    islandsUnlocked: [],
+    islandsDisabled: [],
+    pageMarkers: {},
+    fogRatio: {},
+    lastVisitedPageId: null,
+    lastVisitedAt: null,
+    lostBookmark: { missCount: 0, visible: false },
+    readingStats: { totalMs: 0 },
+    conceptsReadLevel: {},
+    storageNotes: [],
+    updatedAt: '2026-08-12T00:00:00.000Z',
+  };
+
+  it('既有帳號登入不繼承訪客進度；登出還原登入前的訪客足跡', async () => {
+    const { uepReaderAuth } = await freshAuth();
+    const { getProgressManager } = await import('../../progress');
+    fetchMock.mockImplementation((url: string, init?: { method?: string }) => {
+      if (String(url).includes('/api/uep/auth/login')) {
+        return Promise.resolve(jsonResponse({ ok: true, data: AUTH_DATA }));
+      }
+      if (String(url).includes('/api/uep/progress') && init?.method !== 'PUT') {
+        // 既有帳號：雲端有進度（rev > 0）
+        return Promise.resolve(
+          jsonResponse({
+            ok: true,
+            data: ACCOUNT_STATE,
+            meta: { rev: 3, observerEver: false },
+          })
+        );
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: null }));
+    });
+
+    // 訪客時期的足跡
+    const progress = getProgressManager();
+    progress.grantFlags(['guest-flag']);
+    progress.markPageCompleted('history/guest-page');
+
+    await uepReaderAuth.login('reader-one', 'password-123');
+
+    // 帳號進度為主：訪客旗標不得混進來
+    expect(progress.getState().flags).toEqual(['account-flag']);
+    expect(progress.getState().completedPageIds).toEqual(['history/acct-page']);
+
+    // 帳號期間的閱讀
+    progress.grantFlags(['session-flag']);
+
+    await uepReaderAuth.logout();
+
+    // 還原登入前的訪客快照：訪客足跡回來、帳號足跡不殘留
+    const state = progress.getState();
+    expect(state.flags).toEqual(['guest-flag']);
+    expect(state.completedPageIds).toEqual(['history/guest-page']);
+  });
+
+  it('註冊繼承訪客進度；登出後以全新訪客看待、不還原', async () => {
+    const { uepReaderAuth } = await freshAuth();
+    const { getProgressManager } = await import('../../progress');
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/api/uep/auth/register')) {
+        return Promise.resolve(
+          jsonResponse({ ok: true, data: AUTH_DATA }, 201)
+        );
+      }
+      // 全新帳號：rev === 0（absent）→ setAdapter 上傳本地作為初始值
+      return Promise.resolve(
+        jsonResponse({ ok: true, data: null, meta: { rev: 0 } })
+      );
+    });
+
+    const progress = getProgressManager();
+    progress.grantFlags(['guest-flag']);
+
+    await uepReaderAuth.register({
+      username: 'reader-new',
+      password: 'password-123',
+    });
+
+    // 繼承：訪客旗標仍在（等待 absent 分支上傳）
+    expect(progress.getState().flags).toEqual(['guest-flag']);
+
+    await uepReaderAuth.logout();
+
+    // 訪客身分已被新帳號消費——登出是全新訪客，不還原
+    expect(progress.getState().flags).toEqual([]);
+    expect(progress.getState().completedPageIds).toEqual([]);
+  });
+
+  it('訪客快照毀損時登出退回歸零，不炸', async () => {
+    const { uepReaderAuth, GUEST_SNAPSHOT_KEY } = await freshAuth();
+    const { getProgressManager } = await import('../../progress');
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/api/uep/auth/login')) {
+        return Promise.resolve(jsonResponse({ ok: true, data: AUTH_DATA }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: null }));
+    });
+    await uepReaderAuth.login('reader-one', 'password-123');
+    window.localStorage.setItem(GUEST_SNAPSHOT_KEY, '{broken!!');
+    getProgressManager().grantFlags(['session-flag']);
+
+    await uepReaderAuth.logout();
+
+    expect(getProgressManager().getState().flags).toEqual([]);
+  });
+});
+
 describe('顯示代稱', () => {
   it('有觀測者印記的註冊者加上「已見證的」前綴', async () => {
     const { uepReaderAuth, WITNESSED_PREFIX } = await freshAuth();

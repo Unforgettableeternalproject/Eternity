@@ -12,9 +12,10 @@
  * 時才上傳本地，見 `RemoteLoadResult`）。
  */
 
-import { LocalStorageAdapter } from '../progress/adapters';
+import { LocalStorageAdapter, normalizeState } from '../progress/adapters';
 import { getProgressManager } from '../progress/progressStore';
 import { ServerAdapter } from '../progress/serverAdapter';
+import type { ProgressState } from '../progress/types';
 import { getApiBase, isTestMode } from '../lib/apiBase';
 
 /** 未登入訪客的統一稱呼（與 Worker uep-alias.ts 對齊） */
@@ -34,6 +35,20 @@ export const WITNESSED_PREFIX = '已見證的';
 export const READER_SESSION_KEY = isTestMode()
   ? 'uep.reader.session.v1:test'
   : 'uep.reader.session.v1';
+
+/**
+ * 訪客足跡快照的 localStorage key（2026-08-12 訪客獨立實體）。
+ *
+ * 訪客與帳號是兩個身分：**以既有帳號登入**時先把訪客的本地進度存進
+ * 這把 key，登出時原樣還原——帳號進度以帳號為主、不繼承訪客；
+ * **註冊新帳號**則相反：訪客進度被新帳號繼承（setAdapter 的 absent
+ * 分支上傳），快照清除，之後登出以全新訪客看待。
+ *
+ * 環境隔離比照 session key。
+ */
+export const GUEST_SNAPSHOT_KEY = isTestMode()
+  ? 'uep.reader.guest-progress.v1:test'
+  : 'uep.reader.guest-progress.v1';
 
 /** auth 狀態變更事件名稱 */
 export const AUTH_CHANGE_EVENT = 'uep:auth-change';
@@ -98,6 +113,42 @@ function persistSession(): void {
     }
   } catch {
     // localStorage 不可用時靜默——auth 只影響同步，不阻斷閱讀
+  }
+}
+
+/** 登入前把訪客的本地進度存成快照（整份 JSON，失敗靜默——不阻斷登入） */
+function saveGuestSnapshot(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(
+      GUEST_SNAPSHOT_KEY,
+      JSON.stringify(getProgressManager().getState())
+    );
+  } catch {
+    // 寫不進去就當沒有快照，登出時退回歸零（原行為）
+  }
+}
+
+/** 取出並**消費**訪客快照（讀完即刪；毀損或缺失回 null） */
+function takeGuestSnapshot(): ProgressState | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(GUEST_SNAPSHOT_KEY);
+    window.localStorage.removeItem(GUEST_SNAPSHOT_KEY);
+    if (!raw) return null;
+    return normalizeState(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/** 清除訪客快照（註冊時：訪客身分已被新帳號繼承，不留還原點） */
+function clearGuestSnapshot(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(GUEST_SNAPSHOT_KEY);
+  } catch {
+    // 靜默
   }
 }
 
@@ -260,6 +311,9 @@ export const uepReaderAuth = {
     if (!res.ok || !res.data) {
       return { ok: false, error: res.error || '註冊失敗' };
     }
+    /* 訪客進度由新帳號繼承（setAdapter 的 absent 分支上傳），身分被
+       消費掉——不留還原點，之後登出以全新訪客看待 */
+    clearGuestSnapshot();
     applyAuthData(res.data);
     await attachServerAdapter();
     return { ok: true };
@@ -274,6 +328,9 @@ export const uepReaderAuth = {
     if (!res.ok || !res.data) {
       return { ok: false, error: res.error || '登入失敗' };
     }
+    /* 既有帳號：進度以帳號為主、不繼承訪客——先把訪客足跡存成快照，
+       登出時原樣還原（此刻 session 必為 null，state 就是訪客的） */
+    saveGuestSnapshot();
     applyAuthData(res.data);
     await attachServerAdapter();
     return { ok: true };
@@ -295,13 +352,15 @@ export const uepReaderAuth = {
    * 2. 清 session。**必須在 reset 之前**：`flush()` 靠 `getToken()` 回 null
    *    才放棄上傳，順序反過來會把重置後的空進度 PUT 上去，
    *    **直接清空伺服器上的帳號進度**。
-   * 3. 換 LocalStorageAdapter，且 `hydrate: false`——下一步就要 reset，
-   *    讀回舊帳號鏡像只是白做工兼畫面閃爍。
+   * 3. 換 LocalStorageAdapter，且 `hydrate: false`——下一步就要清掉帳號
+   *    足跡，讀回舊帳號鏡像只是白做工兼畫面閃爍。
    *    （這步同時遞增 adapter 世代，讓仍在飛的舊 hydrate 結果作廢。）
-   * 4. `reset({ keepObserverEver: false })`，此時 persist 走的已是本地
-   *    adapter，安全。**印記必須一起清**——它屬於帳號不屬於裝置，留著
-   *    會被下一位新註冊者的初始上傳帶進伺服器並永久生效，詳見
-   *    `progressStore.reset()` 的註解。
+   * 4. 清掉帳號足跡，此時 persist 走的已是本地 adapter，安全。有訪客
+   *    快照（登入前存的）就整份還原——訪客與帳號是兩個身分，登出回到
+   *    登入前的訪客；沒有快照（註冊繼承、或登入前本來就乾淨）則
+   *    `reset({ keepObserverEver: false })` 歸零。**帳號的印記不可留在
+   *    裝置上**——快照裡的印記是訪客自己的、先於登入存在，不在此限；
+   *    reset 分支則必須清，詳見 `progressStore.reset()` 的註解。
    *
    * @param expired token 過期觸發時為 true（UI 可顯示不同訊息）
    */
@@ -312,7 +371,12 @@ export const uepReaderAuth = {
     persistSession();
     const progress = getProgressManager();
     await progress.setAdapter(new LocalStorageAdapter(), { hydrate: false });
-    progress.reset({ keepObserverEver: false });
+    const guestSnapshot = takeGuestSnapshot();
+    if (guestSnapshot) {
+      progress.restoreSnapshot(guestSnapshot);
+    } else {
+      progress.reset({ keepObserverEver: false });
+    }
     notify();
     if (typeof window !== 'undefined') {
       if (expired) {
