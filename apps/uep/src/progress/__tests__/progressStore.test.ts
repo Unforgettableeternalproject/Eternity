@@ -816,6 +816,165 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
     });
   });
 
+  /* ── 409 衝突收斂（hydrateConflict）──────────────────────────────
+   * 【回歸】跨裝置競態（Ariel 2026-08-12 staging 驗收）：
+   * 電腦讀完整頁（completed + 授旗），手機只滑一點但搶先 PUT；電腦的
+   * PUT 撞 409 後走舊的 hydrateAuthoritative「一律權威覆蓋」，整段閱讀
+   * 被手機的較少進度蓋掉。改為：遠端非空＝並行寫入 → 全量聯集合併後
+   * 重新上傳；遠端空＝admin 重置 → 維持覆蓋語意。 */
+  describe('hydrateConflict', () => {
+    function serverAdapter(
+      snapshot: () => {
+        state: ProgressState | null;
+        observerEver: boolean;
+      } | null
+    ) {
+      return {
+        load: () => Promise.resolve(snapshot()?.state ?? null),
+        save: vi.fn(() => Promise.resolve()),
+        loadAuthoritative: () => Promise.resolve(snapshot()),
+      };
+    }
+
+    it('遠端非空 → 全量聯集合併，雙方進度都保留，且 persist 上傳', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => ({
+        // 「手機」搶先寫入的較少進度
+        state: makeRemote({
+          flags: ['phone-flag'],
+          completedPageIds: ['page-a'],
+          fogRatio: { 'page-b': 0.2 },
+        }),
+        observerEver: false,
+      }));
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+
+      // 「電腦」本地的完整閱讀（輸掉 CAS 的那份）
+      uepProgress.grantFlags(['pc-flag', 'completed:page-b']);
+      uepProgress.markPageCompleted('page-b');
+      uepProgress.advanceFog('page-b', 0.97);
+      adapter.save.mockClear();
+
+      const outcome = await uepProgress.hydrateConflict();
+
+      expect(outcome).toBe('merged');
+      const state = uepProgress.getState();
+      // 聯集：兩台裝置的旗標與完成頁都在
+      expect(state.flags).toEqual(
+        expect.arrayContaining(['phone-flag', 'pc-flag', 'completed:page-b'])
+      );
+      expect(state.completedPageIds).toEqual(
+        expect.arrayContaining(['page-a', 'page-b'])
+      );
+      // 迷霧 per-key max：本地讀得比較遠
+      expect(state.fogRatio['page-b']).toBeCloseTo(0.97);
+      // 合併結果是新變更，要上傳（帶著剛取回的新 rev 通過 CAS）
+      expect(adapter.save).toHaveBeenCalled();
+    });
+
+    it('pageMarkers 每頁取讀得較遠的一份，不逐欄混拼', async () => {
+      const { uepProgress } = await freshStore();
+      const remoteMarker = {
+        maxMarkerIdx: 2,
+        lastMarkerIdx: 2,
+        totalMarkers: 10,
+        updatedAt: '2026-08-12T00:00:00.000Z',
+      };
+      const adapter = serverAdapter(() => ({
+        state: makeRemote({ pageMarkers: { 'page-x': remoteMarker } }),
+        observerEver: false,
+      }));
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+
+      uepProgress.updatePageMarker('page-x', 7, 7, 10);
+
+      await uepProgress.hydrateConflict();
+
+      expect(uepProgress.getState().pageMarkers['page-x'].maxMarkerIdx).toBe(7);
+    });
+
+    it('遠端空（admin 重置）→ 歸零、不上傳，維持覆蓋語意', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => ({
+        state: null,
+        observerEver: true,
+      }));
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+      uepProgress.grantFlags(['stale-local']);
+      adapter.save.mockClear();
+
+      const outcome = await uepProgress.hydrateConflict();
+
+      expect(outcome).toBe('reset');
+      expect(uepProgress.getState().flags).toEqual([]);
+      // 印記走伺服器 canonical
+      expect(uepProgress.getState().observerEver).toBe(true);
+      expect(adapter.save).not.toHaveBeenCalled();
+    });
+
+    it('讀不到伺服器 → 保持現狀、不上傳', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => null);
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+      uepProgress.grantFlags(['keep-me']);
+      adapter.save.mockClear();
+
+      const outcome = await uepProgress.hydrateConflict();
+
+      expect(outcome).toBe('unavailable');
+      expect(uepProgress.getState().flags).toEqual(['keep-me']);
+      expect(adapter.save).not.toHaveBeenCalled();
+    });
+
+    it('本地剛落下的印記不因合併而消失（單向永久標記）', async () => {
+      const { uepProgress } = await freshStore();
+      const adapter = serverAdapter(() => ({
+        state: makeRemote(),
+        observerEver: false,
+      }));
+      await uepProgress.setAdapter(adapter, { hydrate: false });
+      uepProgress.setView('observer');
+
+      await uepProgress.hydrateConflict();
+
+      expect(uepProgress.getState().observerEver).toBe(true);
+    });
+
+    it('便條依 id 聯集，同 id 取較新的一份', async () => {
+      const { uepProgress } = await freshStore();
+      const older = {
+        id: 'note-1',
+        text: '舊版',
+        tilt: 0,
+        createdAt: '2026-08-11T00:00:00.000Z',
+        updatedAt: '2026-08-11T00:00:00.000Z',
+      };
+      const remoteOnly = {
+        id: 'note-2',
+        text: '手機寫的',
+        tilt: 0,
+        createdAt: '2026-08-12T00:00:00.000Z',
+        updatedAt: '2026-08-12T00:00:00.000Z',
+      };
+      const adapter = serverAdapter(() => ({
+        state: makeRemote({ storageNotes: [older, remoteOnly] }),
+        observerEver: false,
+      }));
+      // 先 hydrate 讓本地拿到 note-1（舊版），再於本地改成新版
+      await uepProgress.setAdapter(adapter);
+      uepProgress.updateStorageNote('note-1', '新版');
+      uepProgress.addStorageNote('本地新增');
+
+      // 衝突收斂時遠端仍是舊版 note-1——同 id 取較新（本地）
+      await uepProgress.hydrateConflict();
+
+      const notes = uepProgress.getState().storageNotes;
+      expect(notes).toHaveLength(3);
+      expect(notes.find((n) => n.id === 'note-1')?.text).toBe('新版');
+      expect(notes.find((n) => n.id === 'note-2')?.text).toBe('手機寫的');
+    });
+  });
+
   /* ── 四態遠端讀取（loadRemote）───────────────────────────────────
    * 【回歸】
    *

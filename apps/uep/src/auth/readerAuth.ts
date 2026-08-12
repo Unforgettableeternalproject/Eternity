@@ -123,24 +123,31 @@ async function attachServerAdapter(): Promise<void> {
       // token 過期：清 session、退回本地儲存（鏡像是新的，無縫）
       void uepReaderAuth.logout(true);
     },
-    onProgressReset: () => {
-      /* admin 在後台改寫了這個帳號的進度（清空**或**存入新內容），
-         我們手上的是他寫入之前的快照，已被伺服器判定過期。
+    onProgressConflict: () => {
+      /* PUT 撞版本（409）：伺服器上的進度在我們讀取之後被改寫過。
+         交給 hydrateConflict() 分辨兩種來歷並收斂（2026-08-12 取代
+         「一律 hydrateAuthoritative 覆蓋」——那會讓輸掉 CAS 的裝置被
+         另一台裝置的較少進度整包蓋掉，且把跨裝置同步誤報成管理者）：
+         - 遠端空 ＝ admin 重置 → 伺服器為準歸零、不推回
+         - 遠端非空 ＝ 並行寫入 → 全量聯集合併後重新上傳，不掉進度
 
-         必須走 hydrateAuthoritative()——它以遠端為準、遠端空則歸零，
-         且不把本地推上去。兩個都不能用的替代方案：
-         - reset()：admin 若存的是**非空**進度，reset 後那份空 state 會在
-           2 秒後 PUT 上去，反過來蓋掉 admin 剛存的東西。
-         - setAdapter() 重新 hydrate：遠端為 null 時它會「上傳本地作為
-           初始值」，把同一份過期快照再送一次 → 又 409 → 無限重試。 */
+         toast 等收斂結果出來才發：來歷不同措辭不同，讀不到伺服器
+         （unavailable）則什麼都沒發生，不該打擾。 */
       /* hydrate 完再 refresh：progress 的 observerEver 已由 meta 校正成
          伺服器值，但顯示用的「已見證的」前綴讀的是 session。admin 若
          **清除**了印記，session 仍是舊的 true，得靠 /auth/me 下修。
          （反向的「印記剛落下」由下方 progress 訂閱即時升級，不需等這裡。） */
       void getProgressManager()
-        .hydrateAuthoritative()
-        .then(() => uepReaderAuth.refresh());
-      window.__uepToastManager?.info('閱讀進度已由管理者更新。');
+        .hydrateConflict()
+        .then((outcome) => {
+          if (outcome === 'unavailable') return;
+          void uepReaderAuth.refresh();
+          window.__uepToastManager?.info(
+            outcome === 'reset'
+              ? '閱讀進度已由管理者更新。'
+              : '已合併另一個裝置的閱讀進度。'
+          );
+        });
     },
     onRevMissing: () => {
       /* 想上傳但手上沒有伺服器版本號（初次 GET 失敗過）。ServerAdapter

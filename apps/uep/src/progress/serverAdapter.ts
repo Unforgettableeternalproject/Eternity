@@ -69,10 +69,12 @@ export interface ServerAdapterOptions {
   /** token 失效（401）時的回呼——由 auth 層清除 session */
   onAuthExpired?: () => void;
   /**
-   * 進度被 admin 重置（409）時的回呼。
-   * 手上的快照已過期，呼叫端應改為從伺服器重新 hydrate。
+   * PUT 撞版本（409）時的回呼——伺服器上的進度在我們讀取之後被改寫
+   * 過（另一台裝置並行寫入，或 admin 後台編輯／重置）。
+   * 手上的快照已過期，呼叫端應改走 `hydrateConflict()` 收斂：遠端空
+   * 視為 admin 重置（覆蓋），遠端非空視為並行寫入（聯集合併）。
    */
-  onProgressReset?: () => void;
+  onProgressConflict?: () => void;
   /**
    * 需要上傳但手上沒有伺服器版本號時的回呼（初次 GET 失敗過）。
    *
@@ -80,7 +82,7 @@ export interface ServerAdapterOptions {
    * admin 的寫入。呼叫端應改為做一次權威 hydrate 取得 rev 並以伺服器
    * 為準收斂，而不是把本地推上去。
    *
-   * 與 `onProgressReset` 分開：這不是「管理者改了你的進度」，只是本端
+   * 與 `onProgressConflict` 分開：這不是「進度被改寫」，只是本端
    * 從未讀到伺服器，不該對使用者顯示相同的提示。
    */
   onRevMissing?: () => void;
@@ -95,7 +97,7 @@ export class ServerAdapter implements ProgressAdapter {
   > &
     Pick<
       ServerAdapterOptions,
-      'onAuthExpired' | 'onProgressReset' | 'onRevMissing'
+      'onAuthExpired' | 'onProgressConflict' | 'onRevMissing'
     >;
 
   private pending: ProgressState | null = null;
@@ -129,7 +131,7 @@ export class ServerAdapter implements ProgressAdapter {
       apiBase: options.apiBase.replace(/\/$/, ''),
       getToken: options.getToken,
       onAuthExpired: options.onAuthExpired,
-      onProgressReset: options.onProgressReset,
+      onProgressConflict: options.onProgressConflict,
       onRevMissing: options.onRevMissing,
       debounceMs: options.debounceMs ?? DEFAULT_DEBOUNCE_MS,
     };
@@ -338,7 +340,7 @@ export class ServerAdapter implements ProgressAdapter {
       if (res.status === 409) {
         this.rev = null;
         this.discardStalePending();
-        this.opts.onProgressReset?.();
+        this.opts.onProgressConflict?.();
         return;
       }
       if (res.ok) {
@@ -365,7 +367,7 @@ export class ServerAdapter implements ProgressAdapter {
    * 作廢「基於過期 canonical」的待送快照，連同已排的重試一起取消。
    *
    * 409 只清 `rev` 是不夠的。PUT 飛在天上時 UI 仍可能 `save()`，那份新快照
-   * 是疊在**衝突前**的 canonical 上算出來的；接著 `onProgressReset()` 觸發的
+   * 是疊在**衝突前**的 canonical 上算出來的；接著 `onProgressConflict()` 觸發的
    * 權威 hydrate 走 `fetchRemote()`，而它會把伺服器的新 rev 寫回 `this.rev`。
    * 於是原本排好的 timer 醒來時 rev 已經有效，那份過期快照就帶著合法版本號
    * 通過 CAS——admin 或另一個分頁剛做的變更被無聲復原。

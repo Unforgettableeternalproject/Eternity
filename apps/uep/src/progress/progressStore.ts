@@ -221,6 +221,95 @@ function mergeHydrated(
 }
 
 /**
+ * 409 衝突收斂——遠端非空時的「最多進度」合併（艾斯維爾 2026-08-12 定案）。
+ *
+ * 與 `mergeHydrated` 的差異：那條的聯集範圍是 `local − base`（只疊回
+ * hydrate 空窗期的新增），這裡是**全量**聯集——衝突的另一方是另一台
+ * 裝置，本地整份 state 都是真實的閱讀足跡，不是待淘汰的過期快照。
+ *
+ * 欄位分兩類：
+ * - 單調量（旗標、完成頁、解鎖島、迷霧、標記、閱讀時數…）→ 聯集／
+ *   per-key max，兩台裝置的進度都保留
+ * - 偏好與指標（視角、停用島、續讀位置）→ 時間上較新的一側
+ *
+ * 便條依 id 聯集、同 id 取較新——衝突窗口內在另一台刪除的便條會被
+ * 復活，這是聯集語意的已知代價；合併結果不裁上限（與「硬上限只擋
+ * 新增、不靜默刪除既有」的政策一致）。
+ */
+function mergeConflict(
+  remote: ProgressState,
+  local: ProgressState
+): ProgressState {
+  const newer = local.updatedAt > remote.updatedAt ? local : remote;
+  const lastVisited =
+    (local.lastVisitedAt ?? '') > (remote.lastVisitedAt ?? '') ? local : remote;
+
+  // 每頁取「讀得比較遠」的那一份；同分取較新（totalMarkers 可能因改稿
+  // 而不同，整份採用而非逐欄混拼）
+  const pageMarkers = { ...remote.pageMarkers };
+  for (const [pageId, entry] of Object.entries(local.pageMarkers)) {
+    const existing = pageMarkers[pageId];
+    if (
+      !existing ||
+      entry.maxMarkerIdx > existing.maxMarkerIdx ||
+      (entry.maxMarkerIdx === existing.maxMarkerIdx &&
+        entry.updatedAt > existing.updatedAt)
+    ) {
+      pageMarkers[pageId] = entry;
+    }
+  }
+
+  const notesById = new Map(remote.storageNotes.map((n) => [n.id, n]));
+  for (const note of local.storageNotes) {
+    const existing = notesById.get(note.id);
+    if (!existing || note.updatedAt > existing.updatedAt) {
+      notesById.set(note.id, note);
+    }
+  }
+
+  return {
+    ...remote,
+    flags: unionAdded(remote.flags, [], local.flags),
+    completedPageIds: unionAdded(
+      remote.completedPageIds,
+      [],
+      local.completedPageIds
+    ),
+    islandsUnlocked: unionAdded(
+      remote.islandsUnlocked,
+      [],
+      local.islandsUnlocked
+    ),
+    fogRatio: mergeMaxByKey(remote.fogRatio, local.fogRatio),
+    conceptsReadLevel: mergeMaxByKey(
+      remote.conceptsReadLevel,
+      local.conceptsReadLevel
+    ),
+    pageMarkers,
+    readingStats: {
+      totalMs: Math.max(
+        remote.readingStats.totalMs,
+        local.readingStats.totalMs
+      ),
+    },
+    lostBookmark: {
+      missCount: Math.max(
+        remote.lostBookmark.missCount,
+        local.lostBookmark.missCount
+      ),
+      visible: remote.lostBookmark.visible || local.lostBookmark.visible,
+    },
+    observerEver: remote.observerEver || local.observerEver,
+    view: newer.view,
+    islandsDisabled: newer.islandsDisabled,
+    lastVisitedPageId: lastVisited.lastVisitedPageId,
+    lastVisitedAt: lastVisited.lastVisitedAt,
+    storageNotes: [...notesById.values()],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * 印記的收斂規則：以伺服器 canonical 欄位為準，只有**空窗期內新落下**的
  * 印記才蓋過它。
  *
@@ -753,8 +842,9 @@ export const uepProgress = {
   /**
    * 伺服器權威 hydrate：遠端為準，遠端空則歸零，**絕不把本地推上去**。
    *
-   * 用於「伺服器端的資料已被第三方改寫」的情境（目前是 admin 在後台編輯
-   * 或重置了這個帳號的進度，讀者端 PUT 收到 409）。
+   * 用於「本端從未跟伺服器對過帳」的收斂（目前是 onRevMissing：想上傳
+   * 但初次 GET 失敗過，手上沒有 rev）。PUT 409 的收斂已改走
+   * `hydrateConflict()`——那裡要分辨 admin 重置與並行寫入，這裡不用。
    *
    * 與 `setAdapter()` 的兩點關鍵差異，都是為了避免把 admin 的操作蓋掉：
    * 1. 遠端為空時**一律不上傳本地**。setAdapter 只在 `absent`
@@ -787,6 +877,52 @@ export const uepProgress = {
     state = { ...base, observerEver: snapshot.observerEver };
     syncLocalMirror(state);
     notify('hydrate');
+  },
+
+  /**
+   * 409 衝突收斂（艾斯維爾 2026-08-12 定案，取代「一律權威覆蓋」）。
+   *
+   * PUT 撞版本有兩種來歷，處置相反，靠遠端 blob 空不空分辨：
+   * - **遠端空**（rev > 0 而 blob 為 null）＝ admin 重置 → 沿用
+   *   `hydrateAuthoritative` 語意：伺服器為準、歸零、不推回。
+   * - **遠端非空** ＝ 並行寫入（典型是另一台裝置；admin 在後台存入
+   *   非空進度也走這裡）→ `mergeConflict` 全量聯集後 **persist()**：
+   *   合併結果是新變更，帶著剛取回的 rev 上傳，兩台裝置都不掉進度。
+   *   admin 非空編輯被合併而非獨尊——他若是「刪減」會被聯集復活，
+   *   但活躍裝置本來就會用下一個合法 rev 蓋掉他，這不是本函式引入的
+   *   新風險；要絕對覆蓋一律走「清空再存」（那會落在遠端空分支）。
+   *
+   * 上傳循環會收斂：每次 409 都重新 GET+合併，單調量聯集不會震盪。
+   *
+   * @returns 'reset' ＝ admin 重置分支；'merged' ＝ 並行寫入已合併；
+   *   'unavailable' ＝ 讀不到伺服器（維持現狀，不動 toast）
+   */
+  async hydrateConflict(): Promise<'reset' | 'merged' | 'unavailable'> {
+    if (!adapter.loadAuthoritative) return 'unavailable';
+    const generation = adapterGeneration;
+    const snapshot = await adapter.loadAuthoritative();
+    if (generation !== adapterGeneration) return 'unavailable';
+    if (!snapshot) return 'unavailable';
+
+    if (!snapshot.state) {
+      state = {
+        ...createInitialState(),
+        observerEver: snapshot.observerEver,
+      };
+      syncLocalMirror(state);
+      notify('hydrate');
+      return 'reset';
+    }
+
+    state = {
+      ...mergeConflict(snapshot.state, state),
+      // 印記的 canonical 是伺服器欄位，但本地剛落下的印記也不可丟
+      //（單向永久標記，OR 語意與 mergeConflict 內部一致）
+      observerEver: snapshot.observerEver || state.observerEver,
+    };
+    persist();
+    notify('hydrate');
+    return 'merged';
   },
 
   /**
