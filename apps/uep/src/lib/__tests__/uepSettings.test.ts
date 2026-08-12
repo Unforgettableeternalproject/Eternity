@@ -59,18 +59,47 @@ describe('uepSettings', () => {
 
     expect(getSetting('note.max', 30)).toBe(12);
     expect(getSetting('protection.mode', 'env')).toBe('never');
-    expect(
-      JSON.parse(sessionStorage.getItem('uep-settings-v1') || '{}')
-    ).toEqual(SETTINGS);
+    const cached = JSON.parse(
+      sessionStorage.getItem('uep-settings-v1') || '{}'
+    );
+    expect(cached.settings).toEqual(SETTINGS);
+    expect(typeof cached.at).toBe('number');
   });
 
   it('有快取時同步就緒，不再 fetch', async () => {
-    sessionStorage.setItem('uep-settings-v1', JSON.stringify(SETTINGS));
+    sessionStorage.setItem(
+      'uep-settings-v1',
+      JSON.stringify({ at: Date.now(), settings: SETTINGS })
+    );
     const fetchMock = mockFetch({ ok: true, data: { settings: {} } });
     await initUepSettings();
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(getSetting('bookmark.baseChancePct', 20)).toBe(55);
+  });
+
+  it('快取超過 TTL 視同無快取，重新 fetch（跨分頁調整參數的收斂）', async () => {
+    sessionStorage.setItem(
+      'uep-settings-v1',
+      JSON.stringify({ at: Date.now() - 6 * 60_000, settings: SETTINGS })
+    );
+    const fetchMock = mockFetch({
+      ok: true,
+      data: { settings: { ...SETTINGS, 'note.max': 40 } },
+    });
+    await initUepSettings();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getSetting('note.max', 30)).toBe(40);
+  });
+
+  it('舊格式快取（純 map）視同過期，重新 fetch', async () => {
+    sessionStorage.setItem('uep-settings-v1', JSON.stringify(SETTINGS));
+    const fetchMock = mockFetch({ ok: true, data: { settings: SETTINGS } });
+    await initUepSettings();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getSetting('note.max', 30)).toBe(12);
   });
 
   it('fetch 失敗時不炸，消費點照常 fallback', async () => {
