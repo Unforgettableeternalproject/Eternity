@@ -337,8 +337,8 @@
   letter-spacing: -0.02em;
 }
 
+/* 首頁文字右邊界統一跟隨 landing 內容寬（Ariel 2026-08-12） */
 .echoes-landing-blurb {
-  max-width: 620px;
   margin: 16px 0 0;
   font-family: var(--font-serif-tc);
   font-size: 16px;
@@ -473,7 +473,6 @@
 }
 
 .echoes-landing-prose {
-  max-width: 680px;
   margin-top: 28px;
 }
 

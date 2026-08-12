@@ -464,12 +464,12 @@
   color: var(--ink-heading);
   margin: 14px 0 0;
 }
+/* 首頁文字右邊界統一跟隨 landing 內容寬（Ariel 2026-08-12） */
 .sto-landing-subtitle {
   font-family: var(--font-serif-tc);
   font-size: 16px;
   line-height: 1.85;
   color: var(--ink-sub);
-  max-width: 600px;
   margin-top: 24px;
   font-style: italic;
 }

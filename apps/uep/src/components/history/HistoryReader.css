@@ -805,9 +805,11 @@
   opacity: 0.7;
 }
 
+/* 首頁文字不另設 max-width——右邊界統一跟隨 landing 內容寬，
+   與 UEP 對話、拱門卡片對齊（Ariel 2026-08-12：右邊界太多）。
+   文章頁的副標（article-head）維持窄欄，不在此列。 */
 .history-landing p,
 .history-article-head p {
-  max-width: 620px;
   margin: 22px 0 0;
   font-family: var(--font-serif-tc);
   font-size: 16px;
@@ -816,8 +818,11 @@
   font-style: italic;
 }
 
+.history-article-head p {
+  max-width: 620px;
+}
+
 .history-landing-prose {
-  max-width: 680px;
   margin-top: 28px;
 }
 

@@ -170,13 +170,13 @@
   letter-spacing: -0.02em;
 }
 
+/* 首頁文字右邊界統一跟隨 landing 內容寬（Ariel 2026-08-12） */
 .visuals-landing-subtitle {
   font-family: var(--font-serif-tc);
   font-size: 16px;
   font-style: italic;
   color: var(--ink-soft);
   line-height: 1.9;
-  max-width: 620px;
   margin-top: 16px;
 }
 
