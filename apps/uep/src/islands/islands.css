@@ -507,7 +507,8 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   opacity: 0.55;
 }
 
-/* 問號＝解鎖提示的入口（hover／鍵盤聚焦浮出氣泡） */
+/* 問號＝解鎖提示的入口（hover／鍵盤聚焦浮出氣泡）。
+   字用半形 ?——全形 ？ 的墨跡不在字框正中，金圈會看起來歪掉 */
 .uep-island-settings__hint-btn {
   all: unset;
   box-sizing: border-box;
@@ -519,6 +520,8 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   border-radius: 50%;
   border: 1px solid transparent;
   color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
   opacity: 0.55;
   cursor: help;
   transition:
@@ -551,17 +554,14 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   letter-spacing: 0.04em;
   text-align: left;
   color: var(--ink-soft);
-  opacity: 0;
+  /* 即顯即隱，刻意不做淡入——opacity 過渡期間整個氣泡半透明，
+     會有幾幀透出底下列的文字（艾斯維爾 2026-08-12 驗收回報） */
   visibility: hidden;
   pointer-events: none; /* 純展示，別擋到底下列的 hover */
-  transition:
-    opacity 0.18s var(--ease),
-    visibility 0.18s var(--ease);
 }
 
 .uep-island-settings__hint-btn:hover .uep-island-settings__hint,
 .uep-island-settings__hint-btn:focus-visible .uep-island-settings__hint {
-  opacity: 1;
   visibility: visible;
 }
 

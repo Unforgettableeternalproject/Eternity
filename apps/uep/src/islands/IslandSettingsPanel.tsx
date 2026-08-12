@@ -81,7 +81,7 @@ export default function IslandSettingsPanel({
                     className="uep-island-settings__row-icon uep-island-settings__hint-btn"
                     aria-label="解鎖提示（隨探索逐步解密）"
                   >
-                    ？
+                    ?
                     <span
                       className="uep-island-settings__hint"
                       role="tooltip"
