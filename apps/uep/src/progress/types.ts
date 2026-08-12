@@ -171,6 +171,16 @@ export interface ProgressState {
    * 排序在消費端做（updatedAt desc），此處保留寫入順序即可。
    */
   storageNotes: StorageNote[];
+  /**
+   * 各 zone 的熟悉度計數（浮島解鎖提示的漸進解碼用）：
+   * key = zone id，value = 在該 zone 內的子頁進入次數。
+   *
+   * 每次 location（pathname + search）變化且落在某 zone 內就 +1，
+   * **刻意不去重**——重讀同一頁也是對區域的熟悉（艾斯維爾 2026-08-12
+   * 定案）。單調遞增、封頂 ZONE_FAMILIARITY_CAP，到頂後不再寫入
+   * （blob 不必為已滿的計數反覆上傳）。
+   */
+  zoneFamiliarity: Record<string, number>;
   /** 最後更新時間（ISO 8601） */
   updatedAt: string;
 }
@@ -260,6 +270,14 @@ export const FOG_RATIO_WRITE_STEP = 0.005;
 export const PROGRESS_SCHEMA_VERSION = 1;
 
 /**
+ * zone 熟悉度計數的封頂值。
+ *
+ * 解鎖提示的解碼比例在這個次數就到頂（見 islands/unlockHints.ts 的映射），
+ * 之後再計數只是徒增 blob 寫入。也是載入 sanitize 的夾取上限。
+ */
+export const ZONE_FAMILIARITY_CAP = 30;
+
+/**
  * 遺落的書籤：基礎出現機率（%）的**預設值**。
  *
  * 真正生效的是站台設定 `bookmark.baseChancePct`；這個常數是 settings 尚未
@@ -313,6 +331,7 @@ export function createInitialState(): ProgressState {
     readingStats: { totalMs: 0 },
     conceptsReadLevel: {},
     storageNotes: [],
+    zoneFamiliarity: {},
     updatedAt: new Date().toISOString(),
   };
 }

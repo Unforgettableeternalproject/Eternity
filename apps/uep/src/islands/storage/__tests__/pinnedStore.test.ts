@@ -73,6 +73,7 @@ describe('bootstrap', () => {
         lostBookmark: { missCount: 0, visible: false },
         readingStats: { totalMs: 0 },
         conceptsReadLevel: {},
+        zoneFamiliarity: {},
         storageNotes: [
           {
             id: 'a',
@@ -127,6 +128,7 @@ describe('bootstrap', () => {
         lostBookmark: { missCount: 0, visible: false },
         readingStats: { totalMs: 0 },
         conceptsReadLevel: {},
+        zoneFamiliarity: {},
         storageNotes: [
           {
             id: 'ok',
@@ -243,6 +245,7 @@ describe('pin / unpin / getForPage', () => {
         lostBookmark: { missCount: 0, visible: false },
         readingStats: { totalMs: 0 },
         conceptsReadLevel: {},
+        zoneFamiliarity: {},
         storageNotes: [
           {
             id: 'legacy',

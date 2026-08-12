@@ -215,6 +215,7 @@ describe('環境隔離（正式 ↔ 測試模式）', () => {
           lostBookmark: { missCount: 0, visible: false },
           readingStats: { totalMs: 0 },
           conceptsReadLevel: {},
+          zoneFamiliarity: {},
           storageNotes: [
             {
               id: 'prod-note',

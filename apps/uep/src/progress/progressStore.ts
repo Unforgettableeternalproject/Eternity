@@ -26,6 +26,7 @@ import {
   STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
+  ZONE_FAMILIARITY_CAP,
   createInitialState,
 } from './types';
 import { getSetting } from '../lib/uepSettings';
@@ -54,6 +55,7 @@ export interface ProgressChangeDetail {
     | 'reading-time'
     | 'concepts-read-level'
     | 'storage-note'
+    | 'zone-familiarity'
     | 'hydrate'
     | 'reset'
     | 'sweep';
@@ -204,6 +206,11 @@ function mergeHydrated(
     ...remote,
     flags: unionAdded(remote.flags, base.flags, local.flags),
     fogRatio: mergeMaxByKey(remote.fogRatio, local.fogRatio),
+    // 熟悉度是單調計數，與迷霧同理：沒有刪除語意，誰高算誰的
+    zoneFamiliarity: mergeMaxByKey(
+      remote.zoneFamiliarity,
+      local.zoneFamiliarity
+    ),
     completedPageIds: unionAdded(
       remote.completedPageIds,
       base.completedPageIds,
@@ -284,6 +291,10 @@ function mergeConflict(
     conceptsReadLevel: mergeMaxByKey(
       remote.conceptsReadLevel,
       local.conceptsReadLevel
+    ),
+    zoneFamiliarity: mergeMaxByKey(
+      remote.zoneFamiliarity,
+      local.zoneFamiliarity
     ),
     pageMarkers,
     readingStats: {
@@ -536,6 +547,26 @@ export const uepProgress = {
     mutate('concepts-read-level', (prev) => ({
       ...prev,
       conceptsReadLevel: { ...prev.conceptsReadLevel, ...patch },
+    }));
+  },
+
+  /**
+   * 推進 zone 熟悉度計數（浮島解鎖提示的漸進解碼用，2026-08-12）。
+   *
+   * 呼叫端是 IslandHost 的 location 追蹤 hook（islands/unlockHints.ts）
+   * ——每次 location 落在某 zone 內就 +1，不去重。封頂後 no-op：
+   * 解碼比例已到頂，再寫只是把整包 blob 反覆上傳。
+   */
+  bumpZoneFamiliarity(zoneId: string): void {
+    if (!zoneId) return;
+    const current = state.zoneFamiliarity[zoneId] ?? 0;
+    if (current >= ZONE_FAMILIARITY_CAP) return;
+    mutate('zone-familiarity', (prev) => ({
+      ...prev,
+      zoneFamiliarity: {
+        ...prev.zoneFamiliarity,
+        [zoneId]: current + 1,
+      },
     }));
   },
 

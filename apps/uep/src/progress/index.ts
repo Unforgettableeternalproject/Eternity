@@ -26,6 +26,7 @@ export {
   STORAGE_NOTE_MAX,
   STORAGE_NOTE_TEXT_MAX,
   STORAGE_NOTE_LOCATION_LABEL_MAX,
+  ZONE_FAMILIARITY_CAP,
   createInitialState,
 } from './types';
 

@@ -272,6 +272,7 @@ describe('訪客獨立實體', () => {
     lostBookmark: { missCount: 0, visible: false },
     readingStats: { totalMs: 0 },
     conceptsReadLevel: {},
+    zoneFamiliarity: {},
     storageNotes: [],
     updatedAt: '2026-08-12T00:00:00.000Z',
   };

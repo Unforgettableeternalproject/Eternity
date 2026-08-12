@@ -33,6 +33,7 @@ function makeRemote(overrides: Partial<ProgressState> = {}): ProgressState {
     readingStats: { totalMs: 0 },
     conceptsReadLevel: {},
     storageNotes: [],
+    zoneFamiliarity: {},
     updatedAt: '2026-07-03T00:00:00.000Z',
     ...overrides,
   };
@@ -170,6 +171,31 @@ describe('頁面完成與浮島', () => {
     expect(uepProgress.getState().islandsUnlocked).toEqual(['history']);
     uepProgress.setIslandDisabled('history', false);
     expect(uepProgress.getState().islandsDisabled).toEqual([]);
+  });
+
+  it('bumpZoneFamiliarity 累加計數；封頂後 no-op 不通知（2026-08-12）', async () => {
+    const { uepProgress } = await freshStore();
+    const { ZONE_FAMILIARITY_CAP } = await import('../types');
+    uepProgress.bumpZoneFamiliarity('history');
+    uepProgress.bumpZoneFamiliarity('history');
+    uepProgress.bumpZoneFamiliarity('echoes');
+    expect(uepProgress.getState().zoneFamiliarity).toEqual({
+      history: 2,
+      echoes: 1,
+    });
+
+    for (let i = 0; i < ZONE_FAMILIARITY_CAP + 5; i++) {
+      uepProgress.bumpZoneFamiliarity('history');
+    }
+    expect(uepProgress.getState().zoneFamiliarity.history).toBe(
+      ZONE_FAMILIARITY_CAP
+    );
+
+    const listener = vi.fn();
+    uepProgress.subscribe(listener);
+    uepProgress.bumpZoneFamiliarity('history'); // 已封頂 → no-op
+    uepProgress.bumpZoneFamiliarity(''); // 空 id → no-op
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it('addReadingTime 累加閱讀時間，非法值防禦', async () => {
@@ -313,6 +339,33 @@ describe('頁面完成與浮島', () => {
         },
       })!.fogRatio
     ).toEqual({ 'history/a': 0.42, 'history/done': 1 });
+  });
+
+  it('normalizeState 防禦 zoneFamiliarity：舊 blob 補空表、壞值剔除、取整夾頂（2026-08-12）', async () => {
+    const { ZONE_FAMILIARITY_CAP } = await import('../types');
+    const legacy = {
+      version: 1,
+      view: 'explorer',
+      flags: [],
+      completedPageIds: [],
+      islandsUnlocked: [],
+      pageMarkers: {},
+      updatedAt: '2026-08-12T00:00:00.000Z',
+    };
+    expect(normalizeState(legacy)!.zoneFamiliarity).toEqual({});
+    expect(
+      normalizeState({
+        ...legacy,
+        zoneFamiliarity: {
+          history: 3,
+          echoes: 4.6,
+          storage: 999,
+          neg: -1,
+          bad: 'x',
+          nan: NaN,
+        },
+      })!.zoneFamiliarity
+    ).toEqual({ history: 3, echoes: 5, storage: ZONE_FAMILIARITY_CAP });
   });
 
   it('advanceFog 單調前進、量化級距、到底不受級距限制（S10-2）', async () => {
@@ -515,6 +568,7 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       readingStats: { totalMs: 0 },
       conceptsReadLevel: {},
       storageNotes: [],
+      zoneFamiliarity: {},
       updatedAt: '2026-07-03T00:00:00.000Z',
     };
     await uepProgress.setAdapter({
@@ -637,6 +691,25 @@ describe('setAdapter（S5 ServerAdapter 接點）', () => {
       // 兩邊各自獨有的頁面都要留著——整包覆蓋會讓其中一邊的路白走
       expect(fogRatio['history/b']).toBe(0.6);
       expect(fogRatio['history/remote-only']).toBe(0.3);
+    });
+
+    it('zone 熟悉度逐 key 取大值，兩邊的計數都不掉（2026-08-12）', async () => {
+      const { uepProgress } = await freshStore();
+      const { adapter, release } = deferredAdapter(
+        makeRemote({ zoneFamiliarity: { history: 5, echoes: 2 } })
+      );
+
+      const pending = uepProgress.setAdapter(adapter);
+      // 空窗期本機逛了 storage 一次、history 一次（低於遠端）
+      uepProgress.bumpZoneFamiliarity('history');
+      uepProgress.bumpZoneFamiliarity('storage');
+      release();
+      await pending;
+
+      const { zoneFamiliarity } = uepProgress.getState();
+      expect(zoneFamiliarity.history).toBe(5);
+      expect(zoneFamiliarity.echoes).toBe(2);
+      expect(zoneFamiliarity.storage).toBe(1);
     });
 
     it('觀測者印記任一邊落下就算數', async () => {

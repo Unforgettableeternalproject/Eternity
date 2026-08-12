@@ -25,6 +25,7 @@ import {
   STORAGE_NOTE_LOCATION_LABEL_MAX,
   STORAGE_NOTE_HARD_MAX,
   STORAGE_NOTE_TEXT_HARD_MAX,
+  ZONE_FAMILIARITY_CAP,
   createInitialState,
 } from './types';
 
@@ -206,6 +207,24 @@ export function normalizeState(raw: unknown): ProgressState | null {
               typeof n.capturedAt === 'string' ? n.capturedAt : undefined,
           }))
       : base.storageNotes,
+    // 2026-08-12 新增欄位：zone 熟悉度計數，舊 blob 沒有時補空表。
+    // 逐項防禦（僅接受非負有限數），取整並夾在封頂值——計數只有整數語意
+    zoneFamiliarity:
+      typeof obj.zoneFamiliarity === 'object' && obj.zoneFamiliarity !== null
+        ? Object.fromEntries(
+            Object.entries(obj.zoneFamiliarity as Record<string, unknown>)
+              .filter(
+                (pair): pair is [string, number] =>
+                  typeof pair[1] === 'number' &&
+                  Number.isFinite(pair[1]) &&
+                  pair[1] >= 0
+              )
+              .map(([key, value]) => [
+                key,
+                Math.min(ZONE_FAMILIARITY_CAP, Math.round(value)),
+              ])
+          )
+        : base.zoneFamiliarity,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : base.updatedAt,
   };
