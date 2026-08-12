@@ -52,6 +52,7 @@ import {
   shouldMountIsland,
 } from './islandRuntime';
 import { mountIslandsTestBridge } from './testBridge';
+import { useZoneFamiliarityTracker } from './unlockHints';
 import { ISLAND_IDS } from './types';
 import type { IslandId } from './types';
 import { useDesktopIslandViewport, useIslandRuntimeState } from './useIslands';
@@ -113,6 +114,9 @@ export default function IslandHost() {
   // 呼叫當下同步讀值，不會自己觸發重渲染（S8 手動驗收 #9 追加修復）
   const desktopViewport = useDesktopIslandViewport();
   const runtimeState = useIslandRuntimeState();
+  /* zone 熟悉度計數（解鎖提示的漸進解碼）：放這裡而不是守門之後——
+     hooks 在 return null 之前照跑，訪客／手機／觀測者的足跡也要累積 */
+  useZoneFamiliarityTracker();
   const [mounted, setMounted] = useState(false);
   const [echoPreview, setEchoPreview] = useState<EchoPreviewTrack | null>(null);
   /** 事件 listener 取用最新進度（不重綁） */

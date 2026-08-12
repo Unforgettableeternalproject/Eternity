@@ -77,6 +77,7 @@ function backInner(root: HTMLElement): HTMLElement | null {
 describe('IdentCard', () => {
   beforeEach(() => {
     session.observerEver = false;
+    progress.view = 'observer';
     progress.islandsUnlocked = [];
     flags.has = false;
     viewport.desktop = true;
@@ -100,6 +101,29 @@ describe('IdentCard', () => {
     expect(inner.querySelector('.uep-ident__alias')).toBeTruthy();
     expect(inner.querySelectorAll('.uep-ident__row')).toHaveLength(5);
     expect(inner.querySelector('.uep-ident__tear-hint')).toBeTruthy();
+  });
+
+  /* 齒輪（偏好面板入口）只給桌面探索者：面板內容（浮島開關、教學回顧、
+     解鎖提示）全部以浮島存在為前提，觀測者沒有浮島（2026-08-12 定案） */
+  describe('偏好設定齒輪的顯示條件', () => {
+    it('桌面探索者顯示齒輪', () => {
+      progress.view = 'explorer';
+      const { baseElement } = render(<IdentCard />);
+      expect(baseElement.querySelector('.uep-ident__gear')).toBeTruthy();
+    });
+
+    it('觀測者不顯示齒輪', () => {
+      progress.view = 'observer';
+      const { baseElement } = render(<IdentCard />);
+      expect(baseElement.querySelector('.uep-ident__gear')).toBeNull();
+    });
+
+    it('手機不顯示齒輪（既有行為）', () => {
+      progress.view = 'explorer';
+      viewport.desktop = false;
+      const { baseElement } = render(<IdentCard />);
+      expect(baseElement.querySelector('.uep-ident__gear')).toBeNull();
+    });
   });
 
   /* 識別證掛在 TopBar 下緣，但不能是它的子元素：sticky 讓 TopBar 成為
@@ -152,6 +176,8 @@ describe('IdentCard', () => {
      與瀏覽器下拉重整衝突，登出改走明確按鈕 */
   describe('手機分支', () => {
     it('桌面：有齒輪、有撕下提示、沒有登出按鈕', () => {
+      // 齒輪自 2026-08-12 起另要求探索者視角（見「偏好設定齒輪」describe）
+      progress.view = 'explorer';
       const { baseElement } = render(<IdentCard />);
       expect(baseElement.querySelector('.uep-ident__gear')).toBeTruthy();
       expect(baseElement.querySelector('.uep-ident__tear-hint')).toBeTruthy();

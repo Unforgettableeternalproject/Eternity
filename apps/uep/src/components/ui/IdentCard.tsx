@@ -471,8 +471,10 @@ export default function IdentCard() {
             {/* 右上角設定按鈕：開啟浮島偏好設定視窗。
                 stopPropagation 避免點下去把證卡翻回吊牌。
                 手機不顯示——面板內容（浮島開關、教學回顧）全部以浮島
-                存在為前提，而浮島在手機根本不掛，點開必然是空的 */}
-            {desktopViewport && (
+                存在為前提，而浮島在手機根本不掛，點開必然是空的。
+                觀測者也不顯示（艾斯維爾 2026-08-12 定案）——觀測者沒有
+                浮島，面板內的開關、教學回顧、解鎖提示對他全部無效 */}
+            {desktopViewport && !isObserver && (
               <button
                 type="button"
                 className="uep-ident__gear"

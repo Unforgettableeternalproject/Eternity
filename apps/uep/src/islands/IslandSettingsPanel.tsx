@@ -1,7 +1,10 @@
 /**
  * UEP 浮島系統 — 設定視窗（識別證齒輪開啟）
  *
- * 使用者自行開關已解鎖的浮島；未解鎖的顯示鎖定態（不透露解鎖方式）。
+ * 使用者自行開關已解鎖的浮島；未解鎖的顯示鎖定態，問號 hover／聚焦時
+ * 浮出漸進解碼的解鎖提示（2026-08-12 定案，推翻早前「不透露解鎖方式」的
+ * 原則——提示指向地點與行為暗示、隨 zone 熟悉度逐字解密、永不揭露全句，
+ * 見 unlockHints.ts；不常駐顯示，要湊近看才看得清）。
  * createPortal 掛到 body：IdentCard 在 TopBar 的 sticky 堆疊上下文內，
  * 不 portal 的話 z-index 對外會被鎖在 100 層。
  *
@@ -17,6 +20,7 @@ import { requestGuide } from './guide/guideRequest';
 import { hasGuide } from './guide/guideSteps';
 import IslandIcon from './IslandIcon';
 import { isIslandDisabled, isIslandUnlocked } from './islandRuntime';
+import { revealedUnlockHint } from './unlockHints';
 import { ISLAND_DEFINITIONS, ISLAND_IDS } from './types';
 
 import islandsCss from './islands.css?inline';
@@ -67,9 +71,25 @@ export default function IslandSettingsPanel({
                   key={id}
                   className="uep-island-settings__row uep-island-settings__row--locked"
                 >
-                  <span className="uep-island-settings__row-icon" aria-hidden>
+                  {/* 問號本身是提示的入口：hover／鍵盤聚焦時浮出解鎖提示
+                      （艾斯維爾 2026-08-12：不要常駐文字，要湊近才看得清）。
+                      按下去沒有動作——揭示靠 CSS 的 :hover/:focus-visible。
+                      遮蔽字元對 AT 是雜訊，氣泡整段 aria-hidden，語意由
+                      按鈕的 aria-label 承擔 */}
+                  <button
+                    type="button"
+                    className="uep-island-settings__row-icon uep-island-settings__hint-btn"
+                    aria-label="解鎖提示（隨探索逐步解密）"
+                  >
                     ？
-                  </span>
+                    <span
+                      className="uep-island-settings__hint"
+                      role="tooltip"
+                      aria-hidden
+                    >
+                      {revealedUnlockHint(progress, id)}
+                    </span>
+                  </button>
                   <span className="uep-island-settings__row-name">
                     未知的浮島
                   </span>

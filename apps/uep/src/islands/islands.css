@@ -500,8 +500,69 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   background: rgba(128, 128, 128, 0.06);
 }
 
-.uep-island-settings__row--locked {
-  opacity: 0.45;
+/* 鎖定列的黯淡不掛在整列上——提示氣泡是它的子元素，opacity 會把整棵
+   子樹一起合成，氣泡永遠是半透明的。改逐項壓暗名稱與狀態 */
+.uep-island-settings__row--locked .uep-island-settings__row-name,
+.uep-island-settings__row--locked .uep-island-settings__row-state {
+  opacity: 0.55;
+}
+
+/* 問號＝解鎖提示的入口（hover／鍵盤聚焦浮出氣泡） */
+.uep-island-settings__hint-btn {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  color: var(--ink);
+  opacity: 0.55;
+  cursor: help;
+  transition:
+    opacity 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.uep-island-settings__hint-btn:hover,
+.uep-island-settings__hint-btn:focus-visible {
+  opacity: 1;
+  border-color: var(--uep-gold);
+}
+
+/* 解鎖提示氣泡（漸進解碼）：預設收起，hover／focus 才浮現。
+   掛在問號下方——上方是面板邊緣，第一列的氣泡會探出視窗外 */
+.uep-island-settings__hint {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -8px;
+  z-index: 1;
+  width: 252px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-serif-tc);
+  font-size: 11px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  text-align: left;
+  color: var(--ink-soft);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none; /* 純展示，別擋到底下列的 hover */
+  transition:
+    opacity 0.18s var(--ease),
+    visibility 0.18s var(--ease);
+}
+
+.uep-island-settings__hint-btn:hover .uep-island-settings__hint,
+.uep-island-settings__hint-btn:focus-visible .uep-island-settings__hint {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* 識別證不是浮島，用一條分隔線與島列表分開 */
