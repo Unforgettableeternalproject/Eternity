@@ -17,28 +17,27 @@
 
 /* global ResizeObserver, getComputedStyle */
 import React, { useEffect, useRef, useState } from 'react';
-import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
 import { createPortal } from 'react-dom';
 
 import { getReaderAuth, useReaderAuth } from '../../auth';
-import { getProgressManager } from '../../progress';
+/* islands 相依走子路徑而非 barrel：barrel 會一併拉進 islandRuntime 的
+   模組載入副作用（它在載入當下就讀 readerAuth） */
+import IslandSettingsPanel from '../../islands/IslandSettingsPanel';
 import { requestGuide } from '../../islands/guide/guideRequest';
 import {
   IDENT_GUIDE_FLAG,
   IDENT_OPEN_EVENT,
 } from '../../islands/guide/identGuide';
-import IslandSettingsPanel from '../../islands/IslandSettingsPanel';
-/* 走子路徑而非 islands barrel：barrel 會一併拉進 islandRuntime 的模組
-   載入副作用（它在載入當下就讀 readerAuth），本檔其餘 islands 相依
-   也都是子路徑，維持一致 */
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 import { useDesktopIslandViewport } from '../../islands/useIslands';
+import { getProgressManager } from '../../progress';
 import { useProgress } from '../../progress/useProgress';
+import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
+import { isZoneEntryActive, subscribeZoneEntry } from '../zone/zoneEntryLock';
 
 import { WELCOME_DONE_EVENT, WELCOME_PENDING_KEY } from './GlobalWelcomeHost';
-import ViewSwitch from './ViewSwitch';
-
 import identCardCss from './IdentCard.css?inline';
-import { useDeferredStyle } from '../../islands/useDeferredStyle';
+import ViewSwitch from './ViewSwitch';
 
 /**
  * 識別證掛在 TopBar 下緣，但**不能**是 TopBar 的子元素。
@@ -193,6 +192,19 @@ export default function IdentCard() {
       if (failsafeTimer) clearTimeout(failsafeTimer);
     };
   }, []);
+  /* 過場動畫期間收合（效法浮島訂閱 zoneEntryLock）：CSS 的
+     body class 規則只負責「看不見」，展開狀態若不收掉，動畫結束後
+     證卡會以展開態直接跳回來。持鎖來源涵蓋「即將經歷」的狀態
+     （IntroOverlay 的 zone 預覽卡開啟期間就持鎖），掛載當下也同步
+     一次——識別證可能在鎖已生效之後才 mount。 */
+  useEffect(() => {
+    function collapseOnEntry() {
+      if (isZoneEntryActive()) setOpen(false);
+    }
+    collapseOnEntry();
+    return subscribeZoneEntry(collapseOnEntry);
+  }, []);
+
   /** 證卡背面的內容層，量它決定展開高度 */
   const backInnerRef = useRef<HTMLDivElement>(null);
 
