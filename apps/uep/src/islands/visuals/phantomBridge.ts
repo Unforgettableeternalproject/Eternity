@@ -508,6 +508,12 @@ export function hasPhantomSuggestion(): boolean {
   return !!window.__uepPhantomSuggestion;
 }
 
+/** 讀取尚未消費的提示但**不**取走（事後失效判定用，對照 consume） */
+export function peekPhantomSuggestion(): PhantomGallery | null {
+  if (typeof window === 'undefined') return null;
+  return window.__uepPhantomSuggestion || null;
+}
+
 /**
  * 清除 pending 提示並廣播（detail null）。entity 啟用反查失敗／不合格
  * 時呼叫——否則島上一張 RELATED VISUAL 卡仍留著，會讓使用者誤以為

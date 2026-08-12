@@ -230,6 +230,16 @@ export default function EchoesIsland() {
       window.removeEventListener(UEP_ECHO_SUGGESTION_EVENT, onSuggestion);
   }, [store]);
 
+  /* 卡片掛著的期間才播起同一首（佇列前進、echo spot 插播、手動點播）
+     ——提示的內容變成「請去播正在播的東西」，直接收掉。上面兩道擋線
+     （推送當下、消費當下）都只驗那一刻，蓋不到這段（Ariel 2026-08-12：
+     已在播項目的提示卡部分情境仍殘留）。 */
+  useEffect(() => {
+    if (suggestion && state.currentSongId === suggestion.songId) {
+      setSuggestion(null);
+    }
+  }, [state.currentSongId, suggestion]);
+
   /* 收合即暫停 / 展開續播（島展開本身即使用者手勢，autoplay 安全） */
   const stateRef = useRef(state);
   stateRef.current = state;

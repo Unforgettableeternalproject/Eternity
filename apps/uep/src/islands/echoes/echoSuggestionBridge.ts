@@ -75,3 +75,9 @@ export function hasEchoSuggestion(): boolean {
   if (typeof window === 'undefined') return false;
   return !!window.__uepEchoSuggestion;
 }
+
+/** 讀取尚未消費的提示但**不**取走（事後失效判定用，對照 consume） */
+export function peekEchoSuggestion(): EchoPreviewTrack | null {
+  if (typeof window === 'undefined') return null;
+  return window.__uepEchoSuggestion || null;
+}

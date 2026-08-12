@@ -57,6 +57,8 @@ const audioMock = vi.hoisted(() => ({
 vi.mock('../../audio', () => ({
   getAudioStore: () => ({
     getState: () => ({ currentSongId: audioMock.currentSongId }),
+    // pending 提示的事後失效 watcher 會訂閱；本檔不驗它，回 no-op 退訂
+    subscribe: () => () => {},
   }),
   resolveSpoilerLevel: () => 0,
 }));

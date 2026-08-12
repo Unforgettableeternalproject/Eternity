@@ -61,11 +61,14 @@ import {
   getPhantomGallery,
   isPhantomSuggestionEligible,
   parsePhantomImages,
+  peekPhantomSuggestion,
   pushPhantomSuggestion,
+  UEP_PHANTOM_SHOW_EVENT,
 } from './visuals/phantomBridge';
 import {
   clearEchoSuggestion,
   isEchoSuggestionEligible,
+  peekEchoSuggestion,
   pushEchoSuggestion,
 } from './echoes/echoSuggestionBridge';
 import PinnedNoteLayer from './storage/PinnedNoteLayer';
@@ -357,6 +360,31 @@ export default function IslandHost() {
     return () => {
       controller?.abort();
       window.removeEventListener(UEP_ENTITY_ACTIVATE_EVENT, onActivate);
+    };
+  }, []);
+
+  /* pending 提示的事後失效（Ariel 2026-08-12）：推送當下擋過一次，但
+     提示還躺在橋上（島收合、chip 閃爍中）時，使用者可能經由別的路徑
+     （echo spot 插播、clue 強制展示、書籤快照恢復）播起／投上同一項
+     ——此時展開島只會看到一張「請去看正在看的東西」的卡。
+     已消費進島內 state 的卡由各島自己的對應 effect 收掉。 */
+  useEffect(() => {
+    const unsubAudio = getAudioStore().subscribe((audioState) => {
+      const pending = peekEchoSuggestion();
+      if (pending && audioState.currentSongId === pending.songId) {
+        clearEchoSuggestion();
+      }
+    });
+    const onPhantomShow = () => {
+      const pending = peekPhantomSuggestion();
+      if (pending && getPhantomGallery()?.id === pending.id) {
+        clearPhantomSuggestion();
+      }
+    };
+    window.addEventListener(UEP_PHANTOM_SHOW_EVENT, onPhantomShow);
+    return () => {
+      unsubAudio();
+      window.removeEventListener(UEP_PHANTOM_SHOW_EVENT, onPhantomShow);
     };
   }, []);
 

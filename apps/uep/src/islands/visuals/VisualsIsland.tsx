@@ -131,6 +131,16 @@ export default function VisualsIsland() {
       window.removeEventListener(UEP_PHANTOM_SUGGESTION_EVENT, onSuggestion);
   }, []);
 
+  /* 卡片掛著的期間才投上同一館（clue 強制展示、書籤快照恢復）——提示
+     的內容變成「請展示正在展示的畫」，直接收掉。推送當下與消費當下的
+     兩道擋線都只驗那一刻，蓋不到這段（Ariel 2026-08-12：已投射項目的
+     提示卡部分情境仍殘留）。 */
+  useEffect(() => {
+    if (suggestion && gallery?.id === suggestion.id) {
+      setSuggestion(null);
+    }
+  }, [gallery?.id, suggestion]);
+
   /** 按「展示」：提示轉正式投射（push 的事件迴路會更新 gallery state） */
   function showSuggestion() {
     if (!suggestion) return;
