@@ -120,8 +120,12 @@ function thumbnailUrl(file: string): string {
 
 function ClueThumbnail({ clue }: { clue: VisualClueEntry }) {
   const [file, setFile] = useState(clue.imageFile);
+  /* 圖檔載入失敗（R2 缺檔、網路錯誤）退回畫框佔位——破圖示比沒有圖
+     更糟（Ariel 2026-08-12：test 環境 test-*.png 未上傳時書籤全是破圖） */
+  const [broken, setBroken] = useState(false);
 
   useEffect(() => {
+    setBroken(false);
     setFile(clue.imageFile);
     if (clue.imageFile) return;
     let active = true;
@@ -150,13 +154,14 @@ function ClueThumbnail({ clue }: { clue: VisualClueEntry }) {
     };
   }, [clue]);
 
+  const showImage = Boolean(file) && !broken;
   return (
     <span
-      className={`uep-clue-card__thumb${file ? ' has-image' : ''}`}
+      className={`uep-clue-card__thumb${showImage ? ' has-image' : ''}`}
       aria-hidden
     >
-      {file ? (
-        <img src={thumbnailUrl(file)} alt="" />
+      {showImage ? (
+        <img src={thumbnailUrl(file)} alt="" onError={() => setBroken(true)} />
       ) : (
         <span className="uep-clue-card__glyph">❏</span>
       )}
