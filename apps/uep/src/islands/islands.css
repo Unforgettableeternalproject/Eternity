@@ -509,9 +509,10 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
 
 /* 問號＝解鎖提示的入口（hover／鍵盤聚焦浮出氣泡）。
    字用半形 ?——全形 ？ 的墨跡不在字框正中，金圈會看起來歪掉。
-   ⚠️ 黯淡只能用文字色，不能用 opacity：氣泡是這顆按鈕的子元素，
-   opacity 整棵子樹一起合成，hover 過渡期間氣泡會半透明地透出底下列
-   （row-icon 的 opacity 也要蓋回 1，同一個理由） */
+   ⚠️ 黯淡只能用文字色，絕不可有 opacity：氣泡是這顆按鈕的子元素，
+   opacity 讓按鈕成為 stacking context、整棵子樹（含氣泡）一起半透明
+   合成，透出底下列的文字。也因此 JSX 端不掛 __row-icon class——
+   它的 opacity 0.72 在樣式表較後面，同特異度會把這裡蓋掉 */
 .uep-island-settings__hint-btn {
   all: unset;
   box-sizing: border-box;
@@ -525,7 +526,6 @@ body.uep-zone-entry-active .uep-stoland__note-ghost {
   color: var(--ink-mute);
   font-size: 12px;
   line-height: 1;
-  opacity: 1;
   cursor: help;
   transition:
     color 0.2s var(--ease),

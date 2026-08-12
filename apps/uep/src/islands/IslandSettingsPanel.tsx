@@ -76,9 +76,12 @@ export default function IslandSettingsPanel({
                       按下去沒有動作——揭示靠 CSS 的 :hover/:focus-visible。
                       遮蔽字元對 AT 是雜訊，氣泡整段 aria-hidden，語意由
                       按鈕的 aria-label 承擔 */}
+                  {/* ⚠️ 不可複用 __row-icon class：它的 opacity 0.72 在樣式表
+                      較後面會蓋掉這裡的設定，而按鈕一有 opacity 就成為
+                      stacking context，氣泡整個被合成成半透明 */}
                   <button
                     type="button"
-                    className="uep-island-settings__row-icon uep-island-settings__hint-btn"
+                    className="uep-island-settings__hint-btn"
                     aria-label="解鎖提示（隨探索逐步解密）"
                   >
                     ?
