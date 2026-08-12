@@ -12,6 +12,13 @@
   z-index: 3200;
 }
 
+/* 教學目標抬升（overlay 掛載期間由 IslandGuideOverlay 設定屬性）：
+   高於釘選便條（3000），低於聚光燈（3200）——洞裡永遠是目標本體。
+   !important 是必要的：島的 z-index 由 runtime 以 inline style 指定。 */
+[data-uep-guide-lift] {
+  z-index: 3150 !important;
+}
+
 .iguide-spot {
   position: fixed;
   border-radius: 4px;

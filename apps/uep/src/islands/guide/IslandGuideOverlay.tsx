@@ -159,6 +159,17 @@ export default function IslandGuideOverlay({
 
   const isLast = index >= steps.length - 1;
 
+  /* 教學進行中把目標抬到便條層（3000）之上（Ariel 2026-08-12 回饋）：
+     聚光燈（3200）挖出的洞裡必須是目標本體，而釘選便條恆在浮島層帶
+     （2000–2999）上方——目標島被便條壓住時，洞裡看到的會是便條。
+     抬升值 3150 仍低於聚光燈，CSS 規則見 IslandGuideOverlay.css。 */
+  useEffect(() => {
+    const root = guideRoot(targetId);
+    if (!root) return undefined;
+    root.setAttribute('data-uep-guide-lift', '');
+    return () => root.removeAttribute('data-uep-guide-lift');
+  }, [targetId, step]);
+
   // 島被關掉就沒有東西可介紹了——這不算看過。
   // 識別證不歸 islandRuntime 管（windows 裡沒有它的位置），套這條會因為
   // 「查不到 → 視為已關閉」而被任何一座島的關閉事件誤收
