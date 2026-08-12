@@ -147,6 +147,9 @@ body {
   color: var(--uep-gold);
   font-weight: 600;
   letter-spacing: 0.01em;
+  /* 換行盡量落在句逗點（Ariel 2026-08-12 排版建議）。
+     Chromium 117+ 生效，其餘瀏覽器安全忽略 */
+  text-wrap: pretty;
 }
 [data-theme='dark'] .uep-voice {
   color: var(--uep-gold-soft);
