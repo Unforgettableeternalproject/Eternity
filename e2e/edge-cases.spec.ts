@@ -112,6 +112,62 @@ test.describe('不存在的路徑', () => {
     expect(response?.status()).toBeLessThan(500);
   });
 
+  test('落到自訂 404 頁，不是 Astro 的預設除錯頁', async ({ page }) => {
+    await page.goto('/nonexistent-zone');
+    await page.waitForLoadState('domcontentloaded');
+    // 自訂頁的根容器；Astro 預設 404 沒有這個 class
+    await expect(page.locator('.uep-nf')).toBeVisible();
+    await expect(page.locator('.uep-nf__plate')).toBeVisible();
+  });
+
+  test('404 頁兩種變體必有其一，且互斥', async ({ page }) => {
+    await page.goto('/nonexistent-zone');
+    await page.waitForLoadState('domcontentloaded');
+    // 立繪是機率彩蛋（預設 10%），所以不能寫死其中一種
+    const titleCount = await page.locator('.uep-nf__title').count();
+    const artCount = await page.locator('.uep-nf__art').count();
+    expect(titleCount + artCount).toBe(1);
+    if (titleCount === 1) {
+      await expect(page.locator('.uep-nf__title')).toHaveText('觀測失效');
+      await expect(page.locator('.uep-nf__sub')).toBeVisible();
+    } else {
+      // 立繪版不重複講同一件事——字樣讓位給圖
+      await expect(page.locator('.uep-nf__art img')).toBeVisible();
+    }
+  });
+
+  test('404 頁的返回入口真的走得回首頁', async ({ page }) => {
+    await page.goto('/nonexistent-zone');
+    await page.waitForLoadState('domcontentloaded');
+    // 這頁是死路，沒有出口等於把讀者關在裡面
+    const back = page.locator('.uep-nf__back');
+    await expect(back).toBeVisible();
+    await back.click();
+    await page.waitForLoadState('domcontentloaded');
+    expect(new URL(page.url()).pathname).toBe('/');
+  });
+
+  test('404 頁沒有致命的 console 錯誤', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    await page.goto('/nonexistent-zone');
+    await page.waitForLoadState('domcontentloaded');
+    // 等 hydrate——擲骰換立繪是在 effect 裡做的
+    await page.waitForTimeout(2000);
+    const criticalErrors = errors.filter(
+      (e) =>
+        !e.includes('favicon') &&
+        !e.includes('404') &&
+        !e.includes('Failed to load resource') &&
+        !e.includes('ERR_CONNECTION_REFUSED') &&
+        !e.includes('Importing a module script failed') &&
+        !e.includes('dynamically imported module')
+    );
+    expect(criticalErrors).toHaveLength(0);
+  });
+
   test('不存在的 Admin 子路徑不會崩潰', async ({ page }) => {
     const response = await page.goto('/admin/edit/nonexistent/path/here');
     await page.waitForLoadState('domcontentloaded');
