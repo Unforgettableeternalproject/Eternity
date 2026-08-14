@@ -463,102 +463,6 @@
 }
 
 /* ══════════════════════════════════════════════
-   StatsEditor — key-value 統計編輯器
-   ══════════════════════════════════════════════ */
-
-.she-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.she-stats-row {
-  display: grid;
-  grid-template-columns: 1fr 120px 28px;
-  gap: 6px;
-  align-items: center;
-}
-
-.she-stats-key {
-  padding: 8px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--hairline-strong);
-  border-radius: 3px;
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.12s;
-}
-
-.she-stats-key:focus {
-  border-color: var(--uep-gold);
-}
-
-.she-stats-val {
-  padding: 8px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--hairline-strong);
-  border-radius: 3px;
-  color: var(--uep-gold);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: right;
-  outline: none;
-  transition: border-color 0.12s;
-}
-
-.she-stats-val:focus {
-  border-color: var(--uep-gold);
-}
-
-.she-stats-del {
-  width: 28px;
-  height: 36px;
-  background: transparent;
-  border: 1px solid var(--hairline-strong);
-  border-radius: 3px;
-  color: var(--ink-mute);
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background 0.1s,
-    color 0.1s,
-    border-color 0.1s;
-}
-
-.she-stats-del:hover {
-  background: #450a0a;
-  border-color: #7f1d1d;
-  color: #fca5a5;
-}
-
-.she-stats-add {
-  align-self: flex-start;
-  padding: 6px 12px;
-  background: transparent;
-  border: 1px dashed var(--hairline-strong);
-  border-radius: 3px;
-  color: var(--ink-mute);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition:
-    color 0.12s,
-    border-color 0.12s;
-}
-
-.she-stats-add:hover {
-  color: var(--uep-gold);
-  border-color: var(--uep-gold);
-}
-
-/* ══════════════════════════════════════════════
    小節標題（表單內的子區段分隔線）
    ══════════════════════════════════════════════ */
 
@@ -802,10 +706,5 @@
   /* 並排欄位改為 2 欄 */
   .she-field-row {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  /* 統計列改 2 欄 */
-  .she-stats-row {
-    grid-template-columns: 1fr 80px 28px;
   }
 }

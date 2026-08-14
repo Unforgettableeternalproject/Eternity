@@ -317,7 +317,6 @@ export default function HomePage({
       atmos: db.meta.atmos ?? zone.atmos,
       glyphs: db.meta.glyphs ?? zone.glyphs,
       uep: db.meta.uepShort ?? zone.uep,
-      stats: db.meta.stats ?? zone.stats,
     };
   });
 
