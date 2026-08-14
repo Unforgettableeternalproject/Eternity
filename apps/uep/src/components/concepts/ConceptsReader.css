@@ -902,6 +902,17 @@
 }
 
 /* Dossier 條目富文本內容 */
+/* 又名行：夾在條目名與描述之間，比描述再輕一階——它是身分註記不是內容 */
+.conc-dossier-entry-aliases {
+  margin-top: 4px;
+  padding-left: 36px;
+  font-family: var(--font-serif-tc);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--concepts-soft);
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
 .conc-dossier-entry-content {
   margin-top: 6px;
   padding-left: 36px;

@@ -24,6 +24,7 @@ import { metFlag, parseEntityRef } from '../../embed/marks';
 import { evaluateGate } from '../../progress/gating';
 import type { GateCondition } from '../../progress/gating';
 import type { ProgressState } from '../../progress/types';
+import { formatAliasLine } from '../../components/concepts/aliases';
 import {
   applyRevisions,
   isEntryUnlocked,
@@ -581,13 +582,20 @@ function detailBase(
   };
 }
 
-/** dossier 條目 → detail（effective view 已套用；全文不截短，按段落切行） */
+/**
+ * dossier 條目 → detail（effective view 已套用；全文不截短，按段落切行）。
+ *
+ * 別名排在描述之前：它是名字的一部分，讀者在這裡才看得出自己剛剛用哪個
+ * 稱呼查到這個人。aliases 只有 dossier 條目有，其餘三種 stack 不適用。
+ */
 function dossierDetail(
   entry: DossierEntry,
   target: TerminalIndexEntry,
   variantId: string
 ): TerminalEntryDetail {
   const summary = entry.content_html ? htmlToLines(entry.content_html) : [];
+  const aliasLine = formatAliasLine(entry.aliases);
+  if (aliasLine) summary.unshift(aliasLine);
   return { ...detailBase(target), name: entry.name, variantId, summary };
 }
 
