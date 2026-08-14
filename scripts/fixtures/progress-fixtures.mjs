@@ -101,6 +101,19 @@ export const KEY_META = [
   },
 ];
 
+/**
+ * reindex 後的互聯衍生表基準（整個 test D1，含本檔全部素材）。
+ *
+ * ⚠️ 增刪素材裡的 entity／cue 標記或 storyKey 時必須同步更新，
+ * `seed-progress-fixtures.mjs` 會在 reindex 後逐項核對——數字對不上
+ * 代表素材沒有完整落地（或基準忘了改），腳本會以非零碼結束。
+ */
+export const EXPECTED_INDEX = {
+  anchors: 13,
+  storyKeys: 2,
+  entityKeys: 7,
+};
+
 /* ── 自訂旗標 ───────────────────────────────────────────────── */
 
 /**

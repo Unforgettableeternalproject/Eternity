@@ -24,6 +24,7 @@
 
 import {
   ALL_PAGES,
+  EXPECTED_INDEX,
   FLAGS,
   KEY_META,
   PAGE_IDS,
@@ -236,6 +237,7 @@ async function markProgressPage(token) {
  */
 async function seedKeyMeta(token) {
   let updated = 0;
+  const failed = [];
   for (const meta of KEY_META) {
     const res = await api(
       token,
@@ -246,13 +248,14 @@ async function seedKeyMeta(token) {
     if (res.ok) {
       updated++;
     } else {
+      failed.push(`${meta.keyType}:${meta.key}`);
       process.stdout.write(
         `  ! ${meta.keyType}:${meta.key} 說明寫入失敗（${res.status}）——` +
-          '殼列可能尚未建立，稍後可重跑\n'
+          '殼列可能尚未建立\n'
       );
     }
   }
-  return updated;
+  return { updated, failed };
 }
 
 /** 補建互聯衍生表——錨點藏在 content 的標記裡，只有 reindex 掃得出來 */
@@ -315,13 +318,32 @@ async function main() {
 
   process.stdout.write('\n[5/6] 補 key 說明\n');
   const keys = await seedKeyMeta(token);
-  process.stdout.write(`  更新 ${keys}/${KEY_META.length} 筆\n`);
+  process.stdout.write(`  更新 ${keys.updated}/${KEY_META.length} 筆\n`);
 
   process.stdout.write('\n[6/6] 補建互聯衍生表\n');
   const idx = await reindex(token);
   process.stdout.write(
     `  錨點 ${idx.anchors ?? '?'}、story ${idx.storyKeys ?? '?'}、entity ${idx.entityKeys ?? '?'}\n`
   );
+
+  /* 完整性守門：任何一項沒落地都不能讓指令以 0 結束——
+     「exit 0 但素材不完整」的驗收環境比明著失敗更難排查。 */
+  const indexMismatch = Object.entries(EXPECTED_INDEX)
+    .filter(([field, expected]) => idx[field] !== expected)
+    .map(([field, expected]) => `${field} ${idx[field] ?? '?'}（預期 ${expected}）`);
+  if (keys.failed.length > 0 || indexMismatch.length > 0) {
+    if (keys.failed.length > 0) {
+      process.stdout.write(`\n✗ key 說明未完整寫入：${keys.failed.join('、')}\n`);
+    }
+    if (indexMismatch.length > 0) {
+      process.stdout.write(
+        `\n✗ reindex 結果偏離基準：${indexMismatch.join('、')}\n` +
+          '  素材可能沒有完整落地；若是刻意增刪素材，' +
+          '請同步更新 fixtures 的 EXPECTED_INDEX。\n'
+      );
+    }
+    process.exit(1);
+  }
 
   process.stdout.write(`\n✓ 完成：${pages.length} 個頁面\n`);
   process.stdout.write(
