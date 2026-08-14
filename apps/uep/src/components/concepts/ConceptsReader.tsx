@@ -36,6 +36,7 @@ import {
   loadEntityIndex,
   type TerminalIndexEntry,
 } from '../../islands/concepts/terminalCore';
+import { formatAliasLine } from './aliases';
 import BrowserDetailButton from './BrowserDetailButton';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import InterlinkTriggerButton from './InterlinkTriggerButton';
@@ -393,6 +394,11 @@ function ReaderDossier({
                         onNavigate={onOpenBrowserDetail}
                       />
                     </div>
+                    {formatAliasLine(entry.aliases) && (
+                      <div className="conc-dossier-entry-aliases">
+                        {formatAliasLine(entry.aliases)}
+                      </div>
+                    )}
                     {entry.content_html && (
                       <>
                         {renderHtmlWithUep(

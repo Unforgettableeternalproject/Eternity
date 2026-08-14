@@ -261,6 +261,15 @@ pnpm check
 pnpm test:all
 pnpm test:e2e
 
+# ⚠️ 合 PR 之前先讓 develop 拿到 release 的完整歷史。
+# PR 是 squash merge——main 上只會留一顆不含 release commit 的新 commit，
+# 事後 CI 的 sync-back（main → develop）merge-base 會退到上一版，
+# 整包 diff 對上 develop 既有的相同變更就是滿版衝突（v1.0.0 實際發生過）。
+# 先做這步，squash 後的 sync-back 因內容一致而自動通過。
+git checkout develop
+git merge --ff-only release/vX.Y.Z   # release 從 develop 切出，必為 ff
+git push origin develop
+
 # 建立 PR: release/vX.Y.Z → main
 # PR 通過後合併，Pages 自動部署前端
 ```

@@ -279,80 +279,6 @@ function StringArrayEditor({
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 子元件：StatsEditor（key-value 統計資料編輯器）
-// ════════════════════════════════════════════════════════════════════════════
-
-interface StatsEditorProps {
-  value: Record<string, number>;
-  onChange: (next: Record<string, number>) => void;
-}
-
-function StatsEditor({ value, onChange }: StatsEditorProps) {
-  const entries = Object.entries(value);
-
-  const handleKeyChange = (idx: number, newKey: string) => {
-    const next: Record<string, number> = {};
-    entries.forEach(([k, v], i) => {
-      next[i === idx ? newKey : k] = v;
-    });
-    onChange(next);
-  };
-
-  const handleValChange = (idx: number, newVal: string) => {
-    const num = parseFloat(newVal);
-    if (isNaN(num)) return;
-    const next: Record<string, number> = {};
-    entries.forEach(([k, v], i) => {
-      next[k] = i === idx ? num : v;
-    });
-    onChange(next);
-  };
-
-  const handleDelete = (idx: number) => {
-    const next: Record<string, number> = {};
-    entries.forEach(([k, v], i) => {
-      if (i !== idx) next[k] = v;
-    });
-    onChange(next);
-  };
-
-  const handleAdd = () => {
-    onChange({ ...value, '': 0 });
-  };
-
-  return (
-    <div className="she-stats">
-      {entries.map(([k, v], idx) => (
-        <div key={idx} className="she-stats-row">
-          <input
-            className="she-stats-key"
-            value={k}
-            placeholder="欄位名稱"
-            onChange={(e) => handleKeyChange(idx, e.target.value)}
-          />
-          <input
-            className="she-stats-val"
-            type="number"
-            value={v}
-            onChange={(e) => handleValChange(idx, e.target.value)}
-          />
-          <button
-            className="she-stats-del"
-            title="刪除此行"
-            onClick={() => handleDelete(idx)}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-      <button className="she-stats-add" onClick={handleAdd}>
-        ＋ 新增統計項目
-      </button>
-    </div>
-  );
-}
-
-// ════════════════════════════════════════════════════════════════════════════
 // 子元件：SectionForm 容器（含標題、儲存按鈕）
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -784,16 +710,6 @@ function ZoneForm({
         />
       </div>
 
-      <div className="she-field">
-        <label className="she-label">
-          meta.stats（統計數字，key → number）
-        </label>
-        <StatsEditor
-          value={data.meta.stats}
-          onChange={(v) => setMeta('stats', v)}
-        />
-      </div>
-
       <SubTitle>body — 旅程場景敘事</SubTitle>
       <BodyField
         label="內容主體 body（旁白 + UEP 對話）"
@@ -956,7 +872,6 @@ const DEFAULT_ZONE: ZoneSectionContent = {
     atmos: '',
     glyphs: ['', '', '', ''],
     uepShort: [],
-    stats: {},
   },
   body: '',
 };

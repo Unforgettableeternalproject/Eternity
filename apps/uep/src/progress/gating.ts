@@ -24,6 +24,15 @@ export interface GateCondition {
   requiresFlags?: string[];
   /** 純潔者限定：探索者且無觀測者印記才可見；觀測者不 bypass */
   pristineOnly?: boolean;
+  /**
+   * 恆鎖定：條件恆不成立，任何身分都通不過（觀測者也不 bypass）。
+   *
+   * 給「內容已經寫好，但它該綁的頁面或旗標還沒設計出來」的過渡期用——
+   * 先擋住，之後回來換成真正的條件。沒有這個開關的話，暫時的做法只能是
+   * 隨手掰一個永遠不會有人授予的旗標名，那會在註冊表留下一顆看不出是
+   * 佔位的死旗標。
+   */
+  alwaysLocked?: boolean;
 }
 
 /**
@@ -45,14 +54,17 @@ export function hasAllFlags(state: ProgressState, flags: string[]): boolean {
  *
  * 求值順序：
  * 1. 無條件 → 可見
- * 2. pristineOnly 不滿足 → 不可見（觀測者與印記者到此為止）
- * 3. requiresFlags：觀測者 bypass；探索者需持有全部旗標
+ * 2. alwaysLocked → 一律不可見（最優先，任何身分皆不 bypass）
+ * 3. pristineOnly 不滿足 → 不可見（觀測者與印記者到此為止）
+ * 4. requiresFlags：觀測者 bypass；探索者需持有全部旗標
  */
 export function evaluateGate(
   state: ProgressState,
   condition: GateCondition | null | undefined
 ): boolean {
   if (!condition) return true;
+
+  if (condition.alwaysLocked) return false;
 
   if (condition.pristineOnly && !isPristine(state)) {
     return false;
@@ -180,7 +192,18 @@ export function parseGateCondition(
     condition.pristineOnly = true;
   }
 
-  return condition.requiresFlags || condition.pristineOnly ? condition : null;
+  // 恆鎖定的 UI 目前只在 Concepts 露出（條目／群組／revision 層級），但解析
+  // 與求值一律支援：資料寫得進去、讀出來卻被丟掉的話，症狀是「明明勾了卻
+  // 沒鎖住」的靜默失效，比功能缺席難查得多。
+  if (source.alwaysLocked === true) {
+    condition.alwaysLocked = true;
+  }
+
+  return condition.requiresFlags ||
+    condition.pristineOnly ||
+    condition.alwaysLocked
+    ? condition
+    : null;
 }
 
 /* ═════════════════════════════════════════════════════════════════════
@@ -220,12 +243,14 @@ export function effectiveGate(
 
   const flags = new Set<string>();
   let pristineOnly = false;
+  let alwaysLocked = false;
 
   // 手動 gate（既有語意）
   const manual = parseGateCondition(node.metadata ?? null);
   if (manual) {
     manual.requiresFlags?.forEach((f) => flags.add(f));
     if (manual.pristineOnly) pristineOnly = true;
+    if (manual.alwaysLocked) alwaysLocked = true;
   }
 
   // 依賴頁選擇（2026-07-03 修 #11）：前一個 sibling 若是 container
@@ -288,10 +313,11 @@ export function effectiveGate(
     cursorId = tree.getParentId(cursorId);
   }
 
-  if (flags.size === 0 && !pristineOnly) return null;
+  if (flags.size === 0 && !pristineOnly && !alwaysLocked) return null;
   const result: GateCondition = {};
   if (flags.size > 0) result.requiresFlags = Array.from(flags);
   if (pristineOnly) result.pristineOnly = true;
+  if (alwaysLocked) result.alwaysLocked = true;
   return result;
 }
 
@@ -377,6 +403,8 @@ export function evaluateEffectiveGate(
   const gate =
     resolvedGate === undefined ? effectiveGate(nodeId, tree) : resolvedGate;
   if (!gate) return true;
+
+  if (gate.alwaysLocked) return false;
 
   if (gate.pristineOnly && !isPristine(progress)) return false;
 

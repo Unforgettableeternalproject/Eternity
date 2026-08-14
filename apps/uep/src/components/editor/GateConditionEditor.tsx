@@ -7,6 +7,8 @@
  *   自訂旗標走 FlagPicker 從註冊表選，**沒有自由輸入欄**（D-1 強制註冊：
  *   手打的旗標名打錯一個字，需求端就永遠等不到且不會有錯誤訊息）。
  * - pristineOnly — 純潔者限定（觀測者與印記者不可見，且不可 bypass）。
+ * - alwaysLocked — 恆鎖定（條件恆不成立）。過渡期佔位用，只在 Concepts
+ *   的條目／群組／revision 層級露出（`showAlwaysLocked`）。
  *
  * 唯一進度軸是 History——「需先讀完」的頁面 picker 固定抓 history tree，
  * 與當前編輯的 area 無關（Concepts/Echoes 頁面的解鎖條件也綁 History 進度）。
@@ -54,6 +56,12 @@ interface GateConditionEditorProps {
    * `uep-` 系統旗標。
    */
   flagPrefix?: string;
+  /**
+   * 是否顯示「恆鎖定」開關。目前只有 Concepts 的條目／群組／revision 用得到
+   * ——那裡的內容常常先寫好、綁定的旗標之後才設計得出來。頁面層級沒有這個
+   * 需求（整頁未完成就別發佈），故預設關閉。
+   */
+  showAlwaysLocked?: boolean;
 }
 
 /**
@@ -113,7 +121,12 @@ function normalize(next: GateCondition): GateCondition | null {
   const condition: GateCondition = {};
   if (flags.length > 0) condition.requiresFlags = flags;
   if (next.pristineOnly) condition.pristineOnly = true;
-  return condition.requiresFlags || condition.pristineOnly ? condition : null;
+  if (next.alwaysLocked) condition.alwaysLocked = true;
+  return condition.requiresFlags ||
+    condition.pristineOnly ||
+    condition.alwaysLocked
+    ? condition
+    : null;
 }
 
 export default function GateConditionEditor({
@@ -129,6 +142,7 @@ export default function GateConditionEditor({
   accent,
   showScopeHint = true,
   flagPrefix,
+  showAlwaysLocked = false,
 }: GateConditionEditorProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pageTree, setPageTree] = useState<GatePageNode[]>([]);
@@ -137,6 +151,7 @@ export default function GateConditionEditor({
 
   const flags = value?.requiresFlags || [];
   const pristineOnly = value?.pristineOnly === true;
+  const alwaysLocked = value?.alwaysLocked === true;
 
   async function loadTree() {
     if (pageTree.length) return;
@@ -155,7 +170,13 @@ export default function GateConditionEditor({
   function addFlag(flag: string) {
     const trimmed = flag.trim();
     if (!trimmed || flags.includes(trimmed)) return;
-    onChange(normalize({ requiresFlags: [...flags, trimmed], pristineOnly }));
+    onChange(
+      normalize({
+        requiresFlags: [...flags, trimmed],
+        pristineOnly,
+        alwaysLocked,
+      })
+    );
   }
 
   function removeFlag(flag: string) {
@@ -163,17 +184,26 @@ export default function GateConditionEditor({
       normalize({
         requiresFlags: flags.filter((f) => f !== flag),
         pristineOnly,
+        alwaysLocked,
       })
     );
   }
 
   /** FlagPicker 直接給整份清單（它自己處理去重） */
   function setFlags(next: string[]) {
-    onChange(normalize({ requiresFlags: next, pristineOnly }));
+    onChange(normalize({ requiresFlags: next, pristineOnly, alwaysLocked }));
   }
 
   function setPristine(next: boolean) {
-    onChange(normalize({ requiresFlags: flags, pristineOnly: next }));
+    onChange(
+      normalize({ requiresFlags: flags, pristineOnly: next, alwaysLocked })
+    );
+  }
+
+  function setAlwaysLocked(next: boolean) {
+    onChange(
+      normalize({ requiresFlags: flags, pristineOnly, alwaysLocked: next })
+    );
   }
 
   function renderTree(nodes: GatePageNode[], depth = 0): React.ReactNode {
@@ -228,14 +258,14 @@ export default function GateConditionEditor({
           進度頁、且要求特定其他頁面讀過（例如伏筆回收） */}
       {supportsProgressToggle && (
         <div className="ned-inspector-toggle ned-gate-progress-toggle">
-          <span>progress page</span>
+          <span>進度頁</span>
           <input
             type="checkbox"
             checked={isProgressPage || inheritedProgressPage}
             disabled={inheritedProgressPage || exemptBlocksProgress}
             title={
               inheritedProgressPage
-                ? '父容器已標為進度頁，本頁自動視為進度頁（勾「exempt from container」可退出）'
+                ? '父容器已標為進度頁，本頁自動視為進度頁（勾「不繼承容器進度」可退出）'
                 : exemptBlocksProgress
                   ? '已豁免容器進度，不能同時自標為進度頁——先取消豁免'
                   : undefined
@@ -246,8 +276,8 @@ export default function GateConditionEditor({
       )}
       {supportsProgressToggle && inheritedProgressPage && (
         <div className="ned-gate-scope-hint">
-          ⓘ 繼承自父容器：本頁自動計入進度鏈與 container 完成判定。
-          若這一頁不算進度（如番外），勾下方「exempt from container」豁免即可。
+          ⓘ 繼承自父容器：本頁自動計入進度鏈與容器完成判定。
+          若這一頁不算進度（如番外），勾下方「不繼承容器進度」豁免即可。
         </div>
       )}
       {supportsProgressToggle && isProgressPage && !inheritedProgressPage && (
@@ -262,7 +292,7 @@ export default function GateConditionEditor({
           不影響本頁自身的手動 gate、進度頁鏈與父容器完成判定。 */}
       {supportsExemptToggle && (
         <div className="ned-inspector-toggle ned-gate-exempt-toggle">
-          <span>exempt from container</span>
+          <span>不繼承容器進度</span>
           <input
             type="checkbox"
             checked={isGateExempt}
@@ -327,15 +357,15 @@ export default function GateConditionEditor({
           if (!pickerOpen) void loadTree();
         }}
       >
-        {pickerOpen ? '－ collapse list' : '＋ requires completion…'}
+        {pickerOpen ? '－ 收合清單' : '＋ 需先讀完…'}
       </button>
 
       {pickerOpen && (
         <div className="ned-gate-picker">
           {treeLoading ? (
-            <div className="ned-gate-picker-empty">loading…</div>
+            <div className="ned-gate-picker-empty">載入中…</div>
           ) : pageTree.length === 0 ? (
-            <div className="ned-gate-picker-empty">unable to load pages</div>
+            <div className="ned-gate-picker-empty">無法載入頁面清單</div>
           ) : (
             renderTree(pageTree)
           )}
@@ -351,17 +381,39 @@ export default function GateConditionEditor({
         showSelected={false}
         restrictPrefix={flagPrefix}
         accent={accent}
-        placeholder={flagPrefix ? `${flagPrefix}…` : 'custom flag…'}
+        placeholder={flagPrefix ? `${flagPrefix}…` : '自訂旗標…'}
       />
 
       <div className="ned-inspector-toggle">
-        <span>pristine only</span>
+        <span>純潔者限定</span>
         <input
           type="checkbox"
           checked={pristineOnly}
           onChange={(e) => setPristine(e.target.checked)}
         />
       </div>
+
+      {/* 恆鎖定：與其餘條件是聯集，但它一票否決——勾了就不可能通過，
+          上面設什麼都不影響結果。故在 UI 上明說，免得看起來像沒生效。 */}
+      {showAlwaysLocked && (
+        <>
+          <div className="ned-inspector-toggle">
+            <span>恆鎖定</span>
+            <input
+              type="checkbox"
+              checked={alwaysLocked}
+              onChange={(e) => setAlwaysLocked(e.target.checked)}
+            />
+          </div>
+          {alwaysLocked && (
+            <div className="ned-gate-scope-hint">
+              ⓘ 恆鎖定：條件永遠不成立，任何身分（含觀測者）都看不到。
+              給「內容先寫好、要綁的旗標之後才設計」的過渡期用，
+              上方其他條件在解除恆鎖定前一律無效。
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

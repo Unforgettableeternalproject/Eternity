@@ -515,6 +515,52 @@ describe('resolveEntryDetails', () => {
     expect(after[0].summary[0]).toBe('揭露後的敘述。');
   });
 
+  it('dossier：別名排在描述之前', async () => {
+    stubFetch({
+      '/api/content/concepts/server/records/characters': {
+        ok: true,
+        data: {
+          content: [
+            {
+              type: 'dossier',
+              content: JSON.stringify({
+                variants: [
+                  {
+                    id: 'u',
+                    label: 'U',
+                    subcategories: [
+                      {
+                        label: '人物',
+                        groups: [
+                          {
+                            label: '',
+                            entries: [
+                              {
+                                name: '艾斯維爾·科索諾 Xavier Colsono',
+                                entityKey: 'xavier-colsono',
+                                aliases: ['艾斯', ' ', '隊長', '艾斯'],
+                                content_html: '<p>初始敘述。</p>',
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      },
+    });
+
+    const details = await resolveEntryDetails(xavierIndex, stateWith({}));
+    // 空字串與重複的別名不進顯示
+    expect(details[0].summary[0]).toBe('又名：艾斯、隊長');
+    expect(details[0].summary[1]).toBe('初始敘述。');
+  });
+
   it('browser placeholder → restricted 佔位（定案 C）', async () => {
     const target = indexEntry({
       name: '未認識角色',

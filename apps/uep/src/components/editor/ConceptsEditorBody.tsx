@@ -947,7 +947,7 @@ function DossierVariantBody({
                     }
                   />
                   <div className="ced-field-row">
-                    <label className="ced-label">revisions</label>
+                    <label className="ced-label">版本</label>
                     <button
                       className="ced-rev-open-btn"
                       onClick={() => setRevModalOpen(true)}
@@ -1029,6 +1029,7 @@ function DossierVariantBody({
                     }
                     apiBase={API_BASE}
                     accent={accent}
+                    showAlwaysLocked
                   />
                   {group.gate && (
                     <div className="ced-rev-hint">
@@ -1527,7 +1528,7 @@ function BrowserEditor({
                 existingKeys={usedEntityKeys}
               />
               <div className="ced-field-row">
-                <label className="ced-label">revisions</label>
+                <label className="ced-label">版本</label>
                 <button
                   className="ced-rev-open-btn"
                   onClick={() => setRevModalOpen(true)}
@@ -2494,7 +2495,7 @@ function ChronoEditor({
               </div>
 
               <div className="ced-field-row">
-                <label className="ced-label">revisions</label>
+                <label className="ced-label">版本</label>
                 <button
                   className="ced-rev-open-btn"
                   onClick={() => setRevModalOpen(true)}
@@ -3290,7 +3291,7 @@ function DiffEditor({
                   </div>
 
                   <div className="ced-field-row">
-                    <label className="ced-label">revisions</label>
+                    <label className="ced-label">版本</label>
                     <button
                       className="ced-rev-open-btn"
                       onClick={() => setRevModalOpen(true)}

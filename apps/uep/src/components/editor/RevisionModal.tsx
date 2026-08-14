@@ -287,6 +287,7 @@ export default function RevisionModal({
                         onChange={onBaseGateChange}
                         apiBase={API_BASE}
                         accent={accent}
+                        showAlwaysLocked
                       />
                     </div>
                   </>
@@ -324,6 +325,7 @@ export default function RevisionModal({
                     }
                     apiBase={API_BASE}
                     accent={accent}
+                    showAlwaysLocked
                   />
                 </div>
                 {!current.gate && (

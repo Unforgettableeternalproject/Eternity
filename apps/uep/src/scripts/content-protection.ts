@@ -89,8 +89,8 @@ const OVERLAY_RESTORE_MS = 1400;
  * 灰階並讓雜訊只落在她身上（雜訊層以同一張圖當遮罩，不然透明區會出現
  * 一塊矩形雜訊）。
  */
-const PROTECT_ART = '/uep/art/protect-no.webp';
-const PROTECT_ART_SIZE = { width: 1200, height: 1187 };
+export const PROTECT_ART = '/uep/art/protect-no.webp';
+export const PROTECT_ART_SIZE = { width: 1200, height: 1187 };
 
 /** 設定未載入時的預設機率（權威預設，與 worker 的 SETTING_DEFAULTS 對齊） */
 const PROTECT_ART_CHANCE_PCT = 10;

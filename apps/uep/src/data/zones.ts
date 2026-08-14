@@ -12,7 +12,6 @@ export interface ZoneData {
   soft: string;
   tint: string;
   uep: string[];
-  stats: Record<string, number>;
 }
 
 export const ZONES: ZoneData[] = [
@@ -34,7 +33,6 @@ export const ZONES: ZoneData[] = [
       '這些看起來像玻璃的東西叫做「回想碎片」，碰一下就會直接進到頭腦裡!',
       '那些咻咻咻飛來飛去的紙張，都在進行他們自己的「故事重導」喔!',
     ],
-    stats: { 篇章: 8, 區間: 3, 子章節: 60 },
   },
   {
     id: 'echoes',
@@ -54,7 +52,6 @@ export const ZONES: ZoneData[] = [
       '這些球球叫做「回聲」，每一個都儲存著一段重要的回憶!',
       '藍 / 紅 / 綠 / 紫 — 每種顏色都對應到不同類型的故事，記得嗎?',
     ],
-    stats: { 地點: 9, 角色組: 5, 劇情: 9, 特別: 3 },
   },
   {
     id: 'visuals',
@@ -74,7 +71,6 @@ export const ZONES: ZoneData[] = [
       '這裡是世界的印象，每一個人都曾經存在於某一個時間當中。',
       '他們是虛假幻象，但你是可以去接觸甚至仔細觀察他們的喔!',
     ],
-    stats: { 畫廊: 4, 走廊: 3, 草圖: 3, AI: 2 },
   },
   {
     id: 'concepts',
@@ -94,7 +90,6 @@ export const ZONES: ZoneData[] = [
       '所有關於世界的概念全部都在這裡! 他們會自己去修復錯誤並逐漸變得完美!',
       '這些東西看起來像是文字，但實際上是「原質」(Essence) 喔!',
     ],
-    stats: { 主機: 4, 紀錄: 12, 理論: 8, 對照: 3 },
   },
   {
     id: 'storage',
@@ -114,7 +109,6 @@ export const ZONES: ZoneData[] = [
       '這個空間像是某個人的倉庫? 不知道是不是被其他力量所干涉而產生的。',
       '如果你對於這裡有些興趣的話，之後應該可以帶你回來的!',
     ],
-    stats: { 對話: 1, 紀錄: 4, 外界: 2 },
   },
 ];
 

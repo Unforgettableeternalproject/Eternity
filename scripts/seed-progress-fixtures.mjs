@@ -10,12 +10,18 @@
  * 使用方式：
  *   node scripts/seed-progress-fixtures.mjs --test          # 灌入
  *   node scripts/seed-progress-fixtures.mjs --test --dry-run # 只列出要寫什麼
- *   node scripts/seed-progress-fixtures.mjs --local          # 本機 worker（:8788）
  *
- * ⚠️ **本腳本永遠不接受正式環境**。三層防護與 seed/reset 同源：
+ * ⚠️ **本腳本永遠不接受正式環境，也不接受本機**。三層防護與 seed/reset 同源：
  *   1. PROD_GUARD：prod 資源名稱與 URL 的完整段落比對
- *   2. hostname 檢查：目標主機第一段必須以 `-test` 結尾（local 例外）
- *   3. 沒有 `--remote` 這個選項——連打錯的機會都不留
+ *   2. hostname 檢查：目標主機第一段必須以 `-test` 結尾，無例外
+ *   3. 沒有 `--remote`、也沒有 `--local`——連打錯的機會都不留
+ *
+ * ⚠️ **為什麼拿掉 `--local`**（2026-08-14）：本機 D1 灌進去的素材沒有回收
+ * 路徑，而 `pnpm sync` 的推送判定只看「本地有、遠端沒有」**完全不看
+ * `status`**——那批 `local_only` 的素材是等著被推上正式站的未爆彈。
+ * 2026-08-11 就實際發生過一次（23 頁 + 2 旗標 + 9 個互聯 key 躺在本地 D1
+ * 三天，下一次 sync 就會上去）。本機驗證素材內容請改用單元測試或直接
+ * 讀 `scripts/fixtures/progress-fixtures.mjs`。
  *
  * ⚠️ 冪等：重跑會覆蓋同 id 的頁面，並清掉 `STALE_PAGE_IDS` 列出的舊位置殘留。
  * 要完全乾淨重來請先 `pnpm test:reset`（但 reset 只清 pages 與 root_*，
@@ -35,7 +41,6 @@ import { resolveWriteToken } from './sync-auth.mjs';
 
 const TEST_WORKER_URL =
   'https://eternity-content-api-test.ptyc4076.workers.dev';
-const LOCAL_WORKER_URL = 'http://localhost:8788';
 
 /**
  * 正式資源的完整名稱與 URL。
@@ -53,7 +58,6 @@ const PROD_GUARD = new Set([
 
 const TARGETS = {
   test: { label: '測試', url: TEST_WORKER_URL },
-  local: { label: '本地', url: LOCAL_WORKER_URL },
 };
 
 const args = process.argv.slice(2);
@@ -65,10 +69,17 @@ if (args.includes('--remote')) {
   process.exit(1);
 }
 
+if (args.includes('--local')) {
+  console.error(
+    '\n✗ 本腳本不再支援本機 D1。灌進本地的素材沒有回收路徑，而 sync 的\n' +
+      '  推送判定不看 status，那批 local_only 會在下次 sync 被推上正式站。\n'
+  );
+  process.exit(1);
+}
+
 if (!target) {
   console.error(
-    '\n用法: node scripts/seed-progress-fixtures.mjs --test [--dry-run]\n' +
-      '      node scripts/seed-progress-fixtures.mjs --local [--dry-run]\n'
+    '\n用法: node scripts/seed-progress-fixtures.mjs --test [--dry-run]\n'
   );
   process.exit(1);
 }
@@ -84,9 +95,7 @@ function assertNotProduction(targetUrl) {
     process.exit(1);
   }
 
-  // 本機 worker 打的是本地 D1，不適用 -test 命名規則
-  if (hostname === 'localhost' || hostname === '127.0.0.1') return;
-
+  // localhost 不再放行：`--local` 已移除，這裡留著等於留一道後門
   const firstSegment = hostname.split('.')[0];
   if (!firstSegment.endsWith('-test')) {
     console.error(

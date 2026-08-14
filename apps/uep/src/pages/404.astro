@@ -1,0 +1,350 @@
+---
+/**
+ * 404 fallback。
+ *
+ * Astro 內建的 404 是一張開發用的除錯頁，在正式站上等同把讀者丟出世界觀外。
+ * 這裡改用內容保護遮罩的斷訊語彙（見 components/ui/NotFoundPage）。
+ *
+ * 樣式寫在這一頁而不是走 `?inline` + useDeferredStyle：那套是給浮島與條件
+ * 出現的 UI 用的，首屏常駐的東西延後注入只會換來一幀無樣式的裸文字。
+ */
+import DesignLayout from '../layouts/DesignLayout.astro';
+import NotFoundPage from '../components/ui/NotFoundPage';
+---
+
+<DesignLayout
+  title="觀測失效 · U.E.P Imaginary Space"
+  description="這個座標上沒有可供觀測的紀錄。"
+>
+  <NotFoundPage client:load />
+</DesignLayout>
+
+<style is:global>
+  /* 與 scripts/content-protection.ts 注入的遮罩樣式刻意分開命名：那份只在
+     Reader 頁存在且由 JS 管生命週期，共用選擇器只會讓兩邊互相牽制。 */
+  .uep-nf {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    color: #f5f5f0;
+    font-family: var(--font-family-serif, 'Noto Serif TC', serif);
+    letter-spacing: 0.15em;
+    user-select: none;
+  }
+
+  .uep-nf__plate {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    background-color: #08080c;
+  }
+
+  .uep-nf__plate::before {
+    /* Scanline 質感 */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.025) 0px,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    animation: uep-nf-scanline-flicker 4s ease-in-out infinite;
+  }
+
+  .uep-nf__plate::after {
+    /* 緩慢掃過的橫向掃描條 */
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6vh;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.03) 45%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0.03) 55%,
+      transparent 100%
+    );
+    pointer-events: none;
+    mix-blend-mode: screen;
+    animation: uep-nf-sweep 9s ease-in-out infinite;
+  }
+
+  .uep-nf__noise {
+    position: absolute;
+    inset: -20%;
+    opacity: 0.06;
+    pointer-events: none;
+    filter: grayscale(1) contrast(1.5);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.85'/%3E%3C/svg%3E");
+  }
+
+  .uep-nf__title {
+    position: relative;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    color: #f5f5f0;
+    text-shadow:
+      0 0 20px rgba(200, 180, 140, 0.35),
+      0 0 3px rgba(255, 255, 255, 0.25);
+    animation: uep-nf-glitch 4.2s ease-in-out infinite;
+  }
+
+  /* RGB 色差複影 */
+  .uep-nf__title::before,
+  .uep-nf__title::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    letter-spacing: inherit;
+  }
+
+  .uep-nf__title::before {
+    color: rgba(255, 60, 90, 0.35);
+    animation: uep-nf-shift-r 5s ease-in-out infinite;
+  }
+
+  .uep-nf__title::after {
+    color: rgba(80, 200, 255, 0.35);
+    animation: uep-nf-shift-b 4.6s ease-in-out infinite;
+  }
+
+  .uep-nf__sub {
+    position: relative;
+    font-size: 0.85rem;
+    opacity: 0.6;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    animation: uep-nf-flicker 3.2s ease-in-out infinite;
+  }
+
+  .uep-nf__art {
+    position: relative;
+    height: min(52vh, 52vw);
+    animation: uep-nf-glitch 4.2s ease-in-out infinite;
+  }
+
+  .uep-nf__art img {
+    height: 100%;
+    width: auto;
+    filter: grayscale(1) contrast(1.08) brightness(0.94);
+    user-select: none;
+  }
+
+  /* 雜訊只落在立繪身上——不掛遮罩的話透明區會蓋出一塊矩形雜訊 */
+  .uep-nf__art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.42;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E");
+    -webkit-mask-image: url('/uep/art/protect-no.webp');
+    mask-image: url('/uep/art/protect-no.webp');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    animation: uep-nf-art-noise 1.1s steps(1, end) infinite;
+  }
+
+  .uep-nf__note {
+    position: relative;
+    margin: 0;
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 2;
+    opacity: 0.55;
+    letter-spacing: 0.16em;
+  }
+
+  .uep-nf__back {
+    position: relative;
+    padding: 0.5rem 1.75rem;
+    border: 1px solid rgba(245, 245, 240, 0.25);
+    color: #f5f5f0;
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    text-decoration: none;
+    opacity: 0.75;
+    transition:
+      opacity 200ms ease,
+      border-color 200ms ease;
+  }
+
+  .uep-nf__back:hover,
+  .uep-nf__back:focus-visible {
+    opacity: 1;
+    border-color: rgba(245, 245, 240, 0.55);
+  }
+
+  .uep-nf__mark {
+    position: absolute;
+    bottom: 2rem;
+    right: 2rem;
+    font-size: 0.7rem;
+    opacity: 0.3;
+    letter-spacing: 0.3em;
+  }
+
+  @keyframes uep-nf-glitch {
+    0%,
+    100% {
+      transform: translate(0, 0);
+      opacity: 1;
+    }
+    20% {
+      transform: translate(0, 0);
+      opacity: 0.96;
+    }
+    40% {
+      transform: translate(-1px, 0);
+      opacity: 1;
+    }
+    50% {
+      transform: translate(-1px, 0);
+      opacity: 0.88;
+    }
+    52% {
+      transform: translate(0, 0);
+      opacity: 1;
+    }
+    70% {
+      transform: translate(1px, 0);
+      opacity: 1;
+    }
+    85% {
+      transform: translate(0, 0);
+      opacity: 0.94;
+    }
+  }
+
+  @keyframes uep-nf-shift-r {
+    0%,
+    100% {
+      transform: translate(-1px, 0);
+    }
+    30% {
+      transform: translate(-2px, 0);
+    }
+    60% {
+      transform: translate(-1px, 1px);
+    }
+    80% {
+      transform: translate(-2px, 0);
+    }
+  }
+
+  @keyframes uep-nf-shift-b {
+    0%,
+    100% {
+      transform: translate(1px, 0);
+    }
+    30% {
+      transform: translate(2px, 0);
+    }
+    60% {
+      transform: translate(1px, -1px);
+    }
+    80% {
+      transform: translate(2px, 0);
+    }
+  }
+
+  @keyframes uep-nf-flicker {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    45% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.65;
+    }
+    75% {
+      opacity: 0.55;
+    }
+  }
+
+  @keyframes uep-nf-scanline-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.75;
+    }
+  }
+
+  @keyframes uep-nf-sweep {
+    0% {
+      top: -10vh;
+      opacity: 0;
+    }
+    15% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.35;
+    }
+    85% {
+      opacity: 0.5;
+    }
+    100% {
+      top: 110vh;
+      opacity: 0;
+    }
+  }
+
+  @keyframes uep-nf-art-noise {
+    0% {
+      background-position: 0 0;
+      opacity: 0.42;
+    }
+    25% {
+      background-position: 37px -23px;
+      opacity: 0.3;
+    }
+    50% {
+      background-position: -29px 41px;
+      opacity: 0.46;
+    }
+    75% {
+      background-position: 19px 27px;
+      opacity: 0.34;
+    }
+    100% {
+      background-position: -41px -17px;
+      opacity: 0.42;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .uep-nf__plate::before,
+    .uep-nf__plate::after,
+    .uep-nf__title,
+    .uep-nf__sub,
+    .uep-nf__art,
+    .uep-nf__art::after {
+      animation: none;
+    }
+  }
+</style>

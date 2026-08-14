@@ -186,6 +186,9 @@ export default function RevisionSimulator({
             </span>
             <span className="ced-rev-item-id">base</span>
             <span className="ced-rev-sim-note">base 解鎖條件</span>
+            {baseGate?.alwaysLocked && (
+              <span className="ced-rev-sim-note">恆鎖定</span>
+            )}
           </li>
         )}
         {revisions.map((rev, i) => (
@@ -199,6 +202,11 @@ export default function RevisionSimulator({
             </span>
             <span className="ced-rev-item-id">{rev.id || '(未命名)'}</span>
             {!rev.gate && <span className="ced-rev-sim-note">無條件</span>}
+            {/* 恆鎖定的 ✗ 與「旗標沒給齊」的 ✗ 長得一樣——不標出來的話，
+                旗標全打勾卻還是紅的會被當成求值器壞了 */}
+            {rev.gate?.alwaysLocked && (
+              <span className="ced-rev-sim-note">恆鎖定</span>
+            )}
             {outOfOrder.includes(i) && (
               <span
                 className="ced-rev-sim-warn"

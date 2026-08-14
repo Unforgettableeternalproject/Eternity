@@ -56,7 +56,6 @@ export interface ZoneMetaContent {
   atmos: string;
   glyphs: string[];
   uepShort: string[];
-  stats: Record<string, number>;
 }
 
 export interface ZoneSectionContent {

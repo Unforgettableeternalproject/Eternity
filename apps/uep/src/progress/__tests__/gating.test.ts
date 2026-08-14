@@ -121,6 +121,29 @@ describe('evaluateGate — 組合條件（番外情境）', () => {
   });
 });
 
+describe('evaluateGate — alwaysLocked（恆鎖定）', () => {
+  it('三種身分一律不可見', () => {
+    const cond = { alwaysLocked: true };
+    expect(evaluateGate(pristineExplorer, cond)).toBe(false);
+    expect(evaluateGate(markedExplorer, cond)).toBe(false);
+    expect(evaluateGate(observer, cond)).toBe(false);
+  });
+
+  it('一票否決：其餘條件全數滿足也不可見', () => {
+    const state = makeState({ flags: ['arc1:done'] });
+    expect(
+      evaluateGate(state, { requiresFlags: ['arc1:done'], alwaysLocked: true })
+    ).toBe(false);
+  });
+
+  it('明確 false 不影響其餘條件', () => {
+    const state = makeState({ flags: ['arc1:done'] });
+    expect(
+      evaluateGate(state, { requiresFlags: ['arc1:done'], alwaysLocked: false })
+    ).toBe(true);
+  });
+});
+
 describe('hasAllFlags', () => {
   it('AND 語意', () => {
     const state = makeState({ flags: ['a', 'b'] });
@@ -150,6 +173,16 @@ describe('parseGateCondition', () => {
     expect(parseGateCondition(undefined)).toBeNull();
     expect(parseGateCondition({ requiresFlags: [] })).toBeNull();
     expect(parseGateCondition({ pristineOnly: false })).toBeNull();
+    expect(parseGateCondition({ alwaysLocked: false })).toBeNull();
+  });
+
+  it('alwaysLocked 單獨成立即為有效條件（平鋪與巢狀皆可）', () => {
+    expect(parseGateCondition({ alwaysLocked: true })).toEqual({
+      alwaysLocked: true,
+    });
+    expect(parseGateCondition({ gate: { alwaysLocked: true } })).toEqual({
+      alwaysLocked: true,
+    });
   });
 
   it('過濾非字串與空字串旗標', () => {

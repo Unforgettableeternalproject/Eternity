@@ -2,9 +2,11 @@
  * PatchEditor — Revision patch 欄位編輯器（Epic 2 S7-B）
  *
  * 依 stack 動態渲染 patch.set 的欄位編輯器，patch.remove 為路徑列表。
- * 設計依據 docs/agent/S7_CONCEPTS_DESIGN.md §4-3：
- * - dossier：name / content_html / spoiler
- * - browser：name / placeholder / avatar / basic（整段）/ sections（整段）
+ * 設計依據 docs/agent/S7_CONCEPTS_DESIGN.md §4-3（欄位清單以實際資料模型
+ * 與消費端為準，不以設計文件為準——設計文件寫過的 spoiler 從未實作）：
+ * - dossier：name / content_html / aliases
+ * - browser：name / categories（整段）/ placeholder / avatar / basic（整段）/
+ *   sections（整段）
  * - chrono：title / fields.{id}.items（事件列，路徑動態）
  * - diff：term / values / hidden / locked
  * - 全 stack 支援自訂欄位（dot-notation 路徑 + JSON 值），涵蓋
@@ -51,10 +53,15 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
   dossier: [
     { path: 'name', label: '名稱', kind: 'text' },
     { path: 'content_html', label: '描述', kind: 'html' },
-    { path: 'spoiler', label: '劇透等級', kind: 'number' },
+    // 別名是條目編輯器的預設欄位，也真的有消費端（terminal 檢索與自動
+    // 偵測的匹配詞）——劇情推進後多一個代號、真名揭曉都靠 patch 它。
+    // 原本列在這裡的 spoiler 反而是死欄位：型別上有、編輯器沒有輸入欄、
+    // Reader 也不讀，patch 它不會有任何效果。
+    { path: 'aliases', label: '別名（整段替換）', kind: 'stringlist' },
   ],
   browser: [
     { path: 'name', label: '角色名稱', kind: 'text' },
+    { path: 'categories', label: '分類路徑（整段替換）', kind: 'stringlist' },
     { path: 'placeholder', label: '佔位符（鎖定）', kind: 'boolean' },
     { path: 'avatar', label: '頭像 R2 key', kind: 'text' },
     { path: 'basic', label: '基本資料（整段替換）', kind: 'keyvalue' },

@@ -27,8 +27,9 @@ beforeEach(() => {
 describe('inferFieldKind', () => {
   it('已知欄位走 stack 定義', () => {
     expect(inferFieldKind('dossier', 'content_html', '')).toBe('html');
-    expect(inferFieldKind('dossier', 'spoiler', 0)).toBe('number');
+    expect(inferFieldKind('dossier', 'aliases', [])).toBe('stringlist');
     expect(inferFieldKind('browser', 'placeholder', false)).toBe('boolean');
+    expect(inferFieldKind('browser', 'categories', [])).toBe('stringlist');
     expect(inferFieldKind('browser', 'basic', {})).toBe('keyvalue');
     expect(inferFieldKind('browser', 'sections', [])).toBe('sections');
     expect(inferFieldKind('diff', 'values', [])).toBe('stringlist');
