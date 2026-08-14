@@ -228,6 +228,12 @@ jobs:
           # 注意：不可加 [skip ci]——auto-merge 可能產生語意錯誤的合併結果
           # （如 v0.9.8.2 sync-back 曾把 RichEditor 的區塊重複兩份），
           # 必須讓 CI 在 sync 後完整驗證 develop
+          #
+          # ⚠️ 前提：合 PR 前 develop 必須已 ff 到 release tip
+          # （release-workflow.md 階段 8）。PR 是 squash，main 的歷史不含
+          # release commits，merge-base 停在上一版；develop 若落後，
+          # 這裡就是整包 diff 的滿版衝突（v1.0.0 實際發生過）。
+          # 前置做了之後兩邊內容一致，這個 merge 會自動通過。
           gh api "repos/${{ github.repository }}/merges" \
             -f base=develop \
             -f head=main \
