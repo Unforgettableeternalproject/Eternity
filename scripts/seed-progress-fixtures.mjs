@@ -330,10 +330,14 @@ async function main() {
      「exit 0 但素材不完整」的驗收環境比明著失敗更難排查。 */
   const indexMismatch = Object.entries(EXPECTED_INDEX)
     .filter(([field, expected]) => idx[field] !== expected)
-    .map(([field, expected]) => `${field} ${idx[field] ?? '?'}（預期 ${expected}）`);
+    .map(
+      ([field, expected]) => `${field} ${idx[field] ?? '?'}（預期 ${expected}）`
+    );
   if (keys.failed.length > 0 || indexMismatch.length > 0) {
     if (keys.failed.length > 0) {
-      process.stdout.write(`\n✗ key 說明未完整寫入：${keys.failed.join('、')}\n`);
+      process.stdout.write(
+        `\n✗ key 說明未完整寫入：${keys.failed.join('、')}\n`
+      );
     }
     if (indexMismatch.length > 0) {
       process.stdout.write(
