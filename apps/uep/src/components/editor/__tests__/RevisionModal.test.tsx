@@ -177,7 +177,7 @@ describe('RevisionModal — 編輯', () => {
     const { onChange } = setup({ revisions });
     // 選中第二個 revision（gate: null）
     fireEvent.click(screen.getByText('xavier-colsono:02'));
-    fireEvent.focus(screen.getByPlaceholderText(/custom flag/));
+    fireEvent.focus(screen.getByPlaceholderText(/自訂旗標/));
     // 同一個字串也是左欄的 revision id，限定在 picker 候選項上
     fireEvent.click(
       await screen.findByText('xavier-colsono:02', {
@@ -208,7 +208,7 @@ describe('RevisionModal — base gate（S7 驗收 #4）', () => {
     setup({ baseGate: null, onBaseGateChange });
     fireEvent.click(screen.getByText('base'));
     expect(screen.getByText('BASE 解鎖條件')).toBeInTheDocument();
-    fireEvent.focus(screen.getByPlaceholderText(/custom flag/));
+    fireEvent.focus(screen.getByPlaceholderText(/自訂旗標/));
     fireEvent.click(await screen.findByText('xavier-met'));
     expect(onBaseGateChange).toHaveBeenCalledWith({
       requiresFlags: ['xavier-met'],

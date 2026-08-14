@@ -14,6 +14,57 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 import GateConditionEditor from '../GateConditionEditor';
 
+describe('GateConditionEditor — 恆鎖定', () => {
+  it('預設不顯示（只有 Concepts 傳 showAlwaysLocked 才露出）', () => {
+    render(
+      <GateConditionEditor
+        value={null}
+        onChange={() => {}}
+        apiBase="http://localhost"
+        accent="#000"
+      />
+    );
+    expect(screen.queryByText('恆鎖定')).not.toBeInTheDocument();
+  });
+
+  it('勾選寫回 alwaysLocked，且保留既有條件', () => {
+    const onChange = vi.fn();
+    render(
+      <GateConditionEditor
+        value={{ requiresFlags: ['arc1:done'] }}
+        onChange={onChange}
+        apiBase="http://localhost"
+        accent="#000"
+        showAlwaysLocked
+      />
+    );
+    fireEvent.click(
+      screen.getByText('恆鎖定').closest('div')!.querySelector('input')!
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      requiresFlags: ['arc1:done'],
+      alwaysLocked: true,
+    });
+  });
+
+  it('取消勾選後條件只剩其餘部分（不留空殼）', () => {
+    const onChange = vi.fn();
+    render(
+      <GateConditionEditor
+        value={{ alwaysLocked: true }}
+        onChange={onChange}
+        apiBase="http://localhost"
+        accent="#000"
+        showAlwaysLocked
+      />
+    );
+    fireEvent.click(
+      screen.getByText('恆鎖定').closest('div')!.querySelector('input')!
+    );
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+});
+
 describe('GateConditionEditor — progressPage toggle', () => {
   it('未提供 onProgressPageChange 時不顯示 toggle（向後相容）', () => {
     render(
@@ -24,9 +75,9 @@ describe('GateConditionEditor — progressPage toggle', () => {
         accent="#000"
       />
     );
-    expect(screen.queryByText('progress page')).not.toBeInTheDocument();
-    // 「requires completion」按鈕仍存在
-    expect(screen.getByText(/requires completion/)).toBeInTheDocument();
+    expect(screen.queryByText('進度頁')).not.toBeInTheDocument();
+    // 「需先讀完」按鈕仍存在
+    expect(screen.getByText(/需先讀完/)).toBeInTheDocument();
   });
 
   it('提供 onProgressPageChange 時顯示 toggle', () => {
@@ -40,7 +91,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
         accent="#000"
       />
     );
-    expect(screen.getByText('progress page')).toBeInTheDocument();
+    expect(screen.getByText('進度頁')).toBeInTheDocument();
   });
 
   it('isProgressPage=true 時 picker 仍顯示（與鏈條件聯集），並顯示提示文字', () => {
@@ -57,7 +108,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
     // picker 觸發按鈕存在——可同時是進度頁又指定特定頁面
     const pickerButton = container.querySelector('.ned-gate-add-page');
     expect(pickerButton).toBeInTheDocument();
-    expect(pickerButton?.textContent).toMatch(/requires completion/);
+    expect(pickerButton?.textContent).toMatch(/需先讀完/);
     // 提示文字顯示
     expect(
       screen.getByText(/進度頁：解鎖倚賴同層前一個進度頁完成/)
@@ -77,7 +128,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
       />
     );
     const toggle = screen
-      .getByText('progress page')
+      .getByText('進度頁')
       .parentElement?.querySelector('input[type="checkbox"]');
     expect(toggle).toBeInTheDocument();
     fireEvent.click(toggle!);
@@ -111,7 +162,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
         accent="#000"
       />
     );
-    fireEvent.focus(screen.getByPlaceholderText(/custom flag/));
+    fireEvent.focus(screen.getByPlaceholderText(/自訂旗標/));
     fireEvent.click(await screen.findByText('novia-met'));
     expect(onChange).toHaveBeenCalledWith({ requiresFlags: ['novia-met'] });
     vi.restoreAllMocks();
@@ -130,7 +181,7 @@ describe('GateConditionEditor — progressPage toggle', () => {
       />
     );
     const checkbox = screen
-      .getByText('pristine only')
+      .getByText('純潔者限定')
       .parentElement?.querySelector('input[type="checkbox"]');
     fireEvent.click(checkbox!);
     expect(onChange).toHaveBeenCalledWith({ pristineOnly: true });
@@ -162,7 +213,7 @@ describe('GateConditionEditor — gateExempt 豁免 toggle', () => {
         accent="#000"
       />
     );
-    expect(screen.queryByText('exempt from container')).not.toBeInTheDocument();
+    expect(screen.queryByText('不繼承容器進度')).not.toBeInTheDocument();
   });
 
   it('切換 toggle 觸發 onGateExemptChange，勾選時顯示豁免提示', () => {
@@ -178,7 +229,7 @@ describe('GateConditionEditor — gateExempt 豁免 toggle', () => {
       />
     );
     const toggle = screen
-      .getByText('exempt from container')
+      .getByText('不繼承容器進度')
       .parentElement?.querySelector('input[type="checkbox"]');
     expect(toggle).toBeInTheDocument();
     fireEvent.click(toggle!);
@@ -212,8 +263,8 @@ describe('GateConditionEditor — gateExempt 豁免 toggle', () => {
         accent="#000"
       />
     );
-    expect(screen.getByText('progress page')).toBeInTheDocument();
-    expect(screen.getByText('exempt from container')).toBeInTheDocument();
+    expect(screen.getByText('進度頁')).toBeInTheDocument();
+    expect(screen.getByText('不繼承容器進度')).toBeInTheDocument();
   });
 });
 
@@ -333,6 +384,6 @@ describe('GateConditionEditor — gateExempt 誤設提醒', () => {
     );
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByText(/通常是誤設/)).not.toBeInTheDocument();
-    expect(screen.getByText('exempt from container')).toBeInTheDocument();
+    expect(screen.getByText('不繼承容器進度')).toBeInTheDocument();
   });
 });

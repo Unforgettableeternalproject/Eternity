@@ -785,9 +785,9 @@ export default function EchoesEditorBody({
               value={data.storyKey}
               existingKeys={otherStoryKeys}
               onChange={(storyKey) => update({ storyKey })}
-              label="劇情點 key"
+              label="劇情點ID"
               placeholder="如 rain-sea-finale（選填）"
-              duplicateMessage="此劇情點 key 已被其他歌曲使用"
+              duplicateMessage="此劇情點ID 已被其他歌曲使用"
             />
             <div className="ned-gate-scope-hint">
               未設定劇情點 key 的劇情歌只能透過 Echo Spot
@@ -803,7 +803,7 @@ export default function EchoesEditorBody({
               onChange={(entityKey) => update({ entityKey })}
             />
             <div className="ned-gate-scope-hint">
-              entityKey 用於角色／區域嵌入反查歌曲，也是收藏旗標的來源；
+              實體ID 用於角色／區域嵌入反查歌曲，也是收藏旗標的來源；
               留空的歌曲不會進入收藏池。
             </div>
           </>

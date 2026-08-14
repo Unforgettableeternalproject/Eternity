@@ -1349,10 +1349,10 @@ export default function VisualsEditorBody({
                 value={data.entityKey || undefined}
                 existingKeys={otherKeys.entityKeys}
                 onChange={(entityKey) => update({ entityKey: entityKey || '' })}
-                duplicateMessage="此 entityKey 已被其他 gallery 使用"
+                duplicateMessage="此實體ID 已被其他 gallery 使用"
               />
               <div className="ned-gate-scope-hint">
-                entityKey 用於角色／區域嵌入反查設定圖 gallery（浮動幻影提示
+                實體ID 用於角色／區域嵌入反查設定圖 gallery（浮動幻影提示
                 卡）；未綁定的 gallery 不參與嵌入反查。
               </div>
             </>
@@ -1363,9 +1363,9 @@ export default function VisualsEditorBody({
                 value={data.storyKey || undefined}
                 existingKeys={otherKeys.storyKeys}
                 onChange={(storyKey) => update({ storyKey: storyKey || '' })}
-                label="劇情點 key"
+                label="劇情點ID"
                 placeholder="如 rain-sea-finale（選填）"
-                duplicateMessage="此劇情點 key 已被其他 gallery 使用"
+                duplicateMessage="此劇情點ID 已被其他 gallery 使用"
               />
               <div className="ned-gate-scope-hint">
                 劇情點 key 供 History 文中的 Visual Clue 引用此 gallery；未設定

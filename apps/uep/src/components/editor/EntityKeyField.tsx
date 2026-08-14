@@ -93,11 +93,11 @@ interface EntityKeyFieldProps {
   onChange: (key: string | undefined) => void;
   /** 同範圍其他條目已用的 entityKey（排除自身），用於唯一性即時警告 */
   existingKeys: Set<string>;
-  /** 欄位標籤；預設 entityKey。Visuals 插圖 ID 等同構欄位沿用本元件 */
+  /** 欄位標籤；預設「實體ID」。Visuals 插圖 ID 等同構欄位沿用本元件 */
   label?: string;
   /** 輸入框 placeholder；預設 entityKey 範例 */
   placeholder?: string;
-  /** 重複時的警告文案；預設 entityKey 文案 */
+  /** 重複時的警告文案；預設實體ID 文案 */
   duplicateMessage?: string;
 }
 
@@ -105,9 +105,9 @@ export default function EntityKeyField({
   value,
   onChange,
   existingKeys,
-  label = 'entityKey',
+  label = '實體ID',
   placeholder = '如 xavier-colsono（選填）',
-  duplicateMessage = '此 entityKey 已被同範圍的其他條目使用',
+  duplicateMessage = '此實體ID 已被同範圍的其他條目使用',
 }: EntityKeyFieldProps) {
   const raw = value ?? '';
   const invalidFormat = raw.length > 0 && !ENTITY_KEY_PATTERN.test(raw);
