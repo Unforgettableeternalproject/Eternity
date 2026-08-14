@@ -229,15 +229,32 @@ jobs:
           # （如 v0.9.8.2 sync-back 曾把 RichEditor 的區塊重複兩份），
           # 必須讓 CI 在 sync 後完整驗證 develop
           #
-          # ⚠️ 前提：合 PR 前 develop 必須已 ff 到 release tip
-          # （release-workflow.md 階段 8）。PR 是 squash，main 的歷史不含
-          # release commits，merge-base 停在上一版；develop 若落後，
-          # 這裡就是整包 diff 的滿版衝突（v1.0.0 實際發生過）。
-          # 前置做了之後兩邊內容一致，這個 merge 會自動通過。
+          # ⚠️ head 用**原分支**而不是 main（2026-08-14 修正）
+          #
+          # PR 是 squash：main 只會拿到一顆不含 release/hotfix commits 的新
+          # commit，因此 `head=main` 的 merge-base 會退到上一版，整包 diff 對上
+          # develop 既有的相同變更就是滿版衝突（v1.0.0 實際卡住過）。
+          # 從原分支合則 merge-base 正是 develop 切出它的那一點，diff 只有這批
+          # commit，develop 直接 ff——而且拿到的是完整歷史而非壓平的一顆。
+          #
+          # 分支名由 branch_type + version 推導（`hotfix/v1.0.0`、`release/v1.0.0`），
+          # 靠的是分支命名慣例。repo 設定 delete_branch_on_merge=false，所以這一步
+          # 跑的時候原分支還在；真的不在（手動刪了、或命名不合慣例）就退回
+          # `head=main`，此時仰賴 release-workflow.md 階段 8 的合併前 ff 前置。
+          SOURCE_BRANCH="${BRANCH_TYPE}/v${VERSION}"
+          if git ls-remote --exit-code --heads origin "$SOURCE_BRANCH" >/dev/null 2>&1; then
+            HEAD_REF="$SOURCE_BRANCH"
+            echo "↩️  Sync back from source branch: $HEAD_REF"
+          else
+            HEAD_REF="main"
+            echo "⚠️  Source branch $SOURCE_BRANCH not found — falling back to main."
+            echo "    合併前若沒先 ff develop，這一步會衝突（release-workflow.md 階段 8）"
+          fi
+
           gh api "repos/${{ github.repository }}/merges" \
             -f base=develop \
-            -f head=main \
-            -f commit_message="chore: sync from main after ${BRANCH_TYPE} v${VERSION}"
+            -f head="$HEAD_REF" \
+            -f commit_message="chore: sync from ${HEAD_REF} after ${BRANCH_TYPE} v${VERSION}"
           echo "✅ Synced changes back to develop (GitHub-signed merge)"
 
       - name: Sync back to staging (release only)
